@@ -588,9 +588,8 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
   {
     buf_page_make_young_if_needed(&block->page);
     buf_block_t *undo_block= block;
-    const trx_undo_rec_t *undo_rec= block->page.frame + undo.top_offset;
-
-    do
+    uint16_t undo_rec_offset= undo.top_offset;
+    for (const trx_undo_rec_t *undo_rec= block->page.frame + undo_rec_offset;;)
     {
       byte type;
       byte cmpl_info;
@@ -606,11 +605,14 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
       trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info,
                             &updated_extern, &undo_no, &table_id);
       tables.emplace(table_id, type == TRX_UNDO_EMPTY);
-      undo_rec= trx_undo_get_prev_rec(block, page_offset(undo_rec),
+      ut_ad(page_offset(undo_rec) == undo_rec_offset);
+      undo_rec= trx_undo_get_prev_rec(block, undo_rec_offset,
                                       undo.hdr_page_no, undo.hdr_offset,
                                       true, &mtr);
+      if (!undo_rec)
+        break;
+      undo_rec_offset= uint16_t(undo_rec - block->page.frame);
     }
-    while (undo_rec);
   }
 
   mtr.commit();
@@ -1054,13 +1056,13 @@ void trx_t::commit_empty(mtr_t *mtr)
       {
         mtr->memcpy(*u, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START +
                     u->page.frame, prev + TRX_UNDO_LOG_START, 2);
-        const ulint free= page_offset(last);
+        const ulint free= last - u->page.frame;
         mtr->write<2>(*u, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
                       u->page.frame, free);
         mtr->write<2>(*u, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + u->page.frame,
                       TRX_UNDO_CACHED);
         mtr->write<2>(*u, TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG + u->page.frame,
-                      page_offset(prev));
+                      uintptr_t(prev - u->page.frame));
         mtr->write<2>(*u, prev + TRX_UNDO_NEXT_LOG, 0U);
         mtr->memset(u, free, srv_page_size - FIL_PAGE_DATA_END - free, 0);
 
@@ -1240,7 +1242,7 @@ trx_finalize_for_fts(
 }
 
 extern "C" MYSQL_THD thd_increment_pending_ops(MYSQL_THD);
-extern "C" void  thd_decrement_pending_ops(MYSQL_THD);
+extern "C" void  thd_decrement_pending_ops(void*);
 
 
 #include "../log/log0sync.h"
@@ -1269,7 +1271,7 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
 
     if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
     {
-      cb.m_callback= (void (*)(void *)) thd_decrement_pending_ops;
+      cb.m_callback= thd_decrement_pending_ops;
       log_write_up_to(lsn, flush, &cb);
       return;
     }
@@ -1357,10 +1359,8 @@ ATTRIBUTE_NOINLINE static void trx_commit_cleanup(trx_undo_t *&undo)
         buf_page_get(page_id_t(SRV_TMP_SPACE_ID, undo->hdr_page_no), 0,
                      RW_X_LATCH, &mtr))
     {
-      fseg_header_t *file_seg= TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
-        block->page.frame;
-
-      finished= fseg_free_step(file_seg, &mtr);
+      finished= fseg_free_step(block, TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER,
+                               &mtr);
 
       if (!finished);
       else if (buf_block_t *rseg_header= rseg->get(&mtr, nullptr))

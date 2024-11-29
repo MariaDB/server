@@ -462,8 +462,7 @@ ATTRIBUTE_COLD static dberr_t srv_undo_tablespaces_reinit()
       buf_block_t *block= buf_page_get_gen(
         rseg->page_id(), 0, RW_X_LATCH, nullptr, BUF_GET, &mtr);
       if (!block) break;
-      while (!fseg_free_step(TRX_RSEG + TRX_RSEG_FSEG_HEADER +
-                             block->page.frame, &mtr));
+      while (!fseg_free_step(block, TRX_RSEG + TRX_RSEG_FSEG_HEADER, &mtr));
     }
   }
 

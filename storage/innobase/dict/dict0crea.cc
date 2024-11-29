@@ -901,7 +901,8 @@ rec_corrupted:
       static_assert(FIL_NULL == 0xffffffff, "compatibility");
       static_assert(DICT_FLD__SYS_INDEXES__PAGE_NO ==
                     DICT_FLD__SYS_INDEXES__SPACE + 1, "compatibility");
-      mtr->memset(btr_pcur_get_block(pcur), page_offset(p + 4), 4, 0xff);
+      mtr->memset(btr_pcur_get_block(pcur), p + 4 - btr_pcur_get_page(pcur),
+                  4, 0xff);
       btr_free_if_exists(s, root_page_no, mach_read_from_8(rec + 8), mtr);
     }
     s->release();
@@ -1310,7 +1311,7 @@ function_exit:
 	return(thr);
 }
 
-bool dict_sys_t::load_sys_tables()
+bool dict_sys_t::load_sys_tables() noexcept
 {
   ut_ad(!srv_any_background_activity());
   bool mismatch= false;
@@ -1353,7 +1354,7 @@ bool dict_sys_t::load_sys_tables()
   return mismatch;
 }
 
-dberr_t dict_sys_t::create_or_check_sys_tables()
+dberr_t dict_sys_t::create_or_check_sys_tables() noexcept
 {
   if (sys_tables_exist())
     return DB_SUCCESS;

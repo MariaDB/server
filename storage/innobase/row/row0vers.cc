@@ -149,9 +149,9 @@ row_vers_impl_x_locked_low(
 		}
 	}
 
-	const ulint comp = page_rec_is_comp(rec);
+	const bool comp = index->table->not_redundant();
+        ut_ad(!!page_rec_is_comp(rec) == comp);
 	ut_ad(index->table == clust_index->table);
-	ut_ad(!!comp == dict_table_is_comp(index->table));
 	ut_ad(!comp == !page_rec_is_comp(clust_rec));
 
 	const ulint rec_del = rec_get_deleted_flag(rec, comp);
@@ -402,6 +402,10 @@ row_vers_impl_x_locked(
 	const rec_t*	clust_rec;
 	dict_index_t*	clust_index;
 
+	/* The function must not be invoked under lock_sys latch to prevert
+	latching orded violation, i.e. page latch must be acquired before
+	lock_sys latch */
+	lock_sys.assert_unlocked();
 	/* The current function can be called from lock_rec_unlock_unmodified()
 	under lock_sys.wr_lock() */
 

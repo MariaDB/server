@@ -15,8 +15,17 @@
 #    file. By default the search happens from the last CURRENT_TEST:
 #    marker till the end of file (appropriate for searching error logs).
 #
-#    Optionally, SEARCH_ABORT can be set to "FOUND" or "NOT FOUND" and this
-#    will abort if the search result doesn't match the requested one.
+#    Optionally, SEARCH_ABORT can be specified to abort the search (in error)
+#    if a specific search result is found. Its value is a regular expression
+#    (with an implicit start-of-string anchor '^' prepended), and the search
+#    result that it will match against is either 1) "FOUND <N>", where <N> is
+#    the specific number of matches found, or 2) "NOT FOUND".
+#
+#    Optionally, SEARCH_WAIT can be specified to wait for a specific search
+#    result. Its usage mimics that of SEARCH_ABORT, in that its value is also
+#    a '^'-prepended regular expression, which will be matched against the same
+#    search result. The timeout can be set in SEARCH_TIMEOUT, default is 60
+#    seconds.
 #
 #    Optionally, SEARCH_WAIT can be set to "FOUND" or "NOT FOUND", and this
 #    will wait for the condition to occur. The timeout can be set in
@@ -91,8 +100,7 @@ perl;
         @matches= ($content =~ /$search_pattern/gs);
         $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
 
-        if (($ENV{SEARCH_WAIT} eq 'FOUND' && $res eq 'NOT FOUND') ||
-            ($ENV{SEARCH_WAIT} eq 'NOT FOUND' && $res =~ m{^FOUND })) {
+        if ($ENV{SEARCH_WAIT} and not $res =~ /^$ENV{SEARCH_WAIT}/) {
             if (time() - $start_time < $timeout) {
                 # Millisceond sleep emulated with select
                 select(undef, undef, undef, 0.1);

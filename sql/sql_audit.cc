@@ -18,8 +18,8 @@
 #include "mysqld.h"
 #include "sql_audit.h"
 
-extern int initialize_audit_plugin(st_plugin_int *plugin);
-extern int finalize_audit_plugin(st_plugin_int *plugin);
+extern int initialize_audit_plugin(void *plugin);
+extern int finalize_audit_plugin(void *plugin);
 
 #ifndef EMBEDDED_LIBRARY
 
@@ -262,8 +262,9 @@ void mysql_audit_finalize()
   @retval TRUE   There was an error.
 */
 
-int initialize_audit_plugin(st_plugin_int *plugin)
+int initialize_audit_plugin(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   st_mysql_audit *data= (st_mysql_audit*) plugin->plugin->info;
 
   if (!data->event_notify || !data->class_mask[0])
@@ -346,8 +347,9 @@ static my_bool calc_class_mask(THD *thd, plugin_ref plugin, void *arg)
   @retval FALSE  OK
   @retval TRUE   There was an error.
 */
-int finalize_audit_plugin(st_plugin_int *plugin)
+int finalize_audit_plugin(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   int deinit_status= 0;
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
   
@@ -455,13 +457,13 @@ void mysql_audit_finalize()
 }
 
 
-int initialize_audit_plugin(st_plugin_int *plugin)
+int initialize_audit_plugin(void *plugin)
 {
   return 1;
 }
 
 
-int finalize_audit_plugin(st_plugin_int *plugin)
+int finalize_audit_plugin(void *plugin)
 {
   return 0;
 }

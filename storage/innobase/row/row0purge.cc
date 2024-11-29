@@ -761,6 +761,22 @@ bool row_purge_poss_sec(purge_node_t *node, dict_index_t *index,
   return can_delete;
 }
 
+/** Report an error about not delete-marked secondary index record
+that was about to be purged.
+@param cur   cursor on the secondary index record
+@param entry search key */
+ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+static void row_purge_del_mark_error(const btr_cur_t &cursor,
+                                     const dtuple_t &entry)
+{
+  const dict_index_t *index= cursor.index();
+  ib::error() << "tried to purge non-delete-marked record in index "
+              << index->name << " of table " << index->table->name
+              << ": tuple: " << entry
+              << ", record: " << rec_index_print(cursor.page_cur.rec, index);
+  ut_ad(0);
+}
+
 __attribute__((nonnull, warn_unused_result))
 /** Remove a secondary index entry if possible, by modifying the index tree.
 @param node             purge node
@@ -780,6 +796,16 @@ static bool row_purge_remove_sec_if_poss_tree(purge_node_t *node,
 	mtr_t			mtr;
 
 	log_free_check();
+#ifdef ENABLED_DEBUG_SYNC
+	DBUG_EXECUTE_IF("enable_row_purge_sec_tree_sync",
+		debug_sync_set_action(current_thd, STRING_WITH_LEN(
+			"now SIGNAL "
+			"purge_sec_tree_begin"));
+		debug_sync_set_action(current_thd, STRING_WITH_LEN(
+			"now WAIT_FOR "
+			"purge_sec_tree_execute"));
+	);
+#endif
 	mtr.start();
 	index->set_modified(mtr);
 	pcur.btr_cur.page_cur.index = index;
@@ -827,26 +853,13 @@ found:
 
 		/* Remove the index record, which should have been
 		marked for deletion. */
-		if (!rec_get_deleted_flag(btr_cur_get_rec(
-						btr_pcur_get_btr_cur(&pcur)),
-					  dict_table_is_comp(index->table))) {
-			ib::error()
-				<< "tried to purge non-delete-marked record"
-				" in index " << index->name
-				<< " of table " << index->table->name
-				<< ": tuple: " << *entry
-				<< ", record: " << rec_index_print(
-					btr_cur_get_rec(
-						btr_pcur_get_btr_cur(&pcur)),
-					index);
-
-			ut_ad(0);
-
+		if (!rec_get_deleted_flag(btr_pcur_get_rec(&pcur),
+					  index->table->not_redundant())) {
+			row_purge_del_mark_error(pcur.btr_cur, *entry);
 			goto func_exit;
 		}
 
-		btr_cur_pessimistic_delete(&err, FALSE,
-					   btr_pcur_get_btr_cur(&pcur),
+		btr_cur_pessimistic_delete(&err, FALSE, &pcur.btr_cur,
 					   0, false, &mtr);
 		switch (UNIV_EXPECT(err, DB_SUCCESS)) {
 		case DB_SUCCESS:
@@ -865,12 +878,34 @@ func_exit:
 	return success;
 }
 
+/** Compute a nonzero return value of row_purge_remove_sec_if_poss_leaf().
+@param page  latched secondary index page
+@return PAGE_MAX_TRX_ID for row_purge_remove_sec_if_poss_tree()
+@retval 1 if a further row_purge_poss_sec() check is necessary */
+ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
+static trx_id_t row_purge_check(const page_t *page) noexcept
+{
+  trx_id_t id= page_get_max_trx_id(page);
+  ut_ad(id);
+  if (trx_sys.find_same_or_older_in_purge(purge_sys.query->trx, id))
+    /* Because an active transaction may modify the secondary index
+    but not PAGE_MAX_TRX_ID, row_purge_poss_sec() must be invoked
+    again after re-latching the page. Let us return a bogus ID. Yes,
+    an actual transaction with ID 1 would create the InnoDB dictionary
+    tables in dict_sys_t::create_or_check_sys_tables(), but it would
+    exclusively write TRX_UNDO_INSERT_REC records. Purging those
+    records never involves row_purge_remove_sec_if_poss_tree(). */
+    id= 1;
+  return id;
+}
+
 __attribute__((nonnull, warn_unused_result))
 /** Remove a secondary index entry if possible, without modifying the tree.
 @param node             purge node
 @param index            secondary index
 @param entry            index entry
 @return PAGE_MAX_TRX_ID for row_purge_remove_sec_if_poss_tree()
+@retval 1 if a further row_purge_poss_sec() check is necessary
 @retval 0 if success or if not found */
 static trx_id_t row_purge_remove_sec_if_poss_leaf(purge_node_t *node,
                                                   dict_index_t *index,
@@ -910,39 +945,28 @@ found:
 		/* Before attempting to purge a record, check
 		if it is safe to do so. */
 		if (row_purge_poss_sec(node, index, entry, &mtr)) {
-			btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&pcur);
-
 			/* Only delete-marked records should be purged. */
-			if (!rec_get_deleted_flag(
-				btr_cur_get_rec(btr_cur),
-				dict_table_is_comp(index->table))) {
-
-				ib::error()
-					<< "tried to purge non-delete-marked"
-					" record" " in index " << index->name
-					<< " of table " << index->table->name
-					<< ": tuple: " << *entry
-					<< ", record: "
-					<< rec_index_print(
-						btr_cur_get_rec(btr_cur),
-						index);
+			if (!rec_get_deleted_flag(btr_pcur_get_rec(&pcur),
+						  index->table
+						  ->not_redundant())) {
+				row_purge_del_mark_error(pcur.btr_cur, *entry);
 				mtr.commit();
 				dict_set_corrupted(index, "purge");
 				goto cleanup;
 			}
 
 			if (index->is_spatial()) {
-				const buf_block_t* block = btr_cur_get_block(
-					btr_cur);
+				const buf_block_t* block = btr_pcur_get_block(
+					&pcur);
 
 				if (block->page.id().page_no()
 				    != index->page
 				    && page_get_n_recs(block->page.frame) < 2
 				    && !lock_test_prdt_page_lock(
-					    btr_cur->rtr_info
-					    && btr_cur->rtr_info->thr
+					    pcur.btr_cur.rtr_info
+					    && pcur.btr_cur.rtr_info->thr
 					    ? thr_get_trx(
-						    btr_cur->rtr_info->thr)
+						   pcur.btr_cur.rtr_info->thr)
 					    : nullptr,
 					    block->page.id())) {
 					/* this is the last record on page,
@@ -957,11 +981,11 @@ found:
 				}
 			}
 
-			if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)
-                            == DB_FAIL) {
-				page_max_trx_id = page_get_max_trx_id(
-					btr_cur_get_page(btr_cur));
-                        }
+			if (btr_cur_optimistic_delete(&pcur.btr_cur, 0, &mtr)
+			    == DB_FAIL) {
+				page_max_trx_id = row_purge_check(
+					btr_pcur_get_page(&pcur));
+			}
 		}
 
 		/* (The index entry is still needed,
@@ -1113,7 +1137,7 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
-				size_t offs = page_offset(ptr);
+				size_t offs = ptr - block->page.frame;
 				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
 				offs += DATA_TRX_ID_LEN;
 				mtr->write<1,mtr_t::MAYBE_NOP>(

@@ -1284,11 +1284,13 @@ rtr_page_get_father_block(
 	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
 				its page x-latched */
 {
-  rec_t *rec=
-    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  const page_t *const page= cursor->block()->page.frame;
+  const rec_t *rec= page_is_comp(page)
+    ? page_rec_next_get<true>(page, page + PAGE_NEW_INFIMUM)
+    : page_rec_next_get<false>(page, page + PAGE_OLD_INFIMUM);
   if (!rec)
     return nullptr;
-  cursor->page_cur.rec= rec;
+  cursor->page_cur.rec= const_cast<rec_t*>(rec);
   return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor, mtr);
 }
 

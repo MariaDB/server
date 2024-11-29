@@ -644,10 +644,25 @@ public:
   Cleared in commit_in_memory() after commit_state(),
   trx_sys_t::deregister_rw(), release_locks(). */
   trx_id_t id;
-  /** The largest encountered transaction identifier for which no
-  transaction was observed to be active. This is a cache to speed up
-  trx_sys_t::find_same_or_older(). */
-  trx_id_t max_inactive_id;
+  union
+  {
+    /** The largest encountered transaction identifier for which no
+    transaction was observed to be active. This is a cache to speed up
+    trx_sys_t::find_same_or_older().
+
+    This will be zero-initialized in Pool::Pool() and not initialized
+    when a transaction object in the pool is freed and reused. The
+    idea is that new transactions can reuse the result of
+    an expensive trx_sys_t::find_same_or_older_low() invocation that
+    was performed in an earlier transaction that used the same
+    memory area. */
+    trx_id_t max_inactive_id;
+    /** Same as max_inactive_id, for purge_sys.query->trx which may be
+    accessed by multiple concurrent threads in in
+    trx_sys_t::find_same_or_older_in_purge(). Writes are protected by
+    trx_t::mutex. */
+    Atomic_relaxed<trx_id_t> max_inactive_id_atomic;
+  };
 
 private:
   /** mutex protecting state and some of lock

@@ -1,6 +1,6 @@
 show variables like "system_time_zone";
 Variable_name	Value
-system_time_zone	MET
+system_time_zone	CET
 #
 # Test unix timestamp
 #

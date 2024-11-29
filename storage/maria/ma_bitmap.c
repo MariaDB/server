@@ -1068,23 +1068,30 @@ static my_bool _ma_read_bitmap_page(MARIA_HA *info,
   adjust_total_size(info, page);
   bitmap->full_head_size=  bitmap->full_tail_size= 0;
   DBUG_ASSERT(share->pagecache->block_size == bitmap->block_size);
-  res= pagecache_read(share->pagecache,
-                      &bitmap->file, page, 0,
-                      bitmap->map, PAGECACHE_PLAIN_PAGE,
-                      PAGECACHE_LOCK_LEFT_UNLOCKED, 0) == NULL;
 
-  if (!res)
+  if (share->internal_table &&
+      page == 0 && share->state.state.data_file_length == bitmap->block_size)
   {
-    /* Calculate used_size */
-    const uchar *data, *end=  bitmap->map;
-    for (data= bitmap->map + bitmap->total_size; --data >= end && *data == 0; )
-    {}
-    bitmap->used_size= (uint) ((data + 1) - end);
-    DBUG_ASSERT(bitmap->used_size <= bitmap->total_size);
+    /* Avoid read of bitmap for internal temporary tables */
+    bzero(bitmap->map, bitmap->block_size);
+    bitmap->used_size= 0;
+    res= 0;
   }
   else
   {
-    _ma_set_fatal_error(info, my_errno);
+    res= pagecache_read(share->pagecache,
+                        &bitmap->file, page, 0,
+                        bitmap->map, PAGECACHE_PLAIN_PAGE,
+                        PAGECACHE_LOCK_LEFT_UNLOCKED, 0) == NULL;
+    if (!res)
+    {
+      /* Calculate used_size */
+      const uchar *data, *end=  bitmap->map;
+      for (data= bitmap->map + bitmap->total_size; --data >= end && *data == 0; )
+      {}
+      bitmap->used_size= (uint) ((data + 1) - end);
+      DBUG_ASSERT(bitmap->used_size <= bitmap->total_size);
+    }
   }
   /*
     We can't check maria_bitmap_marker here as if the bitmap page
