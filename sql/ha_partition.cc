@@ -10143,7 +10143,8 @@ void ha_partition::print_error(int error, myf errflag)
 
   /* Should probably look for my own errors first */
   if ((error == HA_ERR_NO_PARTITION_FOUND) &&
-      ! (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE))
+      ! (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+         (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE)))
   {
     m_part_info->print_no_partition_found(table, errflag);
     DBUG_VOID_RETURN;
