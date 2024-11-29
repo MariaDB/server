@@ -552,6 +552,7 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
 {
   PSI_stage_info old_stage;
   int res= 0;
+  bool did_enter_cond= false;
 
   /*
     Wait here while the queue is busy. This is done to make FLUSH TABLES WITH
@@ -568,24 +569,28 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
   */
   DBUG_EXECUTE_IF("mark_busy_mdev_22370",my_sleep(1000000););
   mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
-  if (thd)
+  if (pool->busy)
   {
-    thd->set_time_for_next_stage();
-    thd->ENTER_COND(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool,
-                    &stage_waiting_for_rpl_thread_pool, &old_stage);
-  }
-  while (pool->busy)
-  {
-    if (thd && unlikely(thd->check_killed()))
+    if (thd)
     {
-      res= 1;
-      break;
+      thd->set_time_for_next_stage();
+      thd->ENTER_COND(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool,
+                      &stage_waiting_for_rpl_thread_pool, &old_stage);
+      did_enter_cond= true;
     }
-    mysql_cond_wait(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool);
+    do
+    {
+      if (thd && unlikely(thd->check_killed()))
+      {
+        res= 1;
+        break;
+      }
+      mysql_cond_wait(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool);
+    } while (pool->busy);
   }
   if (!res)
     pool->busy= true;
-  if (thd)
+  if (did_enter_cond)
     thd->EXIT_COND(&old_stage);
   else
     mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
