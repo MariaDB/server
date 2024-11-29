@@ -3091,7 +3091,20 @@ static char gtid_begin_string[] = "BEGIN";
 int
 Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   ulonglong bits= thd->variables.option_bits;
+
+  if (unlikely(thd->transaction->all.ha_list || (bits & OPTION_GTID_BEGIN)))
+  {
+    rli->report(WARNING_LEVEL, 0, NULL,
+                "Rolling back unfinished transaction (no COMMIT "
+                "or ROLLBACK in relay log). This indicates a corrupt binlog "
+                "on the master, possibly caused by disk full or other write "
+                "error.");
+    rgi->cleanup_context(thd, 1);
+    bits= thd->variables.option_bits;
+  }
+
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
@@ -3110,7 +3123,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 
   DBUG_ASSERT((bits & OPTION_GTID_BEGIN) == 0);
 
-  Master_info *mi=rgi->rli->mi;
+  Master_info *mi= rli->mi;
   switch (flags2 & (FL_DDL | FL_TRANSACTIONAL))
   {
     case FL_TRANSACTIONAL:
