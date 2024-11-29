@@ -1422,13 +1422,13 @@ class User_table_json: public User_table
     const char *array;
     int vl;
     const char *v;
-    USER_AUTH::LOGICAL_PREDICATE pred= USER_AUTH::NONE;
     if (!get_value("auth_or", JSV_ARRAY, &array, &array_len))
       u->auth_pred= USER_AUTH::OR;
     else if (!get_value("auth_and", JSV_ARRAY, &array, &array_len))
       u->auth_pred= USER_AUTH::AND;
     else
     {
+      u->auth_pred= USER_AUTH::NONE;
       u->alloc_auth(root, 1);
       return get_auth1(thd, root, u, 0);
     }
@@ -1503,12 +1503,11 @@ class User_table_json: public User_table
   {
     size_t array_len;
     const char *array;
-    bool has_auth_or= !get_value("auth_or", JSV_ARRAY, &array, &array_len);
-    bool has_auth_and= !has_auth_or && !get_value("auth_and", JSV_ARRAY, &array, &array_len);
-
-    if (u.nauth == 1 && !has_auth_or && !has_auth_and)
+    if (u.nauth == 1  &&
+        get_value("auth_or", JSV_ARRAY, &array, &array_len))
+    {
       return set_auth1(u, 0);
-
+    }
     StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
     bool top_done = false;
     json.append('[');
@@ -1542,7 +1541,8 @@ class User_table_json: public User_table
       json.append('}');
     }
     json.append(']');
-    return set_value(has_auth_or ? "auth_or" : "auth_and", json.ptr(), json.length(),
+    return set_value(u.auth_pred == USER_AUTH::LOGICAL_PREDICATE::OR ? "auth_or" : "auth_and", json.ptr(),
+                     json.length(),
                      false) == JSV_BAD_JSON;
   }
   bool set_auth1(const ACL_USER &u, uint i) const
