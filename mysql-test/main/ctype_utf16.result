@@ -2910,5 +2910,15 @@ CAST(_utf16 0x0061D83DDE0E0062 AS INT)
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'a?b'
 #
+# MDEV-23138 Odd behavior of character_set variables set to utf16 (when allowed)
+#
+SET character_set_connection=utf16;
+SET tx_isolation= 'READ-COMMITTED';
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-COMMITTED
+SET tx_isolation=DEFAULT;
+SET NAMES utf8mb3;
+#
 # End of 10.5 tests
 #

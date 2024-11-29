@@ -947,16 +947,58 @@ public:
     @return whether any transaction not newer than id might be active
   */
 
-  bool find_same_or_older(trx_t *trx, trx_id_t id)
+  bool find_same_or_older_low(trx_t *trx, trx_id_t id) noexcept;
+
+  /**
+    Determine if the specified transaction or any older one might be active.
+
+    @param trx         transaction whose max_inactive_id will be consulted
+    @param id          identifier of another transaction
+    @return whether any transaction not newer than id might be active
+  */
+
+  bool find_same_or_older(trx_t *trx, trx_id_t id) noexcept
   {
     if (trx->max_inactive_id >= id)
       return false;
-    bool found= rw_trx_hash.iterate(trx, find_same_or_older_callback, &id);
+    const bool found{find_same_or_older_low(trx, id)};
     if (!found)
       trx->max_inactive_id= id;
     return found;
   }
 
+  /**
+    Determine if the specified transaction or any older one might be active.
+
+    @param trx         purge_sys.query->trx (may be used by multiple threads)
+    @param id          transaction identifier to check
+    @return whether any transaction not newer than id might be active
+  */
+
+  bool find_same_or_older_in_purge(trx_t *trx, trx_id_t id) noexcept
+  {
+#if SIZEOF_SIZE_T < 8 && !defined __i386__
+    /* On systems that lack native 64-bit loads and stores,
+    it should be more efficient to acquire a futex-backed mutex
+    earlier than to invoke a loop or a complex library function.
+
+    Our IA-32 target is not "i386" but at least "i686", that is, at least
+    Pentium MMX, which has a 64-bit data bus and 64-bit XMM registers. */
+    trx->mutex_lock();
+    trx_id_t &max_inactive_id= trx->max_inactive_id;
+    const bool hot{max_inactive_id < id && find_same_or_older(trx, id)};
+#else
+    Atomic_relaxed<trx_id_t> &max_inactive_id= trx->max_inactive_id_atomic;
+    if (max_inactive_id >= id)
+      return false;
+    trx->mutex_lock();
+    const bool hot{find_same_or_older(trx, id)};
+#endif
+    if (hot)
+      max_inactive_id= id;
+    trx->mutex_unlock();
+    return hot;
+  }
 
   /**
     Determines the maximum transaction id.
@@ -1211,12 +1253,7 @@ public:
   @return error code */
   inline dberr_t reset_page(mtr_t *mtr);
 private:
-  static my_bool find_same_or_older_callback(void *el, void *i)
-  {
-    auto element= static_cast<rw_trx_hash_element_t *>(el);
-    auto id= static_cast<trx_id_t*>(i);
-    return element->id <= *id;
-  }
+  static my_bool find_same_or_older_callback(void *el, void *i) noexcept;
 
 
   struct snapshot_ids_arg

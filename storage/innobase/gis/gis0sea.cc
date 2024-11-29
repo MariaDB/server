@@ -1292,11 +1292,13 @@ rtr_page_get_father_block(
 	que_thr_t*	thr,	/*!< in/out: query thread */
 	mtr_t*		mtr)	/*!< in/out: mtr */
 {
-  rec_t *rec=
-    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  const page_t *const page= cursor->block()->page.frame;
+  const rec_t *rec= page_is_comp(page)
+    ? page_rec_next_get<true>(page, page + PAGE_NEW_INFIMUM)
+    : page_rec_next_get<false>(page, page + PAGE_OLD_INFIMUM);
   if (!rec)
     return nullptr;
-  cursor->page_cur.rec= rec;
+  cursor->page_cur.rec= const_cast<rec_t*>(rec);
   return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor,
                                       thr, mtr);
 }

@@ -1419,6 +1419,7 @@ static int systemd_sock_activation; /* systemd socket activation */
 static int termination_event_fd= -1;
 
 
+
 C_MODE_START
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
@@ -3217,23 +3218,14 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
-/** Called only from signal_hand function. */
-static void* exit_signal_handler()
-{
-  my_thread_end();
-  signal_thread_in_use= 0;
-  pthread_exit(0);  // Safety
-  return nullptr;  // Avoid compiler warnings
-}
-
-
-/** This threads handles all signals and alarms. */
+/** This thread handles all signals. */
 /* ARGSUSED */
 pthread_handler_t signal_hand(void *)
 {
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
+  DBUG_ENTER("signal_hand");
   signal_thread_in_use= 1;
 
   if (test_flags & TEST_SIGINT)
@@ -3327,9 +3319,10 @@ pthread_handler_t signal_hand(void *)
   }
   DBUG_PRINT("quit", ("signal_handler: calling my_thread_end()"));
   my_thread_end();
+  DBUG_LEAVE; // Must match DBUG_ENTER()
   signal_thread_in_use= 0;
   pthread_exit(0); // Safety
-  return exit_signal_handler();
+  return nullptr;
 }
 
 static void check_data_home(const char *path)
@@ -6361,7 +6354,6 @@ void handle_connections_sockets()
   for (int fd : termination_fds)
     (void)fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
-
   mysql_mutex_lock(&LOCK_start_thread);
   termination_event_fd= termination_fds[1];
   mysql_mutex_unlock(&LOCK_start_thread);
@@ -7384,6 +7376,21 @@ static int show_binlog_space_total(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
+static int show_stack_usage(THD *thd, SHOW_VAR *var, void *buff,
+                            system_status_var *, enum_var_type scope)
+{
+  var->type= SHOW_ULONGLONG;
+  var->value= buff;
+  // We cannot get stack usage for 'global' or for another thread
+  if (scope == OPT_GLOBAL || thd != current_thd)
+    *(ulonglong*) buff= 0;
+  else
+    *(ulonglong*) buff= (ulonglong) (available_stack_size((char*) thd->thread_stack,
+                                                          my_get_stack_pointer(0)));
+  return 0;
+}
+
+
 #ifndef DBUG_OFF
 static int debug_status_func(THD *thd, SHOW_VAR *var, void *buff,
                              system_status_var *, enum_var_type)
@@ -7661,6 +7668,7 @@ SHOW_VAR status_vars[]= {
   {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_SIMPLE_FUNC},
 #endif
 #endif /* HAVE_OPENSSL */
+  SHOW_FUNC_ENTRY("stack_usage", &show_stack_usage),
   {"Syncs",                    (char*) &my_sync_count,          SHOW_LONG_NOFLUSH},
   /*
     Expression cache used only for caching subqueries now, so its statistic
@@ -7743,10 +7751,10 @@ static void print_version(void)
 }
 
 /** Compares two options' names, treats - and _ the same */
-static int option_cmp(my_option *a, my_option *b)
+static int option_cmp(const void *a, const void *b)
 {
-  const char *sa= a->name;
-  const char *sb= b->name;
+  const char *sa= static_cast<const my_option *>(a)->name;
+  const char *sb= static_cast<const my_option *>(b)->name;
   for (; *sa || *sb; sa++, sb++)
   {
     if (*sa < *sb)

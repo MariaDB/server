@@ -1382,5 +1382,15 @@ select count(*) from t1 where r1!=r;
 drop table t1;
 
 --echo #
+--echo # MDEV-29462 ASAN: heap-use-after-free in Binary_string::copy on DO CONVERT
+--echo #
+
+DO CONVERT (INET_ATON (CAST(LEFT (-1,1) as BINARY (30))) USING utf8);
+DO FROM_BASE64(CAST((MID(UUID(),20,64)) AS BINARY (55)));
+DO FROM_BASE64(CAST((MID(17653,ROW('-688:20:162697', (NULL))>=ROW(('*.)$'),(0xc254b6)),1)) AS BINARY (34)));
+DO FROM_BASE64(CAST(LEFT (-1,1) as BINARY (30)));
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
+

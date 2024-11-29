@@ -185,11 +185,7 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr);
 
 /** Get read access to a compressed page (usually of type
 FIL_PAGE_TYPE_ZBLOB or FIL_PAGE_TYPE_ZBLOB2).
-The page must be released with unfix().
-NOTE: the page is not protected by any latch.  Mutual exclusion has to
-be implemented at a higher level.  In other words, all possible
-accesses to a given page through this function must be protected by
-the same set of mutexes or latches.
+The page must be released with s_unlock().
 @param page_id   page identifier
 @return pointer to the block, s-latched */
 buf_page_t *buf_page_get_zip(const page_id_t page_id);
@@ -1530,13 +1526,10 @@ public:
       return 1 + latches + empty_slots + h;
     }
   private:
-    /** @return the hash value before any ELEMENTS_PER_LATCH padding */
-    static ulint hash(ulint fold, ulint n) { return ut_hash_ulint(fold, n); }
-
     /** @return the index of an array element */
-    static ulint calc_hash(ulint fold, ulint n_cells)
+    static ulint calc_hash(ulint fold, ulint n_cells) noexcept
     {
-      return pad(hash(fold, n_cells));
+      return pad(fold % n_cells);
     }
   public:
     /** @return the latch covering a hash table chain */

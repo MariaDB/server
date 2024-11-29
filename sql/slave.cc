@@ -3444,9 +3444,11 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
 /* Used to sort connections by name */
 
-static int cmp_mi_by_name(const Master_info **arg1,
-                          const Master_info **arg2)
+static int cmp_mi_by_name(const void *arg1_,
+                          const void *arg2_)
 {
+  auto arg1= static_cast<const Master_info *const *>(arg1_);
+  auto arg2= static_cast<const Master_info *const *>(arg2_);
   return my_strcasecmp(system_charset_info, (*arg1)->connection_name.str,
                        (*arg2)->connection_name.str);
 }
@@ -5157,8 +5159,16 @@ Stopping slave I/O thread due to out-of-memory error from master");
           mi->semi_sync_reply_enabled &&
           (mi->semi_ack & SEMI_SYNC_NEED_ACK))
       {
-        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply",
-                        my_sleep(800000););
+#ifdef ENABLED_DEBUG_SYNC
+        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply", {
+          const char act[]= "now "
+                            "signal io_thd_at_slave_reply "
+                            "wait_for io_thd_do_reply";
+          DBUG_ASSERT(debug_sync_service);
+          DBUG_ASSERT(
+              !debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
+        };);
+#endif
         if (repl_semisync_slave.slave_reply(mi))
         {
           /*
@@ -6903,7 +6913,7 @@ dbug_gtid_accept:
                         "the last seen GTID is %u-%u-%llu",
                         Log_event::get_type_str((Log_event_type) (uchar)
                                                 buf[EVENT_TYPE_OFFSET]),
-                        mi->last_queued_gtid);
+                        PARAM_GTID(mi->last_queued_gtid));
         goto err;
       }
     }
@@ -7908,7 +7918,7 @@ end:
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
 {
-  enum Log_event_type ev_type;
+  enum Log_event_type ev_type= UNKNOWN_EVENT;
 
   mysql_mutex_lock(&rgi->rli->data_lock);
 
@@ -7919,6 +7929,11 @@ enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
   /* scan the log to read next event and we skip
      annotate events. */
   do {
+    /* We've reached the end of log, return the last found event, if any. */
+    if (future_pos >= rgi->rli->cur_log->end_of_file)
+    {
+      break;
+    }
     my_b_seek(rgi->rli->cur_log, future_pos);
     rgi->rli->event_relay_log_pos= future_pos;
     rgi->event_relay_log_pos= future_pos;
