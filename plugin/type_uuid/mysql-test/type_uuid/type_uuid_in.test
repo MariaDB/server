@@ -1,0 +1,82 @@
+# Start of 10.11 tests
+
+#
+# MDEV-35468 UUID primary key filtering return incorrect results
+#
+CREATE TABLE t1 (id UUID NOT NULL);
+
+INSERT INTO t1 (`id`) VALUES ('e8748eee-fabe-11eb-af18-005056bc575d');
+INSERT INTO t1 (`id`) VALUES ('036d4fc5-fabf-11eb-af18-005056bc575d');
+INSERT INTO t1 (`id`) VALUES ('2acf42cc-fabf-11eb-af18-005056bc575d');
+INSERT INTO t1 (`id`) VALUES ('594a8970-fabf-11eb-af18-005056bc575d');
+INSERT INTO t1 (`id`) VALUES ('4238a6e5-fac1-11eb-af18-005056bc575d');
+INSERT INTO t1 (`id`) VALUES ('6d001a4d-fac1-11eb-af18-005056bc575d');
+INSERT INTO t1 (`id`) VALUES ('e4e67615-fad5-11eb-af18-005056bc575d');
+INSERT INTO t1 (`id`) VALUES ('1ec69927-30f3-62ca-a0a0-4b98bb6957f8');
+INSERT INTO t1 (`id`) VALUES ('1ec6992e-5c9e-6b2a-a21b-fbc054a2075e');
+INSERT INTO t1 (`id`) VALUES ('1ec6992e-e5be-6342-8293-e107448b2cd5');
+
+SELECT * FROM t1 WHERE id IN (
+'036d4fc5-fabf-11eb-af18-005056bc575d',
+'e8748eee-fabe-11eb-af18-005056bc575d',
+'2acf42cc-fabf-11eb-af18-005056bc575d',
+'594a8970-fabf-11eb-af18-005056bc575d',
+'4238a6e5-fac1-11eb-af18-005056bc575d',
+'6d001a4d-fac1-11eb-af18-005056bc575d',
+'e4e67615-fad5-11eb-af18-005056bc575d',
+'1ec69927-30f3-62ca-a0a0-4b98bb6957f8',
+'1ec6992e-5c9e-6b2a-a21b-fbc054a2075e',
+'1ec6992e-e5be-6342-8293-e107448b2cd5'
+) ORDER BY id;
+
+SELECT * FROM t1 WHERE id IN (
+'e8748eee-fabe-11eb-af18-005056bc575d',
+'036d4fc5-fabf-11eb-af18-005056bc575d',
+'2acf42cc-fabf-11eb-af18-005056bc575d',
+'594a8970-fabf-11eb-af18-005056bc575d',
+'4238a6e5-fac1-11eb-af18-005056bc575d',
+'6d001a4d-fac1-11eb-af18-005056bc575d',
+'e4e67615-fad5-11eb-af18-005056bc575d',
+'1ec69927-30f3-62ca-a0a0-4b98bb6957f8',
+'1ec6992e-5c9e-6b2a-a21b-fbc054a2075e',
+'1ec6992e-e5be-6342-8293-e107448b2cd5'
+) ORDER BY id;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (id uuid);
+INSERT INTO t1 (id) VALUES
+('e8748eee-fabe-11eb-af18-005056bc575d'),
+('036d4fc5-fabf-11eb-af18-005056bc575d');
+SELECT * FROM t1 WHERE id IN (
+'e8748eee-fabe-11eb-af18-005056bc575d',
+'036d4fc5-fabf-11eb-af18-005056bc575d',
+'2acf42cc-fabf-11eb-af18-005056bc575d',
+'594a8970-fabf-11eb-af18-005056bc575d',
+'4238a6e5-fac1-11eb-af18-005056bc575d',
+'6d001a4d-fac1-11eb-af18-005056bc575d',
+'e4e67615-fad5-11eb-af18-005056bc575d',
+'1ec69927-30f3-62ca-a0a0-4b98bb6957f8'
+) ORDER BY id;
+SELECT * FROM t1 WHERE id IN (
+'e8748eee-fabe-11eb-af18-005056bc575d',
+'036d4fc5-fabf-11eb-af18-005056bc575d',
+'2acf42cc-fabf-11eb-af18-005056bc575d',
+'594a8970-fabf-11eb-af18-005056bc575d',
+'4238a6e5-fac1-11eb-af18-005056bc575d',
+'6d001a4d-fac1-11eb-af18-005056bc575d',
+'e4e67615-fad5-11eb-af18-005056bc575d'
+) ORDER BY id;
+SELECT * FROM t1 WHERE id IN (
+'1ec69927-30f3-62ca-a0a0-4b98bb6957f8',
+'036d4fc5-fabf-11eb-af18-005056bc575d',
+'2acf42cc-fabf-11eb-af18-005056bc575d',
+'594a8970-fabf-11eb-af18-005056bc575d',
+'4238a6e5-fac1-11eb-af18-005056bc575d',
+'6d001a4d-fac1-11eb-af18-005056bc575d',
+'e4e67615-fad5-11eb-af18-005056bc575d',
+'e8748eee-fabe-11eb-af18-005056bc575d'
+) ORDER BY id;
+DROP TABLE t1;
+
+# End of 10.11 tests
