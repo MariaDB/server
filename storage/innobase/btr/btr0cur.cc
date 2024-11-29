@@ -1660,6 +1660,7 @@ release_tree:
         ut_ad(block_savepoint + 2 == mtr->get_savepoint());
         if (ret < 0)
         {
+          up_match= 0, low_match= 0, up_bytes= 0, low_bytes= 0;
           /* While our latch on the level-2 page prevents splits or
           merges of this level-1 block, other threads may have
           modified it due to splitting or merging some level-0 (leaf)
