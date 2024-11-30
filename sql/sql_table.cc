@@ -3855,7 +3855,7 @@ without_overlaps_err:
 
   /* Give warnings for not supported table options */
   if (create_info->used_fields & HA_CREATE_USED_TRANSACTIONAL &&
-      !file->has_transactional_option())
+      !file->has_transactional_option() && !thd->rgi_slave)
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_OPTION,
                         ER_THD(thd, ER_UNKNOWN_OPTION), "transactional");
 
