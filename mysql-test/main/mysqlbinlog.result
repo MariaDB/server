@@ -1300,4 +1300,23 @@ ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
 ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
 ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
 ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
+#
+# MDEV-33239: mysqlbinlog always stops at timestamp 0xffffffff
+#
+RESET MASTER;
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1);
+SET @@timestamp= 0 + 0xffffffff;
+INSERT INTO t VALUES (2);
+SELECT * FROM t ORDER BY a;
+a
+1
+2
+FLUSH BINARY LOGS;
+DROP TABLE t;
+SELECT * FROM t ORDER BY a;
+a
+1
+2
+DROP TABLE t;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -641,4 +641,29 @@ FLUSH LOGS;
 --exec $MYSQL_BINLOG --rewrite-db=" test -> foo " --short-form $MYSQLD_DATADIR/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
 
 
+--echo #
+--echo # MDEV-33239: mysqlbinlog always stops at timestamp 0xffffffff
+--echo #
+
+RESET MASTER;
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1);
+# The 0xffffffff timestamp is truncated on 32-bit, gives warning.
+--disable_warnings
+SET @@timestamp= 0 + 0xffffffff;
+--enable_warnings
+INSERT INTO t VALUES (2);
+SELECT * FROM t ORDER BY a;
+
+FLUSH BINARY LOGS;
+DROP TABLE t;
+
+# The bug was that mysqlbinlog would stop before the event with timestamp
+# 0xffffffff, so the second insert would be missing from the table.
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 | $MYSQL test
+SELECT * FROM t ORDER BY a;
+DROP TABLE t;
+
+
 --source include/test_db_charset_restore.inc
