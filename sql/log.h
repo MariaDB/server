@@ -352,6 +352,15 @@ public:
                                   ulong next_log_number,
                                   enum_log_type log_type_arg,
                                   enum cache_type io_cache_type_arg);
+
+  /**
+    Handle an error (after the caller prints an error message)
+    @return
+      Return if the caller may continue;
+      does not return if the response is to abort
+    @sa mysql_ignore_error in ./log.cc
+  */
+  virtual void exec_error_action();
 };
 
 /**
@@ -1213,6 +1222,9 @@ public:
   */
   my_off_t binlog_end_pos;
   char binlog_end_pos_file[FN_REFLEN];
+
+protected:
+  void exec_error_action() override;
 };
 
 class Log_event_handler
