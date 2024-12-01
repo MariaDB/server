@@ -1957,9 +1957,13 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
   */
   if (ending_trans(thd, all))
   {
-    if (cache_mngr->trx_cache.has_incident())
-      error= mysql_bin_log.write_incident(thd);
+    DBUG_ASSERT(!cache_mngr->trx_cache.has_incident() ||
+		thd->lex->sql_command != SQLCOM_CREATE_TABLE ||
+		thd->is_current_stmt_binlog_format_row());
 
+    if (cache_mngr->trx_cache.has_incident() &&
+	thd->lex->sql_command != SQLCOM_CREATE_TABLE)
+      error= mysql_bin_log.write_incident(thd);
     thd->reset_binlog_for_next_statement();
 
     cache_mngr->reset(false, true);
