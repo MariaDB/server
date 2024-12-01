@@ -952,3 +952,5 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid);
 
 
 bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after);
+
+dberr_t innodb_do_foreign_cascade(upd_node_t* node);

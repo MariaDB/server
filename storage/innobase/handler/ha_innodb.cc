@@ -21280,17 +21280,15 @@ buf_pool_size_align(
   }
 }
 
-bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after) 
+bool innodb_execute_triggers(upd_node_t *node, bool after) 
 {
-  //ut_ad(is_delete == (node->is_delete == PLAIN_DELETE));
+	bool is_delete = (node->is_delete == PLAIN_DELETE);
   btr_pcur_t	*pcur = node->pcur;
   char db_buf[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1];
   ulint db_buf_len, tbl_buf_len;
-
   dict_table_t *table = node->table;
   dict_index_t *clust_index = dict_table_get_first_index(table);
-
   if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
     return false;
   }
@@ -21390,4 +21388,85 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
     return false;
 
   return true;
+}
+
+/********************************************************************//**
+Fetches the MySQL TABLE object corresponding to the InnoDB table 
+referenced in the given update node. 
+
+// FIXME: add error handling instead of returning nullptr
+@return Pointer to the TABLE object if found, or nullptr on error. */
+static
+TABLE *find_sql_table_for_update_node(upd_node_t* node) {
+  THD *thd= current_thd;
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  ulint db_buf_len, tbl_buf_len;
+  dict_table_t *table= node->table;
+  if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+    return nullptr; // TODO: handle error
+  }
+
+  return find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, 
+                                          tbl_buf_len);
+}
+
+
+/********************************************************************//**
+Executes a cascading operation (DELETE or UPDATE) for a foreign key 
+constraint by invoking the appropriate action at the SQL layer. 
+
+@return DB_SUCCESS if OK else error code. */
+dberr_t 
+innodb_do_foreign_cascade(upd_node_t* node)
+{
+  bool is_delete= (node->is_delete == PLAIN_DELETE);
+
+
+  TABLE *maria_table= find_sql_table_for_update_node(node);
+  ha_innobase *handler= (ha_innobase*)maria_table->file;
+
+
+  //---FILL REC--- TODO: separate function
+  row_prebuilt_t *prebuilt= handler->get_prebuilt(node->table);
+  btr_pcur_t	*pcur = node->pcur;
+  const rec_t* rec = btr_pcur_get_rec(pcur); 
+  dict_index_t *clust_index = dict_table_get_first_index(node->table);
+  const rec_offs*	offsets = rec_get_offsets(
+    rec, 
+    clust_index, 
+    nullptr, 
+    clust_index->n_core_fields, 
+    ULINT_UNDEFINED, 
+    &node->heap
+  );
+
+  row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, 
+                         true, clust_index, offsets);
+  //---END FILL REC---
+
+
+	// prebuilt->upd_node = node;
+  // prebuilt->upd_graph = static_cast<que_fork_t*>(
+  //     que_node_get_parent(
+  //       pars_complete_graph_for_exec(
+  //       prebuilt->upd_node,
+  //       prebuilt->trx, prebuilt->heap,
+  //       prebuilt)));
+  // prebuilt->upd_graph->state = QUE_FORK_ACTIVE; // ?
+	// prebuilt->pcur = pcur;
+	//prebuilt->sql_stat_start = 0;
+
+
+	//// TODO: Refactor to remove the use of the following handler methods:
+	handler->position(maria_table->record[0]);
+	handler->ha_rnd_init(false);
+	handler->rnd_pos(maria_table->record[0], handler->ref);
+	handler->ha_rnd_end();
+	//**
+
+  if (is_delete)
+    sql_delete_row(maria_table);
+	
+  return DB_SUCCESS;
 }

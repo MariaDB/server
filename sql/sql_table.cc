@@ -13240,3 +13240,42 @@ bool HA_CREATE_INFO::
   }
   return false;
 }
+
+
+/**
+  Delete a row from the table.
+  The row to be deleted must be present in `table->record[0]`.
+  The handler (`table->file`) must be configured to operate on the data
+  stored in `table->record[0]` (i.e., the effect from calling `ha_rnd_pos` 
+  or `ha_index_read` is required to make a successful call).
+  @param[in,out] table The table object representing the target table.
+  @return `true` if the operation failed, 
+  `false` if the row was successfully deleted.
+*/
+bool sql_delete_row(TABLE *table)
+{
+  //TODO: virtual columns
+  THD *thd= current_thd;
+  table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
+    if (!table->triggers ||  
+        table->triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE))
+    table->triggers->process_triggers(thd,
+                      TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE);
+
+
+  // TODO: handle error
+  int error= table->file->ha_delete_row(table->record[0]);
+
+
+    if (table->triggers &&
+          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                     TRG_ACTION_AFTER, FALSE)))
+        return true;
+
+  return false;
+}
+
+// record[0] - new row
+// record[1] - old row
+// bool sql_update_row(TABLE *table)
+// {
