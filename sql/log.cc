@@ -2921,6 +2921,8 @@ bool MYSQL_LOG::init_and_set_log_file_name(const char *log_name,
   return FALSE;
 }
 
+/** `--binlog_error_action`, one of enum_binlog_error_action (`sql/log.h`) */
+ulong MYSQL_BIN_LOG::binlog_error_action= MARIADB_UNSET;
 
 /*
   Open a (new) log file.

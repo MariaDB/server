@@ -775,6 +775,19 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   void update_gtid_index(uint32 offset, rpl_gtid gtid);
 
 public:
+  static ulong binlog_error_action;
+  enum enum_binlog_error_action
+  {
+    /** MariaDB compatibility */
+    MARIADB_UNSET= false,
+    //IGNORE,
+    //RETRY, // https://jira.mariadb.org/browse/MDEV-20796
+    /** MySQL compatibility */
+    MYSQL_IGNORE_ERROR,
+    CLOSE_BINLOG,
+    ABORT_SERVER,
+  };
+
   void purge(bool all);
   int new_file_without_locking(bool commit_by_rotate);
   /*
