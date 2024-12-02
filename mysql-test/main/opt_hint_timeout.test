@@ -35,6 +35,21 @@ SELECT  /*+ MAX_EXECUTION_TIME(20) */ *, SLEEP(1) FROM t1 UNION SELECT 1, 2, 3;
 --error ER_STATEMENT_TIMEOUT
 ((SELECT  /*+ MAX_EXECUTION_TIME(50) */ *, SLEEP(1) FROM t1));
 
+--echo # Make sure the hint overrides global/session/statement settings.
+--echo # Global setting 30 seconds, won't be exceeded for sure
+SET @@max_statement_time = 30;
+--error ER_STATEMENT_TIMEOUT
+SELECT /*+ MAX_EXECUTION_TIME(10) */* FROM t1 a, t1 b;
+
+--echo # Session setting 10 seconds, too long to be exceeded
+SET SESSION max_statement_time = 10;
+--error ER_STATEMENT_TIMEOUT
+SELECT /*+ MAX_EXECUTION_TIME(15) */* FROM t1 a, t1 b;
+
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time = 20 FOR
+  SELECT /*+ MAX_EXECUTION_TIME(5) */* FROM t1 a, t1 b;
+
 --echo # Check that prepared statements process the hint correctly
 PREPARE s FROM 'SELECT  /*+ MAX_EXECUTION_TIME(20) */ seq, SLEEP(1) FROM seq_1_to_10';
 --error ER_STATEMENT_TIMEOUT
@@ -50,10 +65,6 @@ SELECT /*+ MAX_EXECUTION_TIME(10) MAX_EXECUTION_TIME(100) */ count(*) FROM t1;
 SELECT /*+ MAX_EXECUTION_TIME(0) */ count(*) FROM t1;
 SELECT /*+ MAX_EXECUTION_TIME(-1) */ count(*) FROM t1;
 SELECT /*+ MAX_EXECUTION_TIME(4294967296) */ count(*) FROM t1;
-
---echo # Conflicting max_statement_time and hint (must issue a warning)
-SET STATEMENT max_statement_time=1 FOR
-  SELECT /*+ MAX_EXECUTION_TIME(500) */ count(*) FROM t1 a;
 
 --echo
 --echo # only SELECT statements supports the MAX_EXECUTION_TIME hint (warning):
