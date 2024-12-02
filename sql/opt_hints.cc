@@ -791,14 +791,9 @@ bool Opt_hints_global::resolve(THD *thd)
     print_warn(thd, ER_NOT_ALLOWED_IN_THIS_CONTEXT, MAX_EXEC_TIME_HINT_ENUM,
                true, NULL, NULL, NULL, max_exec_time_hint);
   }
-  else if (thd->variables.max_statement_time != 0 ||
-           thd->query_timer.expired == 0)
-  {
-    print_warn(thd, ER_WARN_CONFLICTING_HINT, MAX_EXEC_TIME_HINT_ENUM, true,
-               NULL, NULL, NULL, max_exec_time_hint);
-  }
   else
   {
+    thd->reset_query_timer();
     thd->set_query_timer_force(max_exec_time_hint->get_milliseconds() * 1000);
   }
   set_resolved();
@@ -820,7 +815,7 @@ bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc) const
   if (!get_qb_hints(pc))
     return true;
 
-  for (Hint_list::const_iterator li= this->cbegin(); li != this->cend(); ++li)
+  for (Hint_list::iterator li= this->begin(); li != this->end(); ++li)
   {
     const Optimizer_hint_parser::Hint &hint= *li;
     if (const Table_level_hint &table_hint= hint)
