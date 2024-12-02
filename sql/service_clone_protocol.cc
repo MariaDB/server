@@ -153,6 +153,7 @@ MYSQL* clone_connect(THD * thd, const char *host, uint32_t port,
 
   if (ssl_ctx->m_ssl_mode > 0)
   {
+    mysql->options.use_ssl= 1;
     /* Verify server's certificate */
     // if (ssl_ctx->m_ssl_ca != nullptr) {
     //   client_ssl_mode = SSL_MODE_VERIFY_CA;
@@ -169,8 +170,11 @@ MYSQL* clone_connect(THD * thd, const char *host, uint32_t port,
     // mysql_options(mysql, MYSQL_OPT_TLS_VERSION, tls_version);
     // mysql_options(mysql, MYSQL_OPT_TLS_CIPHERSUITES, ciphersuites.c_str());
   }
-
-  // mysql_options(mysql, MYSQL_OPT_SSL_MODE, &client_ssl_mode);
+  else
+  {
+    // mysql_options(mysql, MYSQL_OPT_SSL_MODE, &client_ssl_mode);
+    mysql->options.use_ssl= 0;
+  }
 
   auto timeout = static_cast<uint>(connect_timeout);
   mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT,
