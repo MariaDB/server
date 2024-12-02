@@ -95,6 +95,7 @@ master-bin.000006	#	Query	#	#	SAVEPOINT `s1`
 master-bin.000006	#	Annotate_rows	#	#	INSERT INTO t1 VALUES('a')
 master-bin.000006	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000006	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
-call mtr.add_suppression(".*Turning logging off for the whole duration.*");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
 call mtr.add_suppression(".*non_binlog_cache is in #binlog_cache_files/.*");
 DROP TABLE t1;

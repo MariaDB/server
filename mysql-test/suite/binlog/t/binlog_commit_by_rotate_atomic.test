@@ -137,7 +137,7 @@ COMMIT;
 --let $skip_checkpoint_events= 1
 --source include/show_binlog_events.inc
 
-call mtr.add_suppression(".*Turning logging off for the whole duration.*");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
 call mtr.add_suppression(".*non_binlog_cache is in #binlog_cache_files/.*");
 DROP TABLE t1;
-

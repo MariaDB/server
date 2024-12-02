@@ -40,14 +40,14 @@
 
 # Error 6 is reported, because the other end is closed
 call mtr.add_suppression("Could not use .* for logging \\(error 6\\)");
+call mtr.add_suppression("Turning logging off for the whole duration");
 call mtr.add_suppression("File '.*' not found \\(Errcode: 6 ");
 --perl
   my $file= $ENV{'GREP_FILE'};
-  my $pattern= "for logging \\(error 6\\)\\. Turning logging off for the whole duration";
   open(FILE, "$file") or die("Unable to open $file: $!\n");
   my $count = 0;
   while (<FILE>) {
-    if ($_ =~ m/$pattern/) {
+    if ($_ =~ m/Could not use .* for logging \(error 6\)/) {
       $count++;
       break;
     }

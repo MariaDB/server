@@ -7,5 +7,6 @@ ERROR 42000: Variable 'slow_query_log_file' can't be set to the value of 'MYSQLT
 # Case 2: Starting server with fifo file as general log file
 #         and slow query log file.
 call mtr.add_suppression("Could not use .* for logging \\(error 6\\)");
+call mtr.add_suppression("Turning logging off for the whole duration");
 call mtr.add_suppression("File '.*' not found \\(Errcode: 6 ");
 Setting fifo file as general log file and slow query log failed.

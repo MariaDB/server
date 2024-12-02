@@ -3177,11 +3177,8 @@ int MYSQL_BIN_LOG::generate_new_name(char *new_name, const char *log_name,
         unlikely(find_uniq_filename(new_name, next_log_number,
                                     &last_used_log_number)))
     {
-      THD *thd= current_thd;
-      if (unlikely(thd))
-        my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
-      sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
-      if (binlog_error_action) // Do nothing for enum_binlog_error_action::UNSET
+      my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
+      if (binlog_error_action) // Do nothing for MARIADB_UNSET
         exec_error_action();
       return 1;
     }
