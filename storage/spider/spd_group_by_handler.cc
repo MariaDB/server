@@ -1435,6 +1435,7 @@ group_by_handler *spider_create_group_by_handler(
   if (!(table_holder= spider_create_table_holder(table_count)))
     DBUG_RETURN(NULL);
 
+  my_bitmap_init(&skips, NULL, query->select->elements);
   table_idx = 0;
   from = query->from;
   if (from->table->part_info)
@@ -1538,7 +1539,6 @@ group_by_handler *spider_create_group_by_handler(
       fields_arg->set_table_holder(table_holder, table_count);
       keep_going = TRUE;
       it.init(*query->select);
-      my_bitmap_init(&skips, NULL, query->select->elements);
       int i= -1, n_aux= query->n_aux;
       while ((item = it++))
       {

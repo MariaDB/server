@@ -129,7 +129,7 @@ SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
 
 --connection node_3
 
@@ -137,7 +137,7 @@ SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
 
 --connection node_5
 
@@ -145,7 +145,7 @@ SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
 
 --connection node_6
 
@@ -153,4 +153,4 @@ SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");

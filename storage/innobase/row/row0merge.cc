@@ -778,7 +778,10 @@ error:
 			const byte*	buf = row_ext_lookup(ext, col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
-				ut_a(buf != field_ref_zero);
+				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
+					*err = DB_CORRUPTION;
+					goto error;
+				}
 				if (i < dict_index_get_n_unique(index)) {
 					dfield_set_data(field, buf, len);
 				} else {
@@ -791,7 +794,10 @@ error:
 			const byte*	buf = row_ext_lookup(ext, col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
-				ut_a(buf != field_ref_zero);
+				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
+					*err = DB_CORRUPTION;
+					goto error;
+				}
 				dfield_set_data(field, buf, len);
 			}
 		}
@@ -2007,23 +2013,29 @@ err_exit:
 		trx->error_key_num = 0;
 		goto func_exit;
 	} else {
-		rec_t* rec = page_rec_get_next(btr_pcur_get_rec(&pcur));
+		const page_t* const page = btr_pcur_get_page(&pcur);
+		const auto comp = page_is_comp(page);
+		const rec_t* const rec = comp
+			? page_rec_next_get<true>(page,
+						  btr_pcur_get_rec(&pcur))
+			: page_rec_next_get<false>(page,
+						   btr_pcur_get_rec(&pcur));
 		if (!rec) {
 corrupted_metadata:
 			err = DB_CORRUPTION;
 			goto err_exit;
 		}
-		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
-		    & REC_INFO_MIN_REC_FLAG) {
+		if (rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG) {
 			if (!clust_index->is_instant()) {
 				goto corrupted_metadata;
 			}
-			if (page_rec_is_comp(rec)
+			if (comp
 			    && rec_get_status(rec) != REC_STATUS_INSTANT) {
 				goto corrupted_metadata;
 			}
 			/* Skip the metadata pseudo-record. */
-			btr_pcur_get_page_cur(&pcur)->rec = rec;
+			btr_pcur_get_page_cur(&pcur)->rec =
+				const_cast<rec_t*>(rec);
 		} else if (clust_index->is_instant()) {
 			goto corrupted_metadata;
 		}

@@ -1649,7 +1649,7 @@ public:
   bool fix_length_and_dec(THD *thd) override
   {
     collation.set(default_charset());
-    fix_char_length(64);
+    fix_char_length(65);
     set_maybe_null();
     return FALSE;
   }

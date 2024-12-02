@@ -816,8 +816,10 @@ CREATE TABLE t1 (
         FULLTEXT fidx(title)) ENGINE = InnoDB;
 INSERT INTO t1(title) VALUES('database');
 ALTER TABLE t1 DROP INDEX fidx;
-select space into @common_space from information_schema.innodb_sys_tables where name like "test/FTS_%_CONFIG";
+create table t2 as select space from information_schema.innodb_sys_tables where name like "test/FTS_%_CONFIG";
 ALTER TABLE t1 ADD FULLTEXT fidx_1(book);
-select space=@common_space from information_schema.innodb_sys_tables where name like "test/FTS_%_CONFIG";
+select i_s.space=t2.space from information_schema.innodb_sys_tables i_s join t2 where name like "test/FTS_%_CONFIG";
 SHOW CREATE TABLE t1;
-DROP TABLE t1;
+DROP TABLE t1, t2;
+
+--echo # End of 10.5 tests

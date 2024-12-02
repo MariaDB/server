@@ -1002,7 +1002,7 @@ select count(*) from t0 A, t0 B, t0 C, t0 D where D.a in (select a from t1 E whe
 --enable_ps2_protocol
 show status like 'Created_tmp_disk_tables';
 --enable_cursor_protocol
-set @save_max_heap_table_size=@@max_heap_table_size;
+set @@max_heap_table_size=@save_max_heap_table_size;
 set @@optimizer_switch=@save_optimizer_switch;
 drop table t0, t1;
 

@@ -2307,17 +2307,17 @@ master_def:
 
             if (unlikely(Lex->mi.heartbeat_period > slave_net_timeout))
             {
-              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                  ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
-                                  ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
+              push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                           ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
+                           ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
             }
             if (unlikely(Lex->mi.heartbeat_period < 0.001))
             {
               if (unlikely(Lex->mi.heartbeat_period != 0.0))
               {
-                push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                    ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN,
-                                    ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN));
+                push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                             ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN,
+                             ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN));
                 Lex->mi.heartbeat_period= 0.0;
               }
               Lex->mi.heartbeat_opt=  LEX_MASTER_INFO::LEX_MI_DISABLE;
@@ -6734,6 +6734,11 @@ collation_name:
 collation_name_or_default:
           collation_name { $$=$1; }
         | DEFAULT        { $$.set_collate_default(); }
+        | BINARY // MySQL compatibility
+          {
+            const Lex_exact_collation bin(&my_charset_bin);
+            $$= Lex_extended_collation(bin);
+          }
         ;
 
 opt_default:
@@ -6799,6 +6804,22 @@ binary:
         | COLLATE_SYM DEFAULT
           {
             $$.set_collate_default();
+          }
+        | charset_or_alias COLLATE_SYM BINARY // MySQL compatibility
+          {
+            const Lex_exact_collation bin(&my_charset_bin);
+            Lex_extended_collation tmp(bin);
+            if (tmp.merge_exact_charset(thd,
+                                        thd->variables.character_set_collations,
+                                        Lex_exact_charset($1)))
+              MYSQL_YYABORT;
+            $$= Lex_exact_charset_extended_collation_attrs(tmp);
+          }
+        | COLLATE_SYM BINARY // MySQL compatibility
+          {
+            const Lex_exact_collation bin(&my_charset_bin);
+            const Lex_extended_collation tmp(bin);
+            $$= Lex_exact_charset_extended_collation_attrs(tmp);
           }
         ;
 

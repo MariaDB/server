@@ -98,13 +98,13 @@ public:
   uint get_size() const { return size; }
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
 
-  friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
-  friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
+  friend int unique_write_to_file(void* key, element_count count, void *unique);
+  friend int unique_write_to_ptrs(void* key, element_count count, void *unique);
 
-  friend int unique_write_to_file_with_count(uchar* key, element_count count,
-                                             Unique *unique);
-  friend int unique_intersect_write_to_ptrs(uchar* key, element_count count, 
-				            Unique *unique);
+  friend int unique_write_to_file_with_count(void *key, element_count count,
+                                             void *unique);
+  friend int unique_intersect_write_to_ptrs(void *key, element_count count,
+                                            void *unique);
 };
 
 #endif /* UNIQUE_INCLUDED */

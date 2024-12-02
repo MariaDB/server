@@ -70,9 +70,9 @@ void set_thd_stage_info(void *thd,
 
 #include "wsrep.h"
 #include "wsrep_on.h"
-#ifdef WITH_WSREP
 #include <inttypes.h>
 #include <ilist.h>
+#ifdef WITH_WSREP
 /* wsrep-lib */
 #include "wsrep_client_service.h"
 #include "wsrep_client_state.h"
@@ -5645,9 +5645,11 @@ public:
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
 
-  /** This flag denotes that record locking should be skipped during INSERT
-  and gap locking during SELECT. Only used by the streaming replication thread
-  that only modifies the wsrep_schema.SR table. */
+  /** This flag denotes that record locking should be skipped during INSERT,
+     gap locking during SELECT, and write-write conflicts due to innodb
+     snapshot isolation during DELETE.
+     Only used by the streaming replication thread that only modifies the
+     mysql.wsrep_streaming_log table. */
   my_bool                   wsrep_skip_locking;
 
   mysql_cond_t              COND_wsrep_thd;
@@ -7277,10 +7279,10 @@ struct SORT_FIELD_ATTR
   CHARSET_INFO *cs;
   uint pack_sort_string(uchar *to, const Binary_string *str,
                         CHARSET_INFO *cs) const;
-  int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
-                                     uchar *b, size_t *b_len);
-  int compare_packed_varstrings(uchar *a, size_t *a_len,
-                                uchar *b, size_t *b_len);
+  int compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                     const uchar *b, size_t *b_len);
+  int compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                const uchar *b, size_t *b_len);
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
   void set_length_and_original_length(THD *thd, uint length_arg);

@@ -1,0 +1,184 @@
+#
+#   This test ensures that a race condition (reported in MDEV-35109) which
+# could cause semi-sync transactions binlogging through MYSQL_BIN_LOG::write()
+# to hang until the semi-sync timeout has been hit, despite the ACK actually
+# having been received. The problem was that, for a primary configured with
+# wait_point=AFTER_SYNC, if two threads T1 (binlogging through
+# MYSQL_BIN_LOG::write()) and T2 were binlogging at the same time, T1 could
+# accidentally wait for the binlog coordinates of T2. Prior to MDEV-33551,
+# this only resulted in delayed transactions, because all transactions shared
+# the same condition variable for ACK signaling. However, with the MDEV-33551
+# changes, each thread has its own condition variable to signal. So T1 could
+# wait indefinitely when either:
+#   1) T1's ACK is received but not T2's when T1 goes into wait_after_sync(),
+#      because the ACK receiver thread has already notified about the T1 ACK,
+#      but T1 was _actually_ waiting on T2's ACK, and therefore tries to wait
+#      (in vain).
+#
+#   2) T1 goes to wait_after_sync() before any ACKs have arrived. When T1's ACK
+#      comes in, T1 is woken up; however, sees it needs to wait more (because
+#      it was actually waiting on T2's ACK), and goes to wait again (this time,
+#      in vain).
+#
+#   Note that the actual cause of T1 waiting on T2's binlog coordinates is when
+# MYSQL_BIN_LOG::write() would call Repl_semisync_master::wait_after_sync(),
+# the binlog offset parameter was read as the end of MYSQL_BIN_LOG::log_file,
+# which is shared among transactions. So if T2 had updated the binary log
+# _after_ T1 had released LOCK_log, but not yet invoked wait_after_sync(), it
+# would use the end of the binary log file as the binlog offset, which was that
+# of T2 (or any future transaction). The patch itself fixes this issue, and
+# ensures consistency between the binary log coordinates a transaction uses
+# between report_binlog_update() and wait_after_sync().
+#
+#   This test reproduces the above race condition, to ensure that T1 can no
+# longer use T2's binlog coordinates when wait_point=AFTER_SYNC (AFTER_COMMIT
+# was never affected). That is, because T1 in the above scenario must binlog
+# through MYSQL_BIN_LOG::write(), it is a DDL. T2 is an MDL that commits
+# through binlog group commit. We use debug_sync to stop both T1 and T2
+# after binlogging, reporting their coordinates to the semi-sync cache (i.e.
+# after report_binlog_update()), and after releasing LOCK_log. Debug_sync is
+# used on the replica to ensure no ACKs are sent until after both T1 and T2
+# are paused. Then, T1 and T2 are signaled for wakeup, and both ACKs are sent.
+# Prior to MDEV-35109 fixes, this results in T1 timing out after the configured
+# 2 second timeout.
+#
+# References:
+#   MDEV-33551: Semi-sync Wait Point AFTER_COMMIT Slow on Workloads with Heavy
+#               Concurrency
+#   MDEV-35109: Semi-sync Replication stalling Primary using
+#               wait_point=AFTER_SYNC
+#
+
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+# Test is format independent
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set @old_dbug= @@global.debug_dbug;
+set global rpl_semi_sync_slave_enabled= 1;
+
+--connection master
+set @old_enabled= @@global.rpl_semi_sync_master_enabled;
+set @old_timeout= @@global.rpl_semi_sync_master_timeout;
+set @old_wait_point= @@global.rpl_semi_sync_master_wait_point;
+set global rpl_semi_sync_master_enabled= 1;
+set global rpl_semi_sync_master_timeout= 2000; # 2s
+set global rpl_semi_sync_master_wait_point= AFTER_SYNC;
+
+--connection slave
+--source include/start_slave.inc
+
+--echo # Ensure slave connection is semi-simulate_delay_semisync_slave_reply
+--connection master
+--let $status_var_value= ON
+--let $status_var= Rpl_semi_sync_master_status
+--source include/wait_for_status_var.inc
+--connection slave
+--let $status_var_value= ON
+--let $status_var= Rpl_semi_sync_slave_status
+--source include/wait_for_status_var.inc
+
+--echo #
+--echo # Initialize test data
+--connection master
+
+# It is simpler to create t1 before using debug_sync on the slave_reply
+create table t1 (a int) engine=innodb;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/stop_slave.inc
+set @@global.debug_dbug="+d,simulate_delay_semisync_slave_reply";
+--source include/start_slave.inc
+
+--echo # Ensure connection is semi-sync
+--connection master
+--let $status_var_value= ON
+--let $status_var= Rpl_semi_sync_master_status
+--source include/wait_for_status_var.inc
+--connection slave
+--let $status_var_value= ON
+--let $status_var= Rpl_semi_sync_slave_status
+--source include/wait_for_status_var.inc
+
+--connection master
+set @old_bgc_count= @@global.binlog_commit_wait_count;
+set @old_bgc_usec= @@global.binlog_commit_wait_usec;
+set @@global.binlog_commit_wait_count=1;
+set @@global.binlog_commit_wait_usec=100000;
+
+--connection server_1
+set debug_sync= "commit_after_release_LOCK_log SIGNAL ddl_binlogged WAIT_FOR ddl_cont";
+--echo # T1 (DDL)
+--send create table t2 (a int)
+
+--connect(server_1_sync, localhost, root,,)
+--connection server_1_sync
+set debug_sync= "now WAIT_FOR ddl_binlogged";
+--source include/save_master_gtid.inc
+
+--connection server_2
+set debug_sync= "now WAIT_FOR io_thd_at_slave_reply";
+
+--connection master
+set debug_sync= "commit_before_get_LOCK_after_binlog_sync SIGNAL mdl_binlogged WAIT_FOR mdl_cont";
+--echo # T2 (DML)
+--send insert into t1 values (100);
+
+--connection server_1_sync
+set debug_sync= "now WAIT_FOR mdl_binlogged";
+
+--echo # Both transactions binlogged and released LOCK_log, and are just before
+--echo #   wait_after_sync()
+set debug_sync= "now SIGNAL ddl_cont";
+# Ensure ddl_cont is seen before next SIGNAL
+--let $wait_condition= SELECT count(*)=0 FROM information_schema.processlist WHERE state LIKE "%commit_after_release_LOCK_log%"
+--source include/wait_condition.inc
+
+set debug_sync= "now SIGNAL mdl_cont";
+
+--connection server_2
+--echo # slave_reply for DDL
+set debug_sync= "now SIGNAL io_thd_do_reply";
+--echo # slave_reply for MDL
+set debug_sync= "now WAIT_FOR io_thd_at_slave_reply";
+set debug_sync= "now SIGNAL io_thd_do_reply";
+
+--echo # Reaping MDL..
+--connection master
+--reap
+--echo # ..done
+
+--echo # Reaping DDL..
+--connection server_1
+--reap
+--echo # ..done
+
+
+--echo #
+--echo # Cleanup
+--connection slave
+--source include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @old_enabled;
+set @@global.debug_dbug= @old_dbug;
+--source include/start_slave.inc
+
+--connection master
+set @@global.binlog_commit_wait_count= @old_bgc_count;
+set @@global.binlog_commit_wait_usec= @old_bgc_usec;
+set @@global.rpl_semi_sync_master_enabled= @old_enabled;
+set @@global.rpl_semi_sync_master_timeout= @old_timeout;
+set @@global.rpl_semi_sync_master_wait_point= @old_wait_point;
+drop table t1, t2;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_semi_sync_after_sync_coord_consistency.test

@@ -270,16 +270,15 @@ sp_cache_enforce_limit(sp_cache *c, ulong upper_limit_for_elements)
   Internal functions
  *************************************************************************/
 
-extern "C" uchar *hash_get_key_for_sp_head(const uchar *ptr, size_t *plen,
-                                           my_bool first);
+extern "C" const uchar *hash_get_key_for_sp_head(const void *ptr, size_t *plen,
+                                                 my_bool);
 extern "C" void hash_free_sp_head(void *p);
 
-uchar *hash_get_key_for_sp_head(const uchar *ptr, size_t *plen,
-                                my_bool first)
+const uchar *hash_get_key_for_sp_head(const void *ptr, size_t *plen, my_bool)
 {
-  sp_head *sp= (sp_head *)ptr;
+  auto sp= static_cast<const sp_head *>(ptr);
   *plen= sp->m_qname.length;
-  return (uchar*) sp->m_qname.str;
+  return reinterpret_cast<const uchar *>(sp->m_qname.str);
 }
 
 

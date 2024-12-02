@@ -1634,7 +1634,7 @@ row_ins_check_foreign_constraint(
 		const rec_t*		rec = btr_pcur_get_rec(&pcur);
 		const buf_block_t*	block = btr_pcur_get_block(&pcur);
 
-		if (page_rec_is_infimum(rec)) {
+		if (page_rec_is_infimum_low(rec - block->page.frame)) {
 
 			continue;
 		}
@@ -1643,7 +1643,7 @@ row_ins_check_foreign_constraint(
 					  check_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
-		if (page_rec_is_supremum(rec)) {
+		if (page_rec_is_supremum_low(rec - block->page.frame)) {
 
 			if (skip_gap_lock) {
 
@@ -2124,7 +2124,7 @@ row_ins_scan_sec_index_for_duplicate(
 		const buf_block_t*	block	= btr_pcur_get_block(&pcur);
 		const ulint		lock_type = LOCK_ORDINARY;
 
-		if (page_rec_is_infimum(rec)) {
+		if (page_rec_is_infimum_low(rec - block->page.frame)) {
 
 			continue;
 		}
@@ -2160,7 +2160,7 @@ row_ins_scan_sec_index_for_duplicate(
 			goto end_scan;
 		}
 
-		if (page_rec_is_supremum(rec)) {
+		if (page_rec_is_supremum_low(rec - block->page.frame)) {
 
 			continue;
 		}
@@ -2277,7 +2277,8 @@ row_ins_duplicate_error_in_clust_online(
 
 	ut_ad(!cursor->index()->is_instant());
 
-	if (cursor->low_match >= n_uniq && !page_rec_is_infimum(rec)) {
+	if (cursor->low_match >= n_uniq
+	    && !page_rec_is_infimum_low(rec - btr_cur_get_page(cursor))) {
 		*offsets = rec_get_offsets(rec, cursor->index(), *offsets,
 					   cursor->index()->n_fields,
 					   ULINT_UNDEFINED, heap);
@@ -2288,7 +2289,7 @@ row_ins_duplicate_error_in_clust_online(
 		}
 	}
 
-	if (!(rec = page_rec_get_next_const(btr_cur_get_rec(cursor)))) {
+	if (!(rec = page_rec_get_next_const(rec))) {
 		return DB_CORRUPTION;
 	}
 
@@ -2349,7 +2350,7 @@ row_ins_duplicate_error_in_clust(
 
 		rec = btr_cur_get_rec(cursor);
 
-		if (!page_rec_is_infimum(rec)) {
+		if (!page_rec_is_infimum_low(rec - btr_cur_get_page(cursor))) {
 			offsets = rec_get_offsets(rec, cursor->index(),
 						  offsets,
 						  cursor->index()
@@ -2802,7 +2803,8 @@ row_level_insert:
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
 
-		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		if (rec_get_info_bits(rec,
+				      page_is_comp(btr_pcur_get_page(&pcur)))
 		    & REC_INFO_MIN_REC_FLAG) {
 			trx->error_info = index;
 			err = DB_DUPLICATE_KEY;
@@ -3231,7 +3233,8 @@ row_ins_clust_index_entry(
 
 #ifdef WITH_WSREP
 	const bool skip_locking
-		= wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
+		= thr_get_trx(thr)->is_wsrep() &&
+		  wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
 		: (index->table->is_temporary() || skip_locking)
 		? BTR_NO_LOCKING_FLAG : 0;

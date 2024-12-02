@@ -1845,10 +1845,10 @@ int spider_db_mbase::init()
 {
   DBUG_ENTER("spider_db_mbase::init");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (
-    my_hash_init(PSI_INSTRUMENT_ME, &lock_table_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-      (my_hash_get_key) spider_link_get_key, 0, 0)
-  ) {
+  if (my_hash_init(PSI_INSTRUMENT_ME, &lock_table_hash,
+                   spd_charset_utf8mb3_bin, 32, 0, 0, spider_link_get_key, 0,
+                   0))
+  {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
   spider_alloc_calc_mem_init(lock_table_hash, SPD_MID_DB_MBASE_INIT_1);
@@ -2023,7 +2023,7 @@ int spider_db_mbase::connect(
         DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
       }
       connect_retry_count--;
-      my_sleep((ulong) connect_retry_interval);
+      my_sleep((ulong) connect_retry_interval * 1000);
     } else {
       db_conn->net.thd = NULL;
       if (connect_mutex)
@@ -2296,7 +2296,7 @@ int spider_db_mbase::fetch_and_print_warnings(struct tm *l_time)
       longlong res_num =
         (longlong) my_strtoll10(row[1], (char**) NULL, &error_num);
       DBUG_PRINT("info",("spider res_num=%lld", res_num));
-      my_printf_error((int) res_num, row[2], MYF(0));
+      my_printf_error((int) res_num, "%s", MYF(0), row[2]);
       error_num = (int) res_num;
       row = mysql_fetch_row(res);
     }

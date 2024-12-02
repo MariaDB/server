@@ -340,11 +340,12 @@ static void usage(void)
 }
 
 
-static uchar* my_hash_get_string(const uchar *record, size_t *length,
-                                my_bool first __attribute__ ((unused)))
+static const uchar *my_hash_get_string(const void *record_, size_t *length,
+                                       my_bool first __attribute__((unused)))
 {
-  *length= (size_t) (strcend((const char*) record,',')- (const char*) record);
-  return (uchar*) record;
+  const char *record= record_;
+  *length= (strcend(record, ',') - record);
+  return record_;
 }
 
 

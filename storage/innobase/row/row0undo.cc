@@ -331,7 +331,9 @@ static buf_block_t* row_undo_rec_get(undo_node_t* node)
 		}
 
 		undo->top_page_no = prev_page->page.id().page_no();
-		undo->top_offset  = page_offset(prev_rec);
+		undo->top_offset = uint16_t(prev_rec - prev_page->page.frame);
+		ut_ad(prev_rec - prev_page->page.frame
+		      == page_offset(prev_rec));
 		undo->top_undo_no = trx_undo_rec_get_undo_no(prev_rec);
 		ut_ad(!undo->empty());
 	} else {
