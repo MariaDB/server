@@ -15,25 +15,25 @@ a
 1
 2
 Warnings:
-Warning	4205	Unresolved index name `t1`@`select#1` `idx_å` for NO_MRR hint
+Warning	4209	Unresolved index name `t1`@`select#1` `idx_å` for NO_MRR hint
 SELECT /*+ NO_MRR(t1 idx_a, idx_å, idx_A) */ a FROM t1;
 a
 1
 2
 Warnings:
-Warning	4202	Hint NO_MRR(`t1` `idx_A`) is ignored as conflicting/duplicated
-Warning	4205	Unresolved index name `t1`@`select#1` `idx_å` for NO_MRR hint
+Warning	4206	Hint NO_MRR(`t1` `idx_A`) is ignored as conflicting/duplicated
+Warning	4209	Unresolved index name `t1`@`select#1` `idx_å` for NO_MRR hint
 DROP TABLE t1;
 # Testing that query block names are accent sensitive case insensitive
 CREATE TABLE t1 (a INT);
 SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@A) */ * FROM t1;
 a
 Warnings:
-Warning	4202	Hint BKA(`t1`@`A`) is ignored as conflicting/duplicated
+Warning	4206	Hint BKA(`t1`@`A`) is ignored as conflicting/duplicated
 SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@å) */ * FROM t1;
 a
 Warnings:
-Warning	4203	Query block name `å` is not found for BKA hint
+Warning	4207	Query block name `å` is not found for BKA hint
 DROP TABLE t1;
 CREATE TABLE t1(f1 INT, f2 INT);
 INSERT INTO t1 VALUES
@@ -230,7 +230,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Warning	4205	Unresolved index name `t5`@`select#2` `z_idx` for NO_ICP hint
+Warning	4209	Unresolved index name `t5`@`select#2` `z_idx` for NO_ICP hint
 Note	1003	select /*+ NO_ICP(`t5`@`select#2` `y_idx`) NO_ICP(`t5`@`select#2` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
 # ICP should still be used
 EXPLAIN EXTENDED SELECT * FROM
@@ -548,7 +548,7 @@ EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) QB_NAME(qb1 ) */ * FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	28	100.00	
 Warnings:
-Warning	4202	Hint QB_NAME(`qb1`) is ignored as conflicting/duplicated
+Warning	4206	Hint QB_NAME(`qb1`) is ignored as conflicting/duplicated
 Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t2`
 # Should issue warning
 EXPLAIN EXTENDED SELECT /*+ BKA(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
@@ -557,7 +557,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Warning	4203	Query block name `qb1` is not found for BKA hint
+Warning	4207	Query block name `qb1` is not found for BKA hint
 Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
 # Should not crash
 PREPARE stmt1 FROM "SELECT /*+ BKA(t2) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
@@ -601,9 +601,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Warning	4204	Unresolved table name `t3`@`select#1` for BKA hint
-Warning	4204	Unresolved table name `t3`@`select#1` for NO_RANGE_OPTIMIZATION hint
-Warning	4205	Unresolved index name `t3`@`select#1` `idx1` for NO_RANGE_OPTIMIZATION hint
+Warning	4208	Unresolved table name `t3`@`select#1` for BKA hint
+Warning	4208	Unresolved table name `t3`@`select#1` for NO_RANGE_OPTIMIZATION hint
+Warning	4209	Unresolved index name `t3`@`select#1` `idx1` for NO_RANGE_OPTIMIZATION hint
 Note	1003	select /*+ BKA(`t2`@`select#1`) NO_BNL(`t1`@`select#1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
 # Check illegal syntax
 EXPLAIN EXTENDED SELECT /*+ BKA(qb1 t3@qb1) */ f2 FROM
@@ -640,7 +640,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	tbl12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 1	SIMPLE	tbl13	hash_ALL	a	#hash#a	5	test.tbl12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Warning	4204	Unresolved table name `tbl2`@`select#1` for BKA hint
+Warning	4208	Unresolved table name `tbl2`@`select#1` for BKA hint
 Note	1003	select `test`.`tbl12`.`a` AS `a`,`test`.`tbl12`.`b` AS `b`,`test`.`tbl13`.`a` AS `a`,`test`.`tbl13`.`b` AS `b`,`test`.`tbl13`.`c` AS `c`,`test`.`tbl13`.`filler` AS `filler` from `test`.`t12` `tbl12` join `test`.`t13` `tbl13` where `test`.`tbl13`.`a` = `test`.`tbl12`.`a` and `test`.`tbl13`.`b` + 1 <= `test`.`tbl13`.`b` + 1
 # Check that PS and conventional statements give the same result.
 FLUSH STATUS;
@@ -1476,19 +1476,19 @@ SELECT /*+ BKA() BKA() */ 1;
 1
 1
 Warnings:
-Warning	4202	Hint BKA() is ignored as conflicting/duplicated
+Warning	4206	Hint BKA() is ignored as conflicting/duplicated
 SELECT /*+ BKA(t1) BKA(t1) */ * FROM t1;
 i
 Warnings:
-Warning	4202	Hint BKA(`t1`) is ignored as conflicting/duplicated
+Warning	4206	Hint BKA(`t1`) is ignored as conflicting/duplicated
 SELECT /*+ QB_NAME(q1) BKA(t1@q1) BKA(t1@q1) */ * FROM t1;
 i
 Warnings:
-Warning	4202	Hint BKA(`t1`@`q1`) is ignored as conflicting/duplicated
+Warning	4206	Hint BKA(`t1`@`q1`) is ignored as conflicting/duplicated
 SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t1 PRIMARY) NO_ICP(@q1 t1 PRIMARY) */ * FROM t1;
 i
 Warnings:
-Warning	4202	Hint NO_ICP(`t1`@`q1` `PRIMARY`) is ignored as conflicting/duplicated
+Warning	4206	Hint NO_ICP(`t1`@`q1` `PRIMARY`) is ignored as conflicting/duplicated
 DROP TABLE t1;
 #
 # Hints inside views are not supported
@@ -1497,7 +1497,7 @@ CREATE TABLE t1 (a INT, INDEX idx_a(a));
 INSERT INTO t1 VALUES (1),(2);
 CREATE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
 Warnings:
-Warning	4206	Optimizer hints are not supported inside view definitions
+Warning	4210	Optimizer hints are not supported inside view definitions
 SELECT * FROM v1;
 a
 1
@@ -1513,13 +1513,13 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1`
 CREATE OR REPLACE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) BKA(t1)*/ a FROM t1;
 Warnings:
-Warning	4206	Optimizer hints are not supported inside view definitions
+Warning	4210	Optimizer hints are not supported inside view definitions
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
 ALTER VIEW v1 AS SELECT /*+ QB_NAME(q1)*/ a FROM t1;
 Warnings:
-Warning	4206	Optimizer hints are not supported inside view definitions
+Warning	4210	Optimizer hints are not supported inside view definitions
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
@@ -1686,15 +1686,15 @@ Warning	1064	Optimizer hint syntax error near 'b) */   1 FROM t1 a, t1 b' at lin
 SELECT /*+ NO_ICP(i1) */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name `i1`@`select#1` for NO_ICP hint
+Warning	4208	Unresolved table name `i1`@`select#1` for NO_ICP hint
 SELECT /*+ NO_ICP(i1 i2) */ 1 FROM t1;
 1
 Warnings:
-Warning	4205	Unresolved index name `i1`@`select#1` `i2` for NO_ICP hint
+Warning	4209	Unresolved index name `i1`@`select#1` `i2` for NO_ICP hint
 SELECT /*+ NO_ICP(@qb ident) */ 1 FROM t1;
 1
 Warnings:
-Warning	4203	Query block name `qb` is not found for NO_ICP hint
+Warning	4207	Query block name `qb` is not found for NO_ICP hint
 
 # valid hint sequences, no warnings expected:
 
@@ -1749,49 +1749,49 @@ CREATE INDEX 3rd_index ON t1(i, j);
 SELECT /*+ NO_ICP(3rd_index) */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name `3rd_index`@`select#1` for NO_ICP hint
+Warning	4208	Unresolved table name `3rd_index`@`select#1` for NO_ICP hint
 CREATE INDEX $index ON t1(j, i);
 SELECT /*+ NO_ICP($index) */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name `$index`@`select#1` for NO_ICP hint
+Warning	4208	Unresolved table name `$index`@`select#1` for NO_ICP hint
 CREATE TABLE ` quoted name test` (i INT);
 SELECT /*+ BKA(` quoted name test`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name ` quoted name test`@`select#1` for BKA hint
+Warning	4208	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 SELECT /*+ BKA(` quoted name test`@`select#1`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4203	Query block name `select#1` is not found for BKA hint
+Warning	4207	Query block name `select#1` is not found for BKA hint
 DROP TABLE ` quoted name test`;
 SET SQL_MODE = 'ANSI_QUOTES';
 CREATE TABLE " quoted name test" (i INT);
 SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name " quoted name test"@"select#1" for BKA hint
+Warning	4208	Unresolved table name " quoted name test"@"select#1" for BKA hint
 SELECT /*+ BKA(" quoted name test"@"select#1") */ 1 FROM t1;
 1
 Warnings:
-Warning	4203	Query block name "select#1" is not found for BKA hint
+Warning	4207	Query block name "select#1" is not found for BKA hint
 CREATE TABLE `test1``test2``` (i INT);
 SELECT /*+ BKA(`test1``test2```) */ 1;
 1
 1
 Warnings:
-Warning	4204	Unresolved table name "test1`test2`"@"select#1" for BKA hint
+Warning	4208	Unresolved table name "test1`test2`"@"select#1" for BKA hint
 SELECT /*+ BKA("test1""test2""") */ 1;
 1
 1
 Warnings:
-Warning	4204	Unresolved table name "test1""test2"""@"select#1" for BKA hint
+Warning	4208	Unresolved table name "test1""test2"""@"select#1" for BKA hint
 SET SQL_MODE = '';
 # should warn:
 SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name ` quoted name test`@`select#1` for BKA hint
+Warning	4208	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 DROP TABLE ` quoted name test`;
 DROP TABLE `test1``test2```;
 # Valid hints, no warning:
@@ -1843,29 +1843,29 @@ CREATE TABLE tableТ (i INT);
 SELECT /*+ BKA(tableТ) */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name `tableТ`@`select#1` for BKA hint
+Warning	4208	Unresolved table name `tableТ`@`select#1` for BKA hint
 SELECT /*+ BKA(test@tableТ) */ 1 FROM t1;
 1
 Warnings:
-Warning	4203	Query block name `tableТ` is not found for BKA hint
+Warning	4207	Query block name `tableТ` is not found for BKA hint
 DROP TABLE tableТ;
 CREATE TABLE таблица (i INT);
 SELECT /*+ BKA(`таблица`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name `таблица`@`select#1` for BKA hint
+Warning	4208	Unresolved table name `таблица`@`select#1` for BKA hint
 SELECT /*+ BKA(таблица) */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name `таблица`@`select#1` for BKA hint
+Warning	4208	Unresolved table name `таблица`@`select#1` for BKA hint
 SELECT /*+ BKA(test@таблица) */ 1 FROM t1;
 1
 Warnings:
-Warning	4203	Query block name `таблица` is not found for BKA hint
+Warning	4207	Query block name `таблица` is not found for BKA hint
 SELECT /*+ NO_ICP(`\D1`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name `\D1`@`select#1` for NO_ICP hint
+Warning	4208	Unresolved table name `\D1`@`select#1` for NO_ICP hint
 DROP TABLE таблица;
 
 # derived tables and other subqueries:
@@ -1966,7 +1966,7 @@ NO_ICP(@qb ident)
 1
 1
 Warnings:
-Warning	4203	Query block name `qb` is not found for NO_ICP hint
+Warning	4207	Query block name `qb` is not found for NO_ICP hint
 SELECT /*+
 ? bad syntax
 */ 1;
