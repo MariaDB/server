@@ -114,4 +114,86 @@ public:
   }
 };
 
+/**
+  Sql_cmd_clone implements CLONE ... statement.
+*/
+class Clone_handler;
+
+class Sql_cmd_clone : public Sql_cmd {
+ public:
+  /** Construct clone command for clone server */
+  explicit Sql_cmd_clone()
+      : m_host(),
+        m_port(),
+        m_user(),
+        m_passwd(),
+        m_data_dir(),
+        m_clone(),
+        m_is_local(false) {}
+
+  /** Construct clone command for clone client
+  @param[in]  user_info user, password and remote host information
+  @param[in]  port port for remote server
+  @param[in]  data_dir data directory to clone */
+  explicit Sql_cmd_clone(LEX_USER *user_info, ulong port, LEX_CSTRING data_dir);
+
+  /** Construct clone command for local clone
+  @param[in]  data_dir data directory to clone */
+  explicit Sql_cmd_clone(LEX_CSTRING data_dir)
+      : m_host(),
+        m_port(),
+        m_user(),
+        m_passwd(),
+        m_data_dir(data_dir),
+        m_clone(),
+        m_is_local(true) {}
+
+  enum_sql_command sql_command_code() const override { return SQLCOM_CLONE; }
+
+  bool execute(THD *thd) override;
+
+  /** Execute clone server.
+  @param[in] thd server session
+  @return true, if error */
+  bool execute_server(THD *thd);
+
+  /** Load clone plugin for clone server.
+  @param[in] thd server session
+  @return true, if error */
+  bool load(THD *thd);
+
+  /** Re-write clone statement to hide password.
+  @param[in,out] thd server session
+  @param[in,out] rlb the buffer to return the rewritten query in. empty if none.
+  @return true iff query is re-written */
+  bool rewrite(THD *thd, String &rlb);
+
+  /** @return true, if it is local clone command */
+  bool is_local() const { return (m_is_local); }
+
+ private:
+  /** Remote server IP */
+  LEX_CSTRING m_host;
+
+  /** Remote server port */
+  const ulong m_port;
+
+  /** User name for remote connection */
+  LEX_CSTRING m_user;
+
+  /** Password for remote connection */
+  LEX_CSTRING m_passwd;
+
+  /** Data directory for cloned data */
+  LEX_CSTRING m_data_dir;
+
+  /** Clone handle in server */
+  Clone_handler *m_clone;
+
+  /** Loaded clone plugin reference */
+  plugin_ref m_plugin;
+
+  /** If it is local clone operation */
+  bool m_is_local;
+};
 #endif
