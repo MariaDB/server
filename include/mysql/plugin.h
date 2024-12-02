@@ -109,7 +109,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 /**< Plugins for new native SQL functions */
 #define MariaDB_FUNCTION_PLUGIN 11
 /** Plugin for cloning storage engine data */
-#define MARIADB_CLONE_PLUGIN 12
+#define MariaDB_CLONE_PLUGIN 12
 
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0
