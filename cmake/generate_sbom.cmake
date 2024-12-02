@@ -1,16 +1,6 @@
 INCLUDE(generate_submodule_info)
 INCLUDE(ExternalProject)
 
-# Remove all matches from a cmake list
-FUNCTION (REMOVE_ALL_MATCHES list_var_name match_str)
-  SET(new_list)
-  FOREACH(el ${${list_var_name}})
-    IF(NOT("${el}" MATCHES "${match_str}"))
-      LIST(APPEND new_list ${el})
-    ENDIF()
-  ENDFOREACH()
-  SET(${list_var_name} ${new_list} PARENT_SCOPE)
-ENDFUNCTION()
 
 # Extract user name and repository name from a github URL.
 FUNCTION (EXTRACT_REPO_NAME_AND_USER repo_url repo_name_var repo_user_var)
@@ -43,6 +33,24 @@ MACRO(ADD_THIRD_PARTY_DEPENDENCY name url tag rev version description)
  SET(${name}_VERSION "${version}")
  LIST(APPEND ALL_THIRD_PARTY ${name})
 ENDMACRO()
+
+# Add dependency on CMake ExternalProject.
+# Currently, only works for github hosted projects,
+# URL property of the external project needs to point to release source download
+MACRO(ADD_CMAKE_EXTERNAL_PROJECT_DEPENDENCY name)
+  ExternalProject_GET_PROPERTY(${name} URL)
+  STRING(REGEX REPLACE "https://github.com/([^/]+/[^/]+)/releases/download/([^/]+)/.*-([^-]+)\\..*" "\\1;\\2;\\3" parsed "${URL}")
+  # Split the result into components
+  LIST(LENGTH parsed parsed_length)
+  IF(NOT parsed_length EQUAL 3)
+    MESSAGE(FATAL_ERROR "Unexpected format for the download URL of project ${name} : (${URL})")
+  ENDIF()
+  LIST(GET parsed 0 project_path)
+  LIST(GET parsed 1 tag)
+  LIST(GET parsed 2 ver)
+  ADD_THIRD_PARTY_DEPENDENCY(${name} "https://github.com/${project_path}" "${tag}" "${tag}" "${ver}" "")
+ENDMACRO()
+
 
 # Match third party component with supplier
 # CyclonDX documentation says it is
@@ -82,25 +90,25 @@ FUNCTION(GENERATE_SBOM)
   # dependency info into SBOM
   IF(WITH_SSL AND NOT (WITH_SSL STREQUAL "bundled"))
     # using openssl, rather than wolfssl
-    REMOVE_ALL_MATCHES(ALL_SUBMODULES wolfssl)
+    LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX wolfssl)
   ENDIF()
   IF(NOT WITH_WSREP)
     # wsrep is not compiled
-    REMOVE_ALL_MATCHES(ALL_SUBMODULES wsrep)
+    LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX wsrep)
   ENDIF()
   IF((NOT PLUGIN_COLUMNSTORE) OR (PLUGIN_COLUMNSTORE STREQUAL "NO"))
-    REMOVE_ALL_MATCHES(ALL_SUBMODULES columnstore)
+    LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX columnstore)
   ENDIF()
   IF((NOT PLUGIN_ROCKSDB) OR (PLUGIN_ROCKSDB STREQUAL "NO"))
     # Rocksdb is not compiled
-    REMOVE_ALL_MATCHES(ALL_SUBMODULES rocksdb)
+    LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX rocksdb)
   ENDIF()
   IF((NOT PLUGIN_S3) OR (PLUGIN_S3 STREQUAL "NO"))
     # S3 aria is not compiled
-    REMOVE_ALL_MATCHES(ALL_SUBMODULES storage/maria/libmarias3)
+    LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX storage/maria/libmarias3)
   ENDIF()
   # libmariadb/docs is not a library, so remove it
-  REMOVE_ALL_MATCHES(ALL_SUBMODULES libmariadb/docs)
+  LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX libmariadb/docs)
 
   # It is possible to provide  EXTRA_SBOM_DEPENDENCIES
   # and accompanying per-dependency data, to extend generared sbom
@@ -114,35 +122,15 @@ FUNCTION(GENERATE_SBOM)
   # -Dncurses_DESCRIPTION="A fake extra dependency"
   SET(ALL_THIRD_PARTY ${ALL_SUBMODULES} ${EXTRA_SBOM_DEPENDENCIES})
 
-  IF(TARGET ha_connect OR TARGET connect)
-     ADD_THIRD_PARTY_DEPENDENCY(minizip
-      "https://github.com/zlib-ng/minizip-ng"
-      "" 252588f ""
-      "Vendored minizip, inside connect storage engine, storage/connect/zip.c et al")
-  ENDIF()
-
-  IF(TARGET libfmt)
-    ExternalProject_GET_PROPERTY(libfmt URL)
-    STRING(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" libmt_TAG "${URL}")
-    ADD_THIRD_PARTY_DEPENDENCY(libfmt
-      "https://github.com/fmtlib/fmt"
-      "${libmt_TAG}" "${libmt_TAG}" "${libmt_TAG}"
-      "header only library, used in server")
-  ENDIF()
-
-  IF(TARGET pcre2)
-    ExternalProject_GET_PROPERTY(pcre2 URL)
-    IF(NOT ("${URL}" MATCHES
-       "https://github\\.com/PCRE2Project/pcre2/releases/download/pcre2-[0-9]+\\.[0-9]+/pcre2-[0-9]+\\.[0-9]+\\.zip"))
-      MESSAGE(FATAL_ERROR "Unexpected pcre2 URL")
+  # Add dependencies on cmake ExternalProjects
+  FOREACH(ext_proj libfmt pcre2)
+    IF(TARGET ${ext_proj})
+      ADD_CMAKE_EXTERNAL_PROJECT_DEPENDENCY(${ext_proj})
     ENDIF()
-    STRING(REGEX MATCH "pcre2-[0-9]+\\.[0-9]+" pcre2_TAG "${URL}")
-    STRING(REGEX MATCH "[0-9]+\\.[0-9]+" pcre2_VERSION "${pcre2_TAG}")
-    ADD_THIRD_PARTY_DEPENDENCY(pcre2 "https://github.com/PCRE2Project/pcre2"
-      "${pcre2_TAG}" "${pcre2_TAG}" "${pcre2_VERSION}" "")
-  ENDIF()
+  ENDFOREACH()
 
-  IF(TARGET zlib)
+  # ZLIB
+  IF(TARGET zlib OR TARGET ha_connect OR TARGET connect)
     # Path to the zlib.h file
     SET(ZLIB_HEADER_PATH "${PROJECT_SOURCE_DIR}/zlib/zlib.h")
     # Variable to store the extracted version
@@ -163,8 +151,16 @@ FUNCTION(GENERATE_SBOM)
     ELSE()
       MESSAGE(FATAL_ERROR "ZLIB_VERSION definition not found in ${ZLIB_HEADER_PATH}")
     ENDIF()
-    ADD_THIRD_PARTY_DEPENDENCY(zlib "https://github.com/madler/zlib"
+    IF(TARGET zlib)
+      ADD_THIRD_PARTY_DEPENDENCY(zlib "https://github.com/madler/zlib"
       "v${ZLIB_VERSION}" "v${ZLIB_VERSION}" "${ZLIB_VERSION}" "Vendored zlib included into server source")
+    ENDIF()
+    IF(TARGET ha_connect OR TARGET connect)
+      SET(minizip_PURL "pkg:github/madler/zlib@${ZLIB_VERSION}?path=contrib/minizip")
+      ADD_THIRD_PARTY_DEPENDENCY(minizip "https://github.com/madler/zlib?path=contrib/minizip"
+      "v${ZLIB_VERSION}-minizip" "v${ZLIB_VERSION}-minizip" "${ZLIB_VERSION}"
+      "Vendored minizip (zip.c, unzip.c, ioapi.c) in connect engine, copied from zlib/contributions")
+    ENDIF()
   ENDIF()
 
   SET(sbom_components "")
@@ -236,5 +232,8 @@ FUNCTION(GENERATE_SBOM)
   #github-purl needs lowercased user and project names
   STRING(TOLOWER "${GITHUB_REPO_NAME}" GITHUB_REPO_NAME)
   STRING(TOLOWER "${GITHUB_REPO_USER}" GITHUB_REPO_USER)
+  IF(NOT DEFINED CPACK_PACKAGE_VERSION)
+    SET(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
+  ENDIF()
   configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/sbom.json.in ${CMAKE_BINARY_DIR}/sbom.json)
 ENDFUNCTION()

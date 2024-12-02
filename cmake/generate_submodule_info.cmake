@@ -14,6 +14,8 @@
 FUNCTION(generate_submodule_info outfile)
   FIND_PACKAGE(Git REQUIRED)
   SET(git_cmd "(git describe --tags --exact 2>/dev/null || echo no-tag) && git rev-parse --short HEAD && git remote get-url origin")
+  SET(ENV_LC_ALL "$ENV{LC_ALL}")
+  SET($ENV{LC_ALL} C)
   EXECUTE_PROCESS(
     COMMAND
     ${GIT_EXECUTABLE} submodule foreach --recursive ${git_cmd}
@@ -21,6 +23,13 @@ FUNCTION(generate_submodule_info outfile)
     RESULT_VARIABLE  res
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
+  IF(NOT(${res} EQUAL 0))
+    MESSAGE(FATAL_ERROR "'git submodule foreach' failed")
+  ENDIF()
+  IF(NOT "${ENV_LC_ALL}" STREQUAL "")
+   SET($ENV{LC_ALL} ${ENV_LC_ALL})
+  ENDIF()
+
   STRING(REPLACE "\n" ";" out_list "${outvar}")
   SET(out_string)
   SET(all_submodules)
@@ -52,12 +61,20 @@ FUNCTION(generate_submodule_info outfile)
   # Also while not strictly "submodule" info, get the origin url
   EXECUTE_PROCESS(
     COMMAND
-    ${GIT_EXECUTABLE} config --get remote.origin.url
+    ${GIT_EXECUTABLE} remote get-url origin
     OUTPUT_VARIABLE outvar
     OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE  res
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
+  IF(("${outvar}" STREQUAL "") OR NOT(${res} EQUAL 0))
+    MESSAGE("Can't find GIT_REMOTE_ORIGIN_URL, fallback")
+    IF(GIT_REMOTE_ORIGIN_URL)
+      SET(outvar ${GIT_REMOTE_ORIGIN_URL})
+    ELSE()
+      SET(outvar https://github.com/mariadb/server.git)
+    ENDIF()
+  ENDIF()
   STRING(APPEND out_string "SET(GIT_REMOTE_ORIGIN_URL \"${outvar}\")\n")
   EXECUTE_PROCESS(
     COMMAND
