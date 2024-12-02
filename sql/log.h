@@ -1443,6 +1443,8 @@ void sql_print_error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 void sql_print_warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 void sql_print_information(const char *format, ...)
   ATTRIBUTE_FORMAT(printf, 1, 2);
+void sql_print_debug(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
+
 void sql_print_information_v(const char *format, va_list ap)
   ATTRIBUTE_FORMAT(printf, 1, 0);
 typedef void (*sql_print_message_func)(const char *format, ...)

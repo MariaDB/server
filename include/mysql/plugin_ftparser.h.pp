@@ -129,6 +129,10 @@ extern struct logger_service_st {
   LOGGER_HANDLE* (*open)(const char *path,
                          unsigned long long size_limit,
                          unsigned int rotations, size_t buffer_size);
+  LOGGER_HANDLE* (*init)(FILE *file,
+                         const char *path,
+                         unsigned long long size_limit,
+                         unsigned int rotations, size_t buffer_size);
   int (*close)(LOGGER_HANDLE *log);
   int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr)
     __attribute__((format(printf, 2, 0)));
@@ -144,6 +148,10 @@ extern struct logger_service_st {
 } *logger_service;
   void logger_init_mutexes();
   LOGGER_HANDLE *logger_open(const char *path,
+                             unsigned long long size_limit,
+                             unsigned int rotations, size_t buffer_size);
+  LOGGER_HANDLE *logger_init(FILE *file,
+                             const char* path,
                              unsigned long long size_limit,
                              unsigned int rotations, size_t buffer_size);
   int logger_close(LOGGER_HANDLE *log);

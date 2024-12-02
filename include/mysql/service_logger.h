@@ -18,6 +18,7 @@
 
 #ifndef MYSQL_ABI_CHECK
 #include <stdarg.h>
+#include <stdio.h>
 #endif
 #include <my_attribute.h>
 
@@ -25,17 +26,22 @@
   @file
   logger service
 
-  Log file with rotation implementation.
+  Log file with buffered writing and rotation implementation.
 
-  This service implements logging with possible rotation
-  of the log files. Interface intentionally tries to be similar to FILE*
-  related functions.
+  This service implements logging with possible buffered writing
+  and rotation of the log files. Interface intentionally tries to
+  be similar to FILE* related functions.
 
   So that one can open the log with logger_open(), specifying
-  the limit on the logfile size and the rotations number.
+  the limit on the logfile size, possible buffer size and the
+  rotations number.
+
+  If buffer size is given, messages are written to buffer.
+  If size of messages in buffer grow over the specified
+  limit, they are written to logfile.
 
   Then it's possible to write messages to the log with
-  logger_printf or logger_vprintf functions.
+  logger_printf, logger_vprintf or logger_write functions.
 
   As the size of the logfile grows over the specified limit,
   it is renamed to 'logfile.1'. The former 'logfile.1' becomes
@@ -65,6 +71,10 @@ extern struct logger_service_st {
   LOGGER_HANDLE* (*open)(const char *path,
                          unsigned long long size_limit,
                          unsigned int rotations, size_t buffer_size);
+  LOGGER_HANDLE* (*init)(FILE *file,
+                         const char *path,
+                         unsigned long long size_limit,
+                         unsigned int rotations, size_t buffer_size);
   int (*close)(LOGGER_HANDLE *log);
   int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr)
     ATTRIBUTE_FORMAT_FPTR(printf, 2, 0);
@@ -84,6 +94,8 @@ extern struct logger_service_st {
 #define logger_init_mutexes logger_service->logger_init_mutexes
 #define logger_open(path, size_limit, rotations, buffer_size) \
   (logger_service->open(path, size_limit, rotations, buffer_size))
+#define logger_init(file, path, size_limit, rotations, buffer_size)	\
+  (logger_service->init(file, path, size_limit, rotations, buffer_size))
 #define logger_close(log) (logger_service->close(log))
 #define logger_rotate(log) (logger_service->rotate(log))
 #define logger_vprintf(log, fmt, argptr) (logger_service->\
@@ -102,6 +114,10 @@ extern struct logger_service_st {
 
   void logger_init_mutexes();
   LOGGER_HANDLE *logger_open(const char *path,
+                             unsigned long long size_limit,
+                             unsigned int rotations, size_t buffer_size);
+  LOGGER_HANDLE *logger_init(FILE *file,
+                             const char* path,
                              unsigned long long size_limit,
                              unsigned int rotations, size_t buffer_size);
   int logger_close(LOGGER_HANDLE *log);

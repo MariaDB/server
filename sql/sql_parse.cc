@@ -1677,7 +1677,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
   if (WSREP(thd) && thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
   {
     thd->set_wsrep_next_trx_id(thd->query_id);
-    WSREP_DEBUG("assigned new next trx id: %" PRIu64, thd->wsrep_next_trx_id());
+    WSREP_DEBUG("Thread %llu assigned new next trx id: %" PRIu64,
+                 thd_get_thread_id(thd),thd->wsrep_next_trx_id());
   }
 #endif /* WITH_WSREP */
 

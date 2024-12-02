@@ -1,0 +1,3 @@
+--log-error-file-buffer-size=1024
+--log-error-file-rotate-size=4096
+--log-error-file-rotations=2

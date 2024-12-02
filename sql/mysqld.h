@@ -177,6 +177,12 @@ extern char *opt_logname, *opt_slow_logname, *opt_bin_logname,
 extern char *opt_binlog_index_name;
 extern my_bool opt_binlog_legacy_event_pos;
 
+extern ulonglong log_error_file_buffer_size;
+extern ulong log_error_file_rotations;
+extern ulong log_error_file_rotate_size;
+extern LOGGER_HANDLE *error_logger;
+extern void free_error_log_buffer();
+
 /* System Versioning begin */
 enum vers_system_time_t
 {

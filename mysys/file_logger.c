@@ -20,6 +20,7 @@
 #include <m_string.h>
 #include <mysql/service_logger.h>
 #include <my_pthread.h>
+#include <stdio.h>
 #endif /*FLOGGER_SKIP_INCLUDES*/
 
 #ifdef HAVE_PSI_INTERFACE
@@ -101,6 +102,57 @@ LOGGER_HANDLE *logger_open(const char *path,
 
   if (l_perm->buffer_size)
     init_io_cache(&l_perm->cache, new_log.file, l_perm->buffer_size,
+                  WRITE_CACHE, l_perm->filesize, FALSE, MYF(MY_WME | MY_NABP));
+
+  return l_perm;
+}
+
+LOGGER_HANDLE *logger_init(FILE *file,
+			   const char *path,
+                           unsigned long long size_limit,
+                           unsigned int rotations, size_t buffer_size)
+{
+  LOGGER_HANDLE *l_perm= NULL;
+  size_t path_len= strlen(path);
+  int fd= fileno(file);
+  /*
+    I don't think we ever need more rotations,
+    but if it's so, the rotation procedure should be adapted to it.
+  */
+  if (rotations > 999)
+    return 0;
+
+  if (buffer_size > 0 && buffer_size < 1024)
+    buffer_size= 1024;
+
+  if (rotations > 0 && size_limit < buffer_size)
+    buffer_size= size_limit;
+
+  if (path_len+n_dig(rotations)+1 > FN_REFLEN)
+  {
+    errno= ENAMETOOLONG;
+    /* File path too long */
+    return 0;
+  }
+
+  if (!(l_perm= (LOGGER_HANDLE *) my_malloc(PSI_INSTRUMENT_ME,
+                                            sizeof(LOGGER_HANDLE), MYF(0))))
+    return 0; /* End of memory */
+
+  l_perm->rotations= rotations;
+  l_perm->size_limit= size_limit;
+  strncpy(l_perm->path, path, path_len);
+  l_perm->path_len= path_len;
+
+  mysql_mutex_init(key_LOCK_logger_service, &l_perm->lock,
+                    MY_MUTEX_INIT_FAST);
+
+  l_perm->buffer_size= buffer_size;
+  l_perm->filesize= my_seek(fd, 0L, MY_SEEK_END, MYF(0));
+  l_perm->file= fd;
+
+  if (l_perm->buffer_size)
+    init_io_cache(&l_perm->cache, fd, l_perm->buffer_size,
                   WRITE_CACHE, l_perm->filesize, FALSE, MYF(MY_WME | MY_NABP));
 
   return l_perm;

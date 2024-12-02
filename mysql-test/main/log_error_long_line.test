@@ -1,0 +1,25 @@
+--source include/not_embedded.inc
+
+#
+# Error log lines longer than 1024 bytes are written in full, both with
+# and without buffered error logging.
+#
+--let $name= `SELECT REPEAT('a', 3000)`
+--let $datadir= $MYSQLTEST_VARDIR/tmp/log_error_long_line_data
+--let $log= $MYSQLTEST_VARDIR/tmp/log_error_long_line.err
+--mkdir $datadir
+
+--let $i= 0
+while ($i < 2)
+{
+  --let $buffer_size= `SELECT $i * 1024`
+  --error 0,1,2
+  --exec $MYSQLD --no-defaults --datadir=$datadir --skip-networking --socket=$MYSQLTEST_VARDIR/tmp/log_error_long_line.sock --log-error=$log --log-error-file-buffer-size=$buffer_size --default-storage-engine=$name
+  --let SEARCH_FILE= $log
+  --let SEARCH_PATTERN= Unknown/unsupported storage engine: a{3000}
+  --source include/search_pattern_in_file.inc
+  --remove_file $log
+  --inc $i
+}
+
+--rmdir $datadir

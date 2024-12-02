@@ -68,6 +68,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #include "wsrep_status.h"
+#include "wsrep_var.h"
 #endif /* WITH_WSREP */
 
 #ifdef HAVE_REPLICATION
@@ -77,7 +78,9 @@
 #endif
 
 /* max size of the log message */
-#define MAX_LOG_BUFFER_SIZE 1024
+#define MAX_LOG_BUFFER_SIZE 4096
+/* Longest message written to the error log */
+#define MAX_LOG_MESSAGE_SIZE (1024*1024)
 #define MAX_TIME_SIZE 32
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
@@ -420,11 +423,12 @@ Silence_log_table_errors::handle_condition(THD *,
   return TRUE;
 }
 
-sql_print_message_func sql_print_message_handlers[3] =
+sql_print_message_func sql_print_message_handlers[4] =
 {
   sql_print_information,
   sql_print_warning,
-  sql_print_error
+  sql_print_error,
+  sql_print_debug
 };
 
 
@@ -11909,6 +11913,23 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
   } while (0)
 #endif
 
+/*
+  Message buffer of print_buffer_to_file(). Protected by LOCK_error_log.
+  Allocated on first use with MAX_LOG_BUFFER_SIZE+1 bytes, grown by
+  MAX_LOG_BUFFER_SIZE when a message does not fit and freed at
+  shutdown by free_error_log_buffer().
+*/
+static char *error_log_buf= NULL;
+static size_t error_log_buf_size= 0;
+
+/** Free the message buffer. Called at shutdown, when no thread logs. */
+void free_error_log_buffer()
+{
+  my_free(error_log_buf);
+  error_log_buf= NULL;
+  error_log_buf_size= 0;
+}
+
 static void print_buffer_to_file(enum loglevel level, const char *buffer,
                                  size_t length)
 {
@@ -11918,6 +11939,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   THD *thd= 0;
   size_t tag_length= 0;
   char tag[NAME_LEN];
+
   DBUG_ENTER("print_buffer_to_file");
   DBUG_PRINT("enter",("buffer: %s", buffer));
 
@@ -11942,20 +11964,85 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  fprintf_stderr( "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
-          start->tm_year + 1900,
-          start->tm_mon+1,
-          start->tm_mday,
-          start->tm_hour,
-          start->tm_min,
-          start->tm_sec,
-          (unsigned long) (thd ? thd->thread_id : 0),
-          (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
-           "Warning" : "Note"),
-          (int) tag_length, tag,
-          (int) length, buffer);
+  assert(level <= DEBUG_LEVEL);
+  const char* level_msg[] =
+    { "ERROR", "Warning", "Note", "Debug" };
 
-  fflush(stderr);
+  if (!error_log_buf)
+  {
+    if (!(error_log_buf= (char*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                           MAX_LOG_BUFFER_SIZE + 1, MYF(0))))
+    {
+      /* No memory for the buffer, write the bare message */
+      fprintf(stderr, "%.*s\n", (int) length, buffer);
+      fflush(stderr);
+      mysql_mutex_unlock(&LOCK_error_log);
+      DBUG_VOID_RETURN;
+    }
+    error_log_buf_size= MAX_LOG_BUFFER_SIZE + 1;
+  }
+
+  size_t len= 0;
+  for (int pass= 0; pass < 2; pass++)
+  {
+    int res= snprintf(error_log_buf, error_log_buf_size,
+                      "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
+                      start->tm_year + 1900,
+                      start->tm_mon+1,
+                      start->tm_mday,
+                      start->tm_hour,
+                      start->tm_min,
+                      start->tm_sec,
+                      (unsigned long) (thd ? thd->thread_id : 0),
+                      level_msg[level],
+                      (int) tag_length, tag,
+                      (int) length, buffer);
+    if (res < 0)
+    {
+      mysql_mutex_unlock(&LOCK_error_log);
+      DBUG_VOID_RETURN;
+    }
+    len= (size_t) res;
+    if (len < error_log_buf_size)
+      break;
+    /* Message did not fit: grow once in MAX_LOG_BUFFER_SIZE steps */
+    size_t new_size= error_log_buf_size;
+    while (new_size <= len)
+      new_size+= MAX_LOG_BUFFER_SIZE;
+    char *new_buf= pass ? NULL
+                        : (char*) my_realloc(PSI_NOT_INSTRUMENTED,
+                                             error_log_buf, new_size, MYF(0));
+    if (!new_buf)
+    {
+      /* Write the truncated message, keep the line ending */
+      len= error_log_buf_size - 1;
+      error_log_buf[len - 1]= '\n';
+      break;
+    }
+    error_log_buf= new_buf;
+    error_log_buf_size= new_size;
+  }
+
+  // For wsrep write msg by default if level is not debug
+  // and debug messages only if wsrep_debug is configured.
+  // Non wsrep write msg
+  bool write_msg= IF_WSREP((level < DEBUG_LEVEL ||
+                            (level == DEBUG_LEVEL && wsrep_debug)),
+                           1);
+
+  if (write_msg)
+  {
+    if (error_logger)
+    {
+      // Use buffered error log writing
+      logger_write(error_logger, error_log_buf, len);
+    }
+    else
+    {
+      fwrite(error_log_buf, 1, len, stderr);
+      fflush(stderr);
+    }
+  }
 
 #ifdef WITH_WSREP
   if (level <= WARNING_LEVEL)
@@ -11989,21 +12076,60 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
 */
 int vprint_msg_to_log(enum loglevel level, const char *format, va_list args)
 {
-  char   buff[1024];
+  char   stack_buff[1024];
+  char   *buff= stack_buff;
+  size_t buff_size= sizeof(stack_buff);
   size_t length;
+  va_list args_copy;
   DBUG_ENTER("vprint_msg_to_log");
 
-  length= my_vsnprintf(buff, sizeof(buff), format, args);
+  va_copy(args_copy, args);
+  length= my_vsnprintf(buff, buff_size, format, args);
+
+  /*
+    my_vsnprintf() truncates, so a result that fills the buffer may be cut.
+    Format again into a larger buffer, up to MAX_LOG_MESSAGE_SIZE.
+  */
+  while (length >= buff_size - 1 && buff_size < MAX_LOG_MESSAGE_SIZE)
+  {
+    size_t new_size= MY_MIN(buff_size * 4, MAX_LOG_MESSAGE_SIZE);
+    char *new_buff= (char*) my_malloc(PSI_NOT_INSTRUMENTED, new_size, MYF(0));
+    va_list retry_args;
+    if (!new_buff)
+      break;
+    if (buff != stack_buff)
+      my_free(buff);
+    buff= new_buff;
+    buff_size= new_size;
+    va_copy(retry_args, args_copy);
+    length= my_vsnprintf(buff, buff_size, format, retry_args);
+    va_end(retry_args);
+  }
+  va_end(args_copy);
+
   print_buffer_to_file(level, buff, length);
 
 #ifdef _WIN32
-  print_buffer_to_nt_eventlog(level, buff, length, sizeof(buff));
+  print_buffer_to_nt_eventlog(level, buff, length, buff_size);
 #endif
 
+  if (buff != stack_buff)
+    my_free(buff);
   DBUG_RETURN(0);
 }
 #endif /* EMBEDDED_LIBRARY */
 
+void sql_print_debug(const char *format, ...)
+{
+  va_list args;
+  DBUG_ENTER("sql_print_debug");
+
+  va_start(args, format);
+  error_log_print(DEBUG_LEVEL, format, args);
+  va_end(args);
+
+  DBUG_VOID_RETURN;
+}
 
 void sql_print_error(const char *format, ...) 
 {

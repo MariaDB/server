@@ -36,6 +36,7 @@
 #include "sql_class.h"                          // set_var.h: THD
 #include "sys_vars.inl"
 #include "my_sys.h"
+#include "mysqld.h" // log_error
 
 #include "events.h"
 #include "slave.h"
@@ -70,7 +71,7 @@
 #include "repl_failsafe.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-#endif
+#endif /* WITH_WSREP */
 
 #define PCRE2_STATIC 1             /* Important on Windows */
 #include "pcre2.h"                 /* pcre2 header file */
@@ -1656,6 +1657,28 @@ static Sys_var_charptr_fscs Sys_log_error(
        READ_ONLY GLOBAL_VAR(log_error_file_ptr),
        CMD_LINE(OPT_ARG, OPT_LOG_ERROR),
        DEFAULT(disabled_my_option));
+
+static Sys_var_on_access_global<Sys_var_ulonglong, PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_ERROR_FILE_BUFFER_SIZE>
+Sys_log_error_file_buffer_size(
+  "log_error_file_buffer_size",
+  "Size of error log file buffer to make error logging faster. "
+  "Can be set only at startup and requires log-error",
+  READ_ONLY GLOBAL_VAR(log_error_file_buffer_size),
+  CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, SIZE_T_MAX),
+  DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_log_error_file_rotations(
+  "log_error_file_rotations",
+  "Number of rotations before old error log is removed",
+  READ_ONLY GLOBAL_VAR(log_error_file_rotations),
+  CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 999), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_log_error_file_rotate_size(
+  "log_error_file_rotate_size",
+  "Rotate the error log when it grows larger than that",
+  READ_ONLY GLOBAL_VAR(log_error_file_rotate_size),
+  CMD_LINE(REQUIRED_ARG), VALID_RANGE(1, SIZE_T_MAX),
+  DEFAULT(1024*1024*1024), BLOCK_SIZE(1));
 
 static Sys_var_bit Sys_log_queries_not_using_indexes(
        "log_queries_not_using_indexes",
@@ -5484,7 +5507,7 @@ Sys_proxy_protocol_networks(
     ON_CHECK(check_proxy_protocol_networks), ON_UPDATE(fix_proxy_protocol_networks));
 
 
-static bool check_log_path(sys_var *self, THD *thd, set_var *var)
+bool check_log_path(sys_var *self, THD *thd, set_var *var)
 {
   if (!var->value)
     return false; // DEFAULT is ok
@@ -6820,7 +6843,6 @@ static Sys_var_charptr_fscs Sys_wsrep_sst_tmp_dir(
        "wsrep_sst_tmp_dir", "Path to SST temp root directory",
        READ_ONLY GLOBAL_VAR(wsrep_sst_tmp_dir), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG);
-
 #endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)

@@ -36,7 +36,7 @@
 #else
 #define SIGNAL_FMT "signal %d"
 #endif
-
+#include "mysql/service_logger.h"
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <sys/sysctl.h>
@@ -164,6 +164,11 @@ extern "C" sig_handler handle_fatal_signal(int sig)
      We will try and print the query at the end of the signal handler, in case
      we're wrong.
   */
+#endif
+
+#ifdef WITH_WSREP
+  if (error_logger)
+    logger_close(error_logger);
 #endif
 
   if (segfaulted)

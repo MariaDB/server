@@ -20,6 +20,7 @@
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_print_check_msg.h>
 #include <mysql/service_thd.h>
+#include <mysql/service_logger.h>
 
 struct st_service_ref {
   const char *name;
@@ -112,6 +113,7 @@ static struct my_md5_service_st my_md5_handler = {
 static struct logger_service_st logger_service_handler= {
   logger_init_mutexes,
   logger_open,
+  logger_init,
   logger_close,
   logger_vprintf,
   logger_printf,

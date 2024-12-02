@@ -402,6 +402,11 @@ ulong slow_start_timeout;
 static MEM_ROOT startup_root;
 MEM_ROOT read_only_root;
 
+ulonglong log_error_file_buffer_size=0;
+ulong log_error_file_rotations=0;
+ulong log_error_file_rotate_size=0;
+LOGGER_HANDLE *error_logger=nullptr;
+
 /**
    @brief 'grant_option' is used to indicate if privileges needs
    to be checked, in which case the lock, LOCK_grant, is used
@@ -1344,9 +1349,10 @@ void Buffered_log::print()
   case WARNING_LEVEL:
     sql_print_warning("Buffered warning: %s", m_message.c_ptr_safe());
     break;
+  case DEBUG_LEVEL:
   case INFORMATION_LEVEL:
     /*
-      Messages printed as "information" still end up in the mysqld *error* log,
+      Messages printed as "information" or "debug" still end up in the mysqld *error* log,
       but with a [Note] tag instead of an [ERROR] tag.
       While this is probably fine for a human reading the log,
       it is upsetting existing automated scripts used to parse logs,
@@ -2082,6 +2088,8 @@ static void clean_up(bool print_message, bool use_dummy_thd)
   free_error_messages();
   /* Tell main we are ready */
   logger.cleanup_end();
+  if (error_logger)
+    logger_close(error_logger);
   sys_var_end();
   free_charsets();
 
@@ -2194,6 +2202,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_slave_deadlock_handler);
   mysql_cond_destroy(&COND_slave_deadlock_handler);
 #ifndef EMBEDDED_LIBRARY
+  free_error_log_buffer();
   mysql_mutex_destroy(&LOCK_error_log);
 #endif
   DBUG_VOID_RETURN;
@@ -5138,6 +5147,14 @@ static int init_server_components()
   /* set up the hook before initializing plugins which may use it */
   error_handler_hook= my_message_sql;
   proc_info_hook= set_thd_stage_info;
+
+  if (opt_error_log && log_error_file_buffer_size)
+  {
+    error_logger= logger_init(stderr, log_error_file,
+                             log_error_file_rotate_size,
+                             log_error_file_rotations,
+                             log_error_file_buffer_size);
+  }
 
   /* Set up hook to handle disk full */
   my_sleep_for_space= mariadb_sleep_for_space;

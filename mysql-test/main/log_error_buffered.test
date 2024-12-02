@@ -1,0 +1,30 @@
+--source include/not_embedded.inc
+
+call mtr.add_suppression("Access denied for user");
+
+SELECT @@global.log_error_file_buffer_size;
+
+SET @old_log_warnings= @@global.log_warnings;
+SET GLOBAL log_warnings= 2;
+
+--disable_query_log
+--disable_result_log
+--let $i= 0
+while ($i < 40)
+{
+  --error ER_ACCESS_DENIED_ERROR
+  --connect (con_bad_$i,localhost,no_such_user_$i,wrong_password,test)
+  --inc $i
+}
+--enable_result_log
+--enable_query_log
+--connection default
+
+SET GLOBAL log_warnings= @old_log_warnings;
+
+# Shutdown flushes the buffered log
+--source include/restart_mysqld.inc
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= \[Warning\] Access denied for user 'no_such_user_39'
+--source include/search_pattern_in_file.inc

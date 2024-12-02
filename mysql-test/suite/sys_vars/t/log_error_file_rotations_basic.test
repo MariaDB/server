@@ -1,0 +1,20 @@
+--source include/not_embedded.inc
+
+#
+# Read-only global variable, set at startup only
+#
+select @@global.log_error_file_rotations;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.log_error_file_rotations;
+show global variables like 'log_error_file_rotations';
+show session variables like 'log_error_file_rotations';
+select variable_name from information_schema.global_variables where variable_name='log_error_file_rotations';
+select variable_name from information_schema.session_variables where variable_name='log_error_file_rotations';
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set session log_error_file_rotations=1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global log_error_file_rotations=1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global log_error_file_rotations=default;
+select @@global.log_error_file_rotations;

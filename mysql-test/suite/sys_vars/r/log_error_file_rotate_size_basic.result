@@ -1,0 +1,26 @@
+select @@global.log_error_file_rotate_size;
+@@global.log_error_file_rotate_size
+1073741824
+select @@session.log_error_file_rotate_size;
+ERROR HY000: Variable 'log_error_file_rotate_size' is a GLOBAL variable
+show global variables like 'log_error_file_rotate_size';
+Variable_name	Value
+log_error_file_rotate_size	1073741824
+show session variables like 'log_error_file_rotate_size';
+Variable_name	Value
+log_error_file_rotate_size	1073741824
+select variable_name from information_schema.global_variables where variable_name='log_error_file_rotate_size';
+variable_name
+LOG_ERROR_FILE_ROTATE_SIZE
+select variable_name from information_schema.session_variables where variable_name='log_error_file_rotate_size';
+variable_name
+LOG_ERROR_FILE_ROTATE_SIZE
+set session log_error_file_rotate_size=1;
+ERROR HY000: Variable 'log_error_file_rotate_size' is a read only variable
+set global log_error_file_rotate_size=1;
+ERROR HY000: Variable 'log_error_file_rotate_size' is a read only variable
+set global log_error_file_rotate_size=default;
+ERROR HY000: Variable 'log_error_file_rotate_size' is a read only variable
+select @@global.log_error_file_rotate_size;
+@@global.log_error_file_rotate_size
+1073741824

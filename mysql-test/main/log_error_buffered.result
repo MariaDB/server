@@ -1,0 +1,10 @@
+call mtr.add_suppression("Access denied for user");
+SELECT @@global.log_error_file_buffer_size;
+@@global.log_error_file_buffer_size
+1024
+SET @old_log_warnings= @@global.log_warnings;
+SET GLOBAL log_warnings= 2;
+connection default;
+SET GLOBAL log_warnings= @old_log_warnings;
+# restart
+FOUND 1 /\[Warning\] Access denied for user 'no_such_user_39'/ in mysqld.1.err

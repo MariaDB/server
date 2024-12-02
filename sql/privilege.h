@@ -669,6 +669,9 @@ constexpr privilege_t PRIV_STMT_SHOW_ENGINE_STATUS= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_MUTEX= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_PROCESSLIST= PROCESS_ACL;
 
+/* Privileges related to error log */
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_ERROR_FILE_BUFFER_SIZE=
+  SUPER_ACL;
 
 /*
   access_t represents effective privileges at a given scope.

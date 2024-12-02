@@ -558,6 +558,13 @@ The following specify which files/extra groups are read (specified before remain
  --log-error[=name]  Log errors to file (instead of stdout).  If file name is
  not specified then 'datadir'/'log-basename'.err or the
  'pid-file' path with extension .err is used
+ --log-error-file-buffer-size=# 
+ Size of error log file buffer to make error logging
+ faster. Can be set only at startup and requires log-error
+ --log-error-file-rotate-size=# 
+ Rotate the error log when it grows larger than that
+ --log-error-file-rotations=# 
+ Number of rotations before old error log is removed
  --log-isam[=name]   Log all MyISAM changes to file
  --log-output=name   How logs should be written. Any combination of: NONE, FILE,
  TABLE, or ALL to set all combinations
@@ -1873,6 +1880,9 @@ log-bin-trust-function-creators FALSE
 log-ddl-recovery ddl_recovery.log
 log-disabled-statements sp
 log-error 
+log-error-file-buffer-size 0
+log-error-file-rotate-size 1073741824
+log-error-file-rotations 0
 log-isam myisam.log
 log-output FILE
 log-queries-not-using-indexes FALSE
