@@ -341,58 +341,50 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 }
 
 /** Deallocate a buffer frame of srv_page_size.
-@param[in]	buf		buffer frame to deallocate */
-static
-void
-buf_buddy_block_free(void* buf)
+@param buf    buffer frame to deallocate */
+static void buf_buddy_block_free(void *buf) noexcept
 {
-	const ulint	fold	= BUF_POOL_ZIP_FOLD_PTR(buf);
-	buf_page_t*	bpage;
-	buf_block_t*	block;
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  ut_a(!ut_align_offset(buf, srv_page_size));
 
-	mysql_mutex_assert_owner(&buf_pool.mutex);
-	ut_a(!ut_align_offset(buf, srv_page_size));
+  const ulint fold= BUF_POOL_ZIP_FOLD_PTR(buf);
+  buf_page_t **prev= buf_pool.zip_hash.cell_get(fold)->
+    search(&buf_page_t::hash, [buf](const buf_page_t *b)
+    {
+      ut_ad(b->in_zip_hash);
+      ut_ad(b->state() == buf_page_t::MEMORY);
+      return b->frame == buf;
+    });
 
-	HASH_SEARCH(hash, &buf_pool.zip_hash, fold, buf_page_t*, bpage,
-		    ut_ad(bpage->state() == buf_page_t::MEMORY
-			  && bpage->in_zip_hash),
-		    bpage->frame == buf);
-	ut_a(bpage);
-	ut_a(bpage->state() == buf_page_t::MEMORY);
-	ut_ad(bpage->in_zip_hash);
-	ut_d(bpage->in_zip_hash = false);
-	HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, bpage);
-	bpage->hash = nullptr;
+  buf_page_t *bpage= *prev;
+  ut_a(bpage);
+  ut_a(bpage->frame == buf);
+  ut_d(bpage->in_zip_hash= false);
+  *prev= bpage->hash;
+  bpage->hash= nullptr;
 
-	ut_d(memset(buf, 0, srv_page_size));
-	MEM_UNDEFINED(buf, srv_page_size);
+  ut_d(memset(buf, 0, srv_page_size));
+  MEM_UNDEFINED(buf, srv_page_size);
 
-	block = (buf_block_t*) bpage;
-	buf_LRU_block_free_non_file_page(block);
-
-	ut_ad(buf_pool.buddy_n_frames > 0);
-	ut_d(buf_pool.buddy_n_frames--);
+  buf_LRU_block_free_non_file_page(reinterpret_cast<buf_block_t*>(bpage));
+  ut_ad(buf_pool.buddy_n_frames > 0);
+  ut_d(buf_pool.buddy_n_frames--);
 }
 
-/**********************************************************************//**
-Allocate a buffer block to the buddy allocator. */
-static
-void
-buf_buddy_block_register(
-/*=====================*/
-	buf_block_t*	block)	/*!< in: buffer frame to allocate */
+/** Allocate a buffer block to the buddy allocator.
+@param block   buffer block to register */
+static void buf_buddy_block_register(buf_block_t *block) noexcept
 {
-	const ulint	fold = BUF_POOL_ZIP_FOLD(block);
-	ut_ad(block->page.state() == buf_page_t::MEMORY);
+  const ulint fold= BUF_POOL_ZIP_FOLD(block);
+  ut_ad(block->page.state() == buf_page_t::MEMORY);
 
-	ut_a(block->page.frame);
-	ut_a(!ut_align_offset(block->page.frame, srv_page_size));
+  ut_a(block->page.frame);
+  ut_a(!ut_align_offset(block->page.frame, srv_page_size));
 
-	ut_ad(!block->page.in_zip_hash);
-	ut_d(block->page.in_zip_hash = true);
-	HASH_INSERT(buf_page_t, hash, &buf_pool.zip_hash, fold, &block->page);
-
-	ut_d(buf_pool.buddy_n_frames++);
+  ut_ad(!block->page.in_zip_hash);
+  ut_d(block->page.in_zip_hash= true);
+  buf_pool.zip_hash.cell_get(fold)->append(block->page, &buf_page_t::hash);
+  ut_d(buf_pool.buddy_n_frames++);
 }
 
 /** Allocate a block from a bigger object.

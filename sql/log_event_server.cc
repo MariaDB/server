@@ -1858,10 +1858,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   {
     bool is_rb_alter= gtid_flags_extra & Gtid_log_event::FL_ROLLBACK_ALTER_E1;
 
-#ifdef WITH_WSREP
-    if (!wsrep_thd_is_applying(thd))
-#endif
-      thd->set_time(when, when_sec_part);
+    thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
@@ -2479,10 +2476,10 @@ static void check_and_remove_stale_alter(Relay_log_info *rli)
   {
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
 
-    sql_print_warning("ALTER query started at %u-%u-%llu could not "
+    sql_print_warning("ALTER query started at %u-%lu-%llu could not "
                       "be completed because of unexpected master server "
-                      "or its binlog change", info->sa_seq_no, // todo:gtid
-                      0, 0);
+                      "or its binlog change", info->domain_id,
+                      mi->master_id, info->sa_seq_no);
     info_iterator.remove();
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::ROLLBACK_ALTER;
@@ -3728,7 +3725,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 #endif
   }
 
-  general_log_print(thd, COM_QUERY, get_query());
+  general_log_print(thd, COM_QUERY, "%s", get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   /*
     Use the time from the current Xid_log_event for the generated
@@ -7477,7 +7474,7 @@ void issue_long_find_row_warning(Log_event_type type,
                             "while looking up records to be processed. Consider adding a "
                             "primary key (or unique key) to the table to improve "
                             "performance.",
-                            evt_type, table_name, (long) delta, scan_type);
+                            evt_type, table_name, delta, scan_type);
     }
   }
 }

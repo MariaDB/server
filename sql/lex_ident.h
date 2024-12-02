@@ -386,48 +386,48 @@ public:
 
 
 static inline constexpr
-Lex_ident_table operator"" _Lex_ident_table(const char *str, size_t length)
+Lex_ident_table operator""_Lex_ident_table(const char *str, size_t length)
 {
   return Lex_ident_table(str, length);
 }
 
 
 static inline constexpr
-Lex_ident_column operator"" _Lex_ident_column(const char *str, size_t length)
+Lex_ident_column operator""_Lex_ident_column(const char *str, size_t length)
 {
   return Lex_ident_column(str, length);
 }
 
 static inline constexpr
-Lex_ident_i_s_table operator"" _Lex_ident_i_s_table(const char *str,
-                                                    size_t length)
+Lex_ident_i_s_table operator""_Lex_ident_i_s_table(const char *str,
+                                                   size_t length)
 {
   return Lex_ident_i_s_table(str, length);
 }
 
 static inline constexpr
-Lex_ident_engine operator"" _Lex_ident_engine(const char *str, size_t length)
+Lex_ident_engine operator""_Lex_ident_engine(const char *str, size_t length)
 {
   return Lex_ident_engine(str, length);
 }
 
 
 static inline constexpr
-Lex_ident_locale operator"" _Lex_ident_locale(const char *str, size_t length)
+Lex_ident_locale operator""_Lex_ident_locale(const char *str, size_t length)
 {
   return Lex_ident_locale(str, length);
 }
 
 
 static inline constexpr
-Lex_ident_charset operator"" _Lex_ident_charset(const char *str, size_t length)
+Lex_ident_charset operator""_Lex_ident_charset(const char *str, size_t length)
 {
   return Lex_ident_charset(str, length);
 }
 
 
 static inline constexpr
-Lex_ident_plugin operator"" _Lex_ident_plugin(const char *str, size_t length)
+Lex_ident_plugin operator""_Lex_ident_plugin(const char *str, size_t length)
 {
   return Lex_ident_plugin(str, length);
 }

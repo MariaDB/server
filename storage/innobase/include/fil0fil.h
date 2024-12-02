@@ -1747,11 +1747,11 @@ fil_delete_file(
 /*============*/
 	const char*	path);	/*!< in: filepath of the ibd tablespace */
 
-/** Look up a tablespace.
-@param tablespace identifier
-@return tablespace
+/** Look up a table space by a given id.
+@param id  tablespace identifier
+@return tablespace object
 @retval nullptr if not found */
-fil_space_t *fil_space_get_by_id(uint32_t id);
+fil_space_t *fil_space_get_by_id(uint32_t id) noexcept;
 
 /** Note that a non-predefined persistent tablespace has been modified
 by redo log.

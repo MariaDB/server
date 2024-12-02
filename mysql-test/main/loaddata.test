@@ -848,10 +848,12 @@ CREATE OR REPLACE TABLE t1 (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'));
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv' FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 CREATE OR REPLACE TABLE t2 LIKE t1;
 
@@ -868,10 +870,12 @@ CREATE OR REPLACE TABLE t1 (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'),"їєі");
+--disable_cursor_protocol
 --disable_ps2_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv' FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 CREATE OR REPLACE TABLE t2 LIKE t1;
 

@@ -292,12 +292,12 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                                               mtr);
 }
 
-inline void UndorecApplier::apply_undo_rec(const trx_undo_rec_t *rec)
+inline
+void UndorecApplier::apply_undo_rec(const trx_undo_rec_t *rec, uint16_t offset)
 {
   undo_rec= rec;
-  if (!undo_rec)
-    return;
-  offset= page_offset(undo_rec);
+  ut_ad(page_offset(undo_rec) == offset);
+  this->offset= offset;
 
   bool updated_extern= false;
   undo_no_t undo_no= 0;
@@ -365,10 +365,11 @@ ATTRIBUTE_COLD void trx_t::apply_log()
                                                      undo->hdr_offset);
     while (rec)
     {
+      const uint16_t offset= uint16_t(rec - block->page.frame);
       /* Since we are the only thread who could write to this undo page,
       it is safe to dereference rec while only holding a buffer-fix. */
-      log_applier.apply_undo_rec(rec);
-      rec= trx_undo_page_get_next_rec(block, page_offset(rec),
+      log_applier.apply_undo_rec(rec, offset);
+      rec= trx_undo_page_get_next_rec(block, offset,
                                       page_id.page_no(), undo->hdr_offset);
     }
 
@@ -1003,7 +1004,7 @@ corrupted_type:
 
 	const trx_id_t trx_id= mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
 	if (trx_id >> 48) {
-		sql_print_error("InnoDB: corrupted TRX_ID %llx", trx_id);
+		sql_print_error("InnoDB: corrupted TRX_ID %" PRIx64, trx_id);
 		goto corrupted;
 	}
 	/* We will increment rseg->needs_purge, like trx_undo_reuse_cached()
@@ -1038,7 +1039,7 @@ corrupted_type:
 	read_trx_no:
 		trx_no = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
 		if (trx_no >> 48) {
-			sql_print_error("InnoDB: corrupted TRX_NO %llx",
+			sql_print_error("InnoDB: corrupted TRX_NO %" PRIx64,
 					trx_no);
 			goto corrupted;
 		}

@@ -1185,7 +1185,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* new_name, ulint new_len)
 {
 	bool fail = false;
-	const static std::string spacename{filename_to_spacename(name, len)};
+	const std::string spacename{filename_to_spacename(name, len)};
 	switch (type) {
 	case FILE_CREATE:
 		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
@@ -2978,25 +2978,19 @@ my_bool regex_list_check_match(
 	return(FALSE);
 }
 
-static
-my_bool
-find_filter_in_hashtable(
-	const char* name,
-	hash_table_t* table,
-	xb_filter_entry_t** result
-)
+static bool find_filter_in_hashtable(const char *name, hash_table_t *table,
+                                     xb_filter_entry_t **result) noexcept
 {
-	xb_filter_entry_t* found = NULL;
-	const ulint fold = my_crc32c(0, name, strlen(name));
-	HASH_SEARCH(name_hash, table, fold,
-		    xb_filter_entry_t*,
-		    found, (void) 0,
-		    !strcmp(found->name, name));
-
-	if (found && result) {
-		*result = found;
-	}
-	return (found != NULL);
+  const ulint fold= my_crc32c(0, name, strlen(name));
+  if (auto found= table->cell_get(fold)->
+      find(&xb_filter_entry_t::name_hash,[name](xb_filter_entry_t *f)
+      { return !strcmp(f->name, name); }))
+    {
+      if (result)
+        *result= found;
+      return true;
+    }
+  return false;
 }
 
 /************************************************************************
@@ -4478,14 +4472,13 @@ xb_add_filter(
 	const char*	name,	/*!< in: name of table/database */
 	hash_table_t*	hash)	/*!< in/out: hash to insert into */
 {
-	xb_filter_entry_t* entry = xb_new_filter_entry(name);
+  xb_filter_entry_t *entry= xb_new_filter_entry(name);
 
-	if (UNIV_UNLIKELY(!hash->array)) {
-		hash->create(1000);
-	}
-	const ulint fold = my_crc32c(0, entry->name, strlen(entry->name));
-	HASH_INSERT(xb_filter_entry_t, name_hash, hash, fold, entry);
-	return entry;
+  if (UNIV_UNLIKELY(!hash->array))
+    hash->create(1000);
+  hash->cell_get(my_crc32c(0, entry->name, strlen(entry->name)))->
+    append(*entry, &xb_filter_entry_t::name_hash);
+  return entry;
 }
 
 /***********************************************************************
@@ -4523,12 +4516,8 @@ xb_register_filter_entry(
 	hash_table_t* tables_hash
 	)
 {
-	const char*		p;
-	size_t			namelen;
-	xb_filter_entry_t*	db_entry = NULL;
-
-	namelen = strlen(name);
-	if ((p = strchr(name, '.')) != NULL) {
+	size_t namelen = strlen(name);
+	if (const char* p = strchr(name, '.')) {
 		char dbname[NAME_LEN + 1];
 
 		xb_validate_name(name, p - name);
@@ -4537,18 +4526,20 @@ xb_register_filter_entry(
 		strncpy(dbname, name, p - name);
 		dbname[p - name] = 0;
 
-		if (databases_hash && databases_hash->array) {
-			const ulint fold = my_crc32c(0, dbname, p - name);
-			HASH_SEARCH(name_hash, databases_hash,
-					fold,
-					xb_filter_entry_t*,
-					db_entry, (void) 0,
-					!strcmp(db_entry->name, dbname));
+		if (UNIV_UNLIKELY(!databases_hash->array)) {
+			databases_hash->create(1000);
 		}
-		if (!db_entry) {
-			db_entry = xb_add_filter(dbname, databases_hash);
+
+		xb_filter_entry_t **prev =
+			databases_hash->cell_get(my_crc32c(0, name, p - name))
+			->search(&xb_filter_entry_t::name_hash,
+				 [dbname](xb_filter_entry_t* f)
+				 { return f && !strcmp(f->name, dbname); });
+		if (!*prev) {
+			(*prev = xb_new_filter_entry(dbname))
+				->has_tables = TRUE;
 		}
-		db_entry->has_tables = TRUE;
+		ut_ad((*prev)->has_tables);
 		xb_add_filter(name, tables_hash);
 	} else {
 		xb_validate_name(name, namelen);
@@ -4731,33 +4722,17 @@ xb_filters_init()
 	}
 }
 
-static
-void
-xb_filter_hash_free(hash_table_t* hash)
+static void xb_filter_hash_free(hash_table_t* hash)
 {
-	ulint	i;
-
-	/* free the hash elements */
-	for (i = 0; i < hash->n_cells; i++) {
-		xb_filter_entry_t*	table;
-
-		table = static_cast<xb_filter_entry_t *>
-			(HASH_GET_FIRST(hash, i));
-
-		while (table) {
-			xb_filter_entry_t*	prev_table = table;
-
-			table = static_cast<xb_filter_entry_t *>
-				(HASH_GET_NEXT(name_hash, prev_table));
-			const ulint fold = my_crc32c(0, prev_table->name,
-						     strlen(prev_table->name));
-			HASH_DELETE(xb_filter_entry_t, name_hash, hash,
-				    fold, prev_table);
-			free(prev_table);
-		}
-	}
-
-	hash->free();
+  for (ulint i= 0; i < hash->n_cells; i++)
+    for (auto prev= static_cast<xb_filter_entry_t*>(hash->array[i].node);
+         prev; )
+    {
+      auto next= prev->name_hash;
+      free(prev);
+      prev= next;
+    }
+  hash->free();
 }
 
 static void xb_regex_list_free(regex_list_t* list)
@@ -6025,8 +6000,8 @@ exit:
 	table->name = ((char*)table) + sizeof(xb_filter_entry_t);
 	memcpy(table->name, dest_space_name, len + 1);
 	const ulint fold = my_crc32c(0, dest_space_name, len);
-	HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
-		    fold, table);
+	inc_dir_tables_hash.cell_get(fold)->append(
+		*table, &xb_filter_entry_t::name_hash);
 
 	mysql_mutex_lock(&fil_system.mutex);
 	fil_space = fil_space_get_by_name(dest_space_name);
@@ -6446,8 +6421,8 @@ static ibool prepare_handle_new_files(const char *data_home_dir,
 		strcpy(table->name, table_name.c_str());
 		const ulint fold = my_crc32c(0, table->name,
 					     table_name.size());
-		HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
-			    fold, table);
+		inc_dir_tables_hash.cell_get(fold)->append(
+			*table, &xb_filter_entry_t::name_hash);
 	}
 
 	return TRUE;
@@ -6463,29 +6438,15 @@ rm_if_not_found(
 	const char*	data_home_dir,		/*!<in: path to datadir */
 	const char*	db_name,		/*!<in: database name */
 	const char*	file_name,		/*!<in: file name with suffix */
-	void*		arg __attribute__((unused)))
+	void*)
 {
-	char			name[FN_REFLEN];
-	xb_filter_entry_t*	table;
-
-	snprintf(name, FN_REFLEN, "%s/%s", db_name, file_name);
-	/* Truncate ".ibd" */
-	const size_t len = strlen(name) - 4;
-	name[len] = '\0';
-	const ulint fold = my_crc32c(0, name, len);
-
-	HASH_SEARCH(name_hash, &inc_dir_tables_hash, fold,
-		    xb_filter_entry_t*,
-		    table, (void) 0,
-		    !strcmp(table->name, name));
-
-	if (!table) {
-		snprintf(name, FN_REFLEN, "%s/%s/%s", data_home_dir,
-						      db_name, file_name);
-		return os_file_delete(0, name);
-	}
-
-	return(TRUE);
+  char name[FN_REFLEN];
+  /* Truncate ".ibd" */
+  name[snprintf(name, FN_REFLEN, "%s/%s", db_name, file_name) - 4]= '\0';
+  if (find_filter_in_hashtable(name, &inc_dir_tables_hash, nullptr))
+    return true;
+  snprintf(name, FN_REFLEN, "%s/%s/%s", data_home_dir, db_name, file_name);
+  return os_file_delete(0, name);
 }
 
 /** Function enumerates files in datadir (provided by path) which are matched

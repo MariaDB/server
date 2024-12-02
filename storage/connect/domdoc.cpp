@@ -165,7 +165,8 @@ bool DOMDOC::NewDoc(PGLOBAL g, PCSZ ver)
 
   sprintf(buf, "version=\"%s\" encoding=\"%s\"", ver, Encoding);
   pip = Docp->createProcessingInstruction("xml", buf);
-  return(TestHr(g, Docp->appendChild(pip)));
+  Docp->appendChild(pip);
+  return false;
   } // end of NewDoc
 
 /******************************************************************/
@@ -173,7 +174,7 @@ bool DOMDOC::NewDoc(PGLOBAL g, PCSZ ver)
 /******************************************************************/
 void DOMDOC::AddComment(PGLOBAL g, char *com)
   {
-  TestHr(g, Docp->appendChild(Docp->createComment(com)));
+  Docp->appendChild(Docp->createComment(com));
   } // end of AddComment
 
 /******************************************************************/
@@ -196,9 +197,9 @@ PXNODE DOMDOC::NewRoot(PGLOBAL g, char *name)
   {
   MSXML2::IXMLDOMElementPtr ep = Docp->createElement(name);
 
-  if (ep == NULL || TestHr(g, Docp->appendChild(ep)))
+  if (ep == NULL)
     return NULL;
-
+  Docp->appendChild(ep);
   return new(g) DOMNODE(this, ep); 
   } // end of NewRoot
 
@@ -552,9 +553,9 @@ PXNODE DOMNODE::AddChildNode(PGLOBAL g, PCSZ name, PXNODE np)
   _bstr_t pfx = ep->prefix;
   _bstr_t uri = ep->namespaceURI;
 
-  if (ep == NULL || TestHr(g, Nodep->appendChild(ep)))
+  if (ep == NULL)
     return NULL;
-
+  Nodep->appendChild(ep);
   if (np)
     ((PDOMNODE)np)->Nodep = ep;
   else
@@ -593,7 +594,7 @@ void DOMNODE::AddText(PGLOBAL g, PCSZ txtp)
   MSXML2::IXMLDOMTextPtr tp= Docp->createTextNode((_bstr_t)txtp);
 
   if (tp != NULL)
-    TestHr(g, Nodep->appendChild(tp));
+    Nodep->appendChild(tp);
 
   } // end of AddText
 
@@ -602,7 +603,7 @@ void DOMNODE::AddText(PGLOBAL g, PCSZ txtp)
 /******************************************************************/
 void DOMNODE::DeleteChild(PGLOBAL g, PXNODE dnp)
   {
-  TestHr(g, Nodep->removeChild(((PDOMNODE)dnp)->Nodep));
+  Nodep->removeChild(((PDOMNODE)dnp)->Nodep);
 //  ((PDOMNODE)dnp)->Nodep->Release();  bad idea, causes a crash
   Delete(dnp);
   } // end of DeleteChild

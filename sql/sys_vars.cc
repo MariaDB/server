@@ -6063,7 +6063,7 @@ static bool check_locale(sys_var *self, THD *thd, set_var *var)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
                           "Can't process error message file for locale '%s'",
-                          locale->name);
+                          locale->name.str);
       return true;
     }
   }

@@ -2283,9 +2283,9 @@ dict_load_tablespace(
 		table->file_unreadable = true;
 
 		if (!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)) {
-			sql_print_error("InnoDB: Failed to load tablespace "
-					ULINTPF " for table %s",
-					table->space_id, table->name);
+			sql_print_error("InnoDB: Failed to load tablespace %"
+					PRIu32 " for table %s",
+					table->space_id, table->name.m_name);
 		}
 	}
 
@@ -2540,7 +2540,7 @@ corrupted:
 }
 
 dict_table_t *dict_sys_t::load_table(const span<const char> &name,
-                                     dict_err_ignore_t ignore)
+                                     dict_err_ignore_t ignore) noexcept
 {
   if (dict_table_t *table= find_table(name))
     return table;

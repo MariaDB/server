@@ -222,7 +222,7 @@ typedef struct st_mysql_const_lex_string LEX_CSTRING;
 
 #ifdef  __cplusplus
 static inline constexpr
-LEX_CSTRING operator"" _LEX_CSTRING(const char *str, size_t length)
+LEX_CSTRING operator""_LEX_CSTRING(const char *str, size_t length)
 {
   return LEX_CSTRING{str, length};
 }

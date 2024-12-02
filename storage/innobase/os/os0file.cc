@@ -2653,7 +2653,7 @@ os_file_io(
 
 		if (type.type != IORequest::READ_MAYBE_PARTIAL) {
 			sql_print_warning("InnoDB: %zu bytes should have been"
-					  " %s at %llu from %s,"
+					  " %s at %" PRIu64 " from %s,"
 					  " but got only %zd."
 					  " Retrying.",
 					  n, type.is_read()
@@ -2827,7 +2827,7 @@ os_file_read_func(
 
   os_file_handle_error_no_exit(type.node ? type.node->name : nullptr, "read",
                                false);
-  sql_print_error("InnoDB: Tried to read %zu bytes at offset %llu"
+  sql_print_error("InnoDB: Tried to read %zu bytes at offset %" PRIu64
                   " of file %s, but was only able to read %zd",
                   n, offset, type.node ? type.node->name : "(unknown)",
                   n_bytes);
@@ -3803,23 +3803,6 @@ void fil_node_t::find_metadata(IF_WIN(,bool create)) noexcept
     punch_hole= 2;
   else
     punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
-
-#ifdef _WIN32
-  on_ssd= is_file_on_ssd(file, name);
-  FILE_STORAGE_INFO info;
-  if (GetFileInformationByHandleEx(file, FileStorageInfo, &info, sizeof info))
-    block_size= info.PhysicalBytesPerSectorForAtomicity;
-  else
-    block_size= 512;
-  if (space->purpose != FIL_TYPE_TABLESPACE)
-  {
-    /* For temporary tablespace or during IMPORT TABLESPACE, we
-    disable neighbour flushing and do not care about atomicity. */
-    on_ssd= true;
-    atomic_write= true;
-    return;
-  }
-#else
   if (space->purpose != FIL_TYPE_TABLESPACE)
   {
     /* For temporary tablespace or during IMPORT TABLESPACE, we
@@ -3829,6 +3812,14 @@ void fil_node_t::find_metadata(IF_WIN(,bool create)) noexcept
     if (space->purpose == FIL_TYPE_TEMPORARY || !space->is_compressed())
       return;
   }
+#ifdef _WIN32
+  on_ssd= is_file_on_ssd(file, name);
+  FILE_STORAGE_INFO info;
+  if (GetFileInformationByHandleEx(file, FileStorageInfo, &info, sizeof info))
+    block_size= info.PhysicalBytesPerSectorForAtomicity;
+  else
+    block_size= 512;
+#else
   struct stat statbuf;
   if (!fstat(file, &statbuf))
   {
@@ -3925,7 +3916,8 @@ bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
     invalid:
       if (dpage)
         goto retry_dpage;
-      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+      sql_print_error("InnoDB: Expected tablespace flags 0x%" PRIx32
+                      " but found 0x%" PRIx32
                       " in the file %s", space->flags, flags, name);
       goto err_exit;
     }

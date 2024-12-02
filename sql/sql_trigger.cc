@@ -2016,10 +2016,8 @@ static bool add_table_for_trigger_internal(THD *thd,
   {
     if (if_exists)
     {
-      push_warning_printf(thd,
-                          Sql_condition::WARN_LEVEL_NOTE,
-                          ER_TRG_DOES_NOT_EXIST,
-                          ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                   ER_TRG_DOES_NOT_EXIST, ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
 
       *table= NULL;
 

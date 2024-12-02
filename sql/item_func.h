@@ -2367,6 +2367,7 @@ public:
   String *val_str_native(String *str);
   double val_real_native();
   longlong val_int_native();
+  longlong val_uint_native();
   my_decimal *val_decimal_native(my_decimal *);
   bool get_date_native(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool get_time_native(THD *thd, MYSQL_TIME *res);

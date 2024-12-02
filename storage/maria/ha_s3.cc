@@ -226,7 +226,7 @@ static MYSQL_SYSVAR_BOOL(use_http, s3_use_http,
        NULL /*check*/, NULL /*update*/, 0 /*default*/);
 static MYSQL_SYSVAR_BOOL(ssl_no_verify, s3_ssl_no_verify,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-      "If true, SSL certificate verifiction for the S3 endpoint is disabled",
+      "If true, SSL certificate verification for the S3 endpoint is disabled",
        NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(access_key, s3_tmp_access_key,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC,

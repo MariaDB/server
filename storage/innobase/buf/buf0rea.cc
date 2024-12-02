@@ -399,7 +399,7 @@ read_ahead:
 }
 
 dberr_t buf_read_page(const page_id_t page_id,
-                      buf_pool_t::hash_chain &chain)
+                      buf_pool_t::hash_chain &chain, bool unzip) noexcept
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
   if (UNIV_UNLIKELY(!space))
@@ -425,7 +425,7 @@ dberr_t buf_read_page(const page_id_t page_id,
     block= buf_LRU_get_free_block(have_mutex);
     mysql_mutex_unlock(&buf_pool.mutex);
   }
-  else
+  else if (unzip)
   {
     zip_size|= 1;
     goto allocate_block;

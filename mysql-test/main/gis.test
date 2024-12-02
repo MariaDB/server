@@ -3445,6 +3445,22 @@ create table t2 as select group_concat(c, c order by 1,2), concat(c), c from t1;
 show create table t2;
 drop table t1, t2;
 
+
+--echo #
+--echo # MDEV-33987 Server crashes at Item_func_as_wkt::val_str_ascii
+--echo #
+
+SELECT ST_ASTEXT(BOUNDARY(INET6_ATON('255.255.255.255'))) AS c1;
+
+--echo #
+--echo # Server crash in DTCollation::set_repertoire_from_charset
+--echo #
+
+CREATE TABLE t (f POINT, KEY(f));
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+DELETE FROM t WHERE f NOT IN (NULL,'x');
+DROP TABLE t;
+
 --echo # End of 10.5 tests
 
 --echo #

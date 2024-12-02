@@ -11,6 +11,8 @@ HANDLER t OPEN;
 Warnings:
 Error	1429	Unable to connect to foreign data source: localhost
 Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
 HANDLER t READ next;
 ERROR HY000: Unable to connect to foreign data source: localhost
 dummy;
@@ -23,6 +25,8 @@ HANDLER t OPEN;
 Warnings:
 Error	1429	Unable to connect to foreign data source: localhost
 Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
 HANDLER t READ FIRST;
 ERROR HY000: Unable to connect to foreign data source: localhost
 HANDLER t READ NEXT;
@@ -31,6 +35,8 @@ drop table t;
 CREATE TABLE t (c INT) ENGINE=Spider;
 HANDLER t OPEN;
 Warnings:
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
 Error	1429	Unable to connect to foreign data source: localhost
 Error	1429	Unable to connect to foreign data source: localhost
 HANDLER t READ NEXT;
