@@ -35,8 +35,6 @@ Clone Plugin: Client Status Interface
 
 #define PFS_HA_ERR_END_OF_FILE HA_ERR_END_OF_FILE
 
-THD *thd_get_current_thd();
-
 /* Namespace for all clone data types */
 namespace myclone {
 
@@ -49,7 +47,8 @@ void log_error(THD *thd, bool is_client, int32_t error,
                const char *message_start);
 
 /** Abstract base class for clone PFS tables. */
-class Table_pfs {
+class Table_pfs
+{
  public:
   /** Constructor.
   @param[in]	num_rows	total number of rows in table. */
@@ -182,7 +181,8 @@ class Table_pfs {
 
 const char g_local_string[] = "LOCAL INSTANCE";
 
-class Status_pfs : public Table_pfs {
+class Status_pfs : public Table_pfs
+{
  public:
   /* Constructor. */
   Status_pfs();
@@ -323,7 +323,8 @@ class Status_pfs : public Table_pfs {
   Data m_data;
 };
 
-class Progress_pfs : public Table_pfs {
+class Progress_pfs : public Table_pfs
+{
  public:
   /* Constructor. */
   Progress_pfs();

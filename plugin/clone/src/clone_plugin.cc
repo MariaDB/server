@@ -539,7 +539,7 @@ static MYSQL_SYSVAR_BOOL(enable_compression, clone_enable_compression,
 static MYSQL_SYSVAR_STR(valid_donor_list, clone_valid_donor_list,
                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
                         "List of valid donor addresses allowed to clone from"
-                        " HOST1:PORT1,HOST2:PORT2,...",
+                        " HOST1:PORT1,HOST2:PORT2",
                         check_donor_addr_format, nullptr, nullptr);
 
 /** SSL path name of the SSL private key file */
@@ -568,7 +568,7 @@ static MYSQL_SYSVAR_UINT(donor_timeout_after_network_failure,
                          clone_restart_timeout, PLUGIN_VAR_RQCMDARG,
                          "Time in minutes up to which donor allows recipient"
                          " to re-connect and restart cloning after network"
-                         " failure.",
+                         " failure",
                          nullptr, nullptr, 5, /* Default =   5 min */
                          0,                   /* Minimum =   0 min: no wait */
                          30,                  /* Maximum =  30 min */
@@ -582,7 +582,7 @@ till the space is completely released, therefore this configuration
 is introduced.*/
 static MYSQL_SYSVAR_UINT(delay_after_data_drop, clone_delay_after_data_drop,
                          PLUGIN_VAR_RQCMDARG,
-                         "Time in seconds to wait after removing data.",
+                         "Time in seconds to wait after removing data",
                          nullptr, nullptr, 0, /* Default =  0 no wait */
                          0,                   /* Minimum =  0 no wait */
                          60 * 60,             /* Maximum =  1 hour */
@@ -608,22 +608,22 @@ static SYS_VAR *clone_system_variables[] = {
 
 /** Declare clone plugin */
 maria_declare_plugin(clone_plugin){
-    MARIADB_CLONE_PLUGIN,
+    MariaDB_CLONE_PLUGIN,
 
     &clone_descriptor,
-    clone_plugin_name, /* Plugin name */
+    clone_plugin_name,                     /* Plugin name */
 
     "Debarun Banerjee",
-    "CLONE PLUGIN", /* Plugin descriptive text */
+    "CLONE PLUGIN",                        /* Plugin descriptive text */
     PLUGIN_LICENSE_GPL,
 
-    plugin_clone_init,   /* Plugin Init */
-    plugin_clone_deinit, /* Plugin Deinit */
+    plugin_clone_init,                      /* Plugin Init */
+    plugin_clone_deinit,                    /* Plugin Deinit */
 
-    CLONE_PLUGIN_VERSION,   /* Plugin Version */
-    nullptr,                /* status variables */
-    clone_system_variables, /* system variables */
-    nullptr,                /* config options */
-    0,                      /* flags */
+    CLONE_PLUGIN_VERSION,                   /* Plugin Version */
+    nullptr,                                /* status variables */
+    clone_system_variables,                 /* system variables */
+    "1.0",                                  /* config options */
+    MariaDB_PLUGIN_MATURITY_EXPERIMENTAL    /* flags */
 } /** Declare clone plugin */
 mysql_declare_plugin_end;

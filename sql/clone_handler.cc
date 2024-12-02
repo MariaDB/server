@@ -172,7 +172,7 @@ int Clone_handler::init()
   LEX_CSTRING cstr= {name, name_length};
 
   plugin_ref plugin= my_plugin_lock_by_name(nullptr, &cstr,
-                                            MARIADB_CLONE_PLUGIN);
+                                            MariaDB_CLONE_PLUGIN);
   if (!plugin)
   {
     m_plugin_handle= nullptr;
@@ -315,7 +315,7 @@ Clone_handler *clone_plugin_lock(THD *thd, plugin_ref *plugin)
 {
   LEX_CSTRING cstr= {clone_plugin_nm, strlen(clone_plugin_nm)};
   *plugin= my_plugin_lock_by_name(thd, &cstr,
-                                  MARIADB_CLONE_PLUGIN);
+                                  MariaDB_CLONE_PLUGIN);
   mysql_mutex_lock(&LOCK_plugin);
 
   /* Return handler only if the plugin is ready. We might successfully
