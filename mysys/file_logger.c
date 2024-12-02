@@ -50,7 +50,20 @@ typedef struct logger_handle_st {
 
 static unsigned int n_dig(unsigned int i)
 {
-  return (i == 0) ? 0 : ((i < 10) ? 1 : ((i < 100) ? 2 : 3));
+  unsigned int n=1;
+  if (i < 10)
+    n= 1;
+  else if (i < 100)
+    n= 2;
+  else if (i < 1000)
+    n= 3;
+  else if (i < 10000)
+    n= 4;
+  else if (i < 100000)
+    n= 5;
+  else if (i < 1000000)
+    n= 6;
+  return n;
 }
 
 
@@ -63,7 +76,7 @@ LOGGER_HANDLE *logger_open(const char *path,
     I don't think we ever need more rotations,
     but if it's so, the rotation procedure should be adapted to it.
   */
-  if (rotations > 999)
+  if (rotations > 9999999)
     return 0;
 
   new_log.rotations= rotations;

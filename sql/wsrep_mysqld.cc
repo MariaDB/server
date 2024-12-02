@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2023 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2022, MariaDB
+/* Copyright (c) 2008, 2024 Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -129,6 +129,8 @@ ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
 
 std::atomic <bool> wsrep_thread_create_failed;
+
+ulong wsrep_debug_mode= 0;
 
 /*
  * End configuration options

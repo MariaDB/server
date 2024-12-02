@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2024 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -596,6 +596,11 @@ bool wsrep_debug_update(sys_var *self, THD* thd, enum_var_type type)
   else
     Wsrep_server_state::instance().debug_log_level(wsrep_debug);
 
+  if (wsrep_debug)
+    wsrep_debug_mode |= WSREP_DEBUG_MODE_DEBUG;
+  else
+    wsrep_debug_mode &= ~WSREP_DEBUG_MODE_DEBUG;
+
   return false;
 }
 
@@ -1121,3 +1126,148 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   return false;
 }
 
+bool wsrep_buffered_error_log_buffer_size_update(sys_var *, THD *, enum_var_type)
+{
+  wsrep_buffered_error_log.resize_buffer(wsrep_buffered_error_log_buffer_size);
+
+  if (wsrep_buffered_error_log_buffer_size)
+    wsrep_debug_mode |= WSREP_DEBUG_MODE_BUFFERED;
+  else
+    wsrep_debug_mode &= ~WSREP_DEBUG_MODE_BUFFERED;
+
+  return false;
+}
+
+bool wsrep_buffered_error_log_buffer_size_check(sys_var *self, THD* thd, set_var *var)
+{
+  const longlong new_buffer_size= (longlong)var->save_result.ulonglong_value;
+
+  if (!new_buffer_size)
+    return false;
+
+  if (!WSREP(thd))
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_size' to a value other than "
+                  "0 because wsrep is switched off.");
+    return true;
+  }
+
+  return false;
+}
+
+bool wsrep_buffered_error_log_file_size_update(sys_var *, THD *, enum_var_type)
+{
+  wsrep_buffered_error_log.resize_file_size(wsrep_buffered_error_log_file_size);
+  return false;
+}
+
+bool wsrep_buffered_error_log_file_size_check(sys_var *self, THD* thd, set_var *var)
+{
+  const longlong new_file_size= (longlong)var->save_result.ulonglong_value;
+
+  if (!new_file_size)
+    return false;
+
+  if (!WSREP(thd))
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_file_size' to a value other than "
+                  "0 because wsrep is switched off.");
+    return true;
+  }
+
+  if (!wsrep_buffered_error_log_buffer_size)
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_file_size' to a value other than "
+                  "0 because wsrep_buffered_error_log_buffer_size is 0.");
+    return true;
+  }
+
+  if (new_file_size < wsrep_buffered_error_log_buffer_size * 10)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_file_size' too small "
+                  "should be at least %llu.", wsrep_buffered_error_log_buffer_size * 10);
+    return true;
+  }
+
+  return false;
+}
+
+extern bool check_log_path(sys_var *self, THD *thd, set_var *var); // sys_var.cc
+
+bool wsrep_buffered_error_log_filename_check(sys_var *self, THD* thd, set_var *var)
+{
+  // Allow empty
+  if (!var->value ||
+      !var->save_result.string_value.str ||
+      strlen(var->save_result.string_value.str) == 0)
+    return false;
+
+  if (!WSREP(thd))
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_filename' "
+                  "because wsrep is switched off.");
+    return true;
+  }
+
+  if (!wsrep_buffered_error_log_buffer_size || !wsrep_buffered_error_log_file_size)
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_filename' "
+                  "because wsrep_buffered_error_log_buffer_size or"
+                  "wsrep_buffered_error_log_file_size is 0.");
+    return true;
+  }
+
+  if (check_log_path(self, thd, var))
+  {
+    push_warning_printf (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_filename' to %s",
+                  var->save_result.string_value.str);
+    return true;
+  }
+
+  return false;
+}
+
+bool wsrep_buffered_error_log_rotations_update(sys_var *, THD *, enum_var_type)
+{
+  wsrep_buffered_error_log.rotate(wsrep_buffered_error_log_rotations);
+  return false;
+}
+
+bool wsrep_buffered_error_log_rotations_check(sys_var *self, THD* thd, set_var *var)
+{
+  const longlong new_rotations= (longlong)var->save_result.ulonglong_value;
+
+  if (!WSREP(thd) && new_rotations)
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_rotations' to a value other than "
+                  "0 because wsrep is switched off.");
+    return true;
+  }
+
+  if (!wsrep_buffered_error_log_buffer_size && new_rotations)
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_buffered_error_log_rotations' to a value other than "
+                  "0 because wsrep_buffered_error_log_buffer_size is 0.");
+    return true;
+  }
+
+  return false;
+}
