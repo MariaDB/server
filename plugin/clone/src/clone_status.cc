@@ -119,10 +119,10 @@ uint32_t Client::s_num_clones = 0;
 
 int Table_pfs::create_proxy_tables()
 {
-  auto thd = current_thd;
+  // auto thd = current_thd;
   // if (mysql_pfs_table == nullptr || thd == nullptr)
-  if (!thd)
-    return 1;
+  // if (!thd)
+  //   return 1;
 
   Client::init_pfs();
   // pfs_proxy_tables[0] = g_status_table.get_proxy_share();
@@ -132,8 +132,8 @@ int Table_pfs::create_proxy_tables()
 
 void Table_pfs::drop_proxy_tables()
 {
-  if (mysql_pfs_table == nullptr)
-    return;
+  // if (mysql_pfs_table != nullptr)
+  //   return;
 
   // static_cast<void>(mysql_pfs_table->delete_tables(pfs_proxy_tables, 2));
   Client::uninit_pfs();

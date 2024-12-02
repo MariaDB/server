@@ -140,23 +140,24 @@ void LogPluginErr(enum loglevel level, int error, const char* string)
   return;
 }
 
-int validate_local_params(THD *thd) {
+int validate_local_params(THD *thd)
+{
   /* Check if network packet size is enough. */
   Key_Values local_configs = {{"max_allowed_packet", ""}};
 
   int err = 0;
   //    mysql_service_clone_protocol->mysql_clone_get_configs(thd, local_configs);
 
-  if (err != 0) {
+  if (err != 0)
     return (err);
-  }
 
   const std::string &val_str = local_configs[0].second;
 
   long long val = 0;
   bool is_exception = false;
 
-  try {
+  try
+  {
     val = std::stoll(val_str);
   } catch (...) {
     is_exception = true; /* purecov: inspected */
@@ -172,11 +173,12 @@ int validate_local_params(THD *thd) {
     /* purecov: end */
   }
 
-  if (val < longlong{CLONE_MIN_NET_BLOCK}) {
+  if (val < longlong{CLONE_MIN_NET_BLOCK})
+  {
     err = ER_CLONE_NETWORK_PACKET;
     my_error(err, MYF(0), CLONE_MIN_NET_BLOCK, val);
   }
-  return (err);
+  return err;
 }
 
 }  // namespace myclone
@@ -188,25 +190,28 @@ using Donor_Callback = std::function<bool(std::string &, uint32_t)>;
 @param[in]	callback	callback function
 @return true, if scan is successful or match is found. */
 static bool scan_donor_list(const std::string &donor_list,
-                            Donor_Callback callback) {
+                            Donor_Callback callback)
+{
   size_t comma_pos = 0;
   size_t begin_pos = 0;
 
-  try {
+  try
+  {
     /* Don't allow space in donor list. */
     auto space_pos = donor_list.find(" ");
     if (space_pos != std::string::npos) {
       return (false);
     }
     /* Scan through all entries. */
-    while (comma_pos != std::string::npos) {
+    while (comma_pos != std::string::npos)
+    {
       comma_pos = donor_list.find(",", begin_pos);
       auto entry_len = comma_pos;
 
-      if (entry_len != std::string::npos) {
-        if (comma_pos <= begin_pos) {
-          return (false);
-        }
+      if (entry_len != std::string::npos)
+      {
+        if (comma_pos <= begin_pos)
+          return false;
         /* Exclude the comma separator. */
         entry_len = comma_pos - begin_pos;
       }
@@ -215,33 +220,34 @@ static bool scan_donor_list(const std::string &donor_list,
       auto colon_pos = entry.find(":");
 
       /* Bad entry if no separator is found or found in beginning. */
-      if (colon_pos == std::string::npos || colon_pos == 0) {
-        return (false);
-      }
+      if (colon_pos == std::string::npos || colon_pos == 0)
+        return false;
 
       auto port_str = entry.substr(colon_pos + 1);
       /* Allow only decimal digit in PORT. */
-      for (char &digit : port_str) {
-        if (std::isdigit(digit) == 0) {
-          return (false);
-        }
+      for (char &digit : port_str)
+      {
+        if (std::isdigit(digit) == 0)
+          return false;
       }
       auto valid_port = static_cast<uint32_t>(std::stoi(port_str));
       auto valid_host = entry.substr(0, colon_pos);
 
       bool match = callback(valid_host, valid_port);
 
-      if (match) {
-        return (true);
-      }
+      if (match)
+        return true;
+
       /* Set next begin position. */
       begin_pos = comma_pos + 1;
     }
-  } catch (...) { /* purecov: inspected */
-    /* If entry format is bad, return. */
-    return (false); /* purecov: inspected */
   }
-  return (true);
+  catch (...)
+  { /* purecov: inspected */
+    /* If entry format is bad, return. */
+    return false; /* purecov: inspected */
+  }
+  return true;
 }
 
 /** Validate the <HOST> and <PORT are configured in valid_donor_list
@@ -250,39 +256,39 @@ static bool scan_donor_list(const std::string &donor_list,
 @param[in]	port	port number of donor
 @return error code */
 static int match_valid_donor_address(MYSQL_THD thd, const char *host,
-                                     uint port) {
+                                     uint port)
+{
   myclone::Key_Values configs = {{"clone_valid_donor_list", ""}};
 
   /* Get Clone configuration parameter value safely. */
-  auto err = 0;
+  // int err =
   //    mysql_service_clone_protocol->mysql_clone_get_configs(thd, configs);
-  if (err != 0) {
-    return (err);
-  }
+  // if (err != 0)
+  //   return err;
 
   auto &valid_str = configs[0].second;
   bool found = false;
 
-  Donor_Callback callback = [&](std::string &valid_host, uint32_t valid_port) {
+  Donor_Callback callback = [&](std::string &valid_host, uint32_t valid_port)
+  {
     /* Host in MySQL is case insensitive and converted to lower case. */
-    auto transform_lower = [](unsigned char c) {
+    auto transform_lower = [](unsigned char c)
+    {
       return static_cast<unsigned char>(std::tolower(c));
     };
     std::transform(valid_host.begin(), valid_host.end(), valid_host.begin(),
                    transform_lower);
 
     /* Check if input matches with configured host and port. */
-    if (0 == valid_host.compare(host) && port == valid_port) {
+    if (0 == valid_host.compare(host) && port == valid_port)
       found = true;
-    }
-    return (found);
+    return found;
   };
 
   static_cast<void>(scan_donor_list(valid_str, callback));
 
-  if (found) {
-    return (0);
-  }
+  if (found)
+    return 0;
 
   char err_buf[MYSYS_ERRMSG_SIZE];
 
@@ -305,21 +311,22 @@ using SYS_VAR = struct st_mysql_sys_var;
 @param[in]	value	current variable value
 @return error code */
 static int check_donor_addr_format(MYSQL_THD thd, SYS_VAR *var [[maybe_unused]],
-                                   void *save, struct st_mysql_value *value) {
+                                   void *save, struct st_mysql_value *value)
+{
   char temp_buffer[STRING_BUFFER_USUAL_SIZE];
   auto buf_len = static_cast<int>(sizeof(temp_buffer));
 
   auto addrs_cstring = value->val_str(value, temp_buffer, &buf_len);
 
-  if (addrs_cstring && (addrs_cstring == temp_buffer)) {
+  if (addrs_cstring && (addrs_cstring == temp_buffer))
     addrs_cstring = thd_strmake(thd, addrs_cstring, buf_len);
-  }
 
-  if (addrs_cstring == nullptr) {
+  if (addrs_cstring == nullptr)
+  {
     /* purecov: begin deadcode */
     (*(const char **)save) = nullptr;
     /* NULL is a valid value */
-    return (0);
+    return 0;
     /* purecov: end */
   }
 
@@ -329,7 +336,8 @@ static int check_donor_addr_format(MYSQL_THD thd, SYS_VAR *var [[maybe_unused]],
 
   bool success = scan_donor_list(addrs_cstring, callback);
 
-  if (!success) {
+  if (!success)
+  {
     (*(const char **)save) = nullptr;
     my_error(ER_CLONE_SYS_CONFIG, MYF(0),
              "Invalid Format. Please enter "
@@ -337,28 +345,29 @@ static int check_donor_addr_format(MYSQL_THD thd, SYS_VAR *var [[maybe_unused]],
     return (ER_CLONE_SYS_CONFIG);
   }
   *(const char **)save = addrs_cstring;
-  return (0);
+  return 0;
 }
 
 /** Initialize clone plugin
 @param[in]	plugin_info	server plugin handle
 @return error code */
-static int plugin_clone_init(MYSQL_PLUGIN plugin_info [[maybe_unused]]) {
+static int plugin_clone_init(MYSQL_PLUGIN plugin_info [[maybe_unused]])
+{
   auto error = clone_handle_create(clone_plugin_name);
 
   /* During DB creation skip PFS dynamic tables. PFS is not fully initialized
   at this point. */
   bool skip_pfs_tables = false;
-  if (error == ER_SERVER_SHUTDOWN) {
+  if (error == ER_SERVER_SHUTDOWN)
     skip_pfs_tables = true;
-  } else if (error != 0) {
-    return (error);
-  }
+  else if (error != 0)
+    return error;
 
-  if (!skip_pfs_tables && myclone::Table_pfs::acquire_services()) {
+  if (!skip_pfs_tables && myclone::Table_pfs::acquire_services())
+  {
     myclone::LogPluginErr(ERROR_LEVEL, ER_CLONE_CLIENT_TRACE,
                  "PFS table creation failed");
-    return (-1);
+    return -1;
   }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -403,7 +412,8 @@ static int plugin_clone_deinit(MYSQL_PLUGIN plugin_info [[maybe_unused]]) {
 @param[in,out]	thd		server thread handle
 @param[in]	data_dir	cloned data directory
 @return error code */
-static int plugin_clone_local(THD *thd, const char *data_dir) {
+static int plugin_clone_local(THD *thd, const char *data_dir)
+{
   myclone::Client_Share client_share(nullptr, 0, nullptr, nullptr, data_dir, 0);
 
   myclone::Server server(thd, MYSQL_INVALID_SOCKET);
@@ -416,7 +426,7 @@ static int plugin_clone_local(THD *thd, const char *data_dir) {
 
   auto error = clone_inst.clone();
 
-  return (error);
+  return error;
 }
 
 /** Clone database from remote server.
@@ -431,12 +441,12 @@ static int plugin_clone_local(THD *thd, const char *data_dir) {
 static int plugin_clone_remote_client(THD *thd, const char *remote_host,
                                       uint remote_port, const char *remote_user,
                                       const char *remote_passwd,
-                                      const char *data_dir, int ssl_mode) {
+                                      const char *data_dir, int ssl_mode)
+{
   /* Validate that donor address matches with preconfigured value. */
   auto error = match_valid_donor_address(thd, remote_host, remote_port);
-  if (error != 0) {
-    return (error);
-  }
+  if (error != 0)
+    return error;
 
   myclone::Client_Share client_share(remote_host, remote_port, remote_user,
                                      remote_passwd, data_dir, ssl_mode);
@@ -450,19 +460,20 @@ static int plugin_clone_remote_client(THD *thd, const char *remote_host,
 
   error = clone_inst.clone();
 
-  return (error);
+  return error;
 }
 
 /** Clone database and send to remote clone client.
 @param[in,out]	thd	server thread handle
 @param[in]	socket	network socket to remote client
 @return error code */
-static int plugin_clone_remote_server(THD *thd, MYSQL_SOCKET socket) {
+static int plugin_clone_remote_server(THD *thd, MYSQL_SOCKET socket)
+{
   myclone::Server clone_inst(thd, socket);
 
   auto err = clone_inst.clone();
 
-  return (err);
+  return err;
 }
 
 /** clone plugin interfaces */
