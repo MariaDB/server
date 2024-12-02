@@ -21,6 +21,7 @@
 #include "slave.h"
 #include "strfunc.h"
 #include "sql_repl.h"
+#include "sql_acl.h"
 
 #ifdef HAVE_REPLICATION
 
@@ -1641,6 +1642,9 @@ bool Master_info_index::start_all_slaves(THD *thd)
   DBUG_ENTER("start_all_slaves");
   mysql_mutex_assert_owner(&LOCK_active_mi);
 
+  if (check_global_access(thd, PRIV_STMT_START_SLAVE))
+    DBUG_RETURN(true);
+
   for (uint i= 0; i< master_info_hash.records; i++)
   {
     Master_info *mi;
@@ -1718,6 +1722,9 @@ bool Master_info_index::stop_all_slaves(THD *thd)
   DBUG_ENTER("stop_all_slaves");
   mysql_mutex_assert_owner(&LOCK_active_mi);
   DBUG_ASSERT(thd);
+
+  if (check_global_access(thd, PRIV_STMT_STOP_SLAVE))
+    DBUG_RETURN(true);
 
   for (uint i= 0; i< master_info_hash.records; i++)
   {
