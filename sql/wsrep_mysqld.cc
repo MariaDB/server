@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2023 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2022, MariaDB
+/* Copyright (c) 2008, 2025 Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -129,6 +129,8 @@ ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
 
 std::atomic <bool> wsrep_thread_create_failed;
+
+ulong wsrep_debug_mode= 0;
 
 /*
  * End configuration options
@@ -4041,4 +4043,15 @@ void wsrep_commit_empty(THD* thd, bool all)
                   wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
   DBUG_VOID_RETURN;
+}
+
+void wsrep_disable_logging(void)
+{
+  // Disable buffered error logging
+  wsrep_debug_mode &= ~WSREP_DEBUG_MODE_BUFFERED;
+  // Disable also wsrep_debug logging
+  wsrep_debug_mode &= WSREP_DEBUG_MODE_DEBUG;
+  // Set wsrep_debug to NONE
+  wsrep_debug=0;
+  WSREP_WARN("Buffered error logging and wsrep debug logging disabled.");
 }

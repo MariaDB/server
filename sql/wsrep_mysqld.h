@@ -1,4 +1,4 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2024 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "wsrep/streaming_context.hpp"
 #include "wsrep_api.h"
 #include <map>
+#include "wsrep_buffered_error_log.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -145,6 +146,13 @@ enum enum_wsrep_mode {
 extern const char *wsrep_fragment_units[];
 extern const char *wsrep_SR_store_types[];
 
+/* Modes for wsrep debug error logging */
+enum enum_wsrep_debug_mode {
+  WSREP_DEBUG_MODE_OFF = 0x0,
+  WSREP_DEBUG_MODE_DEBUG = 0x1,
+  WSREP_DEBUG_MODE_BUFFERED = 0x2
+};
+
 // MySQL status variables
 extern my_bool     wsrep_connected;
 extern const char* wsrep_cluster_state_uuid;
@@ -158,6 +166,11 @@ extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 extern char*       wsrep_provider_capabilities;
 extern char*       wsrep_cluster_capabilities;
+extern unsigned long long   wsrep_buffered_error_log_buffer_size;
+extern unsigned long long   wsrep_buffered_error_log_file_size;
+extern const char* wsrep_buffered_error_log_filename;
+extern Buffered_error_logger wsrep_buffered_error_log;
+extern uint        wsrep_buffered_error_log_rotations;
 
 int  wsrep_show_status(THD *thd, SHOW_VAR *var, void *buff,
                        system_status_var *status_var, enum_var_type scope);
@@ -593,6 +606,9 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 
 void wsrep_wait_ready(THD *thd);
 void wsrep_ready_set(bool ready_value);
+
+void wsrep_disable_logging(void);
+
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support

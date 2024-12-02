@@ -69,7 +69,8 @@
 #include <ssl_compat.h>
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-#endif
+#include "wsrep_buffered_error_log.h"
+#endif /* WITH_WSREP */
 
 #define PCRE2_STATIC 1             /* Important on Windows */
 #include "pcre2.h"                 /* pcre2 header file */
@@ -5224,7 +5225,7 @@ Sys_proxy_protocol_networks(
     ON_CHECK(check_proxy_protocol_networks), ON_UPDATE(fix_proxy_protocol_networks));
 
 
-static bool check_log_path(sys_var *self, THD *thd, set_var *var)
+bool check_log_path(sys_var *self, THD *thd, set_var *var)
 {
   if (!var->value)
     return false; // DEFAULT is ok
@@ -6519,6 +6520,37 @@ static Sys_var_charptr Sys_wsrep_allowlist(
        "wsrep_allowlist", "Allowed IP addresses split by comma delimiter",
        READ_ONLY GLOBAL_VAR(wsrep_allowlist), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""));
+
+static Sys_var_charptr_fscs Sys_wsrep_buffered_error_log_filename(
+    "wsrep_buffered_error_log_filename", "Filename of the buffered error log",
+    PREALLOCATED GLOBAL_VAR(wsrep_buffered_error_log_filename), CMD_LINE(REQUIRED_ARG),
+    DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+    ON_CHECK(wsrep_buffered_error_log_filename_check),
+    ON_UPDATE(wsrep_buffered_error_log_filename_update));
+
+static Sys_var_ulonglong Sys_wsrep_buffered_error_log_buffer_size(
+    "wsrep_buffered_error_log_buffer_size", "Size of the buffered error log buffer",
+    GLOBAL_VAR(wsrep_buffered_error_log_buffer_size), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, SIZE_T_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+    NOT_IN_BINLOG,
+    ON_CHECK(wsrep_buffered_error_log_buffer_size_check),
+    ON_UPDATE(wsrep_buffered_error_log_buffer_size_update));
+
+static Sys_var_ulonglong Sys_wsrep_buffered_error_log_file_size(
+    "wsrep_buffered_error_log_file_size", "Max size of the buffered error log file",
+    GLOBAL_VAR(wsrep_buffered_error_log_file_size), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, SIZE_T_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+    NOT_IN_BINLOG,
+    ON_CHECK(wsrep_buffered_error_log_file_size_check),
+    ON_UPDATE(wsrep_buffered_error_log_file_size_update));
+
+static Sys_var_uint Sys_wsrep_buffered_error_log_rotations (
+       "wsrep_buffered_error_log_rotations", "Number of log rotations before log is removed",
+       GLOBAL_VAR(wsrep_buffered_error_log_rotations), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 999999),
+       DEFAULT(10), BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_buffered_error_log_rotations_check),
+       ON_UPDATE(wsrep_buffered_error_log_rotations_update));
 
 #endif /* WITH_WSREP */
 

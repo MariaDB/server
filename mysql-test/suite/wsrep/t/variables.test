@@ -8,6 +8,7 @@ source include/check_galera_version.inc;
 
 source include/galera_variables_ok.inc;
 
+--sorted_result
 --replace_column 2 #
 SHOW GLOBAL STATUS LIKE 'wsrep%';
 

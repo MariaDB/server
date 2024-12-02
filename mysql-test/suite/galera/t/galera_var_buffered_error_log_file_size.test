@@ -1,0 +1,75 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+--source include/force_restart.inc
+
+--connection node_2
+--replace_regex /.*galera_buffered_error_log.err.*/galera_buffered_error_log.err/
+SELECT @@global.wsrep_buffered_error_log_filename;
+SELECT @@global.wsrep_buffered_error_log_buffer_size;
+SELECT @@global.wsrep_buffered_error_log_file_size;
+
+CREATE TABLE t1(a int not null primary key auto_increment, count int) engine=innodb;
+
+--let $inserts=1000
+--let $count=0
+--disable_query_log
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,$count)
+  --eval update t1 set count = $count+100 where count = $count
+  --inc $count
+}
+--enable_query_log
+
+--echo # Change file size larger
+SET GLOBAL wsrep_buffered_error_log_file_size=262144;
+
+--echo # List error log files - should have 4 files
+--list_files $MYSQLTEST_VARDIR/mysqld.2/data galera_buffered_error_log*
+
+--echo Testing that old log contains something logged
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/mysqld.2/data/galera_buffered_error_log.err.3
+--let ABORT_ON = NOT_FOUND
+--let SEARCH_PATTERN=WSREP: Loading provider
+--source include/search_pattern_in_file.inc
+
+--replace_regex /.*galera_buffered_error_log.err.*/galera_buffered_error_log.err/
+SELECT @@global.wsrep_buffered_error_log_filename;
+SELECT @@global.wsrep_buffered_error_log_buffer_size;
+SELECT @@global.wsrep_buffered_error_log_file_size;
+
+--let $inserts=1000
+--let $count=0
+--disable_query_log
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,$count)
+  --eval update t1 set count = $count+100 where count = $count
+  --inc $count
+}
+--enable_query_log
+
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+DROP TABLE t1;
+
+--echo # Change file size smaller
+SET GLOBAL wsrep_buffered_error_log_file_size=131072;
+
+--echo # List error log files - should be 6 files
+--list_files $MYSQLTEST_VARDIR/mysqld.2/data galera_buffered_error_log*
+
+--replace_regex /.*galera_buffered_error_log.err.*/galera_buffered_error_log.err/
+SELECT @@global.wsrep_buffered_error_log_filename;
+SELECT @@global.wsrep_buffered_error_log_buffer_size;
+SELECT @@global.wsrep_buffered_error_log_file_size;
+
+--echo # Try to change buffer size to unsupported size i.e too small
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_buffered_error_log_file_size=1024;
+
+--echo # Reset file size to original size
+SET GLOBAL wsrep_buffered_error_log_file_size=204800;
+
+--echo # List error log files - should be 6 files
+--list_files $MYSQLTEST_VARDIR/mysqld.2/data galera_buffered_error_log*
+
