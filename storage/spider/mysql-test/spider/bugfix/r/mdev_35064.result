@@ -3,6 +3,8 @@ for child2
 for child3
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS(HOST '1');
 CREATE TABLE t(c INT)ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "s",TABLE "foo"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t VALUES(1);
 ERROR HY000: Unable to connect to foreign data source: s
 INSERT INTO t VALUES(1);

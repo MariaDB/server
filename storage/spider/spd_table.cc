@@ -7213,7 +7213,8 @@ int spider_get_crd(
     spider_get_crd_type(share, crd_interval, crd_sync);
 
   if (get_type == HA_GET_COPY)
-    spider_copy_crd_to_share(share, share->wide_share, table->s->fields);
+    memcpy(share->cardinality, share->wide_share->cardinality,
+           sizeof(longlong) * table->s->fields);
   else
     error_num= spider_db_show_index(spider, link_idx, table, crd_mode);
 
