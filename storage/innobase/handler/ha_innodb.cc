@@ -1989,7 +1989,7 @@ static int innodb_check_version(handlerton *hton, const char *path,
     const trx_id_t trx_id= table->def_trx_id;
     DBUG_ASSERT(trx_id <= create_id);
     dict_table_close(table);
-    DBUG_PRINT("info", ("create_id: %llu  trx_id: %llu", create_id, trx_id));
+    DBUG_PRINT("info", ("create_id: %llu  trx_id: %" PRIu64, create_id, trx_id));
     DBUG_RETURN(create_id != trx_id);
   }
   else
@@ -3756,7 +3756,7 @@ compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
   if (is_loaded[compression_algorithm])
     return 0;
 
-  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%u)"
+  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%lu)"
     " is not available. Please, load the corresponding provider plugin.", flags,
     page_compression_algorithms[compression_algorithm], compression_algorithm);
   return 1;
@@ -3999,7 +3999,7 @@ static int innodb_init_params()
 			"InnoDB: innodb_open_files=%lu is not greater "
 			"than the number of system tablespace files, "
 			"temporary tablespace files, "
-			"innodb_undo_tablespaces=%lu; adjusting "
+			"innodb_undo_tablespaces=%u; adjusting "
 			"to innodb_open_files=%zu",
 			innobase_open_files, srv_undo_tablespaces,
 			min_open_files_limit);
@@ -5620,15 +5620,15 @@ innobase_build_v_templ(
 }
 
 /** Check consistency between .frm indexes and InnoDB indexes.
-@param[in]	table	table object formed from .frm
 @param[in]	ib_table	InnoDB table definition
 @retval	true if not errors were found */
-static bool
-check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
+bool
+ha_innobase::check_index_consistency(const dict_table_t* ib_table) noexcept
 {
 	ulint mysql_num_index = table->s->keys;
 	ulint ib_num_index = UT_LIST_GET_LEN(ib_table->indexes);
 	bool ret = true;
+	ulint last_unique = 0;
 
 	/* If there exists inconsistency between MySQL and InnoDB dictionary
 	(metadata) information, the number of index defined in MySQL
@@ -5663,8 +5663,21 @@ check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
 			ret = false;
 			goto func_exit;
 		}
-	}
 
+		if (index->is_unique()) {
+			ulint i = 0;
+			while ((index = UT_LIST_GET_PREV(indexes, index))) i++;
+			/* Check if any unique index in InnoDB
+			dictionary are re-ordered compared to
+			the index in .frm */
+			if (last_unique > i) {
+				m_int_table_flags
+					|= HA_DUPLICATE_KEY_NOT_IN_ORDER;
+			}
+
+			last_unique = i;
+		}
+	}
 func_exit:
 	return ret;
 }
@@ -5919,7 +5932,7 @@ ha_innobase::open(const char* name, int, uint)
 		ib_table->lock_mutex_unlock();
 	}
 
-	if (!check_index_consistency(table, ib_table)) {
+	if (!check_index_consistency(ib_table)) {
 		sql_print_error("InnoDB indexes are inconsistent with what "
 				"defined in .frm for table %s",
 				name);
@@ -11359,7 +11372,7 @@ create_table_info_t::check_table_options()
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %lu."
+				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %llu."
 				" Valid values are [1, 2, 3, 4, 5, 6, 7, 8, 9]",
 				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
@@ -18561,7 +18574,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
            *static_cast<const ulonglong*>(save) < log_sys.buf_size)
     my_printf_error(ER_WRONG_ARGUMENTS,
                     "innodb_log_file_size must be at least"
-                    " innodb_log_buffer_size=%zu", MYF(0), log_sys.buf_size);
+                    " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
     switch (log_sys.resize_start(*static_cast<const ulonglong*>(save))) {
@@ -21206,7 +21219,7 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	if (trx && trx->mysql_thd) {
 		THD* thd = (THD*)trx->mysql_thd;
 
-		push_warning_printf(
+		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
 	}

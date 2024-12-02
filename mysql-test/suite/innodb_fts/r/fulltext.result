@@ -801,10 +801,10 @@ title VARCHAR(200), book VARCHAR(200),
 FULLTEXT fidx(title)) ENGINE = InnoDB;
 INSERT INTO t1(title) VALUES('database');
 ALTER TABLE t1 DROP INDEX fidx;
-select space into @common_space from information_schema.innodb_sys_tables where name like "test/FTS_%_CONFIG";
+create table t2 as select space from information_schema.innodb_sys_tables where name like "test/FTS_%_CONFIG";
 ALTER TABLE t1 ADD FULLTEXT fidx_1(book);
-select space=@common_space from information_schema.innodb_sys_tables where name like "test/FTS_%_CONFIG";
-space=@common_space
+select i_s.space=t2.space from information_schema.innodb_sys_tables i_s join t2 where name like "test/FTS_%_CONFIG";
+i_s.space=t2.space
 1
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -815,4 +815,5 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`ID`),
   FULLTEXT KEY `fidx_1` (`book`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-DROP TABLE t1;
+DROP TABLE t1, t2;
+# End of 10.5 tests

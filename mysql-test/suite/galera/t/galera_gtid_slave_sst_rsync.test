@@ -199,4 +199,4 @@ set global wsrep_on=ON;
 reset master;
 
 --connection node_2
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");

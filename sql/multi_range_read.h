@@ -346,9 +346,10 @@ private:
   */
   bool read_was_interrupted;
 
-  static int compare_keys(void* arg, uchar* key1, uchar* key2);
-  static int compare_keys_reverse(void* arg, uchar* key1, uchar* key2);
-  
+  static int compare_keys(void *arg, const void *key1, const void *key2);
+  static int compare_keys_reverse(void *arg, const void *key1,
+                                  const void *key2);
+
   friend class Key_value_records_iterator; 
   friend class DsMrr_impl;
   friend class Mrr_ordered_rndpos_reader;

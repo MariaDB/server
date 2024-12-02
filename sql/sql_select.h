@@ -2023,7 +2023,7 @@ int opt_sum_query(THD* thd,
                   List<TABLE_LIST> &tables, List<Item> &all_fields, COND *conds);
 
 /* from sql_delete.cc, used by opt_range.cc */
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b);
+extern "C" int refpos_order_cmp(void *arg, const void *a,const void *b);
 
 /** class to copying an field/item to a key struct */
 
@@ -2714,15 +2714,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               COND_EQUAL *inherited,
                               bool *is_simplifiable_cond);
 
-template<typename T> T prev_bits(T n_bits)
-{
-  if (!n_bits)
-    return 0;
-  T tmp= ((T)1 << (n_bits - 1));
-  return (tmp - 1) | tmp;
-}
-// A wrapper for the above function:
-#define PREV_BITS(type, A) prev_bits<type>(A)
+#define PREV_BITS(type, N_BITS) ((type)my_set_bits(N_BITS))
 
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
 

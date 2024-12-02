@@ -27,40 +27,6 @@ Created 5/30/1994 Heikki Tuuri
 #define UT_HASH_RANDOM_MASK	1463735687
 #define UT_HASH_RANDOM_MASK2	1653893711
 
-#ifndef UNIV_INNOCHECKSUM
-
-/*******************************************************//**
-The following function generates a hash value for a ulint integer
-to a hash table of size table_size, which should be a prime
-or some random number for the hash table to work reliably.
-@return hash value */
-UNIV_INLINE
-ulint
-ut_hash_ulint(
-/*==========*/
-	ulint	 key,		/*!< in: value to be hashed */
-	ulint	 table_size)	/*!< in: hash table size */
-{
-	ut_ad(table_size);
-	key = key ^ UT_HASH_RANDOM_MASK2;
-
-	return(key % table_size);
-}
-
-/*************************************************************//**
-Folds a 64-bit integer.
-@return folded value */
-UNIV_INLINE
-ulint
-ut_fold_ull(
-/*========*/
-	ib_uint64_t	d)	/*!< in: 64-bit integer */
-{
-	return(ut_fold_ulint_pair((ulint) d & ULINT32_MASK,
-				  (ulint) (d >> 32)));
-}
-#endif /* !UNIV_INNOCHECKSUM */
-
 /*************************************************************//**
 Folds a pair of ulints.
 @return folded value */

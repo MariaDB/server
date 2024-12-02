@@ -18,6 +18,7 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "sql_priv.h"
+#include "create_options.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
@@ -235,7 +236,8 @@ int spider_udf_direct_sql_create_conn_key(
       + (direct_sql->tgt_default_group ? direct_sql->tgt_default_group_length + 2 : 0)
       + (direct_sql->tgt_dsn ? direct_sql->tgt_dsn_length + 2 : 0)
       + (direct_sql->tgt_filedsn ? direct_sql->tgt_filedsn_length + 2 : 0)
-      + (direct_sql->tgt_driver ? direct_sql->tgt_driver_length + 2 : 0);
+      + (direct_sql->tgt_driver ? direct_sql->tgt_driver_length + 2 : 0)
+      + (direct_sql->tgt_odbc_conn_str ? direct_sql->tgt_odbc_conn_str_length + 2 : 0);
   if (!(direct_sql->conn_key = (char *)
     spider_malloc(spider_current_trx, SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_KEY_1, direct_sql->conn_key_length + 1,
       MYF(MY_WME | MY_ZEROFILL)))
@@ -276,6 +278,7 @@ int spider_udf_direct_sql_create_conn_key(
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_dsn);
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_filedsn);
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_driver);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_odbc_conn_str);
   tmp_name++;
   direct_sql->conn_key_hash_value = my_calc_hash(&spider_open_connections,
     (uchar*) direct_sql->conn_key, direct_sql->conn_key_length);
@@ -308,7 +311,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
   char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
-  char *tmp_dsn, *tmp_filedsn, *tmp_driver;
+  char *tmp_dsn, *tmp_filedsn, *tmp_driver, *tmp_odbc_conn_str;
   int *need_mon;
   bool tables_on_different_db_are_joinable = TRUE;
   DBUG_ENTER("spider_udf_direct_sql_create_conn");
@@ -349,6 +352,8 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
           (uint) (direct_sql->tgt_filedsn_length + 1),
         &tmp_driver,
           (uint) (direct_sql->tgt_driver_length + 1),
+        &tmp_odbc_conn_str,
+          (uint) (direct_sql->tgt_odbc_conn_str_length + 1),
         &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
@@ -410,6 +415,9 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
     spider_maybe_memcpy_string(
       &conn->tgt_driver, direct_sql->tgt_driver, tmp_driver,
       &conn->tgt_driver_length, direct_sql->tgt_driver_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_odbc_conn_str, direct_sql->tgt_odbc_conn_str, tmp_odbc_conn_str,
+      &conn->tgt_odbc_conn_str_length, direct_sql->tgt_odbc_conn_str_length);
     conn->tgt_ssl_vsc = direct_sql->tgt_ssl_vsc;
   conn->dbton_id = direct_sql->dbton_id;
   conn->conn_need_mon = need_mon;
@@ -1281,6 +1289,10 @@ void spider_udf_free_direct_sql_alloc(
   if (direct_sql->tgt_driver)
   {
     spider_free(spider_current_trx, direct_sql->tgt_driver, MYF(0));
+  }
+  if (direct_sql->tgt_odbc_conn_str)
+  {
+    spider_free(spider_current_trx, direct_sql->tgt_odbc_conn_str, MYF(0));
   }
   if (direct_sql->conn_key)
   {

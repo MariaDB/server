@@ -562,13 +562,6 @@ static void update_discovery_counters(handlerton *hton, int val)
     engines_with_discover+= val;
 }
 
-int ha_drop_table(THD *thd, handlerton *hton, const char *path)
-{
-  if (ha_check_if_updates_are_ignored(thd, hton, "DROP"))
-    return 0;                                   // Simulate dropped
-  return hton->drop_table(hton, path);
-}
-
 static int hton_drop_table(handlerton *hton, const char *path)
 {
   Table_path_buffer tmp_path;
@@ -588,8 +581,9 @@ static int hton_drop_table(handlerton *hton, const char *path)
 }
 
 
-int ha_finalize_handlerton(st_plugin_int *plugin)
+int ha_finalize_handlerton(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   int deinit_status= 0;
   handlerton *hton= (handlerton *)plugin->data;
   DBUG_ENTER("ha_finalize_handlerton");
@@ -672,9 +666,10 @@ static bool update_optimizer_costs(handlerton *hton)
 const char *hton_no_exts[]= { 0 };
 static bool ddl_recovery_done= false;
 
-int setup_transaction_participant(st_plugin_int *plugin)
+int setup_transaction_participant(void *plugin_)
 {
-  auto tp= (transaction_participant *)(plugin->data);
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  auto tp= static_cast<transaction_participant*>(plugin->data);
   ulong fslot;
   for (fslot= 0; fslot < total_ha; fslot++)
     if (!hton2plugin[fslot])
@@ -714,8 +709,9 @@ int setup_transaction_participant(st_plugin_int *plugin)
   return 0;
 }
 
-int ha_initialize_handlerton(st_plugin_int *plugin)
+int ha_initialize_handlerton(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton;
   int ret= 0;
   DBUG_ENTER("ha_initialize_handlerton");
@@ -1824,7 +1820,13 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
 
-  if (rw_trans)
+  /*
+    backup_commit_lock may have already been set.
+    This can happen in case of spider that does xa_commit() by
+    calling ha_commit_trans() from spader_commit().
+  */
+
+  if (rw_trans && !thd->backup_commit_lock)
   {
     /*
       Acquire a metadata lock which will ensure that COMMIT is blocked
@@ -2103,8 +2105,8 @@ end:
       not needed.
     */
     thd->mdl_context.release_lock(mdl_backup.ticket);
+    thd->backup_commit_lock= 0;
   }
-  thd->backup_commit_lock= 0;
 #ifdef WITH_WSREP
   if (wsrep_is_active(thd) && is_real_trans && !error &&
       (rw_ha_count == 0 || all) &&
@@ -3802,8 +3804,11 @@ int handler::ha_index_init(uint idx, bool sorted)
     end_range= NULL;
     /*
       Do not allow reads from UNIQUE HASH indexes.
+      (1) MyRocks sometimes uses hidden indexes that SQL layer isn't aware of,
+          skip the check for such cases
     */
-    DBUG_ASSERT(!(table->key_info[active_index].flags & HA_UNIQUE_HASH));
+    DBUG_ASSERT(active_index >= table->s->keys ||  // (1)
+                !(table->key_info[active_index].flags & HA_UNIQUE_HASH));
   }
 
   DBUG_RETURN(result);
@@ -5809,27 +5814,6 @@ handler::ha_rename_table(const char *from, const char *to)
 
 
 /**
-  Drop table in the engine: public interface.
-
-  @sa handler::drop_table()
-
-  The difference between this and delete_table() is that the table is open in
-  drop_table().
-*/
-
-void
-handler::ha_drop_table(const char *name)
-{
-  DBUG_ASSERT(m_lock_type == F_UNLCK);
-  if (check_if_updates_are_ignored("DROP"))
-    return;
-
-  mark_trx_read_write();
-  drop_table(name);
-}
-
-
-/**
    Structure used during force drop table.
 */
 
@@ -6907,15 +6891,19 @@ static int cmp_file_names(const void *a, const void *b)
   return cs->strnncoll(aa, strlen(aa), bb, strlen(bb));
 }
 
-static int cmp_table_names(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+static int cmp_table_names(const void *a_, const void *b_)
 {
+  auto a= static_cast<const LEX_CSTRING *const *>(a_);
+  auto b= static_cast<const LEX_CSTRING *const *>(b_);
   return my_charset_bin.strnncoll((*a)->str, (*a)->length,
                                   (*b)->str, (*b)->length);
 }
 
 #ifndef DBUG_OFF
-static int cmp_table_names_desc(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+static int cmp_table_names_desc(const void *a_, const void *b_)
 {
+  auto a= static_cast<const LEX_CSTRING *const *>(a_);
+  auto b= static_cast<const LEX_CSTRING *const *>(b_);
   return -cmp_table_names(a, b);
 }
 #endif

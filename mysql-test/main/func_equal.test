@@ -44,3 +44,18 @@ select * from t1 where a in ('4828532208463511553');
 drop table t1;
 
 --echo #End of 4.1 tests
+
+
+--echo # Start of 10.5 tests
+
+--echo #
+--echo # MDEV-21029 Incorrect result for expression with the <=> operator and IS NULL
+--echo #
+
+CREATE TABLE t0(c0 INT);
+INSERT INTO t0 VALUES (1);
+SELECT (c0 > (NULL <=> 0)) IS NULL AS c1 FROM t0;
+DROP TABLE t0;
+
+
+--echo # End of 10.5 tests

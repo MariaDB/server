@@ -291,7 +291,7 @@ public:
   uchar *tref() const;
   void push_neighbor(size_t layer, FVectorNode *v);
 
-  static uchar *get_key(const FVectorNode *elem, size_t *key_len, my_bool);
+  static const uchar *get_key(const void *elem, size_t *key_len, my_bool);
 };
 #pragma pack(pop)
 
@@ -812,10 +812,10 @@ size_t FVectorNode::gref_len() const { return ctx->gref_len; }
 uchar *FVectorNode::gref() const { return (uchar*)(this+1); }
 uchar *FVectorNode::tref() const { return gref() + gref_len(); }
 
-uchar *FVectorNode::get_key(const FVectorNode *elem, size_t *key_len, my_bool)
+const uchar *FVectorNode::get_key(const void *elem, size_t *key_len, my_bool)
 {
-  *key_len= elem->gref_len();
-  return elem->gref();
+  *key_len= static_cast<const FVectorNode*>(elem)->gref_len();
+  return static_cast<const FVectorNode*>(elem)->gref();
 }
 
 /* one visited node during the search. caches the distance to target */
@@ -824,8 +824,10 @@ struct Visited : public Sql_alloc
   FVectorNode *node;
   const float distance_to_target;
   Visited(FVectorNode *n, float d) : node(n), distance_to_target(d) {}
-  static int cmp(void *, const Visited* a, const Visited *b)
+  static int cmp(void *, const void* a_, const void *b_)
   {
+    const Visited *a= static_cast<const Visited*>(a_);
+    const Visited *b= static_cast<const Visited*>(b_);
     return a->distance_to_target < b->distance_to_target ? -1 :
            a->distance_to_target > b->distance_to_target ?  1 : 0;
   }

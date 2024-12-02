@@ -718,7 +718,7 @@ public:
   {
     return m_usec ?
       my_snprintf(to, nbytes, "%s%llu.%06lu",
-                  m_neg ? "-" : "", m_sec, (uint) m_usec) :
+                  m_neg ? "-" : "", m_sec, m_usec) :
       my_snprintf(to, nbytes, "%s%llu", m_neg ? "-" : "", m_sec);
   }
   void make_truncated_warning(THD *thd, const char *type_str) const;

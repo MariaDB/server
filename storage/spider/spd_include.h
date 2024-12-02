@@ -161,7 +161,7 @@ typedef start_new_trans *SPIDER_Open_tables_backup;
 #define SPIDER_LINK_MON_DRAW_FEW_MON         1
 #define SPIDER_LINK_MON_DRAW                 2
 
-#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     23
+#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     24
 #define SPIDER_TMP_SHARE_UINT_COUNT         SPIDER_TMP_SHARE_CHAR_PTR_COUNT
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
@@ -437,6 +437,7 @@ enum spider_malloc_id {
   SPD_MID_PING_TABLE_MON_FROM_TABLE_1,
   SPD_MID_RELEASE_PING_TABLE_MON_LIST_1,
   SPD_MID_TRX_ANOTHER_LOCK_TABLES_1,
+  SPD_MID_TRY_ODBC_CONNECTION_STRING_1,
   SPD_MID_UDF_COPY_TABLES_CREATE_TABLE_LIST_1,
   SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_1,
   SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_2,
@@ -1189,7 +1190,7 @@ typedef struct st_spider_share
   char               **tgt_dsns;
   char               **tgt_filedsns;
   char               **tgt_drivers;
-  char               *tgt_odbc_conn_str;
+  char               **tgt_odbc_conn_strs;
   char               **static_link_ids;
   char               **tgt_pk_names;
   char               **tgt_sequence_names;
@@ -1232,7 +1233,7 @@ typedef struct st_spider_share
   uint               *tgt_dsns_lengths;
   uint               *tgt_filedsns_lengths;
   uint               *tgt_drivers_lengths;
-  uint               tgt_odbc_conn_str_length;
+  uint               *tgt_odbc_conn_strs_lengths;
   uint               *static_link_ids_lengths;
   uint               *tgt_pk_names_lengths;
   uint               *tgt_sequence_names_lengths;
@@ -1281,6 +1282,7 @@ typedef struct st_spider_share
   uint               tgt_dsns_length;
   uint               tgt_filedsns_length;
   uint               tgt_drivers_length;
+  uint               tgt_odbc_conn_strs_length;
   uint               static_link_ids_length;
   uint               tgt_pk_names_length;
   uint               tgt_sequence_names_length;
@@ -1406,6 +1408,7 @@ typedef struct st_spider_direct_sql
   char                 *tgt_dsn;
   char                 *tgt_filedsn;
   char                 *tgt_driver;
+  char                 *tgt_odbc_conn_str;
   char                 *conn_key;
   long                 tgt_port;
   long                 tgt_ssl_vsc;
@@ -1427,6 +1430,7 @@ typedef struct st_spider_direct_sql
   uint                 tgt_dsn_length;
   uint                 tgt_filedsn_length;
   uint                 tgt_driver_length;
+  uint                 tgt_odbc_conn_str_length;
   uint                 conn_key_length;
   uint                 dbton_id;
   my_hash_value_type   conn_key_hash_value;

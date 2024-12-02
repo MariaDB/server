@@ -206,6 +206,19 @@ TPOOL_SUPPRESS_TSAN size_t trx_sys_t::history_size_approx() const
   return size;
 }
 
+my_bool trx_sys_t::find_same_or_older_callback(void *el, void *i) noexcept
+{
+  auto element= static_cast<rw_trx_hash_element_t *>(el);
+  auto id= static_cast<trx_id_t*>(i);
+  return element->id <= *id;
+}
+
+
+bool trx_sys_t::find_same_or_older_low(trx_t *trx, trx_id_t id) noexcept
+{
+  return rw_trx_hash.iterate(trx, find_same_or_older_callback, &id);
+}
+
 /** Create a persistent rollback segment.
 @param space_id   system or undo tablespace id
 @return pointer to new rollback segment

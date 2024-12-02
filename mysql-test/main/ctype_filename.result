@@ -161,6 +161,21 @@ ERROR 42000: Column length too big for column 'a' (max = 204); use BLOB or TEXT 
 DROP TABLE t1;
 # End of 10.5 tests
 #
+# Start of 10.6 tests
+#
+#
+# MDEV-35393 ASAN unknown-crash in Field_varstring::reset when inserting NULL value to a table with filename charset
+#
+SET sql_mode='';
+CREATE TABLE t (a CHAR(205)) ENGINE=MYISAM CHARACTER SET filename;
+Warnings:
+Note	1246	Converting column 'a' from CHAR to VARCHAR
+INSERT INTO t VALUES (NULL);
+DROP TABLE t;
+#
+# End of 10.6 tests
+#
+#
 # Start of 10.9 tests
 #
 #

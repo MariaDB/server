@@ -1749,11 +1749,13 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
 
 C_MODE_START
 
-static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, uchar *val1, uchar *val2)
+static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, const void *val1_,
+                                            const void *val2_)
 {
-  QUICK_ROR_UNION_SELECT *self= (QUICK_ROR_UNION_SELECT*)arg;
-  return self->head->file->cmp_ref(((QUICK_SELECT_I*)val1)->last_rowid,
-                                   ((QUICK_SELECT_I*)val2)->last_rowid);
+  auto self= static_cast<QUICK_ROR_UNION_SELECT *>(arg);
+  auto val1= static_cast<const QUICK_SELECT_I *>(val1_);
+  auto val2= static_cast<const QUICK_SELECT_I *>(val2_);
+  return self->head->file->cmp_ref(val1->last_rowid, val2->last_rowid);
 }
 
 C_MODE_END
@@ -3099,7 +3101,7 @@ SQL_SELECT::test_quick_select(THD *thd,
         group_by_optimization_used= 1;
         param.table->set_opt_range_condition_rows(group_trp->records);
         DBUG_PRINT("info", ("table_rows: %llu  opt_range_condition_rows: %llu  "
-                            "group_trp->records: %ull",
+                            "group_trp->records: %llu",
                             table_records,
                             param.table->opt_range_condition_rows,
                             group_trp->records));
@@ -3442,13 +3444,13 @@ double records_in_column_ranges(PARAM *param, uint idx,
   use histograms for columns b and c
 */
 
-static
-int cmp_quick_ranges(TABLE::OPT_RANGE **a, TABLE::OPT_RANGE **b)
+static int cmp_quick_ranges(const void *a_, const void *b_)
 {
-  int tmp=CMP_NUM((*a)->rows, (*b)->rows);
-  if (tmp)
+  const auto a= *static_cast<const TABLE::OPT_RANGE*const*>(a_);
+  const auto b= *static_cast<const TABLE::OPT_RANGE*const*>(b_);
+  if (int tmp= CMP_NUM(a->rows, b->rows))
     return tmp;
-  return -CMP_NUM((*a)->key_parts, (*b)->key_parts);
+  return -CMP_NUM(a->key_parts, b->key_parts);
 }
 
 
@@ -3549,9 +3551,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     if (table->opt_range_keys.is_set(keynr))
       optimal_key_order[ranges++]= table->opt_range + keynr;
 
-  my_qsort(optimal_key_order, ranges,
-           sizeof(optimal_key_order[0]),
-           (qsort_cmp) cmp_quick_ranges);
+  my_qsort(optimal_key_order, ranges, sizeof *optimal_key_order,
+           cmp_quick_ranges);
 
   for (range_index= 0 ; range_index < ranges ; range_index++)
   {
@@ -5920,8 +5921,10 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
 /* Compare two indexes scans for sort before search for the best intersection */
 
 static
-int cmp_intersect_index_scan(INDEX_SCAN_INFO **a, INDEX_SCAN_INFO **b)
+int cmp_intersect_index_scan(const void *a_, const void *b_)
 {
+  auto a= static_cast<const INDEX_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const INDEX_SCAN_INFO *const *>(b_);
   return CMP_NUM((*a)->records, (*b)->records);
 }
 
@@ -6172,7 +6175,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     return TRUE;
 
   my_qsort(selected_index_scans, n_search_scans, sizeof(INDEX_SCAN_INFO *),
-           (qsort_cmp) cmp_intersect_index_scan);
+           cmp_intersect_index_scan);
 
   Json_writer_array selected_idx_scans(thd, "selected_index_scans");
   if (cpk_scan)
@@ -6923,8 +6926,10 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     1 a > b
 */
 
-static int cmp_ror_scan_info(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
+static int cmp_ror_scan_info(const void *a_, const void *b_)
 {
+  auto a= static_cast<const ROR_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const ROR_SCAN_INFO *const *>(b_);
   double val1= rows2double((*a)->records) * (*a)->key_rec_length;
   double val2= rows2double((*b)->records) * (*b)->key_rec_length;
   return (val1 < val2)? -1: (val1 == val2)? 0 : 1;
@@ -6947,8 +6952,10 @@ static int cmp_ror_scan_info(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
     1 a > b
 */
 
-static int cmp_ror_scan_info_covering(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
+static int cmp_ror_scan_info_covering(const void *a_, const void *b_)
 {
+  auto a= static_cast<const ROR_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const ROR_SCAN_INFO *const *>(b_);
   if ((*a)->used_fields_covered > (*b)->used_fields_covered)
     return -1;
   if ((*a)->used_fields_covered < (*b)->used_fields_covered)
@@ -7443,7 +7450,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     Step 2: Get best ROR-intersection using an approximate algorithm.
   */
   my_qsort(tree->ror_scans, tree->n_ror_scans, sizeof(ROR_SCAN_INFO*),
-           (qsort_cmp)cmp_ror_scan_info);
+           cmp_ror_scan_info);
   DBUG_EXECUTE("info",print_ror_scans_arr(param->table, "ordered",
                                           tree->ror_scans,
                                           tree->ror_scans_end););
@@ -7711,7 +7718,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
     }
 
     my_qsort(ror_scan_mark, ror_scans_end-ror_scan_mark, sizeof(ROR_SCAN_INFO*),
-             (qsort_cmp)cmp_ror_scan_info_covering);
+             cmp_ror_scan_info_covering);
 
     DBUG_EXECUTE("info", print_ror_scans_arr(param->table,
                                              "remaining scans",
@@ -8261,7 +8268,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         if (!tree)
           break;
         i++;
-      } while (i < array->count && tree->type == SEL_TREE::IMPOSSIBLE);
+      } while (i < array->used_count && tree->type == SEL_TREE::IMPOSSIBLE);
 
       if (!tree || tree->type == SEL_TREE::IMPOSSIBLE)
       {

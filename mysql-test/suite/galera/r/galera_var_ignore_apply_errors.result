@@ -207,6 +207,7 @@ connection node_1;
 CREATE TABLE t1 (f1 INTEGER, f2 INTEGER);
 DROP TABLE t1;
 connection node_2;
+set session wsrep_sync_wait=0;
 SELECT * FROM t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 SET GLOBAL wsrep_ignore_apply_errors = 10;

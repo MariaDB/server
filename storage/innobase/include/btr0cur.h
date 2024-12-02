@@ -705,10 +705,6 @@ struct btr_cur_t {
 	ulint		fold;		/*!< fold value used in the search if
 					flag is BTR_CUR_HASH */
 	/* @} */
-	btr_path_t*	path_arr;	/*!< in estimating the number of
-					rows in range, we store in this array
-					information of the path through
-					the tree */
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
   btr_cur_t() { memset((void*) this, 0, sizeof *this); }
 

@@ -58,6 +58,8 @@ set session time_zone = '+00:00';set @`spider_lc_./auto_test_remote/tbl_a` = '-x
 SET NAMES utf8mb3
 set @old_lock_wait_timeout=@@session.lock_wait_timeout;set session lock_wait_timeout=1
 set session lock_wait_timeout=@old_lock_wait_timeout
+set @old_lock_wait_timeout=@@session.lock_wait_timeout;set session lock_wait_timeout=1
+set session lock_wait_timeout=@old_lock_wait_timeout
 set session transaction isolation level read committed;set session autocommit = 1;set session wait_timeout = 604800;set session sql_mode = 'strict_trans_tables,error_for_division_by_zero,no_auto_create_user,no_engine_substitution';start transaction
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%set %'
 SELECT pkey FROM tbl_a ORDER BY pkey;

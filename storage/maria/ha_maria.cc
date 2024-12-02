@@ -2878,6 +2878,7 @@ void ha_maria::drop_table(const char *name)
 #endif
   }
 
+  file->s->deleting= 1;                         // Do not flush data
   (void) ha_close();
   (void) maria_delete_table_files(name, 1, MY_WME);
 

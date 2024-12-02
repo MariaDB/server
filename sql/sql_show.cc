@@ -73,6 +73,8 @@
 #include "vector_mhnsw.h"
 
 #include "lex_symbol.h"
+#include "mysql/plugin_function.h"
+
 #define KEYWORD_SIZE 64
 
 extern SYMBOL symbols[];
@@ -670,14 +672,13 @@ ignore_db_dirs_init()
   @return                 a pointer to the key
 */
 
-static uchar *
-db_dirs_hash_get_key(const uchar *data, size_t *len_ret,
-                     my_bool __attribute__((unused)))
+static const uchar *db_dirs_hash_get_key(const void *data, size_t *len_ret,
+                                         my_bool)
 {
-  LEX_CSTRING *e= (LEX_CSTRING *) data;
+  auto e= static_cast<const LEX_CSTRING *>(data);
 
   *len_ret= e->length;
-  return (uchar *) e->str;
+  return reinterpret_cast<const uchar *>(e->str);
 }
 
 
@@ -8564,6 +8565,30 @@ int fill_i_s_keywords(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_RETURN(0);
 }
 
+
+class Add_func_arg
+{
+public:
+  TABLE *m_table;
+  Add_func_arg(TABLE *table)
+   :m_table(table)
+  { }
+};
+
+
+static my_bool add_plugin_func(THD *thd, plugin_ref plugin, void *arg)
+{
+  Add_func_arg *add_func_arg= (Add_func_arg*) arg;
+  char buf[NAME_LEN + 1];
+  const LEX_CSTRING name= plugin_name(plugin)[0];
+  size_t length= my_charset_utf8mb3_bin.caseup(name.str, name.length,
+                                               buf, sizeof(buf)-1);
+  buf[length]= '\0';
+  if (add_symbol_to_table(buf, add_func_arg->m_table))
+    return 1;
+  return 0;
+}
+
 int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   DBUG_ENTER("fill_i_s_sql_functions");
@@ -8578,6 +8603,11 @@ int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond)
     if (add_symbol_to_table(native_func_registry_array.element(i).name.str,
                             table))
       DBUG_RETURN(1);
+
+  Add_func_arg add_func_arg(table);
+  if (plugin_foreach(thd, add_plugin_func,
+                     MariaDB_FUNCTION_PLUGIN, &add_func_arg))
+    DBUG_RETURN(1);
 
   DBUG_RETURN(0);
 }
@@ -8931,7 +8961,7 @@ int fill_slave_status(THD *thd, TABLE_LIST *tables, COND *cond)
       tmp[i]= (Master_info *) my_hash_element(&master_info_index->
                                               master_info_hash, i);
     }
-    my_qsort(tmp, elements, sizeof(Master_info*), (qsort_cmp) cmp_mi_by_name);
+    my_qsort(tmp, elements, sizeof *tmp, cmp_mi_by_name);
 
     for (i= 0; i < elements; i++)
     {
@@ -9774,7 +9804,7 @@ static double fix_cost(double cost)
 }
 
 static int run_fill_optimizer_costs_tables(const LEX_CSTRING *name,
-                                           const OPTIMIZER_COSTS *costs,
+                                           OPTIMIZER_COSTS *costs,
                                            TABLE *table)
 {
   THD *thd= table->in_use;
@@ -10800,8 +10830,9 @@ ST_SCHEMA_TABLE schema_tables[]=
 static_assert(array_elements(schema_tables) == SCH_ENUM_SIZE + 1,
               "Update enum_schema_tables as well.");
 
-int initialize_schema_table(st_plugin_int *plugin)
+int initialize_schema_table(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   ST_SCHEMA_TABLE *schema_table;
   int err;
   DBUG_ENTER("initialize_schema_table");
@@ -10846,8 +10877,9 @@ int initialize_schema_table(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
-int finalize_schema_table(st_plugin_int *plugin)
+int finalize_schema_table(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   int deinit_status= 0;
   ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
   DBUG_ENTER("finalize_schema_table");
