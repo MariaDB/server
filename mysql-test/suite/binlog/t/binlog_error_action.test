@@ -49,7 +49,6 @@ let $INDEX=$MYSQLD_DATADIR/mysqld-bin.index;
 --chmod 0444 $INDEX
 SET GLOBAL binlog_error_action= ABORT_SERVER;
 --source include/expect_crash.inc
-#mysql had it ER_BINLOG_LOGGING_IMPOSSIBLE but i dont wanna
 --error 29
 flush logs;
 --source include/wait_until_disconnected.inc
@@ -64,7 +63,7 @@ flush logs;
 SET SESSION debug="+d,fault_injection_updating_index";
 SET GLOBAL binlog_error_action= ABORT_SERVER;
 --source include/expect_crash.inc
---error ER_BINLOG_LOGGING_IMPOSSIBLE
+--error ER_CANT_OPEN_FILE
 flush logs;
 --source include/wait_until_disconnected.inc
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -80,7 +79,7 @@ flush logs;
 #SET SESSION debug="+d,simulate_file_write_error";
 #SET GLOBAL binlog_error_action= ABORT_SERVER;
 #--source include/expect_crash.inc
-#--error ER_BINLOG_LOGGING_IMPOSSIBLE
+#--error 3
 #flush logs;
 #--source include/wait_until_disconnected.inc
 #--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -91,7 +90,7 @@ flush logs;
 SET SESSION debug="+d,fault_injection_init_name";
 SET GLOBAL binlog_error_action= ABORT_SERVER;
 --source include/expect_crash.inc
---error ER_BINLOG_LOGGING_IMPOSSIBLE
+--error ER_CANT_OPEN_FILE
 flush logs;
 --source include/wait_until_disconnected.inc
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -223,7 +222,6 @@ CREATE TABLE t1 (a INT);
 SET GLOBAL binlog_error_action=ABORT_SERVER;
 SET SESSION debug='+d,error_unique_log_filename';
 --source include/expect_crash.inc
-#mysql had it ER_BINLOG_LOGGING_IMPOSSIBLE but i dont wanna
 --error ER_NO_UNIQUE_LOGFILE
 FLUSH LOGS;
 --source include/wait_until_disconnected.inc

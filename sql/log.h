@@ -788,7 +788,7 @@ public:
   enum enum_binlog_error_action
   {
     /** MariaDB compatibility */
-    MARIADB_UNSET= false,
+    MARIADB_UNSET= 0,
     //IGNORE,
     //RETRY, // https://jira.mariadb.org/browse/MDEV-20796
     /** MySQL compatibility */

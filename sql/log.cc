@@ -2938,16 +2938,12 @@ void MYSQL_BIN_LOG::exec_error_action()
 {
   switch (binlog_error_action) {
   case ABORT_SERVER:
-  {
-    THD *thd= current_thd;
-    my_printf_error(ER_BINLOG_LOGGING_IMPOSSIBLE,
-      "'binlog_error_action' is set to 'ABORT_SERVER'. Stopping...",
-      MYF(ME_FATAL)
+    sql_print_error(
+      "'binlog_error_action' is set to 'ABORT_SERVER'. Stopping..."
     );
-    thd->protocol->end_statement();
     close(LOG_CLOSE_INDEX);
+    current_thd->protocol->end_statement();
     return abort(); // no return
-  }
   case MYSQL_IGNORE_ERROR: // MySQL compatibility
   case CLOSE_BINLOG:
     return MYSQL_LOG::exec_error_action();
@@ -3177,9 +3173,10 @@ int MYSQL_BIN_LOG::generate_new_name(char *new_name, const char *log_name,
         unlikely(find_uniq_filename(new_name, next_log_number,
                                     &last_used_log_number)))
     {
-      my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
-      if (binlog_error_action) // Do nothing for MARIADB_UNSET
-        exec_error_action();
+      THD *thd= current_thd;
+      if (unlikely(thd))
+        my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
+      sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
       return 1;
     }
   }
@@ -5930,6 +5927,8 @@ int MYSQL_BIN_LOG::new_file_impl(bool commit_by_rotate)
   if (unlikely((error= generate_new_name(new_name, name, 0))))
   {
     mysql_mutex_unlock(&LOCK_index);
+    if (binlog_error_action) // Do nothing for MARIADB_UNSET
+      exec_error_action();
     DBUG_RETURN(error);
   }
   new_name_ptr=new_name;
