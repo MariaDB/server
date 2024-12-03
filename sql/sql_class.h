@@ -7602,7 +7602,8 @@ class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leaves of join table tree */
-  List<TABLE_LIST> updated_leaves;  /* list of of updated leaves */
+  List<TABLE_LIST> updated_leaves;  /* a superset of tables which will be updated */
+  List<TABLE_LIST> update_targets;  /* the tables that will be UPDATE'd */
   TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
@@ -7634,6 +7635,7 @@ class multi_update :public select_result_interceptor
   ha_rows updated_sys_ver;
 
   bool has_vers_fields;
+  const table_map tables_to_update;
 
 public:
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,

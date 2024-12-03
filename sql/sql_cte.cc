@@ -51,7 +51,7 @@ bool With_clause::add_with_element(With_element *elem)
   elem->owner= this;
   elem->number= with_list.elements;
   elem->spec->with_element= elem;
-  with_list.link_in_list(elem, &elem->next);
+  with_list.insert(elem, &elem->next);
   return false;
 }
 
