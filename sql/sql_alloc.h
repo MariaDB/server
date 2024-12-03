@@ -23,17 +23,21 @@
 class Sql_alloc
 {
 public:
-  static void *operator new(size_t size) throw ()
+  static void *operator new(size_t size) noexcept
   {
     return thd_alloc(_current_thd(), size);
   }
-  static void *operator new[](size_t size) throw ()
+  static void *operator new[](size_t size) noexcept
   {
     return thd_alloc(_current_thd(), size);
   }
-  static void *operator new[](size_t size, MEM_ROOT *mem_root) throw ()
+
+  static void *operator new[](size_t size, const THD *thd) noexcept;
+  static void *operator new(size_t size, const THD *thd) noexcept;
+
+  static void *operator new[](size_t size, MEM_ROOT *mem_root) noexcept
   { return alloc_root(mem_root, size); }
-  static void *operator new(size_t size, MEM_ROOT *mem_root) throw()
+  static void *operator new(size_t size, MEM_ROOT *mem_root) noexcept
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr, size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *, MEM_ROOT *){}

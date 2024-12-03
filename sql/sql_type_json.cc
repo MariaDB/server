@@ -134,7 +134,7 @@ Type_handler_json_common::make_json_valid_expr(THD *thd,
                                                           Lex_ident_sys(),
                                                           str))))
     return 0;
-  if (unlikely(!(expr= new (thd->mem_root) Item_func_json_valid(thd, field))))
+  if (unlikely(!(expr= new (thd) Item_func_json_valid(thd, field))))
     return 0;
   return add_virtual_expression(thd, expr);
 }

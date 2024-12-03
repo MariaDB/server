@@ -558,7 +558,7 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
         else
         {
           auto item_field=
-            new (thd->mem_root) Item_field(thd, result_field_tmp++);
+            new (thd) Item_field(thd, result_field_tmp++);
           if (item_field)
             item_field->set_refers_to_temp_table();
           sum_item->args[i]= item_field;
@@ -626,10 +626,10 @@ int Item_sum::set_aggregator(THD *thd, Aggregator::Aggregator_type aggregator)
   switch (aggregator)
   {
   case Aggregator::DISTINCT_AGGREGATOR:
-    aggr= new (thd->mem_root) Aggregator_distinct(this);
+    aggr= new (thd) Aggregator_distinct(this);
     break;
   case Aggregator::SIMPLE_AGGREGATOR:
-    aggr= new (thd->mem_root) Aggregator_simple(this);
+    aggr= new (thd) Aggregator_simple(this);
     break;
   };
   return aggr ? FALSE : TRUE;
@@ -649,7 +649,7 @@ void Item_sum::cleanup()
 
 Item *Item_sum::result_item(THD *thd, Field *field)
 {
-  return new (thd->mem_root) Item_field(thd, field);
+  return new (thd) Item_field(thd, field);
 }
 
 bool Item_sum::check_vcol_func_processor(void *arg)
@@ -792,7 +792,7 @@ bool Aggregator_distinct::setup(THD *thd)
     List<Item> list;
     SELECT_LEX *select_lex= thd->lex->current_select;
 
-    if (!(tmp_table_param= new (thd->mem_root) TMP_TABLE_PARAM))
+    if (!(tmp_table_param= new (thd) TMP_TABLE_PARAM))
       return TRUE;
 
     /* Create a table with an unique key over all parameters */
@@ -883,7 +883,7 @@ bool Aggregator_distinct::setup(THD *thd)
         }
       }
       DBUG_ASSERT(tree == 0);
-      tree= (new (thd->mem_root)
+      tree= (new (thd)
              Unique(compare_key, cmp_arg, tree_key_length,
                     item_sum->ram_limitation(thd)));
       /*
@@ -942,7 +942,7 @@ bool Aggregator_distinct::setup(THD *thd)
       simple_raw_key_cmp because the table contains numbers only; decimals
       are converted to binary representation as well.
     */
-    tree= (new (thd->mem_root)
+    tree= (new (thd)
            Unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
                   item_sum->ram_limitation(thd)));
 
@@ -1319,7 +1319,7 @@ void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
               value->type_handler_for_comparison());
   DBUG_ASSERT(item->type_handler_for_comparison() ==
               arg_cache->type_handler_for_comparison());
-  cmp= new (thd->mem_root) Arg_comparator();
+  cmp= new (thd) Arg_comparator();
   if (cmp)
     cmp->set_cmp_func(thd, this, item->type_handler_for_comparison(),
                       (Item**)&arg_cache, (Item**)&value, FALSE);
@@ -1508,7 +1508,7 @@ LEX_CSTRING Item_sum_sp::func_name_cstring() const
 
 Item* Item_sum_sp::copy_or_same(THD *thd)
 {
-  Item_sum_sp *copy_item= new (thd->mem_root) Item_sum_sp(thd, this);
+  Item_sum_sp *copy_item= new (thd) Item_sum_sp(thd, this);
   copy_item->init_result_field(thd, max_length, maybe_null(), 
                                &copy_item->null_value, &copy_item->name);
   return copy_item;
@@ -1541,7 +1541,7 @@ Item_sum_sum::Item_sum_sum(THD *thd, Item_sum_sum *item)
 
 Item *Item_sum_sum::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_sum(thd, this);
+  return new (thd) Item_sum_sum(thd, this);
 }
 
 
@@ -1913,7 +1913,7 @@ bool Aggregator_distinct::arg_is_null(bool use_null_value)
 Item *Item_sum_count::copy_or_same(THD* thd)
 {
   DBUG_ENTER("Item_sum_count::copy_or_same");
-  DBUG_RETURN(new (thd->mem_root) Item_sum_count(thd, this));
+  DBUG_RETURN(new (thd) Item_sum_count(thd, this));
 }
 
 
@@ -2033,7 +2033,7 @@ bool Item_sum_avg::fix_length_and_dec(THD *thd)
 
 Item *Item_sum_avg::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_avg(thd, this);
+  return new (thd) Item_sum_avg(thd, this);
 }
 
 
@@ -2164,13 +2164,13 @@ double Item_sum_std::val_real()
 
 Item *Item_sum_std::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_std(thd, this);
+  return new (thd) Item_sum_std(thd, this);
 }
 
 
 Item *Item_sum_std::result_item(THD *thd, Field *field)
 {
-  return new (thd->mem_root) Item_std_field(thd, this);
+  return new (thd) Item_std_field(thd, this);
 }
 
 
@@ -2271,7 +2271,7 @@ bool Item_sum_variance::fix_length_and_dec(THD *thd)
 
 Item *Item_sum_variance::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_variance(thd, this);
+  return new (thd) Item_sum_variance(thd, this);
 }
 
 
@@ -2398,7 +2398,7 @@ void Item_sum_variance::update_field()
 
 Item *Item_sum_variance::result_item(THD *thd, Field *field)
 {
-  return new (thd->mem_root) Item_variance_field(thd, this);
+  return new (thd) Item_variance_field(thd, this);
 }
 
 /* min & max */
@@ -2550,7 +2550,7 @@ void Item_sum_min_max::restore_to_before_no_rows_in_result()
 Item *Item_sum_min::copy_or_same(THD* thd)
 {
   DBUG_ENTER("Item_sum_min::copy_or_same");
-  Item_sum_min *item= new (thd->mem_root) Item_sum_min(thd, this);
+  Item_sum_min *item= new (thd) Item_sum_min(thd, this);
   item->setup_hybrid(thd, args[0], value);
   DBUG_RETURN(item);
 }
@@ -2590,7 +2590,7 @@ bool Item_sum_min::add()
 
 Item *Item_sum_max::copy_or_same(THD* thd)
 {
-  Item_sum_max *item= new (thd->mem_root) Item_sum_max(thd, this);
+  Item_sum_max *item= new (thd) Item_sum_max(thd, this);
   item->setup_hybrid(thd, args[0], value);
   return item;
 }
@@ -2646,7 +2646,7 @@ void Item_sum_bit::clear()
 
 Item *Item_sum_or::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_or(thd, this);
+  return new (thd) Item_sum_or(thd, this);
 }
 
 bool Item_sum_bit::clear_as_window()
@@ -2727,7 +2727,7 @@ void Item_sum_xor::set_bits_from_counters()
 
 Item *Item_sum_xor::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_xor(thd, this);
+  return new (thd) Item_sum_xor(thd, this);
 }
 
 
@@ -2762,7 +2762,7 @@ void Item_sum_and::set_bits_from_counters()
 }
 Item *Item_sum_and::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_and(thd, this);
+  return new (thd) Item_sum_and(thd, this);
 }
 
 
@@ -3118,8 +3118,8 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 {
   return
     result_type() == DECIMAL_RESULT ?
-    (Item_avg_field*) new (thd->mem_root) Item_avg_field_decimal(thd, this) :
-    (Item_avg_field*) new (thd->mem_root) Item_avg_field_double(thd, this);
+    (Item_avg_field*) new (thd) Item_avg_field_decimal(thd, this) :
+    (Item_avg_field*) new (thd) Item_avg_field_double(thd, this);
 }
 
 
@@ -3434,7 +3434,7 @@ void Item_udf_sum::print(String *str, enum_query_type query_type)
 
 Item *Item_sum_udf_float::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_udf_float(thd, this);
+  return new (thd) Item_sum_udf_float(thd, this);
 }
 
 double Item_sum_udf_float::val_real()
@@ -3480,13 +3480,13 @@ my_decimal *Item_sum_udf_decimal::val_decimal(my_decimal *dec_buf)
 
 Item *Item_sum_udf_decimal::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_udf_decimal(thd, this);
+  return new (thd) Item_sum_udf_decimal(thd, this);
 }
 
 
 Item *Item_sum_udf_int::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_udf_int(thd, this);
+  return new (thd) Item_sum_udf_int(thd, this);
 }
 
 longlong Item_sum_udf_int::val_int()
@@ -3528,7 +3528,7 @@ bool Item_sum_udf_str::fix_length_and_dec(THD *thd)
 
 Item *Item_sum_udf_str::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_sum_udf_str(thd, this);
+  return new (thd) Item_sum_udf_str(thd, this);
 }
 
 
@@ -4097,7 +4097,7 @@ void Item_func_group_concat::cleanup()
 
 Item *Item_func_group_concat::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_func_group_concat(thd, this);
+  return new (thd) Item_func_group_concat(thd, this);
 }
 
 
@@ -4347,7 +4347,7 @@ bool Item_func_group_concat::setup(THD *thd)
   if (table || tree)
     DBUG_RETURN(FALSE);
 
-  if (!(tmp_table_param= new (thd->mem_root) TMP_TABLE_PARAM))
+  if (!(tmp_table_param= new (thd) TMP_TABLE_PARAM))
     DBUG_RETURN(TRUE);
 
   /* Push all not constant fields to the list and create a temp table */
@@ -4386,7 +4386,7 @@ bool Item_func_group_concat::setup(THD *thd)
       Prepend the field to store the length of the string representation
       of this row. Used to detect when the tree goes over group_concat_max_len
     */
-    Item *item= new (thd->mem_root)
+    Item *item= new (thd)
                     Item_uint(thd, thd->variables.group_concat_max_len);
     if (!item || all_fields.push_front(item, thd->mem_root))
       DBUG_RETURN(TRUE);
@@ -4429,7 +4429,7 @@ bool Item_func_group_concat::setup(THD *thd)
     with ORDER BY | DISTINCT and BLOB field count > 0.    
   */
   if (order_or_distinct && table->s->blob_fields)
-    table->blob_storage= new (thd->mem_root) Blob_mem_storage();
+    table->blob_storage= new (thd) Blob_mem_storage();
   else
     table->blob_storage= NULL;
 
@@ -4457,7 +4457,7 @@ bool Item_func_group_concat::setup(THD *thd)
   }
 
   if (distinct)
-    unique_filter= (new (thd->mem_root)
+    unique_filter= (new (thd)
                     Unique(get_comparator_function_for_distinct(),
                            (void*)this,
                            tree_key_length + get_null_bytes(),

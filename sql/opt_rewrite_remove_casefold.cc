@@ -115,7 +115,7 @@ Item* Item_func_eq::varchar_upper_cmp_transformer(THD *thd, uchar *arg)
 
     if (do_rewrite)
     {
-      Item *res= new (thd->mem_root) Item_func_eq(thd, arg0, arg1);
+      Item *res= new (thd) Item_func_eq(thd, arg0, arg1);
       if (res && !res->fix_fields(thd, &res))
       {
         trace_upper_removal_rewrite(thd, this, res);
