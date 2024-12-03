@@ -60,8 +60,8 @@ INSERT INTO t2 values (3);
 disallows sj optimization
 analyze DELETE FROM t1 WHERE c1 IN (select c2 from t2) ORDER BY c1 limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	1.00	100.00	100.00	Using where; Using filesort
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	1	1.00	100.00	20.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	2.00	100.00	100.00	Using filesort
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	1.00	100.00	50.00	Using where; FirstMatch(t1)
 select * from t1;
 c1
 1
