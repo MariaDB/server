@@ -351,8 +351,9 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
 }
 
 
-Opt_hints_table *Opt_hints_qb::adjust_table_hints(TABLE *table,
-                                                  const Lex_ident_table &alias)
+Opt_hints_table*
+Opt_hints_qb::adjust_hints_for_table(TABLE *table,
+                                     const Lex_ident_table &alias)
 {
   Opt_hints_table *tab= static_cast<Opt_hints_table *>(find_by_name(alias));
 

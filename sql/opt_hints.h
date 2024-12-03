@@ -38,8 +38,9 @@
 
   == Hint "adjustment" ==
 
-  During Name Resolution, setup_tables() calls adjust_table_hints() for each
-  table and sets TABLE_LIST::opt_hints_table to point to its Opt_hints_table.
+  During Name Resolution, setup_tables() calls adjust_hints_for_table() for
+  each table and sets TABLE_LIST::opt_hints_table to point to its
+  Opt_hints_table.
 
   == Hint hierarchy ==
 
@@ -446,8 +447,8 @@ public:
     @return  pointer Opt_hints_table object if this object is found,
              NULL otherwise.
   */
-  Opt_hints_table *adjust_table_hints(TABLE *table,
-                                      const Lex_ident_table &alias);
+  Opt_hints_table *adjust_hints_for_table(TABLE *table,
+                                          const Lex_ident_table &alias);
 };
 
 

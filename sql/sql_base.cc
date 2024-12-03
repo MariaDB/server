@@ -8349,7 +8349,8 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
           !table_list->opt_hints_table)        // Table hints are not adjusted yet
       {
         table_list->opt_hints_table=
-            qb_hints->adjust_table_hints(table_list->table, table_list->alias);
+            qb_hints->adjust_hints_for_table(table_list->table,
+                                             table_list->alias);
       }
     }
 
