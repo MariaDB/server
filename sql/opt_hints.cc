@@ -775,8 +775,15 @@ ulong Parser::Max_execution_time_hint::get_milliseconds() const
 
 bool Opt_hints_global::resolve(THD *thd)
 {
-  if (!max_exec_time_hint || thd->lex->is_ps_or_view_context_analysis())
+  if (thd->lex->is_ps_or_view_context_analysis())
     return false;
+
+  if (!max_exec_time_hint)
+  {
+    /* No possible errors */
+    set_resolved();
+    return false;
+  }
 
   /*
     2nd step of MAX_EXECUTION_TIME() hint validation. Some checks were already
