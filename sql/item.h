@@ -857,10 +857,12 @@ class Item :public Value_source,
   static void *operator new(size_t size);
 
 public:
-  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  static void *operator new(size_t size, MEM_ROOT *mem_root) noexcept
   { return alloc_root(mem_root, size); }
+  static void *operator new(size_t size, const THD *thd) noexcept;
   static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
+  static void operator delete(void *ptr, const THD*) {}
 
   enum Type {FIELD_ITEM= 0, FUNC_ITEM, SUM_FUNC_ITEM,
              WINDOW_FUNC_ITEM,

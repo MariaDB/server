@@ -1048,7 +1048,7 @@ static Item *create_comparator(MY_XPATH *xpath,
     */
 
     THD *thd= xpath->thd;
-    Item_string *fake= (new (thd->mem_root)
+    Item_string *fake= (new (thd)
                         Item_string_xml_non_const(thd, "", 0, xpath->cs));
     Item_nodeset_func *nodeset;
     Item *scalar, *comp;
@@ -1064,7 +1064,7 @@ static Item *create_comparator(MY_XPATH *xpath,
       scalar= a;
       comp= eq_func_reverse(thd, oper, fake, scalar);
     }
-    return (new (thd->mem_root)
+    return (new (thd)
             Item_nodeset_to_const_comparator(thd, nodeset, comp, xpath->pxml));
   }
 }
@@ -1332,8 +1332,8 @@ static Item *create_func_substr(MY_XPATH *xpath, Item **args, uint nargs)
 {
   THD *thd= xpath->thd;
   if (nargs == 2)
-    return new (thd->mem_root) Item_func_substr(thd, args[0], args[1]);
-  return new (thd->mem_root) Item_func_substr(thd, args[0], args[1], args[2]);
+    return new (thd) Item_func_substr(thd, args[0], args[1]);
+  return new (thd) Item_func_substr(thd, args[0], args[1], args[2]);
 }
 
 
@@ -2410,10 +2410,10 @@ static int my_xpath_parse_AdditiveExpr(MY_XPATH *xpath)
     }
 
     if (oper == MY_XPATH_LEX_PLUS)
-      xpath->item= new (thd->mem_root)
+      xpath->item= new (thd)
         Item_func_plus(thd, prev, xpath->item);
     else
-      xpath->item= new (thd->mem_root)
+      xpath->item= new (thd)
         Item_func_minus(thd, prev, xpath->item);
   };
   return 1;
@@ -2462,13 +2462,13 @@ static int my_xpath_parse_MultiplicativeExpr(MY_XPATH *xpath)
     switch (oper)
     {
       case MY_XPATH_LEX_ASTERISK:
-        xpath->item= new (thd->mem_root) Item_func_mul(thd, prev, xpath->item);
+        xpath->item= new (thd) Item_func_mul(thd, prev, xpath->item);
         break;
       case MY_XPATH_LEX_DIV:
-        xpath->item= new (thd->mem_root) Item_func_int_div(thd, prev, xpath->item);
+        xpath->item= new (thd) Item_func_int_div(thd, prev, xpath->item);
         break;
       case MY_XPATH_LEX_MOD:
-        xpath->item= new (thd->mem_root) Item_func_mod(thd, prev, xpath->item);
+        xpath->item= new (thd) Item_func_mod(thd, prev, xpath->item);
         break;
     }
   }
@@ -2549,13 +2549,13 @@ static int my_xpath_parse_Number(MY_XPATH *xpath)
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_DOT))
   {
     XPath_cstring_null_terminated nr(thd, beg, xpath->prevtok.end - beg);
-    xpath->item= new (thd->mem_root) Item_int(thd, nr.str, (uint) nr.length);
+    xpath->item= new (thd) Item_int(thd, nr.str, (uint) nr.length);
   }
   else
   {
     my_xpath_parse_term(xpath, MY_XPATH_LEX_DIGITS);
     XPath_cstring_null_terminated nr(thd, beg, xpath->prevtok.end - beg);
-    xpath->item= new (thd->mem_root) Item_float(thd, nr.str, (uint) nr.length);
+    xpath->item= new (thd) Item_float(thd, nr.str, (uint) nr.length);
   }
   return 1;
 }
@@ -2663,7 +2663,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
   name.str= (char*) xpath->prevtok.beg;
 
   if (user_var)
-    xpath->item= new (thd->mem_root) Item_func_get_user_var(thd, &name);
+    xpath->item= new (thd) Item_func_get_user_var(thd, &name);
   else
   {
     sp_variable *spv;
@@ -2676,7 +2676,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
     if ((lex= thd->lex) &&
         (spv= lex->find_variable(&name, &rh)))
     {
-      Item_splocal *splocal= new (thd->mem_root)
+      Item_splocal *splocal= new (thd)
         Item_splocal(thd, rh, &name, spv->offset, spv->type_handler(), 0);
 #ifdef DBUG_ASSERT_EXISTS
       if (splocal)

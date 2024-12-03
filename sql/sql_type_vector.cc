@@ -96,7 +96,7 @@ bool Type_handler_vector::Key_part_spec_init_vector(Key_part_spec *part,
 Item *Type_handler_vector::create_typecast_item(THD *thd, Item *item,
         const Type_cast_attributes &attr) const
 {
-  //return new (thd->mem_root) Item_typecast_vector(thd, item);
+  //return new (thd) Item_typecast_vector(thd, item);
   return NULL;
 }
 

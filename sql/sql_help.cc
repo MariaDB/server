@@ -116,7 +116,7 @@ static bool init_fields(THD *thd, TABLE_LIST *tables,
   for (; count-- ; find_fields++)
   {
     /* We have to use 'new' here as field will be re_linked on free */
-    Item_field *field= (new (thd->mem_root)
+    Item_field *field= (new (thd)
                         Item_field(thd, context,
                                    {STRING_WITH_LEN("mysql")},
                                    Lex_cstring_strlen(find_fields->table_name),
@@ -178,7 +178,7 @@ void memorize_variant_topic(THD *thd, TABLE *topics, int count,
   {
     if (count == 1)
       names->push_back(name, thd->mem_root);
-    String *new_name= new (thd->mem_root) String;
+    String *new_name= new (thd) String;
     get_field(mem_root,find_fields[help_topic_name].field,new_name);
     names->push_back(new_name, thd->mem_root);
   }
@@ -406,7 +406,7 @@ int search_categories(THD *thd, TABLE *categories,
   {
     if (select && !select->cond->val_bool())
       continue;
-    String *lname= new (thd->mem_root) String;
+    String *lname= new (thd) String;
     get_field(thd->mem_root,pfname,lname);
     if (++count == 1 && res_id)
       *res_id= (int16) pcat_id->val_int();
@@ -444,7 +444,7 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
   {
     if (!select->cond->val_bool())
       continue;
-    String *name= new (thd->mem_root) String();
+    String *name= new (thd) String();
     get_field(thd->mem_root,pfname,name);
     res->push_back(name, thd->mem_root);
   }

@@ -1317,7 +1317,7 @@ void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
   }
   case Item_func::ISNULL_FUNC:
   {
-    Item *tmp=new (thd->mem_root) Item_null(thd);
+    Item *tmp=new (thd) Item_null(thd);
     if (tmp)
       check_equality(ctx, eq_mod, *and_level,
                      (Item_func_isnull*) cond_func, args[0], tmp);

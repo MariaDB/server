@@ -514,19 +514,19 @@ void fill_check_table_metadata_fields(THD *thd, List<Item>* fields)
 {
   Item *item;
 
-  item= new (thd->mem_root) Item_empty_string(thd, "Table", NAME_CHAR_LEN * 2);
+  item= new (thd) Item_empty_string(thd, "Table", NAME_CHAR_LEN * 2);
   item->set_maybe_null();
   fields->push_back(item, thd->mem_root);
 
-  item= new (thd->mem_root) Item_empty_string(thd, "Op", 10);
+  item= new (thd) Item_empty_string(thd, "Op", 10);
   item->set_maybe_null();
   fields->push_back(item, thd->mem_root);
 
-  item= new (thd->mem_root) Item_empty_string(thd, "Msg_type", 10);
+  item= new (thd) Item_empty_string(thd, "Msg_type", 10);
   item->set_maybe_null();
   fields->push_back(item, thd->mem_root);
 
-  item= new (thd->mem_root) Item_empty_string(thd, "Msg_text",
+  item= new (thd) Item_empty_string(thd, "Msg_text",
                                               SQL_ADMIN_MSG_TEXT_SIZE);
   item->set_maybe_null();
   fields->push_back(item, thd->mem_root);

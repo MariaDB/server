@@ -2770,7 +2770,7 @@ bool partition_info::vers_init_info(THD * thd)
   part_type= VERSIONING_PARTITION;
   list_of_part_fields= true;
   column_list= false;
-  vers_info= new (thd->mem_root) Vers_part_info;
+  vers_info= new (thd) Vers_part_info;
   if (unlikely(!vers_info))
     return true;
 

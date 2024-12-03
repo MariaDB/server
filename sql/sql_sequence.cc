@@ -474,7 +474,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   DBUG_EXECUTE_IF("kill_query_on_sequence_insert",
                   thd->set_killed(KILL_QUERY););
 
-  if (create_new && !(seq= new (thd->mem_root) sequence_definition))
+  if (create_new && !(seq= new (thd) sequence_definition))
     DBUG_RETURN(TRUE);
 
   /* If not temporary table */

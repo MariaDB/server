@@ -509,7 +509,7 @@ bool JOIN::check_for_splittable_materialized()
     Create a structure of the type SplM_opt_info and fill it with
     the collected info on potential splittability of T
   */
-  SplM_opt_info *spl_opt_info= new (thd->mem_root) SplM_opt_info();
+  SplM_opt_info *spl_opt_info= new (thd) SplM_opt_info();
   SplM_field_info *spl_field= thd->calloc<SplM_field_info>(spl_field_cnt);
 
   if (!(spl_opt_info && spl_field)) // consider T as not good for splitting
@@ -609,7 +609,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     right_item->walk(&Item::set_fields_as_dependent_processor,
                      false, join->select_lex);
     right_item->update_used_tables();
-    eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
+    eq_item= new (thd) Item_func_eq(thd, left_item, right_item);
   }
   if (!eq_item)
     return;
@@ -1237,7 +1237,7 @@ bool JOIN::inject_best_splitting_cond(table_map excluded_tables)
   case 1:
     inj_cond= inj_cond_list->head(); break;
   default:
-    inj_cond= new (thd->mem_root) Item_cond_and(thd, *inj_cond_list);
+    inj_cond= new (thd) Item_cond_and(thd, *inj_cond_list);
     if (!inj_cond)
       return true;
   }

@@ -2775,7 +2775,7 @@ class Create_func_area : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_area(thd, arg1);
+    return new (thd) Item_func_area(thd, arg1);
   }
 
   static Create_func_area s_singleton;
@@ -2791,7 +2791,7 @@ class Create_func_as_wkb : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_as_wkb(thd, arg1);
+    return new (thd) Item_func_as_wkb(thd, arg1);
   }
 
   static Create_func_as_wkb s_singleton;
@@ -2807,7 +2807,7 @@ class Create_func_as_wkt : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_as_wkt(thd, arg1);
+    return new (thd) Item_func_as_wkt(thd, arg1);
   }
 
   static Create_func_as_wkt s_singleton;
@@ -2824,7 +2824,7 @@ class Create_func_centroid : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_centroid(thd, arg1);
+    return new (thd) Item_func_centroid(thd, arg1);
   }
 
   static Create_func_centroid s_singleton;
@@ -2840,7 +2840,7 @@ class Create_func_convexhull : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_convexhull(thd, arg1);
+    return new (thd) Item_func_convexhull(thd, arg1);
   }
 
   static Create_func_convexhull s_singleton;
@@ -2856,7 +2856,7 @@ class Create_func_pointonsurface : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_pointonsurface(thd, arg1);
+    return new (thd) Item_func_pointonsurface(thd, arg1);
   }
 
   static Create_func_pointonsurface s_singleton;
@@ -2872,7 +2872,7 @@ class Create_func_mbr_contains : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_mbr_rel(thd, arg1, arg2,
       Item_func::SP_CONTAINS_FUNC);
   }
 
@@ -2889,7 +2889,7 @@ class Create_func_contains : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                  Item_func::SP_CONTAINS_FUNC);
   }
   static Create_func_contains s_singleton;
@@ -2905,7 +2905,7 @@ class Create_func_crosses : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                    Item_func::SP_CROSSES_FUNC);
   }
   static Create_func_crosses s_singleton;
@@ -2921,7 +2921,7 @@ class Create_func_dimension : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_dimension(thd, arg1);
+    return new (thd) Item_func_dimension(thd, arg1);
   }
 
   static Create_func_dimension s_singleton;
@@ -2937,7 +2937,7 @@ class Create_func_mbr_disjoint : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_mbr_rel(thd, arg1, arg2,
                                                   Item_func::SP_DISJOINT_FUNC);
   }
 
@@ -2954,7 +2954,7 @@ class Create_func_disjoint : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                   Item_func::SP_DISJOINT_FUNC);
   }
   static Create_func_disjoint s_singleton;
@@ -2970,7 +2970,7 @@ class Create_func_distance : public Create_func_arg2
 public:
   Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_distance(thd, arg1, arg2);
+    return new (thd) Item_func_distance(thd, arg1, arg2);
   }
 
   static Create_func_distance s_singleton;
@@ -3008,7 +3008,7 @@ Create_func_distance_sphere::create_native(THD *thd, const LEX_CSTRING *name,
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
     return NULL;
   }
-  return new (thd->mem_root) Item_func_sphere_distance(thd, *item_list);
+  return new (thd) Item_func_sphere_distance(thd, *item_list);
 }
 
 
@@ -3017,7 +3017,7 @@ class Create_func_endpoint : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
+    return new (thd) Item_func_spatial_decomp(thd, arg1,
                                                         Item_func::SP_ENDPOINT);
   }
 
@@ -3034,7 +3034,7 @@ class Create_func_envelope : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_envelope(thd, arg1);
+    return new (thd) Item_func_envelope(thd, arg1);
   }
 
   static Create_func_envelope s_singleton;
@@ -3049,7 +3049,7 @@ class Create_func_boundary : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_boundary(thd, arg1);
+    return new (thd) Item_func_boundary(thd, arg1);
   }
 
   static Create_func_boundary s_singleton;
@@ -3065,7 +3065,7 @@ class Create_func_mbr_equals : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_mbr_rel(thd, arg1, arg2,
                                                      Item_func::SP_EQUALS_FUNC);
   }
 
@@ -3082,7 +3082,7 @@ class Create_func_equals : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-      return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+      return new (thd) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                     Item_func::SP_EQUALS_FUNC);
   }
 
@@ -3099,7 +3099,7 @@ class Create_func_exteriorring : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
+    return new (thd) Item_func_spatial_decomp(thd, arg1,
                                                       Item_func::SP_EXTERIORRING);
   }
 
@@ -3141,7 +3141,7 @@ Create_func_geometry_from_text::create_native(THD *thd,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1);
+    func= new (thd) Item_func_geometry_from_text(thd, param_1);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -3149,7 +3149,7 @@ Create_func_geometry_from_text::create_native(THD *thd,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1, param_2);
+    func= new (thd) Item_func_geometry_from_text(thd, param_1, param_2);
     break;
   }
   default:
@@ -3191,7 +3191,7 @@ Create_func_geometry_from_wkb::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1);
+    func= new (thd) Item_func_geometry_from_wkb(thd, param_1);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -3199,7 +3199,7 @@ Create_func_geometry_from_wkb::create_native(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1, param_2);
+    func= new (thd) Item_func_geometry_from_wkb(thd, param_1, param_2);
     break;
   }
   default:
@@ -3242,7 +3242,7 @@ Create_func_geometry_from_json::create_native(THD *thd,
   case 1:
   {
     Item *json= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json);
+    func= new (thd) Item_func_geometry_from_json(thd, json);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -3250,7 +3250,7 @@ Create_func_geometry_from_json::create_native(THD *thd,
   {
     Item *json= item_list->pop();
     Item *options= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json, options);
+    func= new (thd) Item_func_geometry_from_json(thd, json, options);
     break;
   }
   case 3:
@@ -3258,7 +3258,7 @@ Create_func_geometry_from_json::create_native(THD *thd,
     Item *json= item_list->pop();
     Item *options= item_list->pop();
     Item *srid= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json, options,
+    func= new (thd) Item_func_geometry_from_json(thd, json, options,
                                                            srid);
     break;
   }
@@ -3301,7 +3301,7 @@ Create_func_as_geojson::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *geom= item_list->pop();
-    func= new (thd->mem_root) Item_func_as_geojson(thd, geom);
+    func= new (thd) Item_func_as_geojson(thd, geom);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -3309,7 +3309,7 @@ Create_func_as_geojson::create_native(THD *thd, const LEX_CSTRING *name,
   {
     Item *geom= item_list->pop();
     Item *max_dec= item_list->pop();
-    func= new (thd->mem_root) Item_func_as_geojson(thd, geom, max_dec);
+    func= new (thd) Item_func_as_geojson(thd, geom, max_dec);
     break;
   }
   case 3:
@@ -3317,7 +3317,7 @@ Create_func_as_geojson::create_native(THD *thd, const LEX_CSTRING *name,
     Item *geom= item_list->pop();
     Item *max_dec= item_list->pop();
     Item *options= item_list->pop();
-    func= new (thd->mem_root) Item_func_as_geojson(thd, geom, max_dec, options);
+    func= new (thd) Item_func_as_geojson(thd, geom, max_dec, options);
     break;
   }
   default:
@@ -3336,7 +3336,7 @@ class Create_func_geometry_type : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_geometry_type(thd, arg1);
+    return new (thd) Item_func_geometry_type(thd, arg1);
   }
 
   static Create_func_geometry_type s_singleton;
@@ -3352,7 +3352,7 @@ class Create_func_geometryn : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_decomp_n(thd, arg1, arg2,
                                                       Item_func::SP_GEOMETRYN);
   }
 
@@ -3370,7 +3370,7 @@ class Create_func_gis_debug : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_gis_debug(thd, arg1);
+    return new (thd) Item_func_gis_debug(thd, arg1);
   }
 
   static Create_func_gis_debug s_singleton;
@@ -3387,7 +3387,7 @@ class Create_func_glength : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_glength(thd, arg1);
+    return new (thd) Item_func_glength(thd, arg1);
   }
 
   static Create_func_glength s_singleton;
@@ -3403,7 +3403,7 @@ class Create_func_interiorringn : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_decomp_n(thd, arg1, arg2,
                                                   Item_func::SP_INTERIORRINGN);
   }
 
@@ -3420,7 +3420,7 @@ class Create_func_relate : public Create_func_arg3
 public:
   Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override
   {
-    return new (thd->mem_root) Item_func_spatial_relate(thd, arg1, arg2, arg3);
+    return new (thd) Item_func_spatial_relate(thd, arg1, arg2, arg3);
   }
 
   static Create_func_relate s_singleton;
@@ -3436,7 +3436,7 @@ class Create_func_mbr_intersects : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_mbr_rel(thd, arg1, arg2,
         Item_func::SP_INTERSECTS_FUNC);
   }
 
@@ -3453,7 +3453,7 @@ class Create_func_intersects : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                Item_func::SP_INTERSECTS_FUNC);
   }
 
@@ -3470,7 +3470,7 @@ class Create_func_intersection : public Create_func_arg2
 public:
   Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_operation(thd, arg1, arg2,
                                  Gcalc_function::op_intersection);
   }
 
@@ -3487,7 +3487,7 @@ class Create_func_difference : public Create_func_arg2
 public:
   Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_operation(thd, arg1, arg2,
                                  Gcalc_function::op_difference);
   }
 
@@ -3504,7 +3504,7 @@ class Create_func_union : public Create_func_arg2
 public:
   Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_operation(thd, arg1, arg2,
                                  Gcalc_function::op_union);
   }
 
@@ -3521,7 +3521,7 @@ class Create_func_symdifference : public Create_func_arg2
 public:
   Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_operation(thd, arg1, arg2,
                                  Gcalc_function::op_symdifference);
   }
 
@@ -3538,7 +3538,7 @@ class Create_func_buffer : public Create_func_arg2
 public:
   Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_buffer(thd, arg1, arg2);
+    return new (thd) Item_func_buffer(thd, arg1, arg2);
   }
 
   static Create_func_buffer s_singleton;
@@ -3554,7 +3554,7 @@ class Create_func_isclosed : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_isclosed(thd, arg1);
+    return new (thd) Item_func_isclosed(thd, arg1);
   }
 
   static Create_func_isclosed s_singleton;
@@ -3570,7 +3570,7 @@ class Create_func_isring : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_isring(thd, arg1);
+    return new (thd) Item_func_isring(thd, arg1);
   }
 
   static Create_func_isring s_singleton;
@@ -3586,7 +3586,7 @@ class Create_func_isempty : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_isempty(thd, arg1);
+    return new (thd) Item_func_isempty(thd, arg1);
   }
 
   static Create_func_isempty s_singleton;
@@ -3602,7 +3602,7 @@ class Create_func_issimple : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_issimple(thd, arg1);
+    return new (thd) Item_func_issimple(thd, arg1);
   }
 
   static Create_func_issimple s_singleton;
@@ -3619,7 +3619,7 @@ class Create_func_numgeometries : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_numgeometries(thd, arg1);
+    return new (thd) Item_func_numgeometries(thd, arg1);
   }
 
   static Create_func_numgeometries s_singleton;
@@ -3635,7 +3635,7 @@ class Create_func_numinteriorring : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_numinteriorring(thd, arg1);
+    return new (thd) Item_func_numinteriorring(thd, arg1);
   }
 
   static Create_func_numinteriorring s_singleton;
@@ -3651,7 +3651,7 @@ class Create_func_numpoints : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_numpoints(thd, arg1);
+    return new (thd) Item_func_numpoints(thd, arg1);
   }
 
   static Create_func_numpoints s_singleton;
@@ -3667,7 +3667,7 @@ class Create_func_mbr_overlaps : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_mbr_rel(thd, arg1, arg2,
         Item_func::SP_OVERLAPS_FUNC);
   }
 
@@ -3684,7 +3684,7 @@ class Create_func_overlaps : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                   Item_func::SP_OVERLAPS_FUNC);
   }
 
@@ -3704,7 +3704,7 @@ class Create_func_pointn : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_decomp_n(thd, arg1, arg2,
                                                           Item_func::SP_POINTN);
   }
   static Create_func_pointn s_singleton;
@@ -3722,7 +3722,7 @@ class Create_func_srid : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_srid(thd, arg1);
+    return new (thd) Item_func_srid(thd, arg1);
   }
 
   static Create_func_srid s_singleton;
@@ -3738,7 +3738,7 @@ class Create_func_startpoint : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
+    return new (thd) Item_func_spatial_decomp(thd, arg1,
                                                      Item_func::SP_STARTPOINT);
   }
 
@@ -3756,7 +3756,7 @@ class Create_func_touches : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                    Item_func::SP_TOUCHES_FUNC);
   }
 
@@ -3773,7 +3773,7 @@ class Create_func_mbr_within : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_mbr_rel(thd, arg1, arg2,
       Item_func::SP_WITHIN_FUNC);
   }
 
@@ -3790,7 +3790,7 @@ class Create_func_within : public Create_func_arg2
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   {
-    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+    return new (thd) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                    Item_func::SP_WITHIN_FUNC);
   }
 
@@ -3807,7 +3807,7 @@ class Create_func_x : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_x(thd, arg1);
+    return new (thd) Item_func_x(thd, arg1);
   }
 
   static Create_func_x s_singleton;
@@ -3823,7 +3823,7 @@ class Create_func_y : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_y(thd, arg1);
+    return new (thd) Item_func_y(thd, arg1);
   }
 
   static Create_func_y s_singleton;

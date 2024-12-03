@@ -2411,7 +2411,7 @@ sp_head::bind_input_param(THD *thd,
 
   if (spvar->mode == sp_variable::MODE_OUT)
   {
-    Item_null *null_item= new (thd->mem_root) Item_null(thd);
+    Item_null *null_item= new (thd) Item_null(thd);
     Item *tmp_item= null_item;
 
     if (!null_item ||
@@ -2459,7 +2459,7 @@ sp_head::bind_output_param(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  Send_field *out_param_info= new (thd->mem_root) Send_field(thd, nctx->get_parameter(arg_no));
+  Send_field *out_param_info= new (thd) Send_field(thd, nctx->get_parameter(arg_no));
   out_param_info->db_name= m_db;
   out_param_info->table_name= m_name;
   out_param_info->org_table_name= m_name;
@@ -2497,7 +2497,7 @@ bool
 sp_head::reset_lex(THD *thd)
 {
   DBUG_ENTER("sp_head::reset_lex");
-  sp_lex_local *sublex= new (thd->mem_root) sp_lex_local(thd, thd->lex);
+  sp_lex_local *sublex= new (thd) sp_lex_local(thd, thd->lex);
   DBUG_RETURN(sublex ? reset_lex(thd, sublex) : true);
 }
 
@@ -2597,20 +2597,20 @@ sp_head::push_backpatch_goto(THD *thd, sp_pcontext *ctx, sp_label *lab)
     Add cpop/hpop : they will be removed or updated later if target is in
     the same block or not
   */
-  sp_instr_hpop *hpop= new (thd->mem_root) sp_instr_hpop(ip++, ctx, 0);
+  sp_instr_hpop *hpop= new (thd) sp_instr_hpop(ip++, ctx, 0);
   if (hpop == NULL || add_instr(hpop))
     return true;
   if (push_backpatch(thd, hpop, lab, &m_backpatch_goto, HPOP))
     return true;
 
-  sp_instr_cpop *cpop= new (thd->mem_root) sp_instr_cpop(ip++, ctx, 0);
+  sp_instr_cpop *cpop= new (thd) sp_instr_cpop(ip++, ctx, 0);
   if (cpop == NULL || add_instr(cpop))
     return true;
   if (push_backpatch(thd, cpop, lab, &m_backpatch_goto, CPOP))
     return true;
 
   // Add jump with ip=0. IP will be updated when label is found.
-  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, ctx);
+  sp_instr_jump *i= new (thd) sp_instr_jump(ip, ctx);
   if (i == NULL || add_instr(i))
     return true;
   if (push_backpatch(thd, i, lab, &m_backpatch_goto, GOTO))
@@ -2775,7 +2775,7 @@ sp_head::sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext)
   for (uint i= 0; i < pcontext->frame_cursor_count(); i++)
   {
     const sp_pcursor *c= pcontext->get_cursor_by_local_frame_offset(i);
-    sp_instr_cpush *instr= new (thd->mem_root)
+    sp_instr_cpush *instr= new (thd)
                              sp_instr_cpush(instructions(), pcontext, c->lex(),
                                             pcontext->cursor_offset() + i);
     if (instr == NULL || add_instr(instr))
@@ -3170,14 +3170,14 @@ int sp_head::add_instr(sp_instr *instr)
 
 bool sp_head::add_instr_jump(THD *thd, sp_pcontext *spcont)
 {
-  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(instructions(), spcont);
+  sp_instr_jump *i= new (thd) sp_instr_jump(instructions(), spcont);
   return i == NULL || add_instr(i);
 }
 
 
 bool sp_head::add_instr_jump(THD *thd, sp_pcontext *spcont, uint dest)
 {
-  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(instructions(),
+  sp_instr_jump *i= new (thd) sp_instr_jump(instructions(),
                                                       spcont, dest);
   return i == NULL || add_instr(i);
 }
@@ -3187,7 +3187,7 @@ bool sp_head::add_instr_jump_forward_with_backpatch(THD *thd,
                                                     sp_pcontext *spcont,
                                                     sp_label *lab)
 {
-  sp_instr_jump  *i= new (thd->mem_root) sp_instr_jump(instructions(), spcont);
+  sp_instr_jump  *i= new (thd) sp_instr_jump(instructions(), spcont);
   if (i == NULL || add_instr(i))
     return true;
   push_backpatch(thd, i, lab);
@@ -3198,7 +3198,7 @@ bool sp_head::add_instr_jump_forward_with_backpatch(THD *thd,
 bool sp_head::add_instr_freturn(THD *thd, sp_pcontext *spcont,
                                 Item *item, sp_expr_lex *lex)
 {
-  sp_instr_freturn *i= new (thd->mem_root)
+  sp_instr_freturn *i= new (thd)
                        sp_instr_freturn(instructions(), spcont, item,
                                         m_return_field_def.type_handler(), lex);
   if (i == NULL || add_instr(i))
@@ -3210,7 +3210,7 @@ bool sp_head::add_instr_freturn(THD *thd, sp_pcontext *spcont,
 
 bool sp_head::add_instr_preturn(THD *thd, sp_pcontext *spcont)
 {
-  sp_instr_preturn *i= new (thd->mem_root)
+  sp_instr_preturn *i= new (thd)
                        sp_instr_preturn(instructions(), spcont);
   if (i == NULL || add_instr(i))
     return true;
@@ -3236,7 +3236,7 @@ bool sp_head::add_instr_preturn(THD *thd, sp_pcontext *spcont)
 bool sp_head::replace_instr_to_nop(THD *thd, uint ip)
 {
   sp_instr *instr= get_instr(ip);
-  sp_instr_jump *nop= new (thd->mem_root) sp_instr_jump(instr->m_ip,
+  sp_instr_jump *nop= new (thd) sp_instr_jump(instr->m_ip,
                                                         instr->m_ctx,
                                                         instr->m_ip + 1);
   if (!nop)
@@ -3407,10 +3407,10 @@ sp_head::show_routine_code(THD *thd)
   if (check_show_routine_access(thd, this, &full_access) || !full_access)
     DBUG_RETURN(1);
 
-  field_list.push_back(new (thd->mem_root) Item_uint(thd, "Pos", 9),
+  field_list.push_back(new (thd) Item_uint(thd, "Pos", 9),
                        thd->mem_root);
   // 1024 is for not to confuse old clients
-  field_list.push_back(new (thd->mem_root)
+  field_list.push_back(new (thd)
                        Item_empty_string(thd, "Instruction",
                                          MY_MAX(buffer.length(), 1024)),
                        thd->mem_root);
@@ -3727,7 +3727,7 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
 
 Item *sp_head::adjust_assignment_source(THD *thd, Item *val, Item *val2)
 {
-  return val ? val : val2 ? val2 : new (thd->mem_root) Item_null(thd);
+  return val ? val : val2 ? val2 : new (thd) Item_null(thd);
 }
 
 /**
@@ -3753,7 +3753,7 @@ sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
   if (val->walk(&Item::unknown_splocal_processor, false, NULL))
     return true;
 
-  sp_instr_set *sp_set= new (thd->mem_root)
+  sp_instr_set *sp_set= new (thd)
                         sp_instr_set(instructions(), spcont, rh,
                                      spv->offset, val, lex,
                                      responsible_to_free_lex,
@@ -3777,7 +3777,7 @@ sp_head::set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
 
-  sp_instr_set_row_field *sp_set= new (thd->mem_root)
+  sp_instr_set_row_field *sp_set= new (thd)
                                   sp_instr_set_row_field(instructions(),
                                                          spcont, rh,
                                                          spv->offset,
@@ -3800,7 +3800,7 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
     return true;
 
   sp_instr_set_row_field_by_name *sp_set=
-    new (thd->mem_root) sp_instr_set_row_field_by_name(instructions(),
+    new (thd) sp_instr_set_row_field_by_name(instructions(),
                                                        spcont, rh,
                                                        spv->offset,
                                                        *field_name,
@@ -3826,7 +3826,7 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
       add_set_cursor_param_variables(thd, param_spcont, parameters))
     return true;
 
-  sp_instr_copen *i= new (thd->mem_root)
+  sp_instr_copen *i= new (thd)
                      sp_instr_copen(instructions(), spcont, offset);
   return i == NULL || add_instr(i);
 }
@@ -3844,7 +3844,7 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
     return true;
 
   sp_instr *instr_copy_struct=
-    new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
+    new (thd) sp_instr_cursor_copy_struct(instructions(),
                                                     spcont, coffset,
                                                     pcursor->lex(),
                                                     index->offset);
@@ -3852,12 +3852,12 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
     return true;
 
   sp_instr_copen *instr_copen=
-    new (thd->mem_root) sp_instr_copen(instructions(), spcont, coffset);
+    new (thd) sp_instr_copen(instructions(), spcont, coffset);
   if (instr_copen == NULL || add_instr(instr_copen))
     return true;
 
   sp_instr_cfetch *instr_cfetch=
-    new (thd->mem_root) sp_instr_cfetch(instructions(),
+    new (thd) sp_instr_cfetch(instructions(),
                                         spcont, coffset, false);
   if (instr_cfetch == NULL || add_instr(instr_cfetch))
     return true;
@@ -3912,7 +3912,7 @@ bool sp_head::spvar_fill_type_reference(THD *thd,
                                         const LEX_CSTRING &col)
 {
   Qualified_column_ident *ref;
-  if (!(ref= new (thd->mem_root) Qualified_column_ident(&table, &col)))
+  if (!(ref= new (thd) Qualified_column_ident(&table, &col)))
     return true;
   fill_spvar_using_type_reference(spvar, ref);
   return false;
@@ -3926,7 +3926,7 @@ bool sp_head::spvar_fill_type_reference(THD *thd,
                                         const LEX_CSTRING &col)
 {
   Qualified_column_ident *ref;
-  if (!(ref= new (thd->mem_root) Qualified_column_ident(thd, &db, &table, &col)))
+  if (!(ref= new (thd) Qualified_column_ident(thd, &db, &table, &col)))
     return true;
   fill_spvar_using_type_reference(spvar, ref);
   return false;
@@ -3938,7 +3938,7 @@ bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
                                                  const LEX_CSTRING &table)
 {
   Table_ident *ref;
-  if (!(ref= new (thd->mem_root) Table_ident(&table)))
+  if (!(ref= new (thd) Table_ident(&table)))
     return true;
   fill_spvar_using_table_rowtype_reference(thd, spvar, ref);
   return false;
@@ -3951,7 +3951,7 @@ bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
                                                  const LEX_CSTRING &table)
 {
   Table_ident *ref;
-  if (!(ref= new (thd->mem_root) Table_ident(thd, &db, &table, false)))
+  if (!(ref= new (thd) Table_ident(thd, &db, &table, false)))
     return true;
   fill_spvar_using_table_rowtype_reference(thd, spvar, ref);
   return false;

@@ -61,12 +61,12 @@ Create_func_trt<TRT_FIELD>::create_native(THD *thd, const LEX_CSTRING *name,
     {
     case TR_table::FLD_BEGIN_TS:
     case TR_table::FLD_COMMIT_TS:
-      func= new (thd->mem_root) Item_func_trt_ts(thd, param_1, TRT_FIELD);
+      func= new (thd) Item_func_trt_ts(thd, param_1, TRT_FIELD);
       break;
     case TR_table::FLD_TRX_ID:
     case TR_table::FLD_COMMIT_ID:
     case TR_table::FLD_ISO_LEVEL:
-      func= new (thd->mem_root) Item_func_trt_id(thd, param_1, TRT_FIELD);
+      func= new (thd) Item_func_trt_id(thd, param_1, TRT_FIELD);
       break;
     default:
       DBUG_ASSERT(0);
@@ -81,7 +81,7 @@ Create_func_trt<TRT_FIELD>::create_native(THD *thd, const LEX_CSTRING *name,
     {
     case TR_table::FLD_TRX_ID:
     case TR_table::FLD_COMMIT_ID:
-      func= new (thd->mem_root) Item_func_trt_id(thd, param_1, param_2, TRT_FIELD);
+      func= new (thd) Item_func_trt_id(thd, param_1, param_2, TRT_FIELD);
       break;
     default:
       goto error;
@@ -117,7 +117,7 @@ public:
     {
       Item *param_1= item_list->pop();
       Item *param_2= item_list->pop();
-      func= new (thd->mem_root) Item_func_trt_trx_seesX(thd, param_1, param_2);
+      func= new (thd) Item_func_trt_trx_seesX(thd, param_1, param_2);
       break;
     }
     default:
