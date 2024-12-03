@@ -199,7 +199,6 @@ SET(INNOBASE_SOURCES
 	include/btr0pcur.h
 	include/btr0pcur.inl
 	include/btr0sea.h
-	include/btr0sea.inl
 	include/btr0types.h
 	include/buf0buddy.h
 	include/buf0buf.h
@@ -266,8 +265,6 @@ SET(INNOBASE_SOURCES
 	include/gis0rtree.inl
 	include/gis0type.h
 	include/ha_prototypes.h
-	include/ha0ha.h
-	include/ha0ha.inl
 	include/ha0storage.h
 	include/ha0storage.inl
 	include/handler0alter.h

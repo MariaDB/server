@@ -2740,13 +2740,10 @@ err_exit:
 #endif /* WITH_WSREP */
 
 #ifdef BTR_CUR_HASH_ADAPT
-			if (btr_search_enabled) {
-				btr_search_x_lock_all();
-				index->table->bulk_trx_id = trx->id;
-				btr_search_x_unlock_all();
-			} else {
-				index->table->bulk_trx_id = trx->id;
-			}
+			auto &part = btr_search.get_part(*index);
+			part.latch.wr_lock(SRW_LOCK_CALL);
+			index->table->bulk_trx_id = trx->id;
+			part.latch.wr_unlock();
 #else /* BTR_CUR_HASH_ADAPT */
 			index->table->bulk_trx_id = trx->id;
 #endif /* BTR_CUR_HASH_ADAPT */
