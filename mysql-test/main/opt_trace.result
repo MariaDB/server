@@ -4134,7 +4134,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "rec_per_key_stats_missing": true,
                           "used_range_estimates": false,
                           "cause": "not better than ref estimates",
-                          "rowid_filter_skipped": "worst/max seeks clipping",
                           "rows": 2,
                           "cost": 3.003514767,
                           "chosen": true
