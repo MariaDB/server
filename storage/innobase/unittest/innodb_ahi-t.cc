@@ -58,6 +58,9 @@ template<> void pthread_mutex_wrapper<true>::wr_wait() noexcept {}
 #if defined _WIN32 || defined SUX_LOCK_GENERIC
 template<> void srw_lock_<true>::rd_wait() noexcept {}
 template<> void srw_lock_<true>::wr_wait() noexcept {}
+# ifdef _WIN32
+template<bool spin> void srw_mutex_impl<spin>::wait_and_lock() noexcept {}
+# endif
 #else
 template<bool spin> void ssux_lock_impl<spin>::wr_wait(uint32_t) noexcept {}
 template<bool spin> void ssux_lock_impl<spin>::rd_wait() noexcept {}
