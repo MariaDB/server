@@ -528,7 +528,8 @@ static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor) noexcept
 
   const dict_index_t *const block_index= block->index;
   uint16_t n_hash_helps{block->n_hash_helps};
-  const uint16_t n_uniq{dict_index_get_n_unique_in_tree(index)};
+  const uint16_t n_uniq=
+    uint16_t(index->n_uniq ? index->n_uniq : index->n_fields);
   dict_index_t::ahi &info= index->search_info;
   uint32_t left_bytes_fields{info.left_bytes_fields};
   uint8_t n_hash_potential= info.n_hash_potential;
@@ -1398,10 +1399,8 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
 
   /* Check that the values for hash index build are sensible */
   ut_ad(n_bytes_fields);
-
-  if (dict_index_get_n_unique_in_tree(index) <
-      btr_search_get_n_fields(n_bytes_fields))
-    return;
+  ut_ad(btr_search_get_n_fields(n_bytes_fields) <=
+        (index->n_uniq ? index->n_uniq : index->n_fields));
 
   const page_t *const page= block->page.frame;
   size_t n_cached= 0;
