@@ -69,6 +69,7 @@ wait/io/table/sql/handler		TABLE	test1	t2	update	1
 wait/io/table/sql/handler		TABLE	test	marker	insert	1
 wait/io/table/sql/handler		TABLE	test	t1	fetch	1
 wait/io/table/sql/handler		TABLE	test1	t2	fetch	1
+wait/io/table/sql/handler		TABLE	test	t1	fetch	1
 wait/io/table/sql/handler		TABLE	test	t1	delete	1
 wait/io/table/sql/handler		TABLE	test1	t2	fetch	1
 wait/io/table/sql/handler		TABLE	test1	t2	delete	1

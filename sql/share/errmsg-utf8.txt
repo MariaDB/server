@@ -12316,3 +12316,6 @@ ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED
         eng "Optimizer hints are not supported inside view definitions"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER 02000
         eng "The row is skipped by a trigger implementation"
+WARN_INDEX_HINTS_IGNORED
+        eng "Index hints are ignored because they are incompatible with RETURNING clause"
+        ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"

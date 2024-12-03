@@ -3342,22 +3342,22 @@ o_custkey in (select c_custkey from customer
 where c_nationkey in (1,2))
 order by o_totalprice limit 500;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	108	Using where; Using filesort
-2	DEPENDENT SUBQUERY	customer	unique_subquery	PRIMARY,i_c_nationkey	PRIMARY	4	func	1	Using where
+1	PRIMARY	customer	range	PRIMARY,i_c_nationkey	i_c_nationkey	5	NULL	13	Using index condition; Using temporary; Using filesort
+1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (7%)	Using where; Using rowid filter
 create table t as
 select * from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
 o_custkey in (select c_custkey from customer
 where c_nationkey in (1,2));
 select o_orderkey, o_totalprice from t;
 o_orderkey	o_totalprice
-1221	117397.16
 324	26868.85
 1856	189361.42
-4903	34363.63
-5607	24660.06
+1221	117397.16
 1344	43809.37
 1925	146382.71
 3139	40975.96
+4903	34363.63
+5607	24660.06
 delete from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
 o_custkey in (select c_custkey from customer
 where c_nationkey in (1,2))
@@ -3394,14 +3394,14 @@ o_custkey in (select c_custkey from customer
 where c_nationkey in (1,2));
 select o_orderkey, o_totalprice from t;
 o_orderkey	o_totalprice
-1221	117397.16
-324	26868.85
 1856	189361.42
+324	26868.85
+1221	117397.16
+3139	40975.96
+1925	146382.71
+1344	43809.37
 4903	34363.63
 5607	24660.06
-1344	43809.37
-1925	146382.71
-3139	40975.96
 delete from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
 o_custkey in (select c_custkey from customer
 where c_nationkey in (1,2));
