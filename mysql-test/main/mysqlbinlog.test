@@ -671,3 +671,48 @@ SELECT * FROM t;
 SELECT * FROM t;
 DROP TABLE t;
 SET time_zone= default;
+
+
+--echo #
+--echo # MDEV-24959: ER_BINLOG_ROW_LOGGING_FAILED (1534: Writing one row to the row-based binary log failed)
+--echo #
+
+SET SESSION binlog_format= ROW;
+SET SESSION binlog_row_image= MINIMAL;
+
+RESET MASTER;
+CREATE TABLE t1 (a INT NOT NULL DEFAULT 0 PRIMARY KEY);
+REPLACE INTO t1 () VALUES (),();
+DROP TABLE t1;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format= STATEMENT;
+SET SESSION binlog_row_image= default;
+
+--exec $MYSQL_BINLOG --base64-output=decode-rows $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--exec $MYSQL_BINLOG --base64-output=decode-rows --verbose $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--let SEARCH_ABORT= NOT FOUND
+--let SEARCH_PATTERN= Number of rows: 2
+--source include/search_pattern_in_file.inc
+
+# There was a bug that mysqlbinlog would get an error while decoding the
+# update rows event with no after image and abort the dump; test that now
+# the dump is complete and includes the final DROP TABLE.
+--let SEARCH_PATTERN= DROP TABLE
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt
+--let SEARCH_PATTERN= Number of rows: 2
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= DROP TABLE
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= INSERT INTO .* VALUES
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= SET /[*] no columns [*]/
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt

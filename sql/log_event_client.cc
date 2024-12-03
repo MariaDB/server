@@ -1384,6 +1384,13 @@ void Rows_log_event::count_row_events(PRINT_EVENT_INFO *print_event_info)
 
   switch (general_type_code) {
   case WRITE_ROWS_EVENT:
+    /*
+      A write rows event containing no after image (can happen for REPLACE
+      INTO t() VALUES ()), count this correctly as 1 row and no 0.
+    */
+    if (unlikely(m_rows_buf == m_rows_end))
+      print_event_info->row_events++;
+    /* Fall through. */
   case DELETE_ROWS_EVENT:
     row_events= 1;
     break;
@@ -1509,6 +1516,7 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
   /* If the write rows event contained no values for the AI */
   if (((general_type_code == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
   {
+    print_event_info->row_events++;
     if (my_b_printf(file, "### INSERT INTO %`s.%`s VALUES ()\n",
                     map->get_db_name(), map->get_table_name()))
       goto err;
@@ -1542,9 +1550,16 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
     /* Print the second image (for UPDATE only) */
     if (sql_clause2)
     {
-      if (!(length= print_verbose_one_row(file, td, print_event_info,
-                                      &m_cols_ai, value,
-                                      (const uchar*) sql_clause2)))
+      /* If the update rows event contained no values for the AI */
+      if (unlikely(bitmap_is_clear_all(&m_cols_ai)))
+      {
+        length= (bitmap_bits_set(&m_cols_ai) + 7) / 8;
+        if (my_b_printf(file, "### SET /* no columns */\n"))
+          goto err;
+      }
+      else if (!(length= print_verbose_one_row(file, td, print_event_info,
+                                               &m_cols_ai, value,
+                                               (const uchar*) sql_clause2)))
         goto err;
       value+= length;
     }
