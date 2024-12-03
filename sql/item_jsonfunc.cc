@@ -4243,7 +4243,7 @@ void Item_func_json_arrayagg::cut_max_length(String *result,
 
 Item *Item_func_json_arrayagg::copy_or_same(THD* thd)
 {
-   return new (thd->mem_root) Item_func_json_arrayagg(thd, this);
+   return new (thd) Item_func_json_arrayagg(thd, this);
 }
 
 
@@ -4326,7 +4326,7 @@ void Item_func_json_objectagg::cleanup()
 
 Item *Item_func_json_objectagg::copy_or_same(THD* thd)
 {
-  return new (thd->mem_root) Item_func_json_objectagg(thd, this);
+  return new (thd) Item_func_json_objectagg(thd, this);
 }
 
 

@@ -1023,7 +1023,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
   LEX *lex;
   st_select_lex_unit *res= NULL;
 
-  if (!(lex= (LEX*) new(thd->mem_root) st_lex_local))
+  if (!(lex= (LEX*) new (thd) st_lex_local))
     return res;
   thd->lex= lex;
 

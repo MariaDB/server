@@ -125,7 +125,7 @@ sp_pcontext::~sp_pcontext()
 
 sp_pcontext *sp_pcontext::push_context(THD *thd, sp_pcontext::enum_scope scope)
 {
-  sp_pcontext *child= new (thd->mem_root) sp_pcontext(this, scope);
+  sp_pcontext *child= new (thd) sp_pcontext(this, scope);
 
   if (child)
     m_children.append(child);
@@ -289,7 +289,7 @@ uint sp_pcontext::default_context_var_count() const
 sp_variable *sp_pcontext::add_variable(THD *thd, const LEX_CSTRING *name)
 {
   sp_variable *p=
-    new (thd->mem_root) sp_variable(name, m_var_offset + m_max_var_index);
+    new (thd) sp_variable(name, m_var_offset + m_max_var_index);
 
   if (!p)
     return NULL;
@@ -304,7 +304,7 @@ sp_label *sp_pcontext::push_label(THD *thd, const LEX_CSTRING *name, uint ip,
                                   List<sp_label> *list)
 {
   sp_label *label=
-    new (thd->mem_root) sp_label(name, ip, type, this);
+    new (thd) sp_label(name, ip, type, this);
 
   if (!label)
     return NULL;
@@ -397,7 +397,7 @@ bool sp_pcontext::add_condition(THD *thd,
                                 const Lex_ident_column &name,
                                 sp_condition_value *value)
 {
-  sp_condition *p= new (thd->mem_root) sp_condition(name, value);
+  sp_condition *p= new (thd) sp_condition(name, value);
 
   if (p == NULL)
     return true;
@@ -511,7 +511,7 @@ sp_pcontext::find_predefined_condition(const LEX_CSTRING *name) const
 sp_handler *sp_pcontext::add_handler(THD *thd,
                                      sp_handler::enum_type type)
 {
-  sp_handler *h= new (thd->mem_root) sp_handler(type);
+  sp_handler *h= new (thd) sp_handler(type);
 
   if (!h)
     return NULL;
