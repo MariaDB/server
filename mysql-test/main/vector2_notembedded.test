@@ -18,8 +18,8 @@ insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
                      (Vec_Fromtext('[0.415,0.609,0.426,0.988,0.475]'));
 select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
 replace_result InnoDB MyISAM;
-exec $MYSQL_DUMP --compact --hex-blob test t1;
-exec $MYSQL_DUMP --hex-blob test t1 > $MYSQL_TMP_DIR/vector.sql;
+exec $MYSQL_DUMP --no-autocommit=0 --compact --hex-blob test t1;
+exec $MYSQL_DUMP --no-autocommit=0 --hex-blob test t1 > $MYSQL_TMP_DIR/vector.sql;
 exec $MYSQL test < $MYSQL_TMP_DIR/vector.sql;
 remove_file $MYSQL_TMP_DIR/vector.sql;
 show create table t1;

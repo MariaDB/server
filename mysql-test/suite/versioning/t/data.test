@@ -14,18 +14,18 @@ delete from t1 where x=2;
 set timestamp=default;
 
 --echo #MYSQL_DUMP --compact test
---exec $MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact test
 --echo #MYSQL_DUMP --compact --as-of="1990-01-02 00:00" test
---exec $MYSQL_DUMP --compact --as-of="1990-01-02 00:00" test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --as-of="1990-01-02 00:00" test
 --echo #MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
---exec $MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --as-of="1990-08-02 00:00" --databases test
 --echo #MYSQL_DUMP --compact --as-of="1990-08-04 00:00" test t1
---exec $MYSQL_DUMP --compact --as-of="1990-08-04 00:00" test t1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --as-of="1990-08-04 00:00" test t1
 ## Forged query protection
 --echo #MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
 --replace_result mariadb-dump.exe mariadb-dump
 --error 1
---exec $MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
 
 drop tables t1;
 
@@ -65,23 +65,23 @@ select x, check_fields(x, row_start, row_end) from t2 for system_time all order 
 
 --let TMP= $MYSQLTEST_VARDIR/tmp
 
---exec $MYSQL_DUMP --dump-history --databases test > $TMP/dump_history.sql
---exec $MYSQL_DUMP --databases test > $TMP/dump_no_history.sql
---exec $MYSQL_DUMP --dump-history --no-create-info --skip-comments --databases test > $TMP/dump_only_data.sql
---exec $MYSQL_DUMP --dump-history --compact test 2>&1 > $TMP/dump_history_compact.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --databases test > $TMP/dump_history.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --databases test > $TMP/dump_no_history.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --no-create-info --skip-comments --databases test > $TMP/dump_only_data.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --compact test 2>&1 > $TMP/dump_history_compact.sql
 --replace_result $sys_time_max_replace MAX_TIME
 --cat_file $TMP/dump_history_compact.sql
 --replace_result mariadb-dump.exe mariadb-dump
 --error 1
---exec $MYSQL_DUMP --dump-history --as-of="1990-01-02 00:00" test 2>&1
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --as-of="1990-01-02 00:00" test 2>&1
 --replace_result mariadb-dump.exe mariadb-dump
 --error 1
---exec $MYSQL_DUMP --dump-history --replace test 2>&1
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --replace test 2>&1
 --replace_result mariadb-dump.exe mariadb-dump
 --error 1
 --exec $MYSQL_DUMP --dump-history --xml test 2>&1
 
---exec $MYSQL_DUMP --dump-history --tab=$TMP test
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --tab=$TMP test
 
 --echo # SQL dump with/without history
 --echo ## With history
@@ -162,10 +162,10 @@ delete from t1 where x=1;
 
 --replace_result mariadb-dump.exe mariadb-dump
 --error 6
---exec $MYSQL_DUMP --dump-history test 2>&1 >/dev/null
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history test 2>&1 >/dev/null
 --replace_regex /2,\d+,/2,XXX,/ /mariadb-dump\.exe/mariadb-dump/
 --error 6
---exec $MYSQL_DUMP --force --dump-history --compact test 2>&1
+--exec $MYSQL_DUMP --no-autocommit=0 --force --dump-history --compact test 2>&1
 
 drop table t1;
 

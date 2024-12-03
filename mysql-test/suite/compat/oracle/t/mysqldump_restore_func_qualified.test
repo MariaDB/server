@@ -31,7 +31,7 @@ CREATE TABLE t2 (
 CREATE VIEW v2 AS SELECT
   LTRIM(now()) AS a0,
   LPAD(now(),10) AS b0;
---exec $MYSQL_DUMP --skip-extended-insert test --skip-comments --compact t1 t2 v1 v2
+--exec $MYSQL_DUMP --no-autocommit=0 --skip-extended-insert test --skip-comments --compact t1 t2 v1 v2
 --exec $MYSQL_DUMP --skip-extended-insert test --skip-comments t1 t2 v1 v2 > $mysqldumpfile
 DROP TABLE t1,t2;
 DROP VIEW v1,v2;
