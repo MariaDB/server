@@ -1535,18 +1535,14 @@ release_tree:
         goto need_opposite_intention;
 
 #ifdef BTR_CUR_HASH_ADAPT
-    /* We do a dirty read of btr_search.enabled here.  We will recheck in
-    btr_search_build_page_hash_index() before building a page hash
-    index, while holding search latch. */
-    if (!btr_search.enabled);
-    else if (tuple->info_bits & REC_INFO_MIN_REC_FLAG)
-      /* This may be a search tuple for btr_pcur_t::restore_position(). */
-      ut_ad(tuple->is_metadata() ||
-            (tuple->is_metadata(tuple->info_bits ^ REC_STATUS_INSTANT)));
-    else if (index()->table->is_temporary());
-    else if (!rec_is_metadata(page_cur.rec, *index()) &&
-             index()->search_info.hash_analysis_useful())
-      search_info_update();
+    if (flag != BTR_CUR_BINARY)
+    {
+      ut_ad(!(tuple->info_bits & REC_INFO_MIN_REC_FLAG));
+      ut_ad(!index()->table->is_temporary());
+      if (!rec_is_metadata(page_cur.rec, *index()) &&
+          index()->search_info.hash_analysis_useful())
+        search_info_update();
+    }
 #endif /* BTR_CUR_HASH_ADAPT */
 
     goto func_exit;
@@ -1790,7 +1786,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
         /* This may be a search tuple for btr_pcur_t::restore_position(). */
         ut_ad(tuple->is_metadata() ||
               (tuple->is_metadata(tuple->info_bits ^ REC_STATUS_INSTANT)));
-      else if (index()->table->is_temporary());
+      else if (index()->is_ibuf() || index()->table->is_temporary());
       else if (!rec_is_metadata(page_cur.rec, *index()) &&
                index()->search_info.hash_analysis_useful())
         search_info_update();
