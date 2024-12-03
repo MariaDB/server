@@ -202,11 +202,8 @@ CREATE SEQUENCE s;
 CREATE table t1 (a int);
 insert into t1 values (1),(2);
 DELETE s FROM s;
-ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
 delete t1,s from s,t1;
-ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
 delete s,t1 from t1,s;
-ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
 DROP SEQUENCE s;
 DROP TABLE t1;
 #
