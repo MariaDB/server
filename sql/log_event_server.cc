@@ -6641,6 +6641,46 @@ last_uniq_key(TABLE *table, uint keyno)
   return 1;
 }
 
+
+/*
+  We need to set the null bytes to ensure that the filler bit are
+  all set when returning.  There are storage engines that just set
+  the necessary bits on the bytes and don't set the filler bits
+  correctly.
+*/
+static void
+normalize_null_bits(TABLE *table)
+{
+  if (table->s->null_bytes > 0)
+  {
+    DBUG_ASSERT(table->s->last_null_bit_pos < 8);
+    /*
+      Normalize any unused null bits.
+
+      We need to set the highest (8 - last_null_bit_pos) bits to 1, except that
+      if last_null_bit_pos is 0 then there are no unused bits and we should set
+      no bits to 1.
+
+      When N = last_null_bit_pos != 0, we can get a mask for this with
+
+        0xff << N = (0xff << 1) << (N-1) = 0xfe << (N-1) = 0xfe << ((N-1) & 7)
+
+      And we can get a mask=0 for the case N = last_null_bit_pos = 0 with
+
+        0xfe << 7 = 0xfe << ((N-1) & 7)
+
+     Thus we can set the desired bits in all cases by OR-ing with
+     (0xfe << ((N-1) & 7)), avoiding a conditional jump.
+    */
+    table->record[0][table->s->null_bytes - 1]|=
+      (uchar)(0xfe << ((table->s->last_null_bit_pos - 1) & 7));
+    /* Normalize the delete marker bit, if any. */
+    table->record[0][0]|=
+      !(table->s->db_create_options & HA_OPTION_PACK_RECORD);
+  }
+}
+
+
 /**
    Check if an error is a duplicate key error.
 
@@ -7100,6 +7140,7 @@ static bool record_compare(TABLE *table, bool vers_from_plain= false)
        table->s->null_fields) == 0
       && all_values_set)
   {
+    normalize_null_bits(table);
     result= cmp_record(table, record[1]);
     goto record_compare_exit;
   }
@@ -7547,6 +7588,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 
   // We can't use position() - try other methods.
   
+  normalize_null_bits(table);
+
   /*
     Save copy of the record in table->record[1]. It might be needed 
     later if linear search is used to find exact match.
@@ -7582,16 +7625,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 #ifndef HAVE_valgrind
     DBUG_DUMP("key data", m_key, m_key_info->key_length);
 #endif
-
-    /*
-      We need to set the null bytes to ensure that the filler bit are
-      all set when returning.  There are storage engines that just set
-      the necessary bits on the bytes and don't set the filler bits
-      correctly.
-    */
-    if (table->s->null_bytes > 0)
-      table->record[0][table->s->null_bytes - 1]|=
-        256U - (1U << table->s->last_null_bit_pos);
 
     const enum ha_rkey_function find_flag=
       m_usable_key_parts == m_key_info->user_defined_key_parts
