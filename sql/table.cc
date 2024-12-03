@@ -197,7 +197,7 @@ void Default_object_creation_ctx::change_env(THD *thd) const
 
 View_creation_ctx *View_creation_ctx::create(THD *thd)
 {
-  View_creation_ctx *ctx= new (thd->mem_root) View_creation_ctx(thd);
+  View_creation_ctx *ctx= new (thd) View_creation_ctx(thd);
 
   return ctx;
 }
@@ -207,7 +207,7 @@ View_creation_ctx *View_creation_ctx::create(THD *thd)
 View_creation_ctx * View_creation_ctx::create(THD *thd,
                                               TABLE_LIST *view)
 {
-  View_creation_ctx *ctx= new (thd->mem_root) View_creation_ctx(thd);
+  View_creation_ctx *ctx= new (thd) View_creation_ctx(thd);
 
   /* Throw a warning if there is NULL cs name. */
 
@@ -7307,7 +7307,7 @@ Item *Field_iterator_table::create_item(THD *thd)
 {
   SELECT_LEX *select= thd->lex->current_select;
 
-  Item_field *item= new (thd->mem_root) Item_field(thd, &select->context, *ptr);
+  Item_field *item= new (thd) Item_field(thd, &select->context, *ptr);
   DBUG_ASSERT(strlen(item->name.str) == item->name.length);
   if (item && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS &&
@@ -7369,7 +7369,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   Name_resolution_context *context= (view->view ?
                                      &view->view->first_select_lex()->context:
                                      &thd->lex->first_select_lex()->context);
-  Item *item= (new (thd->mem_root)
+  Item *item= (new (thd)
                Item_direct_view_ref(thd, context, field_ref, view->alias,
                                     *name, view));
   if (!item)
@@ -7586,7 +7586,7 @@ Field_iterator_table_ref::get_or_create_column_ref(THD *thd, TABLE_LIST *parent_
     /* The field belongs to a stored table. */
     Field *tmp_field= table_field_it.field();
     Item_field *tmp_item=
-      new (thd->mem_root) Item_field(thd, &thd->lex->current_select->context, tmp_field);
+      new (thd) Item_field(thd, &thd->lex->current_select->context, tmp_field);
     if (!tmp_item)
       return NULL;
     nj_col= new Natural_join_column(tmp_item, table_ref);
@@ -10228,7 +10228,7 @@ bool TABLE_LIST::change_refs_to_fields()
     return FALSE;
 
   materialized_items= thd->calloc<Item*>(table->s->fields);
-  ctx= new (thd->mem_root) Name_resolution_context(this);
+  ctx= new (thd) Name_resolution_context(this);
   if (!materialized_items || !ctx)
     return TRUE;
 
@@ -10246,7 +10246,7 @@ bool TABLE_LIST::change_refs_to_fields()
     if (!materialized_items[idx])
     {
       materialized_items[idx]=
-        new (thd->mem_root) Item_field(thd, ctx, table->field[idx]);
+        new (thd) Item_field(thd, ctx, table->field[idx]);
       if (!materialized_items[idx])
         return TRUE;
     }
@@ -10558,7 +10558,7 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
   return error;
 }
 
-#define newx new (thd->mem_root)
+#define newx new (thd)
 bool TR_table::query(ulonglong trx_id)
 {
   if (!table && open())
@@ -10929,7 +10929,7 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
       my_error(ER_DUP_FIELDNAME, MYF(0), src[0]->field_name.str);
       return true;
     }
-    Spvar_definition *def= new (thd->mem_root) Spvar_definition(thd, *src);
+    Spvar_definition *def= new (thd) Spvar_definition(thd, *src);
     if (!def)
       return true;
     def->flags&= (uint) ~NOT_NULL_FLAG;

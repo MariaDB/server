@@ -22,7 +22,7 @@ bool Grant_privilege::add_column_privilege(THD *thd,
                                            const Lex_ident_sys &name,
                                            privilege_t which_grant)
 {
-  String *new_str= new (thd->mem_root) String((const char*) name.str,
+  String *new_str= new (thd) String((const char*) name.str,
                                               name.length,
                                               system_charset_info);
   if (unlikely(new_str == NULL))
@@ -42,7 +42,7 @@ bool Grant_privilege::add_column_privilege(THD *thd,
     return false;
   }
 
-  LEX_COLUMN *col= new (thd->mem_root) LEX_COLUMN(*new_str, which_grant);
+  LEX_COLUMN *col= new (thd) LEX_COLUMN(*new_str, which_grant);
   if (unlikely(col == NULL))
     return true;
   return m_columns.push_back(col, thd->mem_root);

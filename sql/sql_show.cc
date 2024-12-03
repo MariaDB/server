@@ -3310,7 +3310,7 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
     explain_req.is_json_format= json_format;
     select_result_explain_buffer *explain_buf;
     
-    if (!(explain_buf= new (thd->mem_root)
+    if (!(explain_buf= new (thd)
           select_result_explain_buffer(thd, table->table)))
       DBUG_RETURN(1);
 
@@ -4355,7 +4355,7 @@ COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table)
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       /* Create new top level AND item */
-      Item_cond_and *new_cond=new (thd->mem_root) Item_cond_and(thd);
+      Item_cond_and *new_cond=new (thd) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -4378,7 +4378,7 @@ COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table)
     }
     else
     {						// Or list
-      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd);
+      Item_cond_or *new_cond= new (thd) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -8954,7 +8954,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   for (; !fields->end_marker(); fields++)
     field_count++;
 
-  tmp_table_param = new (thd->mem_root) TMP_TABLE_PARAM;
+  tmp_table_param = new (thd) TMP_TABLE_PARAM;
   tmp_table_param->init();
   tmp_table_param->table_charset= system_charset_info_for_i_s;
   tmp_table_param->field_count= field_count;
@@ -9086,7 +9086,7 @@ static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     if (field_info->old_name().str)
     {
       LEX_CSTRING field_name= field_info->name();
-      Item_field *field= new (thd->mem_root)
+      Item_field *field= new (thd)
         Item_field(thd, context, field_name);
       if (!field)
         return 1;
@@ -9110,7 +9110,7 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     ST_FIELD_INFO *field_info= &schema_table->fields_info[1];
     String buffer(tmp,sizeof(tmp), system_charset_info);
-    Item_field *field= new (thd->mem_root) Item_field(thd, context,
+    Item_field *field= new (thd) Item_field(thd, context,
                                                       field_info->name());
     if (!field || add_item_to_list(thd, field))
       return 1;
@@ -9146,14 +9146,14 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     buffer.append(*lex->wild);
     buffer.append(')');
   }
-  Item_field *field= new (thd->mem_root) Item_field(thd, context, field_name);
+  Item_field *field= new (thd) Item_field(thd, context, field_name);
   if (!field || add_item_to_list(thd, field))
     return 1;
   field->set_name(thd, &buffer);
   if (thd->lex->verbose)
   {
     field_info= &schema_table->fields_info[3];
-    field= new (thd->mem_root) Item_field(thd, context, field_info->name());
+    field= new (thd) Item_field(thd, context, field_info->name());
     if (! field || add_item_to_list(thd, field))
       return 1;
     field->set_name(thd, field_info->old_name());
@@ -9176,7 +9176,7 @@ int make_columns_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
                                *field_num == 18 ||
                                *field_num == 19))
       continue;
-    Item_field *field= new (thd->mem_root) Item_field(thd, context,
+    Item_field *field= new (thd) Item_field(thd, context,
                                                       field_info->name());
     if (!field)
       return 1;
@@ -9198,7 +9198,7 @@ int make_character_sets_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    Item_field *field= new (thd->mem_root) Item_field(thd, context,
+    Item_field *field= new (thd) Item_field(thd, context,
                                                       field_info->name());
     if (!field)
       return 1;
@@ -9219,7 +9219,7 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    Item_field *field= new (thd->mem_root) Item_field(thd, context,
+    Item_field *field= new (thd) Item_field(thd, context,
                                                       field_info->name());
     if (!field)
       return 1;
@@ -9260,7 +9260,7 @@ static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
          i < SLAVE_STATUS_COL_RETRIED_TRANSACTIONS))
     {
       LEX_CSTRING field_name= field_info->name();
-      Item_field *field= new (thd->mem_root)
+      Item_field *field= new (thd)
         Item_field(thd, context, field_name);
       if (!field || add_item_to_list(thd, field))
         return 1;

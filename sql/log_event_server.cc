@@ -4160,7 +4160,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (is_null)
   {
-    it= new (thd->mem_root) Item_null(thd);
+    it= new (thd) Item_null(thd);
   }
   else
   {
@@ -4174,7 +4174,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
         return 1;
       }
       float8get(real_val, val);
-      it= new (thd->mem_root) Item_float(thd, real_val, 0);
+      it= new (thd) Item_float(thd, real_val, 0);
       val= (char*) &real_val;		// Pointer to value in native format
       val_len= 8;
       break;
@@ -4187,7 +4187,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
         return 1;
       }
       int_val= (longlong) uint8korr(val);
-      it= new (thd->mem_root) Item_int(thd, int_val);
+      it= new (thd) Item_int(thd, int_val);
       val= (char*) &int_val;		// Pointer to value in native format
       val_len= 8;
       break;
@@ -4200,14 +4200,14 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
                     "Invalid variable length at User var event");
         return 1;
       }
-      Item_decimal *dec= new (thd->mem_root) Item_decimal(thd, (uchar*) val+2, val[0], val[1]);
+      Item_decimal *dec= new (thd) Item_decimal(thd, (uchar*) val+2, val[0], val[1]);
       it= dec;
       val= (char *)dec->val_decimal(NULL);
       val_len= sizeof(my_decimal);
       break;
     }
     case STRING_RESULT:
-      it= new (thd->mem_root) Item_string(thd, val, (uint)val_len, charset);
+      it= new (thd) Item_string(thd, val, (uint)val_len, charset);
       break;
     case ROW_RESULT:
     default:
@@ -4216,7 +4216,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     }
   }
 
-  Item_func_set_user_var *e= new (thd->mem_root) Item_func_set_user_var(thd, &user_var_name, it);
+  Item_func_set_user_var *e= new (thd) Item_func_set_user_var(thd, &user_var_name, it);
   /*
     Item_func_set_user_var can't substitute something else on its place =>
     0 can be passed as last argument (reference on item)

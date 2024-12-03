@@ -680,7 +680,7 @@ create_insert_stmt_from_insert_delayed(THD *thd, String *buf)
 
 static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
 {
-  Explain_insert* explain= new (thd->mem_root) Explain_insert(thd->mem_root);
+  Explain_insert* explain= new (thd) Explain_insert(thd->mem_root);
   explain->table_name.append(table_list->table->alias);
 
   thd->lex->explain->add_insert_plan(explain);
@@ -4726,7 +4726,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       table_field= NULL;
     }
 
-    Create_field *cr_field= new (thd->mem_root)
+    Create_field *cr_field= new (thd)
                                   Create_field(thd, tmp_field, table_field);
 
     if (!cr_field)

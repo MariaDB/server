@@ -805,7 +805,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       clause.  Instead of deleting the rows, first mark them deleted.
     */
     ha_rows tmplimit=limit;
-    deltempfile= new (thd->mem_root) Unique (refpos_order_cmp, table->file,
+    deltempfile= new (thd) Unique (refpos_order_cmp, table->file,
                                              table->file->ref_length,
                                              MEM_STRIP_BUF_SIZE);
 
@@ -1841,7 +1841,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
       DBUG_RETURN(TRUE);
   }
 
-  if (!(result= new (thd->mem_root) multi_delete(thd, aux_tables,
+  if (!(result= new (thd) multi_delete(thd, aux_tables,
                                                  lex->table_count_update)))
   {
     DBUG_RETURN(TRUE);
@@ -1947,7 +1947,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
     select_options|=
       SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK | OPTION_SETUP_TABLES_DONE;
 
-    if (!(join= new (thd->mem_root) JOIN(thd, empty_list,
+    if (!(join= new (thd) JOIN(thd, empty_list,
                                          select_options, result)))
 	DBUG_RETURN(TRUE);
     THD_STAGE_INFO(thd, stage_init);
@@ -2064,13 +2064,13 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
           Actually, it is ANALYZE .. DELETE .. RETURNING. We need to produce
           output and then discard it.
         */
-        sel_result= new (thd->mem_root) select_send_analyze(thd);
+        sel_result= new (thd) select_send_analyze(thd);
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
       }
       else
       {
-        if (!lex->result && !(sel_result= new (thd->mem_root) select_send(thd)))
+        if (!lex->result && !(sel_result= new (thd) select_send(thd)))
           return true;
       }
       result= lex->result ? lex->result : sel_result;

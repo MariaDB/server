@@ -160,7 +160,7 @@ static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items,
         result_field on Item_ref which refer on this field
       */
       thd->change_item_tree(it.ref(),
-                            new (thd->mem_root) Item_field(thd, field));
+                            new (thd) Item_field(thd, field));
     }
   }
 
@@ -1996,7 +1996,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       switch_to_nullable_trigger_fields(*values_for_table[i], table);
     }
   }
-  copy_field= new (thd->mem_root) Copy_field[max_fields];
+  copy_field= new (thd) Copy_field[max_fields];
   DBUG_RETURN(thd->is_fatal_error != 0);
 }
 
@@ -2222,7 +2222,7 @@ loop_end:
       join->map2table[tbl->tablenr]->keep_current_rowid= true;
 
       Item_temptable_rowid *item=
-        new (thd->mem_root) Item_temptable_rowid(tbl);
+        new (thd) Item_temptable_rowid(tbl);
       if (!item)
          DBUG_RETURN(1);
       item->fix_fields(thd, 0);
@@ -2301,7 +2301,7 @@ int multi_update::prepare2(JOIN *join)
       {
         if (item_rowid_table(*it2) != tbl)
           continue;
-        Item_field *fld= new (thd->mem_root)
+        Item_field *fld= new (thd)
                              Item_field(thd, (*it)->get_tmp_table_field());
         if (!fld)
           return 1;
@@ -3091,7 +3091,7 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
       lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_UPDATE_IGNORE);
   }
 
-  if (!(result= new (thd->mem_root) multi_update(thd, table_list,
+  if (!(result= new (thd) multi_update(thd, table_list,
                                                  &select_lex->leaf_tables,
                                                  &select_lex->item_list,
                                                  &lex->value_list,
@@ -3125,7 +3125,7 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     select_options|=
       SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK | OPTION_SETUP_TABLES_DONE;
 
-    if (!(join= new (thd->mem_root) JOIN(thd, select_lex->item_list,
+    if (!(join= new (thd) JOIN(thd, select_lex->item_list,
                                          select_options, result)))
 	DBUG_RETURN(TRUE);
     THD_STAGE_INFO(thd, stage_init);

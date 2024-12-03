@@ -9480,7 +9480,7 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   List<Item> field_list;
   head_length= (uint) (strxmov(buff, "CREATE USER for ", username, "@",
                                hostname, NullS) - buff);
-  Item_string *field = new (thd->mem_root) Item_string_ascii(thd, "", 0);
+  Item_string *field = new (thd) Item_string_ascii(thd, "", 0);
   if (!field)
     DBUG_RETURN(true);                          // Error given my my_alloc()
 
@@ -9572,7 +9572,7 @@ static int show_grants_callback(ACL_USER_BASE *role, void *data)
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
                                   const char *name, size_t length)
 {
-  Item_string *field=new (thd->mem_root) Item_string_ascii(thd, "", 0);
+  Item_string *field=new (thd) Item_string_ascii(thd, "", 0);
   /* Set name explicit to avoid character set conversions */
   field->name.str= name;
   field->name.length= length;

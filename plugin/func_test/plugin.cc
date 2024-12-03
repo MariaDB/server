@@ -61,7 +61,7 @@ Create_func_sysconst_test Create_func_sysconst_test::s_singleton;
 
 Item* Create_func_sysconst_test::create_builder(THD *thd)
 {
-  return new (thd->mem_root) Item_func_sysconst_test(thd);
+  return new (thd) Item_func_sysconst_test(thd);
 }
 
 
@@ -154,7 +154,7 @@ public:
         my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
         return nullptr;
       }
-      return new (thd->mem_root) Self(thd, *item_list);
+      return new (thd) Self(thd, *item_list);
     }
   };
 
@@ -207,7 +207,7 @@ public:
         my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
         return nullptr;
       }
-      return new (thd->mem_root) Self(thd, *item_list);
+      return new (thd) Self(thd, *item_list);
     }
   };
 
@@ -263,7 +263,7 @@ public:
         my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
         return nullptr;
       }
-      return new (thd->mem_root) Self(thd, *item_list);
+      return new (thd) Self(thd, *item_list);
     }
   };
 

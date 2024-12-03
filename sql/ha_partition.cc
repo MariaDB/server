@@ -10638,7 +10638,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
   }
 
   part_inplace_ctx=
-    new (thd->mem_root) ha_partition_inplace_ctx(thd, m_tot_parts);
+    new (thd) ha_partition_inplace_ctx(thd, m_tot_parts);
   if (!part_inplace_ctx)
     DBUG_RETURN(HA_ALTER_ERROR);
 

@@ -1298,7 +1298,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   record= head->record[0];
 
   my_init_dynamic_array2(PSI_INSTRUMENT_ME, &ranges, sizeof(QUICK_RANGE*),
-                         new(thd->mem_root) QUICK_RANGE[16], 16, 16,
+                         new (thd) QUICK_RANGE[16], 16, 16,
                          MYF(MY_THREAD_SPECIFIC));
 
   /* Allocate a bitmap for used columns */

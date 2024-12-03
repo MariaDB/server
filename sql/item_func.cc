@@ -765,7 +765,7 @@ Item *Item_func::get_tmp_table_item(THD *thd)
 {
   if (!with_sum_func() && !const_item())
   {
-    auto item_field= new (thd->mem_root) Item_field(thd, result_field);
+    auto item_field= new (thd) Item_field(thd, result_field);
     if (item_field)
       item_field->set_refers_to_temp_table();
     return item_field;
@@ -3599,7 +3599,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
     }
-    buffers=new (thd->mem_root) String[arg_count];
+    buffers=new (thd) String[arg_count];
     if (!buffers ||
         !multi_alloc_root(thd->mem_root,
                           &f_args.args,              arg_count * sizeof(char *),
@@ -5636,10 +5636,10 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     LEX *sav_lex= thd->lex, lex_tmp;
     thd->lex= &lex_tmp;
     lex_start(thd);
-    tmp_var_list.push_back(new (thd->mem_root)
-                           set_var_user(new (thd->mem_root)
+    tmp_var_list.push_back(new (thd)
+                           set_var_user(new (thd)
                                         Item_func_set_user_var(thd, name,
-                                                               new (thd->mem_root) Item_null(thd))),
+                                                               new (thd) Item_null(thd))),
                            thd->mem_root);
     /* Create the variable if the above allocations succeeded */
     if (unlikely(thd->is_fatal_error) ||
@@ -5808,7 +5808,7 @@ bool Item_func_get_user_var::set_value(THD *thd,
                                        sp_rcontext * /*ctx*/, Item **it)
 {
   LEX_CSTRING tmp_name= get_name();
-  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, &tmp_name, *it);
+  Item_func_set_user_var *suv= new (thd) Item_func_set_user_var(thd, &tmp_name, *it);
   /*
     Item_func_set_user_var is not fixed after construction, call
     fix_fields().
@@ -6231,12 +6231,12 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
   if (key == NO_SUCH_KEY)
   {
     List<Item> fields;
-    fields.push_back(new (thd->mem_root)
+    fields.push_back(new (thd)
                      Item_string(thd, " ", 1, cmp_collation.collation),
                      thd->mem_root);
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
-    concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);
+    concat_ws= new (thd) Item_func_concat_ws(thd, fields);
     if (unlikely(thd->is_fatal_error))
       DBUG_RETURN(1);                           // OOM in new or push_back
     /*
@@ -6617,7 +6617,7 @@ Item *get_system_var(THD *thd, enum_var_type var_type,
 
   set_if_smaller(component_name.length, MAX_SYS_VAR_LENGTH);
 
-  return new (thd->mem_root) Item_func_get_system_var(thd, var, var_type,
+  return new (thd) Item_func_get_system_var(thd, var, var_type,
                                                       &component_name,
                                                       NULL, 0);
 }
@@ -6851,10 +6851,10 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       List<Item> list;
       for (uint i= 0; i < arg_count; i++)
         list.push_back(args[i]);
-      item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp, list);
+      item_sp= new (thd) Item_sum_sp(thd, context, m_name, sp, list);
     }
     else
-      item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp);
+      item_sp= new (thd) Item_sum_sp(thd, context, m_name, sp);
 
     if (arena)
       thd->restore_active_arena(arena, &backup);

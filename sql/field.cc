@@ -3952,7 +3952,7 @@ Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
       */
       my_decimal tmp;
       val.round_to(&tmp, decimals(), TRUNCATE);
-      return new (thd->mem_root) Item_decimal(thd, field_name.str, &tmp,
+      return new (thd) Item_decimal(thd, field_name.str, &tmp,
                                               decimals(), field_length);
     }
     break;
@@ -5198,7 +5198,7 @@ Item *Field_real::get_equal_const_item(THD *thd, const Context &ctx,
     if (const_item->decimal_scale() != Field_real::decimals())
     {
       double val= const_item->val_real();
-      return new (thd->mem_root) Item_float(thd, val, Field_real::decimals());
+      return new (thd) Item_float(thd, val, Field_real::decimals());
     }
     break;
   case ANY_SUBST:
@@ -6134,7 +6134,7 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
         See comments about truncation in the same place in
         Field_time::get_equal_const_item().
       */
-      return new (thd->mem_root) Item_datetime_literal(thd, &dt, decimals());
+      return new (thd) Item_datetime_literal(thd, &dt, decimals());
     }
     break;
   case ANY_SUBST:
@@ -6145,7 +6145,7 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
         Datetime(thd, const_item, Datetime::Options_cmp(thd));
       if (!dt.is_valid_datetime())
         return NULL;
-      return new (thd->mem_root)
+      return new (thd)
         Item_datetime_literal_for_invalid_dates(thd, &dt,
                                                 dt.get_mysql_time()->
                                                 second_part ?
@@ -6486,7 +6486,7 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
 
         (assuming CURRENT_DATE is '2015-08-30'
       */
-      return new (thd->mem_root) Item_time_literal(thd, &tm,
+      return new (thd) Item_time_literal(thd, &tm,
                                                    tm.get_mysql_time()->
                                                    second_part ?
                                                    TIME_SECOND_PART_DIGITS :
@@ -6515,7 +6515,7 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
               decimals());
       if (!tm.is_valid_time())
         return NULL;
-      return new (thd->mem_root) Item_time_literal(thd, &tm, decimals());
+      return new (thd) Item_time_literal(thd, &tm, decimals());
     }
     break;
   }
@@ -7088,13 +7088,13 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
         (assuming CURRENT_DATE is '2015-08-30'
       */
       if (!dt.hhmmssff_is_zero())
-        return new (thd->mem_root)
+        return new (thd)
           Item_datetime_literal_for_invalid_dates(thd, &dt,
                                                   dt.get_mysql_time()->
                                                     second_part ?
                                                   TIME_SECOND_PART_DIGITS : 0);
       Date d(&dt);
-      return new (thd->mem_root) Item_date_literal_for_invalid_dates(thd, &d);
+      return new (thd) Item_date_literal_for_invalid_dates(thd, &d);
     }
     break;
   case IDENTITY_SUBST:
@@ -7110,7 +7110,7 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
       if (!dt.is_valid_datetime())
         return NULL;
       Date d(&dt);
-      return new (thd->mem_root) Item_date_literal(thd, &d);
+      return new (thd) Item_date_literal(thd, &d);
     }
     break;
   }
@@ -11169,9 +11169,9 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
       StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
       String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
       char *pos= (char*) thd->strmake(res->ptr(), res->length());
-      default_value= new (thd->mem_root) Virtual_column_info();
+      default_value= new (thd) Virtual_column_info();
       default_value->expr=
-        new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
+        new (thd) Item_string(thd, pos, res->length(), charset);
       default_value->utf8= 0;
     }
   }
@@ -11832,7 +11832,7 @@ void Field::print_key_value_binary(String *out, const uchar* key, uint32 length)
 
 Virtual_column_info* Virtual_column_info::clone(THD *thd)
 {
-  Virtual_column_info* dst= new (thd->mem_root) Virtual_column_info(*this);
+  Virtual_column_info* dst= new (thd) Virtual_column_info(*this);
   if (!dst)
     return NULL;
   if (expr)

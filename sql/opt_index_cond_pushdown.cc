@@ -272,7 +272,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       table_map used_tables= 0;
-      Item_cond_and *new_cond= new (thd->mem_root) Item_cond_and(thd);
+      Item_cond_and *new_cond= new (thd) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -300,7 +300,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
     }
     else /* It's OR */
     {
-      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd);
+      Item_cond_or *new_cond= new (thd) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -338,7 +338,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       /* Create new top level AND item */
-      Item_cond_and *new_cond= new (thd->mem_root) Item_cond_and(thd);
+      Item_cond_and *new_cond= new (thd) Item_cond_and(thd);
       if (!new_cond)
         return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -366,7 +366,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
     }
     else /* It's OR */
     {
-      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd);
+      Item_cond_or *new_cond= new (thd) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());

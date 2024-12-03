@@ -360,7 +360,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
 
       if (0 == field_cmp)
       {
-        Item *tmp= (new (thd->mem_root)
+        Item *tmp= (new (thd)
                     Item_int_with_ref(thd, field->val_int(), *item,
                                       MY_TEST(field->flags & UNSIGNED_FLAG)));
         if (tmp)
@@ -570,7 +570,7 @@ bool Arg_comparator::set_cmp_func_for_row_arguments(THD *thd)
     comparators= 0;
     return true;
   }
-  if (!(comparators= new (thd->mem_root) Arg_comparator[n]))
+  if (!(comparators= new (thd) Arg_comparator[n]))
     return true;
   for (uint i=0; i < n; i++)
   {
@@ -2863,7 +2863,7 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
            TODO: check if it's possible (and add an example query if so).
     */
     m_cache= args[0]->cmp_type() == STRING_RESULT ?
-             new (thd->mem_root) Item_cache_str_for_nullif(thd, args[0]) :
+             new (thd) Item_cache_str_for_nullif(thd, args[0]) :
              args[0]->get_cache(thd);
     if (!m_cache)
       return TRUE;
@@ -3904,13 +3904,13 @@ uchar *in_string::get_value(Item *item)
 
 Item *in_string::create_item(THD *thd)
 {
-  return new (thd->mem_root) Item_string_for_in_vector(thd, collation);
+  return new (thd) Item_string_for_in_vector(thd, collation);
 }
 
 
 in_row::in_row(THD *thd, uint elements, Item * item)
 {
-  base= (char*) new (thd->mem_root) cmp_item_row[count= elements];
+  base= (char*) new (thd) cmp_item_row[count= elements];
   size= sizeof(cmp_item_row);
   compare= cmp_row;
   /*
@@ -3971,7 +3971,7 @@ Item *in_longlong::create_item(THD *thd)
      We're created a signed INT, this may not be correct in 
      general case (see BUG#19342).
   */
-  return new (thd->mem_root) Item_int(thd, (longlong)0);
+  return new (thd) Item_int(thd, (longlong)0);
 }
 
 
@@ -4014,7 +4014,7 @@ uchar *in_timestamp::get_value(Item *item)
 
 Item *in_timestamp::create_item(THD *thd)
 {
-  return new (thd->mem_root) Item_timestamp_literal(thd);
+  return new (thd) Item_timestamp_literal(thd);
 }
 
 
@@ -4063,7 +4063,7 @@ uchar *in_time::get_value(Item *item)
 
 Item *in_temporal::create_item(THD *thd)
 { 
-  return new (thd->mem_root) Item_datetime(thd);
+  return new (thd) Item_datetime(thd);
 }
 
 
@@ -4087,7 +4087,7 @@ uchar *in_double::get_value(Item *item)
 
 Item *in_double::create_item(THD *thd)
 { 
-  return new (thd->mem_root) Item_float(thd, 0.0, 0);
+  return new (thd) Item_float(thd, 0.0, 0);
 }
 
 
@@ -4120,7 +4120,7 @@ uchar *in_decimal::get_value(Item *item)
 
 Item *in_decimal::create_item(THD *thd)
 { 
-  return new (thd->mem_root) Item_decimal(thd, 0, FALSE);
+  return new (thd) Item_decimal(thd, 0, FALSE);
 }
 
 
@@ -4216,22 +4216,22 @@ bool Predicant_to_list_comparator::make_unique_cmp_items(THD *thd,
 
 cmp_item* cmp_item_sort_string::make_same(THD *thd)
 {
-  return new (thd->mem_root) cmp_item_sort_string_in_static(cmp_charset);
+  return new (thd) cmp_item_sort_string_in_static(cmp_charset);
 }
 
 cmp_item* cmp_item_int::make_same(THD *thd)
 {
-  return new (thd->mem_root) cmp_item_int();
+  return new (thd) cmp_item_int();
 }
 
 cmp_item* cmp_item_real::make_same(THD *thd)
 {
-  return new (thd->mem_root) cmp_item_real();
+  return new (thd) cmp_item_real();
 }
 
 cmp_item* cmp_item_row::make_same(THD *thd)
 {
-  return new (thd->mem_root) cmp_item_row();
+  return new (thd) cmp_item_row();
 }
 
 
@@ -4381,7 +4381,7 @@ int cmp_item_decimal::compare(const cmp_item *arg) const
 
 cmp_item* cmp_item_decimal::make_same(THD *thd)
 {
-  return new (thd->mem_root) cmp_item_decimal();
+  return new (thd) cmp_item_decimal();
 }
 
 
@@ -4424,13 +4424,13 @@ int cmp_item_temporal::compare(const cmp_item *ci) const
 
 cmp_item *cmp_item_datetime::make_same(THD *thd)
 {
-  return new (thd->mem_root) cmp_item_datetime();
+  return new (thd) cmp_item_datetime();
 }
 
 
 cmp_item *cmp_item_time::make_same(THD *thd)
 {
-  return new (thd->mem_root) cmp_item_time();
+  return new (thd) cmp_item_time();
 }
 
 
@@ -4472,7 +4472,7 @@ int cmp_item_timestamp::compare(const cmp_item *arg) const
 
 cmp_item* cmp_item_timestamp::make_same(THD *thd)
 {
-  return new (thd->mem_root) cmp_item_timestamp();
+  return new (thd) cmp_item_timestamp();
 }
 
 
@@ -4566,9 +4566,9 @@ Item *Item_func_in::in_predicate_to_equality_transformer(THD *thd, uchar *arg)
 
   Item *new_item= nullptr;
   if (negated)
-    new_item= new (thd->mem_root) Item_func_ne(thd, args[0], args[1]);
+    new_item= new (thd) Item_func_ne(thd, args[0], args[1]);
   else
-    new_item= new (thd->mem_root) Item_func_eq(thd, args[0], args[1]);
+    new_item= new (thd) Item_func_eq(thd, args[0], args[1]);
   if (new_item)
   {
     new_item->set_name(thd, name);
@@ -4880,7 +4880,7 @@ bool cmp_item_row::prepare_comparators(THD *thd, const LEX_CSTRING &funcname,
 
 bool Item_func_in::fix_for_row_comparison_using_bisection(THD *thd)
 {
-  if (unlikely(!(array= new (thd->mem_root) in_row(thd, arg_count-1, 0))))
+  if (unlikely(!(array= new (thd) in_row(thd, arg_count-1, 0))))
     return true;
   cmp_item_row *cmp= &((in_row*)array)->tmp;
   if (cmp->prepare_comparators(thd, func_name_cstring(), this, 0))
@@ -5106,7 +5106,7 @@ Item_cond::Item_cond(THD *thd, Item *i1, Item *i2):
 Item *Item_cond_and::copy_andor_structure(THD *thd)
 {
   Item_cond_and *item;
-  if ((item= new (thd->mem_root) Item_cond_and(thd, this)))
+  if ((item= new (thd) Item_cond_and(thd, this)))
     item->copy_andor_arguments(thd, this);
   return item;
 }
@@ -5158,7 +5158,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       Query_arena backup, *arena;
       Item *new_item;
       arena= thd->activate_stmt_arena_if_needed(&backup);
-      if ((new_item= new (thd->mem_root) Item_func_ne(thd, item, new (thd->mem_root) Item_int(thd, 0, 1))))
+      if ((new_item= new (thd) Item_func_ne(thd, item, new (thd) Item_int(thd, 0, 1))))
         li.replace(item= new_item);
       if (arena)
         thd->restore_active_arena(arena, &backup);
@@ -5613,7 +5613,7 @@ void Item_cond::neg_arguments(THD *thd)
     Item *new_item= item->neg_transformer(thd);
     if (!new_item)
     {
-      if (!(new_item= new (thd->mem_root) Item_func_not(thd, item)))
+      if (!(new_item= new (thd) Item_func_not(thd, item)))
 	return;					// Fatal OEM error
     }
     (void) li.replace(new_item);
@@ -5760,7 +5760,7 @@ bool Item_cond_or::val_bool()
 Item *Item_cond_or::copy_andor_structure(THD *thd)
 {
   Item_cond_or *item;
-  if ((item= new (thd->mem_root) Item_cond_or(thd, this)))
+  if ((item= new (thd) Item_cond_or(thd, this)))
     item->copy_andor_arguments(thd, this);
   return item;
 }
@@ -5793,7 +5793,7 @@ Item *and_expressions(THD *thd, Item *a, Item *b, Item **org_item)
   if (a == *org_item)
   {
     Item_cond *res;
-    if ((res= new (thd->mem_root) Item_cond_and(thd, a, (Item*) b)))
+    if ((res= new (thd) Item_cond_and(thd, a, (Item*) b)))
     {
       res->used_tables_cache= a->used_tables() | b->used_tables();
       res->not_null_tables_cache= a->not_null_tables() | b->not_null_tables();
@@ -6775,7 +6775,7 @@ bool Item_func_not::fix_fields(THD *thd, Item **ref)
     Item *new_item;
     bool rc= TRUE;
     arena= thd->activate_stmt_arena_if_needed(&backup);
-    if ((new_item= new (thd->mem_root) Item_func_eq(thd, args[0], new (thd->mem_root) Item_int(thd, 0, 1))))
+    if ((new_item= new (thd) Item_func_eq(thd, args[0], new (thd) Item_int(thd, 0, 1))))
     {
       new_item->name= name;
       rc= (*ref= new_item)->fix_fields(thd, ref);
@@ -6809,14 +6809,14 @@ Item *Item_func_xor::neg_transformer(THD *thd)
   Item_func_xor *new_item;
   if ((neg_operand= args[0]->neg_transformer(thd)))
     // args[0] has neg_tranformer
-    new_item= new(thd->mem_root) Item_func_xor(thd, neg_operand, args[1]);
+    new_item= new (thd) Item_func_xor(thd, neg_operand, args[1]);
   else if ((neg_operand= args[1]->neg_transformer(thd)))
     // args[1] has neg_tranformer
-    new_item= new(thd->mem_root) Item_func_xor(thd, args[0], neg_operand);
+    new_item= new (thd) Item_func_xor(thd, args[0], neg_operand);
   else
   {
-    neg_operand= new(thd->mem_root) Item_func_not(thd, args[0]);
-    new_item= new(thd->mem_root) Item_func_xor(thd, neg_operand, args[1]);
+    neg_operand= new (thd) Item_func_not(thd, args[0]);
+    new_item= new (thd) Item_func_xor(thd, neg_operand, args[1]);
   }
   return new_item;
 }
@@ -6827,7 +6827,7 @@ Item *Item_func_xor::neg_transformer(THD *thd)
 */
 Item *Item_func_isnull::neg_transformer(THD *thd)
 {
-  Item *item= new (thd->mem_root) Item_func_isnotnull(thd, args[0]);
+  Item *item= new (thd) Item_func_isnotnull(thd, args[0]);
   return item;
 }
 
@@ -6837,7 +6837,7 @@ Item *Item_func_isnull::neg_transformer(THD *thd)
 */
 Item *Item_func_isnotnull::neg_transformer(THD *thd)
 {
-  Item *item= new (thd->mem_root) Item_func_isnull(thd, args[0]);
+  Item *item= new (thd) Item_func_isnull(thd, args[0]);
   return item;
 }
 
@@ -6846,7 +6846,7 @@ Item *Item_cond_and::neg_transformer(THD *thd)	/* NOT(a AND b AND ...)  -> */
 					/* NOT a OR NOT b OR ... */
 {
   neg_arguments(thd);
-  Item *item= new (thd->mem_root) Item_cond_or(thd, list);
+  Item *item= new (thd) Item_cond_or(thd, list);
   return item;
 }
 
@@ -6870,7 +6870,7 @@ Item *Item_cond_or::neg_transformer(THD *thd)	/* NOT(a OR b OR ...)  -> */
 					/* NOT a AND NOT b AND ... */
 {
   neg_arguments(thd);
-  Item *item= new (thd->mem_root) Item_cond_and(thd, list);
+  Item *item= new (thd) Item_cond_and(thd, list);
   return item;
 }
 
@@ -6878,7 +6878,7 @@ Item *Item_cond_or::neg_transformer(THD *thd)	/* NOT(a OR b OR ...)  -> */
 Item *Item_func_nop_all::neg_transformer(THD *thd)
 {
   /* "NOT (e $cmp$ ANY (SELECT ...)) -> e $rev_cmp$" ALL (SELECT ...) */
-  Item_func_not_all *new_item= new (thd->mem_root) Item_func_not_all(thd, args[0]);
+  Item_func_not_all *new_item= new (thd) Item_func_not_all(thd, args[0]);
   Item_allany_subselect *allany= (Item_allany_subselect*)args[0];
   allany->create_comp_func(FALSE);
   allany->all= !allany->all;
@@ -6889,7 +6889,7 @@ Item *Item_func_nop_all::neg_transformer(THD *thd)
 Item *Item_func_not_all::neg_transformer(THD *thd)
 {
   /* "NOT (e $cmp$ ALL (SELECT ...)) -> e $rev_cmp$" ANY (SELECT ...) */
-  Item_func_nop_all *new_item= new (thd->mem_root) Item_func_nop_all(thd, args[0]);
+  Item_func_nop_all *new_item= new (thd) Item_func_nop_all(thd, args[0]);
   Item_allany_subselect *allany= (Item_allany_subselect*)args[0];
   allany->all= !allany->all;
   allany->create_comp_func(TRUE);
@@ -6899,37 +6899,37 @@ Item *Item_func_not_all::neg_transformer(THD *thd)
 
 Item *Item_func_eq::negated_item(THD *thd) /* a = b  ->  a != b */
 {
-  return new (thd->mem_root) Item_func_ne(thd, args[0], args[1]);
+  return new (thd) Item_func_ne(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_ne::negated_item(THD *thd) /* a != b  ->  a = b */
 {
-  return new (thd->mem_root) Item_func_eq(thd, args[0], args[1]);
+  return new (thd) Item_func_eq(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_lt::negated_item(THD *thd) /* a < b  ->  a >= b */
 {
-  return new (thd->mem_root) Item_func_ge(thd, args[0], args[1]);
+  return new (thd) Item_func_ge(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_ge::negated_item(THD *thd) /* a >= b  ->  a < b */
 {
-  return new (thd->mem_root) Item_func_lt(thd, args[0], args[1]);
+  return new (thd) Item_func_lt(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_gt::negated_item(THD *thd) /* a > b  ->  a <= b */
 {
-  return new (thd->mem_root) Item_func_le(thd, args[0], args[1]);
+  return new (thd) Item_func_le(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_le::negated_item(THD *thd) /* a <= b  ->  a > b */
 {
-  return new (thd->mem_root) Item_func_gt(thd, args[0], args[1]);
+  return new (thd) Item_func_gt(thd, args[0], args[1]);
 }
 
 /**
@@ -7805,73 +7805,73 @@ null:
 
 Item_bool_rowready_func2 *Eq_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_eq(thd, a, b);
+  return new (thd) Item_func_eq(thd, a, b);
 }
 
 
 Item_bool_rowready_func2* Eq_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_eq(thd, b, a);
+  return new (thd) Item_func_eq(thd, b, a);
 }
 
 
 Item_bool_rowready_func2* Ne_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_ne(thd, a, b);
+  return new (thd) Item_func_ne(thd, a, b);
 }
 
 
 Item_bool_rowready_func2* Ne_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_ne(thd, b, a);
+  return new (thd) Item_func_ne(thd, b, a);
 }
 
 
 Item_bool_rowready_func2* Gt_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_gt(thd, a, b);
+  return new (thd) Item_func_gt(thd, a, b);
 }
 
 
 Item_bool_rowready_func2* Gt_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_lt(thd, b, a);
+  return new (thd) Item_func_lt(thd, b, a);
 }
 
 
 Item_bool_rowready_func2* Lt_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_lt(thd, a, b);
+  return new (thd) Item_func_lt(thd, a, b);
 }
 
 
 Item_bool_rowready_func2* Lt_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_gt(thd, b, a);
+  return new (thd) Item_func_gt(thd, b, a);
 }
 
 
 Item_bool_rowready_func2* Ge_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_ge(thd, a, b);
+  return new (thd) Item_func_ge(thd, a, b);
 }
 
 
 Item_bool_rowready_func2* Ge_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_le(thd, b, a);
+  return new (thd) Item_func_le(thd, b, a);
 }
 
 
 Item_bool_rowready_func2* Le_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_le(thd, a, b);
+  return new (thd) Item_func_le(thd, a, b);
 }
 
 
 Item_bool_rowready_func2* Le_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new(thd->mem_root) Item_func_ge(thd, b, a);
+  return new (thd) Item_func_ge(thd, b, a);
 }
 
 
@@ -7994,7 +7994,7 @@ bool Item_equal::create_pushable_equalities(THD *thd,
                             right_item : right_item->build_clone(thd);
     if (!left_item_clone || !right_item_clone)
       return true;
-    eq= new (thd->mem_root) Item_func_eq(thd,
+    eq= new (thd) Item_func_eq(thd,
                                          left_item_clone,
                                          right_item_clone);
     if (!eq ||  equalities->push_back(eq, thd->mem_root))
@@ -8024,7 +8024,7 @@ bool Item_equal::create_pushable_equalities(THD *thd,
       return true;
     left_item_clone->set_item_equal(NULL);
     right_item_clone->set_item_equal(NULL);
-    eq= new (thd->mem_root) Item_func_eq(thd,
+    eq= new (thd) Item_func_eq(thd,
                                          right_item_clone,
                                          left_item_clone);
     if (!eq || equalities->push_back(eq, thd->mem_root))
@@ -8063,7 +8063,7 @@ Item *Item_equal::multiple_equality_transformer(THD *thd, uchar *arg)
     return equalities.head();
     break;
   default:
-    return new (thd->mem_root) Item_cond_and(thd, equalities);
+    return new (thd) Item_cond_and(thd, equalities);
     break;
   }
 }

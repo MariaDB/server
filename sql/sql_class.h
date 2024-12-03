@@ -7780,7 +7780,7 @@ inline Item *and_conds(THD *thd, Item *a, Item *b)
 {
   if (!b) return a;
   if (!a) return b;
-  return new (thd->mem_root) Item_cond_and(thd, a, b);
+  return new (thd) Item_cond_and(thd, a, b);
 }
 
 /* inline handler methods that need to know TABLE and THD structures */

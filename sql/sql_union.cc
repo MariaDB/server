@@ -1267,7 +1267,7 @@ static bool init_item_int(THD* thd, Item_int* &item)
 {
   if (!item)
   {
-    item= new (thd->mem_root) Item_int(thd, 0);
+    item= new (thd) Item_int(thd, 0);
 
     if (!item)
       return true;
@@ -1561,16 +1561,16 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
         */
         if (have_except_all_or_intersect_all)
         {
-          union_result= new (thd->mem_root) select_unit_ext(thd);
+          union_result= new (thd) select_unit_ext(thd);
           first_sl->distinct= false;
         }
         else
-	  union_result= new (thd->mem_root) select_unit(thd);
+	  union_result= new (thd) select_unit(thd);
       }
       else
       {
         with_element->rec_result=
-          new (thd->mem_root) select_union_recursive(thd);
+          new (thd) select_union_recursive(thd);
         union_result=  with_element->rec_result;
         if (fake_select_lex)
 	{
@@ -1749,7 +1749,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
           if ((!derived_arg->is_with_table_recursive_reference() ||
                !derived_arg->derived_result) &&
               !(derived_arg->derived_result=
-                new (thd->mem_root) select_unit(thd)))
+                new (thd) select_unit(thd)))
             goto err; // out of memory
           thd->create_tmp_table_for_derived= TRUE;
 
@@ -2047,7 +2047,7 @@ bool st_select_lex_unit::set_direct_union_result(select_result *sel_result)
   SELECT_LEX *last= first_select();
   while (last->next_select())
     last= last->next_select();
-  union_result= new (thd->mem_root) select_union_direct(thd, sel_result,
+  union_result= new (thd) select_union_direct(thd, sel_result,
                                                       last);
   return (union_result == nullptr);
 }

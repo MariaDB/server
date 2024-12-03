@@ -1502,7 +1502,7 @@ bool Item_func_replace::fix_length_and_dec(THD *thd)
 Item_func_sformat::Item_func_sformat(THD *thd, List<Item> &list)
   : Item_str_func(thd, list)
 {
-  val_arg= new (thd->mem_root) String[arg_count];
+  val_arg= new (thd) String[arg_count];
 }
 
 

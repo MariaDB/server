@@ -465,7 +465,7 @@ public:
     {
       new_max=arg->max_value; flag_max=arg->max_flag;
     }
-    return new (thd->mem_root) SEL_ARG(field, part,
+    return new (thd) SEL_ARG(field, part,
                                        new_min, new_max, flag_min,
                                        flag_max,
                                        MY_TEST(maybe_flag && arg->maybe_flag));

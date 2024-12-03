@@ -2677,7 +2677,7 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
         const Lex_ident_column &field_name, Type_handler *type_handler,
         field_visibility_t invisible, Item* default_value)
 {
-  Create_field *fld= new(thd->mem_root)Create_field();
+  Create_field *fld= new (thd)Create_field();
   /* Get unique field name if invisible == INVISIBLE_FULL */
   if (invisible == INVISIBLE_FULL)
   {
@@ -2696,7 +2696,7 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
   fld->invisible= invisible;
   if (default_value)
   {
-    Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
+    Virtual_column_info *v= new (thd) Virtual_column_info();
     v->expr= default_value;
     v->utf8= 0;
     fld->default_value= v;
@@ -2728,7 +2728,7 @@ static Create_field *add_internal_field(THD *thd, Type_handler *type_handler,
                                         List<Create_field> *create_list)
 {
   class Column_derived_attributes dat(&my_charset_bin);
-  Create_field *cf= new (thd->mem_root) Create_field();
+  Create_field *cf= new (thd) Create_field();
   cf->flags|= flags | NOT_NULL_FLAG;
   cf->invisible= INVISIBLE_FULL;
   cf->field_name= make_internal_field_name(thd, prefix, create_list);
@@ -2742,9 +2742,9 @@ Key *
 mysql_add_invisible_index(THD *thd, List<Key> *key_list,
         LEX_CSTRING* field_name, enum Key::Keytype type)
 {
-  Key *key= new (thd->mem_root) Key(type, &null_clex_str, HA_KEY_ALG_UNDEF,
+  Key *key= new (thd) Key(type, &null_clex_str, HA_KEY_ALG_UNDEF,
                                     false, DDL_options(DDL_options::OPT_NONE));
-  key->columns.push_back(new(thd->mem_root) Key_part_spec(field_name, 0, true),
+  key->columns.push_back(new (thd) Key_part_spec(field_name, 0, true),
           thd->mem_root);
   key_list->push_back(key, thd->mem_root);
   return key;
@@ -3134,13 +3134,13 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
           mysql_add_invisible_field(thd, &alter_info->create_list,
                       "invisible"_Lex_ident_column,
                       &type_handler_slong, INVISIBLE_SYSTEM,
-                      new (thd->mem_root)Item_int(thd, 9));
+                      new (thd)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_completely_invisible",{
           mysql_add_invisible_field(thd, &alter_info->create_list,
                       "invisible"_Lex_ident_column,
                       &type_handler_slong, INVISIBLE_FULL,
-                      new (thd->mem_root)Item_int(thd, 9));
+                      new (thd)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_invisible_index",{
           LEX_CSTRING temp= "invisible"_Lex_ident_column;
@@ -3850,7 +3850,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       key_info->algorithm= HA_KEY_ALG_LONG_HASH;
       hash_fld->offset= record_offset;
       hash_fld->charset= create_info->default_table_charset;
-      hash_fld->vcol_info= new (thd->mem_root) Virtual_column_info();
+      hash_fld->vcol_info= new (thd) Virtual_column_info();
       hash_fld->vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL);
       DBUG_ASSERT(hash_fld->pack_length == HA_HASH_FIELD_LENGTH);
       record_offset+= hash_fld->pack_length;
@@ -4278,7 +4278,7 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
     }
     if (!key_part)
     {
-      key->columns.push_back(new (thd->mem_root)
+      key->columns.push_back(new (thd)
                                Key_part_spec(&row_end_field, 0, true));
       result++;
     }
@@ -4295,9 +4295,9 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
       return -1;
     }
     const auto &period= create_info->period_info.period;
-    key->columns.push_back(new (thd->mem_root)
+    key->columns.push_back(new (thd)
                            Key_part_spec(&period.end, 0, true));
-    key->columns.push_back(new (thd->mem_root)
+    key->columns.push_back(new (thd)
                            Key_part_spec(&period.start, 0, true));
     result += 2;
   }
@@ -6598,7 +6598,7 @@ remove_key:
         DBUG_ASSERT(key->or_replace());
         Alter_drop::drop_type type= (key->type == Key::FOREIGN_KEY) ?
           Alter_drop::FOREIGN_KEY : Alter_drop::KEY;
-        Alter_drop *ad= new (thd->mem_root) Alter_drop(type, key->name, FALSE);
+        Alter_drop *ad= new (thd) Alter_drop(type, key->name, FALSE);
         if (ad != NULL)
         {
           // Adding the index into the drop list for replacing
@@ -12514,7 +12514,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
 
-  if (!(copy= new (thd->mem_root) Copy_field[to->s->fields]))
+  if (!(copy= new (thd) Copy_field[to->s->fields]))
     DBUG_RETURN(-1);
 
   if (mysql_trans_prepare_alter_copy_data(thd))
@@ -13069,11 +13069,11 @@ void fill_checksum_table_metadata_fields(THD *thd, List<Item> *fields)
 {
   Item *item;
 
-  item= new (thd->mem_root) Item_empty_string(thd, "Table", NAME_LEN*2);
+  item= new (thd) Item_empty_string(thd, "Table", NAME_LEN*2);
   item->set_maybe_null();
   fields->push_back(item, thd->mem_root);
 
-  item= new (thd->mem_root) Item_int(thd, "Checksum", (longlong) 1,
+  item= new (thd) Item_int(thd, "Checksum", (longlong) 1,
                                      MY_INT64_NUM_DECIMAL_DIGITS);
   item->set_maybe_null();
   fields->push_back(item, thd->mem_root);
@@ -13547,7 +13547,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         needs to be created for every execution of a PS/SP.
         Note: In wsrep-patch, CTAS is handled like a regular transaction.
       */
-      if ((result= new (thd->mem_root) select_create(thd, create_table,
+      if ((result= new (thd) select_create(thd, create_table,
                                                      &create_info,
                                                      &alter_info,
                                                      select_lex->item_list,

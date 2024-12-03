@@ -465,7 +465,7 @@ public:
       my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
       return NULL;
     }
-    return new (thd->mem_root) Item_func_decode_oracle(thd, *item_list);
+    return new (thd) Item_func_decode_oracle(thd, *item_list);
   }
 
   static Create_func_decode_oracle s_singleton;
@@ -488,7 +488,7 @@ public:
       return NULL;
     }
     Item_args args(thd, *item_list);
-    return new (thd->mem_root) Item_func_decode(thd, args.arguments()[0],
+    return new (thd) Item_func_decode(thd, args.arguments()[0],
                                                      args.arguments()[1]);
   }
 
@@ -2074,7 +2074,7 @@ class Create_func_regexp_replace : public Create_func_arg3
 public:
   Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override
   {
-    return new (thd->mem_root) Item_func_regexp_replace(thd, arg1, arg2, arg3);
+    return new (thd) Item_func_regexp_replace(thd, arg1, arg2, arg3);
   }
 
   static Create_func_regexp_replace s_singleton;
@@ -2092,7 +2092,7 @@ class Create_func_regexp_replace_oracle : public Create_func_arg3
 public:
   Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override
   {
-    return new (thd->mem_root) Item_func_regexp_replace_oracle(thd, arg1,
+    return new (thd) Item_func_regexp_replace_oracle(thd, arg1,
                                                                arg2, arg3);
   }
 
@@ -2898,16 +2898,16 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
     if (udf->type == UDFTYPE_FUNCTION)
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_func_udf_str(thd, udf, *item_list);
+        func= new (thd) Item_func_udf_str(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_func_udf_str(thd, udf);
+        func= new (thd) Item_func_udf_str(thd, udf);
     }
     else
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_sum_udf_str(thd, udf, *item_list);
+        func= new (thd) Item_sum_udf_str(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_sum_udf_str(thd, udf);
+        func= new (thd) Item_sum_udf_str(thd, udf);
     }
     break;
   }
@@ -2916,16 +2916,16 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
     if (udf->type == UDFTYPE_FUNCTION)
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_func_udf_float(thd, udf, *item_list);
+        func= new (thd) Item_func_udf_float(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_func_udf_float(thd, udf);
+        func= new (thd) Item_func_udf_float(thd, udf);
     }
     else
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_sum_udf_float(thd, udf, *item_list);
+        func= new (thd) Item_sum_udf_float(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_sum_udf_float(thd, udf);
+        func= new (thd) Item_sum_udf_float(thd, udf);
     }
     break;
   }
@@ -2934,16 +2934,16 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
     if (udf->type == UDFTYPE_FUNCTION)
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_func_udf_int(thd, udf, *item_list);
+        func= new (thd) Item_func_udf_int(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_func_udf_int(thd, udf);
+        func= new (thd) Item_func_udf_int(thd, udf);
     }
     else
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_sum_udf_int(thd, udf, *item_list);
+        func= new (thd) Item_sum_udf_int(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_sum_udf_int(thd, udf);
+        func= new (thd) Item_sum_udf_int(thd, udf);
     }
     break;
   }
@@ -2952,16 +2952,16 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
     if (udf->type == UDFTYPE_FUNCTION)
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_func_udf_decimal(thd, udf, *item_list);
+        func= new (thd) Item_func_udf_decimal(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_func_udf_decimal(thd, udf);
+        func= new (thd) Item_func_udf_decimal(thd, udf);
     }
     else
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_sum_udf_decimal(thd, udf, *item_list);
+        func= new (thd) Item_sum_udf_decimal(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_sum_udf_decimal(thd, udf);
+        func= new (thd) Item_sum_udf_decimal(thd, udf);
     }
     break;
   }
@@ -3009,7 +3009,7 @@ Create_sp_func::create_with_db(THD *thd,
   if (item_list != NULL)
     arg_count= item_list->elements;
 
-  qname= new (thd->mem_root) sp_name(db, name, use_explicit_name);
+  qname= new (thd) sp_name(db, name, use_explicit_name);
   if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
                                                qname, &sph, &pkgname)))
     return NULL;
@@ -3018,9 +3018,9 @@ Create_sp_func::create_with_db(THD *thd,
     sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
   Name_resolution_context *ctx= lex->current_context();
   if (arg_count > 0)
-    func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph, *item_list);
+    func= new (thd) Item_func_sp(thd, ctx, qname, sph, *item_list);
   else
-    func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph);
+    func= new (thd) Item_func_sp(thd, ctx, qname, sph);
 
   lex->safe_to_cache_query= 0;
   return func;
@@ -3152,7 +3152,7 @@ Create_func_abs Create_func_abs::s_singleton;
 Item*
 Create_func_abs::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_abs(thd, arg1);
+  return new (thd) Item_func_abs(thd, arg1);
 }
 
 
@@ -3161,7 +3161,7 @@ Create_func_acos Create_func_acos::s_singleton;
 Item*
 Create_func_acos::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_acos(thd, arg1);
+  return new (thd) Item_func_acos(thd, arg1);
 }
 
 
@@ -3170,7 +3170,7 @@ Create_func_addtime Create_func_addtime::s_singleton;
 Item*
 Create_func_addtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, false);
+  return new (thd) Item_func_add_time(thd, arg1, arg2, false);
 }
 
 
@@ -3179,7 +3179,7 @@ Create_func_addmonths Create_func_addmonths::s_singleton;
 Item*
 Create_func_addmonths::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root)
+  return new (thd)
     Item_date_add_interval(thd, arg1, arg2, INTERVAL_MONTH, false);
 }
 
@@ -3201,11 +3201,11 @@ Create_func_aes_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
   switch (arg_count)
   {
   case 2:
-    return new (thd->mem_root) Item_func_aes_encrypt(thd, a[0], a[1]);
+    return new (thd) Item_func_aes_encrypt(thd, a[0], a[1]);
   case 3:
-    return new (thd->mem_root) Item_func_aes_encrypt(thd, a[0], a[1], a[2]);
+    return new (thd) Item_func_aes_encrypt(thd, a[0], a[1], a[2]);
   case 4:
-    return new (thd->mem_root) Item_func_aes_encrypt(thd, a[0], a[1], a[2], a[3]);
+    return new (thd) Item_func_aes_encrypt(thd, a[0], a[1], a[2], a[3]);
   }
   my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
   return NULL;
@@ -3229,11 +3229,11 @@ Create_func_aes_decrypt::create_native(THD *thd, const LEX_CSTRING *name,
   switch (arg_count)
   {
   case 2:
-    return new (thd->mem_root) Item_func_aes_decrypt(thd, a[0], a[1]);
+    return new (thd) Item_func_aes_decrypt(thd, a[0], a[1]);
   case 3:
-    return new (thd->mem_root) Item_func_aes_decrypt(thd, a[0], a[1], a[2]);
+    return new (thd) Item_func_aes_decrypt(thd, a[0], a[1], a[2]);
   case 4:
-    return new (thd->mem_root) Item_func_aes_decrypt(thd, a[0], a[1], a[2], a[3]);
+    return new (thd) Item_func_aes_decrypt(thd, a[0], a[1], a[2], a[3]);
   }
   my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
   return NULL;
@@ -3257,13 +3257,13 @@ Create_func_kdf::create_native(THD *thd, const LEX_CSTRING *name,
   switch (arg_count)
   {
   case 2:
-    return new (thd->mem_root) Item_func_kdf(thd, a[0], a[1]);
+    return new (thd) Item_func_kdf(thd, a[0], a[1]);
   case 3:
-    return new (thd->mem_root) Item_func_kdf(thd, a[0], a[1], a[2]);
+    return new (thd) Item_func_kdf(thd, a[0], a[1], a[2]);
   case 4:
-    return new (thd->mem_root) Item_func_kdf(thd, a[0], a[1], a[2], a[3]);
+    return new (thd) Item_func_kdf(thd, a[0], a[1], a[2], a[3]);
   case 5:
-    return new (thd->mem_root) Item_func_kdf(thd, a[0], a[1], a[2], a[3], a[4]);
+    return new (thd) Item_func_kdf(thd, a[0], a[1], a[2], a[3], a[4]);
   }
   my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
   return NULL;
@@ -3275,7 +3275,7 @@ Create_func_asin Create_func_asin::s_singleton;
 Item*
 Create_func_asin::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_asin(thd, arg1);
+  return new (thd) Item_func_asin(thd, arg1);
 }
 
 
@@ -3295,14 +3295,14 @@ Create_func_atan::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_atan(thd, param_1);
+    func= new (thd) Item_func_atan(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_atan(thd, param_1, param_2);
+    func= new (thd) Item_func_atan(thd, param_1, param_2);
     break;
   }
   default:
@@ -3322,7 +3322,7 @@ Item*
 Create_func_benchmark::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_benchmark(thd, arg1, arg2);
+  return new (thd) Item_func_benchmark(thd, arg1, arg2);
 }
 
 
@@ -3331,9 +3331,9 @@ Create_func_bin Create_func_bin::s_singleton;
 Item*
 Create_func_bin::create_1_arg(THD *thd, Item *arg1)
 {
-  Item *i10= new (thd->mem_root) Item_int(thd, (int32) 10,2);
-  Item *i2= new (thd->mem_root) Item_int(thd, (int32) 2,1);
-  return new (thd->mem_root) Item_func_conv(thd, arg1, i10, i2);
+  Item *i10= new (thd) Item_int(thd, (int32) 10,2);
+  Item *i2= new (thd) Item_int(thd, (int32) 2,1);
+  return new (thd) Item_func_conv(thd, arg1, i10, i2);
 }
 
 
@@ -3350,7 +3350,7 @@ Create_func_binlog_gtid_pos::create_2_arg(THD *thd, Item *arg1, Item *arg2)
     return NULL;
   }
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  return new (thd->mem_root) Item_func_binlog_gtid_pos(thd, arg1, arg2);
+  return new (thd) Item_func_binlog_gtid_pos(thd, arg1, arg2);
 }
 
 
@@ -3359,7 +3359,7 @@ Create_func_bit_count Create_func_bit_count::s_singleton;
 Item*
 Create_func_bit_count::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_bit_count(thd, arg1);
+  return new (thd) Item_func_bit_count(thd, arg1);
 }
 
 
@@ -3368,7 +3368,7 @@ Create_func_bit_length Create_func_bit_length::s_singleton;
 Item*
 Create_func_bit_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_bit_length(thd, arg1);
+  return new (thd) Item_func_bit_length(thd, arg1);
 }
 
 
@@ -3377,7 +3377,7 @@ Create_func_ceiling Create_func_ceiling::s_singleton;
 Item*
 Create_func_ceiling::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ceiling(thd, arg1);
+  return new (thd) Item_func_ceiling(thd, arg1);
 }
 
 
@@ -3386,7 +3386,7 @@ Create_func_collation Create_func_collation::s_singleton;
 Item*
 Create_func_collation::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_collation(thd, arg1);
+  return new (thd) Item_func_collation(thd, arg1);
 }
 
 
@@ -3396,7 +3396,7 @@ Item*
 Create_func_chr::create_1_arg(THD *thd, Item *arg1)
 {
   CHARSET_INFO *cs_db= thd->variables.collation_database;
-  return new (thd->mem_root) Item_func_chr(thd, arg1, cs_db);
+  return new (thd) Item_func_chr(thd, arg1, cs_db);
 }
 
 
@@ -3405,7 +3405,7 @@ Create_func_char_length Create_func_char_length::s_singleton;
 Item*
 Create_func_char_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_char_length(thd, arg1);
+  return new (thd) Item_func_char_length(thd, arg1);
 }
 
 
@@ -3414,7 +3414,7 @@ Create_func_coercibility Create_func_coercibility::s_singleton;
 Item*
 Create_func_coercibility::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_coercibility(thd, arg1);
+  return new (thd) Item_func_coercibility(thd, arg1);
 }
 
 
@@ -3423,7 +3423,7 @@ Create_func_dyncol_check Create_func_dyncol_check::s_singleton;
 Item*
 Create_func_dyncol_check::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dyncol_check(thd, arg1);
+  return new (thd) Item_func_dyncol_check(thd, arg1);
 }
 
 Create_func_dyncol_exists Create_func_dyncol_exists::s_singleton;
@@ -3431,7 +3431,7 @@ Create_func_dyncol_exists Create_func_dyncol_exists::s_singleton;
 Item*
 Create_func_dyncol_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_dyncol_exists(thd, arg1, arg2);
+  return new (thd) Item_func_dyncol_exists(thd, arg1, arg2);
 }
 
 Create_func_dyncol_list Create_func_dyncol_list::s_singleton;
@@ -3439,7 +3439,7 @@ Create_func_dyncol_list Create_func_dyncol_list::s_singleton;
 Item*
 Create_func_dyncol_list::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dyncol_list(thd, arg1);
+  return new (thd) Item_func_dyncol_list(thd, arg1);
 }
 
 Create_func_dyncol_json Create_func_dyncol_json::s_singleton;
@@ -3447,7 +3447,7 @@ Create_func_dyncol_json Create_func_dyncol_json::s_singleton;
 Item*
 Create_func_dyncol_json::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dyncol_json(thd, arg1);
+  return new (thd) Item_func_dyncol_json(thd, arg1);
 }
 
 Create_func_coalesce Create_func_coalesce::s_singleton;
@@ -3467,7 +3467,7 @@ Create_func_coalesce::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_coalesce(thd, *item_list);
+  return new (thd) Item_func_coalesce(thd, *item_list);
 }
 
 Create_func_concat Create_func_concat::s_singleton;
@@ -3487,7 +3487,7 @@ Create_func_concat::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_concat(thd, *item_list);
+  return new (thd) Item_func_concat(thd, *item_list);
 }
 
 Create_func_concat_operator_oracle
@@ -3508,7 +3508,7 @@ Create_func_concat_operator_oracle::create_native(THD *thd, const LEX_CSTRING *n
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_concat_operator_oracle(thd, *item_list);
+  return new (thd) Item_func_concat_operator_oracle(thd, *item_list);
 }
 
 Create_func_decode_histogram Create_func_decode_histogram::s_singleton;
@@ -3516,7 +3516,7 @@ Create_func_decode_histogram Create_func_decode_histogram::s_singleton;
 Item *
 Create_func_decode_histogram::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_decode_histogram(thd, arg1, arg2);
+  return new (thd) Item_func_decode_histogram(thd, arg1, arg2);
 }
 
 Create_func_decode Create_func_decode::s_singleton;
@@ -3541,7 +3541,7 @@ Create_func_concat_ws::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_concat_ws(thd, *item_list);
+  return new (thd) Item_func_concat_ws(thd, *item_list);
 }
 
 
@@ -3550,7 +3550,7 @@ Create_func_compress Create_func_compress::s_singleton;
 Item*
 Create_func_compress::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_compress(thd, arg1);
+  return new (thd) Item_func_compress(thd, arg1);
 }
 
 
@@ -3560,7 +3560,7 @@ Item*
 Create_func_connection_id::create_builder(THD *thd)
 {
   thd->lex->safe_to_cache_query= 0;
-  return new (thd->mem_root) Item_func_connection_id(thd);
+  return new (thd) Item_func_connection_id(thd);
 }
 
 
@@ -3570,7 +3570,7 @@ Item*
 Create_func_database::create_builder(THD *thd)
 {
   thd->lex->safe_to_cache_query= 0;
-  return new (thd->mem_root) Item_func_database(thd);
+  return new (thd) Item_func_database(thd);
 }
 
 
@@ -3579,7 +3579,7 @@ Create_func_nvl2 Create_func_nvl2::s_singleton;
 Item*
 Create_func_nvl2::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_nvl2(thd, arg1, arg2, arg3);
+  return new (thd) Item_func_nvl2(thd, arg1, arg2, arg3);
 }
 
 
@@ -3588,7 +3588,7 @@ Create_func_conv Create_func_conv::s_singleton;
 Item*
 Create_func_conv::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_conv(thd, arg1, arg2, arg3);
+  return new (thd) Item_func_conv(thd, arg1, arg2, arg3);
 }
 
 
@@ -3597,7 +3597,7 @@ Create_func_convert_tz Create_func_convert_tz::s_singleton;
 Item*
 Create_func_convert_tz::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_convert_tz(thd, arg1, arg2, arg3);
+  return new (thd) Item_func_convert_tz(thd, arg1, arg2, arg3);
 }
 
 
@@ -3606,7 +3606,7 @@ Create_func_cos Create_func_cos::s_singleton;
 Item*
 Create_func_cos::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_cos(thd, arg1);
+  return new (thd) Item_func_cos(thd, arg1);
 }
 
 
@@ -3615,7 +3615,7 @@ Create_func_cot Create_func_cot::s_singleton;
 Item*
 Create_func_cot::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_cot(thd, arg1);
+  return new (thd) Item_func_cot(thd, arg1);
 }
 
 
@@ -3640,8 +3640,8 @@ Create_func_crc32::create_native(THD *thd, const LEX_CSTRING *name,
   DBUG_ASSERT(!arg2 || !arg2->is_explicit_name());
 
   return arg2
-    ? new (thd->mem_root) Item_func_crc32(thd, false, arg1, arg2)
-    : new (thd->mem_root) Item_func_crc32(thd, false, arg1);
+    ? new (thd) Item_func_crc32(thd, false, arg1, arg2)
+    : new (thd) Item_func_crc32(thd, false, arg1);
 }
 
 
@@ -3666,8 +3666,8 @@ Create_func_crc32c::create_native(THD *thd, const LEX_CSTRING *name,
   DBUG_ASSERT(!arg2 || !arg2->is_explicit_name());
 
   return arg2
-    ? new (thd->mem_root) Item_func_crc32(thd, true, arg1, arg2)
-    : new (thd->mem_root) Item_func_crc32(thd, true, arg1);
+    ? new (thd) Item_func_crc32(thd, true, arg1, arg2)
+    : new (thd) Item_func_crc32(thd, true, arg1);
 }
 
 
@@ -3676,10 +3676,10 @@ Create_func_datediff Create_func_datediff::s_singleton;
 Item*
 Create_func_datediff::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  Item *i1= new (thd->mem_root) Item_func_to_days(thd, arg1);
-  Item *i2= new (thd->mem_root) Item_func_to_days(thd, arg2);
+  Item *i1= new (thd) Item_func_to_days(thd, arg1);
+  Item *i2= new (thd) Item_func_to_days(thd, arg2);
 
-  return new (thd->mem_root) Item_func_minus(thd, i1, i2);
+  return new (thd) Item_func_minus(thd, i1, i2);
 }
 
 Create_func_date_format Create_func_date_format::s_singleton;
@@ -3698,14 +3698,14 @@ Create_func_date_format::create_native(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    return new (thd->mem_root) Item_func_date_format(thd, param_1, param_2);
+    return new (thd) Item_func_date_format(thd, param_1, param_2);
   }
   case 3:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    return new (thd->mem_root) Item_func_date_format(thd,
+    return new (thd) Item_func_date_format(thd,
                                  param_1, param_2, param_3);
   }
   }
@@ -3719,7 +3719,7 @@ Create_func_dayname Create_func_dayname::s_singleton;
 Item*
 Create_func_dayname::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dayname(thd, arg1);
+  return new (thd) Item_func_dayname(thd, arg1);
 }
 
 
@@ -3728,7 +3728,7 @@ Create_func_dayofmonth Create_func_dayofmonth::s_singleton;
 Item*
 Create_func_dayofmonth::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dayofmonth(thd, arg1);
+  return new (thd) Item_func_dayofmonth(thd, arg1);
 }
 
 
@@ -3737,7 +3737,7 @@ Create_func_dayofweek Create_func_dayofweek::s_singleton;
 Item*
 Create_func_dayofweek::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_weekday(thd, arg1, 1);
+  return new (thd) Item_func_weekday(thd, arg1, 1);
 }
 
 
@@ -3746,7 +3746,7 @@ Create_func_dayofyear Create_func_dayofyear::s_singleton;
 Item*
 Create_func_dayofyear::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dayofyear(thd, arg1);
+  return new (thd) Item_func_dayofyear(thd, arg1);
 }
 
 
@@ -3755,7 +3755,7 @@ Create_func_degrees Create_func_degrees::s_singleton;
 Item*
 Create_func_degrees::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_units(thd, (char*) "degrees", arg1,
+  return new (thd) Item_func_units(thd, (char*) "degrees", arg1,
                                              180/M_PI, 0.0);
 }
 
@@ -3776,14 +3776,14 @@ Create_func_des_decrypt::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_decrypt(thd, param_1);
+    func= new (thd) Item_func_des_decrypt(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_decrypt(thd, param_1, param_2);
+    func= new (thd) Item_func_des_decrypt(thd, param_1, param_2);
     break;
   }
   default:
@@ -3813,14 +3813,14 @@ Create_func_des_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_encrypt(thd, param_1);
+    func= new (thd) Item_func_des_encrypt(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_encrypt(thd, param_1, param_2);
+    func= new (thd) Item_func_des_encrypt(thd, param_1, param_2);
     break;
   }
   default:
@@ -3851,7 +3851,7 @@ Create_func_elt::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_elt(thd, *item_list);
+  return new (thd) Item_func_elt(thd, *item_list);
 }
 
 
@@ -3860,7 +3860,7 @@ Create_func_encode Create_func_encode::s_singleton;
 Item*
 Create_func_encode::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_encode(thd, arg1, arg2);
+  return new (thd) Item_func_encode(thd, arg1, arg2);
 }
 
 
@@ -3880,7 +3880,7 @@ Create_func_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_encrypt(thd, param_1);
+    func= new (thd) Item_func_encrypt(thd, param_1);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -3888,7 +3888,7 @@ Create_func_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_encrypt(thd, param_1, param_2);
+    func= new (thd) Item_func_encrypt(thd, param_1, param_2);
     break;
   }
   default:
@@ -3907,7 +3907,7 @@ Create_func_exp Create_func_exp::s_singleton;
 Item*
 Create_func_exp::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_exp(thd, arg1);
+  return new (thd) Item_func_exp(thd, arg1);
 }
 
 
@@ -3929,7 +3929,7 @@ Create_func_export_set::create_native(THD *thd, const LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_func_export_set(thd, param_1, param_2, param_3);
+    func= new (thd) Item_func_export_set(thd, param_1, param_2, param_3);
     break;
   }
   case 4:
@@ -3938,7 +3938,7 @@ Create_func_export_set::create_native(THD *thd, const LEX_CSTRING *name,
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
     Item *param_4= item_list->pop();
-    func= new (thd->mem_root) Item_func_export_set(thd, param_1, param_2, param_3,
+    func= new (thd) Item_func_export_set(thd, param_1, param_2, param_3,
                                                    param_4);
     break;
   }
@@ -3949,7 +3949,7 @@ Create_func_export_set::create_native(THD *thd, const LEX_CSTRING *name,
     Item *param_3= item_list->pop();
     Item *param_4= item_list->pop();
     Item *param_5= item_list->pop();
-    func= new (thd->mem_root) Item_func_export_set(thd, param_1, param_2, param_3,
+    func= new (thd) Item_func_export_set(thd, param_1, param_2, param_3,
                                                    param_4, param_5);
     break;
   }
@@ -3981,7 +3981,7 @@ Create_func_field::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_field(thd, *item_list);
+  return new (thd) Item_func_field(thd, *item_list);
 }
 
 
@@ -3990,7 +3990,7 @@ Create_func_find_in_set Create_func_find_in_set::s_singleton;
 Item*
 Create_func_find_in_set::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_find_in_set(thd, arg1, arg2);
+  return new (thd) Item_func_find_in_set(thd, arg1, arg2);
 }
 
 
@@ -3999,7 +3999,7 @@ Create_func_floor Create_func_floor::s_singleton;
 Item*
 Create_func_floor::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_floor(thd, arg1);
+  return new (thd) Item_func_floor(thd, arg1);
 }
 
 
@@ -4008,7 +4008,7 @@ Create_func_format_pico_time Create_func_format_pico_time::s_singleton;
 Item*
 Create_func_format_pico_time::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_format_pico_time(thd, arg1);
+  return new (thd) Item_func_format_pico_time(thd, arg1);
 }
 
 
@@ -4035,7 +4035,7 @@ Create_func_format::create_native(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_format(thd, param_1, param_2);
+    func= new (thd) Item_func_format(thd, param_1, param_2);
     break;
   }
   case 3:
@@ -4043,7 +4043,7 @@ Create_func_format::create_native(THD *thd, const LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_func_format(thd, param_1, param_2, param_3);
+    func= new (thd) Item_func_format(thd, param_1, param_2, param_3);
     break;
   }
   default:
@@ -4061,7 +4061,7 @@ Create_func_from_base64 Create_func_from_base64::s_singleton;
 Item *
 Create_func_from_base64::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_from_base64(thd, arg1);
+  return new (thd) Item_func_from_base64(thd, arg1);
 }
 
 
@@ -4073,7 +4073,7 @@ Create_func_found_rows::create_builder(THD *thd)
   DBUG_ENTER("Create_func_found_rows::create");
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_found_rows(thd));
+  DBUG_RETURN(new (thd) Item_func_found_rows(thd));
 }
 
 
@@ -4082,7 +4082,7 @@ Create_func_from_days Create_func_from_days::s_singleton;
 Item*
 Create_func_from_days::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_from_days(thd, arg1);
+  return new (thd) Item_func_from_days(thd, arg1);
 }
 
 
@@ -4102,15 +4102,15 @@ Create_func_from_unixtime::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_from_unixtime(thd, param_1);
+    func= new (thd) Item_func_from_unixtime(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    Item *ut= new (thd->mem_root) Item_func_from_unixtime(thd, param_1);
-    func= new (thd->mem_root) Item_func_date_format(thd, ut, param_2);
+    Item *ut= new (thd) Item_func_from_unixtime(thd, param_1);
+    func= new (thd) Item_func_date_format(thd, ut, param_2);
     break;
   }
   default:
@@ -4132,7 +4132,7 @@ Create_func_get_lock::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_get_lock(thd, arg1, arg2);
+  return new (thd) Item_func_get_lock(thd, arg1, arg2);
 }
 
 
@@ -4153,7 +4153,7 @@ Create_func_greatest::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_max(thd, *item_list);
+  return new (thd) Item_func_max(thd, *item_list);
 }
 
 
@@ -4162,7 +4162,7 @@ Create_func_hex Create_func_hex::s_singleton;
 Item*
 Create_func_hex::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_hex(thd, arg1);
+  return new (thd) Item_func_hex(thd, arg1);
 }
 
 
@@ -4171,7 +4171,7 @@ Create_func_ifnull Create_func_ifnull::s_singleton;
 Item*
 Create_func_ifnull::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_ifnull(thd, arg1, arg2);
+  return new (thd) Item_func_ifnull(thd, arg1, arg2);
 }
 
 
@@ -4180,7 +4180,7 @@ Create_func_instr Create_func_instr::s_singleton;
 Item*
 Create_func_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_locate(thd, arg1, arg2);
+  return new (thd) Item_func_locate(thd, arg1, arg2);
 }
 
 
@@ -4191,7 +4191,7 @@ Create_func_is_free_lock::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_is_free_lock(thd, arg1);
+  return new (thd) Item_func_is_free_lock(thd, arg1);
 }
 
 
@@ -4202,7 +4202,7 @@ Create_func_is_used_lock::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_is_used_lock(thd, arg1);
+  return new (thd) Item_func_is_used_lock(thd, arg1);
 }
 
 
@@ -4211,7 +4211,7 @@ Create_func_isnull Create_func_isnull::s_singleton;
 Item*
 Create_func_isnull::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_isnull(thd, arg1);
+  return new (thd) Item_func_isnull(thd, arg1);
 }
 
 Create_func_json_normalize Create_func_json_normalize::s_singleton;
@@ -4220,7 +4220,7 @@ Item*
 Create_func_json_normalize::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_normalize(thd, arg1);
+  return new (thd) Item_func_json_normalize(thd, arg1);
 }
 
 Create_func_json_object_to_array Create_func_json_object_to_array::s_singleton;
@@ -4229,7 +4229,7 @@ Item*
 Create_func_json_object_to_array::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_object_to_array(thd, arg1);
+  return new (thd) Item_func_json_object_to_array(thd, arg1);
 }
 
 
@@ -4239,7 +4239,7 @@ Item*
 Create_func_json_equals::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_equals(thd, arg1, arg2);
+  return new (thd) Item_func_json_equals(thd, arg1, arg2);
 }
 
 
@@ -4249,7 +4249,7 @@ Item*
 Create_func_json_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_exists(thd, arg1, arg2);
+  return new (thd) Item_func_json_exists(thd, arg1, arg2);
 }
 
 
@@ -4271,7 +4271,7 @@ Create_func_json_detailed::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_format(thd, *item_list);
+    func= new (thd) Item_func_json_format(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4285,7 +4285,7 @@ Item*
 Create_func_json_loose::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_format(thd, arg1,
+  return new (thd) Item_func_json_format(thd, arg1,
                Item_func_json_format::LOOSE);
 }
 
@@ -4296,7 +4296,7 @@ Item*
 Create_func_json_compact::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_format(thd, arg1,
+  return new (thd) Item_func_json_format(thd, arg1,
                Item_func_json_format::COMPACT);
 }
 
@@ -4307,7 +4307,7 @@ Item*
 Create_func_json_valid::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_valid(thd, arg1);
+  return new (thd) Item_func_json_valid(thd, arg1);
 }
 
 
@@ -4317,7 +4317,7 @@ Item*
 Create_func_json_type::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_type(thd, arg1);
+  return new (thd) Item_func_json_type(thd, arg1);
 }
 
 
@@ -4327,7 +4327,7 @@ Item*
 Create_func_json_depth::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_depth(thd, arg1);
+  return new (thd) Item_func_json_depth(thd, arg1);
 }
 
 
@@ -4337,7 +4337,7 @@ Item*
 Create_func_json_value::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_value(thd, arg1, arg2);
+  return new (thd) Item_func_json_value(thd, arg1, arg2);
 }
 
 
@@ -4347,7 +4347,7 @@ Item*
 Create_func_json_query::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_query(thd, arg1, arg2);
+  return new (thd) Item_func_json_query(thd, arg1, arg2);
 }
 
 
@@ -4357,7 +4357,7 @@ Item*
 Create_func_json_quote::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_quote(thd, arg1);
+  return new (thd) Item_func_json_quote(thd, arg1);
 }
 
 
@@ -4367,7 +4367,7 @@ Item*
 Create_func_json_unquote::create_1_arg(THD *thd, Item *arg1)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_unquote(thd, arg1);
+  return new (thd) Item_func_json_unquote(thd, arg1);
 }
 
 
@@ -4376,7 +4376,7 @@ Create_func_last_day Create_func_last_day::s_singleton;
 Item*
 Create_func_last_day::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_last_day(thd, arg1);
+  return new (thd) Item_func_last_day(thd, arg1);
 }
 
 
@@ -4390,11 +4390,11 @@ Create_func_json_array::create_native(THD *thd, const LEX_CSTRING *name,
 
   if (item_list != NULL)
   {
-    func= new (thd->mem_root) Item_func_json_array(thd, *item_list);
+    func= new (thd) Item_func_json_array(thd, *item_list);
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_array(thd);
+    func= new (thd) Item_func_json_array(thd);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4420,7 +4420,7 @@ Create_func_json_array_append::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_array_append(thd, *item_list);
+    func= new (thd) Item_func_json_array_append(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4446,7 +4446,7 @@ Create_func_json_array_insert::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_array_insert(thd, *item_list);
+    func= new (thd) Item_func_json_array_insert(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4472,7 +4472,7 @@ Create_func_json_insert::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_insert(true, false,
+    func= new (thd) Item_func_json_insert(true, false,
                                                     thd, *item_list);
   }
 
@@ -4499,7 +4499,7 @@ Create_func_json_set::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_insert(true, true,
+    func= new (thd) Item_func_json_insert(true, true,
                                                     thd, *item_list);
   }
 
@@ -4526,7 +4526,7 @@ Create_func_json_replace::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_insert(false, true,
+    func= new (thd) Item_func_json_insert(false, true,
                                                     thd, *item_list);
   }
 
@@ -4553,7 +4553,7 @@ Create_func_json_remove::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_remove(thd, *item_list);
+    func= new (thd) Item_func_json_remove(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4580,13 +4580,13 @@ Create_func_json_object::create_native(THD *thd, const LEX_CSTRING *name,
     }
     else
     {
-      func= new (thd->mem_root) Item_func_json_object(thd, *item_list);
+      func= new (thd) Item_func_json_object(thd, *item_list);
     }
   }
   else
   {
     arg_count= 0;
-    func= new (thd->mem_root) Item_func_json_object(thd);
+    func= new (thd) Item_func_json_object(thd);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4611,7 +4611,7 @@ Create_func_json_length::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_length(thd, *item_list);
+    func= new (thd) Item_func_json_length(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4627,7 +4627,7 @@ Create_func_json_array_intersect::create_2_arg(THD *thd, Item *arg1, Item *arg2)
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0));
   }
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_array_intersect(thd, arg1, arg2);
+  return new (thd) Item_func_json_array_intersect(thd, arg1, arg2);
 }
 
 Create_func_json_object_filter_keys Create_func_json_object_filter_keys::s_singleton;
@@ -4636,7 +4636,7 @@ Item*
 Create_func_json_object_filter_keys::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_object_filter_keys(thd, arg1, arg2);
+  return new (thd) Item_func_json_object_filter_keys(thd, arg1, arg2);
 }
 
 
@@ -4657,7 +4657,7 @@ Create_func_json_merge::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_merge(thd, *item_list);
+    func= new (thd) Item_func_json_merge(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4682,7 +4682,7 @@ Create_func_json_merge_patch::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_merge_patch(thd, *item_list);
+    func= new (thd) Item_func_json_merge_patch(thd, *item_list);
   }
 
   return func;
@@ -4703,7 +4703,7 @@ Create_func_json_contains::create_native(THD *thd, const LEX_CSTRING *name,
 
   if (unlikely(arg_count == 2 || arg_count == 3/* json_doc, val, [path] */))
   {
-    func= new (thd->mem_root) Item_func_json_contains(thd, *item_list);
+    func= new (thd) Item_func_json_contains(thd, *item_list);
   }
   else
   {
@@ -4733,7 +4733,7 @@ Create_func_json_keys::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_keys(thd, *item_list);
+    func= new (thd) Item_func_json_keys(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4759,7 +4759,7 @@ Create_func_json_contains_path::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_contains_path(thd, *item_list);
+    func= new (thd) Item_func_json_contains_path(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4785,7 +4785,7 @@ Create_func_json_extract::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_extract(thd, *item_list);
+    func= new (thd) Item_func_json_extract(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4811,7 +4811,7 @@ Create_func_json_search::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_search(thd, *item_list);
+    func= new (thd) Item_func_json_search(thd, *item_list);
   }
 
   status_var_increment(thd->status_var.feature_json);
@@ -4825,7 +4825,7 @@ Item*
 Create_func_json_overlaps::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_overlaps(thd, arg1, arg2);
+  return new (thd) Item_func_json_overlaps(thd, arg1, arg2);
 }
 
 
@@ -4844,14 +4844,14 @@ Create_func_last_insert_id::create_native(THD *thd, const LEX_CSTRING *name,
   switch (arg_count) {
   case 0:
   {
-    func= new (thd->mem_root) Item_func_last_insert_id(thd);
+    func= new (thd) Item_func_last_insert_id(thd);
     thd->lex->safe_to_cache_query= 0;
     break;
   }
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_last_insert_id(thd, param_1);
+    func= new (thd) Item_func_last_insert_id(thd, param_1);
     thd->lex->safe_to_cache_query= 0;
     break;
   }
@@ -4871,7 +4871,7 @@ Item*
 Create_func_json_schema_valid::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_schema_valid(thd, arg1, arg2);
+  return new (thd) Item_func_json_schema_valid(thd, arg1, arg2);
 }
 
 Create_func_json_key_value Create_func_json_key_value::s_singleton;
@@ -4880,7 +4880,7 @@ Item*
 Create_func_json_key_value::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   status_var_increment(thd->status_var.feature_json);
-  return new (thd->mem_root) Item_func_json_key_value(thd, arg1, arg2);
+  return new (thd) Item_func_json_key_value(thd, arg1, arg2);
 }
 
 
@@ -4889,7 +4889,7 @@ Create_func_lcase Create_func_lcase::s_singleton;
 Item*
 Create_func_lcase::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_lcase(thd, arg1);
+  return new (thd) Item_func_lcase(thd, arg1);
 }
 
 
@@ -4910,7 +4910,7 @@ Create_func_least::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_min(thd, *item_list);
+  return new (thd) Item_func_min(thd, *item_list);
 }
 
 
@@ -4919,7 +4919,7 @@ Create_func_length Create_func_length::s_singleton;
 Item*
 Create_func_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_octet_length(thd, arg1);
+  return new (thd) Item_func_octet_length(thd, arg1);
 }
 
 Create_func_old_password Create_func_old_password::s_singleton;
@@ -4927,7 +4927,7 @@ Create_func_old_password Create_func_old_password::s_singleton;
 Item*
 Create_func_old_password::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_password(thd, arg1,
+  return new (thd) Item_func_password(thd, arg1,
                                                 Item_func_password::OLD);
 }
 
@@ -4936,7 +4936,7 @@ Create_func_password Create_func_password::s_singleton;
 Item*
 Create_func_password::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_password(thd, arg1);
+  return new (thd) Item_func_password(thd, arg1);
 }
 
 Create_func_octet_length Create_func_octet_length::s_singleton;
@@ -4944,7 +4944,7 @@ Create_func_octet_length Create_func_octet_length::s_singleton;
 Item*
 Create_func_octet_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_octet_length(thd, arg1);
+  return new (thd) Item_func_octet_length(thd, arg1);
 }
 
 
@@ -4954,7 +4954,7 @@ Create_func_like_range_min Create_func_like_range_min::s_singleton;
 Item*
 Create_func_like_range_min::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_like_range_min(thd, arg1, arg2);
+  return new (thd) Item_func_like_range_min(thd, arg1, arg2);
 }
 
 
@@ -4963,7 +4963,7 @@ Create_func_like_range_max Create_func_like_range_max::s_singleton;
 Item*
 Create_func_like_range_max::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_like_range_max(thd, arg1, arg2);
+  return new (thd) Item_func_like_range_max(thd, arg1, arg2);
 }
 #endif
 
@@ -4973,7 +4973,7 @@ Create_func_ln Create_func_ln::s_singleton;
 Item*
 Create_func_ln::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ln(thd, arg1);
+  return new (thd) Item_func_ln(thd, arg1);
 }
 
 
@@ -4985,7 +4985,7 @@ Create_func_load_file::create_1_arg(THD *thd, Item *arg1)
   DBUG_ENTER("Create_func_load_file::create");
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  DBUG_RETURN(new (thd->mem_root) Item_load_file(thd, arg1));
+  DBUG_RETURN(new (thd) Item_load_file(thd, arg1));
 }
 
 
@@ -5007,7 +5007,7 @@ Create_func_locate::create_native(THD *thd, const LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     /* Yes, parameters in that order : 2, 1 */
-    func= new (thd->mem_root) Item_func_locate(thd, param_2, param_1);
+    func= new (thd) Item_func_locate(thd, param_2, param_1);
     break;
   }
   case 3:
@@ -5016,7 +5016,7 @@ Create_func_locate::create_native(THD *thd, const LEX_CSTRING *name,
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
     /* Yes, parameters in that order : 2, 1, 3 */
-    func= new (thd->mem_root) Item_func_locate(thd, param_2, param_1, param_3);
+    func= new (thd) Item_func_locate(thd, param_2, param_1, param_3);
     break;
   }
   default:
@@ -5046,14 +5046,14 @@ Create_func_log::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_log(thd, param_1);
+    func= new (thd) Item_func_log(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_log(thd, param_1, param_2);
+    func= new (thd) Item_func_log(thd, param_1, param_2);
     break;
   }
   default:
@@ -5072,7 +5072,7 @@ Create_func_log10 Create_func_log10::s_singleton;
 Item*
 Create_func_log10::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_log10(thd, arg1);
+  return new (thd) Item_func_log10(thd, arg1);
 }
 
 
@@ -5081,7 +5081,7 @@ Create_func_log2 Create_func_log2::s_singleton;
 Item*
 Create_func_log2::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_log2(thd, arg1);
+  return new (thd) Item_func_log2(thd, arg1);
 }
 
 
@@ -5101,7 +5101,7 @@ Create_func_lpad::create_native_std(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_lpad(thd, param_1, param_2);
+    func= new (thd) Item_func_lpad(thd, param_1, param_2);
     break;
   }
   case 3:
@@ -5109,7 +5109,7 @@ Create_func_lpad::create_native_std(THD *thd, const LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_func_lpad(thd, param_1, param_2, param_3);
+    func= new (thd) Item_func_lpad(thd, param_1, param_2, param_3);
     break;
   }
   default:
@@ -5131,14 +5131,14 @@ Create_func_lpad::create_native_oracle(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    return new (thd->mem_root) Item_func_lpad_oracle(thd, param_1, param_2);
+    return new (thd) Item_func_lpad_oracle(thd, param_1, param_2);
   }
   case 3:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    return new (thd->mem_root) Item_func_lpad_oracle(thd, param_1,
+    return new (thd) Item_func_lpad_oracle(thd, param_1,
                                                      param_2, param_3);
   }
   default:
@@ -5163,7 +5163,7 @@ Create_func_ltrim_oracle Create_func_ltrim_oracle::s_singleton;
 Item*
 Create_func_ltrim_oracle::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ltrim_oracle(thd, arg1);
+  return new (thd) Item_func_ltrim_oracle(thd, arg1);
 }
 
 
@@ -5172,7 +5172,7 @@ Create_func_makedate Create_func_makedate::s_singleton;
 Item*
 Create_func_makedate::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_makedate(thd, arg1, arg2);
+  return new (thd) Item_func_makedate(thd, arg1, arg2);
 }
 
 
@@ -5181,7 +5181,7 @@ Create_func_maketime Create_func_maketime::s_singleton;
 Item*
 Create_func_maketime::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_maketime(thd, arg1, arg2, arg3);
+  return new (thd) Item_func_maketime(thd, arg1, arg2, arg3);
 }
 
 
@@ -5202,7 +5202,7 @@ Create_func_make_set::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_make_set(thd, *item_list);
+  return new (thd) Item_func_make_set(thd, *item_list);
 }
 
 
@@ -5234,20 +5234,20 @@ Create_func_master_pos_wait::create_native(THD *thd, const LEX_CSTRING *name,
   switch (arg_count) {
   case 2:
   {
-    func= new (thd->mem_root) Item_master_pos_wait(thd, param_1, param_2);
+    func= new (thd) Item_master_pos_wait(thd, param_1, param_2);
     break;
   }
   case 3:
   {
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_master_pos_wait(thd, param_1, param_2, param_3);
+    func= new (thd) Item_master_pos_wait(thd, param_1, param_2, param_3);
     break;
   }
   case 4:
   {
     Item *param_3= item_list->pop();
     Item *param_4= item_list->pop();
-    func= new (thd->mem_root) Item_master_pos_wait(thd, param_1, param_2, param_3,
+    func= new (thd) Item_master_pos_wait(thd, param_1, param_2, param_3,
                                                    param_4);
     break;
   }
@@ -5283,13 +5283,13 @@ Create_func_master_gtid_wait::create_native(THD *thd, const LEX_CSTRING *name,
   switch (arg_count) {
   case 1:
   {
-    func= new (thd->mem_root) Item_master_gtid_wait(thd, param_1);
+    func= new (thd) Item_master_gtid_wait(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_master_gtid_wait(thd, param_1, param_2);
+    func= new (thd) Item_master_gtid_wait(thd, param_1, param_2);
     break;
   }
   }
@@ -5303,14 +5303,14 @@ Create_func_md5 Create_func_md5::s_singleton;
 Item*
 Create_func_md5::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_md5(thd, arg1);
+  return new (thd) Item_func_md5(thd, arg1);
 }
 
 Create_func_natural_sort_key Create_func_natural_sort_key::s_singleton;
 
 Item *Create_func_natural_sort_key::create_1_arg(THD *thd, Item* arg1)
 {
-  return new (thd->mem_root) Item_func_natural_sort_key(thd, arg1);
+  return new (thd) Item_func_natural_sort_key(thd, arg1);
 }
 
 Create_func_microsecond Create_func_microsecond::s_singleton;
@@ -5318,7 +5318,7 @@ Create_func_microsecond Create_func_microsecond::s_singleton;
 Item*
 Create_func_microsecond::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_microsecond(thd, arg1);
+  return new (thd) Item_func_microsecond(thd, arg1);
 }
 
 
@@ -5327,7 +5327,7 @@ Create_func_mod Create_func_mod::s_singleton;
 Item*
 Create_func_mod::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_mod(thd, arg1, arg2);
+  return new (thd) Item_func_mod(thd, arg1, arg2);
 }
 
 
@@ -5336,7 +5336,7 @@ Create_func_monthname Create_func_monthname::s_singleton;
 Item*
 Create_func_monthname::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_monthname(thd, arg1);
+  return new (thd) Item_func_monthname(thd, arg1);
 }
 
 
@@ -5349,7 +5349,7 @@ Create_func_name_const::create_2_arg(THD *thd, Item *arg1, Item *arg2)
     goto err;
 
   if (arg2->basic_const_item())
-    return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
+    return new (thd) Item_name_const(thd, arg1, arg2);
 
   if (arg2->type() == Item::FUNC_ITEM)
   {
@@ -5360,7 +5360,7 @@ Create_func_name_const::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 
     if (!value_func->key_item()->basic_const_item())
       goto err;
-    return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
+    return new (thd) Item_name_const(thd, arg1, arg2);
   }
 err:
   my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
@@ -5373,7 +5373,7 @@ Create_func_nullif Create_func_nullif::s_singleton;
 Item*
 Create_func_nullif::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_nullif(thd, arg1, arg2);
+  return new (thd) Item_func_nullif(thd, arg1, arg2);
 }
 
 
@@ -5382,9 +5382,9 @@ Create_func_oct Create_func_oct::s_singleton;
 Item*
 Create_func_oct::create_1_arg(THD *thd, Item *arg1)
 {
-  Item *i10= new (thd->mem_root) Item_int(thd, (int32) 10,2);
-  Item *i8= new (thd->mem_root) Item_int(thd, (int32) 8,1);
-  return new (thd->mem_root) Item_func_conv(thd, arg1, i10, i8);
+  Item *i10= new (thd) Item_int(thd, (int32) 10,2);
+  Item *i8= new (thd) Item_int(thd, (int32) 8,1);
+  return new (thd) Item_func_conv(thd, arg1, i10, i8);
 }
 
 
@@ -5393,7 +5393,7 @@ Create_func_ord Create_func_ord::s_singleton;
 Item*
 Create_func_ord::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ord(thd, arg1);
+  return new (thd) Item_func_ord(thd, arg1);
 }
 
 
@@ -5402,7 +5402,7 @@ Create_func_period_add Create_func_period_add::s_singleton;
 Item*
 Create_func_period_add::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_period_add(thd, arg1, arg2);
+  return new (thd) Item_func_period_add(thd, arg1, arg2);
 }
 
 
@@ -5411,7 +5411,7 @@ Create_func_period_diff Create_func_period_diff::s_singleton;
 Item*
 Create_func_period_diff::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_period_diff(thd, arg1, arg2);
+  return new (thd) Item_func_period_diff(thd, arg1, arg2);
 }
 
 
@@ -5421,7 +5421,7 @@ Item*
 Create_func_pi::create_builder(THD *thd)
 {
   static const Lex_ident_routine name("pi()"_LEX_CSTRING);
-  return new (thd->mem_root) Item_static_float_func(thd, name, M_PI, 6, 8);
+  return new (thd) Item_static_float_func(thd, name, M_PI, 6, 8);
 }
 
 
@@ -5430,7 +5430,7 @@ Create_func_pow Create_func_pow::s_singleton;
 Item*
 Create_func_pow::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_pow(thd, arg1, arg2);
+  return new (thd) Item_func_pow(thd, arg1, arg2);
 }
 
 
@@ -5439,7 +5439,7 @@ Create_func_quarter Create_func_quarter::s_singleton;
 Item*
 Create_func_quarter::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_quarter(thd, arg1);
+  return new (thd) Item_func_quarter(thd, arg1);
 }
 
 
@@ -5448,7 +5448,7 @@ Create_func_quote Create_func_quote::s_singleton;
 Item*
 Create_func_quote::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_quote(thd, arg1);
+  return new (thd) Item_func_quote(thd, arg1);
 }
 
 
@@ -5457,7 +5457,7 @@ Create_func_regexp_instr Create_func_regexp_instr::s_singleton;
 Item*
 Create_func_regexp_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_regexp_instr(thd, arg1, arg2);
+  return new (thd) Item_func_regexp_instr(thd, arg1, arg2);
 }
 
 
@@ -5466,7 +5466,7 @@ Create_func_regexp_substr Create_func_regexp_substr::s_singleton;
 Item*
 Create_func_regexp_substr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_regexp_substr(thd, arg1, arg2);
+  return new (thd) Item_func_regexp_substr(thd, arg1, arg2);
 }
 
 
@@ -5475,7 +5475,7 @@ Create_func_radians Create_func_radians::s_singleton;
 Item*
 Create_func_radians::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_units(thd, (char*) "radians", arg1,
+  return new (thd) Item_func_units(thd, (char*) "radians", arg1,
                                              M_PI/180, 0.0);
 }
 
@@ -5508,14 +5508,14 @@ Create_func_rand::create_native(THD *thd, const LEX_CSTRING *name,
   switch (arg_count) {
   case 0:
   {
-    func= new (thd->mem_root) Item_func_rand(thd);
+    func= new (thd) Item_func_rand(thd);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_rand(thd, param_1);
+    func= new (thd) Item_func_rand(thd, param_1);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -5536,7 +5536,7 @@ Item *Create_func_random_bytes::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_RAND);
-  return new (thd->mem_root) Item_func_random_bytes(thd, arg1);
+  return new (thd) Item_func_random_bytes(thd, arg1);
 }
 
 
@@ -5547,7 +5547,7 @@ Create_func_release_all_locks::create_builder(THD *thd)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_release_all_locks(thd);
+  return new (thd) Item_func_release_all_locks(thd);
 }
 
 
@@ -5558,7 +5558,7 @@ Create_func_release_lock::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_release_lock(thd, arg1);
+  return new (thd) Item_func_release_lock(thd, arg1);
 }
 
 
@@ -5568,7 +5568,7 @@ Item*
 Create_func_replace_oracle::create_3_arg(THD *thd, Item *arg1, Item *arg2,
                                         Item *arg3)
 {
-  return new (thd->mem_root) Item_func_replace_oracle(thd, arg1, arg2, arg3);
+  return new (thd) Item_func_replace_oracle(thd, arg1, arg2, arg3);
 }
 
 
@@ -5577,7 +5577,7 @@ Create_func_reverse Create_func_reverse::s_singleton;
 Item*
 Create_func_reverse::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_reverse(thd, arg1);
+  return new (thd) Item_func_reverse(thd, arg1);
 }
 
 
@@ -5597,15 +5597,15 @@ Create_func_round::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    Item *i0= new (thd->mem_root) Item_int(thd, (char*)"0", 0, 1);
-    func= new (thd->mem_root) Item_func_round(thd, param_1, i0, 0);
+    Item *i0= new (thd) Item_int(thd, (char*)"0", 0, 1);
+    func= new (thd) Item_func_round(thd, param_1, i0, 0);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_round(thd, param_1, param_2, 0);
+    func= new (thd) Item_func_round(thd, param_1, param_2, 0);
     break;
   }
   default:
@@ -5626,7 +5626,7 @@ Create_func_row_count::create_builder(THD *thd)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->safe_to_cache_query= 0;
-  return new (thd->mem_root) Item_func_row_count(thd);
+  return new (thd) Item_func_row_count(thd);
 }
 
 
@@ -5646,7 +5646,7 @@ Create_func_rpad::create_native_std(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_rpad(thd, param_1, param_2);
+    func= new (thd) Item_func_rpad(thd, param_1, param_2);
     break;
   }
   case 3:
@@ -5654,7 +5654,7 @@ Create_func_rpad::create_native_std(THD *thd, const LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_func_rpad(thd, param_1, param_2, param_3);
+    func= new (thd) Item_func_rpad(thd, param_1, param_2, param_3);
     break;
   }
   default:
@@ -5676,14 +5676,14 @@ Create_func_rpad::create_native_oracle(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    return new (thd->mem_root) Item_func_rpad_oracle(thd, param_1, param_2);
+    return new (thd) Item_func_rpad_oracle(thd, param_1, param_2);
   }
   case 3:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    return new (thd->mem_root) Item_func_rpad_oracle(thd, param_1,
+    return new (thd) Item_func_rpad_oracle(thd, param_1,
                                                      param_2, param_3);
   }
   default:
@@ -5708,7 +5708,7 @@ Create_func_rtrim_oracle Create_func_rtrim_oracle::s_singleton;
 Item*
 Create_func_rtrim_oracle::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_rtrim_oracle(thd, arg1);
+  return new (thd) Item_func_rtrim_oracle(thd, arg1);
 }
 
 
@@ -5717,7 +5717,7 @@ Create_func_sec_to_time Create_func_sec_to_time::s_singleton;
 Item*
 Create_func_sec_to_time::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sec_to_time(thd, arg1);
+  return new (thd) Item_func_sec_to_time(thd, arg1);
 }
 
 Create_func_sformat Create_func_sformat::s_singleton;
@@ -5737,7 +5737,7 @@ Create_func_sformat::create_native(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_sformat(thd, *item_list);
+  return new (thd) Item_func_sformat(thd, *item_list);
 }
 
 
@@ -5746,7 +5746,7 @@ Create_func_sha Create_func_sha::s_singleton;
 Item*
 Create_func_sha::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sha(thd, arg1);
+  return new (thd) Item_func_sha(thd, arg1);
 }
 
 
@@ -5755,7 +5755,7 @@ Create_func_sha2 Create_func_sha2::s_singleton;
 Item*
 Create_func_sha2::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_sha2(thd, arg1, arg2);
+  return new (thd) Item_func_sha2(thd, arg1, arg2);
 }
 
 
@@ -5764,7 +5764,7 @@ Create_func_sign Create_func_sign::s_singleton;
 Item*
 Create_func_sign::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sign(thd, arg1);
+  return new (thd) Item_func_sign(thd, arg1);
 }
 
 
@@ -5773,7 +5773,7 @@ Create_func_sin Create_func_sin::s_singleton;
 Item*
 Create_func_sin::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sin(thd, arg1);
+  return new (thd) Item_func_sin(thd, arg1);
 }
 
 
@@ -5784,7 +5784,7 @@ Create_func_sleep::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_sleep(thd, arg1);
+  return new (thd) Item_func_sleep(thd, arg1);
 }
 
 
@@ -5793,7 +5793,7 @@ Create_func_soundex Create_func_soundex::s_singleton;
 Item*
 Create_func_soundex::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_soundex(thd, arg1);
+  return new (thd) Item_func_soundex(thd, arg1);
 }
 
 
@@ -5802,7 +5802,7 @@ Create_func_space Create_func_space::s_singleton;
 Item*
 Create_func_space::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_space(thd, arg1);
+  return new (thd) Item_func_space(thd, arg1);
 }
 
 
@@ -5811,7 +5811,7 @@ Create_func_sqrt Create_func_sqrt::s_singleton;
 Item*
 Create_func_sqrt::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sqrt(thd, arg1);
+  return new (thd) Item_func_sqrt(thd, arg1);
 }
 
 
@@ -5820,7 +5820,7 @@ Create_func_str_to_date Create_func_str_to_date::s_singleton;
 Item*
 Create_func_str_to_date::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_str_to_date(thd, arg1, arg2);
+  return new (thd) Item_func_str_to_date(thd, arg1, arg2);
 }
 
 
@@ -5829,7 +5829,7 @@ Create_func_strcmp Create_func_strcmp::s_singleton;
 Item*
 Create_func_strcmp::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_strcmp(thd, arg1, arg2);
+  return new (thd) Item_func_strcmp(thd, arg1, arg2);
 }
 
 
@@ -5838,7 +5838,7 @@ Create_func_substr_index Create_func_substr_index::s_singleton;
 Item*
 Create_func_substr_index::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_substr_index(thd, arg1, arg2, arg3);
+  return new (thd) Item_func_substr_index(thd, arg1, arg2, arg3);
 }
 
 
@@ -5856,7 +5856,7 @@ Create_func_substr_oracle::create_native(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_substr_oracle(thd, param_1, param_2);
+    func= new (thd) Item_func_substr_oracle(thd, param_1, param_2);
     break;
   }
   case 3:
@@ -5864,7 +5864,7 @@ Create_func_substr_oracle::create_native(THD *thd, const LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_func_substr_oracle(thd, param_1, param_2, param_3);
+    func= new (thd) Item_func_substr_oracle(thd, param_1, param_2, param_3);
     break;
   }
   default:
@@ -5881,7 +5881,7 @@ Create_func_subtime Create_func_subtime::s_singleton;
 Item*
 Create_func_subtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, true);
+  return new (thd) Item_func_add_time(thd, arg1, arg2, true);
 }
 
 
@@ -5890,7 +5890,7 @@ Create_func_tan Create_func_tan::s_singleton;
 Item*
 Create_func_tan::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_tan(thd, arg1);
+  return new (thd) Item_func_tan(thd, arg1);
 }
 
 
@@ -5899,7 +5899,7 @@ Create_func_time_format Create_func_time_format::s_singleton;
 Item*
 Create_func_time_format::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_time_format(thd, arg1, arg2);
+  return new (thd) Item_func_time_format(thd, arg1, arg2);
 }
 
 
@@ -5908,7 +5908,7 @@ Create_func_time_to_sec Create_func_time_to_sec::s_singleton;
 Item*
 Create_func_time_to_sec::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_time_to_sec(thd, arg1);
+  return new (thd) Item_func_time_to_sec(thd, arg1);
 }
 
 
@@ -5917,7 +5917,7 @@ Create_func_timediff Create_func_timediff::s_singleton;
 Item*
 Create_func_timediff::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_timediff(thd, arg1, arg2);
+  return new (thd) Item_func_timediff(thd, arg1, arg2);
 }
 
 
@@ -5926,7 +5926,7 @@ Create_func_to_base64 Create_func_to_base64::s_singleton;
 Item*
 Create_func_to_base64::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_to_base64(thd, arg1);
+  return new (thd) Item_func_to_base64(thd, arg1);
 }
 
 
@@ -5946,15 +5946,15 @@ Create_func_to_char::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    Item *i0= new (thd->mem_root) Item_string_sys(thd, "YYYY-MM-DD HH24:MI:SS",  21);
-    func= new (thd->mem_root) Item_func_tochar(thd, param_1, i0);
+    Item *i0= new (thd) Item_string_sys(thd, "YYYY-MM-DD HH24:MI:SS",  21);
+    func= new (thd) Item_func_tochar(thd, param_1, i0);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_tochar(thd, param_1, param_2);
+    func= new (thd) Item_func_tochar(thd, param_1, param_2);
     break;
   }
   default:
@@ -5973,7 +5973,7 @@ Create_func_to_days Create_func_to_days::s_singleton;
 Item*
 Create_func_to_days::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_to_days(thd, arg1);
+  return new (thd) Item_func_to_days(thd, arg1);
 }
 
 
@@ -5982,7 +5982,7 @@ Create_func_to_seconds Create_func_to_seconds::s_singleton;
 Item*
 Create_func_to_seconds::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_to_seconds(thd, arg1);
+  return new (thd) Item_func_to_seconds(thd, arg1);
 }
 
 
@@ -5991,7 +5991,7 @@ Create_func_ucase Create_func_ucase::s_singleton;
 Item*
 Create_func_ucase::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ucase(thd, arg1);
+  return new (thd) Item_func_ucase(thd, arg1);
 }
 
 
@@ -6000,7 +6000,7 @@ Create_func_uncompress Create_func_uncompress::s_singleton;
 Item*
 Create_func_uncompress::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_uncompress(thd, arg1);
+  return new (thd) Item_func_uncompress(thd, arg1);
 }
 
 
@@ -6009,7 +6009,7 @@ Create_func_uncompressed_length Create_func_uncompressed_length::s_singleton;
 Item*
 Create_func_uncompressed_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_uncompressed_length(thd, arg1);
+  return new (thd) Item_func_uncompressed_length(thd, arg1);
 }
 
 
@@ -6018,7 +6018,7 @@ Create_func_unhex Create_func_unhex::s_singleton;
 Item*
 Create_func_unhex::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_unhex(thd, arg1);
+  return new (thd) Item_func_unhex(thd, arg1);
 }
 
 
@@ -6037,14 +6037,14 @@ Create_func_unix_timestamp::create_native(THD *thd, const LEX_CSTRING *name,
   switch (arg_count) {
   case 0:
   {
-    func= new (thd->mem_root) Item_func_unix_timestamp(thd);
+    func= new (thd) Item_func_unix_timestamp(thd);
     thd->lex->safe_to_cache_query= 0;
     break;
   }
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_unix_timestamp(thd, param_1);
+    func= new (thd) Item_func_unix_timestamp(thd, param_1);
     break;
   }
   default:
@@ -6066,7 +6066,7 @@ Create_func_uuid_short::create_builder(THD *thd)
   DBUG_ENTER("Create_func_uuid_short::create");
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_RAND);  // disallow cache and query merges
-  DBUG_RETURN(new (thd->mem_root) Item_func_uuid_short(thd));
+  DBUG_RETURN(new (thd) Item_func_uuid_short(thd));
 }
 
 
@@ -6077,7 +6077,7 @@ Create_func_version::create_builder(THD *thd)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   static const Lex_ident_routine name("version()"_LEX_CSTRING);
-  return new (thd->mem_root) Item_static_string_func(thd, name,
+  return new (thd) Item_static_string_func(thd, name,
                                                      Lex_cstring_strlen(server_version),
                                                      system_charset_info_for_i_s,
                                                      DERIVATION_SYSCONST);
@@ -6100,14 +6100,14 @@ Create_func_week::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_week(thd, param_1);
+    func= new (thd) Item_func_week(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_week(thd, param_1, param_2);
+    func= new (thd) Item_func_week(thd, param_1, param_2);
     break;
   }
   default:
@@ -6126,7 +6126,7 @@ Create_func_weekday Create_func_weekday::s_singleton;
 Item*
 Create_func_weekday::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_weekday(thd, arg1, 0);
+  return new (thd) Item_func_weekday(thd, arg1, 0);
 }
 
 
@@ -6135,8 +6135,8 @@ Create_func_weekofyear Create_func_weekofyear::s_singleton;
 Item*
 Create_func_weekofyear::create_1_arg(THD *thd, Item *arg1)
 {
-  Item *i1= new (thd->mem_root) Item_int(thd, (char*) "3", 3, 1);
-  return new (thd->mem_root) Item_func_week(thd, arg1, i1);
+  Item *i1= new (thd) Item_int(thd, (char*) "3", 3, 1);
+  return new (thd) Item_func_week(thd, arg1, i1);
 }
 
 
@@ -6148,7 +6148,7 @@ Item*
 Create_func_wsrep_last_written_gtid::create_builder(THD *thd)
 {
   thd->lex->safe_to_cache_query= 0;
-  return new (thd->mem_root) Item_func_wsrep_last_written_gtid(thd);
+  return new (thd) Item_func_wsrep_last_written_gtid(thd);
 }
 
 
@@ -6159,7 +6159,7 @@ Item*
 Create_func_wsrep_last_seen_gtid::create_builder(THD *thd)
 {
   thd->lex->safe_to_cache_query= 0;
-  return new (thd->mem_root) Item_func_wsrep_last_seen_gtid(thd);
+  return new (thd) Item_func_wsrep_last_seen_gtid(thd);
 }
 
 
@@ -6182,12 +6182,12 @@ Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
   {
   case 1:
     param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1);
+    func= new (thd) Item_func_wsrep_sync_wait_upto(thd, param_1);
     break;
   case 2:
     param_1= item_list->pop();
     param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1, param_2);
+    func= new (thd) Item_func_wsrep_sync_wait_upto(thd, param_1, param_2);
     break;
   default:
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
@@ -6203,7 +6203,7 @@ Create_func_xml_extractvalue Create_func_xml_extractvalue::s_singleton;
 Item*
 Create_func_xml_extractvalue::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_xml_extractvalue(thd, arg1, arg2);
+  return new (thd) Item_func_xml_extractvalue(thd, arg1, arg2);
 }
 
 
@@ -6212,7 +6212,7 @@ Create_func_xml_update Create_func_xml_update::s_singleton;
 Item*
 Create_func_xml_update::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_xml_update(thd, arg1, arg2, arg3);
+  return new (thd) Item_func_xml_update(thd, arg1, arg2, arg3);
 }
 
 
@@ -6232,15 +6232,15 @@ Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    Item *i0= new (thd->mem_root) Item_int(thd, (char*) "0", 0, 1);
-    func= new (thd->mem_root) Item_func_yearweek(thd, param_1, i0);
+    Item *i0= new (thd) Item_int(thd, (char*) "0", 0, 1);
+    func= new (thd) Item_func_yearweek(thd, param_1, i0);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_yearweek(thd, param_1, param_2);
+    func= new (thd) Item_func_yearweek(thd, param_1, param_2);
     break;
   }
   default:
@@ -6258,7 +6258,7 @@ class Create_func_vec_distance_euclidean: public Create_func_arg2
 {
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
-  { return new (thd->mem_root)
+  { return new (thd)
       Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::EUCLIDEAN); }
 
   static Create_func_vec_distance_euclidean s_singleton;
@@ -6275,7 +6275,7 @@ class Create_func_vec_distance_cosine: public Create_func_arg2
 {
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
-  { return new (thd->mem_root)
+  { return new (thd)
       Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::COSINE); }
 
   static Create_func_vec_distance_cosine s_singleton;
@@ -6307,7 +6307,7 @@ class Create_func_vec_totext: public Create_func_arg1
 {
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
-  { return new (thd->mem_root) Item_func_vec_totext(thd, arg1); }
+  { return new (thd) Item_func_vec_totext(thd, arg1); }
 
   static Create_func_vec_totext s_singleton;
 
@@ -6324,7 +6324,7 @@ class Create_func_vec_fromtext: public Create_func_arg1
 {
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
-  { return new (thd->mem_root) Item_func_vec_fromtext(thd, arg1); }
+  { return new (thd) Item_func_vec_fromtext(thd, arg1); }
 
   static Create_func_vec_fromtext s_singleton;
 
@@ -6765,7 +6765,7 @@ static List<Item> *create_func_dyncol_prepare(THD *thd,
 {
   DYNCALL_CREATE_DEF *def;
   List_iterator_fast<DYNCALL_CREATE_DEF> li(list);
-  List<Item> *args= new (thd->mem_root) List<Item>;
+  List<Item> *args= new (thd) List<Item>;
 
   *dfs= (DYNCALL_CREATE_DEF *)alloc_root(thd->mem_root,
                                          sizeof(DYNCALL_CREATE_DEF) *
@@ -6790,7 +6790,7 @@ Item *create_func_dyncol_create(THD *thd, List<DYNCALL_CREATE_DEF> &list)
   if (!(args= create_func_dyncol_prepare(thd, &dfs, list)))
     return NULL;
 
-  return new (thd->mem_root) Item_func_dyncol_create(thd, *args, dfs);
+  return new (thd) Item_func_dyncol_create(thd, *args, dfs);
 }
 
 Item *create_func_dyncol_add(THD *thd, Item *str,
@@ -6804,7 +6804,7 @@ Item *create_func_dyncol_add(THD *thd, Item *str,
 
   args->push_back(str, thd->mem_root);
 
-  return new (thd->mem_root) Item_func_dyncol_add(thd, *args, dfs);
+  return new (thd) Item_func_dyncol_add(thd, *args, dfs);
 }
 
 
@@ -6814,7 +6814,7 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
   DYNCALL_CREATE_DEF *dfs;
   Item *key;
   List_iterator_fast<Item> it(nums);
-  List<Item> *args= new (thd->mem_root) List<Item>;
+  List<Item> *args= new (thd) List<Item>;
 
   dfs= (DYNCALL_CREATE_DEF *)alloc_root(thd->mem_root,
                                         sizeof(DYNCALL_CREATE_DEF) *
@@ -6825,7 +6825,7 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
   for (uint i= 0; (key= it++); i++)
   {
     dfs[i].key= key;
-    dfs[i].value= new (thd->mem_root) Item_null(thd);
+    dfs[i].value= new (thd) Item_null(thd);
     dfs[i].type= DYN_COL_INT;
     args->push_back(dfs[i].key, thd->mem_root);
     args->push_back(dfs[i].value, thd->mem_root);
@@ -6833,7 +6833,7 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
 
   args->push_back(str, thd->mem_root);
 
-  return new (thd->mem_root) Item_func_dyncol_add(thd, *args, dfs);
+  return new (thd) Item_func_dyncol_add(thd, *args, dfs);
 }
 
 
@@ -6844,7 +6844,7 @@ Item *create_func_dyncol_get(THD *thd,  Item *str, Item *num,
 {
   Item *res;
 
-  if (likely(!(res= new (thd->mem_root) Item_dyncol_get(thd, str, num))))
+  if (likely(!(res= new (thd) Item_dyncol_get(thd, str, num))))
     return res;                                 // Return NULL
   if (likely((res= handler->create_typecast_item(thd, res,
                                      Type_cast_attributes(length_dec, cs)))))

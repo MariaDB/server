@@ -4038,7 +4038,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "PURGE LOGS BEFORE");
       goto error;
     }
-    it= new (thd->mem_root) Item_func_unix_timestamp(thd, it);
+    it= new (thd) Item_func_unix_timestamp(thd, it);
     it->fix_fields(thd, &it);
     res = purge_master_logs_before_date(thd, (ulong)it->val_int());
     break;
@@ -4470,13 +4470,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
           Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
           output and then discard it.
         */
-        sel_result= new (thd->mem_root) select_send_analyze(thd);
+        sel_result= new (thd) select_send_analyze(thd);
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
       }
       else
       {
-        if (!(sel_result= new (thd->mem_root) select_send(thd)))
+        if (!(sel_result= new (thd) select_send(thd)))
           goto error;
       }
     }
@@ -4632,13 +4632,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
             Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
             output and then discard it.
           */
-          result= new (thd->mem_root) select_send_analyze(thd);
+          result= new (thd) select_send_analyze(thd);
           save_protocol= thd->protocol;
           thd->protocol= new Protocol_discard(thd);
         }
         else
         {
-          if (!(result= new (thd->mem_root) select_send(thd)))
+          if (!(result= new (thd) select_send(thd)))
             goto error;
         }
       }
@@ -4657,7 +4657,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         select_lex->context.first_name_resolution_table= second_table;
       res= mysql_insert_select_prepare(thd, result);
       if (!res &&
-          (sel_result= new (thd->mem_root)
+          (sel_result= new (thd)
                        select_insert(thd, first_table,
                                     first_table->table,
                                     &lex->field_list,
@@ -6105,7 +6105,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     SELECT_LEX *param= lex->unit.global_parameters();
     if (!param->limit_params.explicit_limit)
       param->limit_params.select_limit=
-        new (thd->mem_root) Item_int(thd,
+        new (thd) Item_int(thd,
                                      (ulonglong) thd->variables.select_limit);
   }
 
@@ -6119,7 +6119,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         to prepend EXPLAIN to any query and receive output for it,
         even if the query itself redirects the output.
       */
-      if (unlikely(!(result= new (thd->mem_root) select_send(thd))))
+      if (unlikely(!(result= new (thd) select_send(thd))))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result, lex->describe, lex->analyze_stmt);
         
@@ -6177,14 +6177,14 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         else 
         {
           DBUG_ASSERT(thd->protocol);
-          result= new (thd->mem_root) select_send_analyze(thd);
+          result= new (thd) select_send_analyze(thd);
           save_protocol= thd->protocol;
           thd->protocol= new Protocol_discard(thd);
         }
       }
       else
       {
-        if (!result && !(result= new (thd->mem_root) select_send(thd)))
+        if (!result && !(result= new (thd) select_send(thd)))
           return 1;                               /* purecov: inspected */
       }
       query_cache_store_query(thd, all_tables);
@@ -8735,12 +8735,12 @@ bool st_select_lex::add_window_def(THD *thd,
                                    Window_frame *win_frame)
 {
   SQL_I_List<ORDER> *win_part_list_ptr=
-    new (thd->mem_root) SQL_I_List<ORDER> (win_partition_list);
+    new (thd) SQL_I_List<ORDER> (win_partition_list);
   SQL_I_List<ORDER> *win_order_list_ptr=
-    new (thd->mem_root) SQL_I_List<ORDER> (win_order_list);
+    new (thd) SQL_I_List<ORDER> (win_order_list);
   if (!(win_part_list_ptr && win_order_list_ptr))
     return true;
-  Window_def *win_def= new (thd->mem_root) Window_def(win_name,
+  Window_def *win_def= new (thd) Window_def(win_name,
                                                       win_ref,
                                                       win_part_list_ptr,
                                                       win_order_list_ptr,
@@ -8763,12 +8763,12 @@ bool st_select_lex::add_window_spec(THD *thd,
                                     Window_frame *win_frame)
 {
   SQL_I_List<ORDER> *win_part_list_ptr=
-    new (thd->mem_root) SQL_I_List<ORDER> (win_partition_list);
+    new (thd) SQL_I_List<ORDER> (win_partition_list);
   SQL_I_List<ORDER> *win_order_list_ptr=
-    new (thd->mem_root) SQL_I_List<ORDER> (win_order_list);
+    new (thd) SQL_I_List<ORDER> (win_order_list);
   if (!(win_part_list_ptr && win_order_list_ptr))
     return true;
-  Window_spec *win_spec= new (thd->mem_root) Window_spec(win_ref,
+  Window_spec *win_spec= new (thd) Window_spec(win_ref,
                                                          win_part_list_ptr,
                                                          win_order_list_ptr,
                                                          win_frame);
@@ -8915,7 +8915,7 @@ push_new_name_resolution_context(THD *thd,
                                  TABLE_LIST *left_op, TABLE_LIST *right_op)
 {
   Name_resolution_context *on_context;
-  if (!(on_context= new (thd->mem_root) Name_resolution_context))
+  if (!(on_context= new (thd) Name_resolution_context))
     return TRUE;
   on_context->first_name_resolution_table=
     left_op->first_leaf_for_name_resolution();
@@ -8947,7 +8947,7 @@ Item *normalize_cond(THD *thd, Item *cond)
     {
       item_base_t is_cond_flag= cond->base_flags & item_base_t::IS_COND;
       cond->base_flags&= ~item_base_t::IS_COND;
-      cond= new (thd->mem_root) Item_func_istrue(thd, cond);
+      cond= new (thd) Item_func_istrue(thd, cond);
       if (cond)
         cond->base_flags|= is_cond_flag;
     }
@@ -8961,7 +8961,7 @@ Item *normalize_cond(THD *thd, Item *cond)
           Item *arg= func_item->arguments()[0];
           if (arg->type() == Item::FIELD_ITEM ||
               arg->type() == Item::REF_ITEM)
-            cond= new (thd->mem_root) Item_func_isfalse(thd, arg);
+            cond= new (thd) Item_func_isfalse(thd, arg);
         }
       }
     }
@@ -8998,7 +8998,7 @@ void add_join_on(THD *thd, TABLE_LIST *b, Item *expr)
         right and left join. If called later, it happens if we add more
         than one condition to the ON clause.
       */
-      b->on_expr= new (thd->mem_root) Item_cond_and(thd, b->on_expr,expr);
+      b->on_expr= new (thd) Item_cond_and(thd, b->on_expr,expr);
     }
     b->on_expr->top_level_item();
   }
@@ -9433,20 +9433,20 @@ Item * all_any_subquery_creator(THD *thd, Item *left_expr,
 				SELECT_LEX *select_lex)
 {
   if ((cmp == &comp_eq_creator) && !all)       //  = ANY <=> IN
-    return new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex);
+    return new (thd) Item_in_subselect(thd, left_expr, select_lex);
 
   if ((cmp == &comp_ne_creator) && all)        // <> ALL <=> NOT IN
-    return new (thd->mem_root) Item_func_not(thd,
-             new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex));
+    return new (thd) Item_func_not(thd,
+             new (thd) Item_in_subselect(thd, left_expr, select_lex));
 
   Item_allany_subselect *it=
-    new (thd->mem_root) Item_allany_subselect(thd, left_expr, cmp, select_lex,
+    new (thd) Item_allany_subselect(thd, left_expr, cmp, select_lex,
                                               all);
   if (all) /* ALL */
-    return it->upper_item= new (thd->mem_root) Item_func_not_all(thd, it);
+    return it->upper_item= new (thd) Item_func_not_all(thd, it);
 
   /* ANY/SOME */
-  return it->upper_item= new (thd->mem_root) Item_func_nop_all(thd, it);
+  return it->upper_item= new (thd) Item_func_nop_all(thd, it);
 }
 
 
@@ -9969,12 +9969,12 @@ Item *negate_expression(THD *thd, Item *expr)
       if it is not boolean function then we have to emulate value of
       not(not(a)), it will be a != 0
     */
-    return new (thd->mem_root) Item_func_ne(thd, arg, new (thd->mem_root) Item_int(thd, (char*) "0", 0, 1));
+    return new (thd) Item_func_ne(thd, arg, new (thd) Item_int(thd, (char*) "0", 0, 1));
   }
 
   if ((negated= expr->neg_transformer(thd)) != 0)
     return negated;
-  return new (thd->mem_root) Item_func_not(thd, expr);
+  return new (thd) Item_func_not(thd, expr);
 }
 
 /**

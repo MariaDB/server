@@ -1315,9 +1315,9 @@ public:
       use_minus= !use_minus;
 
     if (use_minus)
-      item_add= new (thd->mem_root) Item_func_minus(thd, src_expr, n_val);
+      item_add= new (thd) Item_func_minus(thd, src_expr, n_val);
     else
-      item_add= new (thd->mem_root) Item_func_plus(thd, src_expr, n_val);
+      item_add= new (thd) Item_func_plus(thd, src_expr, n_val);
 
     item_add->fix_fields(thd, &item_add);
   }
@@ -1455,9 +1455,9 @@ public:
       use_minus= !use_minus;
 
     if (use_minus)
-      item_add= new (thd->mem_root) Item_func_minus(thd, src_expr, n_val);
+      item_add= new (thd) Item_func_minus(thd, src_expr, n_val);
     else
-      item_add= new (thd->mem_root) Item_func_plus(thd, src_expr, n_val);
+      item_add= new (thd) Item_func_plus(thd, src_expr, n_val);
 
     item_add->fix_fields(thd, &item_add);
   }
@@ -2586,7 +2586,7 @@ bool add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
       DBUG_ASSERT(item_sum->fixed());
-      Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
+      Item *offset_item= new (thd) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*top_bound,
                                       *top_bound, *bottom_bound,
@@ -2602,7 +2602,7 @@ bool add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
       DBUG_ASSERT(item_sum->fixed());
-      Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
+      Item *offset_item= new (thd) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*bottom_bound,
                                       *top_bound, *bottom_bound,
@@ -2618,8 +2618,8 @@ bool add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
       DBUG_ASSERT(item_sum->fixed());
-      Item *int_item= new (thd->mem_root) Item_int(thd, 1);
-      Item *offset_func= new (thd->mem_root)
+      Item *int_item= new (thd) Item_int(thd, 1);
+      Item *offset_func= new (thd)
                               Item_func_minus(thd, item_sum->get_arg(1),
                                               int_item);
       if (offset_func->fix_fields(thd, &offset_func))
@@ -3159,7 +3159,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
     memset(order, 0, sizeof(*order));
     Item_field *item=
-        new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+        new (thd) Item_field(thd, join_tab->table->field[0]);
     if (item)
       item->set_refers_to_temp_table();
     order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
@@ -3168,7 +3168,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     order->field= join_tab->table->field[0];
     sort_order= order;
   }
-  filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
+  filesort= new (thd) Filesort(sort_order, HA_POS_ERROR, true, NULL);
 
   /* Apply the same condition that the subsequent sort has. */
   filesort->select= sel;

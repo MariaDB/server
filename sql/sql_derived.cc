@@ -706,7 +706,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       specification has been already prepared (a secondary recursive table
       reference.
     */ 
-    if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
+    if (!(derived->derived_result= new (thd) select_unit(thd)))
       DBUG_RETURN(TRUE); // out of memory
     thd->create_tmp_table_for_derived= TRUE;
     res= derived->derived_result->create_result_table(
@@ -833,7 +833,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   if ((!derived->is_with_table_recursive_reference() ||
        !derived->derived_result) &&
-      !(derived->derived_result= new (thd->mem_root) select_unit(thd)))
+      !(derived->derived_result= new (thd) select_unit(thd)))
     DBUG_RETURN(TRUE); // out of memory
 
   // st_select_lex_unit::prepare correctly work for single select
@@ -1000,7 +1000,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     /* Create an object for execution of the query specifying the table */
     if (!(derived->pushdown_derived=
-            new (thd->mem_root) Pushdown_derived(derived, derived->dt_handler)))
+            new (thd) Pushdown_derived(derived, derived->dt_handler)))
       DBUG_RETURN(TRUE);
   }
 

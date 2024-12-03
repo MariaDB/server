@@ -44,7 +44,7 @@ Date_cmp_func_rewriter::Date_cmp_func_rewriter(THD* thd,
   if (!(start_bound= create_start_bound()) || !(end_bound= create_end_bound()))
     return;
   Item *new_cond;
-  if (!(new_cond= new (thd->mem_root) Item_func_between(thd, field_ref,
+  if (!(new_cond= new (thd) Item_func_between(thd, field_ref,
                                                         start_bound, end_bound)))
     return;
   if (!new_cond->fix_fields(thd, &new_cond))
@@ -272,7 +272,7 @@ Item *Date_cmp_func_rewriter::create_bound(uint month, uint day,
     const Datetime bound(static_cast<unsigned int>(year), month, day, td);
     if (!bound.is_valid_datetime())
       return nullptr; // "year" was out of the supported range
-    return new (thd->mem_root) Item_datetime(thd, bound, field_ref->decimals);
+    return new (thd) Item_datetime(thd, bound, field_ref->decimals);
   }
   case Item_func::DATE_FUNC:
     if (field_ref->field->type() == MYSQL_TYPE_DATE)
@@ -283,7 +283,7 @@ Item *Date_cmp_func_rewriter::create_bound(uint month, uint day,
       if (!const_arg_dt.is_valid_datetime())
         return nullptr; // SQL NULL datetime
       const Datetime bound(const_arg_dt.time_of_day(td));
-      return new (thd->mem_root) Item_datetime(thd, bound, field_ref->decimals);
+      return new (thd) Item_datetime(thd, bound, field_ref->decimals);
     }
   default:
     DBUG_ASSERT(0);
@@ -302,16 +302,16 @@ Item *Date_cmp_func_rewriter::create_cmp_func(Item_func::Functype func_type,
   Item *res;
   switch (func_type) {
     case Item_func::GE_FUNC:
-      res= new (thd->mem_root) Item_func_ge(thd, arg1, arg2);
+      res= new (thd) Item_func_ge(thd, arg1, arg2);
       break;
     case Item_func::GT_FUNC:
-      res= new (thd->mem_root) Item_func_gt(thd, arg1, arg2);
+      res= new (thd) Item_func_gt(thd, arg1, arg2);
       break;
     case Item_func::LE_FUNC:
-      res= new (thd->mem_root) Item_func_le(thd, arg1, arg2);
+      res= new (thd) Item_func_le(thd, arg1, arg2);
       break;
     case Item_func::LT_FUNC:
-      res= new (thd->mem_root) Item_func_lt(thd, arg1, arg2);
+      res= new (thd) Item_func_lt(thd, arg1, arg2);
       break;
     default:
       DBUG_ASSERT(0);

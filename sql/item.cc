@@ -649,7 +649,7 @@ Item* Item::set_expr_cache(THD *thd)
 {
   DBUG_ENTER("Item::set_expr_cache");
   Item_cache_wrapper *wrapper;
-  if (likely((wrapper= new (thd->mem_root) Item_cache_wrapper(thd, this))) &&
+  if (likely((wrapper= new (thd) Item_cache_wrapper(thd, this))) &&
       likely(!wrapper->fix_fields(thd, (Item**)&wrapper)))
   {
     if (likely(!wrapper->set_cache(thd)))
@@ -1356,7 +1356,7 @@ Item *Item::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   if (!needs_charset_converter(tocs))
     return this;
-  Item_func_conv_charset *conv= new (thd->mem_root) Item_func_conv_charset(thd, this, tocs, 1);
+  Item_func_conv_charset *conv= new (thd) Item_func_conv_charset(thd, this, tocs, 1);
   return conv && conv->safe ? conv : NULL;
 }
 
@@ -2457,7 +2457,7 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
   ref_pointer_array[el]= real_itm;
   if (type() == WINDOW_FUNC_ITEM)
   {
-    if (!(item_ref= (new (thd->mem_root)
+    if (!(item_ref= (new (thd)
                      Item_direct_ref(thd,
                                      &thd->lex->current_select->context,
                                      &ref_pointer_array[el],
@@ -2466,7 +2466,7 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
   }
   else
   {
-    if (!(item_ref= (new (thd->mem_root)
+    if (!(item_ref= (new (thd)
                      Item_aggregate_ref(thd,
                                         &thd->lex->current_select->context,
                                         &ref_pointer_array[el],
@@ -2801,7 +2801,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       arena= thd->activate_stmt_arena_if_needed(&backup);
 
       Item_direct_ref_to_item *ref=
-        new (thd->mem_root) Item_direct_ref_to_item(thd, *arg);
+        new (thd) Item_direct_ref_to_item(thd, *arg);
       if ((ref == NULL) || ref->fix_fields(thd, (Item **)&ref))
       {
         if (arena)
@@ -3804,7 +3804,7 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 
 Item *Item_field::get_tmp_table_item(THD *thd)
 {
-  Item_field *new_item= new (thd->mem_root) Item_field(thd, this);
+  Item_field *new_item= new (thd) Item_field(thd, this);
   if (new_item)
   {
     new_item->field= new_item->result_field;
@@ -4035,7 +4035,7 @@ void Item_decimal::set_decimal_value(my_decimal *value_par)
 
 Item *Item_decimal::clone_item(THD *thd) const
 {
-  return new (thd->mem_root) Item_decimal(thd, name.str, &decimal_value, decimals,
+  return new (thd) Item_decimal(thd, name.str, &decimal_value, decimals,
                                          max_length);
 }
 
@@ -4056,7 +4056,7 @@ my_decimal *Item_float::val_decimal(my_decimal *decimal_value)
 
 Item *Item_float::clone_item(THD *thd) const
 {
-  return new (thd->mem_root) Item_float(thd, name.str, value, decimals,
+  return new (thd) Item_float(thd, name.str, value, decimals,
                                        max_length);
 }
 
@@ -4228,7 +4228,7 @@ Item *Item_null::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 
 Item *Item_null::clone_item(THD *thd) const
 {
-  return new (thd->mem_root) Item_null(thd, name.str);
+  return new (thd) Item_null(thd, name.str);
 }
 
 
@@ -4240,7 +4240,7 @@ Item_null::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
   {
     CHARSET_INFO *cs= thd->variables.collation_connection;
     my_repertoire_t repertoire= my_string_repertoire(cs, str->str, str->length);
-    return new (thd->mem_root) Item_string(thd,
+    return new (thd) Item_string(thd,
                                            str->str, (uint) str->length, cs,
                                            DERIVATION_COERCIBLE, repertoire);
   }
@@ -5100,7 +5100,7 @@ Item_param::clone_item(THD *thd) const
     invalid_default_param();
     // fall through
   case NULL_VALUE:
-    return new (thd->mem_root) Item_null(thd, name.str);
+    return new (thd) Item_null(thd, name.str);
   case SHORT_DATA_VALUE:
   case LONG_DATA_VALUE:
   {
@@ -6084,7 +6084,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
               fix_inner_refs() function.
             */
             ;
-            if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
+            if (!(rf= new (thd) Item_outer_ref(thd, context, this)))
               return -1;
             thd->change_item_tree(reference, rf);
             select->inner_refs_list.push_back(rf, thd->mem_root);
@@ -6202,14 +6202,14 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     save= *ref;
     *ref= NULL;                             // Don't call set_properties()
     rf= (place == IN_HAVING ?
-         new (thd->mem_root)
+         new (thd)
          Item_ref(thd, context, ref, table_name,
                   field_name, alias_name_used) :
          (!select->group_list.elements ?
-         new (thd->mem_root)
+         new (thd)
           Item_direct_ref(thd, context, ref, table_name,
                           field_name, alias_name_used) :
-         new (thd->mem_root)
+         new (thd)
           Item_outer_ref(thd, context, ref, table_name,
                          field_name, alias_name_used)));
     *ref= save;
@@ -6255,7 +6255,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     if (last_checked_context->select_lex->having_fix_field)
     {
       Item_ref *rf;
-      rf= new (thd->mem_root) Item_ref(thd, context,
+      rf= new (thd) Item_ref(thd, context,
                                        (*from_field)->table->s->db,
                                        Lex_cstring_strlen((*from_field)->
                                                           table->alias.c_ptr()),
@@ -6419,7 +6419,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               Item_ref to point to the Item in the select list and replace the
               Item_field created by the parser with the new Item_ref.
             */
-            Item_ref *rf= new (thd->mem_root)
+            Item_ref *rf= new (thd)
               Item_ref(thd, context, db_name, table_name, field_name);
             if (!rf)
               return 1;
@@ -7228,7 +7228,7 @@ Item *Item_string::clone_item(THD *thd) const
 {
   LEX_CSTRING val;
   str_value.get_value(&val);
-  return new (thd->mem_root) Item_string(thd, name, val, collation.collation);
+  return new (thd) Item_string(thd, name, val, collation.collation);
 }
 
 
@@ -7290,7 +7290,7 @@ int Item_int::save_in_field(Field *field, bool no_conversions)
 
 Item *Item_int::clone_item(THD *thd) const
 {
-  return new (thd->mem_root) Item_int(thd, name.str, value, max_length, unsigned_flag);
+  return new (thd) Item_int(thd, name.str, value, max_length, unsigned_flag);
 }
 
 
@@ -7336,16 +7336,16 @@ Item *Item_int_with_ref::clone_item(THD *thd) const
     parameter markers.
   */
   return (ref->unsigned_flag ?
-          new (thd->mem_root)
+          new (thd)
           Item_uint(thd, ref->name.str, ref->val_int(), ref->max_length) :
-          new (thd->mem_root)
+          new (thd)
           Item_int(thd, ref->name.str, ref->val_int(), ref->max_length));
 }
 
 
 Item *Item::neg(THD *thd)
 {
-  return new (thd->mem_root) Item_func_neg(thd, this);
+  return new (thd) Item_func_neg(thd, this);
 }
 
 Item *Item_int::neg(THD *thd)
@@ -7359,7 +7359,7 @@ Item *Item_int::neg(THD *thd)
   if (unlikely(value == LONGLONG_MIN))
   {
     /* Precision for int not big enough; Convert constant to decimal */
-    Item_decimal *item= new (thd->mem_root) Item_decimal(thd, value, 0);
+    Item_decimal *item= new (thd) Item_decimal(thd, value, 0);
     return item ? item->neg(thd) : item;
   }
   if (value > 0)
@@ -7415,10 +7415,10 @@ Item *Item_uint::neg(THD *thd)
 {
   Item_decimal *item;
   if (((ulonglong)value) <= LONGLONG_MAX)
-    return new (thd->mem_root) Item_int(thd, -value, max_length+1);
+    return new (thd) Item_int(thd, -value, max_length+1);
   if (value == LONGLONG_MIN)
-    return new (thd->mem_root) Item_int(thd, value, max_length+1);
-  if (!(item= new (thd->mem_root) Item_decimal(thd, value, 1)))
+    return new (thd) Item_int(thd, value, max_length+1);
+  if (!(item= new (thd) Item_decimal(thd, value, 1)))
     return 0;
   return item->neg(thd);
 }
@@ -7426,7 +7426,7 @@ Item *Item_uint::neg(THD *thd)
 
 Item *Item_uint::clone_item(THD *thd) const
 {
-  return new (thd->mem_root) Item_uint(thd, name.str, value, max_length);
+  return new (thd) Item_uint(thd, name.str, value, max_length);
 }
 
 static uint nr_of_decimals(const char *str, const char *end)
@@ -7664,7 +7664,7 @@ void Item_date_literal::print(String *str, enum_query_type query_type)
 
 Item *Item_date_literal::clone_item(THD *thd) const
 {
-  return new (thd->mem_root) Item_date_literal(thd, &cached_time);
+  return new (thd) Item_date_literal(thd, &cached_time);
 }
 
 
@@ -7700,7 +7700,7 @@ void Item_timestamp_literal::print(String *str, enum_query_type query_type)
 
 Item *Item_datetime_literal::clone_item(THD *thd) const
 {
-  return new (thd->mem_root) Item_datetime_literal(thd, &cached_time, decimals);
+  return new (thd) Item_datetime_literal(thd, &cached_time, decimals);
 }
 
 
@@ -7725,7 +7725,7 @@ void Item_time_literal::print(String *str, enum_query_type query_type)
 
 Item *Item_time_literal::clone_item(THD *thd) const
 {
-  return new (thd->mem_root) Item_time_literal(thd, &cached_time, decimals);
+  return new (thd) Item_time_literal(thd, &cached_time, decimals);
 }
 
 
@@ -7892,7 +7892,7 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
 
     ref_pointer_array[el]= (Item*)this;
     all_fields->push_front((Item*)this, thd->mem_root);
-    ref= new (thd->mem_root)
+    ref= new (thd)
       Item_ref(thd, &select->context, &ref_pointer_array[el],
                table_name, field_name);
     return ref;
@@ -8019,10 +8019,10 @@ Item *Item::build_pushable_cond(THD *thd,
     if (((Item_cond*) this)->functype() == Item_func::COND_AND_FUNC)
     {
       cond_and= true;
-      new_cond= new (thd->mem_root) Item_cond_and(thd);
+      new_cond= new (thd) Item_cond_and(thd);
     }
     else
-      new_cond= new (thd->mem_root) Item_cond_or(thd);
+      new_cond= new (thd) Item_cond_or(thd);
     if (!new_cond)
       return 0;
     List_iterator<Item> li(*((Item_cond*) this)->argument_list());
@@ -8080,7 +8080,7 @@ Item *Item::build_pushable_cond(THD *thd,
       new_cond= equalities.head();
       break;
     default:
-      new_cond= new (thd->mem_root) Item_cond_and(thd, equalities);
+      new_cond= new (thd) Item_cond_and(thd, equalities);
       break;
     }
     if (new_cond && new_cond->fix_fields(thd, &new_cond))
@@ -8119,7 +8119,7 @@ Item *get_field_item_for_having(THD *thd, Item *item, st_select_lex *sel)
   }
   if (field_item)
   {
-    Item_ref *ref= new (thd->mem_root) Item_ref(thd, &sel->context,
+    Item_ref *ref= new (thd) Item_ref(thd, &sel->context,
                                                 field_item->field_name);
     return ref;
   }
@@ -8570,7 +8570,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (from_field != not_found_field)
       {
         Item_field* fld;
-        if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
+        if (!(fld= new (thd) Item_field(thd, context, from_field)))
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,
@@ -9024,7 +9024,7 @@ Item *Item_ref::get_tmp_table_item(THD *thd)
   if (!result_field)
     return (*ref)->get_tmp_table_item(thd);
 
-  Item_field *item= new (thd->mem_root) Item_field(thd, result_field);
+  Item_field *item= new (thd) Item_field(thd, result_field);
   if (item)
   {
     item->table_name= table_name;
@@ -9550,7 +9550,7 @@ Item* Item_cache_wrapper::get_tmp_table_item(THD *thd)
 {
   if (!orig_item->with_sum_func() && !orig_item->const_item())
   {
-    auto item_field= new (thd->mem_root) Item_field(thd, result_field);
+    auto item_field= new (thd) Item_field(thd, result_field);
     if (item_field)
       item_field->set_refers_to_temp_table();
     return item_field;
@@ -9905,7 +9905,7 @@ Item_args::add_array_of_item_field(THD *thd, const Virtual_tmp_table &vtable)
 
   for (arg_count= 0; arg_count < vtable.s->fields; arg_count++)
   {
-    if (!(args[arg_count]= new (thd->mem_root)
+    if (!(args[arg_count]= new (thd)
                              Item_field(thd, vtable.field[arg_count])))
       return true;
   }
@@ -10730,8 +10730,8 @@ Item *Item_cache_int::convert_to_basic_const_item(THD *thd)
   if (!value_cached)
     cache_value();
   new_item= null_value ?
-            (Item*) new (thd->mem_root) Item_null(thd) :
-	    (Item*) new (thd->mem_root) Item_int(thd, val_int(), max_length);
+            (Item*) new (thd) Item_null(thd) :
+	    (Item*) new (thd) Item_int(thd, val_int(), max_length);
   return new_item;
 } 
 
@@ -10816,26 +10816,26 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
   if (!value_cached)
     cache_value();
   if (null_value)
-    return new (thd->mem_root) Item_null(thd);
+    return new (thd) Item_null(thd);
   return make_literal(thd);
 }
 
 Item *Item_cache_datetime::make_literal(THD *thd)
 {
   Datetime dt(thd, this, TIME_CONV_NONE | TIME_FRAC_NONE);
-  return new (thd->mem_root) Item_datetime_literal(thd, &dt, decimals);
+  return new (thd) Item_datetime_literal(thd, &dt, decimals);
 }
 
 Item *Item_cache_date::make_literal(THD *thd)
 {
   Date d(thd, this, TIME_CONV_NONE | TIME_FRAC_NONE);
-  return new (thd->mem_root) Item_date_literal(thd, &d);
+  return new (thd) Item_date_literal(thd, &d);
 }
 
 Item *Item_cache_time::make_literal(THD *thd)
 {
   Time t(thd, this);
-  return new (thd->mem_root) Item_time_literal(thd, &t, decimals);
+  return new (thd) Item_time_literal(thd, &t, decimals);
 }
 
 
@@ -10954,8 +10954,8 @@ Item *Item_cache_real::convert_to_basic_const_item(THD *thd)
   if (!value_cached)
     cache_value();
   new_item= null_value ?
-            (Item*) new (thd->mem_root) Item_null(thd) :
-	    (Item*) new (thd->mem_root) Item_float(thd, val_real(),
+            (Item*) new (thd) Item_null(thd) :
+	    (Item*) new (thd) Item_float(thd, val_real(),
                                                    decimals);
   return new_item;
 } 
@@ -11004,11 +11004,11 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
   if (!value_cached)
     cache_value();
   if (null_value)
-    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+    new_item= (Item*) new (thd) Item_null(thd);
   else
   {
      VDec tmp(this);
-     new_item= (Item*) new (thd->mem_root) Item_decimal(thd, tmp.ptr());
+     new_item= (Item*) new (thd) Item_decimal(thd, tmp.ptr());
   }
   return new_item;
 } 
@@ -11100,7 +11100,7 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
   if (!value_cached)
     cache_value();
   if (null_value)
-    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+    new_item= (Item*) new (thd) Item_null(thd);
   else
   {
     char buff[MAX_FIELD_WIDTH];
@@ -11108,7 +11108,7 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
     String *result= val_str(&tmp);
     uint length= result->length();
     char *tmp_str= thd->strmake(result->ptr(), length);
-    new_item= new (thd->mem_root) Item_string(thd, tmp_str, length,
+    new_item= new (thd) Item_string(thd, tmp_str, length,
                                               result->charset());
   }
   return new_item;
@@ -11567,4 +11567,9 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
       return true;
   }
   return false;
+}
+
+void* Item::operator new(size_t size, const THD *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
 }

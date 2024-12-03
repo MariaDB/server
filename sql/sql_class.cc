@@ -4562,7 +4562,7 @@ Statement_map::~Statement_map()
 
 bool my_var_user::set(THD *thd, Item *item)
 {
-  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, &name, item);
+  Item_func_set_user_var *suv= new (thd) Item_func_set_user_var(thd, &name, item);
   suv->save_item_result(item);
   return suv->fix_fields(thd, 0) || suv->update();
 }
@@ -9020,6 +9020,16 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
 {
   size_t length= end_ptr - start_ptr;
   return {strmake_root(thd->mem_root, start_ptr, length), length};
+}
+
+void* Sql_alloc::operator new[](size_t size, const THD *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
+}
+
+void* Sql_alloc::operator new(size_t size, const THD *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
 }
 
 void* operator new[](size_t size, const THD *thd) noexcept

@@ -1404,7 +1404,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
                      &join->conds : &(in_subq->emb_on_expr_nest->on_expr);
       Item *replace_me= in_subq->original_item();
       if (replace_where_subcondition(join, tree, replace_me,
-                                     new (thd->mem_root) Item_int(thd, 1),
+                                     new (thd) Item_int(thd, 1),
                                      FALSE))
         goto restore_arena_and_fail;
     }
@@ -1972,7 +1972,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
          with thd->change_item_tree
     */
     Item_func_eq *item_eq=
-      new (thd->mem_root) Item_func_eq(thd, left_exp_orig,
+      new (thd) Item_func_eq(thd, left_exp_orig,
                                        subq_lex->ref_pointer_array[0]);
     if (!item_eq)
       goto restore_tl_and_exit;
@@ -1992,7 +1992,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       nested_join->sj_outer_expr_list.push_back(left_exp->addr(i),
                                                 thd->mem_root);
       Item_func_eq *item_eq=
-        new (thd->mem_root)
+        new (thd)
         Item_func_eq(thd, left_exp_orig->element_index(i),
                      subq_lex->ref_pointer_array[i]);
       if (!item_eq)
@@ -2012,14 +2012,14 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       add row operation
       left = (select_list_element1, select_list_element2, ...)
     */
-    Item_row *row= new (thd->mem_root) Item_row(thd, subq_lex->pre_fix);
+    Item_row *row= new (thd) Item_row(thd, subq_lex->pre_fix);
     /* fix fields on subquery was call so they should be the same */
     if (!row)
       goto restore_tl_and_exit;
     DBUG_ASSERT(ncols == row->cols());
     nested_join->sj_outer_expr_list.push_back(left);
     Item_func_eq *item_eq=
-      new (thd->mem_root) Item_func_eq(thd, left_exp_orig, row);
+      new (thd) Item_func_eq(thd, left_exp_orig, row);
     if (!item_eq)
       goto restore_tl_and_exit;
     for (uint i= 0; i < row->cols(); i++)
@@ -4643,8 +4643,8 @@ static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm,
   uint ncols= left_exp->cols();
   if (ncols == 1)
   {
-    if (!(res= new (thd->mem_root) Item_func_eq(thd, left_exp,
-                                new (thd->mem_root) Item_field(thd, sjm->table->field[0]))))
+    if (!(res= new (thd) Item_func_eq(thd, left_exp,
+                                new (thd) Item_field(thd, sjm->table->field[0]))))
       return NULL; /* purecov: inspected */
   }
   else
@@ -4652,8 +4652,8 @@ static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm,
     Item *conj;
     for (uint i= 0; i < ncols; i++)
     {
-      if (!(conj= new (thd->mem_root) Item_func_eq(thd, left_exp->element_index(i),
-                                   new (thd->mem_root) Item_field(thd, sjm->table->field[i]))) ||
+      if (!(conj= new (thd) Item_func_eq(thd, left_exp->element_index(i),
+                                   new (thd) Item_field(thd, sjm->table->field[i]))) ||
           !(res= and_items(thd, res, conj)))
         return NULL; /* purecov: inspected */
     }
@@ -4687,7 +4687,7 @@ static bool remove_sj_conds(THD *thd, Item **tree)
       {
         if (is_cond_sj_in_equality(item))
         {
-          Item_int *tmp= new (thd->mem_root) Item_int(thd, 1);
+          Item_int *tmp= new (thd) Item_int(thd, 1);
           if (!tmp)
             return 1;
           li.replace(tmp);
@@ -5996,7 +5996,7 @@ TABLE *create_dummy_tmp_table(THD *thd)
   TMP_TABLE_PARAM sjm_table_param;
   List<Item> sjm_table_cols;
   const LEX_CSTRING dummy_name= { STRING_WITH_LEN("dummy") };
-  Item *column_item= new (thd->mem_root) Item_int(thd, 1);
+  Item *column_item= new (thd) Item_int(thd, 1);
   if (!column_item)
     DBUG_RETURN(NULL);
 
@@ -6277,7 +6277,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
         new_conds.elements +
         new_cond_equal.current_level.elements > 1)
     {
-      and_cond= new (thd->mem_root) Item_cond_and(thd);
+      and_cond= new (thd) Item_cond_and(thd);
       and_cond->m_cond_equal.copy(new_cond_equal);
       inherited= &and_cond->m_cond_equal;
     }
@@ -6409,7 +6409,7 @@ bool execute_degenerate_jtbm_semi_join(THD *thd,
               subselect_engine::SINGLE_SELECT_ENGINE);
   subselect_single_select_engine *engine=
     (subselect_single_select_engine*)subq_pred->engine;
-  if (!(new_sink= new (thd->mem_root) select_value_catcher(thd, subq_pred)))
+  if (!(new_sink= new (thd) select_value_catcher(thd, subq_pred)))
     DBUG_RETURN(TRUE);
   if (new_sink->setup(&engine->select_lex->join->fields_list) ||
       engine->select_lex->join->change_result(new_sink, NULL) ||
@@ -6433,7 +6433,7 @@ bool execute_degenerate_jtbm_semi_join(THD *thd,
     for (uint i= 0; i < ncols; i++)
     {
       eq_cond=
-        new (thd->mem_root) Item_func_eq(thd,
+        new (thd) Item_func_eq(thd,
                                          left_exp->element_index(i),
                                          new_sink->row[i]);
       if (!eq_cond || eq_cond->fix_fields(thd, NULL) ||
@@ -7248,7 +7248,7 @@ get_corresponding_item_for_in_subq_having(THD *thd, Item *in_item,
   if (new_item)
   {
     Item_ref *ref=
-      new (thd->mem_root) Item_ref(thd,
+      new (thd) Item_ref(thd,
                                    &subq_pred->unit->first_select()->context,
                                    new_item->name);
     if (!ref)

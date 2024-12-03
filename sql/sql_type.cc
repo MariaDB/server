@@ -4604,73 +4604,73 @@ bool Type_handler_numeric::
 Item_cache *
 Type_handler_row::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_row(thd);
+  return new (thd) Item_cache_row(thd);
 }
 
 Item_cache *
 Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_int(thd, item->type_handler());
+  return new (thd) Item_cache_int(thd, item->type_handler());
 }
 
 Item_cache *
 Type_handler_bool::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_bool(thd);
+  return new (thd) Item_cache_bool(thd);
 }
 
 Item_cache *
 Type_handler_year::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_year(thd, item->type_handler());
+  return new (thd) Item_cache_year(thd, item->type_handler());
 }
 
 Item_cache *
 Type_handler_double::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_double(thd);
+  return new (thd) Item_cache_double(thd);
 }
 
 Item_cache *
 Type_handler_float::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_float(thd);
+  return new (thd) Item_cache_float(thd);
 }
 
 Item_cache *
 Type_handler_decimal_result::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_decimal(thd);
+  return new (thd) Item_cache_decimal(thd);
 }
 
 Item_cache *
 Type_handler_string_result::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_str(thd, item);
+  return new (thd) Item_cache_str(thd, item);
 }
 
 Item_cache *
 Type_handler_timestamp_common::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_timestamp(thd);
+  return new (thd) Item_cache_timestamp(thd);
 }
 
 Item_cache *
 Type_handler_datetime_common::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_datetime(thd);
+  return new (thd) Item_cache_datetime(thd);
 }
 
 Item_cache *
 Type_handler_time_common::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_time(thd);
+  return new (thd) Item_cache_time(thd);
 }
 
 Item_cache *
 Type_handler_date_common::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_date(thd);
+  return new (thd) Item_cache_date(thd);
 }
 
 
@@ -4679,14 +4679,14 @@ Type_handler_date_common::Item_get_cache(THD *thd, const Item *item) const
 Item_copy *
 Type_handler::create_item_copy(THD *thd, Item *item) const
 {
-  return new (thd->mem_root) Item_copy_string(thd, item);
+  return new (thd) Item_copy_string(thd, item);
 }
 
 
 Item_copy *
 Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
 {
-  return new (thd->mem_root) Item_copy_timestamp(thd, item);
+  return new (thd) Item_copy_timestamp(thd, item);
 }
 
 /*************************************************************************/
@@ -5922,50 +5922,50 @@ longlong Type_handler_decimal_result::
 cmp_item *Type_handler_int_result::make_cmp_item(THD *thd,
                                                  CHARSET_INFO *cs) const
 {
-  return new (thd->mem_root) cmp_item_int;
+  return new (thd) cmp_item_int;
 }
 
 cmp_item *Type_handler_real_result::make_cmp_item(THD *thd,
                                                  CHARSET_INFO *cs) const
 {
-  return new (thd->mem_root) cmp_item_real;
+  return new (thd) cmp_item_real;
 }
 
 cmp_item *Type_handler_decimal_result::make_cmp_item(THD *thd,
                                                      CHARSET_INFO *cs) const
 {
-  return new (thd->mem_root) cmp_item_decimal;
+  return new (thd) cmp_item_decimal;
 }
 
 
 cmp_item *Type_handler_string_result::make_cmp_item(THD *thd,
                                                     CHARSET_INFO *cs) const
 {
-  return new (thd->mem_root) cmp_item_sort_string(cs);
+  return new (thd) cmp_item_sort_string(cs);
 }
 
 cmp_item *Type_handler_row::make_cmp_item(THD *thd,
                                                     CHARSET_INFO *cs) const
 {
-  return new (thd->mem_root) cmp_item_row;
+  return new (thd) cmp_item_row;
 }
 
 cmp_item *Type_handler_time_common::make_cmp_item(THD *thd,
                                                     CHARSET_INFO *cs) const
 {
-  return new (thd->mem_root) cmp_item_time;
+  return new (thd) cmp_item_time;
 }
 
 cmp_item *Type_handler_temporal_with_date::make_cmp_item(THD *thd,
                                                     CHARSET_INFO *cs) const
 {
-  return new (thd->mem_root) cmp_item_datetime;
+  return new (thd) cmp_item_datetime;
 }
 
 cmp_item *Type_handler_timestamp_common::make_cmp_item(THD *thd,
                                                        CHARSET_INFO *cs) const
 {
-  return new (thd->mem_root) cmp_item_timestamp;
+  return new (thd) cmp_item_timestamp;
 }
 
 /***************************************************************************/
@@ -5982,15 +5982,14 @@ in_vector *Type_handler_string_result::make_in_vector(THD *thd,
                                                       const Item_func_in *func,
                                                       uint nargs) const
 {
-  return new (thd->mem_root)
-      in_string(thd, nargs, srtcmp_in, func->compare_collation());
+  return new (thd) in_string(thd, nargs, srtcmp_in, func->compare_collation());
 }
 
 in_vector *Type_handler_int_result::make_in_vector(THD *thd,
                                                    const Item_func_in *func,
                                                    uint nargs) const
 {
-  return new (thd->mem_root) in_longlong(thd, nargs);
+  return new (thd) in_longlong(thd, nargs);
 }
 
 
@@ -5998,7 +5997,7 @@ in_vector *Type_handler_real_result::make_in_vector(THD *thd,
                                                     const Item_func_in *func,
                                                     uint nargs) const
 {
-  return new (thd->mem_root) in_double(thd, nargs);
+  return new (thd) in_double(thd, nargs);
 }
 
 
@@ -6006,7 +6005,7 @@ in_vector *Type_handler_decimal_result::make_in_vector(THD *thd,
                                                        const Item_func_in *func,
                                                        uint nargs) const
 {
-  return new (thd->mem_root) in_decimal(thd, nargs);
+  return new (thd) in_decimal(thd, nargs);
 }
 
 
@@ -6014,7 +6013,7 @@ in_vector *Type_handler_time_common::make_in_vector(THD *thd,
                                                     const Item_func_in *func,
                                                     uint nargs) const
 {
-  return new (thd->mem_root) in_time(thd, nargs);
+  return new (thd) in_time(thd, nargs);
 }
 
 
@@ -6023,7 +6022,7 @@ Type_handler_temporal_with_date::make_in_vector(THD *thd,
                                                 const Item_func_in *func,
                                                 uint nargs) const
 {
-  return new (thd->mem_root) in_datetime(thd, nargs);
+  return new (thd) in_datetime(thd, nargs);
 }
 
 
@@ -6032,7 +6031,7 @@ Type_handler_timestamp_common::make_in_vector(THD *thd,
                                               const Item_func_in *func,
                                               uint nargs) const
 {
-  return new (thd->mem_root) in_timestamp(thd, nargs);
+  return new (thd) in_timestamp(thd, nargs);
 }
 
 
@@ -6040,7 +6039,7 @@ in_vector *Type_handler_row::make_in_vector(THD *thd,
                                             const Item_func_in *func,
                                             uint nargs) const
 {
-  return new (thd->mem_root) in_row(thd, nargs, 0);
+  return new (thd) in_row(thd, nargs, 0);
 }
 
 /***************************************************************************/
@@ -7807,8 +7806,8 @@ Item *Type_handler_int_result::
 {
   longlong result= item->val_int();
   if (item->null_value)
-    return new (thd->mem_root) Item_null(thd, item->name.str);
-  return  new (thd->mem_root) Item_int(thd, item->name.str, result,
+    return new (thd) Item_null(thd, item->name.str);
+  return  new (thd) Item_int(thd, item->name.str, result,
                                        item->max_length);
 }
 
@@ -7818,8 +7817,8 @@ Item *Type_handler_real_result::
 {
   double result= item->val_real();
   if (item->null_value)
-    return new (thd->mem_root) Item_null(thd, item->name.str);
-  return new (thd->mem_root) Item_float(thd, item->name.str, result,
+    return new (thd) Item_null(thd, item->name.str);
+  return new (thd) Item_float(thd, item->name.str, result,
                                         item->decimals, item->max_length);
 }
 
@@ -7829,8 +7828,8 @@ Item *Type_handler_decimal_result::
 {
   VDec result(item);
   if (result.is_null())
-    return new (thd->mem_root) Item_null(thd, item->name.str);
-  return new (thd->mem_root) Item_decimal(thd, item->name.str, result.ptr(),
+    return new (thd) Item_null(thd, item->name.str);
+  return new (thd) Item_decimal(thd, item->name.str, result.ptr(),
                                           item->max_length, item->decimals);
 }
 
@@ -7841,10 +7840,10 @@ Item *Type_handler_string_result::
   StringBuffer<MAX_FIELD_WIDTH> tmp;
   String *result= item->val_str(&tmp);
   if (item->null_value)
-    return new (thd->mem_root) Item_null(thd, item->name.str);
+    return new (thd) Item_null(thd, item->name.str);
   LEX_CSTRING value;
   thd->make_lex_string(&value, result->ptr(), result->length());
-  return new (thd->mem_root) Item_string(thd, item->name, value,
+  return new (thd) Item_string(thd, item->name, value,
                                          result->charset());
 }
 
@@ -7855,8 +7854,8 @@ Item *Type_handler_time_common::
   Item_cache_temporal *cache;
   longlong value= item->val_time_packed(thd);
   if (item->null_value)
-    return new (thd->mem_root) Item_null(thd, item->name.str);
-  cache= new (thd->mem_root) Item_cache_time(thd);
+    return new (thd) Item_null(thd, item->name.str);
+  cache= new (thd) Item_cache_time(thd);
   if (cache)
     cache->store_packed(value, item);
   return cache;
@@ -7869,8 +7868,8 @@ Item *Type_handler_temporal_with_date::
   Item_cache_temporal *cache;
   longlong value= item->val_datetime_packed(thd);
   if (item->null_value)
-    return new (thd->mem_root) Item_null(thd, item->name.str);
-  cache= new (thd->mem_root) Item_cache_datetime(thd);
+    return new (thd) Item_null(thd, item->name.str);
+  cache= new (thd) Item_cache_datetime(thd);
   if (cache)
     cache->store_packed(value, item);
   return cache;
@@ -7996,7 +7995,7 @@ Type_handler_datetime_common::convert_item_for_comparison(
 
   // '0000-00-00 00:00:00' is a special valid MariaDB TIMESTAMP value
   if (!non_zero_date(dt.get_mysql_time()))
-    return new (thd->mem_root) Item_timestamp_literal(thd,
+    return new (thd) Item_timestamp_literal(thd,
                                           Timestamp_or_zero_datetime::zero(),
                                           subject->datetime_precision(thd));
 
@@ -8006,7 +8005,7 @@ Type_handler_datetime_common::convert_item_for_comparison(
 
   // Should be safe to convert
   const Timestamp_or_zero_datetime ts(Timestamp(tv.to_timeval()));
-  return new (thd->mem_root) Item_timestamp_literal(thd,
+  return new (thd) Item_timestamp_literal(thd,
                                           ts,
                                           subject->datetime_precision(thd));
 }
@@ -8073,8 +8072,8 @@ Item *Type_handler_longlong::
                              const Type_cast_attributes &attr) const
 {
   if (this != &type_handler_ulonglong)
-    return new (thd->mem_root) Item_func_signed(thd, item);
-  return new (thd->mem_root) Item_func_unsigned(thd, item);
+    return new (thd) Item_func_signed(thd, item);
+  return new (thd) Item_func_unsigned(thd, item);
 
 }
 
@@ -8083,7 +8082,7 @@ Item *Type_handler_date_common::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
 {
-  return new (thd->mem_root) Item_date_typecast(thd, item);
+  return new (thd) Item_date_typecast(thd, item);
 }
 
 
@@ -8097,7 +8096,7 @@ Item *Type_handler_time_common::
     wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
-  return new (thd->mem_root)
+  return new (thd)
          Item_time_typecast(thd, item, (uint) attr.decimals());
 }
 
@@ -8111,7 +8110,7 @@ Item *Type_handler_datetime_common::
     wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
-  return new (thd->mem_root)
+  return new (thd)
          Item_datetime_typecast(thd, item, (uint) attr.decimals());
 
 }
@@ -8126,7 +8125,7 @@ Item *Type_handler_decimal_result::
   if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
                            DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE, item))
     return NULL;
-  return new (thd->mem_root) Item_decimal_typecast(thd, item, len, dec);
+  return new (thd) Item_decimal_typecast(thd, item, len, dec);
 }
 
 
@@ -8137,14 +8136,14 @@ Item *Type_handler_double::
   uint len;
   decimal_digits_t dec;
   if (!attr.length_specified())
-    return new (thd->mem_root) Item_double_typecast(thd, item,
+    return new (thd) Item_double_typecast(thd, item,
                                                     DBL_DIG + 7,
                                                     NOT_FIXED_DEC);
 
   if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
                            DECIMAL_MAX_PRECISION, NOT_FIXED_DEC - 1, item))
     return NULL;
-  return new (thd->mem_root) Item_double_typecast(thd, item, len, dec);
+  return new (thd) Item_double_typecast(thd, item, len, dec);
 }
 
 
@@ -8153,7 +8152,7 @@ Item *Type_handler_float::
                              const Type_cast_attributes &attr) const
 {
   DBUG_ASSERT(!attr.length_specified());
-  return new (thd->mem_root) Item_float_typecast(thd, item);
+  return new (thd) Item_float_typecast(thd, item);
 }
 
 
@@ -8177,7 +8176,7 @@ Item *Type_handler_long_blob::
     }
     len= (int) attr.length();
   }
-  return new (thd->mem_root) Item_char_typecast(thd, item, len, real_cs);
+  return new (thd) Item_char_typecast(thd, item, len, real_cs);
 }
 
 Item *Type_handler_interval_DDhhmmssff::
@@ -8189,7 +8188,7 @@ Item *Type_handler_interval_DDhhmmssff::
     wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
-  return new (thd->mem_root) Item_interval_DDhhmmssff_typecast(thd, item,
+  return new (thd) Item_interval_DDhhmmssff_typecast(thd, item,
                                                                (uint)
                                                                attr.decimals());
 }
@@ -9341,7 +9340,7 @@ Type_handler_date_common::create_literal_item(THD *thd,
       !have_important_literal_warnings(&st))
   {
     Date d(&tmp);
-    item= new (thd->mem_root) Item_date_literal(thd, &d);
+    item= new (thd) Item_date_literal(thd, &d);
   }
   literal_warn(thd, item, str, length, cs, &st, "DATE", send_error);
   return item;
@@ -9363,7 +9362,7 @@ Type_handler_temporal_with_date::create_literal_item(THD *thd,
       !have_important_literal_warnings(&st))
   {
     Datetime dt(&tmp);
-    item= new (thd->mem_root) Item_datetime_literal(thd, &dt, st.precision);
+    item= new (thd) Item_datetime_literal(thd, &dt, st.precision);
   }
   literal_warn(thd, item, str, length, cs, &st, "DATETIME", send_error);
   return item;
@@ -9383,7 +9382,7 @@ Type_handler_time_common::create_literal_item(THD *thd,
   Time tmp(thd, &st, str, length, cs, opt);
   if (tmp.is_valid_time() &&
       !have_important_literal_warnings(&st))
-    item= new (thd->mem_root) Item_time_literal(thd, &tmp, st.precision);
+    item= new (thd) Item_time_literal(thd, &tmp, st.precision);
   literal_warn(thd, item, str, length, cs, &st, "TIME", send_error);
   return item;
 }

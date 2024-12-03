@@ -43,7 +43,7 @@ Cached_item *new_Cached_item(THD *thd, Item *item, bool pass_through_ref)
   {
     Item_field *real_item= (Item_field *) item->real_item();
     Field *cached_field= real_item->field;
-    return new (thd->mem_root) Cached_item_field(thd, cached_field);
+    return new (thd) Cached_item_field(thd, cached_field);
   }
   switch (item->result_type()) {
   case STRING_RESULT:

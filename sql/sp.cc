@@ -2342,7 +2342,7 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
       Now it's lower-cased according to lower_case_table_names.
       It's safe to make a Lex_ident_db_normalized.
     */
-    name= new (thd->mem_root) sp_name(Lex_ident_db_normalized(lex_db),
+    name= new (thd) sp_name(Lex_ident_db_normalized(lex_db),
                                       lex_name, true);
     sp_object_found= sp_find_routine(thd, name, false) != NULL;
     thd->get_stmt_da()->clear_warning_info(thd->query_id);

@@ -642,7 +642,7 @@ public:
       Fbt_null tmp(const_item);
       if (tmp.is_null())
         return NULL;
-      return new (thd->mem_root) Item_literal_fbt(thd, tmp);
+      return new (thd) Item_literal_fbt(thd, tmp);
     }
     Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *cond,
                                                      const Item *item)
@@ -779,7 +779,7 @@ public:
     }
     cmp_item *make_same(THD *thd) override
     {
-      return new (thd->mem_root) cmp_item_fbt();
+      return new (thd) cmp_item_fbt();
     }
   };
 
@@ -821,7 +821,7 @@ public:
     }
     Item* create_item(THD *thd) override
     {
-      return new (thd->mem_root) Item_literal_fbt(thd);
+      return new (thd) Item_literal_fbt(thd);
     }
     void value_to_item(uint pos, Item *item) override
     {
@@ -1540,22 +1540,22 @@ public:
   {
     Fbt_null tmp(src);
     if (tmp.is_null())
-      return new (thd->mem_root) Item_null(thd, src->name.str);
-    return new (thd->mem_root) Item_literal_fbt(thd, tmp);
+      return new (thd) Item_null(thd, src->name.str);
+    return new (thd) Item_literal_fbt(thd, tmp);
   }
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override
   {
-    return new (thd->mem_root) Item_cache_fbt(thd);
+    return new (thd) Item_cache_fbt(thd);
   }
 
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const override
   {
-    return new (thd->mem_root) Item_typecast_fbt(thd, item);
+    return new (thd) Item_typecast_fbt(thd, item);
   }
   Item_copy *create_item_copy(THD *thd, Item *item) const override
   {
-    return new (thd->mem_root) Item_copy_fbt(thd, item);
+    return new (thd) Item_copy_fbt(thd, item);
   }
   int cmp_native(const Native &a, const Native &b) const override
   {
@@ -1779,13 +1779,13 @@ public:
 
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override
   {
-    return new (thd->mem_root) cmp_item_fbt;
+    return new (thd) cmp_item_fbt;
   }
 
   in_vector *make_in_vector(THD *thd, const Item_func_in *func,
                             uint nargs) const override
   {
-    return new (thd->mem_root) in_fbt(thd, nargs);
+    return new (thd) in_fbt(thd, nargs);
   }
 
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,

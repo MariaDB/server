@@ -146,7 +146,7 @@ sp_rcontext *sp_rcontext::create(THD *thd,
                                  Row_definition_list &field_def_lst)
 {
   SELECT_LEX *save_current_select;
-  sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(owner,
+  sp_rcontext *ctx= new (thd) sp_rcontext(owner,
                                                     root_parsing_ctx,
                                                     return_value_fld,
                                                     thd->in_sub_stmt);
@@ -364,7 +364,7 @@ bool Table_ident::resolve_table_rowtype_ref(THD *thd,
       Spvar_definition *def;
       if ((rc= check_column_grant_for_type_ref(thd, table_list, tmp, src[0])) ||
           (rc= !(src[0]->field_name.str= thd->strmake(tmp.str, tmp.length))) ||
-          (rc= !(def= new (thd->mem_root) Spvar_definition(thd, *src))))
+          (rc= !(def= new (thd) Spvar_definition(thd, *src))))
         break;
       src[0]->field_name.str= tmp.str; // Restore field name, just in case.
       def->flags&= (uint) ~NOT_NULL_FLAG;
@@ -405,7 +405,7 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
 Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
                                                       Field_row *field)
 {
-  Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
+  Item_field_row *item= new (thd) Item_field_row(thd, field);
   if (!item)
     return nullptr;
 
@@ -441,7 +441,7 @@ bool sp_rcontext::init_var_items(THD *thd,
     Field_row *field_row= dynamic_cast<Field_row*>(field);
     if (!(m_var_items[idx]= field_row ?
                             def->make_item_field_row(thd, field_row) :
-                            new (thd->mem_root) Item_field(thd, field)))
+                            new (thd) Item_field(thd, field)))
       return true;
   }
   return false;

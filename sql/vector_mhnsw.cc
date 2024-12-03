@@ -1408,7 +1408,7 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     return err;
   }
 
-  auto result= new (thd->mem_root) Search_context(&candidates, ctx, target);
+  auto result= new (thd) Search_context(&candidates, ctx, target);
   graph->context= result;
 
   return mhnsw_read_next(table);

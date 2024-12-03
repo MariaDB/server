@@ -379,7 +379,7 @@ Type_handler_geometry::create_typecast_item(THD *thd, Item *item,
                                            const
 {
   DBUG_EXECUTE_IF("emulate_geometry_create_typecast_item",
-    return new (thd->mem_root) Item_func_geometry_from_text(thd, item);
+    return new (thd) Item_func_geometry_from_text(thd, item);
   );
 
   return NULL;
@@ -436,7 +436,7 @@ Type_handler_point::make_constructor_item(THD *thd, List<Item> *args) const
   if (!args || args->elements != 2)
     return NULL;
   Item_args tmp(thd, *args);
-  return new (thd->mem_root) Item_func_point(thd,
+  return new (thd) Item_func_point(thd,
                                              tmp.arguments()[0],
                                              tmp.arguments()[1]);
 }
@@ -445,21 +445,21 @@ Type_handler_point::make_constructor_item(THD *thd, List<Item> *args) const
 Item *
 Type_handler_linestring::make_constructor_item(THD *thd, List<Item> *args) const
 {
-  return args ? new (thd->mem_root) Item_func_linestring(thd, *args) : NULL;
+  return args ? new (thd) Item_func_linestring(thd, *args) : NULL;
 }
 
 
 Item *
 Type_handler_polygon::make_constructor_item(THD *thd, List<Item> *args) const
 {
-  return args ? new (thd->mem_root) Item_func_polygon(thd, *args) : NULL;
+  return args ? new (thd) Item_func_polygon(thd, *args) : NULL;
 }
 
 
 Item *
 Type_handler_multipoint::make_constructor_item(THD *thd, List<Item> *args) const
 {
-  return args ? new (thd->mem_root) Item_func_multipoint(thd, *args) : NULL;
+  return args ? new (thd) Item_func_multipoint(thd, *args) : NULL;
 }
 
 
@@ -467,7 +467,7 @@ Item *
 Type_handler_multilinestring::make_constructor_item(THD *thd,
                                                     List<Item> *args) const
 {
-  return args ? new (thd->mem_root) Item_func_multilinestring(thd, *args) :
+  return args ? new (thd) Item_func_multilinestring(thd, *args) :
                 NULL;
 }
 
@@ -476,7 +476,7 @@ Item *
 Type_handler_multipolygon::make_constructor_item(THD *thd,
                                                  List<Item> *args) const
 {
-  return args ? new (thd->mem_root) Item_func_multipolygon(thd, *args) : NULL;
+  return args ? new (thd) Item_func_multipolygon(thd, *args) : NULL;
 }
 
 
@@ -484,7 +484,7 @@ Item *
 Type_handler_geometrycollection::make_constructor_item(THD *thd,
                                                        List<Item> *args) const
 {
-  return args ? new (thd->mem_root) Item_func_geometrycollection(thd, *args) :
+  return args ? new (thd) Item_func_geometrycollection(thd, *args) :
                 NULL;
 }
 

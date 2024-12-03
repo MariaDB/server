@@ -2565,11 +2565,11 @@ int join_init_read_record(JOIN_TAB *tab);
 void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key);
 inline Item * and_items(THD *thd, Item* cond, Item *item)
 {
-  return (cond ? (new (thd->mem_root) Item_cond_and(thd, cond, item)) : item);
+  return (cond ? (new (thd) Item_cond_and(thd, cond, item)) : item);
 }
 inline Item * or_items(THD *thd, Item* cond, Item *item)
 {
-  return (cond ? (new (thd->mem_root) Item_cond_or(thd, cond, item)) : item);
+  return (cond ? (new (thd) Item_cond_or(thd, cond, item)) : item);
 }
 bool choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest);
 void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab, 

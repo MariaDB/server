@@ -289,7 +289,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     for (uint pos= 0; (item= it++); pos++)
     {
       /* Error's in 'new' will be detected after loop */
-      Item_type_holder *new_holder= new (thd->mem_root)
+      Item_type_holder *new_holder= new (thd)
                         Item_type_holder(thd, item, holders[pos].type_handler(),
                                          &holders[pos]/*Type_all_attributes*/,
                                          holders[pos].get_maybe_null());
@@ -574,7 +574,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
   {
     char col_name[8];
     List<Item> *tvc_value;
-    if (!(tvc_value= new (thd->mem_root) List<Item>()))
+    if (!(tvc_value= new (thd) List<Item>()))
       return true;
 
     if (is_list_of_rows)
@@ -722,7 +722,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
                                  tvc_sl->exclude_from_table_unique_test;
 
   lex->current_select= wrapper_sl;
-  item= new (thd->mem_root) Item_field(thd, &wrapper_sl->context,
+  item= new (thd) Item_field(thd, &wrapper_sl->context,
                                        star_clex_str);
   if (item == NULL || add_item_to_list(thd, item))
     goto err;
@@ -760,7 +760,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
   Table_ident *ti;
   LEX_CSTRING alias;
   TABLE_LIST *derived_tab;
-  if (!(ti= new (thd->mem_root) Table_ident(derived_unit)) ||
+  if (!(ti= new (thd) Table_ident(derived_unit)) ||
       create_tvc_name(thd, parent_select, &alias))
     goto err;
   if (!(derived_tab=
@@ -1004,7 +1004,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   SELECT_LEX *sq_select; // select for IN subquery;
   sq_select= lex->current_select;
   sq_select->parsing_place= SELECT_LIST;
-  item= new (thd->mem_root) Item_field(thd, &sq_select->context,
+  item= new (thd) Item_field(thd, &sq_select->context,
                                        star_clex_str);
   if (item == NULL || add_item_to_list(thd, item))
     goto err;
@@ -1027,7 +1027,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   if (create_value_list_for_tvc(thd, &values))
     goto err;
   if (!(tvc_select->tvc=
-          new (thd->mem_root)
+          new (thd)
 	    table_value_constr(values,
                                tvc_select,
                                tvc_select->options)))
@@ -1042,7 +1042,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   Table_ident *ti;
   LEX_CSTRING alias;
   TABLE_LIST *derived_tab;
-  if (!(ti= new (thd->mem_root) Table_ident(derived_unit)) ||
+  if (!(ti= new (thd) Table_ident(derived_unit)) ||
       create_tvc_name(thd, parent_select, &alias))
     goto err;
   if (!(derived_tab=
@@ -1068,7 +1068,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   Item_in_subselect *in_subs;
   Item *sq;
   if (!(in_subs=
-          new (thd->mem_root) Item_in_subselect(thd, args[0], sq_select)))
+          new (thd) Item_in_subselect(thd, args[0], sq_select)))
     goto err;
   in_subs->converted_from_in_predicate= TRUE;
   sq= in_subs;

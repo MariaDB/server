@@ -1433,7 +1433,7 @@ class Item_func_gis_debug: public Item_long_func
 #endif
 
 
-#define GEOM_NEW(thd, obj_constructor) new (thd->mem_root) obj_constructor
+#define GEOM_NEW(thd, obj_constructor) new (thd) obj_constructor
 #define GEOM_TYPE(x) (x)
 
 #endif /* ITEM_GEOFUNC_INCLUDED */

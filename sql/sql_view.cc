@@ -1499,7 +1499,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     now Lex placed in statement memory
   */
 
-  table->view= lex= thd->lex= (LEX*) new(thd->mem_root) st_lex_local;
+  table->view= lex= thd->lex= (LEX*) new (thd) st_lex_local;
   if (!table->view)
   {
     result= true;
@@ -1617,7 +1617,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     }
 
     if (!(table->view_tables=
-          (List<TABLE_LIST>*) new(thd->mem_root) List<TABLE_LIST>))
+          (List<TABLE_LIST>*) new (thd) List<TABLE_LIST>))
       goto err;
     /*
       mark to avoid temporary table using and put view reference and find

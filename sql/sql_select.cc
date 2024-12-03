@@ -788,9 +788,9 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
       direct_ref= TRUE;
 
     new_ref= direct_ref ?
-              new (thd->mem_root) Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
+              new (thd) Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
                           ref->field_name, ref->alias_name_used) :
-              new (thd->mem_root) Item_ref(thd, ref->context, item_ref, ref->table_name,
+              new (thd) Item_ref(thd, ref->context, item_ref, ref->table_name,
                           ref->field_name, ref->alias_name_used);
     if (!new_ref)
       return TRUE;
@@ -986,7 +986,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
     DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
     Datetime dt(in.unix_time, in.second_part, thd->variables.time_zone);
 
-    start.item= new (thd->mem_root)
+    start.item= new (thd)
         Item_datetime_literal(thd, &dt, TIME_SECOND_PART_DIGITS);
     if (!start.item)
       return true;
@@ -1031,7 +1031,7 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
 {
   DBUG_ASSERT(table);
   DBUG_ASSERT(table->table);
-#define newx new (thd->mem_root)
+#define newx new (thd)
   TABLE_SHARE *share= table->table->s;
   const TABLE_SHARE::period_info_t *period= conds->period;
 
@@ -1770,7 +1770,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
       if ((*ord->item)->type() == Item::FIELD_ITEM &&
           (*ord->item)->field_type() == MYSQL_TYPE_BIT)
       {
-        Item_field *field= new (thd->mem_root) Item_field(thd, *(Item_field**)ord->item);
+        Item_field *field= new (thd) Item_field(thd, *(Item_field**)ord->item);
         if (!field)
           DBUG_RETURN(-1);
         int el= all_fields.elements;
@@ -2096,7 +2096,7 @@ bool JOIN::make_range_rowid_filters()
     if (filter_container)
     {
       tab->rowid_filter=
-        new (thd->mem_root) Range_rowid_filter(tab->table,
+        new (thd) Range_rowid_filter(tab->table,
                                                tab->range_rowid_filter_info,
                                                filter_container, sel);
       if (tab->rowid_filter)
@@ -2277,7 +2277,7 @@ JOIN::optimize_inner()
       conds= having;
       having= 0;
     }
-    else if ((conds=new (thd->mem_root) Item_cond_and(conds,having)))
+    else if ((conds=new (thd) Item_cond_and(conds,having)))
     {
       /*
         Item_cond_and can't be fixed after creation, so we do not check
@@ -2364,7 +2364,7 @@ JOIN::optimize_inner()
     if (eq_list.elements == 1)
       new_cond= eq_list.pop();
     else
-      new_cond= new (thd->mem_root) Item_cond_and(thd, eq_list);
+      new_cond= new (thd) Item_cond_and(thd, eq_list);
 
     if (new_cond &&
         ((new_cond->fix_fields(thd, &new_cond) ||
@@ -3603,7 +3603,7 @@ bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
     else
     {
       if (!(tab->select->cond=
-	      new (thd->mem_root) Item_cond_and(thd,
+	      new (thd) Item_cond_and(thd,
                                                 tab->select->cond,
                                                 sort_table_cond)))
         DBUG_RETURN(true);
@@ -3613,7 +3613,7 @@ bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
       if (sort_table_cond->type() == Item::COND_ITEM)
         sort_table_cond= sort_table_cond->copy_andor_structure(thd);
       if (!(tab->pre_idx_push_select_cond=
-              new (thd->mem_root) Item_cond_and(thd,
+              new (thd) Item_cond_and(thd,
                                                 tab->pre_idx_push_select_cond,
                                                 sort_table_cond)))
         DBUG_RETURN(true);
@@ -3653,7 +3653,7 @@ bool JOIN::add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *table_fields)
   {
     if (!tab->keep_current_rowid)
       continue;
-    Item *item= new (thd->mem_root) Item_temptable_rowid(tab->table);
+    Item *item= new (thd) Item_temptable_rowid(tab->table);
     item->fix_fields(thd, 0);
     /*
       table_fields points to JOIN::all_fields or JOIN::tmp_all_fields_*.
@@ -3766,7 +3766,7 @@ bool JOIN::make_aggr_tables_info()
 
       if (gbh)
       {
-        if (!(pushdown_query= new (thd->mem_root) Pushdown_query(select_lex,
+        if (!(pushdown_query= new (thd) Pushdown_query(select_lex,
                                                                  gbh)))
           DBUG_RETURN(1);
         /*
@@ -3797,7 +3797,7 @@ bool JOIN::make_aggr_tables_info()
         if (!table)
           DBUG_RETURN(1);
 
-        if (!(curr_tab->aggr= new (thd->mem_root) AGGR_OP(curr_tab)))
+        if (!(curr_tab->aggr= new (thd) AGGR_OP(curr_tab)))
           DBUG_RETURN(1);
         curr_tab->aggr->set_write_func(::end_send);
         curr_tab->table= table;
@@ -4398,7 +4398,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
       order= NULL;
     }
   }
-  if (!(tab->aggr= new (thd->mem_root) AGGR_OP(tab)))
+  if (!(tab->aggr= new (thd) AGGR_OP(tab)))
     goto err;
   table->reginfo.join_tab= tab;
   DBUG_RETURN(false);
@@ -4454,7 +4454,7 @@ bool
 JOIN::add_sorting_to_table(JOIN_TAB *tab, ORDER *order)
 {
   tab->filesort= 
-    new (thd->mem_root) Filesort(order, HA_ROWS_MAX, tab->keep_current_rowid,
+    new (thd) Filesort(order, HA_ROWS_MAX, tab->keep_current_rowid,
                                  tab->select);
   if (!tab->filesort)
     return true;
@@ -5342,7 +5342,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
     if (select_options & SELECT_DESCRIBE)
       free_join= 0;
 
-    if (!(join= new (thd->mem_root) JOIN(thd, fields, select_options, result)))
+    if (!(join= new (thd) JOIN(thd, fields, select_options, result)))
 	DBUG_RETURN(TRUE);
     THD_STAGE_INFO(thd, stage_init);
     thd->lex->used_tables=0;
@@ -13219,7 +13219,7 @@ bool JOIN::get_best_combination()
     goto error;
 
   JOIN_TAB_RANGE *root_range;
-  if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
+  if (!(root_range= new (thd) JOIN_TAB_RANGE))
     goto error;
    root_range->start= join_tab;
   /* root_range->end will be set later */
@@ -13810,7 +13810,7 @@ inline void add_cond_and_fix(THD *thd, Item **e1, Item *e2)
     if (!e2)
       return;
     Item *res;
-    if ((res= new (thd->mem_root) Item_cond_and(thd, *e1, e2)))
+    if ((res= new (thd) Item_cond_and(thd, *e1, e2)))
     {
       res->fix_fields(thd, 0);
       res->update_used_tables();
@@ -13976,7 +13976,7 @@ add_found_match_trig_cond(THD *thd, JOIN_TAB *tab, COND *cond,
   if (tab == root_tab)
     return cond;
   if ((tmp= add_found_match_trig_cond(thd, tab->first_upper, cond, root_tab)))
-    tmp= new (thd->mem_root) Item_func_trig_cond(thd, tmp, &tab->found);
+    tmp= new (thd) Item_func_trig_cond(thd, tmp, &tab->found);
   if (tmp)
   {
     tmp->quick_fix_field();
@@ -14179,7 +14179,7 @@ bool build_tmp_join_prefix_cond(JOIN *join, JOIN_TAB *last_tab, Item **ret)
       {
         if (!all_conds)
         {
-          if (!(all_conds= new (thd->mem_root)Item_cond_and(thd, res,
+          if (!(all_conds= new (thd)Item_cond_and(thd, res,
                                                             tab->select_cond)))
             return true;
           res= all_conds;
@@ -14797,13 +14797,13 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               continue;
             DBUG_RETURN(1);
           }
-          tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
+          tmp_cond= new (thd) Item_func_trig_cond(thd, tmp_cond,
                                             &cond_tab->not_null_compl);
           if (!tmp_cond)
             DBUG_RETURN(1);
           tmp_cond->quick_fix_field();
           cond_tab->select_cond= !cond_tab->select_cond ? tmp_cond :
-                                 new (thd->mem_root) Item_cond_and(thd, cond_tab->select_cond,
+                                 new (thd) Item_cond_and(thd, cond_tab->select_cond,
                                                    tmp_cond);
           if (!cond_tab->select_cond)
 	    DBUG_RETURN(1);
@@ -14924,7 +14924,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               the null complemented row.
 	    */ 
             DBUG_PRINT("info", ("Item_func_trig_cond"));
-            tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
+            tmp_cond= new (thd) Item_func_trig_cond(thd, tmp_cond,
                                               &first_inner_tab->
                                               not_null_compl);
             DBUG_PRINT("info", ("Item_func_trig_cond %p",
@@ -14935,7 +14935,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             DBUG_PRINT("info", ("Item_cond_and"));
             *sel_cond_ref= !(*sel_cond_ref) ? 
                              tmp_cond :
-                             new (thd->mem_root) Item_cond_and(thd, *sel_cond_ref, tmp_cond);
+                             new (thd) Item_cond_and(thd, *sel_cond_ref, tmp_cond);
             DBUG_PRINT("info", ("Item_cond_and %p",
                                 (*sel_cond_ref)));
             if (!(*sel_cond_ref))
@@ -17998,14 +17998,14 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
     if (left_copyfl)
     {
       /* left_item_equal of an upper level contains left_item */
-      left_item_equal= new (thd->mem_root) Item_equal(thd, left_item_equal);
+      left_item_equal= new (thd) Item_equal(thd, left_item_equal);
       left_item_equal->set_context_field(((Item_field*) left_item));
       cond_equal->current_level.push_back(left_item_equal, thd->mem_root);
     }
     if (right_copyfl)
     {
       /* right_item_equal of an upper level contains right_item */
-      right_item_equal= new (thd->mem_root) Item_equal(thd, right_item_equal);
+      right_item_equal= new (thd) Item_equal(thd, right_item_equal);
       right_item_equal->set_context_field(((Item_field*) right_item));
       cond_equal->current_level.push_back(right_item_equal, thd->mem_root);
     }
@@ -18039,7 +18039,7 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
                                          type_handler_for_comparison()))
           return false;
         Item_equal *item_equal=
-          new (thd->mem_root) Item_equal(thd, tmp.type_handler(),
+          new (thd) Item_equal(thd, tmp.type_handler(),
                                          orig_left_item, orig_right_item,
                                          false);
         item_equal->set_context_field((Item_field*)left_item);
@@ -18106,7 +18106,7 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
                                                field_item->field, &copyfl);
       if (copyfl)
       {
-        item_equal= new (thd->mem_root) Item_equal(thd, item_equal);
+        item_equal= new (thd) Item_equal(thd, item_equal);
         cond_equal->current_level.push_back(item_equal, thd->mem_root);
         item_equal->set_context_field(field_item);
       }
@@ -18131,7 +18131,7 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
         if (tmp.aggregate_for_comparison(orig_right_item->
                                          type_handler_for_comparison()))
           return false;
-        item_equal= new (thd->mem_root) Item_equal(thd, tmp.type_handler(),
+        item_equal= new (thd) Item_equal(thd, tmp.type_handler(),
                                                    const_item2,
                                                    orig_field_item, true);
         item_equal->set_context_field(field_item);
@@ -18211,7 +18211,7 @@ static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
     if (!is_converted)
     {
       Item_func_eq *eq_item;
-      if (!(eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item)) ||
+      if (!(eq_item= new (thd) Item_func_eq(thd, left_item, right_item)) ||
           eq_item->set_cmp_func(thd))
         return FALSE;
       eq_item->quick_fix_field();
@@ -18513,7 +18513,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
                       item_equal->n_field_items());  
         item_equal->upper_levels= inherited;
         if (cond_equal_ref)
-          *cond_equal_ref= new (thd->mem_root) COND_EQUAL(item_equal,
+          *cond_equal_ref= new (thd) COND_EQUAL(item_equal,
                                                           thd->mem_root);
         return item_equal;
       }
@@ -18528,7 +18528,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
         Here a new AND level must be created. It can happen only
         when a row equality is processed as a standalone predicate.
       */
-      Item_cond_and *and_cond= new (thd->mem_root) Item_cond_and(thd, eq_list);
+      Item_cond_and *and_cond= new (thd) Item_cond_and(thd, eq_list);
       and_cond->quick_fix_field();
       List<Item> *cond_args= and_cond->argument_list();
       List_iterator_fast<Item_equal> it(cond_equal.current_level);
@@ -18579,7 +18579,7 @@ COND *Item_equal::build_equal_items(THD *thd, COND_EQUAL *inherited,
   COND *cond= Item_func::build_equal_items(thd, inherited, link_item_fields,
                                            cond_equal_ref);
   if (cond_equal_ref)
-    *cond_equal_ref= new (thd->mem_root) COND_EQUAL(this, thd->mem_root);
+    *cond_equal_ref= new (thd) COND_EQUAL(this, thd->mem_root);
   return cond;
 }
 
@@ -18971,7 +18971,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
           Upper item also has "field_item=const".
           Don't produce equality if const is equal to item_const.
         */
-        Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, item_const, upper_const);
+        Item_func_eq *func= new (thd) Item_func_eq(thd, item_const, upper_const);
         func->set_cmp_func(thd);
         func->quick_fix_field();
         if (func->val_bool())
@@ -19016,7 +19016,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
       */
       Item *head_item= (!item_const && current_sjm && 
                         current_sjm_head != field_item) ? current_sjm_head: head;
-      eq_item= new (thd->mem_root) Item_func_eq(thd, field_item, head_item);
+      eq_item= new (thd) Item_func_eq(thd, field_item, head_item);
 
       if (!eq_item || eq_item->set_cmp_func(thd))
         return 0;
@@ -19074,7 +19074,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
     }
   }  
   if (!res)
-    res= new (thd->mem_root) Item_cond_and(thd, eq_list);
+    res= new (thd) Item_cond_and(thd, eq_list);
   if (res)
   {
     res->quick_fix_field();
@@ -21096,7 +21096,7 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
       */
 
       Item *item0= (Item*) Item_false;
-      Item *eq_cond= new(thd->mem_root) Item_func_eq(thd, args[0], item0);
+      Item *eq_cond= new (thd) Item_func_eq(thd, args[0], item0);
       if (!eq_cond)
         return this;
 
@@ -21104,7 +21104,7 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
       if (field->table->pos_in_table_list->is_inner_table_of_outer_join())
       {
         // outer join: transform "col IS NULL" to "col IS NULL or col=0"
-        Item *or_cond= new(thd->mem_root) Item_cond_or(thd, eq_cond, this);
+        Item *or_cond= new (thd) Item_cond_or(thd, eq_cond, this);
         if (!or_cond)
           return this;
         cond= or_cond;
@@ -21155,8 +21155,8 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
         query_cache_abort(thd, &thd->query_cache_tls);
         COND *new_cond, *cond= this;
         /* If this fails, we will catch it later before executing query */
-        if ((new_cond= new (thd->mem_root) Item_func_eq(thd, args[0],
-                                        new (thd->mem_root) Item_int(thd, "last_insert_id()",
+        if ((new_cond= new (thd) Item_func_eq(thd, args[0],
+                                        new (thd) Item_int(thd, "last_insert_id()",
                                                      thd->read_first_successful_insert_id_in_prev_stmt(),
                                                      MY_INT64_NUM_DECIMAL_DIGITS))))
         {
@@ -21586,8 +21586,8 @@ static bool make_json_valid_expr(TABLE *table, Field *field)
     return 1;
 
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
-  if ((item_field= new (thd->mem_root) Item_field(thd, field)) &&
-      (expr= new (thd->mem_root) Item_func_json_valid(thd, item_field)))
+  if ((item_field= new (thd) Item_field(thd, field)) &&
+      (expr= new (thd) Item_func_json_valid(thd, item_field)))
     field->check_constraint= add_virtual_expression(thd, expr);
   thd->restore_active_arena(table->expr_arena, &backup_arena);
   return field->check_constraint == NULL;
@@ -21892,7 +21892,7 @@ TABLE *Create_tmp_table::start(THD *thd,
     DBUG_RETURN(NULL);				/* purecov: inspected */
   }
   /* Copy_field belongs to TMP_TABLE_PARAM, allocate it in THD mem_root */
-  if (!(param->copy_field= new (thd->mem_root) Copy_field[field_count]))
+  if (!(param->copy_field= new (thd) Copy_field[field_count]))
   {
     free_root(&own_root, MYF(0));               /* purecov: inspected */
     DBUG_RETURN(NULL);				/* purecov: inspected */
@@ -22033,7 +22033,7 @@ bool Create_tmp_table::add_fields(THD *thd,
           tmp_from_field++;
 
           thd->mem_root= mem_root_save;
-          if (!(tmp_item= new (thd->mem_root)
+          if (!(tmp_item= new (thd)
                 Item_field(thd, new_field)))
             goto err;
           ((Item_field*) tmp_item)->set_refers_to_temp_table();
@@ -26366,7 +26366,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       /* Create new top level AND item */
-      Item_cond_and *new_cond=new (thd->mem_root) Item_cond_and(thd);
+      Item_cond_and *new_cond=new (thd) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -26428,7 +26428,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
         return (COND*) 0;
       }
 
-      Item_cond_or *new_cond=new (thd->mem_root) Item_cond_or(thd);
+      Item_cond_or *new_cond=new (thd) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -26536,7 +26536,7 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       /* Create new top level AND item */
-      Item_cond_and *new_cond= new (thd->mem_root) Item_cond_and(thd);
+      Item_cond_and *new_cond= new (thd) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -26567,7 +26567,7 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
     }
     else
     {						// Or list
-      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd);
+      Item_cond_or *new_cond= new (thd) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -28838,7 +28838,7 @@ create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
           converted to a LONG field. Original field will remain of the
           BIT type and will be returned [el]client.
         */
-        Item_field *new_item= new (thd->mem_root) Item_field(thd, (Item_field*)item);
+        Item_field *new_item= new (thd) Item_field(thd, (Item_field*)item);
         if (!new_item)
           return 0;
         int el= all_fields.elements;
@@ -29257,7 +29257,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
   DBUG_ENTER("setup_copy_fields");
 
   if (param->field_count && 
-      !(copy=param->copy_field= new (thd->mem_root) Copy_field[param->field_count]))
+      !(copy=param->copy_field= new (thd) Copy_field[param->field_count]))
     goto err2;
 
   param->copy_funcs.empty();
@@ -29276,7 +29276,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
           ((Item_ref *)pos)->ref_type() == Item_ref::AGGREGATE_REF))
     {
       Item_field *item;
-      if (!(item= new (thd->mem_root) Item_field(thd, ((Item_field*) real_pos))))
+      if (!(item= new (thd) Item_field(thd, ((Item_field*) real_pos))))
 	goto err;
       if (pos->type() == Item::REF_ITEM)
       {
@@ -29289,7 +29289,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
       pos= item;
       if (item->field->flags & BLOB_FLAG)
       {
-	if (!(pos= new (thd->mem_root) Item_copy_string(thd, pos)))
+	if (!(pos= new (thd) Item_copy_string(thd, pos)))
 	  goto err;
        /*
          Item_copy_string::copy for function can call 
@@ -29574,8 +29574,8 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
           already-unlocked tables.
          */
         Item_func_set_user_var* suv=
-          new (thd->mem_root) Item_func_set_user_var(thd, (Item_func_set_user_var*) item);
-        Item_field *new_field= new (thd->mem_root) Item_field(thd, field);
+          new (thd) Item_func_set_user_var(thd, (Item_func_set_user_var*) item);
+        Item_field *new_field= new (thd) Item_field(thd, field);
         if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
         new_field->set_refers_to_temp_table();
@@ -29595,7 +29595,7 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       }
       else
       {
-        item_field= (Item*) new (thd->mem_root) Item_field(thd, field);
+        item_field= (Item*) new (thd) Item_field(thd, field);
         if (item_field)
           ((Item_field*) item_field)->set_refers_to_temp_table();
       }
@@ -29924,7 +29924,7 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
   if (!join_tab->ref.key_parts)
     DBUG_RETURN(FALSE);
 
-  Item_cond_and *cond= new (thd->mem_root) Item_cond_and(thd);
+  Item_cond_and *cond= new (thd) Item_cond_and(thd);
   TABLE *table=join_tab->table;
   int error= 0;
   if (!cond)
@@ -29935,8 +29935,8 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
     Field *field=table->field[table->key_info[join_tab->ref.key].key_part[i].
 			      fieldnr-1];
     Item *value=join_tab->ref.items[i];
-    cond->add(new (thd->mem_root)
-              Item_func_equal(thd, new (thd->mem_root) Item_field(thd, field),
+    cond->add(new (thd)
+              Item_func_equal(thd, new (thd) Item_field(thd, field),
                               value),
               thd->mem_root);
   }
@@ -30055,7 +30055,7 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
           if (item->eq(*group_tmp->item,0))
           {
             Item *new_item;
-            if (!(new_item= new (thd->mem_root) Item_ref(thd, context,
+            if (!(new_item= new (thd) Item_ref(thd, context,
                                                          group_tmp->item,
                                                          null_clex_str,
                                                          item->name)))
@@ -30109,7 +30109,7 @@ bool JOIN::rollup_init()
     reinterpret_cast<Ref_ptr_array*>
     (thd_alloc(thd, (sizeof(Ref_ptr_array) +
                     all_fields.elements * sizeof(Item*)) * send_group_parts));
-  rollup.fields= new (thd->mem_root) List<Item>[send_group_parts];
+  rollup.fields= new (thd) List<Item>[send_group_parts];
 
   if (!null_items || !rollup.ref_pointer_arrays || !rollup.fields)
     return true;
@@ -30122,7 +30122,7 @@ bool JOIN::rollup_init()
   */
   for (i= 0 ; i < send_group_parts ; i++)
   {
-    if (!(rollup.null_items[i]= new (thd->mem_root) Item_null_result(thd)))
+    if (!(rollup.null_items[i]= new (thd) Item_null_result(thd)))
       return true;
 
     rollup.ref_pointer_arrays[i]= Ref_ptr_array(ref_array, all_fields.elements);
@@ -30201,7 +30201,7 @@ bool JOIN::rollup_process_const_fields()
     {
       if (*group_tmp->item == item)
       {
-        Item* new_item= new (thd->mem_root) Item_func_rollup_const(thd, item);
+        Item* new_item= new (thd) Item_func_rollup_const(thd, item);
         if (!new_item)
           return 1;
         new_item->fix_fields(thd, (Item **) 0);
@@ -30326,7 +30326,7 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
 	      This is an element that is used by the GROUP BY and should be
 	      set to NULL in this level
 	    */
-            Item_null_result *null_item= new (thd->mem_root) Item_null_result(thd);
+            Item_null_result *null_item= new (thd) Item_null_result(thd);
             if (!null_item)
               return 1;
             // Value will be null sometimes
@@ -30628,7 +30628,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   if (filesort)
   {
     if (!(eta->pre_join_sort=
-          new (thd->mem_root) Explain_aggr_filesort(thd->mem_root,
+          new (thd) Explain_aggr_filesort(thd->mem_root,
                                                     thd->lex->analyze_stmt,
                                                     filesort)))
       return 1;
@@ -30760,7 +30760,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
     Range_rowid_filter *range_filter= (Range_rowid_filter *) rowid_filter;
     QUICK_SELECT_I *quick= range_filter->get_select()->quick;
 
-    Explain_rowid_filter *erf= new (thd->mem_root) Explain_rowid_filter;
+    Explain_rowid_filter *erf= new (thd) Explain_rowid_filter;
     erf->quick= quick->get_explain(thd->mem_root);
     erf->selectivity= range_rowid_filter_info->selectivity;
     erf->rows= quick->records;
@@ -30952,7 +30952,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       if (use_quick == 2)
       {
         eta->push_extra(ET_RANGE_CHECKED_FOR_EACH_RECORD);
-        eta->range_checked_fer= new (thd->mem_root) Explain_range_checked_fer;
+        eta->range_checked_fer= new (thd) Explain_range_checked_fer;
         if (eta->range_checked_fer)
           eta->range_checked_fer->
             append_possible_keys_stat(thd->mem_root, table, keys);
@@ -31114,7 +31114,7 @@ bool save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
   {
     // Each aggregate means a temp.table
     prev_node= node;
-    if (!(node= new (thd->mem_root) Explain_aggr_tmp_table))
+    if (!(node= new (thd) Explain_aggr_tmp_table))
       return 1;
     node->child= prev_node;
 
@@ -31135,7 +31135,7 @@ bool save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
     if (join_tab->distinct)
     {
       prev_node= node;
-      if (!(node= new (thd->mem_root) Explain_aggr_remove_dups))
+      if (!(node= new (thd) Explain_aggr_remove_dups))
         return 1;
       node->child= prev_node;
     }
@@ -31143,7 +31143,7 @@ bool save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
     if (join_tab->filesort)
     {
       Explain_aggr_filesort *eaf =
-        new (thd->mem_root) Explain_aggr_filesort(thd->mem_root, is_analyze, join_tab->filesort);
+        new (thd) Explain_aggr_filesort(thd->mem_root, is_analyze, join_tab->filesort);
       if (!eaf)
         return 1;
       prev_node= node;
@@ -33717,11 +33717,11 @@ bool build_notnull_conds_for_range_scans(JOIN *join, Item *cond,
         continue;
       if (!bitmap_is_set(&tab->tmp_set, field->field_index))
         continue;
-      Item_field *field_item= new (thd->mem_root) Item_field(thd, field);
+      Item_field *field_item= new (thd) Item_field(thd, field);
       if (!field_item)
         continue;
       Item *isnotnull_item=
-         new (thd->mem_root) Item_func_isnotnull(thd, field_item);
+         new (thd) Item_func_isnotnull(thd, field_item);
       if (!isnotnull_item)
         continue;
       if (notnull_list.push_back(isnotnull_item, thd->mem_root))
@@ -33737,7 +33737,7 @@ bool build_notnull_conds_for_range_scans(JOIN *join, Item *cond,
       break;
     default:
       notnull_cond=
-        new (thd->mem_root) Item_cond_and(thd, notnull_list);
+        new (thd) Item_cond_and(thd, notnull_list);
     }
     if (notnull_cond && !notnull_cond->fix_fields(thd, 0))
     {
@@ -33971,7 +33971,7 @@ static bool set_limit_for_unit(THD *thd, SELECT_LEX_UNIT *unit, ha_rows lim)
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   gpar->limit_params.select_limit=
-    new (thd->mem_root) Item_int(thd, lim, MAX_BIGINT_WIDTH);
+    new (thd) Item_int(thd, lim, MAX_BIGINT_WIDTH);
   if (gpar->limit_params.select_limit == 0)
     return true; // EOM
 

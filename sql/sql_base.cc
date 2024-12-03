@@ -7289,7 +7289,7 @@ static bool
 set_new_item_local_context(THD *thd, Item_ident *item, TABLE_LIST *table_ref)
 {
   Name_resolution_context *context;
-  if (!(context= new (thd->mem_root) Name_resolution_context))
+  if (!(context= new (thd) Name_resolution_context))
     return TRUE;
   context->init();
   context->select_lex= table_ref->select_lex;
@@ -7501,7 +7501,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
           set_new_item_local_context(thd, item_ident_2, nj_col_2->table_ref))
         goto err;
 
-      if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
+      if (!(eq_cond= new (thd) Item_func_eq(thd, item_ident_1, item_ident_2)))
         goto err;                               /* Out of memory. */
 
       /*
@@ -8004,7 +8004,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 
           Item_int do not need fix_fields() because it is basic constant.
         */
-        it.replace(new (thd->mem_root) Item_int(thd, "Not_used", (longlong) 1,
+        it.replace(new (thd) Item_int(thd, "Not_used", (longlong) 1,
                                 MY_INT64_NUM_DECIMAL_DIGITS));
       }
       else if (insert_fields(thd, ((Item_field*) item)->context,
@@ -8743,7 +8743,7 @@ void wrap_ident(THD *thd, Item **conds)
   DBUG_ASSERT((*conds)->type() == Item::FIELD_ITEM || (*conds)->type() == Item::REF_ITEM);
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
-  if ((wrapper= new (thd->mem_root) Item_direct_ref_to_ident(thd, (Item_ident *) (*conds))))
+  if ((wrapper= new (thd) Item_direct_ref_to_ident(thd, (Item_ident *) (*conds))))
     (*conds)= (Item*) wrapper;
   if (arena)
     thd->restore_active_arena(arena, &backup);

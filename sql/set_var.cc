@@ -884,7 +884,7 @@ set_var::set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
   {
     Item_field *item= (Item_field*) value_arg;
     // names are utf8
-    if (!(value= new (thd->mem_root) Item_string_sys(thd,
+    if (!(value= new (thd) Item_string_sys(thd,
                                                      item->field_name.str,
                                                      (uint)item->field_name.length)))
       value=value_arg;                        /* Give error message later */

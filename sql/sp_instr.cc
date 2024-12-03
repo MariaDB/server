@@ -891,7 +891,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   */
   if (sp_instr_lex == nullptr)
   {
-    thd->lex= new (thd->mem_root) st_lex_local;
+    thd->lex= new (thd) st_lex_local;
     lex_start(thd);
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)
     {
@@ -1445,7 +1445,7 @@ bool sp_instr_set_trigger_field::on_after_expr_parsing(THD *thd)
   Item *val= thd->lex->current_select->item_list.head();
   DBUG_ASSERT(val != nullptr);
 
-  trigger_field = new (thd->mem_root)
+  trigger_field = new (thd)
     Item_trigger_field(thd, thd->lex->current_context(),
                        Item_trigger_field::NEW_ROW,
                        m_trigger_field_name, UPDATE_ACL, false);
@@ -2454,7 +2454,7 @@ sp_instr_set_case_expr::exec_core(THD *thd, uint *nextp)
       initialized. Set to NULL so we can continue.
     */
 
-    Item *null_item= new (thd->mem_root) Item_null(thd);
+    Item *null_item= new (thd) Item_null(thd);
 
     if (!null_item ||
         thd->spcont->set_case_expr(thd, m_case_expr_id, &null_item))

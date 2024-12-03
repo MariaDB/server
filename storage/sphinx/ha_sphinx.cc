@@ -2354,8 +2354,8 @@ int ha_sphinx::write_row ( const byte * )
                         THD *thd= ha_thd();
 			if ( (*ppField)->type()==MYSQL_TYPE_TIMESTAMP )
 			{
-                          Item_field * pWrap = new (thd->mem_root) Item_field(thd, *ppField); // autofreed by query arena, I assume
-                          Item_func_unix_timestamp * pConv = new (thd->mem_root) Item_func_unix_timestamp(thd, pWrap);
+                          Item_field * pWrap = new (thd) Item_field(thd, *ppField); // autofreed by query arena, I assume
+                          Item_func_unix_timestamp * pConv = new (thd) Item_func_unix_timestamp(thd, pWrap);
 				pConv->quick_fix_field();
 				unsigned int uTs = (unsigned int) pConv->val_int();
 

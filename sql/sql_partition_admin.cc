@@ -935,7 +935,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   for (i= 0; i < num_names; i++)
   {
     const char *partition_name= partition_names_it++;
-    String *str_partition_name= new (thd->mem_root)
+    String *str_partition_name= new (thd)
       String(partition_name, strlen(partition_name), system_charset_info);
     if (!str_partition_name)
       DBUG_RETURN(true);

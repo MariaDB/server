@@ -8730,7 +8730,7 @@ static Create_field *vers_init_sys_field(THD *thd,
                                          const Lex_ident_column &field_name,
                                          int flags, bool integer)
 {
-  Create_field *f= new (thd->mem_root) Create_field();
+  Create_field *f= new (thd) Create_field();
   if (!f)
     return NULL;
 

@@ -2003,7 +2003,7 @@ public:
         }
 
         if (!(state->last_prefix=
-              new (thd->mem_root)
+              new (thd)
               Cached_item_field(thd, key_info->key_part[i].field)))
           break;
         state->entry_count= state->prefix_count= 0;
@@ -2444,9 +2444,9 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
   {
     count_distinct=
       table_field->type() == MYSQL_TYPE_BIT ?
-      new (thd->mem_root) Count_distinct_field_bit(table_field,
+      new (thd) Count_distinct_field_bit(table_field,
                                                    max_heap_table_size) :
-      new (thd->mem_root) Count_distinct_field(table_field,
+      new (thd) Count_distinct_field(table_field,
                                                max_heap_table_size);
     if (count_distinct && !count_distinct->exists())
     {
