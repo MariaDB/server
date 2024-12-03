@@ -201,10 +201,12 @@ private:
   */
   Opt_hints *parent;
 
-  Opt_hints_map hints_map;   // Hint map
+  /* Bitmap describing switch-type (on/off) hints set at this scope */
+  Opt_hints_map hints_map;
 
   /* Array of child objects. i.e. array of the lower level objects */
   Mem_root_array<Opt_hints*, true> child_array;
+
   /* true if hint is connected to the real object */
   bool resolved;
   /* Number of resolved children */
@@ -256,6 +258,7 @@ public:
   */
   bool get_switch(opt_hints_enum type_arg) const;
 
+  /* Collation for comparing the name of this hint */
   virtual CHARSET_INFO *charset_info() const
   {
     return Lex_ident_column::charset_info();
@@ -339,7 +342,11 @@ protected:
     Override this function in descendants so that print_warn_unresolved()
     prints the proper warning text for table/index level unresolved hints
   */
-  virtual uint get_warn_unresolved_code() const { return 0; }
+  virtual uint get_warn_unresolved_code() const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
 };
 
 
