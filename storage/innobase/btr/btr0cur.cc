@@ -1172,10 +1172,12 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 #  endif
   if (latch_mode > BTR_MODIFY_LEAF)
     /* The adaptive hash index cannot be useful for these searches. */;
+  else if (mode != PAGE_CUR_LE && mode != PAGE_CUR_GE)
+    ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_G);
   /* We do a dirty read of btr_search.enabled below,
   and btr_search_guess_on_hash() will have to check it again. */
   else if (!btr_search.enabled);
-  else if (btr_search_guess_on_hash(index(), tuple, mode,
+  else if (btr_search_guess_on_hash(index(), tuple, mode != PAGE_CUR_LE,
                                     latch_mode, this, mtr))
   {
     /* Search using the hash index succeeded */

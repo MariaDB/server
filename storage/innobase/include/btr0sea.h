@@ -46,7 +46,7 @@ and the function returns TRUE, then cursor->up_match and cursor->low_match
 both have sensible values.
 @param[in,out]	index		index
 @param[in]	tuple		logical record
-@param[in]	mode		PAGE_CUR_L, ....
+@param[in]	ge		false=PAGE_CUR_LE, true=PAGE_CUR_GE
 @param[in]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[out]	cursor		tree cursor
 @param[in]	mtr		mini-transaction
@@ -55,7 +55,7 @@ bool
 btr_search_guess_on_hash(
 	dict_index_t*	index,
 	const dtuple_t*	tuple,
-	page_cur_mode_t	mode,
+	bool		ge,
 	btr_latch_mode	latch_mode,
 	btr_cur_t*	cursor,
 	mtr_t*		mtr) noexcept;

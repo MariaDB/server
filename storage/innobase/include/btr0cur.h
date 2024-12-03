@@ -771,13 +771,12 @@ struct btr_cur_t {
 
   /** Check if a guessed position for a tree cursor is correct.
   @param tuple  search key
-  @param mode   PAGE_CUR_L, PAGE_CUR_LE, PAGE_CUR_G, PAGE_CUR_GE
+  @param ge     false=PAGE_CUR_LE, true=PAGE_CUR_GE
   @param comp   nonzero if ROW_FORMAT=REDUNDANT is not being used
   @retval true  on mismatch or corruption
   @retval false on a match; if mode=PAGE_CUR_LE, then up_match,low_match
   will be set correctly. */
-  bool check_mismatch(const dtuple_t& tuple, page_cur_mode_t mode, ulint comp)
-    noexcept;
+  bool check_mismatch(const dtuple_t &tuple, bool ge, ulint comp) noexcept;
 #endif
 };
 
