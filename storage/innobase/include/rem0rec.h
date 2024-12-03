@@ -178,7 +178,7 @@ The following function is used to get the number of fields
 in an old-style record.
 @return number of data fields */
 UNIV_INLINE
-ulint
+uint16_t
 rec_get_n_fields_old(
 /*=================*/
 	const rec_t*	rec)	/*!< in: physical record */
@@ -353,7 +353,7 @@ The following function is used to get the order number
 of an old-style record in the heap of the index page.
 @return heap order number */
 UNIV_INLINE
-ulint
+uint16_t
 rec_get_heap_no_old(
 /*================*/
 	const rec_t*	rec)	/*!< in: physical record */
@@ -363,7 +363,7 @@ The following function is used to get the order number
 of a new-style record in the heap of the index page.
 @return heap order number */
 UNIV_INLINE
-ulint
+uint16_t
 rec_get_heap_no_new(
 /*================*/
 	const rec_t*	rec)	/*!< in: physical record */
