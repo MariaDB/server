@@ -2415,7 +2415,7 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
     MDL_REQUEST_INIT_BY_KEY(&rn->mdl_request, key, MDL_SHARED, MDL_TRANSACTION);
     if (my_hash_insert(&prelocking_ctx->sroutines, (uchar *)rn))
       return FALSE;
-    prelocking_ctx->sroutines_list.link_in_list(rn, &rn->next);
+    prelocking_ctx->sroutines_list.insert(rn, &rn->next);
     rn->belong_to_view= belong_to_view;
     rn->m_handler= handler;
     rn->m_sp_cache_version= 0;

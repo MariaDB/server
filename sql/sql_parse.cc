@@ -2065,7 +2065,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     */
     table_list.select_lex= thd->lex->first_select_lex();
     thd->lex->
-      first_select_lex()->table_list.link_in_list(&table_list,
+      first_select_lex()->table_list.insert(&table_list,
                                                   &table_list.next_local);
     thd->lex->add_to_query_tables(&table_list);
 
@@ -7989,7 +7989,7 @@ add_proc_to_list(THD* thd, Item *item)
   item_ptr = (Item**) (order+1);
   *item_ptr= item;
   order->item=item_ptr;
-  thd->lex->proc_list.link_in_list(order, &order->next);
+  thd->lex->proc_list.insert(order, &order->next);
   return 0;
 }
 
@@ -8010,7 +8010,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->used=0;
   order->counter_used= 0;
   order->fast_field_copier_setup= 0; 
-  list.link_in_list(order, &order->next);
+  list.insert(order, &order->next);
   DBUG_RETURN(0);
 }
 
@@ -8188,7 +8188,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     and SELECT.
   */
   if (likely(!ptr->sequence))
-    table_list.link_in_list(ptr, &ptr->next_local);
+    table_list.insert(ptr, &ptr->next_local);
   ptr->next_name_resolution_table= NULL;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   ptr->partition_names= partition_names;
