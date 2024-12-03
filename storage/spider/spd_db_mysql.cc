@@ -14140,6 +14140,11 @@ int spider_mbase_handler::append_group_by_part(
   DBUG_RETURN(error_num);
 }
 
+/*
+  Append the GROUP BY part.
+
+  Only used by the group by handler for query construction.
+*/
 int spider_mbase_handler::append_group_by(
   ORDER *order,
   spider_string *str,
@@ -14158,6 +14163,13 @@ int spider_mbase_handler::append_group_by(
     str->q_append(SPIDER_SQL_GROUP_STR, SPIDER_SQL_GROUP_LEN);
     for (; order; order = order->next)
     {
+      /*
+        This is not expected to happen, as NULL check was performed
+        at the creation of the group by handler, and any NULL item_ptr
+        would have resulted in the gbh not being created.
+      */
+      if (!order->item_ptr)
+        DBUG_RETURN(ER_INTERNAL_ERROR);
       if ((error_num = spider_db_print_item_type(order->item_ptr, NULL, spider,
         str, alias, alias_length, dbton_id, use_fields, fields)))
       {
@@ -14197,6 +14209,11 @@ int spider_mbase_handler::append_order_by_part(
   DBUG_RETURN(error_num);
 }
 
+/*
+  Append the ORDER BY part.
+
+  Only used by the group by handler for query construction.
+*/
 int spider_mbase_handler::append_order_by(
   ORDER *order,
   spider_string *str,
@@ -14215,6 +14232,13 @@ int spider_mbase_handler::append_order_by(
     str->q_append(SPIDER_SQL_ORDER_STR, SPIDER_SQL_ORDER_LEN);
     for (; order; order = order->next)
     {
+      /*
+        This is not expected to happen, as NULL check was performed
+        at the creation of the group by handler, and any NULL item_ptr
+        would have resulted in the gbh not being created.
+      */
+      if (!order->item_ptr)
+        DBUG_RETURN(ER_INTERNAL_ERROR);
       if ((error_num = spider_db_print_item_type(order->item_ptr, NULL, spider,
         str, alias, alias_length, dbton_id, use_fields, fields)))
       {

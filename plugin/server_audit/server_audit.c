@@ -826,6 +826,7 @@ enum sa_keywords
   SQLCOM_TRUNCATE,
   SQLCOM_QUERY_ADMIN,
   SQLCOM_DCL,
+  SQLCOM_FOUND=-1,
 };
 
 struct sa_keyword
@@ -837,30 +838,87 @@ struct sa_keyword
 };
 
 
-struct sa_keyword xml_word=   {3, "XML", 0, SQLCOM_NOTHING};
-struct sa_keyword user_word=   {4, "USER", 0, SQLCOM_NOTHING};
-struct sa_keyword data_word=   {4, "DATA", 0, SQLCOM_NOTHING};
-struct sa_keyword server_word= {6, "SERVER", 0, SQLCOM_NOTHING};
-struct sa_keyword master_word= {6, "MASTER", 0, SQLCOM_NOTHING};
-struct sa_keyword password_word= {8, "PASSWORD", 0, SQLCOM_NOTHING};
-struct sa_keyword function_word= {8, "FUNCTION", 0, SQLCOM_NOTHING};
-struct sa_keyword statement_word= {9, "STATEMENT", 0, SQLCOM_NOTHING};
-struct sa_keyword procedure_word= {9, "PROCEDURE", 0, SQLCOM_NOTHING};
+struct sa_keyword xml_word[]=
+{
+  {3, "XML", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword user_word[]=
+{
+  {4, "USER", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword data_word[]=
+{
+  {4, "DATA", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword server_word[]=
+{
+  {6, "SERVER", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword master_word[]=
+{
+  {6, "MASTER", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword password_word[]=
+{
+  {8, "PASSWORD", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword function_word[]=
+{
+  {8, "FUNCTION", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword statement_word[]=
+{
+  {9, "STATEMENT", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword procedure_word[]=
+{
+  {9, "PROCEDURE", 0, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword replace_user_word[]=
+{
+  {7, "REPLACE", user_word, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword or_replace_user_word[]=
+{
+  {2, "OR", replace_user_word, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword replace_server_word[]=
+{
+  {7, "REPLACE", server_word, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
+struct sa_keyword or_replace_server_word[]=
+{
+  {2, "OR", replace_server_word, SQLCOM_FOUND},
+  {0, NULL, 0, SQLCOM_NOTHING}
+};
 
 
 struct sa_keyword keywords_to_skip[]=
 {
-  {3, "SET", &statement_word, SQLCOM_QUERY_ADMIN},
-  {0, NULL, 0, SQLCOM_DDL}
+  {3, "SET", statement_word, SQLCOM_QUERY_ADMIN},
+  {0, NULL, 0, SQLCOM_NOTHING}
 };
 
 
 struct sa_keyword not_ddl_keywords[]=
 {
-  {4, "DROP", &user_word, SQLCOM_DCL},
-  {6, "CREATE", &user_word, SQLCOM_DCL},
-  {6, "RENAME", &user_word, SQLCOM_DCL},
-  {0, NULL, 0, SQLCOM_DDL}
+  {4, "DROP", user_word, SQLCOM_DCL},
+  {6, "CREATE", user_word, SQLCOM_DCL},
+  {6, "CREATE", or_replace_user_word, SQLCOM_DCL},
+  {6, "RENAME", user_word, SQLCOM_DCL},
+  {0, NULL, 0, SQLCOM_NOTHING}
 };
 
 
@@ -871,7 +929,7 @@ struct sa_keyword ddl_keywords[]=
   {6, "CREATE", 0, SQLCOM_DDL},
   {6, "RENAME", 0, SQLCOM_DDL},
   {8, "TRUNCATE", 0, SQLCOM_DDL},
-  {0, NULL, 0, SQLCOM_DDL}
+  {0, NULL, 0, SQLCOM_NOTHING}
 };
 
 
@@ -879,15 +937,15 @@ struct sa_keyword dml_keywords[]=
 {
   {2, "DO", 0, SQLCOM_DML},
   {4, "CALL", 0, SQLCOM_DML},
-  {4, "LOAD", &data_word, SQLCOM_DML},
-  {4, "LOAD", &xml_word, SQLCOM_DML},
+  {4, "LOAD", data_word, SQLCOM_DML},
+  {4, "LOAD", xml_word, SQLCOM_DML},
   {6, "DELETE", 0, SQLCOM_DML},
   {6, "INSERT", 0, SQLCOM_DML},
   {6, "SELECT", 0, SQLCOM_DML},
   {6, "UPDATE", 0, SQLCOM_DML},
   {7, "HANDLER", 0, SQLCOM_DML},
   {7, "REPLACE", 0, SQLCOM_DML},
-  {0, NULL, 0, SQLCOM_DML}
+  {0, NULL, 0, SQLCOM_NOTHING}
 };
 
 
@@ -895,38 +953,41 @@ struct sa_keyword dml_no_select_keywords[]=
 {
   {2, "DO", 0, SQLCOM_DML},
   {4, "CALL", 0, SQLCOM_DML},
-  {4, "LOAD", &data_word, SQLCOM_DML},
-  {4, "LOAD", &xml_word, SQLCOM_DML},
+  {4, "LOAD", data_word, SQLCOM_DML},
+  {4, "LOAD", xml_word, SQLCOM_DML},
   {6, "DELETE", 0, SQLCOM_DML},
   {6, "INSERT", 0, SQLCOM_DML},
   {6, "UPDATE", 0, SQLCOM_DML},
   {7, "HANDLER", 0, SQLCOM_DML},
   {7, "REPLACE", 0, SQLCOM_DML},
-  {0, NULL, 0, SQLCOM_DML}
+  {0, NULL, 0, SQLCOM_NOTHING}
 };
 
 
 struct sa_keyword dcl_keywords[]=
 {
-  {6, "CREATE", &user_word, SQLCOM_DCL},
-  {4, "DROP", &user_word, SQLCOM_DCL},
-  {6, "RENAME", &user_word, SQLCOM_DCL},
+  {6, "CREATE", user_word, SQLCOM_DCL},
+  {6, "CREATE", or_replace_user_word, SQLCOM_DCL},
+  {4, "DROP", user_word, SQLCOM_DCL},
+  {6, "RENAME", user_word, SQLCOM_DCL},
   {5, "GRANT", 0, SQLCOM_DCL},
   {6, "REVOKE", 0, SQLCOM_DCL},
-  {3, "SET", &password_word, SQLCOM_DCL},
-  {0, NULL, 0, SQLCOM_DDL}
+  {3, "SET", password_word, SQLCOM_DCL},
+  {0, NULL, 0, SQLCOM_NOTHING}
 };
 
 
 struct sa_keyword passwd_keywords[]=
 {
-  {3, "SET", &password_word, SQLCOM_SET_OPTION},
-  {5, "ALTER", &server_word, SQLCOM_ALTER_SERVER},
-  {5, "ALTER", &user_word, SQLCOM_ALTER_USER},
+  {3, "SET", password_word, SQLCOM_SET_OPTION},
+  {5, "ALTER", server_word, SQLCOM_ALTER_SERVER},
+  {5, "ALTER", user_word, SQLCOM_ALTER_USER},
   {5, "GRANT", 0, SQLCOM_GRANT},
-  {6, "CREATE", &user_word, SQLCOM_CREATE_USER},
-  {6, "CREATE", &server_word, SQLCOM_CREATE_SERVER},
-  {6, "CHANGE", &master_word, SQLCOM_CHANGE_MASTER},
+  {6, "CREATE", user_word, SQLCOM_CREATE_USER},
+  {6, "CREATE", or_replace_user_word, SQLCOM_CREATE_USER},
+  {6, "CREATE", server_word, SQLCOM_CREATE_SERVER},
+  {6, "CREATE", or_replace_server_word, SQLCOM_CREATE_SERVER},
+  {6, "CHANGE", master_word, SQLCOM_CHANGE_MASTER},
   {0, NULL, 0, SQLCOM_NOTHING}
 };
 
@@ -1749,7 +1810,7 @@ static int filter_query_type(const char *query, struct sa_keyword *kwd)
     query++;
   }
 
-  qwe_in_list= 0;
+  qwe_in_list= SQLCOM_NOTHING;
   if (!(len= get_next_word(query, fword)))
     goto not_in_list;
   query+= len+1;
@@ -1767,8 +1828,7 @@ static int filter_query_type(const char *query, struct sa_keyword *kwd)
             query++;
           nlen= get_next_word(query, nword);
         }
-        if (l_keywords->next->length != nlen ||
-            strncmp(l_keywords->next->wd, nword, nlen) != 0)
+        if (filter_query_type(query, l_keywords->next) == SQLCOM_NOTHING)
           goto do_loop;
       }
 
@@ -1783,6 +1843,25 @@ not_in_list:
   return qwe_in_list;
 }
 
+static const char *skip_set_statement(const char *query)
+{
+    if (filter_query_type(query, keywords_to_skip))
+    {
+      char fword[MAX_KEYWORD + 1];
+      int len;
+      do
+      {
+        len= get_next_word(query, fword);
+        query+= len ? len : 1;
+        if (len == 3 && strncmp(fword, "FOR", 3) == 0)
+          break;
+      } while (*query);
+
+      if (*query == 0)
+        return 0;
+    }
+    return query;
+}
 
 static int log_statement_ex(const struct connection_info *cn,
                             time_t ev_time, unsigned long thd_id,
@@ -1826,21 +1905,8 @@ static int log_statement_ex(const struct connection_info *cn,
   {
     const char *orig_query= query;
 
-    if (filter_query_type(query, keywords_to_skip))
-    {
-      char fword[MAX_KEYWORD + 1];
-      int len;
-      do
-      {
-        len= get_next_word(query, fword);
-        query+= len ? len : 1;
-        if (len == 3 && strncmp(fword, "FOR", 3) == 0)
-          break;
-      } while (*query);
-
-      if (*query == 0)
-        return 0;
-    }
+    if ((query= skip_set_statement(query)) == SQLCOM_NOTHING)
+      return 0;
 
     if (events & EVENT_QUERY_DDL)
     {
@@ -1896,7 +1962,7 @@ do_log_query:
   if (query_log_limit > 0 && uh_buffer_size > query_log_limit+2)
     uh_buffer_size= query_log_limit+2;
 
-  switch (filter_query_type(query, passwd_keywords))
+  switch (filter_query_type(skip_set_statement(query), passwd_keywords))
   {
     case SQLCOM_GRANT:
     case SQLCOM_CREATE_USER:

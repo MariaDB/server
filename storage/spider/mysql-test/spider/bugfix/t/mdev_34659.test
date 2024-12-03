@@ -13,6 +13,8 @@ CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "
 insert into t2 values (456), (123);
 SELECT * FROM t2 ORDER BY CAST(c AS char(60));
 SELECT * FROM t2 ORDER BY CAST(c AS INET6);
+SELECT * FROM t2 GROUP BY CAST(c AS char(60));
+SELECT * FROM t2 GROUP BY CAST(c AS INET6);
 # Cleanup
 DROP TABLE t1,t2;
 drop server srv;

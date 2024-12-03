@@ -4318,8 +4318,8 @@ public:
 
   int save_in_field(Field *field, bool no_conversions) override;
 
-  void set_default();
-  void set_ignore();
+  void set_default(bool set_type_handler_null);
+  void set_ignore(bool set_type_handler_null);
   void set_null();
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
@@ -6955,7 +6955,7 @@ public:
   {
     // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
     DBUG_ASSERT(0);
-    param->set_default();
+    param->set_default(true);
     return false;
   }
   table_map used_tables() const override;
@@ -7084,7 +7084,7 @@ public:
   }
   bool save_in_param(THD *, Item_param *param) override
   {
-    param->set_default();
+    param->set_default(true);
     return false;
   }
   Item *do_get_copy(THD *thd) const override
@@ -7118,7 +7118,7 @@ public:
   }
   bool save_in_param(THD *, Item_param *param) override
   {
-    param->set_ignore();
+    param->set_ignore(true);
     return false;
   }
 

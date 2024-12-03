@@ -247,9 +247,11 @@ protected:
     Typically it's the same as session_value_ptr(), but it's different,
     for example, for ENUM, that is printed as a string, but stored as a number.
   */
+  __attribute__((no_sanitize("undefined")))
   uchar *session_var_ptr(THD *thd) const
   { return ((uchar*)&(thd->variables)) + offset; }
 
+  __attribute__((no_sanitize("undefined")))
   uchar *global_var_ptr() const
   { return ((uchar*)&global_system_variables) + offset; }
 
