@@ -24,7 +24,7 @@ void dict_mem_table_free(dict_table_t*) {}
 void dict_mem_index_free(dict_index_t*) {}
 buf_block_t *buf_LRU_get_free_block(bool) { return nullptr; }
 ibool dtuple_check_typed(const dtuple_t*) { return true; }
-bool btr_cur_t::check_mismatch(const dtuple_t&,page_cur_mode_t,ulint) noexcept
+bool btr_cur_t::check_mismatch(const dtuple_t&,bool,ulint) noexcept
 { return false; }
 buf_block_t *buf_page_get_gen(const page_id_t, ulint, rw_lock_type_t,
                               buf_block_t*,ulint,mtr_t*,dberr_t*,bool) noexcept
