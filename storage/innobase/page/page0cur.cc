@@ -32,6 +32,9 @@ Created 10/4/1994 Heikki Tuuri
 #include "log0recv.h"
 #include "rem0cmp.h"
 #include "gis0rtree.h"
+#ifdef UNIV_DEBUG
+# include "trx0roll.h"
+#endif
 
 #ifdef BTR_CUR_HASH_ADAPT
 /** Get the pad character code point for a type.
@@ -518,24 +521,63 @@ bool page_cur_search_with_match_bytes(const dtuple_t &tuple,
   return false;
 }
 
+/** Compare a data tuple to a physical record.
+@param page   B-tree index page
+@param rec    B-tree index record
+@param index  index B-tree
+@param tuple  search key
+@param match  matched fields << 16 | bytes
+@param comp   nonzero if ROW_FORMAT=REDUNDANT is not being used
+@return the comparison result of dtuple and rec
+@retval 0 if dtuple is equal to rec
+@retval negative if dtuple is less than rec
+@retval positive if dtuple is greater than rec */
 static int cmp_dtuple_rec_leaf(const dtuple_t &dtuple, const rec_t *rec,
                                const dict_index_t &index,
                                uint16_t *matched_fields, ulint comp) noexcept
 {
   ut_ad(dtuple_check_typed(&dtuple));
-  ut_ad(page_rec_is_leaf(rec));
   ut_ad(!!comp == index.table->not_redundant());
   ulint cur_field= *matched_fields;
   ut_ad(dtuple.n_fields_cmp > 0);
   ut_ad(dtuple.n_fields_cmp <= index.n_core_fields || index.is_ibuf());
   ut_ad(cur_field <= dtuple.n_fields_cmp);
+  ut_ad(page_rec_is_leaf(rec));
+  ut_ad(!(rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG) ||
+        index.is_instant() ||
+        (index.is_primary() && trx_roll_crash_recv_trx &&
+         !trx_rollback_is_active));
+  ut_ad(!(dtuple.info_bits & REC_INFO_MIN_REC_FLAG) ||
+        index.is_instant() ||
+        (index.is_primary() && trx_roll_crash_recv_trx &&
+         !trx_rollback_is_active));
   int ret= 0;
+
+  if (dtuple.info_bits & REC_INFO_MIN_REC_FLAG)
+  {
+    *matched_fields= 0;
+    return -!(rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG);
+  }
+  else if (rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG)
+  {
+    *matched_fields= 0;
+    return 1;
+  }
 
   if (UNIV_LIKELY(comp != 0))
   {
-    const unsigned n_core_null_bytes= index.n_core_null_bytes;
     const byte *nulls= rec - REC_N_NEW_EXTRA_BYTES;
-    const byte *lens= --nulls - n_core_null_bytes;
+    const byte *lens;
+    if (rec_get_status(rec) == REC_STATUS_INSTANT)
+    {
+      ulint n_fields= index.n_core_fields + rec_get_n_add_field(nulls) + 1;
+      ut_ad(n_fields <= index.n_fields);
+      const ulint n_nullable= index.get_n_nullable(n_fields);
+      ut_ad(n_nullable <= index.n_nullable);
+      lens= --nulls - UT_BITS_IN_BYTES(n_nullable);
+    }
+    else
+      lens= --nulls - index.n_core_null_bytes;
     byte null_mask= 1;
 
     size_t i= 0;
@@ -619,70 +661,39 @@ static int cmp_dtuple_rec_leaf(const dtuple_t &dtuple, const rec_t *rec,
   return ret;
 }
 
-bool btr_cur_t::check_mismatch(const dtuple_t& tuple, page_cur_mode_t mode,
-                               ulint comp) noexcept
+bool btr_cur_t::check_mismatch(const dtuple_t &tuple, bool ge, ulint comp)
+  noexcept
 {
+  ut_ad(page_is_leaf(page_cur.block->page.frame));
+  ut_ad(page_rec_is_user_rec(page_cur.rec));
+
   const rec_t *rec= page_cur.rec;
   uint16_t match= 0;
   int cmp= cmp_dtuple_rec_leaf(tuple, rec, *index(), &match, comp);
+  const auto uniq= dict_index_get_n_unique_in_tree(index());
+  ut_ad(match <= uniq);
+  ut_ad(match <= tuple.n_fields_cmp);
+  ut_ad(match < uniq || !cmp);
 
-  switch (mode) {
-    const rec_t *other;
-    const page_t *page;
-  case PAGE_CUR_GE:
-    if (cmp > 0)
-      return true;
-    up_match= match;
-    if (match >= dict_index_get_n_unique_in_tree(index()))
-      return false;
-    goto check_ge;
-  case PAGE_CUR_G:
-    if (cmp >= 0)
-      return true;
-  check_ge:
-    match= 0;
-    if (!(other= page_rec_get_prev_const(rec)))
-      return true;
-    page= page_cur.block->page.frame;
-    if (uintptr_t(other - page) ==
-        (comp ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM))
-      return page_has_prev(page);
-    if (UNIV_LIKELY(comp != 0))
-      switch (rec_get_status(other)) {
-      case REC_STATUS_INSTANT:
-      case REC_STATUS_ORDINARY:
-        break;
-      default:
-        return true;
-      }
-    cmp= cmp_dtuple_rec_leaf(tuple, other, *index(), &match, comp);
-    return (mode == PAGE_CUR_GE) ? cmp <= 0 : cmp < 0;
-  case PAGE_CUR_LE:
+  const page_t *const page= page_cur.block->page.frame;
+
+  if (UNIV_LIKELY(!ge))
+  {
     if (cmp < 0)
       return true;
     low_match= match;
-    goto check_le;
-  case PAGE_CUR_L:
-    if (cmp <= 0)
-      return true;
-  check_le:
-    match= 0;
-    ut_ad(!page_rec_is_supremum(rec));
-    page= page_cur.block->page.frame;
+    up_match= 0;
     if (UNIV_LIKELY(comp != 0))
     {
-      other= page_rec_next_get<true>(page, rec);
-      if (!other)
+      rec= page_rec_next_get<true>(page, rec);
+      if (!rec)
         return true;
-      if (other - page == PAGE_NEW_SUPREMUM)
-      {
+      if (uintptr_t(rec - page) == PAGE_NEW_SUPREMUM)
       le_supremum:
-        if (page_has_next(page))
-          return true;
-        up_match= 0;
-        return false;
-      }
-      switch (rec_get_status(other)) {
+        /* If we matched the full key at the end of a page (but not the index),
+        the adaptive hash index was successful. */
+        return page_has_next(page) && match < uniq;
+      switch (rec_get_status(rec)) {
       case REC_STATUS_INSTANT:
       case REC_STATUS_ORDINARY:
         break;
@@ -692,20 +703,35 @@ bool btr_cur_t::check_mismatch(const dtuple_t& tuple, page_cur_mode_t mode,
     }
     else
     {
-      other= page_rec_next_get<false>(page, rec);
-      if (!other)
+      rec= page_rec_next_get<false>(page, rec);
+      if (!rec)
         return true;
-      if (other - page == PAGE_OLD_SUPREMUM)
+      if (uintptr_t(rec - page) == PAGE_OLD_SUPREMUM)
         goto le_supremum;
     }
-    cmp= cmp_dtuple_rec_leaf(tuple, other, *index(), &match, comp);
-    if (mode != PAGE_CUR_LE)
-      return cmp > 0;
+    return cmp_dtuple_rec_leaf(tuple, rec, *index(), &up_match, comp) >= 0;
+  }
+  else
+  {
+    if (cmp > 0)
+      return true;
     up_match= match;
-    return cmp >= 0;
-  default:
-    ut_ad("invalid mode" == 0);
-    return true;
+    if (match >= uniq)
+      return false;
+    match= 0;
+    if (!(rec= page_rec_get_prev_const(rec)))
+      return true;
+    if (uintptr_t(rec - page) == (comp ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM))
+      return page_has_prev(page);
+    if (UNIV_LIKELY(comp != 0))
+      switch (rec_get_status(rec)) {
+      case REC_STATUS_INSTANT:
+      case REC_STATUS_ORDINARY:
+        break;
+      default:
+        return true;
+      }
+    return cmp_dtuple_rec_leaf(tuple, rec, *index(), &match, comp) <= 0;
   }
 }
 
