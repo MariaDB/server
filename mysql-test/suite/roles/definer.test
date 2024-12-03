@@ -305,7 +305,7 @@ delete from t1 where a=111;
 
 # note that LOCK TABLES won't work because v3 has invalid definer
 
---exec $MYSQL_DUMP --compact --events --routines --skip-lock-tables --databases test mysqltest1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --events --routines --skip-lock-tables --databases test mysqltest1
 
 ##################################################
 # cleanup

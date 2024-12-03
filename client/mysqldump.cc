@@ -118,7 +118,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_delayed=0,create_options=1,opt_quoted=0,opt_databases=0,
                 opt_alldbs=0,opt_create_db=0,opt_lock_all_tables=0,
                 opt_set_charset=0, opt_dump_date=1,
-                opt_autocommit=0,opt_disable_keys=1,opt_xml=0,
+                no_autocommit=0,opt_disable_keys=1,opt_xml=0,
                 opt_delete_master_logs=0, tty_password=0,
                 opt_single_transaction=0, opt_comments= 0, opt_compact= 0,
                 opt_hex_blob=0, opt_order_by_primary=0, opt_order_by_size = 0,
@@ -501,7 +501,7 @@ static struct my_option my_long_options[] =
     1024*1024L-1025, 4096, 16*1024L*1024L, 0, 1024, 0},
   {"no-autocommit", 0,
    "Wrap tables with autocommit/commit statements.",
-   &opt_autocommit, &opt_autocommit, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   &no_autocommit, &no_autocommit, 0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
   {"no-create-db", 'n',
    "Suppress the CREATE DATABASE ... IF EXISTS statement that normally is "
    "output for each dumped database if --all-databases or --databases is "
@@ -949,7 +949,7 @@ get_one_option(const struct my_option *opt,
   case 'X':
     opt_xml= 1;
     extended_insert= opt_drop= opt_lock=
-      opt_disable_keys= opt_autocommit= opt_create_db= 0;
+      opt_disable_keys= no_autocommit= opt_create_db= 0;
     break;
   case 'i':
     opt_comments_used= 1;
@@ -4457,7 +4457,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (opt_xml)
       print_xml_tag(md_result_file, "\t", "\n", "table_data", "name=", table,
               NullS);
-    if (opt_autocommit)
+    if (no_autocommit)
     {
       fprintf(md_result_file, "set autocommit=0;\n");
       check_io(md_result_file);
@@ -4729,7 +4729,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       fputs("UNLOCK TABLES;\n", md_result_file);
       check_io(md_result_file);
     }
-    if (opt_autocommit)
+    if (no_autocommit)
     {
       fprintf(md_result_file, "commit;\n");
       check_io(md_result_file);
