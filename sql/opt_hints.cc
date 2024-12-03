@@ -815,7 +815,7 @@ bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc) const
   if (!get_qb_hints(pc))
     return true;
 
-  for (Hint_list::const_iterator li= this->cbegin(); li != this->cend(); ++li)
+  for (Hint_list::iterator li= this->begin(); li != this->end(); ++li)
   {
     const Optimizer_hint_parser::Hint &hint= *li;
     if (const Table_level_hint &table_hint= hint)
