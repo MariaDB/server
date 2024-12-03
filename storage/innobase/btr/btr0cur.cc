@@ -1511,19 +1511,15 @@ release_tree:
     }
 
   reached_latched_leaf:
-#ifdef BTR_CUR_HASH_ADAPT
-    if (!(tuple->info_bits & REC_INFO_MIN_REC_FLAG) && !index()->is_ibuf() &&
-        btr_search.enabled)
+    if (!(tuple->info_bits & REC_INFO_MIN_REC_FLAG) && !index()->is_ibuf())
     {
       if (page_cur_search_with_match_bytes(*tuple, mode, &up_match, &low_match,
                                            &page_cur, &up_bytes, &low_bytes))
         goto corrupted;
     }
-    else
-#endif /* BTR_CUR_HASH_ADAPT */
-      if (page_cur_search_with_match(tuple, mode, &up_match, &low_match,
-                                     &page_cur, nullptr))
-        goto corrupted;
+    else if (page_cur_search_with_match(tuple, mode, &up_match, &low_match,
+                                        &page_cur, nullptr))
+      goto corrupted;
 
     ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
     ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
