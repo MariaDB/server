@@ -471,9 +471,6 @@ err_exit:
 	ibuf.index->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
 	ibuf.index->n_uniq = REC_MAX_N_FIELDS;
 	ibuf.index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
-#ifdef BTR_CUR_ADAPT
-	ibuf.index->search_info = btr_search_info_create(ibuf.index->heap);
-#endif /* BTR_CUR_ADAPT */
 	ibuf.index->page = FSP_IBUF_TREE_ROOT_PAGE_NO;
 	ut_d(ibuf.index->cached = TRUE);
 

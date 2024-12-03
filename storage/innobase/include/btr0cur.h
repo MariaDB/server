@@ -33,9 +33,6 @@ Created 10/16/1994 Heikki Tuuri
 #include "rem0types.h"
 #include "gis0type.h"
 #include "my_base.h"
-#ifdef BTR_CUR_HASH_ADAPT
-# include "srw_lock.h"
-#endif
 
 /** Mode flags for btr_cur operations; these can be ORed */
 enum {
@@ -770,6 +767,10 @@ struct btr_cur_t {
   @return error code */
   inline dberr_t open_random_leaf(rec_offs *&offsets, mem_heap_t *& heap,
                                   mtr_t &mtr);
+
+#ifdef BTR_CUR_HASH_ADAPT
+  void search_info_update() const noexcept;
+#endif
 };
 
 /** Modify the delete-mark flag of a record.
