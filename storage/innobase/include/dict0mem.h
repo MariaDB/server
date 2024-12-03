@@ -1113,7 +1113,7 @@ struct dict_index_t {
 
     /** number of consecutive searches which would have succeeded, or
     did succeed, using the hash index; the range is 0
-    .. BTR_SEARCH_BUILD_LIMIT + 5 */
+    .. BTR_SEARCH_BUILD_LIMIT */
     Atomic_relaxed<uint8_t> n_hash_potential{0};
 
     /** whether the last search would have succeeded, or
@@ -1122,15 +1122,8 @@ struct dict_index_t {
     search, and the calculation itself is not always accurate! */
     Atomic_relaxed<bool> last_hash_succ{false};
 
-    /** recommended full field prefix */
-    uint16_t n_fields= 1;
-    /** recommended number of bytes in an incomplete field */
-    uint16_t n_bytes= 0;
-
-    /** whether the leftmost record of several records with the same
-    prefix should be indexed */
-    bool left_side= true;
-
+    /** recommended parameters; @see buf_block_t::left_bytes_fields */
+    Atomic_relaxed<uint32_t> left_bytes_fields{buf_block_t::LEFT_SIDE | 1};
     /** number of buf_block_t::index pointers to this index */
     Atomic_counter<size_t> ref_count{0};
 
@@ -2590,7 +2583,7 @@ public:
   bool is_stats_table() const;
 
   /** @return number of unique columns in FTS_DOC_ID index */
-  unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
+  uint16_t fts_n_uniq() const { return versioned() ? 2 : 1; }
 
   /** @return the index for that starts with a specific column */
   dict_index_t *get_index(const dict_col_t &col) const;

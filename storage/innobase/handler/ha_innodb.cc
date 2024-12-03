@@ -1546,7 +1546,7 @@ static void innodb_drop_database(handlerton*, char *path)
 
     dfield_t dfield;
     dtuple_t tuple{
-      0,1,1,&dfield,0,nullptr
+      0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
       , DATA_TUPLE_MAGIC_N
 #endif

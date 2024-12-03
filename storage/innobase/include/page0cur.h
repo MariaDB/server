@@ -231,38 +231,34 @@ page_cur_search_with_match(
 	page_cur_mode_t		mode,	/*!< in: PAGE_CUR_L,
 					PAGE_CUR_LE, PAGE_CUR_G, or
 					PAGE_CUR_GE */
-	ulint*			iup_matched_fields,
+	uint16_t*		iup_matched_fields,
 					/*!< in/out: already matched
 					fields in upper limit record */
-	ulint*			ilow_matched_fields,
+	uint16_t*		ilow_matched_fields,
 					/*!< in/out: already matched
 					fields in lower limit record */
 	page_cur_t*		cursor,	/*!< in/out: page cursor */
 	rtr_info_t*		rtr_info);/*!< in/out: rtree search stack */
-#ifdef BTR_CUR_HASH_ADAPT
-MY_ATTRIBUTE((warn_unused_result))
+
 /** Search the right position for a page cursor.
-@param[in]	tuple			key to be searched for
-@param[in]	mode			search mode
-@param[in,out]	iup_matched_fields	already matched fields in the
-upper limit record
-@param[in,out]	iup_matched_bytes	already matched bytes in the
-first partially matched field in the upper limit record
-@param[in,out]	ilow_matched_fields	already matched fields in the
-lower limit record
-@param[in,out]	ilow_matched_bytes	already matched bytes in the
-first partially matched field in the lower limit record
-@param[in,out]	cursor			page cursor */
-bool
-page_cur_search_with_match_bytes(
-	const dtuple_t*		tuple,
-	page_cur_mode_t		mode,
-	ulint*			iup_matched_fields,
-	ulint*			iup_matched_bytes,
-	ulint*			ilow_matched_fields,
-	ulint*			ilow_matched_bytes,
-	page_cur_t*		cursor);
-#endif /* BTR_CUR_HASH_ADAPT */
+@param tuple        search key
+@param mode         search mode
+@param iup_fields   matched fields in the upper limit record
+@param ilow_fields  matched fields in the low limit record
+@param cursor       page cursor
+@param iup_bytes    matched bytes after iup_fields
+@param ilow_bytes   matched bytes after ilow_fields
+@return whether the first partially matched field in the lower limit record,
+or the page is corrupted */
+bool page_cur_search_with_match_bytes(const dtuple_t &tuple,
+                                      page_cur_mode_t mode,
+                                      uint16_t *iup_fields,
+                                      uint16_t *ilow_fields,
+                                      page_cur_t *cursor,
+                                      uint16_t *iup_bytes,
+                                      uint16_t *ilow_bytes)
+  noexcept;
+
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
 are no user records, sets the cursor on the infimum record. */

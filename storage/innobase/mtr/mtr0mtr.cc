@@ -927,7 +927,8 @@ void mtr_t::page_lock_upgrade(const buf_block_t &block)
                                  (MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_PAGE_X_FIX));
 
 #ifdef BTR_CUR_HASH_ADAPT
-  ut_ad(!block.index || !block.index->freed());
+  ut_d(if (dict_index_t *index= block.index))
+  ut_ad(!index->freed());
 #endif /* BTR_CUR_HASH_ADAPT */
 }
 
