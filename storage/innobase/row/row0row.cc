@@ -1302,6 +1302,7 @@ row_search_index_entry(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	case BTR_CUR_HASH:
+	case BTR_CUR_HASH_ABORT:
 	case BTR_CUR_HASH_FAIL:
 #endif
 	case BTR_CUR_BINARY:
