@@ -511,18 +511,27 @@ static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor) noexcept
 
   dict_index_t *const index= cursor.index();
   ut_ad(!index->is_ibuf());
-  const uint16_t n_uniq{dict_index_get_n_unique_in_tree(index)};
-  dict_index_t::ahi &info= index->search_info;
-
-  uint32_t left_bytes_fields{info.left_bytes_fields};
-  uint8_t n_hash_potential= info.n_hash_potential;
   buf_block_t *const block= cursor.page_cur.block;
   ut_ad(block->page.lock.have_any());
   ut_d(const uint32_t state= block->page.state());
   ut_ad(state >= buf_page_t::UNFIXED);
   ut_ad(!block->page.is_read_fixed(state));
+
+  switch (uintptr_t(btr_cur_get_rec(&cursor) - block->page.frame)) {
+  case PAGE_OLD_INFIMUM:
+  case PAGE_OLD_SUPREMUM:
+  case PAGE_NEW_INFIMUM:
+  case PAGE_NEW_SUPREMUM:
+    /* The adaptive hash index only includes user records. */
+    return 0;
+  }
+
   const dict_index_t *const block_index= block->index;
   uint16_t n_hash_helps{block->n_hash_helps};
+  const uint16_t n_uniq{dict_index_get_n_unique_in_tree(index)};
+  dict_index_t::ahi &info= index->search_info;
+  uint32_t left_bytes_fields{info.left_bytes_fields};
+  uint8_t n_hash_potential= info.n_hash_potential;
   uint32_t ret;
 
   if (!n_hash_potential)
