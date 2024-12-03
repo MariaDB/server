@@ -659,6 +659,7 @@ enum btr_cur_method {
 #ifdef BTR_CUR_HASH_ADAPT
 	BTR_CUR_HASH,		/*!< successful shortcut using
 				the hash index */
+	BTR_CUR_HASH_ABORT,	/*!< the hash index could not be used */
 	BTR_CUR_HASH_FAIL,	/*!< failure using hash, success using
 				binary search */
 #endif
