@@ -1072,7 +1072,6 @@ btr_search_guess_on_hash(
 #endif
   const uint32_t fold= dtuple_fold(tuple, cursor);
   cursor->fold= fold;
-  cursor->flag= BTR_CUR_HASH;
   btr_sea::partition &part= btr_search.get_part(*index);
 
   part.latch.rd_lock(SRW_LOCK_CALL);
@@ -1082,8 +1081,6 @@ btr_search_guess_on_hash(
   ahi_release_and_fail:
     part.latch.rd_unlock();
   fail:
-    cursor->flag= BTR_CUR_HASH_FAIL;
-
 #ifdef UNIV_SEARCH_PERF_STAT
     ++index->search_info.n_hash_fail;
     if (index->search_info.n_hash_succ > 0)
@@ -1098,7 +1095,10 @@ btr_search_guess_on_hash(
     { return node->fold == fold; });
 
   if (!node)
+  {
+    cursor->flag= BTR_CUR_HASH_FAIL;
     goto ahi_release_and_fail;
+  }
 
   const rec_t *rec= node->rec;
   buf_block_t *block= buf_pool.block_from_ahi(rec);
@@ -1129,6 +1129,7 @@ btr_search_guess_on_hash(
       block->page.lock.s_unlock();
     else
       block->page.lock.x_unlock();
+    cursor->flag= BTR_CUR_HASH_FAIL;
     goto ahi_release_and_fail;
   }
 
@@ -1139,6 +1140,7 @@ btr_search_guess_on_hash(
   if (index != block_index && index_id == block_index->id)
   {
     ut_a(block_index->freed());
+    cursor->flag= BTR_CUR_HASH_FAIL;
     goto block_and_ahi_release_and_fail;
   }
 
@@ -1171,6 +1173,7 @@ btr_search_guess_on_hash(
     default:
     mismatch:
       mtr->release_last_page();
+      cursor->flag= BTR_CUR_HASH_FAIL;
       goto fail;
     }
 
@@ -1185,6 +1188,7 @@ btr_search_guess_on_hash(
     index->search_info.n_hash_potential= n_hash_potential;
 
   index->search_info.last_hash_succ= true;
+  cursor->flag= BTR_CUR_HASH;
 
 #ifdef UNIV_SEARCH_PERF_STAT
   btr_search_n_succ++;
