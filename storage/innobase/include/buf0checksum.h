@@ -33,25 +33,23 @@ the file. Note that we must be careful to calculate the same value on all
 architectures.
 @param[in]	page			buffer page (srv_page_size bytes)
 @return	CRC-32C */
-uint32_t buf_calc_page_crc32(const byte* page);
+uint32_t buf_calc_page_crc32(const byte *page) noexcept;
 
 #ifndef UNIV_INNOCHECKSUM
+/** Fold a binary string, similar to innodb_checksum_algorithm=innodb.
+@return folded value */
+ulint ut_fold_binary(const byte *str, size_t len) noexcept;
+
 /** Calculate a checksum which is stored to the page when it is written
 to a file. Note that we must be careful to calculate the same value on
 32-bit and 64-bit architectures.
 @param[in]	page	file page (srv_page_size bytes)
 @return checksum */
 uint32_t
-buf_calc_page_new_checksum(const byte* page);
+buf_calc_page_new_checksum(const byte *page) noexcept;
 
 /** In MySQL before 4.0.14 or 4.1.1 there was an InnoDB bug that
 the checksum only looked at the first few bytes of the page.
-This calculates that old checksum.
-NOTE: we must first store the new formula checksum to
-FIL_PAGE_SPACE_OR_CHKSUM before calculating and storing this old checksum
-because this takes that field as an input!
-@param[in]	page	file page (srv_page_size bytes)
-@return checksum */
-uint32_t
-buf_calc_page_old_checksum(const byte* page);
+This calculates that old checksum. */
+# define buf_calc_page_old_checksum(page) uint32_t(ut_fold_binary(page, 26))
 #endif /* !UNIV_INNOCHECKSUM */
