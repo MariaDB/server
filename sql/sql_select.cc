@@ -8701,8 +8701,11 @@ best_access_path(JOIN      *join,
         if (!(records < s->worst_seeks &&
               records <= thd->variables.max_seeks_for_key))
         {
-          // Don't use rowid filter
-          trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+          if (table->range_rowid_filter_cost_info_elems)
+          {
+            // Don't use rowid filter
+            trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+          }
           filter= NULL;
         }
         else
