@@ -70,7 +70,7 @@ DROP USER 'GSSAPI_SHORTNAME';
 CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as '1234567890123456789012345678901234567890a' AND gssapi;
 update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
 flush privileges;
-connect(localhost,GSSAPI_SHORTNAME,,test,19000,E:/main/xxx/mysql-test/var/tmp/mysqld.1.sock);
+connect(localhost,GSSAPI_SHORTNAME,,test,MASTER_MYPORT,MASTER_MYSOCK);
 connect  con1,localhost,$GSSAPI_SHORTNAME,,;
 ERROR 28000: Access denied for user 'GSSAPI_SHORTNAME'@'localhost' (using password: YES)
 connection default;
@@ -78,5 +78,5 @@ DROP USER GSSAPI_SHORTNAME;
 # MFA 5 - error mixing AND/OR
 CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") AND gssapi OR gssapi AS 'SID:WD';
 ERROR 42000: This version of MariaDB doesn't yet support 'mix of AND/OR operators in user definition'
-CREATE USER 'wva72' IDENTIFIED WITH mysql_native_password as password("good") OR gssapi AND gssapi AS 'SID:WD';
+CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") OR gssapi AND gssapi AS 'SID:WD';
 ERROR 42000: This version of MariaDB doesn't yet support 'mix of AND/OR operators in user definition'
