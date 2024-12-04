@@ -248,11 +248,11 @@ protected:
     Typically it's the same as session_value_ptr(), but it's different,
     for example, for ENUM, that is printed as a string, but stored as a number.
   */
-  __attribute_no_sanitize__
+  ATTRIBUTE_NO_UBSAN
   uchar *session_var_ptr(THD *thd) const
   { return ((uchar*)&(thd->variables)) + offset; }
 
-  __attribute_no_sanitize__
+  ATTRIBUTE_NO_UBSAN
   uchar *global_var_ptr() const
   { return ((uchar*)&global_system_variables) + offset; }
 
