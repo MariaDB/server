@@ -2248,7 +2248,8 @@ String *Item_func_password::val_str_ascii(String *str)
       return 0;
     if (res->length() == 0)
       return make_empty_result(str);
-    my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
+    my_make_scrambled_password_323(tmp_value, sizeof(tmp_value),
+                                   res->ptr(), res->length());
     str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
     break;
   default:
@@ -2271,7 +2272,11 @@ char *Item_func_password::alloc(THD *thd, const char *password,
     my_make_scrambled_password(buff, password, pass_len);
     break;
   case OLD:
-    my_make_scrambled_password_323(buff, password, pass_len);
+    my_make_scrambled_password_323(buff,
+                                   (al==NEW) ?
+                                   SCRAMBLED_PASSWORD_CHAR_LENGTH + 1 :
+                                   SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1,
+                                   password, pass_len);
     break;
   default:
     DBUG_ASSERT(0);

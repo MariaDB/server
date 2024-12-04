@@ -14925,7 +14925,9 @@ static int old_password_make_scramble(const char *password,
   else
   {
     *hash_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-    my_make_scrambled_password_323(hash, password, password_length);
+    my_make_scrambled_password_323(hash,
+                                   SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1,
+                                   password, password_length);
   }
   return 0;
 }

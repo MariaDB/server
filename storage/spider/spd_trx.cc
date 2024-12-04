@@ -1647,18 +1647,17 @@ int spider_internal_start_trx(
       if (spider_param_internal_xa_id_type(thd) == 0)
       {
         trx->xid.gtrid_length
-          = my_sprintf(trx->xid.data,
-          (trx->xid.data, "%lx", thd_get_thread_id(thd)));
+          = snprintf(trx->xid.data, sizeof(trx->xid.data), "%lx",
+                     thd_get_thread_id(thd));
       } else {
         trx->xid.gtrid_length
-          = my_sprintf(trx->xid.data,
-          (trx->xid.data, "%lx%016llx", thd_get_thread_id(thd),
-            thd->query_id));
+          = snprintf(trx->xid.data, sizeof(trx->xid.data), "%lx%016llx",
+                     thd_get_thread_id(thd), thd->query_id);
       }
       trx->xid.bqual_length
-        = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
-        (trx->xid.data + trx->xid.gtrid_length, "%lx",
-        thd->variables.server_id));
+        = snprintf(trx->xid.data + trx->xid.gtrid_length,
+                   sizeof(trx->xid.data) - trx->xid.gtrid_length, "%lx",
+                   thd->variables.server_id);
 
 #ifdef SPIDER_XID_STATE_HAS_in_thd
       trx->internal_xid_state.in_thd = 1;

@@ -248,7 +248,7 @@ int spider_udf_direct_sql_create_conn_key(
   tmp_name= direct_sql->conn_key + 1;
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_wrapper);
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_host);
-  my_sprintf(port_str, (port_str, "%05ld", direct_sql->tgt_port));
+  snprintf(port_str, sizeof(port_str), "%05ld", direct_sql->tgt_port);
   spider_create_conn_key_add_one(&counter, &tmp_name, port_str);
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_socket);
   counter++;

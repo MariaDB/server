@@ -2107,7 +2107,7 @@ calc_buf_pool_size:
 
 	char	now[32];
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 	if (!warning) {
 		buf_resize_status("Completed resizing buffer pool at %s.",
 			now);

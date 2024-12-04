@@ -148,7 +148,8 @@ fts_config_create_index_param_name(
 	::strcpy(name, param);
 	name[len] = '_';
 
-	fts_write_object_id(index->id, name + len + 1);
+	fts_write_object_id(index->id, name + len + 1,
+						FTS_AUX_MIN_TABLE_ID_LENGTH);
 
 	return(name);
 }
