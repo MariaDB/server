@@ -365,6 +365,42 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
 }
 
 
+/*
+  @brief
+    Do a quick and imprecise check if it makes sense to try Virtual Column
+    Substitutiion transformation for this item.
+
+  @detail
+    For vcol_expr='FOO' the item to be trans formed is the comparison item
+    (Item_func_eq in this example), not the item representing vcol_expr.
+*/
+
+bool Item::vcol_subst_analyzer(uchar **)
+{
+  const ulonglong allowed_cmp_funcs=
+     Item_func::BITMAP_EQ |
+     Item_func::BITMAP_EQUAL |
+     Item_func::BITMAP_LT |
+     Item_func::BITMAP_GT |
+     Item_func::BITMAP_LE |
+     Item_func::BITMAP_GE |
+     Item_func::BITMAP_BETWEEN |
+     Item_func::BITMAP_IN |
+     Item_func::BITMAP_ISNULL |
+     Item_func::BITMAP_ISNOTNULL;
+
+  Item::Type this_type= type();
+  /*
+    Do transformation
+    1. Inside AND/OR
+    2. In selected list of comparison predicates
+  */
+  return (this_type == Item::COND_ITEM ||                            // (1)
+          (this_type == Item::FUNC_ITEM &&                           // (2)
+           (((Item_func*)this)->bitmap_bit() & allowed_cmp_funcs))); // (2)
+}
+
+
 Item* Item_bool_rowready_func2::vcol_subst_transformer(THD *thd, uchar *arg)
 {
   DBUG_ASSERT(this->vcol_subst_analyzer(NULL));

@@ -819,8 +819,6 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_eq>(thd, this); }
   Item *do_build_clone(THD *thd) const override;
-
-  bool vcol_subst_analyzer(uchar **) override { return true; }
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -872,8 +870,6 @@ public:
   { return get_item_copy<Item_func_ge>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
-
-  bool vcol_subst_analyzer(uchar **) override { return true; }
 };
 
 
@@ -896,8 +892,6 @@ public:
   { return get_item_copy<Item_func_gt>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
-
-  bool vcol_subst_analyzer(uchar **) override { return true; }
 };
 
 
@@ -920,8 +914,6 @@ public:
   { return get_item_copy<Item_func_le>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
-
-  bool vcol_subst_analyzer(uchar **) override { return true; }
 };
 
 
@@ -944,8 +936,6 @@ public:
   { return get_item_copy<Item_func_lt>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
-
-  bool vcol_subst_analyzer(uchar **) override { return true; }
 };
 
 
@@ -1078,7 +1068,6 @@ public:
   longlong val_int_cmp_real();
   longlong val_int_cmp_decimal();
 
-  bool vcol_subst_analyzer(uchar **) override { return true; }
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
 };
 
@@ -2693,7 +2682,6 @@ public:
   uint32 max_length_of_left_expr();
   Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
 
-  bool vcol_subst_analyzer(uchar **) override { return true; }
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
 };
 
@@ -2778,7 +2766,6 @@ public:
   }
   bool count_sargable_conds(void *arg) override;
 
-  bool vcol_subst_analyzer(uchar **) override { return true; }
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
 };
 
@@ -3292,11 +3279,6 @@ public:
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;
 
-  bool vcol_subst_analyzer(uchar **) override
-  {
-    /* Allow Virtual Column Substitution to walk into AND/OR conditions */
-    return true;
-  }
 private:
   void merge_sub_condition(List_iterator<Item>& li);
 };
