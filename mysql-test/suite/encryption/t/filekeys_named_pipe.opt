@@ -1,1 +1,1 @@
---loose-file-key-management-filename=$MYSQL_TMP_DIR/fifo.key
+--loose-file-key-management-filename=$MYSQLTEST_VARDIR/tmp/fifo.key
