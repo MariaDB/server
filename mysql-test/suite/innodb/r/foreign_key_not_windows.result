@@ -6,11 +6,20 @@ CREATE DATABASE `d255`;
 CREATE TABLE `d255`.`d255`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
 ERROR HY000: Long database name and identifier for object resulted in path length exceeding 512 characters. Path: './@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023/@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@
+CREATE OR REPLACE TABLE `d255`.`d255`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+ERROR HY000: Long database name and identifier for object resulted in path length exceeding 512 characters. Path: './@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023/@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@
 CREATE TABLE `d255`.`_##################################################`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+ERROR HY000: Long database name and identifier for object resulted in path length exceeding 512 characters. Path: './@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023/_@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023
+CREATE OR REPLACE TABLE `d255`.`_##################################################`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
 ERROR HY000: Long database name and identifier for object resulted in path length exceeding 512 characters. Path: './@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023/_@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023
 CREATE TABLE `d255`.`##################################################`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+CREATE OR REPLACE TABLE `d255`.`d245`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+DROP TABLE `d255`.`d245`;
 #
 # MDEV-29258 Failing assertion for name length on RENAME TABLE
 #
@@ -29,3 +38,38 @@ RENAME TABLE `d255`.u TO u;
 DROP TABLE u;
 DROP DATABASE `d255`;
 # End of 10.3 tests
+#
+# MDEV-28933 CREATE OR REPLACE fails to recreate same constraint name
+#
+set names utf8;
+create database `❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎`;
+use `❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎`;
+create table t (a int primary key) engine=innodb;
+create table u (
+a int primary key,
+constraint `❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎` foreign key d (a) references t (a)) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@27	@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@27	@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@27	1	0
+select * from information_schema.innodb_sys_foreign_cols;
+ID	FOR_COL_NAME	REF_COL_NAME	POS
+@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@27	a	a	0
+create or replace table u (
+a int primary key,
+constraint `❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎` foreign key d (a) references t (a)) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@27	@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@27	@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@27	1	0
+select * from information_schema.innodb_sys_foreign_cols;
+ID	FOR_COL_NAME	REF_COL_NAME	POS
+@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@27	a	a	0
+show create table u;
+Table	Create Table
+u	CREATE TABLE `u` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  CONSTRAINT `❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎` FOREIGN KEY (`a`) REFERENCES `t` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+use test;
+drop database `❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎`;
+# End of 11.x tests

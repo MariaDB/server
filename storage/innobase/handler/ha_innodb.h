@@ -189,7 +189,8 @@ public:
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info,
 		bool			file_per_table,
-		trx_t*			trx);
+		trx_t*			trx= nullptr,
+		bool			create_fk= true);
 
 	int create(
 		const char*		name,
@@ -618,10 +619,14 @@ innobase_parse_hint_from_comment(
 	dict_table_t*		table,
 	const TABLE_SHARE*	table_share);
 
+class Foreign_key;
+
 /** Class for handling create table information. */
 class create_table_info_t
 {
 public:
+	static const unsigned MAX_COLS_PER_FK = 500;
+
 	/** Constructor.
 	Used in two ways:
 	- all but file_per_table is used, when creating the table.
@@ -641,6 +646,11 @@ public:
 
 	/** Create InnoDB foreign keys from MySQL alter_info. */
 	dberr_t create_foreign_keys();
+	dberr_t create_foreign_key(
+		Foreign_key*   fk, dict_table_t* table, const char* basename,
+		dict_foreign_set &local_fk_set, const char **column_names,
+		const char** ref_column_names, char* create_name,
+		const char* operation, ulint &number, char *db_name, char *t_name);
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
@@ -775,6 +785,12 @@ private:
 
 	/** Whether we are creating a stub table for importing. */
 	const bool	m_creating_stub;
+// Used by create_foreign_keys()
+	char		part_suffix_buf[FN_REFLEN];
+	const char *	part_suffix;
+	size_t		part_suffix_len;
+	bool tmp_name;
+	dict_table_t* alter_table;
 };
 
 /**

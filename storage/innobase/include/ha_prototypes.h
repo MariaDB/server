@@ -169,6 +169,12 @@ innobase_convert_from_id(
 	const char*	from,	/*!< in: identifier to convert */
 	ulint		len);	/*!< in: length of 'to', in bytes;
 				should be at least 3 * strlen(to) + 1 */
+/******************************************************************//**
+Makes all characters in a NUL-terminated UTF-8 string lower case. */
+void
+innobase_casedn_str(
+/*================*/
+	char*	a);	/*!< in/out: string to put in lower case */
 
 #ifdef WITH_WSREP
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,

@@ -1754,7 +1754,8 @@ dict_create_add_foreigns_to_dictionary(
   }
 
   for (auto fk : local_fk_set)
-    if (!fk->check_fk_constraint_valid())
+    if (trx->check_foreigns &&
+        !fk->check_fk_constraint_valid())
       return DB_CANNOT_ADD_CONSTRAINT;
     else if (dberr_t error= dict_create_add_foreign_to_dictionary
              (table->name.m_name, fk, trx))
