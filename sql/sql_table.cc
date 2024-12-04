@@ -2117,8 +2117,10 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   PRIMARY keys are prioritized.
 */
 
-static int sort_keys(KEY *a, KEY *b)
+static int sort_keys(const void *a_, const void *b_)
 {
+  const KEY *a= static_cast<const KEY *>(a_);
+  const KEY *b= static_cast<const KEY *>(b_);
   ulong a_flags= a->flags, b_flags= b->flags;
   
   /*
@@ -2461,6 +2463,34 @@ bool Column_definition::prepare_stage1_typelib(THD *thd,
 bool Column_definition::prepare_stage1_string(THD *thd,
                                               MEM_ROOT *mem_root)
 {
+  if (real_field_type() == FIELD_TYPE_STRING &&
+      length*charset->mbmaxlen > 1024)
+  {
+    DBUG_ASSERT(charset->mbmaxlen > 4);
+    /*
+      Convert long CHAR columns to VARCHAR.
+      CHAR has an octet length limit of 1024 bytes.
+      The code in Binlog_type_info_fixed_string::Binlog_type_info_fixed_string
+      relies on this limit. If octet length of a CHAR column is greater
+      than 1024, then it cannot write its metadata to binlog properly.
+      In case of the filename character set with mbmaxlen=5,
+      the maximum possible character length is 1024/5=204 characters.
+      Upgrade to VARCHAR if octet length is greater than 1024.
+    */
+    char warn_buff[MYSQL_ERRMSG_SIZE];
+    if (thd->is_strict_mode())
+    {
+      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
+               static_cast<ulong>(1024 / charset->mbmaxlen));
+      return true;
+    }
+    set_handler(&type_handler_varchar);
+    my_snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_AUTO_CONVERT),
+                field_name.str, "CHAR", "VARCHAR");
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_AUTO_CONVERT,
+                 warn_buff);
+  }
+
   create_length_to_internal_length_string();
   if (prepare_blob_field(thd))
     return true;
@@ -3959,33 +3989,6 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
 bool Column_definition::prepare_blob_field(THD *thd)
 {
   DBUG_ENTER("Column_definition::prepare_blob_field");
-
-  if (real_field_type() == FIELD_TYPE_STRING && length > 1024)
-  {
-    DBUG_ASSERT(charset->mbmaxlen > 4);
-    /*
-      Convert long CHAR columns to VARCHAR.
-      CHAR has an octet length limit of 1024 bytes.
-      The code in Binlog_type_info_fixed_string::Binlog_type_info_fixed_string
-      relies on this limit. If octet length of a CHAR column is greater
-      than 1024, then it cannot write its metadata to binlog properly.
-      In case of the filename character set with mbmaxlen=5,
-      the maximum possible character length is 1024/5=204 characters.
-      Upgrade to VARCHAR if octet length is greater than 1024.
-    */
-    char warn_buff[MYSQL_ERRMSG_SIZE];
-    if (thd->is_strict_mode())
-    {
-      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
-               static_cast<ulong>(1024 / charset->mbmaxlen));
-      DBUG_RETURN(1);
-    }
-    set_handler(&type_handler_varchar);
-    my_snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_AUTO_CONVERT),
-                field_name.str, "CHAR", "VARCHAR");
-    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_AUTO_CONVERT,
-                 warn_buff);
-  }
 
   if (length > MAX_FIELD_VARCHARLENGTH && !(flags & BLOB_FLAG))
   {
@@ -6515,8 +6518,10 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
 }
 
 
-static int compare_uint(const uint *s, const uint *t)
+static int compare_uint(const void *s_, const void *t_)
 {
+  const uint *s= static_cast<const uint *>(s_);
+  const uint *t= static_cast<const uint *>(t_);
   return (*s < *t) ? -1 : ((*s > *t) ? 1 : 0);
 }
 

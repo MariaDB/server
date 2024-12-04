@@ -29,3 +29,16 @@ exec $MYSQL test -e "$query";
 --exec $MYSQL --default-character-set=utf8 -e "select 1" "test😁 " 2>&1
 --error 1
 --exec $MYSQL --default-character-set=binary -e "select 1" "test😁 " 2>&1
+
+
+--echo # Start of 10.5 tests
+
+--echo #
+--echo # MDEV-34090 Client allows to set character set to utf32 and crashes on the next command
+--echo #
+
+--error 1
+--exec $MYSQL test -e '\C utf32 ; SELECT 1'
+SELECT "Success" AS c1;
+
+--echo # End of 10.5 tests

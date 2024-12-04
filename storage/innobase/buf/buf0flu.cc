@@ -2679,6 +2679,7 @@ static void buf_flush_page_cleaner()
 ATTRIBUTE_COLD void buf_pool_t::LRU_warn()
 {
   mysql_mutex_assert_owner(&mutex);
+  try_LRU_scan= false;
   if (!LRU_warned.test_and_set(std::memory_order_acquire))
     sql_print_warning("InnoDB: Could not free any blocks in the buffer pool!"
                       " %zu blocks are in use and %zu free."

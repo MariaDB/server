@@ -639,6 +639,46 @@ template bool
 dict_table_t::parse_name<>(char(&)[NAME_LEN + 1], char(&)[NAME_LEN + 1],
                            size_t*, size_t*) const;
 
+dict_table_t *dict_sys_t::acquire_temporary_table(table_id_t id) const noexcept
+{
+  ut_ad(frozen());
+  ut_ad(id >= DICT_HDR_FIRST_ID);
+  return temp_id_hash.cell_get(ut_fold_ull(id))->
+    find(&dict_table_t::id_hash, [id](dict_table_t *t)
+    {
+      ut_ad(t->is_temporary());
+      ut_ad(t->cached);
+      if (t->id != id)
+        return false;
+      t->acquire();
+      return true;
+    });
+}
+
+dict_table_t *dict_sys_t::find_table(table_id_t id) const noexcept
+{
+  ut_ad(frozen());
+  return table_id_hash.cell_get(ut_fold_ull(id))->
+    find(&dict_table_t::id_hash, [id](const dict_table_t *t)
+    {
+      ut_ad(!t->is_temporary());
+      ut_ad(t->cached);
+      return t->id == id;
+    });
+}
+
+dict_table_t *dict_sys_t::find_table(const span<const char> &name)
+  const noexcept
+{
+  ut_ad(frozen());
+  return table_hash.cell_get(my_crc32c(0, name.data(), name.size()))->
+    find(&dict_table_t::name_hash, [name](const dict_table_t *t)
+    {
+      return strlen(t->name.m_name) == name.size() &&
+        !memcmp(t->name.m_name, name.data(), name.size());
+    });
+}
+
 /** Acquire MDL shared for the table name.
 @tparam trylock whether to use non-blocking operation
 @param[in,out]  table           table object
@@ -927,7 +967,7 @@ dict_table_col_in_clustered_key(
 }
 
 /** Initialise the data dictionary cache. */
-void dict_sys_t::create()
+void dict_sys_t::create() noexcept
 {
   ut_ad(this == &dict_sys);
   ut_ad(!is_initialised());
@@ -1135,59 +1175,34 @@ void dict_table_t::add_to_cache()
 }
 
 /** Add a table definition to the data dictionary cache */
-inline void dict_sys_t::add(dict_table_t* table)
+inline void dict_sys_t::add(dict_table_t *table) noexcept
 {
-	ut_ad(!find(table));
-
-	ulint fold = my_crc32c(0, table->name.m_name,
-			       strlen(table->name.m_name));
-
-	table->autoinc_mutex.init();
-	table->lock_mutex_init();
-
-	/* Look for a table with the same name: error if such exists */
-	{
-		dict_table_t*	table2;
-		HASH_SEARCH(name_hash, &table_hash, fold,
-			    dict_table_t*, table2, ut_ad(table2->cached),
-			    !strcmp(table2->name.m_name, table->name.m_name));
-		ut_a(table2 == NULL);
-
-#ifdef UNIV_DEBUG
-		/* Look for the same table pointer with a different name */
-		HASH_SEARCH_ALL(name_hash, &table_hash,
-				dict_table_t*, table2, ut_ad(table2->cached),
-				table2 == table);
-		ut_ad(table2 == NULL);
-#endif /* UNIV_DEBUG */
-	}
-	HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
-
-	/* Look for a table with the same id: error if such exists */
-	hash_table_t* id_hash = table->is_temporary()
-		? &temp_id_hash : &table_id_hash;
-	const ulint id_fold = ut_fold_ull(table->id);
-	{
-		dict_table_t*	table2;
-		HASH_SEARCH(id_hash, id_hash, id_fold,
-			    dict_table_t*, table2, ut_ad(table2->cached),
-			    table2->id == table->id);
-		ut_a(table2 == NULL);
-
-#ifdef UNIV_DEBUG
-		/* Look for the same table pointer with a different id */
-		HASH_SEARCH_ALL(id_hash, id_hash,
-				dict_table_t*, table2, ut_ad(table2->cached),
-				table2 == table);
-		ut_ad(table2 == NULL);
-#endif /* UNIV_DEBUG */
-
-		HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
-	}
-
-	UT_LIST_ADD_FIRST(table->can_be_evicted ? table_LRU : table_non_LRU,
-			  table);
-	ut_ad(dict_lru_validate());
+  ut_ad(!table->name_hash);
+  ut_ad(!table->id_hash);
+  table->autoinc_mutex.init();
+  table->lock_mutex_init();
+  const char *name= table->name.m_name;
+  dict_table_t **prev= table_hash.cell_get(my_crc32c(0, name, strlen(name)))->
+    search(&dict_table_t::name_hash, [name](const dict_table_t *t)
+    {
+      if (!t) return true;
+      ut_ad(t->cached);
+      ut_a(strcmp(t->name.m_name, name));
+      return false;
+    });
+  *prev= table;
+  prev= (table->is_temporary() ? temp_id_hash : table_id_hash).
+    cell_get(ut_fold_ull(table->id))->
+    search(&dict_table_t::id_hash, [table](const dict_table_t *t)
+    {
+      if (!t) return true;
+      ut_ad(t->cached);
+      ut_a(t->id != table->id);
+      return false;
+    });
+  *prev= table;
+  UT_LIST_ADD_FIRST(table->can_be_evicted ? table_LRU : table_non_LRU, table);
+  ut_ad(dict_lru_validate());
 }
 
 /** Test whether a table can be evicted from dict_sys.table_LRU.
@@ -1299,7 +1314,7 @@ dict_index_t *dict_index_t::clone_if_needed()
 /** Evict unused, unlocked tables from table_LRU.
 @param half whether to consider half the tables only (instead of all)
 @return number of tables evicted */
-ulint dict_sys_t::evict_table_LRU(bool half)
+ulint dict_sys_t::evict_table_LRU(bool half) noexcept
 {
 #ifdef MYSQL_DYNAMIC_PLUGIN
 	constexpr ulint max_tables = 400;
@@ -1497,9 +1512,6 @@ dict_table_rename_in_cache(
 	ut_a(old_name_len < sizeof old_name);
 	strcpy(old_name, table->name.m_name);
 
-	const uint32_t fold= my_crc32c(0, new_name.data(), new_name.size());
-	ut_a(!dict_sys.find_table(new_name));
-
 	if (!dict_table_is_file_per_table(table)) {
 	} else if (dberr_t err = table->rename_tablespace(new_name,
 							  replace_new_file)) {
@@ -1507,10 +1519,11 @@ dict_table_rename_in_cache(
 	}
 
 	/* Remove table from the hash tables of tables */
-	HASH_DELETE(dict_table_t, name_hash, &dict_sys.table_hash,
-		    my_crc32c(0, table->name.m_name, old_name_len), table);
+	dict_sys.table_hash.cell_get(my_crc32c(0, table->name.m_name,
+					       old_name_len))
+		->remove(*table, &dict_table_t::name_hash);
 
-        bool keep_mdl_name = !table->name.is_temporary();
+	bool keep_mdl_name = !table->name.is_temporary();
 
 	if (!keep_mdl_name) {
 	} else if (const char* s = static_cast<const char*>
@@ -1543,8 +1556,16 @@ dict_table_rename_in_cache(
 	}
 
 	/* Add table to hash table of tables */
-	HASH_INSERT(dict_table_t, name_hash, &dict_sys.table_hash, fold,
-		    table);
+	ut_ad(!table->name_hash);
+	dict_table_t** after = reinterpret_cast<dict_table_t**>(
+		&dict_sys.table_hash.cell_get(my_crc32c(0, new_name.data(),
+							new_name.size()))
+		->node);
+	for (; *after; after = &(*after)->name_hash) {
+		ut_ad((*after)->cached);
+		ut_a(strcmp((*after)->name.m_name, new_name.data()));
+	}
+	*after = table;
 
 	if (table->name.is_temporary()) {
 		/* In ALTER TABLE we think of the rename table operation
@@ -1796,35 +1817,11 @@ dict_table_rename_in_cache(
 	return(DB_SUCCESS);
 }
 
-/**********************************************************************//**
-Change the id of a table object in the dictionary cache. This is used in
-DISCARD TABLESPACE. */
-void
-dict_table_change_id_in_cache(
-/*==========================*/
-	dict_table_t*	table,	/*!< in/out: table object already in cache */
-	table_id_t	new_id)	/*!< in: new id to set */
-{
-	ut_ad(dict_sys.locked());
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(!table->is_temporary());
-
-	/* Remove the table from the hash table of id's */
-
-	HASH_DELETE(dict_table_t, id_hash, &dict_sys.table_id_hash,
-		    ut_fold_ull(table->id), table);
-	table->id = new_id;
-
-	/* Add the table back to the hash table */
-	HASH_INSERT(dict_table_t, id_hash, &dict_sys.table_id_hash,
-		    ut_fold_ull(table->id), table);
-}
-
 /** Evict a table definition from the InnoDB data dictionary cache.
 @param[in,out]	table	cached table definition to be evicted
 @param[in]	lru	whether this is part of least-recently-used eviction
 @param[in]	keep	whether to keep (not free) the object */
-void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
+void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep) noexcept
 {
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
@@ -1860,16 +1857,12 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 	}
 
 	/* Remove table from the hash tables of tables */
-
-	HASH_DELETE(dict_table_t, name_hash, &table_hash,
-		    my_crc32c(0, table->name.m_name,
-			      strlen(table->name.m_name)),
-		    table);
-
-	hash_table_t* id_hash = table->is_temporary()
-		? &temp_id_hash : &table_id_hash;
-	const ulint id_fold = ut_fold_ull(table->id);
-	HASH_DELETE(dict_table_t, id_hash, id_hash, id_fold, table);
+	table_hash.cell_get(my_crc32c(0, table->name.m_name,
+				      strlen(table->name.m_name)))
+		->remove(*table, &dict_table_t::name_hash);
+	(table->is_temporary() ? temp_id_hash : table_id_hash)
+		.cell_get(ut_fold_ull(table->id))
+		->remove(*table, &dict_table_t::id_hash);
 
 	/* Remove table from LRU or non-LRU list. */
 	if (table->can_be_evicted) {
@@ -4468,8 +4461,21 @@ dict_fs2utf8(
 	}
 }
 
+/** Insert a table into the hash tables
+@param table   the table
+@param id_hash dict_sys.table_id_hash or dict_sys.temp_id_hash */
+static void hash_insert(dict_table_t *table, hash_table_t& id_hash) noexcept
+{
+  ut_ad(table->cached);
+  dict_sys.table_hash.cell_get(my_crc32c(0, table->name.m_name,
+                                         strlen(table->name.m_name)))->
+    append(*table, &dict_table_t::name_hash);
+  id_hash.cell_get(ut_fold_ull(table->id))->append(*table,
+                                                   &dict_table_t::id_hash);
+}
+
 /** Resize the hash tables based on the current buffer pool size. */
-void dict_sys_t::resize()
+void dict_sys_t::resize() noexcept
 {
   ut_ad(this == &dict_sys);
   ut_ad(is_initialised());
@@ -4490,32 +4496,18 @@ void dict_sys_t::resize()
        table= UT_LIST_GET_NEXT(table_LRU, table))
   {
     ut_ad(!table->is_temporary());
-    ulint fold= my_crc32c(0, table->name.m_name, strlen(table->name.m_name));
-    ulint id_fold= ut_fold_ull(table->id);
-
-    HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
-    HASH_INSERT(dict_table_t, id_hash, &table_id_hash, id_fold, table);
+    hash_insert(table, table_id_hash);
   }
 
   for (dict_table_t *table = UT_LIST_GET_FIRST(table_non_LRU); table;
        table= UT_LIST_GET_NEXT(table_LRU, table))
-  {
-    ulint fold= my_crc32c(0, table->name.m_name, strlen(table->name.m_name));
-    ulint id_fold= ut_fold_ull(table->id);
-
-    HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
-
-    hash_table_t *id_hash= table->is_temporary()
-      ? &temp_id_hash : &table_id_hash;
-
-    HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
-  }
+    hash_insert(table, table->is_temporary() ? temp_id_hash : table_id_hash);
 
   unlock();
 }
 
 /** Close the data dictionary cache on shutdown. */
-void dict_sys_t::close()
+void dict_sys_t::close() noexcept
 {
   ut_ad(this == &dict_sys);
   if (!is_initialised()) return;
@@ -4525,8 +4517,7 @@ void dict_sys_t::close()
   /* Free the hash elements. We don't remove them from table_hash
   because we are invoking table_hash.free() below. */
   for (ulint i= table_hash.n_cells; i--; )
-    while (dict_table_t *table= static_cast<dict_table_t*>
-           (HASH_GET_FIRST(&table_hash, i)))
+    while (auto table= static_cast<dict_table_t*>(table_hash.array[i].node))
       dict_sys.remove(table);
 
   table_hash.free();

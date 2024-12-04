@@ -108,7 +108,7 @@ check_pid_and_port()
         if [ $ss_available -ne 0 -o $sockstat_available -ne 0 ]; then
             if [ $ss_available -ne 0 ]; then
                 port_info=$($socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
-                    grep -E '[[:space:]]users:[[:space:]]?(' | \
+                    grep -E '[[:space:]]users:[[:space:]]?\(' | \
                     grep -o -E "([^[:space:]]+[[:space:]]+){4}[^[:space:]]+" || :)
             else
                 if [ $sockstat_available -gt 1 ]; then

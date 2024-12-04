@@ -2496,17 +2496,8 @@ static void buf_inc_get(ha_handler_stats *stats)
   ++buf_pool.stat.n_page_gets;
 }
 
-/** Get read access to a compressed page (usually of type
-FIL_PAGE_TYPE_ZBLOB or FIL_PAGE_TYPE_ZBLOB2).
-The page must be released with unfix().
-NOTE: the page is not protected by any latch.  Mutual exclusion has to
-be implemented at a higher level.  In other words, all possible
-accesses to a given page through this function must be protected by
-the same set of mutexes or latches.
-@param page_id   page identifier
-@return pointer to the block, s-latched */
 TRANSACTIONAL_TARGET
-buf_page_t* buf_page_get_zip(const page_id_t page_id)
+buf_page_t *buf_page_get_zip(const page_id_t page_id)
 {
   ha_handler_stats *const stats= mariadb_stats;
   buf_inc_get(stats);
@@ -2515,109 +2506,84 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id)
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
   buf_page_t *bpage;
 
-lookup:
-  for (bool discard_attempted= false;;)
+  for (;;)
   {
 #ifndef NO_ELISION
     if (xbegin())
     {
       if (hash_lock.is_locked())
-        xabort();
-      bpage= buf_pool.page_hash.get(page_id, chain);
-      if (!bpage || buf_pool.watch_is_sentinel(*bpage))
-      {
         xend();
-        goto must_read_page;
-      }
-      if (!bpage->zip.data)
+      else
       {
-        /* There is no ROW_FORMAT=COMPRESSED page. */
+        bpage= buf_pool.page_hash.get(page_id, chain);
+        const bool got_s_latch= bpage && !buf_pool.watch_is_sentinel(*bpage) &&
+          bpage->lock.s_lock_try();
         xend();
-        return nullptr;
-      }
-      if (discard_attempted || !bpage->frame)
-      {
-        if (!bpage->lock.s_lock_try())
-          xabort();
-        xend();
-        break;
-      }
-      xend();
-    }
-    else
-#endif
-    {
-      hash_lock.lock_shared();
-      bpage= buf_pool.page_hash.get(page_id, chain);
-      if (!bpage || buf_pool.watch_is_sentinel(*bpage))
-      {
-        hash_lock.unlock_shared();
-        goto must_read_page;
-      }
-
-      ut_ad(bpage->in_file());
-      ut_ad(page_id == bpage->id());
-
-      if (!bpage->zip.data)
-      {
-        /* There is no ROW_FORMAT=COMPRESSED page. */
-        hash_lock.unlock_shared();
-        return nullptr;
-      }
-
-      if (discard_attempted || !bpage->frame)
-      {
-        const bool got_s_latch= bpage->lock.s_lock_try();
-        hash_lock.unlock_shared();
-        if (UNIV_LIKELY(got_s_latch))
+        if (got_s_latch)
           break;
-        /* We may fail to acquire bpage->lock because
-        buf_page_t::read_complete() may be invoking
-        buf_pool_t::corrupted_evict() on this block, which it would
-        hold an exclusive latch on.
-
-        Let us aqcuire and release buf_pool.mutex to ensure that any
-        buf_pool_t::corrupted_evict() will proceed before we reacquire
-        the hash_lock that it could be waiting for. */
-        mysql_mutex_lock(&buf_pool.mutex);
-        mysql_mutex_unlock(&buf_pool.mutex);
-        goto lookup;
       }
+    }
+#endif
 
+    hash_lock.lock_shared();
+    bpage= buf_pool.page_hash.get(page_id, chain);
+    if (!bpage || buf_pool.watch_is_sentinel(*bpage))
+    {
       hash_lock.unlock_shared();
+      switch (dberr_t err= buf_read_page(page_id, false)) {
+      case DB_SUCCESS:
+      case DB_SUCCESS_LOCKED_REC:
+        mariadb_increment_pages_read(stats);
+        continue;
+      case DB_TABLESPACE_DELETED:
+        return nullptr;
+      default:
+        sql_print_error("InnoDB: Reading compressed page "
+                        "[page id: space=" UINT32PF ", page number=" UINT32PF
+                        "] failed with error: %s",
+                        page_id.space(), page_id.page_no(), ut_strerr(err));
+        return nullptr;
+      }
     }
 
-    discard_attempted= true;
+    ut_ad(bpage->in_file());
+    ut_ad(page_id == bpage->id());
+
+    const bool got_s_latch= bpage->lock.s_lock_try();
+    hash_lock.unlock_shared();
+    if (UNIV_LIKELY(got_s_latch))
+      break;
+    /* We may fail to acquire bpage->lock because a read is holding an
+    exclusive latch on this block and either in progress or invoking
+    buf_pool_t::corrupted_evict().
+
+    Let us aqcuire and release buf_pool.mutex to ensure that any
+    buf_pool_t::corrupted_evict() will proceed before we reacquire
+    the hash_lock that it could be waiting for.
+
+    While we are at it, let us also try to discard any uncompressed
+    page frame of the compressed BLOB page, in case one had been
+    allocated for writing the BLOB. */
     mysql_mutex_lock(&buf_pool.mutex);
-    if (buf_page_t *bpage= buf_pool.page_hash.get(page_id, chain))
+    bpage= buf_pool.page_hash.get(page_id, chain);
+    if (bpage)
       buf_LRU_free_page(bpage, false);
     mysql_mutex_unlock(&buf_pool.mutex);
   }
 
+  if (UNIV_UNLIKELY(!bpage->zip.data))
   {
-    ut_d(const auto s=) bpage->fix();
-    ut_ad(s >= buf_page_t::UNFIXED);
-    ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
+    ut_ad("no ROW_FORMAT=COMPRESSED page!" == 0);
+    bpage->lock.s_unlock();
+    bpage= nullptr;
   }
-
-  buf_page_make_young_if_needed(bpage);
+  else
+    buf_page_make_young_if_needed(bpage);
 
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
 #endif /* UNIV_DEBUG */
   return bpage;
-
-must_read_page:
-  switch (dberr_t err= buf_read_page(page_id)) {
-  case DB_SUCCESS:
-  case DB_SUCCESS_LOCKED_REC:
-    mariadb_increment_pages_read(stats);
-    goto lookup;
-  default:
-    ib::error() << "Reading compressed page " << page_id
-                << " failed with error: " << err;
-    return nullptr;
-  }
 }
 
 /********************************************************************//**

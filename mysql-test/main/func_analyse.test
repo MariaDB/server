@@ -256,5 +256,14 @@ SELECT * FROM t1 PROCEDURE ANALYSE();
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-31881 ASAN: unknown-crash in check_ulonglong (sql/sql_analyse.cc) on SELECT ... FROM ... PROCEDURE ANALYSE()
+--echo #
+
+CREATE TABLE t (a INT, b CHAR(10));
+INSERT INTO t VALUES (0,'0000000000');
+SELECT * FROM t PROCEDURE ANALYSE();
+DROP TABLE t;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

@@ -716,7 +716,7 @@ public:
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
-  static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
+  static int composite_key_cmp(void *arg, const void *key1, const void *key2);
 };
 
 
@@ -1935,12 +1935,12 @@ public:
 #endif /* HAVE_DLOPEN */
 
 C_MODE_START
-int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
-                                       const void* key2);
-int group_concat_key_cmp_with_distinct_with_nulls(void* arg, const void* key1,
-                                                  const void* key2);
-int group_concat_key_cmp_with_order(void* arg, const void* key1,
-                                    const void* key2);
+int group_concat_key_cmp_with_distinct(void *arg, const void *key1,
+                                       const void *key2);
+int group_concat_key_cmp_with_distinct_with_nulls(void *arg, const void *key1,
+                                                  const void *key2);
+int group_concat_key_cmp_with_order(void *arg, const void *key1,
+                                    const void *key2);
 int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1,
                                                const void *key2);
 int dump_leaf_key(void* key_arg,
@@ -2003,15 +2003,16 @@ protected:
   */
   bool add(bool exclude_nulls);
 
-  friend int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
-                                                const void* key2);
-  friend int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
-                                                           const void* key1,
-                                                           const void* key2);
-  friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
-					     const void* key2);
+  friend int group_concat_key_cmp_with_distinct(void *arg, const void *key1,
+                                                const void *key2);
+  friend int group_concat_key_cmp_with_distinct_with_nulls(void *arg,
+                                                           const void *key1,
+                                                           const void *key2);
+  friend int group_concat_key_cmp_with_order(void *arg, const void *key1,
+                                             const void *key2);
   friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
-                                       const void *key1, const void *key2);
+                                                        const void *key1,
+                                                        const void *key2);
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);

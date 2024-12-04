@@ -164,20 +164,24 @@ longlong Item::val_time_packed_result(THD *thd)
 String *Item::val_str_ascii(String *str)
 {
   DBUG_ASSERT(str != &str_value);
-  
-  uint errors;
-  String *res= val_str(&str_value);
+
+  if (!(collation.collation->state & MY_CS_NONASCII))
+    return val_str(str);
+
+  /*
+    We cannot use str_value as a buffer here,
+    because val_str() can use it. Let's have a local buffer.
+  */
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
+  String *res= val_str(&tmp);
+
   if (!res)
     return 0;
-  
-  if (!(res->charset()->state & MY_CS_NONASCII))
-    str= res;
-  else
-  {
-    if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
-                               &my_charset_latin1, &errors)))
-      return 0;
-  }
+
+  uint errors;
+  if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
+                             &my_charset_latin1, &errors)))
+    return 0;
 
   return str;
 }
@@ -10418,7 +10422,7 @@ String *Item_cache_int::val_str(String *str)
 {
   if (!has_value())
     return NULL;
-  str->set_int(value, unsigned_flag, default_charset());
+  str->set_int(value, unsigned_flag, &my_charset_numeric);
   return str;
 }
 
@@ -10659,7 +10663,7 @@ String* Item_cache_double::val_str(String *str)
 {
   if (!has_value())
     return NULL;
-  str->set_real(value, decimals, default_charset());
+  str->set_real(value, decimals, &my_charset_numeric);
   return str;
 }
 

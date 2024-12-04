@@ -744,9 +744,9 @@ encode('abcd','ab')
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `bin(130)` varchar(64) DEFAULT NULL,
-  `oct(130)` varchar(64) DEFAULT NULL,
-  `conv(130,16,10)` varchar(64) DEFAULT NULL,
+  `bin(130)` varchar(65) DEFAULT NULL,
+  `oct(130)` varchar(65) DEFAULT NULL,
+  `conv(130,16,10)` varchar(65) DEFAULT NULL,
   `hex(130)` varchar(16) DEFAULT NULL,
   `char(130)` varbinary(4) DEFAULT NULL,
   `format(130,10)` varchar(25) DEFAULT NULL,
@@ -5259,7 +5259,7 @@ conv(i,16,2)
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `conv(i,16,2)` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `conv(i,16,2)` varchar(65) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1,t2;
 #
@@ -5329,7 +5329,92 @@ BIN(c)
 DROP TABLE t1;
 DO OCT(-9223372036854775808);
 #
+# MDEV-28652 SUBSTRING(str,pos,len) returns incorrect result in view (returns an empty string)
+#
+create view v1 as select substring('hello', 1, 4294967295);
+select * from v1;
+substring('hello', 1, 4294967295)
+hello
+drop view v1;
+#
 # End of 10.5 tests
+#
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-29552 LEFT and RIGHT with big value for parameter 'len' >0 return empty value in view
+#
+create view v1 as select left('hello', 4294967295);
+select * from v1;
+left('hello', 4294967295)
+hello
+drop view v1;
+#
+# MDEV-33942 View cuts off the end of string with the utf8 character set in INSERT function
+#
+SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20))
+D120D18E
+CREATE VIEW v1 AS SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+SELECT * FROM v1;
+HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20))
+D120D18E
+DROP VIEW v1;
+#
+# MDEV-28686 Assertion `0' in Type_handler_string_result::make_sort_key or unexpected result
+#
+CREATE TABLE t (s DATE, e DATE, PERIOD FOR p(s,e));
+INSERT INTO t (s,e) VALUES ('1970-01-01','1970-01-02'),('1980-01-01','1980-01-02');
+SET sql_mode='';
+SELECT e, GROUP_CONCAT(s) FROM t GROUP BY CONVERT((LPAD(e, -1) AND e) USING utf8);
+e	GROUP_CONCAT(s)
+1970-01-02	1970-01-01,1980-01-01
+DROP TABLE t;
+CREATE TABLE t (s DATE, e DATE, PERIOD FOR p(s,e));
+INSERT INTO t (s,e) VALUES ('1970-01-01','1970-01-02'),('1980-01-01','1980-01-02');
+SET sql_mode='';
+SELECT DISTINCT CONVERT((LPAD(e, -1) AND e) USING utf8) FROM t;
+CONVERT((LPAD(e, -1) AND e) USING utf8)
+NULL
+SET sql_mode=STRICT_TRANS_TABLES;
+SELECT DISTINCT CONVERT((LPAD(e, -1) AND e) USING utf8) FROM t;
+CONVERT((LPAD(e, -1) AND e) USING utf8)
+NULL
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+#
+# MDEV-32755 Stack-Buffer-Overflow at /mariadb-11.3.0/strings/int2str.c:122
+#
+CREATE TABLE t0 ( c55 INT , c38 INT ) ;
+INSERT INTO t0 VALUES ( -54 , -27 ) , ( -107 , -62 ) ;
+CREATE INDEX i0 ON t0 ( c38 ) ;
+INSERT INTO t0 ( c55 ) VALUES ( 43 ) , ( 77 ) ;
+SELECT t0 . c55 AS c47 FROM
+( SELECT c15 AS c40 FROM
+( SELECT c55 AS c15 FROM t0 ) AS t1
+JOIN t0 ON t1.c15 = t1.c15 SOUNDS LIKE + CONV ( -2919286674558440404 , -17 , -2 ) ) AS t2
+JOIN t0 ON t0.c38 = t0.c38;
+c47
+DROP TABLE t0;
+SELECT CONV(-29223372036854775809, -10, 18446744073709551614);
+CONV(-29223372036854775809, -10, 18446744073709551614)
+-1000000000000000000000000000000000000000000000000000000000000000
+SELECT CONV(1<<63, 10, -2);
+CONV(1<<63, 10, -2)
+-1000000000000000000000000000000000000000000000000000000000000000
+#
+# MDEV-35416 CONV(1<<63, 10, -2) fails with --view-protocol
+#
+CREATE TABLE t1 AS SELECT CONV(1<<63, 10, -2) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(65) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.6 tests
 #
 #
 # MDEV-25704 Function random_bytes

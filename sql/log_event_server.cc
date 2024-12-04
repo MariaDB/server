@@ -1976,10 +1976,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   {
     bool is_rb_alter= gtid_flags_extra & Gtid_log_event::FL_ROLLBACK_ALTER_E1;
 
-#ifdef WITH_WSREP
-    if (!wsrep_thd_is_applying(thd))
-#endif
-      thd->set_time(when, when_sec_part);
+    thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
@@ -3180,10 +3177,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   */
   if (rpl_filter->db_ok(thd->db.str))
   {
-#ifdef WITH_WSREP
-    if (!wsrep_thd_is_applying(thd))
-#endif
-      thd->set_time(when, when_sec_part);
+    thd->set_time(when, when_sec_part);
     thd->set_query_id(next_query_id());
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
 
@@ -4455,7 +4449,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 #endif
   }
 
-  general_log_print(thd, COM_QUERY, get_query());
+  general_log_print(thd, COM_QUERY, "%s", get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   res= do_commit();
   if (!res && rgi->gtid_pending)
@@ -8320,7 +8314,7 @@ void issue_long_find_row_warning(Log_event_type type,
                             "while looking up records to be processed. Consider adding a "
                             "primary key (or unique key) to the table to improve "
                             "performance.",
-                            evt_type, table_name, (long) delta, scan_type);
+                            evt_type, table_name, delta, scan_type);
     }
   }
 }

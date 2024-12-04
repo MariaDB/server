@@ -180,7 +180,7 @@ lock_rec_get_next_on_page_const(
 
   const page_id_t page_id{lock->un_member.rec_lock.page_id};
 
-  while (!!(lock= static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))))
+  while (!!(lock= static_cast<const lock_t*>(lock->hash)))
     if (lock->un_member.rec_lock.page_id == page_id)
       break;
   return lock;

@@ -6557,3 +6557,23 @@ c1
 #
 # End of 10.5 tests
 #
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-23895 Server crash, ASAN heap-buffer-overflow or Valgrind Invalid write in Item_func_rpad::val_str
+#
+CREATE TABLE t1 (a CHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+SET collation_connection= ucs2_danish_ci;
+SET last_insert_id=0;
+SELECT * FROM t1 WHERE RPAD(a, 50, LAST_INSERT_ID());
+a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo00000000000000000000000000000000000000000000000'
+Warning	1292	Truncated incorrect DOUBLE value: 'bar00000000000000000000000000000000000000000000000'
+DROP TABLE t1;
+SET names latin1;
+#
+# End of 10.6 tests
+#
