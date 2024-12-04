@@ -1772,25 +1772,47 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 }
 
 
-multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
+multi_update::multi_update(THD *thd_arg,
+                           TABLE_LIST *table_list,
                            List<TABLE_LIST> *leaves_list,
-			   List<Item> *field_list, List<Item> *value_list,
-			   enum enum_duplicates handle_duplicates_arg,
-                           bool ignore_arg):
-   select_result_interceptor(thd_arg),
-   all_tables(table_list), leaves(leaves_list), update_tables(0),
-   tmp_tables(0), updated(0), found(0), fields(field_list),
-   values(value_list), table_count(0), copy_field(0),
-   handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),
-   transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0),
-   updated_sys_ver(0)
+                           List<Item> *field_list,
+                           List<Item> *value_list,
+                           enum enum_duplicates handle_duplicates_arg,
+                           bool ignore_arg)
+  : select_result_interceptor(thd_arg),
+    all_tables(table_list),
+    leaves(leaves_list),
+    update_tables(0),
+    tmp_tables(0),
+    updated(0),
+    found(0),
+    fields(field_list),
+    values(value_list),
+    table_count(0),
+    copy_field(0),
+    handle_duplicates(handle_duplicates_arg),
+    do_update(1),
+    trans_safe(1),
+    transactional_tables(0),
+    ignore(ignore_arg),
+    error_handled(0),
+    prepared(0),
+    updated_sys_ver(0),
+    tables_to_update(get_table_map(fields))
 {
+  // Defer error reporting to multi_update::init whne tables_to_update is zero
+  // because we don't have exceptions and we can't return values from a constructor.
 }
 
 
 bool multi_update::init(THD *thd)
 {
-  table_map tables_to_update= get_table_map(fields);
+  if (!tables_to_update)
+  {
+    my_message(ER_NO_TABLES_USED, ER_THD(thd, ER_NO_TABLES_USED), MYF(0));
+    return true;
+  }
+
   List_iterator_fast<TABLE_LIST> li(*leaves);
   TABLE_LIST *tbl;
   while ((tbl =li++))
@@ -1802,6 +1824,24 @@ bool multi_update::init(THD *thd)
     if (updated_leaves.push_back(tbl, thd->mem_root))
       return true;
   }
+
+  List_iterator<TABLE_LIST> updated_leaves_iter(updated_leaves);
+  TABLE_LIST *table_ref;
+  while ((table_ref= updated_leaves_iter++))
+  {
+    /* TODO: add support of view of join support */
+    if (table_ref->is_jtbm())
+      continue;
+
+    TABLE *table= table_ref->table;
+    if (tables_to_update & table->map)
+      update_targets.push_back(table_ref);
+  }
+  table_count= update_targets.elements;
+  tmp_tables = thd->calloc<TABLE*>(table_count);
+  tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
+  fields_for_table= thd->alloc<List_item*>(table_count);
+  values_for_table= thd->alloc<List_item*>(table_count);
   return false;
 }
 
@@ -1828,14 +1868,13 @@ int multi_update::prepare(List<Item> &not_used_values,
 
 {
   TABLE_LIST *table_ref;
-  SQL_I_List<TABLE_LIST> update;
-  table_map tables_to_update;
+  SQL_I_List<TABLE_LIST> update_list;
   Item_field *item;
   List_iterator_fast<Item> field_it(*fields);
   List_iterator_fast<Item> value_it(*values);
   uint i, max_fields;
   uint leaf_table_count= 0;
-  List_iterator<TABLE_LIST> ti(updated_leaves);
+  List_iterator<TABLE_LIST> update_targets_iter(update_targets);
   DBUG_ENTER("multi_update::prepare");
 
   if (prepared)
@@ -1846,98 +1885,69 @@ int multi_update::prepare(List<Item> &not_used_values,
   thd->cuted_fields=0L;
   THD_STAGE_INFO(thd, stage_updating_main_table);
 
-  tables_to_update= get_table_map(fields);
-
-  if (!tables_to_update)
-  {
-    my_message(ER_NO_TABLES_USED, ER_THD(thd, ER_NO_TABLES_USED), MYF(0));
-    DBUG_RETURN(1);
-  }
-
   /*
     We gather the set of columns read during evaluation of SET expression in
     TABLE::tmp_set by pointing TABLE::read_set to it and then restore it after
     setup_fields().
   */
-  while ((table_ref= ti++))
+  while ((table_ref= update_targets_iter++))
   {
-    if (table_ref->is_jtbm())
-      continue;
-
     TABLE *table= table_ref->table;
-    if (tables_to_update & table->map)
-    {
-      DBUG_ASSERT(table->read_set == &table->def_read_set);
-      table->read_set= &table->tmp_set;
-      bitmap_clear_all(table->read_set);
-    }
+    DBUG_ASSERT(table->read_set == &table->def_read_set);
+    table->read_set= &table->tmp_set;
+    bitmap_clear_all(table->read_set);
   }
 
   /*
     We have to check values after setup_tables to get covering_keys right in
     reference tables
   */
-
   int error= setup_fields(thd, Ref_ptr_array(),
                           *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
              TABLE::check_assignability_explicit_fields(*fields, *values,
                                                         ignore);
 
-  ti.rewind();
-  while ((table_ref= ti++))
+  /*
+    Restore TABLE::tmp_set as we promised just before setup_tables.
+   */
+  update_targets_iter.rewind();
+  while ((table_ref= update_targets_iter++))
   {
-    if (table_ref->is_jtbm())
-      continue;
-
     TABLE *table= table_ref->table;
-    if (tables_to_update & table->map)
-    {
-      table->read_set= &table->def_read_set;
-      bitmap_union(table->read_set, &table->tmp_set);
-      if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
-        table->file->prepare_for_modify(true, true);
-    }
+    table->read_set= &table->def_read_set;
+    bitmap_union(table->read_set, &table->tmp_set);
+    if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
+      table->file->prepare_for_modify(true, true);
   }
   if (unlikely(error))
     DBUG_RETURN(1);    
 
   /*
-    Save tables being updated in update_tables
-    update_table->shared is position for table
-    Don't use key read on tables that are updated
+    Save tables that we will update into update_list.
+    table_ref->shared links this table to its corresponding temporary table
+    for collecting row ids.
+    Don't use key read on tables that are updated.
   */
-
-  update.empty();
-  ti.rewind();
-  while ((table_ref= ti++))
+  update_list.empty();
+  update_targets_iter.rewind();
+  for (uint index= 0; (table_ref= update_targets_iter++);)
   {
-    /* TODO: add support of view of join support */
-    if (table_ref->is_jtbm())
-      continue;
     TABLE *table=table_ref->table;
     leaf_table_count++;
-    if (tables_to_update & table->map)
-    {
-      TABLE_LIST *tl= (TABLE_LIST*) thd->memdup(table_ref,
-						sizeof(*tl));
-      if (!tl)
-	DBUG_RETURN(1);
-      update.link_in_list(tl, &tl->next_local);
-      table_ref->shared= tl->shared= table_count++;
-      table->no_keyread=1;
-      table->covering_keys.clear_all();
-      table->prepare_triggers_for_update_stmt_or_event();
-      table->reset_default_fields();
-    }
+    TABLE_LIST *tl= (TABLE_LIST*) thd->memdup(table_ref,
+					sizeof(*tl));
+    if (!tl)
+      DBUG_RETURN(1);
+    update_list.insert(tl, &tl->next_local);
+    table_ref->shared= tl->shared= index++;
+    table->no_keyread=1;
+    table->covering_keys.clear_all();
+    table->prepare_triggers_for_update_stmt_or_event();
+    table->reset_default_fields();
   }
 
-  table_count=  update.elements;
-  update_tables= update.first;
+  update_tables= update_list.first;
 
-  tmp_tables = thd->calloc<TABLE*>(table_count);
-  tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
-  fields_for_table= thd->alloc<List_item*>(table_count);
-  values_for_table= thd->alloc<List_item*>(table_count);
   if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(1);
   for (i=0 ; i < table_count ; i++)
@@ -2119,7 +2129,7 @@ multi_update::initialize_tables(JOIN *join)
   for (table_ref= update_tables; table_ref; table_ref= table_ref->next_local)
   {
     TABLE *table=table_ref->table;
-    uint cnt= table_ref->shared;
+    uint index= table_ref->shared;
     List<Item> temp_fields;
     ORDER     group;
     TMP_TABLE_PARAM *tmp_param;
@@ -2181,8 +2191,6 @@ loop_end:
       }
     }
 
-    tmp_param= tmp_table_param+cnt;
-
     /*
       Create a temporary table to store all fields that are changed for this
       table. The first field in the temporary table is a pointer to the
@@ -2195,9 +2203,6 @@ loop_end:
     TABLE *tbl= table;
     do
     {
-      LEX_CSTRING field_name;
-      field_name.str= tbl->alias.c_ptr();
-      field_name.length= strlen(field_name.str);
       /*
         Signal each table (including tables referenced by WITH CHECK OPTION
         clause) for which we will store row position in the temporary table
@@ -2215,13 +2220,14 @@ loop_end:
         DBUG_RETURN(1);
     } while ((tbl= tbl_it++));
 
-    temp_fields.append(fields_for_table[cnt]);
+    temp_fields.append(fields_for_table[index]);
 
     /* Make an unique key over the first field to avoid duplicated updates */
     bzero((char*) &group, sizeof(group));
     group.direction= ORDER::ORDER_ASC;
     group.item= (Item**) temp_fields.head_ref();
 
+    tmp_param= &tmp_table_param[index];
     tmp_param->init();
     tmp_param->tmp_name="update";
     tmp_param->field_count= temp_fields.elements;
@@ -2230,13 +2236,13 @@ loop_end:
     /* small table, ignore @@big_tables */
     my_bool save_big_tables= thd->variables.big_tables; 
     thd->variables.big_tables= FALSE;
-    tmp_tables[cnt]=create_tmp_table(thd, tmp_param, temp_fields,
+    tmp_tables[index]=create_tmp_table(thd, tmp_param, temp_fields,
                                      (ORDER*) &group, 0, 0,
                                      TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
     thd->variables.big_tables= save_big_tables;
-    if (!tmp_tables[cnt])
+    if (!tmp_tables[index])
       DBUG_RETURN(1);
-    tmp_tables[cnt]->file->extra(HA_EXTRA_WRITE_CACHE);
+    tmp_tables[index]->file->extra(HA_EXTRA_WRITE_CACHE);
   }
   join->tmp_table_keep_current_rowid= TRUE;
   DBUG_RETURN(0);

@@ -1055,7 +1055,7 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
                                                   bool first_execution) 
 {
   thd_arg->lex->current_select= fake_select_lex;
-  fake_select_lex->table_list.link_in_list(&result_table_list,
+  fake_select_lex->table_list.insert(&result_table_list,
                                            &result_table_list.next_local);
   fake_select_lex->context.table_list= 
     fake_select_lex->context.first_name_resolution_table= 

@@ -7563,16 +7563,17 @@ class SORT_INFO;
 class multi_delete :public select_result_interceptor
 {
   TABLE_LIST *delete_tables, *table_being_deleted;
+  TMP_TABLE_PARAM *tmp_table_param;
+  TABLE **tmp_tables, *main_table;
   Unique **tempfiles;
   ha_rows deleted, found;
-  uint num_of_tables;
+  uint table_count;
   int error;
   bool do_delete;
   /* True if at least one table we delete from is transactional */
   bool transactional_tables;
   /* True if at least one table we delete from is not transactional */
   bool normal_tables;
-  bool delete_while_scanning;
   /*
      error handling (rollback and binlogging) can happen in send_eof()
      so that afterward abort_result_set() needs to find out that.
@@ -7581,15 +7582,17 @@ class multi_delete :public select_result_interceptor
 
 public:
   // Methods used by ColumnStore
-  uint get_num_of_tables() const { return num_of_tables; }
+  uint get_num_of_tables() const { return table_count; }
   TABLE_LIST* get_tables() const { return delete_tables; }
 public:
   multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables);
   ~multi_delete();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int prepare2(JOIN *join) override;
   int send_data(List<Item> &items) override;
   bool initialize_tables (JOIN *join) override;
   int do_deletes();
+  int rowid_table_deletes(TABLE *table, bool ignore);
   int do_table_deletes(TABLE *table, SORT_INFO *sort_info, bool ignore);
   bool send_eof() override;
   inline ha_rows num_deleted() const { return deleted; }
@@ -7602,7 +7605,8 @@ class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leaves of join table tree */
-  List<TABLE_LIST> updated_leaves;  /* list of of updated leaves */
+  List<TABLE_LIST> updated_leaves;  /* a superset of tables which will be updated */
+  List<TABLE_LIST> update_targets;  /* the tables that will be UPDATE'd */
   TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
@@ -7634,6 +7638,7 @@ class multi_update :public select_result_interceptor
   ha_rows updated_sys_ver;
 
   bool has_vers_fields;
+  const table_map tables_to_update;
 
 public:
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,

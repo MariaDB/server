@@ -3159,7 +3159,7 @@ int sp_head::add_instr(sp_instr *instr)
     if (instr_trig_fld_list)
     {
       m_cur_instr_trig_field_items.save_and_clear(instr_trig_fld_list);
-      m_trg_table_fields.link_in_list(
+      m_trg_table_fields.insert(
         instr_trig_fld_list,
         &instr_trig_fld_list->first->next_trig_field_list);
     }

@@ -1342,7 +1342,7 @@ bool sp_instr_set_trigger_field::on_after_expr_parsing(THD *thd)
   if (!val || !trigger_field)
     return true;
 
-  thd->spcont->m_sp->m_cur_instr_trig_field_items.link_in_list(
+  thd->spcont->m_sp->m_cur_instr_trig_field_items.insert(
     trigger_field, &trigger_field->next_trg_field);
 
   value= val;
