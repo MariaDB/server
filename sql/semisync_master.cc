@@ -608,13 +608,17 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
       DBUG_RETURN(-1);
     }
     else
-      sql_print_error("Read semi-sync reply magic number error");
+      sql_print_error("Read semi-sync reply magic number error. "
+                      "Got magic: %u  command %u  length: %lu",
+                      (uint) packet[REPLY_MAGIC_NUM_OFFSET], (uint) packet[0],
+                      packet_len);
     goto l_end;
   }
 
   if (unlikely(packet_len < REPLY_BINLOG_NAME_OFFSET))
   {
-    sql_print_error("Read semi-sync reply length error: packet is too small");
+    sql_print_error("Read semi-sync reply length error: packet is too small: %lu",
+                    packet_len);
     goto l_end;
   }
 
@@ -622,7 +626,8 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
   log_file_len = packet_len - REPLY_BINLOG_NAME_OFFSET;
   if (unlikely(log_file_len >= FN_REFLEN))
   {
-    sql_print_error("Read semi-sync reply binlog file length too large");
+    sql_print_error("Read semi-sync reply binlog file length too large: %llu",
+                    (longlong) log_file_pos);
     goto l_end;
   }
   strncpy(log_file_name, (const char*)packet + REPLY_BINLOG_NAME_OFFSET, log_file_len);
