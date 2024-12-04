@@ -984,13 +984,14 @@ lock_rec_get_prev(
   ut_ad(!in_lock->is_table());
   const page_id_t id{in_lock->un_member.rec_lock.page_id};
   hash_cell_t *cell= lock_sys.hash_get(in_lock->type_mode).cell_get(id.fold());
+  lock_t *prev_lock= nullptr;
 
   for (lock_t *lock= lock_sys_t::get_first(*cell, id); lock != in_lock;
        lock= lock_rec_get_next_on_page(lock))
     if (lock_rec_get_nth_bit(lock, heap_no))
-      return lock;
+      prev_lock= lock;
 
-  return nullptr;
+  return prev_lock;
 }
 
 /*============= FUNCTIONS FOR ANALYZING RECORD LOCK QUEUE ================*/
