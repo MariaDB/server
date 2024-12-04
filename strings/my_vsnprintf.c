@@ -234,7 +234,7 @@ static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
   size_t length;
 
   /*
-    The sign of the length argument specific the string should be right
+    The sign of the length argument specify whether the string should be right
     or left adjusted
   */
   if (length_arg < 0)
@@ -477,12 +477,13 @@ start:
 
   if (!*fmt)                                  /* End of format string */
   {
+    char arg_type;
     uint i;
     print_arr[idx].end= fmt;
     /* Obtain parameters from the list */
     for (i= 0 ; i < arg_count; i++)
     {
-      switch (args_arr[i].arg_type) {
+      switch (arg_type= args_arr[i].arg_type) {
       case 's':
       case 'b':
       case 'T':
@@ -501,7 +502,7 @@ start:
       case 'p':
         if (args_arr[i].have_longlong)
           args_arr[i].longlong_arg= va_arg(ap,longlong);
-        else if (args_arr[i].arg_type == 'd' || args_arr[i].arg_type == 'i')
+        else if (arg_type == 'd' || arg_type == 'i')
           args_arr[i].longlong_arg= va_arg(ap, int);
         else
           args_arr[i].longlong_arg= va_arg(ap, uint);
@@ -518,30 +519,43 @@ start:
     for (i= 0; i <= idx; i++)
     {
       size_t width= 0, length= 0;
-      switch (print_arr[i].arg_type) {
+      switch (arg_type= print_arr[i].arg_type) {
       case 's':
       case 'T':
-      {
-        longlong min_field_width;
-        char *par= args_arr[print_arr[i].arg_idx].str_arg;
-        width= (print_arr[i].flags & WIDTH_ARG)
-          ? (size_t)args_arr[print_arr[i].width].longlong_arg
-          : print_arr[i].width;
-        min_field_width= (print_arr[i].flags & LENGTH_ARG)
-          ? args_arr[print_arr[i].length].longlong_arg
-          : (longlong) print_arr[i].length;
-        to= process_str_arg(cs, to, end, min_field_width, width, par,
-                            print_arr[i].flags,
-                            (print_arr[i].arg_type == 'T'));
-        break;
-      }
       case 'b':
       {
-        char *par = args_arr[print_arr[i].arg_idx].str_arg;
+        char *par= args_arr[print_arr[i].arg_idx].str_arg;
+        my_bool suffix_b= arg_type == 'b', suffix_t= arg_type == 'T';
+        switch (*print_arr[i].begin) // look at the start of the next chunk
+        {
+        case 'Q':
+          print_arr[i].flags|= ESCAPED_ARG;
+          ++print_arr[i].begin;
+          break;
+        case 'B':
+          suffix_b= TRUE;
+          ++print_arr[i].begin;
+          break;
+        case 'T':
+          suffix_t= TRUE;
+          // fall-through
+        case 'S': // escape
+          ++print_arr[i].begin; // roll forward to consume the char
+          break;
+        }
         width= (print_arr[i].flags & WIDTH_ARG)
           ? (size_t)args_arr[print_arr[i].width].longlong_arg
           : print_arr[i].width;
-        to= process_bin_arg(to, end, width, par);
+        if (suffix_b)
+          to= process_bin_arg(to, end, width, par);
+        else
+        {
+          longlong min_field_width= (print_arr[i].flags & LENGTH_ARG)
+            ? args_arr[print_arr[i].length].longlong_arg
+            : (longlong) print_arr[i].length;
+          to= process_str_arg(cs, to, end, min_field_width, width, par,
+                              print_arr[i].flags, suffix_t);
+        }
         break;
       }
       case 'c':
@@ -557,7 +571,7 @@ start:
         double d= args_arr[print_arr[i].arg_idx].double_arg;
         width= (print_arr[i].flags & WIDTH_ARG) ?
           (uint)args_arr[print_arr[i].width].longlong_arg : print_arr[i].width;
-        to= process_dbl_arg(to, end, width, d, print_arr[i].arg_type);
+        to= process_dbl_arg(to, end, width, d, arg_type);
         break;
       }
       case 'd':
@@ -567,40 +581,43 @@ start:
       case 'X':
       case 'o':
       case 'p':
-      {
-        /* Integer parameter */
-        longlong larg;
-        length= (print_arr[i].flags & LENGTH_ARG)
-          ? (size_t)args_arr[print_arr[i].length].longlong_arg
-          : print_arr[i].length;
-
-        larg = args_arr[print_arr[i].arg_idx].longlong_arg;
-        to= process_int_arg(to, end, length, larg, print_arr[i].arg_type,
-                            print_arr[i].flags);
-        break;
-      }
       case 'M':
       {
-        longlong larg;
-        const char *real_end;
-
-        width= (print_arr[i].flags & WIDTH_ARG)
-          ? (size_t)args_arr[print_arr[i].width].longlong_arg
-          : print_arr[i].width;
-
-        real_end= MY_MIN(to + width, end);
-
-        larg = args_arr[print_arr[i].arg_idx].longlong_arg;
-        to= process_int_arg(to, real_end, 0, larg, 'd', print_arr[i].flags);
-        if (real_end - to >= 3)
+        /* Integer parameter */
+        longlong larg= args_arr[print_arr[i].arg_idx].longlong_arg;
+        my_bool suffix_e= arg_type == 'M';
+        // look at the start of the next chunk
+        if (arg_type == 'i' && *print_arr[i].begin == 'E')
         {
-          char errmsg_buff[MYSYS_STRERROR_SIZE];
-          *to++= ' ';
-          *to++= '"';
-          my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
-          to= process_str_arg(cs, to, real_end, 0, width, errmsg_buff,
-                              print_arr[i].flags, 1);
-          if (real_end > to) *to++= '"';
+          suffix_e= TRUE;
+          ++print_arr[i].begin; // roll forward to consume the char
+        }
+        if (suffix_e)
+        {
+          const char *real_end;
+          width= (print_arr[i].flags & WIDTH_ARG)
+            ? (size_t)args_arr[print_arr[i].width].longlong_arg
+            : print_arr[i].width;
+          real_end= MY_MIN(to + width, end);
+          to= process_int_arg(to, real_end, 0, larg, 'd', print_arr[i].flags);
+          if (real_end - to >= 3)
+          {
+            char errmsg_buff[MYSYS_STRERROR_SIZE];
+            *to++= ' ';
+            *to++= '"';
+            my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
+            to= process_str_arg(cs, to, real_end, 0, width, errmsg_buff,
+                                print_arr[i].flags, 1);
+            if (real_end > to)
+              *to++= '"';
+          }
+        }
+        else {
+          length= (print_arr[i].flags & LENGTH_ARG)
+            ? (size_t)args_arr[print_arr[i].length].longlong_arg
+            : print_arr[i].length;
+          to= process_int_arg(to, end, length, larg, arg_type,
+                              print_arr[i].flags);
         }
         break;
       }
@@ -660,7 +677,7 @@ start:
 size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
                        const char* fmt, va_list ap)
 {
-  char *start=to, *end=to+n-1;
+  char *start=to, *end=to+n-1, arg_type;
   size_t length, width;
   uint print_type, have_longlong;
 
@@ -723,20 +740,39 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 
     fmt= check_longlong(fmt, &have_longlong);
 
-    if (*fmt == 's' || *fmt == 'T')			/* String parameter */
+    switch (arg_type= *fmt) {
+    case 's':
+    case 'T':
+    case 'b':
     {
+      /* String parameter */
       reg2 char *par= va_arg(ap, char *);
-      to= process_str_arg(cs, to, end, (longlong) length, width, par,
-                          print_type, (*fmt == 'T'));
+      my_bool suffix_b= arg_type == 'b', suffix_t= arg_type == 'T';
+      switch (fmt[1]) // look-ahead (will at most land on the terminating `\0`)
+      {
+      case 'Q':
+        print_type|= ESCAPED_ARG;
+        ++fmt;
+        break;
+      case 'B':
+        suffix_b= TRUE;
+        ++fmt;
+        break;
+      case 'T':
+        suffix_t= TRUE;
+        // fall-through
+      case 'S': // escape
+        ++fmt;
+        break;
+      }
+      to= (suffix_b)
+        ? process_bin_arg(to, end, width, par)
+        : process_str_arg(cs, to, end, (longlong) length, width, par,
+                          print_type, suffix_t);
       continue;
     }
-    else if (*fmt == 'b')				/* Buffer parameter */
-    {
-      char *par = va_arg(ap, char *);
-      to= process_bin_arg(to, end, width, par);
-      continue;
-    }
-    else if (*fmt == 'f' || *fmt == 'g')
+    case 'f':
+    case 'g':
     {
       double d;
 #if __has_feature(memory_sanitizer)         /* QQ: MSAN has double trouble? */
@@ -746,26 +782,53 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 #if __has_feature(memory_sanitizer)        /* QQ: MSAN has double trouble? */
       __msan_unpoison(&d, sizeof(double));
 #endif
-      to= process_dbl_arg(to, end, width, d, *fmt);
+      to= process_dbl_arg(to, end, width, d, arg_type);
       continue;
     }
-    else if (*fmt == 'd' || *fmt == 'i' || *fmt == 'u' || *fmt == 'x' || 
-             *fmt == 'X' || *fmt == 'p' || *fmt == 'o')
+    case 'd':
+    case 'i':
+    case 'u':
+    case 'x':
+    case 'X':
+    case 'o':
+    case 'p':
+    case 'M':
     {
       /* Integer parameter */
       longlong larg;
-
+      my_bool suffix_e= arg_type == 'M';
       if (have_longlong)
-        larg = va_arg(ap,longlong);
-      else if (*fmt == 'd' || *fmt == 'i')
-        larg = va_arg(ap, int);
+        larg= va_arg(ap,longlong);
+      else if (arg_type == 'd' || arg_type == 'i' || suffix_e)
+        larg= va_arg(ap, int);
       else
         larg= va_arg(ap, uint);
-
-      to= process_int_arg(to, end, length, larg, *fmt, print_type);
+      if (arg_type == 'i' && fmt[1] == 'E') // look-ahead
+      {
+        suffix_e= TRUE;
+        ++fmt;
+      }
+      if (suffix_e)
+      {
+        const char *real_end= MY_MIN(to + width, end);
+        to= process_int_arg(to, real_end, 0, larg, 'd', print_type);
+        if (real_end - to >= 3)
+        {
+          char errmsg_buff[MYSYS_STRERROR_SIZE];
+          *to++= ' ';
+          *to++= '"';
+          my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
+          to= process_str_arg(cs, to, real_end, 0, width, errmsg_buff,
+                              print_type, 1);
+          if (real_end > to)
+            *to++= '"';
+        }
+      }
+      else
+        to= process_int_arg(to, end, length, larg, arg_type, print_type);
       continue;
     }
-    else if (*fmt == 'c')                       /* Character parameter */
+    case 'c': /* Character parameter */
     {
       register int larg;
       if (to == end)
@@ -774,23 +837,6 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
       *to++= (char) larg;
       continue;
     }
-    else if (*fmt == 'M')
-    {
-      int larg= va_arg(ap, int);
-      const char *real_end= MY_MIN(to + width, end);
-
-      to= process_int_arg(to, real_end, 0, larg, 'd', print_type);
-      if (real_end - to >= 3)
-      {
-        char errmsg_buff[MYSYS_STRERROR_SIZE];
-        *to++= ' ';
-        *to++= '"';
-        my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
-        to= process_str_arg(cs, to, real_end, 0, width, errmsg_buff,
-                            print_type, 1);
-        if (real_end > to) *to++= '"';
-      }
-      continue;
     }
 
     /* We come here on '%%', unknown code or too long parameter */
