@@ -58,6 +58,7 @@ private:
 } // end namespace detail
 
 template <typename Callable>
+inline
 detail::scope_exit<typename std::decay<Callable>::type>
 make_scope_exit(Callable &&f)
 {
@@ -66,30 +67,42 @@ make_scope_exit(Callable &&f)
 }
 
 #define CONCAT_IMPL(x, y) x##y
-
 #define CONCAT(x, y) CONCAT_IMPL(x, y)
-
 #define ANONYMOUS_VARIABLE CONCAT(_anonymous_variable, __LINE__)
 
 #define SCOPE_EXIT auto ANONYMOUS_VARIABLE= make_scope_exit
 
+#define IF_CLASS(C) typename std::enable_if<std::is_class<C>::value>::type
+#define IF_NOT_CLASS(C) typename std::enable_if<!std::is_class<C>::value>::type
+
 namespace detail
 {
 
-template <typename T> class Scope_value
+template <typename T>
+class Scope_value
 {
 public:
+  // Use SFINAE for passing structs by reference and plain types by value.
+  // This ctor is defined only if T is a class or struct:
+  template <typename U = T, typename = IF_CLASS(U)>
   Scope_value(T &variable, const T &scope_value)
-      : variable_(variable), saved_value_(variable)
+      : variable_(&variable), saved_value_(variable)
+  {
+    variable= scope_value;
+  }
+
+  // This ctor is defined only if T is NOT a class or struct:
+  template <typename U = T, typename = IF_NOT_CLASS(U)>
+  Scope_value(T &variable, const T scope_value)
+      : variable_(&variable), saved_value_(variable)
   {
     variable= scope_value;
   }
 
   Scope_value(Scope_value &&rhs)
-      : variable_(rhs.variable_), saved_value_(rhs.saved_value_),
-        engaged_(rhs.engaged_)
+      : variable_(rhs.variable_), saved_value_(rhs.saved_value_)
   {
-    rhs.engaged_= false;
+    rhs.variable_= NULL;
   }
 
   Scope_value(const Scope_value &)= delete;
@@ -98,22 +111,32 @@ public:
 
   ~Scope_value()
   {
-    if (engaged_)
-      variable_= saved_value_;
+    if (variable_)
+      *variable_= saved_value_;
   }
 
 private:
-  T &variable_;
+  T *variable_;
   T saved_value_;
-  bool engaged_= true;
 };
 
 } // namespace detail
 
 // Use like this:
 // auto _= make_scope_value(var, tmp_value);
-template <typename T>
+
+template <typename T, typename = IF_CLASS(T)>
+inline
 detail::Scope_value<T> make_scope_value(T &variable, const T &scope_value)
 {
   return detail::Scope_value<T>(variable, scope_value);
 }
+
+template <typename T, typename = IF_NOT_CLASS(T)>
+inline
+detail::Scope_value<T> make_scope_value(T &variable, const T scope_value)
+{
+  return detail::Scope_value<T>(variable, scope_value);
+}
+
+#define SCOPE_VALUE auto ANONYMOUS_VARIABLE= make_scope_value
