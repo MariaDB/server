@@ -2555,9 +2555,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   char tmp_name[SAFE_NAME_LEN+1];
   DBUG_ENTER("acl_load");
 
-  auto _= make_scope_value(thd->variables.sql_mode,
-                           thd->variables.sql_mode &
-                               ~MODE_PAD_CHAR_TO_FULL_LENGTH);
+  SCOPE_CLEAR(thd->variables.sql_mode, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   grant_version++; /* Privileges updated */
 
