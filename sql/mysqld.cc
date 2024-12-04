@@ -7222,6 +7222,22 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
   return 0;
 }
 
+static int show_max_memory_used(THD *thd, SHOW_VAR *var, void *buff,
+                                struct system_status_var *status_var,
+                                enum enum_var_type scope)
+{
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  if (scope == OPT_GLOBAL)
+  {
+    var->type= SHOW_CHAR;
+    var->value= (char*) "NULL";                 // Emulate null value
+  }
+  else
+    *(longlong*) buff= (longlong) status_var->max_local_memory_used;
+  return 0;
+}
+
 
 static int show_stack_usage(THD *thd, SHOW_VAR *var, void *buff,
                             system_status_var *, enum_var_type scope)
@@ -7404,6 +7420,7 @@ SHOW_VAR status_vars[]= {
   {"Master_gtid_wait_timeouts", (char*) offsetof(STATUS_VAR, master_gtid_wait_timeouts), SHOW_LONG_STATUS},
   {"Master_gtid_wait_time",    (char*) offsetof(STATUS_VAR, master_gtid_wait_time), SHOW_LONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
+  {"Max_memory_used",          (char*) &show_max_memory_used, SHOW_SIMPLE_FUNC},
   {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Memory_used_initial",      (char*) &start_memory_used, SHOW_LONGLONG},
   {"Resultset_metadata_skipped", (char *) offsetof(STATUS_VAR, skip_metadata_count),SHOW_LONG_STATUS},
