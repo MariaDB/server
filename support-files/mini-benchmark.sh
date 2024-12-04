@@ -300,10 +300,12 @@ case $RESULT in
     ;;
 
   *)
-    if [ "$RESULT" -lt 13000 ]
+    # Reference number for GitLab runner on a 2 GB RAM and 2 CPU virtual
+    # machine on a AMD EPYC 7571 host reporting 4400 BogoMIPS
+    if [ "$RESULT" -lt 4500 ]
     then
       echo # Newline improves readability
-      echo "Benchmark did not reach 13000+ qps, performance most likely regressed!"
+      echo "Benchmark did not reach 4500+ qps, performance most likely regressed!"
       FAIL=true
     else
       echo "Benchmark passed with $RESULT queries per second as peak value"
