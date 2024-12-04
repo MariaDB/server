@@ -1,12 +1,17 @@
+--echo #
+--echo # MDEV-9158 file_key_management should support reading from a named pipe
+--echo #
+source include/not_windows.inc;
 #
 # Test read key from named pipe
 #
-write_file $MYSQL_TMP_DIR/fifo.key;
+exec mkfifo $MYSQL_TMP_DIR/fifo.key;
+write_file $MYSQL_TMP_DIR/fifo-key.txt;
 1;11111111111111111111111111111111
 2;00000000000000000000000000000000
 3;22222222222222222222222222222222
 EOF
---sleep 3
+system cat $MYSQL_TMP_DIR/fifo-key.txt > $MYSQL_TMP_DIR/fifo.key 2>/dev/null &;
 
 --source include/have_innodb.inc
 --replace_result $MYSQL_TMP_DIR   MYSQL_TMP_DIR
@@ -24,6 +29,7 @@ SHOW CREATE TABLE t1;
 --echo # Reset mysqld
 DROP TABLE t1;
 remove_file $MYSQL_TMP_DIR/fifo.key;
+remove_file $MYSQL_TMP_DIR/fifo-key.txt;
 UNINSTALL SONAME 'file_key_management';
 
 --source include/restart_mysqld.inc

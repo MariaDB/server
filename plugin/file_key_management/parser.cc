@@ -180,7 +180,7 @@ bool Parser::read_filekey(const char *filekey, char *secret)
   {
     my_printf_error(EE_READ,
                     "Cannot read %s, the filekey is too long, "
-                    "max secret size is %dB ",
+                    "max secret size is %d bytes",
                     ME_ERROR_LOG, filekey, MAX_SECRET_SIZE);
     return 1;
   }
@@ -345,7 +345,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
     goto err2;
   }
   my_printf_error(EE_ERROR_FIRST,
-                  "Read from %s , read bytes: %zdB, max key file size :%dB ",
+                  "Read from %s, read bytes: %zd, max key file size: %d bytes",
                   ME_ERROR_LOG | ME_NOTE, filename, file_size,
                   MAX_KEY_FILE_SIZE);
   // Check for file encryption
