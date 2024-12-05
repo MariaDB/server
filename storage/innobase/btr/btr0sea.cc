@@ -27,6 +27,7 @@ Created 2/17/1996 Heikki Tuuri
 #include "btr0sea.h"
 #ifdef BTR_CUR_HASH_ADAPT
 #include "buf0buf.h"
+#include "buf0lru.h"
 #include "page0page.h"
 #include "page0cur.h"
 #include "btr0cur.h"

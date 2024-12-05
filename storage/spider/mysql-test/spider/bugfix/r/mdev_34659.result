@@ -16,6 +16,13 @@ SELECT * FROM t2 ORDER BY CAST(c AS INET6);
 c
 456
 123
+SELECT * FROM t2 GROUP BY CAST(c AS char(60));
+c
+123
+456
+SELECT * FROM t2 GROUP BY CAST(c AS INET6);
+c
+456
 DROP TABLE t1,t2;
 drop server srv;
 for master_1

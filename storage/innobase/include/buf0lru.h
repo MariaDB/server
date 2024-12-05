@@ -81,14 +81,17 @@ we put it to free list to be used.
 buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 	MY_ATTRIBUTE((malloc,warn_unused_result));
 
+#define buf_block_alloc() buf_LRU_get_free_block(false)
+
 /** @return whether the unzip_LRU list should be used for evicting a victim
 instead of the general LRU list */
 bool buf_LRU_evict_from_unzip_LRU();
 
-/** Puts a block back to the free list.
-@param[in]	block	block; not containing a file page */
-void
-buf_LRU_block_free_non_file_page(buf_block_t* block);
+/** Free a buffer block which does not contain a file page,
+while holding buf_pool.mutex.
+@param block   block to be put to buf_pool.free */
+void buf_LRU_block_free_non_file_page(buf_block_t *block);
+
 /******************************************************************//**
 Adds a block to the LRU list. Please make sure that the page_size is
 already set when invoking the function, so that we can get correct
