@@ -7,6 +7,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 create table t2 (c varchar(10));
 create table t1 (c varchar(10)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values ('abc'), ('abd'), ('abcd'), ('abc');
 SELECT DISTINCT c FROM t1;
 c
