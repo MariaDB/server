@@ -568,7 +568,25 @@ public:
 
     Returns TRUE when completed, and FALSE when the filter has not finished.
   */
-  virtual my_bool has_finished() = 0;
+  virtual my_bool has_finished() { return FALSE; }
+
+  /**
+    Check that this filter implementation is at a *completely* final state,
+    and warn if it is not.
+
+    For a filter that can maintain their own state,
+    this not only validates if the filter ::has_finished(),
+    but may also print specific warnings for its variety of non-finished states.
+
+    For a filter that manage multiple subfilters, this should iterate through
+    *all* subfilters to have each self-report if it wasn't fully effective.
+    This cumulative result may not correlate with the ::has_finished() state.
+
+    @return
+      FALSE if the filter is at a completed state, or TRUE if it warned
+      its state (This scheme is the opposite of ::has_finished()!)
+  */
+  virtual my_bool verify_completed_state() { return FALSE; }
 };
 
 /*
@@ -585,7 +603,6 @@ public:
   ~Accept_all_gtid_filter() {}
   my_bool exclude(rpl_gtid *) override { return FALSE; }
   uint32 get_filter_type() override { return ACCEPT_ALL_GTID_FILTER_TYPE; }
-  my_bool has_finished() override { return FALSE; }
 };
 
 /*
@@ -598,7 +615,6 @@ public:
   ~Reject_all_gtid_filter() {}
   my_bool exclude(rpl_gtid *) override { return TRUE; }
   uint32 get_filter_type() override { return REJECT_ALL_GTID_FILTER_TYPE; }
-  my_bool has_finished() override { return FALSE; }
 };
 
 /*
@@ -618,6 +634,7 @@ public:
 
   my_bool exclude(rpl_gtid*) override;
   my_bool has_finished() override;
+  my_bool verify_completed_state() override;
 
   /*
     Set the GTID that begins this window (exclusive)
@@ -663,15 +680,6 @@ public:
     m_stop= {0, 0, 0};
   }
 
-protected:
-
-  /*
-    When processing GTID streams, the order in which they are processed should
-    be sequential with no gaps between events. If a gap is found within a
-    window, warn the user.
-  */
-  void verify_gtid_is_expected(rpl_gtid *gtid);
-
 private:
 
   enum warning_flags
@@ -701,7 +709,7 @@ private:
 
   /*
     m_has_passed : Indicates whether or not the program is currently reading
-                   events from within this window.
+                   events from beyond this window.
    */
   my_bool m_has_passed;
 
@@ -738,6 +746,7 @@ public:
 
   my_bool exclude(rpl_gtid *gtid) override;
   my_bool has_finished() override;
+  my_bool verify_completed_state() override;
   void set_default_filter(Gtid_event_filter *default_filter);
 
   uint32 get_filter_type() override { return DELEGATING_GTID_FILTER_TYPE; }
@@ -919,6 +928,7 @@ public:
   */
   my_bool has_finished() override;
 
+  my_bool verify_completed_state() override;
   uint32 get_filter_type() override { return INTERSECTING_GTID_FILTER_TYPE; }
 
   /*

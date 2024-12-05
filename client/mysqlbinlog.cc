@@ -3489,7 +3489,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
 
       /*
         Emit a warning in the event that we finished processing input
-        before reaching the boundary indicated by --stop-position.
+        before reaching the boundary indicated by --stop-position index.
       */
       if (((longlong)stop_position != stop_position_default) &&
           stop_position > my_b_tell(file))
@@ -3509,6 +3509,23 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
           retval = OK_STOP;
           warning("Did not reach stop datetime '%s' "
                   "before end of input", stop_datetime_str);
+      }
+
+      /*
+        Emit warning(s) in the event that we finished processing input
+        before reaching all boundaries indicated by --stop-position GTID(s).
+        When implemented, replace `position_gtid_filter` in the condition with
+        `gtid_event_filter`, and it will also warn if we finished
+        processing before reaching all --start-position GTID(s)
+        and touching all --ignore-domain/server-ids.
+      */
+      // Gtid_event_filter::has_finished() isn't necessarily a O(1) happy path.
+      if (position_gtid_filter && position_gtid_filter->verify_completed_state())
+      {
+        // The condition covers the warnings but not this step -
+        if (result_file)
+          fflush(result_file);
+        retval = OK_STOP;
       }
 
       goto end;
