@@ -47,6 +47,31 @@ trx_sys_t		trx_sys;
 #ifdef UNIV_DEBUG
 /* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
 uint	trx_rseg_n_slots_debug = 0;
+
+void rw_trx_hash_t::validate_element(trx_t *trx)
+{
+  ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
+  ut_ad(!trx->is_autocommit_non_locking());
+  ut_d(bool acquire_trx_mutex= !trx->mutex_is_owner());
+  ut_d(if (acquire_trx_mutex) trx->mutex_lock());
+  switch (trx->state) {
+  case TRX_STATE_NOT_STARTED:
+  case TRX_STATE_ABORTED:
+    ut_error;
+  case TRX_STATE_PREPARED:
+  case TRX_STATE_PREPARED_RECOVERED:
+  case TRX_STATE_COMMITTED_IN_MEMORY:
+    ut_ad(!trx->is_autocommit_non_locking());
+    break;
+  case TRX_STATE_ACTIVE:
+    if (!trx->is_autocommit_non_locking())
+      break;
+    ut_ad(!trx->is_recovered);
+    ut_ad(trx->read_only);
+    ut_ad(trx->mysql_thd);
+  }
+  ut_d(if (acquire_trx_mutex) trx->mutex_unlock());
+}
 #endif
 
 /** Display the MySQL binlog offset info if it is present in the trx
@@ -363,6 +388,7 @@ size_t trx_sys_t::any_active_transactions(size_t *prepared)
   trx_sys.trx_list.for_each([&](const trx_t &trx) {
     switch (trx.state) {
     case TRX_STATE_NOT_STARTED:
+    case TRX_STATE_ABORTED:
       break;
     case TRX_STATE_ACTIVE:
       if (!trx.id)

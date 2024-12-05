@@ -4676,6 +4676,17 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_PARTITION_LIST:
     my_error(ER_VERS_NOT_ALLOWED, errflag, table->s->db.str, table->s->table_name.str);
     DBUG_VOID_RETURN;
+  case HA_ERR_ROLLBACK:
+    /* Crash if we run with --debug-assert-on-error */
+    DBUG_ASSERT(!debug_assert_if_crashed_table);
+    SET_FATAL_ERROR;
+    my_printf_error(HA_ERR_ROLLBACK,
+                    "Transaction was rolled back internally for table %`s.%`s. "
+                    "This error is wrong non fatal error that should be "
+                    "reported so it can get fixed.",
+                    ((errflag & ~(ME_WARNING | ME_NOTE)) | ME_ERROR_LOG),
+                    table->s->db.str, table->s->table_name.str);
+    DBUG_VOID_RETURN;
   default:
     {
       /* The error was "unknown" to this function.
@@ -4710,7 +4721,7 @@ void handler::print_error(int error, myf errflag)
     /* Ensure this becomes a true error */
     errflag&= ~(ME_WARNING | ME_NOTE);
     if ((debug_assert_if_crashed_table ||
-                      global_system_variables.log_warnings > 1))
+         global_system_variables.log_warnings > 1))
     {
       /*
         Log error to log before we crash or if extended warnings are requested

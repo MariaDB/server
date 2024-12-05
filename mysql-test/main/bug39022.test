@@ -2,6 +2,10 @@
 -- source include/have_innodb.inc
 -- source include/not_binlog_format_row.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 --echo #
 --echo # Bug #39022: Mysql randomly crashing in lock_sec_rec_cons_read_sees
 --echo #

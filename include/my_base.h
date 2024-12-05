@@ -535,7 +535,8 @@ enum ha_base_keytype {
 #define HA_ERR_COMMIT_ERROR       197
 #define HA_ERR_PARTITION_LIST     198
 #define HA_ERR_NO_ENCRYPTION      199
-#define HA_ERR_LAST               199  /* Copy of last error nr * */
+#define HA_ERR_ROLLBACK           200  /* Automatic rollback done */
+#define HA_ERR_LAST               200  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)
