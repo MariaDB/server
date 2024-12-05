@@ -91,7 +91,6 @@ pthread_handler_t thread_stack_check(void *arg __attribute__((unused)))
   test_stack_detection(1, STACK_ALLOC_SMALL_BLOCK_SIZE-1);
   test_stack_detection(2, STACK_ALLOC_SMALL_BLOCK_SIZE+1);
   my_thread_end();
-  pthread_exit(0);
   return 0;
 }
 

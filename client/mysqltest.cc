@@ -991,7 +991,6 @@ end_thread:
   cn->mysql= 0;
   cn->query_done= 1;
   mysql_thread_end();
-  pthread_exit(0);
   DBUG_RETURN(0);
 }
 
