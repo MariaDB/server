@@ -482,3 +482,17 @@ a	b
 DROP VIEW v2;
 DROP TABLE t1,t2;
 set optimizer_switch= @tmp_subselect_extra_derived;
+#
+# MDEV-35565 Server crashes simplifying group by <subquery>
+#
+create table t1 (a int) engine=myisam;
+insert into t1 values (1),(2);
+create table t2 (b int) engine=myisam;
+insert into t2 values (1),(2);
+# output from these sorts of queries are unstable, test only that it
+# outputs a sensible error message and doesn't crash
+select * from t1, t2 where b in
+(select (select a from t1 order by b) as d from t1 group by (select d));
+ERROR 21000: Subquery returns more than 1 row
+drop table t1, t2;
+# end of 10.5 tests

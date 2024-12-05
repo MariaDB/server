@@ -398,3 +398,23 @@ DROP VIEW v2;
 DROP TABLE t1,t2;
 
 set optimizer_switch= @tmp_subselect_extra_derived;
+
+--echo #
+--echo # MDEV-35565 Server crashes simplifying group by <subquery>
+--echo #
+
+create table t1 (a int) engine=myisam;
+insert into t1 values (1),(2);
+
+create table t2 (b int) engine=myisam;
+insert into t2 values (1),(2);
+
+--echo # output from these sorts of queries are unstable, test only that it
+--echo # outputs a sensible error message and doesn't crash
+--error 1242
+select * from t1, t2 where b in
+(select (select a from t1 order by b) as d from t1 group by (select d));
+
+drop table t1, t2;
+
+--echo # end of 10.5 tests
