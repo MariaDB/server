@@ -241,8 +241,10 @@ check_number_normalize(const char *in, const char *expected)
 
 
 int
-main(void)
+main(int argc, char** argv)
 {
+  MY_INIT(argv[0]);
+
   plan(88);
   diag("Testing json_normalization.");
 
@@ -276,5 +278,6 @@ main(void)
   test_json_normalize_nested_deep();
   test_json_normalize_non_utf8();
 
+  my_end(MY_CHECK_ERROR);
   return exit_status();
 }
