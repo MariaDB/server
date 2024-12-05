@@ -26,6 +26,7 @@
 #endif
 
 #include <my_getopt.h>
+#include <my_attribute.h>
 
 class sys_var;
 class set_var;
@@ -247,11 +248,11 @@ protected:
     Typically it's the same as session_value_ptr(), but it's different,
     for example, for ENUM, that is printed as a string, but stored as a number.
   */
-  __attribute__((no_sanitize("undefined")))
+  ATTRIBUTE_NO_UBSAN
   uchar *session_var_ptr(THD *thd) const
   { return ((uchar*)&(thd->variables)) + offset; }
 
-  __attribute__((no_sanitize("undefined")))
+  ATTRIBUTE_NO_UBSAN
   uchar *global_var_ptr() const
   { return ((uchar*)&global_system_variables) + offset; }
 

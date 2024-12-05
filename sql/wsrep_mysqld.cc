@@ -3825,11 +3825,16 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
 
 bool THD::wsrep_parallel_slave_wait_for_prior_commit()
 {
-  if (rgi_slave && rgi_slave->is_parallel_exec && wait_for_prior_commit())
+  if (rgi_slave && rgi_slave->is_parallel_exec)
   {
-    return 1;
+    wait_for_pending_deadlock_kill(this, rgi_slave);
+    if (rgi_slave->killed_for_retry) {
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      return true;
+    }
+    return wait_for_prior_commit();
   }
-  return 0;
+  return false;
 }
 
 /***** callbacks for wsrep service ************/

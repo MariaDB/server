@@ -2719,12 +2719,6 @@ public:
   */
   virtual void under_not(Item_func_not * upper
                          __attribute__((unused))) {};
-  /*
-    If Item_field is wrapped in Item_direct_wrep remove this Item_direct_ref
-    wrapper.
-  */
-  virtual Item *remove_item_direct_ref() { return this; }
-	
 
   void register_in(THD *thd);	 
   
@@ -6016,11 +6010,6 @@ public:
   }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg) override
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
-  Item *remove_item_direct_ref() override
-  {
-    *ref= (*ref)->remove_item_direct_ref();
-    return this;
-  }
 };
 
 
@@ -6068,8 +6057,6 @@ public:
   Ref_Type ref_type() override { return DIRECT_REF; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_direct_ref>(thd, this); }
-  Item *remove_item_direct_ref() override
-  { return (*ref)->remove_item_direct_ref(); }
 
   /* Should be called if ref is changed */
   inline void ref_changed()
@@ -6453,7 +6440,6 @@ public:
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
   { return this; }
-  Item *remove_item_direct_ref() override { return this; }
 };
 
 

@@ -17390,9 +17390,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
       */
       Item *head_item= (!item_const && current_sjm && 
                         current_sjm_head != field_item) ? current_sjm_head: head;
-      eq_item= new (thd->mem_root) Item_func_eq(thd,
-                                                field_item->remove_item_direct_ref(),
-                                                head_item->remove_item_direct_ref());
+      eq_item= new (thd->mem_root) Item_func_eq(thd, field_item, head_item);
 
       if (!eq_item || eq_item->set_cmp_func(thd))
         return 0;
