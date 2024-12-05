@@ -1002,6 +1002,8 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
         MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) - length);
 # endif
       buf[length]= 0; /* allow recovery to catch EOF faster */
+      if (UNIV_LIKELY_NULL(re_write_buf))
+        resize_buf[length]= 0;
 #endif
       length= write_size_1 + 1;
     }
@@ -1024,7 +1026,9 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
                            new_buf_free);
 #endif
         buf[length]= 0; /* allow recovery to catch EOF faster */
-        length&= ~write_size_1;
+        if (UNIV_LIKELY_NULL(re_write_buf))
+          resize_buf[length]= 0;
+	length&= ~write_size_1;
         memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
         if (UNIV_LIKELY_NULL(re_write_buf))
           memcpy_aligned<16>(resize_flush_buf, re_write_buf + length,
