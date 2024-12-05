@@ -4720,7 +4720,10 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     Notice that HA_READ_BEFORE_WRITE_REMOVAL does not require this protocol,
     so this is not supported for this engine.
   */
-  error= get_part_for_buf(old_data, m_rec0, m_part_info, &old_part_id);
+  {
+    Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
+    error= get_part_for_buf(old_data, m_rec0, m_part_info, &old_part_id);
+  }
   DBUG_ASSERT(!error);
   DBUG_ASSERT(old_part_id == m_last_part);
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), old_part_id));
@@ -10346,7 +10349,8 @@ void ha_partition::print_error(int error, myf errflag)
 
   /* Should probably look for my own errors first */
   if ((error == HA_ERR_NO_PARTITION_FOUND) &&
-      ! (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE))
+      ! (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+         (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE)))
   {
     m_part_info->print_no_partition_found(table, errflag);
     DBUG_VOID_RETURN;

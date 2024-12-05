@@ -4418,6 +4418,58 @@ SELECT * FROM v,t1 WHERE f = DEFAULT(c);
 DROP VIEW v;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-32395: update_depend_map_for_order: SEGV at
+--echo #             /mariadb-11.3.0/sql/sql_select.cc:16583
+--echo #
+
+create table t1 (c1 int);
+insert into t1 values (1), (2);
+create table t2 (c2 int);
+insert into t2 values (1), (2);
+create table t3 (c3 int);
+insert into t3 values (1), (2);
+
+set statement optimizer_switch='condition_pushdown_for_derived=off,condition_pushdown_for_subquery=off,condition_pushdown_from_having=off' for
+select t1.c1 as a from t2, t1 where t1.c1=t2.c2
+  order by (select c3 from t3 group by a having a=2);
+drop table t1, t2, t3;
+
+--echo # Test case 2
+
+CREATE TABLE t1 ( x BOOLEAN NOT NULL );
+INSERT INTO t1 ( x ) VALUES ( 1 ) ;
+UPDATE t1 SET x = 1 WHERE x = 1 ;
+INSERT INTO t1 ( x ) VALUES ( 1 ) , ( x IN ( SELECT x FROM ( SELECT ( SELECT EXISTS ( SELECT * FROM ( SELECT DISTINCT ( - CASE WHEN x = 1 THEN 1 ELSE x + 1 END >= x IS NOT NULL = 1 AND x = 1 ) OR x = x OR x = 'x' FROM t1 AS x GROUP BY x ) AS x WHERE 1 / x GROUP BY x HAVING ( 1 = 1 AND x = 1 ) ) FROM t1 GROUP BY EXISTS ( SELECT 1 ) ) FROM t1 UNION SELECT x FROM t1 ) AS x ) ) ;
+DROP TABLE t1;
+
+--echo # Test case 3
+
+CREATE TABLE t0 ( c6 INT , c21 INT ) ;
+INSERT INTO t0 VALUES ( 55 , -95 ) , ( 9 , 90 ) ;
+ALTER TABLE t0 ADD COLUMN c37 INT AFTER c6 ;
+INSERT INTO t0 VALUES ( ) , ( ) ;
+SELECT t0 . c6 AS c42 FROM ( SELECT t0 . c6 = TRIM( TRAILING FROM 96 ) SOUNDS LIKE CONVERT ( t0 . c6 , UNSIGNED ) >> PI ( ) AS c49 FROM t0 ) AS t1 JOIN t0 ON RTRIM ( - RAND ( -66 ) BETWEEN FIND_IN_SET ( 20 , UNHEX ( -80 ) IS NULL OR IF ( 85 , -83 , -113 ) ) AND -125 ) / EXP ( c21 ) = t1 . c49 ORDER BY c42 , ( c42 + ( SELECT c21 AS c61 FROM t0 WHERE t0 . c37 >= -19.601384 = RAND ( ) / TRIM( t0 . c21 FROM 'C@rG3D(#9*17(a.,rV' ) = -106 GROUP BY c21 , c42 HAVING c42 = -73 LIMIT 1 ) ) ;
+drop table t0;
+
+--echo #
+--echo # MDEV-32329 pushdown from having into where: Server crashes at sub_select
+--echo #
+
+WITH RECURSIVE cte AS ( SELECT 1 as x UNION SELECT x FROM cte)
+  SELECT ( SELECT 1 FROM ( SELECT 1 FROM cte) dt GROUP BY x HAVING x= 1 )
+  FROM cte
+  GROUP BY 1 ;
+
+--echo # Test case 2
+
+WITH
+   cte1 AS ( SELECT 1 as x UNION SELECT 1),
+   cte2 AS ( SELECT 1 as x UNION SELECT 1)
+SELECT
+  ( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
+FROM cte2
+  GROUP BY 1 ;
 
 --echo # End of 10.5 tests
 

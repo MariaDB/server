@@ -4881,7 +4881,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     if (unlikely(open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0)))
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd))
+      if (WSREP(thd) && !thd->slave_thread)
       {
         WSREP_WARN("BF applier thread=%lu failed to open_and_lock_tables for "
                    "%s, fatal: %d "

@@ -140,17 +140,7 @@ operator<<(
 
 #ifndef UNIV_INNOCHECKSUM
 # define buf_pool_get_curr_size() srv_buf_pool_curr_size
-
-/** Allocate a buffer block.
-@return own: the allocated block, state()==MEMORY */
-inline buf_block_t *buf_block_alloc();
-/********************************************************************//**
-Frees a buffer block which does not contain a file page. */
-UNIV_INLINE
-void
-buf_block_free(
-/*===========*/
-	buf_block_t*	block);	/*!< in, own: block to be freed */
+# define buf_block_free(block) buf_pool.free_block(block)
 
 #define buf_page_get(ID, SIZE, LA, MTR)					\
 	buf_page_get_gen(ID, SIZE, LA, NULL, BUF_GET, MTR)
@@ -478,8 +468,19 @@ public: // FIXME: fix fil_iterate()
   /** Page id. Protected by buf_pool.page_hash.lock_get() when
   the page is in buf_pool.page_hash. */
   page_id_t id_;
-  /** buf_pool.page_hash link; protected by buf_pool.page_hash.lock_get() */
-  buf_page_t *hash;
+  union {
+    /** for in_file(): buf_pool.page_hash link;
+    protected by buf_pool.page_hash.lock_get() */
+    buf_page_t *hash;
+    /** for state()==MEMORY that are part of recv_sys.pages and
+    protected by recv_sys.mutex */
+    struct {
+      /** number of recv_sys.pages entries stored in the block */
+      uint16_t used_records;
+      /** the offset of the next free record */
+      uint16_t free_offset;
+    };
+  };
 private:
   /** log sequence number of the START of the log entry written of the
   oldest modification to this block which has not yet been written
@@ -567,16 +568,7 @@ public:
 	/* @} */
 	Atomic_counter<unsigned> access_time;	/*!< time of first access, or
 					0 if the block was never accessed
-					in the buffer pool.
-
-					For state() == MEMORY
-					blocks, this field can be repurposed
-					for something else.
-
-					When this field counts log records
-					and bytes allocated for recv_sys.pages,
-					the field is protected by
-					recv_sys_t::mutex. */
+					in the buffer pool. */
   buf_page_t() : id_{0}
   {
     static_assert(NOT_USED == 0, "compatibility");

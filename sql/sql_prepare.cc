@@ -921,10 +921,10 @@ static bool insert_bulk_params(Prepared_statement *stmt,
         param->set_null();
         break;
       case STMT_INDICATOR_DEFAULT:
-        param->set_default();
+        param->set_default(false);
         break;
       case STMT_INDICATOR_IGNORE:
-        param->set_ignore();
+        param->set_ignore(false);
         break;
       default:
         DBUG_ASSERT(0);

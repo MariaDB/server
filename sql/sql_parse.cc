@@ -1154,7 +1154,8 @@ static bool wsrep_command_no_result(char command)
 {
   return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
-          command == COM_STMT_CLOSE);
+          command == COM_STMT_CLOSE            ||
+          command == COM_STMT_PREPARE);
 }
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
@@ -2393,6 +2394,10 @@ resume:
     if (thd->killed == KILL_QUERY)
     {
       WSREP_DEBUG("THD is killed at dispatch_end");
+    }
+    if (thd->lex->sql_command != SQLCOM_SET_OPTION)
+    {
+      DEBUG_SYNC(thd, "wsrep_at_dispatch_end_before_result");
     }
     wsrep_after_command_before_result(thd);
     if (wsrep_current_error(thd) && !wsrep_command_no_result(command))

@@ -1299,3 +1299,49 @@ ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
 ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
 ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
 ERROR: Bad syntax in rewrite-db. Expected syntax is FROM->TO.
+#
+# MDEV-31761: mariadb-binlog prints fractional timestamp part incorrectly
+#
+SET SESSION binlog_format= MIXED;
+RESET MASTER;
+SET time_zone= '+02:00';
+CREATE TABLE t (a INT,
+b TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6));
+set SESSION timestamp= 1689978980.012345;
+INSERT INTO t (a) VALUES (1);
+SELECT * from t;
+a	b
+1	2023-07-22 00:36:20.012345
+FLUSH BINARY LOGS;
+SET SESSION timestamp= 1689978980.567890;
+SET SESSION binlog_format= ROW;
+UPDATE t SET a = 2;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format= STATEMENT;
+DROP TABLE t;
+SELECT * FROM t;
+a	b
+1	2023-07-22 00:36:20.012345
+SELECT * FROM t;
+a	b
+2	2023-07-22 00:36:20.567890
+DROP TABLE t;
+SET time_zone= default;
+#
+# MDEV-24959: ER_BINLOG_ROW_LOGGING_FAILED (1534: Writing one row to the row-based binary log failed)
+#
+SET SESSION binlog_format= ROW;
+SET SESSION binlog_row_image= MINIMAL;
+RESET MASTER;
+CREATE TABLE t1 (a INT NOT NULL DEFAULT 0 PRIMARY KEY);
+REPLACE INTO t1 () VALUES (),();
+DROP TABLE t1;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format= STATEMENT;
+SET SESSION binlog_row_image= default;
+FOUND 1 /Number of rows: 2/ in mdev24959_1.txt
+FOUND 1 /DROP TABLE/ in mdev24959_1.txt
+FOUND 1 /Number of rows: 2/ in mdev24959_2.txt
+FOUND 1 /DROP TABLE/ in mdev24959_2.txt
+FOUND 1 /INSERT INTO .* VALUES/ in mdev24959_2.txt
+FOUND 1 /SET /[*] no columns [*]// in mdev24959_2.txt
