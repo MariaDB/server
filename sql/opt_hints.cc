@@ -21,8 +21,7 @@
 #include "opt_hints.h"
 
 /**
-  Information about hints. Sould be
-  synchronized with opt_hints_enum enum.
+  Information about hints. Must be in sync with opt_hints_enum.
 
   Note: Hint name depends on hint state. 'NO_' prefix is added
   if appropriate hint state bit(see Opt_hints_map::hints) is not
@@ -176,6 +175,11 @@ static Opt_hints_qb *get_qb_hints(Parse_context *pc)
   {
     global_hints->register_child(qb);
     pc->select->opt_hints_qb= qb;
+    /*
+      Mark the query block as resolved as we know which SELECT_LEX it is
+      attached to.
+      Note that children (indexes, tables) are probably not resolved, yet.
+    */
     qb->set_resolved();
   }
   return qb;
@@ -328,13 +332,18 @@ void Opt_hints::print_warn_unresolved(THD *thd)
   }
 }
 
+/*
+  @brief
+    Recursively walk the descendant hints and emit warnings for any
+    unresolved hints
+*/
 
 void Opt_hints::check_unresolved(THD *thd)
 {
   if (!is_resolved())
     print_warn_unresolved(thd);
 
-  if (!is_all_resolved())
+  if (!are_children_fully_resolved())
   {
     for (uint i= 0; i < child_array.size(); i++)
       child_array[i]->check_unresolved(thd);
@@ -364,7 +373,9 @@ Opt_hints_table *Opt_hints_qb::adjust_hints_for_table(TABLE *table,
   if (!tab)                            // Tables not found
     return NULL;
 
-  tab->adjust_key_hints(table);
+  if (!tab->adjust_key_hints(table))
+    incr_fully_resolved_children();
+
   return tab;
 }
 
@@ -413,14 +424,17 @@ uint Opt_hints_qb::sj_enabled_strategies(uint opt_switches) const
     For each index IDX, put its hints into keyinfo_array[IDX]
 
 */
-void Opt_hints_table::adjust_key_hints(TABLE *table)
+
+bool Opt_hints_table::adjust_key_hints(TABLE *table)
 {
+  /*
+    Ok, there's a table we attach to. Mark ourselves as resolved and
+    proceed to resolving the child objects.
+  */
   set_resolved();
+
   if (child_array_ptr()->size() == 0)  // No key level hints
-  {
-    get_parent()->incr_resolved_children();
-    return;
-  }
+    return false; // Ok, fully resolved
 
   /* Make sure that adjustment is called only once. */
   DBUG_ASSERT(keyinfo_array.size() == 0);
@@ -436,18 +450,16 @@ void Opt_hints_table::adjust_key_hints(TABLE *table)
       {
         (*hint)->set_resolved();
         keyinfo_array[j]= static_cast<Opt_hints_key *>(*hint);
-        incr_resolved_children();
+        incr_fully_resolved_children();
+        break;
       }
     }
   }
 
-  /*
-   Do not increase number of resolved tables
-   if there are unresolved key objects. It's
-   important for check_unresolved() function.
-  */
-  if (is_all_resolved())
-    get_parent()->incr_resolved_children();
+  if (are_children_fully_resolved())
+    return false;
+
+  return true; // Some children are not fully resolved
 }
 
 

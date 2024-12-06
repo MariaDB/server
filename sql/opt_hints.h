@@ -32,31 +32,39 @@
   This process
   - Creates interpreted hint structures: Opt_hints_global, Opt_hints_qb,
     Opt_hints_table, Opt_hints_key.
-  - Interprets QB_NAME hints and assigns Query Block names.
+  - Interprets QB_NAME hints and assigns Opt_hints_qb objects their names.
   - Table-level hints are put into their Query Block's Opt_hints_qb object.
   - Index-level hints are put into their table's Opt_hints_table object.
 
+  Currently, this process is done at the parser stage. (This is one of the
+  causes why hints do not work across VIEW bounds, here or in MySQL).
+
   == Hint "adjustment" ==
 
-  During Name Resolution, setup_tables() calls adjust_hints_for_table() for
-  each table and sets TABLE_LIST::opt_hints_table to point to its
-  Opt_hints_table.
+  During Name Resolution, hints are attached the real objects they control:
+  - table-level hints find their tables,
+  - index-level hints find their indexes.
+
+  This is done in setup_tables() which calls adjust_hints_for_table() for
+  each table, as a result TABLE_LIST::opt_hints_table points to the table's
+  hints.
 
   == Hint hierarchy ==
 
-  Hints have this hierarchy, parent to child:
+  Hints have this hierarchy, less specific to more specific:
 
     Opt_hints_global
       Opt_hints_qb
         Opt_hints_table
           Opt_hints_key
 
-  For some hints, one needs to check the hint's base object and its parent. For
-  example, MRR can be disabled on a per-index or a per-table basis.
+  Some hints can be specified at a specific level (e.g. per-index) or at a
+  more general level (e.g. per-table).  When checking the hint, we need
+  to check for per-index commands and then maybe per-table command.
 
-  == How the optimizer checks hints  ==
+  == API for checking hints ==
 
-  The optimizer checks what hints specify using these calls:
+  The optimizer checks hints' instructions using these calls:
     hint_table_state()
     hint_table_state_or_fallback()
     hint_key_state()
@@ -213,8 +221,12 @@ private:
 
   /* true if hint is connected to the real object */
   bool resolved;
-  /* Number of resolved children */
-  uint resolved_children;
+
+  /*
+    Number of child hints that are fully resolved, that is, resolved and
+    have all their children also fully resolved.
+  */
+  uint n_fully_resolved_children;
 
 public:
 
@@ -222,7 +234,7 @@ public:
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
     : name(name_arg), parent(parent_arg), child_array(mem_root_arg),
-      resolved(false), resolved_children(0)
+      resolved(false), n_fully_resolved_children(0)
   { }
 
   bool is_specified(opt_hints_enum type_arg) const
@@ -276,12 +288,12 @@ public:
   Opt_hints *get_parent() const { return parent; }
   void set_resolved() { resolved= true; }
   bool is_resolved() const { return resolved; }
-  void incr_resolved_children() { resolved_children++; }
+  void incr_fully_resolved_children() { n_fully_resolved_children++; }
   Mem_root_array<Opt_hints*, true> *child_array_ptr() { return &child_array; }
 
-  bool is_all_resolved() const
+  bool are_children_fully_resolved() const
   {
-    return child_array.size() == resolved_children;
+    return child_array.size() == n_fully_resolved_children;
   }
 
   void register_child(Opt_hints* hint_arg)
@@ -548,7 +560,7 @@ public:
 
     @param table      Pointer to TABLE object
   */
-  void adjust_key_hints(TABLE *table);
+  bool adjust_key_hints(TABLE *table);
 
   virtual uint get_warn_unresolved_code() const override
   {
