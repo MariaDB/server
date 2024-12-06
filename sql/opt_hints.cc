@@ -180,7 +180,7 @@ static Opt_hints_qb *get_qb_hints(Parse_context *pc)
       attached to.
       Note that children (indexes, tables) are probably not resolved, yet.
     */
-    qb->set_resolved();
+    qb->set_fixed();
   }
   return qb;
 }
@@ -276,7 +276,7 @@ void Opt_hints::print(THD *thd, String *str)
 {
   for (uint i= 0; i < MAX_HINT_ENUM; i++)
   {
-    if (is_specified(static_cast<opt_hints_enum>(i)) && is_resolved())
+    if (is_specified(static_cast<opt_hints_enum>(i)) && is_fixed())
     {
       append_hint_type(str, static_cast<opt_hints_enum>(i));
       str->append(STRING_WITH_LEN("("));
@@ -312,7 +312,7 @@ void Opt_hints::append_hint_type(String *str, opt_hints_enum type)
 }
 
 
-void Opt_hints::print_warn_unresolved(THD *thd)
+void Opt_hints::print_unfixed_warnings(THD *thd)
 {
   String hint_name_str, hint_type_str;
   append_name(thd, &hint_name_str);
@@ -324,8 +324,8 @@ void Opt_hints::print_warn_unresolved(THD *thd)
       hint_type_str.length(0);
       append_hint_type(&hint_type_str, static_cast<opt_hints_enum>(i));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          get_warn_unresolved_code(),
-                          ER_THD(thd, get_warn_unresolved_code()),
+                          get_unfixed_warning_code(),
+                          ER_THD(thd, get_unfixed_warning_code()),
                           hint_name_str.c_ptr_safe(),
                           hint_type_str.c_ptr_safe());
     }
@@ -338,15 +338,15 @@ void Opt_hints::print_warn_unresolved(THD *thd)
     unresolved hints
 */
 
-void Opt_hints::check_unresolved(THD *thd)
+void Opt_hints::check_unfixed(THD *thd)
 {
-  if (!is_resolved())
-    print_warn_unresolved(thd);
+  if (!is_fixed())
+    print_unfixed_warnings(thd);
 
-  if (!are_children_fully_resolved())
+  if (!are_children_fully_fixed())
   {
     for (uint i= 0; i < child_array.size(); i++)
-      child_array[i]->check_unresolved(thd);
+      child_array[i]->check_unfixed(thd);
   }
 }
 
@@ -363,8 +363,8 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
 }
 
 
-Opt_hints_table *Opt_hints_qb::adjust_hints_for_table(TABLE *table,
-                                                  const Lex_ident_table &alias)
+Opt_hints_table *Opt_hints_qb::fix_hints_for_table(TABLE *table,
+                                                   const Lex_ident_table &alias)
 {
   Opt_hints_table *tab= static_cast<Opt_hints_table *>(find_by_name(alias));
 
@@ -373,8 +373,8 @@ Opt_hints_table *Opt_hints_qb::adjust_hints_for_table(TABLE *table,
   if (!tab)                            // Tables not found
     return NULL;
 
-  if (!tab->adjust_key_hints(table))
-    incr_fully_resolved_children();
+  if (!tab->fix_hint(table))
+    incr_fully_fixed_children();
 
   return tab;
 }
@@ -422,19 +422,18 @@ uint Opt_hints_qb::sj_enabled_strategies(uint opt_switches) const
 /*
   @brief
     For each index IDX, put its hints into keyinfo_array[IDX]
-
 */
 
-bool Opt_hints_table::adjust_key_hints(TABLE *table)
+bool Opt_hints_table::fix_hint(TABLE *table)
 {
   /*
-    Ok, there's a table we attach to. Mark ourselves as resolved and
-    proceed to resolving the child objects.
+    Ok, there's a table we attach to. Mark this hint as fixed and proceed to
+    fixing the child objects.
   */
-  set_resolved();
+  set_fixed();
 
   if (child_array_ptr()->size() == 0)  // No key level hints
-    return false; // Ok, fully resolved
+    return false; // Ok, fully fixed
 
   /* Make sure that adjustment is called only once. */
   DBUG_ASSERT(keyinfo_array.size() == 0);
@@ -448,18 +447,18 @@ bool Opt_hints_table::adjust_key_hints(TABLE *table)
     {
       if (key_info->name.streq((*hint)->get_name()))
       {
-        (*hint)->set_resolved();
+        (*hint)->set_fixed();
         keyinfo_array[j]= static_cast<Opt_hints_key *>(*hint);
-        incr_fully_resolved_children();
+        incr_fully_fixed_children();
         break;
       }
     }
   }
 
-  if (are_children_fully_resolved())
+  if (are_children_fully_fixed())
     return false;
 
-  return true; // Some children are not fully resolved
+  return true; // Some children are not fully fixed
 }
 
 
@@ -1117,7 +1116,12 @@ ulonglong Parser::Max_execution_time_hint::get_milliseconds() const
 }
 
 
-bool Opt_hints_global::resolve(THD *thd)
+/*
+  @brief
+    Fix global-level hints (and only them)
+*/
+
+bool Opt_hints_global::fix_hint(THD *thd)
 {
   if (thd->lex->is_ps_or_view_context_analysis())
     return false;
@@ -1125,7 +1129,7 @@ bool Opt_hints_global::resolve(THD *thd)
   if (!max_exec_time_hint)
   {
     /* No possible errors */
-    set_resolved();
+    set_fixed();
     return false;
   }
 
@@ -1148,7 +1152,7 @@ bool Opt_hints_global::resolve(THD *thd)
     thd->reset_query_timer();
     thd->set_query_timer_force(max_exec_time_hint->get_milliseconds() * 1000);
   }
-  set_resolved();
+  set_fixed();
   return false;
 }
 

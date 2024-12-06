@@ -39,13 +39,13 @@
   Currently, this process is done at the parser stage. (This is one of the
   causes why hints do not work across VIEW bounds, here or in MySQL).
 
-  == Hint "adjustment" ==
+  == Hint "fixing" ==
 
   During Name Resolution, hints are attached the real objects they control:
   - table-level hints find their tables,
   - index-level hints find their indexes.
 
-  This is done in setup_tables() which calls adjust_hints_for_table() for
+  This is done in setup_tables() which calls fix_hints_for_table() for
   each table, as a result TABLE_LIST::opt_hints_table points to the table's
   hints.
 
@@ -220,13 +220,13 @@ private:
   Mem_root_array<Opt_hints*, true> child_array;
 
   /* true if hint is connected to the real object */
-  bool resolved;
+  bool fixed;
 
   /*
-    Number of child hints that are fully resolved, that is, resolved and
-    have all their children also fully resolved.
+    Number of child hints that are fully fixed, that is, fixed and
+    have all their children also fully fixed.
   */
-  uint n_fully_resolved_children;
+  uint n_fully_fixed_children;
 
 public:
 
@@ -234,7 +234,7 @@ public:
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
     : name(name_arg), parent(parent_arg), child_array(mem_root_arg),
-      resolved(false), n_fully_resolved_children(0)
+      fixed(false), n_fully_fixed_children(0)
   { }
 
   bool is_specified(opt_hints_enum type_arg) const
@@ -286,14 +286,14 @@ public:
   }
   void set_name(const Lex_ident_sys &name_arg) { name= name_arg; }
   Opt_hints *get_parent() const { return parent; }
-  void set_resolved() { resolved= true; }
-  bool is_resolved() const { return resolved; }
-  void incr_fully_resolved_children() { n_fully_resolved_children++; }
+  void set_fixed() { fixed= true; }
+  bool is_fixed() const { return fixed; }
+  void incr_fully_fixed_children() { n_fully_fixed_children++; }
   Mem_root_array<Opt_hints*, true> *child_array_ptr() { return &child_array; }
 
-  bool are_children_fully_resolved() const
+  bool are_children_fully_fixed() const
   {
-    return child_array.size() == n_fully_resolved_children;
+    return child_array.size() == n_fully_fixed_children;
   }
 
   void register_child(Opt_hints* hint_arg)
@@ -318,12 +318,12 @@ public:
   */
   void print(THD *thd, String *str);
   /**
-    Check if there are any unresolved hint objects and
+    Check if there are any unfixed hint objects and
     print warnings for them.
 
     @param thd             Pointer to THD object
   */
-  void check_unresolved(THD *thd);
+  void check_unfixed(THD *thd);
   virtual void append_name(THD *thd, String *str)= 0;
 
   /**
@@ -347,18 +347,18 @@ private:
   */
   void append_hint_type(String *str, opt_hints_enum type);
   /**
-    Print warning for unresolved hint name.
+    Print warnings abount unfixed hints in this hint collection
 
     @param thd             Pointer to THD object
   */
-  void print_warn_unresolved(THD *thd);
+  void print_unfixed_warnings(THD *thd);
 
 protected:
   /**
-    Override this function in descendants so that print_warn_unresolved()
-    prints the proper warning text for table/index level unresolved hints
+    Override this function in descendants so that print_unfixed_warnings()
+    prints the proper warning text for table/index level unfixed hints
   */
-  virtual uint get_warn_unresolved_code() const
+  virtual uint get_unfixed_warning_code() const
   {
     DBUG_ASSERT(0);
     return 0;
@@ -396,7 +396,7 @@ public:
                      max_exec_time_hint, _1, _2);
   }
 
-  bool resolve(THD *thd);
+  bool fix_hint(THD *thd);
 };
 
 
@@ -478,8 +478,8 @@ public:
     @return  pointer Opt_hints_table object if this object is found,
              NULL otherwise.
   */
-  Opt_hints_table *adjust_hints_for_table(TABLE *table,
-                                      const Lex_ident_table &alias);
+  Opt_hints_table *fix_hints_for_table(TABLE *table,
+                                       const Lex_ident_table &alias);
 
   /**
     Returns whether semi-join is enabled for this query block
@@ -560,9 +560,9 @@ public:
 
     @param table      Pointer to TABLE object
   */
-  bool adjust_key_hints(TABLE *table);
+  bool fix_hint(TABLE *table);
 
-  virtual uint get_warn_unresolved_code() const override
+  virtual uint get_unfixed_warning_code() const override
   {
     return ER_UNRESOLVED_TABLE_HINT_NAME;
   }
@@ -596,7 +596,7 @@ public:
     append_identifier(thd, str, &name);
   }
 
-  virtual uint get_warn_unresolved_code() const override
+  virtual uint get_unfixed_warning_code() const override
   {
     return ER_UNRESOLVED_INDEX_HINT_NAME;
   }
