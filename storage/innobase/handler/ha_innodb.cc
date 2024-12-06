@@ -21441,32 +21441,72 @@ innodb_do_foreign_cascade(upd_node_t* node)
     &node->heap
   );
 
-  row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, 
+	if (is_delete)
+  	row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, 
                          true, clust_index, offsets);
   //---END FILL REC---
 
 
-	// prebuilt->upd_node = node;
-  // prebuilt->upd_graph = static_cast<que_fork_t*>(
-  //     que_node_get_parent(
-  //       pars_complete_graph_for_exec(
-  //       prebuilt->upd_node,
-  //       prebuilt->trx, prebuilt->heap,
-  //       prebuilt)));
-  // prebuilt->upd_graph->state = QUE_FORK_ACTIVE; // ?
-	// prebuilt->pcur = pcur;
-	//prebuilt->sql_stat_start = 0;
+	prebuilt->upd_node = node;
+  prebuilt->upd_graph = static_cast<que_fork_t*>(
+      que_node_get_parent(
+        pars_complete_graph_for_exec(
+        prebuilt->upd_node,
+        prebuilt->trx, prebuilt->heap,
+        prebuilt)));
+  prebuilt->upd_graph->state = QUE_FORK_ACTIVE; // ?
+	btr_pcur_copy_stored_position(prebuilt->pcur, pcur);
+	prebuilt->sql_stat_start = 0; // a parent table is already locked correctly
 
+
+	if (!is_delete) {
+		row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec, NULL, 
+                         true, clust_index, offsets);
+
+		if (node->upd_row == NULL) {
+			node->row = row_build(ROW_COPY_DATA, clust_index, rec,
+							offsets, NULL,
+							NULL, NULL, &node->upd_ext, node->heap);
+
+			node->upd_row = dtuple_copy(node->row, node->heap);
+			row_upd_replace(node->upd_row, &node->upd_ext,
+				clust_index, node->update, node->heap);
+  	}
+
+		dtuple_t* entry = row_build_index_entry(node->upd_row, NULL, 
+																						clust_index, 
+																						node->heap);
+
+		ulint n_ext = dtuple_get_n_ext(node->upd_row);
+		
+		ulint size = rec_get_converted_size(clust_index, entry, n_ext);
+		byte *buf = static_cast<byte*>(mem_heap_alloc(node->heap, size));
+
+		rec_t *rec_upd = rec_convert_dtuple_to_rec(buf, clust_index, entry, n_ext);
+		const rec_offs* upd_offsets = rec_get_offsets(
+			rec_upd, clust_index, nullptr, 
+			clust_index->n_core_fields, 
+			ULINT_UNDEFINED, &node->heap);
+
+		//FIXME:Check return value
+		row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec_upd, 
+														NULL, false, clust_index, upd_offsets); 
+  }
 
 	//// TODO: Refactor to remove the use of the following handler methods:
-	handler->position(maria_table->record[0]);
-	handler->ha_rnd_init(false);
-	handler->rnd_pos(maria_table->record[0], handler->ref);
-	handler->ha_rnd_end();
+	// handler->position(maria_table->record[0]);
+	// handler->ha_rnd_init(false);
+	// handler->rnd_pos(maria_table->record[0], handler->ref);
+	// handler->ha_rnd_end();
 	//**
+
+	if (handler->update_prebuilt_upd_buf())
+    return DB_ERROR; // TODO: DB_OUT_OF_MEMORY
 
   if (is_delete)
     sql_delete_row(maria_table);
+	else
+		sql_update_row(maria_table);
 	
   return DB_SUCCESS;
 }

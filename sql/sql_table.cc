@@ -13257,25 +13257,49 @@ bool sql_delete_row(TABLE *table)
   //TODO: virtual columns
   THD *thd= current_thd;
   table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
-    if (!table->triggers ||  
-        table->triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE))
-    table->triggers->process_triggers(thd,
-                      TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE);
-
+    if (table->triggers &&
+          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                     TRG_ACTION_BEFORE, FALSE)))
+      return true;
 
   // TODO: handle error
   int error= table->file->ha_delete_row(table->record[0]);
 
 
-    if (table->triggers &&
+  if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                      TRG_ACTION_AFTER, FALSE)))
-        return true;
+      return true;
 
   return false;
 }
 
 // record[0] - new row
 // record[1] - old row
-// bool sql_update_row(TABLE *table)
-// {
+bool sql_update_row(TABLE *table)
+{
+  THD *thd= current_thd;
+
+  //**virtual**
+  // if (table->vfield) {
+  //   table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
+  //   table->move_fields(table->field, table->record[1], table->record[0]);
+  //   table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
+  //   table->move_fields(table->field, table->record[0], table->record[1]);
+  // }
+  //**virtual**
+  table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
+    if (table->triggers &&
+          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                     TRG_ACTION_BEFORE, FALSE)))
+        return true;
+
+  int error= table->file->ha_update_row(table->record[1], table->record[0]);
+
+  if (table->triggers &&
+          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                     TRG_ACTION_AFTER, TRUE)))
+      return true;
+
+  return false;
+}
