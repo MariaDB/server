@@ -2311,6 +2311,122 @@ convert_error_code_to_mysql(
 	}
 }
 
+/********************************************************************//**
+Converts a MySQL error code to an InnoDB error code.
+@return InnoDB error code */
+static dberr_t
+convert_mysql_error_to_dberr(
+/*=========================*/
+    int mysql_error) /*!< in: MySQL error code */
+{
+    switch (mysql_error) {
+    case 0:
+        return DB_SUCCESS;
+
+    case HA_ERR_ABORTED_BY_USER:
+        return DB_INTERRUPTED;
+
+    case HA_ERR_FK_DEPTH_EXCEEDED:
+        return DB_FOREIGN_EXCEED_MAX_CASCADE;
+
+    case HA_ERR_NULL_IN_SPATIAL:
+        return DB_CANT_CREATE_GEOMETRY_OBJECT;
+
+    case HA_ERR_FOUND_DUPP_KEY:
+        return DB_DUPLICATE_KEY;
+
+    case HA_ERR_TABLE_READONLY:
+        return DB_READ_ONLY;
+
+    case HA_ERR_FOREIGN_DUPLICATE_KEY:
+        return DB_FOREIGN_DUPLICATE_KEY;
+
+    case HA_ERR_TABLE_DEF_CHANGED:
+        return DB_MISSING_HISTORY;
+
+    case HA_ERR_NO_ACTIVE_RECORD:
+        return DB_RECORD_NOT_FOUND;
+
+    case HA_ERR_LOCK_DEADLOCK:
+        return DB_DEADLOCK;
+
+    case HA_ERR_RECORD_CHANGED:
+        return DB_RECORD_CHANGED;
+
+    case HA_ERR_LOCK_WAIT_TIMEOUT:
+        return DB_LOCK_WAIT_TIMEOUT;
+
+    case HA_ERR_NO_REFERENCED_ROW:
+        return DB_NO_REFERENCED_ROW;
+
+    case HA_ERR_ROW_IS_REFERENCED:
+        return DB_ROW_IS_REFERENCED;
+
+    case HA_ERR_CANNOT_ADD_FOREIGN:
+        return DB_CANNOT_ADD_CONSTRAINT;
+
+    case HA_ERR_CRASHED:
+        return DB_CORRUPTION;
+
+    case HA_ERR_RECORD_FILE_FULL:
+        return DB_OUT_OF_FILE_SPACE;
+
+    case HA_ERR_INTERNAL_ERROR:
+        return DB_TEMP_FILE_WRITE_FAIL;
+
+    case HA_ERR_NO_SUCH_TABLE:
+        return DB_TABLE_NOT_FOUND;
+
+    case HA_ERR_DECRYPTION_FAILED:
+        return DB_DECRYPTION_FAILED;
+
+    case HA_ERR_TABLESPACE_MISSING:
+        return DB_TABLESPACE_NOT_FOUND;
+
+    case HA_ERR_TO_BIG_ROW:
+        return DB_TOO_BIG_RECORD;
+
+    case HA_ERR_INDEX_COL_TOO_LONG:
+        return DB_TOO_BIG_INDEX_COL;
+
+    case HA_ERR_NO_SAVEPOINT:
+        return DB_NO_SAVEPOINT;
+
+    case HA_ERR_LOCK_TABLE_FULL:
+        return DB_LOCK_TABLE_FULL;
+
+    case HA_FTS_INVALID_DOCID:
+        return DB_FTS_INVALID_DOCID;
+
+    case HA_ERR_OUT_OF_MEM:
+        return DB_OUT_OF_MEMORY;
+
+    case HA_ERR_TOO_MANY_CONCURRENT_TRXS:
+        return DB_TOO_MANY_CONCURRENT_TRXS;
+
+    case HA_ERR_UNSUPPORTED:
+        return DB_UNSUPPORTED;
+
+    case HA_ERR_INDEX_CORRUPT:
+        return DB_INDEX_CORRUPT;
+
+    case HA_ERR_UNDO_REC_TOO_BIG:
+        return DB_UNDO_RECORD_TOO_BIG;
+
+    case HA_ERR_TABLESPACE_EXISTS:
+        return DB_TABLESPACE_EXISTS;
+
+    case HA_ERR_TABLE_CORRUPT:
+        return DB_TABLE_CORRUPT;
+
+    case HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE:
+        return DB_FTS_TOO_MANY_WORDS_IN_PHRASE;
+
+    default:
+        return DB_ERROR; /* unspecified error */
+    }
+}
+
 /*************************************************************//**
 Prints info of a THD object (== user session thread) to the given file. */
 void
@@ -21504,9 +21620,7 @@ innodb_do_foreign_cascade(upd_node_t* node)
     return DB_ERROR; // TODO: DB_OUT_OF_MEMORY
 
   if (is_delete)
-    sql_delete_row(maria_table);
-	else
-		sql_update_row(maria_table);
+    return convert_mysql_error_to_dberr(sql_delete_row(maria_table));
 	
-  return DB_SUCCESS;
+	return convert_mysql_error_to_dberr(sql_update_row(maria_table));
 }

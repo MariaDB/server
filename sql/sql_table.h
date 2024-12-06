@@ -218,7 +218,7 @@ extern MYSQL_PLUGIN_IMPORT const Lex_ident_column primary_key_name;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
-bool sql_delete_row(TABLE *table);
+int sql_delete_row(TABLE *table);
 
-bool sql_update_row(TABLE *table);
+int sql_update_row(TABLE *table);
 #endif /* SQL_TABLE_INCLUDED */

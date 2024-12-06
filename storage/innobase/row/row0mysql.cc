@@ -1989,17 +1989,18 @@ row_update_cascade_for_mysql(
 		thr->run_node = node;
 		thr->prev_node = node;
 
+		dberr_t cascade_error;
 		DEBUG_SYNC_C("foreign_constraint_update_cascade");
 		{
 			TABLE *mysql_table = thr->prebuilt->m_mysql_table;
 			thr->prebuilt->m_mysql_table = NULL;
 
-			innodb_do_foreign_cascade(node);
+			cascade_error = innodb_do_foreign_cascade(node);
 
 			thr->prebuilt->m_mysql_table = mysql_table;
 		}
 
-		switch (trx->error_state) {
+		switch (cascade_error) {
 		case DB_LOCK_WAIT:
 			if (lock_wait(thr) == DB_SUCCESS) {
 				continue;
@@ -2009,7 +2010,7 @@ row_update_cascade_for_mysql(
 		default:
 			/* Other errors are handled for the parent node. */
 			thr->fk_cascade_depth = 0;
-			return trx->error_state;
+			return cascade_error;
 
 		case DB_SUCCESS:
 			thr->fk_cascade_depth = 0;

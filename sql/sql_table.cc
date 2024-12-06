@@ -13249,34 +13249,36 @@ bool HA_CREATE_INFO::
   stored in `table->record[0]` (i.e., the effect from calling `ha_rnd_pos` 
   or `ha_index_read` is required to make a successful call).
   @param[in,out] table The table object representing the target table.
-  @return `true` if the operation failed, 
-  `false` if the row was successfully deleted.
-*/
-bool sql_delete_row(TABLE *table)
+  @return error number or 0 */
+int sql_delete_row(TABLE *table)
 {
   //TODO: virtual columns
   THD *thd= current_thd;
+  int error= 0;
   table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
-    if (table->triggers &&
+  if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                      TRG_ACTION_BEFORE, FALSE)))
-      return true;
-
+    return HA_ERR_GENERIC;
+      
   // TODO: handle error
-  int error= table->file->ha_delete_row(table->record[0]);
-
+  error= table->file->ha_delete_row(table->record[0]);
+  if (error != 0) 
+    return error;
 
   if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                      TRG_ACTION_AFTER, FALSE)))
-      return true;
+    return HA_ERR_GENERIC;
 
-  return false;
+  return 0;
 }
 
 // record[0] - new row
 // record[1] - old row
-bool sql_update_row(TABLE *table)
+
+//@return error number or 0 */
+int sql_update_row(TABLE *table)
 {
   THD *thd= current_thd;
 
@@ -13292,14 +13294,16 @@ bool sql_update_row(TABLE *table)
     if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_BEFORE, FALSE)))
-        return true;
+        return HA_ERR_GENERIC;
 
   int error= table->file->ha_update_row(table->record[1], table->record[0]);
+  if (error != 0)
+    return error;
 
   if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, TRUE)))
-      return true;
+      return HA_ERR_GENERIC;
 
-  return false;
+  return 0;
 }
