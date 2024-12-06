@@ -1,0 +1,193 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+connect stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connect (con1,localhost,root,,)
+--connect (con2,localhost,root,,)
+--connect (con3,localhost,root,,)
+
+--connection default
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t1 (id) VALUES (1);
+# Simplest scenario:
+# <con1, S, granted>,
+# <con1, S, granted>, <con2, X, waiting for con1>,
+# <con1, S, granted>, <con2, X, waiting for con1>, <con1, X, waiting for con1>
+# Expected: instead of deadlocking, the con1's request should ingore con2's
+
+--connection con1
+  BEGIN;
+  SELECT * FROM t1 LOCK IN SHARE MODE;
+
+--connection con2
+  BEGIN;
+  SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con2_will_wait';
+  --send SELECT * FROM t1 FOR UPDATE
+
+--connection con1
+  SET DEBUG_SYNC = 'now WAIT_FOR con2_will_wait';
+  SELECT * FROM t1 FOR UPDATE;
+  COMMIT;
+
+--connection con2
+  --reap
+  COMMIT;
+
+# A variant of the above scenario:
+# <con1, X REC_NOT_GAP, granted>,
+# <con1, X REC_NOT_GAP, granted>, <con2, S, waiting for con1>,
+# <con1, X REC_NOT_GAP, granted>, <con2, S, waiting for con1>, <con1, INSERT INTENTION, waiting for con1>
+# Expected: a deadlock, as INSERT INTENTION should not overtake locks on gap, to not slice them
+--connection con1
+  BEGIN;
+  SELECT * FROM t1 WHERE id=1 FOR UPDATE;
+
+--connection con2
+  BEGIN;
+  SET DEBUG_SYNC = 'lock_wait_start SIGNAL con2_will_wait';
+  --send SELECT * FROM t1 LOCK IN SHARE MODE
+
+--connection con1
+  SET DEBUG_SYNC = 'now WAIT_FOR con2_will_wait';
+  INSERT INTO t1 VALUES (0);
+  ROLLBACK;
+
+--connection con2
+  --error ER_LOCK_DEADLOCK
+  --reap
+  COMMIT;
+
+# More complicated scenario:
+# <con1, S, granted>,
+# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>,
+# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con2>
+# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con2>, <con1, INSERT_INTENTION, waiting for con3>
+# <con1, S, granted>, <con3, X, waiting for con1>, <con1, INSERT_INTENTION, waiting for con3>
+# Expected: a deadlock, as INSERT INTENTION should not overtake locks on gap, to not slice them
+
+--connection con1
+  BEGIN;
+  SELECT * FROM t1 LOCK IN SHARE MODE;
+
+--connection con2
+  BEGIN;
+  SELECT * FROM t1 WHERE id=1 LOCK IN SHARE MODE;
+
+--connection default
+
+--connection con3
+  SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con3_will_wait';
+  --send SELECT * FROM t1 FOR UPDATE
+
+--connection con1
+  SET DEBUG_SYNC = 'now WAIT_FOR con3_will_wait';
+  SET DEBUG_SYNC = 'lock_wait_start SIGNAL con1_will_wait';
+  --send INSERT INTO t1 VALUES (0)
+
+--connection con2
+  SET DEBUG_SYNC = 'now WAIT_FOR con1_will_wait';
+  COMMIT;
+
+--connection con1
+  --reap
+  ROLLBACK;
+
+
+--connection con3
+  --error ER_LOCK_DEADLOCK
+  --reap
+
+# More complicated scenario. It's not ideal. Ideally, we'd like con1's X REC_NOT_GAP request to be
+# considered blocked by con3, and then to bypass it exceptionally because of con3's being blocked by con1.
+# What happens in reality is that con1's request will get blocked by con2, not con3, because we search for
+# a blocker in the queue starting from the granted locks. And then, when con2 releases locks, both con3 and con1
+# are candidates to grant the lock, and con3 can't be granted the lock because it's blocked by con1's S lock,
+# and con1 can be granted the X REC_NOT_GAP lock, because CATS algorithm doesn't check for conflicts with waiting
+# locks during release induced granting. Thus the heuristic "to bypass waiters blocked by us" doesn't really take
+# part in this scenario. Still, it's good to verify that it works without a deadlock.
+# <con1, S, granted>,
+# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>,
+# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con2>
+# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con2>, <con1, X REC_NOT_GAP, waiting for con2>
+# <con1, X REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con1>,
+# <con3, X, granted>,
+# done.
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>, <con1, X REC_NOT_GAP, waiting for con2>
+
+
+--connection con1
+  BEGIN;
+  SELECT * FROM t1 LOCK IN SHARE MODE;
+
+--connection con2
+  BEGIN;
+  SELECT * FROM t1 WHERE id=1 LOCK IN SHARE MODE;
+
+--connection default
+
+--connection con3
+  SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con3_will_wait';
+  --send SELECT * FROM t1 FOR UPDATE
+
+--connection con1
+  SET DEBUG_SYNC = 'now WAIT_FOR con3_will_wait';
+  SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con1_will_wait';
+  --send SELECT * FROM t1 WHERE id=1 FOR UPDATE
+
+--connection con2
+  SET DEBUG_SYNC = 'now WAIT_FOR con1_will_wait';
+  COMMIT;
+
+--connection con1
+  --reap
+  COMMIT;
+
+--connection con3
+  --reap
+  COMMIT;
+
+# A secenario, where con1 has to bypass two transactions, thus testing proper caching:
+# <con1, S, granted>
+# <con1, S, granted> <con2, X, waiting>
+# <con1, S, granted> <con2, X, waiting> <con3, X, waiting>
+# <con1, X REC_NOT_GAP, granted> <con1, S, granted> <con2, X, waiting> <con3, X, waiting>
+#
+# <con1, S, granted>, <con2, X, waiting>, <con3, X, waiting>, <con1, X REC_NOT_GAP, granted>
+--connection con1
+  BEGIN;
+  SELECT * FROM t1 LOCK IN SHARE MODE;
+
+--connection con2
+  SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con2_will_wait';
+  --send SELECT * FROM t1 FOR UPDATE
+
+--connection con3
+  SET DEBUG_SYNC = 'now WAIT_FOR con2_will_wait';
+  SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con3_will_wait';
+  --send SELECT * FROM t1 FOR UPDATE
+
+--connection con1
+  SET DEBUG_SYNC = 'now WAIT_FOR con3_will_wait';
+  SELECT * FROM t1 WHERE id=1 FOR UPDATE;
+  COMMIT;
+
+--connection con2
+  --reap
+  COMMIT;
+
+--connection con3
+  --reap
+  COMMIT;
+
+--connection default
+--disconnect con1
+--disconnect con2
+--disconnect con3
+--disconnect stop_purge
+
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc

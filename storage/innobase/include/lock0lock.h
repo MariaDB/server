@@ -55,14 +55,14 @@ namespace Deadlock
 /** Conflicting lock info */
 struct conflicting_lock_info {
   /** Conflicting lock */
-  lock_t *conflicting;
+  const lock_t *conflicting;
   /** If some lock was bypassed, points to the lock after which bypassing
   lock must be inserted into linked list of locks for the certain cell of
   record locks hash table. */
   lock_t *insert_after;
 #ifdef UNIV_DEBUG
   /** Bypassed lock */
-  lock_t *bypassed;
+  const lock_t *bypassed;
 #endif
 };
 

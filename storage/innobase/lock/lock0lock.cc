@@ -1249,8 +1249,8 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
   bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
   bool bypass_mode= !is_supremum && lock_rec_mode_suits_for_bypassing(mode);
   bool has_s_lock_or_stronger= false;
-  lock_t *insert_after= nullptr;
-  lock_t *bypassed= nullptr;
+  const lock_t *insert_after= nullptr;
+  const lock_t *bypassed= nullptr;
 
   for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
@@ -1286,10 +1286,11 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
 #endif
       bypassed= lock;
     }
-    has_s_lock_or_stronger= false;
+    else
+      has_s_lock_or_stronger= false;
   }
 
-  return {nullptr, bypassed ? insert_after : nullptr
+  return {nullptr, const_cast<lock_t *>(bypassed ? insert_after : nullptr)
 #ifdef UNIV_DEBUG
           , bypassed};
 #endif
@@ -1380,15 +1381,15 @@ static void lock_rec_queue_validate_bypass(const lock_t *checked_lock,
   DBUG_EXECUTE_IF("do_lock_reverse_page_reorganize", return;);
   if (!checked_lock || checked_lock->is_waiting())
     return;
-  auto page_id= checked_lock->un_member.rec_lock.page_id;
-  auto cell= lock_sys.rec_hash.cell_get(page_id.fold());
+  page_id_t page_id= checked_lock->un_member.rec_lock.page_id;
+  hash_cell_t *cell= lock_sys.rec_hash.cell_get(page_id.fold());
   auto mode = checked_lock->type_mode;
-  auto trx = checked_lock->trx;
+  const trx_t *trx = checked_lock->trx;
   bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
   if (is_supremum || !lock_rec_mode_suits_for_bypassing(mode))
     return;
-  lock_t *has_s_lock_or_stronger= nullptr;
-  lock_t *bypassed= nullptr;
+  const lock_t *has_s_lock_or_stronger= nullptr;
+  const lock_t *bypassed= nullptr;
 
   for (lock_t *lock= lock_sys_t::get_first(*cell, page_id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
@@ -2020,7 +2021,7 @@ lock_rec_lock(
 Checks if a waiting record lock request still has to wait in a queue.
 @return lock that is causing the wait */
 static
-const lock_t*
+conflicting_lock_info
 lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
 {
 	const lock_t*	lock;
@@ -2032,48 +2033,51 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
 	ut_ad(!wait_lock->is_table());
 
 	heap_no = lock_rec_find_set_bit(wait_lock);
-        /*
 	bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
+	bool bypass_mode= !is_supremum && lock_rec_mode_suits_for_bypassing(
+			    wait_lock->type_mode);
 	bool has_s_lock_or_stronger= false;
-	bool mode_is_not_ii_and_x = !wait_lock->is_insert_intention()
-	  && wait_lock->mode() == LOCK_X;
-*/
+	const lock_t *insert_after= nullptr;
+	const lock_t *bypassed= nullptr;
 
 	bit_offset = heap_no / 8;
 	bit_mask = static_cast<ulint>(1) << (heap_no % 8);
 
+	const trx_t *trx = wait_lock->trx;
 	for (lock = lock_sys_t::get_first(
 		     cell, wait_lock->un_member.rec_lock.page_id);
 	     lock != wait_lock;
 	     lock = lock_rec_get_next_on_page_const(lock)) {
 		const byte*	p = (const byte*) &lock[1];
-                /*
-		if (mode_is_not_ii_and_x
-		    && lock_rec_has_expl(
-		      LOCK_S | LOCK_REC_NOT_GAP, lock, wait_lock->trx,
-		      is_supremum))
+		if (bypass_mode && lock->trx == trx && !lock->is_gap() &&
+		    !lock->is_waiting() && !lock->is_insert_intention() &&
+		    lock_mode_stronger_or_eq(lock->mode(), LOCK_S))
 		{
-		  has_s_lock_or_stronger= true;
-		  continue;
+			has_s_lock_or_stronger= true;
+			if (!bypassed)
+				insert_after= lock;
+			continue;
 		}
-                */
+
 		if (heap_no < lock_rec_get_n_bits(lock)
 		    && (p[bit_offset] & bit_mask)
 		    && lock_has_to_wait(wait_lock, lock)) {
-                  /*
-		  if (lock->is_waiting()
-		      && lock->trx->lock.wait_trx == wait_lock->trx
-		      && !lock->is_insert_intention()
-		      && (!lock->is_gap() || !is_supremum)
-		      && lock->mode() == LOCK_X
-		      && has_s_lock_or_stronger)
-		    continue;
-                    */
-			return(lock);
+			if (!bypass_mode || !has_s_lock_or_stronger ||
+			    !lock_rec_lock_suits_for_bypassing(lock, trx))
+				return {lock, nullptr
+#ifdef UNIV_DEBUG
+					, nullptr};
+#endif
+			 bypassed= lock;
 		}
+		else
+			has_s_lock_or_stronger= false;
 	}
-
-	return(NULL);
+	return {nullptr,
+		const_cast<lock_t *>(bypassed ? insert_after : nullptr)
+#ifdef UNIV_DEBUG
+		, bypassed};
+#endif
 }
 
 /** Note that a record lock wait started */
@@ -2557,10 +2561,11 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 	the first X lock that is waiting or has been granted. */
 
 	for (lock_t* lock = lock_sys_t::get_first(cell, page_id);
-	     lock != NULL;
-	     lock = lock_rec_get_next_on_page(lock)) {
+	     lock != NULL;) {
 
+		lock_t *next= lock_rec_get_next_on_page(lock);
 		if (!lock->is_waiting()) {
+			lock= next;
 			continue;
 		}
 
@@ -2571,10 +2576,10 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 
 		ut_ad(lock->trx->lock.wait_trx);
 		ut_ad(lock->trx->lock.wait_lock);
-
-		if (const lock_t* c = lock_rec_has_to_wait_in_queue(
-			    cell, lock)) {
-			trx_t* c_trx = c->trx;
+		conflicting_lock_info c_lock_info=
+			lock_rec_has_to_wait_in_queue(cell, lock);
+		if (c_lock_info.conflicting) {
+			trx_t* c_trx = c_lock_info.conflicting->trx;
 			lock->trx->lock.wait_trx = c_trx;
 			if (c_trx->lock.wait_trx
 			    && innodb_deadlock_detect
@@ -2582,10 +2587,17 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 				Deadlock::to_be_checked = true;
 			}
 		} else {
+			if (UNIV_UNLIKELY(c_lock_info.insert_after != nullptr))
+			{
+				cell.remove(*lock, &lock_t::hash);
+				cell.insert_after(*c_lock_info.insert_after,
+						   *lock, &lock_t::hash);
+			}
 			/* Grant the lock */
 			ut_ad(lock->trx != in_lock->trx);
 			lock_grant(lock);
 		}
+		lock= next;
 	}
 
 	if (acquired) {
@@ -4438,24 +4450,34 @@ static void lock_rec_rebuild_waiting_queue(
 {
   lock_sys.assert_locked(cell);
 
-  for (lock_t *lock= first_lock; lock != NULL;
-       lock= lock_rec_get_next(heap_no, lock))
+  for (lock_t *lock= first_lock; lock != NULL;)
   {
-    if (!lock->is_waiting())
+    lock_t *next= lock_rec_get_next(heap_no, lock);
+    if (!lock->is_waiting()) {
+      lock= next;
       continue;
+    }
     mysql_mutex_lock(&lock_sys.wait_mutex);
     ut_ad(lock->trx->lock.wait_trx);
     ut_ad(lock->trx->lock.wait_lock);
 
-    if (const lock_t *c= lock_rec_has_to_wait_in_queue(cell, lock))
-      lock->trx->lock.wait_trx= c->trx;
+    conflicting_lock_info c_lock_info=
+        lock_rec_has_to_wait_in_queue(cell, lock);
+    if (c_lock_info.conflicting)
+      lock->trx->lock.wait_trx= c_lock_info.conflicting->trx;
     else
     {
+      if (c_lock_info.insert_after)
+      {
+        cell.remove(*lock, &lock_t::hash);
+        cell.insert_after(*c_lock_info.insert_after, *lock, &lock_t::hash);
+      }
       /* Grant the lock */
       ut_ad(trx != lock->trx);
       lock_grant(lock);
     }
     mysql_mutex_unlock(&lock_sys.wait_mutex);
+    lock= next;
   }
 }
 
@@ -5648,7 +5670,8 @@ lock_rec_queue_validate(
 			ut_ad(trx_state_eq(lock->trx,
 					   TRX_STATE_COMMITTED_IN_MEMORY)
 			      || !lock->is_waiting()
-			      || lock_rec_has_to_wait_in_queue(cell, lock));
+			      || lock_rec_has_to_wait_in_queue(cell, lock).
+				   conflicting);
 			lock->trx->mutex_unlock();
 		}
 
@@ -5740,7 +5763,8 @@ func_exit:
 
 		if (lock->is_waiting()) {
 			ut_a(lock->is_gap()
-			     || lock_rec_has_to_wait_in_queue(cell, lock));
+			     || lock_rec_has_to_wait_in_queue(cell, lock).
+				  conflicting);
 		} else if (!lock->is_gap()) {
 			const lock_mode	mode = lock->mode() == LOCK_S
 				? LOCK_X : LOCK_S;
