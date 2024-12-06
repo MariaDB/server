@@ -8435,7 +8435,13 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   if (resolve_opt_hints)
   {
     if (thd->lex->opt_hints_global && select_lex->select_number == 1)
+    {
       thd->lex->opt_hints_global->resolve(thd);
+      /*
+        There's no need to call opt_hints_global->check_unresolved(),
+        this is done for each query block individually
+      */
+    }
     if (qb_hints)
       qb_hints->check_unresolved(thd);
   }
