@@ -8323,7 +8323,8 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
           !table_list->opt_hints_table)        // Table hints are not adjusted yet
       {
         table_list->opt_hints_table=
-            qb_hints->adjust_table_hints(table_list->table, table_list->alias);
+            qb_hints->fix_hints_for_table(table_list->table,
+                                          table_list->alias);
       }
     }
     if (select_insert && !is_insert_tables_num_set)
@@ -8396,9 +8397,15 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   if (resolve_opt_hints)
   {
     if (thd->lex->opt_hints_global && select_lex->select_number == 1)
-      thd->lex->opt_hints_global->resolve(thd);
+    {
+      thd->lex->opt_hints_global->fix_hint(thd);
+      /*
+        There's no need to call opt_hints_global->check_unresolved(),
+        this is done for each query block individually
+      */
+    }
     if (qb_hints)
-      qb_hints->check_unresolved(thd);
+      qb_hints->check_unfixed(thd);
   }
   DBUG_RETURN(0);
 }
