@@ -1,0 +1,26 @@
+--source include/have_innodb.inc
+--disable_warnings
+drop table if exists t3,t2,t1;
+--enable_warnings
+create table t1(x int auto_increment primary key, y int, unique key(y)) ENGINE=InnoDB;
+create table t2(a int primary key, x int, z varchar(20),
+                foreign key(x) references t1(y) on update cascade) ENGINE=InnoDB;
+create table t3(id int auto_increment primary key, action_x int, action_z varchar(20), note varchar(50)) ENGINE=InnoDB;
+
+create trigger tr_t2 before update on t2
+    for each row
+        insert into t3(action_x, action_z, note) values (OLD.x, OLD.z, 'Update t2 — OLD'),
+        (NEW.x, NEW.z, 'Update t2 — NEW');
+    
+
+
+insert into t1 values (1, 10);
+insert into t2 values (1, 10, 'str');
+
+update t1 set y=20 where x=1;
+
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t3, t2, t1;
