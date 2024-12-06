@@ -314,3 +314,14 @@ NEXTVAL(t)
 connection node_1;
 DROP TABLE t1;
 DROP SEQUENCE t;
+
+MDEV-33245 SIGSEGV in wsrep_check_sequence | Sql_cmd_alter_sequence::execute
+
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (0);
+CREATE TABLE t1 (c VARCHAR) ENGINE=InnoDB;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') ENGINE=InnoDB' at line 1
+ALTER SEQUENCE IF EXISTS t MINVALUE=1;
+ERROR 42000: This version of MariaDB doesn't yet support 'CACHE without INCREMENT BY 0 in Galera cluster'
+DROP TABLE t;
+End of 10.5 tests

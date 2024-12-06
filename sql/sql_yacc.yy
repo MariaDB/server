@@ -7472,6 +7472,7 @@ alter:
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_ALTER_SEQUENCE;
+            lex->create_info.init();
             DBUG_ASSERT(!lex->m_sql_cmd);
             if (Lex->main_select_push())
               MYSQL_YYABORT;
