@@ -5,6 +5,9 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "metadata": {
+   "lifecycles": [
+      {"phase": "build"}
+   ],
    "component": {
       "bom-ref": "@CPACK_PACKAGE_NAME@",
       "type": "application",
