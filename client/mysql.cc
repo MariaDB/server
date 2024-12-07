@@ -236,6 +236,8 @@ static char **defaults_argv;
 enum enum_info_type { INFO_INFO,INFO_ERROR,INFO_RESULT};
 typedef enum enum_info_type INFO_TYPE;
 
+enum ss_comment_type { SSC_NONE= 0, SSC_CONDITIONAL, SSC_HINT };
+
 static MYSQL mysql;			/* The connection */
 static my_bool ignore_errors=0,wait_flag=0,quick=0,
                connected=0,opt_raw_data=0,unbuffered=0,output_tables=0,
@@ -1158,7 +1160,8 @@ static void fix_history(String *final_command);
 
 static COMMANDS *find_command(char *name);
 static COMMANDS *find_command(char cmd_name);
-static bool add_line(String &, char *, size_t line_length, char *, bool *, bool);
+static bool add_line(String &, char *, size_t line_length, char *,
+                     bool *, ss_comment_type *, bool);
 static void remove_cntrl(String &buffer);
 static void print_table_data(MYSQL_RES *result);
 static void print_table_data_html(MYSQL_RES *result);
@@ -2209,6 +2212,7 @@ static int read_and_execute(bool interactive)
   char	in_string=0;
   ulong line_number=0;
   bool ml_comment= 0;  
+  ss_comment_type ss_comment= SSC_NONE;
   COMMANDS *com;
   size_t line_length= 0;
   status.exit_status=1;
@@ -2355,7 +2359,8 @@ static int read_and_execute(bool interactive)
 #endif
       continue;
     }
-    if (add_line(glob_buffer, line, line_length, &in_string, &ml_comment,
+    if (add_line(glob_buffer, line, line_length, &in_string,
+                 &ml_comment, &ss_comment,
                  status.line_buff ? status.line_buff->truncated : 0))
       break;
   }
@@ -2524,13 +2529,13 @@ static COMMANDS *find_command(char *name)
 
 
 static bool add_line(String &buffer, char *line, size_t line_length,
-                     char *in_string, bool *ml_comment, bool truncated)
+                     char *in_string, bool *ml_comment,
+                     ss_comment_type *ss_comment, bool truncated)
 {
   uchar inchar;
   char buff[80], *pos, *out;
   COMMANDS *com;
   bool need_space= 0;
-  bool ss_comment= 0;
   DBUG_ENTER("add_line");
 
   if (!line[0] && buffer.is_empty())
@@ -2605,7 +2610,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
           DBUG_RETURN(1);                       // Quit
         if (com->takes_params)
         {
-          if (ss_comment)
+          if (*ss_comment != SSC_NONE)
           {
             /*
               If a client-side macro appears inside a server-side comment,
@@ -2639,7 +2644,8 @@ static bool add_line(String &buffer, char *line, size_t line_length,
 	continue;
       }
     }
-    else if (!*ml_comment && !*in_string && is_prefix(pos, delimiter))
+    else if (!*ml_comment && !*in_string && *ss_comment != SSC_HINT &&
+             is_prefix(pos, delimiter))
     {
       // Found a statement. Continue parsing after the delimiter
       pos+= delimiter_length;
@@ -2728,9 +2734,8 @@ static bool add_line(String &buffer, char *line, size_t line_length,
       break;
     }
     else if (!*in_string && inchar == '/' && pos[1] == '*' &&
-             !(pos[2] == '!' ||
-               (pos[2] == 'M' && pos[3] == '!') ||
-               pos[2] == '+'))
+             pos[2] != '!' && !(pos[2] == 'M' && pos[3] == '!') &&
+             pos[2] != '+' && *ss_comment != SSC_HINT)
     {
       if (preserve_comments)
       {
@@ -2746,7 +2751,8 @@ static bool add_line(String &buffer, char *line, size_t line_length,
         out=line;
       }
     }
-    else if (*ml_comment && !ss_comment && inchar == '*' && *(pos + 1) == '/')
+    else if (*ml_comment && *ss_comment == SSC_NONE &&
+             inchar == '*' && *(pos + 1) == '/')
     {
       if (preserve_comments)
       {
@@ -2767,14 +2773,24 @@ static bool add_line(String &buffer, char *line, size_t line_length,
     }      
     else
     {						// Add found char to buffer
-      if (!*in_string && inchar == '/' && pos[1] == '*' &&
-          (pos[2] == '!' || pos[2] == '+'))
-        ss_comment= 1;
-      else if (!*in_string && ss_comment && inchar == '*' && *(pos + 1) == '/')
-        ss_comment= 0;
+      if (!*in_string && inchar == '/' && pos[1] == '*')
+      {
+        if (pos[2] == '!')
+          *ss_comment= SSC_CONDITIONAL;
+        else if (pos[2] == '+')
+          *ss_comment= SSC_HINT;
+      }
+      else if (!*in_string && *ss_comment != SSC_NONE &&
+               inchar == '*' && *(pos + 1) == '/')
+      {
+        *ss_comment= SSC_NONE;
+        *out++= *pos++;                       // copy '*'
+        *out++= *pos;                         // copy '/'
+        continue;
+      }
       if (inchar == *in_string)
 	*in_string= 0;
-      else if (!*ml_comment && !*in_string &&
+      else if (!*ml_comment && !*in_string && *ss_comment != SSC_HINT &&
 	       (inchar == '\'' || inchar == '"' || inchar == '`'))
 	*in_string= (char) inchar;
       if (!*ml_comment || preserve_comments)
