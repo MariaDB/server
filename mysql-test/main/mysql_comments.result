@@ -33,6 +33,14 @@ Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connectio
 t1_bi		CREATE DEFINER=`root`@`localhost` trigger t1_bi before insert on t1\nfor each row\nbegin\n\n\n\n  \n  declare b int;\n  declare c float;\n\n  \n  \n\n  \n  set NEW.data := 12;\nend	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	--TIME--
 id	data
 trig	12
+id	data
+trig	12
+id	data
+trig	12
+id	data
+trig	12
+id	data
+trig	12
 "Pass 2 : --enable-comments"
 1
 1
@@ -58,6 +66,14 @@ Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connectio
 t1_empty		CREATE DEFINER=`root`@`localhost` trigger t1_empty after delete on t1\nfor each row\nbegin\nend	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	--TIME--
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t1_bi		CREATE DEFINER=`root`@`localhost` trigger t1_bi before insert on t1\nfor each row\nbegin\n# comment 1a\n-- comment 1b\n/*\n   comment 1c\n*/\n  -- declare some variables here\n  declare b int;\n  declare c float;\n\n  -- do more stuff here\n  -- commented nicely and so on\n\n  -- famous last words ...\n  set NEW.data := 12;\nend	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	--TIME--
+id	data
+trig	12
+id	data
+trig	12
+id	data
+trig	12
+id	data
+trig	12
 id	data
 trig	12
 set global sql_mode=default;

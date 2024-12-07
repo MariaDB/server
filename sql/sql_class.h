@@ -6036,7 +6036,9 @@ public:
   }
   void set_query_timer_force(ulonglong timeout_val)
   {
+#ifndef EMBEDDED_LIBRARY
     thr_timer_settime(&query_timer, timeout_val);
+#endif
   }
   void reset_query_timer()
   {

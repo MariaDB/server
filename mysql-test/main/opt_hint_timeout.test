@@ -1,6 +1,11 @@
+# Setting statement time-outs is not possible for the embedded server neither
+# by SET STATEMENT max_statement_time=X nor by /*+ MAX_EXECUTION_TIME(X)*/ hint.
+# That is why this test is disabled for the embedded server
 --source include/not_embedded.inc
---source include/have_sequence.inc
 
+--disable_view_protocol # Since optimizer hints are not supported inside views
+
+--source include/have_sequence.inc
 --echo #
 --echo # MAX_EXECUTION_TIME hint testing
 --echo #
