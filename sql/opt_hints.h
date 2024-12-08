@@ -111,7 +111,7 @@ enum opt_hints_enum
 
 struct st_opt_hint_info
 {
-  LEX_CSTRING hint_name;  // Hint name.
+  LEX_CSTRING hint_type;  // Hint "type", like "BKA" or "MRR".
   bool check_upper_lvl;   // true if upper level hint check is needed (for hints
                           // which can be specified on more than one level).
   bool has_arguments;     // true if hint has additional arguments.
