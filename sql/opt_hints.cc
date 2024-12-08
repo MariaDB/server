@@ -1164,6 +1164,28 @@ bool Opt_hints_global::fix_hint(THD *thd)
 }
 
 
+#ifndef DBUG_OFF
+static char dbug_print_hint_buf[64];
+
+const char *dbug_print_hints(Opt_hints_qb *hint)
+{
+  char *buf= dbug_print_hint_buf;
+  THD *thd= current_thd;
+  String str(buf, sizeof(dbug_print_hint_buf), &my_charset_bin);
+  str.length(0);
+  if (!hint)
+    return "(Opt_hints_qb*)NULL";
+
+  hint->print(thd, &str);
+
+  if (str.c_ptr_safe() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+#endif
+
+
 bool Parser::Hint_list::resolve(Parse_context *pc) const
 {
   if (pc->thd->lex->create_view)
