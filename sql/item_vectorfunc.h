@@ -22,7 +22,7 @@
 #include "lex_string.h"
 #include "item_func.h"
 
-class Item_func_vec_distance_common: public Item_real_func
+class Item_func_vec_distance: public Item_real_func
 {
   Item_field *get_field_arg() const
   {
@@ -36,16 +36,20 @@ class Item_func_vec_distance_common: public Item_real_func
   {
     return check_argument_types_or_binary(NULL, 0, arg_count);
   }
-  virtual double calc_distance(float *v1, float *v2, size_t v_len) = 0;
+  double (*calc_distance)(float *v1, float *v2, size_t v_len);
 
 public:
-  Item_func_vec_distance_common(THD *thd, Item *a, Item *b)
-   :Item_real_func(thd, a, b) {}
-  bool fix_length_and_dec(THD *thd) override
+  enum distance_kind { EUCLIDEAN, COSINE } kind;
+  Item_func_vec_distance(THD *thd, Item *a, Item *b, distance_kind kind);
+  LEX_CSTRING func_name_cstring() const override
   {
-    set_maybe_null(); // if wrong dimensions
-    return Item_real_func::fix_length_and_dec(thd);
+    static LEX_CSTRING name[3]= {
+      { STRING_WITH_LEN("VEC_DISTANCE_EUCLIDEAN") },
+      { STRING_WITH_LEN("VEC_DISTANCE_COSINE") }
+    };
+    return name[kind];
   }
+  bool fix_length_and_dec(THD *thd) override;
   double val_real() override;
   Item *get_const_arg() const
   {
@@ -56,60 +60,8 @@ public:
     return NULL;
   }
   key_map part_of_sortkey() const override;
-};
-
-
-class Item_func_vec_distance_euclidean: public Item_func_vec_distance_common
-{
-  double calc_distance(float *v1, float *v2, size_t v_len) override
-  {
-    double d= 0;
-    for (size_t i= 0; i < v_len; i++, v1++, v2++)
-    {
-      float dist= get_float(v1) - get_float(v2);
-      d+= dist * dist;
-    }
-    return sqrt(d);
-  }
-
-public:
-  Item_func_vec_distance_euclidean(THD *thd, Item *a, Item *b)
-   :Item_func_vec_distance_common(thd, a, b) {}
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_DISTANCE_EUCLIDEAN") };
-    return name;
-  }
   Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_vec_distance_euclidean>(thd, this); }
-};
-
-
-class Item_func_vec_distance_cosine: public Item_func_vec_distance_common
-{
-  double calc_distance(float *v1, float *v2, size_t v_len) override
-  {
-    double dotp=0, abs1=0, abs2=0;
-    for (size_t i= 0; i < v_len; i++, v1++, v2++)
-    {
-      float f1= get_float(v1), f2= get_float(v2);
-      abs1+= f1 * f1;
-      abs2+= f2 * f2;
-      dotp+= f1 * f2;
-    }
-    return 1 - dotp/sqrt(abs1*abs2);
-  }
-
-public:
-  Item_func_vec_distance_cosine(THD *thd, Item *a, Item *b)
-   :Item_func_vec_distance_common(thd, a, b) {}
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_DISTANCE_COSINE") };
-    return name;
-  }
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_vec_distance_cosine>(thd, this); }
+  { return get_item_copy<Item_func_vec_distance>(thd, this); }
 };
 
 

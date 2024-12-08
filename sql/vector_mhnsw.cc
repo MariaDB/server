@@ -20,7 +20,6 @@
 #include "create_options.h"
 #include "table_cache.h"
 #include "vector_mhnsw.h"
-#include "item_vectorfunc.h"
 #include <scope.h>
 #include <my_atomic_wrapper.h>
 #include "bloom_filters.h"
@@ -1290,7 +1289,7 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
-  auto *fun= static_cast<Item_func_vec_distance_common*>(dist->real_item());
+  auto *fun= static_cast<Item_func_vec_distance*>(dist->real_item());
   DBUG_ASSERT(fun);
 
   limit= std::min<ulonglong>(limit, max_ef);
@@ -1507,11 +1506,11 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
   return {s, len};
 }
 
-bool mhnsw_uses_distance(const TABLE *table, KEY *keyinfo, const Item *dist)
+Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KEY *keyinfo)
 {
   if (keyinfo->option_struct->metric == EUCLIDEAN)
-    return dynamic_cast<const Item_func_vec_distance_euclidean*>(dist) != NULL;
-  return dynamic_cast<const Item_func_vec_distance_cosine*>(dist) != NULL;
+    return Item_func_vec_distance::EUCLIDEAN;
+  return Item_func_vec_distance::COSINE;
 }
 
 /*
