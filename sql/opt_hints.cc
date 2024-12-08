@@ -67,7 +67,7 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
   /* Append hint name */
   if (!hint_state)
     str.append(STRING_WITH_LEN("NO_"));
-  str.append(opt_hint_info[hint_type].hint_name);
+  str.append(opt_hint_info[hint_type].hint_type);
 
   /* ER_WARN_UNKNOWN_QB_NAME with two arguments */
   if (err_code == ER_WARN_UNKNOWN_QB_NAME)
@@ -315,7 +315,7 @@ void Opt_hints::append_hint_type(String *str, opt_hints_enum type)
 {
   if(!hints_map.is_switched_on(type))
     str->append(STRING_WITH_LEN("NO_"));
-  str->append(opt_hint_info[type].hint_name);
+  str->append(opt_hint_info[type].hint_type);
 }
 
 
