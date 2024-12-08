@@ -2194,6 +2194,9 @@ JOIN::optimize_inner()
   trace_prepare.add_select_number(select_lex->select_number);
   Json_writer_array trace_steps(thd, "steps");
 
+  if (select_lex->opt_hints_qb)
+    select_lex->opt_hints_qb->trace_hints(thd);
+
   /*
     Needed in case optimizer short-cuts,
     set properly in make_aggr_tables_info()

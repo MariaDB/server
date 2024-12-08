@@ -53,21 +53,20 @@ const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 
 static const Lex_ident_sys null_ident_sys;
 
-template<typename Hint_type>
 static
 void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
                 const Lex_ident_sys *qb_name_arg,
                 const Lex_ident_sys *table_name_arg,
                 const Lex_ident_sys *key_name_arg,
-                Hint_type *hint)
+                const Printable_parser_rule *hint)
 {
   String str;
 
   /* Append hint name */
   if (!hint_state)
     str.append(STRING_WITH_LEN("NO_"));
-  str.append(opt_hint_info[hint_type].hint_name);
+  str.append(opt_hint_info[hint_type].hint_type);
 
   /* ER_WARN_UNKNOWN_QB_NAME with two arguments */
   if (err_code == ER_WARN_UNKNOWN_QB_NAME)
@@ -212,7 +211,7 @@ static Opt_hints_qb *find_qb_hints(Parse_context *pc,
   if (qb == NULL)
   {
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
-               &qb_name, NULL, NULL, (Parser::Hint*) NULL);
+               &qb_name, NULL, NULL, NULL);
   }
   return qb;
 }
@@ -274,9 +273,14 @@ Opt_hints* Opt_hints::find_by_name(const LEX_CSTRING &name_arg) const
 
 void Opt_hints::print(THD *thd, String *str)
 {
+  /* Do not print the hint if we couldn't attach it to its object */
+  if (!is_fixed())
+    return;
+
+  // Print the hints stored in the bitmap
   for (uint i= 0; i < MAX_HINT_ENUM; i++)
   {
-    if (is_specified(static_cast<opt_hints_enum>(i)) && is_fixed())
+    if (is_specified(static_cast<opt_hints_enum>(i)))
     {
       append_hint_type(str, static_cast<opt_hints_enum>(i));
       str->append(STRING_WITH_LEN("("));
@@ -286,10 +290,7 @@ void Opt_hints::print(THD *thd, String *str)
       if (len_after_name > len_before_name)
         str->append(' ');
       if (opt_hint_info[i].has_arguments)
-      {
-        std::function<void(THD*, String*)> args_printer= get_args_printer();
-        args_printer(thd, str);
-      }
+        append_hint_arguments(thd, static_cast<opt_hints_enum>(i), str);
       if (str->length() == len_after_name + 1)
       {
         // No additional arguments were printed, trim the space added before
@@ -304,11 +305,16 @@ void Opt_hints::print(THD *thd, String *str)
 }
 
 
+/*
+  @brief
+    Append hint "type", for example, "NO_RANGE_OPTIMIZATION" or "BKA"
+*/
+
 void Opt_hints::append_hint_type(String *str, opt_hints_enum type)
 {
   if(!hints_map.is_switched_on(type))
     str->append(STRING_WITH_LEN("NO_"));
-  str->append(opt_hint_info[type].hint_name);
+  str->append(opt_hint_info[type].hint_type);
 }
 
 
@@ -605,7 +611,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
       if (qb->set_switch(hint_state, hint_type, false))
       {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &qb_name_sys, nullptr, nullptr, (Parser::Hint*) nullptr);
+                   &qb_name_sys, nullptr, nullptr, nullptr);
       }
       return false;
     }
@@ -623,7 +629,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
         {
           print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                      &qb_name_sys, &table_name_sys, nullptr,
-                     (Parser::Hint*) nullptr);
+                     nullptr);
         }
       }
     }
@@ -642,7 +648,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
       if (qb->set_switch(hint_state, hint_type, false))
       {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, nullptr, nullptr, (Parser::Hint*) nullptr);
+                   &null_ident_sys, nullptr, nullptr, nullptr);
       }
       return false;
     }
@@ -656,8 +662,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
       if (tab->set_switch(hint_state, hint_type, true))
       {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, &table_name_sys, nullptr,
-                   (Parser::Hint*) nullptr);
+                   &null_ident_sys, &table_name_sys, nullptr, nullptr);
       }
     }
   
@@ -677,8 +682,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
       if (tab->set_switch(hint_state, hint_type, true))
       {
          print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                    &qb_name_sys, &table_name_sys, nullptr,
-                    (Parser::Hint*) nullptr);
+                    &qb_name_sys, &table_name_sys, nullptr, nullptr);
       }
     }
   }
@@ -741,8 +745,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     if (tab->set_switch(hint_state, hint_type, false))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, nullptr,
-                 (Parser::Hint*) nullptr);
+                 &qb_name_sys, &table_name_sys, nullptr, nullptr);
     }
     return false;
   }
@@ -761,8 +764,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     if (idx->set_switch(hint_state, hint_type, true))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, &index_name_sys,
-                 (Parser::Hint*) nullptr);
+                 &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
     }
   }
   return false;
@@ -789,7 +791,7 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
       qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
   {
     print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, true,
-               &qb_name_sys, nullptr, nullptr, (Parser::Hint*) nullptr);
+               &qb_name_sys, nullptr, nullptr, nullptr);
     return false;
   }
 
@@ -1155,6 +1157,28 @@ bool Opt_hints_global::fix_hint(THD *thd)
   set_fixed();
   return false;
 }
+
+
+#ifndef DBUG_OFF
+static char dbug_print_hint_buf[64];
+
+const char *dbug_print_hints(Opt_hints_qb *hint)
+{
+  char *buf= dbug_print_hint_buf;
+  THD *thd= current_thd;
+  String str(buf, sizeof(dbug_print_hint_buf), &my_charset_bin);
+  str.length(0);
+  if (!hint)
+    return "(Opt_hints_qb*)NULL";
+
+  hint->print(thd, &str);
+
+  if (str.c_ptr_safe() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+#endif
 
 
 bool Parser::Hint_list::resolve(Parse_context *pc) const
