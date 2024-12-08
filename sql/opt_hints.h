@@ -84,6 +84,7 @@
 #include "sql_show.h"
 #include "mysqld_error.h"
 #include "opt_hints_parser.h"
+#include "opt_trace.h"
 
 
 struct LEX;
@@ -514,6 +515,19 @@ public:
 
   const Parser::Subquery_hint *subquery_hint= nullptr;
   uint subquery_strategy= SUBS_NOT_TRANSFORMED;
+
+  void trace_hints(THD *thd)
+  {
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object obj(thd);
+      String str;
+      str.length(0);
+      print(thd, &str);
+      // Eventually we may want to print them as array.
+      obj.add("hints", str.c_ptr_safe());
+    }
+  }
 };
 
 
