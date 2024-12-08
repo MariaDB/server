@@ -274,9 +274,14 @@ Opt_hints* Opt_hints::find_by_name(const LEX_CSTRING &name_arg) const
 
 void Opt_hints::print(THD *thd, String *str)
 {
+  /* Do not print the hint if we couldn't attach it to its object */
+  if (!is_fixed())
+    return;
+
+  // Print the hints stored in the bitmap
   for (uint i= 0; i < MAX_HINT_ENUM; i++)
   {
-    if (is_specified(static_cast<opt_hints_enum>(i)) && is_fixed())
+    if (is_specified(static_cast<opt_hints_enum>(i)))
     {
       append_hint_type(str, static_cast<opt_hints_enum>(i));
       str->append(STRING_WITH_LEN("("));
@@ -286,10 +291,7 @@ void Opt_hints::print(THD *thd, String *str)
       if (len_after_name > len_before_name)
         str->append(' ');
       if (opt_hint_info[i].has_arguments)
-      {
-        std::function<void(THD*, String*)> args_printer= get_args_printer();
-        args_printer(thd, str);
-      }
+        append_hint_arguments(thd, static_cast<opt_hints_enum>(i), str);
       if (str->length() == len_after_name + 1)
       {
         // No additional arguments were printed, trim the space added before
@@ -303,6 +305,11 @@ void Opt_hints::print(THD *thd, String *str)
     child_array[i]->print(thd, str);
 }
 
+
+/*
+  @brief
+    Append hint "type", for example, "NO_RANGE_OPTIMIZATION" or "BKA"
+*/
 
 void Opt_hints::append_hint_type(String *str, opt_hints_enum type)
 {
