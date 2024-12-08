@@ -6258,7 +6258,8 @@ class Create_func_vec_distance_euclidean: public Create_func_arg2
 {
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
-  { return new (thd->mem_root) Item_func_vec_distance_euclidean(thd, arg1, arg2); }
+  { return new (thd->mem_root)
+      Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::EUCLIDEAN); }
 
   static Create_func_vec_distance_euclidean s_singleton;
 
@@ -6274,7 +6275,8 @@ class Create_func_vec_distance_cosine: public Create_func_arg2
 {
 public:
   Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
-  { return new (thd->mem_root) Item_func_vec_distance_cosine(thd, arg1, arg2); }
+  { return new (thd->mem_root)
+      Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::COSINE); }
 
   static Create_func_vec_distance_cosine s_singleton;
 
