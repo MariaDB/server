@@ -645,4 +645,9 @@ bool hint_key_state(const THD *thd, const TABLE *table,
 */
 bool hint_table_state(const THD *thd, const TABLE *table,
                       opt_hints_enum type_arg, bool fallback_value);
+
+#ifndef DBUG_OFF
+const char *dbug_print_hints(Opt_hints_qb *hint);
+#endif
+
 #endif /* OPT_HINTS_INCLUDED */
