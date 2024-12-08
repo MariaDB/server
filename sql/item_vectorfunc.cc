@@ -24,7 +24,47 @@
 #include "vector_mhnsw.h"
 #include "sql_type_vector.h"
 
-key_map Item_func_vec_distance_common::part_of_sortkey() const
+static double calc_distance_euclidean(float *v1, float *v2, size_t v_len)
+{
+  double d= 0;
+  for (size_t i= 0; i < v_len; i++, v1++, v2++)
+  {
+    float dist= get_float(v1) - get_float(v2);
+    d+= dist * dist;
+  }
+  return sqrt(d);
+}
+
+static double calc_distance_cosine(float *v1, float *v2, size_t v_len)
+{
+  double dotp=0, abs1=0, abs2=0;
+  for (size_t i= 0; i < v_len; i++, v1++, v2++)
+  {
+    float f1= get_float(v1), f2= get_float(v2);
+    abs1+= f1 * f1;
+    abs2+= f2 * f2;
+    dotp+= f1 * f2;
+  }
+  return 1 - dotp/sqrt(abs1*abs2);
+}
+
+Item_func_vec_distance::Item_func_vec_distance(THD *thd, Item *a, Item *b,
+                                               distance_kind kind)
+ :Item_real_func(thd, a, b), kind(kind)
+{
+}
+
+bool Item_func_vec_distance::fix_length_and_dec(THD *thd)
+{
+  switch (kind) {
+  case EUCLIDEAN: calc_distance= calc_distance_euclidean; break;
+  case COSINE:    calc_distance= calc_distance_cosine; break;
+  }
+  set_maybe_null(); // if wrong dimensions
+  return Item_real_func::fix_length_and_dec(thd);
+}
+
+key_map Item_func_vec_distance::part_of_sortkey() const
 {
   key_map map(0);
   if (Item_field *item= get_field_arg())
@@ -33,13 +73,13 @@ key_map Item_func_vec_distance_common::part_of_sortkey() const
     KEY *keyinfo= f->table->s->key_info;
     for (uint i= f->table->s->keys; i < f->table->s->total_keys; i++)
       if (keyinfo[i].algorithm == HA_KEY_ALG_VECTOR && f->key_start.is_set(i)
-          && mhnsw_uses_distance(f->table, keyinfo + i, this))
+          && mhnsw_uses_distance(f->table, keyinfo + i) == kind)
         map.set_bit(i);
   }
   return map;
 }
 
-double Item_func_vec_distance_common::val_real()
+double Item_func_vec_distance::val_real()
 {
   String *r1= args[0]->val_str();
   String *r2= args[1]->val_str();
