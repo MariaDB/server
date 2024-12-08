@@ -1260,6 +1260,13 @@ public:
   */
   table_map select_list_tables;
 
+  /*
+    Parse tree of optimizer hints that were specified in this SELECT. Note
+    that hints specified in one select can prescribe how to execute another.
+  */
+  const Optimizer_hint_parser_output *parsed_optimizer_hints;
+
+  /* Optimizer hints that prescribe how to execute this SELECT */
   Opt_hints_qb *opt_hints_qb;
 
   /* Set to 1 if any field in field list has ROWNUM() */
@@ -1272,8 +1279,6 @@ public:
 
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;  
-
-  const Optimizer_hint_parser_output *parsed_optimizer_hints;
 
   /** System Versioning */
   int vers_setup_conds(THD *thd, TABLE_LIST *tables);

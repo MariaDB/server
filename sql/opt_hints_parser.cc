@@ -245,7 +245,7 @@ Optimizer_hint_parser::
   Hint_list_container::add(Optimizer_hint_parser *p,
                            Hint &&elem)
 {
-  Hint *pe= (Hint*) p->m_thd->alloc(sizeof(*pe));
+  Hint *pe= new (p->m_thd->mem_root) Hint;
   if (!pe)
     return true;
   *pe= std::move(elem);

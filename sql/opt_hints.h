@@ -84,6 +84,7 @@
 #include "sql_show.h"
 #include "mysqld_error.h"
 #include "opt_hints_parser.h"
+#include "opt_trace.h"
 
 
 struct LEX;
@@ -111,7 +112,7 @@ enum opt_hints_enum
 
 struct st_opt_hint_info
 {
-  LEX_CSTRING hint_name;  // Hint name.
+  LEX_CSTRING hint_type;  // Hint "type", like "BKA" or "MRR".
   bool check_upper_lvl;   // true if upper level hint check is needed (for hints
                           // which can be specified on more than one level).
   bool has_arguments;     // true if hint has additional arguments.
@@ -324,16 +325,16 @@ public:
     @param thd             Pointer to THD object
   */
   void check_unfixed(THD *thd);
+
+  /*
+    Append the name of object(table, index, etc) that hints in this collection
+    are attached to.
+  */
   virtual void append_name(THD *thd, String *str)= 0;
 
-  /**
-    Get the function appending additional hint arguments to the printed string,
-    if the arguments exist. For example, SEMIJOIN and SUBQUERY hints may have
-    a list of strategies as additional arguments
-  */
-  virtual std::function<void(THD*, String*)> get_args_printer() const
+  virtual void append_hint_arguments(THD *thd, opt_hints_enum hint, String *str)
   {
-    return [](THD*, String*) {};
+    DBUG_ASSERT(0);
   }
 
   virtual ~Opt_hints() {}
@@ -367,7 +368,7 @@ protected:
 
 
 /**
-  Global level hints.
+  Global level hints.  Currently, it's only MAX_EXECUTION_TIME.
 */
 
 class Opt_hints_global : public Opt_hints
@@ -386,14 +387,21 @@ public:
     : Opt_hints(Lex_ident_sys(), NULL, mem_root_arg)
   {}
 
-  virtual void append_name(THD *thd, String *str) override {}
-
-  virtual std::function<void(THD*, String*)> get_args_printer() const override
+  virtual void append_name(THD *thd, String *str) override
   {
-    using std::placeholders::_1;
-    using std::placeholders::_2;
-    return std::bind(&Parser::Max_execution_time_hint::append_args,
-                     max_exec_time_hint, _1, _2);
+    /*
+      Don't write anything: global hints are not attached to anything named
+      like a table/query block/etc
+    */
+  }
+
+  void append_hint_arguments(THD *thd, opt_hints_enum hint,
+                             String *str) override
+  {
+    if (hint == MAX_EXEC_TIME_HINT_ENUM)
+      max_exec_time_hint->append_args(thd, str);
+    else
+      DBUG_ASSERT(0);
   }
 
   bool fix_hint(THD *thd);
@@ -403,7 +411,11 @@ public:
 class Opt_hints_table;
 
 /**
-  Query block level hints.
+  Query block level hints.  Currently, these can be:
+    - QB_NAME (this is interpreted in the parser and is not explicitly
+               present after that)
+    - [NO_]SEMIJOIN
+    - SUBQUERY
 */
 
 class Opt_hints_qb : public Opt_hints
@@ -422,12 +434,7 @@ public:
     return name.str ? name : sys_name;
   }
 
-  /**
-    Append query block hint.
 
-    @param thd   pointer to THD object
-    @param str   pointer to String object
-  */
   void append_qb_hint(THD *thd, String *str)
   {
     if (name.str)
@@ -437,35 +444,25 @@ public:
       str->append(STRING_WITH_LEN(") "));
     }
   }
-  /**
-    Append query block name.
 
-    @param thd   pointer to THD object
-    @param str   pointer to String object
-  */
   virtual void append_name(THD *thd, String *str) override
   {
+    /* Append query block name. */
     str->append(STRING_WITH_LEN("@"));
     const LEX_CSTRING print_name= get_print_name();
     append_identifier(thd, str, &print_name);
   }
 
-  std::function<void(THD*, String*)> get_args_printer() const override
+  void append_hint_arguments(THD *thd, opt_hints_enum hint,
+                             String *str) override
   {
-    using std::placeholders::_1;
-    using std::placeholders::_2;
-    if (semijoin_hint)
-    {
-      return std::bind(&Parser::Semijoin_hint::append_args, semijoin_hint,
-                       _1, _2);
-    }
-    else if (subquery_hint)
-    {
-      return std::bind(&Parser::Subquery_hint::append_args, subquery_hint,
-                       _1, _2);
-    }
-    return [](THD*, String*) {};
-  }
+    if (hint == SUBQUERY_HINT_ENUM)
+      subquery_hint->append_args(thd, str);
+    else if (hint == SEMIJOIN_HINT_ENUM)
+      semijoin_hint->append_args(thd, str);
+    else
+      DBUG_ASSERT(0);
+   }
 
   /**
     Function finds Opt_hints_table object corresponding to
@@ -518,6 +515,19 @@ public:
 
   const Parser::Subquery_hint *subquery_hint= nullptr;
   uint subquery_strategy= SUBS_NOT_TRANSFORMED;
+
+  void trace_hints(THD *thd)
+  {
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object obj(thd);
+      String str;
+      str.length(0);
+      print(thd, &str);
+      // Eventually we may want to print them as array.
+      obj.add("hints", str.c_ptr_safe());
+    }
+  }
 };
 
 
@@ -635,4 +645,9 @@ bool hint_key_state(const THD *thd, const TABLE *table,
 */
 bool hint_table_state(const THD *thd, const TABLE *table,
                       opt_hints_enum type_arg, bool fallback_value);
+
+#ifndef DBUG_OFF
+const char *dbug_print_hints(Opt_hints_qb *hint);
+#endif
+
 #endif /* OPT_HINTS_INCLUDED */
