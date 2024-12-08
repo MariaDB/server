@@ -117,6 +117,14 @@ protected:
 };
 
 
+class Printable_parser_rule
+{
+public:
+  virtual void append_args(THD *thd, String *str) const = 0;
+  virtual ~Printable_parser_rule() {}
+};
+
+
 class Optimizer_hint_parser: public Optimizer_hint_tokenizer,
                              public Parser_templates
 {
@@ -605,13 +613,14 @@ public:
                                   Keyword_MAX_EXECUTION_TIME,
                                   LParen,
                                   Unsigned_Number,
-                                  RParen>
+                                  RParen>,
+                                public Printable_parser_rule
   {
   public:
     using AND4::AND4;
 
     bool resolve(Parse_context *pc) const;
-    void append_args(THD *thd, String *str) const;
+    void append_args(THD *thd, String *str) const override;
     ulonglong get_milliseconds() const;
   };
 
@@ -717,13 +726,14 @@ public:
                                    Semijoin_hint_type,
                                    LParen,
                                    Semijoin_hint_body,
-                                   RParen>
+                                   RParen>,
+                        public Printable_parser_rule
   {
   public:
     using AND4::AND4;
 
     bool resolve(Parse_context *pc) const;
-    void append_args(THD *thd, String *str) const;
+    void append_args(THD *thd, String *str) const override;
 
   private:
     Opt_hints_qb* resolve_for_qb_name(Parse_context *pc, bool hint_state,
@@ -792,13 +802,14 @@ public:
                                   Keyword_SUBQUERY,
                                   LParen,
                                   Subquery_hint_body,
-                                  RParen>
+                                  RParen>,
+                       public Printable_parser_rule
   {
   public:
     using AND4::AND4;
 
     bool resolve(Parse_context *pc) const;
-    void append_args(THD *thd, String *str) const;
+    void append_args(THD *thd, String *str) const override;
 
   private:
     void set_subquery_strategy(TokenID token_id, Opt_hints_qb *qb) const;
@@ -825,16 +836,6 @@ public:
   {
   public:
     using OR6::OR6;
-
-    /**
-      Append additional hint arguments to the printed string.
-      Implement this method in Hint specifications if needed:
-      Table_level_hint, Semijoin_hint, etc
-
-      @param thd             Pointer to THD object
-      @param str             Pointer to String object
-    */
-    void append_args(THD *thd, String *str) const {}
   };
 
 private:
