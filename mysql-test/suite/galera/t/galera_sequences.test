@@ -341,3 +341,18 @@ SELECT NEXTVAL(t);
 --connection node_1
 DROP TABLE t1;
 DROP SEQUENCE t;
+
+--echo
+--echo MDEV-33245 SIGSEGV in wsrep_check_sequence | Sql_cmd_alter_sequence::execute
+--echo
+
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (0);
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (c VARCHAR) ENGINE=InnoDB;
+--error ER_NOT_SUPPORTED_YET
+ALTER SEQUENCE IF EXISTS t MINVALUE=1;
+
+DROP TABLE t;
+--echo End of 10.5 tests
