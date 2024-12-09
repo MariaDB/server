@@ -576,6 +576,13 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 
 void wsrep_wait_ready(THD *thd);
 void wsrep_ready_set(bool ready_value);
+
+/**
+ * Returns true if the given list of tables contains at least one
+ * non-temporary table.
+ */
+bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
+
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support
