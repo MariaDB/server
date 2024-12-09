@@ -30,4 +30,13 @@ DROP USER u2;
 set global server_audit_logging=off;
 UNINSTALL PLUGIN ed25519;
 UNINSTALL PLUGIN server_audit;
+#
+# MDEV-35604: SIGSEGV in filter_query_type | log_statement_ex / auditing
+#
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+SET GLOBAL server_audit_logging=ON;
+SET STATEMENT max_error_count=1 SELECT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1' at line 1
+SET GLOBAL server_audit_logging=OFF;
+UNINSTALL SONAME 'server_audit';
 # end of 10.5 tests
