@@ -63,7 +63,7 @@ const byte timestamp_max_bytes[7] = {
 };
 
 
-static const ulint MAX_DETAILED_ERROR_LEN = 256;
+static const ulint MAX_DETAILED_ERROR_LEN = 512;
 
 /*************************************************************//**
 Set detailed error message for the transaction. */
