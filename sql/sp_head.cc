@@ -1894,6 +1894,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 {
   ulonglong UNINIT_VAR(binlog_save_options);
   bool need_binlog_call= FALSE;
+  uint params= m_pcont->context_var_count();
+  uint default_params= m_pcont->default_context_var_count();
   uint arg_no;
   sp_rcontext *octx = thd->spcont;
   char buf[STRING_BUFFER_USUAL_SIZE];
@@ -1912,7 +1914,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     If it is not, use my_error() to report an error, or it will not terminate
     the invoking query properly.
   */
-  if (argcount != m_pcont->context_var_count())
+  if (argcount < (params - default_params) ||
+      argcount > params)
   {
     /*
       Need to use my_error here, or it will not terminate the
@@ -1964,6 +1967,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     if (err_status)
       goto err_with_cleanup;
   }
+  (*func_ctx)->set_inited_param_count(arg_no);
 
   /*
     If row-based binlogging, we don't need to binlog the function's call, let
@@ -2142,6 +2146,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 {
   bool err_status= FALSE;
   uint params = m_pcont->context_var_count();
+  uint default_params= m_pcont->default_context_var_count();
   /* Query start time may be reset in a multi-stmt SP; keep this for later. */
   ulonglong utime_before_sp_exec= thd->utime_after_lock;
   sp_rcontext *save_spcont, *octx;
@@ -2155,7 +2160,8 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (m_parent && m_parent->instantiate_if_needed(thd))
     DBUG_RETURN(true);
 
-  if (args->elements != params)
+  if (args->elements < (params - default_params) ||
+      args->elements > params)
   {
     my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
              ErrConvDQName(this).ptr(), params, args->elements);
@@ -2223,6 +2229,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       if (err_status)
         break;
     }
+    nctx->set_inited_param_count(args->elements);
 
     /*
       Okay, got values for all arguments. Close tables that might be used by
