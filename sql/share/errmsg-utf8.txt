@@ -7289,7 +7289,7 @@ ER_VIEW_RECURSIVE
         eng "%`s.%`s contains view recursion"
         ger "%`s.%`s enthält View-Rekursion"
         geo "%`s.%`s ხედის რეკურსიას შეიცავს"
-        spa "`%-.192s`.`%-.192s` contiene recursividad de vista""
+        spa "`%-.192s`.`%-.192s` contiene recursividad de vista"
         sw "%`s.%`s ina urejeshaji wa tazama"
 ER_NON_GROUPING_FIELD_USED 42000
         chi "非分组字段'%-.192s'用于%-.64s条款"
@@ -8504,11 +8504,11 @@ ER_CONFLICT_FN_PARSE_ERROR
         sw "Hitilafu katika kuchanganua kitendaji cha mzozo. Ujumbe: %-.64s"
 ER_EXCEPTIONS_WRITE_ERROR
         chi "写入异常表失败。消息：%-.128s"
-        eng "Write to exceptions table failed. Message: %-.128s""
-        ger "Schreiben in Ausnahme-Tabelle fehlgeschlagen. Meldung: %-.128s""
-        geo "გამონაკლისების ცხრილში ჩაწერის შეცდომა. შეტყობინება: %-.128s""
-        spa "Ha fallado el grabar en tabla de excepciones. Mensaje: %-.128s""
-        sw "Imeshindwa kuandika kwenye jedwali la vighairi. Ujumbe: %-.128s""
+        eng "Write to exceptions table failed. Message: %-.128s"
+        ger "Schreiben in Ausnahme-Tabelle fehlgeschlagen. Meldung: %-.128s"
+        geo "გამონაკლისების ცხრილში ჩაწერის შეცდომა. შეტყობინება: %-.128s"
+        spa "Ha fallado el grabar en tabla de excepciones. Mensaje: %-.128s"
+        sw "Imeshindwa kuandika kwenye jedwali la vighairi. Ujumbe: %-.128s"
 ER_TOO_LONG_TABLE_COMMENT
         chi "表格备注'%-.64s'太长（max =%u）"
         eng "Comment for table '%-.64s' is too long (max = %u)"
