@@ -3229,10 +3229,6 @@ static void add_fts_index(dict_table_t *table)
   for (ulint i= 0; i < clust_index->n_uniq; i++)
     dict_index_add_col(fts_index, table, clust_index->fields[i].col,
                        clust_index->fields[i].prefix_len);
-#ifdef BTR_CUR_HASH_ADAPT
-  fts_index->search_info= btr_search_info_create(fts_index->heap);
-  fts_index->search_info->ref_count= 0;
-#endif /* BTR_CUR_HASH_ADAPT */
   UT_LIST_ADD_LAST(fts_index->table->indexes, fts_index);
 }
 
@@ -3335,9 +3331,6 @@ static dict_table_t *build_fts_hidden_table(
       new_index->fields[old_index->n_fields].fixed_len= sizeof(doc_id_t);
     }
 
-#ifdef BTR_CUR_HASH_ADAPT
-    new_index->search_info= btr_search_info_create(new_index->heap);
-#endif /* BTR_CUR_HASH_ADAPT */
     UT_LIST_ADD_LAST(new_index->table->indexes, new_index);
     old_index= UT_LIST_GET_NEXT(indexes, old_index);
     if (UT_LIST_GET_LEN(new_table->indexes)
