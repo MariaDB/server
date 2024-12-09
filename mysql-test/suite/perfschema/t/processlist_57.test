@@ -3,7 +3,7 @@
 --source include/not_embedded.inc
 
 call mtr.add_suppression("Optional native table 'performance_schema'.'processlist' has the wrong structure or is missing.");
-call mtr.add_suppression("Column count of performance_schema.processlist is wrong. Expected 8, found 2. The table is probably corrupted");
+call mtr.add_suppression("Column count of performance_schema.processlist is wrong. Expected 8, found 2.");
 
 --echo ##
 --echo ## Verify fresh 5.7 instance

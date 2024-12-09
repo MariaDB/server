@@ -8175,10 +8175,10 @@ ER_MTS_RESET_WORKERS
         spa "No puedo limpiar tablas de información de trabajador. Mensajes de error adicionales se pueden hallar en el historial (log) de error de MariaDB"
 
 ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2
-        chi "列数为%s.%s是错误的。预期的%d，找到%d。表可能损坏了"
-        eng "Column count of %s.%s is wrong. Expected %d, found %d. The table is probably corrupted"
-        ger "Spaltenanzahl von %s.%s falsch. %d erwartet, aber %d gefunden. Tabelle ist wahrscheinlich beschädigt"
-        spa "El contador de columnas %s.%s está equivocado. Se esperaba %d, hallado %d. La tabla está probablemente estropeada"
+        chi "列数为%s.%s是错误的。预期的%d，找到%d"
+        eng "Column count of %s.%s is wrong. Expected %d, found %d."
+        ger "Spaltenanzahl von %s.%s falsch. %d erwartet, aber %d gefunden."
+        spa "El contador de columnas %s.%s está equivocado. Se esperaba %d, hallado %d."
 
 ER_SLAVE_SILENT_RETRY_TRANSACTION
         chi "从站必须静默地重试当前事务"

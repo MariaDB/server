@@ -1,6 +1,6 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
-call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
+call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\.");
 
 let $collation_server=`select @@collation_server`;
 #
