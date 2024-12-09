@@ -28,9 +28,18 @@ SOFTWARE.
 #include <cmath>
 #include <vector>
 #include <algorithm>
+
+/*
+  Use gcc function multiversioning to optimize for a specific CPU with run-time
+  detection. Works only for x86, for other architectures we provide only one
+  implementation for now.
+*/
+#define DEFAULT_IMPLEMENTATION
+#if __GNUC__ > 7
+#ifdef __x86_64__
 #ifdef HAVE_IMMINTRIN_H
 #include <immintrin.h>
-#if __GNUC__ > 7 && defined __x86_64__
+#undef DEFAULT_IMPLEMENTATION
 #define DEFAULT_IMPLEMENTATION    __attribute__ ((target ("default")))
 #define AVX2_IMPLEMENTATION __attribute__ ((target ("avx2,avx,fma")))
 #if __GNUC__ > 9
@@ -38,8 +47,11 @@ SOFTWARE.
 #endif
 #endif
 #endif
-#ifndef DEFAULT_IMPLEMENTATION
-#define DEFAULT_IMPLEMENTATION
+#ifdef __aarch64__
+#include <arm_neon.h>
+#undef DEFAULT_IMPLEMENTATION
+#define NEON_IMPLEMENTATION
+#endif
 #endif
 
 template <typename T>
@@ -177,9 +189,157 @@ struct PatternedSimdBloomFilter
      basically, unnoticeable, well below the noise level */
 #endif
 
+#ifdef NEON_IMPLEMENTATION
+  uint64x2_t CalcHash(uint64x2_t vecData)
+  {
+    static constexpr uint64_t prime_mx2= 0x9FB21C651E98DF25ULL;
+    static constexpr uint64_t bitflip= 0xC73AB174C5ECD5A2ULL;
+    uint64x2_t step1= veorq_u64(vecData, vdupq_n_u64(bitflip));
+    uint64x2_t step2= veorq_u64(vshrq_n_u64(step1, 48), vshlq_n_u64(step1, 16));
+    uint64x2_t step3= veorq_u64(vshrq_n_u64(step1, 24), vshlq_n_u64(step1, 40));
+    uint64x2_t step4= veorq_u64(step1, veorq_u64(step2, step3));
+    uint64x2_t step5;
+    step5= vsetq_lane_u64(vgetq_lane_u64(step4, 0) * prime_mx2, step4, 0);
+    step5= vsetq_lane_u64(vgetq_lane_u64(step4, 1) * prime_mx2, step5, 1);
+    uint64x2_t step6= vshrq_n_u64(step5, 35);
+    uint64x2_t step7= vaddq_u64(step6, vdupq_n_u64(8));
+    uint64x2_t step8= veorq_u64(step5, step7);
+    uint64x2_t step9;
+    step9= vsetq_lane_u64(vgetq_lane_u64(step8, 0) * prime_mx2, step8, 0);
+    step9= vsetq_lane_u64(vgetq_lane_u64(step8, 1) * prime_mx2, step9, 1);
+    return veorq_u64(step9, vshrq_n_u64(step9, 28));
+  }
+
+  uint64x2_t GetBlockIdx(uint64x2_t vecHash)
+  {
+    uint64x2_t vecNumBlocksMask= vdupq_n_u64(num_blocks - 1);
+    uint64x2_t vecBlockIdx= vshrq_n_u64(vecHash, mask_idx_bits + rotate_bits);
+    return vandq_u64(vecBlockIdx, vecNumBlocksMask);
+  }
+
+  uint64x2_t ConstructMask(uint64x2_t vecHash)
+  {
+    uint64x2_t vecMaskIdxMask= vdupq_n_u64((1 << mask_idx_bits) - 1);
+    uint64x2_t vecMaskMask= vdupq_n_u64((1ull << bits_per_mask) - 1);
+
+    uint64x2_t vecMaskIdx= vandq_u64(vecHash, vecMaskIdxMask);
+    uint64x2_t vecMaskByteIdx= vshrq_n_u64(vecMaskIdx, 3);
+    /*
+      Shift right in NEON is implemented as shift left by a negative value.
+      Do the negation here.
+    */
+    int64x2_t vecMaskBitIdx=
+      vsubq_s64(vdupq_n_s64(0),
+                vreinterpretq_s64_u64(vandq_u64(vecMaskIdx, vdupq_n_u64(0x7))));
+    uint64x2_t vecRawMasks= vdupq_n_u64(*reinterpret_cast<const uint64_t*>
+                              (masks + vgetq_lane_u64(vecMaskByteIdx, 0)));
+    vecRawMasks= vsetq_lane_u64(*reinterpret_cast<const uint64_t*>
+                   (masks + vgetq_lane_u64(vecMaskByteIdx, 1)), vecRawMasks, 1);
+    uint64x2_t vecUnrotated=
+      vandq_u64(vshlq_u64(vecRawMasks, vecMaskBitIdx), vecMaskMask);
+
+    int64x2_t vecRotation=
+      vreinterpretq_s64_u64(vandq_u64(vshrq_n_u64(vecHash, mask_idx_bits),
+                                      vdupq_n_u64((1 << rotate_bits) - 1)));
+    uint64x2_t vecShiftUp= vshlq_u64(vecUnrotated, vecRotation);
+    uint64x2_t vecShiftDown=
+      vshlq_u64(vecUnrotated, vsubq_s64(vecRotation, vdupq_n_s64(64)));
+    return vorrq_u64(vecShiftDown, vecShiftUp);
+  }
+
+  void Insert(const T **data)
+  {
+    uint64x2_t vecDataA= vld1q_u64(reinterpret_cast<uint64_t *>(data + 0));
+    uint64x2_t vecDataB= vld1q_u64(reinterpret_cast<uint64_t *>(data + 2));
+    uint64x2_t vecDataC= vld1q_u64(reinterpret_cast<uint64_t *>(data + 4));
+    uint64x2_t vecDataD= vld1q_u64(reinterpret_cast<uint64_t *>(data + 6));
+
+    uint64x2_t vecHashA= CalcHash(vecDataA);
+    uint64x2_t vecHashB= CalcHash(vecDataB);
+    uint64x2_t vecHashC= CalcHash(vecDataC);
+    uint64x2_t vecHashD= CalcHash(vecDataD);
+
+    uint64x2_t vecMaskA= ConstructMask(vecHashA);
+    uint64x2_t vecMaskB= ConstructMask(vecHashB);
+    uint64x2_t vecMaskC= ConstructMask(vecHashC);
+    uint64x2_t vecMaskD= ConstructMask(vecHashD);
+
+    uint64x2_t vecBlockIdxA= GetBlockIdx(vecHashA);
+    uint64x2_t vecBlockIdxB= GetBlockIdx(vecHashB);
+    uint64x2_t vecBlockIdxC= GetBlockIdx(vecHashC);
+    uint64x2_t vecBlockIdxD= GetBlockIdx(vecHashD);
+
+    uint64_t block0= vgetq_lane_u64(vecBlockIdxA, 0);
+    uint64_t block1= vgetq_lane_u64(vecBlockIdxA, 1);
+    uint64_t block2= vgetq_lane_u64(vecBlockIdxB, 0);
+    uint64_t block3= vgetq_lane_u64(vecBlockIdxB, 1);
+    uint64_t block4= vgetq_lane_u64(vecBlockIdxC, 0);
+    uint64_t block5= vgetq_lane_u64(vecBlockIdxC, 1);
+    uint64_t block6= vgetq_lane_u64(vecBlockIdxD, 0);
+    uint64_t block7= vgetq_lane_u64(vecBlockIdxD, 1);
+
+    bv[block0]|= vgetq_lane_u64(vecMaskA, 0);
+    bv[block1]|= vgetq_lane_u64(vecMaskA, 1);
+    bv[block2]|= vgetq_lane_u64(vecMaskB, 0);
+    bv[block3]|= vgetq_lane_u64(vecMaskB, 1);
+    bv[block4]|= vgetq_lane_u64(vecMaskC, 0);
+    bv[block5]|= vgetq_lane_u64(vecMaskC, 1);
+    bv[block6]|= vgetq_lane_u64(vecMaskD, 0);
+    bv[block7]|= vgetq_lane_u64(vecMaskD, 1);
+  }
+
+  uint8_t Query(T **data)
+  {
+    uint64x2_t vecDataA= vld1q_u64(reinterpret_cast<uint64_t *>(data + 0));
+    uint64x2_t vecDataB= vld1q_u64(reinterpret_cast<uint64_t *>(data + 2));
+    uint64x2_t vecDataC= vld1q_u64(reinterpret_cast<uint64_t *>(data + 4));
+    uint64x2_t vecDataD= vld1q_u64(reinterpret_cast<uint64_t *>(data + 6));
+
+    uint64x2_t vecHashA= CalcHash(vecDataA);
+    uint64x2_t vecHashB= CalcHash(vecDataB);
+    uint64x2_t vecHashC= CalcHash(vecDataC);
+    uint64x2_t vecHashD= CalcHash(vecDataD);
+
+    uint64x2_t vecMaskA= ConstructMask(vecHashA);
+    uint64x2_t vecMaskB= ConstructMask(vecHashB);
+    uint64x2_t vecMaskC= ConstructMask(vecHashC);
+    uint64x2_t vecMaskD= ConstructMask(vecHashD);
+
+    uint64x2_t vecBlockIdxA= GetBlockIdx(vecHashA);
+    uint64x2_t vecBlockIdxB= GetBlockIdx(vecHashB);
+    uint64x2_t vecBlockIdxC= GetBlockIdx(vecHashC);
+    uint64x2_t vecBlockIdxD= GetBlockIdx(vecHashD);
+
+    uint64x2_t vecBloomA= vdupq_n_u64(bv[vgetq_lane_u64(vecBlockIdxA, 0)]);
+    vecBloomA= vsetq_lane_u64(bv[vgetq_lane_u64(vecBlockIdxA, 1)], vecBloomA, 1);
+    uint64x2_t vecBloomB= vdupq_n_u64(bv[vgetq_lane_u64(vecBlockIdxB, 0)]);
+    vecBloomB= vsetq_lane_u64(bv[vgetq_lane_u64(vecBlockIdxB, 1)], vecBloomB, 1);
+    uint64x2_t vecBloomC= vdupq_n_u64(bv[vgetq_lane_u64(vecBlockIdxC, 0)]);
+    vecBloomC= vsetq_lane_u64(bv[vgetq_lane_u64(vecBlockIdxC, 1)], vecBloomC, 1);
+    uint64x2_t vecBloomD= vdupq_n_u64(bv[vgetq_lane_u64(vecBlockIdxD, 0)]);
+    vecBloomD= vsetq_lane_u64(bv[vgetq_lane_u64(vecBlockIdxD, 1)], vecBloomD, 1);
+
+    uint64x2_t vecCmpA= vceqq_u64(vandq_u64(vecMaskA, vecBloomA), vecMaskA);
+    uint64x2_t vecCmpB= vceqq_u64(vandq_u64(vecMaskB, vecBloomB), vecMaskB);
+    uint64x2_t vecCmpC= vceqq_u64(vandq_u64(vecMaskC, vecBloomC), vecMaskC);
+    uint64x2_t vecCmpD= vceqq_u64(vandq_u64(vecMaskD, vecBloomD), vecMaskD);
+
+    return
+      (vgetq_lane_u64(vecCmpA, 0) & 0x01) |
+      (vgetq_lane_u64(vecCmpA, 1) & 0x02) |
+      (vgetq_lane_u64(vecCmpB, 0) & 0x04) |
+      (vgetq_lane_u64(vecCmpB, 1) & 0x08) |
+      (vgetq_lane_u64(vecCmpC, 0) & 0x10) |
+      (vgetq_lane_u64(vecCmpC, 1) & 0x20) |
+      (vgetq_lane_u64(vecCmpD, 0) & 0x40) |
+      (vgetq_lane_u64(vecCmpD, 1) & 0x80);
+  }
+#endif
+
   /********************************************************
   ********* non-SIMD fallback version ********************/
 
+#ifdef DEFAULT_IMPLEMENTATION
   uint64_t CalcHash_1(const T* data)
   {
     static constexpr uint64_t prime_mx2= 0x9FB21C651E98DF25ULL;
@@ -240,6 +400,7 @@ struct PatternedSimdBloomFilter
     }
     return res_bits;
   }
+#endif
 
   int n;
   float epsilon;
