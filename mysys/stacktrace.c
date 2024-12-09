@@ -41,7 +41,7 @@
    Default handler for printing stacktrace
 */
 
-static sig_handler default_handle_fatal_signal(int sig)
+static void default_handle_fatal_signal(int sig)
 {
   my_safe_printf_stderr("%s: Got signal %d. Attempting backtrace\n",
                         my_progname_short, sig);
