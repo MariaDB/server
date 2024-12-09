@@ -4373,6 +4373,8 @@ public:
   {
     if (killed <= killed_arg)
     {
+      if (mysys_var)
+        mysys_var->abort= 1;
       killed= killed_arg;
       if (killed_errno_arg)
       {
