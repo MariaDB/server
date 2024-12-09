@@ -31490,7 +31490,9 @@ my_uca_contraction_find(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
   MY_CONTRACTION *c, *last;
   DBUG_ASSERT(len <= MY_UCA_MAX_CONTRACTION);
 
-  for (c= list->item, last= c + list->nitems; c < last; c++)
+  for (c= list->item, last= (list->nitems == 0)? c : c + list->nitems;
+       c < last;
+       c++)
   {
     if ((len >= MY_UCA_MAX_CONTRACTION || c->ch[len] == 0) &&
         !c->with_context &&
@@ -31761,7 +31763,7 @@ my_uca_scanner_init_any(my_uca_scanner *scanner,
 {
   /* Note, no needs to initialize scanner->wbeg */
   scanner->sbeg= str;
-  scanner->send= str + length;
+  scanner->send= (length == 0) ? str : str + length;
   scanner->wbeg= nochar; 
   scanner->level= level;
   scanner->cs= cs;
@@ -33535,7 +33537,10 @@ check_rules(MY_CHARSET_LOADER *loader,
             const MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
   const MY_COLL_RULE *r, *rlast;
-  for (r= rules->rule, rlast= rules->rule + rules->nrules; r < rlast; r++)
+  for (r= rules->rule,
+       rlast= (rules->nrules == 0)? rules->rule : rules->rule + rules->nrules;
+       r < rlast;
+       r++)
   {
     if (r->curr[0] > dst->maxchar)
     {
@@ -33667,7 +33672,10 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
     Mark pages that will be otherwriten as NULL.
     We'll allocate their own memory.
   */
-  for (r= rules->rule, rlast= rules->rule + rules->nrules; r < rlast; r++)
+  for (r= rules->rule,
+       rlast= (rules->nrules == 0)? rules->rule : rules->rule + rules->nrules;
+       r < rlast;
+       r++)
   {
     if (!r->curr[1]) /* If not a contraction */
     {
