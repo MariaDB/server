@@ -243,3 +243,25 @@ Level	Code	Message
 Warning	140	InnoDB: PAGE_COMPRESSED table can't have ROW_TYPE=COMPRESSED
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+# End of 10.5 tests
+#
+# MDEV-35598 foreign key error is unnecessary truncated
+#
+set names utf8;
+create table t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш
+(f1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш int not null primary key,
+f2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш int not null
+) engine=innodb;
+create table t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш
+(f1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш varchar(100),
+f2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш int not null,
+index i2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш
+(f2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш)
+) engine=innodb;
+insert t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш values(99, 2);
+alter table t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш add foreign key(f2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш) references t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш(f1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш);
+insert t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш values('g', 3);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш`, CONSTRAINT `t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш_ibfk_1` FOREIGN KEY (`f2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш`) REFERENCES `t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш` (`f1яяяяяяяяяяььььььььььззззз
+drop table t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш,
+t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш;
+# End of 10.6 tests

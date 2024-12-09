@@ -6318,15 +6318,15 @@ ER_FORBID_SCHEMA_CHANGE
         ger "Wechsel des Schemas von '%-.192s' auf '%-.192s' ist nicht erlaubt"
         spa "Vd no está autorizado a cambiar el esquema de '%-.192s' a '%-.192s'"
 ER_ROW_IS_REFERENCED_2 23000
-        chi "无法删除或更新父行：外键约束失败（%.192s）"
-        eng "Cannot delete or update a parent row: a foreign key constraint fails (%.192s)"
-        ger "Kann Eltern-Zeile nicht löschen oder aktualisieren: eine Fremdschlüsselbedingung schlägt fehl (%.192s)"
-        spa "No puedo borrar o actualizar una fila padre: falla una restricción de clave foránea (%.192s)"
+        chi "无法删除或更新父行：外键约束失败（%s）"
+        eng "Cannot delete or update a parent row: a foreign key constraint fails (%s)"
+        ger "Kann Eltern-Zeile nicht löschen oder aktualisieren: eine Fremdschlüsselbedingung schlägt fehl (%s)"
+        spa "No puedo borrar o actualizar una fila padre: falla una restricción de clave foránea (%s)"
 ER_NO_REFERENCED_ROW_2 23000
-        chi "无法添加或更新子行：外键约束失败（%.192s）"
-        eng "Cannot add or update a child row: a foreign key constraint fails (%.192s)"
-        ger "Kann Kind-Zeile nicht hinzufügen oder aktualisieren: eine Fremdschlüsselbedingung schlägt fehl (%.192s)"
-        spa "No puedo añadir o actualizar una fila hija: falla una restricción de clave foránea (%.192s)"
+        chi "无法添加或更新子行：外键约束失败（%s）"
+        eng "Cannot add or update a child row: a foreign key constraint fails (%s)"
+        ger "Kann Kind-Zeile nicht hinzufügen oder aktualisieren: eine Fremdschlüsselbedingung schlägt fehl (%s)"
+        spa "No puedo añadir o actualizar una fila hija: falla una restricción de clave foránea (%s)"
 ER_SP_BAD_VAR_SHADOW 42000
         chi "变量'%-.64s'必须用`...`，或重命名"
         eng "Variable '%-.64s' must be quoted with `...`, or renamed"
