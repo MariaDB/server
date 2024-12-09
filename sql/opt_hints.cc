@@ -53,14 +53,13 @@ const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 
 static const Lex_ident_sys null_ident_sys;
 
-template<typename Hint_type>
 static
 void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
                 const Lex_ident_sys *qb_name_arg,
                 const Lex_ident_sys *table_name_arg,
                 const Lex_ident_sys *key_name_arg,
-                Hint_type *hint)
+                const Printable_parser_rule *hint)
 {
   String str;
 
@@ -212,7 +211,7 @@ static Opt_hints_qb *find_qb_hints(Parse_context *pc,
   if (qb == NULL)
   {
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
-               &qb_name, NULL, NULL, (Parser::Hint*) NULL);
+               &qb_name, NULL, NULL, NULL);
   }
   return qb;
 }
@@ -612,7 +611,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
       if (qb->set_switch(hint_state, hint_type, false))
       {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &qb_name_sys, nullptr, nullptr, (Parser::Hint*) nullptr);
+                   &qb_name_sys, nullptr, nullptr, nullptr);
       }
       return false;
     }
@@ -630,7 +629,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
         {
           print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                      &qb_name_sys, &table_name_sys, nullptr,
-                     (Parser::Hint*) nullptr);
+                     nullptr);
         }
       }
     }
@@ -649,7 +648,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
       if (qb->set_switch(hint_state, hint_type, false))
       {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, nullptr, nullptr, (Parser::Hint*) nullptr);
+                   &null_ident_sys, nullptr, nullptr, nullptr);
       }
       return false;
     }
@@ -663,8 +662,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
       if (tab->set_switch(hint_state, hint_type, true))
       {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, &table_name_sys, nullptr,
-                   (Parser::Hint*) nullptr);
+                   &null_ident_sys, &table_name_sys, nullptr, nullptr);
       }
     }
   
@@ -684,8 +682,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
       if (tab->set_switch(hint_state, hint_type, true))
       {
          print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                    &qb_name_sys, &table_name_sys, nullptr,
-                    (Parser::Hint*) nullptr);
+                    &qb_name_sys, &table_name_sys, nullptr, nullptr);
       }
     }
   }
@@ -748,8 +745,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     if (tab->set_switch(hint_state, hint_type, false))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, nullptr,
-                 (Parser::Hint*) nullptr);
+                 &qb_name_sys, &table_name_sys, nullptr, nullptr);
     }
     return false;
   }
@@ -768,8 +764,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     if (idx->set_switch(hint_state, hint_type, true))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, &index_name_sys,
-                 (Parser::Hint*) nullptr);
+                 &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
     }
   }
   return false;
@@ -796,7 +791,7 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
       qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
   {
     print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, true,
-               &qb_name_sys, nullptr, nullptr, (Parser::Hint*) nullptr);
+               &qb_name_sys, nullptr, nullptr, nullptr);
     return false;
   }
 
