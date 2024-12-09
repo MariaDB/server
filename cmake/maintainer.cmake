@@ -47,6 +47,12 @@ SET(MY_WARNING_FLAGS
 SET(MY_WARNING_FLAGS_NON_FATAL
   )
 
+# Warning flags that are in testing before moving
+# to MY_WARNING_FLAGS if stable.
+SET(MY_WARNING_FLAGS_NON_FATAL
+  cast-function-type-strict
+  )
+
 FOREACH(F ${MY_WARNING_FLAGS})
   MY_CHECK_AND_SET_COMPILER_FLAG(${F} DEBUG RELWITHDEBINFO)
 ENDFOREACH()
