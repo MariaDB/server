@@ -860,6 +860,27 @@ int my_fprintf(FILE *stream, const char* format, ...)
 }
 
 
+#ifdef __APPLE__
+/* Delete the ':' character added by Apple's implementation of strerror_r */
+static void delete_colon_char(char *buf)
+{
+  static const char *unknown_err= "Unknown error";
+  static const size_t unknown_err_len= 13;
+  char *ptr= strstr(buf, unknown_err);
+  char *src= NULL;
+  if (ptr) {
+    ptr+= unknown_err_len;
+    if (*ptr == ':') {
+      // just overwrite the colon by shifting everything down by one,
+      // e.g. "Unknown error: 1000" becomes "Unknown error 1000"
+      src= ptr + 1;
+      memmove(ptr, src, strlen(src) + 1);  // include null
+    }
+  }
+}
+#endif
+
+
 /*
   Return system error text for given error number
 
@@ -912,6 +933,10 @@ const char* my_strerror(char *buf, size_t len, int nr)
       strmake(buf, r, len - 1);           /* Then don't. */
 #else
     strerror_r(nr, buf, len);
+#endif
+
+#ifdef __APPLE__
+    delete_colon_char(buf);
 #endif
   }
 
