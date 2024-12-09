@@ -255,6 +255,10 @@ static void *log_mmap(os_file_t file,
   if (!read_only)
 #  ifdef HAVE_PMEM
     prot= PROT_READ | PROT_WRITE;
+
+#   ifdef __linux__ /* On Linux, we pretend that /dev/shm is PMEM */
+remap:
+#   endif
 #  else
     return MAP_FAILED;
 #  endif
@@ -270,8 +274,9 @@ static void *log_mmap(os_file_t file,
 
 #  ifdef HAVE_PMEM
 #   ifdef __linux__ /* On Linux, we pretend that /dev/shm is PMEM */
-  if (srv_operation < SRV_OPERATION_BACKUP)
+  if (flags != MAP_SHARED && srv_operation < SRV_OPERATION_BACKUP)
   {
+    flags= MAP_SHARED;
     struct stat st;
     if (!fstat(file, &st))
     {
@@ -283,6 +288,7 @@ static void *log_mmap(os_file_t file,
         is_pmem= st.st_dev == st_dev;
         if (!is_pmem)
           return ptr; /* MAP_FAILED */
+        goto remap;
       }
     }
   }
