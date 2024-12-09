@@ -14,14 +14,25 @@ SET DEBUG_SYNC='dict_stats_update_persistent SIGNAL stop WAIT_FOR go';
 --connect(con1, localhost, root)
 SET DEBUG_SYNC='now WAIT_FOR stop';
 
+--connect(con2, localhost, root)
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL astop WAIT_FOR ago';
+send ALTER TABLE mysql.innodb_index_stats FORCE;
+
+--connection con1
 --replace_column 1 SUM
 SELECT SUM(DATA_LENGTH+INDEX_LENGTH) FROM information_schema.TABLES WHERE ENGINE='InnoDB';
 
+SET DEBUG_SYNC='now WAIT_FOR astop';
 SET DEBUG_SYNC='now SIGNAL go';
 --disconnect con1
 
 --connection default
 --reap
+SET DEBUG_SYNC='now SIGNAL ago';
+--connection con2
+reap;
+--disconnect con2
+--connection default
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
 
