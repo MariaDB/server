@@ -750,7 +750,8 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
   ut_ad(request.bpage);
   ut_ad(request.bpage->in_file());
   ut_ad(request.node);
-  ut_ad(request.node->space->purpose == FIL_TYPE_TABLESPACE);
+  ut_ad(!request.node->space->is_temporary());
+  ut_ad(!request.node->space->is_being_imported());
   ut_ad(request.node->space->id == request.bpage->id().space());
   ut_ad(request.node->space->referenced());
   ut_ad(!srv_read_only_mode);

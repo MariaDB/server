@@ -738,13 +738,15 @@ ibuf_set_free_bits_func(
   mtr.start();
   const page_id_t id(block->page.id());
   const fil_space_t *space= mtr.set_named_space_id(id.space());
+  /* all callers of ibuf_update_free_bits_if_full() or ibuf_reset_free_bits()
+  check this */
+  ut_ad(!space->is_temporary());
 
   if (buf_block_t *bitmap_page=
       ibuf_bitmap_get_map_page(id, block->zip_size(), &mtr))
   {
-    if (space->purpose != FIL_TYPE_TABLESPACE)
+    if (space->is_being_imported()) /* IndexPurge may invoke this */
       mtr.set_log_mode(MTR_LOG_NO_REDO);
-
 #ifdef UNIV_IBUF_DEBUG
     if (max_val != ULINT_UNDEFINED)
     {
@@ -925,8 +927,7 @@ ibuf_page_low(
 		return(false);
 	}
 
-	compile_time_assert(IBUF_SPACE_ID == 0);
-	ut_ad(fil_system.sys_space->purpose == FIL_TYPE_TABLESPACE);
+	static_assert(IBUF_SPACE_ID == 0, "compatiblity");
 
 #ifdef UNIV_DEBUG
 	if (x_latch) {
@@ -4498,7 +4499,7 @@ ibuf_print(
 dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 {
 	ut_ad(trx->mysql_thd);
-	ut_ad(space->purpose == FIL_TYPE_IMPORT);
+	ut_ad(space->is_being_imported());
 
 	const unsigned zip_size = space->zip_size();
 	const unsigned physical_size = space->physical_size();

@@ -488,8 +488,7 @@ mtr_t::x_lock_space(ulint space_id)
 	} else {
 		space = fil_space_get(space_id);
 		ut_ad(m_log_mode != MTR_LOG_NO_REDO
-		      || space->purpose == FIL_TYPE_TEMPORARY
-		      || space->purpose == FIL_TYPE_IMPORT);
+		      || space->is_temporary() || space->is_being_imported());
 	}
 
 	ut_ad(space);
@@ -502,9 +501,6 @@ mtr_t::x_lock_space(ulint space_id)
 @param space  tablespace */
 void mtr_t::x_lock_space(fil_space_t *space)
 {
-  ut_ad(space->purpose == FIL_TYPE_TEMPORARY ||
-        space->purpose == FIL_TYPE_IMPORT ||
-        space->purpose == FIL_TYPE_TABLESPACE);
   if (!memo_contains(*space))
   {
     memo_push(space, MTR_MEMO_SPACE_X_LOCK);

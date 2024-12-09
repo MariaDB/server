@@ -3643,8 +3643,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 	const bool seems_encrypted = !node.space->full_crc32() && key_version
 		&& node.space->crypt_data
 		&& node.space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
-	ut_ad(node.space->purpose != FIL_TYPE_TEMPORARY ||
-	      node.space->full_crc32());
+	ut_ad(!node.space->is_temporary() || node.space->full_crc32());
 
 	/* If traditional checksums match, we assume that page is
 	not anymore encrypted. */
@@ -3652,7 +3651,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 	    && !buf_is_zeroes(span<const byte>(dst_frame,
 					       node.space->physical_size()))
 	    && (key_version || node.space->is_compressed()
-		|| node.space->purpose == FIL_TYPE_TEMPORARY)) {
+		|| node.space->is_temporary())) {
 		if (buf_page_full_crc32_is_corrupted(
 			    bpage->id().space(), dst_frame,
 			    node.space->is_compressed())) {

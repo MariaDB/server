@@ -93,9 +93,9 @@ void recv_sys_justify_left_parsing_buf();
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-extern void (*log_file_op)(ulint space_id, int type,
-			   const byte* name, ulint len,
-			   const byte* new_name, ulint new_len);
+extern void (*log_file_op)(uint32_t space_id, int type,
+			   const byte* name, size_t len,
+			   const byte* new_name, size_t new_len);
 
 /** Report an operation which does undo log tablespace truncation
 during backup
@@ -104,7 +104,7 @@ extern void (*undo_space_trunc)(uint32_t space_id);
 
 /** Report an operation which does INIT_PAGE for page0 during backup.
 @param	space_id	tablespace identifier */
-extern void (*first_page_init)(ulint space_id);
+extern void (*first_page_init)(uint32_t space_id);
 
 /** Stored redo log record */
 struct log_rec_t

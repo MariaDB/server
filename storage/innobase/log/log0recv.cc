@@ -598,10 +598,10 @@ struct file_name_t {
 
 /** Map of dirty tablespaces during recovery */
 typedef std::map<
-	ulint,
+	uint32_t,
 	file_name_t,
 	std::less<ulint>,
-	ut_allocator<std::pair<const ulint, file_name_t> > >	recv_spaces_t;
+	ut_allocator<std::pair<const uint32_t, file_name_t> > >	recv_spaces_t;
 
 static recv_spaces_t	recv_spaces;
 
@@ -820,8 +820,8 @@ processed:
     if (crypt_data && !fil_crypt_check(crypt_data, name.c_str()))
       return nullptr;
     mysql_mutex_lock(&fil_system.mutex);
-    fil_space_t *space= fil_space_t::create(it->first, flags,
-                                            FIL_TYPE_TABLESPACE, crypt_data);
+    fil_space_t *space= fil_space_t::create(it->first, flags, false,
+                                            crypt_data);
     ut_ad(space);
     const char *filename= name.c_str();
     if (srv_operation == SRV_OPERATION_RESTORE)
@@ -939,13 +939,13 @@ deferred_spaces;
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-void (*log_file_op)(ulint space_id, int type,
-		    const byte* name, ulint len,
-		    const byte* new_name, ulint new_len);
+void (*log_file_op)(uint32_t space_id, int type,
+		    const byte* name, size_t len,
+		    const byte* new_name, size_t new_len);
 
 void (*undo_space_trunc)(uint32_t space_id);
 
-void (*first_page_init)(ulint space_id);
+void (*first_page_init)(uint32_t space_id);
 
 /** Information about initializing page contents during redo log processing.
 FIXME: Rely on recv_sys.pages! */
@@ -4203,7 +4203,7 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 	for (recv_sys_t::map::iterator p = recv_sys.pages.begin();
 	     p != recv_sys.pages.end();) {
 		ut_ad(!p->second.log.empty());
-		const ulint space = p->first.space();
+		const uint32_t space = p->first.space();
 		if (is_predefined_tablespace(space)) {
 next:
 			p++;
@@ -4213,7 +4213,7 @@ next:
 		recv_spaces_t::iterator i = recv_spaces.find(space);
 		ut_ad(i != recv_spaces.end());
 
-		if (deferred_spaces.find(static_cast<uint32_t>(space))) {
+		if (deferred_spaces.find(space)) {
 			/* Skip redo logs belonging to
 			incomplete tablespaces */
 			goto next;

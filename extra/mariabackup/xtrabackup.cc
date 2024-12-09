@@ -730,12 +730,14 @@ datafiles_iter_next(datafiles_iter_t *it)
 		fil_system.space_list.begin() :
 		std::next(it->space);
 
-	while (it->space != fil_system.space_list.end() &&
-	       (it->space->purpose != FIL_TYPE_TABLESPACE ||
-		UT_LIST_GET_LEN(it->space->chain) == 0))
+	while (it->space != fil_system.space_list.end()
+	       && UT_LIST_GET_LEN(it->space->chain) == 0)
 		++it->space;
 	if (it->space == fil_system.space_list.end())
 		goto end;
+
+	ut_ad(!it->space->is_temporary());
+	ut_ad(!it->space->is_being_imported());
 
 	it->node = UT_LIST_GET_FIRST(it->space->chain);
 
@@ -907,7 +909,7 @@ err:
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-static void backup_file_op(ulint space_id, int type,
+static void backup_file_op(uint32_t space_id, int type,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
@@ -923,7 +925,8 @@ static void backup_file_op(ulint space_id, int type,
 		std::string space_name = filename_to_spacename(name, len);
 		ddl_tracker.id_to_name[space_id] = space_name;
 		ddl_tracker.delete_defer(space_id, space_name);
-		msg("DDL tracking : create %zu \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
+		    space_id, int(len), name);
 	}
 	break;
 	case FILE_MODIFY:
@@ -939,7 +942,7 @@ static void backup_file_op(ulint space_id, int type,
 		ddl_tracker.id_to_name[space_id] = new_space_name;
 		ddl_tracker.rename_defer(space_id, old_space_name,
 					 new_space_name);
-		msg("DDL tracking : rename %zu \"%.*s\",\"%.*s\"",
+		msg("DDL tracking : rename %" PRIu32 " \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
 	}
 	break;
@@ -947,7 +950,8 @@ static void backup_file_op(ulint space_id, int type,
 		ddl_tracker.drops.insert(space_id);
 		ddl_tracker.delete_defer(
 			space_id, filename_to_spacename(name, len));
-		msg("DDL tracking : delete %zu \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
+			space_id, int(len), name);
 		break;
 	default:
 		ut_ad(0);
@@ -966,21 +970,22 @@ static void backup_file_op(ulint space_id, int type,
 
  We will abort backup in this case.
 */
-static void backup_file_op_fail(ulint space_id, int type,
+static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
 	bool fail = false;
 	switch(type) {
 	case FILE_CREATE:
-		msg("DDL tracking : create %zu \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
+			space_id, int(len), name);
 		fail = !check_if_skip_table(
 				filename_to_spacename(name, len).c_str());
 		break;
 	case FILE_MODIFY:
 		break;
 	case FILE_RENAME:
-		msg("DDL tracking : rename %zu \"%.*s\",\"%.*s\"",
+		msg("DDL tracking : rename %" PRIu32 " \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
 		fail = !check_if_skip_table(
 				filename_to_spacename(name, len).c_str())
@@ -990,7 +995,8 @@ static void backup_file_op_fail(ulint space_id, int type,
 	case FILE_DELETE:
 		fail = !check_if_skip_table(
 				filename_to_spacename(name, len).c_str());
-		msg("DDL tracking : delete %zu \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
+			space_id, int(len), name);
 		break;
 	default:
 		ut_ad(0);
@@ -1011,7 +1017,7 @@ static void backup_undo_trunc(uint32_t space_id)
 
 /* Function to store the space id of page0 INIT_PAGE
 @param	space_id	space id which has page0 init page */
-static void backup_first_page_op(ulint space_id)
+static void backup_first_page_op(uint32_t space_id)
 {
   first_page_init_ids.insert(space_id);
 }
@@ -3532,8 +3538,8 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
 		mysql_mutex_lock(&fil_system.mutex);
 		space = fil_space_t::create(
-			file->space_id(), file->flags(),
-			FIL_TYPE_TABLESPACE, nullptr/* TODO: crypt_data */,
+			uint32_t(file->space_id()), file->flags(), false,
+			nullptr/* TODO: crypt_data */,
 			FIL_ENCRYPTION_DEFAULT,
 			file->handle() != OS_FILE_CLOSED);
 		ut_ad(space);
@@ -4998,8 +5004,8 @@ void CorruptedPages::backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta)
 		iter != ddl_tracker.tables_in_backup.end();
 		iter++) {
 
-		const std::string name = iter->second;
-		ulint id = iter->first;
+		uint32_t id = iter->first;
+		const std::string &name = iter->second;
 
 		if (ddl_tracker.drops.find(id) != ddl_tracker.drops.end()) {
 			dropped_tables.insert(name);
@@ -5025,8 +5031,8 @@ void CorruptedPages::backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta)
 		iter != ddl_tracker.id_to_name.end();
 		iter++) {
 
-		ulint id = iter->first;
-		std::string name = iter->second;
+		uint32_t id = iter->first;
+		const std::string &name = iter->second;
 
 		if (ddl_tracker.tables_in_backup.find(id) != ddl_tracker.tables_in_backup.end()) {
 			/* already processed above */
@@ -5322,8 +5328,8 @@ exit:
 
 			char	tmpname[FN_REFLEN];
 
-			snprintf(tmpname, FN_REFLEN, "%s/xtrabackup_tmp_#" ULINTPF,
-				 dbname, fil_space->id);
+			snprintf(tmpname, FN_REFLEN, "%s/xtrabackup_tmp_#%"
+				 PRIu32, dbname, fil_space->id);
 
 			msg("mariabackup: Renaming %s to %s.ibd",
 				fil_space->chain.start->name, tmpname);
@@ -5378,8 +5384,8 @@ exit:
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
 	mysql_mutex_lock(&fil_system.mutex);
-	fil_space_t* space = fil_space_t::create(info.space_id, flags,
-						 FIL_TYPE_TABLESPACE, 0,
+	fil_space_t* space = fil_space_t::create(uint32_t(info.space_id),
+						 flags, false, 0,
 						 FIL_ENCRYPTION_DEFAULT, true);
 	mysql_mutex_unlock(&fil_system.mutex);
 	if (space) {
