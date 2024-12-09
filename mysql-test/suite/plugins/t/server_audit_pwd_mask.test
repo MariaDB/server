@@ -56,4 +56,20 @@ UNINSTALL PLUGIN ed25519;
 UNINSTALL PLUGIN server_audit;
 --enable_warnings
 
+--echo #
+--echo # MDEV-35604: SIGSEGV in filter_query_type | log_statement_ex / auditing
+--echo #
+
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+SET GLOBAL server_audit_logging=ON;
+
+--ERROR ER_PARSE_ERROR
+SET STATEMENT max_error_count=1 SELECT 1;
+
+# Cleanup
+SET GLOBAL server_audit_logging=OFF;
+--disable_warnings
+UNINSTALL SONAME 'server_audit';
+--enable_warnings
+
 --echo # end of 10.5 tests
