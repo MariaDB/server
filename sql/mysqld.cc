@@ -271,7 +271,7 @@ inline void setup_fpu()
 extern "C" int gethostname(char *name, int namelen);
 #endif
 
-extern "C" sig_handler handle_fatal_signal(int sig);
+extern "C" void handle_fatal_signal(int sig);
 
 #if defined(__linux__)
 #define ENABLE_TEMP_POOL 1
@@ -1868,7 +1868,7 @@ static void close_connections(void)
 #endif /*EMBEDDED_LIBRARY*/
 
 
-extern "C" sig_handler print_signal_warning(int sig)
+extern "C" void print_signal_warning(int sig)
 {
   if (global_system_variables.log_warnings)
     sql_print_warning("Got signal %d from thread %u", sig,
@@ -2836,7 +2836,7 @@ void close_connection(THD *thd, uint sql_errno)
 
 /** Called when mysqld is aborted with ^C */
 /* ARGSUSED */
-extern "C" sig_handler end_mysqld_signal(int sig __attribute__((unused)))
+extern "C" void end_mysqld_signal(int sig __attribute__((unused)))
 {
   DBUG_ENTER("end_mysqld_signal");
   /* Don't kill if signal thread is not running */
