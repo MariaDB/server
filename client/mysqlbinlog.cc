@@ -298,13 +298,15 @@ class Load_log_processor
     @retval -1 Error (can't find new filename).
     @retval >=0 Found file.
   */
-  File create_unique_file(char *filename, char *file_name_end)
+  File create_unique_file(char *filename, char *file_name_end,
+                          size_t file_name_left_space)
     {
       File res;
       /* If we have to try more than 1000 times, something is seriously wrong */
       for (uint version= 0; version<1000; version++)
       {
-	sprintf(file_name_end,"-%x",version);
+        snprintf(file_name_end, file_name_left_space, "-%x", version);
+
 	if ((res= my_create(filename,0,
 			    O_CREAT|O_EXCL|O_BINARY|O_WRONLY,MYF(0)))!=-1)
 	  return res;
@@ -411,7 +413,8 @@ public:
   Exit_status process(Create_file_log_event *ce);
   Exit_status process(Begin_load_query_log_event *ce);
   Exit_status process(Append_block_log_event *ae);
-  File prepare_new_file_for_old_format(Load_log_event *le, char *filename);
+  File prepare_new_file_for_old_format(Load_log_event *le, char *filename,
+                                       size_t fname_buf_sz);
   Exit_status load_old_format_file(NET* net, const char *server_fname,
                                    uint server_fname_len, File file);
   Exit_status process_first_event(const char *bname, size_t blen,
@@ -432,7 +435,8 @@ public:
   @return File handle >= 0 on success, -1 on error.
 */
 File Load_log_processor::prepare_new_file_for_old_format(Load_log_event *le,
-							 char *filename)
+                                                         char *filename,
+                                                         size_t fname_buf_sz)
 {
   size_t len;
   char *tail;
@@ -442,7 +446,7 @@ File Load_log_processor::prepare_new_file_for_old_format(Load_log_event *le,
   len= strlen(filename);
   tail= filename + len;
   
-  if ((file= create_unique_file(filename,tail)) < 0)
+  if ((file= create_unique_file(filename, tail, fname_buf_sz - len)) < 0)
   {
     error("Could not construct local filename %s.",filename);
     return -1;
@@ -564,9 +568,18 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   ptr= fname + target_dir_name_len;
   memcpy(ptr,bname,blen);
   ptr+= blen;
-  ptr+= sprintf(ptr, "-%x", file_id);
 
-  if ((file= create_unique_file(fname,ptr)) < 0)
+  size_t ret= snprintf(ptr, full_len - target_dir_name_len - blen,
+                       "-%x", file_id);
+  if (ret >= (full_len - target_dir_name_len - blen))
+  {
+    error("Buffer for a file name is overflowed.");
+    // Buffer overflow condition taken place
+    DBUG_RETURN(ERROR_STOP);
+  }
+
+  ptr+= ret;
+  if ((file= create_unique_file(fname, ptr, full_len - (ptr - fname))) < 0)
   {
     error("Could not construct local filename %s%s.",
           target_dir_name,bname);
@@ -2388,7 +2401,8 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
     Exit_status retval;
     char fname[FN_REFLEN+1];
 
-    if ((file= load_processor.prepare_new_file_for_old_format(le,fname)) < 0)
+    if ((file= load_processor.prepare_new_file_for_old_format(le, fname,
+                                                              sizeof(fname))) < 0)
     {
       DBUG_RETURN(ERROR_STOP);
     }

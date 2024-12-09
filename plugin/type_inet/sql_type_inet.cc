@@ -493,8 +493,13 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
       //
       // If it is not the last field, append closing ':'.
 
-      p += sprintf(p, "%x", ipv6_words[i]);
+      int ret= snprintf(p, dstsize_available, "%x", ipv6_words[i]);
 
+      if ((size_t)ret >= dstsize_available)
+        // Buffer overflow condition taken place
+        break;
+
+      p += ret;
       if (i + 1 != IN6_ADDR_NUM_WORDS)
       {
         *p= ':';

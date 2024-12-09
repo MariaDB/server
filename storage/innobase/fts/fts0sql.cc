@@ -50,9 +50,10 @@ fts_get_table_id(
 /*=============*/
 	const fts_table_t*
 			fts_table,	/*!< in: FTS Auxiliary table */
-	char*		table_id)	/*!< out: table id, must be at least
+	char*		table_id,	/*!< out: table id, must be at least
 					FTS_AUX_MIN_TABLE_ID_LENGTH bytes
 					long */
+	size_t  buf_len)	/*!< in: length of buffer for output of table_id */
 {
 	int		len;
 
@@ -60,18 +61,18 @@ fts_get_table_id(
 
 	switch (fts_table->type) {
 	case FTS_COMMON_TABLE:
-		len = fts_write_object_id(fts_table->table_id, table_id);
+		len = fts_write_object_id(fts_table->table_id, table_id, buf_len);
 		break;
 
 	case FTS_INDEX_TABLE:
 
-		len = fts_write_object_id(fts_table->table_id, table_id);
+		len = fts_write_object_id(fts_table->table_id, table_id,  buf_len);
 
 		table_id[len] = '_';
 		++len;
 		table_id += len;
 
-		len += fts_write_object_id(fts_table->index_id, table_id);
+		len += fts_write_object_id(fts_table->index_id, table_id,  buf_len);
 		break;
 
 	default:
@@ -92,7 +93,8 @@ char* fts_get_table_name_prefix(const fts_table_t* fts_table)
 {
 	char		table_id[FTS_AUX_MIN_TABLE_ID_LENGTH];
 	const size_t table_id_len = size_t(fts_get_table_id(fts_table,
-							    table_id)) + 1;
+							    table_id,
+								FTS_AUX_MIN_TABLE_ID_LENGTH)) + 1;
 	mutex_enter(&dict_sys.mutex);
 	/* Include the separator as well. */
 	const size_t dbname_len = fts_table->table->name.dblen() + 1;
@@ -127,7 +129,7 @@ void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
 	}
 	memcpy(table_name += dbname_len, "FTS_", 4);
 	table_name += 4;
-	table_name += fts_get_table_id(fts_table, table_name);
+	table_name += fts_get_table_id(fts_table, table_name, MAX_FULL_NAME_LEN);
 	*table_name++ = '_';
 	strcpy(table_name, fts_table->suffix);
 }
