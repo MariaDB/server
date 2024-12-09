@@ -938,7 +938,7 @@ btr_search_failure(btr_search_t* info, btr_cur_t* cursor)
 }
 
 /** Clear the adaptive hash index on all pages in the buffer pool. */
-inline void buf_pool_t::clear_hash_index()
+inline void buf_pool_t::clear_hash_index() noexcept
 {
   ut_ad(!resizing);
   ut_ad(!btr_search_enabled);
@@ -990,7 +990,7 @@ inline void buf_pool_t::clear_hash_index()
 This function does not return if the block is not identified.
 @param ptr  pointer to within a page frame
 @return pointer to block, never NULL */
-inline buf_block_t* buf_pool_t::block_from_ahi(const byte *ptr) const
+inline buf_block_t* buf_pool_t::block_from_ahi(const byte *ptr) const noexcept
 {
   chunk_t::map *chunk_map = chunk_t::map_ref;
   ut_ad(chunk_t::map_ref == chunk_t::map_reg);
