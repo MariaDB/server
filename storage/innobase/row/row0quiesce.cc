@@ -432,9 +432,6 @@ row_quiesce_write_header(
 Write the table meta data after quiesce.
 @return DB_SUCCESS or error code */
 
-/* Stack size 20904 with clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_quiesce_write_cfg(
@@ -444,7 +441,7 @@ row_quiesce_write_cfg(
 	THD*			thd)	/*!< in/out: session */
 {
 	dberr_t			err;
-	char			name[OS_FILE_MAX_PATH];
+	thread_local char	name[OS_FILE_MAX_PATH];
 
 	srv_get_meta_data_filename(table, name, sizeof(name));
 
@@ -470,7 +467,7 @@ row_quiesce_write_cfg(
 
 		if (fflush(file) != 0) {
 
-			char	msg[BUFSIZ];
+			thread_local char msg[BUFSIZ];
 
 			snprintf(msg, sizeof(msg), "%s flush() failed", name);
 
@@ -480,7 +477,7 @@ row_quiesce_write_cfg(
 		}
 
 		if (fclose(file) != 0) {
-			char	msg[BUFSIZ];
+			thread_local char msg[BUFSIZ];
 
 			snprintf(msg, sizeof(msg), "%s flose() failed", name);
 
@@ -611,7 +608,7 @@ row_quiesce_table_complete(
 		/* Remove the .cfg file now that the user has resumed
 		normal operations. Otherwise it will cause problems when
 		the user tries to drop the database (remove directory). */
-		char		cfg_name[OS_FILE_MAX_PATH];
+		thread_local char	cfg_name[OS_FILE_MAX_PATH];
 
 		srv_get_meta_data_filename(table, cfg_name, sizeof(cfg_name));
 

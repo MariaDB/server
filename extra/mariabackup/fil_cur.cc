@@ -244,15 +244,12 @@ xb_fil_cur_open(
 	return(XB_FIL_CUR_SUCCESS);
 }
 
-/* Stack usage 131224 with clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 static bool page_is_corrupted(const byte *page, ulint page_no,
 			      const xb_fil_cur_t *cursor,
 			      const fil_space_t *space)
 {
-	byte tmp_frame[UNIV_PAGE_SIZE_MAX];
-	byte tmp_page[UNIV_PAGE_SIZE_MAX];
+	thread_local byte tmp_frame[UNIV_PAGE_SIZE_MAX];
+	thread_local byte tmp_page[UNIV_PAGE_SIZE_MAX];
 	const ulint page_size = cursor->page_size;
 	uint16_t page_type = fil_page_get_type(page);
 
