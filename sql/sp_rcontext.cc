@@ -336,7 +336,12 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
   Spvar_definition *def;
   while ((def= it++))
   {
-    if (def->is_column_type_ref() &&
+    if (def->is_row())
+    {
+      if (def->row_field_definitions()->resolve_type_refs(thd))
+        return true;
+    }
+    else if (def->is_column_type_ref() &&
         def->column_type_ref()->resolve_type_ref(thd, def))
       return true;
   }
