@@ -1168,10 +1168,10 @@ static void print_warnings(void);
 static void print_last_query_cost(void);
 static void end_timer(ulonglong start_time, char *buff);
 static void nice_time(double sec,char *buff,bool part_second);
-extern "C" sig_handler mysql_end(int sig) __attribute__ ((noreturn));
-extern "C" sig_handler handle_sigint(int sig);
+extern "C" void mysql_end(int sig) __attribute__ ((noreturn));
+extern "C" void handle_sigint(int sig);
 #if defined(HAVE_TERMIOS_H) && defined(GWINSZ_IN_SYS_IOCTL)
-static sig_handler window_resize(int sig);
+static void window_resize(int sig);
 #endif
 
 static void end_in_sig_handler(int sig);
@@ -1409,7 +1409,7 @@ int main(int argc,char *argv[])
 #endif
 }
 
-sig_handler mysql_end(int sig)
+void mysql_end(int sig)
 {
 #ifndef _WIN32
   /*
@@ -1594,7 +1594,7 @@ bool kill_query(const char *reason)
   If 'source' is executed, abort source command
   no query in process, regenerate prompt.
 */
-sig_handler handle_sigint(int sig)
+void handle_sigint(int sig)
 {
   /*
      On Unix only, if no query is being executed just clear the prompt,
@@ -1634,7 +1634,7 @@ sig_handler handle_sigint(int sig)
 
 
 #if defined(HAVE_TERMIOS_H) && defined(GWINSZ_IN_SYS_IOCTL)
-sig_handler window_resize(int sig)
+void window_resize(int sig)
 {
   struct winsize window_size;
 
