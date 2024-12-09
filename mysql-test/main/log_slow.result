@@ -194,7 +194,9 @@ create database `a
 b`;
 use `a
 b`;
-select count(*) from mysql.global_priv where length(priv)>2;
+create table t1 (a int);
+insert t1 values (1),(2),(3),(4),(5),(6),(7);
+select count(*) from t1 where a>2;
 count(*)
 5
 drop database `a
@@ -207,7 +209,7 @@ set timestamp=default;
 use `a
 b`;
 SET timestamp=1234567890;
-select count(*) from mysql.global_priv where length(priv)>2
+select count(*) from t1 where a>2
 #
 # MDEV-31366 Assertion `thd->start_time' failed in bool LOGGER::slow_log_print(THD*, const char*, size_t, ulonglong)
 #
