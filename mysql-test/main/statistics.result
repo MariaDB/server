@@ -1738,7 +1738,7 @@ drop table t1;
 # MDEV-10435 crash with bad stat tables
 #
 set use_stat_tables='preferably';
-call mtr.add_suppression("Column count of mysql.table_stats is wrong. Expected 3, found 1. The table is probably corrupted");
+call mtr.add_suppression("Column count of mysql.table_stats is wrong. Expected 3, found 1.");
 rename table mysql.table_stats to test.table_stats;
 flush tables;
 create table t1 (a int);
