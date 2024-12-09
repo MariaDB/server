@@ -59,6 +59,20 @@ bool Item_func_vec_distance::fix_length_and_dec(THD *thd)
   switch (kind) {
   case EUCLIDEAN: calc_distance= calc_distance_euclidean; break;
   case COSINE:    calc_distance= calc_distance_cosine; break;
+  case AUTO:
+    for (uint fno=0; fno < 2; fno++)
+      if (args[fno]->type() == Item::FIELD_ITEM)
+      {
+        Field *f= ((Item_field*)args[fno])->field;
+        KEY *kinfo= f->table->s->key_info;
+        for (uint i= f->table->s->keys; i < f->table->s->total_keys; i++)
+          if (kinfo[i].algorithm == HA_KEY_ALG_VECTOR && f->key_start.is_set(i))
+          {
+            kind= mhnsw_uses_distance(f->table, kinfo + i);
+            return fix_length_and_dec(thd);
+          }
+      }
+    my_error(ER_VEC_DISTANCE_TYPE, MYF(0)); return 1;
   }
   set_maybe_null(); // if wrong dimensions
   return Item_real_func::fix_length_and_dec(thd);
