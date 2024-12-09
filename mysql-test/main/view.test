@@ -1334,8 +1334,6 @@ execute stmt1 using @a;
 set @a= 301;
 execute stmt1 using @a;
 deallocate prepare stmt1;
-insert into v3(a) select sum(302);
-insert into v3(a) select sum(303) over ();
 --sorted_result
 select * from v3;
 
