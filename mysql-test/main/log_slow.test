@@ -206,9 +206,11 @@ create database `a
 b`;
 use `a
 b`;
+create table t1 (a int);
+insert t1 values (1),(2),(3),(4),(5),(6),(7);
 --disable_ps_protocol
 --disable_view_protocol
-select count(*) from mysql.global_priv where length(priv)>2;
+select count(*) from t1 where a>2;
 --enable_view_protocol
 --enable_ps_protocol
 drop database `a
