@@ -1851,12 +1851,33 @@ Sys_pseudo_thread_id(
 static bool
 check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
 {
-  if (var->type != OPT_GLOBAL &&
-      error_if_in_trans_or_substatement(thd,
+  if (var->type != OPT_GLOBAL)
+  {
+    if (error_if_in_trans_or_substatement(thd,
           ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
           ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
     return true;
+    /*
+      All binlogged statements on a temporary table must be binlogged in the
+      same domain_id; it is not safe to run them in parallel in different
+      domains, temporary table must be exclusive to a single thread.
+      In row-based binlogging, temporary tables do not end up in the binlog,
+      so there is no such issue.
 
+      ToDo: When merging to next (non-GA) release, introduce a more specific
+      error that describes that the problem is changing gtid_domain_id with
+      open temporary tables in statement/mixed binlogging mode; it is not
+      really due to doing it inside a "transaction".
+    */
+    if (thd->has_thd_temporary_tables() &&
+        !thd->is_current_stmt_binlog_format_row() &&
+        var->save_result.ulonglong_value != thd->variables.gtid_domain_id)
+    {
+      my_error(ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+               MYF(0));
+        return true;
+    }
+  }
   return false;
 }
 

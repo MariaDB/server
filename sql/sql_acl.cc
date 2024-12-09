@@ -78,7 +78,7 @@ const char *safe_vio_type_name(Vio *vio)
   return vio_type_name(vio_type(vio), &unused);
 }
 
-#include "sql_acl_getsort.ic"
+#include "sql_acl_getsort.inl"
 
 static LEX_CSTRING native_password_plugin_name= {
   STRING_WITH_LEN("mysql_native_password")
