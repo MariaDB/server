@@ -39,13 +39,14 @@ class Item_func_vec_distance: public Item_real_func
   double (*calc_distance)(float *v1, float *v2, size_t v_len);
 
 public:
-  enum distance_kind { EUCLIDEAN, COSINE } kind;
+  enum distance_kind { EUCLIDEAN, COSINE, AUTO } kind;
   Item_func_vec_distance(THD *thd, Item *a, Item *b, distance_kind kind);
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name[3]= {
       { STRING_WITH_LEN("VEC_DISTANCE_EUCLIDEAN") },
-      { STRING_WITH_LEN("VEC_DISTANCE_COSINE") }
+      { STRING_WITH_LEN("VEC_DISTANCE_COSINE") },
+      { STRING_WITH_LEN("VEC_DISTANCE") }
     };
     return name[kind];
   }
