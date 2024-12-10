@@ -4024,8 +4024,6 @@ static int innodb_init(void* p)
 			    test_filename));
 #endif /* DBUG_OFF */
 
-	os_file_set_umask(my_umask);
-
 	/* Setup the memory alloc/free tracing mechanisms before calling
 	any functions that could possibly allocate memory. */
 	ut_new_boot();

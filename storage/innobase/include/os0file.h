@@ -1135,11 +1135,6 @@ os_file_get_status(
 	bool		check_rw_perm,
 	bool		read_only);
 
-/** Set the file create umask
-@param[in]	umask		The umask to use for file creation. */
-void
-os_file_set_umask(ulint umask);
-
 #ifdef _WIN32
 
 /**
