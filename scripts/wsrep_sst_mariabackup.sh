@@ -676,24 +676,25 @@ cleanup_at_exit()
 
     [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
 
-    if [ $estatus -ne 0 ]; then
-        wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+    if [ "$WSREP_SST_OPT_ROLE" = 'donor' -o $estatus -ne 0 ]; then
+        if [ $estatus -ne 0 ]; then
+            wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+        fi
         [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
         [ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE" || :
+        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         if [ -n "$BACKUP_PID" ]; then
             if ps -p $BACKUP_PID >/dev/null 2>&1; then
                 wsrep_log_error \
-                    "mariadb-backup process is still running. Killing..."
-                cleanup_pid $CHECK_PID
+                    "SST streaming process is still running. Killing..."
+                cleanup_pid $BACKUP_PID
             fi
         fi
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
-    else
-        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
     if [ -n "$progress" -a -p "$progress" ]; then
@@ -1346,6 +1347,7 @@ else # joiner
         [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
         [ -f "$DATA/xtrabackup_info" ]        && rm -f "$DATA/xtrabackup_info"
         [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
+        [ -f "$DATA/xtrabackup_binlog_info" ] && rm -f "$DATA/xtrabackup_binlog_info"
         [ -f "$DATA/xtrabackup_binlog_pos_innodb" ] && rm -f "$DATA/xtrabackup_binlog_pos_innodb"
 
         TDATA="$DATA"

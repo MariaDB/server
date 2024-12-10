@@ -1556,7 +1556,7 @@ cleanup_pid()
                     fi
                 done
             elif ps -p $pid >/dev/null 2>&1; then
-                wsrep_log_warning "Unable to kill PID=$pid ($pid_file)"
+                wsrep_log_warning "Unable to kill PID=$pid${pid_file:+ ($pid_file)}"
                 return 1
             fi
         fi
