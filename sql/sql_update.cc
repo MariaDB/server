@@ -1853,10 +1853,10 @@ bool multi_update::init(THD *thd)
       update_targets.push_back(table_ref);
   }
   table_count= update_targets.elements;
-  tmp_tables = thd->calloc<TABLE*>(table_count);
-  tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
-  fields_for_table= thd->alloc<List_item*>(table_count);
-  values_for_table= thd->alloc<List_item*>(table_count);
+  tmp_tables = new (thd) TABLE*[table_count] {};
+  tmp_table_param = new (thd) TMP_TABLE_PARAM[table_count] {};
+  fields_for_table= new (thd) List_item*[table_count];
+  values_for_table= new (thd) List_item*[table_count];
   return false;
 }
 

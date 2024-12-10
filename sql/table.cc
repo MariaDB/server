@@ -10234,7 +10234,7 @@ bool TABLE_LIST::change_refs_to_fields()
   if (!used_items.elements)
     return FALSE;
 
-  materialized_items= thd->calloc<Item*>(table->s->fields);
+  materialized_items= new (thd) Item*[table->s->fields] {};
   ctx= new (thd) Name_resolution_context(this);
   if (!materialized_items || !ctx)
     return TRUE;

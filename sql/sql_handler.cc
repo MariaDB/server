@@ -951,7 +951,7 @@ retry:
     {
       DBUG_ASSERT(keyname != 0);
 
-      if (unlikely(!(key= thd->calloc<uchar>(ALIGN_SIZE(handler->key_len)))))
+      if (unlikely(!(key= new (thd) uchar[ALIGN_SIZE(handler->key_len)] {})))
 	goto err;
       if (unlikely((error= table->file->ha_index_or_rnd_end())))
         break;

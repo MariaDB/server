@@ -173,7 +173,7 @@ bool sp_rcontext::alloc_arrays(THD *thd)
 
   {
     size_t n= m_root_parsing_ctx->get_num_case_exprs();
-    m_case_expr_holders.reset(thd->calloc<Item_cache *>(n), n);
+    m_case_expr_holders.reset(new (thd) Item_cache *[n] {}, n);
   }
 
   return !m_cstack.array() || !m_case_expr_holders.array();

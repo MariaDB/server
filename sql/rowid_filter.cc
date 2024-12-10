@@ -399,11 +399,10 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   if (!range_rowid_filter_cost_info_elems)
     return;
 
-  range_rowid_filter_cost_info_ptr= thd->calloc<Range_rowid_filter_cost_info*>
-                                      (range_rowid_filter_cost_info_elems);
-  range_rowid_filter_cost_info=
-    new (thd)
-      Range_rowid_filter_cost_info[range_rowid_filter_cost_info_elems];
+  size_t arr_sz= range_rowid_filter_cost_info_elems;
+  range_rowid_filter_cost_info_ptr=
+                             new (thd) Range_rowid_filter_cost_info*[arr_sz] {};
+  range_rowid_filter_cost_info= new (thd) Range_rowid_filter_cost_info[arr_sz];
   if (!range_rowid_filter_cost_info_ptr || !range_rowid_filter_cost_info)
   {
     range_rowid_filter_cost_info_elems= 0;

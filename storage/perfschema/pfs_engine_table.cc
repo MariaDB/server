@@ -174,7 +174,7 @@ bool PFS_table_context::initialize(void)
     {
       THD *thd= current_thd;
       ulong words= m_map_size / m_word_size + (m_map_size % m_word_size > 0);
-      m_map= (ulong *)thd->calloc(words * m_word_size);
+      m_map= (ulong *)new (thd) char[words * m_word_size] {};
     }
 
     /* Write to TLS. */

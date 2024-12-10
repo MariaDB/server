@@ -206,7 +206,7 @@ Optimizer_hint_parser::
   Table_name_list_container::add(Optimizer_hint_parser *p,
                                  Table_name &&elem)
 {
-  Table_name *pe= (Table_name*) p->m_thd->alloc(sizeof(*pe));
+  Table_name *pe= new (p->m_thd) Table_name;
   if (!pe)
     return true;
   *pe= std::move(elem);
@@ -219,7 +219,7 @@ Optimizer_hint_parser::
   Hint_param_table_list_container::add(Optimizer_hint_parser *p,
                                        Hint_param_table &&elem)
 {
-  Hint_param_table *pe= (Hint_param_table*) p->m_thd->alloc(sizeof(*pe));
+  Hint_param_table *pe= new (p->m_thd) Hint_param_table;
   if (!pe)
     return true;
   *pe= std::move(elem);
@@ -232,7 +232,7 @@ Optimizer_hint_parser::
   Hint_param_index_list_container::add(Optimizer_hint_parser *p,
                                        Hint_param_index &&elem)
 {
-  Hint_param_index *pe= (Hint_param_index*) p->m_thd->alloc(sizeof(*pe));
+  Hint_param_index *pe= new (p->m_thd) Hint_param_index;
   if (!pe)
     return true;
   *pe= std::move(elem);
@@ -258,7 +258,7 @@ Optimizer_hint_parser::
   Semijoin_strategy_list_container::add(Optimizer_hint_parser *p,
                                         Semijoin_strategy &&elem)
 {
-  Semijoin_strategy *pe= (Semijoin_strategy*) p->m_thd->alloc(sizeof(*pe));
+  Semijoin_strategy *pe= new (p->m_thd) Semijoin_strategy;
   if (!pe)
     return true;
   *pe= std::move(elem);

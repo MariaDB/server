@@ -1120,9 +1120,9 @@ multi_delete::multi_delete(THD *thd_arg,
     normal_tables(0),
     error_handled(0)
 {
-  tempfiles= thd_arg->calloc<Unique*>(table_count);
-  tmp_tables = thd->calloc<TABLE*>(table_count);
-  tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
+  tempfiles= new (thd) Unique*[table_count] {};
+  tmp_tables= new (thd) TABLE*[table_count] {};
+  tmp_table_param= new (thd) TMP_TABLE_PARAM[table_count] {}; // XXX?
 }
 
 

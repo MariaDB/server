@@ -3583,7 +3583,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
       }
       else
       {
-        if (!(tab= thd->calloc<SP_TABLE>(1)))
+        if (!(tab= new (thd) SP_TABLE {}))
           return FALSE;
         if ((lex_for_tmp_check->sql_command == SQLCOM_CREATE_TABLE ||
              lex_for_tmp_check->sql_command == SQLCOM_CREATE_SEQUENCE) &&
@@ -3715,7 +3715,7 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
 {
   TABLE_LIST *table;
 
-  if (!(table= thd->calloc<TABLE_LIST>(1)))
+  if (!(table= new (thd) TABLE_LIST {}))
     return NULL;
   if (!thd->make_lex_string(&table->db, db->str, db->length) ||
       !thd->make_lex_string(&table->table_name, name->str, name->length) ||

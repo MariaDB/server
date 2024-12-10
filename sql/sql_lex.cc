@@ -3691,7 +3691,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   if (!ref_pointer_array.is_null())
     return false;
 
-  Item **array= thd->active_stmt_arena_to_use()->calloc<Item*>(n_elems);
+  Item **array= new (thd->active_stmt_arena_to_use()) Item*[n_elems] {};
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
   return array == NULL;
@@ -12541,7 +12541,7 @@ LEX_USER *LEX::current_user_for_set_password(THD *thd)
     return NULL;
   }
   LEX_USER *res;
-  if (unlikely(!(res= thd->calloc<LEX_USER>(1))))
+  if (unlikely(!(res= new (thd) LEX_USER {})))
     return NULL;
   res->user= current_user;
   return res;

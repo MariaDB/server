@@ -1196,7 +1196,7 @@ void *thd_alloc(const MYSQL_THD thd, size_t size)
 extern "C"
 void *thd_calloc(const MYSQL_THD thd, size_t size)
 {
-  return thd->calloc(size);
+  return new(thd) char[size] {};
 }
 
 extern "C"
