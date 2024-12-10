@@ -1782,6 +1782,8 @@ static int filter_query_type(const char *query, struct sa_keyword *kwd)
   char fword[MAX_KEYWORD + 1], nword[MAX_KEYWORD + 1];
   int len, nlen= 0;
   const struct sa_keyword *l_keywords;
+  if (!query)
+    return SQLCOM_NOTHING;
 
   while (*query && (is_space(*query) || *query == '(' || *query == '/'))
   {

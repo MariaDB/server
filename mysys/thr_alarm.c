@@ -566,8 +566,7 @@ static void *alarm_handler(void *arg __attribute__((unused)))
   alarm_thread_running= 0;
   mysql_cond_signal(&COND_alarm);
   mysql_mutex_unlock(&LOCK_alarm);
-  pthread_exit(0);
-  return 0;					/* Impossible */
+  return 0;
 }
 #endif /* USE_ALARM_THREAD */
 #endif
