@@ -2131,7 +2131,7 @@ public:
 #define SUB_STMT_TRIGGER 1
 #define SUB_STMT_FUNCTION 2
 #define SUB_STMT_STAT_TABLES 4
-
+#define SUB_STMT_BEFORE_TRIGGER 8
 
 class Sub_statement_state
 {
@@ -6673,7 +6673,7 @@ class select_insert :public select_result_interceptor {
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
   int prepare2(JOIN *join) override;
   int send_data(List<Item> &items) override;
-  virtual bool store_values(List<Item> &values);
+  virtual bool store_values(List<Item> &values, bool *trg_skip_row);
   virtual bool can_rollback_data() { return 0; }
   bool prepare_eof();
   bool send_ok_packet();
@@ -6718,7 +6718,7 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
 
   int binlog_show_create_table(TABLE **tables, uint count);
-  bool store_values(List<Item> &values) override;
+  bool store_values(List<Item> &values, bool *trg_skip_row) override;
   bool send_eof() override;
   void abort_result_set() override;
   bool can_rollback_data() override { return 1; }

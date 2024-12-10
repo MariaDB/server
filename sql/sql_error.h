@@ -167,7 +167,7 @@ protected:
   /** Severity (error, warning, note) of this condition. */
   enum_warning_level m_level;
 
-  void assign_defaults(const Sql_state_errno *value);
+  void assign_defaults(THD *thd, const Sql_state_errno *value);
 
 public:
   /**

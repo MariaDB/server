@@ -173,12 +173,14 @@ bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                           List<Item> &fields,
                                           List<Item> &values,
                                           bool ignore_errors,
-                                          enum trg_event_type event);
+                                          enum trg_event_type event,
+                                          bool *skip_row_indicator);
 bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                           Field **field,
                                           List<Item> &values,
                                           bool ignore_errors,
-                                          enum trg_event_type event);
+                                          enum trg_event_type event,
+                                          bool *skip_row_indicator);
 bool insert_fields(THD *thd, Name_resolution_context *context,
                    const Lex_ident_db &db_name,
                    const Lex_ident_table &table_name,

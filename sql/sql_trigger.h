@@ -260,6 +260,7 @@ public:
   bool process_triggers(THD *thd, trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1,
+                        bool *skip_row_indicator,
                         List<Item> *fields_in_update_stmt= nullptr);
   void empty_lists();
   bool create_lists_needed_for_files(MEM_ROOT *root);
