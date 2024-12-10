@@ -1099,7 +1099,7 @@ multi_delete::multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables_arg)
     num_of_tables(num_of_tables_arg), error(0),
     do_delete(0), transactional_tables(0), normal_tables(0), error_handled(0)
 {
-  tempfiles= thd_arg->calloc<Unique*>(num_of_tables);
+  tempfiles= new (thd_arg) Unique*[num_of_tables] {};
 }
 
 

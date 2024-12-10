@@ -364,7 +364,7 @@ static bool set_up_field_array(THD *thd, TABLE *table, bool is_sub_part)
     DBUG_ASSERT(!is_sub_part);
     DBUG_RETURN(FALSE);
   }
-  field_array= thd->calloc<Field*>(num_fields + 1);
+  field_array= new (thd) Field*[num_fields + 1] {};
   if (unlikely(!field_array))
     DBUG_RETURN(TRUE);
 
@@ -484,7 +484,7 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
       if (field->flags & FIELD_IN_PART_FUNC_FLAG)
         num_part_fields++;
     }
-    field_array= thd->calloc<Field*>(num_part_fields + 1);
+    field_array= new (thd) Field*[num_part_fields + 1] {};
     if (unlikely(!field_array))
     {
       result= TRUE;
@@ -1286,8 +1286,9 @@ static bool check_range_constants(THD *thd, partition_info *part_info)
     part_column_list_val *UNINIT_VAR(current_largest_col_val);
     uint num_column_values= part_info->part_field_list.elements;
     uint size_entries= sizeof(part_column_list_val) * num_column_values;
-    part_info->range_col_array= thd->calloc<part_column_list_val>
-                                  (part_info->num_parts * num_column_values);
+    uint arr_size= part_info->num_parts * num_column_values;
+
+    part_info->range_col_array= new (thd) part_column_list_val[arr_size] {};
     if (unlikely(part_info->range_col_array == NULL))
       goto end;
 
@@ -1440,7 +1441,7 @@ static bool check_list_constants(THD *thd, partition_info *part_info)
   size_entries= part_info->column_list ?
         (num_column_values * sizeof(part_column_list_val)) :
         sizeof(LIST_PART_ENTRY);
-  if (!(ptr= thd->calloc((part_info->num_list_values+1) * size_entries)))
+  if (!(ptr= new (thd) char[(part_info->num_list_values+1) * size_entries] {}))
     goto end;
   if (part_info->column_list)
   {

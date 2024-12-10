@@ -1934,8 +1934,8 @@ int multi_update::prepare(List<Item> &not_used_values,
   table_count=  update.elements;
   update_tables= update.first;
 
-  tmp_tables = thd->calloc<TABLE*>(table_count);
-  tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
+  tmp_tables = new (thd) TABLE*[table_count] {};
+  tmp_table_param = new (thd) TMP_TABLE_PARAM[table_count] {};
   fields_for_table= new (thd) List_item*[table_count];
   values_for_table= new (thd) List_item*[table_count];
   if (unlikely(thd->is_fatal_error))

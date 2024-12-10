@@ -1906,7 +1906,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
     } while (++i < num_parts);
   }
   if (m_reorged_parts &&
-      !(m_reorged_file= thd->calloc<handler*>(m_reorged_parts + 1)))
+      !(m_reorged_file= new (thd) handler*[m_reorged_parts + 1]()))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
@@ -1936,7 +1936,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       }
     } while (++i < num_parts);
   }
-  if (!(new_file_array= thd->calloc<handler*>(2*(num_remain_partitions + 1))))
+  if (!(new_file_array= new (thd) handler*[2*(num_remain_partitions + 1)]()))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   m_added_file= &new_file_array[num_remain_partitions + 1];
 

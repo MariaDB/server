@@ -2153,7 +2153,7 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
 
   *remove_item= TRUE;
 
-  if (!(tbl_alias.str= thd->calloc(SUBQERY_TEMPTABLE_NAME_MAX_LEN)) ||
+  if (!(tbl_alias.str= new (thd) char[SUBQERY_TEMPTABLE_NAME_MAX_LEN] {}) ||
       !(jtbm= alloc_join_nest(thd))) //todo: this is not a join nest!
   {
     DBUG_RETURN(TRUE);
@@ -2232,8 +2232,8 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
 static TABLE_LIST *alloc_join_nest(THD *thd)
 {
   TABLE_LIST *tbl;
-  if (!(tbl= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
-                                       sizeof(NESTED_JOIN))))
+  if (!(tbl= (TABLE_LIST*) thd_calloc(thd, ALIGN_SIZE(sizeof(TABLE_LIST))+
+                                           sizeof(NESTED_JOIN))))
     return NULL;
   tbl->nested_join= (NESTED_JOIN*) ((uchar*)tbl + 
                                     ALIGN_SIZE(sizeof(TABLE_LIST)));
@@ -4437,7 +4437,7 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     tab_ref->key= 0; /* The only temp table index. */
     tab_ref->key_length= tmp_key->key_length;
     if (!(tab_ref->key_buff=
-            thd->calloc<uchar>(ALIGN_SIZE(tmp_key->key_length) * 2)) ||
+            new (thd) uchar[ALIGN_SIZE(tmp_key->key_length) * 2] {}) ||
         !(tab_ref->key_copy= new (thd) store_key*[tmp_key_parts + 1]) ||
         !(tab_ref->items= new (thd) Item*[tmp_key_parts]))
       DBUG_RETURN(TRUE); /* purecov: inspected */
@@ -4477,7 +4477,7 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
       We don't ever have guarded conditions for SJM tables, but code at SQL
       layer depends on cond_guards array being alloced.
     */
-    if (!(tab_ref->cond_guards= thd->calloc<bool*>(tmp_key_parts)))
+    if (!(tab_ref->cond_guards= new (thd) bool*[tmp_key_parts] {}))
     {
       DBUG_RETURN(TRUE);
     }

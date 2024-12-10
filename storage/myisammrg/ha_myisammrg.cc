@@ -1456,7 +1456,7 @@ void ha_myisammrg::update_create_info(HA_CREATE_INFO *create_info)
       {
         TABLE_LIST *ptr;
 
-        if (!(ptr= thd->calloc<TABLE_LIST>(1)))
+        if (!(ptr= new (thd) TABLE_LIST()))
           DBUG_VOID_RETURN;
 
         if (!(ptr->table_name.str= thd->strmake(child_table->table_name.str,

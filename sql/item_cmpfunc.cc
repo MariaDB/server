@@ -4066,7 +4066,7 @@ Item *in_decimal::create_item(THD *thd)
 
 bool Predicant_to_list_comparator::alloc_comparators(THD *thd, uint nargs)
 {
-  m_comparators= thd->calloc<Predicant_to_value_comparator>(nargs);
+  m_comparators= new (thd) Predicant_to_value_comparator[nargs] {};
   return m_comparators == NULL;
 }
 
@@ -4198,7 +4198,7 @@ bool cmp_item_row::alloc_comparators(THD *thd, uint cols)
     DBUG_ASSERT(cols == n);
     return false;
   }
-  return !(comparators= thd->calloc<cmp_item *>(n= cols));
+  return !(comparators= new (thd) cmp_item *[n= cols] {});
 }
 
 

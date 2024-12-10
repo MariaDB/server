@@ -1333,7 +1333,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
     const LEX_CSTRING *table= files.at(idx);
 
     /* Drop the table nicely */
-    TABLE_LIST *table_list= thd->calloc<TABLE_LIST>(1);
+    TABLE_LIST *table_list= new (thd) TABLE_LIST {};
 
     if (!table_list)
       DBUG_RETURN(true);

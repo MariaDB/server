@@ -13391,7 +13391,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
   keyinfo->is_statistics_from_stat_tables= FALSE;
   keyinfo->name.str= "$hj";
   keyinfo->name.length= 3;
-  keyinfo->rec_per_key= thd->calloc<ulong>(key_parts);
+  keyinfo->rec_per_key= new (thd) ulong[key_parts] {};
   if (!keyinfo->rec_per_key)
     DBUG_RETURN(TRUE);
   keyinfo->key_part= key_part_info;
@@ -13549,7 +13549,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   j->ref.key_parts= keyparts;
   j->ref.key_length= length;
   j->ref.key= (int) key;
-  if (!(j->ref.key_buff= thd->calloc<uchar>(ALIGN_SIZE(length)*2)) ||
+  if (!(j->ref.key_buff= new (thd) uchar[ALIGN_SIZE(length)*2] {}) ||
       !(j->ref.key_copy= new (thd) store_key*[keyparts+1]) ||
       !(j->ref.items= new (thd) Item*[keyparts]) ||
       !(j->ref.cond_guards= new (thd) bool*[keyparts]))
@@ -16755,7 +16755,7 @@ bool TABLE_REF::tmp_table_index_lookup_init(THD *thd,
 
   key= 0; /* The only temp table index. */
   key_length= tmp_key->key_length;
-  if (!(key_buff= thd->calloc<uchar>(ALIGN_SIZE(tmp_key->key_length) * 2)) ||
+  if (!(key_buff= new (thd) uchar[ALIGN_SIZE(tmp_key->key_length) * 2] {}) ||
       !(key_copy= new (thd) store_key*[tmp_key_parts + 1]) ||
       !(items= new (thd) Item*[tmp_key_parts]))
     DBUG_RETURN(TRUE);
@@ -28687,7 +28687,7 @@ create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
         if ((*ord_iter->item)->eq(item, 1))
           goto next_item;
       
-      ORDER *ord= thd->calloc<ORDER>(1);
+      ORDER *ord= new (thd) ORDER {};
       if (!ord)
 	return 0;
 
@@ -29313,7 +29313,7 @@ bool JOIN::alloc_func_list()
   }
 
   /* This must use calloc() as rollup_make_fields depends on this */
-  sum_funcs= (Item_sum**) thd->calloc(sizeof(Item_sum**) * (func_count+1) +
+  sum_funcs= (Item_sum**) thd_calloc(thd, sizeof(Item_sum**) * (func_count+1) +
 				      sizeof(Item_sum***) * (group_parts+1));
   sum_funcs_end= (Item_sum***) (sum_funcs+func_count+1);
   DBUG_RETURN(sum_funcs == 0);
