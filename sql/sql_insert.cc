@@ -2849,6 +2849,9 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   }
   *field=0;
 
+  if (copy_keys_from_share(copy, client_thd->mem_root))
+    goto error;
+
   if (share->virtual_fields || share->default_expressions ||
       share->default_fields)
   {
@@ -2858,9 +2861,6 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                                  VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING)))
       goto error;
   }
-
-  if (copy_keys_from_share(copy, client_thd->mem_root))
-    goto error;
 
   switch_defaults_to_nullable_trigger_fields(copy);
 

@@ -3974,6 +3974,7 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
         */
         field= key_part->field=field->make_new_field(root, outparam, 0);
         field->field_length= key_part->length;
+        field->vcol_info= NULL;
       }
     }
   }
@@ -4212,6 +4213,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
 
+#if 0
     for (uint k= 0; k < share->keys; k++)
     {
       KEY &key_info= outparam->key_info[k];
@@ -4226,6 +4228,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
         }
       }
     }
+#endif
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
