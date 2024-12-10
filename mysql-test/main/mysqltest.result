@@ -738,8 +738,16 @@ for cat_file command
 of mysqltest
 mysqltest: At line 1: command "cat_file" failed with error: 1  my_errno: 2  errno: 2
 mysqltest: At line 1: Missing required argument 'filename' to command 'file_exists'
-mysqltest: At line 1: Missing required argument 'from_file' to command 'copy_file'
-mysqltest: At line 1: Missing required argument 'to_file' to command 'copy_file'
+file1.tmp
+file2.tmp
+file1 content
+file2 content
+file1 more content
+file2 more content
+file1 content
+file2 content
+mysqltest: At line 1: Missing required argument 'source' to command 'copy_file'
+mysqltest: At line 1: Missing required argument 'destination' to command 'copy_file'
 mysqltest: At line 1: Missing required argument 'from_file' to command 'move_file'
 mysqltest: At line 1: Missing required argument 'to_file' to command 'move_file'
 mysqltest: At line 1: Missing required argument 'mode' to command 'chmod'
