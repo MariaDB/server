@@ -2860,6 +2860,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                                  &error_reported,
                                  VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING)))
       goto error;
+
+    copy->update_keypart_vcol_info();
   }
 
   switch_defaults_to_nullable_trigger_fields(copy);
