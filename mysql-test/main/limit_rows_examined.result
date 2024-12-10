@@ -952,4 +952,16 @@ COUNT(*)
 Warnings:
 Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 100. The query result may be incomplete
 DROP TABLE t1, t2;
+#
+# MDEV-22241: Assertion `0' failed in Protocol::end_statement after quer with LIMIT ROWS EXAMINED
+#
+CREATE TABLE t1 (a int PRIMARY KEY, b varchar(1));
+INSERT INTO t1 VALUES (262,'8'), (179, '9');
+SELECT 1 FROM t1
+WHERE (1 IN (SELECT 8 UNION SELECT 5)) OR t1.a = 140
+LIMIT ROWS EXAMINED 1;
+1
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 1. The query result may be incomplete
+drop table t1;
 # End of 10.5 tests

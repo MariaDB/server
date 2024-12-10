@@ -2456,7 +2456,8 @@ int JOIN::optimize_stage2()
   if (subq_exit_fl)
     goto setup_subq_exit;
 
-  if (unlikely(thd->check_killed()))
+  if (unlikely(thd->check_killed()) &&
+      (thd->killed != ABORT_QUERY || thd->no_errors))
     DBUG_RETURN(1);
 
   /* Generate an execution plan from the found optimal join order. */
