@@ -1343,9 +1343,6 @@ public:
   QUICK_RANGE_SELECT(THD *thd, TABLE *table,uint index_arg,bool no_alloc,
                      MEM_ROOT *parent_alloc, bool *create_err);
   ~QUICK_RANGE_SELECT();
-  virtual QUICK_RANGE_SELECT *clone(bool *create_error)
-    { return new QUICK_RANGE_SELECT(thd, head, index, no_alloc, parent_alloc,
-                                    create_error); }
   
   void need_sorted_output() override;
   int init() override;
@@ -1416,12 +1413,6 @@ public:
     :QUICK_RANGE_SELECT(thd, table, index_arg, no_alloc, parent_alloc,
     create_err)
     {};
-  QUICK_RANGE_SELECT *clone(bool *create_error) override
-    {
-      DBUG_ASSERT(0);
-      return new QUICK_RANGE_SELECT_GEOM(thd, head, index, no_alloc,
-                                         parent_alloc, create_error);
-    }
   int get_next() override;
 };
 
@@ -1850,8 +1841,6 @@ class QUICK_SELECT_DESC: public QUICK_RANGE_SELECT
 {
 public:
   QUICK_SELECT_DESC(QUICK_RANGE_SELECT *q, uint used_key_parts);
-  QUICK_RANGE_SELECT *clone(bool *create_error) override
-    { DBUG_ASSERT(0); return new QUICK_SELECT_DESC(this, used_key_parts); }
   int get_next() override;
   bool reverse_sorted() override { return 1; }
   int get_type() override { return QS_TYPE_RANGE_DESC; }
@@ -1983,8 +1972,6 @@ public:
       QUICK_RANGE_SELECT (thd, table, key, 1, NULL, create_err) 
   { (void) init(); }
   ~FT_SELECT() { file->ft_end(); }
-  QUICK_RANGE_SELECT *clone(bool *create_error) override
-    { DBUG_ASSERT(0); return new FT_SELECT(thd, head, index, create_error); }
   int init() override { return file->ft_init(); }
   int reset() override { return 0; }
   int get_next() override { return file->ha_ft_read(record); }
