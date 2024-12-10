@@ -1380,8 +1380,11 @@ DROP TABLE t1;
 SET time_zone='+00:00';
 # Disable view protocol to workaround MDEV-29534
 --disable_view_protocol
+# Check after fix MDEV-31730
+--disable_cursor_protocol
 SELECT FROM_UNIXTIME('1922-02-10') AS c1, BIT_AND(1) AS c2;
 SELECT FROM_UNIXTIME('1922') AS c1, BIT_AND(1) AS c2;
+--enable_cursor_protocol
 --enable_view_protocol
 # Disable PS protocol to workaround CONC-739
 --disable_ps_protocol

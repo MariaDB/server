@@ -1,8 +1,9 @@
 --source include/not_valgrind.inc
 # We cannot use ps2 protocol as the test is counting number of executions
 --disable_ps2_protocol
-# View protocol disabled as it remove the tag from the SELECT query
+# View and cursor protocol disabled as they remove the tag from the SELECT query
 --disable_view_protocol
+--disable_cursor_protocol
 
 #
 # Test log_slow_always_query_time variable usage
@@ -33,4 +34,6 @@ SELECT sleep(1) as 'this-should-not-be-logged';
 --source include/log_grep.inc
 
 --source include/log_slow_cleanup.inc
+--enable_cursor_protocol
+--enable_view_protocol
 --enable_ps2_protocol
