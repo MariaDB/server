@@ -1138,7 +1138,7 @@ os_file_get_status(
 /** Set the file create umask
 @param[in]	umask		The umask to use for file creation. */
 void
-os_file_set_umask(ulint umask);
+os_file_set_umask(mode_t umask);
 
 #ifdef _WIN32
 

@@ -146,10 +146,10 @@ my_umask */
 
 #ifndef _WIN32
 /** Umask for creating files */
-static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+static mode_t	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 #else
 /** Umask for creating files */
-static ulint	os_innodb_umask	= 0;
+static mode_t	os_innodb_umask	= 0;
 #endif /* _WIN32 */
 
 Atomic_counter<ulint> os_n_file_reads;
@@ -3866,9 +3866,9 @@ os_aio_refresh_stats()
 Set the file create umask
 @param[in]	umask		The umask to use for file creation. */
 void
-os_file_set_umask(ulint umask)
+os_file_set_umask(mode_t umask)
 {
-	os_innodb_umask = umask;
+	os_innodb_umask= umask;
 }
 
 #ifdef _WIN32
