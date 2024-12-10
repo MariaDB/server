@@ -3197,7 +3197,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     }
   }
 
-  KEY *key_info= *key_info_buffer= thd->calloc<KEY>(*key_count);
+  KEY *key_info= *key_info_buffer= new (thd) KEY[*key_count] {};
   if (!*key_info_buffer)
     DBUG_RETURN(true);				// Out of memory
 
@@ -3260,7 +3260,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  key_part_info= thd->calloc<KEY_PART_INFO>(key_parts);
+  key_part_info= new (thd) KEY_PART_INFO[key_parts] {};
   if (!key_part_info)
     DBUG_RETURN(true);				// Out of memory
 
@@ -8438,9 +8438,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
   if ((create_info->fields_option_struct=
-         thd->calloc<ha_field_option_struct*>(table->s->fields)) == NULL ||
+         new (thd) ha_field_option_struct*[table->s->fields] {}) == NULL ||
       (create_info->indexes_option_struct=
-         thd->calloc<ha_index_option_struct*>(table->s->total_keys)) == NULL)
+         new (thd) ha_index_option_struct*[table->s->total_keys] {}) == NULL)
     DBUG_RETURN(1);
 
   if (merge_engine_options(table->s->option_list, create_info->option_list,

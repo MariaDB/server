@@ -2824,8 +2824,8 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
   context(context_arg), m_name(name_arg), m_sp(NULL), func_ctx(NULL),
   sp_result_field(NULL)
 {
-  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE) + sizeof(TABLE_SHARE) +
-                                    sizeof(Query_arena));
+  dummy_table= (TABLE*) thd_calloc(thd, sizeof(TABLE) + sizeof(TABLE_SHARE) +
+                                        sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
   sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
@@ -2835,8 +2835,8 @@ Item_sp::Item_sp(THD *thd, Item_sp *item):
          context(item->context), m_name(item->m_name),
          m_sp(item->m_sp), func_ctx(NULL), sp_result_field(NULL)
 {
-  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE) +
-                                    sizeof(Query_arena));
+  dummy_table= (TABLE*) thd_calloc(thd, sizeof(TABLE)+ sizeof(TABLE_SHARE) +
+                                        sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
   sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
@@ -10899,7 +10899,7 @@ int Item_cache_str::save_in_field(Field *field, bool no_conversions)
 bool Item_cache_row::allocate(THD *thd, uint num)
 {
   item_count= num;
-  return (!values && !(values= thd->calloc<Item_cache *>(item_count)));
+  return (!values && !(values= new (thd) Item_cache *[item_count] {}));
 }
 
 

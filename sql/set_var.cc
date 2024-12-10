@@ -1420,7 +1420,7 @@ resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
   }
 
   if (temp_copy)
-    res= thd->calloc<plugin_ref>(count+1);
+    res= new (thd) plugin_ref[count+1] {};
   else
     res= (plugin_ref *)my_malloc(PSI_INSTRUMENT_ME, (count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
   if (!res)

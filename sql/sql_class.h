@@ -1281,14 +1281,6 @@ public:
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
 
-  template <typename T=char>
-  inline T* calloc(size_t size) const
-  {
-    void* ptr= alloc_root(mem_root, sizeof(T)*size);
-    if (ptr)
-      bzero(ptr, sizeof(T)*size);
-    return (T*)ptr;
-  }
   inline char *strdup(const char *str) const
   { return strdup_root(mem_root,str); }
   inline char *strmake(const char *str, size_t size) const
@@ -1777,10 +1769,6 @@ struct st_savepoint {
 
 class Security_context {
 public:
-  Security_context()
-   :master_access(NO_ACL),
-    db_access(NO_ACL)
-  {}                      /* Remove gcc warning */
   /*
     host - host of the client
     user - user of the client, set to NULL until the user has been read from
@@ -1800,8 +1788,8 @@ public:
   char   *external_user;
   /* points to host if host is available, otherwise points to ip */
   const char *host_or_ip;
-  privilege_t master_access;            /* Global privileges from mysql.user */
-  privilege_t db_access;                /* Privileges for current db */
+  privilege_t master_access= NO_ACL;    /* Global privileges from mysql.user */
+  privilege_t db_access= NO_ACL;        /* Privileges for current db */
 
   bool password_expired;
 

@@ -510,7 +510,7 @@ bool JOIN::check_for_splittable_materialized()
     the collected info on potential splittability of T
   */
   SplM_opt_info *spl_opt_info= new (thd) SplM_opt_info();
-  SplM_field_info *spl_field= thd->calloc<SplM_field_info>(spl_field_cnt);
+  SplM_field_info *spl_field= new (thd) SplM_field_info[spl_field_cnt] {};
 
   if (!(spl_opt_info && spl_field)) // consider T as not good for splitting
     return false;

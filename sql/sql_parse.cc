@@ -8233,8 +8233,9 @@ bool st_select_lex::init_nested_join(THD *thd)
   NESTED_JOIN *nested_join;
   DBUG_ENTER("init_nested_join");
 
-  if (unlikely(!(ptr= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
-                                                sizeof(NESTED_JOIN)))))
+  if (unlikely(!(ptr= (TABLE_LIST*) thd_calloc(thd,
+                                               ALIGN_SIZE(sizeof(TABLE_LIST)) +
+                                               sizeof(NESTED_JOIN)))))
     DBUG_RETURN(1);
   nested_join= ptr->nested_join=
     ((NESTED_JOIN*) ((uchar*) ptr + ALIGN_SIZE(sizeof(TABLE_LIST))));
@@ -8321,8 +8322,9 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
     DBUG_RETURN(head);
   }
 
-  if (unlikely(!(ptr= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
-                                                sizeof(NESTED_JOIN)))))
+  if (unlikely(!(ptr= (TABLE_LIST*) thd_calloc(thd,
+                                               ALIGN_SIZE(sizeof(TABLE_LIST))+
+                                               sizeof(NESTED_JOIN)))))
     DBUG_RETURN(0);
   nested_join= ptr->nested_join=
     ((NESTED_JOIN*) ((uchar*) ptr + ALIGN_SIZE(sizeof(TABLE_LIST))));
@@ -8565,8 +8567,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
     of left_op in it. Initially the nest is empty.
   */
   if (unlikely(!(cj_nest=
-                 (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
-                                           sizeof(NESTED_JOIN)))))
+                 (TABLE_LIST*) thd_calloc(thd, ALIGN_SIZE(sizeof(TABLE_LIST))+
+                                               sizeof(NESTED_JOIN)))))
     DBUG_RETURN(true);
   cj_nest->nested_join=
     ((NESTED_JOIN*) ((uchar*) cj_nest + ALIGN_SIZE(sizeof(TABLE_LIST))));

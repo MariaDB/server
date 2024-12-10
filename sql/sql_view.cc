@@ -1736,7 +1736,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         objects of the view.
       */
       if (!(table->view_sctx=
-            thd->active_stmt_arena_to_use()->calloc<Security_context>(1)))
+            new (thd->active_stmt_arena_to_use()) Security_context {}))
         goto err;
       security_ctx= table->view_sctx;
     }
