@@ -2547,8 +2547,10 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a INT);
 SET NAMES utf8mb3;
+--disable_cursor_protocol
 SELECT COLUMN_TYPE INTO @col_type FROM INFORMATION_SCHEMA.COLUMNS
   WHERE TABLE_NAME='t1';
+--enable_cursor_protocol
 SELECT @col_type != 'binary(128)';
 SELECT COERCIBILITY(@col_type), COERCIBILITY('binary(128)');
 DROP TABLE t1;
