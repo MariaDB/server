@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2023 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,6 +31,8 @@
 #include "wsrep_storage_service.h"
 #include "wsrep_thd.h"
 #include "wsrep_server_state.h"
+#include "log_event.h"
+#include "sql_class.h"
 
 #include <string>
 #include <sstream>
@@ -1627,4 +1629,62 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
 
   delete storage_thd;
   DBUG_RETURN(ret);
+}
+
+int Wsrep_schema::store_gtid_event(THD* thd,
+                                   const Gtid_log_event *gtid)
+{
+  DBUG_ENTER("Wsrep_schema::store_gtid_event");
+  int error=0;
+  void *hton= NULL;
+  const bool in_transaction= (gtid->flags2 & Gtid_log_event::FL_TRANSACTIONAL);
+  const bool in_ddl= (gtid->flags2 & Gtid_log_event::FL_DDL);
+
+  DBUG_PRINT("info", ("thd: %p, in_transaction: %d, in_ddl: %d "
+                      "in_active_multi_stmt_transaction: %d",
+                      thd, in_transaction, in_ddl,
+                      thd->in_active_multi_stmt_transaction()));
+
+  Wsrep_schema_impl::wsrep_ignore_table  ignore_table(thd);
+  Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
+
+  rpl_group_info *rgi= thd->wsrep_rgi;
+  const uint64 sub_id= rpl_global_gtid_slave_state->next_sub_id(gtid->domain_id);
+  rpl_gtid current_gtid;
+  current_gtid.domain_id= gtid->domain_id;
+  current_gtid.server_id= gtid->server_id;
+  current_gtid.seq_no= gtid->seq_no;
+  rgi->gtid_pending= false;
+
+  DBUG_ASSERT(!in_transaction || thd->in_active_multi_stmt_transaction());
+
+  if ((error= rpl_global_gtid_slave_state->record_gtid(thd, &current_gtid,
+                                                      sub_id,
+                                                      in_transaction, false, &hton)))
+    goto out;
+
+  rpl_global_gtid_slave_state->update_state_hash(sub_id, &current_gtid, hton, rgi);
+
+  if (in_ddl)
+  {
+    // Commit transaction if this GTID is part of DDL-clause because
+    // DDL causes implicit commit assuming there is no multi statement
+    // transaction ongoing.
+    if((error= trans_commit_stmt(thd)))
+      goto out;
+
+    (void)trans_commit(thd);
+  }
+
+out:
+  if (error)
+  {
+    WSREP_DEBUG("Wsrep_schema::store_gtid_event %llu-%llu-%llu failed error=%s (%d).",
+                gtid->domain_id, gtid->server_id, gtid->seq_no, strerror(error), error);
+    (void)trans_rollback_stmt(thd);
+    (void)trans_rollback(thd);
+  }
+
+  DBUG_RETURN(error);
 }
