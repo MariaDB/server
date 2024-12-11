@@ -5086,7 +5086,7 @@ public:
   */
   bool is_valid() const override
   {
-    return m_rows_buf && m_cols.bitmap;
+    return m_cols.bitmap;
   }
 
   uint     m_row_count;         /* The number of rows added to the event */

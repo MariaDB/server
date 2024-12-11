@@ -321,7 +321,7 @@ KEY_CACHE *dflt_key_cache= &dflt_key_cache_var;
 #define FLUSH_CACHE         2000            /* sort this many blocks at once */
 
 static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache);
-static void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup);
+static void end_simple_key_cache(void *keycache_, my_bool cleanup);
 static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
                           mysql_mutex_t *mutex);
 static void release_whole_queue(KEYCACHE_WQUEUE *wqueue);
@@ -473,11 +473,12 @@ static inline uint next_power(uint value)
 */
 
 static
-int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
+int init_simple_key_cache(void *keycache_,
                           uint key_cache_block_size,
 		          size_t use_mem, uint division_limit,
 		          uint age_threshold, uint changed_blocks_hash_size)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   size_t blocks, hash_links;
   size_t length;
   int error;
@@ -834,11 +835,12 @@ void finish_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache)
 */
 
 static
-int resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
+int resize_simple_key_cache(void *keycache_,
                             uint key_cache_block_size,
 		            size_t use_mem, uint division_limit,
 		            uint age_threshold, uint changed_blocks_hash_size)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   int blocks= 0;
   DBUG_ENTER("resize_simple_key_cache");
 
@@ -914,9 +916,10 @@ static inline void dec_counter_for_resize_op(SIMPLE_KEY_CACHE_CB *keycache)
 */
 
 static
-void change_simple_key_cache_param(SIMPLE_KEY_CACHE_CB *keycache, uint division_limit,
+void change_simple_key_cache_param(void *keycache_, uint division_limit,
 			           uint age_threshold)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   DBUG_ENTER("change_simple_key_cache_param");
   keycache_pthread_mutex_lock(&keycache->cache_lock);
   if (division_limit)
@@ -953,8 +956,9 @@ void change_simple_key_cache_param(SIMPLE_KEY_CACHE_CB *keycache, uint division_
 */
 
 static
-void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup)
+void end_simple_key_cache(void *keycache_, my_bool cleanup)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   DBUG_ENTER("end_simple_key_cache");
   DBUG_PRINT("enter", ("key_cache: %p",  keycache));
 
@@ -2763,12 +2767,13 @@ static void read_block_secondary(SIMPLE_KEY_CACHE_CB *keycache,
     have to be a multiple of key_cache_block_size;
 */
 
-uchar *simple_key_cache_read(SIMPLE_KEY_CACHE_CB *keycache,
+uchar *simple_key_cache_read(void *keycache_,
                              File file, my_off_t filepos, int level,
                              uchar *buff, uint length,
                              uint block_length __attribute__((unused)),
                              int return_buffer __attribute__((unused)))
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   my_bool locked_and_incremented= FALSE;
   int error=0;
   uchar *start= buff;
@@ -3015,10 +3020,11 @@ end:
 */
 
 static
-int simple_key_cache_insert(SIMPLE_KEY_CACHE_CB *keycache,
+int simple_key_cache_insert(void *keycache_,
                             File file, my_off_t filepos, int level,
                             uchar *buff, uint length)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   int error= 0;
   DBUG_ENTER("key_cache_insert");
   DBUG_PRINT("enter", ("fd: %u  pos: %lu  length: %u",
@@ -3280,13 +3286,14 @@ int simple_key_cache_insert(SIMPLE_KEY_CACHE_CB *keycache,
 */
 
 static
-int simple_key_cache_write(SIMPLE_KEY_CACHE_CB *keycache,
+int simple_key_cache_write(void *keycache_,
                            File file, void *file_extra __attribute__((unused)),                       
                            my_off_t filepos, int level,
                            uchar *buff, uint length,
                            uint block_length  __attribute__((unused)),
                            int dont_write)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   my_bool locked_and_incremented= FALSE;
   int error=0;
   DBUG_ENTER("simple_key_cache_write");
@@ -3753,8 +3760,10 @@ static void free_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
 }
 
 
-static int cmp_sec_link(BLOCK_LINK **a, BLOCK_LINK **b)
+static int cmp_sec_link(const void *_a, const void *_b)
 {
+  BLOCK_LINK *const *a= _a;
+  BLOCK_LINK *const *b= _b;
   return (((*a)->hash_link->diskpos < (*b)->hash_link->diskpos) ? -1 :
       ((*a)->hash_link->diskpos > (*b)->hash_link->diskpos) ? 1 : 0);
 }
@@ -4363,11 +4372,12 @@ err:
 */
 
 static
-int flush_simple_key_cache_blocks(SIMPLE_KEY_CACHE_CB *keycache,
+int flush_simple_key_cache_blocks(void *keycache_,
                                   File file,
                                   void *file_extra __attribute__((unused)),
                                   enum flush_type type)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   int res= 0;
   DBUG_ENTER("flush_key_blocks");
   DBUG_PRINT("enter", ("keycache: %p",  keycache));
@@ -4544,8 +4554,9 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
 
 static
 int reset_simple_key_cache_counters(const char *name __attribute__((unused)),
-                                    SIMPLE_KEY_CACHE_CB *keycache)
+                                    void *keycache_)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   DBUG_ENTER("reset_simple_key_cache_counters");
   if (!keycache->key_cache_inited)
   {
@@ -4887,10 +4898,11 @@ static int cache_empty(SIMPLE_KEY_CACHE_CB *keycache)
 */
 
 static
-void get_simple_key_cache_statistics(SIMPLE_KEY_CACHE_CB *keycache, 
+void get_simple_key_cache_statistics(void *keycache_,
                                      uint partition_no __attribute__((unused)), 
                                      KEY_CACHE_STATISTICS *keycache_stats)
 {
+  SIMPLE_KEY_CACHE_CB *keycache= keycache_;
   DBUG_ENTER("simple_get_key_cache_statistics");
 
   keycache_stats->mem_size= (longlong) keycache->key_cache_mem_size;
@@ -4978,12 +4990,12 @@ typedef struct st_partitioned_key_cache_cb
 } PARTITIONED_KEY_CACHE_CB;
 
 static
-void end_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
+void end_partitioned_key_cache(void *keycache_,
                                my_bool cleanup);
 
 static int
 reset_partitioned_key_cache_counters(const char *name,
-                                     PARTITIONED_KEY_CACHE_CB *keycache);
+                                     void *keycache_);
 
 /*
   Determine the partition to which the index block to read is ascribed
@@ -5091,11 +5103,12 @@ static SIMPLE_KEY_CACHE_CB
 */
 
 static
-int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
+int init_partitioned_key_cache(void *keycache_,
                                uint key_cache_block_size,
                                size_t use_mem, uint division_limit,
                                uint age_threshold, uint changed_blocks_hash_size)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   int i;
   size_t mem_per_cache;
   size_t mem_decr;
@@ -5257,12 +5270,13 @@ int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
 */
 
 static
-int resize_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache, 
+int resize_partitioned_key_cache(void *keycache_,
                                  uint key_cache_block_size,
 		                 size_t use_mem, uint division_limit,
 		                 uint age_threshold,
                                  uint changed_blocks_hash_size)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint i;
   uint partitions= keycache->partitions;
   my_bool cleanup= use_mem == 0;
@@ -5321,10 +5335,11 @@ int resize_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
 */
 
 static
-void change_partitioned_key_cache_param(PARTITIONED_KEY_CACHE_CB *keycache,
+void change_partitioned_key_cache_param(void *keycache_,
                                         uint division_limit,
                                         uint age_threshold)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint i;
   uint partitions= keycache->partitions;
   DBUG_ENTER("partitioned_change_key_cache_param");
@@ -5363,9 +5378,10 @@ void change_partitioned_key_cache_param(PARTITIONED_KEY_CACHE_CB *keycache,
 */
 
 static
-void end_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
+void end_partitioned_key_cache(void *keycache_,
                                my_bool cleanup)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint i;
   uint partitions= keycache->partitions;
   DBUG_ENTER("partitioned_end_key_cache");
@@ -5430,12 +5446,13 @@ void end_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
 */
 
 static
-uchar *partitioned_key_cache_read(PARTITIONED_KEY_CACHE_CB *keycache,
+uchar *partitioned_key_cache_read(void *keycache_,
                                   File file, my_off_t filepos, int level,
                                   uchar *buff, uint length,
                                   uint block_length __attribute__((unused)),
                                   int return_buffer __attribute__((unused)))
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint r_length;
   uint offset= (uint) (filepos % keycache->key_cache_block_size);
   uchar *start= buff;
@@ -5508,10 +5525,11 @@ uchar *partitioned_key_cache_read(PARTITIONED_KEY_CACHE_CB *keycache,
 */
 
 static
-int partitioned_key_cache_insert(PARTITIONED_KEY_CACHE_CB *keycache,
+int partitioned_key_cache_insert(void *keycache_,
                                  File file, my_off_t filepos, int level,
                                  uchar *buff, uint length)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint w_length;
   uint offset= (uint) (filepos % keycache->key_cache_block_size);
   DBUG_ENTER("partitioned_key_cache_insert");
@@ -5590,13 +5608,14 @@ int partitioned_key_cache_insert(PARTITIONED_KEY_CACHE_CB *keycache,
 */
 
 static
-int partitioned_key_cache_write(PARTITIONED_KEY_CACHE_CB *keycache,
+int partitioned_key_cache_write(void *keycache_,
                                 File file, void *file_extra,
                                 my_off_t filepos, int level,
                                 uchar *buff, uint length,
                                 uint block_length  __attribute__((unused)),
                                 int dont_write)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint w_length;
   ulonglong *part_map= (ulonglong *) file_extra;
   uint offset= (uint) (filepos % keycache->key_cache_block_size);
@@ -5674,10 +5693,11 @@ int partitioned_key_cache_write(PARTITIONED_KEY_CACHE_CB *keycache,
 */
 
 static
-int flush_partitioned_key_cache_blocks(PARTITIONED_KEY_CACHE_CB *keycache,
+int flush_partitioned_key_cache_blocks(void *keycache_,
                                        File file, void *file_extra,
                                        enum flush_type type)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint i;
   uint partitions= keycache->partitions;
   int err= 0;
@@ -5724,8 +5744,9 @@ int flush_partitioned_key_cache_blocks(PARTITIONED_KEY_CACHE_CB *keycache,
 
 static int
 reset_partitioned_key_cache_counters(const char *name __attribute__((unused)),
-                                     PARTITIONED_KEY_CACHE_CB *keycache)
+                                     void *keycache_)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint i;
   uint partitions= keycache->partitions;
   DBUG_ENTER("partitioned_reset_key_cache_counters");
@@ -5766,10 +5787,11 @@ reset_partitioned_key_cache_counters(const char *name __attribute__((unused)),
 
 static
 void
-get_partitioned_key_cache_statistics(PARTITIONED_KEY_CACHE_CB *keycache,
+get_partitioned_key_cache_statistics(void *keycache_,
                                      uint partition_no, 
                                      KEY_CACHE_STATISTICS *keycache_stats)
 {
+  PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint i;
   SIMPLE_KEY_CACHE_CB *partition;
   uint partitions= keycache->partitions;

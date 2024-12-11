@@ -117,7 +117,7 @@ public:
   bool is_empty() { return used_size() == 0; }
   virtual bool read() = 0;
   
-  void sort(qsort2_cmp cmp_func, void *cmp_func_arg)
+  void sort(qsort_cmp2 cmp_func, void *cmp_func_arg)
   {
     size_t elem_size= size1 + size2;
     size_t n_elements= used_size() / elem_size;

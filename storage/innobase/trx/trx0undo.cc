@@ -877,7 +877,7 @@ corrupted:
 					  + block->frame);
 	const trx_id_t trx_id= mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
 	if (trx_id >> 48) {
-		sql_print_error("InnoDB: corrupted TRX_ID %llx", trx_id);
+		sql_print_error("InnoDB: corrupted TRX_ID %" PRIx64, trx_id);
 		goto corrupted;
 	}
 	/* We will increment rseg->needs_purge, like trx_undo_reuse_cached()
@@ -913,7 +913,7 @@ corrupted:
 	read_trx_no:
 		trx_no = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
 		if (trx_no >> 48) {
-			sql_print_error("InnoDB: corrupted TRX_NO %llx",
+			sql_print_error("InnoDB: corrupted TRX_NO %" PRIx64,
 					trx_no);
 			goto corrupted;
 		}

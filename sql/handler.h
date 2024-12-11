@@ -2980,12 +2980,19 @@ uint calculate_key_len(TABLE *, uint, const uchar *, key_part_map);
   bitmap with first N+1 bits set
   (keypart_map for a key prefix of [0..N] keyparts)
 */
-#define make_keypart_map(N) (((key_part_map)2 << (N)) - 1)
+inline key_part_map make_keypart_map(uint N)
+{
+  return ((key_part_map)2 << (N)) - 1;
+}
+
 /*
   bitmap with first N bits set
   (keypart_map for a key prefix of [0..N-1] keyparts)
 */
-#define make_prev_keypart_map(N) (((key_part_map)1 << (N)) - 1)
+inline key_part_map make_prev_keypart_map(uint N)
+{
+  return ((key_part_map)1 << (N)) - 1;
+}
 
 
 /** Base class to be used by handlers different shares */
@@ -3437,7 +3444,6 @@ public:
   int ha_enable_indexes(key_map map, bool persist);
   int ha_discard_or_import_tablespace(my_bool discard);
   int ha_rename_table(const char *from, const char *to);
-  void ha_drop_table(const char *name);
 
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
 
@@ -5102,8 +5108,8 @@ static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)
 int ha_init_errors(void);
 int ha_init(void);
 int ha_end(void);
-int ha_initialize_handlerton(st_plugin_int *plugin);
-int ha_finalize_handlerton(st_plugin_int *plugin);
+int ha_initialize_handlerton(void *plugin);
+int ha_finalize_handlerton(void *plugin);
 
 TYPELIB *ha_known_exts(void);
 int ha_panic(enum ha_panic_function flag);

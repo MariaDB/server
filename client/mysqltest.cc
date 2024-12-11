@@ -991,7 +991,6 @@ end_thread:
   cn->mysql= 0;
   cn->query_done= 1;
   mysql_thread_end();
-  pthread_exit(0);
   DBUG_RETURN(0);
 }
 
@@ -2389,13 +2388,12 @@ static void strip_parentheses(struct st_command *command)
 
 C_MODE_START
 
-static uchar *get_var_key(const uchar* var, size_t *len,
-                          my_bool __attribute__((unused)) t)
+static const uchar *get_var_key(const void *var, size_t *len, my_bool)
 {
   char* key;
-  key = ((VAR*)var)->name;
-  *len = ((VAR*)var)->name_len;
-  return (uchar*)key;
+  key= (static_cast<const VAR *>(var))->name;
+  *len= (static_cast<const VAR *>(var))->name_len;
+  return reinterpret_cast<const uchar *>(key);
 }
 
 
@@ -9621,7 +9619,7 @@ void init_re(void)
     //"[[:space:]]*CALL[[:space:]]|" // XXX run_query_stmt doesn't read multiple result sets
     "[[:space:]]*CHANGE[[:space:]]|"
     "[[:space:]]*CHECKSUM[[:space:]]|"
-    "[[:space:]]*COMMIT[[:space:]]|"
+    "[[:space:]]*COMMIT[[:space:]]*|"
     "[[:space:]]*COMPOUND[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+DATABASE[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+INDEX[[:space:]]|"
@@ -12077,8 +12075,10 @@ void replace_dynstr_append_uint(DYNAMIC_STRING *ds, uint val)
   keep_header  If header should not be sorted
 */
 
-static int comp_lines(const char **a, const char **b)
+static int comp_lines(const void *a_, const void *b_)
 {
+  auto a= static_cast<const char *const *>(a_);
+  auto b= static_cast<const char *const *>(b_);
   return (strcmp(*a,*b));
 }
 

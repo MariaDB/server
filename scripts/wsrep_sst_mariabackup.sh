@@ -848,7 +848,7 @@ recv_joiner()
             wsrep_log_error "receiving process ended without creating" \
                             "magic file ($MAGIC_FILE)"
             wsrep_log_info "Contents of datadir:"
-            wsrep_log_info "$(ls -l "$dir/"*)"
+            wsrep_log_info "$(ls -l "$dir"/*)"
             exit 32
         fi
 

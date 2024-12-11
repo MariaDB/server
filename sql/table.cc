@@ -241,11 +241,11 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
 
 /* Get column name from column hash */
 
-static uchar *get_field_name(Field **buff, size_t *length,
-                             my_bool not_used __attribute__((unused)))
+static const uchar *get_field_name(const void *buff_, size_t *length, my_bool)
 {
-  *length= (uint) (*buff)->field_name.length;
-  return (uchar*) (*buff)->field_name.str;
+  auto buff= static_cast<const Field *const *>(buff_);
+  *length= (*buff)->field_name.length;
+  return reinterpret_cast<const uchar *>((*buff)->field_name.str);
 }
 
 
@@ -2251,7 +2251,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (use_hash)
     use_hash= !my_hash_init(PSI_INSTRUMENT_ME, &share->name_hash,
                             system_charset_info, share->fields, 0, 0,
-                            (my_hash_get_key) get_field_name, 0, 0);
+                            get_field_name, 0, 0);
 
   if (share->mysql_version >= 50700 && share->mysql_version < 100000 &&
       vcol_screen_length)
@@ -3830,50 +3830,54 @@ static void print_long_unique_table(TABLE *table)
           " fields->offset,field->null_bit, field->null_pos and key_info ... \n"
           "\nPrinting  Table  keyinfo\n");
   str.append(buff, strlen(buff));
-  my_snprintf(buff, sizeof(buff), "\ntable->s->reclength %d\n"
-          "table->s->fields %d\n",
+  my_snprintf(buff, sizeof(buff), "\ntable->s->reclength %lu\n"
+          "table->s->fields %u\n",
           table->s->reclength, table->s->fields);
   str.append(buff, strlen(buff));
   for (uint i= 0; i < table->s->keys; i++)
   {
     key_info_table= table->key_info + i;
     key_info_share= table->s->key_info + i;
-    my_snprintf(buff, sizeof(buff), "\ntable->key_info[%d] user_defined_key_parts = %d\n"
-                                    "table->key_info[%d] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
-                                    "table->key_info[%d] flags & HA_NOSAME = %d\n",
-                                   i, key_info_table->user_defined_key_parts,
-                                   i, key_info_table->algorithm == HA_KEY_ALG_LONG_HASH,
-                                   i, key_info_table->flags & HA_NOSAME);
+    my_snprintf(buff, sizeof(buff),
+                "\ntable->key_info[%u] user_defined_key_parts = %u\n"
+                "table->key_info[%u] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
+                "table->key_info[%u] flags & HA_NOSAME = %lu\n",
+                i, key_info_table->user_defined_key_parts,
+                i, key_info_table->algorithm == HA_KEY_ALG_LONG_HASH,
+                i, key_info_table->flags & HA_NOSAME);
     str.append(buff, strlen(buff));
-    my_snprintf(buff, sizeof(buff), "\ntable->s->key_info[%d] user_defined_key_parts = %d\n"
-                                    "table->s->key_info[%d] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
-                                    "table->s->key_info[%d] flags & HA_NOSAME = %d\n",
-                                   i, key_info_share->user_defined_key_parts,
-                                   i, key_info_share->algorithm == HA_KEY_ALG_LONG_HASH,
-                                   i, key_info_share->flags & HA_NOSAME);
+    my_snprintf(buff, sizeof(buff),
+                "\ntable->s->key_info[%u] user_defined_key_parts = %u\n"
+                "table->s->key_info[%u] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
+                "table->s->key_info[%u] flags & HA_NOSAME = %lu\n",
+                i, key_info_share->user_defined_key_parts,
+                i, key_info_share->algorithm == HA_KEY_ALG_LONG_HASH,
+                i, key_info_share->flags & HA_NOSAME);
     str.append(buff, strlen(buff));
     key_part = key_info_table->key_part;
-    my_snprintf(buff, sizeof(buff), "\nPrinting table->key_info[%d].key_part[0] info\n"
-            "key_part->offset = %d\n"
-            "key_part->field_name = %s\n"
-            "key_part->length = %d\n"
-            "key_part->null_bit = %d\n"
-            "key_part->null_offset = %d\n",
-            i, key_part->offset, key_part->field->field_name.str, key_part->length,
-            key_part->null_bit, key_part->null_offset);
+    my_snprintf(buff, sizeof(buff),
+                "\nPrinting table->key_info[%u].key_part[0] info\n"
+                "key_part->offset = %u\n"
+                "key_part->field_name = %s\n"
+                "key_part->length = %u\n"
+                "key_part->null_bit = %u\n"
+                "key_part->null_offset = %u\n",
+                i, key_part->offset, key_part->field->field_name.str, key_part->length,
+                key_part->null_bit, key_part->null_offset);
     str.append(buff, strlen(buff));
 
     for (uint j= 0; j < key_info_share->user_defined_key_parts; j++)
     {
       key_part= key_info_share->key_part + j;
-      my_snprintf(buff, sizeof(buff), "\nPrinting share->key_info[%d].key_part[%d] info\n"
-            "key_part->offset = %d\n"
-            "key_part->field_name = %s\n"
-            "key_part->length = %d\n"
-            "key_part->null_bit = %d\n"
-            "key_part->null_offset = %d\n",
-            i,j,key_part->offset, key_part->field->field_name.str, key_part->length,
-            key_part->null_bit, key_part->null_offset);
+      my_snprintf(buff, sizeof(buff),
+                  "\nPrinting share->key_info[%u].key_part[%u] info\n"
+                  "key_part->offset = %u\n"
+                  "key_part->field_name = %s\n"
+                  "key_part->length = %u\n"
+                  "key_part->null_bit = %u\n"
+                  "key_part->null_offset = %u\n",
+                  i, j, key_part->offset, key_part->field->field_name.str,
+                  key_part->length, key_part->null_bit, key_part->null_offset);
       str.append(buff, strlen(buff));
     }
   }
@@ -3882,16 +3886,17 @@ static void print_long_unique_table(TABLE *table)
   for(uint i= 0; i < table->s->fields; i++)
   {
     field= table->field[i];
-    my_snprintf(buff, sizeof(buff), "\ntable->field[%d]->field_name %s\n"
-            "table->field[%d]->offset = %d\n"
-            "table->field[%d]->field_length = %d\n"
-            "table->field[%d]->null_pos wrt to record 0 = %d\n"
-            "table->field[%d]->null_bit_pos = %d\n",
-            i, field->field_name.str,
-            i, field->ptr- table->record[0],
-            i, field->pack_length(),
-            i, field->null_bit ? field->null_ptr - table->record[0] : -1,
-            i, field->null_bit);
+    my_snprintf(buff, sizeof(buff),
+                "\ntable->field[%u]->field_name %s\n"
+                "table->field[%u]->offset = %" PRIdPTR "\n" // `%td` not available
+                "table->field[%u]->field_length = %d\n"
+                "table->field[%u]->null_pos wrt to record 0 = %" PRIdPTR "\n"
+                "table->field[%u]->null_bit_pos = %d\n",
+                i, field->field_name.str,
+                i, field->ptr- table->record[0],
+                i, field->pack_length(),
+                i, field->null_bit ? field->null_ptr - table->record[0] : -1,
+                i, field->null_bit);
     str.append(buff, strlen(buff));
   }
   (*error_handler_hook)(1, str.ptr(), ME_NOTE);
