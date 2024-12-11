@@ -7574,6 +7574,7 @@ class multi_delete :public select_result_interceptor
   bool transactional_tables;
   /* True if at least one table we delete from is not transactional */
   bool normal_tables;
+  bool delete_while_scanning;
   /*
      error handling (rollback and binlogging) can happen in send_eof()
      so that afterward abort_result_set() needs to find out that.
