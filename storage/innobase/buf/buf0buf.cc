@@ -3322,6 +3322,8 @@ retry:
         ut_ad(!bpage->is_io_fixed(state));
         ut_ad(bpage->buf_fix_count(state));
       }
+      else
+        state= bpage->state();
 
       ut_ad(state >= buf_page_t::FREED);
       ut_ad(state < buf_page_t::READ_FIX);
