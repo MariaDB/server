@@ -140,12 +140,11 @@ rtr_index_build_node_ptr(
 	dtuple_t*	tuple;
 	dfield_t*	field;
 	byte*		buf;
-	ulint		n_unique;
 	ulint		info_bits;
 
 	ut_ad(dict_index_is_spatial(index));
 
-	n_unique = DICT_INDEX_SPATIAL_NODEPTR_SIZE;
+	uint16_t n_unique = DICT_INDEX_SPATIAL_NODEPTR_SIZE;
 
 	tuple = dtuple_create(heap, n_unique + 1);
 
@@ -210,8 +209,8 @@ rtr_update_mbr_field(
 	big_rec_t*	dummy_big_rec;
 	buf_block_t*	block;
 	rec_t*		child_rec;
-	ulint		up_match = 0;
-	ulint		low_match = 0;
+	uint16_t	up_match = 0;
+	uint16_t	low_match = 0;
 	ulint		child;
 	ulint		rec_info;
 	bool		ins_suc = true;
@@ -607,7 +606,7 @@ rtr_adjust_upper_level(
 		/* Insert the node for the new page. */
 		node_ptr_upper = rtr_index_build_node_ptr(
 			sea_cur->index(), new_mbr, first, new_page_no, heap);
-		ulint	up_match = 0, low_match = 0;
+		uint16_t up_match = 0, low_match = 0;
 		err = page_cur_search_with_match(node_ptr_upper,
 						 PAGE_CUR_LE,
 						 &up_match, &low_match,
@@ -1106,7 +1105,7 @@ corrupted:
 	page_cursor->block = cur_split_node->n_node != first_rec_group
 		? new_block : block;
 
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
@@ -1421,7 +1420,7 @@ rtr_root_raise_and_insert(
 	if (tuple) {
 		ut_ad(dtuple_check_typed(tuple));
 		/* Reposition the cursor to the child node */
-		ulint low_match = 0, up_match = 0;
+		uint16_t low_match = 0, up_match = 0;
 
 		if (page_cur_search_with_match(tuple, PAGE_CUR_LE,
 					       &up_match, &low_match,

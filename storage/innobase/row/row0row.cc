@@ -764,7 +764,7 @@ row_rec_to_index_entry_impl(
 		ut_ad(info_bits == 0);
 		ut_ad(!pad);
 	}
-	dtuple_t* entry = dtuple_create(heap, rec_len);
+	dtuple_t* entry = dtuple_create(heap, uint16_t(rec_len));
 	dfield_t* dfield = entry->fields;
 
 	dtuple_set_n_fields_cmp(entry,
@@ -861,7 +861,7 @@ copy_user_fields:
 	}
 
 	if (mblob == 2) {
-		ulint n_fields = ulint(dfield - entry->fields);
+		uint16_t n_fields = uint16_t(dfield - entry->fields);
 		ut_ad(entry->n_fields >= n_fields);
 		entry->n_fields = n_fields;
 	}

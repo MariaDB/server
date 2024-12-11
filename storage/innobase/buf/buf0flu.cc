@@ -31,6 +31,7 @@ Created 11/11/1995 Heikki Tuuri
 #include <sql_class.h>
 
 #include "buf0flu.h"
+#include "buf0lru.h"
 #include "buf0buf.h"
 #include "buf0checksum.h"
 #include "buf0dblwr.h"
