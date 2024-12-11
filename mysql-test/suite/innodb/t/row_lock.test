@@ -4,6 +4,10 @@
 # concurrent CREATE OR REPLACE and transactional UPDATE
 #
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 --source include/have_innodb.inc
 
 CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;

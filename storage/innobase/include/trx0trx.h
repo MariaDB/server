@@ -149,19 +149,15 @@ void trx_start_for_ddl_low(trx_t *trx);
 	ut_ad((t)->start_file == 0);				\
 	(t)->start_line = __LINE__;				\
 	(t)->start_file = __FILE__;				\
+	t->state= TRX_STATE_NOT_STARTED;			\
 	trx_start_for_ddl_low(t);				\
 	} while (0)
 #else
 # define trx_start_for_ddl(t) trx_start_for_ddl_low(t)
 #endif /* UNIV_DEBUG */
 
-/**********************************************************************//**
-Does the transaction commit for MySQL.
-@return DB_SUCCESS or error number */
-dberr_t
-trx_commit_for_mysql(
-/*=================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+/** Commit a transaction */
+void trx_commit_for_mysql(trx_t *trx) noexcept;
 /** XA PREPARE a transaction.
 @param[in,out]	trx	transaction to prepare */
 void trx_prepare_for_mysql(trx_t* trx);
@@ -184,12 +180,6 @@ trx_t* trx_get_trx_by_xid(const XID* xid);
 /** Durably write log until trx->commit_lsn
 (if trx_t::commit_in_memory() was invoked with flush_log_later=true). */
 void trx_commit_complete_for_mysql(trx_t *trx);
-/**********************************************************************//**
-Marks the latest SQL statement ended. */
-void
-trx_mark_sql_stat_end(
-/*==================*/
-	trx_t*	trx);	/*!< in: trx handle */
 /****************************************************************//**
 Prepares a transaction for commit/rollback. */
 void
@@ -663,6 +653,7 @@ public:
   Possible states:
 
   TRX_STATE_NOT_STARTED
+  TRX_STATE_ABORTED
   TRX_STATE_ACTIVE
   TRX_STATE_PREPARED
   TRX_STATE_PREPARED_RECOVERED (special case of TRX_STATE_PREPARED)
@@ -672,6 +663,8 @@ public:
 
   Regular transactions:
   * NOT_STARTED -> ACTIVE -> COMMITTED -> NOT_STARTED
+  * NOT_STARTED -> ABORTED (when thd_mark_transaction_to_rollback() is called)
+  * ABORTED -> NOT_STARTED (acknowledging the rollback of a transaction)
 
   Auto-commit non-locking read-only:
   * NOT_STARTED -> ACTIVE -> NOT_STARTED
@@ -708,16 +701,18 @@ public:
   do we remove it from the read-only list and put it on the read-write
   list. During this switch we assign it a rollback segment.
 
-  When a transaction is NOT_STARTED, it can be in trx_list. It cannot be
-  in rw_trx_hash.
+  When a transaction is NOT_STARTED or ABORTED, it can be in trx_list.
+  It cannot be in rw_trx_hash.
 
-  ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
-  The transition ACTIVE->PREPARED is protected by trx->mutex.
+  ACTIVE->PREPARED->COMMITTED and ACTIVE->COMMITTED is only possible when
+  trx is in rw_trx_hash. These transitions are protected by trx_t::mutex.
 
-  ACTIVE->COMMITTED is possible when the transaction is in
-  rw_trx_hash.
+  COMMITTED->NOT_STARTED is possible when trx_t::mutex is being held.
+  The transaction would already have been removed from rw_trx_hash by
+  trx_sys_t::deregister_rw() on the transition to COMMITTED.
 
-  Transitions to COMMITTED are protected by trx_t::mutex. */
+  Transitions between NOT_STARTED and ABORTED can be performed at any time by
+  the thread that is associated with the transaction. */
   Atomic_relaxed<trx_state_t> state;
 
   /** The locks of the transaction. Protected by lock_sys.latch
@@ -732,6 +727,14 @@ public:
 #else /* WITH_WSREP */
   bool is_wsrep() const { return false; }
 #endif /* WITH_WSREP */
+
+  /** @return whether the transaction has been started */
+  bool is_started() const noexcept
+  {
+    static_assert(TRX_STATE_NOT_STARTED == 0, "");
+    static_assert(TRX_STATE_ABORTED == 1, "");
+    return state > TRX_STATE_ABORTED;
+  }
 
   /** Consistent read view of the transaction */
   ReadView read_view;
@@ -839,10 +842,6 @@ public:
 					it is a stored procedure with a COMMIT
 					WORK statement, for instance */
 	/*------------------------------*/
-	UT_LIST_BASE_NODE_T(trx_named_savept_t)
-			trx_savepoints;	/*!< savepoints set with SAVEPOINT ...,
-					oldest first */
-	/*------------------------------*/
 	undo_no_t	undo_no;	/*!< next undo log record number to
 					assign; since the undo log is
 					private for a transaction, this
@@ -850,7 +849,7 @@ public:
 					with no gaps; thus it represents
 					the number of modified/inserted
 					rows in a transaction */
-	trx_savept_t	last_sql_stat_start;
+	undo_no_t	last_stmt_start;
 					/*!< undo_no when the last sql statement
 					was started: in case of an error, trx
 					is rolled back down to this number */
@@ -949,16 +948,17 @@ public:
   void evict_table(table_id_t table_id, bool reset_only= false);
 
   /** Initiate rollback.
-  @param savept     savepoint to which to roll back
+  @param savept   pointer to savepoint; nullptr=entire transaction
   @return error code or DB_SUCCESS */
-  dberr_t rollback(trx_savept_t *savept= nullptr);
+  dberr_t rollback(const undo_no_t *savept= nullptr) noexcept;
   /** Roll back an active transaction.
-  @param savept     savepoint to which to roll back */
-  inline void rollback_low(trx_savept_t *savept= nullptr);
+  @param savept   pointer to savepoint; nullptr=entire transaction
+  @return error code or DB_SUCCESS */
+  dberr_t rollback_low(const undo_no_t *savept= nullptr) noexcept;
   /** Finish rollback.
   @return whether the rollback was completed normally
   @retval false if the rollback was aborted by shutdown */
-  inline bool rollback_finish();
+  bool rollback_finish() noexcept;
 private:
   /** Apply any changes to tables for which online DDL is in progress. */
   ATTRIBUTE_COLD void apply_log();
@@ -968,9 +968,10 @@ private:
   @param mtr  mini-transaction (if there are any persistent modifications) */
   inline void commit_in_memory(const mtr_t *mtr);
   /** Write log for committing the transaction. */
-  void commit_persist();
-  /** Clean up the transaction after commit_in_memory() */
-  void commit_cleanup();
+  void commit_persist() noexcept;
+  /** Clean up the transaction after commit_in_memory()
+  @return false (always) */
+  bool commit_cleanup() noexcept;
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
@@ -985,7 +986,7 @@ private:
   inline void write_serialisation_history(mtr_t *mtr);
 public:
   /** Commit the transaction. */
-  void commit();
+  void commit() noexcept;
 
   /** Try to drop a persistent table.
   @param table       persistent table
@@ -1003,16 +1004,6 @@ public:
   /** Commit the transaction, possibly after drop_table().
   @param deleted   handles of data files that were deleted */
   void commit(std::vector<pfs_os_file_t> &deleted);
-
-
-  /** Discard all savepoints */
-  void savepoints_discard()
-  { savepoints_discard(UT_LIST_GET_FIRST(trx_savepoints)); }
-
-
-  /** Discard all savepoints starting from a particular savepoint.
-  @param savept    first savepoint to discard */
-  void savepoints_discard(trx_named_savept_t *savept);
 
 
   bool is_referenced() const
@@ -1127,15 +1118,6 @@ private:
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();
 };
-
-/**
-Check if transaction is started.
-@param[in] trx		Transaction whose state we need to check
-@reutrn true if transaction is in state started */
-inline bool trx_is_started(const trx_t* trx)
-{
-	return trx->state != TRX_STATE_NOT_STARTED;
-}
 
 /* Transaction isolation levels (trx->isolation_level) */
 #define TRX_ISO_READ_UNCOMMITTED	0	/* dirty read: non-locking

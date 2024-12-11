@@ -2,6 +2,10 @@
 # Bug #24200: Provide backwards compatibility mode for 4.x "rollback on
 # transaction timeout"
 #
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings

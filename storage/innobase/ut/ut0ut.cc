@@ -340,8 +340,6 @@ ut_strerr(
 		return("Data structure corruption");
 	case DB_CANNOT_DROP_CONSTRAINT:
 		return("Cannot drop constraint");
-	case DB_NO_SAVEPOINT:
-		return("No such savepoint");
 	case DB_TABLESPACE_EXISTS:
 		return("Tablespace already exists");
 	case DB_TABLESPACE_DELETED:

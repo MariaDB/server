@@ -4,6 +4,10 @@
 # Bug#42419 Server crash with "Pure virtual method called" on two concurrent connections
 #
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 --source include/not_embedded.inc
 
 let $innodb_lock_wait_timeout= query_get_value(SHOW VARIABLES LIKE 'innodb_lock_wait_timeout%', Value, 1);
