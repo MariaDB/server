@@ -411,3 +411,4 @@ SELECT * FROM t1;
 a
 # Clean up
 DROP TABLE t1;
+# End of 11.8 tests

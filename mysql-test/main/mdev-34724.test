@@ -369,3 +369,5 @@ SELECT * FROM t1;
 
 --echo # Clean up
 DROP TABLE t1;
+
+--echo # End of 11.8 tests
