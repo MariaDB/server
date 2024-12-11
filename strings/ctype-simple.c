@@ -173,10 +173,10 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
 			  const uchar *b, size_t b_length)
 {
   const uchar *map= cs->sort_order, *end;
-  size_t length;
+  size_t length = MY_MIN(a_length, b_length);
   int res;
 
-  end= a + (length= MY_MIN(a_length, b_length));
+  end= (length == 0) ? a : a + length;
   while (a < end)
   {
     if (map[*a++] != map[*b++])
@@ -345,7 +345,7 @@ void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
 			       ulong *nr1, ulong *nr2)
 {
   register const uchar *sort_order=cs->sort_order;
-  const uchar *end= key + len;
+  const uchar *end= (len == 0) ? key : key + len;
   register ulong m1= *nr1, m2= *nr2;
   for (; key < (uchar*) end ; key++)
   {
@@ -377,7 +377,13 @@ void my_hash_sort_simple(CHARSET_INFO *cs,
     performance gained.
   */
 
-  end= len > 16 ? skip_trailing_space(key, len) : key + len;
+  if (len > 16) {
+    end = skip_trailing_space(key, len);
+  } else if (len == 0) {
+    end = key;
+  } else {
+    end = key + len;
+  }
 
   /*
     We removed all trailing characters that are binary equal to space 0x20.
