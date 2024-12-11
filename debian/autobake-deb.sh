@@ -77,6 +77,12 @@ disable_libfmt()
   sed '/libfmt-dev/d' -i debian/control
 }
 
+remove_package_notes()
+{
+  # binutils >=2.39 + disto makefile /usr/share/debhelper/dh_package_notes/package-notes.mk
+  sed -e '/package.notes/d' -i debian/rules debian/control
+}
+
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 uname_machine=$(uname -m)
 
@@ -114,6 +120,7 @@ in
     ;&
   "bullseye")
     add_lsb_base_depends
+    remove_package_notes
     ;&
   "bookworm")
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
@@ -131,6 +138,7 @@ in
   "focal")
     replace_uring_with_aio
     disable_libfmt
+    remove_package_notes
     ;&
   "jammy"|"kinetic")
     add_lsb_base_depends
@@ -154,6 +162,10 @@ in
     echo "Error: Unknown release '$LSBNAME'" >&2
     exit 1
 esac
+
+if [ ! -f /usr/share/debhelper/dh_package_notes/package-notes.mk ]; then
+  remove_package_notes
+fi
 
 if [ -n "${AUTOBAKE_PREP_CONTROL_RULES_ONLY:-}" ]
 then
