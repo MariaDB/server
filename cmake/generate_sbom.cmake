@@ -88,7 +88,7 @@ FUNCTION(GENERATE_SBOM)
   # Remove irrelevant for the current build submodule information
   # That is, if we do not build say columnstore, do  not include
   # dependency info into SBOM
-  IF(WITH_SSL AND NOT (WITH_SSL STREQUAL "bundled"))
+  IF(NOT TARGET wolfssl)
     # using openssl, rather than wolfssl
     LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX wolfssl)
   ENDIF()
@@ -96,14 +96,14 @@ FUNCTION(GENERATE_SBOM)
     # wsrep is not compiled
     LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX wsrep)
   ENDIF()
-  IF((NOT PLUGIN_COLUMNSTORE) OR (PLUGIN_COLUMNSTORE STREQUAL "NO"))
+  IF(NOT TARGET columnstore)
     LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX columnstore)
   ENDIF()
-  IF((NOT PLUGIN_ROCKSDB) OR (PLUGIN_ROCKSDB STREQUAL "NO"))
+  IF(NOT TARGET rocksdb)
     # Rocksdb is not compiled
     LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX rocksdb)
   ENDIF()
-  IF((NOT PLUGIN_S3) OR (PLUGIN_S3 STREQUAL "NO"))
+  IF(NOT TARGET s3)
     # S3 aria is not compiled
     LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX storage/maria/libmarias3)
   ENDIF()
@@ -130,7 +130,7 @@ FUNCTION(GENERATE_SBOM)
   ENDFOREACH()
 
   # ZLIB
-  IF(TARGET zlib OR TARGET ha_connect OR TARGET connect)
+  IF(TARGET zlib OR TARGET connect)
     # Path to the zlib.h file
     SET(ZLIB_HEADER_PATH "${PROJECT_SOURCE_DIR}/zlib/zlib.h")
     # Variable to store the extracted version

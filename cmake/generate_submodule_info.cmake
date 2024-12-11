@@ -59,23 +59,23 @@ FUNCTION(generate_submodule_info outfile)
   ENDFOREACH()
   STRING(APPEND out_string "SET(ALL_SUBMODULES \"${all_submodules}\")\n")
   # Also while not strictly "submodule" info, get the origin url
-  EXECUTE_PROCESS(
-    COMMAND
-    ${GIT_EXECUTABLE} remote get-url origin
-    OUTPUT_VARIABLE outvar
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    RESULT_VARIABLE  res
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  )
-  IF(("${outvar}" STREQUAL "") OR NOT(${res} EQUAL 0))
-    MESSAGE("Can't find GIT_REMOTE_ORIGIN_URL, fallback")
-    IF(GIT_REMOTE_ORIGIN_URL)
-      SET(outvar ${GIT_REMOTE_ORIGIN_URL})
-    ELSE()
-      SET(outvar https://github.com/mariadb/server.git)
+  IF(NOT GIT_REMOTE_ORIGIN_URL)
+    EXECUTE_PROCESS(
+      COMMAND
+      ${GIT_EXECUTABLE} remote get-url origin
+      OUTPUT_VARIABLE GIT_REMOTE_ORIGIN_URL
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE  res
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    IF(("${GIT_REMOTE_ORIGIN_URL}" STREQUAL "") OR NOT(${res} EQUAL 0))
+      # Meh, origin is not called "origin", and there is no GIT_REMOTE_ORIGIN_URL
+      # set. Fallback to hardcoded default
+      SET(GIT_REMOTE_ORIGIN_URL https://github.com/mariadb/server.git)
     ENDIF()
   ENDIF()
-  STRING(APPEND out_string "SET(GIT_REMOTE_ORIGIN_URL \"${outvar}\")\n")
+
+  STRING(APPEND out_string "SET(GIT_REMOTE_ORIGIN_URL \"${GIT_REMOTE_ORIGIN_URL}\")\n")
   EXECUTE_PROCESS(
     COMMAND
     ${GIT_EXECUTABLE} rev-parse --short HEAD
