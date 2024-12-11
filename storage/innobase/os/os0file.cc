@@ -143,18 +143,6 @@ static io_slots *write_slots;
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
 
-/* This specifies the file permissions InnoDB uses when it creates files in
-Unix; the value of os_innodb_umask is initialized in ha_innodb.cc to
-my_umask */
-
-#ifndef _WIN32
-/** Umask for creating files */
-static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-#else
-/** Umask for creating files */
-static ulint	os_innodb_umask	= 0;
-#endif /* _WIN32 */
-
 Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
 Atomic_counter<size_t> os_n_file_writes;
@@ -1030,7 +1018,7 @@ os_file_create_simple_func(
 	bool	retry;
 
 	do {
-		file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
+		file = open(name, create_flag | O_CLOEXEC, my_umask);
 
 		if (file == -1) {
 			*success = false;
@@ -1198,7 +1186,7 @@ os_file_create_func(
 	bool		retry;
 
 	do {
-		file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
+		file = open(name, create_flag | O_CLOEXEC, my_umask);
 
 		if (file == -1) {
 			const char*	operation;
@@ -1330,7 +1318,7 @@ os_file_create_simple_no_error_handling_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
+	file = open(name, create_flag | O_CLOEXEC, my_umask);
 
 	*success = (file != -1);
 
@@ -3771,16 +3759,6 @@ os_aio_refresh_stats()
 	os_bytes_read_since_printout = 0;
 
 	os_last_printout = time(NULL);
-}
-
-
-/**
-Set the file create umask
-@param[in]	umask		The umask to use for file creation. */
-void
-os_file_set_umask(ulint umask)
-{
-	os_innodb_umask = umask;
 }
 
 #ifdef _WIN32
