@@ -363,7 +363,7 @@ void buf_dblwr_t::recover()
   innodb_log_write_ahead_size. After MDEV-14425 eliminated
   OS_FILE_LOG_BLOCK_SIZE, these two LSN must be equal. */
   ut_ad(recv_sys.scanned_lsn >= max_lsn);
-  ut_ad(recv_sys.scanned_lsn < max_lsn + 32 * OS_FILE_LOG_BLOCK_SIZE);
+  ut_ad(recv_sys.scanned_lsn < max_lsn + RECV_PARSING_BUF_SIZE);
 
   uint32_t page_no_dblwr= 0;
   byte *read_buf= static_cast<byte*>(aligned_malloc(3 * srv_page_size,
