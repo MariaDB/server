@@ -150,6 +150,8 @@ struct recv_dblwr_t
                         const fil_space_t *space= nullptr,
                         byte *tmp_buf= nullptr) const noexcept;
 
+  dberr_t recover_encrypted_page(fil_space_t *space, uint32_t page_no,
+                                 byte *tmp_buf) const noexcept;
   /** Restore the first page of the given tablespace from
   doublewrite buffer.
   1) Find the page which has page_no as 0

@@ -4841,6 +4841,53 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id, lsn_t max_lsn,
   goto check_if_corrupted;
 }
 
+dberr_t recv_dblwr_t::recover_encrypted_page(fil_space_t *space,
+                                             uint32_t page_no,
+                                             byte *read_buf) const noexcept
+{
+  for (byte *page : pages)
+  {
+    if (page_get_page_no(page) != page_no
+        || buf_page_is_corrupted(true, page, space->flags))
+      continue;
+    memcpy(read_buf, page, space->physical_size());
+    buf_tmp_buffer_t* slot= buf_pool.io_buf_reserve(false);
+    slot->allocate();
+    if (!fil_space_decrypt(space, slot->crypt_buf, read_buf))
+    {
+      slot->release();
+      continue;
+    }
+
+    if (space->is_compressed())
+    {
+      ulint write_size= fil_page_decompress(slot->crypt_buf, read_buf,
+                                            space->flags);
+      slot->release();
+      if (write_size == 0)
+        continue;
+    }
+    else slot->release();
+
+    if (mach_read_from_4(read_buf + FIL_PAGE_SPACE_ID) != space->id)
+      continue;
+    space->reacquire();
+    const ulint physical_size= space->physical_size();
+    fil_io_t fio= space->io(IORequestWrite,
+                            os_offset_t{page_no} * physical_size,
+                            physical_size, const_cast<byte*>(page));
+    if (fio.err == DB_SUCCESS)
+    {
+      sql_print_information("InnoDB: Recovered page [page id: space="
+                            UINT32PF ", page number=" UINT32PF "] "
+			    "to '%s' from the doublewrite buffer.",
+                            space->id, page_no, fio.node->name);
+      return DB_SUCCESS;
+    }
+  }
+  return DB_PAGE_CORRUPTED;
+}
+
 const byte *recv_dblwr_t::find_page(const page_id_t page_id, lsn_t max_lsn,
                                     const fil_space_t *space, byte *tmp_buf)
   const noexcept

@@ -1,0 +1,75 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+--source include/have_example_key_management_plugin.inc
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+create table t1 (f1 int primary key, f2 blob)page_compressed = 1 engine=innodb stats_persistent=0;
+create table t2(f1 int primary key, f2 blob)engine=innodb stats_persistent=0;
+
+start transaction;
+insert into t1 values(1, repeat('#',12));
+insert into t1 values(2, repeat('+',12));
+insert into t1 values(3, repeat('/',12));
+insert into t1 values(4, repeat('-',12));
+insert into t1 values(5, repeat('.',12));
+insert into t2 select * from t1;
+commit work;
+
+# Slow shutdown and restart to make sure ibuf merge is finished
+SET GLOBAL innodb_fast_shutdown = 0;
+let $shutdown_timeout=;
+let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
+--source include/restart_mysqld.inc
+--source ../../suite/innodb/include/no_checkpoint_start.inc
+
+select space into @t1_space_id from information_schema.innodb_sys_tablespaces where name="test/t1";
+select space into @t2_space_id from information_schema.innodb_sys_tablespaces where name="test/t2";
+
+begin;
+insert into t1 values (6, repeat('%', 400));
+insert into t2 values (6, repeat('%', 400));
+
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t1_space_id;
+
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t2_space_id;
+
+set global innodb_buf_flush_list_now = 1;
+--let CLEANUP_IF_CHECKPOINT=drop table t1, t2, unexpected_checkpoint;
+--source ../../suite/innodb/include/no_checkpoint_end.inc
+
+# Corrupt the page 3 in t1.ibd, t2.ibd file
+perl;
+use IO::Handle;
+my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+open(FILE, "+<", $fname) or die;
+FILE->autoflush(1);
+binmode FILE;
+seek(FILE,  3 * $ENV{'INNODB_PAGE_SIZE'}, SEEK_SET);
+print FILE chr(0) x ($ENV{'INNODB_PAGE_SIZE'});
+close FILE;
+
+my $fname= "$ENV{'MYSQLD_DATADIR'}test/t2.ibd";
+open(FILE, "+<", $fname) or die;
+FILE->autoflush(1);
+binmode FILE;
+seek(FILE, 3 * $ENV{'INNODB_PAGE_SIZE'}, SEEK_SET);
+print FILE chr(0) x ($ENV{'INNODB_PAGE_SIZE'});
+close FILE;
+EOF
+
+let $restart_parameters=;
+--source include/start_mysqld.inc
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9]*, page number=3\\];
+--source include/search_pattern_in_file.inc
+
+check table t1;
+check table t2;
+select f1, f2 from t1;
+select f1, f2 from t2;
+drop table t2, t1;

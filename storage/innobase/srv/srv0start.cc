@@ -1507,8 +1507,6 @@ dberr_t srv_start(bool create_new_db)
 			: recv_recovery_from_checkpoint_start(flushed_lsn);
 		recv_sys.close_files();
 
-		recv_sys.dblwr.pages.clear();
-
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
 		}
