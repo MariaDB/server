@@ -5,6 +5,10 @@
 --source include/have_debug_sync.inc
 --source include/master-slave.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 --connection server_2
 SET sql_log_bin=0;
 CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");

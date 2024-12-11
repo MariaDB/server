@@ -68,8 +68,6 @@ enum dberr_t {
 					noticed */
 	DB_CANNOT_DROP_CONSTRAINT,	/*!< dropping a foreign key constraint
 					from a table failed */
-	DB_NO_SAVEPOINT,		/*!< no savepoint exists with the given
-					name */
 	DB_TABLESPACE_EXISTS,		/*!< we cannot create a new single-table
 					tablespace because a file of the same
 					name already exists */
