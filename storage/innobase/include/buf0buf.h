@@ -140,17 +140,7 @@ operator<<(
 
 #ifndef UNIV_INNOCHECKSUM
 # define buf_pool_get_curr_size() srv_buf_pool_curr_size
-
-/** Allocate a buffer block.
-@return own: the allocated block, state()==MEMORY */
-inline buf_block_t *buf_block_alloc();
-/********************************************************************//**
-Frees a buffer block which does not contain a file page. */
-UNIV_INLINE
-void
-buf_block_free(
-/*===========*/
-	buf_block_t*	block);	/*!< in, own: block to be freed */
+# define buf_block_free(block) buf_pool.free_block(block)
 
 #define buf_page_get(ID, SIZE, LA, MTR)					\
 	buf_page_get_gen(ID, SIZE, LA, NULL, BUF_GET, MTR)
@@ -478,8 +468,19 @@ public: // FIXME: fix fil_iterate()
   /** Page id. Protected by buf_pool.page_hash.lock_get() when
   the page is in buf_pool.page_hash. */
   page_id_t id_;
-  /** buf_pool.page_hash link; protected by buf_pool.page_hash.lock_get() */
-  buf_page_t *hash;
+  union {
+    /** for in_file(): buf_pool.page_hash link;
+    protected by buf_pool.page_hash.lock_get() */
+    buf_page_t *hash;
+    /** for state()==MEMORY that are part of recv_sys.pages and
+    protected by recv_sys.mutex */
+    struct {
+      /** number of recv_sys.pages entries stored in the block */
+      uint16_t used_records;
+      /** the offset of the next free record */
+      uint16_t free_offset;
+    };
+  };
 private:
   /** log sequence number of the START of the log entry written of the
   oldest modification to this block which has not yet been written
@@ -567,16 +568,7 @@ public:
 	/* @} */
 	Atomic_counter<unsigned> access_time;	/*!< time of first access, or
 					0 if the block was never accessed
-					in the buffer pool.
-
-					For state() == MEMORY
-					blocks, this field can be repurposed
-					for something else.
-
-					When this field counts log records
-					and bytes allocated for recv_sys.pages,
-					the field is protected by
-					recv_sys_t::mutex. */
+					in the buffer pool. */
   buf_page_t() : id_{0}
   {
     static_assert(NOT_USED == 0, "compatibility");
@@ -865,91 +857,37 @@ struct buf_block_t{
 					x-latch on the block */
 	/* @} */
 #ifdef BTR_CUR_HASH_ADAPT
-	/** @name Hash search fields (unprotected)
-	NOTE that these fields are NOT protected by any semaphore! */
-	/* @{ */
+  /** @name Hash search fields */
+  /* @{ */
+  /** flag: (true=first, false=last) identical-prefix key is included */
+  static constexpr uint32_t LEFT_SIDE= 1U << 31;
 
-	volatile uint16_t n_bytes;	/*!< recommended prefix length for hash
-					search: number of bytes in
-					an incomplete last field */
-	volatile uint16_t n_fields;	/*!< recommended prefix length for hash
-					search: number of full fields */
-	uint16_t	n_hash_helps;	/*!< counter which controls building
-					of a new hash index for the page */
-	volatile bool	left_side;	/*!< true or false, depending on
-					whether the leftmost record of several
-					records with the same prefix should be
-					indexed in the hash index */
-	/* @} */
+  /** AHI parameters: LEFT_SIDE | prefix_bytes << 16 | prefix_fields.
+  Protected by the btr_sea::partition::latch and
+  (1) in_file(), and we are holding lock in any mode, or
+  (2) !is_read_fixed()&&(state()>=UNFIXED||state()==REMOVE_HASH). */
+  Atomic_relaxed<uint32_t> ahi_left_bytes_fields;
 
-	/** @name Hash search fields
-	These 5 fields may only be modified when:
-	we are holding the appropriate x-latch in btr_search_latches[], and
-	one of the following holds:
-	(1) in_file(), and we are holding lock in any mode, or
-	(2) !is_read_fixed()&&(state()>=UNFIXED||state()==REMOVE_HASH).
-
-	An exception to this is when we init or create a page
-	in the buffer pool in buf0buf.cc.
-
-	Another exception for buf_pool_t::clear_hash_index() is that
-	assigning block->index = NULL (and block->n_pointers = 0)
-	is allowed whenever all AHI latches are exclusively locked.
-
-	Another exception is that ha_insert_for_fold() may
-	decrement n_pointers without holding the appropriate latch
-	in btr_search_latches[]. Thus, n_pointers must be
-	protected by atomic memory access.
-
-	This implies that the fields may be read without race
-	condition whenever any of the following hold:
-	- the btr_search_sys.partition[].latch is being held, or
-	- state() == NOT_USED || state() == MEMORY,
-	and holding some latch prevents the state from changing to that.
-
-	Some use of assert_block_ahi_empty() or assert_block_ahi_valid()
-	is prone to race conditions while buf_pool_t::clear_hash_index() is
-	executing (the adaptive hash index is being disabled). Such use
-	is explicitly commented. */
-
-	/* @{ */
-
+  /** counter which controls building of a new hash index for the page;
+  may be nonzero even if !index */
+  Atomic_relaxed<uint16_t> n_hash_helps;
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	Atomic_counter<ulint>
-			n_pointers;	/*!< used in debugging: the number of
-					pointers in the adaptive hash index
-					pointing to this frame */
-#  define assert_block_ahi_empty(block)					\
-	ut_a((block)->n_pointers == 0)
-#  define assert_block_ahi_empty_on_init(block) do {			\
-	MEM_MAKE_DEFINED(&(block)->n_pointers, sizeof (block)->n_pointers); \
-	assert_block_ahi_empty(block);					\
-} while (0)
-#  define assert_block_ahi_valid(block)					\
-	ut_a((block)->index || (block)->n_pointers == 0)
+  /** number of pointers from the btr_sea::partition::table;
+  !n_pointers == !index */
+  Atomic_counter<uint16_t> n_pointers;
+#  define assert_block_ahi_empty(block) ut_a(!(block)->n_pointers)
+#  define assert_block_ahi_valid(b) ut_a((b)->index || !(b)->n_pointers)
 # else /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 #  define assert_block_ahi_empty(block) /* nothing */
-#  define assert_block_ahi_empty_on_init(block) /* nothing */
 #  define assert_block_ahi_valid(block) /* nothing */
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-	unsigned	curr_n_fields:10;/*!< prefix length for hash indexing:
-					number of full fields */
-	unsigned	curr_n_bytes:15;/*!< number of bytes in hash
-					indexing */
-	unsigned	curr_left_side:1;/*!< TRUE or FALSE in hash indexing */
-	dict_index_t*	index;		/*!< Index for which the
-					adaptive hash index has been
-					created, or NULL if the page
-					does not exist in the
-					index. Note that it does not
-					guarantee that the index is
-					complete, though: there may
-					have been hash collisions,
-					record deletions, etc. */
-	/* @} */
+  /** index for which the adaptive hash index has been created,
+  or nullptr if the page does not exist in the index.
+  Protected by btr_sea::partition::latch. */
+  Atomic_relaxed<dict_index_t*> index;
+  /* @} */
 #else /* BTR_CUR_HASH_ADAPT */
 # define assert_block_ahi_empty(block) /* nothing */
-# define assert_block_ahi_empty_on_init(block) /* nothing */
 # define assert_block_ahi_valid(block) /* nothing */
 #endif /* BTR_CUR_HASH_ADAPT */
   void fix() { page.fix(); }
