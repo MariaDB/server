@@ -83,3 +83,16 @@ create or replace server srv foreign data wrapper mysql options
 show create server nonexist;
 
 drop server srv;
+
+--echo #
+--echo # MDEV-35557 SIGSEGV in get_server_from_table_to_cache | servers_load, UBSAN null pointer passed as argument 1, which is declared to never be null
+--echo #
+
+--source include/have_innodb.inc
+
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
+ALTER TABLE mysql.servers ENGINE=InnoDB;
+FLUSH PRIVILEGES;
+ALTER TABLE mysql.servers ENGINE=Aria;
+FLUSH PRIVILEGES;
+drop server s1;
