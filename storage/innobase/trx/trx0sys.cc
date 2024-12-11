@@ -238,7 +238,8 @@ static trx_rseg_t *trx_rseg_create(ulint space_id)
 
   if (fil_space_t *space= mtr.x_lock_space(space_id))
   {
-    ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
+    ut_ad(!space->is_temporary());
+    ut_ad(!space->is_being_imported());
     if (buf_block_t *sys_header= trx_sysf_get(&mtr))
     {
       ulint rseg_id= trx_sys_rseg_find_free(sys_header);

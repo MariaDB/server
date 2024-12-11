@@ -352,7 +352,7 @@ xdes_get_descriptor_with_space_hdr(
 	ut_ad(limit == space->free_limit
 	      || (space->free_limit == 0
 		  && (init_space
-		      || space->purpose == FIL_TYPE_TEMPORARY
+		      || space->is_temporary()
 		      || (srv_startup_is_before_trx_rollback_phase
 			  && (space->id == TRX_SYS_SPACE
 			      || srv_is_undo_tablespace(space->id))))));
@@ -490,14 +490,15 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
   case MTR_LOG_NONE:
     /* These modes are only allowed within a non-bitmap page
        when there is a higher-level redo log record written. */
-    ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_TEMPORARY);
+    ut_ad(!is_being_imported());
     break;
   case MTR_LOG_NO_REDO:
-    ut_ad(purpose == FIL_TYPE_TEMPORARY || purpose == FIL_TYPE_IMPORT);
+    ut_ad(is_temporary() || is_being_imported());
     break;
   default:
     /* We may only write redo log for a persistent tablespace. */
-    ut_ad(purpose == FIL_TYPE_TABLESPACE);
+    ut_ad(!is_temporary());
+    ut_ad(!is_being_imported());
     ut_ad(mtr.is_named_space(id));
   }
 }
@@ -857,7 +858,7 @@ fsp_fill_free_list(
                       FIL_PAGE_TYPE_XDES);
       }
 
-      if (space->purpose != FIL_TYPE_TEMPORARY)
+      if (!space->is_temporary())
       {
         buf_block_t *f= buf_LRU_get_free_block(false);
         buf_block_t *block=

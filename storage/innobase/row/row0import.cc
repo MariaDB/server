@@ -4841,11 +4841,10 @@ import_error:
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
-	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
-
-	table->space = fil_ibd_open(
-		2, FIL_TYPE_IMPORT, table->space_id,
-		fsp_flags, name, filepath, &err);
+	table->space = fil_ibd_open(table->space_id,
+				    dict_tf_to_fsp_flags(table->flags),
+				    fil_space_t::VALIDATE_IMPORT,
+				    name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
@@ -4947,8 +4946,6 @@ import_error:
 	}
 
 	ib::info() << "Phase IV - Flush complete";
-	/* Set tablespace purpose as FIL_TYPE_TABLESPACE,
-	so that rollback can go ahead smoothly */
 	table->space->set_imported();
 
 	err = lock_sys_tables(trx);

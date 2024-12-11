@@ -639,7 +639,7 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
 
   fil_space_crypt_t *crypt_data= space->crypt_data;
   bool encrypted, page_compressed;
-  if (space->purpose == FIL_TYPE_TEMPORARY)
+  if (space->is_temporary())
   {
     ut_ad(!crypt_data);
     encrypted= innodb_encrypt_temporary_tables;
@@ -685,13 +685,13 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
   if (!page_compressed)
   {
 not_compressed:
-    d= space->purpose == FIL_TYPE_TEMPORARY
+    d= space->is_temporary()
       ? buf_tmp_page_encrypt(page_no, s, d)
       : fil_space_encrypt(space, page_no, s, d);
   }
   else
   {
-    ut_ad(space->purpose != FIL_TYPE_TEMPORARY);
+    ut_ad(!space->is_temporary());
     /* First we compress the page content */
     buf_tmp_reserve_compression_buf(*slot);
     byte *tmp= (*slot)->comp_buf;
@@ -768,8 +768,7 @@ bool buf_page_t::flush(fil_space_t *space)
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
   ut_ad(in_file());
   ut_ad(in_LRU_list);
-  ut_ad((space->purpose == FIL_TYPE_TEMPORARY) ==
-        (space == fil_system.temp_space));
+  ut_ad((space->is_temporary()) == (space == fil_system.temp_space));
   ut_ad(space->referenced());
 
   const auto s= state();
@@ -779,12 +778,12 @@ bool buf_page_t::flush(fil_space_t *space)
                      (FIL_PAGE_LSN + (zip.data ? zip.data : frame)));
   ut_ad(lsn
         ? lsn >= oldest_modification() || oldest_modification() == 2
-        : space->purpose != FIL_TYPE_TABLESPACE);
+        : (space->is_temporary() || space->is_being_imported()));
 
   if (s < UNFIXED)
   {
     ut_a(s >= FREED);
-    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
+    if (!space->is_temporary() && !space->is_being_imported())
     {
     freed:
       if (lsn > log_sys.get_flushed_lsn())
@@ -800,7 +799,8 @@ bool buf_page_t::flush(fil_space_t *space)
 
   if (UNIV_UNLIKELY(lsn < space->get_create_lsn()))
   {
-    ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
+    ut_ad(!space->is_temporary());
+    ut_ad(!space->is_being_imported());
     goto freed;
   }
 
@@ -884,7 +884,7 @@ bool buf_page_t::flush(fil_space_t *space)
 
   if ((s & LRU_MASK) == REINIT || !space->use_doublewrite())
   {
-    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE) &&
+    if (!space->is_temporary() && !space->is_being_imported() &&
         lsn > log_sys.get_flushed_lsn())
       log_write_up_to(lsn, true);
     space->io(IORequest{type, this, slot}, physical_offset(), size,
@@ -1735,7 +1735,7 @@ done:
   if (acquired)
     space->release();
 
-  if (space->purpose == FIL_TYPE_IMPORT)
+  if (space->is_being_imported())
     os_aio_wait_until_no_pending_writes(true);
   else
     buf_dblwr.flush_buffered_writes();

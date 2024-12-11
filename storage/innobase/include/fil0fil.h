@@ -100,16 +100,6 @@ class page_id_t;
 /** Structure containing encryption specification */
 struct fil_space_crypt_t;
 
-/** File types */
-enum fil_type_t {
-	/** temporary tablespace (temporary undo log or tables) */
-	FIL_TYPE_TEMPORARY,
-	/** a tablespace that is being imported (no logging until finished) */
-	FIL_TYPE_IMPORT,
-	/** persistent tablespace (for system, undo log or tables) */
-	FIL_TYPE_TABLESPACE,
-};
-
 struct fil_node_t;
 
 /** Structure to store first and last value of range */
@@ -344,42 +334,43 @@ struct fil_space_t final
 {
 #ifndef UNIV_INNOCHECKSUM
   friend fil_node_t;
+
+  /** Constructor; see @fil_space_t::create() */
+  inline explicit fil_space_t(uint32_t id, ulint flags, bool being_imported,
+                              fil_space_crypt_t *crypt_data) noexcept;
+
   ~fil_space_t()
   {
     ut_ad(!latch_owner);
     latch.destroy();
   }
 
-	ulint		id;	/*!< space id */
+  /** tablespace identifier */
+  uint32_t id;
 
   /** fil_system.spaces chain node */
-  fil_space_t *hash;
-	lsn_t		max_lsn;
-				/*!< LSN of the most recent
-				fil_names_write_if_was_clean().
-				Reset to 0 by fil_names_clear().
-				Protected by log_sys.mutex.
-				If and only if this is nonzero, the
-				tablespace will be in named_spaces. */
-	fil_type_t	purpose;/*!< purpose */
-	UT_LIST_BASE_NODE_T(fil_node_t) chain;
-				/*!< base node for the file chain */
-	uint32_t	size;	/*!< tablespace file size in pages;
-				0 if not known yet */
-	uint32_t	size_in_header;
-				/* FSP_SIZE in the tablespace header;
-				0 if not known yet */
-	uint32_t	free_len;
-				/*!< length of the FSP_FREE list */
-	uint32_t	free_limit;
-				/*!< contents of FSP_FREE_LIMIT */
-	uint32_t	recv_size;
-				/*!< recovered tablespace size in pages;
-				0 if no size change was read from the redo log,
-				or if the size change was implemented */
-	uint32_t	n_reserved_extents;
-				/*!< number of reserved free extents for
-				ongoing operations like B-tree page split */
+  fil_space_t *hash= nullptr;
+  /** log_sys.get_lsn() of the most recent fil_names_write_if_was_clean().
+  Reset to 0 by fil_names_clear(). Protected by log_sys.mutex.
+  If and only if this is nonzero, the tablespace will be in named_spaces. */
+  lsn_t max_lsn= 0;
+  /** base node for the chain of data files; multiple entries are
+  only possible for is_temporary() or id==0 */
+  UT_LIST_BASE_NODE_T(fil_node_t) chain;
+  /** tablespace size in pages; 0 if not determined yet */
+  uint32_t size= 0;
+  /** FSP_SIZE in the tablespace header; 0 if not determined yet */
+  uint32_t size_in_header= 0;
+  /** length of the FSP_FREE list */
+  uint32_t free_len= 0;
+  /** contents of FSP_FREE_LIMIT */
+  uint32_t free_limit= 0;
+  /** recovered tablespace size in pages; 0 if no size change was read
+  from the redo log, or if the size change was applied */
+  uint32_t recv_size= 0;
+  /** number of reserved free extents for ongoing operations like
+  B-tree page split */
+  uint32_t n_reserved_extents= 0;
 private:
 #ifdef UNIV_DEBUG
   fil_space_t *next_in_space_list();
@@ -390,10 +381,10 @@ private:
 #endif
 
   /** the committed size of the tablespace in pages */
-  Atomic_relaxed<uint32_t> committed_size;
+  Atomic_relaxed<uint32_t> committed_size{0};
   /** Number of pending operations on the file.
   The tablespace cannot be freed while (n_pending & PENDING) != 0. */
-  std::atomic<uint32_t> n_pending;
+  std::atomic<uint32_t> n_pending{CLOSING};
   /** Flag in n_pending that indicates that the tablespace is about to be
   deleted, and no further operations should be performed */
   static constexpr uint32_t STOPPING_READS= 1U << 31;
@@ -415,20 +406,23 @@ private:
   /** latch protecting all page allocation bitmap pages */
   IF_DBUG(srw_lock_debug, srw_lock) latch;
   /** the thread that holds the exclusive latch, or 0 */
-  pthread_t latch_owner;
+  pthread_t latch_owner= 0;
 public:
   /** MariaDB encryption data */
-  fil_space_crypt_t *crypt_data;
+  fil_space_crypt_t *crypt_data= nullptr;
 
   /** Whether needs_flush(), or this is in fil_system.unflushed_spaces */
-  bool is_in_unflushed_spaces;
+  bool is_in_unflushed_spaces= false;
 
   /** Whether this in fil_system.default_encrypt_tables (needs key rotation) */
-  bool is_in_default_encrypt;
+  bool is_in_default_encrypt= false;
 
 private:
+  /** Whether the tablespace is being imported */
+  bool being_imported= false;
+
   /** Whether any corrupton of this tablespace has been reported */
-  mutable std::atomic_flag is_corrupted;
+  mutable std::atomic_flag is_corrupted{false};
 
   /** mutex to protect freed_ranges and last_freed_lsn */
   std::mutex freed_range_mutex;
@@ -437,11 +431,18 @@ private:
   range_set freed_ranges;
 
   /** LSN of freeing last page; protected by freed_range_mutex */
-  lsn_t last_freed_lsn;
+  lsn_t last_freed_lsn= 0;
 
   /** LSN of undo tablespace creation or 0; protected by latch */
-  lsn_t create_lsn;
+  lsn_t create_lsn= 0;
 public:
+  /** @return whether this is the temporary tablespace */
+  bool is_temporary() const noexcept
+  { return UNIV_UNLIKELY(id == SRV_TMP_SPACE_ID); }
+  /** @return whether this tablespace is being imported */
+  bool is_being_imported() const noexcept
+  { return UNIV_UNLIKELY(being_imported); }
+
   /** @return whether doublewrite buffering is needed */
   inline bool use_doublewrite() const;
 
@@ -511,7 +512,7 @@ public:
     MY_ATTRIBUTE((nonnull));
 
   /** Note that the tablespace has been imported.
-  Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
+  Initially, purpose=IMPORT so that no redo log is
   written while the space ID is being updated in each page. */
   inline void set_imported();
 
@@ -946,18 +947,18 @@ public:
 #ifndef UNIV_INNOCHECKSUM
   MY_ATTRIBUTE((warn_unused_result))
   /** Create a tablespace in fil_system.
-  @param id         tablespace identifier
-  @param flags      tablespace flags
-  @param purpose    tablespace purpose
-  @param crypt_data encryption information
-  @param mode       encryption mode
-  @param opened     true if space files are opened
+  @param id              tablespace identifier
+  @param flags           tablespace flags
+  @param being_imported  whether this is IMPORT TABLESPACE
+  @param crypt_data      encryption information
+  @param mode            encryption mode
+  @param opened          whether the tablespace files are open
   @return pointer to created tablespace, to be filled in with add()
   @retval nullptr on failure (such as when the same tablespace exists) */
-  static fil_space_t *create(ulint id, ulint flags,
-                             fil_type_t purpose, fil_space_crypt_t *crypt_data,
+  static fil_space_t *create(uint32_t id, ulint flags, bool being_imported,
+                             fil_space_crypt_t *crypt_data,
                              fil_encryption_t mode= FIL_ENCRYPTION_DEFAULT,
-                             bool opened= false);
+                             bool opened= false) noexcept;
 
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference.
@@ -1079,6 +1080,18 @@ public:
   /** @return the tablespace name (databasename/tablename) */
   name_type name() const;
 
+  /** How to validate tablespace files that are being opened */
+  enum validate {
+    /** the file may be missing */
+    MAYBE_MISSING= 0,
+    /** do not validate */
+    VALIDATE_NOTHING,
+    /** validate the tablespace ID */
+    VALIDATE_SPACE_ID,
+    /** opening a file for ALTER TABLE...IMPORT TABLESPACE */
+    VALIDATE_IMPORT
+  };
+
 private:
   /** @return whether the file is usable for io() */
   ATTRIBUTE_COLD bool prepare_acquired();
@@ -1163,8 +1176,8 @@ inline bool fil_space_t::use_doublewrite() const
 
 inline void fil_space_t::set_imported()
 {
-  ut_ad(purpose == FIL_TYPE_IMPORT);
-  purpose= FIL_TYPE_TABLESPACE;
+  ut_ad(being_imported);
+  being_imported= false;
   UT_LIST_GET_FIRST(chain)->find_metadata();
 }
 
@@ -1478,12 +1491,9 @@ public:
   ulint n_open;
   /** last time we noted n_open exceeding the limit; protected by mutex */
   time_t n_open_exceeded_time;
-	ulint		max_assigned_id;/*!< maximum space id in the existing
-					tables, or assigned during the time
-					mysqld has been up; at an InnoDB
-					startup we scan the data dictionary
-					and set here the maximum of the
-					space id's of the tables there */
+  /** maximum space id in the existing tables; on InnoDB startup this is
+  initialized based on the data dictionary contents */
+  ulint max_assigned_id;
   /** nonzero if fil_node_open_file_low() should avoid moving the tablespace
   to the end of space_list, for FIFO policy of try_to_close() */
   ulint freeze_space_list;
@@ -1588,7 +1598,7 @@ template<bool have_reference> inline void fil_space_t::flush()
 {
   mysql_mutex_assert_not_owner(&fil_system.mutex);
   ut_ad(!have_reference || (pending() & PENDING));
-  ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT);
+  ut_ad(!is_temporary());
   if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
   {
     ut_ad(!is_in_unflushed_spaces);
@@ -1729,7 +1739,7 @@ fil_ibd_create(
 	uint32_t	size,
 	fil_encryption_t mode,
 	uint32_t	key_id,
-	dberr_t*	err)
+	dberr_t*	err) noexcept
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
@@ -1738,43 +1748,28 @@ fil_ibd_create(
 @param[in]	flags		desired tablespace flags */
 void fsp_flags_try_adjust(fil_space_t* space, ulint flags);
 
-/********************************************************************//**
+/**
 Tries to open a single-table tablespace and optionally checks the space id is
 right in it. If does not succeed, prints an error message to the .err log. This
 function is used to open a tablespace when we start up mysqld, and also in
 IMPORT TABLESPACE.
-NOTE that we assume this operation is used either at the database startup
-or under the protection of dict_sys.latch, so that two users cannot
-race here. This operation does not leave the file associated with the
-tablespace open, but closes it after we have looked at the space id in it.
 
-If the validate boolean is set, we read the first page of the file and
-check that the space id in the file is what we expect. We assume that
-this function runs much faster if no check is made, since accessing the
-file inode probably is much faster (the OS caches them) than accessing
-the first page of the file.  This boolean may be initially false, but if
-a remote tablespace is found it will be changed to true.
+NOTE that we assume this operation is used either at the database
+startup or under the protection of MDL, to prevent concurrent access
+to the same tablespace.
 
-@param[in]	validate	0=maybe missing, 1=do not validate, 2=validate
-@param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
-@param[in]	id		tablespace ID
-@param[in]	flags		expected FSP_SPACE_FLAGS
-@param[in]	name		table name
-If file-per-table, it is the table name in the databasename/tablename format
-@param[in]	path_in		expected filepath, usually read from dictionary
-@param[out]	err		DB_SUCCESS or error code
+@param id          tablespace identifier
+@param flags       expected FSP_SPACE_FLAGS
+@param validate    how to validate files
+@param name        the table name in databasename/tablename format
+@param path_in     expected filepath, usually read from dictionary
+@param err         DB_SUCCESS or error code
 @return	tablespace
-@retval	NULL	if the tablespace could not be opened */
-fil_space_t*
-fil_ibd_open(
-	unsigned		validate,
-	fil_type_t		purpose,
-	ulint			id,
-	ulint			flags,
-	fil_space_t::name_type	name,
-	const char*		path_in,
-	dberr_t*		err = NULL)
-	MY_ATTRIBUTE((warn_unused_result));
+@retval	nullptr	if the tablespace could not be opened */
+fil_space_t *fil_ibd_open(ulint id, ulint flags,
+                          fil_space_t::validate validate,
+                          fil_space_t::name_type name,
+                          const char *path_in, dberr_t *err= nullptr) noexcept;
 
 enum fil_load_status {
 	/** The tablespace file(s) were found and valid. */

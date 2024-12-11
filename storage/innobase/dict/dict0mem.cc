@@ -136,9 +136,6 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
                                    ulint n_cols, ulint n_v_cols, ulint flags,
                                    ulint flags2)
 {
-  ut_ad(!space || space->purpose == FIL_TYPE_TABLESPACE ||
-        space->purpose == FIL_TYPE_TEMPORARY ||
-        space->purpose == FIL_TYPE_IMPORT);
   ut_a(dict_tf2_is_valid(flags, flags2));
   ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
 

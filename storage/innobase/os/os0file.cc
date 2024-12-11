@@ -3947,13 +3947,19 @@ void fil_node_t::find_metadata(IF_WIN(,bool create)) noexcept
     punch_hole= 2;
   else
     punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
-  if (space->purpose != FIL_TYPE_TABLESPACE)
+  /* For temporary tablespace or during IMPORT TABLESPACE, we
+  disable neighbour flushing and do not care about atomicity. */
+  if (space->is_temporary())
   {
-    /* For temporary tablespace or during IMPORT TABLESPACE, we
-    disable neighbour flushing and do not care about atomicity. */
     on_ssd= true;
     atomic_write= true;
-    if (space->purpose == FIL_TYPE_TEMPORARY || !space->is_compressed())
+    return;
+  }
+  if (space->is_being_imported())
+  {
+    on_ssd= true;
+    atomic_write= true;
+    if (!space->is_compressed())
       return;
   }
 #ifdef _WIN32
