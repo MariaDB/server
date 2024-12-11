@@ -2948,7 +2948,6 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       if (((longlong)stop_position != stop_position_default) &&
           stop_position > my_b_tell(file))
       {
-          retval = OK_STOP;
           warning("Did not reach stop position %llu before "
                   "end of input", stop_position);
       }
@@ -2960,7 +2959,6 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       if (stop_datetime != MY_TIME_T_MAX &&
           stop_datetime > last_ev_when)
       {
-          retval = OK_STOP;
           warning("Did not reach stop datetime '%s' "
                   "before end of input", stop_datetime_str);
       }
