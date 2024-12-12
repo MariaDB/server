@@ -851,7 +851,7 @@ String *Item_func_json_quote::val_str(String *str)
 
 bool Item_func_json_unquote::fix_length_and_dec(THD *thd)
 {
-  collation.set(&my_charset_utf8mb3_general_ci,
+  collation.set(&my_charset_utf8mb4_bin,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_char_length() * collation.collation->mbmaxlen;
   set_maybe_null();
@@ -894,12 +894,12 @@ String *Item_func_json_unquote::val_str(String *str)
     return js;
 
   str->length(0);
-  str->set_charset(&my_charset_utf8mb3_general_ci);
+  str->set_charset(&my_charset_utf8mb4_bin);
 
   if (str->realloc_with_extra_if_needed(je.value_len) ||
       (c_len= json_unescape(js->charset(),
         je.value, je.value + je.value_len,
-        &my_charset_utf8mb3_general_ci,
+        &my_charset_utf8mb4_bin,
         (uchar *) str->ptr(), (uchar *) (str->ptr() + je.value_len))) < 0)
     goto error;
 
