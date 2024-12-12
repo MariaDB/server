@@ -4123,7 +4123,13 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
                                &my_charset_utf8mb3_general_ci,
                                (uchar *) value2.ptr(),
                                (uchar *) (value2.ptr() + je.value_len))) < 0)
+       {
+         if (current_thd)
+           push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                               ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                               0, "comparison", (int)((const char *) je.s.c_str - js->ptr()));
          goto error;
+       }
 
        value2.length(c_len);
        js= &value2;
@@ -4172,7 +4178,13 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
                               &my_charset_utf8mb3_general_ci,
                               (uchar *) value1.ptr(),
                               (uchar *) (value1.ptr() + value_len))) < 0)
+    {
+      if (current_thd)
+        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                            0, "equality comparison", 0);
       return 1;
+    }
     value1.length(c_len);
     res1= &value1;
   }
