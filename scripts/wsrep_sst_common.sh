@@ -1117,7 +1117,7 @@ get_openssl()
 {
     # If the OPENSSL_BINARY variable is already defined, just return:
     if [ -n "${OPENSSL_BINARY+x}" ]; then
-        return
+        return 0
     fi
     # Let's look for openssl:
     OPENSSL_BINARY=$(commandex 'openssl')
@@ -1863,6 +1863,8 @@ create_dirs()
         cd "$OLD_PWD"
         [ $simplify -ne 0 -a "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
     fi
+
+    return 0
 }
 
 wait_previous_sst()
