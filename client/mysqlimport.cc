@@ -1318,6 +1318,7 @@ int main(int argc, char **argv)
         set_exitcode(error);
     }
   }
+  mysql_close(mysql);
   safe_exit(0, 0);
   return(exitcode);
 }
