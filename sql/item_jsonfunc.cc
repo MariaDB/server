@@ -4120,7 +4120,7 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
        if (value2.realloc_with_extra_if_needed(je.value_len) ||
          (c_len= json_unescape(js->charset(), je.value,
                                je.value + je.value_len,
-                               &my_charset_utf8mb3_general_ci,
+                               &my_charset_utf8mb4_bin,
                                (uchar *) value2.ptr(),
                                (uchar *) (value2.ptr() + je.value_len))) < 0)
        {
@@ -4175,7 +4175,7 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
     if (value1.realloc_with_extra_if_needed(value_len) ||
         (c_len= json_unescape(value1.charset(), (uchar *) value,
                               (uchar *) value+value_len,
-                              &my_charset_utf8mb3_general_ci,
+                              &my_charset_utf8mb4_bin,
                               (uchar *) value1.ptr(),
                               (uchar *) (value1.ptr() + value_len))) < 0)
     {
