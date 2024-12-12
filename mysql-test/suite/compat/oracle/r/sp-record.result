@@ -505,7 +505,7 @@ BEGIN
 UPDATE t1 SET ROW = dept_rec WHERE dept_id = 12;
 END;
 $$
-ERROR 42S22: Unknown column 'ROW' in 'field list'
+ERROR 42S22: Unknown column 'ROW' in 'SET'
 DROP TABLE t1;
 #
 # Wrong parameter count to RECORD's constructor (actual < expected)

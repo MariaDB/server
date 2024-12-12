@@ -556,6 +556,6 @@ ERROR HY000: Incorrect arguments to st_simplify
 SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,0 10,10 10,10 0,0 0,0 0,0 0,0 0))'), 'a'));
 ERROR HY000: Incorrect arguments to st_simplify
 SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,0 10,10 10,10 0,0 0,0 0,0 0,0 0))'), a));
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 # Clean up
 DROP TABLE gis_geometrycollection;
