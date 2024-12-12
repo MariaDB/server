@@ -134,11 +134,6 @@ int vio_getnameinfo(const struct sockaddr *sa,
                     int flags);
 
 #ifdef HAVE_OPENSSL
-/* apple deprecated openssl in MacOSX Lion */
-#ifdef __APPLE__
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
 #define HEADER_DES_LOCL_H dummy_something
 #define YASSL_MYSQL_COMPATIBLE
 #ifndef YASSL_PREFIX

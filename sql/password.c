@@ -117,12 +117,14 @@ void hash_password(ulong *result, const char *password, uint password_len)
     pass_len  IN  length of password string
 */
 
-void my_make_scrambled_password_323(char *to, const char *password,
+void my_make_scrambled_password_323(char *to,
+                                    size_t buf_capacity,
+                                    const char *password,
                                     size_t pass_len)
 {
   ulong hash_res[2];
   hash_password(hash_res, password, (uint) pass_len);
-  sprintf(to, "%08lx%08lx", hash_res[0], hash_res[1]);
+  snprintf(to, buf_capacity, "%08lx%08lx", hash_res[0], hash_res[1]);
 }
 
 
@@ -137,9 +139,10 @@ void my_make_scrambled_password_323(char *to, const char *password,
     password  IN  NULL-terminated string with user-supplied password
 */
 
-void make_scrambled_password_323(char *to, const char *password)
+void make_scrambled_password_323(char *to, size_t buf_capacity,
+                                 const char *password)
 {
-  my_make_scrambled_password_323(to, password, strlen(password));
+  my_make_scrambled_password_323(to, buf_capacity, password, strlen(password));
 }
 
 
@@ -257,20 +260,6 @@ void get_salt_from_password_323(ulong *res, const char *password)
       *res++=val;
     }
   }
-}
-
-
-/*
-    Convert scrambled password from binary form to asciiz hex string.
-  SYNOPSIS
-    make_password_from_salt_323()
-    to    OUT store resulting string password here, at least 17 bytes 
-    salt  IN  password in salt format, 2 ulongs 
-*/
-
-void make_password_from_salt_323(char *to, const ulong *salt)
-{
-  sprintf(to,"%08lx%08lx", salt[0], salt[1]);
 }
 
 

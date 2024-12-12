@@ -39,7 +39,9 @@ extern "C" unsigned crc32c_sse42(unsigned crc, const void* buf, size_t size);
 
 constexpr uint32_t cpuid_ecx_SSE42= 1U << 20;
 constexpr uint32_t cpuid_ecx_SSE42_AND_PCLMUL= cpuid_ecx_SSE42 | 1U << 1;
+#ifdef USE_VPCLMULQDQ
 constexpr uint32_t cpuid_ecx_AVX_AND_XSAVE= 1U << 28 | 1U << 27;
+#endif
 
 static uint32_t cpuid_ecx()
 {

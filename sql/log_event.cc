@@ -1409,7 +1409,7 @@ code_name(int code)
   case Q_MASTER_DATA_WRITTEN_CODE: return "Q_MASTER_DATA_WRITTEN_CODE";
   case Q_HRNOW: return "Q_HRNOW";
   }
-  sprintf(buf, "CODE#%d", code);
+  snprintf(buf, sizeof(buf), "CODE#%d", code);
   return buf;
 }
 #endif
