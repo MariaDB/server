@@ -74,7 +74,8 @@ static bool eq_ascii_string(const CHARSET_INFO *cs,
 }
 
 
-static bool append_simple(String *s, const char *a, size_t a_len)
+static bool __attribute__((warn_unused_result))
+append_simple(String *s, const char *a, size_t a_len)
 {
   if (!s->realloc_with_extra_if_needed(s->length() + a_len))
   {
@@ -86,7 +87,8 @@ static bool append_simple(String *s, const char *a, size_t a_len)
 }
 
 
-static inline bool append_simple(String *s, const uchar *a, size_t a_len)
+static inline bool __attribute__((warn_unused_result))
+append_simple(String *s, const uchar *a, size_t a_len)
 {
   return append_simple(s, (const char *) a, a_len);
 }
@@ -300,8 +302,10 @@ static int json_nice(json_engine_t *je, String *nice_js,
 
   nice_js->length(0);
   nice_js->set_charset(je->s.cs);
-  nice_js->alloc(je->s.str_end - je->s.c_str + 32);
 
+  if (nice_js->alloc(je->s.str_end - je->s.c_str + 32))
+    goto error;
+  
   DBUG_ASSERT(mode != Item_func_json_format::DETAILED ||
               (tab_size >= 0 && tab_size <= TAB_SIZE_LIMIT));
 
@@ -347,7 +351,8 @@ static int json_nice(json_engine_t *je, String *nice_js,
           goto error;
 
         nice_js->append('"');
-        append_simple(nice_js, key_start, key_end - key_start);
+        if (append_simple(nice_js, key_start, key_end - key_start))
+          goto error;
         nice_js->append(colon, colon_len);
       }
       /* now we have key value to handle, so no 'break'. */
@@ -2248,24 +2253,67 @@ String *Item_func_json_array_insert::val_str(String *str)
     str->set_charset(js->charset());
     if (item_pos)
     {
-      if (append_simple(str, js->ptr(), item_pos - js->ptr()) ||
-          (n_item > 0  && str->append(" ", 1)) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
-          str->append(",", 1) ||
-          (n_item == 0  && str->append(" ", 1)) ||
-          append_simple(str, item_pos, js->end() - item_pos))
+      my_ptrdiff_t size= item_pos - js->ptr();
+      if (append_simple(str, js->ptr(), size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
         goto return_null; /* Out of memory. */
+      }
+      if (n_item > 0 && str->append(" ", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), 1);
+        goto return_null; /* Out of memory. */
+      }
+      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
+        goto return_null; /* Out of memory. */
+      }
+      if (str->append(",", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), 1);
+        goto return_null; /* Out of memory. */
+      }
+      if (n_item == 0 && str->append(" ", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), 1);
+        goto return_null; /* Out of memory. */
+      }
+      size= js->end() - item_pos;
+      if (append_simple(str, item_pos, size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
+        goto return_null; /* Out of memory. */
+      }
     }
     else
     {
+      my_ptrdiff_t size;
       /* Insert position wasn't found - append to the array. */
       DBUG_ASSERT(je.state == JST_ARRAY_END);
       item_pos= (const char *) (je.s.c_str - je.sav_c_len);
-      if (append_simple(str, js->ptr(), item_pos - js->ptr()) ||
-          (n_item > 0  && str->append(", ", 2)) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
-          append_simple(str, item_pos, js->end() - item_pos))
+      size= item_pos - js->ptr();
+      if (append_simple(str, js->ptr(), size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
         goto return_null; /* Out of memory. */
+      }
+      if (n_item > 0 && str->append(", ", 2))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), 2);
+        goto return_null; /* Out of memory. */
+      }
+      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
+        goto return_null; /* Out of memory. */
+      }
+      size= js->end() - item_pos;
+      if (append_simple(str, item_pos, size))
+      {
+         my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
+         goto return_null; /* Out of memory. */
+      }
     }
 
     {
@@ -4117,8 +4165,12 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
        goto error;
      if (je.value_type == JSON_VALUE_STRING)
      {
-       if (value2.realloc_with_extra_if_needed(je.value_len) ||
-         (c_len= json_unescape(js->charset(), je.value,
+       if (value2.realloc_with_extra_if_needed(je.value_len))
+       {
+         my_error(ER_OUTOFMEMORY, MYF(0), je.value_len);
+         goto error;
+       }
+       if ((c_len= json_unescape(js->charset(), je.value,
                                je.value + je.value_len,
                                &my_charset_utf8mb4_bin,
                                (uchar *) value2.ptr(),
@@ -4172,8 +4224,12 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 
   if (type == JSON_VALUE_STRING)
   {
-    if (value1.realloc_with_extra_if_needed(value_len) ||
-        (c_len= json_unescape(value1.charset(), (uchar *) value,
+    if (value1.realloc_with_extra_if_needed(value_len))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), value_len);
+      return 1;
+    }
+    if ((c_len= json_unescape(value1.charset(), (uchar *) value,
                               (uchar *) value+value_len,
                               &my_charset_utf8mb4_bin,
                               (uchar *) value1.ptr(),
