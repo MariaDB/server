@@ -439,17 +439,30 @@ get_transfer()
 get_footprint()
 {
     cd "$DATA_DIR"
-    local payload_data=$(find $findopt . \
-        -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
-        -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
-        awk 'END { print $1 }')
+    local payload_data
+    if [ "$OS" = 'Linux' ]; then
+        payload_data=$(find $findopt . \
+            -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
+            -type f -print0 | du --files0-from=- --bytes -c -s | \
+            awk 'END { print $1 }')
+    else
+        payload_data=$(find $findopt . \
+            -regex '.*undo[0-9]+$|.*\.ibd$|.*\.MYI$\.*\.MYD$|.*ibdata1$' \
+            -type f -print0 | xargs -0 stat -f '%z' | \
+            awk '{ sum += $1 } END { print sum }')
+    fi
     local payload_undo=0
     if [ -n "$ib_undo_dir" -a "$ib_undo_dir" != '.' -a \
          "$ib_undo_dir" != "$DATA_DIR" -a -d "$ib_undo_dir" ]
     then
         cd "$ib_undo_dir"
-        payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
-            du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
+        if [ "$OS" = 'Linux' ]; then
+            payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+                du --files0-from=- --bytes -c -s | awk 'END { print $1 }')
+        else
+            payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+                xargs -0 stat -f '%z' | awk '{ sum += $1 } END { print sum }')
+        fi
     fi
     cd "$OLD_PWD"
 
