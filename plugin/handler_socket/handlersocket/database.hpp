@@ -9,6 +9,11 @@
 #ifndef DENA_DATABASE_HPP
 #define DENA_DATABASE_HPP
 
+#ifdef __GNUC__
+/* auto_ptr is deprecated */
+# pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 #include <string>
 #include <memory>
 #include <vector>
