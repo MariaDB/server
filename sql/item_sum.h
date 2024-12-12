@@ -2184,6 +2184,8 @@ class Item_func_collect : public Item_sum_str
 
   bool fix_fields_impl(THD *,Item **) override
   {
+    if (arg_count)
+      memcpy (orig_args, args, sizeof (Item *) * arg_count);
     return FALSE;
   }
 
