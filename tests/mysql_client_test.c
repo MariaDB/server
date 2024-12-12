@@ -22506,6 +22506,129 @@ static void  test_mdev_34718_ad()
   rc= mysql_query(mysql, "DROP TABLE t1, t2");
   myquery(rc);
 }
+
+/* Test case for bulk INSERT in presence of AFTER INSERT trigger */
+static void test_mdev_34958()
+{
+  int        rc;
+  MYSQL_STMT *stmt_insert;
+  MYSQL_BIND bind[2];
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  my_ulonglong row_count;
+  unsigned int vals[] = { 1, 2, 3};
+  unsigned int vals_array_len = 3;
+  const char *insert_stmt= "INSERT INTO t1 VALUES (?)";
+
+  /* Set up test's environment */
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_ai AFTER INSERT ON t1 "
+                  "FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);");
+
+  stmt_insert = mysql_stmt_init(mysql);
+  if (!stmt_insert)
+  {
+    fprintf(stderr, "mysql_stmt_init failed: Error: %s\n",
+            mysql_error(mysql));
+    exit(1);
+  }
+
+  rc= mysql_stmt_prepare(stmt_insert, insert_stmt, strlen(insert_stmt));
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_prepare failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+
+  memset(&bind[0], 0, sizeof(MYSQL_BIND));
+
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= vals;
+
+  rc= mysql_stmt_attr_set(stmt_insert, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_prepare failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+
+  rc= mysql_stmt_bind_param(stmt_insert, bind);
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_bind_param failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+
+  rc= mysql_stmt_execute(stmt_insert);
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_execute failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+
+  /*
+    It's expected that the INSERT statement adds three rows into
+    the table t1
+  */
+  row_count = mysql_stmt_affected_rows(stmt_insert);
+  if (row_count != 3)
+  {
+    fprintf(stderr, "Wrong number of affected rows (%llu), expected 3\n",
+            row_count);
+    exit(1);
+  }
+
+  /*
+   * Check that the AFTER INSERT trigger of the table t1 does work correct
+   * and inserted the rows (1), (2), (3) into the table t2.
+   */
+  rc= mysql_query(mysql, "SELECT 't1' tname, a FROM t1 "
+                  "UNION SELECT 't2' tname, a FROM t2 ORDER BY tname, a");
+  if (rc)
+  {
+    fprintf(stderr, "Query failed: %s\n", mysql_error(mysql));
+  }
+
+  result= mysql_store_result(mysql);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 1);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 2);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 3);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 1);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 2);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 3);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt_insert);
+
+  /* Clean up */
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
 #endif // EMBEDDED_LIBRARY
 
 /*
@@ -22991,6 +23114,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34718_au", test_mdev_34718_au },
   { "test_mdev_34718_bd", test_mdev_34718_bd },
   { "test_mdev_34718_ad", test_mdev_34718_ad },
+  { "test_mdev_34958", test_mdev_34958 },
 #endif
   { 0, 0 }
 };
