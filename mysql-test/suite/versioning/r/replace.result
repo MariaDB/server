@@ -61,3 +61,14 @@ connection con1;
 replace into t1 values (1),(2);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 drop table t1;
+#
+# MDEV-15330 Server crash or assertion `table->insert_values' failure in write_record upon LOAD DATA
+#
+create table t1 (a int, b int, c int, vc int as (c), unique(a), unique(b)) with system versioning;
+insert ignore into t1 (a,b,c) values (1,2,3);
+select a, b, c into outfile '15330.data' from t1;
+load data infile '15330.data' ignore into table t1 (a,b,c);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'a'
+load data infile '15330.data' replace into table t1 (a,b,c);
+drop table t1;

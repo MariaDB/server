@@ -1853,10 +1853,10 @@ int spider_db_mbase::init()
 {
   DBUG_ENTER("spider_db_mbase::init");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (
-    my_hash_init(PSI_INSTRUMENT_ME, &lock_table_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-      (my_hash_get_key) spider_link_get_key, 0, 0)
-  ) {
+  if (my_hash_init(PSI_INSTRUMENT_ME, &lock_table_hash,
+                   spd_charset_utf8mb3_bin, 32, 0, 0, spider_link_get_key, 0,
+                   0))
+  {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
   spider_alloc_calc_mem_init(lock_table_hash, SPD_MID_DB_MBASE_INIT_1);
@@ -2042,7 +2042,7 @@ int spider_db_mbase::connect(
         DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
       }
       connect_retry_count--;
-      my_sleep((ulong) connect_retry_interval);
+      my_sleep((ulong) connect_retry_interval * 1000);
     } else {
       db_conn->net.thd = NULL;
       if (connect_mutex)
@@ -2315,7 +2315,7 @@ int spider_db_mbase::fetch_and_print_warnings(struct tm *l_time)
       longlong res_num =
         (longlong) my_strtoll10(row[1], (char**) NULL, &error_num);
       DBUG_PRINT("info",("spider res_num=%lld", res_num));
-      my_printf_error((int) res_num, row[2], MYF(0));
+      my_printf_error((int) res_num, "%s", MYF(0), row[2]);
       error_num = (int) res_num;
       row = mysql_fetch_row(res);
     }
@@ -14066,6 +14066,11 @@ int spider_mbase_handler::append_group_by_part(
   DBUG_RETURN(error_num);
 }
 
+/*
+  Append the GROUP BY part.
+
+  Only used by the group by handler for query construction.
+*/
 int spider_mbase_handler::append_group_by(
   ORDER *order,
   spider_string *str,
@@ -14084,6 +14089,13 @@ int spider_mbase_handler::append_group_by(
     str->q_append(SPIDER_SQL_GROUP_STR, SPIDER_SQL_GROUP_LEN);
     for (; order; order = order->next)
     {
+      /*
+        This is not expected to happen, as NULL check was performed
+        at the creation of the group by handler, and any NULL item_ptr
+        would have resulted in the gbh not being created.
+      */
+      if (!order->item_ptr)
+        DBUG_RETURN(ER_INTERNAL_ERROR);
       if ((error_num = spider_db_print_item_type(order->item_ptr, NULL, spider,
         str, alias, alias_length, dbton_id, use_fields, fields)))
       {
@@ -14123,6 +14135,11 @@ int spider_mbase_handler::append_order_by_part(
   DBUG_RETURN(error_num);
 }
 
+/*
+  Append the ORDER BY part.
+
+  Only used by the group by handler for query construction.
+*/
 int spider_mbase_handler::append_order_by(
   ORDER *order,
   spider_string *str,
@@ -14141,6 +14158,13 @@ int spider_mbase_handler::append_order_by(
     str->q_append(SPIDER_SQL_ORDER_STR, SPIDER_SQL_ORDER_LEN);
     for (; order; order = order->next)
     {
+      /*
+        This is not expected to happen, as NULL check was performed
+        at the creation of the group by handler, and any NULL item_ptr
+        would have resulted in the gbh not being created.
+      */
+      if (!order->item_ptr)
+        DBUG_RETURN(ER_INTERNAL_ERROR);
       if ((error_num = spider_db_print_item_type(order->item_ptr, NULL, spider,
         str, alias, alias_length, dbton_id, use_fields, fields)))
       {

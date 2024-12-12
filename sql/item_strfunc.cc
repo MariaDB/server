@@ -1773,11 +1773,11 @@ bool Item_func_substr::fix_length_and_dec()
   }
   if (arg_count == 3 && args[2]->const_item())
   {
-    int32 length= (int32) args[2]->val_int();
-    if (args[2]->null_value || length <= 0)
+    longlong length= args[2]->val_int();
+    if (args[2]->null_value || (length <= 0 && !args[2]->unsigned_flag))
       max_length=0; /* purecov: inspected */
-    else
-      set_if_smaller(max_length,(uint) length);
+    else if (length < UINT32_MAX)
+      set_if_smaller(max_length, (uint32) length);
   }
   max_length*= collation.collation->mbmaxlen;
   return FALSE;
@@ -4231,9 +4231,9 @@ longlong Item_func_uncompressed_length::val_int()
   if (res->length() <= 4)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_ZLIB_Z_DATA_ERROR,
-                        ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_ZLIB_Z_DATA_ERROR,
+                 ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
     null_value= 1;
     return 0;
   }
@@ -4350,7 +4350,7 @@ String *Item_func_uncompress::val_str(String *str)
   if (res->length() <= 4)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_ZLIB_Z_DATA_ERROR,
 			ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
     goto err;

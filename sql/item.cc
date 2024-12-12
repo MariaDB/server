@@ -163,20 +163,24 @@ longlong Item::val_time_packed_result(THD *thd)
 String *Item::val_str_ascii(String *str)
 {
   DBUG_ASSERT(str != &str_value);
-  
-  uint errors;
-  String *res= val_str(&str_value);
+
+  if (!(collation.collation->state & MY_CS_NONASCII))
+    return val_str(str);
+
+  /*
+    We cannot use str_value as a buffer here,
+    because val_str() can use it. Let's have a local buffer.
+  */
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
+  String *res= val_str(&tmp);
+
   if (!res)
     return 0;
-  
-  if (!(res->charset()->state & MY_CS_NONASCII))
-    str= res;
-  else
-  {
-    if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
-                               &my_charset_latin1, &errors)))
-      return 0;
-  }
+
+  uint errors;
+  if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
+                             &my_charset_latin1, &errors)))
+    return 0;
 
   return str;
 }
@@ -4422,6 +4426,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     if (item->null_value)
     {
       set_null();
+      set_handler(&type_handler_null);
       DBUG_RETURN(false);
     }
     else
@@ -4439,7 +4444,10 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     DBUG_RETURN(set_value(thd, item, &tmp, h));
   }
   else
+  {
     set_null();
+    set_handler(&type_handler_null);
+  }
 
   DBUG_RETURN(0);
 }
@@ -4959,7 +4967,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 }
 
 
-void Item_param::set_default()
+void Item_param::set_default(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
   state= DEFAULT_VALUE;
@@ -4972,13 +4980,17 @@ void Item_param::set_default()
     can misbehave (e.g. crash on asserts).
   */
   null_value= true;
+  if (set_type_handler_null)
+    set_handler(&type_handler_null);
 }
 
-void Item_param::set_ignore()
+void Item_param::set_ignore(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
   state= IGNORE_VALUE;
   null_value= true;
+  if (set_type_handler_null)
+    set_handler(&type_handler_null);
 }
 
 /**
@@ -7871,6 +7883,7 @@ static
 Item *find_producing_item(Item *item, st_select_lex *sel)
 {
   DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+              item->type() == Item::TRIGGER_FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
   Item_field *field_item= NULL;
@@ -9658,7 +9671,8 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
 
 void Item_default_value::cleanup()
 {
-  delete field;                        // Free cached blob data
+  if (!m_share_field)
+    delete field;                      // Free cached blob data
   Item_field::cleanup();
 }
 

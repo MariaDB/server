@@ -4024,8 +4024,6 @@ static int innodb_init(void* p)
 			    test_filename));
 #endif /* DBUG_OFF */
 
-	os_file_set_umask(my_umask);
-
 	/* Setup the memory alloc/free tracing mechanisms before calling
 	any functions that could possibly allocate memory. */
 	ut_new_boot();
@@ -5590,15 +5588,15 @@ innobase_build_v_templ(
 }
 
 /** Check consistency between .frm indexes and InnoDB indexes.
-@param[in]	table	table object formed from .frm
 @param[in]	ib_table	InnoDB table definition
 @retval	true if not errors were found */
-static bool
-check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
+bool
+ha_innobase::check_index_consistency(const dict_table_t* ib_table) noexcept
 {
 	ulint mysql_num_index = table->s->keys;
 	ulint ib_num_index = UT_LIST_GET_LEN(ib_table->indexes);
 	bool ret = true;
+	ulint last_unique = 0;
 
 	/* If there exists inconsistency between MySQL and InnoDB dictionary
 	(metadata) information, the number of index defined in MySQL
@@ -5633,8 +5631,21 @@ check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
 			ret = false;
 			goto func_exit;
 		}
-	}
 
+		if (index->is_unique()) {
+			ulint i = 0;
+			while ((index = UT_LIST_GET_PREV(indexes, index))) i++;
+			/* Check if any unique index in InnoDB
+			dictionary are re-ordered compared to
+			the index in .frm */
+			if (last_unique > i) {
+				m_int_table_flags
+					|= HA_DUPLICATE_KEY_NOT_IN_ORDER;
+			}
+
+			last_unique = i;
+		}
+	}
 func_exit:
 	return ret;
 }
@@ -5874,7 +5885,7 @@ ha_innobase::open(const char* name, int, uint)
 		mutex_exit(&dict_sys.mutex);
 	}
 
-	if (!check_index_consistency(table, ib_table)) {
+	if (!check_index_consistency(ib_table)) {
 		sql_print_error("InnoDB indexes are inconsistent with what "
 				"defined in .frm for table %s",
 				name);
@@ -11330,7 +11341,7 @@ create_table_info_t::check_table_options()
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %lu."
+				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %llu."
 				" Valid values are [1, 2, 3, 4, 5, 6, 7, 8, 9]",
 				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
@@ -21537,7 +21548,7 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	if (trx && trx->mysql_thd) {
 		THD* thd = (THD*)trx->mysql_thd;
 
-		push_warning_printf(
+		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
 	}

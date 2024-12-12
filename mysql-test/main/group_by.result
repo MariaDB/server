@@ -2987,3 +2987,15 @@ drop table t20, t21, t22;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-29351 SIGSEGV when doing forward reference of item in select list
+#
+CREATE TABLE t1 (a INT);
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+ERROR 42S22: Reference 'c' not supported (forward reference in item list)
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+ERROR 42S22: Reference 'c' not supported (forward reference in item list)
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

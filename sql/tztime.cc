@@ -1498,21 +1498,20 @@ public:
   they should obey C calling conventions.
 */
 
-extern "C" uchar *
-my_tz_names_get_key(Tz_names_entry *entry, size_t *length,
-                    my_bool not_used __attribute__((unused)))
+static const uchar *my_tz_names_get_key(const void *entry_, size_t *length,
+                                            my_bool)
 {
+  auto entry= static_cast<const Tz_names_entry *>(entry_);
   *length= entry->name.length();
-  return (uchar*) entry->name.ptr();
+  return reinterpret_cast<const uchar *>(entry->name.ptr());
 }
 
-extern "C" uchar *
-my_offset_tzs_get_key(Time_zone_offset *entry,
-                      size_t *length,
-                      my_bool not_used __attribute__((unused)))
+static const uchar *my_offset_tzs_get_key(const void *entry_,
+                                             size_t *length, my_bool)
 {
+  auto entry= static_cast<const Time_zone_offset *>(entry_);
   *length= sizeof(long);
-  return (uchar*) &entry->offset;
+  return reinterpret_cast<const uchar *>(&entry->offset);
 }
 
 
@@ -1621,18 +1620,18 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   */
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);
-  thd->thread_stack= (char*) &thd;
+  thd->thread_stack= (void*) &thd;              // Big stack
   thd->store_globals();
 
   /* Init all memory structures that require explicit destruction */
   if (my_hash_init(key_memory_tz_storage, &tz_names, &my_charset_latin1, 20, 0,
-                   0, (my_hash_get_key) my_tz_names_get_key, 0, 0))
+                   0, my_tz_names_get_key, 0, 0))
   {
     sql_print_error("Fatal error: OOM while initializing time zones");
     goto end;
   }
   if (my_hash_init(key_memory_tz_storage, &offset_tzs, &my_charset_latin1, 26,
-                   0, 0, (my_hash_get_key)my_offset_tzs_get_key, 0, 0))
+                   0, 0, my_offset_tzs_get_key, 0, 0))
   {
     sql_print_error("Fatal error: OOM while initializing time zones");
     my_hash_free(&tz_names);

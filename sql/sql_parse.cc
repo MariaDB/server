@@ -996,7 +996,6 @@ int bootstrap(MYSQL_FILE *file)
 #endif
 
   /* The following must be called before DBUG_ENTER */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   thd->security_ctx->user= (char*) my_strdup(key_memory_MPVIO_EXT_auth_info,
@@ -1166,7 +1165,8 @@ static bool wsrep_command_no_result(char command)
 {
   return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
-          command == COM_STMT_CLOSE);
+          command == COM_STMT_CLOSE            ||
+          command == COM_STMT_PREPARE);
 }
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
@@ -2439,6 +2439,10 @@ dispatch_end:
     if (thd->killed == KILL_QUERY)
     {
       WSREP_DEBUG("THD is killed at dispatch_end");
+    }
+    if (thd->lex->sql_command != SQLCOM_SET_OPTION)
+    {
+      DEBUG_SYNC(thd, "wsrep_at_dispatch_end_before_result");
     }
     wsrep_after_command_before_result(thd);
     if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
@@ -7630,7 +7634,9 @@ check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 #ifndef __SANITIZE_ADDRESS__
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
-  if ((stack_used= available_stack_size(thd->thread_stack, &stack_used)) >=
+  DBUG_ASSERT(thd->thread_stack);
+  if ((stack_used= available_stack_size(thd->thread_stack,
+                                        my_get_stack_pointer(&stack_used))) >=
       (long) (my_thread_stack_size - margin))
   {
     thd->is_fatal_error= 1;

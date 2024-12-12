@@ -1686,7 +1686,6 @@ void execute_ddl_log_recovery()
   */
   if (!(thd=new THD(0)))
     DBUG_VOID_RETURN;
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   thd->set_query(recover_query_string, strlen(recover_query_string));
@@ -2958,8 +2957,10 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   PRIMARY keys are prioritized.
 */
 
-static int sort_keys(KEY *a, KEY *b)
+static int sort_keys(const void *a_, const void *b_)
 {
+  const KEY *a= static_cast<const KEY *>(a_);
+  const KEY *b= static_cast<const KEY *>(b_);
   ulong a_flags= a->flags, b_flags= b->flags;
   
   /*
@@ -3768,7 +3769,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->offset= record_offset;
     if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
       auto_increment++;
-    if (parse_option_list(thd, create_info->db_type, &sql_field->option_struct,
+    extend_option_list(thd, create_info->db_type, !sql_field->field,
+                       &sql_field->option_list,
+                       create_info->db_type->field_options);
+    if (parse_option_list(thd, &sql_field->option_struct,
                           &sql_field->option_list,
                           create_info->db_type->field_options, FALSE,
                           thd->mem_root))
@@ -4035,7 +4039,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
     key_info->option_list= key->option_list;
-    if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
+    extend_option_list(thd, create_info->db_type, !key->old,
+                  &key_info->option_list, create_info->db_type->index_options);
+    if (parse_option_list(thd, &key_info->option_struct,
                           &key_info->option_list,
                           create_info->db_type->index_options, FALSE,
                           thd->mem_root))
@@ -4625,10 +4631,12 @@ without_overlaps_err:
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_OPTION,
                         ER_THD(thd, ER_UNKNOWN_OPTION), "transactional");
 
-  if (parse_option_list(thd, file->partition_ht(), &create_info->option_struct,
-                          &create_info->option_list,
-                          file->partition_ht()->table_options, FALSE,
-                          thd->mem_root))
+  extend_option_list(thd, file->partition_ht(),
+              !thd->lex->create_like() && create_table_mode > C_ALTER_TABLE,
+              &create_info->option_list, file->partition_ht()->table_options);
+  if (parse_option_list(thd, &create_info->option_struct,
+                    &create_info->option_list,
+                    file->partition_ht()->table_options, FALSE, thd->mem_root))
       DBUG_RETURN(TRUE);
 
   DBUG_EXECUTE_IF("key",
@@ -7137,8 +7145,10 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
 }
 
 
-static int compare_uint(const uint *s, const uint *t)
+static int compare_uint(const void *s_, const void *t_)
 {
+  const uint *s= static_cast<const uint *>(s_);
+  const uint *t= static_cast<const uint *>(t_);
   return (*s < *t) ? -1 : ((*s > *t) ? 1 : 0);
 }
 
@@ -12295,8 +12305,7 @@ bool check_engine(THD *thd, const char *db_name,
   {
     if (no_substitution)
     {
-      const char *engine_name= ha_resolve_storage_engine_name(req_engine);
-      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
     *new_engine= enf_engine;

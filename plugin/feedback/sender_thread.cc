@@ -290,7 +290,6 @@ pthread_handler_t background_thread(void *arg __attribute__((unused)))
   }
 
   my_thread_end();
-  pthread_exit(0);
   return 0;
 }
 

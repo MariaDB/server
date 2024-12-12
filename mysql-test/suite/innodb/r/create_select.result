@@ -8,3 +8,13 @@ connection default;
 ERROR 70100: Query execution was interrupted
 CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB;
 DROP TABLE t1;
+# End of 10.2 tests
+#
+# MDEV-35236 Assertion `(mem_root->flags & 4) == 0' failed in safe_lexcstrdup_root
+#
+prepare stmt from 'create or replace table t engine=innodb select 1 as f';
+set innodb_compression_default=on;
+execute stmt;
+execute stmt;
+drop table t;
+# End of 10.5 tests

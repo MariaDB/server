@@ -2051,5 +2051,16 @@ DROP TABLE t1, t2;
 SET sql_mode=DEFAULT;
 
 --echo #
+--echo # MDEV-25174 DOUBLE columns do not accept large hex hybrids
+--echo #
+
+CREATE TABLE t1 (a DECIMAL(30,0));
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+INSERT INTO t1 VALUES (0x8000000000000000);
+INSERT INTO t1 VALUES (0xFFFFFFFFFFFFFFFF);
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

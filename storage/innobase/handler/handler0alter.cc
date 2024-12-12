@@ -6293,6 +6293,7 @@ prepare_inplace_alter_table_dict(
 	dberr_t			error;
 	ulint			num_fts_index;
 	dict_add_v_col_t*	add_v = NULL;
+	bool			fts_instance_created = false;
 	ha_innobase_inplace_ctx*ctx;
 
 	DBUG_ENTER("prepare_inplace_alter_table_dict");
@@ -6539,6 +6540,7 @@ new_clustered_failed:
 			new_table_name, NULL, n_cols + n_v_cols, n_v_cols,
 			flags, flags2);
 
+		fts_instance_created = (ctx->new_table->fts != nullptr);
 		/* The rebuilt indexed_table will use the renamed
 		column names. */
 		ctx->col_names = NULL;
@@ -6732,6 +6734,7 @@ wrong_column_name:
 			ctx->new_table->fts = fts_create(
 				ctx->new_table);
 			ctx->new_table->fts->doc_col = fts_doc_id_col;
+			fts_instance_created = true;
 		}
 
 		/* Check if we need to update mtypes of legacy GIS columns.
@@ -7228,8 +7231,11 @@ op_ok:
 		ctx->trx->commit();
 		trx_start_for_ddl(ctx->trx, op);
 
-		if (!ctx->new_table->fts
-		    || ib_vector_size(ctx->new_table->fts->indexes) == 0) {
+		/* If table rebuild happens or fulltext index are
+		being added when common tables doesn't exist then
+		do create new fulltext common tables else use the
+		existing fulltext common tables */
+		if (fts_instance_created) {
 			error = fts_create_common_tables(
 				ctx->trx, ctx->new_table, true);
 
@@ -7240,6 +7246,9 @@ op_ok:
 			if (error != DB_SUCCESS) {
 				goto error_handling;
 			}
+		}
+
+		if (!ib_vector_size(ctx->new_table->fts->indexes)) {
 
 			ctx->new_table->fts->dict_locked = true;
 

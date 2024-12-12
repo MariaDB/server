@@ -1330,7 +1330,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, size_t query_length,
                     user_host_buff);
 
     DBUG_ASSERT(thd->start_utime);
-    DBUG_ASSERT(thd->start_time);
+    DBUG_ASSERT(thd->start_time || thd->start_time_sec_part);
     query_utime= (current_utime - thd->start_utime);
     lock_utime=  (thd->utime_after_lock - thd->start_utime);
     my_hrtime_t current_time= { hrtime_from_time(thd->start_time) +
@@ -10461,7 +10461,6 @@ binlog_background_thread(void *arg __attribute__((unused)))
 
   thd= new THD(next_thread_id());
   thd->system_thread= SYSTEM_THREAD_BINLOG_BACKGROUND;
-  thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);

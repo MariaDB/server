@@ -89,15 +89,17 @@ const char * const THD::DEFAULT_WHERE= "field list";
 ** User variables
 ****************************************************************************/
 
-extern "C" uchar *get_var_key(user_var_entry *entry, size_t *length,
-                              my_bool not_used __attribute__((unused)))
+extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
+                                    my_bool)
 {
+  auto entry= static_cast<const user_var_entry *>(entry_);
   *length= entry->name.length;
-  return (uchar*) entry->name.str;
+  return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
-extern "C" void free_user_var(user_var_entry *entry)
+extern "C" void free_user_var(void *entry_)
 {
+  user_var_entry *entry= static_cast<user_var_entry *>(entry_);
   char *pos= (char*) entry+ALIGN_SIZE(sizeof(*entry));
   if (entry->value && entry->value != pos)
     my_free(entry->value);
@@ -106,18 +108,17 @@ extern "C" void free_user_var(user_var_entry *entry)
 
 /* Functions for last-value-from-sequence hash */
 
-extern "C" uchar *get_sequence_last_key(SEQUENCE_LAST_VALUE *entry,
-                                        size_t *length,
-                                        my_bool not_used
-                                        __attribute__((unused)))
+extern "C" const uchar *get_sequence_last_key(const void *entry_,
+                                              size_t *length, my_bool)
 {
+  auto *entry= static_cast<const SEQUENCE_LAST_VALUE *>(entry_);
   *length= entry->length;
-  return (uchar*) entry->key;
+  return entry->key;
 }
 
-extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
+extern "C" void free_sequence_last(void *entry)
 {
-  delete entry;
+  delete static_cast<SEQUENCE_LAST_VALUE *>(entry);
 }
 
 
@@ -621,8 +622,9 @@ handle_condition(THD *thd,
    timeouts at end of query (and thus before THD is destroyed)
 */
 
-extern "C" void thd_kill_timeout(THD* thd)
+extern "C" void thd_kill_timeout(void *thd_)
 {
+  THD *thd= static_cast<THD *>(thd_);
   thd->status_var.max_statement_time_exceeded++;
   /* Kill queries that can't cause data corruptions */
   thd->awake(KILL_TIMEOUT);
@@ -853,12 +855,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #endif
   user_connect=(USER_CONN *)0;
   my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
-               USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
-               SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
-               get_sequence_last_key, (my_hash_free_key) free_sequence_last,
+               USER_VARS_HASH_SIZE, 0, 0, get_var_key, free_user_var,
                HASH_THREAD_SPECIFIC);
+  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
+               SEQUENCES_HASH_SIZE, 0, 0, get_sequence_last_key,
+               free_sequence_last, HASH_THREAD_SPECIFIC);
 
   /* For user vars replication*/
   if (opt_bin_log)
@@ -1448,12 +1449,11 @@ void THD::change_user(void)
   init();
   stmt_map.reset();
   my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
-               USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
+               USER_VARS_HASH_SIZE, 0, 0, get_var_key, free_user_var,
+               HASH_THREAD_SPECIFIC);
   my_hash_init(key_memory_user_var_entry, &sequences,
-               Lex_ident_fs::charset_info(),
-               SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
-               get_sequence_last_key, (my_hash_free_key) free_sequence_last,
+               Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
+               get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
   opt_trace.delete_traces();
@@ -2202,12 +2202,6 @@ void THD::reset_killed()
 
 void THD::store_globals()
 {
-  /*
-    Assert that thread_stack is initialized: it's necessary to be able
-    to track stack overrun.
-  */
-  DBUG_ASSERT(thread_stack);
-
   set_current_thd(this);
   /*
     mysys_var is concurrently readable by a killer thread.
@@ -2239,8 +2233,11 @@ void THD::store_globals()
   os_thread_id= 0;
 #endif
   real_id= pthread_self();                      // For debugging
-  mysys_var->stack_ends_here= thread_stack +    // for consistency, see libevent_thread_proc
-                              STACK_DIRECTION * (long)my_thread_stack_size;
+
+  /* Set stack start and stack end */
+  my_get_stack_bounds(&thread_stack, &mysys_var->stack_ends_here,
+                      thread_stack, my_thread_stack_size);
+
   if (net.vio)
   {
     net.thd= this;
@@ -2251,6 +2248,7 @@ void THD::store_globals()
   */
   thr_lock_info_init(&lock_info, mysys_var);
 }
+
 
 /**
    Untie THD from current thread
@@ -4096,13 +4094,12 @@ Statement::~Statement() = default;
 
 C_MODE_START
 
-static uchar *
-get_statement_id_as_hash_key(const uchar *record, size_t *key_length,
-                             my_bool not_used __attribute__((unused)))
+static const uchar *get_statement_id_as_hash_key(const void *record,
+                                                 size_t *key_length, my_bool)
 {
-  const Statement *statement= (const Statement *) record; 
+  auto statement= static_cast<const Statement *>(record);
   *key_length= sizeof(statement->id);
-  return (uchar *) &((const Statement *) statement)->id;
+  return reinterpret_cast<const uchar *>(&(statement)->id);
 }
 
 static void delete_statement_as_hash_key(void *key)
@@ -4110,11 +4107,12 @@ static void delete_statement_as_hash_key(void *key)
   delete (Statement *) key;
 }
 
-static uchar *get_stmt_name_hash_key(Statement *entry, size_t *length,
-                                    my_bool not_used __attribute__((unused)))
+static const uchar *get_stmt_name_hash_key(const void *entry_, size_t *length,
+                                           my_bool)
 {
+  auto entry= static_cast<const Statement *>(entry_);
   *length= entry->name.length;
-  return (uchar*) entry->name.str;
+  return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
 C_MODE_END
@@ -4130,9 +4128,9 @@ Statement_map::Statement_map() :
   my_hash_init(key_memory_prepared_statement_map, &st_hash, &my_charset_bin,
                START_STMT_HASH_SIZE, 0, 0, get_statement_id_as_hash_key,
                delete_statement_as_hash_key, MYF(0));
-  my_hash_init(key_memory_prepared_statement_map, &names_hash, system_charset_info, START_NAME_HASH_SIZE, 0, 0,
-               (my_hash_get_key) get_stmt_name_hash_key,
-               NULL, MYF(0));
+  my_hash_init(key_memory_prepared_statement_map, &names_hash,
+               system_charset_info, START_NAME_HASH_SIZE, 0, 0,
+               get_stmt_name_hash_key, NULL, MYF(0));
 }
 
 
@@ -5018,7 +5016,6 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 MYSQL_THD create_thd()
 {
   THD *thd= new THD(next_thread_id());
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
@@ -5095,7 +5092,6 @@ void *thd_attach_thd(MYSQL_THD thd)
 
   auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
   pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
-  thd->thread_stack= (char *) &thd;
   thd->store_globals();
   return save_mysysvar;
 }

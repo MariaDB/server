@@ -2511,12 +2511,6 @@ public:
   */
   virtual void under_not(Item_func_not * upper
                          __attribute__((unused))) {};
-  /*
-    If Item_field is wrapped in Item_direct_wrep remove this Item_direct_ref
-    wrapper.
-  */
-  virtual Item *remove_item_direct_ref() { return this; }
-	
 
   void register_in(THD *thd);	 
   
@@ -4154,8 +4148,8 @@ public:
 
   int save_in_field(Field *field, bool no_conversions) override;
 
-  void set_default();
-  void set_ignore();
+  void set_default(bool set_type_handler_null);
+  void set_ignore(bool set_type_handler_null);
   void set_null();
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
@@ -5758,11 +5752,6 @@ public:
   With_sum_func_cache* get_with_sum_func_cache() override { return this; }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg) override
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
-  Item *remove_item_direct_ref() override
-  {
-    *ref= (*ref)->remove_item_direct_ref();
-    return this;
-  }
 };
 
 
@@ -5810,8 +5799,6 @@ public:
   Ref_Type ref_type() override { return DIRECT_REF; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_direct_ref>(thd, this); }
-  Item *remove_item_direct_ref() override
-  { return (*ref)->remove_item_direct_ref(); }
 };
 
 
@@ -6194,7 +6181,6 @@ public:
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
   { return this; }
-  Item *remove_item_direct_ref() override { return this; }
 };
 
 
@@ -6646,8 +6632,9 @@ public:
 
 class Item_default_value : public Item_field
 {
-  bool vcol_assignment_ok;
-  bool m_associated= false;
+  bool vcol_assignment_ok:1;
+  bool m_associated:1;
+  bool m_share_field:1;
 
   void calculate();
 public:
@@ -6655,7 +6642,11 @@ public:
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a,
                      bool vcol_assignment_arg)
     : Item_field(thd, context_arg),
-      vcol_assignment_ok(vcol_assignment_arg), arg(a) {}
+      vcol_assignment_ok(vcol_assignment_arg), arg(a)
+  {
+    m_associated= false;
+    m_share_field= false;
+  }
   Type type() const override { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const override;
   bool fix_fields(THD *, Item **) override;
@@ -6690,7 +6681,7 @@ public:
   {
     // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
     DBUG_ASSERT(0);
-    param->set_default();
+    param->set_default(true);
     return false;
   }
   table_map used_tables() const override;
@@ -6717,6 +6708,10 @@ public:
 
   Item *transform(THD *thd, Item_transformer transformer, uchar *args)
     override;
+  Item *derived_field_transformer_for_having(THD *thd, uchar *arg) override
+  { return NULL; }
+  Item *derived_field_transformer_for_where(THD *thd, uchar *arg) override
+  { return NULL; }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
 
@@ -6726,7 +6721,13 @@ public:
   */
   bool associate_with_target_field(THD *thd, Item_field *field) override;
   Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_default_value>(thd, this); }
+  {
+    Item_default_value *new_item=
+      (Item_default_value *) get_item_copy<Item_default_value>(thd, this);
+    // This is a copy so do not manage the field and should not delete it
+    new_item->m_share_field= 1;
+    return new_item;
+  }
   Item* do_build_clone(THD *thd) const override { return get_copy(thd); }
 private:
   bool tie_field(THD *thd);
@@ -6811,7 +6812,7 @@ public:
   }
   bool save_in_param(THD *, Item_param *param) override
   {
-    param->set_default();
+    param->set_default(true);
     return false;
   }
   Item *do_get_copy(THD *thd) const override
@@ -6845,7 +6846,7 @@ public:
   }
   bool save_in_param(THD *, Item_param *param) override
   {
-    param->set_ignore();
+    param->set_ignore(true);
     return false;
   }
 
@@ -6947,6 +6948,9 @@ public:
   Item *copy_or_same(THD *) override { return this; }
   Item *get_tmp_table_item(THD *thd) override { return copy_or_same(thd); }
   void cleanup() override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_trigger_field>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
 private:
   void set_required_privilege(bool rw) override;

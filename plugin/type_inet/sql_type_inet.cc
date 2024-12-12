@@ -594,9 +594,9 @@ public:
     Inet6_null tmp(arg);
     return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
-    cmp_item_inet6 *tmp= static_cast<cmp_item_inet6*>(ci);
+    const cmp_item_inet6 *tmp= static_cast<const cmp_item_inet6*>(ci);
     DBUG_ASSERT(!m_null_value);
     DBUG_ASSERT(!tmp->m_null_value);
     return m_native.cmp(tmp->m_native);
@@ -1293,13 +1293,15 @@ public:
 class in_inet6 :public in_vector
 {
   Inet6 m_value;
-  static int cmp_inet6(void *cmp_arg, Inet6 *a, Inet6 *b)
+  static int cmp_inet6(void *, const void *a_, const void *b_)
   {
+    const Inet6 *a= static_cast<const Inet6*>(a_);
+    const Inet6 *b= static_cast<const Inet6*>(b_);
     return a->cmp(*b);
   }
 public:
   in_inet6(THD *thd, uint elements)
-   :in_vector(thd, elements, sizeof(Inet6), (qsort2_cmp) cmp_inet6, 0),
+   :in_vector(thd, elements, sizeof(Inet6), cmp_inet6, 0),
     m_value(Inet6_zero())
   { }
   const Type_handler *type_handler() const override

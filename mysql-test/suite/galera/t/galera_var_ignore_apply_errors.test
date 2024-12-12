@@ -2,6 +2,7 @@
 # Test option wsrep_ignore_apply_errors
 #
 
+--source include/have_perfschema.inc
 --source include/galera_cluster.inc
 --source include/force_restart.inc
 
@@ -258,6 +259,9 @@ CREATE TABLE t1 (f1 INTEGER, f2 INTEGER);
 DROP TABLE t1;
 
 --connection node_2
+set session wsrep_sync_wait=0;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
 --error ER_NO_SUCH_TABLE
 SELECT * FROM t1;
 SET GLOBAL wsrep_ignore_apply_errors = 10;

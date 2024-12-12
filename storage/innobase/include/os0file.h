@@ -905,35 +905,13 @@ os_file_get_size(
 	const char*	filename)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Gets a file size.
-@param[in]	file		handle to a file
-@return file size, or (os_offset_t) -1 on failure */
-os_offset_t
-os_file_get_size(
-	os_file_t	file)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Extend a file.
-
-On Windows, extending a file allocates blocks for the file,
-unless the file is sparse.
-
-On Unix, we will extend the file with ftruncate(), if
-file needs to be sparse. Otherwise posix_fallocate() is used
-when available, and if not, binary zeroes are added to the end
-of file.
-
-@param[in]	name	file name
-@param[in]	file	file handle
-@param[in]	size	desired file size
-@param[in]	sparse	whether to create a sparse file (no preallocating)
-@return	whether the operation succeeded */
-bool
-os_file_set_size(
-	const char*	name,
-	os_file_t	file,
-	os_offset_t	size,
-	bool		is_sparse = false)
+/** Determine the logical size of a file.
+This may change the current write position of the file to the end of the file.
+(Not currently a problem; InnoDB typically uses positioned I/O.)
+@param file  handle to an open file
+@return file size, in octets
+@retval -1 on failure */
+os_offset_t os_file_get_size(os_file_t file) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Truncates a file at its current position.
@@ -1157,11 +1135,6 @@ os_file_get_status(
 	bool		check_rw_perm,
 	bool		read_only);
 
-/** Set the file create umask
-@param[in]	umask		The umask to use for file creation. */
-void
-os_file_set_umask(ulint umask);
-
 #ifdef _WIN32
 
 /**
@@ -1189,11 +1162,25 @@ If file is normal, file system allocates storage.
 @param[in]	size		size to preserve in bytes
 @return true if success */
 bool
-os_file_change_size_win32(
+os_file_set_size(
 	const char*	pathname,
 	os_file_t	file,
 	os_offset_t	size);
 
+inline bool
+os_file_set_size(const char* name, os_file_t file, os_offset_t size, bool)
+{
+  return os_file_set_size(name, file, size);
+}
+#else
+/** Extend a file by appending NUL.
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file with ftruncate()
+@return	whether the operation succeeded */
+bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
+                      bool is_sparse= false) noexcept;
 #endif /*_WIN32 */
 
 /** Free storage space associated with a section of the file.

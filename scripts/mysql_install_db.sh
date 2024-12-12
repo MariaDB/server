@@ -628,7 +628,7 @@ else
   echo "--general-log gives you a log in $ldata that may be helpful."
   link_to_help
   echo "You can find the latest source at https://downloads.mariadb.org and"
-  echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
+  echo "the MariaDB discuss email list at https://lists.mariadb.org/postorius/lists/discuss.lists.mariadb.org/"
   echo
   echo "Please check all of the above before submitting a bug report"
   echo "at https://mariadb.org/jira"

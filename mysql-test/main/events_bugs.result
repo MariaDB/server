@@ -869,3 +869,14 @@ USE test;
 DROP DATABASE events_test;
 SET GLOBAL event_scheduler= 'ON';
 SET @@global.concurrent_insert= @concurrent_insert;
+#
+# MDEV-33472 Assertion `0' failed in Item_row::illegal_method_call on CREATE EVENT
+#
+CREATE EVENT e ON SCHEDULE EVERY 1 HOUR STARTS ROW(1,2) DO SELECT 1;
+ERROR 21000: Operand should contain 1 column(s)
+CREATE EVENT e ON SCHEDULE EVERY 1 HOUR ENDS ROW(1,2) DO SELECT 1;
+ERROR 21000: Operand should contain 1 column(s)
+CREATE EVENT e ON SCHEDULE AT ROW(1,2) DO SELECT *;
+ERROR 21000: Operand should contain 1 column(s)
+CREATE EVENT e ON SCHEDULE EVERY ROW(1,2) HOUR DO SELECT 1;
+ERROR 21000: Operand should contain 1 column(s)
