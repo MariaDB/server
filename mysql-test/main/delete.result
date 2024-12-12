@@ -777,7 +777,7 @@ id
 1
 2
 Warnings:
-Warning	4206	Index hints are ignored because they are incompatible with RETURNING clause
+Warning	4219	Index hints are ignored because they are incompatible with RETURNING clause
 drop table t2;
 #
 # End of 11.4 test
