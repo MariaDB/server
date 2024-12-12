@@ -5327,7 +5327,7 @@ String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {
   if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, MYF(0), WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1);
     null_value= TRUE;
     return 0;
   }
@@ -5352,7 +5352,7 @@ String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
   if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, MYF(0), WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1);
     null_value= TRUE;
     return 0;
   }
@@ -5414,7 +5414,8 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
       }
       else if (wait_gtid_ret == ENOMEM)
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), func_name());
+        /* length is bogus here, no idea how much it tried */
+        my_error(ER_OUTOFMEMORY, MYF(0), WSREP_GTID_STR_LEN);
         ret= 0;
       }
     }
