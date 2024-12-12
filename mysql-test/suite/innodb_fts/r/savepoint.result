@@ -249,9 +249,33 @@ id	title
 7	mysql
 TRUNCATE TABLE articles;
 INSERT INTO articles(id, title) VALUES(1, 'mysql');
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;
+INSERT INTO t SET a=1;
+SAVEPOINT t;
+INSERT INTO articles(id, title) VALUES(2, 'mysql');
+SELECT * FROM articles WHERE MATCH(title) AGAINST('mysql');
+id	title
+1	mysql
+ROLLBACK TO SAVEPOINT t;
+SELECT * FROM articles WHERE MATCH(title) AGAINST('mysql');
+id	title
+1	mysql
+SELECT * FROM t;
+a
+1
+COMMIT;
+SELECT * FROM articles WHERE MATCH(title) AGAINST('mysql');
+id	title
+1	mysql
+BEGIN;
+INSERT INTO t SET a=2;
 INSERT INTO articles(id, title) VALUES(2, 'mysql');
 ROLLBACK;
+SELECT * FROM t;
+a
+1
+DROP TABLE t;
 INSERT INTO articles(id, title) VALUES(3, 'mysql');
 SELECT * FROM articles WHERE MATCH(title) AGAINST('mysql');
 id	title

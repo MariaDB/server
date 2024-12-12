@@ -1541,7 +1541,7 @@ struct find_interesting_trx
 {
   void operator()(const trx_t &trx)
   {
-    if (trx.state == TRX_STATE_NOT_STARTED)
+    if (!trx.is_started())
       return;
     if (trx.mysql_thd == nullptr)
       return;
@@ -1550,12 +1550,12 @@ struct find_interesting_trx
 
     if (!found)
     {
-      ib::warn() << "The following trx might hold "
+      sql_print_warning("InnoDB: The following trx might hold "
                     "the blocks in buffer pool to "
                     "be withdrawn. Buffer pool "
                     "resizing can complete only "
                     "after all the transactions "
-                    "below release the blocks.";
+                    "below release the blocks.");
       found= true;
     }
 

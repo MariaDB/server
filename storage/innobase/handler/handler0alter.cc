@@ -2249,7 +2249,7 @@ ha_innobase::check_if_supported_inplace_alter(
 			    table->s->table_name.str);
 	}
 
-	if (is_read_only(!high_level_read_only
+	if (is_valid_trx(!high_level_read_only
 			 && (ha_alter_info->handler_flags & ALTER_OPTIONS)
 			 && ha_alter_info->create_info->key_block_size == 0
 			 && ha_alter_info->create_info->row_type
@@ -9154,7 +9154,7 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
     /* If we have not started a transaction yet,
     (almost) nothing has been or needs to be done. */
     dict_sys.lock(SRW_LOCK_CALL);
-  else if (ctx->trx->state == TRX_STATE_NOT_STARTED)
+  else if (!ctx->trx->is_started())
     goto free_and_exit;
   else if (ctx->new_table)
   {
@@ -11382,7 +11382,7 @@ lock_fail:
 			to remove the newly created table or
 			index from data dictionary and table cache
 			in rollback_inplace_alter_table() */
-			if (trx->state == TRX_STATE_NOT_STARTED) {
+			if (!trx->is_started()) {
 				trx_start_for_ddl(trx);
 			}
 
@@ -11549,7 +11549,7 @@ err_index:
 			purge_sys.resume_FTS();
 		}
 
-		if (trx->state == TRX_STATE_NOT_STARTED) {
+		if (!trx->is_started()) {
 			/* Transaction may have been rolled back
 			due to a lock wait timeout, deadlock,
 			or a KILL statement. So restart the

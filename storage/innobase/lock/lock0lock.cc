@@ -6692,23 +6692,19 @@ lock_unlock_table_autoinc(
 /*======================*/
 	trx_t*	trx)	/*!< in/out: transaction */
 {
-	lock_sys.assert_unlocked();
-	ut_ad(!trx->mutex_is_owner());
-	ut_ad(!trx->lock.wait_lock);
+  /* This function is invoked for a running transaction by the thread
+  that is serving the transaction. Therefore it is not necessary to
+  hold trx->mutex here. */
 
-	/* This can be invoked on NOT_STARTED, ACTIVE, PREPARED,
-	but not COMMITTED transactions. */
+  lock_sys.assert_unlocked();
+  ut_ad(!trx->mutex_is_owner());
+  ut_ad(!trx->lock.wait_lock);
+  ut_d(trx_state_t trx_state{trx->state});
+  ut_ad(trx_state == TRX_STATE_ACTIVE || trx_state == TRX_STATE_PREPARED ||
+        trx_state == TRX_STATE_NOT_STARTED);
 
-	ut_ad(trx_state_eq(trx, TRX_STATE_NOT_STARTED)
-	      || !trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
-
-	/* This function is invoked for a running transaction by the
-	thread that is serving the transaction. Therefore it is not
-	necessary to hold trx->mutex here. */
-
-	if (lock_trx_holds_autoinc_locks(trx)) {
-		lock_release_autoinc_locks(trx);
-	}
+  if (lock_trx_holds_autoinc_locks(trx))
+    lock_release_autoinc_locks(trx);
 }
 
 /** Handle a pending lock wait (DB_LOCK_WAIT) in a semi-consistent read

@@ -144,7 +144,7 @@ trx_init(
 
 	trx->magic_n = TRX_MAGIC_N;
 
-	trx->last_sql_stat_start.least_undo_no = 0;
+	trx->last_stmt_start = 0;
 
 	ut_ad(!trx->read_view.is_open());
 
@@ -191,10 +191,6 @@ struct TrxFactory {
 		UT_LIST_INIT(trx->lock.trx_locks, &lock_t::trx_locks);
 		UT_LIST_INIT(trx->lock.evicted_tables,
 			     &dict_table_t::table_LRU);
-
-		UT_LIST_INIT(
-			trx->trx_savepoints,
-			&trx_named_savept_t::trx_savepoints);
 
 		trx->mutex_init();
 	}
@@ -437,9 +433,8 @@ void trx_t::free()
   MEM_NOACCESS(&error_info, sizeof error_info);
   MEM_NOACCESS(&error_key_num, sizeof error_key_num);
   MEM_NOACCESS(&graph, sizeof graph);
-  MEM_NOACCESS(&trx_savepoints, sizeof trx_savepoints);
   MEM_NOACCESS(&undo_no, sizeof undo_no);
-  MEM_NOACCESS(&last_sql_stat_start, sizeof last_sql_stat_start);
+  MEM_NOACCESS(&last_stmt_start, sizeof last_stmt_start);
   MEM_NOACCESS(&rsegs, sizeof rsegs);
   MEM_NOACCESS(&roll_limit, sizeof roll_limit);
   MEM_NOACCESS(&in_rollback, sizeof in_rollback);
@@ -467,9 +462,10 @@ void trx_t::free()
 /** Transition to committed state, to release implicit locks. */
 TRANSACTIONAL_INLINE inline void trx_t::commit_state()
 {
-  ut_ad(state == TRX_STATE_PREPARED
-	|| state == TRX_STATE_PREPARED_RECOVERED
-	|| state == TRX_STATE_ACTIVE);
+  ut_d(auto trx_state{state});
+  ut_ad(trx_state == TRX_STATE_PREPARED ||
+        trx_state == TRX_STATE_PREPARED_RECOVERED ||
+        trx_state == TRX_STATE_ACTIVE);
   /* This makes the transaction committed in memory and makes its
   changes to data visible to other transactions. NOTE that there is a
   small discrepancy from the strict formal visibility rules here: a
@@ -1490,8 +1486,6 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     }
   }
 
-  savepoints_discard();
-
   if (fts_trx)
     trx_finalize_for_fts(this, undo_no != 0);
 
@@ -1510,7 +1504,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
   lock.was_chosen_as_deadlock_victim= false;
 }
 
-void trx_t::commit_cleanup()
+bool trx_t::commit_cleanup() noexcept
 {
   ut_ad(!dict_operation);
   ut_ad(!was_dict_operation);
@@ -1527,6 +1521,7 @@ void trx_t::commit_cleanup()
   mutex.wr_unlock();
 
   ut_a(error_state == DB_SUCCESS);
+  return false;
 }
 
 /** Commit the transaction in a mini-transaction.
@@ -1591,7 +1586,7 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 }
 
 
-void trx_t::commit_persist()
+void trx_t::commit_persist() noexcept
 {
   mtr_t *mtr= nullptr;
   mtr_t local_mtr;
@@ -1605,7 +1600,7 @@ void trx_t::commit_persist()
 }
 
 
-void trx_t::commit()
+void trx_t::commit() noexcept
 {
   ut_ad(!was_dict_operation);
   ut_d(was_dict_operation= dict_operation);
@@ -1641,6 +1636,7 @@ trx_commit_or_rollback_prepare(
 		return;
 
 	case TRX_STATE_COMMITTED_IN_MEMORY:
+	case TRX_STATE_ABORTED:
 		break;
 	}
 
@@ -1708,33 +1704,26 @@ trx_commit_step(
 	return(thr);
 }
 
-/**********************************************************************//**
-Does the transaction commit for MySQL.
-@return DB_SUCCESS or error number */
-dberr_t
-trx_commit_for_mysql(
-/*=================*/
-	trx_t*	trx)	/*!< in/out: transaction */
+void trx_commit_for_mysql(trx_t *trx) noexcept
 {
-	/* Because we do not do the commit by sending an Innobase
-	sig to the transaction, we must here make sure that trx has been
-	started. */
-
-	switch (trx->state) {
-	case TRX_STATE_NOT_STARTED:
-		return DB_SUCCESS;
-	case TRX_STATE_ACTIVE:
-	case TRX_STATE_PREPARED:
-	case TRX_STATE_PREPARED_RECOVERED:
-		trx->op_info = "committing";
-		trx->commit();
-		trx->op_info = "";
-		return(DB_SUCCESS);
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-		break;
-	}
-	ut_error;
-	return(DB_CORRUPTION);
+  switch (trx->state) {
+  case TRX_STATE_ABORTED:
+    trx->state= TRX_STATE_NOT_STARTED;
+    /* fall through */
+  case TRX_STATE_NOT_STARTED:
+    trx->will_lock= false;
+    break;
+  case TRX_STATE_ACTIVE:
+  case TRX_STATE_PREPARED:
+  case TRX_STATE_PREPARED_RECOVERED:
+    trx->op_info= "committing";
+    trx->commit();
+    trx->op_info= "";
+    break;
+  case TRX_STATE_COMMITTED_IN_MEMORY:
+    ut_error;
+    break;
+  }
 }
 
 /** Durably write log until trx->commit_lsn
@@ -1752,42 +1741,6 @@ void trx_commit_complete_for_mysql(trx_t *trx)
       return;
   }
   trx_flush_log_if_needed(lsn, trx);
-}
-
-/**********************************************************************//**
-Marks the latest SQL statement ended. */
-void
-trx_mark_sql_stat_end(
-/*==================*/
-	trx_t*	trx)	/*!< in: trx handle */
-{
-	ut_a(trx);
-
-	switch (trx->state) {
-	case TRX_STATE_PREPARED:
-	case TRX_STATE_PREPARED_RECOVERED:
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-		break;
-	case TRX_STATE_NOT_STARTED:
-		trx->undo_no = 0;
-		/* fall through */
-	case TRX_STATE_ACTIVE:
-		if (trx->fts_trx != NULL) {
-			fts_savepoint_laststmt_refresh(trx);
-		}
-
-		if (trx->is_bulk_insert()) {
-			/* Allow a subsequent INSERT into an empty table
-			if !unique_checks && !foreign_key_checks. */
-			return;
-		}
-
-		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
-		trx->end_bulk_insert();
-		return;
-	}
-
-	ut_error;
 }
 
 /**********************************************************************//**
@@ -1815,9 +1768,16 @@ trx_print_low(
 		fprintf(f, "TRANSACTION (%p)", trx);
 	}
 
+	THD* thd = trx->mysql_thd;
+
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
 		fputs(", not started", f);
+		thd = nullptr;
+		goto state_ok;
+	case TRX_STATE_ABORTED:
+		fputs(", forced rollback done", f);
+		thd = nullptr;
 		goto state_ok;
 	case TRX_STATE_ACTIVE:
 		fprintf(f, ", ACTIVE %lu sec",
@@ -1883,9 +1843,8 @@ state_ok:
 		putc('\n', f);
 	}
 
-	if (trx->state != TRX_STATE_NOT_STARTED && trx->mysql_thd != NULL) {
-		innobase_mysql_print_thd(
-			f, trx->mysql_thd, static_cast<uint>(max_query_len));
+	if (thd) {
+		innobase_mysql_print_thd(f, thd, uint(max_query_len));
 	}
 }
 
@@ -2201,6 +2160,7 @@ trx_start_if_not_started_xa_low(
 	bool	read_write)	/*!< in: true if read write transaction */
 {
 	switch (trx->state) {
+	case TRX_STATE_ABORTED:
 	case TRX_STATE_NOT_STARTED:
 		trx_start_low(trx, read_write);
 		return;
@@ -2244,6 +2204,7 @@ trx_start_if_not_started_low(
 		}
 		return;
 
+	case TRX_STATE_ABORTED:
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:

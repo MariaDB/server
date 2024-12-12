@@ -1208,8 +1208,7 @@ re_scan:
 		mtr->commit();
 		trx->error_state = err;
 		thr->lock_state = QUE_THR_LOCK_ROW;
-		if (row_mysql_handle_errors(
-			&err, trx, thr, NULL)) {
+		if (row_mysql_handle_errors(&err, trx, thr, 0)) {
 			thr->lock_state = QUE_THR_LOCK_NOLOCK;
 			mtr->start();
 
@@ -5873,7 +5872,7 @@ lock_table_wait:
 	trx->error_state = err;
 	thr->lock_state = QUE_THR_LOCK_ROW;
 
-	if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
+	if (row_mysql_handle_errors(&err, trx, thr, nullptr)) {
 		/* It was a lock wait, and it ended */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
