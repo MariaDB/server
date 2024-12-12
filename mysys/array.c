@@ -248,7 +248,7 @@ my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements)
        if (!(new_ptr= (uchar *) my_malloc(array->m_psi_key, size *
                                           array->size_of_element,
                                           MYF(array->malloc_flags | MY_WME))))
-         DBUG_RETURN(0);
+         DBUG_RETURN(TRUE);
        memcpy(new_ptr, array->buffer,
               array->elements * array->size_of_element);
        array->malloc_flags&= ~MY_INIT_BUFFER_USED;
