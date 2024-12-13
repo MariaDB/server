@@ -195,7 +195,7 @@ int Explain_query::send_explain(THD *thd, bool extended)
   select_result *result;
   LEX *lex= thd->lex;
  
-  if (!(result= new (thd->mem_root) select_send(thd)) || 
+  if (!(result= new (thd) select_send(thd)) ||
       thd->send_explain_fields(result, lex->describe, lex->analyze_stmt))
     return 1;
 
@@ -331,7 +331,7 @@ void Explain_query::send_explain_json_to_output(Json_writer *writer,
   List<Item> item_list;
   const String *buf= writer->output.get_string();
   THD *thd= output->thd;
-  item_list.push_back(new (thd->mem_root)
+  item_list.push_back(new (thd)
                       Item_string(thd, buf->ptr(), buf->length(), cs),
                       thd->mem_root);
   output->send_data(item_list);
@@ -364,14 +364,14 @@ bool Explain_query::print_explain_str(THD *thd, String *out_str,
 
 static void push_str(THD *thd, List<Item> *item_list, const char *str)
 {
-  item_list->push_back(new (thd->mem_root) Item_string_sys(thd, str),
+  item_list->push_back(new (thd) Item_string_sys(thd, str),
                        thd->mem_root);
 }
 
 
 static void push_string(THD *thd, List<Item> *item_list, String *str)
 {
-  item_list->push_back(new (thd->mem_root)
+  item_list->push_back(new (thd)
                        Item_string_sys(thd, str->ptr(), str->length()),
                        thd->mem_root);
 }

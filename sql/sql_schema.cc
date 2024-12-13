@@ -120,7 +120,7 @@ Item *Schema::make_item_func_replace(THD *thd,
                                      Item *find,
                                      Item *replace) const
 {
-  return new (thd->mem_root) Item_func_replace(thd, subj, find, replace);
+  return new (thd) Item_func_replace(thd, subj, find, replace);
 }
 
 
@@ -128,9 +128,9 @@ Item *Schema::make_item_func_substr(THD *thd,
                                     const Lex_substring_spec_st &spec) const
 {
   return spec.m_for ?
-    new (thd->mem_root) Item_func_substr(thd, spec.m_subject, spec.m_from,
+    new (thd) Item_func_substr(thd, spec.m_subject, spec.m_from,
                                               spec.m_for) :
-    new (thd->mem_root) Item_func_substr(thd, spec.m_subject, spec.m_from);
+    new (thd) Item_func_substr(thd, spec.m_subject, spec.m_from);
 }
 
 
@@ -145,7 +145,7 @@ Item *Schema_oracle::make_item_func_replace(THD *thd,
                                             Item *find,
                                             Item *replace) const
 {
-  return new (thd->mem_root) Item_func_replace_oracle(thd, subj, find, replace);
+  return new (thd) Item_func_replace_oracle(thd, subj, find, replace);
 }
 
 
@@ -153,10 +153,10 @@ Item *Schema_oracle::make_item_func_substr(THD *thd,
                                     const Lex_substring_spec_st &spec) const
 {
   return spec.m_for ?
-    new (thd->mem_root) Item_func_substr_oracle(thd, spec.m_subject,
+    new (thd) Item_func_substr_oracle(thd, spec.m_subject,
                                                      spec.m_from,
                                                      spec.m_for) :
-    new (thd->mem_root) Item_func_substr_oracle(thd, spec.m_subject,
+    new (thd) Item_func_substr_oracle(thd, spec.m_subject,
                                                      spec.m_from);
 }
 

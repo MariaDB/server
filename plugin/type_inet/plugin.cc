@@ -42,7 +42,7 @@ class Create_func_inet_ntoa : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_inet_ntoa(thd, arg1);
+    return new (thd) Item_func_inet_ntoa(thd, arg1);
   }
   static Create_func_inet_ntoa s_singleton;
 protected:
@@ -56,7 +56,7 @@ class Create_func_inet_aton : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_inet_aton(thd, arg1);
+    return new (thd) Item_func_inet_aton(thd, arg1);
   }
   static Create_func_inet_aton s_singleton;
 protected:
@@ -70,7 +70,7 @@ class Create_func_inet6_aton : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_inet6_aton(thd, arg1);
+    return new (thd) Item_func_inet6_aton(thd, arg1);
  } 
   static Create_func_inet6_aton s_singleton;
 protected:
@@ -84,7 +84,7 @@ class Create_func_inet6_ntoa : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_inet6_ntoa(thd, arg1);
+    return new (thd) Item_func_inet6_ntoa(thd, arg1);
   }
   static Create_func_inet6_ntoa s_singleton;
 protected:
@@ -98,7 +98,7 @@ class Create_func_is_ipv4 : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_is_ipv4(thd, arg1);
+    return new (thd) Item_func_is_ipv4(thd, arg1);
   }
   static Create_func_is_ipv4 s_singleton;
 protected:
@@ -112,7 +112,7 @@ class Create_func_is_ipv6 : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_is_ipv6(thd, arg1);
+    return new (thd) Item_func_is_ipv6(thd, arg1);
   }
   static Create_func_is_ipv6 s_singleton;
 protected:
@@ -126,7 +126,7 @@ class Create_func_is_ipv4_compat : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_is_ipv4_compat(thd, arg1);
+    return new (thd) Item_func_is_ipv4_compat(thd, arg1);
   }
   static Create_func_is_ipv4_compat s_singleton;
 protected:
@@ -140,7 +140,7 @@ class Create_func_is_ipv4_mapped : public Create_func_arg1
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_is_ipv4_mapped(thd, arg1);
+    return new (thd) Item_func_is_ipv4_mapped(thd, arg1);
   }
   static Create_func_is_ipv4_mapped s_singleton;
 protected:
