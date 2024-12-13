@@ -26,9 +26,7 @@ my $protected_file= dirname($ENV{MYSQLTEST_VARDIR}).'/bug50373.txt';
 # test runs).
 unlink $protected_file;
 open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/bug50373.inc") or die;
-print FILE "--disable_ps2_protocol\n";
 print FILE "SELECT * FROM t1 INTO OUTFILE '".$protected_file."';\n";
-print FILE "--enable_ps2_protocol\n";
 print FILE "DELETE FROM t1;\n";
 print FILE "LOAD DATA INFILE '".$protected_file."' INTO TABLE t1;\n";
 print FILE "SELECT * FROM t1;\n";

@@ -560,11 +560,7 @@ DROP TABLE t;
 --echo #
 CREATE TABLE t (id INT) ENGINE=InnoDB;
 --replace_result $MYSQLTEST_VARDIR VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 eval select 1 into outfile "$MYSQLTEST_VARDIR/tmp/t.outfile";
---enable_ps2_protocol
---enable_cursor_protocol
 BEGIN;
 --replace_result $MYSQLTEST_VARDIR VARDIR
 eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t.outfile' INTO TABLE t;
