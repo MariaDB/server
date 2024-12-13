@@ -4654,6 +4654,13 @@ protected:
   { return get_item_copy<Item_bool>(thd, this); }
   Item *deep_copy(THD *thd) const override
   { return shallow_copy_with_checks(thd); }
+  void print(String *str, enum_query_type query_type) override
+  {
+    if (value)
+      str->append(STRING_WITH_LEN("true"));
+    else
+      str->append(STRING_WITH_LEN("false"));
+  }
 };
 
 

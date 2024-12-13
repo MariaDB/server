@@ -2877,4 +2877,12 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' 
 SELECT JSON_EXTRACT('0E+0','$');
 JSON_EXTRACT('0E+0','$')
 0E+0
-# End of 10.11 Test
+#
+# MDEV-28649 json_array(false) in the definition of view return 0 instead of "true"
+#
+create view v1 as select json_array(false) as ja_false, json_array(true) as ja_true;
+select * from v1;
+ja_false	ja_true
+[false]	[true]
+drop view v1;
+# End of 10.11 Tests
