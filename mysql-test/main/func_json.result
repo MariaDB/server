@@ -1766,5 +1766,13 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 data
 <root language="de"></root>
 #
+# MDEV-28649 json_array(false) in the definition of view return 0 instead of "true"
+#
+create view v1 as select json_array(false) as ja_false, json_array(true) as ja_true;
+select * from v1;
+ja_false	ja_true
+[false]	[true]
+drop view v1;
+#
 # End of 10.6 tests
 #
