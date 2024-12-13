@@ -25,7 +25,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {

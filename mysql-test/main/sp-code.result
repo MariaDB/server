@@ -1389,7 +1389,7 @@ END
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	set loopDone@0 0
+0	set loopDone@0 false
 1	cpush [implicit_cursor]@0
 2	cursor_copy_struct [implicit_cursor] _row@1
 3	copen [implicit_cursor]@0
@@ -1399,7 +1399,7 @@ Pos	Instruction
 7	stmt 0 "SELECT 'start of innerLoop'"
 8	jump_if_not 10(10) loopDone@0
 9	jump 16
-10	set loopDone@0 1
+10	set loopDone@0 true
 11	jump_if_not 14(14) _row.a@1["a"] = 'v1'
 12	stmt 0 "SELECT 'start of THEN block'"
 13	jump 7
@@ -1443,7 +1443,7 @@ END
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	set loopDone@0 0
+0	set loopDone@0 false
 1	cpush [implicit_cursor]@0
 2	cursor_copy_struct [implicit_cursor] _row@1
 3	copen [implicit_cursor]@0
@@ -1453,7 +1453,7 @@ Pos	Instruction
 7	stmt 0 "SELECT 'start of innerLoop'"
 8	jump_if_not 10(10) loopDone@0
 9	jump 20
-10	set loopDone@0 1
+10	set loopDone@0 true
 11	jump_if_not 14(14) _row.a@1["a"] = 'v1'
 12	stmt 0 "SELECT 'start of IF/v1/THEN block'"
 13	jump 7
@@ -1495,7 +1495,7 @@ END
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	set loopDone@0 0
+0	set loopDone@0 false
 1	set _index@1 1
 2	set [target_bound]@2 10
 3	jump_if_not 19(19) _index@1 <= [target_bound]@2
@@ -1503,7 +1503,7 @@ Pos	Instruction
 5	stmt 0 "SELECT 'start of innerLoop'"
 6	jump_if_not 8(8) loopDone@0
 7	jump 14
-8	set loopDone@0 1
+8	set loopDone@0 true
 9	jump_if_not 12(12) _index@1 = 1
 10	stmt 0 "SELECT 'start of THEN block'"
 11	jump 5
@@ -1546,7 +1546,7 @@ END
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	set loopDone@0 0
+0	set loopDone@0 false
 1	set _index@1 1
 2	set [target_bound]@2 10
 3	jump_if_not 24(24) _index@1 <= [target_bound]@2
@@ -1554,7 +1554,7 @@ Pos	Instruction
 5	stmt 0 "SELECT 'start of innerLoop'"
 6	jump_if_not 8(8) loopDone@0
 7	jump 18
-8	set loopDone@0 1
+8	set loopDone@0 true
 9	jump_if_not 12(12) _index@1 = 1
 10	stmt 0 "SELECT 'start of IF/1/THEN block'"
 11	jump 5
@@ -1596,7 +1596,7 @@ END
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	set loopDone@0 0
+0	set loopDone@0 false
 1	set _index_outer@1 1
 2	set [target_bound]@2 10
 3	jump_if_not 24(24) _index_outer@1 <= [target_bound]@2
@@ -1607,7 +1607,7 @@ Pos	Instruction
 8	stmt 0 "SELECT 'start of innerLoop'"
 9	jump_if_not 11(11) loopDone@0
 10	jump 19
-11	set loopDone@0 1
+11	set loopDone@0 true
 12	jump_if_not 16(16) _index_inner@3 = 1
 13	stmt 0 "SELECT 'start of IF/1/THEN block'"
 14	set _index_inner@3 _index_inner@3 + 1
@@ -1653,7 +1653,7 @@ END
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	set loopDone@0 0
+0	set loopDone@0 false
 1	set _index_outer@1 1
 2	set [target_bound]@2 10
 3	jump_if_not 29(29) _index_outer@1 <= [target_bound]@2
@@ -1664,7 +1664,7 @@ Pos	Instruction
 8	stmt 0 "SELECT 'start of innerLoop'"
 9	jump_if_not 11(11) loopDone@0
 10	jump 23
-11	set loopDone@0 1
+11	set loopDone@0 true
 12	jump_if_not 16(16) _index_inner@3 = 1
 13	stmt 0 "SELECT 'start of IF/1/THEN block'"
 14	set _index_inner@3 _index_inner@3 + 1

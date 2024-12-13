@@ -1318,7 +1318,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
-Note	1003	select 1 AS `f1`,NULL AS `f2`,3 AS `f3`,NULL AS `f1`,NULL AS `f2` from `test`.`t2` where 1
+Note	1003	select 1 AS `f1`,NULL AS `f2`,3 AS `f3`,NULL AS `f1`,NULL AS `f2` from `test`.`t2` where true
 SELECT * FROM t1 LEFT JOIN t2 ON t1.f2 = t2.f2
 WHERE (COALESCE(t1.f1, t2.f1), f3) IN ((1, 3), (2, 2));
 f1	f2	f3	f1	f2
@@ -1394,7 +1394,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	jt5	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index; Using join buffer (incremental, BNL join)
 1	SIMPLE	jt2	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select straight_join `test`.`jt1`.`f1` AS `f1` from `test`.`t1` `jt1` left join (`test`.`t1` `jt6` left join (`test`.`t1` `jt3` join `test`.`t1` `jt4` left join `test`.`t1` `jt5` on(1) left join `test`.`t1` `jt2` on(1)) on(`test`.`jt6`.`f1` <> 0 and 1)) on(1) where 1
+Note	1003	select straight_join `test`.`jt1`.`f1` AS `f1` from `test`.`t1` `jt1` left join (`test`.`t1` `jt6` left join (`test`.`t1` `jt3` join `test`.`t1` `jt4` left join `test`.`t1` `jt5` on(1) left join `test`.`t1` `jt2` on(1)) on(`test`.`jt6`.`f1` <> 0 and 1)) on(1) where true
 EXPLAIN EXTENDED SELECT STRAIGHT_JOIN jt1.f1 FROM t1 AS jt1
 RIGHT JOIN t1 AS jt2
 RIGHT JOIN t1 AS jt3
@@ -1411,7 +1411,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	jt2	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index; Using join buffer (incremental, BNL join)
 1	SIMPLE	jt1	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select straight_join `test`.`jt1`.`f1` AS `f1` from `test`.`t1` `jt6` left join (`test`.`t1` `jt3` join `test`.`t1` `jt4` left join `test`.`t1` `jt5` on(1) left join `test`.`t1` `jt2` on(1)) on(`test`.`jt6`.`f1` <> 0 and 1) left join `test`.`t1` `jt1` on(1) where 1
+Note	1003	select straight_join `test`.`jt1`.`f1` AS `f1` from `test`.`t1` `jt6` left join (`test`.`t1` `jt3` join `test`.`t1` `jt4` left join `test`.`t1` `jt5` on(1) left join `test`.`t1` `jt2` on(1)) on(`test`.`jt6`.`f1` <> 0 and 1) left join `test`.`t1` `jt1` on(1) where true
 DROP TABLE t1;
 #
 # Bug#57688 Assertion `!table || (!table->write_set || bitmap_is_set(table->write_set, field
@@ -1942,7 +1942,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select NULL AS `a` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select NULL AS `a` from `test`.`t2` where true
 DROP TABLE t1,t2,t3;
 #
 # LP bug #817384 Wrong result with outer join + subquery in ON
@@ -2233,7 +2233,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.i1	2	100.00	Using where; Using join buffer (flat, BNLH join)
 1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.i1	2	100.00	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t2`.`i2` AS `i2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`d3` AS `d3` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`i2` = `test`.`t1`.`i1` and `test`.`t3`.`i3` = `test`.`t1`.`i1` and `test`.`t1`.`i1` is not null and `test`.`t1`.`i1` is not null) where `test`.`t3`.`d3` = 0 or `test`.`t3`.`d3` is null
+Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t2`.`i2` AS `i2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`d3` AS `d3` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`i2` = `test`.`t1`.`i1` and `test`.`t3`.`i3` = `test`.`t1`.`i1` and `test`.`t1`.`i1` is not null and `test`.`t1`.`i1` is not null) where `test`.`t3`.`d3` = false or `test`.`t3`.`d3` is null
 DROP TABLE t1,t2,t3;
 #
 # Bug mdev-6705: wrong on expression after constant row substitution 
@@ -2498,7 +2498,7 @@ ORDER BY tb1.i1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	select straight_join 'p' AS `v2` from `test`.`t1` join `test`.`t1` `tb1` left join `test`.`t1` `tb2` on(multiple equal(NULL, NULL)) where 0 order by NULL
+Note	1003	select straight_join 'p' AS `v2` from `test`.`t1` join `test`.`t1` `tb1` left join `test`.`t1` `tb2` on(multiple equal(NULL, NULL)) where false order by NULL
 EXPLAIN EXTENDED
 SELECT STRAIGHT_JOIN t2.v2
 FROM
@@ -2511,7 +2511,7 @@ ORDER BY tb1.i1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	select straight_join 'p' AS `v2` from `test`.`t1` join `test`.`t1` `tb1` left join `test`.`t1` `tb2` on(multiple equal(NULL, NULL)) where 0 order by NULL
+Note	1003	select straight_join 'p' AS `v2` from `test`.`t1` join `test`.`t1` `tb1` left join `test`.`t1` `tb2` on(multiple equal(NULL, NULL)) where false order by NULL
 SELECT STRAIGHT_JOIN DISTINCT t2.v2
 FROM
 (t1 as tb1 LEFT JOIN t1 AS tb2 ON tb2.v1 = tb1.v2)
@@ -2805,7 +2805,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
 1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	0.50	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5 and `test`.`t1`.`a` is not null) where 1
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5 and `test`.`t1`.`a` is not null) where true
 # t3.filtered must less than 100%, too:
 explain extended select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -2813,7 +2813,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	0.50	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join (`test`.`t3` join `test`.`t2`) on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5 and `test`.`t1`.`a` is not null) where 1
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join (`test`.`t3` join `test`.`t2`) on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5 and `test`.`t1`.`a` is not null) where true
 drop table t1,t2,t3;
 set optimizer_use_condition_selectivity= @tmp1;
 set use_stat_tables= @tmp2;

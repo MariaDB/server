@@ -1884,7 +1884,7 @@ SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where `test`.`t1`.`c1` is not null >= 0 is not null
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where `test`.`t1`.`c1` is not null >= false is not null
 SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
 c1
 1

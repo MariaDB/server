@@ -2692,4 +2692,14 @@ json_detailed('[[123],456]')
 SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
 not_null
 1
-# End of 10.11 Test
+#
+# MDEV-28649 json_array(false) in the definition of view return 0 instead of "true"
+#
+create view v1 as select json_array(false) as ja_false, json_array(true) as ja_true;
+select * from v1;
+ja_false	ja_true
+[false]	[true]
+drop view v1;
+#
+# End of 10.11 tests
+#

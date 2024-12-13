@@ -221,7 +221,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 2	SUBQUERY	t	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
-Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where 0
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where false
 SET SESSION sql_mode=@old_sql_mode;
 DROP TABLE t1;
 End of 5.0 tests.
@@ -396,7 +396,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	/* select#1 */ select NULL AS `a` from (/* select#2 */ select NULL AS `a` from `test`.`t1` where 0) `t`
+Note	1003	/* select#1 */ select NULL AS `a` from (/* select#2 */ select NULL AS `a` from `test`.`t1` where false) `t`
 set optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2;
 #
