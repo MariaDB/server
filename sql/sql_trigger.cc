@@ -2288,6 +2288,14 @@ bool Table_triggers_list::process_triggers(THD *thd,
   */
   save_current_select= thd->lex->current_select;
 
+  /*
+    Reset the sentinel thd->bulk_param in order not to consume the next
+    values of a bound array in case one of statement executed by
+    the trigger's body is a DML statement.
+  */
+  void *save_bulk_param= thd->bulk_param;
+  thd->bulk_param= nullptr;
+
   do {
     thd->lex->current_select= NULL;
     err_status=
@@ -2297,6 +2305,7 @@ bool Table_triggers_list::process_triggers(THD *thd,
                                      &trigger->subject_table_grants);
     status_var_increment(thd->status_var.executed_triggers);
   } while (!err_status && (trigger= trigger->next));
+  thd->bulk_param= save_bulk_param;
   thd->lex->current_select= save_current_select;
 
   thd->restore_sub_statement_state(&statement_state);
