@@ -434,7 +434,6 @@ static int send_file(THD *thd)
    Internal to mysql_binlog_send() routine that recalculates checksum for
    1. FD event (asserted) that needs additional arrangement prior sending to slave.
    2. Start_encryption_log_event whose Ignored flag is set
-TODO DBUG_ASSERT can be removed if this function is used for more general cases
 */
 
 inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
@@ -446,13 +445,6 @@ inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
   /* recalculate the crc for this event */
   uint data_len = uint4korr(packet->ptr() + ev_offset + EVENT_LEN_OFFSET);
   ha_checksum crc;
-  DBUG_ASSERT((data_len ==
-              LOG_EVENT_MINIMAL_HEADER_LEN + FORMAT_DESCRIPTION_HEADER_LEN +
-              BINLOG_CHECKSUM_ALG_DESC_LEN + BINLOG_CHECKSUM_LEN) ||
-              (data_len ==
-              LOG_EVENT_MINIMAL_HEADER_LEN + BINLOG_CRYPTO_SCHEME_LENGTH +
-              BINLOG_KEY_VERSION_LENGTH + BINLOG_NONCE_LENGTH +
-              BINLOG_CHECKSUM_LEN));
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
   int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
