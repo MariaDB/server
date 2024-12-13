@@ -281,11 +281,7 @@ drop table t1;
 CREATE TABLE t1 (i INT, d1 DATE, d2 DATE NOT NULL, t TIMESTAMP, KEY(t)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES  (1,'2023-03-16','2023-03-15','2012-12-12 12:12:12');
 ALTER TABLE t1 MODIFY t FLOAT AS (i) PERSISTENT;
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT i, d1, d2 INTO OUTFILE 'load_t1' FROM t1;
---enable_ps2_protocol
---enable_cursor_protocol
 DELETE FROM t1;
 LOAD DATA INFILE 'load_t1' INTO TABLE t1 (i,d1,d2);
 SELECT * FROM t1 WHERE d2 < d1;

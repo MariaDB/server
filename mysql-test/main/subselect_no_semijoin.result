@@ -1,8 +1,6 @@
 set @optimizer_switch_for_subselect_test='semijoin=off,mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set join_cache_level=1;
 set @join_cache_level_for_subselect_test=@@join_cache_level;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t11,t12;
-drop view if exists v2;
 call mtr.add_suppression("Sort aborted.*");
 set @subselect_tmp=@@optimizer_switch;
 set @@optimizer_switch=ifnull(@optimizer_switch_for_subselect_test,
