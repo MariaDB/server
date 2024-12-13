@@ -426,7 +426,7 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
 */
 
 void key_unpack(String *to, const TABLE *table, const KEY *key,
-                uint prefix_size)
+                size_t prefix_size)
 {
   DBUG_ENTER("key_unpack");
 

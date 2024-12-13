@@ -35,7 +35,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
 bool key_cmp_if_same(TABLE *form,const uchar *key,uint index,uint key_length);
 void key_unpack(String *to, TABLE *table, KEY *key);
 void key_unpack(String *to, const TABLE *table, const KEY *key,
-                uint prefix_size);
+                size_t prefix_size);
 void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
                   bool prefix_key);
 bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields);

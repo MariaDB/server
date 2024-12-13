@@ -1731,7 +1731,8 @@ int check_key_referential_integrity(const TABLE *table, const TABLE *ref_table,
     return error;
 
   ptrdiff_t keynr= ref_key - ref_table->key_info;
-  DBUG_ASSERT(keynr >= 0 && keynr < ref_table->s->keys);
+  DBUG_ASSERT(keynr >= 0);
+  DBUG_ASSERT((uint)keynr < ref_table->s->keys);
 
   error= ref_table->file->ha_index_init((uint)keynr, false);
   if (error)
