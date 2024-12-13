@@ -5879,7 +5879,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     TABLE **start,**ptr;
     bool found_first_not_own= 0;
 
-    if (!(ptr= start= thd->alloc<TABLE*>(count)))
+    if (!(ptr= start= new (thd) TABLE*[count]))
       DBUG_RETURN(TRUE);
 
     /*
@@ -8781,7 +8781,8 @@ void wrap_ident(THD *thd, Item **conds)
   DBUG_ASSERT((*conds)->type() == Item::FIELD_ITEM || (*conds)->type() == Item::REF_ITEM);
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
-  if ((wrapper= new (thd) Item_direct_ref_to_ident(thd, (Item_ident *) (*conds))))
+  if ((wrapper= new (thd) Item_direct_ref_to_ident(thd,
+                                                   (Item_ident *) (*conds))))
     (*conds)= (Item*) wrapper;
   if (arena)
     thd->restore_active_arena(arena, &backup);

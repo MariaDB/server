@@ -788,7 +788,8 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
       direct_ref= TRUE;
 
     new_ref= direct_ref ?
-              new (thd) Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
+              new (thd) Item_direct_ref(thd, ref->context, item_ref,
+                          ref->table_name,
                           ref->field_name, ref->alias_name_used) :
               new (thd) Item_ref(thd, ref->context, item_ref, ref->table_name,
                           ref->field_name, ref->alias_name_used);
@@ -7579,7 +7580,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   (*sargables)[0].field= 0; 
 
   if (my_init_dynamic_array2(thd->mem_root->psi_key, keyuse, sizeof(KEYUSE),
-                             thd->alloc<KEYUSE>(20), 20, 64,
+                             new (thd) KEYUSE[20], 20, 64,
                              MYF(MY_THREAD_SPECIFIC)))
     DBUG_RETURN(TRUE);
 
@@ -13148,7 +13149,7 @@ bool JOIN::get_best_combination()
   */
   aggr_tables= 2;
   DBUG_ASSERT(!tmp_table_param.using_outer_summary_function);
-  if (!(join_tab= thd->alloc<JOIN_TAB>(top_join_tab_count + aggr_tables)))
+  if (!(join_tab= new (thd) JOIN_TAB[top_join_tab_count + aggr_tables]))
     DBUG_RETURN(TRUE);
 
   if (inject_splitting_cond_for_all_tables_with_split_opt())
@@ -13198,7 +13199,7 @@ bool JOIN::get_best_combination()
       j->join_loops= 0.0;
       JOIN_TAB *jt;
       JOIN_TAB_RANGE *jt_range;
-      if (!(jt= thd->alloc<JOIN_TAB>(sjm->tables)) ||
+      if (!(jt= new (thd) JOIN_TAB[sjm->tables]) ||
           !(jt_range= new JOIN_TAB_RANGE))
         goto error;
       jt_range->start= jt;
@@ -13379,7 +13380,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(TRUE);
   /* This memory is allocated only once for the joined table join_tab */
   if (!(keyinfo= thd->alloc<KEY>(1)) ||
-      !(key_part_info = thd->alloc<KEY_PART_INFO>(key_parts)))
+      !(key_part_info = new (thd) KEY_PART_INFO[key_parts]))
     DBUG_RETURN(TRUE);
   keyinfo->usable_key_parts= keyinfo->user_defined_key_parts = key_parts;
   keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
@@ -13549,9 +13550,9 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   j->ref.key_length= length;
   j->ref.key= (int) key;
   if (!(j->ref.key_buff= thd->calloc<uchar>(ALIGN_SIZE(length)*2)) ||
-      !(j->ref.key_copy= thd->alloc<store_key*>(keyparts+1)) ||
-      !(j->ref.items= thd->alloc<Item*>(keyparts)) ||
-      !(j->ref.cond_guards= thd->alloc<bool*>(keyparts)))
+      !(j->ref.key_copy= new (thd) store_key*[keyparts+1]) ||
+      !(j->ref.items= new (thd) Item*[keyparts]) ||
+      !(j->ref.cond_guards= new (thd) bool*[keyparts]))
   {
     DBUG_RETURN(TRUE);
   }
@@ -14871,7 +14872,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             DBUG_PRINT("info", ("Item_cond_and"));
             *sel_cond_ref= !(*sel_cond_ref) ? 
                              tmp_cond :
-                             new (thd) Item_cond_and(thd, *sel_cond_ref, tmp_cond);
+                             new (thd) Item_cond_and(thd, *sel_cond_ref,
+                                                     tmp_cond);
             DBUG_PRINT("info", ("Item_cond_and %p",
                                 (*sel_cond_ref)));
             if (!(*sel_cond_ref))
@@ -16088,7 +16090,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 
     if (tab->loosescan_match_tab)
     {
-      if (!(tab->loosescan_buf= join->thd->alloc<uchar>(tab->loosescan_key_len)))
+      if (!(tab->loosescan_buf= new (join->thd) uchar[tab->loosescan_key_len]))
         return TRUE; /* purecov: inspected */
       tab->sorted= TRUE;
     }
@@ -16754,8 +16756,8 @@ bool TABLE_REF::tmp_table_index_lookup_init(THD *thd,
   key= 0; /* The only temp table index. */
   key_length= tmp_key->key_length;
   if (!(key_buff= thd->calloc<uchar>(ALIGN_SIZE(tmp_key->key_length) * 2)) ||
-      !(key_copy= thd->alloc<store_key*>(tmp_key_parts + 1)) ||
-      !(items= thd->alloc<Item*>(tmp_key_parts)))
+      !(key_copy= new (thd) store_key*[tmp_key_parts + 1]) ||
+      !(items= new (thd) Item*[tmp_key_parts]))
     DBUG_RETURN(TRUE);
 
   key_buff2= key_buff + ALIGN_SIZE(tmp_key->key_length);
@@ -18838,7 +18840,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
           Upper item also has "field_item=const".
           Don't produce equality if const is equal to item_const.
         */
-        Item_func_eq *func= new (thd) Item_func_eq(thd, item_const, upper_const);
+        Item_func_eq *func= new(thd) Item_func_eq(thd, item_const, upper_const);
         func->set_cmp_func(thd);
         func->quick_fix_field();
         if (func->val_bool())
@@ -18884,8 +18886,8 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
       Item *head_item= (!item_const && current_sjm && 
                         current_sjm_head != field_item) ? current_sjm_head: head;
       eq_item= new (thd) Item_func_eq(thd,
-                                                field_item->remove_item_direct_ref(),
-                                                head_item->remove_item_direct_ref());
+                                      field_item->remove_item_direct_ref(),
+                                      head_item->remove_item_direct_ref());
 
       if (!eq_item || eq_item->set_cmp_func(thd))
         return 0;
@@ -20973,11 +20975,12 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
       {
         query_cache_abort(thd, &thd->query_cache_tls);
         COND *new_cond, *cond= this;
+        ulonglong insert_id= thd->read_first_successful_insert_id_in_prev_stmt();
         /* If this fails, we will catch it later before executing query */
         if ((new_cond= new (thd) Item_func_eq(thd, args[0],
-                                        new (thd) Item_int(thd, "last_insert_id()",
-                                                     thd->read_first_successful_insert_id_in_prev_stmt(),
-                                                     MY_INT64_NUM_DECIMAL_DIGITS))))
+                                    new (thd) Item_int(thd, "last_insert_id()",
+                                                       insert_id,
+                                                 MY_INT64_NUM_DECIMAL_DIGITS))))
         {
           cond= new_cond;
           /*
@@ -22679,7 +22682,7 @@ bool Virtual_tmp_table::open()
   uint null_pack_length= (s->null_fields + 7) / 8; // NULL-bit array length
   s->reclength+= null_pack_length;
   s->rec_buff_length= ALIGN_SIZE(s->reclength + 1);
-  if (!(record[0]= in_use->alloc<uchar>(s->rec_buff_length)))
+  if (!(record[0]= new (in_use) uchar[s->rec_buff_length]))
     return true;
   if (null_pack_length)
   {
@@ -29961,7 +29964,7 @@ bool JOIN::rollup_init()
   */
   tmp_table_param.group_parts= send_group_parts;
 
-  Item_null_result **null_items= thd->alloc<Item_null_result*>(send_group_parts);
+  Item_null_result **null_items= new (thd) Item_null_result*[send_group_parts];
 
   rollup.null_items= Item_null_array(null_items, send_group_parts);
   rollup.ref_pointer_arrays=
@@ -29984,8 +29987,6 @@ bool JOIN::rollup_init()
     if (!(rollup.null_items[i]= new (thd) Item_null_result(thd)))
       return true;
 
-    List<Item> *rollup_fields= &rollup.fields[i];
-    rollup_fields->empty();
     rollup.ref_pointer_arrays[i]= Ref_ptr_array(ref_array, all_fields.elements);
     ref_array+= all_fields.elements;
   }
@@ -31457,7 +31458,7 @@ static void print_join(THD *thd,
   }
   ti.rewind();
 
-  if (!(table= thd->alloc<TABLE_LIST*>(tables_to_print)))
+  if (!(table= new (thd) TABLE_LIST*[tables_to_print]))
     DBUG_VOID_RETURN;                   // out of memory
 
   TABLE_LIST *tmp, **t= table + (tables_to_print - 1);

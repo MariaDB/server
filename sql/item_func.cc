@@ -93,7 +93,7 @@ bool Item_args::alloc_arguments(THD *thd, uint count)
     args= tmp_arg;
     return false;
   }
-  if ((args= thd->alloc<Item*>(count)) == NULL)
+  if ((args= new (thd) Item*[count]) == NULL)
   {
     arg_count= 0;
     return true;
@@ -120,7 +120,7 @@ Item_args::Item_args(THD *thd, const Item_args *other)
   {
     args= tmp_arg;
   }
-  else if (!(args= thd->alloc<Item*>(arg_count)))
+  else if (!(args= new (thd) Item*[arg_count]))
   {
     arg_count= 0;
     return;
@@ -3544,7 +3544,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
   if ((f_args.arg_count=arg_count))
   {
-    if (!(f_args.arg_type= thd->alloc<Item_result>(f_args.arg_count)))
+    if (!(f_args.arg_type= new (thd) Item_result[f_args.arg_count]))
 
     {
     err_exit:
@@ -5604,7 +5604,7 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     tmp_var_list.push_back(new (thd)
                            set_var_user(new (thd)
                                         Item_func_set_user_var(thd, name,
-                                                               new (thd) Item_null(thd))),
+                                                     new (thd) Item_null(thd))),
                            thd->mem_root);
     /* Create the variable if the above allocations succeeded */
     if (unlikely(thd->is_fatal_error) ||
@@ -5773,7 +5773,8 @@ bool Item_func_get_user_var::set_value(THD *thd,
                                        sp_rcontext * /*ctx*/, Item **it)
 {
   LEX_CSTRING tmp_name= get_name();
-  Item_func_set_user_var *suv= new (thd) Item_func_set_user_var(thd, &tmp_name, *it);
+  Item_func_set_user_var *suv= new (thd) Item_func_set_user_var(thd, &tmp_name,
+                                                                *it);
   /*
     Item_func_set_user_var is not fixed after construction, call
     fix_fields().

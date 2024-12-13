@@ -2459,7 +2459,8 @@ sp_head::bind_output_param(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  Send_field *out_param_info= new (thd) Send_field(thd, nctx->get_parameter(arg_no));
+  Send_field *out_param_info= new (thd) Send_field(thd,
+                                                   nctx->get_parameter(arg_no));
   out_param_info->db_name= m_db;
   out_param_info->table_name= m_name;
   out_param_info->org_table_name= m_name;

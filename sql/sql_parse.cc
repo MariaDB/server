@@ -9953,7 +9953,8 @@ Item *negate_expression(THD *thd, Item *expr)
       if it is not boolean function then we have to emulate value of
       not(not(a)), it will be a != 0
     */
-    return new (thd) Item_func_ne(thd, arg, new (thd) Item_int(thd, (char*) "0", 0, 1));
+    return new (thd) Item_func_ne(thd, arg,
+                                  new (thd) Item_int(thd, (char*) "0", 0, 1));
   }
 
   if ((negated= expr->neg_transformer(thd)) != 0)

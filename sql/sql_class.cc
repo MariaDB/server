@@ -4416,7 +4416,8 @@ Statement_map::~Statement_map()
 
 bool my_var_user::set(THD *thd, Item *item)
 {
-  Item_func_set_user_var *suv= new (thd) Item_func_set_user_var(thd, &name, item);
+  Item_func_set_user_var *suv= new (thd) Item_func_set_user_var(thd, &name,
+                                                                item);
   suv->save_item_result(item);
   return suv->fix_fields(thd, 0) || suv->update();
 }
@@ -4514,7 +4515,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
                                  !create_table, keep_row_order)))
     return TRUE;
 
-  col_stat= table->in_use->alloc<Column_statistics>(table->s->fields);
+  col_stat= new (table->in_use) Column_statistics [table->s->fields];
   if (!col_stat)
     return TRUE;
 
@@ -8841,3 +8842,19 @@ void* Sql_alloc::operator new(size_t size, const THD *thd) noexcept
 {
   return alloc_root(thd->mem_root, size);
 }
+
+void* operator new[](size_t size, const THD *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
+}
+
+void operator delete[](void *ptr, const THD *thd) noexcept
+{}
+
+void* operator new[](size_t size, const Query_arena *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
+}
+
+void operator delete[](void *ptr, const Query_arena *thd) noexcept
+{}

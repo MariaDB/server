@@ -489,7 +489,7 @@ public:
     }
     Item_args args(thd, *item_list);
     return new (thd) Item_func_decode(thd, args.arguments()[0],
-                                                     args.arguments()[1]);
+                                           args.arguments()[1]);
   }
 
   static Create_func_decode s_singleton;
@@ -2092,8 +2092,7 @@ class Create_func_regexp_replace_oracle : public Create_func_arg3
 public:
   Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override
   {
-    return new (thd) Item_func_regexp_replace_oracle(thd, arg1,
-                                                               arg2, arg3);
+    return new (thd) Item_func_regexp_replace_oracle(thd, arg1, arg2, arg3);
   }
 
   static Create_func_regexp_replace_oracle s_singleton;
@@ -5138,8 +5137,7 @@ Create_func_lpad::create_native_oracle(THD *thd, const LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    return new (thd) Item_func_lpad_oracle(thd, param_1,
-                                                     param_2, param_3);
+    return new (thd) Item_func_lpad_oracle(thd, param_1, param_2, param_3);
   }
   default:
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
@@ -5946,7 +5944,7 @@ Create_func_to_char::create_native(THD *thd, const LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    Item *i0= new (thd) Item_string_sys(thd, "YYYY-MM-DD HH24:MI:SS",  21);
+    Item *i0= new (thd) Item_string_sys(thd, "YYYY-MM-DD HH24:MI:SS", 21);
     func= new (thd) Item_func_tochar(thd, param_1, i0);
     break;
   }
@@ -6078,9 +6076,9 @@ Create_func_version::create_builder(THD *thd)
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   static const Lex_ident_routine name("version()"_LEX_CSTRING);
   return new (thd) Item_static_string_func(thd, name,
-                                                     Lex_cstring_strlen(server_version),
-                                                     system_charset_info_for_i_s,
-                                                     DERIVATION_SYSCONST);
+                                           Lex_cstring_strlen(server_version),
+                                           system_charset_info_for_i_s,
+                                           DERIVATION_SYSCONST);
 }
 
 
