@@ -2148,9 +2148,9 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[TRANSACTION_CONTEXT_EVENT-1]= 0;
       post_header_len[VIEW_CHANGE_EVENT-1]= 0;
       post_header_len[XA_PREPARE_LOG_EVENT-1]= 0;
-      post_header_len[PARTIAL_UPDATE_ROWS_EVENT]= ROWS_HEADER_LEN_V2;
+      post_header_len[PARTIAL_UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
       post_header_len[TRANSACTION_PAYLOAD_EVENT-1]= ROWS_HEADER_LEN_V2;
-      post_header_len[HEARTBEAT_LOG_EVENT_V2]= ROWS_HEADER_LEN_V2;
+      post_header_len[HEARTBEAT_LOG_EVENT_V2-1]= ROWS_HEADER_LEN_V2;
       post_header_len[WRITE_ROWS_EVENT-1]=  ROWS_HEADER_LEN_V2;
       post_header_len[UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
       post_header_len[DELETE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
