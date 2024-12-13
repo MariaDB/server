@@ -634,13 +634,6 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
 }
 
 #ifndef DBUG_OFF
-
-/* Buffer where record is returned */
-char dbug_print_row_buff[512];
-
-/* Temporary buffer for printing a column */
-char dbug_print_row_buff_tmp[512];
-
 /*
   Print table's current row into a buffer and return a pointer to it.
 
@@ -653,37 +646,53 @@ char dbug_print_row_buff_tmp[512];
   Only columns in table->read_set are printed
 */
 
-const char* dbug_print_table_row(TABLE *table)
+const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
 {
   Field **pfield;
-  String tmp(dbug_print_row_buff_tmp,
-             sizeof(dbug_print_row_buff_tmp),&my_charset_bin);
+  const size_t alloc_size= 512;
+  char *row_buff= (char *) alloc_root(&table->mem_root, alloc_size);
+  char *row_buff_tmp= (char *) alloc_root(&table->mem_root, alloc_size);
+  String tmp(row_buff_tmp, alloc_size, &my_charset_bin);
+  String output(row_buff, alloc_size, &my_charset_bin);
 
-  String output(dbug_print_row_buff, sizeof(dbug_print_row_buff),
-                &my_charset_bin);
+  auto move_back_lambda= [table, rec]() mutable {
+    table->move_fields(table->field, table->record[0], rec);
+  };
+  auto move_back_guard= make_scope_exit(move_back_lambda, false);
+
+  if (rec != table->record[0])
+  {
+    table->move_fields(table->field, rec, table->record[0]);
+    move_back_guard.engage();
+  }
+
+  SCOPE_VALUE(table->read_set, (table->read_set && table->write_set) ?
+                                table->write_set : table->read_set);
 
   output.length(0);
   output.append(table->alias);
   output.append("(");
   bool first= true;
-
-  for (pfield= table->field; *pfield ; pfield++)
+  if (print_names)
   {
-    if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
-      continue;
-    
-    if (first)
-      first= false;
-    else
-      output.append(",");
+    for (pfield= table->field; *pfield ; pfield++)
+    {
+      if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
+        continue;
 
-    output.append((*pfield)->field_name.str ?
-                  (*pfield)->field_name.str: "NULL");
+      if (first)
+        first= false;
+      else
+        output.append(", ");
+
+      output.append((*pfield)->field_name.str ?
+                    (*pfield)->field_name.str: "NULL");
+    }
+
+    output.append(")=(");
+    first= true;
   }
 
-  output.append(")=(");
-
-  first= true;
   for (pfield= table->field; *pfield ; pfield++)
   {
     Field *field=  *pfield;
@@ -694,7 +703,7 @@ const char* dbug_print_table_row(TABLE *table)
     if (first)
       first= false;
     else
-      output.append(",");
+      output.append(", ");
 
     if (field->is_null())
       output.append("NULL");
@@ -713,12 +722,9 @@ const char* dbug_print_table_row(TABLE *table)
 }
 
 
-const char* dbug_print_row(TABLE *table, uchar *rec)
+const char* dbug_print_table_row(TABLE *table)
 {
-  table->move_fields(table->field, rec, table->record[0]);
-  const char* ret= dbug_print_table_row(table);
-  table->move_fields(table->field, table->record[0], rec);
-  return ret;
+  return dbug_print_row(table, table->record[0]);
 }
 
 
