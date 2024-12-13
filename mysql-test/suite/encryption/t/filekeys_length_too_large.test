@@ -6,13 +6,11 @@
 
 --echo # Test checks if opening a too large key file, file key plugin will only read max key file size bytes and extra bytes will be ignored.
 
-disable_ps2_protocol;
 replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
 eval select seq,repeat(md5(seq), 200)
      into outfile '$MYSQLTEST_VARDIR/tmp/filekeys-data-too-large.key'
           fields terminated by ';'
      from seq_1_to_1000;
-enable_ps2_protocol;
 
 --echo #Large key file will read max size bytes , which is 1MB
 let SEARCH_PATTERN=read bytes: 1048576,;

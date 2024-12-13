@@ -8713,7 +8713,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   DYNAMIC_STRING *ds_res_2_output;
   my_bool ds_res_1st_execution_init = FALSE;
   my_bool compare_2nd_execution = TRUE;
-  int query_match_ps2_re;
+  int query_match_ps2_re, query_match_cursor_re;
   MYSQL_RES *res;
   DBUG_ENTER("run_query_stmt");
   DBUG_PRINT("query", ("'%-.60s'", query));
@@ -8772,6 +8772,9 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     parameter markers.
   */
 
+  query_match_cursor_re= cursor_protocol_enabled && cn->stmt->field_count &&
+                         match_re(&cursor_re, query);
+
 #if MYSQL_VERSION_ID >= 50000
   if (cursor_protocol_enabled)
   {
@@ -8781,7 +8784,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       Use cursor for queries matching the filter,
       else reset cursor type
     */
-    if (match_re(&cursor_re, query))
+    if (query_match_cursor_re)
     {
       /*
       Use cursor when retrieving result
@@ -8794,12 +8797,13 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   }
 #endif
 
-  query_match_ps2_re = match_re(&ps2_re, query);
+  query_match_ps2_re = ps2_protocol_enabled && cn->stmt->field_count &&
+                       match_re(&ps2_re, query);
 
   /*
     Execute the query first time if second execution enable
   */
-  if (ps2_protocol_enabled && query_match_ps2_re)
+  if (query_match_ps2_re)
   {
     if (do_stmt_execute(cn))
     {
@@ -8855,13 +8859,11 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       and keep them in a separate string for later. Cursor_protocol is used
       only for queries matching the filter "cursor_re".
     */
-    if (cursor_protocol_enabled && match_re(&cursor_re, query) &&
-        !disable_warnings)
+    if (query_match_cursor_re && !disable_warnings)
       append_warnings(&ds_execute_warnings, mysql);
 
     if (!disable_result_log &&
         compare_2nd_execution &&
-        ps2_protocol_enabled &&
         query_match_ps2_re &&
         display_result_sorted)
     {
@@ -8889,7 +8891,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
         The results of the first and second execution are compared
         only if result logging is enabled
       */
-      if (compare_2nd_execution && ps2_protocol_enabled && query_match_ps2_re)
+      if (compare_2nd_execution && query_match_ps2_re)
       {
         DYNAMIC_STRING *ds_res_1_execution_compare;
         DYNAMIC_STRING ds_res_1_execution_sorted;
