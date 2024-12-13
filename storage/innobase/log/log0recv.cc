@@ -3785,6 +3785,7 @@ void recv_sys_t::apply(bool last_batch)
       /* We skipped this in buf_page_create(). */
       mlog_init.mark_ibuf_exist();
     mlog_init.clear();
+    dblwr.pages.clear();
   }
   else
   {
@@ -4839,6 +4840,47 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id, lsn_t max_lsn,
   }
 
   goto check_if_corrupted;
+}
+
+bool recv_dblwr_t::find_encrypted_page(const fil_node_t &node,
+                                       uint32_t page_no,
+                                       byte *buf)
+{
+  ut_ad(node.space->crypt_data);
+  ut_ad(node.space->full_crc32());
+  mysql_mutex_lock(&recv_sys.mutex);
+  for (list::iterator page_it= pages.begin(); page_it != pages.end();
+       page_it++)
+  {
+    const byte *page= *page_it;
+    if (page_get_page_no(page) != page_no ||
+        buf_page_is_corrupted(true, page, node.space->flags))
+      continue;
+    memcpy(buf, page, node.space->physical_size());
+    buf_tmp_buffer_t* slot= buf_pool.io_buf_reserve(false);
+    ut_a(slot);
+    slot->allocate();
+    bool invalidate=
+      !fil_space_decrypt(node.space, slot->crypt_buf, buf) ||
+      (node.space->is_compressed() &&
+       !fil_page_decompress(slot->crypt_buf, buf, node.space->flags));
+    slot->release();
+
+    if (invalidate ||
+        mach_read_from_4(buf + FIL_PAGE_SPACE_ID) != node.space->id)
+      continue;
+
+    pages.erase(page_it);
+    sql_print_information("InnoDB: Recovered page [page id: space="
+                          UINT32PF ", page number=" UINT32PF "] "
+                          "to '%s' from the doublewrite buffer.",
+                          uint32_t(node.space->id), page_no,
+                          node.name);
+    mysql_mutex_unlock(&recv_sys.mutex);
+    return true;
+  }
+  mysql_mutex_unlock(&recv_sys.mutex);
+  return false;
 }
 
 const byte *recv_dblwr_t::find_page(const page_id_t page_id, lsn_t max_lsn,

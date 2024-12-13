@@ -3779,6 +3779,16 @@ database_corrupted_compressed:
   if (err == DB_PAGE_CORRUPTED || err == DB_DECRYPTION_FAILED)
   {
 release_page:
+    if (node.space->full_crc32() && node.space->crypt_data &&
+        recv_recovery_is_on() &&
+        recv_sys.dblwr.find_encrypted_page(node, id().page_no(),
+                                           const_cast<byte*>(read_frame)))
+    {
+      /* Recover from doublewrite buffer */
+      err= DB_SUCCESS;
+      goto success_page;
+    }
+
     if (recv_sys.free_corrupted_page(expected_id, node));
     else if (err == DB_FAIL)
       err= DB_PAGE_CORRUPTED;
@@ -3800,6 +3810,7 @@ release_page:
     buf_pool.corrupted_evict(this, buf_page_t::READ_FIX);
     return err;
   }
+success_page:
 
   const bool recovery= recv_recovery_is_on();
 
