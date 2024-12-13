@@ -2341,7 +2341,7 @@ explain extended select * from t2 where (b > 25 and b < 15) or (a>55 and a<44);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	select 44 AS `a`,15 AS `b`,NULL AS `c` from `test`.`t2` where 0
+Note	1003	select 44 AS `a`,15 AS `b`,NULL AS `c` from `test`.`t2` where false
 drop table t1,t2;
 #
 # Start of 10.1 tests
@@ -3698,7 +3698,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 LEFT JOIN t2 ON a = pk WHERE b >= 0 AND pk IS 
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	select NULL AS `a`,0 AS `pk`,NULL AS `b` from `test`.`t1` join `test`.`t2` where 0
+Note	1003	select NULL AS `a`,0 AS `pk`,NULL AS `b` from `test`.`t1` join `test`.`t2` where false
 SELECT * FROM t1 LEFT JOIN t2 ON a = pk WHERE b >= 0 AND pk IS NULL;
 a	pk	b
 DROP TABLE t1, t2;
