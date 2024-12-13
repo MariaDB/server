@@ -971,18 +971,23 @@ public:
 
     Our IA-32 target is not "i386" but at least "i686", that is, at least
     Pentium MMX, which has a 64-bit data bus and 64-bit XMM registers. */
+    bool hot= false;
     trx->mutex_lock();
     trx_id_t &max_inactive_id= trx->max_inactive_id;
-    const bool hot{max_inactive_id < id && find_same_or_older(trx, id)};
+    if (max_inactive_id >= id);
+    else if (!find_same_or_older_low(trx, id))
+      max_inactive_id= id;
+    else
+      hot= true;
 #else
     Atomic_relaxed<trx_id_t> &max_inactive_id= trx->max_inactive_id_atomic;
     if (max_inactive_id >= id)
       return false;
     trx->mutex_lock();
-    const bool hot{find_same_or_older(trx, id)};
-#endif
-    if (hot)
+    const bool hot{find_same_or_older_low(trx, id)};
+    if (!hot)
       max_inactive_id= id;
+#endif
     trx->mutex_unlock();
     return hot;
   }
