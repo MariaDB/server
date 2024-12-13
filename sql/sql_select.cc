@@ -464,7 +464,11 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
 		     thd->is_error()));
   res|= thd->is_error();
   if (unlikely(res))
+  {
     result->abort_result_set();
+    if (lex->result)
+      lex->result->cleanup();
+  }
   if (unlikely(thd->killed == ABORT_QUERY && !thd->no_errors))
   {
     /*

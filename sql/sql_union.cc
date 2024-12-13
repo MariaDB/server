@@ -549,8 +549,11 @@ int select_unit::delete_record()
 
 void select_unit::cleanup()
 {
-  table->file->extra(HA_EXTRA_RESET_STATE);
-  table->file->ha_delete_all_rows();
+  if (table)
+  {
+    table->file->extra(HA_EXTRA_RESET_STATE);
+    table->file->ha_delete_all_rows();
+  }
 }
 
 
