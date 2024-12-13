@@ -132,7 +132,7 @@ int chk_del(HA_CHECK *param, register MI_INFO *info, ulonglong test_flag)
   reg2 ha_rows i;
   uint delete_link_length;
   my_off_t empty,next_link,UNINIT_VAR(old_link);
-  char buff[22],buff2[22];
+  char buff[22];
   DBUG_ENTER("chk_del");
 
   param->record_checksum=0;
@@ -160,22 +160,22 @@ int chk_del(HA_CHECK *param, register MI_INFO *info, ulonglong test_flag)
       if (killed_ptr(param))
         DBUG_RETURN(1);
       if (test_flag & T_VERBOSE)
-	printf(" %9s",llstr(next_link,buff));
+        printf(" %9lld", next_link);
       if (next_link >= info->state->data_file_length)
 	goto wrong;
       if (mysql_file_pread(info->dfile, (uchar*) buff, delete_link_length,
                            next_link, MYF(MY_NABP)))
       {
 	if (test_flag & T_VERBOSE) puts("");
-	mi_check_print_error(param,"Can't read delete-link at filepos: %s",
-		    llstr(next_link,buff));
+        mi_check_print_error(param,
+          "Can't read delete-link at filepos: %lld", next_link);
 	DBUG_RETURN(1);
       }
       if (*buff != '\0')
       {
 	if (test_flag & T_VERBOSE) puts("");
-	mi_check_print_error(param,"Record at pos: %s is not remove-marked",
-		    llstr(next_link,buff));
+        mi_check_print_error(param,
+          "Record at pos: %lld is not remove-marked", next_link);
 	goto wrong;
       }
       if (info->s->options & HA_OPTION_PACK_RECORD)
@@ -184,7 +184,9 @@ int chk_del(HA_CHECK *param, register MI_INFO *info, ulonglong test_flag)
 	if (empty && prev_link != old_link)
 	{
 	  if (test_flag & T_VERBOSE) puts("");
-	  mi_check_print_error(param,"Deleted block at %s doesn't point back at previous delete link",llstr(next_link,buff2));
+          mi_check_print_error(param,
+            "Deleted block at %lld doesn't point back at previous delete link",
+            next_link);
 	  goto wrong;
 	}
 	old_link=next_link;
@@ -203,23 +205,21 @@ int chk_del(HA_CHECK *param, register MI_INFO *info, ulonglong test_flag)
     if (empty != info->state->empty)
     {
       mi_check_print_warning(param,
-			     "Found %s deleted space in delete link chain. Should be %s",
-			     llstr(empty,buff2),
-			     llstr(info->state->empty,buff));
+        "Found %lld deleted space in delete link chain. Should be %lld",
+        empty, info->state->empty);
     }
     if (next_link != HA_OFFSET_ERROR)
     {
       mi_check_print_error(param,
-			   "Found more than the expected %s deleted rows in delete link chain",
-			   llstr(info->state->del, buff));
+        "Found more than the expected %lld deleted rows in delete link chain",
+        info->state->del);
       goto wrong;
     }
     if (i != 0)
     {
       mi_check_print_error(param,
-			   "Found %s deleted rows in delete link chain. Should be %s",
-			   llstr(info->state->del - i, buff2),
-			   llstr(info->state->del, buff));
+        "Found %lld deleted rows in delete link chain. Should be %lld",
+        info->state->del - i, info->state->del);
       goto wrong;
     }
   }
@@ -240,7 +240,6 @@ static int check_k_link(HA_CHECK *param, register MI_INFO *info, uint nr)
   my_off_t next_link;
   uint block_size=(nr+1)*MI_MIN_KEY_BLOCK_LENGTH;
   ha_rows records;
-  char llbuff[21], llbuff2[21];
   uchar *buff;
   DBUG_ENTER("check_k_link");
   DBUG_PRINT("enter", ("block_size: %u", block_size));
@@ -255,16 +254,15 @@ static int check_k_link(HA_CHECK *param, register MI_INFO *info, uint nr)
     if (killed_ptr(param))
       DBUG_RETURN(1);
     if (param->testflag & T_VERBOSE)
-      printf("%16s",llstr(next_link,llbuff));
+      printf("%16lld", next_link);
 
     /* Key blocks must lay within the key file length entirely. */
     if (next_link + block_size > info->state->key_file_length)
     {
       /* purecov: begin tested */
-      mi_check_print_error(param, "Invalid key block position: %s  "
-                           "key block size: %u  file_length: %s",
-                           llstr(next_link, llbuff), block_size,
-                           llstr(info->state->key_file_length, llbuff2));
+      mi_check_print_error(param, "Invalid key block position: %lld  "
+                           "key block size: %u  file_length: %lld",
+                           next_link, block_size, info->state->key_file_length);
       DBUG_RETURN(1);
       /* purecov: end */
     }
@@ -273,9 +271,9 @@ static int check_k_link(HA_CHECK *param, register MI_INFO *info, uint nr)
     if (next_link & (MI_MIN_KEY_BLOCK_LENGTH - 1))
     {
       /* purecov: begin tested */
-      mi_check_print_error(param, "Mis-aligned key block: %s  "
+      mi_check_print_error(param, "Mis-aligned key block: %lld  "
                            "minimum key block length: %u",
-                           llstr(next_link, llbuff), MI_MIN_KEY_BLOCK_LENGTH);
+                           next_link, MI_MIN_KEY_BLOCK_LENGTH);
       DBUG_RETURN(1);
       /* purecov: end */
     }
@@ -291,8 +289,8 @@ static int check_k_link(HA_CHECK *param, register MI_INFO *info, uint nr)
                               MI_MIN_KEY_BLOCK_LENGTH, 1)))
     {
       /* purecov: begin tested */
-      mi_check_print_error(param, "key cache read error for block: %s",
-			   llstr(next_link,llbuff));
+      mi_check_print_error(param, "key cache read error for block: %lld",
+                           next_link);
       DBUG_RETURN(1);
       /* purecov: end */
     }
@@ -303,7 +301,7 @@ static int check_k_link(HA_CHECK *param, register MI_INFO *info, uint nr)
   if (param->testflag & T_VERBOSE)
   {
     if (next_link != HA_OFFSET_ERROR)
-      printf("%16s\n",llstr(next_link,llbuff));
+      printf("%16lld\n", next_link);
     else
       puts("");
   }
@@ -317,7 +315,6 @@ int chk_size(HA_CHECK *param, register MI_INFO *info)
 {
   int error=0;
   register my_off_t skr,size;
-  char buff[22],buff2[22];
   DBUG_ENTER("chk_size");
 
   if (!(param->testflag & T_SILENT)) puts("- check file-size");
@@ -335,21 +332,19 @@ int chk_size(HA_CHECK *param, register MI_INFO *info)
     {
       error=1;
       mi_check_print_error(param,
-			   "Size of indexfile is: %-8s        Should be: %s",
-			   llstr(size,buff), llstr(skr,buff2));
+        "Size of indexfile is: %-8lld        Should be: %lld", size, skr);
     }
     else
       mi_check_print_warning(param,
-			     "Size of indexfile is: %-8s      Should be: %s",
-			     llstr(size,buff), llstr(skr,buff2));
+        "Size of indexfile is: %-8lld      Should be: %lld", size, skr);
   }
   if (!(param->testflag & T_VERY_SILENT) &&
       ! (info->s->options & HA_OPTION_COMPRESS_RECORD) &&
       ulonglong2double(info->state->key_file_length) >
       ulonglong2double(info->s->base.margin_key_file_length)*0.9)
-    mi_check_print_warning(param,"Keyfile is almost full, %10s of %10s used",
-			   llstr(info->state->key_file_length,buff),
-			   llstr(info->s->base.max_key_file_length-1,buff));
+    mi_check_print_warning(param,
+      "Keyfile is almost full, %10lld of %10lld used",
+      info->state->key_file_length, info->s->base.max_key_file_length-1);
 
   size= mysql_file_seek(info->dfile, 0L, MY_SEEK_END, MYF(0));
   skr=(my_off_t) info->state->data_file_length;
@@ -366,24 +361,22 @@ int chk_size(HA_CHECK *param, register MI_INFO *info)
     if (skr > size && skr != size + MEMMAP_EXTRA_MARGIN)
     {
       error=1;
-      mi_check_print_error(param,"Size of datafile is: %-9s         Should be: %s",
-		    llstr(size,buff), llstr(skr,buff2));
+      mi_check_print_error(param,
+        "Size of datafile is: %-9lld         Should be: %lld", size, skr);
       param->testflag|=T_RETRY_WITHOUT_QUICK;
     }
     else
-    {
       mi_check_print_warning(param,
-			     "Size of datafile is: %-9s       Should be: %s",
-			     llstr(size,buff), llstr(skr,buff2));
-    }
+        "Size of datafile is: %-9lld       Should be: %lld", size, skr);
   }
   if (!(param->testflag & T_VERY_SILENT) &&
       !(info->s->options & HA_OPTION_COMPRESS_RECORD) &&
       ulonglong2double(info->state->data_file_length) >
       (ulonglong2double(info->s->base.max_data_file_length)*0.9))
-    mi_check_print_warning(param, "Datafile is almost full, %10s of %10s used",
-			   llstr(info->state->data_file_length,buff),
-			   llstr(info->s->base.max_data_file_length-1,buff2));
+    mi_check_print_warning(param,
+      "Datafile is almost full, %10lld of %10lld used",
+      info->state->data_file_length,
+      info->s->base.max_data_file_length-1);
   DBUG_RETURN(error);
 } /* chk_size */
 
@@ -454,8 +447,8 @@ int chk_key(HA_CHECK *param, register MI_INFO *info)
     if (!_mi_fetch_keypage(info,keyinfo,share->state.key_root[key],
                            DFLT_INIT_HITS,info->buff,0))
     {
-      mi_check_print_error(param,"Can't read indexpage from filepos: %s",
-		  llstr(share->state.key_root[key],buff));
+      mi_check_print_error(param,"Can't read indexpage from filepos: %lld",
+        share->state.key_root[key]);
       if (!(param->testflag & T_INFO))
 	DBUG_RETURN(-1);
       result= -1;
@@ -473,8 +466,8 @@ int chk_key(HA_CHECK *param, register MI_INFO *info)
     {
       if (keys != info->state->records)
       {
-	mi_check_print_error(param,"Found %s keys of %s",llstr(keys,buff),
-		    llstr(info->state->records,buff2));
+        mi_check_print_error(param,"Found %lld keys of %lld", keys,
+          info->state->records);
 	if (!(param->testflag & T_INFO))
 	DBUG_RETURN(-1);
 	result= -1;
@@ -507,10 +500,10 @@ int chk_key(HA_CHECK *param, register MI_INFO *info)
       auto_increment= retrieve_auto_increment(info, info->rec_buff);
       if (auto_increment > info->s->state.auto_increment)
       {
-        mi_check_print_warning(param, "Auto-increment value: %s is smaller "
-                               "than max used value: %s",
-                               llstr(info->s->state.auto_increment,buff2),
-                               llstr(auto_increment, buff));
+        mi_check_print_warning(param, "Auto-increment value: %lld is smaller "
+                               "than max used value: %lld",
+                               info->s->state.auto_increment,
+                               auto_increment);
       }
       if (param->testflag & T_AUTO_INC)
       {
@@ -579,7 +572,6 @@ static int chk_index_down(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
                      my_off_t page, uchar *buff, ha_rows *keys,
                      ha_checksum *key_checksum, uint level)
 {
-  char llbuff[22],llbuff2[22];
   DBUG_ENTER("chk_index_down");
 
   /* Key blocks must lay within the key file length entirely. */
@@ -589,10 +581,10 @@ static int chk_index_down(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
     /* Give it a chance to fit in the real file size. */
     my_off_t max_length= mysql_file_seek(info->s->kfile, 0L, MY_SEEK_END,
                                          MYF(MY_THREADSAFE));
-    mi_check_print_error(param, "Invalid key block position: %s  "
-                         "key block size: %u  file_length: %s",
-                         llstr(page, llbuff), keyinfo->block_length,
-                         llstr(info->state->key_file_length, llbuff2));
+    mi_check_print_error(param, "Invalid key block position: %lld  "
+                         "key block size: %u  file_length: %lld",
+                         page, keyinfo->block_length,
+                         info->state->key_file_length);
     if (page + keyinfo->block_length > max_length)
       goto err;
     /* Fix the remebered key file length. */
@@ -605,17 +597,16 @@ static int chk_index_down(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
   if (page & (MI_MIN_KEY_BLOCK_LENGTH - 1))
   {
     /* purecov: begin tested */
-    mi_check_print_error(param, "Mis-aligned key block: %s  "
+    mi_check_print_error(param, "Mis-aligned key block: %lld  "
                          "minimum key block length: %u",
-                         llstr(page, llbuff), MI_MIN_KEY_BLOCK_LENGTH);
+                         page, MI_MIN_KEY_BLOCK_LENGTH);
     goto err;
     /* purecov: end */
   }
 
   if (!_mi_fetch_keypage(info,keyinfo,page, DFLT_INIT_HITS,buff,0))
   {
-    mi_check_print_error(param,"Can't read key from filepos: %s",
-        llstr(page,llbuff));
+    mi_check_print_error(param,"Can't read key from filepos: %lld", page);
     goto err;
   }
   param->key_file_blocks+=keyinfo->block_length;
