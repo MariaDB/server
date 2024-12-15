@@ -434,6 +434,12 @@ public:
 			  const Column_definition& new_field,
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
+	row_prebuilt_t *get_prebuilt(const dict_table_t* table) {
+		build_template(true);
+		m_prebuilt->index = dict_table_get_first_index(table);
+		return m_prebuilt;
+	}
+	int update_prebuilt_upd_buf();
 
 protected:
 	bool
@@ -495,13 +501,13 @@ protected:
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
-
+public:
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
 
 	/** the size of upd_buf in bytes */
 	ulint			m_upd_buf_size;
-
+protected:
 	/** Flags that specificy the handler instance (table) capability. */
 	Table_flags		m_int_table_flags;
 
@@ -943,3 +949,8 @@ which is in the prepared state
 
 @return 0 or error number */
 int innobase_rollback_by_xid(handlerton* hton, XID* xid);
+
+
+bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after);
+
+dberr_t innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node);
