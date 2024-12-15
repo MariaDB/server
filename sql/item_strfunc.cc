@@ -2241,7 +2241,7 @@ String *Item_func_password::val_str_ascii(String *str)
     if (args[0]->null_value || res->length() == 0)
       return make_empty_result(str);
     my_make_scrambled_password(tmp_value, res->ptr(), res->length());
-    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
+    str->copy(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
     break;
   case OLD:
     if ((null_value=args[0]->null_value))
@@ -2249,7 +2249,7 @@ String *Item_func_password::val_str_ascii(String *str)
     if (res->length() == 0)
       return make_empty_result(str);
     my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
-    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
+    str->copy(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
     break;
   default:
     DBUG_ASSERT(0);
