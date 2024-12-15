@@ -119,6 +119,7 @@ simple_thread_local ha_handler_stats *mariadb_stats;
 
 #include <limits>
 #include <myisamchk.h>                          // TT_FOR_UPGRADE
+#include "sql_type_vector.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -20763,6 +20764,9 @@ bool ha_innobase::can_convert_blob(const Field_blob *field,
 bool ha_innobase::can_convert_nocopy(const Field &field,
                                      const Column_definition &new_type) const
 {
+  if (dynamic_cast<const Field_vector *>(&field))
+    return false;
+
   if (const Field_string *tf= dynamic_cast<const Field_string *>(&field))
     return can_convert_string(tf, new_type);
 
