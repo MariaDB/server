@@ -29,7 +29,7 @@
 #include <locale.h>
 #endif
 
-extern HASH charset_name_hash;
+static HASH charset_name_hash;
 
 /*
   The code below implements this functionality:
@@ -640,6 +640,53 @@ void add_compiled_extra_collation(struct charset_info_st *cs)
 }
 
 
+/*
+  Add an alias for a collation with an unique id
+  Used to add MySQL utf8mb4_0900 collations to MariaDB as an alias for the
+  corresponding utf8mb4_1400 collation
+*/
+
+my_bool add_alias_for_collation(LEX_CSTRING *collation_name, LEX_CSTRING *alias,
+                                uint alias_id)
+{
+  char *coll_name;
+  struct charset_info_st *new_ci;
+  CHARSET_INFO *org;
+  MY_CHARSET_LOADER loader;
+
+  uint org_id= get_collation_number_internal(collation_name->str);
+  DBUG_ASSERT(org_id);
+  DBUG_ASSERT(all_charsets[org_id]);
+
+  if (!(org= all_charsets[org_id]))
+    return 1;
+  /*
+    We have to init the character set to ensure it is not changed after we copy
+    it.
+  */
+  my_charset_loader_init_mysys(&loader);
+  if (my_ci_init_charset((struct charset_info_st*) org, &loader) ||
+      my_ci_init_collation((struct charset_info_st*) org, &loader) ||
+      (org->m_ctype &&
+       init_state_maps((struct charset_info_st*) org)))
+    return 1;
+  ((struct charset_info_st*) org)->state|= MY_CS_READY;
+
+  if (!(new_ci= ((struct charset_info_st*)
+                 my_once_alloc(sizeof(CHARSET_INFO) +
+                               alias->length + 1, MYF(MY_WME)))))
+    return 1;
+
+  coll_name= (char*) (new_ci+1);
+  memcpy((void*) new_ci, org, sizeof(CHARSET_INFO));
+  (new_ci->coll_name.str)= coll_name;
+  memcpy(coll_name, alias->str, alias->length+1);
+  new_ci->coll_name.length= alias->length;
+  new_ci->number= alias_id;
+  all_charsets[alias_id]= new_ci;
+  return 0;
+}
+
 
 static my_pthread_once_t charsets_initialized= MY_PTHREAD_ONCE_INIT;
 static my_pthread_once_t charsets_template= MY_PTHREAD_ONCE_INIT;
@@ -657,6 +704,54 @@ my_bool my_collation_is_known_id(uint id)
 {
   return id > 0 && id < array_elements(all_charsets) && all_charsets[id] ?
          TRUE : FALSE;
+}
+
+
+/*
+  Compare if two collations are identical.
+  They are identical if all slots are identical except collation name and
+  number.  Note that alias collations are made by memcpy(), which means that also
+  the also padding in the structures are identical.
+
+  Note that this code assumes knowledge of the CHARSET_INFO structure.
+  Especially the place of number, cs_name, coll_name and comment.
+
+  Other option would have been to add a new member 'alias_collation'
+  into CHARSET_INFO where all identical collations would point to,
+  but that would have changed the CHARSET_INFO structure which would
+  have required a lot of changes.
+
+  @return 0  Identical
+  @return 1  Different
+*/
+
+my_bool compare_collations(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
+{
+  size_t length;
+
+  if (cs1 == cs2)
+    return 0;
+
+  /* Quick check to detect different collation */
+  if (cs1->cset != cs2->cset || cs1->coll != cs2->coll ||
+      cs1->uca != cs2->uca)
+    goto diff;
+
+  /* We don't compare character set number */
+  if (cs1->primary_number != cs2->primary_number)
+    goto diff;
+  if (cs1->binary_number != cs2->binary_number)
+    goto diff;
+  if (cs1->state != cs2->state)
+    goto diff;
+
+  /* Compare everything after cs_name and coll_name */
+  length= sizeof(CHARSET_INFO) - (((char*) &cs1->comment) - (char*) cs1);
+
+  if (!memcmp(&cs1->comment, &cs2->comment, length))
+   return 0;
+diff:
+  return 1;
 }
 
 
@@ -687,8 +782,6 @@ const char *my_collation_get_tailoring(uint id)
   return all_charsets[id]->tailoring;
 }
 
-
-HASH charset_name_hash;
 
 static const uchar *get_charset_key(const void *object, size_t *size,
                                     my_bool not_used __attribute__((unused)))
@@ -723,7 +816,7 @@ static void init_available_charsets(void)
     if (*cs)
     {
       DBUG_ASSERT(cs[0]->mbmaxlen <= MY_CS_MBMAXLEN);
-      if (cs[0]->m_ctype)
+      if (cs[0]->m_ctype && !cs[0]->state_map)
         if (init_state_maps(*cs))
           *cs= NULL;
     }
