@@ -8666,6 +8666,11 @@ ha_innobase::update_row(
 		This is fix for http://bugs.mysql.com/29157 */
 		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
 	} else {
+    que_thr_t *thr = que_fork_get_first_thr(m_prebuilt->upd_graph);
+    if (table->pos_in_table_list->prelocking_placeholder
+        != TABLE_LIST::PRELOCK_FK) {
+      thr->fk_cascade_depth = 0;
+    }
 		if (m_prebuilt->upd_node->is_delete) {
 			trx->fts_next_doc_id = 0;
 		}
@@ -8791,6 +8796,12 @@ ha_innobase::delete_row(
 	if (!m_prebuilt->upd_node) {
 		row_get_prebuilt_update_vector(m_prebuilt);
 	}
+
+  que_thr_t *thr = que_fork_get_first_thr(m_prebuilt->upd_graph);
+  if (table->pos_in_table_list->prelocking_placeholder
+      != TABLE_LIST::PRELOCK_FK) {
+    thr->fk_cascade_depth = 0;
+  }
 
 	/* This is a delete */
 	m_prebuilt->upd_node->is_delete = table->versioned_write(VERS_TRX_ID)
@@ -21534,7 +21545,7 @@ constraint by invoking the appropriate action at the SQL layer.
 
 @return DB_SUCCESS if OK else error code. */
 dberr_t 
-innodb_do_foreign_cascade(upd_node_t* node)
+innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
 {
   bool is_delete= (node->is_delete == PLAIN_DELETE);
 
@@ -21563,14 +21574,11 @@ innodb_do_foreign_cascade(upd_node_t* node)
   //---END FILL REC---
 
 
-	prebuilt->upd_node = node;
-  prebuilt->upd_graph = static_cast<que_fork_t*>(
-      que_node_get_parent(
-        pars_complete_graph_for_exec(
-        prebuilt->upd_node,
-        prebuilt->trx, prebuilt->heap,
-        prebuilt)));
-  prebuilt->upd_graph->state = QUE_FORK_ACTIVE; // ?
+  auto *upd_node= prebuilt->upd_node;
+  auto *upd_graph= prebuilt->upd_graph;
+  prebuilt->upd_node= node;
+  prebuilt->upd_graph= static_cast<que_fork_t*>(que_node_get_parent(thr));
+
 	btr_pcur_copy_stored_position(prebuilt->pcur, pcur);
 	prebuilt->sql_stat_start = 0; // a parent table is already locked correctly
 
@@ -21619,8 +21627,10 @@ innodb_do_foreign_cascade(upd_node_t* node)
 	if (handler->update_prebuilt_upd_buf())
     return DB_ERROR; // TODO: DB_OUT_OF_MEMORY
 
-  if (is_delete)
-    return convert_mysql_error_to_dberr(sql_delete_row(maria_table));
-	
-	return convert_mysql_error_to_dberr(sql_update_row(maria_table));
+	int err = is_delete ? sql_delete_row(maria_table)
+											: sql_update_row(maria_table);
+
+	prebuilt->upd_node = upd_node;
+	prebuilt->upd_graph = upd_graph;
+	return convert_mysql_error_to_dberr(err);
 }

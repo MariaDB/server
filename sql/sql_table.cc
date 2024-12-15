@@ -13282,19 +13282,19 @@ int sql_update_row(TABLE *table)
 {
   THD *thd= current_thd;
 
-  //**virtual**
-  // if (table->vfield) {
-  //   table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
-  //   table->move_fields(table->field, table->record[1], table->record[0]);
-  //   table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
-  //   table->move_fields(table->field, table->record[0], table->record[1]);
-  // }
-  //**virtual**
   table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
+  //**virtual**
     if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                     TRG_ACTION_BEFORE, FALSE)))
+                                                     TRG_ACTION_BEFORE, TRUE)))
         return HA_ERR_GENERIC;
+
+  if (table->vfield) {
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+    table->move_fields(table->field, table->record[1], table->record[0]);
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+    table->move_fields(table->field, table->record[0], table->record[1]);
+  }
 
   int error= table->file->ha_update_row(table->record[1], table->record[0]);
   if (error != 0)
@@ -13304,6 +13304,5 @@ int sql_update_row(TABLE *table)
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, TRUE)))
       return HA_ERR_GENERIC;
-
   return 0;
 }
