@@ -227,3 +227,17 @@ connection con1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 drop table t;
 disconnect con1;
+connection default;
+#
+# MDEV-35338 - Non-copying ALTER does not pad VECTOR column,
+#              vector search further does not work
+#
+create or replace table t (a int, v vector(1) not null, primary key (a)) engine=InnoDB;
+insert into t values (1,0x38383838),(2,0x37373737),(3,0x31313131);
+alter table t modify v vector(2) not null;
+select hex(v) from t order by a;
+hex(v)
+3838383800000000
+3737373700000000
+3131313100000000
+drop table t;
