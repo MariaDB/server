@@ -1,0 +1,117 @@
+-- source include/have_ucs2.inc
+-- source include/have_utf8mb4.inc
+-- source include/have_innodb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+#
+# Basic tests
+#
+
+select * from information_schema.COLLATION_CHARACTER_SET_APPLICABILITY
+where collation_name like "%0900%" order by collation_name;
+
+select * from information_schema.COLLATIONS where collation_name like "%0900%";
+
+SET NAMES utf8mb4;
+CREATE TABLE t1 (c1 CHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin);
+
+--source include/ctype_unicode_latin.inc
+
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_unicode_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_icelandic_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_latvian_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_romanian_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_slovenian_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_polish_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_estonian_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_spanish_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_swedish_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_turkish_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_czech_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_danish_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_lithuanian_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_slovak_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_spanish2_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_roman_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_esperanto_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_hungarian_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_croatian_mysql561_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_croatian_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_german2_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_unicode_520_ci;
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_vietnamese_ci;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20912 Add support for utf8mb4_0900_* collations in MariaDB Server
+--echo #
+
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+USE db1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE utf8mb4_0900_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_sv_0900_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP DATABASE db1;
+USE test;
+
+--echo #
+--echo # CREATE TABLE - table level character set and collation
+--echo #
+
+SELECT @@collation_database;
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE utf8mb4_0900_ai_ci;
+SHOW CREATE TABLE db1.t1;
+ALTER TABLE db1.t1 modify a CHAR(1) COLLATE utf8mb4_sv_0900_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE utf8mb4_sv_0900_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT COLLATE utf8mb4_0900_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+DROP DATABASE db1;
+
+--echo #
+--echo # Ensure that we can seamlessly compare and move between
+--echo # utf8mb4_sv_0900_ai_ci and utf8mb4_uca1400_swedish_1400_nopad_ai_ci
+--echo #
+
+CREATE TABLE t1 (p int primary key auto_increment, a VARCHAR(10), key (a)) engine=innodb, COLLATE utf8mb4_sv_0900_ai_ci;
+show create table t1;
+CREATE TABLE t2 (p int primary key auto_increment, a VARCHAR(10), key(a)) engine=innodb, COLLATE utf8mb4_uca1400_swedish_nopad_ai_ci;
+show create table t2;
+
+insert into t1 (a) values ("hello"),("world");
+insert into t2 (a) values ("hello"),("world");
+explain select * from t1,t2 where t1.a=t2.a;
+
+--echo # Check that alter table can convert between the character sets
+
+alter table t1 modify a varchar(10) collate utf8mb4_uca1400_swedish_nopad_ai_ci, algorithm=nocopy;
+show create table t1;
+
+alter table t2 modify a varchar(10) collate utf8mb4_sv_0900_ai_ci, algorithm=nocopy;
+show create table t2;
+drop table t1,t2;
+
+CREATE OR REPLACE TABLE t1 (p int primary key auto_increment, a VARCHAR(10), key (a)) engine=aria, COLLATE utf8mb4_sv_0900_ai_ci;
+alter table t1 modify a varchar(10) collate utf8mb4_uca1400_swedish_nopad_ai_ci, algorithm=nocopy;
+drop table t1;

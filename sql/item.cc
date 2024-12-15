@@ -2544,7 +2544,7 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
   }
   else
   { 
-    if (collation == dt.collation)
+    if (!compare_collations(collation, dt.collation))
     {
       /* Do nothing */
     }
