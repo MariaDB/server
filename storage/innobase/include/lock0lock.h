@@ -60,10 +60,8 @@ struct conflicting_lock_info {
   lock must be inserted into linked list of locks for the certain cell of
   record locks hash table. */
   lock_t *insert_after;
-#ifdef UNIV_DEBUG
   /** Bypassed lock */
   const lock_t *bypassed;
-#endif
 };
 
 /*********************************************************************//**

@@ -504,7 +504,7 @@ UNIV_INLINE
 lock_t*
 lock_rec_get_next_on_page(
 /*======================*/
-	lock_t*		lock);		/*!< in: a record lock */
+	const lock_t*		lock);		/*!< in: a record lock */
 
 /*********************************************************************//**
 Gets the next explicit lock request on a record.

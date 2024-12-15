@@ -1251,6 +1251,7 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
   bool has_s_lock_or_stronger= false;
   const lock_t *insert_after= nullptr;
   const lock_t *bypassed= nullptr;
+  const lock_t *prev_lock= nullptr;
 
   for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
@@ -1260,11 +1261,8 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
         lock_mode_stronger_or_eq(lock->mode(), LOCK_S))
     {
       has_s_lock_or_stronger= true;
-      if (!bypassed)
-        insert_after= lock;
-      continue;
     }
-    if (lock_rec_has_to_wait(trx, mode, lock, is_supremum))
+    else if (lock_rec_has_to_wait(trx, mode, lock, is_supremum))
     {
       /* There is no need to lock lock_sys.wait_mutex to check
       trx->lock.wait_trx here because the current function is executed under
@@ -1280,20 +1278,17 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
       cell array) */
       if (!bypass_mode || !has_s_lock_or_stronger ||
           !lock_rec_lock_suits_for_bypassing(lock, trx))
-        return {lock, nullptr
-#ifdef UNIV_DEBUG
-                , nullptr};
-#endif
+        return {lock, nullptr, nullptr};
       bypassed= lock;
+      if (!insert_after)
+        insert_after= prev_lock;
+      continue;
     }
-    else
-      has_s_lock_or_stronger= false;
+    prev_lock= lock;
   }
 
-  return {nullptr, const_cast<lock_t *>(bypassed ? insert_after : nullptr)
-#ifdef UNIV_DEBUG
-          , bypassed};
-#endif
+  return {nullptr, const_cast<lock_t *>(bypassed ? insert_after : nullptr),
+          bypassed};
 }
 
 /*********************************************************************//**
@@ -1409,7 +1404,6 @@ static void lock_rec_queue_validate_bypass(const lock_t *checked_lock,
         return;
       bypassed = lock;
     }
-    has_s_lock_or_stronger= nullptr;
     ut_ad(lock != checked_lock || !bypassed);
     if (lock == checked_lock)
       return;
@@ -1684,7 +1678,8 @@ lock_t*
 lock_rec_find_similar_on_page(
 	ulint           type_mode,      /*!< in: lock type_mode field */
 	ulint           heap_no,        /*!< in: heap number of the record */
-	lock_t*         lock,           /*!< in: lock_sys.get_first() */
+	const lock_t*         lock,           /*!< in: lock_sys.get_first() */
+	const lock_t*         last_lock,
 	const trx_t*    trx)            /*!< in: transaction */
 {
 	lock_sys.rec_hash.assert_locked(lock->un_member.rec_lock.page_id);
@@ -1695,14 +1690,14 @@ lock_rec_find_similar_on_page(
 	});
 
 	for (/* No op */;
-	     lock != NULL;
+	     lock != last_lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 
 		if (lock->trx == trx
 		    && lock->type_mode == type_mode
 		    && lock_rec_get_n_bits(lock) > heap_no) {
 
-			return(lock);
+			return const_cast<lock_t *>(lock);
 		}
 	}
 
@@ -1801,7 +1796,7 @@ static void lock_rec_add_to_queue(const conflicting_lock_info &c_lock_info,
 		if one is found and there are no waiting lock requests,
 		we can just set the bit */
 		if (lock_t* lock = lock_rec_find_similar_on_page(
-			    type_mode, heap_no, first_lock, trx)) {
+			    type_mode, heap_no, first_lock, c_lock_info.bypassed, trx)) {
 			trx_t* lock_trx = lock->trx;
 			if (caller_owns_trx_mutex) {
 				trx->mutex_unlock();
@@ -2044,40 +2039,39 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
 	bit_mask = static_cast<ulint>(1) << (heap_no % 8);
 
 	const trx_t *trx = wait_lock->trx;
+	const lock_t *prev_lock= nullptr;
+	// TODO: use lock_sys_t::get_first(*cell, page_id, heap_no)
+	// and lock_rec_get_next(heap_no, lock) here, see
+	// lock_rec_other_has_conflicting().
 	for (lock = lock_sys_t::get_first(
 		     cell, wait_lock->un_member.rec_lock.page_id);
 	     lock != wait_lock;
 	     lock = lock_rec_get_next_on_page_const(lock)) {
 		const byte*	p = (const byte*) &lock[1];
-		if (bypass_mode && lock->trx == trx && !lock->is_gap() &&
-		    !lock->is_waiting() && !lock->is_insert_intention() &&
-		    lock_mode_stronger_or_eq(lock->mode(), LOCK_S))
+		if (heap_no >=  lock_rec_get_n_bits(lock)
+		    || !(p[bit_offset] & bit_mask))
+			continue;
+		if (bypass_mode &&  lock->trx == trx
+		    && !lock->is_gap() && !lock->is_waiting()
+		    && !lock->is_insert_intention()
+		    && lock_mode_stronger_or_eq(lock->mode(), LOCK_S))
 		{
 			has_s_lock_or_stronger= true;
-			if (!bypassed)
-				insert_after= lock;
-			continue;
 		}
-
-		if (heap_no < lock_rec_get_n_bits(lock)
-		    && (p[bit_offset] & bit_mask)
-		    && lock_has_to_wait(wait_lock, lock)) {
+		else if (lock_has_to_wait(wait_lock, lock)) {
 			if (!bypass_mode || !has_s_lock_or_stronger ||
 			    !lock_rec_lock_suits_for_bypassing(lock, trx))
-				return {lock, nullptr
-#ifdef UNIV_DEBUG
-					, nullptr};
-#endif
-			 bypassed= lock;
+				return {lock, nullptr, nullptr};
+			bypassed= lock;
+			if (!insert_after)
+				insert_after= prev_lock;
+			continue;
 		}
-		else
-			has_s_lock_or_stronger= false;
+		prev_lock = lock;
 	}
 	return {nullptr,
-		const_cast<lock_t *>(bypassed ? insert_after : nullptr)
-#ifdef UNIV_DEBUG
-		, bypassed};
-#endif
+		const_cast<lock_t *>(bypassed ? insert_after : nullptr),
+		bypassed};
 }
 
 /** Note that a record lock wait started */

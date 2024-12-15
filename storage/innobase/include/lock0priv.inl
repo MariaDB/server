@@ -108,7 +108,7 @@ UNIV_INLINE
 lock_t*
 lock_rec_get_next_on_page(
 /*======================*/
-	lock_t*	lock)	/*!< in: a record lock */
+	const lock_t*	lock)	/*!< in: a record lock */
 {
   return const_cast<lock_t*>(lock_rec_get_next_on_page_const(lock));
 }
