@@ -6648,6 +6648,7 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           table->field[1]->set_null(); // CHARACTER_SET_NAME
           table->field[2]->set_null(); // ID
           table->field[3]->set_null(); // IS_DEFAULT
+          table->field[6]->set_null(); // Comment
         }
         else
         {
@@ -6658,6 +6659,13 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           table->field[3]->set_notnull(); // IS_DEFAULT
           table->field[3]->store(
             Show::Yes_or_empty::value(def_cl == tmp_cl), scs);
+          if (tmp_cl->comment)
+          {
+            LEX_CSTRING comment;
+            comment.str= tmp_cl->comment;
+            comment.length= strlen(comment.str);
+            table->field[6]->store(&comment, scs);
+          }
         }
         table->field[4]->store(
           Show::Yes_or_empty::value(tmp_cl->compiled_flag()), scs);
@@ -9706,7 +9714,8 @@ ST_FIELD_INFO collation_fields_info[]=
   Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NULLABLE, "Id"),
   Column("IS_DEFAULT",                 Yes_or_empty(), NULLABLE, "Default"),
   Column("IS_COMPILED",                Yes_or_empty(), NOT_NULL, "Compiled"),
-  Column("SORTLEN",                      SLonglong(3), NOT_NULL, "Sortlen"),
+  Column("SORTLEN",                    SLonglong(3),   NOT_NULL, "Sortlen"),
+  Column("COMMENT",                    Varchar(80),    NOT_NULL),
   CEnd()
 };
 
