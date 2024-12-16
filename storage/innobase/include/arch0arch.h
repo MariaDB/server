@@ -33,11 +33,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef ARCH_ARCH_INCLUDE
 #define ARCH_ARCH_INCLUDE
 
-#include <mysql/components/services/page_track_service.h>
 #include <list>
+#include <functional>
 #include "buf0buf.h" /* buf_page_t */
 #include "ut0mem.h"
-#include "ut0mutex.h"
 
 /** @name Archive file name prefix and constant length parameters. */
 /** @{ */
@@ -55,6 +54,9 @@ const char ARCH_LOG_FILE[] = "ib_log_";
 
 /** Archive page file prefix */
 const char ARCH_PAGE_FILE[] = "ib_page_";
+
+/** TODO: Replace with more appropriate value based on log_sys.write_size */
+constexpr uint32_t OS_FILE_LOG_BLOCK_SIZE = 512;
 
 /** @} */
 
@@ -81,11 +83,16 @@ const uint MAX_ARCH_PAGE_FILE_NAME_LEN =
 const uint MAX_ARCH_DIR_NAME_LEN =
     sizeof(ARCH_DIR) + 1 + sizeof(ARCH_PAGE_DIR) + MAX_LSN_DECIMAL_DIGIT + 1;
 
+/** Wake up log archiver */
+void signal_log_archiver();
+
 /** Log archiver background thread */
 void log_archiver_thread();
 
 /** Archiver thread event to signal that data is available */
-extern os_event_t log_archiver_thread_event;
+extern mysql_mutex_t log_archiver_task_mutex;
+extern mysql_cond_t log_archiver_task_cond;
+extern bool log_archiver_signalled;
 
 /** Memory block size */
 constexpr uint ARCH_PAGE_BLK_SIZE = UNIV_PAGE_SIZE_DEF;
@@ -256,7 +263,12 @@ int start_log_archiver_background();
 int start_page_archiver_background();
 
 /** Archiver thread event to signal that data is available */
-extern os_event_t page_archiver_thread_event;
+extern mysql_mutex_t page_archiver_task_mutex;
+extern mysql_cond_t page_archiver_task_cond;
+extern bool page_archiver_signalled;
+
+/** Wake up page archiver */
+void signal_page_archiver();
 
 /** Page archiver background thread */
 void page_archiver_thread();
@@ -456,6 +468,13 @@ class Arch_Block {
   @return file index */
   static uint get_file_index(uint64_t block_num, Arch_Blk_Type type);
 
+  /** Checks if memory range is all zeros.
+  @param[in]  start            The pointer to first byte of a buffer
+  @param[in]  number_of_bytes  The number of bytes in the buffer
+  @return true if and only if `number_of_bytes` bytes pointed by
+  `start` are all zeros. */
+  static bool is_zeros(const void *start, size_t number_of_bytes);
+
   /** Get block type from the block header.
   @param[in]     block   block from where to get the type
   @return block type */
@@ -540,7 +559,7 @@ class Arch_File_Ctx {
     close();
 
     if (m_name_buf != nullptr) {
-      ut::free(m_name_buf);
+      ut_free(m_name_buf);
     }
   }
 
@@ -854,7 +873,7 @@ class Arch_Group {
   @param[in]    start_lsn       start LSN for the group
   @param[in]    header_len      length of header for archived files
   @param[in]    mutex           archive system mutex from caller */
-  Arch_Group(lsn_t start_lsn, uint header_len, ib_mutex_t *mutex)
+  Arch_Group(lsn_t start_lsn, uint header_len, mysql_mutex_t *mutex)
       : m_begin_lsn(start_lsn),
         m_header_len(header_len) IF_DEBUG(, m_arch_mutex(mutex)) {
     m_active_file.m_file = OS_FILE_CLOSED;
@@ -917,7 +936,7 @@ class Arch_Group {
   /** Attach a client to the archive group.
   @param[in]    is_durable      true, if durable tracking is requested */
   void attach(bool is_durable) {
-    ut_ad(mutex_own(m_arch_mutex));
+    mysql_mutex_assert_owner(m_arch_mutex);
     ++m_num_active;
 
     if (is_durable) {
@@ -940,7 +959,7 @@ class Arch_Group {
   @return number of active clients */
   uint detach(lsn_t stop_lsn, Arch_Page_Pos *stop_pos) {
     ut_ad(m_num_active > 0);
-    ut_ad(mutex_own(m_arch_mutex));
+    mysql_mutex_assert_owner(m_arch_mutex);
     --m_num_active;
 
     if (m_num_active == 0) {
@@ -959,7 +978,7 @@ class Arch_Group {
   return zero and the caller can remove the group.
   @param[in]    is_durable      the client needs durable archiving */
   void release(bool is_durable) {
-    ut_ad(mutex_own(m_arch_mutex));
+    mysql_mutex_assert_owner(m_arch_mutex);
     ut_ad(!is_durable);
     if (is_durable) {
       /* For durable, m_ref_count was not incremented. */
@@ -1292,24 +1311,15 @@ class Arch_Group {
   /** Mutex protecting concurrent operations by multiple clients.
   This is either the redo log or page archive system mutex. Currently
   used for assert checks. */
-  ib_mutex_t *m_arch_mutex;
+  mysql_mutex_t *m_arch_mutex;
 #endif /* UNIV_DEBUG */
 };
 
 /** A list of archive groups */
-using Arch_Grp_List = std::list<Arch_Group *, ut::allocator<Arch_Group *>>;
+using Arch_Grp_List = std::list<Arch_Group *, ut_allocator<Arch_Group *>>;
 
 /** An iterator for archive group */
 using Arch_Grp_List_Iter = Arch_Grp_List::iterator;
-
-class Arch_log_consumer : public Log_consumer {
- public:
-  const std::string &get_name() const override;
-
-  lsn_t get_consumed_lsn() const override;
-
-  void consumption_requested() override;
-};
 
 /** Redo log archiving system */
 class Arch_Log_Sys {
@@ -1320,7 +1330,7 @@ class Arch_Log_Sys {
         m_archived_lsn(LSN_MAX),
         m_group_list(),
         m_current_group() {
-    mutex_create(LATCH_ID_LOG_ARCH, &m_mutex);
+    mysql_mutex_init(0, &m_mutex, nullptr);
   }
 
   /** Destructor: Free mutex */
@@ -1329,7 +1339,7 @@ class Arch_Log_Sys {
     ut_ad(m_current_group == nullptr);
     ut_ad(m_group_list.empty());
 
-    mutex_free(&m_mutex);
+    mysql_mutex_destroy(&m_mutex);
   }
 
   /** Check if archiving is in progress.
@@ -1409,10 +1419,10 @@ class Arch_Log_Sys {
   /** Acquire redo log archiver mutex.
   It synchronizes concurrent start and stop operations by
   multiple clients. */
-  void arch_mutex_enter() { mutex_enter(&m_mutex); }
+  void arch_mutex_enter() { mysql_mutex_lock(&m_mutex); }
 
   /** Release redo log archiver mutex */
-  void arch_mutex_exit() { mutex_exit(&m_mutex); }
+  void arch_mutex_exit() { mysql_mutex_unlock(&m_mutex); }
 
   /** Disable copy construction */
   Arch_Log_Sys(Arch_Log_Sys const &) = delete;
@@ -1470,7 +1480,7 @@ class Arch_Log_Sys {
 
  private:
   /** Mutex to protect concurrent start, stop operations */
-  ib_mutex_t m_mutex;
+  mysql_mutex_t m_mutex;
 
   /** Archiver system state.
   #m_state is protected by #m_mutex and #log_t::writer_mutex. For changing
@@ -1479,7 +1489,7 @@ class Arch_Log_Sys {
   Arch_State m_state;
 
   /** System has archived log up to this LSN */
-  atomic_lsn_t m_archived_lsn;
+  std::atomic<lsn_t> m_archived_lsn;
 
   /** List of log archive groups */
   Arch_Grp_List m_group_list;
@@ -1495,14 +1505,10 @@ class Arch_Log_Sys {
 
   /** System log file offset where the archiving started */
   uint64_t m_start_log_offset;
-
-  /** Redo log consumer that can be registered to prevent consumption
-  of redo log files which still haven't been archived. */
-  Arch_log_consumer m_log_consumer;
 };
 
 /** Vector of page archive in memory blocks */
-using Arch_Block_Vec = std::vector<Arch_Block *, ut::allocator<Arch_Block *>>;
+using Arch_Block_Vec = std::vector<Arch_Block *, ut_allocator<Arch_Block *>>;
 
 /** Page archiver in memory data */
 struct ArchPageData {
@@ -1550,7 +1556,8 @@ struct ArchPageData {
 class Page_Arch_Client_Ctx;
 
 /** Dirty page archive system */
-class Arch_Page_Sys {
+class Arch_Page_Sys
+{
  public:
   /** Constructor: Initialize elements and create mutex */
   Arch_Page_Sys();
@@ -1617,17 +1624,17 @@ class Arch_Page_Sys {
 
   /** Acquire dirty page ID archiver mutex.
   It synchronizes concurrent start and stop operations by multiple clients. */
-  void arch_mutex_enter() { mutex_enter(&m_mutex); }
+  void arch_mutex_enter() { mysql_mutex_lock(&m_mutex); }
 
   /** Release page ID archiver mutex */
-  void arch_mutex_exit() { mutex_exit(&m_mutex); }
+  void arch_mutex_exit() { mysql_mutex_unlock(&m_mutex); }
 
   /** Acquire dirty page ID archive operation mutex.
   It synchronizes concurrent page ID write to memory buffer. */
-  void arch_oper_mutex_enter() { mutex_enter(&m_oper_mutex); }
+  void arch_oper_mutex_enter() { mysql_mutex_lock(&m_oper_mutex); }
 
   /** Release page ID archiver operatiion  mutex */
-  void arch_oper_mutex_exit() { mutex_exit(&m_oper_mutex); }
+  void arch_oper_mutex_exit() { mysql_mutex_unlock(&m_oper_mutex); }
 
   /* Save information at the time of a reset considered as the reset point.
   @param[in]  is_durable  true if it's durable page tracking
@@ -1699,6 +1706,20 @@ class Arch_Page_Sys {
   bool get_pages(Arch_Group *group, Arch_Page_Pos *read_pos, uint read_len,
                  byte *read_buff);
 
+  /** Page tracking callback function.
+  @param[in]     thd        Current thread context
+  @param[in]     buffer     buffer filled with 8 byte page ids; the format is
+  specific to SE. For InnoDB it is space_id (4 bytes) followed by page number
+  (4 bytes)
+  @param[in]     buf_len    length of buffer in bytes
+  @param[in]     num_pages  number of valid page IDs in buffer
+  @param[in,out] user_ctx   user context passed to page tracking function
+  @return Operation status.
+ */
+ typedef int (*Page_Track_Callback)(MYSQL_THD thd, const unsigned char *buffer,
+                                    size_t buf_len, int num_pages,
+                                    void *user_ctx);
+
   /** Get archived page Ids between two given LSN values.
   Attempt to read blocks directly from in memory buffer. If overwritten,
   copy from archived files.
@@ -1747,10 +1768,10 @@ class Arch_Page_Sys {
   /** Get the mutex protecting concurrent start, stop operations required
   for initialising group during recovery.
   @return mutex */
-  ib_mutex_t *get_mutex() { return (&m_mutex); }
+  mysql_mutex_t *get_mutex() { return (&m_mutex); }
 
   /** @return operation mutex */
-  ib_mutex_t *get_oper_mutex() { return (&m_oper_mutex); }
+  mysql_mutex_t *get_oper_mutex() { return (&m_oper_mutex); }
 
   /** Fetch the system client context.
   @return system client context. */
@@ -1810,7 +1831,7 @@ class Arch_Page_Sys {
 
  private:
   /** Mutex protecting concurrent start, stop operations */
-  ib_mutex_t m_mutex;
+  mysql_mutex_t m_mutex;
 
   /** Archiver system state. */
   Arch_State m_state{ARCH_STATE_INIT};
@@ -1831,7 +1852,7 @@ class Arch_Page_Sys {
   lsn_t m_latest_purged_lsn{LSN_MAX};
 
   /** Mutex protecting concurrent operation on data */
-  ib_mutex_t m_oper_mutex;
+  mysql_mutex_t m_oper_mutex;
 
   /** Current archive group */
   Arch_Group *m_current_group{nullptr};

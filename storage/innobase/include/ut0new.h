@@ -165,7 +165,9 @@ ut_allocator::get_mem_key()):
   happens then that means that the list of predefined names must be extended.
 Keep this list alphabetically sorted. */
 extern PSI_memory_key	mem_key_ahi;
+extern PSI_memory_key   mem_key_archive;
 extern PSI_memory_key	mem_key_buf_buf_pool;
+extern PSI_memory_key   mem_key_clone;
 extern PSI_memory_key	mem_key_dict_stats_bg_recalc_pool_t;
 extern PSI_memory_key	mem_key_dict_stats_index_map_t;
 extern PSI_memory_key	mem_key_dict_stats_n_diff_on_level;
@@ -831,6 +833,10 @@ static constexpr bool cexpr_strequal_ignore_dot(const char* a, const char* b)
 
 constexpr const char* const auto_event_names[] =
 {
+  "arch0arch",
+  "arch0page",
+  "arch0log",
+  "arch0recv",
   "btr0btr",
   "btr0buf",
   "btr0bulk",
@@ -842,6 +848,12 @@ constexpr const char* const auto_event_names[] =
   "buf0dump",
   "buf0lru",
   "buf0rea",
+  "clone0api",
+  "clone0apply",
+  "clone0desc",
+  "clone0clone",
+  "clone0copy",
+  "clone0snapshot.cc",
   "dict0dict",
   "dict0mem",
   "dict0stats",

@@ -36,7 +36,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fsp0sysspace.h"
 #include "sql/binlog.h"
 #include "sql/clone_handler.h"
-#include "sql/handler.h"
+#include "handler.h"
 #include "sql/mysqld.h"
 #include "srv0start.h"
 
@@ -170,14 +170,14 @@ int Clone_Snapshot::init_redo_archiving() {
 
 #ifdef UNIV_DEBUG
 void Clone_Snapshot::debug_wait_state_transit() {
-  mutex_own(&m_snapshot_mutex);
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
 
   /* Allow DDL to enter and check. */
-  mutex_exit(&m_snapshot_mutex);
+  mysql_mutex_unlock(&m_snapshot_mutex);
 
   DEBUG_SYNC_C("clone_state_transit_file_copy");
 
-  mutex_enter(&m_snapshot_mutex);
+  mysql_mutex_lock(&m_snapshot_mutex);
 }
 #endif /* UNIV_DEBUG */
 
@@ -1618,7 +1618,7 @@ int Clone_Handle::process_chunk(Clone_Task *task, uint32_t chunk_num,
 }
 
 int Clone_Handle::restart_copy(THD *thd, const byte *loc, uint loc_len) {
-  ut_ad(mutex_own(clone_sys->get_mutex()));
+  mysql_mutex_assert_owner(clone_sys->get_mutex());
 
   if (is_abort()) {
     my_error(ER_INTERNAL_ERROR, MYF(0),
@@ -1639,7 +1639,7 @@ int Clone_Handle::restart_copy(THD *thd, const byte *loc, uint loc_len) {
     auto err = Clone_Sys::wait(
         sleep_time, time_out, alert_time,
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(clone_sys->get_mutex()));
+          mysql_mutex_assert_owner(clone_sys->get_mutex());
           result = !is_idle();
 
           if (thd_killed(thd)) {

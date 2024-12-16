@@ -34,7 +34,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "clone0clone.h"
 #include "log0log.h" /* log_get_lsn */
 #include "page0zip.h"
-#include "sql/handler.h"
+#include "handler.h"
 
 /** Snapshot heap initial size */
 const uint SNAPSHOT_MEM_INITIAL_SIZE = 16 * 1024;
@@ -72,7 +72,7 @@ Clone_Snapshot::Clone_Snapshot(Clone_Handle_Type hdl_type,
       m_redo_file_size(),
       m_num_redo_chunks(),
       m_enable_pfs(false) {
-  mutex_create(LATCH_ID_CLONE_SNAPSHOT, &m_snapshot_mutex);
+  mysql_mutex_init(0, &m_snapshot_mutex, nullptr);
 
   m_snapshot_heap =
       mem_heap_create(SNAPSHOT_MEM_INITIAL_SIZE, UT_LOCATION_HERE);
@@ -91,7 +91,7 @@ Clone_Snapshot::~Clone_Snapshot() {
 
   mem_heap_free(m_snapshot_heap);
 
-  mutex_free(&m_snapshot_mutex);
+  mysql_mutex_destroy(&m_snapshot_mutex);
 }
 
 void Clone_Snapshot::get_state_info(bool do_estimate,
@@ -135,7 +135,7 @@ void Clone_Snapshot::get_state_info(bool do_estimate,
 }
 
 void Clone_Snapshot::set_state_info(Clone_Desc_State *state_desc) {
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
 
   m_snapshot_state = state_desc->m_state;
   m_num_current_chunks = state_desc->m_num_chunks;
@@ -207,7 +207,7 @@ Snapshot_State Clone_Snapshot::get_next_state() {
 
 bool Clone_Snapshot::attach(Clone_Handle_Type hdl_type, bool pfs_monitor) {
   bool ret = false;
-  mutex_enter(&m_snapshot_mutex);
+  mysql_mutex_lock(&m_snapshot_mutex);
 
   if (hdl_type == m_snapshot_handle_type &&
       m_num_clones < MAX_CLONES_PER_SNAPSHOT) {
@@ -218,12 +218,12 @@ bool Clone_Snapshot::attach(Clone_Handle_Type hdl_type, bool pfs_monitor) {
     ret = true;
   }
 
-  mutex_exit(&m_snapshot_mutex);
+  mysql_mutex_unlock(&m_snapshot_mutex);
   return ret;
 }
 
 void Clone_Snapshot::detach() {
-  mutex_enter(&m_snapshot_mutex);
+  mysql_mutex_lock(&m_snapshot_mutex);
 
   ut_ad(m_num_clones > 0);
   ut_ad(!in_transit_state());
@@ -231,16 +231,16 @@ void Clone_Snapshot::detach() {
   --m_num_clones;
   ut_ad(m_num_clones == 0);
 
-  mutex_exit(&m_snapshot_mutex);
+  mysql_mutex_unlock(&m_snapshot_mutex);
 }
 
 bool Clone_Snapshot::is_aborted() const {
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
   return m_aborted;
 }
 
 void Clone_Snapshot::set_abort() {
-  IB_mutex_guard guard(&m_snapshot_mutex, UT_LOCATION_HERE);
+  Mysql_mutex_guard guard(&m_snapshot_mutex);
   m_aborted = true;
   ib::info(ER_IB_CLONE_OPERATION) << "Clone Snapshot aborted";
 }
@@ -248,7 +248,7 @@ void Clone_Snapshot::set_abort() {
 Clone_Snapshot::State_transit::State_transit(Clone_Snapshot *snapshot,
                                              Snapshot_State new_state)
     : m_snapshot(snapshot) {
-  mutex_enter(&m_snapshot->m_snapshot_mutex);
+  mysql_mutex_lock(&m_snapshot->m_snapshot_mutex);
 
   ut_ad(!m_snapshot->in_transit_wait());
   ut_ad(!m_snapshot->in_transit_state());
@@ -275,7 +275,7 @@ Clone_Snapshot::State_transit::~State_transit() {
   ut_ad(!m_snapshot->in_transit_state());
   ut_ad(!m_snapshot->in_transit_wait());
 
-  mutex_exit(&m_snapshot->m_snapshot_mutex);
+  mysql_mutex_unlock(&m_snapshot->m_snapshot_mutex);
 }
 
 Clone_File_Meta *Clone_Snapshot::get_file_by_index(uint index) {
@@ -326,7 +326,7 @@ int Clone_Snapshot::iterate_files(File_Cbk_Func &&func) {
 }
 
 int Clone_Snapshot::iterate_data_files(File_Cbk_Func &&func) {
-  IB_mutex_guard guard(&m_snapshot_mutex, UT_LOCATION_HERE);
+  Mysql_mutex_guard guard(&m_snapshot_mutex);
 
   for (auto file_ctx : m_data_file_vector) {
     auto err = func(file_ctx);
@@ -509,11 +509,11 @@ int Clone_Snapshot::get_next_block(uint chunk_num, uint &block_num,
 }
 
 void Clone_Snapshot::update_block_size(uint buff_size) {
-  mutex_enter(&m_snapshot_mutex);
+  mysql_mutex_lock(&m_snapshot_mutex);
 
   /* Transfer data block is used only for direct IO. */
   if (m_snapshot_state != CLONE_SNAPSHOT_INIT || !srv_is_direct_io()) {
-    mutex_exit(&m_snapshot_mutex);
+    mysql_mutex_unlock(&m_snapshot_mutex);
     return;
   }
 
@@ -523,11 +523,11 @@ void Clone_Snapshot::update_block_size(uint buff_size) {
     ++m_block_size_pow2;
   }
 
-  mutex_exit(&m_snapshot_mutex);
+  mysql_mutex_unlock(&m_snapshot_mutex);
 }
 
 uint32_t Clone_Snapshot::get_blocks_per_chunk() const {
-  IB_mutex_guard guard(&m_snapshot_mutex, UT_LOCATION_HERE);
+  Mysql_mutex_guard guard(&m_snapshot_mutex);
   uint32_t num_blocks = 0;
 
   switch (m_snapshot_state) {
@@ -1096,12 +1096,12 @@ void Clone_file_ctx::get_file_name(std::string &name) const {
 bool Clone_Snapshot::begin_ddl_state(Clone_notify::Type type, space_id_t space,
                                      bool no_wait, bool check_intr,
                                      int &error) {
-  IB_mutex_guard guard(&m_snapshot_mutex, UT_LOCATION_HERE);
+  Mysql_mutex_guard guard(&m_snapshot_mutex);
   error = 0;
   bool blocked = false;
 
   for (;;) {
-    ut_ad(mutex_own(&m_snapshot_mutex));
+    mysql_mutex_assert_owner(&m_snapshot_mutex);
     auto state = get_state();
 
     switch (state) {
@@ -1118,7 +1118,7 @@ bool Clone_Snapshot::begin_ddl_state(Clone_notify::Type type, space_id_t space,
         /* Allow clone to enter next stage only after the DDL file operation
         is complete. */
         blocked = block_state_change(type, space, no_wait, check_intr, error);
-        ut_ad(mutex_own(&m_snapshot_mutex));
+        mysql_mutex_assert_owner(&m_snapshot_mutex);
 
         if (error != 0) {
           /* We should not have blocked in case of error but it is not fatal. */
@@ -1196,7 +1196,7 @@ bool Clone_Snapshot::begin_ddl_state(Clone_notify::Type type, space_id_t space,
 
 void Clone_Snapshot::end_ddl_state(Clone_notify::Type type, space_id_t space) {
   /* Caller is responsible to call if we have blocked state change. */
-  IB_mutex_guard guard(&m_snapshot_mutex, UT_LOCATION_HERE);
+  Mysql_mutex_guard guard(&m_snapshot_mutex);
   auto state = get_state();
 
   if (state == CLONE_SNAPSHOT_FILE_COPY || state == CLONE_SNAPSHOT_PAGE_COPY) {
@@ -1282,7 +1282,7 @@ const char *Clone_Snapshot::wait_string(Wait_type wait_type) const {
 
 int Clone_Snapshot::wait(Wait_type wait_type, const Clone_file_ctx *ctx,
                          bool no_wait, bool check_intr) {
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
 
   std::string info_mesg;
   std::string error_mesg;
@@ -1290,7 +1290,7 @@ int Clone_Snapshot::wait(Wait_type wait_type, const Clone_file_ctx *ctx,
   get_wait_mesg(wait_type, info_mesg, error_mesg);
 
   auto wait_cond = [&](bool alert, bool &wait) {
-    ut_ad(mutex_own(&m_snapshot_mutex));
+    mysql_mutex_assert_owner(&m_snapshot_mutex);
     bool early_exit = false;
 
     switch (wait_type) {
@@ -1385,7 +1385,7 @@ int Clone_Snapshot::wait(Wait_type wait_type, const Clone_file_ctx *ctx,
 bool Clone_Snapshot::block_state_change(Clone_notify::Type type,
                                         space_id_t space, bool no_wait,
                                         bool check_intr, int &error) {
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
 
   bool undo_ddl_ntfn = (type == Clone_notify::Type::SPACE_UNDO_DDL);
   bool undo_space = fsp_is_undo_tablespace(space);
@@ -1410,7 +1410,7 @@ bool Clone_Snapshot::block_state_change(Clone_notify::Type type,
   if (wait_clone) {
     static_cast<void>(
         wait(Wait_type::STATE_TRANSIT_WAIT, nullptr, false, false));
-    ut_ad(mutex_own(&m_snapshot_mutex));
+    mysql_mutex_assert_owner(&m_snapshot_mutex);
     if (saved_state != get_state()) {
       /* State is modified. Return for possible recheck. */
       return false; /* purecov: inspected */
@@ -1424,20 +1424,20 @@ bool Clone_Snapshot::block_state_change(Clone_notify::Type type,
     return false;
   }
 
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
   if (saved_state != get_state()) {
     /* State is modified. Return for possible recheck. */
     return false; /* purecov: inspected */
   }
 
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
   ++m_num_blockers;
 
   return true;
 }
 
 inline void Clone_Snapshot::unblock_state_change() {
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
   --m_num_blockers;
 }
 
@@ -1487,7 +1487,7 @@ bool Clone_Snapshot::blocks_clone(const Clone_file_ctx *file_ctx) {
 
 int Clone_Snapshot::begin_ddl_file(Clone_notify::Type type, space_id_t space,
                                    bool no_wait, bool check_intr) {
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
   ut_ad(get_state() == CLONE_SNAPSHOT_FILE_COPY ||
         get_state() == CLONE_SNAPSHOT_PAGE_COPY);
 
@@ -1540,7 +1540,7 @@ int Clone_Snapshot::begin_ddl_file(Clone_notify::Type type, space_id_t space,
 }
 
 void Clone_Snapshot::end_ddl_file(Clone_notify::Type type, space_id_t space) {
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
   ut_ad(get_state() == CLONE_SNAPSHOT_FILE_COPY ||
         get_state() == CLONE_SNAPSHOT_PAGE_COPY);
 
@@ -1600,7 +1600,7 @@ void Clone_Snapshot::end_ddl_file(Clone_notify::Type type, space_id_t space) {
 }
 
 bool Clone_Snapshot::update_deleted_state(Clone_file_ctx *file_ctx) {
-  ut_ad(mutex_own(&m_snapshot_mutex));
+  mysql_mutex_assert_owner(&m_snapshot_mutex);
 
   if (file_ctx->m_state == Clone_file_ctx::State::DROPPED_HANDLED) {
     return false;
@@ -1621,14 +1621,14 @@ int Clone_Snapshot::pin_file(Clone_file_ctx *file_ctx, bool &handle_delete) {
   if (!blocks_clone(file_ctx)) {
     /* Check and update deleted state. */
     if (file_ctx->deleted()) {
-      IB_mutex_guard guard(&m_snapshot_mutex, UT_LOCATION_HERE);
+      Mysql_mutex_guard guard(&m_snapshot_mutex);
       handle_delete = update_deleted_state(file_ctx);
     }
     return 0;
   }
   file_ctx->unpin();
 
-  IB_mutex_guard guard(&m_snapshot_mutex, UT_LOCATION_HERE);
+  Mysql_mutex_guard guard(&m_snapshot_mutex);
 
   if (!blocks_clone(file_ctx)) {
     /* purecov: begin inspected */

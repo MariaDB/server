@@ -31,7 +31,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
  *******************************************************/
 
 #include "arch0arch.h"
-#include "os0thread-create.h"
 
 /** Log Archiver system global */
 Arch_Log_Sys *arch_log_sys = nullptr;
@@ -40,20 +39,33 @@ Arch_Log_Sys *arch_log_sys = nullptr;
 Arch_Page_Sys *arch_page_sys = nullptr;
 
 /** Event to signal the log archiver thread. */
-os_event_t log_archiver_thread_event;
+mysql_mutex_t log_archiver_task_mutex;
+mysql_cond_t log_archiver_task_cond;
+bool log_archiver_signalled = false;
+
+/** Signal log archiver */
+void signal_log_archiver()
+{
+  mysql_mutex_lock(&log_archiver_task_mutex);
+  mysql_cond_signal(&log_archiver_task_cond);
+  log_archiver_signalled = true;
+  mysql_mutex_unlock(&log_archiver_task_mutex);
+}
 
 /** Wakes up archiver threads.
 @return true iff any thread was still alive */
 bool arch_wake_threads() {
   bool found_alive = false;
-  if (srv_thread_is_active(srv_threads.m_log_archiver)) {
-    os_event_set(log_archiver_thread_event);
+  // TODO: Check if active
+  // if (srv_thread_is_active(srv_threads.m_log_archiver)) {
+    signal_log_archiver();
     found_alive = true;
-  }
-  if (srv_thread_is_active(srv_threads.m_page_archiver)) {
-    os_event_set(page_archiver_thread_event);
+  // }
+  // TODO: Check if active
+  // if (srv_thread_is_active(srv_threads.m_page_archiver)) {
+    signal_page_archiver();
     found_alive = true;
-  }
+  // }
   return (found_alive);
 }
 
@@ -117,25 +129,27 @@ void arch_remove_dir(const char *dir_path, const char *dir_name) {
 @return error code */
 dberr_t arch_init() {
   if (arch_log_sys == nullptr) {
-    arch_log_sys =
-        ut::new_withkey<Arch_Log_Sys>(ut::make_psi_memory_key(mem_key_archive));
+    arch_log_sys = UT_NEW(Arch_Log_Sys(), mem_key_archive);
 
     if (arch_log_sys == nullptr) {
       return (DB_OUT_OF_MEMORY);
     }
 
-    log_archiver_thread_event = os_event_create();
+    mysql_mutex_init(0, &log_archiver_task_mutex, nullptr);
+    mysql_cond_init(0, &log_archiver_task_cond, nullptr);
+    log_archiver_signalled = false;
   }
 
   if (arch_page_sys == nullptr) {
-    arch_page_sys = ut::new_withkey<Arch_Page_Sys>(
-        ut::make_psi_memory_key(mem_key_archive));
+    arch_page_sys = UT_NEW(Arch_Page_Sys(), mem_key_archive);
 
     if (arch_page_sys == nullptr) {
       return (DB_OUT_OF_MEMORY);
     }
 
-    page_archiver_thread_event = os_event_create();
+    mysql_mutex_init(0, &page_archiver_task_mutex, nullptr);
+    mysql_cond_init(0, &page_archiver_task_cond, nullptr);
+    page_archiver_signalled = false;
   }
 
   if (srv_read_only_mode) {
@@ -151,37 +165,41 @@ dberr_t arch_init() {
 /** Free Page and Log archiver system */
 void arch_free() {
   if (arch_log_sys != nullptr) {
-    ut::delete_(arch_log_sys);
+    UT_DELETE(arch_log_sys);
     arch_log_sys = nullptr;
 
-    os_event_destroy(log_archiver_thread_event);
+    mysql_cond_destroy(&log_archiver_task_cond);
+    mysql_mutex_destroy(&log_archiver_task_mutex);
   }
 
   if (arch_page_sys != nullptr) {
-    ut::delete_(arch_page_sys);
+    UT_DELETE(arch_page_sys);
     arch_page_sys = nullptr;
 
-    os_event_destroy(page_archiver_thread_event);
+    mysql_cond_destroy(&page_archiver_task_cond);
+    mysql_mutex_destroy(&page_archiver_task_mutex);
   }
 }
 
 dberr_t Arch_Group::prepare_file_with_header(
-    uint64_t start_offset, Get_file_header_callback &get_header) {
-  ut::aligned_array_pointer<byte, OS_FILE_LOG_BLOCK_SIZE> header{};
-  header.alloc(ut::Count{m_header_len});
+    uint64_t start_offset, Get_file_header_callback &get_header)
+{
+  auto header = static_cast<byte*>(
+      aligned_malloc(m_header_len, OS_FILE_LOG_BLOCK_SIZE));
 
-  dberr_t err = get_header(start_offset, header);
-  if (err != DB_SUCCESS) {
-    return err;
-  }
+  dberr_t err= get_header(start_offset, header);
+  if (err != DB_SUCCESS)
+    goto end;
 
-  err = m_file_ctx.open_new(m_begin_lsn, m_file_size, 0);
+  err= m_file_ctx.open_new(m_begin_lsn, m_file_size, 0);
+  if (err != DB_SUCCESS)
+    goto end;
 
-  if (err != DB_SUCCESS) {
-    return err;
-  }
+  err= m_file_ctx.write(nullptr, header, m_header_len);
 
-  return m_file_ctx.write(nullptr, header, m_header_len);
+end:
+  aligned_free(header);
+  return err;
 }
 
 dberr_t Arch_Group::write_to_file(Arch_File_Ctx *from_file, byte *from_buffer,
@@ -329,12 +347,10 @@ dberr_t Arch_File_Ctx::init(const char *path, const char *base_dir,
 
   /* In case of reinitialise. */
   if (m_name_buf != nullptr) {
-    ut::free(m_name_buf);
+    ut_free(m_name_buf);
     m_name_buf = nullptr;
   }
-
-  m_name_buf = static_cast<char *>(
-      ut::malloc_withkey(ut::make_psi_memory_key(mem_key_archive), m_name_len));
+  m_name_buf = static_cast<char *>(ut_malloc(m_name_len, mem_key_archive));
 
   if (m_name_buf == nullptr) {
     return (DB_OUT_OF_MEMORY);
@@ -397,7 +413,7 @@ dberr_t Arch_File_Ctx::open(bool read_only, lsn_t start_lsn, uint file_index,
   }
 
   m_file = os_file_create(innodb_arch_file_key, m_name_buf, option,
-                          OS_CLONE_LOG_FILE, read_only, &success);
+      OS_FILE_NORMAL, OS_CLONE_LOG_FILE, read_only, &success);
 
   if (!success) {
     return (DB_CANNOT_OPEN_FILE);
@@ -409,7 +425,7 @@ dberr_t Arch_File_Ctx::open(bool read_only, lsn_t start_lsn, uint file_index,
   if (!exists && file_offset != 0 && !read_only) {
     /* This call would extend the length by multiple of UNIV_PAGE_SIZE. This is
     not an issue but we need to lseek to keep the current position at offset. */
-    success = os_file_set_size(m_name_buf, m_file, 0, file_offset, false);
+    success = os_file_set_size(m_name_buf, m_file, file_offset);
 
     exists = success;
   }
@@ -457,13 +473,8 @@ dberr_t Arch_File_Ctx::read(byte *to_buffer, uint64_t offset, uint size) {
   ut_ad(offset + size <= m_size);
   ut_ad(!is_closed());
 
-  IORequest request(IORequest::READ);
-  request.disable_compression();
-  request.clear_encrypted();
-
-  auto err =
-      os_file_read(request, m_path_name, m_file, to_buffer, offset, size);
-
+  auto err = os_file_read(IORequestRead, m_file, to_buffer, offset, size,
+                          nullptr);
   return (err);
 }
 
@@ -471,16 +482,14 @@ dberr_t Arch_File_Ctx::resize_and_overwrite_with_zeros(uint64_t file_size) {
   ut_ad(m_size <= file_size);
 
   m_size = file_size;
-
-  byte *buf = static_cast<byte *>(
-      ut::zalloc_withkey(ut::make_psi_memory_key(mem_key_archive), file_size));
+  byte *buf = static_cast<byte *>(ut_zalloc(file_size, mem_key_archive));
 
   /* Make sure that the physical file size is the same as logical by filling
   the file with all-zeroes. Page archiver recovery expects that the physical
   file size is the same as logical file size. */
-  const dberr_t err = write(nullptr, buf, 0, file_size);
+  const dberr_t err = write(nullptr, buf, 0, (uint)file_size);
 
-  ut::free(buf);
+  ut_free(buf);
 
   if (err != DB_SUCCESS) {
     return err;
@@ -506,12 +515,8 @@ dberr_t Arch_File_Ctx::write(Arch_File_Ctx *from_file, byte *from_buffer,
 
   } else {
     /* write from buffer */
-    IORequest request(IORequest::WRITE);
-    request.disable_compression();
-    request.clear_encrypted();
-
-    err = os_file_write(request, "Track file", m_file, from_buffer, m_offset,
-                        size);
+    err = os_file_write(IORequestWrite, "Track file", m_file, from_buffer,
+                        m_offset, size);
   }
 
   if (err != DB_SUCCESS) {
@@ -574,10 +579,10 @@ int start_log_archiver_background() {
   ret = os_file_create_directory(ARCH_DIR, false);
 
   if (ret) {
-    srv_threads.m_log_archiver =
-        os_thread_create(log_archiver_thread_key, 0, log_archiver_thread);
+    // srv_threads.m_log_archiver =
+    //    os_thread_create(log_archiver_thread_key, 0, log_archiver_thread);
 
-    srv_threads.m_log_archiver.start();
+    // srv_threads.m_log_archiver.start();
 
   } else {
     my_error(ER_CANT_CREATE_FILE, MYF(0), ARCH_DIR, errno,
@@ -596,10 +601,10 @@ int start_page_archiver_background() {
   ret = os_file_create_directory(ARCH_DIR, false);
 
   if (ret) {
-    srv_threads.m_page_archiver =
-        os_thread_create(page_archiver_thread_key, 0, page_archiver_thread);
+    // srv_threads.m_page_archiver =
+    //     os_thread_create(page_archiver_thread_key, 0, page_archiver_thread);
 
-    srv_threads.m_page_archiver.start();
+    // srv_threads.m_page_archiver.start();
 
   } else {
     my_error(ER_CANT_CREATE_FILE, MYF(0), ARCH_DIR, errno,
@@ -626,16 +631,19 @@ void log_archiver_thread() {
                                       &log_wait);
 
     if (log_abort) {
-      ib::info(ER_IB_MSG_13) << "Exiting Log Archiver";
+      ib::info() << "Exiting Log Archiver";
       break;
     }
 
     log_init = false;
 
+    mysql_mutex_lock(&log_archiver_task_mutex);
     if (log_wait) {
       /* Nothing to archive. Wait until next trigger. */
-      os_event_wait(log_archiver_thread_event);
-      os_event_reset(log_archiver_thread_event);
+      while(!log_archiver_signalled)
+        mysql_cond_wait(&log_archiver_task_cond, &log_archiver_task_mutex);
     }
+    log_archiver_signalled = false;
+    mysql_mutex_unlock(&log_archiver_task_mutex);
   }
 }

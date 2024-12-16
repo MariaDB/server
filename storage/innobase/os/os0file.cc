@@ -41,6 +41,7 @@ Created 10/21/1995 Heikki Tuuri
 # include <sys/types.h>
 # include <sys/stat.h>
 # include <sys/sysmacros.h>
+# include <sys/sendfile.h>
 #endif
 
 #include "srv0mon.h"
@@ -187,6 +188,8 @@ extern uint page_zip_level;
 /* Keys to register InnoDB I/O with performance schema */
 mysql_pfs_key_t  innodb_data_file_key;
 mysql_pfs_key_t  innodb_temp_file_key;
+mysql_pfs_key_t  innodb_arch_file_key;
+mysql_pfs_key_t  innodb_clone_file_key;
 #endif
 
 /** Handle errors for file operations.
@@ -1032,6 +1035,44 @@ bool os_file_create_directory(const char *pathname, bool fail_if_exists)
 	}
 
 	return(true);
+}
+
+bool
+os_file_scan_directory(const char *path, os_dir_cbk_t scan_cbk, bool is_drop)
+{
+  DIR *directory;
+  dirent *entry;
+
+  directory = opendir(path);
+
+  if (directory == nullptr)
+  {
+    os_file_handle_error_no_exit(path, "opendir", false);
+    return (false);
+  }
+
+  entry = readdir(directory);
+
+  while (entry != nullptr)
+  {
+    scan_cbk(path, entry->d_name);
+    entry = readdir(directory);
+  }
+
+  closedir(directory);
+
+  if (is_drop)
+  {
+    int err;
+    err = rmdir(path);
+
+    if (err != 0)
+    {
+      os_file_handle_error_no_exit(path, "rmdir", false);
+      return false;
+    }
+  }
+  return true;
 }
 
 #ifdef O_DIRECT
@@ -1968,6 +2009,48 @@ bool os_file_create_directory(const char *pathname, bool fail_if_exists)
 	return(true);
 }
 
+bool
+os_file_scan_directory(const char *path, os_dir_cbk_t scan_cbk, bool is_drop) {
+  bool file_found;
+  HANDLE find_hdl;
+  WIN32_FIND_DATA find_data;
+  char wild_card_path[MAX_PATH];
+
+  snprintf(wild_card_path, MAX_PATH, "%s\\*", path);
+
+  find_hdl = FindFirstFile((LPCTSTR)wild_card_path, &find_data);
+
+  if (find_hdl == INVALID_HANDLE_VALUE)
+  {
+    os_file_handle_error_no_exit(path, "FindFirstFile", false);
+    return (false);
+  }
+
+  do
+  {
+    scan_cbk(path, find_data.cFileName);
+    file_found = FindNextFile(find_hdl, &find_data);
+
+  } while (file_found);
+
+  FindClose(find_hdl);
+
+  if (is_drop)
+  {
+    bool ret;
+
+    ret = RemoveDirectory((LPCSTR)path);
+
+    if (!ret)
+    {
+      os_file_handle_error_no_exit(path, "RemoveDirectory", false);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /** Get disk sector size for a file. */
 static size_t get_sector_size(HANDLE file)
 {
@@ -2743,6 +2826,121 @@ os_file_read_func(
   return err ? err : DB_IO_ERROR;
 }
 
+/** copy data from one file to another file using read, write.
+@param[in]	src_file	file handle to copy from
+@param[in]	src_offset	offset to copy from
+@param[in]	dest_file	file handle to copy to
+@param[in]	dest_offset	offset to copy to
+@param[in]	size		number of bytes to copy
+@return DB_SUCCESS if successful */
+static dberr_t os_file_copy_read_write(
+	os_file_t	src_file,
+	os_offset_t	src_offset,
+	os_file_t	dest_file,
+	os_offset_t	dest_offset,
+	uint		size)
+{
+  static const size_t SECTOR_SIZE = 512;
+  dberr_t err;
+  uint request_size;
+  const uint BUF_SIZE = 4 * SECTOR_SIZE;
+
+  alignas(SECTOR_SIZE) char buf[BUF_SIZE];
+
+  while (size > 0) {
+    if (size > BUF_SIZE) {
+      request_size = BUF_SIZE;
+    } else {
+      request_size = size;
+    }
+
+    err = os_file_read_func(IORequestRead, src_file, &buf, src_offset,
+                            request_size, nullptr);
+
+    if (err != DB_SUCCESS) {
+      return err;
+    }
+    src_offset += request_size;
+
+    err = os_file_write_func(IORequestWrite, "file copy", dest_file, &buf,
+                             dest_offset, request_size);
+
+    if (err != DB_SUCCESS) {
+      return err;
+    }
+    dest_offset += request_size;
+    size -= request_size;
+  }
+
+  return DB_SUCCESS;
+}
+
+/** Copy data from one file to another file. Data is read/written
+at current file offset.
+@param[in]	src_file	file handle to copy from
+@param[in]	src_offset	offset to copy from
+@param[in]	dest_file	file handle to copy to
+@param[in]	dest_offset	offset to copy to
+@param[in]	size		number of bytes to copy
+@return DB_SUCCESS if successful */
+#ifdef __linux__
+dberr_t os_file_copy_func(
+	os_file_t	src_file,
+	os_offset_t	src_offset,
+	os_file_t	dest_file,
+	os_offset_t	dest_offset,
+	uint		size)
+{
+  dberr_t err;
+  static bool use_sendfile = true;
+
+  if (!os_file_seek(nullptr, src_file, src_offset)) {
+    return (DB_IO_ERROR);
+  }
+
+  if (!os_file_seek(nullptr, dest_file, dest_offset)) {
+    return (DB_IO_ERROR);
+  }
+
+  while (use_sendfile && size > 0) {
+    auto ret_size = sendfile(dest_file, src_file, nullptr, size);
+
+    if (ret_size == -1) {
+      /* Fall through read/write path. */
+      ib::info() << "sendfile failed to copy data"
+                    " : trying read/write ";
+
+      use_sendfile = false;
+      break;
+    }
+
+    auto actual_size = static_cast<uint>(ret_size);
+
+    ut_ad(size >= actual_size);
+    size -= actual_size;
+  }
+
+  if (size == 0) {
+    return (DB_SUCCESS);
+  }
+
+  err = os_file_copy_read_write(src_file, src_offset, dest_file, dest_offset,
+                                size);
+
+  return (err);
+}
+#else  /* !__linux__ */
+dberr_t os_file_copy_func(os_file_t src_file, os_offset_t src_offset,
+                          os_file_t dest_file, os_offset_t dest_offset,
+                          uint size) {
+  dberr_t err;
+
+  err = os_file_copy_read_write(src_file, src_offset, dest_file, dest_offset,
+                                size);
+  return (err);
+}
+#endif /* !__linux__ */
+
 /** Handle errors for file operations.
 @param[in]	name		name of a file or NULL
 @param[in]	operation	operation
@@ -2886,6 +3084,33 @@ os_file_truncate(
 #else /* _WIN32 */
 	return(os_file_truncate_posix(pathname, file, size));
 #endif /* _WIN32 */
+}
+
+bool os_file_seek(const char *pathname, os_file_t file, os_offset_t offset) {
+  bool success = true;
+
+#ifdef _WIN32
+  LARGE_INTEGER length;
+
+  length.QuadPart = offset;
+
+  success = SetFilePointerEx(file, length, nullptr, FILE_BEGIN);
+
+#else  /* !_WIN32 */
+  off_t ret;
+
+  ret = lseek(file, offset, SEEK_SET);
+
+  if (ret == -1) {
+    success = false;
+  }
+#endif /* !_WIN32 */
+
+  if (!success) {
+    os_file_handle_error_no_exit(pathname, "os_file_seek", false);
+  }
+
+  return success;
 }
 
 /** Check the existence and type of the given file.

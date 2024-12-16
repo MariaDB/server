@@ -32,13 +32,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "arch0log.h"
 #include "clone0clone.h"
-#include "log0buf.h"
-#include "log0chkp.h"
-#include "log0encryption.h"
-#include "log0files_governor.h"
-#include "log0write.h"
+#include "log0log.h"
 #include "srv0start.h"
-#include "ut0mutex.h"
 
 /** Chunk size for archiving redo log */
 const uint ARCH_LOG_CHUNK_SIZE = 1024 * 1024;
@@ -335,7 +330,7 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   /* Set archiver state to active. */
   if (m_state != ARCH_STATE_ACTIVE) {
     update_state_low(ARCH_STATE_ACTIVE);
-    os_event_set(log_archiver_thread_event);
+    signal_log_archiver();
   }
 
   log_files_mutex_exit(*log_sys);
@@ -343,10 +338,8 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
 
   /* Create a new group. */
   if (create_new_group) {
-    m_current_group =
-        ut::new_withkey<Arch_Group>(ut::make_psi_memory_key(mem_key_archive),
-                                    start_lsn, LOG_FILE_HDR_SIZE, &m_mutex);
-
+    m_current_group = UT_NEW(Arch_Group(start_lsn, LOG_FILE_HDR_SIZE, &m_mutex),
+                             mem_key_archive);
     if (m_current_group == nullptr) {
       arch_mutex_exit();
 
@@ -477,7 +470,7 @@ int Arch_Log_Sys::stop(Arch_Group *group, lsn_t &stop_lsn, byte *log_blk,
       /* The active group must be the current group. */
       ut_ad(group == m_current_group);
       update_state(ARCH_STATE_PREPARE_IDLE);
-      os_event_set(log_archiver_thread_event);
+      signal_log_archiver();
     }
   }
 
@@ -519,7 +512,7 @@ void Arch_Log_Sys::release(Arch_Group *group, bool is_durable) {
 
   m_group_list.remove(group);
 
-  ut::delete_(group);
+  UT_DELETE(group);
 
   arch_mutex_exit();
 }
@@ -591,7 +584,7 @@ Arch_State Arch_Log_Sys::check_set_state(bool is_abort, lsn_t *archived_lsn,
       if (!m_current_group->is_referenced()) {
         m_group_list.remove(m_current_group);
 
-        ut::delete_(m_current_group);
+        UT_DELETE(m_current_group);
       }
 
       m_current_group = nullptr;
@@ -713,16 +706,16 @@ dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn,
 }
 
 bool Arch_Log_Sys::wait_idle() {
-  ut_ad(mutex_own(&m_mutex));
+  mysql_mutex_assert_owner(&m_mutex);
 
   if (m_state == ARCH_STATE_PREPARE_IDLE) {
-    os_event_set(log_archiver_thread_event);
+    signal_log_archiver();
     bool is_timeout = false;
     int alert_count = 0;
 
     auto err = Clone_Sys::wait_default(
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(&m_mutex));
+          mysql_mutex_assert_owner(&m_mutex);
           result = (m_state == ARCH_STATE_PREPARE_IDLE);
 
           if (srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP) {
@@ -730,8 +723,7 @@ bool Arch_Log_Sys::wait_idle() {
           }
 
           if (result) {
-            os_event_set(log_archiver_thread_event);
-
+            signal_log_archiver();
             /* Print messages every 1 minute - default is 5 seconds. */
             if (alert && ++alert_count == 12) {
               alert_count = 0;
@@ -766,7 +758,7 @@ int Arch_Log_Sys::wait_archive_complete(lsn_t target_lsn) {
 
   /* Check and wait for archiver thread if needed. */
   if (m_archived_lsn.load() < target_lsn) {
-    os_event_set(log_archiver_thread_event);
+    signal_log_archiver();
 
     bool is_timeout = false;
     int alert_count = 0;
@@ -801,7 +793,7 @@ int Arch_Log_Sys::wait_archive_complete(lsn_t target_lsn) {
 
           if (result) {
             /* More data needs to be archived. */
-            os_event_set(log_archiver_thread_event);
+            signal_log_archiver();
 
             /* Write system redo log if needed. */
             if (flush) {
@@ -917,8 +909,8 @@ bool Arch_Log_Sys::archive(bool init, Arch_File_Ctx *curr_ctx, lsn_t *arch_lsn,
 
 void Arch_Log_Sys::update_state(Arch_State state) {
   log_t &log = *log_sys;
-  IB_mutex_guard writer_latch{&(log.writer_mutex), UT_LOCATION_HERE};
-  IB_mutex_guard files_latch{&(log.m_files_mutex), UT_LOCATION_HERE};
+  Mysql_mutex_guard writer_latch{&(log.writer_mutex)};
+  Mysql_mutex_guard files_latch{&(log.m_files_mutex)};
   update_state_low(state);
 }
 
@@ -939,20 +931,3 @@ void Arch_Log_Sys::update_state_low(Arch_State state) {
     log_consumer_register(log, &m_log_consumer);
   }
 }
-
-const std::string &Arch_log_consumer::get_name() const {
-  static std::string name{"log_archiver"};
-  return name;
-}
-
-lsn_t Arch_log_consumer::get_consumed_lsn() const {
-  ut_a(arch_log_sys != nullptr);
-  ut_a(arch_log_sys->is_active());
-
-  lsn_t archiver_lsn = arch_log_sys->get_archived_lsn();
-  ut_a(archiver_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
-
-  return archiver_lsn;
-}
-
-void Arch_log_consumer::consumption_requested() { arch_wake_threads(); }

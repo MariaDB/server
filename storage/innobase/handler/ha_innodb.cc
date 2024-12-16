@@ -626,7 +626,9 @@ static PSI_thread_info	all_innodb_threads[] = {
 performance schema instrumented if "UNIV_PFS_IO" is defined */
 static PSI_file_info	all_innodb_files[] = {
 	PSI_KEY(innodb_data_file),
-	PSI_KEY(innodb_temp_file)
+	PSI_KEY(innodb_temp_file),
+	PSI_KEY(innodb_arch_file),
+	PSI_KEY(innodb_clone_file)
 };
 # endif /* UNIV_PFS_IO */
 #endif /* HAVE_PSI_INTERFACE */

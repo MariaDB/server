@@ -495,4 +495,46 @@ extern mysql_pfs_key_t lock_latch_key;
 extern mysql_pfs_key_t log_latch_key;
 extern mysql_pfs_key_t trx_rseg_latch_key;
 # endif /* UNIV_PFS_RWLOCK */
+
+/* RAII guard for mysql mutex */
+struct Mysql_mutex_guard {
+  /**
+    Constructor to acquire mutex
+    @param in_mutex input mutex
+  */
+  Mysql_mutex_guard(mysql_mutex_t *in_mutex)
+      : m_mutex(in_mutex) { mysql_mutex_lock(in_mutex); }
+
+  /** Destructor to release mutex */
+  ~Mysql_mutex_guard() { clear(); }
+
+  /** Disable copy construction */
+  Mysql_mutex_guard(Mysql_mutex_guard const &) = delete;
+
+  /** Disable assignment */
+  Mysql_mutex_guard &operator=(Mysql_mutex_guard const &) = delete;
+
+ private:
+  /** Current mutex for RAII */
+  mysql_mutex_t *m_mutex;
+
+  void clear() {
+    mysql_mutex_unlock(m_mutex);
+    m_mutex = nullptr;
+  }
+};
+
+#ifdef _WIN32
+#define OS_PATH_SEPARATOR_STR "\\"
+#define OS_PATH_SEPARATOR '\\'
+#else
+#define OS_PATH_SEPARATOR_STR "/"
+#define OS_PATH_SEPARATOR '/'
+#endif /* _WIN32 */
+
+#ifdef UNIV_DEBUG
+#define IF_DEBUG(...) __VA_ARGS__
+#else
+#define IF_DEBUG(...)
+#endif /* UNIV_DEBUG */
 #endif /* HAVE_PSI_INTERFACE */

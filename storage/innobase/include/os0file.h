@@ -46,6 +46,12 @@ Created 10/21/1995 Heikki Tuuri
 #include <time.h>
 #endif /* !_WIN32 */
 
+#include <functional>
+
+/** Prefix all files and directory created under data directory with special
+string so that it never conflicts with schema directory. */
+#define OS_FILE_PREFIX "#"
+
 /** The maximum size of a read or write request.
 
 According to Linux "man 2 read" and "man 2 write" this applies to
@@ -133,6 +139,9 @@ enum os_file_create_t {
   /** do not display diagnostic messages */
   OS_FILE_ON_ERROR_SILENT= 4,
 
+  /** Create the directories */
+  OS_FILE_CREATE_PATH,
+
   OS_FILE_CREATE_SILENT= OS_FILE_CREATE | OS_FILE_ON_ERROR_SILENT,
   OS_FILE_OPEN_SILENT= OS_FILE_OPEN | OS_FILE_ON_ERROR_SILENT,
   OS_FILE_OPEN_RETRY_SILENT= OS_FILE_OPEN_RETRY | OS_FILE_ON_ERROR_SILENT
@@ -152,6 +161,8 @@ static constexpr ulint OS_LOG_FILE = 101;
 #if defined _WIN32 || defined O_DIRECT
 static constexpr ulint OS_DATA_FILE_NO_O_DIRECT = 103;
 #endif
+static constexpr ulint OS_CLONE_DATA_FILE = 104;
+static constexpr ulint OS_CLONE_LOG_FILE = 105;
 /* @} */
 
 /** Error codes from os_file_get_last_error @{ */
@@ -345,6 +356,21 @@ fail_if_exists arguments is true.
 bool os_file_create_directory(const char *pathname, bool fail_if_exists)
   noexcept;
 
+/** Callback function type to be implemented by caller. It is called for each
+entry in directory.
+@param[in]      path    path to the file
+@param[in]      name    name of the file */
+typedef std::function<void(const char *path, const char *name)> os_dir_cbk_t;
+
+/** This function scans the contents of a directory and invokes the callback
+for each entry.
+@param[in]      path            directory name as null-terminated string
+@param[in]      scan_cbk        use callback to be called for each entry
+@param[in]      is_drop         attempt to drop the directory after scan
+@return true if call succeeds, false on error */
+bool os_file_scan_directory(const char *path, os_dir_cbk_t scan_cbk,
+                            bool is_drop);
+
 /** NOTE! Use the corresponding macro os_file_create_simple(), not directly
 this function!
 A simple function to open or create a file.
@@ -449,6 +475,8 @@ bool os_file_close_func(os_file_t file);
 /* Keys to register InnoDB I/O with performance schema */
 extern mysql_pfs_key_t	innodb_data_file_key;
 extern mysql_pfs_key_t	innodb_temp_file_key;
+extern mysql_pfs_key_t  innodb_arch_file_key;
+extern mysql_pfs_key_t  innodb_clone_file_key;
 
 /* Following four macros are instumentations to register
 various file I/O operations with performance schema.
@@ -574,6 +602,10 @@ The wrapper functions have the prefix of "innodb_". */
 
 # define os_file_flush(file)					\
 	pfs_os_file_flush_func(file, __FILE__, __LINE__)
+
+#define os_file_copy(src, src_offset, dest, dest_offset, size)		\
+	pfs_os_file_copy_func(src, src_offset, dest, dest_offset, size,	\
+			      __FILE__, __LINE__)
 
 # define os_file_rename(key, oldpath, newpath)				\
 	pfs_os_file_rename_func(key, oldpath, newpath, __FILE__, __LINE__)
@@ -750,6 +782,26 @@ pfs_os_file_flush_func(
 	const char*	src_file,
 	uint		src_line);
 
+/** copy data from one file to another file. Data is read/written
+at current file offset.
+@param[in]	src		file handle to copy from
+@param[in]	src_offset	offset to copy from
+@param[in]	dest		file handle to copy to
+@param[in]	dest_offset	offset to copy to
+@param[in]	size		number of bytes to copy
+@param[in]	src_file	file name where func invoked
+@param[in]	src_line	line where the func invoked
+@return DB_SUCCESS if successful */
+UNIV_INLINE
+dberr_t
+pfs_os_file_copy_func(
+	pfs_os_file_t	src,
+	os_offset_t	src_offset,
+	pfs_os_file_t	dest,
+	os_offset_t	dest_offset,
+	uint		size,
+	const char*	src_file,
+	uint		src_line);
 
 /** NOTE! Please use the corresponding macro os_file_rename(), not directly
 this function!
@@ -837,6 +889,9 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_flush(file)	os_file_flush_func(file)
 
+# define os_file_copy(src, src_offset, dest, dest_offset, size)		\
+	os_file_copy_func(src, src_offset, dest, dest_offset, size)
+
 # define os_file_rename(key, oldpath, newpath)				\
 	os_file_rename_func(oldpath, newpath)
 
@@ -880,6 +935,16 @@ os_file_truncate(
 	os_file_t	file,
 	os_offset_t	size,
 	bool		allow_shrink = false) noexcept;
+
+/** Set read/write position of a file handle to specific offset.
+@param[in]      pathname        file path
+@param[in]      file            file handle
+@param[in]      offset          read/write offset
+@return true if success */
+bool os_file_seek(
+	const char *pathname,
+	os_file_t file,
+	os_offset_t offset);
 
 /** NOTE! Use the corresponding macro os_file_flush(), not directly this
 function!
@@ -950,6 +1015,22 @@ os_file_write_func(
 	os_offset_t		offset,
 	ulint			n)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** copy data from one file to another file. Data is read/written
+at current file offset.
+@param[in]	src		file handle to copy from
+@param[in]	src_offset	offset to copy from
+@param[in]	dest		file handle to copy to
+@param[in]	dest_offset	offset to copy to
+@param[in]	size		number of bytes to copy
+@return DB_SUCCESS if successful */
+dberr_t
+os_file_copy_func(
+	pfs_os_file_t	src,
+	os_offset_t	src_offset,
+	pfs_os_file_t	dest,
+	os_offset_t	dest_offset,
+	uint		size);
 
 /** Check the existence and type of the given file.
 @param[in]	path		pathname of the file

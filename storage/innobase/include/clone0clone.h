@@ -36,16 +36,15 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <chrono>
 #include "db0err.h"
 #include "mysql/plugin.h"  // thd_killed()
-#include "sql/handler.h"
+#include "handler.h"
 #include "univ.i"
-#include "ut0mutex.h"
 
 #include "clone0api.h"
 #include "clone0desc.h"
-#include "clone0repl.h"
 #include "clone0snapshot.h"
 
 #include <tuple>
+#include <functional>
 
 /** Directory under data directory for all clone status files. */
 #define CLONE_FILES_DIR OS_FILE_PREFIX "clone" OS_PATH_SEPARATOR_STR
@@ -208,7 +207,7 @@ class Clone_Task_Manager {
 
   /** Get task state mutex
   @return state mutex */
-  ib_mutex_t *get_mutex() { return (&m_state_mutex); }
+  mysql_mutex_t *get_mutex() { return (&m_state_mutex); }
 
   /** Handle any error raised by concurrent tasks.
   @param[in]    raise_error     raise error if true
@@ -219,7 +218,7 @@ class Clone_Task_Manager {
   @param[in]    err             error number
   @param[in]    file_name       associated file name if any  */
   void set_error(int err, const char *file_name) {
-    mutex_enter(&m_state_mutex);
+    mysql_mutex_lock(&m_state_mutex);
 
     ib::info(ER_IB_CLONE_OPERATION) << "Clone Set Error code: " << err
                                     << " Saved Error code: " << m_saved_error;
@@ -234,7 +233,7 @@ class Clone_Task_Manager {
       }
     }
 
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
   }
 
   /** Add a task to task manager
@@ -262,8 +261,7 @@ class Clone_Task_Manager {
   /** Reset chunk information for task
   @param[in]    task    current task */
   void reset_chunk(Clone_Task *task) {
-    ut_ad(mutex_own(&m_state_mutex));
-
+    mysql_mutex_assert_owner(&m_state_mutex);
     /* Reset current processing chunk */
     task->m_task_meta.m_chunk_num = 0;
     task->m_task_meta.m_block_num = 0;
@@ -417,7 +415,7 @@ class Clone_Task_Manager {
   bool check_ack(const Clone_Desc_State *state_desc) {
     bool ret = true;
 
-    mutex_enter(&m_state_mutex);
+    mysql_mutex_lock(&m_state_mutex);
 
     /* Check if state is already acknowledged */
     if (m_ack_state == state_desc->m_state) {
@@ -426,7 +424,7 @@ class Clone_Task_Manager {
       ++m_num_tasks_finished;
     }
 
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
 
     return (ret);
   }
@@ -527,7 +525,7 @@ class Clone_Task_Manager {
 
  private:
   /** Mutex synchronizing access by concurrent tasks */
-  ib_mutex_t m_state_mutex;
+  mysql_mutex_t m_state_mutex;
 
   /** Finished and incomplete chunk information */
   Chunk_Info m_chunk_info;
@@ -1185,7 +1183,7 @@ class Clone_Sys {
 
   /** Get clone sys mutex
   @return clone system mutex */
-  ib_mutex_t *get_mutex() { return (&m_clone_sys_mutex); }
+  mysql_mutex_t *get_mutex() { return (&m_clone_sys_mutex); }
 
   /** Clone System state */
   static Clone_Sys_State s_clone_sys_state;
@@ -1212,7 +1210,7 @@ class Clone_Sys {
   @return error code returned by callback function. */
   static int wait(Clone_Msec sleep_time, Clone_Sec timeout,
                   Clone_Sec alert_interval, Wait_Cond_Cbk_Func &&func,
-                  ib_mutex_t *mutex, bool &is_timeout) {
+                  mysql_mutex_t *mutex, bool &is_timeout) {
     int err = 0;
     bool wait = true;
     is_timeout = false;
@@ -1230,8 +1228,8 @@ class Clone_Sys {
     while (!is_timeout && wait && err == 0) {
       /* Release input mutex */
       if (mutex != nullptr) {
-        ut_ad(mutex_own(mutex));
-        mutex_exit(mutex);
+        mysql_mutex_assert_owner(mutex);
+        mysql_mutex_unlock(mutex);
       }
 
       /* Limit sleep time to what is passed by caller. */
@@ -1251,7 +1249,7 @@ class Clone_Sys {
 
       /* Acquire input mutex back */
       if (mutex != nullptr) {
-        mutex_enter(mutex);
+        mysql_mutex_lock(mutex);
       }
 
       /* We have not yet reached the target sleep time. */
@@ -1274,7 +1272,7 @@ class Clone_Sys {
   @param[in]    mutex           release during sleep and re-acquire
   @param[out]   is_timeout      true if timeout
   @return error code returned by callback function. */
-  static int wait_default(Wait_Cond_Cbk_Func &&func, ib_mutex_t *mutex,
+  static int wait_default(Wait_Cond_Cbk_Func &&func, mysql_mutex_t *mutex,
                           bool &is_timeout) {
     return (wait(CLONE_DEF_SLEEP, Clone_Sec(CLONE_DEF_TIMEOUT),
                  CLONE_DEF_ALERT_INTERVAL,
@@ -1334,7 +1332,7 @@ class Clone_Sys {
   uint m_num_apply_snapshots;
 
   /** Clone system mutex */
-  ib_mutex_t m_clone_sys_mutex;
+  mysql_mutex_t m_clone_sys_mutex;
 
   /** Clone unique ID generator */
   uint64_t m_clone_id_generator;
