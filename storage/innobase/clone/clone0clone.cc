@@ -57,12 +57,12 @@ Clone_Sys::Clone_Sys()
       m_num_snapshots(),
       m_num_apply_snapshots(),
       m_clone_id_generator() {
-  mutex_create(LATCH_ID_CLONE_SYS, &m_clone_sys_mutex);
+  mysql_mutex_init(0, &m_clone_sys_mutex, nullptr);
   m_space_initialized.store(false);
 }
 
 Clone_Sys::~Clone_Sys() {
-  mutex_free(&m_clone_sys_mutex);
+  mysql_mutex_destroy(&m_clone_sys_mutex);
 
 #ifdef UNIV_DEBUG
   /* Verify that no active clone is present */
@@ -91,7 +91,7 @@ Clone_Handle *Clone_Sys::find_clone(const byte *ref_loc, uint loc_len,
   Clone_Desc_Locator ref_desc;
   Clone_Handle *clone_hdl;
 
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
 
   if (ref_loc == nullptr) {
     return (nullptr);
@@ -162,7 +162,7 @@ int Clone_Sys::find_free_index(Clone_Handle_Type hdl_type, uint &free_index) {
 
   /* We can abort idle clone and use the index. */
   ut_ad(target_clone != nullptr);
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
   ut_ad(hdl_type == CLONE_HDL_COPY);
 
   target_clone->set_state(CLONE_STATE_ABORT);
@@ -180,7 +180,7 @@ int Clone_Sys::find_free_index(Clone_Handle_Type hdl_type, uint &free_index) {
   auto err = Clone_Sys::wait(
       sleep_time, time_out, alert_interval,
       [&](bool alert, bool &result) {
-        ut_ad(mutex_own(clone_sys->get_mutex()));
+        mysql_mutex_assert_owner(clone_sys->get_mutex());
         auto current_clone = m_clone_arr[target_index];
         result = (current_clone != nullptr);
 
@@ -228,7 +228,7 @@ int Clone_Sys::find_free_index(Clone_Handle_Type hdl_type, uint &free_index) {
 
 int Clone_Sys::add_clone(const byte *loc, Clone_Handle_Type hdl_type,
                          Clone_Handle *&clone_hdl) {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
   ut_ad(m_num_clones <= MAX_CLONES);
   ut_ad(m_num_apply_clones <= MAX_CLONES);
 
@@ -242,8 +242,7 @@ int Clone_Sys::add_clone(const byte *loc, Clone_Handle_Type hdl_type,
   }
 
   /* Create a new clone. */
-  clone_hdl = ut::new_withkey<Clone_Handle>(
-      ut::make_psi_memory_key(mem_key_clone), hdl_type, version, free_idx);
+  clone_hdl = UT_NEW(Clone_Handle(hdl_type, version, free_idx), mem_key_clone);
 
   if (clone_hdl == nullptr) {
     my_error(ER_OUTOFMEMORY, MYF(0), sizeof(Clone_Handle));
@@ -265,7 +264,7 @@ int Clone_Sys::add_clone(const byte *loc, Clone_Handle_Type hdl_type,
 }
 
 void Clone_Sys::drop_clone(Clone_Handle *clone_handle) {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
 
   if (clone_handle->detach() > 0) {
     return;
@@ -286,7 +285,7 @@ void Clone_Sys::drop_clone(Clone_Handle *clone_handle) {
     --m_num_apply_clones;
   }
 
-  ut::delete_(clone_handle);
+  UT_DELETE(clone_handle);
 }
 
 Clone_Handle *Clone_Sys::get_clone_by_index(const byte *loc, uint loc_len) {
@@ -312,7 +311,7 @@ int Clone_Sys::attach_snapshot(Clone_Handle_Type hdl_type,
   uint idx;
   uint free_idx = SNAPSHOT_ARR_SIZE;
 
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
 
   /* Try to attach to an existing snapshot. */
   for (idx = 0; idx < SNAPSHOT_ARR_SIZE; idx++) {
@@ -335,9 +334,8 @@ int Clone_Sys::attach_snapshot(Clone_Handle_Type hdl_type,
   }
 
   /* Create a new snapshot. */
-  snapshot = ut::new_withkey<Clone_Snapshot>(
-      ut::make_psi_memory_key(mem_key_clone), hdl_type, clone_type, free_idx,
-      snapshot_id);
+  snapshot = UT_NEW(Clone_Snapshot(hdl_type, clone_type, free_idx, snapshot_id),
+                    mem_key_clone);
 
   if (snapshot == nullptr) {
     my_error(ER_OUTOFMEMORY, MYF(0), sizeof(Clone_Snapshot));
@@ -360,7 +358,7 @@ int Clone_Sys::attach_snapshot(Clone_Handle_Type hdl_type,
 
 void Clone_Sys::detach_snapshot(Clone_Snapshot *snapshot,
                                 Clone_Handle_Type hdl_type) {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
   snapshot->detach();
 
   /* Drop the snapshot. */
@@ -369,7 +367,7 @@ void Clone_Sys::detach_snapshot(Clone_Snapshot *snapshot,
   index = snapshot->get_index();
   ut_ad(m_snapshot_arr[index] == snapshot);
 
-  ut::delete_(snapshot);
+  UT_DELETE(snapshot);
 
   m_snapshot_arr[index] = nullptr;
 
@@ -419,7 +417,7 @@ bool Clone_Sys::check_active_clone(bool print_alert) {
 }
 
 std::tuple<bool, Clone_Handle *> Clone_Sys::check_active_clone() {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
 
   bool active_clone = false;
   Clone_Handle *active_handle = nullptr;
@@ -438,7 +436,7 @@ std::tuple<bool, Clone_Handle *> Clone_Sys::check_active_clone() {
 }
 
 bool Clone_Sys::mark_abort(bool force) {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
 
   /* Check for active clone operations. Ignore clone, before initializing
   space. It is safe as clone would check for abort request afterwards. We
@@ -477,7 +475,7 @@ bool Clone_Sys::mark_abort(bool force) {
     wait(
         sleep_time, time_out, alert_time,
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(&m_clone_sys_mutex));
+          mysql_mutex_assert_owner(&m_clone_sys_mutex);
           result = check_active_clone(alert);
 
           return (0);
@@ -494,7 +492,7 @@ bool Clone_Sys::mark_abort(bool force) {
 }
 
 void Clone_Sys::mark_active() {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
 
   ut_ad(s_clone_abort_count > 0);
   --s_clone_abort_count;
@@ -505,34 +503,34 @@ void Clone_Sys::mark_active() {
 }
 
 void Clone_Sys::mark_wait() {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
   /* Let any new clone operation wait till mark_free is called. */
   ++s_clone_wait_count;
 }
 
 void Clone_Sys::mark_free() {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
   ut_ad(s_clone_wait_count > 0);
   --s_clone_wait_count;
 }
 
 #ifdef UNIV_DEBUG
 void Clone_Sys::debug_wait_clone_begin() {
-  mutex_exit(&m_clone_sys_mutex);
+  mysql_mutex_unlock(&m_clone_sys_mutex);
   DEBUG_SYNC_C("clone_begin_wait_ddl");
-  mutex_enter(&m_clone_sys_mutex);
+  mysql_mutex_lock(&m_clone_sys_mutex);
 }
 #endif /* UNIV_DEBUG */
 
 int Clone_Sys::wait_for_free(THD *thd) {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
 
   if (s_clone_wait_count == 0) {
     return (0);
   }
 
   auto wait_condition = [&](bool alert, bool &result) {
-    ut_ad(mutex_own(&m_clone_sys_mutex));
+    mysql_mutex_assert_owner(&m_clone_sys_mutex);
     result = (s_clone_wait_count > 0);
     if (alert) {
       /* purecov: begin inspected */
@@ -585,7 +583,7 @@ int Clone_Sys::wait_for_free(THD *thd) {
 bool Clone_Sys::begin_ddl_state(Clone_notify::Type type, space_id_t space,
                                 bool no_wait, bool check_intr,
                                 uint32_t &blocked_state, int &error) {
-  ut_ad(mutex_own(get_mutex()));
+  mysql_mutex_assert_owner(get_mutex());
   Acquire_clone clone_handle;
 
   auto snapshot = clone_handle.get_snapshot();
@@ -603,10 +601,10 @@ bool Clone_Sys::begin_ddl_state(Clone_notify::Type type, space_id_t space,
   });
 
   /* Safe to release mutex after pinning the clone handle. */
-  mutex_exit(get_mutex());
+  mysql_mutex_unlock(get_mutex());
   bool blocked =
       snapshot->begin_ddl_state(type, space, no_wait, check_intr, error);
-  mutex_enter(get_mutex());
+  mysql_mutex_lock(get_mutex());
 
   blocked_state = blocked ? snapshot->get_state() : CLONE_SNAPSHOT_NONE;
 
@@ -615,7 +613,7 @@ bool Clone_Sys::begin_ddl_state(Clone_notify::Type type, space_id_t space,
 
 void Clone_Sys::end_ddl_state(Clone_notify::Type type, space_id_t space,
                               uint32_t blocked_state) {
-  ut_ad(mutex_own(get_mutex()));
+  mysql_mutex_assert_owner(get_mutex());
   Acquire_clone clone_handle;
 
   auto snapshot = clone_handle.get_snapshot();
@@ -633,13 +631,13 @@ void Clone_Sys::end_ddl_state(Clone_notify::Type type, space_id_t space,
   }
 
   /* Safe to release mutex after pinning the clone handle. */
-  mutex_exit(get_mutex());
+  mysql_mutex_unlock(get_mutex());
   snapshot->end_ddl_state(type, space);
-  mutex_enter(get_mutex());
+  mysql_mutex_lock(get_mutex());
 }
 
 uint64_t Clone_Sys::get_next_id() {
-  ut_ad(mutex_own(&m_clone_sys_mutex));
+  mysql_mutex_assert_owner(&m_clone_sys_mutex);
 
   return (++m_clone_id_generator);
 }
@@ -690,7 +688,7 @@ void Clone_Handle::close_master_file() {
 }
 
 void Clone_Sys::close_donor_master_file() {
-  IB_mutex_guard sys_mutex(get_mutex(), UT_LOCATION_HERE);
+  Mysql_mutex_guard sys_mutex(get_mutex());
 
   Clone_Handle *clone_donor = nullptr;
   std::tie(std::ignore, clone_donor) = clone_sys->check_active_clone();
@@ -819,7 +817,7 @@ void Clone_Task_Manager::init(Clone_Snapshot *snapshot) {
 }
 
 void Clone_Task_Manager::reserve_task(THD *thd, uint &task_id) {
-  ut_ad(mutex_own(&m_state_mutex));
+  mysql_mutex_assert_owner(&m_state_mutex);
 
   Clone_Task *task = nullptr;
 
@@ -992,7 +990,7 @@ int Clone_Task_Manager::handle_error_other_task(bool set_error) {
 }
 
 bool Clone_Task_Manager::wait_before_add(const byte *ref_loc, uint loc_len) {
-  ut_ad(mutex_own(&m_state_mutex));
+  mysql_mutex_assert_owner(&m_state_mutex);
 
   /* 1. Don't wait if master task. */
   if (m_num_tasks == 0) {
@@ -1031,7 +1029,7 @@ bool Clone_Task_Manager::wait_before_add(const byte *ref_loc, uint loc_len) {
 
 int Clone_Task_Manager::add_task(THD *thd, const byte *ref_loc, uint loc_len,
                                  uint &task_id) {
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   /* Check for error from other tasks */
   bool raise_error = (thd != nullptr);
@@ -1039,7 +1037,7 @@ int Clone_Task_Manager::add_task(THD *thd, const byte *ref_loc, uint loc_len,
   auto err = handle_error_other_task(raise_error);
 
   if (err != 0) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (err);
   }
 
@@ -1048,7 +1046,7 @@ int Clone_Task_Manager::add_task(THD *thd, const byte *ref_loc, uint loc_len,
     int alert_count = 0;
     err = Clone_Sys::wait_default(
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(&m_state_mutex));
+          mysql_mutex_assert_owner(&m_state_mutex);
           result = wait_before_add(ref_loc, loc_len);
 
           /* Check for error from other tasks */
@@ -1067,13 +1065,13 @@ int Clone_Task_Manager::add_task(THD *thd, const byte *ref_loc, uint loc_len,
         &m_state_mutex, is_timeout);
 
     if (err != 0) {
-      mutex_exit(&m_state_mutex);
+      mysql_mutex_unlock(&m_state_mutex);
       return (err);
 
     } else if (is_timeout) {
       ut_d(ut_error);
 #ifndef UNIV_DEBUG
-      mutex_exit(&m_state_mutex);
+      mysql_mutex_unlock(&m_state_mutex);
 
       ib::info(ER_IB_CLONE_TIMEOUT) << "Clone Add task timed out";
 
@@ -1092,7 +1090,7 @@ int Clone_Task_Manager::add_task(THD *thd, const byte *ref_loc, uint loc_len,
     err = ER_CLONE_TOO_MANY_CONCURRENT_CLONES;
     my_error(err, MYF(0), CLONE_MAX_TASKS);
 
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (err);
   }
 
@@ -1101,12 +1099,12 @@ int Clone_Task_Manager::add_task(THD *thd, const byte *ref_loc, uint loc_len,
 
   ++m_num_tasks;
 
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
   return (0);
 }
 
 bool Clone_Task_Manager::drop_task(THD *thd, uint task_id, bool &is_master) {
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   if (in_transit_state()) {
     ut_ad(m_num_tasks_transit > 0);
@@ -1128,7 +1126,7 @@ bool Clone_Task_Manager::drop_task(THD *thd, uint task_id, bool &is_master) {
   is_master = task->m_is_master;
 
   if (!is_master) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (false);
   }
 
@@ -1138,7 +1136,7 @@ bool Clone_Task_Manager::drop_task(THD *thd, uint task_id, bool &is_master) {
     int alert_count = 0;
     auto err = Clone_Sys::wait_default(
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(&m_state_mutex));
+          mysql_mutex_assert_owner(&m_state_mutex);
           result = (m_num_tasks > 0);
 
           if (thd_killed(thd)) {
@@ -1160,19 +1158,19 @@ bool Clone_Task_Manager::drop_task(THD *thd, uint task_id, bool &is_master) {
         &m_state_mutex, is_timeout);
 
     if (err != 0) {
-      mutex_exit(&m_state_mutex);
+      mysql_mutex_unlock(&m_state_mutex);
       return (false);
 
     } else if (is_timeout) {
       ib::info(ER_IB_CLONE_TIMEOUT) << "Clone Master drop task timed out";
 
-      mutex_exit(&m_state_mutex);
+      mysql_mutex_unlock(&m_state_mutex);
       ut_d(ut_error);
       ut_o(return (false));
     }
   }
 
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
 
   /* Restart after network error */
   auto current_err = handle_error_other_task(false);
@@ -1246,13 +1244,13 @@ uint32_t Clone_Task_Manager::get_next_incomplete_chunk(uint32_t &block_num) {
 int Clone_Task_Manager::reserve_next_chunk(Clone_Task *task,
                                            uint32_t &ret_chunk,
                                            uint32_t &ret_block) {
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
   ret_chunk = 0;
 
   /* Check for error from other tasks */
   auto err = handle_error_other_task(task->m_has_thd);
   if (err != 0) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (err);
   }
 
@@ -1268,7 +1266,7 @@ int Clone_Task_Manager::reserve_next_chunk(Clone_Task *task,
   }
 
   reset_chunk(task);
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
   return (0);
 }
 
@@ -1281,7 +1279,7 @@ int Clone_Task_Manager::set_chunk(Clone_Task *task, Clone_Task_Meta *new_meta) {
 
   /* Check if this is a new chunk */
   if (cur_meta->m_chunk_num != new_meta->m_chunk_num) {
-    mutex_enter(&m_state_mutex);
+    mysql_mutex_lock(&m_state_mutex);
 
     /* Mark the current chunk reserved */
     m_chunk_info.m_reserved_chunks[new_meta->m_chunk_num] = true;
@@ -1301,7 +1299,7 @@ int Clone_Task_Manager::set_chunk(Clone_Task *task, Clone_Task_Meta *new_meta) {
     /* Check for error from other tasks */
     err = handle_error_other_task(task->m_has_thd);
 
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
 
     cur_meta->m_chunk_num = new_meta->m_chunk_num;
 
@@ -1452,9 +1450,9 @@ void Clone_Task_Manager::reinit_apply_state(const byte *ref_loc, uint ref_len,
   add_incomplete_chunk(task);
 
   /* Reset task information */
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
   reset_chunk(task);
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
 
   /* Allocate for locator if required */
   Clone_Desc_Locator temp_locator;
@@ -1497,7 +1495,7 @@ void Clone_Task_Manager::reinit_copy_state(const byte *loc, uint loc_len) {
   ut_ad(m_clone_snapshot->is_copy());
   ut_ad(m_num_tasks == 0);
 
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   /* Reset State transition information */
   reset_transition();
@@ -1534,7 +1532,7 @@ void Clone_Task_Manager::reinit_copy_state(const byte *loc, uint loc_len) {
   }
 
   if (m_current_state == CLONE_SNAPSHOT_NONE) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     ut_d(ut_error);
     ut_o(return);
   }
@@ -1573,7 +1571,7 @@ void Clone_Task_Manager::reinit_copy_state(const byte *loc, uint loc_len) {
     /* Apply state is behind. Need to send state metadata */
     m_send_state_meta = true;
 
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return;
   }
 
@@ -1585,13 +1583,13 @@ void Clone_Task_Manager::reinit_copy_state(const byte *loc, uint loc_len) {
 
   m_chunk_info.init_chunk_nums();
 
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
 
   print_chunk_info(&m_chunk_info);
 }
 
 void Clone_Task_Manager::init_state() {
-  ut_ad(mutex_own(&m_state_mutex));
+  mysql_mutex_assert_owner(&m_state_mutex);
 
   auto num_chunks = m_clone_snapshot->get_num_chunks();
 
@@ -1613,19 +1611,19 @@ void Clone_Task_Manager::init_state() {
 }
 
 void Clone_Task_Manager::ack_state(const Clone_Desc_State *state_desc) {
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   m_ack_state = state_desc->m_state;
   ut_ad(m_current_state == m_ack_state);
   ib::info(ER_IB_CLONE_OPERATION)
       << "Clone set state change ACK: " << m_ack_state;
 
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
 }
 
 int Clone_Task_Manager::wait_ack(Clone_Handle *clone, Clone_Task *task,
                                  Ha_clone_cbk *callback) {
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   ++m_num_tasks_finished;
 
@@ -1633,7 +1631,7 @@ int Clone_Task_Manager::wait_ack(Clone_Handle *clone, Clone_Task *task,
   reset_chunk(task);
 
   if (!task->m_is_master) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (0);
   }
 
@@ -1644,7 +1642,7 @@ int Clone_Task_Manager::wait_ack(Clone_Handle *clone, Clone_Task *task,
     int alert_count = 0;
     err = Clone_Sys::wait_default(
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(&m_state_mutex));
+          mysql_mutex_assert_owner(&m_state_mutex);
           result = (m_current_state != m_ack_state);
 
           /* Check for error from other tasks */
@@ -1675,7 +1673,7 @@ int Clone_Task_Manager::wait_ack(Clone_Handle *clone, Clone_Task *task,
       ut_d(ut_error);
     }
   }
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
 
   if (err == 0) {
     ib::info(ER_IB_CLONE_OPERATION) << "Clone Master received state change ACK";
@@ -1685,7 +1683,7 @@ int Clone_Task_Manager::wait_ack(Clone_Handle *clone, Clone_Task *task,
 }
 
 int Clone_Task_Manager::finish_state(Clone_Task *task) {
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   if (task->m_is_master) {
     /* Check if ACK was sent before restart */
@@ -1708,7 +1706,7 @@ int Clone_Task_Manager::finish_state(Clone_Task *task) {
   auto err = handle_error_other_task(task->m_has_thd);
 
   if (!task->m_is_master || err != 0) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (err);
   }
 
@@ -1717,9 +1715,9 @@ int Clone_Task_Manager::finish_state(Clone_Task *task) {
 #ifdef UNIV_DEBUG
   /* Wait before ending state, if needed */
   if (!task->m_ignore_sync) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     debug_wait(0, task);
-    mutex_enter(&m_state_mutex);
+    mysql_mutex_lock(&m_state_mutex);
   }
 #endif /* UNIV_DEBUG */
 
@@ -1728,7 +1726,7 @@ int Clone_Task_Manager::finish_state(Clone_Task *task) {
     int alert_count = 0;
     err = Clone_Sys::wait_default(
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(&m_state_mutex));
+          mysql_mutex_assert_owner(&m_state_mutex);
           result = (m_num_tasks_finished < m_num_tasks);
 
           /* Check for error from other tasks */
@@ -1760,7 +1758,7 @@ int Clone_Task_Manager::finish_state(Clone_Task *task) {
     }
   }
 
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
   return (err);
 }
 
@@ -1768,7 +1766,7 @@ int Clone_Task_Manager::change_state(Clone_Task *task,
                                      Clone_Desc_State *state_desc,
                                      Snapshot_State new_state,
                                      Clone_Alert_Func cbk, uint &num_wait) {
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   num_wait = 0;
 
@@ -1776,7 +1774,7 @@ int Clone_Task_Manager::change_state(Clone_Task *task,
   auto err = handle_error_other_task(task->m_has_thd);
 
   if (err != 0) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (err);
   }
 
@@ -1790,7 +1788,7 @@ int Clone_Task_Manager::change_state(Clone_Task *task,
   if (task->m_is_master && m_num_tasks_transit > 1) {
     num_wait = m_num_tasks_transit;
 
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (0);
   }
 
@@ -1803,7 +1801,7 @@ int Clone_Task_Manager::change_state(Clone_Task *task,
     num_wait = m_num_tasks_transit;
     ut_ad(num_wait > 0);
 
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (0);
   }
 
@@ -1812,7 +1810,7 @@ int Clone_Task_Manager::change_state(Clone_Task *task,
   to complete. Now it is safe to do the snapshot state transition. */
 
   ut_ad(task->m_is_master);
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
 
   if (m_clone_snapshot->is_copy()) {
     ib::info(ER_IB_CLONE_OPERATION)
@@ -1830,7 +1828,7 @@ int Clone_Task_Manager::change_state(Clone_Task *task,
     return (err);
   }
 
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   /* Check for error from other tasks. Must finish the state transition
   even in case of an error. */
@@ -1854,7 +1852,7 @@ int Clone_Task_Manager::change_state(Clone_Task *task,
   /* Initialize next state after transition. */
   init_state();
 
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
 
   return (err);
 }
@@ -1862,7 +1860,7 @@ int Clone_Task_Manager::change_state(Clone_Task *task,
 int Clone_Task_Manager::check_state(Clone_Task *task, Snapshot_State new_state,
                                     bool exit_on_wait, int in_err,
                                     uint32_t &num_wait) {
-  mutex_enter(&m_state_mutex);
+  mysql_mutex_lock(&m_state_mutex);
 
   num_wait = 0;
 
@@ -1875,7 +1873,7 @@ int Clone_Task_Manager::check_state(Clone_Task *task, Snapshot_State new_state,
     if (in_transit_state()) {
       ++m_num_tasks_transit;
     }
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (in_err);
   }
 
@@ -1883,7 +1881,7 @@ int Clone_Task_Manager::check_state(Clone_Task *task, Snapshot_State new_state,
   auto err = handle_error_other_task(task->m_has_thd);
 
   if (err != 0) {
-    mutex_exit(&m_state_mutex);
+    mysql_mutex_unlock(&m_state_mutex);
     return (err);
   }
 
@@ -1901,7 +1899,7 @@ int Clone_Task_Manager::check_state(Clone_Task *task, Snapshot_State new_state,
     }
   }
 
-  mutex_exit(&m_state_mutex);
+  mysql_mutex_unlock(&m_state_mutex);
 
   return (0);
 }
@@ -1922,7 +1920,7 @@ Clone_Handle::Clone_Handle(Clone_Handle_Type handle_type, uint clone_version,
       m_abort_ddl(false),
       m_clone_dir(),
       m_clone_task_manager() {
-  mutex_create(LATCH_ID_CLONE_TASK, m_clone_task_manager.get_mutex());
+  mysql_mutex_init(0, m_clone_task_manager.get_mutex(), nullptr);
 
   Clone_Desc_Locator loc_desc;
   loc_desc.init(0, 0, CLONE_SNAPSHOT_NONE, clone_version, clone_index);
@@ -1938,7 +1936,7 @@ Clone_Handle::Clone_Handle(Clone_Handle_Type handle_type, uint clone_version,
 }
 
 Clone_Handle::~Clone_Handle() {
-  mutex_free(m_clone_task_manager.get_mutex());
+  mysql_mutex_destroy(m_clone_task_manager.get_mutex());
 
   if (!is_init()) {
     clone_sys->detach_snapshot(m_clone_task_manager.get_snapshot(),
@@ -2114,11 +2112,11 @@ bool Clone_Handle::drop_task(THD *thd, uint task_id, bool &is_master) {
 
   close_file(task);
 
-  ut_ad(mutex_own(clone_sys->get_mutex()));
-  mutex_exit(clone_sys->get_mutex());
+  mysql_mutex_assert_owner(clone_sys->get_mutex());
+  mysql_mutex_unlock(clone_sys->get_mutex());
 
   auto wait_restart = m_clone_task_manager.drop_task(thd, task_id, is_master);
-  mutex_enter(clone_sys->get_mutex());
+  mysql_mutex_lock(clone_sys->get_mutex());
 
   /* Need to wait for restart, if network error */
   if (is_copy_clone() && m_allow_restart && wait_restart) {
@@ -2255,7 +2253,7 @@ int Clone_Handle::open_file(Clone_Task *task, const Clone_file_ctx *file_ctx,
   bool success = false;
 
   auto handle = os_file_create(innodb_clone_file_key, file_name.c_str(), option,
-                               file_type, read_only, &success);
+                               OS_FILE_NORMAL, file_type, read_only, &success);
 
   int err = 0;
 

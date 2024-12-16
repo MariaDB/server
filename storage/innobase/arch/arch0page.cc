@@ -33,8 +33,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "arch0page.h"
 #include "arch0recv.h"
 #include "clone0clone.h"
-#include "log0buf.h"
-#include "log0chkp.h"
+#include "log0log.h"
 #include "srv0start.h"
 
 #ifdef UNIV_DEBUG
@@ -48,7 +47,18 @@ uint ARCH_PAGE_FILE_DATA_CAPACITY =
 #endif
 
 /** Event to signal the page archiver thread. */
-os_event_t page_archiver_thread_event;
+mysql_mutex_t page_archiver_task_mutex;
+mysql_cond_t page_archiver_task_cond;
+bool page_archiver_signalled = false;
+
+/** Signal page archiver */
+void signal_page_archiver()
+{
+  mysql_mutex_lock(&page_archiver_task_mutex);
+  mysql_cond_signal(&page_archiver_task_cond);
+  page_archiver_signalled = true;
+  mysql_mutex_unlock(&page_archiver_task_mutex);
+}
 
 /** Archiver background thread */
 void page_archiver_thread() {
@@ -67,11 +77,14 @@ void page_archiver_thread() {
       break;
     }
 
+    mysql_mutex_lock(&page_archiver_task_mutex);
     if (page_wait) {
       /* Nothing to archive. Wait until next trigger. */
-      os_event_wait(page_archiver_thread_event);
-      os_event_reset(page_archiver_thread_event);
+      while(!page_archiver_signalled)
+        mysql_cond_wait(&page_archiver_task_cond, &page_archiver_task_mutex);
     }
+    page_archiver_signalled = false;
+    mysql_mutex_unlock(&page_archiver_task_mutex);
   }
 }
 
@@ -97,11 +110,11 @@ Arch_Group::~Arch_Group() {
   }
 
   if (m_active_file_name != nullptr) {
-    ut::free(m_active_file_name);
+    ut_free(m_active_file_name);
   }
 
   if (m_durable_file_name != nullptr) {
-    ut::free(m_durable_file_name);
+    ut_free(m_durable_file_name);
   }
 
   if (!is_durable()) {
@@ -169,9 +182,7 @@ dberr_t Arch_Group::build_active_file_name() {
   if (m_active_file_name != nullptr) {
     return (DB_SUCCESS);
   }
-
-  m_active_file_name = static_cast<char *>(
-      ut::malloc_withkey(ut::make_psi_memory_key(mem_key_archive), length));
+  m_active_file_name = static_cast<char *>(ut_malloc(length, mem_key_archive));
 
   if (m_active_file_name == nullptr) {
     return (DB_OUT_OF_MEMORY);
@@ -192,9 +203,7 @@ dberr_t Arch_Group::build_durable_file_name() {
   if (m_durable_file_name != nullptr) {
     return (DB_SUCCESS);
   }
-
-  m_durable_file_name = static_cast<char *>(
-      ut::malloc_withkey(ut::make_psi_memory_key(mem_key_archive), length));
+  m_durable_file_name = static_cast<char *>(ut_malloc(length, mem_key_archive));
 
   if (m_durable_file_name == nullptr) {
     return (DB_OUT_OF_MEMORY);
@@ -233,7 +242,7 @@ int Arch_Group::mark_active() {
   ut_ad(m_active_file.m_file == OS_FILE_CLOSED);
 
   m_active_file = os_file_create(innodb_arch_file_key, m_active_file_name,
-                                 option, OS_CLONE_LOG_FILE, false, &success);
+      option, OS_FILE_NORMAL, OS_CLONE_LOG_FILE, false, &success);
 
   int err = (success ? 0 : ER_CANT_OPEN_FILE);
 
@@ -268,7 +277,7 @@ int Arch_Group::mark_durable() {
   ut_ad(m_durable_file.m_file == OS_FILE_CLOSED);
 
   m_durable_file = os_file_create(innodb_arch_file_key, m_durable_file_name,
-                                  option, OS_CLONE_LOG_FILE, false, &success);
+      option, OS_FILE_NORMAL, OS_CLONE_LOG_FILE, false, &success);
 
   int err = (success ? 0 : ER_CANT_OPEN_FILE);
 
@@ -600,7 +609,7 @@ bool Arch_File_Ctx::validate_stop_point_in_file(Arch_Group *group,
 
   /* Read the entire reset block. */
   dberr_t err =
-      os_file_read(request, m_path_name, file, buf, offset, ARCH_PAGE_BLK_SIZE);
+      os_file_read(request, file, buf, offset, ARCH_PAGE_BLK_SIZE, nullptr);
 
   if (err != DB_SUCCESS) {
     return (false);
@@ -629,7 +638,7 @@ bool Arch_File_Ctx::validate_reset_block_in_file(pfs_os_file_t file,
 
   /* Read the entire reset block. */
   dberr_t err =
-      os_file_read(request, m_path_name, file, buf, 0, ARCH_PAGE_BLK_SIZE);
+      os_file_read(request, file, buf, 0, ARCH_PAGE_BLK_SIZE, nullptr);
 
   if (err != DB_SUCCESS) {
     return (false);
@@ -749,7 +758,7 @@ bool Arch_File_Ctx::validate(Arch_Group *group, uint file_index,
   pfs_os_file_t file;
 
   file = os_file_create(innodb_arch_file_key, file_name, OS_FILE_OPEN,
-                        OS_CLONE_LOG_FILE, true, &success);
+      OS_FILE_NORMAL, OS_CLONE_LOG_FILE, true, &success);
 
   if (!success) {
     return (false);
@@ -846,7 +855,7 @@ lsn_t Arch_File_Ctx::purge(lsn_t begin_lsn, lsn_t end_lsn, lsn_t purge_lsn) {
 }
 
 uint Arch_Group::purge(lsn_t purge_lsn, lsn_t &group_purged_lsn) {
-  ut_ad(mutex_own(m_arch_mutex));
+  mysql_mutex_assert_owner(m_arch_mutex);
 
   if (m_begin_lsn > purge_lsn) {
     group_purged_lsn = LSN_MAX;
@@ -1114,20 +1123,20 @@ void Page_Arch_Client_Ctx::release() {
 }
 
 bool wait_flush_archiver(Page_Wait_Flush_Archiver_Cbk cbk_func) {
-  ut_ad(mutex_own(arch_page_sys->get_oper_mutex()));
+  mysql_mutex_assert_owner(arch_page_sys->get_oper_mutex());
 
   while (cbk_func()) {
     /* Need to wait for flush. We don't expect it
     to happen normally. With no duplicate page ID
     dirty page growth should be very slow. */
-    os_event_set(page_archiver_thread_event);
+    signal_page_archiver();
 
     bool is_timeout = false;
     int alert_count = 0;
 
     auto err = Clone_Sys::wait_default(
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(arch_page_sys->get_oper_mutex()));
+          mysql_mutex_assert_owner(arch_page_sys->get_oper_mutex());
           result = cbk_func();
 
           int err2 = 0;
@@ -1137,7 +1146,7 @@ bool wait_flush_archiver(Page_Wait_Flush_Archiver_Cbk cbk_func) {
             err2 = ER_QUERY_INTERRUPTED;
 
           } else if (result) {
-            os_event_set(page_archiver_thread_event);
+            signal_page_archiver();
             if (alert && ++alert_count == 12) {
               alert_count = 0;
               ib::info(ER_IB_MSG_22) << "Clone Page Tracking: waiting "
@@ -1178,6 +1187,13 @@ uint Arch_Block::get_file_index(uint64_t block_num, Arch_Blk_Type type) {
   }
 
   return file_index;
+}
+
+bool Arch_Block::is_zeros(const void *start, size_t number_of_bytes)
+{
+  auto *first_byte = reinterpret_cast<const char *>(start);
+  return number_of_bytes == 0 || (*first_byte == 0 &&
+          std::memcmp(first_byte, first_byte + 1, number_of_bytes - 1) == 0);
 }
 
 Arch_Blk_Type Arch_Block::get_type(byte *block) {
@@ -1236,7 +1252,7 @@ bool Arch_Block::validate(byte *block) {
         << Arch_Block::get_block_number(block);
     ut_d(ut_error);
     ut_o(return (false));
-  } else if (ut::is_zeros(block, ARCH_PAGE_BLK_SIZE)) {
+  } else if (Arch_Block::is_zeros(block, ARCH_PAGE_BLK_SIZE)) {
     return (false);
   }
 
@@ -1473,23 +1489,23 @@ bool ArchPageData::init() {
   /* For partial flush block. */
   alloc_size += m_block_size;
 
+  /* For alignment */
+  alloc_size += m_block_size;
+
   /* Allocate buffer for memory blocks. */
-  m_buffer = static_cast<byte *>(ut::aligned_zalloc_withkey(
-      ut::make_psi_memory_key(mem_key_archive), alloc_size, m_block_size));
+  m_buffer = ut_zalloc(alloc_size, mem_key_archive);
 
   if (m_buffer == nullptr) {
     return (false);
   }
-  mem_ptr = m_buffer;
+  mem_ptr = ut_align_down(m_buffer + m_block_size);
 
   Arch_Block *cur_blk;
 
   /* Create memory blocks. */
   for (index = 0; index < m_num_data_blocks; index++) {
-    cur_blk =
-        ut::new_withkey<Arch_Block>(ut::make_psi_memory_key(mem_key_archive),
-                                    mem_ptr, m_block_size, ARCH_DATA_BLOCK);
-
+    cur_blk = UT_NEW(Arch_Block(mem_ptr, m_block_size, ARCH_DATA_BLOCK),
+                     mem_key_archive);
     if (cur_blk == nullptr) {
       return (false);
     }
@@ -1497,11 +1513,8 @@ bool ArchPageData::init() {
     m_data_blocks.push_back(cur_blk);
     mem_ptr += m_block_size;
   }
-
-  m_reset_block =
-      ut::new_withkey<Arch_Block>(ut::make_psi_memory_key(mem_key_archive),
-                                  mem_ptr, m_block_size, ARCH_RESET_BLOCK);
-
+  m_reset_block = UT_NEW(Arch_Block(mem_ptr, m_block_size, ARCH_RESET_BLOCK),
+                         mem_key_archive);
   if (m_reset_block == nullptr) {
     return (false);
   }
@@ -1509,9 +1522,8 @@ bool ArchPageData::init() {
   mem_ptr += m_block_size;
 
   m_partial_flush_block =
-      ut::new_withkey<Arch_Block>(ut::make_psi_memory_key(mem_key_archive),
-                                  mem_ptr, m_block_size, ARCH_DATA_BLOCK);
-
+      UT_NEW(Arch_Block(mem_ptr, m_block_size, ARCH_DATA_BLOCK),
+             mem_key_archive);
   if (m_partial_flush_block == nullptr) {
     return (false);
   }
@@ -1522,21 +1534,21 @@ bool ArchPageData::init() {
 /** Delete blocks and buffer */
 void ArchPageData::clean() {
   for (auto &block : m_data_blocks) {
-    ut::delete_(block);
+    UT_DELETE(block);
     block = nullptr;
   }
 
   if (m_reset_block != nullptr) {
-    ut::delete_(m_reset_block);
+    UT_DELETE(m_reset_block);
     m_reset_block = nullptr;
   }
 
   if (m_partial_flush_block != nullptr) {
-    ut::delete_(m_partial_flush_block);
+    UT_DELETE(m_partial_flush_block);
     m_partial_flush_block = nullptr;
   }
 
-  ut::aligned_free(m_buffer);
+  aligned_free(m_buffer);
 }
 
 /** Get the block for a position
@@ -1564,11 +1576,10 @@ Arch_Block *ArchPageData::get_block(Arch_Page_Pos *pos, Arch_Blk_Type type) {
 }
 
 Arch_Page_Sys::Arch_Page_Sys() {
-  mutex_create(LATCH_ID_PAGE_ARCH, &m_mutex);
-  mutex_create(LATCH_ID_PAGE_ARCH_OPER, &m_oper_mutex);
+  mysql_mutex_init(0, &m_mutex, nullptr);
+  mysql_mutex_init(0, &m_oper_mutex, nullptr);
 
-  m_ctx = ut::new_withkey<Page_Arch_Client_Ctx>(
-      ut::make_psi_memory_key(mem_key_archive), true);
+  m_ctx = UT_NEW(Page_Arch_Client_Ctx(true), mem_key_archive);
 
   DBUG_EXECUTE_IF("page_archiver_simulate_more_archived_files",
                   ARCH_PAGE_FILE_CAPACITY = 8;
@@ -1582,16 +1593,16 @@ Arch_Page_Sys::~Arch_Page_Sys() {
   ut_ad(m_current_group == nullptr);
 
   for (auto group : m_group_list) {
-    ut::delete_(group);
+    UT_DELETE(group);
   }
 
   Arch_Group::shutdown();
 
   m_data.clean();
 
-  ut::delete_(m_ctx);
-  mutex_free(&m_mutex);
-  mutex_free(&m_oper_mutex);
+  UT_DELETE(m_ctx);
+  mysql_mutex_destroy(&m_mutex);
+  mysql_mutex_destroy(&m_oper_mutex);
 }
 
 void Arch_Page_Sys::post_recovery_init() {
@@ -1742,8 +1753,7 @@ void Arch_Page_Sys::track_page(buf_page_t *bpage, lsn_t track_lsn,
 
         m_reset_pos.set_next();
       }
-
-      os_event_set(page_archiver_thread_event);
+      signal_page_archiver();
 
       ++count;
       continue;
@@ -2093,16 +2103,16 @@ for it to come to idle state.
 @return true, if successful
         false, if needs to abort */
 bool Arch_Page_Sys::wait_idle() {
-  ut_ad(mutex_own(&m_mutex));
+  mysql_mutex_assert_owner(&m_mutex);
 
   if (m_state == ARCH_STATE_PREPARE_IDLE) {
-    os_event_set(page_archiver_thread_event);
+    signal_page_archiver();
     bool is_timeout = false;
     int alert_count = 0;
 
     auto err = Clone_Sys::wait_default(
         [&](bool alert, bool &result) {
-          ut_ad(mutex_own(&m_mutex));
+          mysql_mutex_assert_owner(&m_mutex);
           result = (m_state == ARCH_STATE_PREPARE_IDLE);
 
           if (srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP) {
@@ -2110,8 +2120,7 @@ bool Arch_Page_Sys::wait_idle() {
           }
 
           if (result) {
-            os_event_set(page_archiver_thread_event);
-
+            signal_page_archiver();
             /* Print messages every 1 minute - default is 5 seconds. */
             if (alert && ++alert_count == 12) {
               alert_count = 0;
@@ -2171,7 +2180,7 @@ void Arch_Page_Sys::track_initial_pages() {
   for (index = 0; index < srv_buf_pool_instances; ++index) {
     buf_pool = buf_pool_from_array(index);
 
-    mutex_enter(&buf_pool->flush_state_mutex);
+    mysql_mutex_lock(&buf_pool->flush_state_mutex);
 
     /* Page tracking must already be active. */
     ut_ad(buf_pool->track_page_lsn != LSN_MAX);
@@ -2239,7 +2248,7 @@ void Arch_Page_Sys::track_initial_pages() {
     }
 
     buf_flush_list_mutex_exit(buf_pool);
-    mutex_exit(&buf_pool->flush_state_mutex);
+    mysql_mutex_unlock(&buf_pool->flush_state_mutex);
   }
 }
 
@@ -2252,14 +2261,14 @@ void Arch_Page_Sys::set_tracking_buf_pool(lsn_t tracking_lsn) {
   for (index = 0; index < srv_buf_pool_instances; ++index) {
     buf_pool = buf_pool_from_array(index);
 
-    mutex_enter(&buf_pool->flush_state_mutex);
+    mysql_mutex_lock(&buf_pool->flush_state_mutex);
 
     ut_ad(buf_pool->track_page_lsn == LSN_MAX ||
           buf_pool->track_page_lsn <= tracking_lsn);
 
     buf_pool->track_page_lsn = tracking_lsn;
 
-    mutex_exit(&buf_pool->flush_state_mutex);
+    mysql_mutex_unlock(&buf_pool->flush_state_mutex);
   }
 }
 
@@ -2455,10 +2464,9 @@ int Arch_Page_Sys::start(Arch_Group **group, lsn_t *start_lsn,
     m_last_lsn = log_sys_lsn;
     m_last_reset_file_index = 0;
 
-    m_current_group = ut::new_withkey<Arch_Group>(
-        ut::make_psi_memory_key(mem_key_archive), log_sys_lsn,
-        ARCH_PAGE_FILE_HDR_SIZE, &m_mutex);
-
+    m_current_group =
+        UT_NEW(Arch_Group(log_sys_lsn, ARCH_PAGE_FILE_HDR_SIZE, &m_mutex),
+               mem_key_archive);
     if (m_current_group == nullptr) {
       acquired_oper_mutex = false;
       arch_oper_mutex_exit();
@@ -2615,8 +2623,7 @@ int Arch_Page_Sys::stop(Arch_Group *group, lsn_t *stop_lsn,
     m_request_flush_pos = m_write_pos;
     m_write_pos.set_next();
 
-    os_event_set(page_archiver_thread_event);
-
+    signal_page_archiver();
     wait_for_block_flush = m_current_group->is_durable() ? true : false;
 
   } else {
@@ -2680,7 +2687,7 @@ void Arch_Page_Sys::release(Arch_Group *group, bool is_durable,
 
   if (!group->is_referenced()) {
     m_group_list.remove(group);
-    ut::delete_(group);
+    UT_DELETE(group);
   }
 
   arch_mutex_exit();
@@ -2890,7 +2897,7 @@ bool Arch_Page_Sys::archive(bool *wait) {
     /* Cleanup group, if no reference. */
     if (!m_current_group->is_referenced()) {
       m_group_list.remove(m_current_group);
-      ut::delete_(m_current_group);
+      UT_DELETE(m_current_group);
     }
 
     m_current_group = nullptr;
@@ -2924,7 +2931,7 @@ int Arch_Group::read_from_file(Arch_Page_Pos *read_pos, uint read_len,
   /* Open file in read only mode. */
   pfs_os_file_t file =
       os_file_create(innodb_arch_file_key, file_name, OS_FILE_OPEN,
-                     OS_CLONE_LOG_FILE, true, &success);
+          OS_FILE_NORMAL, OS_CLONE_LOG_FILE, true, &success);
 
   if (!success) {
     my_error(ER_CANT_OPEN_FILE, MYF(0), file_name, errno,
@@ -2940,7 +2947,7 @@ int Arch_Group::read_from_file(Arch_Page_Pos *read_pos, uint read_len,
   request.clear_encrypted();
 
   auto db_err =
-      os_file_read(request, file_name, file, read_buff, offset, read_len);
+      os_file_read(request, file, read_buff, offset, read_len, nullptr);
 
   os_file_close(file);
 
@@ -3047,7 +3054,7 @@ bool Arch_Page_Sys::wait_for_reset_info_flush(uint64_t request_blk) {
 
 int Arch_Page_Sys::fetch_group_within_lsn_range(lsn_t &start_id, lsn_t &stop_id,
                                                 Arch_Group **group) {
-  ut_ad(mutex_own(&m_mutex));
+  mysql_mutex_assert_owner(&m_mutex);
 
   if (start_id != 0 && stop_id != 0 && start_id >= stop_id) {
     return (ER_PAGE_TRACKING_RANGE_NOT_TRACKED);
@@ -3132,7 +3139,7 @@ uint Arch_Page_Sys::purge(lsn_t *purge_lsn) {
 
     if (!group->is_active() && group->get_end_lsn() <= group_purged_lsn) {
       it = m_group_list.erase(it);
-      ut::delete_(group);
+      UT_DELETE(group);
 
       DBUG_PRINT("page_archiver", ("Purged entire group."));
 
@@ -3160,7 +3167,7 @@ uint Arch_Page_Sys::purge(lsn_t *purge_lsn) {
 }
 
 void Arch_Page_Sys::update_stop_info(Arch_Block *cur_blk) {
-  ut_ad(mutex_own(&m_oper_mutex));
+  mysql_mutex_assert_owner(&m_oper_mutex);
 
   if (cur_blk != nullptr) {
     cur_blk->update_block_header(m_latest_stop_lsn, LSN_MAX);

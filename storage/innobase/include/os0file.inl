@@ -306,6 +306,38 @@ pfs_os_file_flush_func(
 	return(result);
 }
 
+static inline dberr_t pfs_os_file_copy_func(
+	pfs_os_file_t	src,
+	os_offset_t	src_offset,
+	pfs_os_file_t	dest,
+	os_offset_t	dest_offset,
+	uint		size,
+	const char*	src_file,
+	uint		src_line)
+{
+  dberr_t result;
+
+  PSI_file_locker_state state_read;
+  PSI_file_locker_state state_write;
+
+  struct PSI_file_locker *locker_read = nullptr;
+  struct PSI_file_locker *locker_write = nullptr;
+
+  register_pfs_file_io_begin(&state_read, locker_read, src, size, PSI_FILE_READ,
+			     src_file, src_line);
+
+  register_pfs_file_io_begin(&state_write, locker_write, dest, size,
+			     PSI_FILE_WRITE, src_file, src_line);
+
+  result =
+      os_file_copy_func(src, src_offset, dest, dest_offset, size);
+
+  register_pfs_file_io_end(locker_write, size);
+  register_pfs_file_io_end(locker_read, size);
+
+  return (result);
+}
+
 /** NOTE! Please use the corresponding macro os_file_rename(), not directly
 this function!
 This is the performance schema instrumented wrapper function for

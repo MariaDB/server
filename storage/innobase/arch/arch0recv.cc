@@ -84,8 +84,7 @@ dberr_t Arch_Dblwr_Ctx::init(const char *dblwr_path,
                              uint64_t dblwr_file_size) {
   m_file_size = dblwr_file_size;
 
-  m_buf = static_cast<byte *>(
-      ut::zalloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, m_file_size));
+  m_buf = static_cast<byte *>(ut_zalloc_nokey(m_file_size));
 
   if (m_buf == nullptr) {
     return DB_OUT_OF_MEMORY;
@@ -400,9 +399,9 @@ dberr_t Arch_Page_Sys::Recovery::recover() {
        info != m_dir_group_info_map.end(); ++info) {
     auto &group_info = info->second;
 
-    Arch_Group *group = ut::new_withkey<Arch_Group>(
-        ut::make_psi_memory_key(mem_key_archive), group_info.m_start_lsn,
-        ARCH_PAGE_FILE_HDR_SIZE, m_page_sys->get_mutex());
+    Arch_Group *group =
+        UT_NEW(Arch_Group(group_info.m_start_lsn, ARCH_PAGE_FILE_HDR_SIZE,
+                          m_page_sys->get_mutex()), mem_key_archive);
 
     if (group == nullptr) {
       return DB_OUT_OF_MEMORY;
@@ -411,12 +410,12 @@ dberr_t Arch_Page_Sys::Recovery::recover() {
     err = group->recover(group_info, &m_dblwr_ctx);
 
     if (err != DB_SUCCESS) {
-      ut::delete_(group);
+      UT_DELETE(group);
       break;
     }
 
     if (group_info.m_num_files == 0) {
-      ut::delete_(group);
+      UT_DELETE(group);
       continue;
     }
 
@@ -683,7 +682,7 @@ dberr_t Arch_File_Ctx::Recovery::parse_reset_points(
     /* This means there was no reset for this file and hence the
     reset block was not flushed. */
 
-    ut_ad(ut::is_zeros(buf, ARCH_PAGE_BLK_SIZE));
+    ut_ad(Arch_Block::is_zeros(buf, ARCH_PAGE_BLK_SIZE));
     info.m_reset_pos.init();
     info.m_reset_pos.m_block_num = file_index;
     return err;

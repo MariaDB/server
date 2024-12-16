@@ -33,6 +33,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef ARCH_PAGE_INCLUDE
 #define ARCH_PAGE_INCLUDE
 
+#include <functional>
 #include "arch0arch.h"
 #include "buf0buf.h"
 
@@ -175,11 +176,11 @@ class Page_Arch_Client_Ctx {
   Page_Arch_Client_Ctx(bool is_durable) : m_is_durable(is_durable) {
     m_start_pos.init();
     m_stop_pos.init();
-    mutex_create(LATCH_ID_PAGE_ARCH_CLIENT, &m_mutex);
+    mysql_mutex_init(0, &m_mutex, nullptr);
   }
 
   /** Destructor. */
-  ~Page_Arch_Client_Ctx() { mutex_free(&m_mutex); }
+  ~Page_Arch_Client_Ctx() { mysql_mutex_destroy(&m_mutex); }
 
   /** Start dirty page tracking and archiving
   @param[in]    recovery        true if the tracking is being started as part of
@@ -232,10 +233,10 @@ class Page_Arch_Client_Ctx {
  private:
   /** Acquire client archiver mutex.
   It synchronizes members on concurrent start and stop operations. */
-  void arch_client_mutex_enter() { mutex_enter(&m_mutex); }
+  void arch_client_mutex_enter() { mysql_mutex_lock(&m_mutex); }
 
   /** Release client archiver mutex */
-  void arch_client_mutex_exit() { mutex_exit(&m_mutex); }
+  void arch_client_mutex_exit() { mysql_mutex_unlock(&m_mutex); }
 
  private:
   /** Page archiver client state */
@@ -263,7 +264,7 @@ class Page_Arch_Client_Ctx {
   Arch_Page_Pos m_stop_pos;
 
   /** Mutex protecting concurrent operation on data */
-  ib_mutex_t m_mutex;
+  mysql_mutex_t m_mutex;
 };
 
 #endif /* ARCH_PAGE_INCLUDE */

@@ -35,7 +35,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "univ.i"
 #ifndef UNIV_HOTBACKUP
-#include "sql/handler.h"
+#include "handler.h"
 
 /** Get capability flags for clone operation
 @param[out]     flags   capability flag */

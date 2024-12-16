@@ -41,10 +41,11 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "clone0desc.h"
 #include "clone0monitor.h"
 #include "fil0fil.h"
-#include "sql/handler.h"
+#include "handler.h"
 
 #include <map>
 #include <vector>
+#include <functional>
 
 struct Clone_file_ctx {
   /** File state:
@@ -350,14 +351,14 @@ class Clone_Snapshot {
   /** Get snapshot heap used for allocation during clone.
   @return heap */
   mem_heap_t *lock_heap() {
-    mutex_enter(&m_snapshot_mutex);
+    mysql_mutex_lock(&m_snapshot_mutex);
     return (m_snapshot_heap);
   }
 
   /* Release snapshot heap */
   void release_heap(mem_heap_t *&heap) {
     heap = nullptr;
-    mutex_exit(&m_snapshot_mutex);
+    mysql_mutex_unlock(&m_snapshot_mutex);
   }
 
   /** Get snapshot state
@@ -712,7 +713,7 @@ class Clone_Snapshot {
 
   /** Begin state transition before waiting for DDL. */
   void begin_transit_ddl_wait() {
-    mutex_own(&m_snapshot_mutex);
+    mysql_mutex_assert_owner(&m_snapshot_mutex);
     /* Update number of clones to transit to new state. Set this prior to
     waiting for DDLs blocking state transfer. This would help a new DDL to
     find if clone is blocked by other DDL before state transition. */
@@ -722,7 +723,7 @@ class Clone_Snapshot {
   /** Begin state transition.
   @param[in]    new_state       state to transit to */
   void begin_transit(Snapshot_State new_state) {
-    mutex_own(&m_snapshot_mutex);
+    mysql_mutex_assert_owner(&m_snapshot_mutex);
     m_snapshot_next_state = new_state;
     /* Move to next state. This is ok as the snapshot
     mutex is not released till transition is ended, This
@@ -733,7 +734,7 @@ class Clone_Snapshot {
 
   /** End state transition. */
   void end_transit() {
-    mutex_own(&m_snapshot_mutex);
+    mysql_mutex_assert_owner(&m_snapshot_mutex);
     m_num_clones_transit = 0;
     m_snapshot_next_state = CLONE_SNAPSHOT_NONE;
   }
@@ -741,14 +742,14 @@ class Clone_Snapshot {
   /** Check if state transition is in progress
   @return true during state transition */
   bool in_transit_state() const {
-    mutex_own(&m_snapshot_mutex);
+    mysql_mutex_assert_owner(&m_snapshot_mutex);
     return (m_snapshot_next_state != CLONE_SNAPSHOT_NONE);
   }
 
   /** @return true, if waiting before starting transition. Generally the
   case when some DDL blocks state transition. */
   bool in_transit_wait() const {
-    mutex_own(&m_snapshot_mutex);
+    mysql_mutex_assert_owner(&m_snapshot_mutex);
     return (!in_transit_state() && m_num_clones_transit != 0);
   }
 
@@ -764,7 +765,7 @@ class Clone_Snapshot {
   /** Initialize disk byte estimate. */
   void init_disk_estimate() {
     /* Initial size is set to the redo file size on disk. */
-    IB_mutex_guard latch{&(log_sys->limits_mutex), UT_LOCATION_HERE};
+    Mysql_mutex_guard latch{&(log_sys->limits_mutex)};
     m_data_bytes_disk = log_sys->m_capacity.current_physical_capacity();
   }
 
@@ -962,7 +963,7 @@ class Clone_Snapshot {
   /** @name Snapshot State  */
 
   /** Mutex to handle access by concurrent clones */
-  mutable ib_mutex_t m_snapshot_mutex;
+  mutable mysql_mutex_t m_snapshot_mutex;
 
   /** Number of blockers for state change. Usually DDLs for short duration. */
   uint32_t m_num_blockers;

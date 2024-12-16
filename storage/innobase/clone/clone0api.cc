@@ -35,7 +35,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "clone0api.h"
 #include "clone0clone.h"
-#include "os0thread-create.h"
 
 #include "sql/clone_handler.h"
 #include "sql/mysqld.h"
@@ -48,7 +47,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "dict0dd.h"
 #include "ha_innodb.h"
-#include "log0files_io.h"
 #include "sql/dd/cache/dictionary_client.h"
 #include "sql/dd/dictionary.h"
 #include "sql/dd/impl/dictionary_impl.h"  // dd::dd_tablespace_id()
@@ -320,7 +318,7 @@ void innodb_clone_get_capability(Ha_clone_flagset &flags) {
 @param[in,out]  thd     session THD
 @return error code. */
 static int clone_begin_check(THD *thd) {
-  ut_ad(mutex_own(clone_sys->get_mutex()));
+  mysql_mutex_assert_owner(clone_sys->get_mutex());
   int err = 0;
 
   if (!mtr_t::s_logging.is_enabled()) {
@@ -403,7 +401,7 @@ int innodb_clone_begin(handlerton *, THD *thd, const byte *&loc, uint &loc_len,
 
   /* Acquire clone system mutex which would automatically get released
   when we return from the function [RAII]. */
-  IB_mutex_guard sys_mutex(clone_sys->get_mutex(), UT_LOCATION_HERE);
+  Mysql_mutex_guard sys_mutex(clone_sys->get_mutex());
 
   /* Check if concurrent ddl has marked abort. */
   int err = clone_begin_check(thd);
@@ -516,7 +514,7 @@ int innodb_clone_begin(handlerton *, THD *thd, const byte *&loc, uint &loc_len,
     /* Release clone system mutex here as we might need to wait while
     adding task. It is safe as the clone handle is acquired and cannot
     be freed till we release it. */
-    mutex_exit(clone_sys->get_mutex());
+    mysql_mutex_unlock(clone_sys->get_mutex());
     err = clone_hdl->add_task(thd, nullptr, 0, task_id);
 
     /* 1. Open all tablespaces in Innodb if not done during bootstrap.
@@ -529,7 +527,7 @@ int innodb_clone_begin(handlerton *, THD *thd, const byte *&loc, uint &loc_len,
       }
     }
 
-    mutex_enter(clone_sys->get_mutex());
+    mysql_mutex_lock(clone_sys->get_mutex());
   }
 
   if (err != 0) {
@@ -575,12 +573,12 @@ int innodb_clone_ack(handlerton *hton, THD *thd, const byte *loc, uint loc_len,
     my_error(err, MYF(0), "Wrong Clone RPC: Invalid Locator");
     return (err);
   }
-  mutex_enter(clone_sys->get_mutex());
+  mysql_mutex_lock(clone_sys->get_mutex());
 
   /* Find attach clone handle using the reference locator. */
   auto clone_hdl = clone_sys->find_clone(loc, loc_len, CLONE_HDL_COPY);
 
-  mutex_exit(clone_sys->get_mutex());
+  mysql_mutex_unlock(clone_sys->get_mutex());
 
   /* Must find existing clone for the locator */
   if (clone_hdl == nullptr) {
@@ -609,12 +607,12 @@ int innodb_clone_ack(handlerton *hton, THD *thd, const byte *loc, uint loc_len,
     clone_hdl->save_error(in_err);
   }
 
-  mutex_enter(clone_sys->get_mutex());
+  mysql_mutex_lock(clone_sys->get_mutex());
 
   /* Detach from clone handle */
   clone_sys->drop_clone(clone_hdl);
 
-  mutex_exit(clone_sys->get_mutex());
+  mysql_mutex_unlock(clone_sys->get_mutex());
 
   return (err);
 }
@@ -637,7 +635,7 @@ int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
                      uint task_id, int in_err) {
   /* Acquire clone system mutex which would automatically get released
   when we return from the function [RAII]. */
-  IB_mutex_guard sys_mutex(clone_sys->get_mutex(), UT_LOCATION_HERE);
+  Mysql_mutex_guard sys_mutex(clone_sys->get_mutex());
 
   /* Get clone handle by locator index. */
   auto clone_hdl = clone_sys->get_clone_by_index(loc, loc_len);
@@ -725,7 +723,7 @@ int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
   auto err = Clone_Sys::wait(
       sleep_time, time_out, alert_interval,
       [&](bool alert, bool &result) {
-        ut_ad(mutex_own(clone_sys->get_mutex()));
+        mysql_mutex_assert_owner(clone_sys->get_mutex());
         result = !clone_hdl->is_active();
 
         if (thd_killed(thd) || clone_hdl->is_interrupted()) {
@@ -792,7 +790,7 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
 
   /* Acquire clone system mutex which would automatically get released
   when we return from the function [RAII]. */
-  IB_mutex_guard sys_mutex(clone_sys->get_mutex(), UT_LOCATION_HERE);
+  Mysql_mutex_guard sys_mutex(clone_sys->get_mutex());
 
   /* Check if clone is already in progress for the reference locator. */
   auto clone_hdl = clone_sys->find_clone(loc, loc_len, CLONE_HDL_APPLY);
@@ -885,7 +883,7 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
     /* Release clone system mutex here as we might need to wait while
     adding task. It is safe as the clone handle is acquired and cannot
     be freed till we release it. */
-    mutex_exit(clone_sys->get_mutex());
+    mysql_mutex_unlock(clone_sys->get_mutex());
 
     /* Create status file to indicate active clone directory. */
     if (mode == HA_CLONE_MODE_START) {
@@ -919,7 +917,7 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
       ut_ad(loc != nullptr);
       err = clone_hdl->add_task(thd, loc, loc_len, task_id);
     }
-    mutex_enter(clone_sys->get_mutex());
+    mysql_mutex_lock(clone_sys->get_mutex());
 
     if (err != 0) {
       clone_sys->drop_clone(clone_hdl);
@@ -1638,8 +1636,7 @@ dberr_t clone_init() {
 
   if (clone_sys == nullptr) {
     ut_ad(Clone_Sys::s_clone_sys_state == CLONE_SYS_INACTIVE);
-    clone_sys =
-        ut::new_withkey<Clone_Sys>(ut::make_psi_memory_key(mem_key_clone));
+    clone_sys = UT_NEW(Clone_Sys(), mem_key_clone);
   }
   Clone_Sys::s_clone_sys_state = CLONE_SYS_ACTIVE;
   Clone_handler::init_xa();
@@ -1652,7 +1649,7 @@ void clone_free() {
   if (clone_sys != nullptr) {
     ut_ad(Clone_Sys::s_clone_sys_state == CLONE_SYS_ACTIVE);
 
-    ut::delete_(clone_sys);
+    UT_DELETE(clone_sys);
     clone_sys = nullptr;
   }
 
@@ -1662,9 +1659,9 @@ void clone_free() {
 bool clone_check_provisioning() { return Clone_handler::is_provisioning(); }
 
 bool clone_check_active() {
-  mutex_enter(clone_sys->get_mutex());
+  mysql_mutex_lock(clone_sys->get_mutex());
   auto is_active = clone_sys->check_active_clone(false);
-  mutex_exit(clone_sys->get_mutex());
+  mysql_mutex_unlock(clone_sys->get_mutex());
 
   return (is_active || Clone_handler::is_provisioning());
 }
@@ -2504,7 +2501,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
   }
 
   std::string ntfn_mesg;
-  IB_mutex_guard sys_mutex(clone_sys->get_mutex(), UT_LOCATION_HERE);
+  Mysql_mutex_guard sys_mutex(clone_sys->get_mutex());
 
   bool clone_active = false;
   Clone_Handle *clone_donor = nullptr;
@@ -2593,7 +2590,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
 }
 
 Clone_notify::~Clone_notify() {
-  IB_mutex_guard sys_mutex(clone_sys->get_mutex(), UT_LOCATION_HERE);
+  Mysql_mutex_guard sys_mutex(clone_sys->get_mutex());
 
   switch (m_wait) {
     case Wait_at::ENTER:
@@ -2763,7 +2760,7 @@ static int clone_init_tablespaces(THD *thd) {
 
     /* Acquire dict mutex to prevent race against concurrent DML trying to
     load the space. */
-    IB_mutex_guard sys_mutex(&dict_sys->mutex, UT_LOCATION_HERE);
+    Mysql_mutex_guard sys_mutex(&dict_sys->mutex);
 
     /* Re-check if space exists after acquiring dict sys mutex. Concurrent
     DML could have already loaded the space. Space name is already adjusted

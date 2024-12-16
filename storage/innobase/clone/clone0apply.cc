@@ -37,8 +37,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "clone0api.h"
 #include "clone0clone.h"
 #include "dict0dict.h"
-#include "log0files_io.h"
-#include "sql/handler.h"
+#include "handler.h"
 
 int Clone_Snapshot::get_file_from_desc(const Clone_File_Meta *file_meta,
                                        const char *data_dir, bool desc_create,
@@ -46,7 +45,7 @@ int Clone_Snapshot::get_file_from_desc(const Clone_File_Meta *file_meta,
                                        Clone_file_ctx *&file_ctx) {
   int err = 0;
 
-  mutex_enter(&m_snapshot_mutex);
+  mysql_mutex_lock(&m_snapshot_mutex);
 
   auto idx = file_meta->m_file_index;
 
@@ -69,7 +68,7 @@ int Clone_Snapshot::get_file_from_desc(const Clone_File_Meta *file_meta,
     err = create_desc(data_dir, file_meta, false, file_ctx);
   }
 
-  mutex_exit(&m_snapshot_mutex);
+  mysql_mutex_unlock(&m_snapshot_mutex);
 
   return (err);
 }
@@ -501,7 +500,7 @@ int Clone_Snapshot::create_desc(const char *data_dir,
 
 bool Clone_Snapshot::add_file_from_desc(Clone_file_ctx *&file_ctx,
                                         bool ddl_create) {
-  mutex_enter(&m_snapshot_mutex);
+  mysql_mutex_lock(&m_snapshot_mutex);
 
   ut_ad(m_snapshot_handle_type == CLONE_HDL_APPLY);
   auto file_meta = file_ctx->get_file_meta();
@@ -520,7 +519,7 @@ bool Clone_Snapshot::add_file_from_desc(Clone_file_ctx *&file_ctx,
     m_redo_file_vector[file_meta->m_file_index] = file_ctx;
   }
 
-  mutex_exit(&m_snapshot_mutex);
+  mysql_mutex_unlock(&m_snapshot_mutex);
 
   /** Check if it the last file */
   if (file_meta->m_file_index == num_data_files() - 1) {
@@ -1165,13 +1164,13 @@ int Clone_Handle::apply_file_metadata(Clone_Task *task,
     return err;
   }
 
-  mutex_enter(m_clone_task_manager.get_mutex());
+  mysql_mutex_lock(m_clone_task_manager.get_mutex());
 
   /* Create file metadata entry based on the descriptor. */
   err = snapshot->get_file_from_desc(file_desc_meta, m_clone_dir, true,
                                      desc_exists, file_ctx);
   if (err != 0 || desc_exists) {
-    mutex_exit(m_clone_task_manager.get_mutex());
+    mysql_mutex_unlock(m_clone_task_manager.get_mutex());
 
     /* Save error with file name. */
     if (err != 0) {
@@ -1218,7 +1217,7 @@ int Clone_Handle::apply_file_metadata(Clone_Task *task,
       m_clone_task_manager.set_file_meta_transferred();
     }
 
-    mutex_exit(m_clone_task_manager.get_mutex());
+    mysql_mutex_unlock(m_clone_task_manager.get_mutex());
 
     if (err == 0 && file_type == OS_CLONE_DATA_FILE) {
       err = set_compression(file_ctx);
@@ -1237,7 +1236,7 @@ int Clone_Handle::apply_file_metadata(Clone_Task *task,
 
   snapshot->add_file_from_desc(file_ctx, false);
 
-  mutex_exit(m_clone_task_manager.get_mutex());
+  mysql_mutex_unlock(m_clone_task_manager.get_mutex());
   return (err);
 }
 
@@ -1670,7 +1669,7 @@ void Clone_Snapshot::update_file_size(uint32_t file_index, uint64_t file_size) {
 }
 
 int Clone_Snapshot::init_apply_state(Clone_Desc_State *state_desc) {
-  IB_mutex_guard guard(&m_snapshot_mutex, UT_LOCATION_HERE);
+  Mysql_mutex_guard guard(&m_snapshot_mutex);
 
   set_state_info(state_desc);
   int err = 0;
@@ -1736,7 +1735,7 @@ int Clone_Snapshot::extend_and_flush_files(bool flush_redo) {
 
     auto file = os_file_create(
         innodb_clone_file_key, file_name.c_str(),
-        OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+        OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT, OS_FILE_NORMAL,
         flush_redo ? OS_CLONE_LOG_FILE : OS_CLONE_DATA_FILE, false, &success);
 
     if (!success) {

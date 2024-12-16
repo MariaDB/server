@@ -134,6 +134,10 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/tpool)
 
 SET(INNOBASE_SOURCES
+	arch/arch0arch.cc
+	# arch/arch0page.cc
+	# arch/arch0log.cc
+	# arch/arch0recv.cc
 	btr/btr0btr.cc
 	btr/btr0bulk.cc
 	btr/btr0cur.cc
@@ -147,6 +151,12 @@ SET(INNOBASE_SOURCES
 	buf/buf0flu.cc
 	buf/buf0lru.cc
 	buf/buf0rea.cc
+	# clone/clone0api.cc
+	# clone/clone0clone.cc
+	# clone/clone0copy.cc
+	# clone/clone0apply.cc
+	# clone/clone0desc.cc
+	# clone/clone0snapshot.cc
 	data/data0data.cc
 	data/data0type.cc
 	dict/dict0boot.cc
