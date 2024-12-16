@@ -15,7 +15,10 @@ INSERT INTO t1 (id) VALUES (1);
 # Simplest scenario:
 # <con1, S, granted>,
 # <con1, S, granted>, <con2, X, waiting for con1>,
+# Before MDEV-34877:
 # <con1, S, granted>, <con2, X, waiting for con1>, <con1, X, waiting for con1>
+# After MDEV-34877:
+# <con1, S, granted>, <con1, X, granted>, <con2, X, waiting for con1>
 # Expected: instead of deadlocking, the con1's request should ingore con2's
 
 --connection con1
@@ -62,9 +65,9 @@ INSERT INTO t1 (id) VALUES (1);
 
 # More complicated scenario:
 # <con1, S, granted>,
-# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>,
-# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con2>
-# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con2>, <con1, INSERT_INTENTION, waiting for con3>
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>,
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con2>
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>, <con1, INSERT_INTENTION, waiting for con3>
 # <con1, S, granted>, <con3, X, waiting for con1>, <con1, INSERT_INTENTION, waiting for con3>
 # Expected: a deadlock, as INSERT INTENTION should not overtake locks on gap, to not slice them
 
@@ -100,22 +103,15 @@ INSERT INTO t1 (id) VALUES (1);
   --error ER_LOCK_DEADLOCK
   --reap
 
-# More complicated scenario. It's not ideal. Ideally, we'd like con1's X REC_NOT_GAP request to be
-# considered blocked by con3, and then to bypass it exceptionally because of con3's being blocked by con1.
-# What happens in reality is that con1's request will get blocked by con2, not con3, because we search for
-# a blocker in the queue starting from the granted locks. And then, when con2 releases locks, both con3 and con1
-# are candidates to grant the lock, and con3 can't be granted the lock because it's blocked by con1's S lock,
-# and con1 can be granted the X REC_NOT_GAP lock, because CATS algorithm doesn't check for conflicts with waiting
-# locks during release induced granting. Thus the heuristic "to bypass waiters blocked by us" doesn't really take
-# part in this scenario. Still, it's good to verify that it works without a deadlock.
+# More complicated scenario.
 # <con1, S, granted>,
-# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>,
-# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con2>
-# <con2, S REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con2>, <con1, X REC_NOT_GAP, waiting for con2>
-# <con1, X REC_NOT_GAP, granted>, <con1, S, granted>, <con3, X, waiting for con1>,
-# <con3, X, granted>,
-# done.
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>,
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>
 # <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>, <con1, X REC_NOT_GAP, waiting for con2>
+# Before the fix:
+# <con1, S, granted>, <con3, X, waiting for con1>, <con1, X REC_NOT_GAP, waiting for con3>
+# After the fix:
+# <con1, S, granted>, <con1, X REC_NOT_GAP, granted>, <con3, X, waiting for con1>
 
 
 --connection con1
@@ -149,13 +145,14 @@ INSERT INTO t1 (id) VALUES (1);
   --reap
   COMMIT;
 
-# A secenario, where con1 has to bypass two transactions, thus testing proper caching:
+# A secenario, where con1 has to bypass two transactions:
 # <con1, S, granted>
 # <con1, S, granted> <con2, X, waiting>
 # <con1, S, granted> <con2, X, waiting> <con3, X, waiting>
-# <con1, X REC_NOT_GAP, granted> <con1, S, granted> <con2, X, waiting> <con3, X, waiting>
-#
-# <con1, S, granted>, <con2, X, waiting>, <con3, X, waiting>, <con1, X REC_NOT_GAP, granted>
+# Before the fix:
+# <con1, S, granted> <con2, X, waiting> <con3, X, waiting> <con1, X REC_NOT_GAP, waiting for con2>
+# After the fix
+# <con1, S, granted> <con1, X REC_NOT_GAP, granted> <con2, X, waiting> <con3, X, waiting>
 --connection con1
   BEGIN;
   SELECT * FROM t1 LOCK IN SHARE MODE;
