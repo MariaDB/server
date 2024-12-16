@@ -2126,6 +2126,9 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
+          /*
+            Optimized dup handling via UPDATE (and insert history for versioned).
+          */
           if (table->versioned(VERS_TRX_ID))
           {
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
@@ -2160,25 +2163,39 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
         }
         else
         {
+          /*
+            Normal dup handling via DELETE (or UPDATE to history for versioned)
+            and repeating the cycle of INSERT.
+          */
           if (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
 
-          if (!table->versioned(VERS_TIMESTAMP))
+          bool do_delete= !table->versioned(VERS_TIMESTAMP);
+          if (do_delete)
             error= table->file->ha_delete_row(table->record[1]);
           else
           {
+            /* Update existing row to history */
             store_record(table, record[2]);
             restore_record(table, record[1]);
             table->vers_update_end();
             error= table->file->ha_update_row(table->record[1],
                                               table->record[0]);
             restore_record(table, record[2]);
+            if (error == HA_ERR_FOUND_DUPP_KEY ||        /* Unique index, any SE */
+                error == HA_ERR_FOREIGN_DUPLICATE_KEY || /* Unique index, InnoDB */
+                error == HA_ERR_RECORD_IS_THE_SAME)      /* No index */
+            {
+              /* Such history row was already generated from previous cycles */
+              error= table->file->ha_delete_row(table->record[1]);
+              do_delete= true;
+            }
           }
           if (unlikely(error))
             goto err;
-          if (!table->versioned(VERS_TIMESTAMP))
+          if (do_delete)
             info->deleted++;
           else
             info->updated++;
