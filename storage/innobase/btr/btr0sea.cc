@@ -1336,8 +1336,7 @@ retry:
     ut_a(block->index == index);
   }
 
-  if ((block->ahi_left_bytes_fields ^ n_bytes_fields) &
-      ~buf_block_t::LEFT_SIDE)
+  if (block->ahi_left_bytes_fields != left_bytes_fields)
   {
     /* Someone else has meanwhile built a new hash index on the page,
     with different parameters */
