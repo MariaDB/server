@@ -3566,6 +3566,9 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     DBUG_PRINT("info",("exec_core returned: %d", res));
   }
 
+  if (unlikely(res) && m_lex->result)
+    m_lex->result->cleanup();
+
   /*
     Call after unit->cleanup() to close open table
     key read.
