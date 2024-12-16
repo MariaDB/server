@@ -101,6 +101,7 @@ void log_t::create()
   ut_ad(!checkpoint_buf);
   ut_ad(!buf);
   ut_ad(!flush_buf);
+  ut_ad(!writer);
   max_buf_free= 1;
 
   latch.SRW_LOCK_INIT(log_latch_key);
@@ -330,6 +331,7 @@ bool log_t::attach(log_file_t file, os_offset_t size)
 
   ut_ad(!buf);
   ut_ad(!flush_buf);
+  ut_ad(!writer);
 #ifdef HAVE_INNODB_MMAP
   if (size)
   {
@@ -352,7 +354,7 @@ bool log_t::attach(log_file_t file, os_offset_t size)
 # endif
       buf= static_cast<byte*>(ptr);
       max_buf_free= 1;
-      mtr_t::finisher_update();
+      writer_update();
 # ifdef HAVE_PMEM
       if (is_pmem)
         return true;
@@ -395,7 +397,7 @@ bool log_t::attach(log_file_t file, os_offset_t size)
   TRASH_ALLOC(buf, buf_size);
   TRASH_ALLOC(flush_buf, buf_size);
   max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
-  mtr_t::finisher_update();
+  writer_update();
   memset_aligned<512>(checkpoint_buf, 0, write_size);
 
 #ifdef HAVE_INNODB_MMAP
@@ -507,6 +509,8 @@ void log_t::close_file()
     aligned_free(checkpoint_buf);
     checkpoint_buf= nullptr;
   }
+
+  writer= nullptr;
 
 #ifdef HAVE_INNODB_MMAP
   if (really_close)
@@ -671,6 +675,8 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
              (lsn_t{write_size - 1} + start_lsn - first_lsn));
         else if (!is_opened())
           resize_log.close();
+
+        writer_update();
       }
       resize_lsn.store(start_lsn, std::memory_order_relaxed);
       status= success ? RESIZE_STARTED : RESIZE_FAILED;
@@ -721,6 +727,7 @@ void log_t::resize_abort() noexcept
     resize_lsn.store(0, std::memory_order_relaxed);
   }
 
+  writer_update();
   log_resize_release();
 }
 
@@ -924,7 +931,6 @@ void log_t::persist(lsn_t lsn, bool holding_latch) noexcept
 }
 #endif
 
-ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 void log_t::resize_write_buf(const byte *b, size_t length) noexcept
 {
   const size_t block_size_1= write_size - 1;
@@ -959,20 +965,24 @@ void log_t::resize_write_buf(const byte *b, size_t length) noexcept
                           b, offset, length) == DB_SUCCESS);
 }
 
-/** Write buf to ib_logfile0.
-@tparam release_latch whether to invoke latch.wr_unlock()
+/** Write buf to ib_logfile0 and possibly ib_logfile101.
+@tparam resizing whether to release latch and whether resize_in_progress()>1
 @return the current log sequence number */
-template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
+template<log_t::resizing_and_latch resizing>
+inline __attribute__((always_inline))
+lsn_t log_t::write_buf() noexcept
 {
   ut_ad(latch_have_wr());
   ut_ad(!is_mmap());
   ut_ad(!srv_read_only_mode);
+  ut_ad(resizing == RETAIN_LATCH ||
+        (resizing == RESIZING) == (resize_in_progress() > 1));
 
   const lsn_t lsn{get_lsn(std::memory_order_relaxed)};
 
   if (write_lsn >= lsn)
   {
-    if (release_latch)
+    if (resizing != RETAIN_LATCH)
       latch.wr_unlock();
     ut_ad(write_lsn == lsn);
   }
@@ -990,7 +1000,16 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     ut_ad(write_size_1 >= 511);
 
     const byte *const write_buf{buf};
-    const byte *const re_write_buf{resize_buf};
+    byte *const re_write_buf{resizing == NOT_RESIZING ? nullptr : resize_buf};
+    ut_ad(resizing == RETAIN_LATCH ||
+          (resizing == NOT_RESIZING) == !re_write_buf);
+    ut_ad(!re_write_buf == !resize_flush_buf);
+    if (resizing == RESIZING)
+#ifdef _MSC_VER
+      __assume(re_write_buf != nullptr);
+#else
+      if (!re_write_buf) __builtin_unreachable();
+#endif
     offset&= ~lsn_t{write_size_1};
 
     if (length <= write_size_1)
@@ -1002,13 +1021,14 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
                         buf + length, flush_buf);
       ... /* TODO: Update the LSN and adjust other code. */
 #else
-# ifdef HAVE_valgrind
       MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - length);
-      if (UNIV_LIKELY_NULL(re_write_buf))
-        MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) - length);
-# endif
-      buf[length]= 0; /* allow recovery to catch EOF faster */
+      buf[length]= 0; /* ensure that recovery catches EOF */
 #endif
+      if (UNIV_LIKELY_NULL(re_write_buf))
+      {
+        MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) - length);
+        re_write_buf[length]= 0;
+      }
       length= write_size_1 + 1;
     }
     else
@@ -1023,27 +1043,28 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
         (We want to avoid memset() while holding exclusive log_sys.latch)
         This block will be overwritten later, once records beyond
         the current LSN are generated. */
-#ifdef HAVE_valgrind
-          MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - new_buf_free);
-        if (UNIV_LIKELY_NULL(re_write_buf))
-          MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) -
-                           new_buf_free);
-#endif
+        MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - new_buf_free);
         buf[length]= 0; /* allow recovery to catch EOF faster */
         length&= ~write_size_1;
         memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
         if (UNIV_LIKELY_NULL(re_write_buf))
+        {
+          MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) -
+                           new_buf_free);
           memcpy_aligned<16>(resize_flush_buf, re_write_buf + length,
                              (new_buf_free + 15) & ~15);
+          re_write_buf[length + new_buf_free]= 0;
+        }
         length+= write_size_1 + 1;
       }
 
       std::swap(buf, flush_buf);
-      std::swap(resize_buf, resize_flush_buf);
+      if (UNIV_LIKELY_NULL(re_write_buf))
+        std::swap(resize_buf, resize_flush_buf);
     }
 
     write_to_log++;
-    if (release_latch)
+    if (resizing != RETAIN_LATCH)
       latch.wr_unlock();
 
     DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
@@ -1103,7 +1124,7 @@ wait and check if an already running write is covering the request.
 @param durable  whether the write needs to be durable
 @param callback log write completion callback */
 void log_write_up_to(lsn_t lsn, bool durable,
-                     const completion_callback *callback)
+                     const completion_callback *callback) noexcept
 {
   ut_ad(!srv_read_only_mode || log_sys.buf_free_ok());
   ut_ad(lsn != LSN_MAX);
@@ -1148,7 +1169,7 @@ repeat:
       group_commit_lock::ACQUIRED)
   {
     log_sys.latch.wr_lock(SRW_LOCK_CALL);
-    pending_write_lsn= write_lock.release(log_sys.write_buf<true>());
+    pending_write_lsn= write_lock.release(log_sys.writer());
   }
 
   if (durable)
@@ -1163,6 +1184,23 @@ repeat:
     lsn= std::max(pending_write_lsn, pending_flush_lsn);
     goto repeat;
   }
+}
+
+static lsn_t log_writer() noexcept
+{
+  return log_sys.write_buf<log_t::NOT_RESIZING>();
+}
+
+ATTRIBUTE_COLD static lsn_t log_writer_resizing() noexcept
+{
+  return log_sys.write_buf<log_t::RESIZING>();
+}
+
+void log_t::writer_update() noexcept
+{
+  ut_ad(latch_have_wr());
+  writer= resize_in_progress() ? log_writer_resizing : log_writer;
+  mtr_t::finisher_update();
 }
 
 /** Write to the log file up to the last log entry.
@@ -1232,7 +1270,7 @@ ATTRIBUTE_COLD void log_write_and_flush()
   else
 #endif
   {
-    const lsn_t lsn{log_sys.write_buf<false>()};
+    const lsn_t lsn{log_sys.write_buf<log_t::RETAIN_LATCH>()};
     write_lock.release(lsn);
     log_flush(lsn);
   }

@@ -1840,6 +1840,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   if (resizing > 1 && resizing <= checkpoint_lsn)
   {
     ut_ad(is_mmap() == !resize_flush_buf);
+    ut_ad(is_mmap() == !resize_log.is_opened());
 
     if (!is_mmap())
     {
@@ -1905,6 +1906,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     resize_flush_buf= nullptr;
     resize_target= 0;
     resize_lsn.store(0, std::memory_order_relaxed);
+    writer_update();
   }
 
   log_resize_release();
