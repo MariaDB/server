@@ -1058,7 +1058,7 @@ public:
   String *val_str(String *) override;
   const Type_handler *type_handler() const override
   {
-    return &type_handler_point;
+    return &type_handler_geometry;
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_validate>(thd, this); }

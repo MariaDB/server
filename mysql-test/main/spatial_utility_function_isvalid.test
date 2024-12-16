@@ -379,3 +379,11 @@ SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((72.8714768817168
 
 SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((-200 0,-207.99999999999997
 135.36742435621204,-208 1,-208 0,-208 -276.9111154485375,-200 0))')) c;
+
+--echo #
+--echo # MDEV-35103 CREATE TABLE AS SELECT ST_VALIDATE creates a column with datatype point, not geometry
+--echo #
+create or replace table tb1 as SELECT  st_validate(POINTFROMTEXT(' POINT( 4 1 ) ')) a;
+create or replace table tb1 as SELECT  st_validate(ST_GeomFromText (' linestring( 4 1,4 4 ) ')) a;
+create table tb2 as  SELECT (st_validate (ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') ))  )) a;
+drop table tb1, tb2;
