@@ -1,5 +1,6 @@
 #include "tap.h"
 
+#define SUX_LOCK_GENERIC
 #define NO_ELISION
 #define thd_kill_level(thd) 0
 #define srv0mon_h
@@ -48,24 +49,12 @@ void srw_lock_debug::rd_unlock() noexcept {}
 void srw_lock_debug::rd_lock(SRW_LOCK_ARGS(const char*,unsigned)) noexcept {}
 #endif
 
-#ifdef SUX_LOCK_GENERIC
 void page_hash_latch::read_lock_wait() {}
 # ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
 template<> void pthread_mutex_wrapper<true>::wr_wait() noexcept {}
 # endif
-#endif
-
-#if defined _WIN32 || defined SUX_LOCK_GENERIC
 template<> void srw_lock_<true>::rd_wait() noexcept {}
 template<> void srw_lock_<true>::wr_wait() noexcept {}
-# ifdef _WIN32
-template<bool spin> void srw_mutex_impl<spin>::wait_and_lock() noexcept {}
-# endif
-#else
-template<bool spin> void ssux_lock_impl<spin>::wr_wait(uint32_t) noexcept {}
-template<bool spin> void ssux_lock_impl<spin>::rd_wait() noexcept {}
-template<bool spin> void srw_mutex_impl<spin>::wait_and_lock() noexcept {}
-#endif
 template<bool spin> void ssux_lock_impl<spin>::wake() noexcept {}
 template<bool spin> void srw_mutex_impl<spin>::wake() noexcept {}
 
@@ -95,6 +84,9 @@ int main(int, char **argv)
 {
   MY_INIT(*argv);
   plan(30);
+
+  btr_search.create();
+  btr_search.free();
 
   dfield_t fields[2]= {{nullptr,0,0,UNIV_SQL_NULL,{0,DATA_VARCHAR,3,1,1}},
                        {(char*)"42",0,0,2,{0,DATA_CHAR,2,1,1}}};
@@ -193,5 +185,7 @@ int main(int, char **argv)
   ok(rec_fold(rec, index, 1, true) == 0, "rec_fold(NULL)");
   ok(rec_fold(rec, index, 2 << 16, true) == 0, "rec_fold(NULL)");
   aligned_free(page);
-  return 0;
+
+  my_end(MY_CHECK_ERROR);
+  return exit_status();
 }
