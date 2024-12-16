@@ -11819,6 +11819,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           {
             trace_const_cond.add("evaluated", "false")
                             .add("cause", "expensive cond");
+            join->exec_const_cond= const_cond;
           }
           else
           {
@@ -11832,11 +11833,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               DBUG_PRINT("info",("Found impossible WHERE condition"));
               trace_const_cond.add("evaluated", "true")
                               .add("found", "impossible where");
-              join->exec_const_cond= NULL;
               DBUG_RETURN(1);
             }
           }
-          join->exec_const_cond= const_cond;
         }
 
         if (join->table_count != join->const_tables)

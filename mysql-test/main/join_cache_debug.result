@@ -38,7 +38,6 @@ JSON
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "const_condition": "1",
     "table": {
       "table_name": "t1_t2",
       "access_type": "ALL",

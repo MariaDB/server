@@ -1503,9 +1503,9 @@ public:
   COND_EQUAL *cond_equal;
   COND_EQUAL *having_equal;
   /*
-    Constant codition computed during optimization, but evaluated during
-    join execution. Typically expensive conditions that should not be
-    evaluated at optimization time.
+    Constant part of conditions which is extracted during optimization, but
+    evaluated during join execution. Typically expensive conditions that
+    should not be evaluated at optimization time.
   */
   Item *exec_const_cond;
   /*
