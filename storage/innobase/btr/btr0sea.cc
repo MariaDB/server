@@ -136,8 +136,8 @@ inline void btr_sea::clear() noexcept
 
 void btr_sea::free() noexcept
 {
-  for (ulong i= 0; i < n_parts; ++i)
-    parts[i].free();
+  for (partition &part : parts)
+    part.free();
 }
 
 /** If the number of records on the page divided by this parameter
