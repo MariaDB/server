@@ -356,3 +356,12 @@ ALTER SEQUENCE IF EXISTS t MINVALUE=1;
 
 DROP TABLE t;
 --echo End of 10.5 tests
+
+
+--disable_query_log
+--connection node_1
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+
+--connection node_2
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log

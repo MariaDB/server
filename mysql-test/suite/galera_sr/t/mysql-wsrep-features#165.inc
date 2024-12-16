@@ -111,3 +111,7 @@ SELECT * FROM t1;
 --connection node_1
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
