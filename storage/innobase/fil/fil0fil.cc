@@ -938,9 +938,7 @@ fil_space_t::fil_space_t(uint32_t id, ulint flags, bool being_imported,
   id(id), crypt_data(crypt_data), being_imported(being_imported), flags(flags)
 {
   UT_LIST_INIT(chain, &fil_node_t::chain);
-#ifndef SUX_LOCK_GENERIC
   memset((void*) &latch, 0, sizeof latch);
-#endif
   latch.SRW_LOCK_INIT(fil_space_latch_key);
 }
 
