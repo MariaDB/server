@@ -5466,4 +5466,12 @@ CREATE TABLE t (f POINT, KEY(f));
 DELETE FROM t WHERE f NOT IN (NULL,'x');
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 DROP TABLE t;
+#
+# MDEV-31219 Assertion `fixed' failed in Item_func_hybrid_field_type / Frame_positional_cursor
+#
+CREATE TABLE t (a INT, b POINT);
+INSERT INTO t VALUES (1,POINT(0,0)),(2,POINT(0,0));
+SELECT NTH_VALUE(a,b) OVER () FROM t;
+ERROR HY000: Illegal parameter data types point and bigint for operation '-'
+DROP TABLE t;
 # End of 10.5 tests
