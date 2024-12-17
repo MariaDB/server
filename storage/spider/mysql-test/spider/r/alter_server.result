@@ -1,0 +1,29 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+select Socket from mysql.servers where Server_name = "srv";
+Socket
+/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock
+create table t2 (c int);
+alter SERVER srv OPTIONS (DATABASE 'test');
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t1 values (1), (2), (3);
+select * from t1;
+c
+1
+2
+3
+select * from t2;
+c
+1
+2
+3
+drop table t1, t2;
+drop server srv;
+for master_1
+for child2
+for child3
