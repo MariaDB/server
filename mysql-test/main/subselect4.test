@@ -2702,4 +2702,14 @@ INSERT INTO t1 VALUES (0,'1');
 SELECT a FROM t1 WHERE '' IN (SELECT 'x' LIKE a HAVING a LIKE a);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-35654: Re-evaluation of constant subquery triggers debug assertion
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (
+  a IN (SELECT a IN (
+    SELECT 1 FROM (SELECT 1 AS a) AS dt WHERE a IN (SELECT a HAVING a=0)
+  )));
+DROP TABLE t1;
+
 --echo # End of 10.5 tests

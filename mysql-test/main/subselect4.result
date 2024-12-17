@@ -3356,4 +3356,13 @@ a
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: ''
 DROP TABLE t1;
+#
+# MDEV-35654: Re-evaluation of constant subquery triggers debug assertion
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (
+a IN (SELECT a IN (
+SELECT 1 FROM (SELECT 1 AS a) AS dt WHERE a IN (SELECT a HAVING a=0)
+)));
+DROP TABLE t1;
 # End of 10.5 tests
