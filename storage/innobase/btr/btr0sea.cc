@@ -939,6 +939,8 @@ inline void buf_pool_t::clear_hash_index()
       block->index= nullptr;
       if (index->freed())
         garbage.emplace(index);
+      else
+        index->search_info.ref_count= 0;
     }
   }
 
