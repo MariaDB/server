@@ -1,0 +1,135 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--let $rpl_topology= 1->2->1,1->3,2->4
+--source include/rpl_init.inc
+
+--connection server_1
+--source include/stop_slave.inc
+CHANGE MASTER TO Master_use_gtid=current_pos;
+--source include/start_slave.inc
+
+--connection server_2
+--source include/stop_slave.inc
+CHANGE MASTER TO Master_use_gtid=current_pos;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+CHANGE MASTER TO Master_use_gtid=current_pos;
+--source include/start_slave.inc
+
+--connection server_4
+--source include/stop_slave.inc
+CHANGE MASTER TO Master_use_gtid=current_pos;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'B0'), (2, 'B1');
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--connection server_4
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+# Test promoting 3 as new master in the ring instead of 1.
+# Test with 2 different events:
+#  E1  has reached 2 and 3 but not yet back to 1
+#  E2  has reached 2 but neither 1 nor 3
+
+--connection server_1
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+INSERT INTO t1 VALUES (10, 'E1');
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (11, 'E2');
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+# Stop server 1 from replicating, and switch 3 to replicate from 2 and 2 to replicate from 3.
+--connection server_1
+STOP SLAVE SQL_THREAD;
+--source include/wait_for_slave_sql_to_stop.inc
+
+--connection server_3
+STOP SLAVE SQL_THREAD;
+--source include/wait_for_slave_sql_to_stop.inc
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER TO master_host='127.0.0.1',master_port=$SERVER_MYPORT_2;
+--source include/start_slave.inc
+
+--connection server_2
+--source include/stop_slave.inc
+--replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3
+eval CHANGE MASTER TO master_host='127.0.0.1',master_port=$SERVER_MYPORT_3;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+# Set server 1 as a new slave, and replicate a few transactions.
+--connection server_1
+--replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3
+eval CHANGE MASTER TO master_host='127.0.0.1',master_port=$SERVER_MYPORT_3;
+--source include/start_slave.inc
+
+--connection server_3
+INSERT INTO t1 VALUES (20, 'S3');
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+INSERT INTO t1 VALUES (21, 'S2');
+SELECT * FROM t1 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_1
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+# Now put everything back as it was originally.
+--connection server_1
+--source include/stop_slave.inc
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER TO master_host='127.0.0.1',master_port=$SERVER_MYPORT_2;
+--source include/start_slave.inc
+
+--connection server_2
+--source include/stop_slave.inc
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1',master_port=$SERVER_MYPORT_1;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1',master_port=$SERVER_MYPORT_1;
+--source include/start_slave.inc
+
+
+# Clean up.
+--connection server_1
+DROP TABLE t1;
+--source include/rpl_end.inc
