@@ -1725,14 +1725,18 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
     {
       ins_rec= page_rec_next_get<true>(page, rec);
     update_on_insert:
+      /* The adaptive hash index is allowed to be a subset of what is
+      actually present in the index page. It could happen that there are
+      several INSERT with the same rec_fold() value, especially if the
+      record prefix identified by n_bytes_fields is being duplicated
+      in each INSERT. Therefore, we may fail to find the old rec
+      (and fail to update the AHI to point to to our ins_rec). */
       if (ins_rec &&
           ha_search_and_update_if_found(&part.table,
                                         cursor->fold, rec, block, ins_rec))
       {
         MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_UPDATED);
       }
-      else
-        ut_ad("corrupted page" == 0);
 
       assert_block_ahi_valid(block);
       goto unlock_exit;
