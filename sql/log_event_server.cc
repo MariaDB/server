@@ -3729,7 +3729,12 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 bool
 Gtid_log_event::write()
 {
-  uchar buf[GTID_HEADER_LEN+2+sizeof(XID) + /* flags_extra: */ 1+4];
+  uchar buf[GTID_HEADER_LEN+2
+    + sizeof(XID)
+    + 1 // flags_extra:
+    + 1 // extra_engines
+    + 8 // sa_seq_no
+  ];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
