@@ -500,14 +500,13 @@ skip:
 @retval 0 if the adaptive hash index should not be rebuilt */
 static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor) noexcept
 {
-  ut_ad(cursor.flag != BTR_CUR_HASH);
+  ut_ad(cursor.flag == BTR_CUR_HASH_FAIL ||
+        cursor.flag == BTR_CUR_HASH_ABORT ||
+        cursor.flag == BTR_CUR_BINARY);
 
   dict_index_t *const index= cursor.index();
 
-  if (index->is_ibuf())
-    /* Too many deletes are performed on the change buffer */
-    return 0;
-
+  ut_ad(!index->is_ibuf());
   buf_block_t *const block= cursor.page_cur.block;
   ut_ad(block->page.lock.have_any());
   ut_d(const uint32_t state= block->page.state());
@@ -1059,11 +1058,20 @@ btr_search_guess_on_hash(
   ut_ad(mtr->is_active());
   ut_ad(index->is_btree() || index->is_ibuf());
   ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
+  ut_ad(cursor->flag == BTR_CUR_BINARY);
 
-  if ((tuple->info_bits & REC_INFO_MIN_REC_FLAG) ||
-      !index->search_info.last_hash_succ ||
-      !index->search_info.n_hash_potential)
+  if ((tuple->info_bits & REC_INFO_MIN_REC_FLAG))
     return false;
+
+  if (!index->search_info.last_hash_succ ||
+      !index->search_info.n_hash_potential)
+  {
+  ahi_unusable:
+    if (!index->is_ibuf() && !index->table->is_temporary() &&
+        btr_search.enabled)
+      cursor->flag= BTR_CUR_HASH_ABORT;
+    return false;
+  }
 
   ut_ad(index->is_btree());
   ut_ad(!index->table->is_temporary());
@@ -1075,7 +1083,7 @@ btr_search_guess_on_hash(
     ~buf_block_t::LEFT_SIDE;
 
   if (dtuple_get_n_fields(tuple) < btr_search_get_n_fields(cursor))
-    return false;
+    goto ahi_unusable;
 
   const index_id_t index_id= index->id;
 
