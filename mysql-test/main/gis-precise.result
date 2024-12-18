@@ -776,7 +776,7 @@ SELECT ST_DISTANCE_SPHERE(1, 1, NULL);
 ST_DISTANCE_SPHERE(1, 1, NULL)
 NULL
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(1 0)'), ST_GEOMFROMTEXT('LINESTRING(0 0, 1 1)')) as result;
-ERROR HY000: Internal error: st_distance_sphere
+ERROR HY000: Internal error: Point or multipoint geometries expected
 # Test Points and radius
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(1 1)')) as result;
 result
