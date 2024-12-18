@@ -2475,6 +2475,16 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 #ifdef WITH_WSREP
     if (wsrep_sync_wait(thd, sql_command))
       goto error;
+    if (!stmt->is_sql_prepare())
+    {
+      wsrep_after_command_before_result(thd);
+      if (wsrep_current_error(thd))
+      {
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        goto error;
+      }
+    }
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:

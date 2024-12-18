@@ -1582,35 +1582,7 @@ bool wsrep_sync_wait (THD* thd, uint mask)
       This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
       TODO: modify to check if thd has locked any rows.
     */
-    if (thd->wsrep_cs().sync_wait(-1))
-    {
-      const char* msg;
-      int err;
-
-      /*
-        Possibly relevant error codes:
-        ER_CHECKREAD, ER_ERROR_ON_READ, ER_INVALID_DEFAULT, ER_EMPTY_QUERY,
-        ER_FUNCTION_NOT_DEFINED, ER_NOT_ALLOWED_COMMAND, ER_NOT_SUPPORTED_YET,
-        ER_FEATURE_DISABLED, ER_QUERY_INTERRUPTED
-      */
-
-      switch (thd->wsrep_cs().current_error())
-      {
-      case wsrep::e_not_supported_error:
-        msg= "synchronous reads by wsrep backend. "
-          "Please unset wsrep_causal_reads variable.";
-        err= ER_NOT_SUPPORTED_YET;
-        break;
-      default:
-        msg= "Synchronous wait failed.";
-        err= ER_LOCK_WAIT_TIMEOUT; // NOTE: the above msg won't be displayed
-                                   //       with ER_LOCK_WAIT_TIMEOUT
-      }
-
-      my_error(err, MYF(0), msg);
-
-      return true;
-    }
+    return thd->wsrep_cs().sync_wait(-1);
   }
 
   return false;
