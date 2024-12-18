@@ -263,7 +263,8 @@ static uint32_t rec_fold(const rec_t *rec, const dict_index_t &index,
         n= std::min(n_bytes, n);
       else
       {
-        size_t len= n - rec_1_get_field_end_info(rec, n_f - 2);
+        size_t len= n - (rec_1_get_field_end_info(rec, n_f - 2) &
+                         ~REC_1BYTE_SQL_NULL_MASK);
         n+= std::min(n_bytes, n - len) - len;
       }
     }
@@ -276,7 +277,8 @@ static uint32_t rec_fold(const rec_t *rec, const dict_index_t &index,
         n= std::min(n_bytes, n);
       else
       {
-        size_t len= n - rec_2_get_field_end_info(rec, n_f - 2);
+        size_t len= n - (rec_2_get_field_end_info(rec, n_f - 2) &
+                         ~REC_2BYTE_SQL_NULL_MASK);
         n+= std::min(n_bytes, n - len) - len;
       }
     }

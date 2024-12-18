@@ -83,7 +83,7 @@ void ut_dbg_assertion_failed(const char *e, const char *file, unsigned line)
 int main(int, char **argv)
 {
   MY_INIT(*argv);
-  plan(30);
+  plan(42);
 
   btr_search.create();
   btr_search.free();
@@ -91,21 +91,23 @@ int main(int, char **argv)
   dfield_t fields[2]= {{nullptr,0,0,UNIV_SQL_NULL,{0,DATA_VARCHAR,3,1,1}},
                        {(char*)"42",0,0,2,{0,DATA_CHAR,2,1,1}}};
   dtuple_t tuple2{0,2,2,0,fields,nullptr, ut_d(DATA_TUPLE_MAGIC_N) };
-  dict_col_t cols[2]={{}, {DATA_NOT_NULL,DATA_CHAR,2,1,1,1,0,0,{nullptr,0}}};
-  dict_field_t ifields[2]= {{}, {}};
+  dict_col_t cols[]={{}, {}, {DATA_NOT_NULL,DATA_CHAR,2,1,1,1,0,0,{nullptr,0}}};
+  dict_field_t ifields[3]= {{}, {}, {}};
   dict_table_t table{};
   dict_index_t index{};
   index.table= &table;
-  index.n_uniq= 2;
-  index.n_nullable= 2;
-  index.n_fields= 2;
-  index.n_core_fields= 2;
+  index.n_uniq= 3;
+  index.n_nullable= 3;
+  index.n_fields= 3;
+  index.n_core_fields= 3;
   index.n_core_null_bytes= 1;
   index.fields= ifields;
 
   ifields[0].col= &cols[0];
-  ifields[1].col= &cols[1];
+  ifields[1].col= &cols[2];
+  ifields[2].col= &cols[2];
   ifields[1].fixed_len= 2;
+  ifields[2].fixed_len= 2;
 
   constexpr uint32_t crc42= 0x2e7d3dcb, crc3z42= 0x9a6e3c2c,
     crc2z= 0xf16177d2, crc3z= 0x6064a37a;
@@ -152,9 +154,12 @@ int main(int, char **argv)
   page[PAGE_HEADER + PAGE_HEAP_TOP + 1]= 4 + 2;
   const byte r1_varchar[]= {2,0x80,0,0,0,2<<1|1,0,0, '4','2'};
   const byte r2_varchar[]= {0,2,0x80,0,0,0,0,2<<1,0,0, '4','2'};
+  const byte r1_var3[]= {2,0x80,0x80,0,0,0,3<<1|1,0,0, '4','2'};
+  const byte r2_var3[]= {0,2,0x80,0,0x80,0,0,0,0,3<<1,0,0, '4','2'};
   const byte r1_char[]={2+3,0x83,0,0,0,2<<1|1,0,0, 0,0,0,'4','2'};
   const byte r2_char[]= {0,2+3,0x80,3,0,0,0,2<<1,0,0, 0,0,0,'4','2'};
   const byte c[]= { 0,1,0,0,0,0,0, '4','2'};
+  const byte c3[]= { 0,3,0,0,0,0,0, '4','2'};
 
   memcpy(rec - sizeof r1_varchar + 2, r1_varchar, sizeof r1_varchar);
   ok(rec_fold(rec, index, 2, false) == crc42, "rec_fold(NULL, '42')");
@@ -164,6 +169,16 @@ int main(int, char **argv)
   ok(rec_fold(rec, index, 2, false) == crc42, "rec_fold(NULL, '42')");
   ok(rec_fold(rec, index, 1, false) == 0, "rec_fold(NULL)");
   ok(rec_fold(rec, index, 2 << 16, false) == 0, "rec_fold(NULL)");
+
+  memcpy(rec - sizeof r1_var3 + 2, r1_var3, sizeof r1_var3);
+  ok(rec_fold(rec, index, 3, false) == crc42, "rec_fold(NULL, NULL, '42')");
+  ok(rec_fold(rec, index, 2, false) == 0, "rec_fold(NULL,NULL)");
+  ok(rec_fold(rec, index, 1 | 2 << 16, false) == 0, "rec_fold(NULL,NULL)");
+  memcpy(rec - sizeof r2_var3 + 2, r2_var3, sizeof r2_var3);
+  ok(rec_fold(rec, index, 3, false) == crc42, "rec_fold(NULL, NULL, '42')");
+  ok(rec_fold(rec, index, 2, false) == 0, "rec_fold(NULL,NULL)");
+  ok(rec_fold(rec, index, 1 | 2 << 16, false) == 0, "rec_fold(NULL,NULL)");
+
   fields[0].type.mtype= DATA_CHAR;
   memcpy(rec - sizeof r1_char + 3 + 2, r1_char, sizeof r1_char);
   ok(rec_fold(rec, index, 2, false) == crc3z42, "rec_fold('\\0\\0\\0', '42')");
@@ -184,6 +199,20 @@ int main(int, char **argv)
   ok(rec_fold(rec, index, 2, true) == crc42, "rec_fold(NULL, '42')");
   ok(rec_fold(rec, index, 1, true) == 0, "rec_fold(NULL)");
   ok(rec_fold(rec, index, 2 << 16, true) == 0, "rec_fold(NULL)");
+
+  memcpy(rec - sizeof c3 + 2, c3, sizeof c3);
+  fields[0].type.mtype= DATA_CHAR;
+
+  ifields[1].col= &cols[1];
+  ifields[1].fixed_len= 0;
+
+  ok(rec_fold(rec, index, 3, true) == crc42, "rec_fold(NULL, NULL, '42')");
+  ok(rec_fold(rec, index, 2, true) == 0, "rec_fold(NULL, NULL)");
+  ok(rec_fold(rec, index, 1 | 2 << 16, true) == 0, "rec_fold(NULL, NULL)");
+  fields[0].type.mtype= DATA_VARCHAR;
+  ok(rec_fold(rec, index, 3, true) == crc42, "rec_fold(NULL, NULL, '42')");
+  ok(rec_fold(rec, index, 2, true) == 0, "rec_fold(NULL, NULL)");
+  ok(rec_fold(rec, index, 1 | 2 << 16, true) == 0, "rec_fold(NULL, NULL)");
   aligned_free(page);
 
   my_end(MY_CHECK_ERROR);
