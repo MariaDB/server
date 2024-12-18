@@ -31,6 +31,7 @@
 #include "sql_parse.h"
 #include "sp_head.h"
 #include "item_sum.h"
+#include "sql_type_geom.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
@@ -4772,6 +4773,20 @@ String *Item_func_collect::val_str(String *str)
 }
 
 
-Item *Item_func_collect::copy_or_same(THD *thd) {
+Item *Item_func_collect::copy_or_same(THD *thd)
+{
   return new (thd->mem_root) Item_func_collect(thd, is_distinct, this);
+}
+
+
+const Type_handler *Item_func_collect::type_handler() const
+{
+  return &type_handler_geometry;
+}
+
+
+bool Item_func_collect::fix_fields_impl(THD *thd,Item **)
+{
+  max_length= UINT_MAX32;
+  return FALSE;
 }

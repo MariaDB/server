@@ -189,3 +189,11 @@ PRECEDING AND CURRENT ROW)) AS geocollect  FROM simple_table;
 # SELECT CAST(ST_COLLECT(geo) AS DECIMAL ) FROM simple_table;
 
 DROP TABLE simple_table;
+
+--echo #
+--echo # MDEV-35102 CREATE TABLE AS SELECT ST_collect ... does not work
+--echo #
+SELECT ST_astext(ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )));
+CREATE TABLE tb1 AS SELECT (ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )) );
+SHOW CREATE TABLE tb1;
+DROP TABLE tb1;
