@@ -3347,23 +3347,11 @@ retry:
       }
       else
       {
-        auto state= bpage->state();
-        ut_ad(state >= buf_page_t::FREED);
-        ut_ad(state < buf_page_t::READ_FIX);
-
         page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
         /* It does not make sense to use transactional_lock_guard here,
         because buf_relocate() would likely make the memory transaction
         too large. */
         hash_lock.lock();
-
-        if (state < buf_page_t::UNFIXED)
-          bpage->set_reinit(buf_page_t::FREED);
-        else
-        {
-          bpage->set_reinit(state & buf_page_t::LRU_MASK);
-          ibuf_exist= (state & buf_page_t::LRU_MASK) == buf_page_t::IBUF_EXIST;
-        }
 
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_relocate(bpage, &free_block->page);
