@@ -23,10 +23,6 @@ flush logs;
 --echo # MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:50' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
 --exec $MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:50' $MYSQLD_DATADIR/master-bin.000001 --result-file=$ignored_output_file 2>&1
 
---echo Case: Stop datetime between records, must not see warning.
---echo # MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
---exec $MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' $MYSQLD_DATADIR/master-bin.000001 --result-file=$ignored_output_file 2>&1
-
 --echo Case: Stop datetime at EOF, must not see warning.
 --echo # MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
 --exec $MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' $MYSQLD_DATADIR/master-bin.000001 --result-file=$ignored_output_file 2>&1
