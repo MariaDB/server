@@ -2169,8 +2169,7 @@ class Item_func_collect : public Item_sum_str
   {
     return GEOMETRY_COLLECT_FUNC;
   }
-  const Type_handler *type_handler() const override
-  { return &type_handler_string; }
+  const Type_handler *type_handler() const override;
   String *val_str(String*str) override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -2185,10 +2184,7 @@ class Item_func_collect : public Item_sum_str
     return true;
   }
 
-  bool fix_fields_impl(THD *,Item **) override
-  {
-    return FALSE;
-  }
+  bool fix_fields_impl(THD *thd,Item **) override;
 
 public:
   Item_func_collect(THD *thd, bool is_distinct, Item *item_par);
