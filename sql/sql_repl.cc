@@ -2197,7 +2197,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     bool need_dummy=
       mariadb_slave_capability < MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES;
     bool err= Gtid_log_event::make_compatible_event(packet, &need_dummy,
-                                                    ev_offset,
+                                                    ev_offset, info->fdev,
                                                     current_checksum_alg);
     if (err)
     {

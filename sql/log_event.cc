@@ -1906,16 +1906,18 @@ Query_log_event::dummy_event(String *packet, ulong ev_offset,
 }
 
 /*
-  Replace an event (GTID event) with a BEGIN query event, to be compatible
+  Replace a Gtid_log_event with a BEGIN query event, to be compatible
   with an old slave.
 */
 int
 Query_log_event::begin_event(String *packet, ulong ev_offset,
+                             Format_description_log_event* fdev,
                              enum_binlog_checksum_alg checksum_alg)
 {
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   uchar *q= p + LOG_EVENT_HEADER_LEN;
   size_t data_len= packet->length() - ev_offset;
+  Gtid_log_event original_event= Gtid_log_event(p, data_len, fdev);
   size_t dummy_bytes;
   uint16 flags;
 
@@ -1927,15 +1929,20 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
 
 
   flags= uint2korr(p + FLAGS_OFFSET);
-  flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
   flags|= LOG_EVENT_SUPPRESS_USE_F;
-  int2store(p + FLAGS_OFFSET, flags);
 
   p[EVENT_TYPE_OFFSET]= QUERY_EVENT;
-  int4store(q + Q_THREAD_ID_OFFSET, 0);
+  if (original_event.flags_extra & Gtid_log_event::FL_EXTRA_THREAD_ID)
+    int4store(q + Q_THREAD_ID_OFFSET, original_event.thread_id);
+  else
+  {
+    flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
+    int4store(q + Q_THREAD_ID_OFFSET, 0);
+  }
   int4store(q + Q_EXEC_TIME_OFFSET, 0);
   q[Q_DB_LEN_OFFSET]= 0;
   int2store(q + Q_ERR_CODE_OFFSET, 0);
+  int2store(p + FLAGS_OFFSET, flags);
 
   /*
     If the allocated GTID event packet header is longer than the size of the
@@ -2407,7 +2414,7 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
         Global transaction ID stuff
 **************************************************************************/
 
-Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
+Gtid_log_event::Gtid_log_event(const uchar *buf, size_t event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event), seq_no(0), commit_id(0),
@@ -2450,7 +2457,7 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     xid.bqual_length= (long) buf[1];
     buf+= 2;
 
-    long data_length= xid.bqual_length + xid.gtrid_length;
+    ulong data_length= xid.bqual_length + xid.gtrid_length;
     if (event_len < static_cast<uint>(buf - buf_0) + data_length)
     {
       seq_no= 0;

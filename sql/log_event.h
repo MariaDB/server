@@ -2253,6 +2253,7 @@ public:
   static int dummy_event(String *packet, ulong ev_offset,
                          enum_binlog_checksum_alg checksum_alg);
   static int begin_event(String *packet, ulong ev_offset,
+                         Format_description_log_event* fdev,
                          enum_binlog_checksum_alg checksum_alg);
 #ifdef MYSQL_SERVER
   bool write(Log_event_writer *writer) override;
@@ -3425,7 +3426,7 @@ public:
 #else
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
-  Gtid_log_event(const uchar *buf, uint event_len,
+  Gtid_log_event(const uchar *buf, size_t event_len,
                  const Format_description_log_event *description_event);
   ~Gtid_log_event() = default;
   Log_event_type get_type_code() override { return GTID_EVENT; }
@@ -3447,7 +3448,9 @@ public:
 #ifdef MYSQL_SERVER
   bool write(Log_event_writer *writer) override;
   static int make_compatible_event(String *packet, bool *need_dummy_event,
-                                    ulong ev_offset, enum_binlog_checksum_alg checksum_alg);
+                                   ulong ev_offset,
+                                   Format_description_log_event* fdev,
+                                   enum_binlog_checksum_alg checksum_alg);
   static bool peek(const uchar *event_start, size_t event_len,
                    enum_binlog_checksum_alg checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
