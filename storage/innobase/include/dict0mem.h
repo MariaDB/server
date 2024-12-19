@@ -1203,6 +1203,14 @@ public:
 	/** @return whether this is the change buffer */
 	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
 
+	/** @return whether this is a normal, non-virtual B-tree index
+	(not the change buffer, not SPATIAL or FULLTEXT) */
+	bool is_normal_btree() const noexcept {
+		return UNIV_LIKELY(!(type & (DICT_IBUF | DICT_SPATIAL
+					     | DICT_FTS | DICT_CORRUPT
+					     | DICT_VIRTUAL)));
+	}
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 

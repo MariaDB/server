@@ -340,9 +340,7 @@ opt_calc_index_goodness(
 	ulint		op;
 	ulint		j;
 
-	/* At least for now we don't support using FTS indexes for queries
-	done through InnoDB's own SQL parser. */
-	if (dict_index_is_online_ddl(index) || (index->type & DICT_FTS)) {
+	if (!index->is_normal_btree() || !index->is_committed()) {
 		return(0);
 	}
 
@@ -572,11 +570,10 @@ opt_search_plan_for_table(
 	/* Calculate goodness for each index of the table */
 
 	index = dict_table_get_first_index(table);
-	best_index = index; /* Eliminate compiler warning */
+	best_index = index;
 	best_goodness = 0;
 
-	/* should be do ... until ? comment by Jani */
-	while (index) {
+	do {
 		goodness = opt_calc_index_goodness(index, sel_node, i,
 						   index_plan, &last_op);
 		if (goodness > best_goodness) {
@@ -590,8 +587,8 @@ opt_search_plan_for_table(
 			best_last_op = last_op;
 		}
 
-		dict_table_next_uncorrupted_index(index);
-	}
+		index = dict_table_get_next_index(index);
+	} while (index);
 
 	plan->index = best_index;
 

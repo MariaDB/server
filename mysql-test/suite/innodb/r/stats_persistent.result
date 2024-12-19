@@ -6,14 +6,23 @@ SET DEBUG_SYNC='dict_stats_update_persistent SIGNAL stop WAIT_FOR go';
 ANALYZE TABLE t1;
 connect con1, localhost, root;
 SET DEBUG_SYNC='now WAIT_FOR stop';
+connect con2, localhost, root;
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL astop WAIT_FOR ago';
+ALTER TABLE mysql.innodb_index_stats FORCE;
+connection con1;
 SELECT SUM(DATA_LENGTH+INDEX_LENGTH) FROM information_schema.TABLES WHERE ENGINE='InnoDB';
 SUM(DATA_LENGTH+INDEX_LENGTH)
 SUM
+SET DEBUG_SYNC='now WAIT_FOR astop';
 SET DEBUG_SYNC='now SIGNAL go';
 disconnect con1;
 connection default;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+SET DEBUG_SYNC='now SIGNAL ago';
+connection con2;
+disconnect con2;
+connection default;
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
