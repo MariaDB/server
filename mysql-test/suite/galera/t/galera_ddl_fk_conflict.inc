@@ -39,6 +39,7 @@
 
 --connection node_1
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 
 CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
 INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
@@ -108,6 +109,7 @@ BEGIN;
 --connection node_1a
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
+
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE+1 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 --connection node_1
@@ -116,7 +118,8 @@ UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 
 --connection node_1a
 --let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition_with_debug.inc
 
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
@@ -166,6 +169,8 @@ BEGIN;
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE+2 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
+--let $wait_condition_on_error_output = SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition_with_debug.inc
 
 --connection node_1
 UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
@@ -177,7 +182,8 @@ UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
 
 --connection node_1a
 --let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition_with_debug.inc
 
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
