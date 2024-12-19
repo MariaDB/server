@@ -4405,7 +4405,7 @@ page_zip_reorganize(
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
 	temp_block = buf_block_alloc();
-	btr_search_drop_page_hash_index(block, false);
+	btr_search_drop_page_hash_index(block, nullptr);
 	temp_page = temp_block->page.frame;
 
 	/* Copy the old page to temporary space */

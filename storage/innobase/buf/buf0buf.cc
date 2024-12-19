@@ -1040,6 +1040,26 @@ void buf_page_print(const byte *read_buf, ulint zip_size)
 #endif
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+
+/** Ensure that some adaptive hash index fields are initialized */
+static void buf_block_init_low(buf_block_t *block) noexcept
+{
+  /* No adaptive hash index entries may point to a previously unused
+  (and now freshly allocated) block. */
+  MEM_MAKE_DEFINED(&block->index, sizeof block->index);
+  MEM_MAKE_DEFINED(&block->n_pointers, sizeof block->n_pointers);
+  MEM_MAKE_DEFINED(&block->n_hash_helps, sizeof block->n_hash_helps);
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+  ut_a(!block->index);
+  ut_a(!block->n_pointers);
+  ut_a(!block->n_hash_helps);
+# endif
+}
+#else /* BTR_CUR_HASH_ADAPT */
+inline void buf_block_init_low(buf_block_t*) {}
+#endif /* BTR_CUR_HASH_ADAPT */
+
 /** Initialize a buffer page descriptor.
 @param[in,out]	block	buffer page descriptor
 @param[in]	frame	buffer page frame */
@@ -1049,8 +1069,7 @@ buf_block_init(buf_block_t* block, byte* frame)
 {
 	/* This function should only be executed at database startup or by
 	buf_pool.resize(). Either way, adaptive hash index must not exist. */
-	assert_block_ahi_empty_on_init(block);
-
+	buf_block_init_low(block);
 	block->page.frame = frame;
 
 	MEM_MAKE_DEFINED(&block->modify_clock, sizeof block->modify_clock);
@@ -1058,10 +1077,6 @@ buf_block_init(buf_block_t* block, byte* frame)
 	MEM_MAKE_DEFINED(&block->page.lock, sizeof block->page.lock);
 	block->page.lock.init();
 	block->page.init(buf_page_t::NOT_USED, page_id_t(~0ULL));
-#ifdef BTR_CUR_HASH_ADAPT
-	MEM_MAKE_DEFINED(&block->index, sizeof block->index);
-	ut_ad(!block->index);
-#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(block->in_unzip_LRU_list = false);
 	ut_d(block->in_withdraw_list = false);
 
@@ -1491,19 +1506,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		block->page.set_corrupt_id();
 
-		/* set other flags of buf_block_t */
-
-#ifdef BTR_CUR_HASH_ADAPT
-		/* This code should only be executed by resize(),
-		while the adaptive hash index is disabled. */
-		assert_block_ahi_empty(block);
-		assert_block_ahi_empty_on_init(new_block);
-		ut_ad(!block->index);
-		new_block->index	= NULL;
-		new_block->n_hash_helps	= 0;
-		new_block->n_fields	= 1;
-		new_block->left_side	= TRUE;
-#endif /* BTR_CUR_HASH_ADAPT */
+		buf_block_init_low(new_block);
 		ut_d(block->page.set_state(buf_page_t::MEMORY));
 		/* free block */
 		new_block = block;
@@ -1794,11 +1797,9 @@ inline void buf_pool_t::resize()
 	/* disable AHI if needed */
 	buf_resize_status("Disabling adaptive hash index.");
 
-	btr_search_s_lock_all();
-	const bool btr_search_disabled = btr_search_enabled;
-	btr_search_s_unlock_all();
+	const bool btr_search_disabled = btr_search.enabled;
 
-	btr_search_disable();
+	btr_search.disable();
 
 	if (btr_search_disabled) {
 		ib::info() << "disabled adaptive hash index.";
@@ -2100,7 +2101,7 @@ calc_buf_pool_size:
 #ifdef BTR_CUR_HASH_ADAPT
 	/* enable AHI if needed */
 	if (btr_search_disabled) {
-		btr_search_enable(true);
+		btr_search.enable(true);
 		ib::info() << "Re-enabled adaptive hash index.";
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -2484,7 +2485,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
     ibuf_merge_or_delete_for_page(nullptr, page_id, block->page.zip_size());
 #ifdef BTR_CUR_HASH_ADAPT
   if (block->index)
-    btr_search_drop_page_hash_index(block, false);
+    btr_search_drop_page_hash_index(block, nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
   block->page.set_freed(block->page.state());
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
@@ -2584,27 +2585,6 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id)
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
 #endif /* UNIV_DEBUG */
   return bpage;
-}
-
-/********************************************************************//**
-Initialize some fields of a control block. */
-UNIV_INLINE
-void
-buf_block_init_low(
-/*===============*/
-	buf_block_t*	block)	/*!< in: block to init */
-{
-#ifdef BTR_CUR_HASH_ADAPT
-	/* No adaptive hash index entries may point to a previously
-	unused (and now freshly allocated) block. */
-	assert_block_ahi_empty_on_init(block);
-	block->index		= NULL;
-
-	block->n_hash_helps	= 0;
-	block->n_fields		= 1;
-	block->n_bytes		= 0;
-	block->left_side	= TRUE;
-#endif /* BTR_CUR_HASH_ADAPT */
 }
 
 /********************************************************************//**
@@ -3314,9 +3294,6 @@ wait_for_unzip:
 		mtr->lock_register(mtr->get_savepoint() - 1, MTR_MEMO_BUF_FIX);
 		goto corrupted;
 	}
-#ifdef BTR_CUR_HASH_ADAPT
-	btr_search_drop_page_hash_index(block, true);
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	ut_ad(page_id_t(page_get_space_id(block->page.frame),
 			page_get_page_no(block->page.frame)) == page_id);
@@ -3419,8 +3396,7 @@ buf_page_get_gen(
     mtr->memo_push(block, mtr_memo_type_t(rw_latch));
     return block;
   }
-  mtr->page_lock(block, rw_latch);
-  return block;
+  return mtr->page_lock(block, rw_latch);
 }
 
 TRANSACTIONAL_TARGET
@@ -3698,7 +3674,7 @@ retry:
 #ifdef BTR_CUR_HASH_ADAPT
     if (drop_hash_entry)
       btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage),
-                                      false);
+                                      nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
 
     if (ibuf_exist && !recv_recovery_is_on())

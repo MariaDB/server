@@ -242,6 +242,7 @@ buf_block_t *btr_block_get(const dict_index_t &index, uint32_t page,
 
   if (UNIV_LIKELY(block != nullptr))
   {
+    btr_search_drop_page_hash_index(block, &index);
     if (!!page_is_comp(block->page.frame) != index.table->not_redundant() ||
         btr_page_get_index_id(block->page.frame) != index.id ||
         !fil_page_index_page_check(block->page.frame) ||
@@ -284,7 +285,7 @@ btr_root_block_get(
 #ifndef BTR_CUR_ADAPT
   static constexpr buf_block_t *guess= nullptr;
 #else
-  buf_block_t *&guess= btr_search_get_info(index)->root_guess;
+  buf_block_t *&guess= index->search_info.root_guess;
   guess=
 #endif
   block=
@@ -295,6 +296,7 @@ btr_root_block_get(
 
   if (UNIV_LIKELY(block != nullptr))
   {
+    btr_search_drop_page_hash_index(block, index);
     if (!!page_is_comp(block->page.frame) !=
         index->table->not_redundant() ||
         btr_page_get_index_id(block->page.frame) != index->id ||
@@ -402,6 +404,7 @@ btr_root_adjust_on_import(
 		goto func_exit;
 	}
 
+	btr_search_drop_page_hash_index(block, index);
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
 
@@ -568,6 +571,7 @@ btr_page_alloc_for_ibuf(
                      0, RW_X_LATCH, nullptr, BUF_GET, mtr, err);
   if (new_block)
   {
+    btr_search_drop_page_hash_index(new_block, index);
     buf_page_make_young_if_needed(&new_block->page);
     *err= flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, new_block,
                       PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
@@ -597,8 +601,8 @@ buf_block_t *btr_root_block_sx(dict_index_t *index, mtr_t *mtr, dberr_t *err)
       return root;
   }
 #ifdef BTR_CUR_HASH_ADAPT
-  else
-    ut_ad(!root->index || !root->index->freed());
+  ut_d(else if (dict_index_t *index= root->index))
+    ut_ad(!index->freed());
 #endif
   return root;
 }
@@ -863,7 +867,7 @@ static rec_offs *btr_page_get_parent(rec_offs *offsets, mem_heap_t *heap,
       {
         ut_ad(block->page.lock.have_u_or_x() ||
               (!block->page.lock.have_s() && index->lock.have_x()));
-        ulint up_match= 0, low_match= 0;
+        uint16_t up_match= 0, low_match= 0;
         cursor->page_cur.block= block;
         if (page_cur_search_with_match(tuple, PAGE_CUR_LE, &up_match,
                                        &low_match, &cursor->page_cur,
@@ -956,7 +960,7 @@ static void btr_free_root(buf_block_t *block, const fil_space_t &space,
                                    MTR_MEMO_PAGE_SX_FIX));
   ut_ad(mtr->is_named_space(&space));
 
-  btr_search_drop_page_hash_index(block, false);
+  btr_search_drop_page_hash_index(block, nullptr);
 
   if (btr_root_fseg_validate(PAGE_HEADER + PAGE_BTR_SEG_TOP, *block, space))
   {
@@ -984,15 +988,18 @@ buf_block_t *btr_free_root_check(const page_id_t page_id, ulint zip_size,
   buf_block_t *block= buf_page_get_gen(page_id, zip_size, RW_X_LATCH,
                                        nullptr, BUF_GET_POSSIBLY_FREED, mtr);
 
-  if (!block);
-  else if (fil_page_index_page_check(block->page.frame) &&
-           index_id == btr_page_get_index_id(block->page.frame))
-    /* This should be a root page. It should not be possible to
-    reassign the same index_id for some other index in the
-    tablespace. */
-    ut_ad(!page_has_siblings(block->page.frame));
-  else
-    block= nullptr;
+  if (block)
+  {
+    btr_search_drop_page_hash_index(block,reinterpret_cast<dict_index_t*>(-1));
+    if (fil_page_index_page_check(block->page.frame) &&
+        index_id == btr_page_get_index_id(block->page.frame))
+      /* This should be a root page. It should not be possible to
+      reassign the same index_id for some other index in the
+      tablespace. */
+      ut_ad(!page_has_siblings(block->page.frame));
+    else
+      block= nullptr;
+  }
 
   return block;
 }
@@ -1221,7 +1228,7 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
 #ifndef BTR_CUR_ADAPT
   static constexpr buf_block_t *guess= nullptr;
 #else
-  buf_block_t *&guess= btr_search_get_info(this)->root_guess;
+  buf_block_t *&guess= search_info.root_guess;
   guess=
 #endif
   root_block= buf_page_get_gen({table->space_id, page},
@@ -1231,14 +1238,12 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
   {
     btr_free_but_not_root(root_block, mtr.get_log_mode()
 #ifdef BTR_CUR_HASH_ADAPT
-		          ,n_ahi_pages() != 0
+		          ,any_ahi_pages()
 #endif
                          );
-
+    btr_search_drop_page_hash_index(root_block, nullptr);
 #ifdef BTR_CUR_HASH_ADAPT
-    if (root_block->index)
-      btr_search_drop_page_hash_index(root_block, false);
-    ut_ad(n_ahi_pages() == 0);
+    ut_ad(!any_ahi_pages());
 #endif
     mtr.memset(root_block, PAGE_HEADER + PAGE_BTR_SEG_LEAF,
                FSEG_HEADER_SIZE, 0);
@@ -1283,7 +1288,7 @@ void btr_drop_temporary_table(const dict_table_t &table)
 #ifndef BTR_CUR_ADAPT
     static constexpr buf_block_t *guess= nullptr;
 #else
-    buf_block_t *guess= index->search_info->root_guess;
+    buf_block_t *guess= index->search_info.root_guess;
 #endif
     if (buf_block_t *block= buf_page_get_low({SRV_TMP_SPACE_ID, index->page},
                                              0, RW_X_LATCH, guess, BUF_GET,
@@ -1349,12 +1354,13 @@ uint64_t btr_read_autoinc_with_fallback(const dict_table_t *table,
   uint64_t autoinc= 0;
   mtr_t mtr;
   mtr.start();
+  const dict_index_t *const first_index= dict_table_get_first_index(table);
 
   if (buf_block_t *block=
-      buf_page_get(page_id_t(table->space_id,
-                             dict_table_get_first_index(table)->page),
+      buf_page_get(page_id_t(table->space_id, first_index->page),
                    table->space->zip_size(), RW_SX_LATCH, &mtr))
   {
+    btr_search_drop_page_hash_index(block, first_index);
     autoinc= page_get_autoinc(block->page.frame);
 
     if (autoinc > 0 && autoinc <= max && mysql_version >= 100210);
@@ -1407,6 +1413,9 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
   if (buf_block_t *root= buf_page_get(page_id_t(space->id, index->page),
 				      space->zip_size(), RW_SX_LATCH, &mtr))
   {
+#ifdef BTR_CUR_HASH_ADAPT
+    ut_d(if (dict_index_t *ri= root->index)) ut_ad(ri == index);
+#endif /* BTR_CUR_HASH_ADAPT */
     buf_page_make_young_if_needed(&root->page);
     mtr.set_named_space(space);
     page_set_autoinc(root, autoinc, &mtr, reset);
@@ -1437,7 +1446,7 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
   if (UNIV_UNLIKELY(pos == ULINT_UNDEFINED))
     return DB_CORRUPTION;
 
-  btr_search_drop_page_hash_index(block, false);
+  btr_search_drop_page_hash_index(block, nullptr);
 
   buf_block_t *old= buf_block_alloc();
   /* Copy the old page to temporary space */
@@ -1767,7 +1776,7 @@ btr_page_empty(
 	     || page_zip_validate(page_zip, block->page.frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	btr_search_drop_page_hash_index(block, false);
+	btr_search_drop_page_hash_index(block, nullptr);
 
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
@@ -2151,7 +2160,7 @@ btr_root_raise_and_insert(
 
 	ut_ad(dtuple_check_typed(tuple));
 	/* Reposition the cursor to the child node */
-	ulint low_match = 0, up_match = 0;
+	uint16_t low_match = 0, up_match = 0;
 
 	if (page_cur_search_with_match(tuple, PAGE_CUR_LE,
 				       &up_match, &low_match,
@@ -2837,7 +2846,7 @@ btr_insert_into_right_sibling(
 		return nullptr;
 	}
 
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
@@ -3369,7 +3378,7 @@ insert_empty:
 	page_cursor = btr_cur_get_page_cur(cursor);
 	page_cursor->block = insert_block;
 
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
@@ -3628,7 +3637,7 @@ parent_corrupted:
 		mem_heap_free(heap);
 	}
 
-	btr_search_drop_page_hash_index(block, false);
+	btr_search_drop_page_hash_index(block, nullptr);
 
 	/* Make the father empty */
 	btr_page_empty(father_block, father_page_zip, index, page_level, mtr);
@@ -3954,7 +3963,7 @@ cannot_merge:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block, false);
+		btr_search_drop_page_hash_index(block, nullptr);
 
 		/* Remove the page from the level list */
 		err = btr_level_list_remove(*block, *index, mtr);
@@ -4057,7 +4066,7 @@ cannot_merge:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block, false);
+		btr_search_drop_page_hash_index(block, nullptr);
 
 		if (merge_page_zip && left_page_no == FIL_NULL) {
 
@@ -4257,7 +4266,7 @@ btr_discard_only_page_on_level(
 		ut_ad(fil_page_index_page_check(page));
 		ut_ad(block->page.id().space() == index->table->space->id);
 		ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
-		btr_search_drop_page_hash_index(block, false);
+		btr_search_drop_page_hash_index(block, nullptr);
 		cursor.page_cur.index = index;
 		cursor.page_cur.block = block;
 
@@ -4454,7 +4463,7 @@ btr_discard_page(
 		return DB_CORRUPTION;
 	}
 
-	btr_search_drop_page_hash_index(block, false);
+	btr_search_drop_page_hash_index(block, nullptr);
 
 	if (dict_index_is_spatial(index)) {
 		rtr_node_ptr_delete(&parent_cursor, mtr);
