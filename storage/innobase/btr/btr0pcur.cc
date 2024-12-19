@@ -26,8 +26,8 @@ Created 2/23/1996 Heikki Tuuri
 
 #include "btr0pcur.h"
 #include "buf0rea.h"
+#include "btr0sea.h"
 #include "rem0cmp.h"
-#include "trx0trx.h"
 #include "ibuf0ibuf.h"
 
 /**************************************************************//**
@@ -271,11 +271,13 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
         memcmp_aligned<2>(block->page.frame + PAGE_HEADER + PAGE_INDEX_ID,
                           prev->page.frame + PAGE_HEADER + PAGE_INDEX_ID, 8))
       goto fail;
+    btr_search_drop_page_hash_index(prev, pcur->index());
   }
   else
     prev= nullptr;
 
   mtr->upgrade_buffer_fix(savepoint, mode);
+  btr_search_drop_page_hash_index(block, pcur->index());
 
   if (UNIV_UNLIKELY(block->modify_clock != modify_clock) ||
       UNIV_UNLIKELY(block->page.is_freed()) ||
@@ -450,9 +452,9 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	rec_offs_init(offsets);
 	restore_status ret_val= restore_status::NOT_SAME;
 	if (rel_pos == BTR_PCUR_ON && btr_pcur_is_on_user_rec(this)) {
-		ulint n_matched_fields= 0;
+		uint16_t n_matched_fields= 0;
 		if (!cmp_dtuple_rec_with_match(
-		      tuple, btr_pcur_get_rec(this), index,
+		      tuple, btr_pcur_get_rec(this),
 		      rec_get_offsets(btr_pcur_get_rec(this), index, offsets,
 			index->n_core_fields, ULINT_UNDEFINED, &heap),
 		      &n_matched_fields)) {

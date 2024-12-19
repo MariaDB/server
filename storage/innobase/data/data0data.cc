@@ -76,20 +76,7 @@ void dtuple_t::trim(const dict_index_t& index)
 		}
 	}
 
-	n_fields = i;
-}
-
-/*********************************************************************//**
-Sets number of fields used in a tuple. Normally this is set in
-dtuple_create, but if you want later to set it smaller, you can use this. */
-void
-dtuple_set_n_fields(
-/*================*/
-	dtuple_t*	tuple,		/*!< in: tuple */
-	ulint		n_fields)	/*!< in: number of fields */
-{
-	tuple->n_fields = n_fields;
-	tuple->n_fields_cmp = n_fields;
+	n_fields = uint16_t(i);
 }
 
 /**********************************************************//**
@@ -587,8 +574,8 @@ dtuple_convert_big_rec(
 	ulint longest;
 
 	const bool mblob = entry->is_alter_metadata();
-	ut_ad(entry->n_fields - mblob >= index->first_user_field());
-	ut_ad(entry->n_fields - mblob <= index->n_fields);
+	ut_ad(unsigned(entry->n_fields - mblob) >= index->first_user_field());
+	ut_ad(unsigned(entry->n_fields - mblob) <= index->n_fields);
 
 	if (mblob) {
 		longest_i = index->first_user_field();
