@@ -189,11 +189,26 @@ cmp_decimal(const byte*	a, ulint a_length, const byte* b, ulint b_length)
 	return(swap_flag);
 }
 
-int cmp_data_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
-                  const byte *data2, ulint len2) noexcept
+/** Compare two data fields.
+@param mtype          main type
+@param prtype         precise type
+@param descending     whether to use descending order
+@param data1          data field
+@param len1           length of data1 in bytes, or UNIV_SQL_NULL
+@param data2          data field
+@param len2           length of data2 in bytes, or UNIV_SQL_NULL
+@return the comparison result of data1 and data2
+@retval 0 if data1 is equal to data2
+@retval negative if data1 is less than data2
+@retval positive if data1 is greater than data2 */
+int cmp_data(ulint mtype, ulint prtype, bool descending,
+             const byte *data1, size_t len1, const byte *data2, size_t len2)
+  noexcept
 {
   ut_ad(len1 != UNIV_SQL_DEFAULT);
   ut_ad(len2 != UNIV_SQL_DEFAULT);
+
+  int cmp= 0;
 
   if (len1 == UNIV_SQL_NULL || len2 == UNIV_SQL_NULL)
   {
@@ -201,32 +216,38 @@ int cmp_data_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
       return 0;
 
     /* We define the SQL null to be the smallest possible value of a field. */
-    return len1 == UNIV_SQL_NULL ? -1 : 1;
+    cmp= len1 == UNIV_SQL_NULL ? -1 : 1;
+  func_exit:
+    return UNIV_UNLIKELY(descending) ? -cmp : cmp;
   }
 
   switch (mtype) {
   default:
     ib::fatal() << "Unknown data type number " << mtype;
   case DATA_DECIMAL:
-    return cmp_decimal(data1, len1, data2, len2);
+    cmp= cmp_decimal(data1, len1, data2, len2);
+    goto func_exit;
   case DATA_DOUBLE:
     {
       const double af= mach_double_read(data1), bf= mach_double_read(data2);
-      return af > bf ? 1 : bf > af ? -1 : 0;
+      cmp= af > bf ? 1 : bf > af ? -1 : 0;
     }
+    goto func_exit;
   case DATA_FLOAT:
     {
       const float af= mach_float_read(data1), bf= mach_float_read(data2);
-      return af > bf ? 1 : bf > af ? -1 : 0;
+      cmp= af > bf ? 1 : bf > af ? -1 : 0;
     }
+    goto func_exit;
   case DATA_FIXBINARY:
   case DATA_BINARY:
     if (dtype_get_charset_coll(prtype) != DATA_MYSQL_BINARY_CHARSET_COLL)
     {
       if (ulint len= std::min(len1, len2))
       {
-        if (int cmp= memcmp(data1, data2, len))
-          return cmp;
+        cmp= memcmp(data1, data2, len);
+        if (cmp)
+          goto func_exit;
         data1+= len;
         data2+= len;
         len1-= len;
@@ -236,17 +257,17 @@ int cmp_data_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
       {
         const byte *end= &data1[len1];
         do
-          if (int cmp= static_cast<int>(*data1++ - byte{0x20})) return cmp;
-        while (data1 < end);
+          cmp= static_cast<int>(*data1++ - byte{0x20});
+        while (cmp == 0 && data1 < end);
       }
       else if (len2)
       {
         const byte *end= &data2[len2];
         do
-          if (int cmp= static_cast<int>(byte{0x20} - *data2++)) return cmp;
-        while (data2 < end);
+          cmp= static_cast<int>(byte{0x20} - *data2++);
+        while (cmp == 0 && data2 < end);
       }
-      return 0;
+      goto func_exit;
     }
     /* fall through */
   case DATA_INT:
@@ -259,7 +280,8 @@ int cmp_data_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
     {
       ut_ad(len1 == DATA_MBR_LEN);
       ut_ad(len2 == DATA_MBR_LEN);
-      return cmp_geometry_field(data1, data2);
+      cmp= cmp_geometry_field(data1, data2);
+      goto func_exit;
     }
     break;
   case DATA_BLOB:
@@ -269,15 +291,21 @@ int cmp_data_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
   case DATA_VARMYSQL:
     DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
     if (CHARSET_INFO *cs= all_charsets[dtype_get_charset_coll(prtype)])
-      return cs->coll->strnncollsp(cs, data1, len1, data2, len2);
+    {
+      cmp= cs->coll->strnncollsp(cs, data1, len1, data2, len2);
+      goto func_exit;
+    }
   no_collation:
     ib::fatal() << "Unable to find charset-collation for " << prtype;
   case DATA_MYSQL:
     DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
     if (CHARSET_INFO *cs= all_charsets[dtype_get_charset_coll(prtype)])
-      return cs->coll->
+    {
+      cmp= cs->coll->
         strnncollsp_nchars(cs, data1, len1, data2, len2, std::max(len1, len2),
                            MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
+      goto func_exit;
+    }
     goto no_collation;
   case DATA_VARCHAR:
   case DATA_CHAR:
@@ -285,21 +313,25 @@ int cmp_data_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
     Because it is a fixed-length encoding (mbminlen=mbmaxlen=1),
     non-NULL CHAR(n) values will always occupy n bytes and we
     can invoke strnncollsp() instead of strnncollsp_nchars(). */
-    return my_charset_latin1.strnncollsp(data1, len1, data2, len2);
+    cmp= my_charset_latin1.strnncollsp(data1, len1, data2, len2);
+    goto func_exit;
   }
 
   if (ulint len= std::min(len1, len2))
   {
-    if (int cmp= memcmp(data1, data2, len))
-      return cmp;
+    cmp= memcmp(data1, data2, len);
+    if (cmp)
+      goto func_exit;
   }
 
-  return int(len1 - len2);
+  cmp= int(len1 - len2);
+  goto func_exit;
 }
 
 /** Compare a data tuple to a physical record.
 @param dtuple          data tuple
 @param rec             B-tree index record
+@param index           B-tree index
 @param offsets         rec_get_offsets(rec,index)
 @param n_cmp           number of fields to compare
 @param matched_fields  number of completely matched fields
@@ -308,13 +340,14 @@ int cmp_data_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
 @retval negative if dtuple is less than rec
 @retval positive if dtuple is greater than rec */
 int cmp_dtuple_rec_with_match_low(const dtuple_t *dtuple, const rec_t *rec,
+                                  const dict_index_t *index,
                                   const rec_offs *offsets,
                                   ulint n_cmp, uint16_t *matched_fields)
 {
 	int		ret = 0;	/* return value */
 
 	ut_ad(dtuple_check_typed(dtuple));
-	ut_ad(rec_offs_validate(rec, nullptr, offsets));
+	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	auto cur_field = *matched_fields;
 
@@ -367,28 +400,33 @@ int cmp_dtuple_rec_with_match_low(const dtuple_t *dtuple, const rec_t *rec,
 
 		ut_ad(!dfield_is_ext(dtuple_field));
 
-		ret = cmp_data_data(type->mtype, type->prtype,
-				    dtuple_b_ptr, dtuple_f_len,
-				    rec_b_ptr, rec_f_len);
+		ret = cmp_data(type->mtype, type->prtype, !index->is_ibuf()
+			       && index->fields[cur_field].descending,
+			       dtuple_b_ptr, dtuple_f_len,
+			       rec_b_ptr, rec_f_len);
 		if (ret) {
 			break;
 		}
 	}
 
 	*matched_fields = cur_field;
-	return(ret);
+	return ret;
 }
 
 /** Check if a dtuple is a prefix of a record.
 @param dtuple  data tuple
 @param rec     index record
+@param index   index
 @param offsets rec_get_offsets(rec)
 @return whether dtuple is a prefix of rec */
-bool cmp_dtuple_is_prefix_of_rec0(const dtuple_t *dtuple, const rec_t *rec,
-                                  const rec_offs *offsets) noexcept
+bool cmp_dtuple_is_prefix_of_rec(const dtuple_t *dtuple, const rec_t *rec,
+                                 const dict_index_t *index,
+                                 const rec_offs *offsets)
 {
-  uint16_t matched_fields= 0;
-  return cmp_dtuple_rec_with_match(dtuple, rec, offsets, &matched_fields);
+  uint16_t matched_fields= 0, n_fields= dtuple_get_n_fields(dtuple);
+  ut_ad(n_fields <= rec_offs_n_fields(offsets));
+  cmp_dtuple_rec_with_match(dtuple, rec, index, offsets, &matched_fields);
+  return matched_fields == n_fields;
 }
 
 /*************************************************************//**
@@ -419,8 +457,9 @@ cmp_rec_rec_simple_field(
 	rec1_b_ptr = rec_get_nth_field(rec1, offsets1, n, &rec1_f_len);
 	rec2_b_ptr = rec_get_nth_field(rec2, offsets2, n, &rec2_f_len);
 
-	return cmp_data_data(field->col->mtype, field->col->prtype,
-			     rec1_b_ptr, rec1_f_len, rec2_b_ptr, rec2_f_len);
+	return cmp_data(field->col->mtype, field->col->prtype,
+			field->descending,
+			rec1_b_ptr, rec1_f_len, rec2_b_ptr, rec2_f_len);
 }
 
 /** Compare two physical records that contain the same number of columns,
@@ -581,14 +620,17 @@ cmp_rec_rec(
 	for (; cur_field < n_fields; cur_field++) {
 		ulint	mtype;
 		ulint	prtype;
+		bool	descending;
 
 		if (UNIV_UNLIKELY(dict_index_is_ibuf(index))) {
 			/* This is for the insert buffer B-tree. */
 			mtype = DATA_BINARY;
 			prtype = 0;
+			descending = false;
 		} else {
 			const dict_field_t* field = dict_index_get_nth_field(
 				index, cur_field);
+			descending = field->descending;
 			mtype = field->col->mtype;
 			prtype = field->col->prtype;
 
@@ -626,9 +668,8 @@ cmp_rec_rec(
 			goto order_resolved;
 		}
 
-		ret = cmp_data_data(mtype, prtype,
-				    rec1_b_ptr, rec1_f_len,
-				    rec2_b_ptr, rec2_f_len);
+		ret = cmp_data(mtype, prtype, descending,
+			       rec1_b_ptr, rec1_f_len, rec2_b_ptr, rec2_f_len);
 		if (ret) {
 			goto order_resolved;
 		}
