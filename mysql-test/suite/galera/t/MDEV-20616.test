@@ -242,3 +242,8 @@ CALL proc_update_2;
 DROP PROCEDURE proc_update_1;
 DROP PROCEDURE proc_update_2;
 DROP TABLE t1;
+
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log

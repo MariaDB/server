@@ -38,3 +38,7 @@ while ($count)
 --enable_query_log
 
 DROP TABLE t1;
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
