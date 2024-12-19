@@ -810,8 +810,8 @@ processed:
     if (crypt_data && !fil_crypt_check(crypt_data, name.c_str()))
       return nullptr;
     mysql_mutex_lock(&fil_system.mutex);
-    fil_space_t *space= fil_space_t::create(it->first, flags,
-                                            FIL_TYPE_TABLESPACE, crypt_data);
+    fil_space_t *space= fil_space_t::create(it->first, flags, false,
+                                            crypt_data);
     ut_ad(space);
     const char *filename= name.c_str();
     if (srv_operation == SRV_OPERATION_RESTORE)
@@ -917,8 +917,8 @@ deferred_spaces;
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
 void (*log_file_op)(uint32_t space_id, int type,
-		    const byte* name, ulint len,
-		    const byte* new_name, ulint new_len);
+		    const byte* name, size_t len,
+		    const byte* new_name, size_t new_len);
 
 void (*undo_space_trunc)(uint32_t space_id);
 
@@ -4331,7 +4331,7 @@ next:
 		recv_spaces_t::iterator i = recv_spaces.find(space);
 		ut_ad(i != recv_spaces.end());
 
-		if (deferred_spaces.find(static_cast<uint32_t>(space))) {
+		if (deferred_spaces.find(space)) {
 			/* Skip redo logs belonging to
 			incomplete tablespaces */
 			goto next;

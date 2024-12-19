@@ -43,6 +43,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "trx0trx.h"
 #include "trx0undo.h"
+#include "log.h"
 
 #ifdef UNIV_PFS_THREAD
 mysql_pfs_key_t	trx_rollback_clean_thread_key;
@@ -54,10 +55,7 @@ bool			trx_rollback_is_active;
 /** In crash recovery, the current trx to be rolled back; NULL otherwise */
 const trx_t*		trx_roll_crash_recv_trx;
 
-/** Finish transaction rollback.
-@return	whether the rollback was completed normally
-@retval	false	if the rollback was aborted by shutdown  */
-inline bool trx_t::rollback_finish()
+bool trx_t::rollback_finish() noexcept
 {
   apply_online_log= false;
   if (UNIV_LIKELY(error_state == DB_SUCCESS))
@@ -84,34 +82,28 @@ inline bool trx_t::rollback_finish()
     undo= nullptr;
   }
   commit_low();
-  commit_cleanup();
-  return false;
+  return commit_cleanup();
 }
 
-/** Roll back an active transaction. */
-inline void trx_t::rollback_low(trx_savept_t *savept)
+dberr_t trx_t::rollback_low(const undo_no_t *savept) noexcept
 {
+  op_info= "rollback";
   mem_heap_t *heap= mem_heap_create(512);
   roll_node_t *roll_node= roll_node_create(heap);
-  roll_node->savept= savept;
+
+  roll_node->savept= savept ? *savept : 0;
 
   ut_ad(!in_rollback);
 #ifdef UNIV_DEBUG
+  if (savept)
   {
-    const auto s= state;
-    ut_ad(s == TRX_STATE_ACTIVE ||
-          s == TRX_STATE_PREPARED ||
-          s == TRX_STATE_PREPARED_RECOVERED);
-    if (savept)
-    {
-      ut_ad(s == TRX_STATE_ACTIVE);
-      ut_ad(mysql_thd);
-      ut_ad(!is_recovered);
-    }
+    ut_ad(state == TRX_STATE_ACTIVE);
+    ut_ad(mysql_thd);
+    ut_ad(!is_recovered);
   }
 #endif
 
-  error_state = DB_SUCCESS;
+  error_state= DB_SUCCESS;
 
   if (has_logged())
   {
@@ -138,7 +130,7 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
     victim. Galera transaction abort can be invoked during partial rollback. */
     ut_ad(!(lock.was_chosen_as_deadlock_victim & 1));
     ut_a(error_state == DB_SUCCESS);
-    const undo_no_t limit= savept->least_undo_no;
+    const undo_no_t limit{*savept};
     apply_online_log= false;
     for (trx_mod_tables_t::iterator i= mod_tables.begin();
          i != mod_tables.end(); )
@@ -157,49 +149,34 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
   }
 
   mem_heap_free(heap);
+  op_info= "";
+  return error_state;
 }
 
-/** Initiate rollback.
-@param savept     savepoint
-@return error code or DB_SUCCESS */
-dberr_t trx_t::rollback(trx_savept_t *savept)
+dberr_t trx_t::rollback(const undo_no_t *savept) noexcept
 {
   ut_ad(!mutex_is_owner());
-  if (state == TRX_STATE_NOT_STARTED)
-  {
+  switch (state) {
+  case TRX_STATE_ABORTED:
+    ut_ad(!savept);
+    state= TRX_STATE_NOT_STARTED;
+    /* fall through */
+  case TRX_STATE_NOT_STARTED:
     error_state= DB_SUCCESS;
     return DB_SUCCESS;
+  case TRX_STATE_PREPARED:
+  case TRX_STATE_PREPARED_RECOVERED:
+  case TRX_STATE_COMMITTED_IN_MEMORY:
+    ut_ad("invalid state" == 0);
+    /* fall through */
+  case TRX_STATE_ACTIVE:
+    break;
   }
-  ut_ad(state == TRX_STATE_ACTIVE);
 #ifdef WITH_WSREP
   if (!savept && is_wsrep() && wsrep_thd_is_SR(mysql_thd))
     wsrep_handle_SR_rollback(nullptr, mysql_thd);
 #endif /* WITH_WSREP */
-  rollback_low(savept);
-  return error_state;
-}
-
-/*******************************************************************//**
-Rollback a transaction used in MySQL.
-@return error code or DB_SUCCESS */
-static
-dberr_t
-trx_rollback_for_mysql_low(
-/*=======================*/
-	trx_t*	trx)	/*!< in/out: transaction */
-{
-	trx->op_info = "rollback";
-
-	/* If we are doing the XA recovery of prepared transactions,
-	then the transaction object does not have an InnoDB session
-	object, and we set a dummy session that we use for all MySQL
-	transactions. */
-
-	trx->rollback_low();
-
-	trx->op_info = "";
-
-	return(trx->error_state);
+  return rollback_low(savept);
 }
 
 /** Rollback a transaction used in MySQL
@@ -213,6 +190,9 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 	that is associated with the current thread. */
 
 	switch (trx->state) {
+	case TRX_STATE_ABORTED:
+		trx->state = TRX_STATE_NOT_STARTED;
+		/* fall through */
 	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = false;
 		ut_ad(trx->mysql_thd);
@@ -224,13 +204,13 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		ut_ad(!trx->is_wsrep());
 		trx->lock.was_chosen_as_deadlock_victim= false;
 #endif
+		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 		return(DB_SUCCESS);
-
 	case TRX_STATE_ACTIVE:
 		ut_ad(trx->mysql_thd);
 		ut_ad(!trx->is_recovered);
 		ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
-		return(trx_rollback_for_mysql_low(trx));
+		return trx->rollback_low();
 
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
@@ -268,7 +248,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 			mtr.commit();
 			ut_ad(mtr.commit_lsn() > 0);
 		}
-		return(trx_rollback_for_mysql_low(trx));
+		return trx->rollback_low();
 
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		ut_ad(!trx->is_autocommit_non_locking());
@@ -277,296 +257,6 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 
 	ut_error;
 	return(DB_CORRUPTION);
-}
-
-/*******************************************************************//**
-Rollback the latest SQL statement for MySQL.
-@return error code or DB_SUCCESS */
-dberr_t
-trx_rollback_last_sql_stat_for_mysql(
-/*=================================*/
-	trx_t*	trx)	/*!< in/out: transaction */
-{
-	dberr_t	err;
-
-	/* We are reading trx->state without holding trx->mutex
-	here, because the statement rollback should be invoked for a
-	running active MySQL transaction that is associated with the
-	current thread. */
-	ut_ad(trx->mysql_thd);
-
-	switch (trx->state) {
-	case TRX_STATE_NOT_STARTED:
-		return(DB_SUCCESS);
-
-	case TRX_STATE_ACTIVE:
-		ut_ad(trx->mysql_thd);
-		ut_ad(!trx->is_recovered);
-		ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
-
-		trx->op_info = "rollback of SQL statement";
-
-		err = trx->rollback(&trx->last_sql_stat_start);
-
-		if (trx->fts_trx != NULL) {
-			fts_savepoint_rollback_last_stmt(trx);
-			fts_savepoint_laststmt_refresh(trx);
-		}
-
-		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
-		trx->end_bulk_insert();
-
-		trx->op_info = "";
-
-		return(err);
-
-	case TRX_STATE_PREPARED:
-	case TRX_STATE_PREPARED_RECOVERED:
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-		/* The statement rollback is only allowed on an ACTIVE
-		transaction, not a PREPARED or COMMITTED one. */
-		break;
-	}
-
-	ut_error;
-	return(DB_CORRUPTION);
-}
-
-/*******************************************************************//**
-Search for a savepoint using name.
-@return savepoint if found else NULL */
-static
-trx_named_savept_t*
-trx_savepoint_find(
-/*===============*/
-	trx_t*		trx,			/*!< in: transaction */
-	const char*	name)			/*!< in: savepoint name */
-{
-	trx_named_savept_t*	savep;
-
-	for (savep = UT_LIST_GET_FIRST(trx->trx_savepoints);
-	     savep != NULL;
-	     savep = UT_LIST_GET_NEXT(trx_savepoints, savep)) {
-		if (!strcmp(savep->name, name)) {
-			return(savep);
-		}
-	}
-
-	return(NULL);
-}
-
-/*******************************************************************//**
-Frees a single savepoint struct. */
-static
-void
-trx_roll_savepoint_free(
-/*=====================*/
-	trx_t*			trx,	/*!< in: transaction handle */
-	trx_named_savept_t*	savep)	/*!< in: savepoint to free */
-{
-	UT_LIST_REMOVE(trx->trx_savepoints, savep);
-
-	ut_free(savep->name);
-	ut_free(savep);
-}
-
-/** Discard all savepoints starting from a particular savepoint.
-@param savept    first savepoint to discard */
-void trx_t::savepoints_discard(trx_named_savept_t *savept)
-{
-  while (savept)
-  {
-    auto next= UT_LIST_GET_NEXT(trx_savepoints, savept);
-    trx_roll_savepoint_free(this, savept);
-    savept= next;
-  }
-}
-
-/*******************************************************************//**
-Rolls back a transaction back to a named savepoint. Modifications after the
-savepoint are undone but InnoDB does NOT release the corresponding locks
-which are stored in memory. If a lock is 'implicit', that is, a new inserted
-row holds a lock where the lock information is carried by the trx id stored in
-the row, these locks are naturally released in the rollback. Savepoints which
-were set after this savepoint are deleted.
-@return if no savepoint of the name found then DB_NO_SAVEPOINT,
-otherwise DB_SUCCESS */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-trx_rollback_to_savepoint_for_mysql_low(
-/*====================================*/
-	trx_t*			trx,	/*!< in/out: transaction */
-	trx_named_savept_t*	savep,	/*!< in/out: savepoint */
-	int64_t*		mysql_binlog_cache_pos)
-					/*!< out: the MySQL binlog
-					cache position corresponding
-					to this savepoint; MySQL needs
-					this information to remove the
-					binlog entries of the queries
-					executed after the savepoint */
-{
-	dberr_t	err;
-
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	ut_ad(trx->mysql_thd);
-
-	/* Free all savepoints strictly later than savep. */
-
-	trx->savepoints_discard(UT_LIST_GET_NEXT(trx_savepoints, savep));
-
-	*mysql_binlog_cache_pos = savep->mysql_binlog_cache_pos;
-
-	trx->op_info = "rollback to a savepoint";
-
-	err = trx->rollback(&savep->savept);
-
-	/* Store the current undo_no of the transaction so that
-	we know where to roll back if we have to roll back the
-	next SQL statement: */
-
-	trx_mark_sql_stat_end(trx);
-
-	trx->op_info = "";
-	return(err);
-}
-
-/*******************************************************************//**
-Rolls back a transaction back to a named savepoint. Modifications after the
-savepoint are undone but InnoDB does NOT release the corresponding locks
-which are stored in memory. If a lock is 'implicit', that is, a new inserted
-row holds a lock where the lock information is carried by the trx id stored in
-the row, these locks are naturally released in the rollback. Savepoints which
-were set after this savepoint are deleted.
-@return if no savepoint of the name found then DB_NO_SAVEPOINT,
-otherwise DB_SUCCESS */
-dberr_t
-trx_rollback_to_savepoint_for_mysql(
-/*================================*/
-	trx_t*		trx,			/*!< in: transaction handle */
-	const char*	savepoint_name,		/*!< in: savepoint name */
-	int64_t*	mysql_binlog_cache_pos)	/*!< out: the MySQL binlog cache
-						position corresponding to this
-						savepoint; MySQL needs this
-						information to remove the
-						binlog entries of the queries
-						executed after the savepoint */
-{
-	trx_named_savept_t*	savep;
-
-	/* We are reading trx->state without holding trx->mutex
-	here, because the savepoint rollback should be invoked for a
-	running active MySQL transaction that is associated with the
-	current thread. */
-	ut_ad(trx->mysql_thd);
-
-	savep = trx_savepoint_find(trx, savepoint_name);
-
-	if (savep == NULL) {
-		return(DB_NO_SAVEPOINT);
-	}
-
-	switch (trx->state) {
-	case TRX_STATE_NOT_STARTED:
-		ib::error() << "Transaction has a savepoint "
-			<< savep->name
-			<< " though it is not started";
-		return(DB_ERROR);
-
-	case TRX_STATE_ACTIVE:
-
-		return(trx_rollback_to_savepoint_for_mysql_low(
-				trx, savep, mysql_binlog_cache_pos));
-
-	case TRX_STATE_PREPARED:
-	case TRX_STATE_PREPARED_RECOVERED:
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-		/* The savepoint rollback is only allowed on an ACTIVE
-		transaction, not a PREPARED or COMMITTED one. */
-		break;
-	}
-
-	ut_error;
-	return(DB_CORRUPTION);
-}
-
-/*******************************************************************//**
-Creates a named savepoint. If the transaction is not yet started, starts it.
-If there is already a savepoint of the same name, this call erases that old
-savepoint and replaces it with a new. Savepoints are deleted in a transaction
-commit or rollback.
-@return always DB_SUCCESS */
-dberr_t
-trx_savepoint_for_mysql(
-/*====================*/
-	trx_t*		trx,			/*!< in: transaction handle */
-	const char*	savepoint_name,		/*!< in: savepoint name */
-	int64_t		binlog_cache_pos)	/*!< in: MySQL binlog cache
-						position corresponding to this
-						connection at the time of the
-						savepoint */
-{
-	trx_named_savept_t*	savep;
-
-	trx_start_if_not_started_xa(trx, false);
-
-	savep = trx_savepoint_find(trx, savepoint_name);
-
-	if (savep) {
-		/* There is a savepoint with the same name: free that */
-
-		UT_LIST_REMOVE(trx->trx_savepoints, savep);
-
-		ut_free(savep->name);
-		ut_free(savep);
-	}
-
-	/* Create a new savepoint and add it as the last in the list */
-
-	savep = static_cast<trx_named_savept_t*>(
-		ut_malloc_nokey(sizeof(*savep)));
-
-	savep->name = mem_strdup(savepoint_name);
-
-	savep->savept.least_undo_no = trx->undo_no;
-	trx->last_sql_stat_start.least_undo_no = trx->undo_no;
-
-	savep->mysql_binlog_cache_pos = binlog_cache_pos;
-
-	UT_LIST_ADD_LAST(trx->trx_savepoints, savep);
-
-	trx->end_bulk_insert();
-
-	return(DB_SUCCESS);
-}
-
-/*******************************************************************//**
-Releases only the named savepoint. Savepoints which were set after this
-savepoint are left as is.
-@return if no savepoint of the name found then DB_NO_SAVEPOINT,
-otherwise DB_SUCCESS */
-dberr_t
-trx_release_savepoint_for_mysql(
-/*============================*/
-	trx_t*		trx,			/*!< in: transaction handle */
-	const char*	savepoint_name)		/*!< in: savepoint name */
-{
-	trx_named_savept_t*	savep;
-
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE, true)
-	      || trx_state_eq(trx, TRX_STATE_PREPARED, true));
-	ut_ad(trx->mysql_thd);
-
-	savep = trx_savepoint_find(trx, savepoint_name);
-
-	if (savep != NULL) {
-		trx_roll_savepoint_free(trx, savep);
-		return DB_SUCCESS;
-	} else if (trx->last_sql_stat_start.least_undo_no == 0) {
-		/* Bulk insert could have discarded savepoints */
-		return DB_SUCCESS;
-	}
-
-	return DB_NO_SAVEPOINT;
 }
 
 /*******************************************************************//**
@@ -620,7 +310,9 @@ trx_rollback_active(
 	if (UNIV_UNLIKELY(!trx->rollback_finish())) {
 		ut_ad(!dictionary_locked);
 	} else {
-		ib::info() << "Rolled back recovered transaction " << trx_id;
+		sql_print_information(
+			"InnoDB: Rolled back recovered transaction "
+			TRX_ID_FMT, trx_id);
 	}
 
 	if (dictionary_locked) {
@@ -906,7 +598,6 @@ trx_rollback_step(
 
 	if (node->state == ROLL_NODE_SEND) {
 		trx_t*		trx;
-		ib_id_t		roll_limit;
 
 		trx = thr_get_trx(thr);
 
@@ -914,13 +605,11 @@ trx_rollback_step(
 
 		ut_a(node->undo_thr == NULL);
 
-		roll_limit = node->savept ? node->savept->least_undo_no : 0;
-
 		trx->mutex_lock();
 
 		trx_commit_or_rollback_prepare(trx);
 
-		node->undo_thr = trx_rollback_start(trx, roll_limit);
+		node->undo_thr = trx_rollback_start(trx, node->savept);
 
 		trx->mutex_unlock();
 	} else {

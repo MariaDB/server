@@ -495,19 +495,7 @@ class rw_trx_hash_t
 
 
 #ifdef UNIV_DEBUG
-  static void validate_element(trx_t *trx)
-  {
-    ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
-    ut_ad(!trx->is_autocommit_non_locking());
-    /* trx->state can be anything except TRX_STATE_NOT_STARTED */
-    ut_d(bool acquire_trx_mutex = !trx->mutex_is_owner());
-    ut_d(if (acquire_trx_mutex) trx->mutex_lock());
-    ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
-          trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) ||
-          trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
-          trx_state_eq(trx, TRX_STATE_PREPARED));
-    ut_d(if (acquire_trx_mutex) trx->mutex_unlock());
-  }
+  static void validate_element(trx_t *trx);
 
 
   struct debug_iterator_arg
@@ -985,18 +973,23 @@ public:
 
     Our IA-32 target is not "i386" but at least "i686", that is, at least
     Pentium MMX, which has a 64-bit data bus and 64-bit XMM registers. */
+    bool hot= false;
     trx->mutex_lock();
     trx_id_t &max_inactive_id= trx->max_inactive_id;
-    const bool hot{max_inactive_id < id && find_same_or_older(trx, id)};
+    if (max_inactive_id >= id);
+    else if (!find_same_or_older_low(trx, id))
+      max_inactive_id= id;
+    else
+      hot= true;
 #else
     Atomic_relaxed<trx_id_t> &max_inactive_id= trx->max_inactive_id_atomic;
     if (max_inactive_id >= id)
       return false;
     trx->mutex_lock();
-    const bool hot{find_same_or_older(trx, id)};
-#endif
-    if (hot)
+    const bool hot{find_same_or_older_low(trx, id)};
+    if (!hot)
       max_inactive_id= id;
+#endif
     trx->mutex_unlock();
     return hot;
   }

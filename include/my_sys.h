@@ -257,9 +257,9 @@ extern void (*my_sigtstp_cleanup)(void),
 					/* Executed before jump to shell */
 	    (*my_sigtstp_restart)(void);
 					/* Executed when coming from shell */
-extern MYSQL_PLUGIN_IMPORT int my_umask;		/* Default creation mask  */
-extern int my_umask_dir,
-	   my_recived_signals,	/* Signals we have got */
+extern MYSQL_PLUGIN_IMPORT mode_t my_umask;	/* Default creation mask  */
+extern mode_t my_umask_dir;
+extern int my_recived_signals,	/* Signals we have got */
 	   my_safe_to_handle_signal, /* Set when allowed to SIGTSTP */
 	   my_dont_interrupt;	/* call remember_intr when set */
 #ifdef _WIN32
@@ -625,7 +625,7 @@ extern File my_open(const char *FileName,int Flags,myf MyFlags);
 extern File my_register_filename(File fd, const char *FileName,
 				 enum file_type type_of_file,
 				 uint error_message_number, myf MyFlags);
-extern File my_create(const char *FileName,int CreateFlags,
+extern File my_create(const char *FileName, mode_t CreateFlags,
 		      int AccessFlags, myf MyFlags);
 extern int my_close(File Filedes,myf MyFlags);
 extern int my_mkdir(const char *dir, int Flags, myf MyFlags);
@@ -633,7 +633,7 @@ extern int my_readlink(char *to, const char *filename, myf MyFlags);
 extern int my_is_symlink(const char *filename);
 extern int my_realpath(char *to, const char *filename, myf MyFlags);
 extern File my_create_with_symlink(const char *linkname, const char *filename,
-				   int createflags, int access_flags,
+				   mode_t createflags, int access_flags,
 				   myf MyFlags);
 extern int my_rename_with_symlink(const char *from,const char *to,myf MyFlags);
 extern int my_symlink(const char *content, const char *linkname, myf MyFlags);

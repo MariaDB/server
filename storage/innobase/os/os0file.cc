@@ -152,18 +152,6 @@ static io_slots *write_slots;
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
 
-/* This specifies the file permissions InnoDB uses when it creates files in
-Unix; the value of os_innodb_umask is initialized in ha_innodb.cc to
-my_umask */
-
-#ifndef _WIN32
-/** Umask for creating files */
-static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-#else
-/** Umask for creating files */
-static ulint	os_innodb_umask	= 0;
-#endif /* _WIN32 */
-
 Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
 Atomic_counter<size_t> os_n_file_writes;
@@ -1021,7 +1009,7 @@ os_file_create_simple_func(
 #endif
 
 	do {
-		file = open(name, create_flag | direct_flag, os_innodb_umask);
+		file = open(name, create_flag | direct_flag, my_umask);
 
 		if (file == -1) {
 #ifdef O_DIRECT
@@ -1243,7 +1231,7 @@ skip_o_direct:
 	os_file_t	file;
 
 	for (;;) {
-		file = open(name, create_flag | direct_flag, os_innodb_umask);
+		file = open(name, create_flag | direct_flag, my_umask);
 
 		if (file == -1) {
 #ifdef O_DIRECT
@@ -1365,7 +1353,7 @@ os_file_create_simple_no_error_handling_func(
 		}
 	}
 
-	file = open(name, create_flag, os_innodb_umask);
+	file = open(name, create_flag, my_umask);
 
 	*success = (file != -1);
 
@@ -3645,16 +3633,6 @@ os_aio_refresh_stats()
 	os_last_printout = time(NULL);
 }
 
-
-/**
-Set the file create umask
-@param[in]	umask		The umask to use for file creation. */
-void
-os_file_set_umask(ulint umask)
-{
-	os_innodb_umask = umask;
-}
-
 #ifdef _WIN32
 
 /* Checks whether physical drive is on SSD.*/
@@ -3819,13 +3797,19 @@ void fil_node_t::find_metadata(IF_WIN(,bool create)) noexcept
     punch_hole= 2;
   else
     punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
-  if (space->purpose != FIL_TYPE_TABLESPACE)
+  /* For temporary tablespace or during IMPORT TABLESPACE, we
+  disable neighbour flushing and do not care about atomicity. */
+  if (space->is_temporary())
   {
-    /* For temporary tablespace or during IMPORT TABLESPACE, we
-    disable neighbour flushing and do not care about atomicity. */
     on_ssd= true;
     atomic_write= true;
-    if (space->purpose == FIL_TYPE_TEMPORARY || !space->is_compressed())
+    return;
+  }
+  if (space->is_being_imported())
+  {
+    on_ssd= true;
+    atomic_write= true;
+    if (!space->is_compressed())
       return;
   }
 #ifdef _WIN32

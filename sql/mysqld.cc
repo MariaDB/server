@@ -3212,7 +3212,6 @@ pthread_handler_t signal_hand(void *)
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
-  DBUG_ENTER("signal_hand");
   signal_thread_in_use= 1;
 
   /*
@@ -3278,7 +3277,6 @@ pthread_handler_t signal_hand(void *)
       /* switch to the old log message processing */
       logger.set_handlers(global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
-      DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
 
       break_connect_loop();
       DBUG_ASSERT(abort_loop);
@@ -3314,12 +3312,9 @@ pthread_handler_t signal_hand(void *)
       break;					/* purecov: tested */
     }
   }
-  DBUG_PRINT("quit", ("signal_handler: calling my_thread_end()"));
   my_thread_end();
-  DBUG_LEAVE; // Must match DBUG_ENTER()
   signal_thread_in_use= 0;
-  pthread_exit(0); // Safety
-  return(0);					/* purecov: deadcode */
+  return nullptr;
 }
 
 static void check_data_home(const char *path)

@@ -5,6 +5,9 @@ let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 call mtr.add_suppression("InnoDB: Table .* does not exist in the InnoDB internal data dictionary .*");
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
 
 --echo #
 --echo # Bug#11766879/Bug#60106: DIFF BETWEEN # OF INDEXES IN MYSQL VS INNODB,

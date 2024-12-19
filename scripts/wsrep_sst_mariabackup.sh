@@ -439,17 +439,30 @@ get_transfer()
 get_footprint()
 {
     cd "$DATA_DIR"
-    local payload_data=$(find $findopt . \
-        -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
-        -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
-        awk 'END { print $1 }')
+    local payload_data
+    if [ "$OS" = 'Linux' ]; then
+        payload_data=$(find $findopt . \
+            -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
+            -type f -print0 | du --files0-from=- --bytes -c -s | \
+            awk 'END { print $1 }')
+    else
+        payload_data=$(find $findopt . \
+            -regex '.*undo[0-9]+$|.*\.ibd$|.*\.MYI$\.*\.MYD$|.*ibdata1$' \
+            -type f -print0 | xargs -0 stat -f '%z' | \
+            awk '{ sum += $1 } END { print sum }')
+    fi
     local payload_undo=0
     if [ -n "$ib_undo_dir" -a "$ib_undo_dir" != '.' -a \
          "$ib_undo_dir" != "$DATA_DIR" -a -d "$ib_undo_dir" ]
     then
         cd "$ib_undo_dir"
-        payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
-            du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
+        if [ "$OS" = 'Linux' ]; then
+            payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+                du --files0-from=- --bytes -c -s | awk 'END { print $1 }')
+        else
+            payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+                xargs -0 stat -f '%z' | awk '{ sum += $1 } END { print sum }')
+        fi
     fi
     cd "$OLD_PWD"
 
@@ -676,24 +689,25 @@ cleanup_at_exit()
 
     [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
 
-    if [ $estatus -ne 0 ]; then
-        wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+    if [ "$WSREP_SST_OPT_ROLE" = 'donor' -o $estatus -ne 0 ]; then
+        if [ $estatus -ne 0 ]; then
+            wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+        fi
         [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
         [ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE" || :
+        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         if [ -n "$BACKUP_PID" ]; then
             if ps -p $BACKUP_PID >/dev/null 2>&1; then
                 wsrep_log_error \
-                    "mariadb-backup process is still running. Killing..."
-                cleanup_pid $CHECK_PID
+                    "SST streaming process is still running. Killing..."
+                cleanup_pid $BACKUP_PID
             fi
         fi
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
-    else
-        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
     if [ -n "$progress" -a -p "$progress" ]; then
@@ -1340,6 +1354,7 @@ else # joiner
         [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
         [ -f "$DATA/xtrabackup_info" ]        && rm -f "$DATA/xtrabackup_info"
         [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
+        [ -f "$DATA/xtrabackup_binlog_info" ] && rm -f "$DATA/xtrabackup_binlog_info"
         [ -f "$DATA/xtrabackup_binlog_pos_innodb" ] && rm -f "$DATA/xtrabackup_binlog_pos_innodb"
 
         TDATA="$DATA"

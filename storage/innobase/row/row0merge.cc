@@ -5374,8 +5374,7 @@ void trx_t::bulk_rollback_low()
       t.second.end_bulk_insert();
     }
   }
-  trx_savept_t bulk_save{low_limit};
-  rollback(&bulk_save);
+  rollback(&low_limit);
 }
 
 dberr_t trx_t::bulk_insert_apply_low()
