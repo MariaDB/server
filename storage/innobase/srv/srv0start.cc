@@ -324,8 +324,8 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 		srv_startup_is_before_trx_rollback_phase = false;
 	}
 
-	/* Enable checkpoints in buf_flush_page_cleaner(). */
-	recv_sys.recovery_on = false;
+	ut_ad(!recv_sys.recovery_on);
+
 	mysql_mutex_unlock(&log_sys.mutex);
 
 	log_make_checkpoint();
@@ -1351,8 +1351,7 @@ dberr_t srv_start(bool create_new_db)
 				return(srv_init_abort(DB_ERROR));
 			}
 
-			/* Enable checkpoints in the page cleaner. */
-			recv_sys.recovery_on = false;
+			ut_ad(!recv_sys.recovery_on);
 
 			err= recv_recovery_read_max_checkpoint();
 
@@ -1506,8 +1505,6 @@ dberr_t srv_start(bool create_new_db)
 			? DB_SUCCESS
 			: recv_recovery_from_checkpoint_start(flushed_lsn);
 		recv_sys.close_files();
-
-		recv_sys.dblwr.pages.clear();
 
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
