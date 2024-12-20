@@ -145,7 +145,7 @@ row_sel_sec_rec_is_for_blob(
 		return false;
 	}
 
-	return !cmp_data(mtype, prtype, false, buf, len, sec_field, sec_len);
+	return !cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len);
 }
 
 /** Function to read the secondary spatial index, calculate
@@ -392,7 +392,7 @@ compare_blobs:
 			}
 		}
 
-		if (cmp_data(col->mtype, col->prtype, false,
+		if (cmp_data_data(col->mtype, col->prtype,
 			     clust_field, len, sec_field, sec_len)) {
 			return DB_SUCCESS;
 		}
@@ -2612,9 +2612,9 @@ row_sel_convert_mysql_key_to_innobase(
 
 	key_end = key_ptr + key_len;
 
-	/* Permit us to access any field in the tuple (ULINT_MAX): */
+	/* Permit us to access any field in the tuple: */
 
-	dtuple_set_n_fields(tuple, ULINT_MAX);
+	ut_d(dtuple_set_n_fields(tuple, uint16_t(~0)));
 
 	dfield = dtuple_get_nth_field(tuple, 0);
 	field = dict_index_get_nth_field(index, 0);
@@ -2781,7 +2781,7 @@ row_sel_convert_mysql_key_to_innobase(
 	/* We set the length of tuple to n_fields: we assume that the memory
 	area allocated for it is big enough (usually bigger than n_fields). */
 
-	dtuple_set_n_fields(tuple, n_fields);
+	dtuple_set_n_fields(tuple, uint16_t(n_fields));
 }
 
 /**************************************************************//**
@@ -3323,7 +3323,7 @@ class Row_sel_get_clust_rec_for_mysql
       ulint len1, len2;
       const byte *b1= rec_get_nth_field(cached_clust_rec, offsets, n, &len1);
       const byte *b2= rec_get_nth_field(cached_old_vers, vers_offs, n, &len2);
-      ut_ad(!cmp_data(col->mtype, col->prtype, false, b1, len1, b2, len2));
+      ut_ad(!cmp_data_data(col->mtype, col->prtype, b1, len1, b2, len2));
     }
   }
 #endif
@@ -3451,7 +3451,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			page_cur_t     page_cursor;
 			page_cursor.block = block;
 			page_cursor.index = sec_index;
-			ulint up_match = 0, low_match = 0;
+			uint16_t up_match = 0, low_match = 0;
 			ut_ad(!page_cur_search_with_match(tuple, PAGE_CUR_LE,
 							  &up_match,
 							  &low_match,
@@ -4169,8 +4169,7 @@ row_sel_fill_vrow(
 	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
-	*vrow = dtuple_create_with_vcol(
-		heap, 0, dict_table_get_n_v_cols(index->table));
+	*vrow = dtuple_create_with_vcol(heap, 0, index->table->n_v_cols);
 
 	/* Initialize all virtual row's mtype to DATA_MISSING */
 	dtuple_init_v_fld(*vrow);
@@ -4538,7 +4537,7 @@ early_not_found:
 
 	if (UNIV_UNLIKELY(direction == 0)
 	    && unique_search
-	    && btr_search_enabled
+	    && btr_search.enabled
 	    && dict_index_is_clust(index)
 	    && !index->table->is_temporary()
 	    && !prebuilt->templ_contains_blob
@@ -6001,7 +6000,6 @@ row_count_rtree_recs(
 	mem_heap_t*	heap;
 	dtuple_t*	entry;
 	dtuple_t*	search_entry	= prebuilt->search_tuple;
-	ulint		entry_len;
 	ulint		i;
 	byte*		buf;
 
@@ -6012,10 +6010,9 @@ row_count_rtree_recs(
 	heap = mem_heap_create(256);
 
 	/* Build a search tuple. */
-	entry_len = dict_index_get_n_fields(index);
-	entry = dtuple_create(heap, entry_len);
+	entry = dtuple_create(heap, index->n_fields);
 
-	for (i = 0; i < entry_len; i++) {
+	for (i = 0; i < index->n_fields; i++) {
 		const dict_field_t*	ind_field
 			= dict_index_get_nth_field(index, i);
 		const dict_col_t*	col
@@ -6199,8 +6196,8 @@ compare_blobs:
       }
     }
 
-    if (cmp_data(ifield.col->mtype, ifield.col->prtype, false,
-                 field, len, sec_field, sec_len))
+    if (cmp_data_data(ifield.col->mtype, ifield.col->prtype,
+                      field, len, sec_field, sec_len))
       return DB_SUCCESS_LOCKED_REC;
   }
 
@@ -6793,9 +6790,8 @@ count_row:
 
   if (prev_entry)
   {
-    ulint matched_fields= 0;
-    int cmp= cmp_dtuple_rec_with_match(prev_entry, rec, index, offsets,
-                                       &matched_fields);
+    uint16_t matched= 0;
+    int cmp= cmp_dtuple_rec_with_match(prev_entry, rec, offsets, &matched);
     const char* msg;
 
     if (UNIV_LIKELY(cmp < 0));
@@ -6808,7 +6804,7 @@ not_ok:
                   << ": " << *prev_entry << ", "
                   << rec_offsets_print(rec, offsets);
     }
-    else if (index->is_unique() && matched_fields >=
+    else if (index->is_unique() && matched >=
              dict_index_get_n_ordering_defined_by_user(index))
     {
       /* NULL values in unique indexes are considered not to be duplicates */
