@@ -21,7 +21,7 @@ concat("test1", x)
 test1-12
 show status like 'audit_null%';
 Variable_name	Value
-Audit_null_called	22
+Audit_null_called	23
 Audit_null_general_error	1
 Audit_null_general_log	7
 Audit_null_general_result	5
@@ -69,6 +69,7 @@ root[root] @ localhost []	>> show status like 'audit_null%'
 root[root] @ localhost []	>> create procedure au1(x char(16)) select concat("test1", x)
 root[root] @ localhost []	mysql.proc : write
 root[root] @ localhost []	>> call au1("-12")
+root[root] @ localhost []	mysql.proc : read
 root[root] @ localhost []	mysql.proc : read
 root[root] @ localhost []	>> select concat("test1",  NAME_CONST('x',_utf8mb4'-12' COLLATE 'utf8mb4_uca1400_ai_ci'))
 root[root] @ localhost []	>> show status like 'audit_null%'
