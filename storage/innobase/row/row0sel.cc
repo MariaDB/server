@@ -145,7 +145,7 @@ row_sel_sec_rec_is_for_blob(
 		return false;
 	}
 
-	return !cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len);
+	return !cmp_data(mtype, prtype, false, buf, len, sec_field, sec_len);
 }
 
 /** Function to read the secondary spatial index, calculate
@@ -392,7 +392,7 @@ compare_blobs:
 			}
 		}
 
-		if (cmp_data_data(col->mtype, col->prtype,
+		if (cmp_data(col->mtype, col->prtype, false,
 			     clust_field, len, sec_field, sec_len)) {
 			return DB_SUCCESS;
 		}
@@ -3323,7 +3323,7 @@ class Row_sel_get_clust_rec_for_mysql
       ulint len1, len2;
       const byte *b1= rec_get_nth_field(cached_clust_rec, offsets, n, &len1);
       const byte *b2= rec_get_nth_field(cached_old_vers, vers_offs, n, &len2);
-      ut_ad(!cmp_data_data(col->mtype, col->prtype, b1, len1, b2, len2));
+      ut_ad(!cmp_data(col->mtype, col->prtype, false, b1, len1, b2, len2));
     }
   }
 #endif
@@ -6196,8 +6196,8 @@ compare_blobs:
       }
     }
 
-    if (cmp_data_data(ifield.col->mtype, ifield.col->prtype,
-                      field, len, sec_field, sec_len))
+    if (cmp_data(ifield.col->mtype, ifield.col->prtype, false,
+                 field, len, sec_field, sec_len))
       return DB_SUCCESS_LOCKED_REC;
   }
 
@@ -6791,7 +6791,8 @@ count_row:
   if (prev_entry)
   {
     uint16_t matched= 0;
-    int cmp= cmp_dtuple_rec_with_match(prev_entry, rec, offsets, &matched);
+    int cmp= cmp_dtuple_rec_with_match(prev_entry, rec, index, offsets,
+                                       &matched);
     const char* msg;
 
     if (UNIV_LIKELY(cmp < 0));

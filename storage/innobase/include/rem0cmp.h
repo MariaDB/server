@@ -42,18 +42,20 @@ cmp_cols_are_equal(
 	ibool			check_charsets);
 					/*!< in: whether to check charsets */
 /** Compare two data fields.
-@param mtype  main type
-@param prtype precise type
-@param data1  data field
-@param len1   length of data1 in bytes, or UNIV_SQL_NULL
-@param data2  data field
-@param len2   length of data2 in bytes, or UNIV_SQL_NULL
+@param mtype          main type
+@param prtype         precise type
+@param descending     whether to use descending order
+@param data1          data field
+@param len1           length of data1 in bytes, or UNIV_SQL_NULL
+@param data2          data field
+@param len2           length of data2 in bytes, or UNIV_SQL_NULL
 @return the comparison result of data1 and data2
 @retval 0 if data1 is equal to data2
 @retval negative if data1 is less than data2
 @retval positive if data1 is greater than data2 */
-int cmp_data_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
-                  const byte *data2, ulint len2) noexcept
+int cmp_data(ulint mtype, ulint prtype, bool descending,
+             const byte *data1, size_t len1, const byte *data2, size_t len2)
+  noexcept
   MY_ATTRIBUTE((warn_unused_result));
 
 /** Compare two data fields.
@@ -69,7 +71,7 @@ inline int cmp_dfield_dfield(const dfield_t *dfield1, const dfield_t *dfield2,
 {
   ut_ad(dfield_check_typed(dfield1));
   const dtype_t *type= dfield_get_type(dfield1);
-  return cmp_data_data(type->mtype, type->prtype,
+  return cmp_data(type->mtype, type->prtype, descending,
                   static_cast<const byte*>(dfield_get_data(dfield1)),
                   dfield_get_len(dfield1),
                   static_cast<const byte*>(dfield_get_data(dfield2)),
@@ -144,46 +146,41 @@ inline int cmp_geometry_field(const void *a, const void *b)
 @retval 0 if dtuple is equal to rec
 @retval negative if dtuple is less than rec
 @retval positive if dtuple is greater than rec */
-int
-cmp_dtuple_rec_with_match_low(
-	const dtuple_t*	dtuple,
-	const rec_t*	rec,
-	const rec_offs*	offsets,
-	ulint		n_cmp,
-	uint16_t*	matched_fields)
-	MY_ATTRIBUTE((nonnull));
-#define cmp_dtuple_rec_with_match(tuple,rec,offsets,fields)		\
+int cmp_dtuple_rec_with_match_low(const dtuple_t *dtuple, const rec_t *rec,
+                                  const dict_index_t *index,
+                                  const rec_offs *offsets,
+                                  ulint n_cmp, uint16_t *matched_fields)
+  MY_ATTRIBUTE((nonnull));
+#define cmp_dtuple_rec_with_match(tuple,rec,index,offsets,fields)	\
 	cmp_dtuple_rec_with_match_low(					\
-		tuple,rec,offsets,dtuple_get_n_fields_cmp(tuple),fields)
-
+		tuple,rec,index,offsets,dtuple_get_n_fields_cmp(tuple),fields)
 /** Compare a data tuple to a physical record.
 @see cmp_dtuple_rec_with_match
 @param dtuple  data tuple
 @param rec     index record
+@param index   index
 @param offsets rec_get_offsets(rec, index)
 @return the comparison result of dtuple and rec
 @retval 0 if dtuple is equal to rec
 @retval negative if dtuple is less than rec
 @retval positive if dtuple is greater than rec */
-inline int cmp_dtuple_rec0(const dtuple_t *dtuple, const rec_t *rec,
-                           const rec_offs *offsets)
+inline int cmp_dtuple_rec(const dtuple_t *dtuple, const rec_t *rec,
+                          const dict_index_t *index, const rec_offs *offsets)
 {
   uint16_t matched= 0;
-  return cmp_dtuple_rec_with_match(dtuple, rec, offsets, &matched);
+  return cmp_dtuple_rec_with_match(dtuple, rec, index, offsets, &matched);
 }
-
-#define cmp_dtuple_rec(d, rec, index, offsets) cmp_dtuple_rec0(d, rec, offsets)
 
 /** Check if a dtuple is a prefix of a record.
 @param dtuple  data tuple
 @param rec     index record
+@param index   index
 @param offsets rec_get_offsets(rec)
 @return whether dtuple is a prefix of rec */
-bool cmp_dtuple_is_prefix_of_rec0(const dtuple_t *dtuple, const rec_t *rec,
-                                  const rec_offs *offsets) noexcept
+bool cmp_dtuple_is_prefix_of_rec(const dtuple_t *dtuple, const rec_t *rec,
+                                 const dict_index_t *index,
+                                 const rec_offs *offsets)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-#define cmp_dtuple_is_prefix_of_rec(d,r,i,o)cmp_dtuple_is_prefix_of_rec0(d,r,o)
 
 /** Compare two physical records that contain the same number of columns,
 none of which are stored externally.

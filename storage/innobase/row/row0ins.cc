@@ -1988,7 +1988,7 @@ row_ins_dupl_error_with_rec(
 
 	uint16_t matched_fields = 0;
 
-	cmp_dtuple_rec_with_match(entry, rec, offsets, &matched_fields);
+	cmp_dtuple_rec_with_match(entry, rec, index, offsets, &matched_fields);
 
 	if (matched_fields < n_unique) {
 
@@ -2233,7 +2233,7 @@ row_ins_duplicate_online(ulint n_uniq, const dtuple_t *entry,
 	ut_ad(n_uniq == index->db_trx_id());
 
 	/* Compare the PRIMARY KEY fields and the DB_TRX_ID, DB_ROLL_PTR. */
-	cmp_dtuple_rec_with_match_low(entry, rec, offsets, n_uniq + 2,
+	cmp_dtuple_rec_with_match_low(entry, rec, index, offsets, n_uniq + 2,
 				      &fields);
 
 	if (fields < n_uniq) {

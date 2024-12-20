@@ -153,7 +153,7 @@ static int cmp_dtuple_rec_bytes(const rec_t *rec,
           if (i < cur_field || tuple.fields[i].len == UNIV_SQL_NULL)
             continue;
           cur_bytes= 0;
-          ret= 1;
+          ret= field->descending ? -1 : 1;
           break;
         }
       }
@@ -180,7 +180,7 @@ static int cmp_dtuple_rec_bytes(const rec_t *rec,
         {
           ut_ad(cur_bytes == 0);
         less:
-          ret= -1;
+          ret= field->descending ? 1 : -1;
           goto non_redundant_order_resolved;
         }
 
@@ -197,9 +197,8 @@ static int cmp_dtuple_rec_bytes(const rec_t *rec,
           /* fall through */
         default:
           cur_bytes= 0;
-          ret= cmp_data_data(df->type.mtype, df->type.prtype,
-                             static_cast<const byte*>(df->data), df->len,
-                             f, len);
+          ret= cmp_data(df->type.mtype, df->type.prtype, field->descending,
+                        static_cast<const byte*>(df->data), df->len, f, len);
           if (ret)
             goto non_redundant_order_resolved;
           goto next_field;
@@ -222,7 +221,7 @@ static int cmp_dtuple_rec_bytes(const rec_t *rec,
           else if (rec_byte == ULINT_UNDEFINED)
           {
           greater:
-            ret= 1;
+            ret= field->descending ? -1 : 1;
             goto non_redundant_order_resolved;
           }
 
@@ -268,7 +267,7 @@ static int cmp_dtuple_rec_bytes(const rec_t *rec,
         if (len == UNIV_SQL_NULL)
           continue;
       redundant_less:
-        ret= -1;
+        ret= index.fields[cur_field].descending ? 1 : -1;
         goto order_resolved;
       }
       else if (len == UNIV_SQL_NULL)
@@ -276,7 +275,7 @@ static int cmp_dtuple_rec_bytes(const rec_t *rec,
         ut_ad(cur_bytes == 0);
         /* We define the SQL null to be the smallest possible value */
       redundant_greater:
-        ret= 1;
+        ret= index.fields[cur_field].descending ? -1 : 1;
         goto order_resolved;
       }
 
@@ -292,9 +291,10 @@ static int cmp_dtuple_rec_bytes(const rec_t *rec,
           break;
         /* fall through */
       default:
-        ret= cmp_data_data(df->type.mtype, df->type.prtype,
-                           static_cast<const byte*>(df->data), df->len,
-                           rec_b_ptr, len);
+        ret= cmp_data(df->type.mtype, df->type.prtype,
+                      index.fields[cur_field].descending,
+                      static_cast<const byte*>(df->data), df->len,
+                      rec_b_ptr, len);
         cur_bytes= 0;
         if (!ret)
           continue;
@@ -642,9 +642,8 @@ static int page_cur_dtuple_cmp(const dtuple_t &dtuple, const rec_t *rec,
           ut_ad(dtuple.fields[DICT_INDEX_SPATIAL_NODEPTR_SIZE].len == 4);
           len= 4;
         }
-        ret= cmp_data_data(df->type.mtype, df->type.prtype,
-                           static_cast<const byte*>(df->data), df->len,
-                           f, len);
+        ret= cmp_data(df->type.mtype, df->type.prtype, field->descending,
+                      static_cast<const byte*>(df->data), df->len, f, len);
         if (ret)
           break;
       }
@@ -657,14 +656,16 @@ static int page_cur_dtuple_cmp(const dtuple_t &dtuple, const rec_t *rec,
   }
   else
   {
+    const bool may_descend{!index.is_ibuf()};
     for (; cur_field < dtuple.n_fields_cmp; cur_field++)
     {
       const dfield_t *df= dtuple_get_nth_field(&dtuple, cur_field);
       ut_ad(!dfield_is_ext(df));
       size_t len;
       const byte *f= rec_get_nth_field_old(rec, cur_field, &len);
-      ret= cmp_data_data(df->type.mtype, df->type.prtype,
-                         static_cast<const byte*>(df->data), df->len, f, len);
+      ret= cmp_data(df->type.mtype, df->type.prtype,
+                    may_descend && index.fields[cur_field].descending,
+                    static_cast<const byte*>(df->data), df->len, f, len);
       if (ret)
         break;
     }
