@@ -397,6 +397,13 @@ bool Item_subselect::eliminate_subselect_processor(void *arg)
 }
 
 
+bool Item_subselect::make_const_processor(void *arg)
+{
+  make_const();
+  return FALSE;
+}
+
+
 bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select, 
                                        Item *item)
 {
