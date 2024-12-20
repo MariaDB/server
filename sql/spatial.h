@@ -349,6 +349,7 @@ public:
   static Class_info *ci_collection[wkb_last+1];
 
   static bool create_point(String *result, double x, double y);
+  using PointContainer = std::vector<std::pair<double, double>>;
 protected:
   static Class_info *find_class(int type_id)
   {
@@ -361,8 +362,16 @@ protected:
   bool create_point(String *result, const char *data) const;
   const char *get_mbr_for_points(MBR *mbr, const char *data, uint offset)
     const;
+  const char* get_points_common(const char* data, PointContainer &points) const;
 
 public:
+  virtual bool get_points(Geometry::PointContainer &points) const
+  {
+    // TODO implement this override for other types
+    assert(false);
+    return true;
+  }
+
   /**
      Check if there're enough data remaining as requested
 
@@ -539,6 +548,8 @@ public:
   int store_shapes(Gcalc_shape_transporter *trn) const override;
   int make_clockwise(String *result) const override;
   const Class_info *get_class_info() const override;
+private:
+  bool get_points(Geometry::PointContainer &points) const override;
 };
 
 

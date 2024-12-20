@@ -1043,6 +1043,30 @@ const char *Geometry::get_mbr_for_points(MBR *mbr, const char *data,
   return data;
 }
 
+const char* Geometry::get_points_common(const char* data,
+                                        Geometry::PointContainer &points) const
+{
+  uint32 expected_points;
+  if (no_data(data, 4))
+    return nullptr;
+  expected_points= uint4korr(data);
+  data+= 4;
+
+  if (not_enough_points(data, expected_points, 0))
+    return nullptr;
+
+  while (expected_points--)
+  {
+    double x, y;
+    float8get(x, data);
+    float8get(y, data + SIZEOF_STORED_DOUBLE);
+    points.push_back(std::make_pair(x, y));
+    data+= POINT_DATA_SIZE;
+  }
+  return data;
+}
+
+
 
 /***************************** Point *******************************/
 
@@ -2075,6 +2099,21 @@ bool Gis_polygon::get_mbr(MBR *mbr, const char **end) const
   }
   *end= data;
   return 0;
+}
+
+bool Gis_polygon::get_points(Geometry::PointContainer &points) const
+{
+  uint32 n_linear_rings;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return true;
+  n_linear_rings= uint4korr(data);
+  data+= 4;
+
+  while (data && n_linear_rings--)
+    data= get_points_common(data, points);
+  return !data;
 }
 
 
@@ -3641,11 +3680,218 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
 }
 
 
+struct Edge
+{
+  double x1, y1;
+  double x2, y2;
+  double m, b;  // slope, y-intercept
+
+  double slope() const
+  {
+    if (x2 - x1 == 0)
+      return (double)(~0);  // effectively inf
+    return (y2 - y1) / (x2 - x1);
+  }
+
+  Edge(double X1, double Y1,
+       double X2, double Y2)
+    : x1(X1),
+      y1(Y1),
+      x2(X2),
+      y2(Y2),
+      m(slope()),
+      b(y1 - (m * x1))
+  {
+  }
+
+  Edge(const Edge& rhs) = default;
+  Edge &operator=(const Edge &rhs) = default;
+
+  double find_intersection_point(const Edge& other) const
+  {
+    return (other.b - b) / (m - other.m);
+  }
+
+  double eval_at(double x) const
+  {
+    return m * x + b;
+  }
+
+  bool has_x(double x) const
+  {
+    if (m == 0) {
+      // line parallel to x axis
+      return (x2 >= x1) ?
+          (x < x2 && x > x1) :
+          (x < x1 && x > x2);
+    }
+    auto y = eval_at(x);
+    bool has_it = false;
+    if (m < 0)
+    {
+      has_it = (y < y1 && y > y2);
+      if (!has_it)
+      {
+        Edge tmp = reorient();
+        has_it = (y > tmp.y1 && y < tmp.y2);
+      }
+    }
+    else
+    {
+      has_it = (y > y1 && y < y2);
+      if (!has_it)
+      {
+        Edge tmp = reorient();
+        has_it = (y < tmp.y1 && y > tmp.y2);
+      }
+    }
+    return has_it;
+  }
+
+  Edge reorient() const
+  {
+    // Swaps (x1, y1) and (x2, y2), effectively changing the slope
+    // of the edge but nothing more.
+    return {x2, y2, x1, y1};
+  }
+};
+
+struct Polygon
+{
+  std::vector<Edge> edges;
+  using Vertices = std::vector<std::pair<double, double>>;
+
+  Polygon(const std::vector<Edge> &Edges)
+    : edges(Edges)
+  {
+  }
+
+  Polygon(const Edge &e_0, const Edge &e_1, const Edge &e_2)
+    : edges{e_0, e_1, e_2}
+  {
+  }
+
+  bool intersects_with(const Polygon& other) const
+  {
+    for (auto my_edge : edges)
+    {
+      for (auto their_edge : other.edges)
+      {
+        auto x = my_edge.find_intersection_point(their_edge);
+        if (my_edge.has_x(x) && their_edge.has_x(x))
+          return true;
+      }
+    }
+    return false;
+  }
+
+  std::vector<Polygon> get_triangles(size_t step_size=1) const
+  {
+    // Must be more than one edge in the polygon.
+    assert(edges.size() > 1);
+
+    // Partition the polygon into triangles.  When step_size is one, then
+    // go around the polygon vertex-by-vertex.  When step size is larger,
+    // then skip vertices correspondingly (e.g., step_size 2 means every
+    // other vertex).
+    std::vector<Polygon> triangles;
+    Vertices points = get_vertices();
+    for (size_t pt = 0; pt < points.size(); ++pt)
+    {
+      size_t i = pt;
+      double e0_x1 = points[i].first;
+      double e0_y1 = points[i].second;
+      i += step_size;
+      if (i >= points.size())
+        i = i % points.size();
+      double e0_x2 = points[i].first;
+      double e0_y2 = points[i].second;
+      Edge e0(e0_x1, e0_y1, e0_x2, e0_y2);
+      double e1_x1 = points[i].first;
+      double e1_y1 = points[i].second;
+      i += step_size;
+      if (i >= points.size())
+        i = i % points.size();
+      double e1_x2 = points[i].first;
+      double e1_y2 = points[i].second;
+      Edge e1(e1_x1, e1_y1, e1_x2, e1_y2);
+      Edge e2(e1.x2, e1.y2, e0.x1, e0.y1);
+      Polygon triangle(e0, e1, e2);
+      triangles.push_back(triangle);
+    }
+    return triangles;
+  }
+
+  Vertices get_vertices() const
+  {
+    // Decompose this polygon into a set of vertices.
+    Vertices v;
+    for (auto e : edges)
+      v.push_back({e.x1, e.y1});
+    return v;
+  }
+};
+
+// assumes polygons are closed as they cannot be created unless they're closed
+static bool polygons_intersect(const std::vector<Polygon> &polygons)
+{
+  for (size_t p = 0; p < polygons.size() - 1; ++p) {
+    Polygon poly_1 = polygons[p];
+    Polygon poly_2 = polygons[p + 1];
+    if (poly_1.intersects_with(poly_2))
+      return true;
+  }
+  // wrap-around case
+  return polygons[polygons.size() - 1].intersects_with(polygons[0]);
+}
+
+
+static bool polygons_overlap(const std::vector<Polygon> &polygons)
+{
+  // 3 is hard-coded, make limit into a session var
+  for (size_t step_size = 1; step_size <= 3; ++step_size)
+  {
+    const size_t end = polygons.size();
+    for (size_t p = 0; p < end; ++p)
+    {
+      std::vector<Polygon> t_0, t_1;
+      t_0= polygons[p].get_triangles(step_size);
+      if (p < end - 1)
+        t_1 = polygons[p + 1].get_triangles(step_size);
+      else
+        t_1 = polygons[0].get_triangles(step_size);
+      for (const Polygon &ta : t_0)
+        for (const Polygon &tb : t_1)
+          if (ta.intersects_with(tb))
+            return true;
+    }
+  }
+
+  return false;
+}
+
+
+using PointContainerCollection = std::vector<Geometry::PointContainer>;
+static bool intersects_overlaps(const PointContainerCollection &points)
+{
+  std::vector<Polygon> polygons;
+  for (const Geometry::PointContainer &polygon : points)
+  {
+    std::vector<Edge> edges;
+    for (size_t i = 0; i < polygon.size() - 1; ++i)
+      edges.push_back({polygon[i].first, polygon[i].second,
+              polygon[i+1].first, polygon[i+1].second});
+    polygons.push_back({edges});
+  }
+  return polygons_intersect(polygons) || polygons_overlap(polygons);
+}
+
+
 int Gis_multi_polygon::is_valid(int *valid) const
 {
   Geometry_buffer buffer;
   uint32 num_geometries;
-  std::vector<MBR> mbrs;
+  PointContainerCollection interior_points;
   Geometry *geometry;
   *valid= 0;
 
@@ -3664,21 +3910,19 @@ int Gis_multi_polygon::is_valid(int *valid) const
       return 1;
 
     int internal_valid;
-    const char *c_end;
-    MBR interior_mbr;
-    if (geometry->is_valid(&internal_valid) ||
-        geometry->get_mbr(&interior_mbr, &c_end))
+    if (geometry->is_valid(&internal_valid))
       return 1;
 
     if (!internal_valid)
       return 0;
 
-    for (const auto &mbr : mbrs)
-    {
-      if (interior_mbr.intersects(&mbr) && !interior_mbr.touches(&mbr))
-        return 0;
+    Geometry::PointContainer points;
+    geometry->get_points(points);  // returns true on error, not inspecting now
+    interior_points.push_back(points);  // one container per geometry
+    if (i > 1 && intersects_overlaps(interior_points)) {
+      *valid= 0;
+      return 0;
     }
-    mbrs.push_back(interior_mbr);
   }
 
   *valid= 1;
