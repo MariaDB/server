@@ -22,6 +22,7 @@
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
+#include "wsrep_schema.h" // wsrep_schema
 
 #include "slave.h" // opt_log_slave_updates
 #include "debug_sync.h"
@@ -180,6 +181,10 @@ int wsrep_apply_events(THD*        thd,
         {
           thd->variables.gtid_seq_no= gtid_ev->seq_no;
         }
+
+        if (wsrep_gtid_mode)
+          wsrep_schema->store_gtid_event(thd, gtid_ev);
+
         delete ev;
       }
       continue;
