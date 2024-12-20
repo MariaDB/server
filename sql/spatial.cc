@@ -1043,6 +1043,30 @@ const char *Geometry::get_mbr_for_points(MBR *mbr, const char *data,
   return data;
 }
 
+const char* Geometry::get_points_common(const char* data,
+                                        Geometry::PointContainer &points) const
+{
+  uint32 expected_points;
+  if (no_data(data, 4))
+    return nullptr;
+  expected_points= uint4korr(data);
+  data+= 4;
+
+  if (not_enough_points(data, expected_points, 0))
+    return nullptr;
+
+  while (expected_points--)
+  {
+    double x, y;
+    float8get(x, data);
+    float8get(y, data + SIZEOF_STORED_DOUBLE);
+    points.push_back(std::make_pair(x, y));
+    data+= POINT_DATA_SIZE;
+  }
+  return data;
+}
+
+
 
 /***************************** Point *******************************/
 
@@ -2075,6 +2099,21 @@ bool Gis_polygon::get_mbr(MBR *mbr, const char **end) const
   }
   *end= data;
   return 0;
+}
+
+bool Gis_polygon::get_points(Geometry::PointContainer &points) const
+{
+  uint32 n_linear_rings;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return true;
+  n_linear_rings= uint4korr(data);
+  data+= 4;
+
+  while (data && n_linear_rings--)
+    data= get_points_common(data, points);
+  return !data;
 }
 
 
@@ -3641,48 +3680,77 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
 }
 
 
+class Gcalc_mp_isvalid_transporter : public Gcalc_operation_transporter
+{
+public:
+  Gcalc_mp_isvalid_transporter(Gcalc_function *fn, Gcalc_heap *heap) :
+  Gcalc_operation_transporter(fn, heap) {}
+  int start_collection(int n_objects) override
+  {
+    if (m_fn->reserve_shape_buffer(n_objects) || m_fn->reserve_op_buffer(1))
+      return 1;
+    m_fn->add_operation(Gcalc_function::op_any_intersection, n_objects);
+    return 0;
+  }
+};
+
+
 int Gis_multi_polygon::is_valid(int *valid) const
 {
-  Geometry_buffer buffer;
+  int result= 0;
+  Gcalc_scan_iterator scan_it;
+  Gcalc_heap collector;
+  Gcalc_function func;
+  Gcalc_mp_isvalid_transporter trn(&func, &collector);
+  MBR mbr;
   uint32 num_geometries;
-  std::vector<MBR> mbrs;
-  Geometry *geometry;
-  *valid= 0;
+  const char *c_end;
 
   if (this->num_geometries(&num_geometries))
     return 1;
 
-  for (uint32 i= 1; i <= num_geometries; i++)
+  if (shapes_valid(valid))
+    return 1;
+
+  if (*valid == 0)
+    return 0;
+
+  if (num_geometries < 1)
   {
-    String wkb= 0;
-    if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
-      return 0;
-
-    wkb.q_append(SRID_PLACEHOLDER);
-    if (this->geometry_n(i, &wkb) ||
-        !(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
-      return 1;
-
-    int internal_valid;
-    const char *c_end;
-    MBR interior_mbr;
-    if (geometry->is_valid(&internal_valid) ||
-        geometry->get_mbr(&interior_mbr, &c_end))
-      return 1;
-
-    if (!internal_valid)
-      return 0;
-
-    for (const auto &mbr : mbrs)
-    {
-      if (interior_mbr.intersects(&mbr) && !interior_mbr.touches(&mbr))
-        return 0;
-    }
-    mbrs.push_back(interior_mbr);
+    *valid= 0;
+    return 0;
   }
+  
+  if(this->get_mbr(&mbr, &c_end))
+    return 1;
 
-  *valid= 1;
-  return 0;
+
+  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
+
+  if (func.reserve_op_buffer(1))
+    return 1;
+
+  func.add_operation(Gcalc_function::v_find_t | Gcalc_function::op_internals,
+                     1);
+
+  if (this->store_shapes(&trn))
+    return 1;
+
+  
+  collector.prepare_operation();
+  scan_it.init(&collector);
+
+  if (func.alloc_states())
+    goto exit;
+
+  *valid= !func.check_function(scan_it);
+
+exit:
+  collector.reset();
+  func.reset();
+  scan_it.reset();
+
+  return result;
 }
 
 
@@ -3890,6 +3958,38 @@ int Gis_multi_polygon::store_shapes(Gcalc_shape_transporter *trn) const
       return 1;
     data+= p.get_data_size();
   }
+  return 0;
+}
+
+
+int Gis_multi_polygon::shapes_valid(int *valid) const
+{
+  uint32 n_polygons;
+  Gis_polygon p;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_polygons= uint4korr(data);
+  data+= 4;
+
+  *valid= 0;
+
+  while (n_polygons--)
+  {
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    data+= WKB_HEADER_SIZE;
+    p.set_data_ptr(data, (uint32) (m_data_end - data));
+    if (p.is_valid(valid))
+      return 1;
+
+    if (*valid == 0)
+      break;
+
+    data+= p.get_data_size();
+  }
+
   return 0;
 }
 
