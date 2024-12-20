@@ -67,6 +67,16 @@ public:
     MEM_MAKE_ADDRESSABLE(small, sizeof small);
   }
 
+  void deep_clear() noexcept
+  {
+    if (small != BeginX)
+    {
+      my_free(BeginX);
+      BeginX= small;
+    }
+    set_size(0);
+  }
+
   using iterator= T *;
   using const_iterator= const T *;
   using reverse_iterator= std::reverse_iterator<iterator>;

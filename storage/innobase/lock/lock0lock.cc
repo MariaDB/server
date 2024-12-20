@@ -2302,7 +2302,7 @@ static void lock_grant(lock_t *lock)
     dict_table_t *table= lock->un_member.tab_lock.table;
     ut_ad(!table->autoinc_trx);
     table->autoinc_trx= trx;
-    ib_vector_push(trx->autoinc_locks, &lock);
+    trx->autoinc_locks.emplace_back(std::move(lock));
   }
 
   DBUG_PRINT("ib_lock", ("wait for trx " TRX_ID_FMT " ends", trx->id));
@@ -3646,7 +3646,7 @@ lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
 			ut_ad(!table->autoinc_trx);
 			table->autoinc_trx = trx;
 
-			ib_vector_push(trx->autoinc_locks, &lock);
+			trx->autoinc_locks.emplace_back(std::move(lock));
 			goto allocated;
 		}
 
@@ -3696,78 +3696,48 @@ allocated:
 }
 
 /*************************************************************//**
-Pops autoinc lock requests from the transaction's autoinc_locks. We
-handle the case where there are gaps in the array and they need to
-be popped off the stack. */
-UNIV_INLINE
-void
-lock_table_pop_autoinc_locks(
-/*=========================*/
-	trx_t*	trx)	/*!< in/out: transaction that owns the AUTOINC locks */
-{
-	ut_ad(!ib_vector_is_empty(trx->autoinc_locks));
-
-	/* Skip any gaps, gaps are NULL lock entries in the
-	trx->autoinc_locks vector. */
-
-	do {
-		ib_vector_pop(trx->autoinc_locks);
-
-		if (ib_vector_is_empty(trx->autoinc_locks)) {
-			return;
-		}
-
-	} while (*(lock_t**) ib_vector_get_last(trx->autoinc_locks) == NULL);
-}
-
-/*************************************************************//**
 Removes an autoinc lock request from the transaction's autoinc_locks. */
-UNIV_INLINE
+static
 void
 lock_table_remove_autoinc_lock(
 /*===========================*/
 	lock_t*	lock,	/*!< in: table lock */
 	trx_t*	trx)	/*!< in/out: transaction that owns the lock */
 {
-	ut_ad(lock->type_mode == (LOCK_AUTO_INC | LOCK_TABLE));
-	lock_sys.assert_locked(*lock->un_member.tab_lock.table);
-	ut_ad(trx->mutex_is_owner());
+  ut_ad(lock->type_mode == (LOCK_AUTO_INC | LOCK_TABLE));
+  lock_sys.assert_locked(*lock->un_member.tab_lock.table);
+  ut_ad(trx->mutex_is_owner());
 
-	auto s = ib_vector_size(trx->autoinc_locks);
-	ut_ad(s);
+  auto begin= trx->autoinc_locks.begin(), end= trx->autoinc_locks.end(), i=end;
+  ut_ad(begin != end);
 
-	/* With stored functions and procedures the user may drop
-	a table within the same "statement". This special case has
-	to be handled by deleting only those AUTOINC locks that were
-	held by the table being dropped. */
+  /* With stored functions and procedures the user may drop a table
+  within the same "statement". This special case has to be handled by
+  deleting only those AUTOINC locks that were held by the table being
+  dropped. */
 
-	lock_t*	autoinc_lock = *static_cast<lock_t**>(
-		ib_vector_get(trx->autoinc_locks, --s));
+  if (*--i == lock)
+  {
+    /* This is the default fast case. */
+    while (begin != i && !*--i) {}
+    trx->autoinc_locks.erase(i, end);
+  }
+  else
+  {
+    ut_a(*end);
+    /* Handle freeing the locks from within the stack. */
+    while (begin != end)
+    {
+      if (*--end == lock)
+      {
+        *end= nullptr;
+        return;
+      }
+    }
 
-	/* This is the default fast case. */
-
-	if (autoinc_lock == lock) {
-		lock_table_pop_autoinc_locks(trx);
-	} else {
-		/* The last element should never be NULL */
-		ut_a(autoinc_lock != NULL);
-
-		/* Handle freeing the locks from within the stack. */
-
-		while (s) {
-			autoinc_lock = *static_cast<lock_t**>(
-				ib_vector_get(trx->autoinc_locks, --s));
-
-			if (autoinc_lock == lock) {
-				void*	null_var = NULL;
-				ib_vector_set(trx->autoinc_locks, s, &null_var);
-				return;
-			}
-		}
-
-		/* Must find the autoinc lock. */
-		ut_error;
-	}
+    /* Must find the autoinc lock. */
+    ut_error;
+  }
 }
 
 /*************************************************************//**
@@ -6443,44 +6413,31 @@ lock_clust_rec_read_check_and_lock_alt(
 	return(err);
 }
 
-/*******************************************************************//**
-Check if a transaction holds any autoinc locks.
-@return TRUE if the transaction holds any AUTOINC locks. */
-static
-ibool
-lock_trx_holds_autoinc_locks(
-/*=========================*/
-	const trx_t*	trx)		/*!< in: transaction */
-{
-	ut_a(trx->autoinc_locks != NULL);
-
-	return(!ib_vector_is_empty(trx->autoinc_locks));
-}
-
 /** Release all AUTO_INCREMENT locks of the transaction. */
 static void lock_release_autoinc_locks(trx_t *trx)
 {
   {
+    auto begin= trx->autoinc_locks.begin(), end= trx->autoinc_locks.end();
+    ut_ad(begin != end);
     LockMutexGuard g{SRW_LOCK_CALL};
     mysql_mutex_lock(&lock_sys.wait_mutex);
     trx->mutex_lock();
-    auto autoinc_locks= trx->autoinc_locks;
-    ut_a(autoinc_locks);
 
     /* We release the locks in the reverse order. This is to avoid
     searching the vector for the element to delete at the lower level.
     See (lock_table_remove_low()) for details. */
-    while (ulint size= ib_vector_size(autoinc_locks))
+    do
     {
-      lock_t *lock= *static_cast<lock_t**>
-        (ib_vector_get(autoinc_locks, size - 1));
+      lock_t *lock= *--end;
       ut_ad(lock->type_mode == (LOCK_AUTO_INC | LOCK_TABLE));
       lock_table_dequeue(lock, true);
       lock_trx_table_locks_remove(lock);
     }
+    while (begin != end);
   }
   mysql_mutex_unlock(&lock_sys.wait_mutex);
   trx->mutex_unlock();
+  trx->autoinc_locks.clear();
 }
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
@@ -6502,8 +6459,18 @@ void lock_cancel_waiting_and_release(lock_t *lock)
   {
     if (lock->type_mode == (LOCK_AUTO_INC | LOCK_TABLE))
     {
-      ut_ad(trx->autoinc_locks);
-      ib_vector_remove(trx->autoinc_locks, lock);
+      /* This is similar to lock_table_remove_autoinc_lock() */
+      auto begin= trx->autoinc_locks.begin(), end= trx->autoinc_locks.end();
+      ut_ad(begin != end);
+      if (*--end == lock)
+        trx->autoinc_locks.erase(end, end + 1);
+      else
+        while (begin != end)
+          if (*--end == lock)
+          {
+            *end= nullptr;
+            break;
+          }
     }
     lock_table_dequeue(lock, true);
     /* Remove the lock from table lock vector too. */
@@ -6703,7 +6670,7 @@ lock_unlock_table_autoinc(
   ut_ad(trx_state == TRX_STATE_ACTIVE || trx_state == TRX_STATE_PREPARED ||
         trx_state == TRX_STATE_NOT_STARTED);
 
-  if (lock_trx_holds_autoinc_locks(trx))
+  if (!trx->autoinc_locks.empty())
     lock_release_autoinc_locks(trx);
 }
 

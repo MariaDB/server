@@ -32,10 +32,10 @@ Created 3/26/1996 Heikki Tuuri
 #include "que0types.h"
 #include "mem0mem.h"
 #include "trx0xa.h"
-#include "ut0vec.h"
 #include "fts0fts.h"
 #include "read0types.h"
 #include "ilist.h"
+#include "small_vector.h"
 
 #include <vector>
 
@@ -864,12 +864,10 @@ public:
 	ulint		n_autoinc_rows;	/*!< no. of AUTO-INC rows required for
 					an SQL statement. This is useful for
 					multi-row INSERTs */
-	ib_vector_t*    autoinc_locks;  /* AUTOINC locks held by this
-					transaction. Note that these are
-					also in the lock list trx_locks. This
-					vector needs to be freed explicitly
-					when the trx instance is destroyed.
-					Protected by lock_sys.latch. */
+  typedef small_vector<lock_t*, 4> autoinc_lock_vector;
+  /** AUTO_INCREMENT locks ehld by this transaction; a subset of trx_locks,
+  protected by lock_sys.latch. */
+  autoinc_lock_vector autoinc_locks;
 	/*------------------------------*/
 	bool		read_only;	/*!< true if transaction is flagged
 					as a READ-ONLY transaction.
@@ -1066,7 +1064,7 @@ public:
     ut_ad(!lock.wait_lock);
     ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
     ut_ad(lock.table_locks.empty());
-    ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
+    ut_ad(autoinc_locks.empty());
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(!dict_operation);
     ut_ad(!apply_online_log);
