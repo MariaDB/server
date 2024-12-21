@@ -6386,6 +6386,28 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
 static int
 binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
 {
+  /*
+    Tricky: The mysys IO_CACHE write function can be called either from
+    my_b_flush_io_cache(), where it must write everything it was asked to; or
+    from _my_b_write(), where it needs only write as much as is efficient (eg.
+    an integer multiple of some block size), and any remainder (which must be
+    < cache size) will be put in the cache.
+
+    The two cases are distinguished on whether the passed-in data pointer is
+    equal to cache->write_buffer or not.
+
+    We want each oob record to be the full size, so write only integer
+    multiples of the cache size in the latter case.
+  */
+  if (data != cache->write_buffer)
+  {
+    len-= (len % cache->buffer_length);
+    if (!len)
+      return false;
+  }
+
+  /* ToDo: If len > the cache size (32k default), then split up the write in multiple oob writes to the engine. This can happen if there is a large single write to the IO_CACHE. Maybe the split could happen also in the engine, depending if I want to split the size here to the binlog_cache_size which is known here, or if I want to split it to an engine imposed max size. But since the commit record size is determined by the upper layer here, I think it makes sense to determine the oob record size here also. */
+
   binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
   void **engine_ptr= &mngr->engine_binlog_info.engine_ptr;
   bool res= (*opt_binlog_engine_hton->binlog_oob_data)(mngr->thd, data, len,

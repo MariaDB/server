@@ -5855,21 +5855,6 @@ struct handler_binlog_event_group_info {
   Class for reading a binlog implemented in an engine.
 */
 class handler_binlog_reader {
-public:
-  /* ToDo: Should some of this state go to the derived class, in case different engines might want to do something different? */
-
-  /* The file number of the currently-being-read binlog file. */
-  uint64_t cur_file_no;
-  /* The current offset into the binlog file. */
-  uint64_t cur_file_offset;
-  /*
-    Open file handle of binlog file.
-    This may be NULL if the currently-being-read binlog file is "hot" and
-    is being read from in-memory buffers while the data may not yet be
-    written out to the file on the OS level.
-  */
-  File cur_file;
-
 private:
   /* Position and length of any remaining data in buf[]. */
   uint32_t buf_data_pos;
@@ -5880,8 +5865,7 @@ private:
 
 public:
   handler_binlog_reader()
-    : cur_file_no(~(uint64_t)0), cur_file_offset(0), cur_file((File)-1),
-      buf_data_pos(0), buf_data_remain(0)
+    : buf_data_pos(0), buf_data_remain(0)
   {
     buf= (uchar *)my_malloc(PSI_INSTRUMENT_ME, BUF_SIZE, MYF(0));
   }
@@ -5894,14 +5878,6 @@ public:
                             rpl_binlog_state_base *state) = 0;
 
   int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
-
-/*
-  cur_file_no      -> implicitly gives file/tablespace
-  cur_file_offset  -> implicitly gives page
-  cur_file_fh      -> open fh, if any
-  cur_chunk_len
-  cur_chunk_sofar
-*/
 };
 
 #endif /* HANDLER_INCLUDED */
