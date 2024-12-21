@@ -1,0 +1,69 @@
+--source include/have_innodb_binlog.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+# Test a number of transactions that are large and get interleaved with each
+# other over multiple binlog files.
+--let $NUM_CONNECTIONS= 5
+# $NUM_TRANSACTIONS is total, not per connection.
+--let $NUM_TRANSACTIONS=25
+--let $NUM_PIECES= 100
+--let $PIECE_SIZE= 2000
+
+
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c TEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0, 'Start');
+
+--echo *** Generating $NUM_TRANSACTIONS large transactions in $NUM_CONNECTIONS interleaved connections
+--disable_query_log
+let $t= 0;
+while ($t < $NUM_TRANSACTIONS) {
+  let $b= $t;
+  let $i= 1;
+  while ($i <= $NUM_CONNECTIONS) {
+    --connect(con$i,localhost,root,,)
+    START TRANSACTION;
+    eval INSERT INTO t1 VALUES ($b + $i, 0, 'Initial $i');
+    inc $i;
+    inc $t;
+  }
+
+  let $p= 1;
+  while ($p <= $NUM_PIECES) {
+    let $i= 1;
+    while ($i <= $NUM_CONNECTIONS) {
+      --connection con$i
+      eval INSERT INTO t1 VALUES ($b + $i, $p, REPEAT(CHR(65 + ($p + $i MOD 26)), $PIECE_SIZE));
+      inc $i;
+    }
+    inc $p;
+  }
+
+  let $i= 1;
+  while ($i <= $NUM_CONNECTIONS) {
+    --connection con$i
+    eval INSERT INTO t1 VALUES ($b + $i, $NUM_PIECES+1, 'Last $i');
+    COMMIT;
+    --disconnect con$i
+    inc $i;
+  }
+}
+--enable_query_log
+
+--connection master
+INSERT INTO t1 VALUES (0, 1, 'End');
+
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+--source include/save_master_gtid.inc
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+
+
+# Cleanup.
+--connection master
+DROP TABLE t1;
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
+--source include/rpl_end.inc
