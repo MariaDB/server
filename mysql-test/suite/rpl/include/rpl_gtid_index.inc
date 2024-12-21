@@ -109,7 +109,7 @@ while ($i < $NUM_POS) {
   --disable_result_log
   eval START SLAVE UNTIL master_gtid_pos='$gtid_pos';
   --enable_result_log
-  --let $res= `SELECT MASTER_GTID_WAIT('$gtid_pos')`
+  --let $res= `SELECT MASTER_GTID_WAIT('$gtid_pos', 60)`
   if ($res != 0) {
     --die "FAIL: MASTER_GTID_WAIT($gtid_pos) returned $res, should have been 0"
   }
@@ -154,7 +154,7 @@ while ($i <= $NUM_DOMAIN) {
   --disable_result_log
   eval START SLAVE UNTIL master_gtid_pos='$until_pos';
   --enable_result_log
-  --let $res= `SELECT MASTER_GTID_WAIT('$until_pos')`
+  --let $res= `SELECT MASTER_GTID_WAIT('$until_pos', 60)`
   if ($res != 0) {
     --die "FAIL: MASTER_GTID_WAIT($until_pos) returned $res, should have been 0"
   }
