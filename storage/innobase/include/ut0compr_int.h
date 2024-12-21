@@ -58,7 +58,7 @@ Created 2024-10-01 Kristian Nielsen <knielsen@knielsen-hq.org>
 
 #define COMPR_INT_MAX32 5
 #define COMPR_INT_MAX64 9
-#define COMPR_INT_MAX COMPR_INT_MAX_64
+#define COMPR_INT_MAX COMPR_INT_MAX64
 
 /* Write compressed unsigned integer */
 extern unsigned char *compr_int_write(unsigned char *p, uint64_t v);
