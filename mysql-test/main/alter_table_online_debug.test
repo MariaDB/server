@@ -2108,3 +2108,59 @@ eval set global default_storage_engine= $default_storage_engine;
 --echo #
 --echo # End of 11.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-35661 Assertion `!cache_list || cache_list->empty()' fails in
+--echo # online_alter_close_connection
+
+SET @isolation.save= @@global.innodb_snapshot_isolation;
+SET GLOBAL innodb_snapshot_isolation= ON;
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (col_char CHAR(224), id SERIAL) ENGINE=InnoDB;
+CREATE TABLE t3 (id int PRIMARY KEY, c char) ENGINE=innodb;
+INSERT INTO t3 VALUES (1, 'a');
+
+--connect (con1,localhost,root,,)
+--connect (con2,localhost,root,,)
+--connect (con3,localhost,root,,)
+XA BEGIN 'x1';
+INSERT INTO t2 () VALUES ();
+
+--connection con2
+XA START 'x2';
+SELECT * FROM t1;
+--error ER_CHECKREAD
+UPDATE t2 SET col_char = 'b';
+
+--connection con1
+set debug_sync= 'alter_table_online_before_lock signal downgraded wait_for go';
+--send
+ALTER TABLE t3 ADD KEY (c), lock=none, algorithm = copy;
+
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+DELETE FROM t3 WHERE id = 0;
+UPDATE t3 SET c = '';
+set debug_sync= 'now signal go';
+
+--connection con2
+--error ER_XA_RBROLLBACK
+XA END 'x2';
+XA ROLLBACK 'x2';
+--connection con1
+--reap
+--disconnect con1
+--disconnect con2
+--connection con3
+XA END 'x1';
+XA ROLLBACK 'x1';
+--disconnect con3
+
+--connection default
+DROP TABLE t1, t2, t3;
+SET GLOBAL innodb_snapshot_isolation= @isolation.save;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

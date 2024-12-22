@@ -225,7 +225,7 @@ bool XID_STATE::check_has_uncommitted_xa() const
 }
 
 
-XID *XID_STATE::get_xid() const
+XA_data *XID_STATE::get_xid() const
 {
   DBUG_ASSERT(is_explicit_XA());
   return &xid_cache_element->xid;

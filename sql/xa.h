@@ -37,7 +37,7 @@ struct XID_STATE {
   void set_online_alter_cache(Online_alter_cache_list *);
   void set_rollback_only();
   void er_xaer_rmfail() const;
-  XID *get_xid() const;
+  XA_data *get_xid() const;
   enum xa_states get_state_code() const;
 };
 
