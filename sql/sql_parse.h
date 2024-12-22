@@ -126,6 +126,8 @@ void init_update_queries(void);
 Item *normalize_cond(THD *thd, Item *cond);
 Item *negate_expression(THD *thd, Item *expr);
 bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
+bool process_ora_outer_join(THD *thd, SELECT_LEX *select,
+                            Item *cond, Item **transformed_cond);
 
 /* Variables */
 

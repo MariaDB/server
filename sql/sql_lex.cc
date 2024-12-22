@@ -2067,6 +2067,15 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         next_state= MY_LEX_START;
         return PERCENT_ORACLE_SYM;
       }
+      if (c == '(' && (m_thd->variables.sql_mode & MODE_ORACLE))
+      {
+        if (yyPeek() == '+' && yyPeekn(1) == ')')
+        {
+          yySkipn(2);
+          next_state= MY_LEX_START;
+          return ORACLE_JOIN;
+        }
+      }
       if (c == '[' && (m_thd->variables.sql_mode & MODE_MSSQL))
         return scan_ident_delimited(thd, &yylval->ident_cli, ']');
       /* Fall through */
@@ -8653,6 +8662,27 @@ Item *LEX::create_item_ident(THD *thd,
     return create_item_for_loop_bound(thd, &null_clex_str, b, c);
 
   return create_item_ident_field(thd, schema, *b, *c);
+}
+
+
+bool LEX::mark_item_ident_for_ora_join(THD *thd, Item *item)
+{
+  DBUG_ASSERT(item);
+
+  if (thd->variables.sql_mode & MODE_ORACLE)
+  {
+    if (current_select && current_select->parsing_place == IN_WHERE)
+    {
+      if (Item_field *item_field= dynamic_cast<Item_field*>(item))
+      {
+        item_field->with_flags|= item_with_t::ORA_JOIN;
+        return false;
+      }
+    }
+  }
+
+  thd->parse_error(ER_SYNTAX_ERROR);
+  return true;
 }
 
 

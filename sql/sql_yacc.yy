@@ -432,6 +432,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <NONE> AND_AND_SYM            /* OPERATOR */
 %token  <NONE> DOT_DOT_SYM            /* OPERATOR */
 %token  <NONE> EQUAL_SYM              /* OPERATOR */
+%token  <NONE> ORACLE_JOIN            /* OPERATOR */
 %token  <NONE> GE                     /* OPERATOR */
 %token  <NONE> LE                     /* OPERATOR */
 %token  <NONE> MYSQL_CONCAT_SYM       /* OPERATOR */
@@ -1476,6 +1477,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
         ignorability
+
+%type <num> opt_oracle_join
 
 %type <object_ddl_options>
         create_or_replace
@@ -12462,10 +12465,18 @@ opt_where_clause:
           search_condition
           {
             SELECT_LEX *select= Select;
-            select->where= normalize_cond(thd, $3);
+
+            Item *cond= $3;
+            if (thd->variables.sql_mode & MODE_ORACLE)
+            {
+              if (unlikely(process_ora_outer_join(thd, select, cond, &cond)))
+                MYSQL_YYABORT;
+            }
+            
+            select->where= normalize_cond(thd, cond);
             select->parsing_place= NO_MATTER;
-            if ($3)
-              $3->top_level_item();
+            if (cond)
+              cond->top_level_item();
           }
         ;
 
@@ -15816,6 +15827,10 @@ order_ident:
           expr { $$=$1; }
         ;
 
+opt_oracle_join:
+          _empty { $$= 0; }
+        | ORACLE_JOIN { $$= 1; }
+        ;
 
 simple_ident:
           ident_cli
@@ -15823,20 +15838,29 @@ simple_ident:
             if (unlikely(!($$= Lex->create_item_ident(thd, &$1))))
               MYSQL_YYABORT;
           }
-        | ident_cli '.' ident_cli
+        | ident_cli '.' ident_cli opt_oracle_join
           {
             if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3))))
               MYSQL_YYABORT;
+            
+            if ($4 && Lex->mark_item_ident_for_ora_join(thd, $$))
+              MYSQL_YYABORT;
           }
-        | '.' ident_cli '.' ident_cli
+        | '.' ident_cli '.' ident_cli opt_oracle_join
           {
             Lex_ident_cli empty($2.pos(), 0);
             if (unlikely(!($$= Lex->create_item_ident(thd, &empty, &$2, &$4))))
               MYSQL_YYABORT;
+            
+            if ($5 && Lex->mark_item_ident_for_ora_join(thd, $$))
+              MYSQL_YYABORT;
           }
-        | ident_cli '.' ident_cli '.' ident_cli
+        | ident_cli '.' ident_cli '.' ident_cli opt_oracle_join
           {
             if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5))))
+              MYSQL_YYABORT;
+            
+            if ($6 && Lex->mark_item_ident_for_ora_join(thd, $$))
               MYSQL_YYABORT;
           }
         | COLON_ORACLE_SYM ident_cli '.' ident_cli

@@ -4063,6 +4063,8 @@ public:
     return a.is_null() ? NULL : create_item_ident(thd, &a, &b, &c);
   }
 
+  bool mark_item_ident_for_ora_join(THD *thd, Item *item);
+
   /*
     Create an item for "NEXT VALUE FOR sequence_name"
   */
