@@ -9866,7 +9866,7 @@ static int calculate_server_uid(char *dest)
   int2store(rawbuf, mysqld_port);
   if (my_gethwaddr(rawbuf + 2))
   {
-    sql_print_error("feedback plugin: failed to retrieve the MAC address");
+    sql_print_warning("failed to retrieve the MAC address");
     return 1;
   }
 
