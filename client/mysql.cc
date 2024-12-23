@@ -5122,6 +5122,9 @@ put_info(const char *str,INFO_TYPE info_type, uint error, const char *sqlstate)
   }
   if (!opt_silent || info_type == INFO_ERROR)
   {
+    report_progress_end();
+    fflush(stdout);
+
     if (!inited)
     {
 #ifdef HAVE_SETUPTERM
