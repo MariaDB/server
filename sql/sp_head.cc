@@ -3665,6 +3665,17 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
   return res;
 }
 
+sp_lex_keeper::~sp_lex_keeper()
+{
+  if (m_lex_resp)
+  {
+    /* Prevent endless recursion. */
+    m_lex->sphead= NULL;
+    delete m_lex->result;
+    lex_end(m_lex);
+    delete m_lex;
+  }
+}
 
 /*
   sp_instr class functions

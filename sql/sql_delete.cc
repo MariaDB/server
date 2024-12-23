@@ -1422,6 +1422,13 @@ void multi_delete::abort_result_set()
 {
   DBUG_ENTER("multi_delete::abort_result_set");
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::send_eof().
+
+  ***************************************************************************/
+
   /* the error was handled or nothing deleted and no side effects return */
   if (error_handled ||
       (!thd->transaction->stmt.modified_non_trans_table && !deleted))
@@ -1621,6 +1628,13 @@ bool multi_delete::send_eof()
   killed_status= (local_error == 0)? NOT_KILLED : thd->killed;
   /* reset used flags */
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::abort_result_set().
+
+  ***************************************************************************/
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;

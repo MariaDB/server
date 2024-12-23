@@ -2743,6 +2743,13 @@ void multi_update::abort_result_set()
                (!thd->transaction->stmt.modified_non_trans_table && !updated)))
     return;
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_update::send_eof().
+
+  ***************************************************************************/
+
   /* Something already updated so we have to invalidate cache */
   if (updated)
     query_cache_invalidate3(thd, update_tables, 1);
@@ -3071,6 +3078,13 @@ bool multi_update::send_eof()
   */
   killed_status= (local_error == 0) ? NOT_KILLED : thd->killed;
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_update::abort_result_set().
+
+  ***************************************************************************/
 
   /* We must invalidate the query cache before binlog writing and
   ha_autocommit_... */

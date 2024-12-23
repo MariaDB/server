@@ -3194,7 +3194,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 
   if (lex->result)
   {
-    lex->result->cleanup();
+    lex->result->reset_for_next_ps_execution();
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func.clear_all();
