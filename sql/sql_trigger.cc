@@ -1297,8 +1297,9 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
 
   {
     int null_bytes= (table->s->fields - table->s->null_fields + 7)/8;
-    if (!(extra_null_bitmap= (uchar*)alloc_root(&table->mem_root, null_bytes)))
+    if (!(extra_null_bitmap= (uchar*)alloc_root(&table->mem_root, 2*null_bytes)))
       return 1;
+    extra_null_bitmap_init= extra_null_bitmap + null_bytes;
     if (!(record0_field= (Field **)alloc_root(&table->mem_root,
                                               (table->s->fields + 1) *
                                               sizeof(Field*))))
@@ -1323,13 +1324,17 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
           null_ptr++, null_bit= 1;
         else
           null_bit*= 2;
+        if (f->flags & NO_DEFAULT_VALUE_FLAG)
+          f->set_null();
+        else
+          f->set_notnull();
       }
       else
         *trg_fld= *fld;
     }
     *trg_fld= 0;
     DBUG_ASSERT(null_ptr <= extra_null_bitmap + null_bytes);
-    bzero(extra_null_bitmap, null_bytes);
+    memcpy(extra_null_bitmap_init, extra_null_bitmap, null_bytes);
   }
   else
   {

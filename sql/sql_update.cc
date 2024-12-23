@@ -996,8 +996,8 @@ update_begin:
     goto update_end;
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE) &&
-      !table->prepare_triggers_for_update_stmt_or_event())
+  if (!table->prepare_triggers_for_update_stmt_or_event() &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE)
     will_batch= !table->file->start_bulk_update();
 
   /*

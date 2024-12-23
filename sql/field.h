@@ -5846,7 +5846,7 @@ uint pack_length_to_packflag(uint type);
 enum_field_types get_blob_type_from_length(ulong length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
-int convert_null_to_field_value_or_error(Field *field);
+int convert_null_to_field_value_or_error(Field *field, uint err);
 bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
                       enum_vcol_info_type type, Alter_info *alter_info= NULL);
 

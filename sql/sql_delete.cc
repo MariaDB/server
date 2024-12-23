@@ -722,8 +722,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     table->mark_columns_needed_for_delete();
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
-      !table->prepare_triggers_for_delete_stmt_or_event())
+  if (!table->prepare_triggers_for_delete_stmt_or_event() &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE)
     will_batch= !table->file->start_bulk_delete();
 
   /*

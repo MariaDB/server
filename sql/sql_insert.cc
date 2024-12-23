@@ -1019,7 +1019,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           INSERT INTO t1 (fields) VALUES ...
           INSERT INTO t1 VALUES ()
         */
-        restore_record(table,s->default_values);	// Get empty record
+        restore_default_record_for_insert(table);
         table->reset_default_fields();
 
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table, fields,
@@ -1048,7 +1048,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         */
         if (thd->lex->used_tables || // Column used in values()
             table->s->visible_fields != table->s->fields)
-	  restore_record(table,s->default_values);	// Get empty record
+          restore_default_record_for_insert(table);
         else
         {
           TABLE_SHARE *share= table->s;
@@ -1082,24 +1082,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  }
 	  error=1;
 	  break;
-        }
-      }
-
-      /*
-        with triggers a field can get a value *conditionally*, so we have to
-        repeat has_no_default_value() check for every row
-      */
-      if (table->triggers &&
-          table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
-      {
-        for (Field **f=table->field ; *f ; f++)
-        {
-          if (unlikely(!(*f)->has_explicit_value() &&
-                       has_no_default_value(thd, *f, table_list)))
-          {
-            error= 1;
-            goto values_loop_end;
-          }
         }
       }
 
@@ -4081,7 +4063,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     */
     table->file->ha_start_bulk_insert((ha_rows) 0);
   }
-  restore_record(table,s->default_values);		// Get empty record
+  restore_default_record_for_insert(table);
   table->reset_default_fields();
   table->next_number_field=table->found_next_number_field;
 
@@ -4226,7 +4208,7 @@ int select_insert::send_data(List<Item> &values)
         originally touched by INSERT ... SELECT, so we have to restore
         their original values for the next row.
       */
-      restore_record(table, s->default_values);
+      restore_default_record_for_insert(table);
     }
     if (table->next_number_field)
     {

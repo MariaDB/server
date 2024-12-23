@@ -8622,7 +8622,6 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
 
     while ((item= it++))
       item->walk(&Item::switch_to_nullable_fields_processor, 1, field);
-    table->triggers->reset_extra_null_bitmap();
   }
 }
 
@@ -8676,8 +8675,14 @@ static bool not_null_fields_have_null_values(TABLE *table)
         swap_variables(uint32, of->flags, ff->flags);
         if (ff->is_real_null())
         {
+          uint err= ER_BAD_NULL_ERROR;
+          if (ff->flags & NO_DEFAULT_VALUE_FLAG && !ff->has_explicit_value())
+          {
+            err= ER_NO_DEFAULT_FOR_FIELD;
+            table->in_use->count_cuted_fields= CHECK_FIELD_WARN;
+          }
           ff->set_notnull(); // for next row WHERE condition in UPDATE
-          if (convert_null_to_field_value_or_error(of) || thd->is_error())
+          if (convert_null_to_field_value_or_error(of, err) || thd->is_error())
             return true;
         }
       }
