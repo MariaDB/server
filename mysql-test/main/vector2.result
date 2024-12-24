@@ -369,3 +369,20 @@ vec_totext(v)
 [7]
 [6]
 drop table t;
+#
+# MDEV-35309 - ALTER performs vector truncation without WARN_DATA_TRUNCATED or similar warnings/errors
+#
+create table t (v vector(2));
+insert into t values (0x3131313132323232);
+select * from t;
+v
+11112222
+alter table t modify v vector(1);
+ERROR 01000: Data truncated for column 'v' at row 1
+set statement sql_mode='' for alter table t modify v vector(1);
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 1
+select * from t;
+v
+1111
+drop table t;
