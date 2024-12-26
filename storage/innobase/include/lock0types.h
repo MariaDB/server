@@ -237,6 +237,26 @@ struct ib_lock_t
           return (type_mode & (LOCK_MODE_MASK | LOCK_GAP)) == LOCK_X;
         }
 
+        static inline bool is_rec_granted_X_not_ii_gap(unsigned type_mode)
+        {
+          return (type_mode & (LOCK_INSERT_INTENTION | LOCK_GAP |
+                               LOCK_MODE_MASK)) == LOCK_X;
+        }
+
+        bool is_rec_granted_X_not_ii_gap() const {
+          return is_rec_granted_X_not_ii_gap(type_mode);
+        }
+
+        /** Checks if a lock suits for bypassing.
+        @param blocking_trx           transaction for which the lock is checked
+        @param has_s_lock_or_stronger if the transaction already holds not gap
+                                      and not insert intention S-lock or
+                                      stronger for the same heap_no as the
+                                      current lock
+        @return true if lock suits, false otherwise */
+        inline bool can_be_bypassed(const trx_t *blocking_trx,
+                                    bool has_s_lock_or_stronger) const;
+
 	/** Print the lock object into the given output stream.
 	@param[in,out]	out	the output stream
 	@return the given output stream. */
