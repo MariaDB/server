@@ -3083,6 +3083,7 @@ Gtid_log_event::write(Log_event_writer *writer)
 int
 Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
                                       ulong ev_offset,
+                                      Format_description_log_event* fdev,
                                       enum_binlog_checksum_alg checksum_alg)
 {
   uchar flags2;
@@ -3097,7 +3098,7 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
   }
 
   *need_dummy_event= true;
-  return Query_log_event::begin_event(packet, ev_offset, checksum_alg);
+  return Query_log_event::begin_event(packet, ev_offset, fdev, checksum_alg);
 }
 
 
