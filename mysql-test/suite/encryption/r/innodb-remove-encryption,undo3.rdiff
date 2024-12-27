@@ -1,5 +1,5 @@
---- innodb-remove-encryption.result	2022-09-02 20:44:59.960430396 +0530
-+++ innodb-remove-encryption,undo3.reject	2022-11-29 19:02:24.813094277 +0530
+--- innodb-remove-encryption.result
++++ innodb-remove-encryption,undo3.reject
 @@ -13,6 +13,9 @@
  SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
  NAME

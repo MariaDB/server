@@ -1,5 +1,5 @@
---- innodb_encrypt_key_rotation_age.result	2022-06-02 16:15:08.395122720 +0530
-+++ innodb_encrypt_key_rotation_age,undo3.reject	2022-11-29 19:06:07.964542115 +0530
+--- innodb_encrypt_key_rotation_age.result
++++ innodb_encrypt_key_rotation_age,undo3.reject
 @@ -12,6 +12,9 @@
  SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
  NAME
