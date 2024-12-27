@@ -1046,8 +1046,8 @@ typedef struct system_status_var
   ulonglong table_open_cache_misses;
   ulonglong table_open_cache_overflows;
   ulonglong send_metadata_skips;
+  ulonglong cpu_time, busy_time, query_time;
   double last_query_cost;
-  double cpu_time, busy_time;
   uint32 threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */

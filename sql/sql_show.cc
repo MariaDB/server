@@ -3737,6 +3737,16 @@ const char* get_one_variable(THD *thd,
   case SHOW_SLONGLONG:
     end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;
+  case SHOW_MICROSECOND_STATUS:
+  {
+    /* Show a long long as double in seconds */
+    ulonglong microseconds;
+    value.as_char= status_var_value.as_char + value.as_intptr;
+    microseconds= *value.as_longlong;
+    /* 6 is the default precision for '%f' in sprintf() */
+    end= buff + my_fcvt(microseconds / 1000000.0, 6, buff, NULL);
+    break;
+  }
   case SHOW_HAVE:
     {
       pos= show_comp_option_name[(int) *value.as_show_comp_options];
