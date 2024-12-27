@@ -1,5 +1,5 @@
---- recovery_memory.result	2024-06-21 12:54:38.026355524 +0530
-+++ recovery_memory.reject	2024-06-21 17:22:49.394535026 +0530
+--- recovery_memory.result
++++ recovery_memory.reject
 @@ -23,6 +23,7 @@
  CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
  INSERT INTO t1 SELECT * FROM seq_1_to_65536;

@@ -1,5 +1,5 @@
---- tbl_opt_connection.result	2013-01-22 22:05:05.246633000 +0400
-+++ tbl_opt_connection.reject	2013-01-23 02:50:59.335506506 +0400
+--- tbl_opt_connection.result
++++ tbl_opt_connection.reject
 @@ -10,14 +10,14 @@
  t1	CREATE TABLE `t1` (
    `a` int(11) DEFAULT NULL,

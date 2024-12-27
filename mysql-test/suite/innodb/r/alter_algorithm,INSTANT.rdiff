@@ -1,5 +1,5 @@
---- alter_algorithm.result	2020-04-30 21:39:48.923115511 +0530
-+++ alter_algorithm.reject	2020-04-30 21:47:08.245465018 +0530
+--- alter_algorithm.result
++++ alter_algorithm.reject
 @@ -7,43 +7,35 @@
  INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
  SELECT @@alter_algorithm;

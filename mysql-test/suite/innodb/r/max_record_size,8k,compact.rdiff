@@ -1,5 +1,5 @@
---- max_record_size.result	2019-07-03 11:54:44.591421526 +0300
-+++ max_record_size.reject	2019-07-03 13:00:25.037261867 +0300
+--- max_record_size.result
++++ max_record_size.reject
 @@ -12,7 +12,7 @@
  c9 CHAR(255), c10 CHAR(255), c11 CHAR(255), c12 CHAR(255),
  c13 CHAR(255), c14 CHAR(255), c15 CHAR(255), c16 CHAR(255)

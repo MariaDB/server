@@ -1,5 +1,5 @@
---- suite/storage_engine/index.result	2017-03-12 04:57:07.169911845 +0200
-+++ suite/storage_engine/index.reject	2017-08-14 22:41:06.548555663 +0300
+--- suite/storage_engine/index.result
++++ suite/storage_engine/index.reject
 @@ -4,7 +4,7 @@
  ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  SHOW KEYS IN t1;

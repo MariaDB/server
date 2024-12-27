@@ -1,5 +1,5 @@
---- suite/storage_engine/parts/repair_table.result	2017-08-28 19:29:20.491633306 +0300
-+++ suite/storage_engine/parts/repair_table.reject	2017-08-28 19:34:41.723633059 +0300
+--- suite/storage_engine/parts/repair_table.result
++++ suite/storage_engine/parts/repair_table.reject
 @@ -1,232 +1,116 @@
  call mtr.add_suppression("Table '.*t1.*' is marked as crashed and should be repaired");
  DROP TABLE IF EXISTS t1, t2;

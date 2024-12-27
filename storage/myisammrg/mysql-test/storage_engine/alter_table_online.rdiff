@@ -1,5 +1,5 @@
---- suite/storage_engine/alter_table_online.result	2014-11-12 05:27:00.000000000 +0400
-+++ suite/storage_engine/alter_table_online.reject	2014-12-05 20:42:25.000000000 +0400
+--- suite/storage_engine/alter_table_online.result
++++ suite/storage_engine/alter_table_online.reject
 @@ -2,8 +2,35 @@
  CREATE TABLE t1 (a <INT_COLUMN>, b <INT_COLUMN>, c <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  INSERT INTO t1 (a,b,c) VALUES (1,100,'a'),(2,200,'b'),(3,300,'c');

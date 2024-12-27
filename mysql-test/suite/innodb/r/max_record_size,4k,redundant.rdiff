@@ -1,5 +1,5 @@
---- max_record_size.result	2019-07-03 11:54:44.591421526 +0300
-+++ max_record_size.reject	2019-07-03 12:58:58.318768169 +0300
+--- max_record_size.result
++++ max_record_size.reject
 @@ -1,47 +1,37 @@
  call mtr.add_suppression("Cannot add field `.*` in table `test`.`t1` because after adding it, the row size is");
  CREATE TABLE t1 (

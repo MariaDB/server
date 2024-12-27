@@ -1,5 +1,5 @@
---- mysql-test/main/select.result	2023-01-31 09:30:58.151377805 +0100
-+++ mysql-test/main/select.reject	2023-02-01 13:44:11.026958614 +0100
+--- mysql-test/main/select.result
++++ mysql-test/main/select.reject
 @@ -5661,6 +5661,8 @@
  Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #1
  Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #1
