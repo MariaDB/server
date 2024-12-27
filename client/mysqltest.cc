@@ -1602,7 +1602,7 @@ size_t print_file_stack(char *s, const char *end)
   for (;;)
   {
     err_file--;
-    s+= my_snprintf(s, end - s, "included from %s at line %d:\n",
+    s+= my_snprintf(s, end - s, "included from %s at line %u:\n",
                      err_file->file_name, err_file->lineno);
     if (err_file == file_stack)
       break;
@@ -1614,7 +1614,7 @@ size_t print_file_stack(char *s, const char *end)
 static void make_error_message(char *buf, size_t len, const char *fmt, va_list args)
 {
   char *s= buf, *end= buf + len;
-  s+= my_snprintf(s, end - s, "mysqltest: ");
+  s= strmake(s, "mysqltest: ", len-1);
   if (cur_file && cur_file != file_stack)
   {
     s+= my_snprintf(s, end - s, "In included file \"%s\": \n",
@@ -1623,12 +1623,12 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
   }
   
   if (start_lineno > 0)
-    s+= my_snprintf(s, end -s, "At line %u: ", start_lineno);
+    s+= my_snprintf(s, end - s, "At line %u: ", start_lineno);
   if (!fmt)
     fmt= "unknown error";
 
   s+= my_vsnprintf(s, end - s, fmt, args);
-  s+= my_snprintf(s, end -s, "\n");
+  strmake(s, "\n", end - s - 1);
 }
 
 static void die(const char *fmt, ...)
