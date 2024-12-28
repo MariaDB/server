@@ -171,7 +171,6 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET debug_dbug= '+d,binlog_inject_new_name_error';
 FLUSH LOGS;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 SET debug_dbug= @old_dbug;
 INSERT INTO t4 VALUES (2);
 connection slave;
