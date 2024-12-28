@@ -2726,7 +2726,10 @@ bool get_window_functions_required_cursors(
         item_win_func->requires_special_cursors())
     {
       if (add_special_frame_cursors(thd, cursor_manager, item_win_func))
+      {
+        delete cursor_manager;
         return true;
+      }
       cursor_managers->push_back(cursor_manager);
       continue;
     }
