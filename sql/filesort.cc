@@ -474,7 +474,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                     MYF(0),
                     ER_THD(thd, ER_FILSORT_ABORT),
                     kill_errno ? ER_THD(thd, kill_errno) :
-                    thd->killed == ABORT_QUERY ? "" :
+                    thd->killed == ABORT_QUERY ? "LIMIT ROWS EXAMINED" :
                     thd->get_stmt_da()->message());
 
     if (global_system_variables.log_warnings > 1)
