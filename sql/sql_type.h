@@ -4458,6 +4458,18 @@ public:
   {
     return NULL;
   }
+
+  /**
+     normalize_cond() replaces
+     `WHERE table_column` to
+     `WHERE table_column IS TRUE`
+     This method creates a literal Item corresponding to FALSE.
+     For example:
+      - for numeric data types it returns Item_int(0)
+      - for INET6 it returns Item_literal_fbt('::')
+  */
+  virtual Item_literal *create_boolean_false_item(THD *thd) const;
+
   /**
     A builder for literals with data type name prefix, e.g.:
       TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.

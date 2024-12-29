@@ -1649,7 +1649,7 @@ WHERE ( alias2.f1 , alias2.f2 ) IN ( SELECT max(f2) , f1 FROM t0 GROUP BY f2 , f
 f1	f2
 8	8
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'u'
+Warning	1292	Truncated incorrect BOOLEAN value: 'u'
 EXPLAIN
 SELECT * FROM t2 WHERE (f1b, f2b) IN (SELECT max(f1a), f2a FROM t1 GROUP BY f1a, f2a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1683,7 +1683,7 @@ WHERE ( alias2.f1 , alias2.f2 ) IN ( SELECT max(f2) , f1 FROM t0 GROUP BY f2 , f
 f1	f2
 8	8
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'u'
+Warning	1292	Truncated incorrect BOOLEAN value: 'u'
 EXPLAIN
 SELECT * FROM t2 WHERE (f1b, f2b) IN (SELECT max(f1a), f2a FROM t1 GROUP BY f1a, f2a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1875,8 +1875,8 @@ WHERE SUBQUERY2_t2.col_varchar_nokey IN
 (SELECT col_varchar_nokey FROM t1 GROUP BY col_varchar_nokey));
 col_int_key
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'v'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'v'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
 set @@optimizer_switch='subquery_cache=off,materialization=off,in_to_exists=on,semijoin=off';
 EXPLAIN
 SELECT col_int_key
@@ -1902,8 +1902,8 @@ WHERE SUBQUERY2_t2.col_varchar_nokey IN
 (SELECT col_varchar_nokey FROM t1 GROUP BY col_varchar_nokey));
 col_int_key
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'v'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'v'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
 drop table t1, t2;
 set @@optimizer_switch = @old_optimizer_switch;
 #

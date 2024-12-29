@@ -5310,11 +5310,11 @@ SELECT `varchar_nokey` G1  FROM CC  WHERE `int_nokey` AND `int_key`  <= 4
 HAVING G1  ORDER  BY `varchar_key` LIMIT  6   ;
 G1
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'z'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'q'
-Warning	1292	Truncated incorrect DECIMAL value: 'm'
-Warning	1292	Truncated incorrect DECIMAL value: 'j'
+Warning	1292	Truncated incorrect BOOLEAN value: 'z'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'q'
+Warning	1292	Truncated incorrect BOOLEAN value: 'm'
+Warning	1292	Truncated incorrect BOOLEAN value: 'j'
 DROP TABLE CC;
 # End of test#45227
 #                    

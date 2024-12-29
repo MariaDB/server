@@ -183,7 +183,7 @@ INSERT INTO t1 VALUES ('2024-02-29');
 SELECT * FROM t1 WHERE SUBSTR(1 FROM BIT_LENGTH(f) FOR DEFAULT(f));
 f
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect BOOLEAN value: ''
 DROP TABLE t1;
 #
 # End of 10.4 tests

@@ -868,7 +868,12 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::'),('::1'),('::2');
 SELECT * FROM t1 WHERE a;
-ERROR HY000: Illegal parameter data types inet6 and bigint for operation '<>'
+a
+::1
+::2
+SELECT * FROM t1 WHERE NOT a;
+a
+::
 DROP TABLE t1;
 #
 # GROUP BY
@@ -2091,9 +2096,9 @@ a	b
 foo	::
 bar	1::1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect BOOLEAN value: 'foo'
 Warning	1292	Incorrect inet6 value: 'foo'
-Warning	1292	Truncated incorrect DOUBLE value: 'bar'
+Warning	1292	Truncated incorrect BOOLEAN value: 'bar'
 Warning	1292	Incorrect inet6 value: 'bar'
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 (a VARCHAR(8) NOT NULL);
@@ -2419,3 +2424,256 @@ f::f
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
 # End of 10.8 tests
+# Start of 11.8 tests
+#
+# MDEV-34189 Unexpected error on `WHERE inet6col`
+#
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a INET6, KEY(a));
+INSERT INTO t1 VALUES (-1,NULL);
+INSERT INTO t1 SELECT seq,CONCAT('::',seq) FROM seq_0_to_31;
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE a;
+id	a
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE NOT a;
+id	a
+0	::
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE a IS TRUE;
+id	a
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not true
+SELECT id, a FROM t1 WHERE NOT a IS TRUE;
+id	a
+-1	NULL
+0	::
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS NOT TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not true
+SELECT id, a FROM t1 WHERE a IS NOT TRUE;
+id	a
+-1	NULL
+0	::
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS NOT TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE NOT a IS NOT TRUE;
+id	a
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE a IS FALSE;
+id	a
+0	::
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not false
+SELECT id, a FROM t1 WHERE NOT a IS FALSE;
+id	a
+-1	NULL
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS NOT FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not false
+SELECT id, a FROM t1 WHERE a IS NOT FALSE;
+id	a
+-1	NULL
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS NOT FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE NOT a IS NOT FALSE;
+id	a
+0	::
+DROP TABLE t1;
+# End of 11.8 tests

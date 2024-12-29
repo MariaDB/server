@@ -1132,6 +1132,20 @@ Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
 }
 
 
+bool Field_longstr::val_bool()
+{
+  DBUG_ASSERT(marked_for_read());
+  THD *thd= get_thd();
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> str;
+  val_str(&str, &str);
+  double res= Converter_strntod_with_warn(thd, Warn_filter(thd),
+                                          "BOOLEAN",
+                                          charset(),
+                                          str.ptr(), str.length()).result();
+  return res != 0.0;
+}
+
+
 /**
   @brief
   Determine the relative position of the field value in a numeric interval
@@ -7682,8 +7696,23 @@ double Field_string::val_real(void)
   const LEX_CSTRING str= to_lex_cstring();
   return Converter_strntod_with_warn(thd,
                                      Warn_filter_string(thd, this),
+                                     "DOUBLE",
                                      Field_string::charset(),
                                      str.str, str.length).result();
+}
+
+
+bool Field_string::val_bool()
+{
+  DBUG_ASSERT(marked_for_read());
+  THD *thd= get_thd();
+  const LEX_CSTRING str= to_lex_cstring();
+  double res= Converter_strntod_with_warn(thd,
+                                          Warn_filter_string(thd, this),
+                                          "BOOLEAN",
+                                          Field_string::charset(),
+                                          str.str, str.length).result();
+  return res != 0.0;
 }
 
 
@@ -8090,7 +8119,7 @@ double Field_varstring::val_real(void)
 {
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
-  return Converter_strntod_with_warn(thd, Warn_filter(thd),
+  return Converter_strntod_with_warn(thd, Warn_filter(thd), "DOUBLE",
                                      Field_varstring::charset(),
                                      (const char *) get_data(),
                                      get_length()).result();
@@ -8702,7 +8731,8 @@ double Field_varstring_compressed::val_real(void)
   THD *thd= get_thd();
   String buf;
   val_str(&buf, &buf);
-  return Converter_strntod_with_warn(thd, Warn_filter(thd), field_charset(),
+  return Converter_strntod_with_warn(thd, Warn_filter(thd), "DOUBLE",
+                                     field_charset(),
                                      buf.ptr(), buf.length()).result();
 }
 
@@ -8926,7 +8956,7 @@ double Field_blob::val_real(void)
   if (!blob)
     return 0.0;
   THD *thd= get_thd();
-  return  Converter_strntod_with_warn(thd, Warn_filter(thd),
+  return  Converter_strntod_with_warn(thd, Warn_filter(thd), "DOUBLE",
                                       Field_blob::charset(),
                                       blob, get_length(ptr)).result();
 }
@@ -9394,7 +9424,8 @@ double Field_blob_compressed::val_real(void)
   THD *thd= get_thd();
   String buf;
   val_str(&buf, &buf);
-  return Converter_strntod_with_warn(thd, Warn_filter(thd), field_charset(),
+  return Converter_strntod_with_warn(thd, Warn_filter(thd), "DOUBLE",
+                                     field_charset(),
                                      buf.ptr(), buf.length()).result();
 }
 

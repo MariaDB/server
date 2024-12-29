@@ -8150,6 +8150,46 @@ SEL_TREE *Item_func_ne::get_func_mm_tree(RANGE_OPT_PARAM *param,
 }
 
 
+SEL_TREE *Item_func_istrue::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                             Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_istrue::get_func_mm_tree");
+  // See comments in Item_func_ne::get_func_mm_tree()
+  if (param->using_real_indexes && is_field_an_unique_index(field))
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
+}
+
+
+SEL_TREE *Item_func_isnotfalse::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                 Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_notfalse::get_func_mm_tree");
+  // See comments in Item_func_ne::get_func_mm_tree()
+  if (param->using_real_indexes && is_field_an_unique_index(field))
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
+}
+
+
+SEL_TREE *Item_func_isfalse::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                              Field *field,
+                                              Item *value)
+{
+  DBUG_ENTER("Item_bool_isfalse::get_func_mm_tree");
+  DBUG_RETURN(get_mm_parts(param, field, EQ_FUNC, value));
+}
+
+
+SEL_TREE *Item_func_isnottrue::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                Field *field,
+                                                Item *value)
+{
+  DBUG_ENTER("Item_func_isnottrue::get_func_mm_tree");
+  DBUG_RETURN(get_mm_parts(param, field, EQ_FUNC, value));
+}
+
+
 SEL_TREE *Item_func_between::get_func_mm_tree(RANGE_OPT_PARAM *param,
                                               Field *field, Item *value)
 {
@@ -8926,6 +8966,38 @@ SEL_TREE *Item_func_in::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 } 
 
 
+SEL_TREE *Item_func_truth::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func_truth::get_mm_tree");
+  DBUG_ASSERT(arg_count == 1);
+  MEM_ROOT *old_root= param->thd->mem_root;
+  param->thd->mem_root= param->old_root;
+  Item *tmp= args[0]->type_handler()->create_boolean_false_item(param->thd);
+  param->thd->mem_root= old_root;
+
+  SEL_TREE *ftree= get_full_func_mm_tree_for_args(param, args[0], tmp);
+  if (!ftree)
+    goto err;
+  if (!affirmative) // x IS NOT {TRUE|FALSE}
+  {
+    /*
+      A non-affirmative boolean test works as follows:
+        - NULL IS NOT FALSE returns TRUE
+        - NULL IS NOT TRUE  returns TRUE
+      Let's add the "x IS NULL" tree:
+    */
+    SEL_TREE *ftree2= get_full_func_mm_tree_for_args(param, args[0], NULL);
+    if (!ftree2)
+      goto err;
+    ftree= tree_or(param, ftree, ftree2);
+  }
+err:
+  if (!ftree)
+    ftree= Item_func::get_mm_tree(param, cond_ptr);
+  DBUG_RETURN(ftree);
+}
+
+
 SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   DBUG_ENTER("Item_equal::get_mm_tree");
@@ -9291,6 +9363,28 @@ Item_func_null_predicate::get_mm_leaf(RANGE_OPT_PARAM *param,
     tree->max_flag=NO_MAX_RANGE;
   }
   DBUG_RETURN(tree);
+}
+
+
+SEL_ARG *
+Item_func_truth::get_mm_leaf(RANGE_OPT_PARAM *param,
+                             Field *field, KEY_PART *key_part,
+                             Item_func::Functype type,
+                             Item *value)
+{
+  MEM_ROOT *alloc= param->mem_root;
+  DBUG_ENTER("Item_func_truth::get_mm_leaf");
+  if (value) // Affirmative: x IS {FALSE|TRUE}
+    DBUG_RETURN(Item_bool_func::get_mm_leaf(param, field, key_part,
+                                            type, value));
+  DBUG_ASSERT(!affirmative); // x IS NOT {FALSE|TRUE}
+  /*
+    No check for field->table->maybe_null.
+     See comments in Item_func_null_predicate::get_mm_leaf()
+  */
+  if (!field->real_maybe_null())
+    DBUG_RETURN(&null_element);
+  DBUG_RETURN(new (alloc) SEL_ARG(field, is_null_string, is_null_string));
 }
 
 

@@ -264,6 +264,19 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  bool count_sargable_conds(void *arg) override;
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                       KEY_PART *key_part,
+                       Item_func::Functype type, Item *value) override;
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables) override;
+  virtual Item *negated_item(THD *thd) const = 0;
+  Item *neg_transformer(THD *thd) override
+  {
+    return negated_item(thd);
+  }
 
 protected:
   Item_func_truth(THD *thd, Item *a, bool a_value, bool a_affirmative):
@@ -298,6 +311,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("istrue") };
     return name;
   }
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value) override;
+  Item *negated_item(THD *thd) const override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_istrue>(thd, this); }
 };
@@ -318,6 +334,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("isnottrue") };
     return name;
   }
+  Item *negated_item(THD *thd) const override;
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value) override;
   bool find_not_null_fields(table_map allowed) override { return false; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnottrue>(thd, this); }
@@ -340,6 +359,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("isfalse") };
     return name;
   }
+  Item *negated_item(THD *thd) const override;
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isfalse>(thd, this); }
 };
@@ -360,7 +382,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("isnotfalse") };
     return name;
   }
+  Item *negated_item(THD *thd) const override;
   bool find_not_null_fields(table_map allowed) override { return false; }
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnotfalse>(thd, this); }
   bool eval_not_null_tables(void *) override
