@@ -8944,7 +8944,7 @@ Item *normalize_cond(THD *thd, Item *cond)
     {
       item_base_t is_cond_flag= cond->base_flags & item_base_t::IS_COND;
       cond->base_flags&= ~item_base_t::IS_COND;
-      cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
+      cond= new (thd->mem_root) Item_func_istrue(thd, cond);
       if (cond)
         cond->base_flags|= is_cond_flag;
     }
@@ -8958,8 +8958,7 @@ Item *normalize_cond(THD *thd, Item *cond)
           Item *arg= func_item->arguments()[0];
           if (arg->type() == Item::FIELD_ITEM ||
               arg->type() == Item::REF_ITEM)
-            cond= new (thd->mem_root) Item_func_eq(thd, arg,
-                                          new (thd->mem_root) Item_int(thd, 0));
+            cond= new (thd->mem_root) Item_func_isfalse(thd, arg);
         }
       }
     }

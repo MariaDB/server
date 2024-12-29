@@ -3546,20 +3546,28 @@ GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
 HAVING @A := 'qwerty';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: 'qwerty'
 SELECT DISTINCT BIT_OR(100) OVER () FROM dual
 GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
 HAVING @A := 'qwerty';
 BIT_OR(100) OVER ()
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: 'qwerty'
 explain
 SELECT DISTINCT BIT_OR(100) OVER () FROM dual
 GROUP BY LEFT('2018-08-24', 100)
 HAVING @A := 'qwerty';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: 'qwerty'
 SELECT DISTINCT BIT_OR(100) OVER () FROM dual
 GROUP BY LEFT('2018-08-24', 100)
 HAVING @A := 'qwerty';
 BIT_OR(100) OVER ()
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: 'qwerty'
 create table t1 (a int);
 explain
 SELECT DISTINCT BIT_OR(100) OVER () FROM t1

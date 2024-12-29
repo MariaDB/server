@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 --echo #
 --echo # MDEV-4958 Adding datatype UUID
 --echo #
@@ -585,17 +587,13 @@ INSERT INTO t1 VALUES
 SELECT a, a IS TRUE, a IS FALSE FROM t1 ORDER BY a;
 DROP TABLE t1;
 
-#
-# TODO: Error looks like a bug. This should return rows where a<>'00000000-0000-0000-0000-000000000000'.
-# The same problem is repeatable with GEOMETRY.
-#
 CREATE TABLE t1 (a UUID);
 INSERT INTO t1 VALUES
 ('00000000-0000-0000-0000-000000000000'),
 ('00000000-0000-0000-0000-000000000001'),
 ('00000000-0000-0000-0000-000000000002');
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT * FROM t1 WHERE a;
+SELECT * FROM t1 WHERE a ORDER BY a;
+SELECT * FROM t1 WHERE NOT a;
 DROP TABLE t1;
 
 
@@ -1697,3 +1695,20 @@ INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000000');
 SELECT * FROM t1 WHERE a IN ('','00000000-0000-0000-0000-000000000001');
 SELECT * FROM t1 WHERE a='';
 DROP TABLE t1;
+
+--echo # End of 10.6 tests
+
+--echo # Start of 11.8 tests
+
+--echo #
+--echo # MDEV-34189 Unexpected error on `WHERE inet6col`
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a UUID, KEY(a));
+INSERT INTO t1 VALUES (-1,NULL);
+INSERT INTO t1 VALUES (0,'00000000-0000-0000-0000-000000000000');
+INSERT INTO t1 SELECT seq,concat('ba2f21be-d306-11ef-ab9e-', lpad(seq,12,'0')) FROM seq_1_to_31;
+--source include/boolean_factor.inc
+DROP TABLE t1;
+
+--echo # End of 11.8 tests

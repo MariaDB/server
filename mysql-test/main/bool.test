@@ -1,3 +1,4 @@
+--source include/have_sequence.inc
 #
 # Test of boolean operations with NULL
 #
@@ -62,3 +63,18 @@ select ifnull(A=1, 'N') as A, ifnull(B=1, 'N') as B, ifnull(not (A=1), 'N') as n
 drop table t1;
 
 # End of 4.1 tests
+
+
+--echo # Start of 10.6 tests
+
+--echo #
+--echo # MDEV-34189 Unexpected error on `WHERE inet6col`
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a INT, KEY(a));
+INSERT INTO t1 VALUES (-1,NULL);
+INSERT INTO t1 SELECT seq,seq FROM seq_0_to_31;
+--source include/boolean_factor.inc
+DROP TABLE t1;
+
+--echo # End of 10.6 tests

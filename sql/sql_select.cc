@@ -7113,6 +7113,26 @@ Item_bool_func2::add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
 
 
 void
+Item_func_truth::add_key_fields(JOIN *join,
+                                KEY_FIELD **key_fields,
+                                uint *and_level,
+                                table_map usable_tables,
+                                SARGABLE_PARAM **sargables)
+{
+  if (is_local_field(args[0]))
+  {
+    Item *tmp= args[0]->type_handler()->create_boolean_false_item(join->thd);
+    if (unlikely(!tmp))
+      return;
+    add_key_equal_fields(join, key_fields, *and_level, this,
+                         (Item_field*) args[0]->real_item(),
+                         false/*equal_func*/,
+                         &tmp, 1, usable_tables, sargables);
+  }
+}
+
+
+void
 Item_func_null_predicate::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                                          uint *and_level,
                                          table_map usable_tables,

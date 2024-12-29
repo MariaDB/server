@@ -1281,6 +1281,37 @@ bool Item_func_truth::val_bool()
 }
 
 
+bool Item_func_truth::count_sargable_conds(void *arg)
+{
+  ((SELECT_LEX*) arg)->cond_count++;
+  return 0;
+}
+
+
+Item *Item_func_istrue::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isnottrue(thd, args[0]);
+}
+
+
+Item *Item_func_isnottrue::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_istrue(thd, args[0]);
+}
+
+
+Item *Item_func_isfalse::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isnotfalse(thd, args[0]);
+}
+
+
+Item *Item_func_isnotfalse::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isfalse(thd, args[0]);
+}
+
+
 void Item_in_optimizer::fix_after_pullout(st_select_lex *new_parent,
                                           Item **ref, bool merge)
 {

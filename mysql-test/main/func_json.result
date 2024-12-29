@@ -755,6 +755,9 @@ create table t1(a double not null);
 insert into t1 values (2),(1);
 select 1 from t1 where json_extract(a,'$','$[81]');
 1
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: '[2]'
+Warning	1292	Truncated incorrect BOOLEAN value: '[1]'
 drop table t1;
 select json_extract('{"test":8.437e-5}','$.test');
 json_extract('{"test":8.437e-5}','$.test')

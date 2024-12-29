@@ -49,9 +49,14 @@ DROP TABLE t2, t1;
 #
 CREATE TEMPORARY TABLE v0 ( v1 TEXT ( 15 ) CHAR SET BINARY NOT NULL NOT NULL UNIQUE CHECK ( v1 ) ) REPLACE SELECT NULL AS v3 , 74 AS v2 ;
 ERROR HY000: Field 'v1' doesn't have a default value
+SET @@sql_mode='';
 CREATE TEMPORARY TABLE t1 (i TEXT(15) NOT NULL DEFAULT '' UNIQUE CHECK (i)) engine=innodb
 REPLACE SELECT NULL AS a;
 ERROR 23000: CONSTRAINT `t1.i` failed for `test`.`t1`
+SET @@sql_mode=DEFAULT;
+CREATE TEMPORARY TABLE t1 (i TEXT(15) NOT NULL DEFAULT '' UNIQUE CHECK (i)) engine=innodb
+REPLACE SELECT NULL AS a;
+ERROR 22007: Truncated incorrect BOOLEAN value: ''
 #
 # End of 10.5 tests
 #

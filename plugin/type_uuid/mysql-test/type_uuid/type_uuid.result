@@ -1983,8 +1983,13 @@ INSERT INTO t1 VALUES
 ('00000000-0000-0000-0000-000000000000'),
 ('00000000-0000-0000-0000-000000000001'),
 ('00000000-0000-0000-0000-000000000002');
-SELECT * FROM t1 WHERE a;
-ERROR HY000: Illegal parameter data types uuid and bigint for operation '<>'
+SELECT * FROM t1 WHERE a ORDER BY a;
+a
+00000000-0000-0000-0000-000000000001
+00000000-0000-0000-0000-000000000002
+SELECT * FROM t1 WHERE NOT a;
+a
+00000000-0000-0000-0000-000000000000
 DROP TABLE t1;
 #
 # GROUP BY
@@ -3214,3 +3219,258 @@ Warnings:
 Warning	1292	Incorrect uuid value: ''
 Warning	1292	Incorrect uuid value: ''
 DROP TABLE t1;
+# End of 10.6 tests
+# Start of 11.8 tests
+#
+# MDEV-34189 Unexpected error on `WHERE inet6col`
+#
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a UUID, KEY(a));
+INSERT INTO t1 VALUES (-1,NULL);
+INSERT INTO t1 VALUES (0,'00000000-0000-0000-0000-000000000000');
+INSERT INTO t1 SELECT seq,concat('ba2f21be-d306-11ef-ab9e-', lpad(seq,12,'0')) FROM seq_1_to_31;
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE a;
+id	a
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE NOT a;
+id	a
+0	00000000-0000-0000-0000-000000000000
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE a IS TRUE;
+id	a
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not true
+SELECT id, a FROM t1 WHERE NOT a IS TRUE;
+id	a
+-1	NULL
+0	00000000-0000-0000-0000-000000000000
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS NOT TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not true
+SELECT id, a FROM t1 WHERE a IS NOT TRUE;
+id	a
+-1	NULL
+0	00000000-0000-0000-0000-000000000000
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS NOT TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE NOT a IS NOT TRUE;
+id	a
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE a IS FALSE;
+id	a
+0	00000000-0000-0000-0000-000000000000
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not false
+SELECT id, a FROM t1 WHERE NOT a IS FALSE;
+id	a
+-1	NULL
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS NOT FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not false
+SELECT id, a FROM t1 WHERE a IS NOT FALSE;
+id	a
+-1	NULL
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS NOT FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE NOT a IS NOT FALSE;
+id	a
+0	00000000-0000-0000-0000-000000000000
+DROP TABLE t1;
+# End of 11.8 tests

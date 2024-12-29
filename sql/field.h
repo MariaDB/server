@@ -281,13 +281,16 @@ protected:
   // String-to-number converters with automatic warning generation
   class Converter_strntod_with_warn: public Converter_strntod
   {
+    const char *m_data_type;
   public:
     Converter_strntod_with_warn(THD *thd, Warn_filter filter,
+                                const char *data_type,
                                 CHARSET_INFO *cs,
                                 const char *str, size_t length)
-      :Converter_strntod(cs, str, length)
+      :Converter_strntod(cs, str, length),
+       m_data_type(data_type)
     {
-      check_edom_and_truncation(thd, filter, "DOUBLE", cs, str, length);
+      check_edom_and_truncation(thd, filter, m_data_type, cs, str, length);
     }
   };
 
@@ -354,7 +357,7 @@ protected:
   double double_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
                                        const char *end) const
   {
-    return Converter_strntod_with_warn(NULL, Warn_filter_all(),
+    return Converter_strntod_with_warn(NULL, Warn_filter_all(), "DOUBLE",
                                        cs, cptr, end - cptr).result();
   }
   my_decimal *decimal_from_string_with_check(my_decimal *decimal_value,
@@ -2326,7 +2329,7 @@ public:
   uint32 max_data_length() const override;
   void make_send_field(Send_field *) override;
   bool send(Protocol *protocol) override;
-
+  bool val_bool() override;
   bool is_varchar_and_in_write_set() const override
   {
     DBUG_ASSERT(table && table->write_set);
@@ -4145,6 +4148,7 @@ public:
   using Field_str::store;
   double val_real() override;
   longlong val_int() override;
+  bool val_bool() override;
   String *val_str(String *, String *) override;
   my_decimal *val_decimal(my_decimal *) override;
   int cmp(const uchar *,const uchar *) const override;

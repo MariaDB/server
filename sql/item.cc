@@ -235,6 +235,22 @@ String *Item::val_string_from_int(String *str)
 }
 
 
+bool Item::val_bool_from_str()
+{
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buffer;
+  String *str= val_str(&buffer);
+  DBUG_ASSERT((str == nullptr) == null_value);
+  if (!str)
+    return false;
+  THD *thd= current_thd;
+  double res= Converter_strntod_with_warn(thd, Warn_filter_all(),
+                                          "BOOLEAN",
+                                          str->charset(),
+                                          str->ptr(), str->length()).result();
+  return res != 0e0;
+}
+
+
 longlong Item::val_int_from_str(int *error)
 {
   char buff[MAX_FIELD_WIDTH];
@@ -3459,6 +3475,15 @@ longlong Item_field::val_int()
   if ((null_value=field->is_null()))
     return 0;
   return field->val_int();
+}
+
+
+bool Item_field::val_bool()
+{
+  DBUG_ASSERT(fixed());
+  if ((null_value= field->is_null()))
+    return 0;
+  return field->val_bool();
 }
 
 
@@ -9901,6 +9926,12 @@ void Item_default_value::calculate()
   if (field->default_value)
     field->set_default();
   DEBUG_SYNC(field->table->in_use, "after_Item_default_value_calculate");
+}
+
+bool Item_default_value::val_bool()
+{
+  calculate();
+  return Item_field::val_bool();
 }
 
 bool Item_default_value::val_native(THD *thd, Native *to)
