@@ -1246,6 +1246,36 @@ bool Item_func_truth::val_bool()
 }
 
 
+Item *Item_func_truth::neg_transformer(THD *thd)  /* NOT(x)  ->  x */
+{
+  return negated_item(thd);
+}
+
+
+Item *Item_func_istrue::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isnottrue(thd, args[0]);
+}
+
+
+Item *Item_func_isnottrue::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_istrue(thd, args[0]);
+}
+
+
+Item *Item_func_isfalse::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isnotfalse(thd, args[0]);
+}
+
+
+Item *Item_func_isnotfalse::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isfalse(thd, args[0]);
+}
+
+
 bool Item_in_optimizer::is_top_level_item() const
 {
   return args[1]->is_top_level_item();
@@ -7980,4 +8010,11 @@ Item *Item_equal::multiple_equality_transformer(THD *thd, uchar *arg)
     return new (thd->mem_root) Item_cond_and(thd, equalities);
     break;
   }
+}
+
+
+bool Item_func_truth::count_sargable_conds(void *arg)
+{
+  ((SELECT_LEX*) arg)->cond_count++;
+  return 0;
 }

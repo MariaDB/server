@@ -1874,6 +1874,11 @@ public:
     return Item_func_or_sum_illegal_param(item);
   }
 
+  Item_literal *create_boolean_false_item(THD *thd) const override
+  {
+    return new (thd->mem_root) Item_literal_fbt(thd);
+  }
+
   static Type_handler_fbt *singleton()
   {
     static Type_handler_fbt th;

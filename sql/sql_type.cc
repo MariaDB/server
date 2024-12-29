@@ -5191,7 +5191,7 @@ bool Type_handler_temporal_result::Item_val_bool(Item *item) const
 
 bool Type_handler_string_result::Item_val_bool(Item *item) const
 {
-  return item->val_real() != 0.0;
+  return item->val_bool_from_str();
 }
 
 
@@ -7999,6 +7999,12 @@ Item *Type_handler_interval_DDhhmmssff::
   return new (thd->mem_root) Item_interval_DDhhmmssff_typecast(thd, item,
                                                                (uint)
                                                                attr.decimals());
+}
+
+/***************************************************************************/
+Item_literal *Type_handler::create_boolean_false_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_int(thd, 0);
 }
 
 /***************************************************************************/
