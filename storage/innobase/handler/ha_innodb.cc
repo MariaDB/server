@@ -1889,6 +1889,12 @@ static void sst_enable_innodb_writes()
 
 static void innodb_disable_internal_writes(bool disable)
 {
+  /*
+    this works only in the SST donor thread and is not yet fixed
+    to work in a normal connection thread
+  */
+  if (thd_get_thread_id(current_thd)) // if normal thread
+    return;
   if (disable)
     sst_disable_innodb_writes();
   else
