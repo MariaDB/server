@@ -7454,9 +7454,13 @@ static void sysvar_path_freeup(char **tokens, int count)
   if (tokens)
   {
     for (int i = 0; i < count; i++)
+    {
       free(tokens[i]);
+      tokens[i] = NULL;
+    }
 
     free(tokens);
+    tokens = NULL;
   }
 }
 
@@ -7465,8 +7469,10 @@ static bool sysvar_path_check_duplicate(char** tokens, int count)
   for (int i = 0; i < count; i++)
   {
     for (int j = i + 1; j < count; j++)
-    if ( strcmp(tokens[i], tokens[j]) == 0 )
-      return true;
+    {
+      if ( strcmp(tokens[i], tokens[j]) == 0 )
+        return true;
+    }
   }
 
   return false;
@@ -7526,79 +7532,154 @@ static bool sysvar_path_is_quote(CHARSET_INFO *cs, char *token,
 }
 
 static bool sysvar_path_handle_quote_delimited(CHARSET_INFO *cs, char **tokens,
-  int count, bool ansi_quotes, bool use_mb)
+  int *count, bool ansi_quotes, bool use_mb)
 {
   bool ret = false;
   size_t len = 0;
+  int ccount = 0;
+  bool prefix;
+  int qqty[2];  // quote qty
 
-  for (int i = 0; i < count; i++)
+  struct qobj
   {
+    char quote;
+    int *qty;
+    int *chk;
+  };
+  qobj q[2];
+
+  qqty[0] = 0;  //  '`'
+  qqty[1] = 0;  // '\"'
+  q[0].quote = '`' ; q[0].qty = &qqty[0]; q[0].chk = &qqty[1];
+  q[1].quote = '\"'; q[1].qty = &qqty[1]; q[1].chk = &qqty[0];
+
+again:
+  for (int i = ccount; i < *count; i++)
+  {
+    if (ret) break;
     len = strlen( tokens[i] );
-    if (len > 2)
+    if (len == 1)
     {
-      if ( sysvar_path_is_quote(cs, tokens[i], true, use_mb, '`') == true )
+      for (int j = 0; j < 2; j++)
       {
-        if ( sysvar_path_is_quote(cs, tokens[i], false, use_mb, '`') == true )
+        if (tokens[i][0] == q[j].quote)
         {
-          memcpy(tokens[i], &tokens[i][1], len - 2);
-          tokens[i][len - 2] = 0;
-        }
-        else  // broken quote
-        {
-          ret = true;
-          break;
-        }
-      }
-      else if( sysvar_path_is_quote(cs, tokens[i], true, use_mb, '\"') == true )
-      {
-        if(ansi_quotes == true)
-        {
-          if( sysvar_path_is_quote(cs, tokens[i], false, use_mb, '\"') == true )
-          {
-            memcpy(tokens[i], &tokens[i][1], len - 2);
-            tokens[i][len - 2] = 0;
-          }
-          else  // broken quote
+          if (j == 1 && ansi_quotes == false)
           {
             ret = true;
             break;
           }
+          if ( *(q[j].chk) % 2 )
+          {
+            ret = true;
+            break;
+          }
+          else
+          {
+            free(tokens[i]);
+            tokens[i] = NULL;
+            (*count)--;
+            (*(q[j].qty))++;
+            if ( (i + 1) < *count )
+            {
+              int k = i + 1;
+              for (; k < *count; k++)
+                tokens[i] = tokens[k];
+              free(tokens[k - 1]);
+              tokens[k - 1] = NULL;
+              ccount = i;
+              goto again;
+            }
+            break;
+          }
         }
-        else
+      }
+    }
+    else if (len > 1)
+    {
+      for (int j = 0; j < 2; j++)
+      {
+        if (ret) break;
+        if(j == 0) prefix = true;
+        else       prefix = false;
+
+        for (int k = 0; k < 2; k++)
         {
-          ret = true;
-          break;
+          if ( sysvar_path_is_quote(cs, tokens[i], prefix, use_mb, q[k].quote) == true )
+          {
+            if (k == 1 && ansi_quotes == false)
+            {
+              ret = true;
+              break;
+            }
+            if ( *(q[k].chk) % 2 )
+            {
+              ret = true;
+              break;
+            }
+            else
+            {
+              if (prefix)
+              {
+                memcpy(tokens[i], &tokens[i][1], len - 1);
+                tokens[i][len - 1] = 0;
+                (*(q[k].qty))++;
+                len--;
+                break;
+              }
+              else
+              {
+                if (len == 1)
+                {
+                  free(tokens[i]);
+                  tokens[i] = NULL;
+                  (*count)--;
+                  (*(q[j].qty))++;
+                  if ( (i + 1) < *count )
+                  {
+                    int l = i + 1;
+                    for (; l < *count; l++)
+                      tokens[i] = tokens[l];
+                    free(tokens[l - 1]);
+                    tokens[l - 1] = NULL;
+                    ccount = i;
+                    goto again;
+                  }
+                  break;
+                }
+                else if (len > 1)
+                {
+                  tokens[i][len - 1] = 0;
+                  (*(q[k].qty))++;
+                  break;
+                }
+                else
+                {
+                  ret = true;
+                  break;
+                }
+              }
+            }
+          }
         }
       }
-      else if( sysvar_path_is_quote(cs, tokens[i], false, use_mb, '`') == true )
-      {
-        ret = true;
-        break;
-      }
-      else if( sysvar_path_is_quote(cs, tokens[i], false, use_mb, '\"') == true )
-      {
-        ret = true;
-        break;
-      }
     }
-    else if (len == 2)
+    else
     {
-      if( (sysvar_path_is_quote(cs, tokens[i], true,  use_mb, '`')  == true) ||
-          (sysvar_path_is_quote(cs, tokens[i], true,  use_mb, '\"') == true) ||
-          (sysvar_path_is_quote(cs, tokens[i], false, use_mb, '`')  == true) ||
-          (sysvar_path_is_quote(cs, tokens[i], false, use_mb, '\"') == true)  )
-      {
-        ret = true;
-        break;
-      }
+      ret = true;
+      break;
     }
-    else if (len == 1)
+  }
+
+  if (*count < 1)
+    ret = true;
+
+  if (!ret)
+  {
+    if (qqty[0] != 0 || qqty[1] != 0)
     {
-      if (tokens[i][0] == '`' || tokens[i][0] == '\"')
-      {
+      if (qqty[0] % 2 || qqty[1] % 2)
         ret = true;
-        break;
-      }
     }
   }
 
@@ -7673,7 +7754,7 @@ static bool sysvar_path_parsing_utf(CHARSET_INFO *cs, LEX_CSTRING *cstring,
     goto err;
 
   return ( sysvar_path_handle_quote_delimited(cs, *tokens,
-          *token_cnt, ansi_quotes, true) );
+          token_cnt, ansi_quotes, true) );
 
 err:
   return true;
@@ -7719,7 +7800,7 @@ static bool sysvar_path_parsing_ascii(CHARSET_INFO *cs, LEX_CSTRING *cstring,
   free(input_str);
 
   return ( sysvar_path_handle_quote_delimited(cs, *tokens,
-          *token_cnt, ansi_quotes, false) );
+          token_cnt, ansi_quotes, false) );
 
 err:
   if (input_str)

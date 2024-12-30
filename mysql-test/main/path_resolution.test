@@ -25,46 +25,34 @@
 # 2. function / procedure: To test function or procedure routine                     #
 # 3. is unqualified / is qualified: The test is contained unqualified routine only   #
 #                                   or qualified routine or package                  #
-# 4. curr db: Current selected database before execute the test                       #
+# 4. curr db: Current selected database before execute the test                      #
 # 5. path set: is the system variable, path, set during the test?                    #
 ######################################################################################
 
+CREATE DATABASE test2;
+
 --echo #
+--echo # type 1.1
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: X | path set: no
 --echo #
 
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 --error ER_SP_DOES_NOT_EXIST
 SELECT func();
 
-# subtest finish, deinit
-USE test;
-DROP FUNCTION func;
-
 
 
 --echo #
+--echo # type 1.2
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: X | path set: yes
 --echo #
 
-USE test;
-
-CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-
 # set path
 SET path 'sys,test';
 
@@ -72,77 +60,53 @@ SET path 'sys,test';
 SELECT func();
 
 # subtest finish, deinit
-USE test;
-DROP FUNCTION func;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 1.3
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: test2 | path set: no
 --echo #
 
-USE test;
-
-CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
-
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
 SELECT func();
 
-# subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP FUNCTION func;
-
 
 
 --echo #
+--echo # type 1.4
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: test2 | path set: yes
 --echo #
-
-USE test;
-
-CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP FUNCTION func;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 1.5
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: X | path set: yes
 --echo # lookup in between 2 unqualified functions with exactly the same name in different 2 databases
 --echo #
 
-USE test;
-CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
-
-CREATE DATABASE test2;
 USE test2;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 
 # subtest start
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 # set path
 SET path 'test,test2';
 SELECT func();
@@ -155,13 +119,12 @@ DROP FUNCTION test.func;
 SELECT func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 1.6
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: test2 | path set: yes
 --echo # lookup in between 2 unqualified functions with exactly the same name in different 2 databases
@@ -174,7 +137,6 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT func();
 
@@ -188,13 +150,12 @@ DROP FUNCTION test.func;
 SELECT func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 1.7
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: X | path set: yes
 --echo # to test unqualified function invocation in an unqualified function
@@ -203,26 +164,19 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 
 USE test;
 CREATE FUNCTION func_call_func() RETURNS TEXT RETURN func();
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT func_call_func();
 
 USE test;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT func_call_func();
 
 DROP FUNCTION test.func;
@@ -232,7 +186,6 @@ DROP FUNCTION test2.func;
 SELECT func_call_func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP FUNCTION func_call_func;
 SET @@path = DEFAULT;
@@ -240,6 +193,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 1.8
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: test | path set: yes
 --echo # to test unqualified function invocation in an unqualified function
@@ -248,7 +202,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'sys,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 
@@ -268,11 +221,14 @@ DROP FUNCTION test2.func;
 SELECT func_call_func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP FUNCTION func_call_func;
 SET @@path = DEFAULT;
+
+
+
 --echo #
+--echo # type 2.1
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: X | path set: no
 --echo #
@@ -290,45 +246,20 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 --error ER_SP_DOES_NOT_EXIST
 SELECT pack.func();
 
-# subtest finish, deinit
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-
 
 
 --echo #
+--echo # type 2.2
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: X | path set: yes
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack
-  FUNCTION func() RETURNS TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-END;
-$$
-DELIMITER ;$$
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-
 # set path
 SET path 'sys,test';
 
@@ -336,99 +267,48 @@ SET path 'sys,test';
 SELECT pack.func();
 
 # subtest finish, deinit
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 2.3
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: test2 | path set: no
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack
-  FUNCTION func() RETURNS TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-END;
-$$
-DELIMITER ;$$
-
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
 SELECT pack.func();
 
-# subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-
 
 
 --echo #
+--echo # type 2.4
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: test2 | path set: yes
 --echo #
-
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack
-  FUNCTION func() RETURNS TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-END;
-$$
-DELIMITER ;$$
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 2.5
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: X | path set: yes
 --echo # lookup in between 2 qualified packages function with exactly the same name in different 2 databases
 --echo #
 
-USE test;
-DELIMITER $$;
-CREATE PACKAGE pack
-  FUNCTION func() RETURNS TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-END;
-$$
-DELIMITER ;$$
-
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack
@@ -442,10 +322,7 @@ $$
 DELIMITER ;$$
 
 # subtest start
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 # set path
 SET path 'test,test2';
 SELECT pack.func();
@@ -460,13 +337,12 @@ DROP PACKAGE test.pack;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 2.6
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # lookup in between 2 qualified packages function with exactly the same name in different 2 databases
@@ -489,7 +365,6 @@ DELIMITER ;$$
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT pack.func();
 
@@ -514,22 +389,20 @@ DROP PACKAGE test.pack;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 2.7
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: X | path set: yes
---echo # to test unqualified function invocation in an qualified package function
+--echo # to test unqualified function invocation in a qualified package function
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
 
@@ -545,19 +418,13 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func();
 
 USE test;
 CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_local';
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func();
 
 DROP FUNCTION test.func_local;
@@ -567,7 +434,6 @@ DROP FUNCTION test2.func_local;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -576,15 +442,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 2.8
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: test | path set: yes
---echo # to test unqualified function invocation in an qualified package function
+--echo # to test unqualified function invocation in a qualified package function
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
 
@@ -612,7 +478,6 @@ DROP FUNCTION test2.func_local;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -621,15 +486,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 2.9
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: X | path set: yes
---echo # to test qualified package function invocation in an qualified package function
+--echo # to test qualified package function invocation in a qualified package function
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack2
@@ -654,10 +519,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func();
 
 USE test;
@@ -672,10 +534,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func();
 
 DROP PACKAGE BODY test.pack2;
@@ -687,7 +546,6 @@ DROP PACKAGE test2.pack2;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -696,15 +554,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 2.10
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: test | path set: yes
---echo # to test qualified package function invocation in an qualified package function
+--echo # to test qualified package function invocation in a qualified package function
 --echo #
 
 # subtest start
 SET path 'sys,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack2
@@ -753,7 +611,6 @@ DROP PACKAGE test2.pack2;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -762,6 +619,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 2.11
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: X | path set: yes
 --echo # resolution priority in between qualified package function vs qualified db function resolution
@@ -783,10 +641,7 @@ CREATE DATABASE pack;
 USE pack;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 SELECT pack.func();
@@ -801,13 +656,12 @@ DROP FUNCTION pack.func;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE pack;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 2.12
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: test | path set: yes
 --echo # resolution priority in between qualified package function vs qualified db function resolution
@@ -825,7 +679,6 @@ END;
 $$
 DELIMITER ;$$
 
-CREATE DATABASE pack;
 USE pack;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
 
@@ -840,13 +693,12 @@ DROP FUNCTION pack.func;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE pack;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 2.13
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # resolution priority in between qualified package function vs qualified db function resolution
@@ -864,12 +716,10 @@ END;
 $$
 DELIMITER ;$$
 
-CREATE DATABASE pack;
 USE pack;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT pack.func();
 # set path
@@ -884,13 +734,12 @@ SELECT pack.func();
 
 # subtest finish, deinit
 DROP DATABASE pack;
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 2.14
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: X | path set: yes
 --echo # qualified package function invoke internal private function
@@ -899,7 +748,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_prv';
 
@@ -919,24 +767,16 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func_pub();
 
 # subtest finish, deinit
-DROP FUNCTION test2.func_prv;
-DROP DATABASE test2;
-USE test;
-DROP FUNCTION func_prv;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 2.15
 --echo # sql_mode: DEFAULT | function | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # qualified package function invoke internal private function
@@ -945,32 +785,11 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
-USE test2;
-CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_prv';
-
-USE test;
-CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_prv';
-
-DELIMITER $$;
-CREATE PACKAGE pack
-  FUNCTION func_pub() RETURNS TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack
-  FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
-
-  FUNCTION func_pub() RETURNS TEXT RETURN func_prv();
-END;
-$$
-DELIMITER ;$$
-
 USE test2;
 SELECT pack.func_pub();
 
 # subtest finish, deinit
 DROP FUNCTION func_prv;
-DROP DATABASE test2;
 USE test;
 DROP FUNCTION func_prv;
 DROP PACKAGE BODY pack;
@@ -980,43 +799,27 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 3.1
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: X | path set: no
 --echo #
 
-USE test;
-
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 --error ER_NO_DB_ERROR
 CALL proc;
 
-# subtest finish, deinit
-USE test;
-DROP PROCEDURE proc;
-
 
 
 --echo #
+--echo # type 3.2
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: X | path set: yes
 --echo #
 
-USE test;
-
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-
 # set path
 SET path 'sys,test';
 
@@ -1024,77 +827,53 @@ SET path 'sys,test';
 CALL proc;
 
 # subtest finish, deinit
-USE test;
-DROP PROCEDURE proc;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 3.3
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: test2 | path set: no
 --echo #
 
-USE test;
-
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
-
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
 CALL proc;
 
-# subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PROCEDURE proc;
-
 
 
 --echo #
+--echo # type 3.4
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: test2 | path set: yes
 --echo #
-
-USE test;
-
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PROCEDURE proc;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 3.5
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: X | path set: yes
 --echo # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
 --echo #
 
-USE test;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
-
-CREATE DATABASE test2;
 USE test2;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 
 # subtest start
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 # set path
 SET path 'test,test2';
 CALL proc;
@@ -1107,27 +886,24 @@ DROP PROCEDURE test.proc;
 CALL proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 3.6
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: test2 | path set: yes
 --echo # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
 --echo #
 
 USE test;
-
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL proc;
 
@@ -1141,13 +917,12 @@ DROP PROCEDURE test.proc;
 CALL proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 3.7
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: X | path set: yes
 --echo # to test unqualified procedure invocation in an unqualified procedure
@@ -1156,26 +931,19 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 
 USE test;
 CREATE PROCEDURE proc_call_proc() CALL proc;
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL proc_call_proc;
 
 USE test;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL proc_call_proc;
 
 DROP PROCEDURE test.proc;
@@ -1185,7 +953,6 @@ DROP PROCEDURE test2.proc;
 CALL proc_call_proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PROCEDURE proc_call_proc;
 SET @@path = DEFAULT;
@@ -1193,6 +960,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 3.8
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: test | path set: yes
 --echo # to test unqualified procedure invocation in an unqualified procedure
@@ -1201,7 +969,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'sys,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 
@@ -1221,7 +988,6 @@ DROP PROCEDURE test2.proc;
 CALL proc_call_proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PROCEDURE proc_call_proc;
 SET @@path = DEFAULT;
@@ -1229,6 +995,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 4.1
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: X | path set: no
 --echo #
@@ -1246,45 +1013,20 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 --error ER_SP_DOES_NOT_EXIST
 CALL pack.proc;
 
-# subtest finish, deinit
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-
 
 
 --echo #
+--echo # type 4.2
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: X | path set: yes
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack
-  PROCEDURE proc();
-END;
-$$
-CREATE PACKAGE BODY pack
-  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-END;
-$$
-DELIMITER ;$$
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-
 # set path
 SET path 'sys,test';
 
@@ -1292,99 +1034,48 @@ SET path 'sys,test';
 CALL pack.proc;
 
 # subtest finish, deinit
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 4.3
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: test2 | path set: no
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack
-  PROCEDURE proc();
-END;
-$$
-CREATE PACKAGE BODY pack
-  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-END;
-$$
-DELIMITER ;$$
-
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
 CALL pack.proc;
 
-# subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-
 
 
 --echo #
+--echo # type 4.4
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: test2 | path set: yes
 --echo #
-
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack
-  PROCEDURE proc();
-END;
-$$
-CREATE PACKAGE BODY pack
-  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-END;
-$$
-DELIMITER ;$$
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 4.5
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: X | path set: yes
 --echo # lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
 --echo #
 
-USE test;
-DELIMITER $$;
-CREATE PACKAGE pack
-  PROCEDURE proc();
-END;
-$$
-CREATE PACKAGE BODY pack
-  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-END;
-$$
-DELIMITER ;$$
-
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack
@@ -1398,10 +1089,7 @@ $$
 DELIMITER ;$$
 
 # subtest start
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 # set path
 SET path 'test,test2';
 CALL pack.proc;
@@ -1416,13 +1104,12 @@ DROP PACKAGE test.pack;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 4.6
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
@@ -1445,7 +1132,6 @@ DELIMITER ;$$
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL pack.proc;
 
@@ -1470,22 +1156,20 @@ DROP PACKAGE test.pack;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 4.7
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: X | path set: yes
---echo # to test unqualified procedure invocation in an qualified package procedure
+--echo # to test unqualified procedure invocation in a qualified package procedure
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
 
@@ -1501,19 +1185,13 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc;
 
 USE test;
 CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc;
 
 DROP PROCEDURE test.proc_local;
@@ -1523,7 +1201,6 @@ DROP PROCEDURE test2.proc_local;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -1532,15 +1209,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 4.8
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: test | path set: yes
---echo # to test unqualified procedure invocation in an qualified package procedure
+--echo # to test unqualified procedure invocation in a qualified package procedure
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
 
@@ -1568,7 +1245,6 @@ DROP PROCEDURE test2.proc_local;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -1577,15 +1253,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 4.9
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: X | path set: yes
---echo # to test qualified package procedure invocation in an qualified package procedure
+--echo # to test qualified package procedure invocation in a qualified package procedure
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack2
@@ -1610,10 +1286,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc;
 
 USE test;
@@ -1628,10 +1301,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc;
 
 DROP PACKAGE BODY test.pack2;
@@ -1643,7 +1313,6 @@ DROP PACKAGE test2.pack2;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -1652,15 +1321,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 4.10
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: test | path set: yes
---echo # to test qualified package procedure invocation in an qualified package procedure
+--echo # to test qualified package procedure invocation in a qualified package procedure
 --echo #
 
 # subtest start
 SET path 'sys,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack2
@@ -1709,7 +1378,6 @@ DROP PACKAGE test2.pack2;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -1718,6 +1386,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 4.11
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: X | path set: yes
 --echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
@@ -1739,10 +1408,7 @@ CREATE DATABASE pack;
 USE pack;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 CALL pack.proc;
@@ -1757,13 +1423,12 @@ DROP PROCEDURE pack.proc;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE pack;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 4.12
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: test | path set: yes
 --echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
@@ -1781,7 +1446,6 @@ END;
 $$
 DELIMITER ;$$
 
-CREATE DATABASE pack;
 USE pack;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
 
@@ -1796,13 +1460,12 @@ DROP PROCEDURE pack.proc;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE pack;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 4.13
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
@@ -1820,12 +1483,10 @@ END;
 $$
 DELIMITER ;$$
 
-CREATE DATABASE pack;
 USE pack;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL pack.proc;
 # set path
@@ -1840,13 +1501,12 @@ CALL pack.proc;
 
 # subtest finish, deinit
 DROP DATABASE pack;
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 4.14
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: X | path set: yes
 --echo # qualified package procedure invoke internal private procedure
@@ -1855,57 +1515,8 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test2, Rt: proc_prv';
-
-USE test;
-CREATE PROCEDURE proc_prv()
-  SELECT 'Invoke from Db: test, Rt: proc_prv';
-
-DELIMITER $$;
-CREATE PACKAGE pack
-  PROCEDURE proc_pub();
-END;
-$$
-CREATE PACKAGE BODY pack
-  PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
-
-  PROCEDURE proc_pub() CALL proc_prv;
-END;
-$$
-DELIMITER ;$$
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-CALL pack.proc_pub;
-
-# subtest finish, deinit
-DROP PROCEDURE test2.proc_prv;
-DROP DATABASE test2;
-USE test;
-DROP PROCEDURE proc_prv;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-SET @@path = DEFAULT;
-
-
-
---echo #
---echo # sql_mode: DEFAULT | procedure | is qualified
---echo # curr db: test2 | path set: yes
---echo # qualified package procedure invoke internal private procedure
---echo #
-
-# subtest start
-SET path 'test,test2';
-
-CREATE DATABASE test2;
-USE test2;
-CREATE PROCEDURE proc_prv()
-  SELECT 'Invoke from Db: test2, Rt: proc_prv';
 
 USE test;
 CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Rt: proc_prv';
@@ -1923,12 +1534,29 @@ END;
 $$
 DELIMITER ;$$
 
+--source include/deselect_db.inc
+CALL pack.proc_pub;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.15
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # qualified package procedure invoke internal private procedure
+--echo #
+
+# subtest start
+SET path 'test,test2';
+
 USE test2;
 CALL pack.proc_pub;
 
 # subtest finish, deinit
 DROP PROCEDURE proc_prv;
-DROP DATABASE test2;
 USE test;
 DROP PROCEDURE proc_prv;
 DROP PACKAGE BODY pack;
@@ -1938,6 +1566,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 5.1
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: X | path set: no
 --echo #
@@ -1955,42 +1584,20 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 --error ER_SP_DOES_NOT_EXIST
 SELECT func();
 
-# subtest finish, deinit
-USE test;
-DROP FUNCTION func;
-
 
 
 --echo #
+--echo # type 5.2
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: X | path set: yes
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE FUNCTION func()
-  RETURN TEXT AS
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-
 # set path
 SET path 'sys,test';
 
@@ -1998,90 +1605,48 @@ SET path 'sys,test';
 SELECT func();
 
 # subtest finish, deinit
-USE test;
-DROP FUNCTION func;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 5.3
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: test2 | path set: no
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE FUNCTION func()
-  RETURN TEXT AS
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
-
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
 SELECT func();
 
-# subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP FUNCTION func;
-
 
 
 --echo #
+--echo # type 5.4
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: test2 | path set: yes
 --echo #
-
-USE test;
-
-DELIMITER $$;
-CREATE FUNCTION func()
-  RETURN TEXT AS
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP FUNCTION func;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 5.5
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: X | path set: yes
 --echo # lookup in between 2 unqualified functions with exactly the same name in different 2 databases
 --echo #
 
-USE test;
-DELIMITER $$;
-CREATE FUNCTION func()
-  RETURN TEXT AS
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
-
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE FUNCTION func()
@@ -2093,10 +1658,7 @@ $$
 DELIMITER ;$$
 
 # subtest start
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 # set path
 SET path 'test,test2';
 SELECT func();
@@ -2109,20 +1671,18 @@ DROP FUNCTION test.func;
 SELECT func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 5.6
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: test2 | path set: yes
 --echo # lookup in between 2 unqualified functions with exactly the same name in different 2 databases
 --echo #
 
 USE test;
-
 DELIMITER $$;
 CREATE FUNCTION func()
   RETURN TEXT AS
@@ -2136,7 +1696,6 @@ DELIMITER ;$$
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT func();
 
@@ -2157,13 +1716,12 @@ DROP FUNCTION test.func;
 SELECT func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 5.7
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: X | path set: yes
 --echo # to test unqualified function invocation in an unqualified function
@@ -2172,7 +1730,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE FUNCTION func()
@@ -2193,10 +1750,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT func_call_func();
 
 USE test;
@@ -2209,10 +1763,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT func_call_func();
 
 DROP FUNCTION test.func;
@@ -2222,7 +1773,6 @@ DROP FUNCTION test2.func;
 SELECT func_call_func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP FUNCTION func_call_func;
 SET @@path = DEFAULT;
@@ -2230,6 +1780,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 5.8
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: test | path set: yes
 --echo # to test unqualified function invocation in an unqualified function
@@ -2238,7 +1789,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'sys,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE FUNCTION func()
@@ -2279,7 +1829,6 @@ DROP FUNCTION test2.func;
 SELECT func_call_func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP FUNCTION func_call_func;
 SET @@path = DEFAULT;
@@ -2287,6 +1836,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 6.1
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: X | path set: no
 --echo #
@@ -2307,48 +1857,20 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 --error ER_SP_DOES_NOT_EXIST
 SELECT pack.func();
 
-# subtest finish, deinit
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-
 
 
 --echo #
+--echo # type 6.2
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: X | path set: yes
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack AS
-  FUNCTION func() RETURN TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  FUNCTION func() RETURN TEXT AS
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
-END;
-$$
-DELIMITER ;$$
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-
 # set path
 SET path 'sys,test';
 
@@ -2356,108 +1878,48 @@ SET path 'sys,test';
 SELECT pack.func();
 
 # subtest finish, deinit
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 6.3
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: test2 | path set: no
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack AS
-  FUNCTION func() RETURN TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  FUNCTION func() RETURN TEXT AS
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
-END;
-$$
-DELIMITER ;$$
-
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
 SELECT pack.func();
 
-# subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-
 
 
 --echo #
+--echo # type 6.4
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: test2 | path set: yes
 --echo #
-
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack AS
-  FUNCTION func() RETURN TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  FUNCTION func() RETURN TEXT AS
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
-END;
-$$
-DELIMITER ;$$
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 6.5
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: X | path set: yes
 --echo # lookup in between 2 qualified packages function with exactly the same name in different 2 databases
 --echo #
 
-USE test;
-DELIMITER $$;
-CREATE PACKAGE pack AS
-  FUNCTION func() RETURN TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  FUNCTION func() RETURN TEXT AS
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
-END;
-$$
-DELIMITER ;$$
-
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack AS
@@ -2474,10 +1936,7 @@ $$
 DELIMITER ;$$
 
 # subtest start
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 # set path
 SET path 'test,test2';
 SELECT pack.func();
@@ -2492,13 +1951,12 @@ DROP PACKAGE test.pack;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 6.6
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # lookup in between 2 qualified packages function with exactly the same name in different 2 databases
@@ -2524,7 +1982,6 @@ DELIMITER ;$$
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT pack.func();
 
@@ -2552,22 +2009,20 @@ DROP PACKAGE test.pack;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 6.7
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: X | path set: yes
---echo # to test unqualified function invocation in an qualified package function
+--echo # to test unqualified function invocation in a qualified package function
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE FUNCTION func_local()
@@ -2593,10 +2048,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func();
 
 USE test;
@@ -2609,10 +2061,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func();
 
 DROP FUNCTION test.func_local;
@@ -2622,7 +2071,6 @@ DROP FUNCTION test2.func_local;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -2631,15 +2079,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 6.8
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: test | path set: yes
---echo # to test unqualified function invocation in an qualified package function
+--echo # to test unqualified function invocation in a qualified package function
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE FUNCTION func_local()
@@ -2684,7 +2132,6 @@ DROP FUNCTION test2.func_local;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -2693,15 +2140,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 6.9
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: X | path set: yes
---echo # to test qualified package function invocation in an qualified package function
+--echo # to test qualified package function invocation in a qualified package function
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack2 AS
@@ -2732,10 +2179,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func();
 
 USE test;
@@ -2753,10 +2197,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func();
 
 DROP PACKAGE BODY test.pack2;
@@ -2768,7 +2209,6 @@ DROP PACKAGE test2.pack2;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -2777,15 +2217,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 6.10
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: test | path set: yes
---echo # to test qualified package function invocation in an qualified package function
+--echo # to test qualified package function invocation in a qualified package function
 --echo #
 
 # subtest start
 SET path 'sys,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack2 AS
@@ -2843,7 +2283,6 @@ DROP PACKAGE test2.pack2;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -2852,6 +2291,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 6.11
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: X | path set: yes
 --echo # resolution priority in between qualified package function vs qualified db function resolution
@@ -2883,10 +2323,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 SELECT pack.func();
@@ -2901,13 +2338,12 @@ DROP FUNCTION pack.func;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE pack;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 6.12
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: test | path set: yes
 --echo # resolution priority in between qualified package function vs qualified db function resolution
@@ -2928,7 +2364,6 @@ END;
 $$
 DELIMITER ;$$
 
-CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
 CREATE FUNCTION func()
@@ -2950,13 +2385,12 @@ DROP FUNCTION pack.func;
 SELECT pack.func();
 
 # subtest finish, deinit
-DROP DATABASE pack;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 6.13
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # resolution priority in between qualified package function vs qualified db function resolution
@@ -2977,7 +2411,6 @@ END;
 $$
 DELIMITER ;$$
 
-CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
 CREATE FUNCTION func()
@@ -2989,7 +2422,6 @@ $$
 DELIMITER ;$$
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 SELECT pack.func();
 # set path
@@ -3004,13 +2436,12 @@ SELECT pack.func();
 
 # subtest finish, deinit
 DROP DATABASE pack;
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 6.14
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: X | path set: yes
 --echo # qualified package function invoke internal private function
@@ -3019,7 +2450,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE FUNCTION func_prv()
@@ -3057,24 +2487,16 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 SELECT pack.func_pub();
 
 # subtest finish, deinit
-DROP FUNCTION test2.func_prv;
-DROP DATABASE test2;
-USE test;
-DROP FUNCTION func_prv;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 6.15
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # qualified package function invoke internal private function
@@ -3083,50 +2505,11 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
-USE test2;
-DELIMITER $$;
-CREATE FUNCTION func_prv()
-  RETURN TEXT AS
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func_prv';
-END;
-$$
-DELIMITER ;$$
-
-USE test;
-DELIMITER $$;
-CREATE FUNCTION func_prv()
-  RETURN TEXT AS
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func_prv';
-END;
-$$
-
-CREATE PACKAGE pack AS
-  FUNCTION func_pub() RETURN TEXT;
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  FUNCTION func_prv() RETURN TEXT AS
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
-  END;
-
-  FUNCTION func_pub() RETURN TEXT AS
-  BEGIN
-    RETURN func_prv();
-  END;
-END;
-$$
-DELIMITER ;$$
-
 USE test2;
 SELECT pack.func_pub();
 
 # subtest finish, deinit
 DROP FUNCTION func_prv;
-DROP DATABASE test2;
 USE test;
 DROP FUNCTION func_prv;
 DROP PACKAGE BODY pack;
@@ -3136,6 +2519,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 7.1
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: X | path set: no
 --echo #
@@ -3150,41 +2534,20 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 --error ER_NO_DB_ERROR
 CALL proc;
 
-# subtest finish, deinit
-USE test;
-DROP PROCEDURE proc;
-
 
 
 --echo #
+--echo # type 7.2
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: X | path set: yes
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PROCEDURE proc() AS
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-
 # set path
 SET path 'sys,test';
 
@@ -3192,87 +2555,48 @@ SET path 'sys,test';
 CALL proc;
 
 # subtest finish, deinit
-USE test;
-DROP PROCEDURE proc;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 7.3
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: test2 | path set: no
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PROCEDURE proc() AS
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
-
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
 CALL proc;
 
-# subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PROCEDURE proc;
-
 
 
 --echo #
+--echo # type 7.4
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: test2 | path set: yes
 --echo #
-
-USE test;
-
-DELIMITER $$;
-CREATE PROCEDURE proc() AS
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PROCEDURE proc;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 7.5
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: X | path set: yes
 --echo # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
 --echo #
 
-USE test;
-DELIMITER $$;
-CREATE PROCEDURE proc() AS
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
-
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PROCEDURE proc() AS
@@ -3283,10 +2607,7 @@ $$
 DELIMITER ;$$
 
 # subtest start
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 # set path
 SET path 'test,test2';
 CALL proc;
@@ -3299,20 +2620,18 @@ DROP PROCEDURE test.proc;
 CALL proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 7.6
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: test2 | path set: yes
 --echo # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
 --echo #
 
 USE test;
-
 DELIMITER $$;
 CREATE PROCEDURE proc() AS
 BEGIN
@@ -3325,7 +2644,6 @@ DELIMITER ;$$
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL proc;
 
@@ -3345,13 +2663,12 @@ DROP PROCEDURE test.proc;
 CALL proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 7.7
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: X | path set: yes
 --echo # to test unqualified procedure invocation in an unqualified procedure
@@ -3360,7 +2677,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PROCEDURE proc() AS
@@ -3379,10 +2695,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL proc_call_proc;
 
 USE test;
@@ -3394,10 +2707,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL proc_call_proc;
 
 DROP PROCEDURE test.proc;
@@ -3407,7 +2717,6 @@ DROP PROCEDURE test2.proc;
 CALL proc_call_proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PROCEDURE proc_call_proc;
 SET @@path = DEFAULT;
@@ -3415,6 +2724,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 7.8
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: test | path set: yes
 --echo # to test unqualified procedure invocation in an unqualified procedure
@@ -3423,7 +2733,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'sys,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PROCEDURE proc() AS
@@ -3461,14 +2770,14 @@ DROP PROCEDURE test2.proc;
 CALL proc_call_proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PROCEDURE proc_call_proc;
 SET @@path = DEFAULT;
+
+
+
 --echo #
-
-
-
+--echo # type 8.1
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: X | path set: no
 --echo #
@@ -3489,48 +2798,20 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 --error ER_SP_DOES_NOT_EXIST
 CALL pack.proc;
 
-# subtest finish, deinit
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-
 
 
 --echo #
+--echo # type 8.2
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: X | path set: yes
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack AS
-  PROCEDURE proc();
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  PROCEDURE proc() AS
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
-END;
-$$
-DELIMITER ;$$
-
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
-
 # set path
 SET path 'sys,test';
 
@@ -3538,108 +2819,48 @@ SET path 'sys,test';
 CALL pack.proc;
 
 # subtest finish, deinit
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 8.3
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: test2 | path set: no
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack AS
-  PROCEDURE proc();
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  PROCEDURE proc() AS
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
-END;
-$$
-DELIMITER ;$$
-
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
 CALL pack.proc;
 
-# subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
-
 
 
 --echo #
+--echo # type 8.4
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: test2 | path set: yes
 --echo #
-
-USE test;
-
-DELIMITER $$;
-CREATE PACKAGE pack AS
-  PROCEDURE proc();
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  PROCEDURE proc() AS
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
-END;
-$$
-DELIMITER ;$$
 
 # set path
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 8.5
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: X | path set: yes
 --echo # lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
 --echo #
 
-USE test;
-DELIMITER $$;
-CREATE PACKAGE pack AS
-  PROCEDURE proc();
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  PROCEDURE proc() AS
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
-END;
-$$
-DELIMITER ;$$
-
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack AS
@@ -3656,10 +2877,7 @@ $$
 DELIMITER ;$$
 
 # subtest start
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 # set path
 SET path 'test,test2';
 CALL pack.proc;
@@ -3674,13 +2892,12 @@ DROP PACKAGE test.pack;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 8.6
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
@@ -3706,7 +2923,6 @@ DELIMITER ;$$
 SET path 'sys,test';
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL pack.proc;
 
@@ -3734,22 +2950,20 @@ DROP PACKAGE test.pack;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 8.7
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: X | path set: yes
---echo # to test unqualified procedure invocation in an qualified package procedure
+--echo # to test unqualified procedure invocation in a qualified package procedure
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PROCEDURE proc_local() AS
@@ -3774,10 +2988,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc;
 
 USE test;
@@ -3789,10 +3000,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc;
 
 DROP PROCEDURE test.proc_local;
@@ -3802,7 +3010,6 @@ DROP PROCEDURE test2.proc_local;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -3811,15 +3018,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 8.8
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: test | path set: yes
---echo # to test unqualified procedure invocation in an qualified package procedure
+--echo # to test unqualified procedure invocation in a qualified package procedure
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PROCEDURE proc_local() AS
@@ -3862,7 +3069,6 @@ DROP PROCEDURE test2.proc_local;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -3871,15 +3077,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 8.9
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: X | path set: yes
---echo # to test qualified package procedure invocation in an qualified package procedure
+--echo # to test qualified package procedure invocation in a qualified package procedure
 --echo #
 
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack2 AS
@@ -3910,10 +3116,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc;
 
 USE test;
@@ -3931,10 +3134,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc;
 
 DROP PACKAGE BODY test.pack2;
@@ -3946,7 +3146,6 @@ DROP PACKAGE test2.pack2;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -3955,15 +3154,15 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 8.10
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: test | path set: yes
---echo # to test qualified package procedure invocation in an qualified package procedure
+--echo # to test qualified package procedure invocation in a qualified package procedure
 --echo #
 
 # subtest start
 SET path 'sys,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PACKAGE pack2 AS
@@ -4021,7 +3220,6 @@ DROP PACKAGE test2.pack2;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE test2;
 USE test;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
@@ -4030,6 +3228,7 @@ SET @@path = DEFAULT;
 
 
 --echo #
+--echo # type 8.11
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: X | path set: yes
 --echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
@@ -4060,10 +3259,7 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 
 # subtest start
 CALL pack.proc;
@@ -4078,13 +3274,12 @@ DROP PROCEDURE pack.proc;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE pack;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 8.12
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: test | path set: yes
 --echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
@@ -4105,7 +3300,6 @@ END;
 $$
 DELIMITER ;$$
 
-CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
 CREATE PROCEDURE proc() AS
@@ -4126,13 +3320,12 @@ DROP PROCEDURE pack.proc;
 CALL pack.proc;
 
 # subtest finish, deinit
-DROP DATABASE pack;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 8.13
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
@@ -4153,7 +3346,6 @@ END;
 $$
 DELIMITER ;$$
 
-CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
 CREATE PROCEDURE proc() AS
@@ -4164,7 +3356,6 @@ $$
 DELIMITER ;$$
 
 # subtest start
-CREATE DATABASE test2;
 USE test2;
 CALL pack.proc;
 # set path
@@ -4179,13 +3370,12 @@ CALL pack.proc;
 
 # subtest finish, deinit
 DROP DATABASE pack;
-DROP DATABASE test2;
-USE test;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 8.14
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: X | path set: yes
 --echo # qualified package procedure invoke internal private procedure
@@ -4194,7 +3384,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
 CREATE PROCEDURE proc_prv() AS
@@ -4230,24 +3419,16 @@ END;
 $$
 DELIMITER ;$$
 
-# Drop the current db. This de-selects any db.
-CREATE DATABASE deselect_db;
-USE deselect_db;
-DROP DATABASE deselect_db;
+--source include/deselect_db.inc
 CALL pack.proc_pub;
 
 # subtest finish, deinit
-DROP PROCEDURE test2.proc_prv;
-DROP DATABASE test2;
-USE test;
-DROP PROCEDURE proc_prv;
-DROP PACKAGE BODY pack;
-DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
 
 
 --echo #
+--echo # type 8.15
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: test2 | path set: yes
 --echo # qualified package procedure invoke internal private procedure
@@ -4256,42 +3437,6 @@ SET @@path = DEFAULT;
 # subtest start
 SET path 'test,test2';
 
-CREATE DATABASE test2;
-USE test2;
-DELIMITER $$;
-CREATE PROCEDURE proc_prv() AS
-BEGIN
-  SELECT 'Invoke from Db: test2, Rt: proc_prv';
-END;
-$$
-DELIMITER ;$$
-
-USE test;
-DELIMITER $$;
-CREATE PROCEDURE proc_prv() AS
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc_prv';
-END;
-$$
-
-CREATE PACKAGE pack AS
-  PROCEDURE proc_pub();
-END;
-$$
-CREATE PACKAGE BODY pack AS
-  PROCEDURE proc_prv() AS
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
-  END;
-
-  PROCEDURE proc_pub() AS
-  BEGIN
-    CALL proc_prv;
-  END;
-END;
-$$
-DELIMITER ;$$
-
 USE test2;
 CALL pack.proc_pub;
 
@@ -4303,6 +3448,8 @@ DROP PROCEDURE proc_prv;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
 SET @@path = DEFAULT;
+
+
 
 --echo #
 --echo # End of 11.8 tests

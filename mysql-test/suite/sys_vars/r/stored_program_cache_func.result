@@ -8,26 +8,26 @@ call p1;
 1
 show status like 'handler_read_key';
 Variable_name	Value
-Handler_read_key	1
-call p1;
-1
-1
-show status like 'handler_read_key';
-Variable_name	Value
-Handler_read_key	1
-set global stored_program_cache=0;
-call p1;
-1
-1
-show status like 'handler_read_key';
-Variable_name	Value
 Handler_read_key	2
 call p1;
 1
 1
 show status like 'handler_read_key';
 Variable_name	Value
-Handler_read_key	3
+Handler_read_key	2
+set global stored_program_cache=0;
+call p1;
+1
+1
+show status like 'handler_read_key';
+Variable_name	Value
+Handler_read_key	4
+call p1;
+1
+1
+show status like 'handler_read_key';
+Variable_name	Value
+Handler_read_key	6
 drop procedure p1;
 set global stored_program_cache=default;
 create procedure pr(i int) begin

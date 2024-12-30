@@ -484,6 +484,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> CROSS                         /* SQL-2003-R */
 %token  <kwd> CUME_DIST_SYM
 %token  <kwd> CURDATE                       /* MYSQL-FUNC */
+%token  <kwd> CURRENT_PATH                  /* SQL-2003-R */
 %token  <kwd> CURRENT_ROLE                  /* SQL-2003-R */
 %token  <kwd> CURRENT_USER                  /* SQL-2003-R */
 %token  <kwd> CURSOR_SYM                    /* SQL-2003-R */
@@ -10284,6 +10285,14 @@ function_call_keyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | CURRENT_PATH optional_braces
+          {
+            $$= new (thd->mem_root) Item_func_current_path(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+            Lex->safe_to_cache_query= 0;
+          }
         | CURRENT_USER optional_braces
           {
             $$= new (thd->mem_root) Item_func_current_user(thd,
@@ -16612,6 +16621,7 @@ reserved_keyword_udt_not_param_type:
         | CROSS
         | CUME_DIST_SYM
         | CURDATE
+        | CURRENT_PATH
         | CURRENT_USER
         | CURRENT_ROLE
         | CURTIME

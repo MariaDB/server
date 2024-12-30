@@ -7959,10 +7959,11 @@ inline Item *and_conds(THD *thd, Item *a, Item *b)
 }
 
 /* inline handler methods that need to know TABLE and THD structures */
-inline void handler::increment_statistics(ulong SSV::*offset) const
+inline void handler::increment_statistics(ulong SSV::*offset, bool update) const
 {
   status_var_increment(table->in_use->status_var.*offset);
-  table->in_use->check_limit_rows_examined();
+  if (update)
+    table->in_use->check_limit_rows_examined();
 }
 
 inline void handler::fast_increment_statistics(ulong SSV::*offset) const

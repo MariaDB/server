@@ -5198,7 +5198,7 @@ protected:
     Increment statistics. As a side effect increase accessed_rows_and_keys
     and checks if lex->limit_rows_examined_cnt is reached
   */
-  inline void increment_statistics(ulong SSV::*offset) const;
+  inline void increment_statistics(ulong SSV::*offset, bool update=true) const;
   /* Same as increment_statistics but doesn't increase accessed_rows_and_keys */
   inline void fast_increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;

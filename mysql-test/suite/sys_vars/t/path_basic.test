@@ -159,6 +159,10 @@ SET PATH '  ,,,aaa,,,bbb,,,  ';
 SELECT @@path;
 SET PATH 'hello,world,deadpool,wolverine,aaa,ccc';
 SELECT @@path;
+SET PATH '`a,b`,c';
+SELECT @@path;
+SELECT CURRENT_PATH;
+SELECT CURRENT_PATH();
 SET PATH 'ß';
 SELECT @@path;
 SET PATH '`Œ`';
@@ -318,10 +322,10 @@ SELECT @@path;
 ###########################################################################
 #                       Test preparable statement                         #
 ###########################################################################
-PREPARE stmt FROM 'SET PATH \'aaa,bbb,ccc\'';
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT \'I know what you did last summer\'';
 
-PREPARE stmt FROM 'select @@path;';
+SET PATH 'hello,world,mcdonald';
+SELECT @@path;
+
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
