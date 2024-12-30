@@ -613,8 +613,10 @@ Open streams:  %10lu\n",
   display_table_locks();
 #if defined(HAVE_MALLINFO2)
   struct mallinfo2 info = mallinfo2();
+  #define PRIuMALLINFO zu
 #elif defined(HAVE_MALLINFO)
   struct mallinfo info= mallinfo();
+  #define PRIuMALLINFO u
 #endif
 #if __has_feature(memory_sanitizer)
   /* Work around missing MSAN instrumentation */
@@ -622,16 +624,16 @@ Open streams:  %10lu\n",
 #endif
 #if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
   printf("\nMemory status:\n"
-         "Non-mmapped space allocated from system: %zu\n"
-         "Number of free chunks:                   %zu\n"
-         "Number of fastbin blocks:                %zu\n"
-         "Number of mmapped regions:               %zu\n"
-         "Space in mmapped regions:                %zu\n"
-         "Maximum total allocated space:           %zu\n"
-         "Space available in freed fastbin blocks: %zu\n"
-         "Total allocated space:                   %zu\n"
-         "Total free space:                        %zu\n"
-         "Top-most, releasable space:              %zu\n"
+         "Non-mmapped space allocated from system: %" PRIuMALLINFO "\n"
+         "Number of free chunks:                   %" PRIuMALLINFO "\n"
+         "Number of fastbin blocks:                %" PRIuMALLINFO "\n"
+         "Number of mmapped regions:               %" PRIuMALLINFO "\n"
+         "Space in mmapped regions:                %" PRIuMALLINFO "\n"
+         "Maximum total allocated space:           %" PRIuMALLINFO "\n"
+         "Space available in freed fastbin blocks: %" PRIuMALLINFO "\n"
+         "Total allocated space:                   %" PRIuMALLINFO "\n"
+         "Total free space:                        %" PRIuMALLINFO "\n"
+         "Top-most, releasable space:              %" PRIuMALLINFO "\n"
          "Estimated memory (with thread stack):    %llu\n"
          "Global memory allocated by server:       %" PRId64 "\n"
          "Memory allocated by threads:             %" PRId64 "\n",
