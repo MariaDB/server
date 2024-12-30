@@ -109,6 +109,7 @@ extern my_bool opt_readonly;
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+#include "handler0binlog.h"
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -4053,8 +4054,8 @@ static int innodb_init(void* p)
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
         innobase_hton->binlog_init= innodb_binlog_init;
         innobase_hton->binlog_write_direct= innobase_binlog_write_direct;
-        innobase_hton->binlog_oob_data= fsp_binlog_oob;
-        innobase_hton->binlog_oob_free= fsp_free_oob;
+        innobase_hton->binlog_oob_data= innodb_binlog_oob;
+        innobase_hton->binlog_oob_free= innodb_free_oob;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
 
 	innodb_remember_check_sysvar_funcs();

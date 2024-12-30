@@ -333,6 +333,9 @@ fsp_header_check_encryption_key(
 dberr_t fsp_header_init(fil_space_t *space, uint32_t size, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
+                             mtr_t *mtr) noexcept;
+
 /** Create a new segment.
 @param space                tablespace
 @param byte_offset          byte offset of the created segment header
@@ -557,21 +560,6 @@ void fsp_system_tablespace_truncate(bool shutdown);
 
 /** Truncate the temporary tablespace */
 void fsp_shrink_temp_space();
-
-extern ulonglong innodb_binlog_state_interval;
-extern void fsp_binlog_trx(trx_t *trx, mtr_t *mtr);
-class handler_binlog_reader;
-struct handler_binlog_event_group_info;
-extern bool innobase_binlog_write_direct
-  (IO_CACHE *cache, handler_binlog_event_group_info *binlog_info,
-   const struct rpl_gtid *gtid);
-extern bool fsp_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
-                           void **engine_data);
-extern void fsp_free_oob(THD *thd, void *engine_data);
-extern handler_binlog_reader *innodb_get_binlog_reader();
-extern void fsp_binlog_init();
-extern bool innodb_binlog_init(size_t binlog_size);
-extern void fsp_binlog_close();
 
 #ifndef UNIV_DEBUG
 # define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
