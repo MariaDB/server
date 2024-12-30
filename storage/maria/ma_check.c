@@ -1123,7 +1123,7 @@ static char * record_pos_to_txt(MARIA_HA *info, my_off_t recpos,
                                 char *buff)
 {
   if (info->s->data_file_type != BLOCK_RECORD)
-    sprintf(buff, "%lld", recpos);
+    longlong10_to_str(recpos, buff, 10);
   else
   {
     my_off_t page= ma_recordpos_to_page(recpos);
