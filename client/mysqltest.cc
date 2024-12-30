@@ -7991,8 +7991,8 @@ void append_metadata(DYNAMIC_STRING *ds,
 void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
                  const char *info)
 {
-  char buf[40], buff2[21];
-  size_t len= sprintf(buf,"affected rows: %s\n", llstr(affected_rows, buff2));
+  char buf[40];
+  size_t len= sprintf(buf,"affected rows: %lld\n", affected_rows);
   dynstr_append_mem(ds, buf, len);
   if (info)
   {

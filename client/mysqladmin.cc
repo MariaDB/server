@@ -851,8 +851,10 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	{
           /* We don't use mysql_kill(), since it only handles 32-bit IDs. */
           char buff[26], *out; /* "KILL " + max 20 digs + NUL */
-          out= strxmov(buff, "KILL ", NullS);
-          ullstr(strtoull(pos, NULL, 0), out);
+          out= strmov(buff, "KILL ");
+          // but first, also use `strtoull` to... truncate to ulonglong? //TODO: do we need to?
+          snprintf(buff, 21, "%llu",
+                   (unsigned long long) strtoull(pos, NULL, 0)); // `strtoull` returns `ulong` on Linux!
 
           if (mysql_query(mysql, buff))
 	  {
@@ -1473,7 +1475,6 @@ static void print_row(MYSQL_RES *result, MYSQL_ROW cur,
 static void print_relative_row(MYSQL_RES *result, MYSQL_ROW cur, uint row)
 {
   ulonglong tmp;
-  char buff[22];
   MYSQL_FIELD *field;
 
   mysql_field_seek(result, 0);
@@ -1482,8 +1483,7 @@ static void print_relative_row(MYSQL_RES *result, MYSQL_ROW cur, uint row)
 
   field = mysql_fetch_field(result);
   tmp = cur[1] ? strtoull(cur[1], NULL, 10) : (ulonglong) 0;
-  printf(" %-*s|\n", (int) field->max_length + 1,
-	 llstr((tmp - last_values[row]), buff));
+  printf(" %-*lld|\n", (int) field->max_length + 1, tmp - last_values[row]);
   last_values[row] = tmp;
 }
 

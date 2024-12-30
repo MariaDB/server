@@ -1504,13 +1504,8 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
 
   if (!error && start_records != file->state->records &&
       !(check_opt->flags & T_VERY_SILENT))
-  {
-    char llbuff[22], llbuff2[22];
-    sql_print_information("Found %s of %s rows when repairing '%s'",
-                          llstr(file->state->records, llbuff),
-                          llstr(start_records, llbuff2),
-                          table->s->path.str);
-  }
+    sql_print_information("Found %lld of %lld rows when repairing '%s'",
+      file->state->records, start_records, table->s->path.str);
   thd_proc_info(thd, old_proc_info);
   thd_progress_end(thd);
   return error;
@@ -1788,10 +1783,8 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
          HA_STATUS_CONST);
     if (rows != file->state->records && !(param->testflag & T_VERY_SILENT))
     {
-      char llbuff[22], llbuff2[22];
-      _ma_check_print_warning(param, "Number of rows changed from %s to %s",
-                              llstr(rows, llbuff),
-                              llstr(file->state->records, llbuff2));
+      _ma_check_print_warning(param, "Number of rows changed from %lld to %lld",
+                              rows, file->state->records);
       /*
         ma_check_print_warning() may generate an error in case of creating keys
         for ALTER TABLE. In this case we should signal an error.

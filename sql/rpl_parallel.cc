@@ -1088,11 +1088,8 @@ do_retry:
       if((err= rli->relay_log.find_log_pos(&linfo, log_name, 1)) ||
          (err= rli->relay_log.find_next_log(&linfo, 1)))
       {
-        char buff[22];
-        sql_print_error("next log error: %d  offset: %s  log: %s",
-                        err,
-                        llstr(linfo.index_file_offset, buff),
-                        log_name);
+        sql_print_error("next log error: %d  offset: %lld  log: %s",
+                        err, linfo.index_file_offset, log_name);
         goto err;
       }
       strmake_buf(log_name ,linfo.log_file_name);

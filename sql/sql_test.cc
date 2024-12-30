@@ -525,11 +525,6 @@ C_MODE_START
 static int print_key_cache_status(const char *name, KEY_CACHE *key_cache,
                                   void *unused __attribute__((unused)))
 {
-  char llbuff1[22];
-  char llbuff2[22];
-  char llbuff3[22];
-  char llbuff4[22];
-
   if (!key_cache->key_cache_inited)
   {
     printf("%s: Not in use\n", name);
@@ -547,10 +542,10 @@ Age_threshold:  %10lu\n\
 Partitions:     %10lu\n\
 blocks used:    %10lu\n\
 not flushed:    %10lu\n\
-w_requests:     %10s\n\
-writes:         %10s\n\
-r_requests:     %10s\n\
-reads:          %10s\n\n",
+w_requests:     %10lld\n\
+writes:         %10lld\n\
+r_requests:     %10lld\n\
+reads:          %10lld\n\n",
 	   name,
 	   (ulong)key_cache->param_buff_size,
            (ulong)key_cache->param_block_size,
@@ -559,10 +554,10 @@ reads:          %10s\n\n",
            (ulong)key_cache->param_partitions,
 	   (ulong)stats.blocks_used,
            (ulong)stats.blocks_changed,
-	   llstr(stats.write_requests,llbuff1),
-           llstr(stats.writes,llbuff2),
-	   llstr(stats.read_requests,llbuff3),
-           llstr(stats.reads,llbuff4));
+           stats.write_requests,
+           stats.writes,
+           stats.read_requests,
+           stats.reads);
   }
   return 0;
 }
@@ -626,50 +621,47 @@ Open streams:  %10lu\n",
   MEM_MAKE_DEFINED(&info, sizeof info);
 #endif
 #if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
-  char llbuff[10][22];
-  printf("\nMemory status:\n\
-Non-mmapped space allocated from system: %s\n\
-Number of free chunks:                   %lu\n\
-Number of fastbin blocks:                %lu\n\
-Number of mmapped regions:               %lu\n\
-Space in mmapped regions:                %s\n\
-Maximum total allocated space:           %s\n\
-Space available in freed fastbin blocks: %s\n\
-Total allocated space:                   %s\n\
-Total free space:                        %s\n\
-Top-most, releasable space:              %s\n\
-Estimated memory (with thread stack):    %s\n\
-Global memory allocated by server:       %s\n\
-Memory allocated by threads:             %s\n",
-	 llstr(info.arena,   llbuff[0]),
-	 (ulong) info.ordblks,
-	 (ulong) info.smblks,
-	 (ulong) info.hblks,
-	 llstr(info.hblkhd,   llbuff[1]),
-	 llstr(info.usmblks,  llbuff[2]),
-	 llstr(info.fsmblks,  llbuff[3]),
-	 llstr(info.uordblks, llbuff[4]),
-	 llstr(info.fordblks, llbuff[5]),
-	 llstr(info.keepcost, llbuff[6]),
-         llstr((count + thread_cache.size()) * my_thread_stack_size +
-               info.hblkhd + info.arena, llbuff[7]),
-         llstr(tmp.global_memory_used, llbuff[8]),
-         llstr(tmp.local_memory_used, llbuff[9]));
+  printf("\nMemory status:\n"
+         "Non-mmapped space allocated from system: %zu\n"
+         "Number of free chunks:                   %zu\n"
+         "Number of fastbin blocks:                %zu\n"
+         "Number of mmapped regions:               %zu\n"
+         "Space in mmapped regions:                %zu\n"
+         "Maximum total allocated space:           %zu\n"
+         "Space available in freed fastbin blocks: %zu\n"
+         "Total allocated space:                   %zu\n"
+         "Total free space:                        %zu\n"
+         "Top-most, releasable space:              %zu\n"
+         "Estimated memory (with thread stack):    %llu\n"
+         "Global memory allocated by server:       %" PRId64 "\n"
+         "Memory allocated by threads:             %" PRId64 "\n",
+         info.arena,
+         info.ordblks,
+         info.smblks,
+         info.hblks,
+         info.hblkhd,
+         info.usmblks,
+         info.fsmblks,
+         info.uordblks,
+         info.fordblks,
+         info.keepcost,
+         (count + thread_cache.size()) * my_thread_stack_size +
+           info.hblkhd + info.arena,
+         (int64_t) tmp.global_memory_used,
+         (int64_t) tmp.local_memory_used);
 
 #elif defined(HAVE_MALLOC_ZONE)
   malloc_statistics_t info;
-  char llbuff[4][22];
-
   malloc_zone_statistics(nullptr, &info);
-  printf("\nMemory status:\n\
-Total allocated space:                   %s\n\
-Total free space:                        %s\n\
-Global memory allocated by server:       %s\n\
-Memory allocated by threads:             %s\n",
-         llstr(info.size_allocated, llbuff[0]),
-         llstr((info.size_allocated - info.size_in_use), llbuff[1]),
-         llstr(tmp.global_memory_used, llbuff[2]),
-         llstr(tmp.local_memory_used, llbuff[3]));
+  printf("\nMemory status:\n"
+         "Total allocated space:                   %lld\n"
+         "Total free space:                        %lld\n"
+         "Global memory allocated by server:       %lld\n"
+         "Memory allocated by threads:             %lld\n",
+         info.size_allocated,
+         info.size_allocated - info.size_in_use,
+         tmp.global_memory_used,
+         tmp.local_memory_used);
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER

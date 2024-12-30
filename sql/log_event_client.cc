@@ -334,14 +334,13 @@ bool Log_event::print_header(IO_CACHE* file,
                              PRINT_EVENT_INFO* print_event_info,
                              bool is_more __attribute__((unused)))
 {
-  char llbuff[22];
   my_off_t hexdump_from= print_event_info->hexdump_from;
   DBUG_ENTER("Log_event::print_header");
 
   if (my_b_write_byte(file, '#') ||
       print_timestamp(file) ||
-      my_b_printf(file, " server id %lu  end_log_pos %s ", (ulong) server_id,
-                  llstr(log_pos,llbuff)))
+      my_b_printf(file, " server id %lu  end_log_pos %llu ", (ulong) server_id,
+                  log_pos))
     goto err;
 
   /* print the checksum */
@@ -1576,11 +1575,8 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
 
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
       !(td= map->create_table_def()))
-  {
-    char llbuff[22];
-    return (my_b_printf(file, "### Row event for unknown table #%s",
-                        ullstr(m_table_id, llbuff)));
-  }
+    return my_b_printf(file, "### Row event for unknown table #%llu",
+                       m_table_id);
 
   /* If the write rows event contained no values for the AI */
   if (((general_type_code == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
@@ -2013,9 +2009,8 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
       (unlikely(print_event_info->sql_mode != sql_mode ||
                 !print_event_info->sql_mode_inited)))
   {
-    char llbuff[22];
-    if (my_b_printf(file,"SET @@session.sql_mode=%s%s\n",
-                    ullstr(sql_mode, llbuff), print_event_info->delimiter))
+    if (my_b_printf(file, "SET @@session.sql_mode=%llu%s\n",
+                    sql_mode, print_event_info->delimiter))
       goto err;
     print_event_info->sql_mode= sql_mode;
     print_event_info->sql_mode_inited= 1;
@@ -2301,7 +2296,6 @@ bool Rotate_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   if (print_event_info->short_form)
     return 0;
 
-  char buf[22];
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F);
   if (print_header(&cache, print_event_info, FALSE) ||
@@ -2310,7 +2304,7 @@ bool Rotate_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   if (new_log_ident)
     if (my_b_write(&cache, (uchar*) new_log_ident, (uint)ident_len))
       goto err;
-  if (my_b_printf(&cache, "  pos: %s\n", llstr(pos, buf)))
+  if (my_b_printf(&cache, "  pos: %s\n", pos))
     goto err;
   return cache.flush_data();
 err:
@@ -2374,7 +2368,6 @@ err:
 
 bool Intvar_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
-  char llbuff[22];
   const char *UNINIT_VAR(msg);
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F);
@@ -2400,8 +2393,7 @@ bool Intvar_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     msg="INVALID_INT";
     break;
   }
-  if (my_b_printf(&cache, "%s=%s%s\n",
-                  msg, llstr(val,llbuff), print_event_info->delimiter))
+  if (my_b_printf(&cache, "%s=%lld%s\n", msg, val, print_event_info->delimiter))
     goto err;
 
   return cache.flush_data();
@@ -2415,16 +2407,14 @@ bool Rand_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F);
 
-  char llbuff[22],llbuff2[22];
   if (!print_event_info->short_form)
   {
     if (print_header(&cache, print_event_info, FALSE) ||
         my_b_write_string(&cache, "\tRand\n"))
       goto err;
   }
-  if (my_b_printf(&cache, "SET @@RAND_SEED1=%s, @@RAND_SEED2=%s%s\n",
-                  llstr(seed1, llbuff),llstr(seed2, llbuff2),
-                  print_event_info->delimiter))
+  if (my_b_printf(&cache, "SET @@RAND_SEED1=%lld, @@RAND_SEED2=%lld%s\n",
+                  seed1, seed2, print_event_info->delimiter))
     goto err;
 
   return cache.flush_data();
@@ -2934,11 +2924,9 @@ bool Rows_log_event::print_helper(FILE *file,
 
   if (!print_event_info->short_form)
   {
-    char llbuff[22];
 
     print_header(head, print_event_info, !last_stmt_event);
-    if (my_b_printf(head, "\t%s: table id %s%s\n",
-                    name, ullstr(m_table_id, llbuff),
+    if (my_b_printf(head, "\t%s: table id %lld%s\n", name, m_table_id,
                     last_stmt_event ? " flags: STMT_END_F" : ""))
       goto err;
   }
@@ -3138,12 +3126,11 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 {
   if (!print_event_info->short_form)
   {
-    char llbuff[22];
 
     print_header(&print_event_info->head_cache, print_event_info, TRUE);
     if (my_b_printf(&print_event_info->head_cache,
-                    "\tTable_map: %`s.%`s mapped to number %s%s\n",
-                    m_dbnam, m_tblnam, ullstr(m_table_id, llbuff),
+                    "\tTable_map: %`s.%`s mapped to number %llu%s\n",
+                    m_dbnam, m_tblnam, m_table_id,
                     ((m_flags & TM_BIT_HAS_TRIGGERS_F) ?
                      " (has triggers)" : "")))
       goto err;

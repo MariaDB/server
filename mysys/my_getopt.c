@@ -1191,7 +1191,6 @@ longlong getopt_ll_limit_value(longlong num, const struct my_option *optp,
 {
   longlong old= num;
   my_bool adjusted= FALSE;
-  char buf1[255], buf2[255];
   ulonglong block_size= (optp->block_size ? (ulonglong) optp->block_size : 1L);
   DBUG_ENTER("getopt_ll_limit_value");
 
@@ -1238,8 +1237,8 @@ longlong getopt_ll_limit_value(longlong num, const struct my_option *optp,
     *fix= old != num;
   else if (adjusted)
     my_getopt_error_reporter(WARNING_LEVEL,
-                             "option '%s': signed value %s adjusted to %s",
-                             optp->name, llstr(old, buf1), llstr(num, buf2));
+                             "option '%s': signed value %lld adjusted to %lld",
+                             optp->name, old, num);
   DBUG_RETURN(num);
 }
 
@@ -1264,7 +1263,6 @@ ulonglong getopt_ull_limit_value(ulonglong num, const struct my_option *optp,
 {
   my_bool adjusted= FALSE;
   ulonglong old= num;
-  char buf1[255], buf2[255];
   DBUG_ENTER("getopt_ull_limit_value");
 
   if ((ulonglong) num > (ulonglong) optp->max_value &&
@@ -1313,8 +1311,8 @@ ulonglong getopt_ull_limit_value(ulonglong num, const struct my_option *optp,
     *fix= old != num;
   else if (adjusted)
     my_getopt_error_reporter(WARNING_LEVEL,
-                             "option '%s': unsigned value %s adjusted to %s",
-                             optp->name, ullstr(old, buf1), ullstr(num, buf2));
+                             "option '%s': unsigned value %llu adjusted to %llu",
+                             optp->name, old, num);
 
   DBUG_RETURN(num);
 }
@@ -1730,7 +1728,6 @@ void my_print_variables(const struct my_option *options)
 {
   uint name_space= 34, length, nr;
   ulonglong llvalue;
-  char buff[255];
   const struct my_option *optp;
   DBUG_ENTER("my_print_variables");
 
@@ -1811,11 +1808,10 @@ void my_print_variables(const struct my_option *options)
 	printf("%lu\n", *((ulong*) value));
 	break;
       case GET_LL:
-	printf("%s\n", llstr(*((longlong*) value), buff));
+	printf("%lld\n", *((longlong*) value));
 	break;
       case GET_ULL:
-	longlong10_to_str(*((ulonglong*) value), buff, 10);
-	printf("%s\n", buff);
+	printf("%llu\n", *((ulonglong*) value));
 	break;
       case GET_DOUBLE:
 	printf("%.10g\n", *(double*) value);

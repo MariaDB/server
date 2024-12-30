@@ -303,7 +303,7 @@ static int examine_log(char * file_name, char **table_names)
   ulong access_time,length;
   my_off_t filepos;
   int lock_command,mi_result;
-  char isam_file_name[FN_REFLEN],llbuff[21],llbuff2[21];
+  char isam_file_name[FN_REFLEN];
   uchar head[20];
   uchar*	buff;
   struct test_if_open_param open_param;
@@ -493,9 +493,8 @@ static int examine_log(char * file_name, char **table_names)
 	{
 	  fflush(stdout);
 	  (void) fprintf(stderr,
-		       "Warning: error %d, expected %d on command %s at %s\n",
-		       my_errno,result,command_name[command],
-		       llstr(isamlog_filepos,llbuff));
+	    "Warning: error %d, expected %d on command %s at %lld\n",
+	    my_errno, result, command_name[command], isamlog_filepos);
 	  fflush(stderr);
 	}
       }
@@ -608,9 +607,8 @@ static int examine_log(char * file_name, char **table_names)
 	  }
 	  if (!recover && filepos != curr_file_info->isam->lastpos)
 	  {
-	    printf("error: Wrote at position: %s, should have been %s",
-		   llstr(curr_file_info->isam->lastpos,llbuff),
-		   llstr(filepos,llbuff2));
+	    printf("error: Wrote at position: %lld, should have been %lld",
+		   curr_file_info->isam->lastpos, filepos);
 	    goto end;
 	  }
 	}
@@ -662,9 +660,8 @@ static int examine_log(char * file_name, char **table_names)
   goto end;
  com_err:
   fflush(stdout);
-  (void) fprintf(stderr,"Got error %d, expected %d on command %s at %s\n",
-	       my_errno,result,command_name[command],
-	       llstr(isamlog_filepos,llbuff));
+  (void) fprintf(stderr, "Got error %d, expected %d on command %s at %lld\n",
+	         my_errno,result, command_name[command], isamlog_filepos);
   fflush(stderr);
  end:
   end_key_cache(dflt_key_cache, 1);
@@ -831,11 +828,10 @@ static int find_record_with_key(struct file_info *file_info, uchar *record)
 
 static void printf_log(const char *format,...)
 {
-  char llbuff[21];
   va_list args;
   va_start(args,format);
   if (verbose > 2)
-    printf("%9s:",llstr(isamlog_filepos,llbuff));
+    printf("%9lld:", isamlog_filepos);
   if (verbose > 1)
     printf("%5ld ",isamlog_process);	/* Write process number */
   (void) vprintf((char*) format,args);

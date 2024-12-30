@@ -631,12 +631,10 @@ prototype_redo_exec_hook(LONG_TRANSACTION_ID)
     if ((ulsn != LSN_IMPOSSIBLE) &&
         (cmp_translog_addr(ulsn, rec->lsn) < 0))
     {
-      char llbuf[22];
-      llstr(long_trid, llbuf);
-      eprint(tracef, "Found an old transaction long_trid %s short_trid %u"
+      eprint(tracef, "Found an old transaction long_trid %lld short_trid %u"
              " with same short id as this new transaction, and has neither"
              " committed nor rollback (undo_lsn: " LSN_FMT ")",
-             llbuf, sid, LSN_IN_PARTS(ulsn));
+             long_trid, sid, LSN_IN_PARTS(ulsn));
       goto err;
     }
   }
@@ -654,12 +652,10 @@ end:
 static void new_transaction(uint16 sid, TrID long_id, LSN undo_lsn,
                             LSN first_undo_lsn)
 {
-  char llbuf[22];
   all_active_trans[sid].long_trid= long_id;
-  llstr(long_id, llbuf);
-  tprint(tracef, "Transaction long_trid %s short_trid %u starts,"
+  tprint(tracef, "Transaction long_trid %lld short_trid %u starts,"
          " undo_lsn " LSN_FMT " first_undo_lsn " LSN_FMT "\n",
-         llbuf, sid, LSN_IN_PARTS(undo_lsn), LSN_IN_PARTS(first_undo_lsn));
+         long_id, sid, LSN_IN_PARTS(undo_lsn), LSN_IN_PARTS(first_undo_lsn));
   all_active_trans[sid].undo_lsn= undo_lsn;
   all_active_trans[sid].first_undo_lsn= first_undo_lsn;
   set_if_bigger(max_long_trid, long_id);
@@ -1668,7 +1664,6 @@ prototype_redo_exec_hook(REDO_INSERT_ROW_BLOBS)
   uchar *buff;
   uint number_of_blobs, number_of_ranges;
   pgcache_page_no_t first_page, last_page;
-  char llbuf1[22], llbuf2[22];
   MARIA_HA *info= get_MARIA_HA_from_REDO_record(rec);
   if (info == NULL  || maria_is_crashed(info))
     return 0;
@@ -1687,10 +1682,8 @@ prototype_redo_exec_hook(REDO_INSERT_ROW_BLOBS)
                                       &number_of_ranges,
                                       &first_page, &last_page))
     goto end;
-  llstr(first_page, llbuf1);
-  llstr(last_page, llbuf2);
-  tprint(tracef, " %u blobs %u ranges, first page %s last %s",
-         number_of_blobs, number_of_ranges, llbuf1, llbuf2);
+  tprint(tracef, " %u blobs %u ranges, first page %lld last %lld",
+         number_of_blobs, number_of_ranges, first_page, last_page);
 
   error= 0;
 
@@ -2042,7 +2035,6 @@ prototype_redo_exec_hook(UNDO_KEY_INSERT)
     {
       const HA_KEYSEG *keyseg= info->s->keyinfo[keynr].seg;
       ulonglong value;
-      char llbuf[22];
       uchar reversed[MARIA_MAX_KEY_BUFF], *to;
       tprint(tracef, "   state older than record\n");
       /* we read the record to find the auto_increment value */
@@ -2071,8 +2063,7 @@ prototype_redo_exec_hook(UNDO_KEY_INSERT)
       }
       value= ma_retrieve_auto_increment(to, keyseg->type);
       set_if_bigger(share->state.auto_increment, value);
-      llstr(share->state.auto_increment, llbuf);
-      tprint(tracef, "   auto-inc %s\n", llbuf);
+      tprint(tracef, "   auto-inc %lld\n", share->state.auto_increment);
     }
   }
   _ma_unpin_all_pages(info, rec->lsn);
@@ -2150,7 +2141,6 @@ prototype_redo_exec_hook(COMMIT)
 {
   uint16 sid= rec->short_trid;
   TrID long_trid= all_active_trans[sid].long_trid;
-  char llbuf[22];
   if (long_trid == 0)
   {
     tprint(tracef, "We don't know about transaction with short_trid %u;"
@@ -2158,9 +2148,8 @@ prototype_redo_exec_hook(COMMIT)
     bzero(&all_active_trans[sid], sizeof(all_active_trans[sid]));
     return 0;
   }
-  llstr(long_trid, llbuf);
-  tprint(tracef, "Transaction long_trid %s short_trid %u committed\n",
-         llbuf, sid);
+  tprint(tracef, "Transaction long_trid %lld short_trid %u committed\n",
+         long_trid, sid);
   bzero(&all_active_trans[sid], sizeof(all_active_trans[sid]));
 #ifdef MARIA_VERSIONING
   /*
@@ -2843,7 +2832,6 @@ PRAGMA_REENABLE_CHECK_STACK_FRAME
 static uint end_of_redo_phase(my_bool prepare_for_undo_phase)
 {
   uint sid, uncommitted= 0;
-  char llbuf[22];
   LSN addr;
 
   my_hash_free(&all_dirty_pages);
@@ -2855,11 +2843,9 @@ static uint end_of_redo_phase(my_bool prepare_for_undo_phase)
   my_free(dirty_pages_pool);
   dirty_pages_pool= NULL;
 
-  llstr(max_long_trid, llbuf);
-  tprint(tracef, "Maximum transaction long id seen: %s\n", llbuf);
-  llstr(max_trid_in_control_file, llbuf);
-  tprint(tracef, "Maximum transaction long id seen in control file: %s\n",
-         llbuf);
+  tprint(tracef, "Maximum transaction long id seen: %lld\n", max_long_trid);
+  tprint(tracef, "Maximum transaction long id seen in control file: %lld\n",
+         max_trid_in_control_file);
   /*
     If logs were deleted, or lost, trid in control file is needed to set
     trnman's generator:
@@ -2883,9 +2869,8 @@ static uint end_of_redo_phase(my_bool prepare_for_undo_phase)
     }
     if (all_active_trans[sid].undo_lsn != LSN_IMPOSSIBLE)
     {
-      llstr(long_trid, llbuf);
-      tprint(tracef, "Transaction long_trid %s short_trid %u uncommitted\n",
-             llbuf, sid);
+      tprint(tracef, "Transaction long_trid %lld short_trid %u uncommitted\n",
+             long_trid, sid);
       /*
         dummy_transaction_object serves only for DDLs, where there is never a
         rollback or incomplete group. And unknown transactions (which have
@@ -2975,7 +2960,6 @@ static int run_undo_phase(LSN end_undo_lsn, uint uncommitted)
     tprint(tracef, "%u transactions will be rolled back\n", uncommitted);
     for( ; ; )
     {
-      char llbuf[22];
       TRN *trn;
       if (recovery_message_printed == REC_MSG_UNDO)
       {
@@ -2999,8 +2983,7 @@ static int run_undo_phase(LSN end_undo_lsn, uint uncommitted)
 
       trn= trnman_get_any_trn();
       DBUG_ASSERT(trn != NULL);
-      llstr(trn->trid, llbuf);
-      tprint(tracef, "Rolling back transaction of long id %s\n", llbuf);
+      tprint(tracef, "Rolling back transaction of long id %lld\n", trn->trid);
       last_undo= trn->undo_lsn + 1;
 
       /* Execute all undo entries */
@@ -3124,7 +3107,6 @@ static MARIA_HA *get_MARIA_HA_from_REDO_record(const
   pgcache_page_no_t UNINIT_VAR(page);
   MARIA_HA *info;
   MARIA_SHARE *share;
-  char llbuf[22];
   my_bool index_page_redo_entry= FALSE, page_redo_entry= FALSE;
 
   print_redo_phase_progress(rec->lsn);
@@ -3145,7 +3127,6 @@ static MARIA_HA *get_MARIA_HA_from_REDO_record(const
   case LOGREC_REDO_FREE_HEAD_OR_TAIL:
     page_redo_entry= TRUE;
     page= page_korr(rec->header + FILEID_STORE_SIZE);
-    llstr(page, llbuf);
     break;
   case LOGREC_REDO_FREE_BLOCKS:
     /*

@@ -828,7 +828,8 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
                find_compiled_default_collation())))
         return false;
     }
-    my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), llstr(csno, buff));
+    snprintf(buff, sizeof(buff), "%d", csno);
+    my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), buff);
     return true;
   }
   return false;
@@ -951,7 +952,8 @@ static bool check_collation_not_null(sys_var *self, THD *thd, set_var *var)
     int csno= (int)var->value->val_int();
     if (!(var->save_result.ptr= get_charset(csno, MYF(0))))
     {
-      my_error(ER_UNKNOWN_COLLATION, MYF(0), llstr(csno, buff));
+      snprintf(buff, sizeof(buff), "%d", csno);
+      my_error(ER_UNKNOWN_COLLATION, MYF(0), buff);
       return true;
     }
   }
@@ -6030,7 +6032,8 @@ static bool check_locale(sys_var *self, THD *thd, set_var *var)
     int lcno= (int)var->value->val_int();
     if (!(locale= my_locale_by_number(lcno)))
     {
-      my_error(ER_UNKNOWN_LOCALE, MYF(0), llstr(lcno, buff));
+      snprintf(buff, sizeof(buff), "%d", lcno);
+      my_error(ER_UNKNOWN_LOCALE, MYF(0), buff);
       return true;
     }
     if (check_not_null(self, thd, var))

@@ -1920,7 +1920,6 @@ int main(int argc, char** argv)
   MY_STAT status;
   const char* fname="/tmp/iocache.test";
   int cache_size=16384;
-  char llstr_buf[22];
   int max_block,total_bytes=0;
   int i,num_loops=100,error=0;
   char *p;
@@ -1955,9 +1954,8 @@ int main(int argc, char** argv)
   if (!my_stat(fname,&status,MYF(MY_WME)))
     die("%s failed to stat, but I had just closed it,\
  wonder how that happened");
-  printf("Final size of %s is %s, wrote %d bytes\n",fname,
-	 llstr(status.st_size,llstr_buf),
-	 total_bytes);
+  printf("Final size of %s is %lld, wrote %d bytes\n",
+         fname, status.st_size, total_bytes);
   my_delete(fname, MYF(MY_WME));
   /* check correctness of tests */
   if (total_bytes != status.st_size)

@@ -3272,9 +3272,6 @@ static my_bool translog_get_last_page_addr(TRANSLOG_ADDRESS *addr,
   my_off_t file_size;
   uint32 file_no= LSN_FILE_NO(*addr);
   TRANSLOG_FILE *file;
-#ifdef DBUG_TRACE
-  char buff[21];
-#endif
   DBUG_ENTER("translog_get_last_page_addr");
 
   if (likely((file= get_logfile_by_number(file_no)) != NULL))
@@ -3306,7 +3303,7 @@ static my_bool translog_get_last_page_addr(TRANSLOG_ADDRESS *addr,
     file_size= mysql_file_seek(fd, 0, SEEK_END, MYF(0));
     mysql_file_close(fd, MYF(0));
   }
-  DBUG_PRINT("info", ("File size: %s", llstr(file_size, buff)));
+  DBUG_PRINT("info", ("File size: %lld", file_size));
   if (file_size == MY_FILEPOS_ERROR)
     DBUG_RETURN(1);
   DBUG_ASSERT(file_size < 0xffffffffULL);
@@ -9093,7 +9090,6 @@ void  translog_soft_sync_end(void)
 static void dump_header_page(uchar *buff)
 {
   LOGHANDLER_FILE_INFO desc;
-  char strbuff[21];
   struct tm tmp_tm;
   time_t header_time;
 
@@ -9102,14 +9098,14 @@ static void dump_header_page(uchar *buff)
   localtime_r(&header_time, &tmp_tm);
 
   printf("  This can be header page:\n"
-         "    Timestamp: %04d.%02d.%02d %02d.%02d.%02d  (%s)\n"
+         "    Timestamp: %04d.%02d.%02d %02d.%02d.%02d  (%lld)\n"
          "    Aria log version: %lu\n"
          "    Server version: %lu\n"
          "    Server id %lu\n"
          "    Page size %lu\n",
          tmp_tm.tm_year+1900, tmp_tm.tm_mon+1, tmp_tm.tm_mday,
          tmp_tm.tm_hour, tmp_tm.tm_min, tmp_tm.tm_sec,
-         llstr(desc.timestamp, strbuff),
+         desc.timestamp,
          desc.maria_version,
          desc.mysql_version,
          desc.server_id,

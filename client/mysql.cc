@@ -5188,7 +5188,7 @@ static int com_status(String *, char *)
   tee_fprintf(stdout, "Protocol version:\t%d\n", mysql_get_proto_info(&mysql));
   tee_fprintf(stdout, "Connection:\t\t%s\n", mysql_get_host_info(&mysql));
   if ((id= mysql_insert_id(&mysql)))
-    tee_fprintf(stdout, "Insert id:\t\t%s\n", llstr(id, buff));
+    tee_fprintf(stdout, "Insert id:\t\t%lld\n", id);
 
   /* "limit 1" is protection against SQL_SELECT_LIMIT=0 */
   if (mysql_real_query_for_lazy(C_STRING_WITH_LEN(
