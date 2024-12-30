@@ -139,8 +139,8 @@ my_bool _ma_redo_not_needed_for_page(uint16 shortid, LSN lsn,
     if ((dirty_page == NULL) ||
         cmp_translog_addr(lsn, dirty_page->rec_lsn) < 0)
     {
-      tprint(tracef, ", ignoring page %lld because of dirty_pages list\n",
-             (ulonglong) page);
+      tprint(tracef, ", ignoring page %llu because of dirty_pages list\n",
+             page);
       return TRUE;
     }
   }

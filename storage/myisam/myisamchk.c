@@ -16,7 +16,6 @@
 /* Describe, check and repair of MyISAM tables */
 
 #define VER "2.7"
-#include <inttypes.h>
 #include "fulltext.h"
 #include "my_default.h"
 #include <m_ctype.h>
@@ -1265,7 +1264,7 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
         share->base.auto_key, share->state.auto_increment);
     }
     if (share->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
-      printf("Checksum:  %23" PRId32 "\n", info->state->checksum);
+      printf("Checksum:  %23lu\n", (unsigned long) info->state->checksum);
 
     if (share->options & HA_OPTION_DELAY_KEY_WRITE)
       printf("Keys are only flushed at close\n");

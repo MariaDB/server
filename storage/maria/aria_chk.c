@@ -16,7 +16,6 @@
 /* Describe, check and repair of MARIA tables */
 
 #define VER "1.3"
-#include <inttypes.h>
 #include "ma_fulltext.h"
 #include <myisamchk.h>
 #include <my_bit.h>
@@ -1622,7 +1621,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     }
     printf("Status:              %s\n",buff);
     if (share->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
-      printf("Checksum:  %26" PRId32 "\n", info->state->checksum);
+      printf("Checksum:  %26lu\n", (unsigned long) info->state->checksum);
     if (share->options & HA_OPTION_DELAY_KEY_WRITE)
       printf("Keys are only flushed at close\n");
 

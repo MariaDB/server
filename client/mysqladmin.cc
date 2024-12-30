@@ -850,17 +850,14 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	for (;;)
 	{
           /* We don't use mysql_kill(), since it only handles 32-bit IDs. */
-          char buff[26], *out; /* "KILL " + max 20 digs + NUL */
-          out= strmov(buff, "KILL ");
-          // but first, also use `strtoull` to... truncate to ulonglong? //TODO: do we need to?
-          snprintf(buff, 21, "%llu",
-                   (unsigned long long) strtoull(pos, NULL, 0)); // `strtoull` returns `ulong` on Linux!
+          snprintf(buff, sizeof(buff), "KILL %llu",
+                   // extract `ulonglong` number with strtoull() (note: it returns `ulong` on Linux!)
+                   (unsigned long long) strtoull(pos, NULL, 0));
 
           if (mysql_query(mysql, buff))
 	  {
-            /* out still points to just the number */
 	    my_printf_error(0, "kill failed on %s; error: '%s'", error_flags,
-			    out, mysql_error(mysql));
+			    &buff[5], mysql_error(mysql));
 	    error=1;
 	  }
 	  if (!(pos=strchr(pos,',')))
