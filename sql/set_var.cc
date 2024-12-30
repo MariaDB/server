@@ -481,7 +481,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
   {
     char buf[22];
 
-    snprintf(buf, sizeof(buf), is_unsigned ? "%llu" : "%lld", v);
+    longlong10_to_str(v, buf, is_unsigned ? 10 : -10);
 
     if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
     {

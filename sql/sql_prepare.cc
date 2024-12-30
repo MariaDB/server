@@ -3483,9 +3483,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
   if (!(stmt= find_prepared_statement(thd, stmt_id)))
   {
     char llbuf[22];
-    my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0),
-             snprintf(llbuf, sizeof(llbuf), "%lu", stmt_id), stmt_id,
-             "mysqld_stmt_fetch");
+    longlong10_to_str(stmt_id, llbuf, 10);
+    my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0), static_cast<int>(sizeof(llbuf)),
+             llbuf, "mysqld_stmt_fetch");
     DBUG_VOID_RETURN;
   }
 
@@ -3544,9 +3544,9 @@ void mysqld_stmt_reset(THD *thd, char *packet)
   if (!(stmt= find_prepared_statement(thd, stmt_id)))
   {
     char llbuf[22];
-    my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0),
-             snprintf(llbuf, sizeof(llbuf), "%lu", stmt_id), stmt_id,
-             "mysqld_stmt_reset");
+    longlong10_to_str(stmt_id, llbuf, 10);
+    my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0), static_cast<int>(sizeof(llbuf)),
+             llbuf, "mysqld_stmt_reset");
     DBUG_VOID_RETURN;
   }
 
