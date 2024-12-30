@@ -13915,3 +13915,94 @@ bool HA_CREATE_INFO::
   }
   return false;
 }
+
+static
+void update_virtual_fields_for_rows(TABLE *table)
+{
+  if (table->vfield) {
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+    table->move_fields(table->field, table->record[1], table->record[0]);
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+    table->move_fields(table->field, table->record[0], table->record[1]);
+  }
+}
+
+/**
+  Delete a row from the table.
+  The row to be deleted must be present in `table->record[0]`.
+  The handler (`table->file`) must be configured to operate on the data
+  stored in `table->record[0]` (i.e., the effect from calling `ha_rnd_pos` 
+  or `ha_index_read` is required to make a successful call).
+  @param[in,out] table The table object representing the target table.
+  @return error number or 0 */
+int sql_delete_row(TABLE *table)
+{
+  THD *thd= table->in_use;
+  int error= 0;
+  bool trg_skip_row= false;
+  // This ensures that triggers can correctly read virtual field values
+  if (table->vfield) 
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+  
+  table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
+  if (table->triggers &&
+      unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                 TRG_ACTION_BEFORE, FALSE,
+                                                 &trg_skip_row)))
+    return trg_skip_row ? HA_ERR_GENERIC : 0;
+      
+
+  error= table->file->ha_delete_row(table->record[0]);
+  if (error != 0) 
+    return error;
+
+  if (table->triggers &&
+      unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                 TRG_ACTION_AFTER, FALSE,
+                                                 nullptr)))
+    return HA_ERR_GENERIC;
+
+  return 0;
+}
+
+/**
+  Update a row in the table.
+  The old row must be present in `table->record[1]` and the new row in `table->record[0]`.
+  The handler (`table->file`) must be configured to operate on the data
+  stored in `table->record[1]` (i.e., the effect from calling `ha_index_read` 
+  is required to make a successful call).
+  @param[in,out] table The table object representing the target table.
+  @return error number or 0 */
+int sql_update_row(TABLE *table) 
+{
+  THD *thd= current_thd;
+  bool trg_skip_row= false;
+  table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
+
+  // This ensures that triggers can correctly read virtual field values
+  update_virtual_fields_for_rows(table);
+
+  if (table->triggers && 
+        table->triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE)) 
+  {
+      if (unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                     TRG_ACTION_BEFORE, TRUE,
+                                                     &trg_skip_row)))
+        return trg_skip_row ? 0 : HA_ERR_GENERIC;
+      // This is necessary for indexes that depend on virtual fields
+      update_virtual_fields_for_rows(table);
+  }
+
+  int error= table->file->ha_update_row(table->record[1], table->record[0]);
+  if (error != 0)
+    return error;
+
+  if (table->triggers &&
+      unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                 TRG_ACTION_AFTER, TRUE,
+                                                 nullptr)))
+    return HA_ERR_GENERIC;
+
+  return 0;
+}
+

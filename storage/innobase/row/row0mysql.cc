@@ -65,7 +65,7 @@ Created 9/17/2000 Heikki Tuuri
 #include <algorithm>
 #include <vector>
 #include <thread>
-
+#include "ha_innodb.h"
 
 /** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
 static void row_mysql_delay_if_needed() noexcept
@@ -1660,7 +1660,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	for (;;) {
 		thr->run_node = node;
 		thr->prev_node = node;
-		thr->fk_cascade_depth = 0;
 
 		row_upd_step(thr);
 
@@ -1975,7 +1974,11 @@ row_update_cascade_for_mysql(
 		{
 			TABLE *mysql_table = thr->prebuilt->m_mysql_table;
 			thr->prebuilt->m_mysql_table = NULL;
-			row_upd_step(thr);
+
+			dberr_t cascade_error = innodb_do_foreign_cascade(thr,
+									  node);
+			if (UNIV_LIKELY(trx->error_state == DB_SUCCESS))
+				trx->error_state = cascade_error;
 			thr->prebuilt->m_mysql_table = mysql_table;
 		}
 
