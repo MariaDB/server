@@ -87,6 +87,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "btr0pcur.h"
 #include "ibuf0ibuf.h"
+#include "handler0binlog.h"
 #include "zlib.h"
 #include "log.h"
 
@@ -1939,7 +1940,7 @@ skip_monitors:
 		return(srv_init_abort(err));
 	}
 
-        fsp_binlog_init();
+        innodb_binlog_startup_init();
 
 	if (!srv_read_only_mode
 	    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
@@ -2057,7 +2058,7 @@ void innodb_shutdown()
 		logs_empty_and_mark_files_at_shutdown();
 	}
 
-        fsp_binlog_close();
+        innodb_binlog_close();
 	os_aio_free();
 	fil_space_t::close_all();
 	/* Exit any remaining threads. */
