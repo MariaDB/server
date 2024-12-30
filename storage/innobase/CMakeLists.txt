@@ -165,6 +165,7 @@ SET(INNOBASE_SOURCES
 	fsp/fsp0file.cc
 	fsp/fsp0space.cc
 	fsp/fsp0sysspace.cc
+	fsp/fsp0binlog.cc
 	fut/fut0lst.cc
 	ha/ha0storage.cc
 	fts/fts0fts.cc
@@ -182,6 +183,7 @@ SET(INNOBASE_SOURCES
 	fts/fts0plugin.cc
 	handler/ha_innodb.cc
 	handler/handler0alter.cc
+	handler/handler0binlog.cc
 	handler/i_s.cc
 	ibuf/ibuf0ibuf.cc
 	include/btr0btr.h
@@ -238,6 +240,7 @@ SET(INNOBASE_SOURCES
 	include/fsp0space.h
 	include/fsp0sysspace.h
 	include/fsp0types.h
+	include/fsp0binlog.h
 	include/fts0ast.h
 	include/fts0blex.h
 	include/fts0fts.h
@@ -262,6 +265,7 @@ SET(INNOBASE_SOURCES
 	include/ha0storage.h
 	include/ha0storage.inl
 	include/handler0alter.h
+	include/handler0binlog.h
 	include/hash0hash.h
 	include/ibuf0ibuf.h
 	include/lock0iter.h
