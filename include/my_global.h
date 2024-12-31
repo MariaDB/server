@@ -676,7 +676,9 @@ typedef SOCKET_SIZE_TYPE size_socket;
   This influences the speed of the isam btree library. E.g.: too big too slow.
   4096 is a common block size on SSDs.
 */
+#ifndef IO_SIZE
 #define IO_SIZE			4096U
+#endif
 #if (IO_SIZE < 512) || (IO_SIZE & (IO_SIZE-1))
 #error "IO_SIZE must be a positive multiple of 512 and power of 2"
 #endif
