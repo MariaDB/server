@@ -1342,9 +1342,15 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
     printf("%-4d%-6ld%-3d %-8s%-21s",
 	   key+1,(long) keyseg->start+1,keyseg->length,text,buff);
     if (param->testflag & T_VERBOSE)
-      printf("%11lu %12.0lld %10d", // `.0`: print nothing if zero (HA_OFFSET_ERROR)
+    {
+      if (share->state.key_root[key] == HA_OFFSET_ERROR)
+        buff[0]= '\0';
+      else
+        longlong10_to_str(buff, share->state.key_root[key], 10);
+      printf("%11lu %12s %10d",
 	     share->state.rec_per_key_part[keyseg_nr++],
-	     share->state.key_root[key], keyinfo->block_length);
+	     buff, keyinfo->block_length);
+    }
     (void) putchar('\n');
     while ((++keyseg)->type != HA_KEYTYPE_END)
     {
