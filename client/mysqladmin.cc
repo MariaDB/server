@@ -840,30 +840,24 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     case ADMIN_KILL:
       {
 	uint error=0;
-	char *pos;
+	size_t id_length;
 	if (argc < 2)
 	{
 	  my_printf_error(0, "Too few arguments to 'kill'", error_flags);
 	  return 1;
 	}
-	pos=argv[1];
-	for (;;)
+	strmov(buff, "KILL ");
+	for (char *id= &buff[5], *pos= argv[1]; *pos; pos+= id_length)
 	{
           /* We don't use mysql_kill(), since it only handles 32-bit IDs. */
-          char buff[26], *out; /* "KILL " + max 20 digs + NUL */
-          out= strxmov(buff, "KILL ", NullS);
-          ullstr(strtoull(pos, NULL, 0), out);
-
+          id_length= strcspn(pos, ",");
+          strmake(id, pos, id_length);
           if (mysql_query(mysql, buff))
 	  {
-            /* out still points to just the number */
 	    my_printf_error(0, "kill failed on %s; error: '%s'", error_flags,
-			    out, mysql_error(mysql));
+			    id, mysql_error(mysql));
 	    error=1;
 	  }
-	  if (!(pos=strchr(pos,',')))
-	    break;
-	  pos++;
 	}
 	argc--; argv++;
 	if (error)
