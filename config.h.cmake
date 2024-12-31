@@ -551,3 +551,5 @@ this is the case with Microsoft Windows VirtualFree(MEM_DECOMMIT) */
 #endif
 
 #cmakedefine HAVE_VFORK 1
+
+#cmakedefine IO_SIZE @IO_SIZE@

@@ -191,6 +191,15 @@ ELSE()
   SET (SKIP_COMPONENTS "N-O-N-E")
 ENDIF()
 
+# I/O buffer size. May be smaller than the disk page size.
+# 4096 is a common block size on SSDs.
+# This influences the speed of the isam btree library.
+# E.g.: too big may become too slow.
+SET(IO_SIZE 4096 CACHE STRING "Specify the I/O buffer size")
+MATH(EXPR IS_POWER_OF_TWO "(${IO_SIZE} & (${IO_SIZE} - 1))")
+IF(IO_SIZE LESS 512 OR NOT IS_POWER_OF_TWO EQUAL 0)
+  MESSAGE(FATAL_ERROR "IO_SIZE ${IO_SIZE} must be >= 512 and a power of 2.")
+ENDIF()
 
 SET(MEMPROTECT_DEFAULT ON)
 
