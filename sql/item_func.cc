@@ -4275,14 +4275,13 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(1);
   }
 
-  if (args[1]->null_value ||
-      (!args[1]->unsigned_flag && ((longlong) timeout < 0)))
+  if (args[1]->null_value || (!args[1]->unsigned_flag && timeout < 0.0))
   {
     char buf[22];
     if (args[1]->null_value)
       strmov(buf, "NULL");
     else
-      longlong10_to_str(timeout, buf, -10);
+      snprintf(buf, sizeof(buf), "%lf", timeout);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
                         "timeout", buf, "get_lock");
