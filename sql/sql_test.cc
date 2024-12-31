@@ -613,10 +613,10 @@ Open streams:  %10lu\n",
   display_table_locks();
 #if defined(HAVE_MALLINFO2)
   struct mallinfo2 info = mallinfo2();
-  #define PRIuMALLINFO zu
+  #define PRIuMALLINFO "zu"
 #elif defined(HAVE_MALLINFO)
   struct mallinfo info= mallinfo();
-  #define PRIuMALLINFO u
+  #define PRIuMALLINFO "u"
 #endif
 #if __has_feature(memory_sanitizer)
   /* Work around missing MSAN instrumentation */
