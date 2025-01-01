@@ -1346,7 +1346,7 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
       if (share->state.key_root[key] == HA_OFFSET_ERROR)
         buff[0]= '\0';
       else
-        longlong10_to_str(buff, share->state.key_root[key], 10);
+        longlong10_to_str(share->state.key_root[key], buff, 10);
       printf("%11lu %12s %10d",
 	     share->state.rec_per_key_part[keyseg_nr++],
 	     buff, keyinfo->block_length);
