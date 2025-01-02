@@ -3717,14 +3717,10 @@ uchar *pagecache_read(PAGECACHE *pagecache,
     unlock_pin= lock_to_pin[buff==0][lock].unlock_pin;
   PAGECACHE_BLOCK_LINK *fake_link;
   my_bool reg_request;
-#ifdef DBUG_TRACE
-  char llbuf[22];
-#endif
   DBUG_ENTER("pagecache_read");
-  DBUG_PRINT("enter", ("fd: %u  page: %s  buffer: %p  level: %u  "
+  DBUG_PRINT("enter", ("fd: %u  page: %llu  buffer: %p  level: %u  "
                        "t:%s  (%d)%s->%s  %s->%s  big block: %d",
-                       (uint) file->file, ullstr(pageno, llbuf),
-                       buff, level,
+                       (uint) file->file, pageno, buff, level,
                        page_cache_page_type_str[type],
                        lock_to_read[lock].need_lock_change,
                        page_cache_page_lock_str[lock_to_read[lock].new_lock],
@@ -4378,13 +4374,10 @@ my_bool pagecache_write_part(PAGECACHE *pagecache,
   my_bool error= 0;
   int need_lock_change= write_lock_change_table[lock].need_lock_change;
   my_bool reg_request;
-#ifdef DBUG_TRACE
-  char llbuf[22];
-#endif
   DBUG_ENTER("pagecache_write_part");
-  DBUG_PRINT("enter", ("fd: %u  page: %s  level: %u  type: %s  lock: %s  "
+  DBUG_PRINT("enter", ("fd: %u  page: %llu  level: %u  type: %s  lock: %s  "
                        "pin: %s   mode: %s  offset: %u  size %u",
-                       (uint) file->file, ullstr(pageno, llbuf), level,
+                       (uint) file->file, pageno, level,
                        page_cache_page_type_str[type],
                        page_cache_page_lock_str[lock],
                        page_cache_page_pin_str[pin],

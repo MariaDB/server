@@ -113,11 +113,11 @@ int main(int argc, char **argv)
   }
   if (check_param.total_files > 1)
   {					/* Only if descript */
-    char buff[22],buff2[22];
     if (!(check_param.testflag & T_SILENT) || check_param.testflag & T_INFO)
       puts("\n---------\n");
-    printf("\nTotal of all %d MyISAM-files:\nData records: %9s   Deleted blocks: %9s\n",check_param.total_files,llstr(check_param.total_records,buff),
-	   llstr(check_param.total_deleted,buff2));
+    printf("\nTotal of all %d MyISAM-files:\nData records: %9lld   "
+           "Deleted blocks: %9lld\n", check_param.total_files,
+           check_param.total_records, check_param.total_deleted);
   }
   free_defaults(default_argv);
   free_tmpdir(&myisamchk_tmpdir);
@@ -803,7 +803,6 @@ static int myisamchk(HA_CHECK *param, char * filename)
   int rep_quick= MY_TEST(param->testflag & (T_QUICK | T_FORCE_UNIQUENESS));
   MI_INFO *info;
   File datafile;
-  char llbuff[22],llbuff2[22];
   my_bool state_updated=0;
   MYISAM_SHARE *share;
   int open_mode;
@@ -1080,9 +1079,8 @@ static int myisamchk(HA_CHECK *param, char * filename)
       if (!(param->testflag & T_SILENT) || param->testflag & T_INFO)
 	printf("Checking MyISAM file: %s\n",filename);
       if (!(param->testflag & T_SILENT))
-	printf("Data records: %7s   Deleted blocks: %7s\n",
-	       llstr(info->state->records,llbuff),
-	       llstr(info->state->del,llbuff2));
+        printf("Data records: %7lld   Deleted blocks: %7lld\n",
+               info->state->records, info->state->del);
       error =chk_status(param,info);
       mi_intersect_keys_active(share->state.key_map, param->keys_in_use);
       error =chk_size(param,info);
@@ -1211,7 +1209,6 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
   char buff[160],length[10],*pos,*end;
   enum en_fieldtype type;
   MYISAM_SHARE *share=info->s;
-  char llbuff[22],llbuff2[22];
   DBUG_ENTER("describe");
 
   printf("\nMyISAM file:         %s\n",name);
@@ -1263,35 +1260,32 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
     printf("Status:              %s\n",buff);
     if (share->base.auto_key)
     {
-      printf("Auto increment key:  %13d  Last value:         %13s\n",
-	     share->base.auto_key,
-	     llstr(share->state.auto_increment,llbuff));
+      printf("Auto increment key:  %13d  Last value:         %13lld\n",
+        share->base.auto_key, share->state.auto_increment);
     }
     if (share->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
-      printf("Checksum:  %23s\n",llstr(info->state->checksum,llbuff));
+      printf("Checksum:  %23lu\n", (unsigned long) info->state->checksum);
 
     if (share->options & HA_OPTION_DELAY_KEY_WRITE)
       printf("Keys are only flushed at close\n");
 
   }
-  printf("Data records:        %13s  Deleted blocks:     %13s\n",
-	 llstr(info->state->records,llbuff),llstr(info->state->del,llbuff2));
+  printf("Data records:        %13lld  Deleted blocks:     %13lld\n",
+         info->state->records, info->state->del);
   if (param->testflag & T_SILENT)
     DBUG_VOID_RETURN;				/* This is enough */
 
   if (param->testflag & T_VERBOSE)
   {
 #ifdef USE_RELOC
-    printf("Init-relocation:     %13s\n",llstr(share->base.reloc,llbuff));
+    printf("Init-relocation:     %13lld\n", share->base.reloc);
 #endif
-    printf("Datafile parts:      %13s  Deleted data:       %13s\n",
-	   llstr(share->state.split,llbuff),
-	   llstr(info->state->empty,llbuff2));
+    printf("Datafile parts:      %13lld  Deleted data:       %13lld\n",
+           share->state.split, info->state->empty);
     printf("Datafile pointer (bytes):%9d  Keyfile pointer (bytes):%9d\n",
 	   share->rec_reflength,share->base.key_reflength);
-    printf("Datafile length:     %13s  Keyfile length:     %13s\n",
-	   llstr(info->state->data_file_length,llbuff),
-	   llstr(info->state->key_file_length,llbuff2));
+    printf("Datafile length:     %13lld  Keyfile length:     %13lld\n",
+           info->state->data_file_length, info->state->key_file_length);
 
     if (info->s->base.reloc == 1L && info->s->base.records == 1L)
       puts("This is a one-record table");
@@ -1299,9 +1293,9 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
     {
       if (share->base.max_data_file_length != HA_OFFSET_ERROR ||
 	  share->base.max_key_file_length != HA_OFFSET_ERROR)
-	printf("Max datafile length: %13s  Max keyfile length: %13s\n",
-	       llstr(share->base.max_data_file_length-1,llbuff),
-               ullstr(share->base.max_key_file_length - 1, llbuff2));
+	printf("Max datafile length: %13lld  Max keyfile length: %13llu\n",
+	       share->base.max_data_file_length-1,
+	       share->base.max_key_file_length - 1);
     }
   }
 
@@ -1347,14 +1341,16 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
 
     printf("%-4d%-6ld%-3d %-8s%-21s",
 	   key+1,(long) keyseg->start+1,keyseg->length,text,buff);
-    if (share->state.key_root[key] != HA_OFFSET_ERROR)
-      llstr(share->state.key_root[key],buff);
-    else
-      buff[0]=0;
     if (param->testflag & T_VERBOSE)
+    {
+      if (share->state.key_root[key] == HA_OFFSET_ERROR)
+        buff[0]= '\0';
+      else
+        longlong10_to_str(share->state.key_root[key], buff, 10);
       printf("%11lu %12s %10d",
 	     share->state.rec_per_key_part[keyseg_nr++],
-	     buff,keyinfo->block_length);
+	     buff, keyinfo->block_length);
+    }
     (void) putchar('\n');
     while ((++keyseg)->type != HA_KEYTYPE_END)
     {
@@ -1479,7 +1475,6 @@ static int mi_sort_records(HA_CHECK *param,
   uchar *temp_buff;
   ha_rows old_record_count;
   MYISAM_SHARE *share=info->s;
-  char llbuff[22],llbuff2[22];
   MI_SORT_INFO sort_info;
   MI_SORT_PARAM sort_param;
   DBUG_ENTER("sort_records");
@@ -1518,9 +1513,8 @@ static int mi_sort_records(HA_CHECK *param,
   {
     printf("- Sorting records for MyISAM-table '%s'\n",name);
     if (write_info)
-      printf("Data records: %9s   Deleted: %9s\n",
-	     llstr(info->state->records,llbuff),
-	     llstr(info->state->del,llbuff2));
+      printf("Data records: %9lld   Deleted: %9lld\n",
+             info->state->records, info->state->del);
   }
   if (share->state.key_root[sort_key] == HA_OFFSET_ERROR)
     DBUG_RETURN(0);				/* Nothing to do */
@@ -1596,9 +1590,8 @@ static int mi_sort_records(HA_CHECK *param,
 
   if (info->state->records != old_record_count)
   {
-    mi_check_print_error(param,"found %s of %s records",
-		llstr(info->state->records,llbuff),
-		llstr(old_record_count,llbuff2));
+    mi_check_print_error(param, "found %lld of %lld records",
+                         info->state->records, old_record_count);
     goto err;
   }
 
@@ -1654,7 +1647,6 @@ static int sort_record_index(MI_SORT_PARAM *sort_param,MI_INFO *info,
   uchar *temp_buff,*keypos,*endpos;
   my_off_t next_page,rec_pos;
   uchar lastkey[HA_MAX_KEY_BUFF];
-  char llbuff[22];
   MI_SORT_INFO *sort_info= sort_param->sort_info;
   HA_CHECK *param=sort_info->param;
   DBUG_ENTER("sort_record_index");
@@ -1682,8 +1674,8 @@ static int sort_record_index(MI_SORT_PARAM *sort_param,MI_INFO *info,
                            (uint) keyinfo->block_length, next_page,
                            MYF(MY_NABP+MY_WME)))
       {
-	mi_check_print_error(param,"Can't read keys from filepos: %s",
-		    llstr(next_page,llbuff));
+	mi_check_print_error(param, "Can't read keys from filepos: %lld",
+		    next_page);
 	goto err;
       }
       if (sort_record_index(sort_param, info,keyinfo,next_page,temp_buff,sort_key,

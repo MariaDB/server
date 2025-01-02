@@ -4275,14 +4275,13 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(1);
   }
 
-  if (args[1]->null_value ||
-      (!args[1]->unsigned_flag && ((longlong) timeout < 0)))
+  if (args[1]->null_value || (!args[1]->unsigned_flag && timeout < 0.0))
   {
     char buf[22];
     if (args[1]->null_value)
       strmov(buf, "NULL");
     else
-      llstr(((longlong) timeout), buf);
+      snprintf(buf, sizeof(buf), "%lf", timeout);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
                         "timeout", buf, "get_lock");
@@ -4523,7 +4522,7 @@ longlong Item_func_benchmark::val_int()
     if (!args[0]->null_value)
     {
       char buff[22];
-      llstr(((longlong) loop_count), buff);
+      longlong10_to_str(loop_count, buff, -10);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WRONG_VALUE_FOR_TYPE,
                           ER_THD(thd, ER_WRONG_VALUE_FOR_TYPE),

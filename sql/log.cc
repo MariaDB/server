@@ -3336,7 +3336,6 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                             const char *sql_text, size_t sql_text_len)
 {
   bool error= 0;
-  char llbuff[22];
   DBUG_ENTER("MYSQL_QUERY_LOG::write");
 
   mysql_mutex_lock(&LOCK_log);
@@ -3422,15 +3421,15 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
       if (thd->tmp_tables_used &&
           my_b_printf(&log_file,
                       "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
-                      "Tmp_table_sizes: %s\n",
+                      "Tmp_table_sizes: %lld\n",
                       (ulong) thd->tmp_tables_used,
                       (ulong) thd->tmp_tables_disk_used,
-                      llstr(thd->tmp_tables_size, llbuff)))
+                      thd->tmp_tables_size))
         goto err;
       if (thd->max_tmp_space_used &&
           my_b_printf(&log_file,
-                      "# Max_tmp_disk_space_used: %s\n",
-                      llstr(thd->max_tmp_space_used, llbuff)))
+                      "# Max_tmp_disk_space_used: %lld\n",
+                      thd->max_tmp_space_used))
         goto err;
     }
 

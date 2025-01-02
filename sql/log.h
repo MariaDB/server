@@ -936,13 +936,10 @@ public:
   }
   void harvest_bytes_written(Atomic_counter<uint64> *counter)
   {
-#ifdef DBUG_TRACE
-    char buf1[22],buf2[22];
-#endif
     DBUG_ENTER("harvest_bytes_written");
     (*counter)+=bytes_written;
-    DBUG_PRINT("info",("counter: %s  bytes_written: %s", llstr(*counter,buf1),
-		       llstr(bytes_written,buf2)));
+    DBUG_PRINT("info",
+      ("counter: %lld  bytes_written:  %lld", *counter, bytes_written));
     bytes_written=0;
     DBUG_VOID_RETURN;
   }

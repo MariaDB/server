@@ -1211,7 +1211,6 @@ static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts)
   {
     uint      idx;
     my_off_t  total_count;
-    char      llbuf[32];
 
     DBUG_PRINT("info", ("column: %3u", (uint) (count - huff_counts + 1)));
     if (verbose >= 2)
@@ -1232,19 +1231,17 @@ static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts)
       if (count->counts[idx])
       {
         total_count+= count->counts[idx];
-        DBUG_PRINT("info", ("counts[0x%02x]: %12s", idx,
-                            llstr((longlong) count->counts[idx], llbuf)));
+        DBUG_PRINT("info", ("counts[0x%02x]: %12lld", idx,
+                            (longlong) count->counts[idx]));
         if (verbose >= 2)
-          printf("counts[0x%02x]: %12s\n", idx,
-                      llstr((longlong) count->counts[idx], llbuf));
+          printf("counts[0x%02x]: %12lld\n", idx,
+                 (longlong) count->counts[idx]);
       }
     }
-    DBUG_PRINT("info", ("total:        %12s", llstr((longlong) total_count,
-                                                    llbuf)));
+    DBUG_PRINT("info", ("total:        %12lld", (longlong) total_count));
     if ((verbose >= 2) && total_count)
     {
-      printf("total:        %12s\n",
-                  llstr((longlong) total_count, llbuf));
+      printf("total:        %12lld\n", (longlong) total_count);
     }
   }
 
@@ -2514,7 +2511,6 @@ static int compress_maria_file(PACK_MRG_INFO *mrg, HUFF_COUNTS *huff_counts)
   uint i,max_calc_length,pack_ref_length,min_record_length,max_record_length;
   uint intervall,field_length,max_pack_length,pack_blob_length, null_bytes;
   my_off_t record_count;
-  char llbuf[32];
   ulong length,pack_length;
   uchar *record,*pos,*end_pos,*record_pos,*start_pos;
   HUFF_COUNTS *count,*end_count;
@@ -2885,7 +2881,7 @@ static int compress_maria_file(PACK_MRG_INFO *mrg, HUFF_COUNTS *huff_counts)
     fprintf(stderr, "%s: Got error %d reading records\n", my_progname, error);
   }
   if (verbose >= 2)
-    printf("wrote %s records.\n", llstr((longlong) record_count, llbuf));
+    printf("wrote %lld records.\n", (longlong) record_count);
 
   my_safe_afree(record, isam_file->s->base.reclength);
   mrg->ref_length=max_pack_length;

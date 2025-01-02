@@ -920,10 +920,9 @@ void _ma_print_bitmap(MARIA_FILE_BITMAP *bitmap, uchar *data,
                       pgcache_page_no_t page)
 {
   uchar *pos, *end;
-  char llbuff[22];
 
   DBUG_LOCK_FILE;
-  fprintf(DBUG_FILE,"\nDump of bitmap page at %s\n", llstr(page, llbuff));
+  fprintf(DBUG_FILE,"\nDump of bitmap page at %lld\n", page);
 
   page++;                                       /* Skip bitmap page */
   for (pos= data, end= pos + bitmap->max_total_size;
@@ -942,7 +941,7 @@ void _ma_print_bitmap(MARIA_FILE_BITMAP *bitmap, uchar *data,
       for (i= 0; i < 16 ; i++, bits>>= 3)
       {
         if (bits & 7)
-          fprintf(DBUG_FILE, "Page: %8s  %s\n", llstr(page+i, llbuff),
+          fprintf(DBUG_FILE, "Page: %8lld  %s\n", page+i,
                   bits_to_txt[bits & 7]);
       }
     }

@@ -128,7 +128,6 @@ my_bool _ma_redo_not_needed_for_page(uint16 shortid, LSN lsn,
       Next 2 bytes: table's short id
       Next 5 bytes: page number
     */
-    char llbuf[22];
     uint64 file_and_page_id=
       (((uint64)((index << 16) | shortid)) << 40) | page;
     struct st_dirty_page *dirty_page= (struct st_dirty_page *)
@@ -140,8 +139,8 @@ my_bool _ma_redo_not_needed_for_page(uint16 shortid, LSN lsn,
     if ((dirty_page == NULL) ||
         cmp_translog_addr(lsn, dirty_page->rec_lsn) < 0)
     {
-      tprint(tracef, ", ignoring page %s because of dirty_pages list\n",
-             llstr((ulonglong) page, llbuf));
+      tprint(tracef, ", ignoring page %llu because of dirty_pages list\n",
+             page);
       return TRUE;
     }
   }

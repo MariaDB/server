@@ -158,8 +158,6 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
 */
 #define MY_GCVT_MAX_FIELD_WIDTH (DBL_DIG + 4 + MY_MAX(5, MAX_DECPT_FOR_F_FORMAT)) \
 
-extern char *llstr(longlong value,char *buff);
-extern char *ullstr(longlong value,char *buff);
 #ifndef HAVE_STRTOUL
 extern long strtol(const char *str, char **ptr, int base);
 extern ulong strtoul(const char *str, char **ptr, int base);

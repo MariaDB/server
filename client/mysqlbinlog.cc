@@ -715,7 +715,6 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   Table_map_log_event *ignored_map= 
     print_event_info->m_table_map_ignored.get_table(table_id);
   bool skip_event= (ignored_map != NULL);
-  char ll_buff[21];
   bool result= 0;
 
   if (opt_flashback)
@@ -821,8 +820,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   if (is_stmt_end && !result)
   {
     if (print_event_info->print_row_count)
-      fprintf(result_file, "# Number of rows: %s\n",
-              llstr(print_event_info->row_events, ll_buff));
+      fprintf(result_file, "# Number of rows: %lld\n", print_event_info->row_events);
     print_event_info->row_events= 0;
   }
   return result;
@@ -863,7 +861,6 @@ static inline my_bool is_server_id_excluded(uint32 server_id)
 Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
                           my_off_t pos, const char *logname)
 {
-  char ll_buff[21];
   Log_event_type ev_type= ev->get_type_code();
   my_bool destroy_evt= TRUE;
   my_bool gtid_err= FALSE;
@@ -1040,7 +1037,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       goto end;
     }
     if (print_row_event_positions)
-      fprintf(result_file, "# at %s\n",llstr(pos,ll_buff));
+      fprintf(result_file, "# at %lld\n", pos);
 
     if (!opt_hexdump)
       print_event_info->hexdump_from= 0; /* Disabled */
@@ -3160,7 +3157,6 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   }
   for (;;)
   {
-    char llbuff[21];
     my_off_t old_off = my_b_tell(file);
 
     Log_event* ev = Log_event::read_log_event(file, glob_description_event,
@@ -3175,9 +3171,8 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
         file->error= 0;
       else if (file->error)
       {
-        error("Could not read entry at offset %s: "
-              "Error in log format or read error.",
-              llstr(old_off,llbuff));
+        error("Could not read entry at offset %lld: "
+              "Error in log format or read error.", old_off);
         goto err;
       }
       // else file->error == 0 means EOF, that's OK, we break in this case

@@ -6432,11 +6432,9 @@ dbug_gtid_accept:
                                buf, event_len, new_buf_arr, sizeof(new_buf_arr),
                                &is_malloc, &new_buf, &event_len))
     {
-      char  llbuf[22];
       error = ER_BINLOG_UNCOMPRESS_ERROR;
       error_msg.append(STRING_WITH_LEN("binlog uncompress error, master log_pos: "));
-      llstr(mi->master_log_pos, llbuf);
-      error_msg.append(llbuf, strlen(llbuf));
+      error_msg.append_ulonglong(mi->master_log_pos);
       goto err;
     }
     buf = new_buf;
@@ -6457,11 +6455,9 @@ dbug_gtid_accept:
                                    sizeof(new_buf_arr),
                                    &is_malloc, &new_buf, &event_len))
       {
-        char  llbuf[22];
         error = ER_BINLOG_UNCOMPRESS_ERROR;
         error_msg.append(STRING_WITH_LEN("binlog uncompress error, master log_pos: "));
-        llstr(mi->master_log_pos, llbuf);
-        error_msg.append(llbuf, strlen(llbuf));
+        error_msg.append_ulonglong(mi->master_log_pos);
         goto err;
       }
     }

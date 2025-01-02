@@ -229,11 +229,11 @@ int main(int argc, char **argv)
 end:
   if (check_param.total_files > 1)
   {					/* Only if descript */
-    char buff[22],buff2[22];
     if (!(check_param.testflag & T_SILENT) || check_param.testflag & T_INFO)
       puts("\n---------");
-    printf("\nTotal of all %d Aria-files:\nData records: %9s   Deleted blocks: %9s\n",check_param.total_files,llstr(check_param.total_records,buff),
-	   llstr(check_param.total_deleted,buff2));
+    printf("\nTotal of all %d Aria-files:\nData records: %9lld   "
+           "Deleted blocks: %9lld\n", check_param.total_files,
+           check_param.total_records, check_param.total_deleted);
   }
   maria_end();
   my_exit(error);
@@ -1013,7 +1013,6 @@ static int maria_chk(HA_CHECK *param, char *filename)
   my_bool born_transactional;
   MARIA_HA *info;
   File datafile;
-  char llbuff[22],llbuff2[22];
   my_bool state_updated=0;
   MARIA_SHARE *share;
   DBUG_ENTER("maria_chk");
@@ -1373,9 +1372,8 @@ static int maria_chk(HA_CHECK *param, char *filename)
     if (!(param->testflag & T_VERY_SILENT) || param->testflag & T_INFO)
       printf("Checking Aria file: %s\n",filename);
     if (!(param->testflag & T_SILENT))
-      printf("Data records: %7s   Deleted blocks: %7s\n",
-             llstr(info->state->records,llbuff),
-             llstr(info->state->del,llbuff2));
+      printf("Data records: %7lld   Deleted blocks: %7lld\n",
+             info->state->records, info->state->del);
     maria_chk_init_for_check(param, info);
     if (opt_warning_for_wrong_transid == 0)
       param->max_trid= ~ (ulonglong) 0;
@@ -1488,11 +1486,7 @@ end2:
     error= write_log_record(param);
 
   if (param->not_visible_rows_found && (param->testflag & T_VERBOSE))
-  {
-    char buff[22];
-    printf("Max transaction id found: %s\n",
-           llstr(param->max_found_trid, buff));
-  }
+    printf("Max transaction id found: %lld\n", param->max_found_trid);
 
   fflush(stdout);
   fflush(stderr);
@@ -1539,7 +1533,6 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
   char buff[200],length[10],*pos,*end;
   enum en_fieldtype type;
   MARIA_SHARE *share= info->s;
-  char llbuff[22],llbuff2[22];
   DBUG_ENTER("descript");
 
   if (param->testflag & T_VERY_SILENT)
@@ -1547,8 +1540,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     longlong checksum= info->state->checksum;
     if (!(share->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD)))
       checksum= 0;
-    printf("%s %s %s\n", name, llstr(info->state->records,llbuff),
-           llstr(checksum, llbuff2));
+    printf("%s %lld %lld\n", name, info->state->records, checksum);
     DBUG_VOID_RETURN;
   }
 
@@ -1583,8 +1575,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
              LSN_IN_PARTS(share->state.create_rename_lsn),
              LSN_IN_PARTS(share->state.is_of_horizon),
              LSN_IN_PARTS(share->state.skip_redo_lsn));
-      printf("create_trid:         %s\n",
-             llstr(share->state.create_trid, llbuff));
+      printf("create_trid:         %lld\n", share->state.create_trid);
     }
     compile_time_assert((MY_UUID_STRING_LENGTH + 1) <= sizeof(buff));
     buff[MY_UUID_STRING_LENGTH]= 0;
@@ -1630,8 +1621,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     }
     printf("Status:              %s\n",buff);
     if (share->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
-      printf("Checksum:  %26s\n",llstr(info->state->checksum,llbuff));
-;
+      printf("Checksum:  %26lu\n", (unsigned long) info->state->checksum);
     if (share->options & HA_OPTION_DELAY_KEY_WRITE)
       printf("Keys are only flushed at close\n");
 
@@ -1639,29 +1629,26 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
       printf("Page checksums are used\n");
     if (share->base.auto_key)
     {
-      printf("Auto increment key:  %16d  Last value:         %18s\n",
-	     share->base.auto_key,
-	     llstr(share->state.auto_increment,llbuff));
+      printf("Auto increment key:  %16d  Last value:         %18lld\n",
+             share->base.auto_key, share->state.auto_increment);
     }
   }
-  printf("Data records:        %16s  Deleted blocks:     %18s\n",
-	 llstr(info->state->records,llbuff),llstr(info->state->del,llbuff2));
+  printf("Data records:        %16lld  Deleted blocks:     %18lld\n",
+         info->state->records, info->state->del);
   if (param->testflag & T_SILENT)
     DBUG_VOID_RETURN;				/* This is enough */
 
   if (param->testflag & T_VERBOSE)
   {
 #ifdef USE_RELOC
-    printf("Init-relocation:     %16s\n",llstr(share->base.reloc,llbuff));
+    printf("Init-relocation:     %16lld\n", share->base.reloc);
 #endif
-    printf("Datafile parts:      %16s  Deleted data:       %18s\n",
-	   llstr(share->state.split,llbuff),
-	   llstr(info->state->empty,llbuff2));
+    printf("Datafile parts:      %16lld  Deleted data:       %18lld\n",
+           share->state.split, info->state->empty);
     printf("Datafile pointer (bytes): %11d  Keyfile pointer (bytes): %13d\n",
 	   share->rec_reflength,share->base.key_reflength);
-    printf("Datafile length:     %16s  Keyfile length:     %18s\n",
-	   llstr(info->state->data_file_length,llbuff),
-	   llstr(info->state->key_file_length,llbuff2));
+    printf("Datafile length:     %16lld  Keyfile length:     %18lld\n",
+           info->state->data_file_length, info->state->key_file_length);
 
     if (info->s->base.reloc == 1L && info->s->base.records == 1L)
       puts("This is a one-record table");
@@ -1669,9 +1656,8 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     {
       if (share->base.max_data_file_length != HA_OFFSET_ERROR ||
 	  share->base.max_key_file_length != HA_OFFSET_ERROR)
-	printf("Max datafile length: %16s  Max keyfile length: %18s\n",
-	       ullstr(share->base.max_data_file_length,llbuff),
-	       ullstr(share->base.max_key_file_length,llbuff2));
+        printf("Max datafile length: %16llu  Max keyfile length: %18llu\n",
+          share->base.max_data_file_length, share->base.max_key_file_length);
     }
   }
   printf("Block_size:          %16d\n",(int) share->block_size);
@@ -1717,14 +1703,16 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
 
     printf("%-4d%-6ld%-3d %-9s%-23s",
 	   key+1,(long) keyseg->start+1,keyseg->length,text,buff);
-    if (share->state.key_root[key] != HA_OFFSET_ERROR)
-      llstr(share->state.key_root[key],buff);
-    else
-      buff[0]=0;
     if (param->testflag & T_VERBOSE)
+    {
+      if (share->state.key_root[key] == HA_OFFSET_ERROR)
+        buff[0]= '\0';
+      else
+        longlong10_to_str(share->state.key_root[key], buff, 10);
       printf("%9.0f %12s %10d",
 	     share->state.rec_per_key_part[keyseg_nr++],
-	     buff,keyinfo->block_length);
+	     buff, keyinfo->block_length);
+    }
     putchar('\n');
     while ((++keyseg)->type != HA_KEYTYPE_END)
     {
@@ -1857,7 +1845,6 @@ static int maria_sort_records(HA_CHECK *param,
   uchar *temp_buff;
   ha_rows old_record_count;
   MARIA_SHARE *share= info->s;
-  char llbuff[22],llbuff2[22];
   MARIA_SORT_INFO sort_info;
   MARIA_SORT_PARAM sort_param;
   MARIA_PAGE page;
@@ -1908,9 +1895,8 @@ static int maria_sort_records(HA_CHECK *param,
   {
     printf("- Sorting records for Aria table '%s'\n",name);
     if (write_info)
-      printf("Data records: %9s   Deleted: %9s\n",
-	     llstr(info->state->records,llbuff),
-	     llstr(info->state->del,llbuff2));
+      printf("Data records: %9lld   Deleted: %9lld\n",
+             info->state->records, info->state->del);
   }
   if (share->state.key_root[sort_key] == HA_OFFSET_ERROR)
     DBUG_RETURN(0);				/* Nothing to do */
@@ -1963,8 +1949,8 @@ static int maria_sort_records(HA_CHECK *param,
                        share->state.key_root[sort_key],
                        MYF(MY_NABP+MY_WME)))
   {
-    _ma_check_print_error(param, "Can't read indexpage from filepos: %s",
-                          llstr(share->state.key_root[sort_key], llbuff));
+    _ma_check_print_error(param, "Can't read indexpage from filepos: %lld",
+                          share->state.key_root[sort_key]);
     goto err;
   }
 
@@ -1988,9 +1974,8 @@ static int maria_sort_records(HA_CHECK *param,
 
   if (info->state->records != old_record_count)
   {
-    _ma_check_print_error(param,"found %s of %s records",
-		llstr(info->state->records,llbuff),
-		llstr(old_record_count,llbuff2));
+    _ma_check_print_error(param, "found %lld of %lld records",
+                          info->state->records, old_record_count);
     goto err;
   }
 
@@ -2049,7 +2034,6 @@ static int sort_record_index(MARIA_SORT_PARAM *sort_param,
   uchar *temp_buff,*keypos,*endpos;
   my_off_t next_page,rec_pos;
   uchar *lastkey;
-  char llbuff[22];
   MARIA_SORT_INFO *sort_info= sort_param->sort_info;
   HA_CHECK *param=sort_info->param;
   MARIA_KEY tmp_key;
@@ -2087,8 +2071,8 @@ static int sort_record_index(MARIA_SORT_PARAM *sort_param,
                            (uint) tmp_key.keyinfo->block_length, next_page,
                            MYF(MY_NABP+MY_WME)))
       {
-	_ma_check_print_error(param,"Can't read keys from filepos: %s",
-		    llstr(next_page,llbuff));
+	_ma_check_print_error(param, "Can't read keys from filepos: %lld",
+                              next_page);
 	goto err;
       }
       _ma_page_setup(&new_page, info, ma_page->keyinfo, next_page, temp_buff);

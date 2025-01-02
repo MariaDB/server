@@ -1419,7 +1419,6 @@ static void test_prepare()
   double     double_data, o_double_data;
   ulong      length[7], len;
   my_bool    is_null[7];
-  char	     llbuf[22];
   MYSQL_BIND my_bind[7];
   char query[MAX_TEST_QUERY_LENGTH];
 
@@ -1538,8 +1537,7 @@ static void test_prepare()
       fprintf(stdout, "\n\t tiny   : %d (%lu)", tiny_data, length[0]);
       fprintf(stdout, "\n\t short  : %d (%lu)", small_data, length[3]);
       fprintf(stdout, "\n\t int    : %d (%lu)", int_data, length[2]);
-      fprintf(stdout, "\n\t big    : %s (%lu)", llstr(big_data, llbuf),
-              length[4]);
+      fprintf(stdout, "\n\t big    : %lld (%lu)", big_data, length[4]);
 
       fprintf(stdout, "\n\t float  : %f (%lu)", real_data, length[5]);
       fprintf(stdout, "\n\t double : %f (%lu)", double_data, length[6]);
@@ -3727,7 +3725,6 @@ static void test_bind_result_ext()
   MYSQL_BIND my_bind[8];
   ulong      length[8];
   my_bool    is_null[8];
-  char	     llbuf[22];
   myheader("test_bind_result_ext");
 
   rc= mysql_query(mysql, "DROP TABLE IF EXISTS test_bind_result");
@@ -3801,7 +3798,7 @@ static void test_bind_result_ext()
     fprintf(stdout, "\n data (tiny)   : %d", t_data);
     fprintf(stdout, "\n data (short)  : %d", s_data);
     fprintf(stdout, "\n data (int)    : %d", i_data);
-    fprintf(stdout, "\n data (big)    : %s", llstr(b_data, llbuf));
+    fprintf(stdout, "\n data (big)    : %lld", b_data);
 
     fprintf(stdout, "\n data (float)  : %f", f_data);
     fprintf(stdout, "\n data (double) : %f", d_data);
@@ -6968,7 +6965,6 @@ static void test_ushort_bug()
   ulonglong  longlong_value;
   int        rc;
   uchar      tiny_value;
-  char       llbuf[22];
   myheader("test_ushort_bug");
 
   rc= mysql_query(mysql, "DROP TABLE IF EXISTS test_ushort");
@@ -7020,8 +7016,7 @@ static void test_ushort_bug()
   {
     fprintf(stdout, "\n ushort   : %d (%ld)", short_value, s_length);
     fprintf(stdout, "\n ulong    : %lu (%ld)", (ulong) long_value, l_length);
-    fprintf(stdout, "\n longlong : %s (%ld)", llstr(longlong_value, llbuf),
-            ll_length);
+    fprintf(stdout, "\n longlong : %lld (%ld)", longlong_value, ll_length);
     fprintf(stdout, "\n tinyint  : %d   (%ld)", tiny_value, t_length);
   }
 
@@ -7056,7 +7051,6 @@ static void test_sshort_bug()
   ulonglong  longlong_value;
   int        rc;
   uchar      tiny_value;
-  char       llbuf[22];
 
   myheader("test_sshort_bug");
 
@@ -7107,8 +7101,7 @@ static void test_sshort_bug()
   {
     fprintf(stdout, "\n sshort   : %d (%ld)", short_value, s_length);
     fprintf(stdout, "\n slong    : %ld (%ld)", (long) long_value, l_length);
-    fprintf(stdout, "\n longlong : %s (%ld)", llstr(longlong_value, llbuf),
-            ll_length);
+    fprintf(stdout, "\n longlong : %lld (%ld)", longlong_value, ll_length);
     fprintf(stdout, "\n tinyint  : %d   (%ld)", tiny_value, t_length);
   }
 
@@ -7143,7 +7136,6 @@ static void test_stiny_bug()
   ulonglong  longlong_value;
   int        rc;
   uchar      tiny_value;
-  char       llbuf[22];
 
   myheader("test_stiny_bug");
 
@@ -7193,8 +7185,7 @@ static void test_stiny_bug()
   {
     fprintf(stdout, "\n sshort   : %d (%ld)", short_value, s_length);
     fprintf(stdout, "\n slong    : %ld (%ld)", (long) long_value, l_length);
-    fprintf(stdout, "\n longlong : %s  (%ld)", llstr(longlong_value, llbuf),
-            ll_length);
+    fprintf(stdout, "\n longlong : %lld  (%ld)", longlong_value, ll_length);
     fprintf(stdout, "\n tinyint  : %d    (%ld)", tiny_value, t_length);
   }
 

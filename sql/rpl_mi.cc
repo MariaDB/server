@@ -722,7 +722,6 @@ int flush_master_info(Master_info* mi,
                       bool need_lock_relay_log)
 {
   IO_CACHE* file = &mi->file;
-  char lbuf[22];
   int err= 0;
 
   DBUG_ENTER("flush_master_info");
@@ -817,14 +816,14 @@ int flush_master_info(Master_info* mi,
   my_fcvt(mi->heartbeat_period, 3, heartbeat_buf, NULL);
   my_b_seek(file, 0L);
   my_b_printf(file,
-              "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n"
+              "%u\n%s\n%lld\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n"
               "\n\n\n\n\n\n\n\n\n\n\n"
               "using_gtid=%d\n"
               "do_domain_ids=%s\n"
               "ignore_domain_ids=%s\n"
               "END_MARKER\n",
               LINES_IN_MASTER_INFO,
-              mi->master_log_name, llstr(mi->master_log_pos, lbuf),
+              mi->master_log_name, mi->master_log_pos,
               mi->host, mi->user,
               mi->password, mi->port, mi->connect_retry,
               (int)(mi->ssl), mi->ssl_ca, mi->ssl_capath, mi->ssl_cert,

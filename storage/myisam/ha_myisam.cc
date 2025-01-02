@@ -1195,13 +1195,9 @@ int ha_myisam::repair(THD* thd, HA_CHECK_OPT *check_opt)
 
   if (!error && start_records != file->state->records &&
       !(check_opt->flags & T_VERY_SILENT))
-  {
-    char llbuff[22],llbuff2[22];
-    sql_print_information("Found %s of %s rows when repairing '%s'",
-                          llstr(file->state->records, llbuff),
-                          llstr(start_records, llbuff2),
+    sql_print_information("Found %lld of %lld rows when repairing '%s'",
+                         file->state->records, start_records,
                           table->s->path.str);
-  }
   return error;
 }
 
@@ -1417,12 +1413,8 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
     info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
 	 HA_STATUS_CONST);
     if (rows != file->state->records && ! (param.testflag & T_VERY_SILENT))
-    {
-      char llbuff[22],llbuff2[22];
-      mi_check_print_warning(&param,"Number of rows changed from %s to %s",
-			     llstr(rows,llbuff),
-			     llstr(file->state->records,llbuff2));
-    }
+      mi_check_print_warning(&param,
+        "Number of rows changed from %lld to %lld", rows, file->state->records);
   }
   else
   {
