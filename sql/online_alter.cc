@@ -231,20 +231,32 @@ static void cleanup_cache_list(ilist<online_alter_cache_data> &list)
   DBUG_ASSERT(list.empty());
 }
 
+static void report_error(THD *thd, Event_log *binlog)
+{
+  my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG|ME_WARNING),
+           binlog->get_name(), errno);
+  push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_NOTE,
+                      ER_ERROR_ON_WRITE,
+                      "Online ALTER TABLE will be cancelled.");
+}
+
 
 static
 int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
                            bool is_ending_transaction, bool commit)
 {
   DBUG_ENTER("online_alter_end_trans");
-  int error= 0;
 
   if (cache_list.empty())
     DBUG_RETURN(0);
 
+  IF_DBUG(int cnt= 0;,);
+
+  Event_log *binlog= NULL;
+
   for (auto &cache: cache_list)
   {
-    auto *binlog= cache.sink_log;
+    binlog= cache.sink_log;
     DBUG_ASSERT(binlog);
     bool non_trans= cache.hton->flags & HTON_NO_ROLLBACK // Aria
                     || !cache.hton->rollback;
@@ -253,9 +265,13 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
     if (commit || non_trans)
     {
       // Do not set STMT_END for last event to leave table open in altering thd
-      error= binlog_flush_pending_rows_event(thd, false, true, binlog, &cache);
-      if (error)
-        do_commit= commit= 0;
+      int error= binlog_flush_pending_rows_event(thd, false, true, binlog, &cache);
+
+      if (unlikely(error))
+      {
+        report_error(thd, binlog);
+        continue;
+      }
     }
 
     if (do_commit)
@@ -264,14 +280,24 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
         If the cache wasn't reinited to write, then it remains empty after
         the last write.
       */
-      if (my_b_bytes_in_cache(&cache.cache_log) && likely(!error))
+      if (my_b_bytes_in_cache(&cache.cache_log))
       {
         DBUG_ASSERT(cache.cache_log.type != READ_CACHE);
         mysql_mutex_lock(binlog->get_log_lock());
-        error= binlog->write_cache_raw(thd, &cache.cache_log);
+        int error=binlog->write_cache_raw(thd, &cache.cache_log);
+
+        DBUG_EXECUTE_IF("online_alter_inject_commit_on_second_err",
+          if (++cnt == 2) cache.sink_log->get_log_file()->error= error=1;
+        );
         mysql_mutex_unlock(binlog->get_log_lock());
         if (!is_ending_transaction)
           cache.reset();
+
+        if (unlikely(error))
+        {
+          report_error(thd, binlog);
+          continue;
+        }
       }
     }
     else if (!commit) // rollback
@@ -284,20 +310,13 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
       DBUG_ASSERT(!is_ending_transaction);
       cache.store_prev_position();
     }
-
-
-    if (error)
-    {
-      my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG),
-               binlog->get_name(), errno);
-      break;
-    }
   }
+
 
   if (is_ending_transaction)
     cleanup_cache_list(cache_list);
 
-  DBUG_RETURN(error);
+  DBUG_RETURN(0);
 }
 
 void cleanup_tables(THD *thd)

@@ -12208,6 +12208,12 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 
   IO_CACHE *log_file= log->flip();
 
+  if (unlikely(log_file->error))
+  {
+    my_error(ER_IO_READ_ERROR,MYF(0), (ulong)EIO, strerror(EIO), "");
+    return 1;
+  }
+
   thd_progress_report(thd, 1, MY_MAX(1, my_b_write_tell(log_file)));
 
   Has_default_error_handler hdeh;

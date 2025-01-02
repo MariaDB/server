@@ -485,10 +485,12 @@ public:
     IO_CACHE *tmp= current;
     reinit_io_cache(alt, WRITE_CACHE, 0, 0, 0);
     mysql_mutex_lock(get_log_lock());
-    reinit_io_cache(current, READ_CACHE, 0, 0, 0);
+    int error= current->error ||
+               reinit_io_cache(current, READ_CACHE, 0, 0, 0);
     current= alt;
     mysql_mutex_unlock(get_log_lock());
     alt= tmp;
+    alt->error= error;
 
     return alt;
   }

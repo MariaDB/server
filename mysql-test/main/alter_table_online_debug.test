@@ -2161,6 +2161,58 @@ XA ROLLBACK 'x1';
 DROP TABLE t1, t2, t3;
 SET GLOBAL innodb_snapshot_isolation= @isolation.save;
 
+
+--echo # Multi-alter error handling: if first alter commits successfully and
+--echo # second alter fails, then the first one should fail as well
+
+call mtr.add_suppression("Error writing file 'online-alter-binlog'");
+
+create table t1(x int primary key);
+create table t2(x int primary key);
+insert into t1 values (1);
+insert into t2 values (1);
+
+--connect (con1,localhost,root,,)
+set debug_sync= 'alter_table_online_before_lock signal downgraded_1 wait_for go_1';
+--send
+alter table t1 add y int, lock=none, algorithm=copy;
+
+
+--connect (con2,localhost,root,,)
+set debug_sync= 'alter_table_online_before_lock signal downgraded_2 wait_for go_2';
+--send
+alter table t2 add y int, lock=none, algorithm=copy;
+
+--connection default
+set debug_sync= 'now wait_for downgraded_1';
+set debug_sync= 'now wait_for downgraded_2';
+
+begin;
+insert into t1 values (2);
+insert into t2 values (2);
+
+set debug_dbug="+d,online_alter_inject_commit_on_second_err";
+commit;
+
+set debug_sync= 'now signal go_1';
+set debug_sync= 'now signal go_2';
+
+--connection con1
+--reap
+--connection con2
+--error ER_IO_READ_ERROR
+--reap
+
+--connection default
+select * from t1;
+select * from t2;
+
+drop table t1;
+drop table t2;
+set debug_sync= reset;
+set debug_dbug= @old_dbug;
+--disconnect con1
+--disconnect con2
 --echo #
 --echo # End of 11.7 tests
 --echo #
