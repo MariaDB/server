@@ -3005,7 +3005,10 @@ static int innobase_rollback_by_xid(handlerton*, XID *xid) noexcept
     return XAER_RMFAIL;
   if (trx_t *trx= trx_get_trx_by_xid(xid))
   {
-    ut_ad(trx->xid.is_null()); /* should have been cleared by the lookup */
+    /* Lookup by xid clears the transaction xid.
+       For wsrep we clear it below. */
+    ut_ad(trx->xid.is_null() || wsrep_is_wsrep_xid(&trx->xid));
+    trx->xid.null();
     trx_deregister_from_2pc(trx);
     THD* thd= trx->mysql_thd;
     dberr_t err= trx_rollback_for_mysql(trx);

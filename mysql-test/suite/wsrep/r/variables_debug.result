@@ -3,6 +3,9 @@ SHOW GLOBAL STATUS LIKE 'wsrep%';
 Variable_name	Value
 wsrep_local_state_uuid	#
 wsrep_protocol_version	#
+wsrep_protocol_application	#
+wsrep_protocol_replicator	#
+wsrep_protocol_gcs	#
 wsrep_last_committed	#
 wsrep_replicated	#
 wsrep_replicated_bytes	#

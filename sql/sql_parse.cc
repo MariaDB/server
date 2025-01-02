@@ -1155,8 +1155,7 @@ static bool wsrep_command_no_result(char command)
 {
   return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
-          command == COM_STMT_CLOSE            ||
-          command == COM_STMT_PREPARE);
+          command == COM_STMT_CLOSE);
 }
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
@@ -2400,13 +2399,23 @@ resume:
     {
       DEBUG_SYNC(thd, "wsrep_at_dispatch_end_before_result");
     }
-    wsrep_after_command_before_result(thd);
-    if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
+    if (thd->wsrep_cs().state() == wsrep::client_state::s_exec)
     {
-      /* todo: Pass wsrep client state current error to override */
-      wsrep_override_error(thd, wsrep_current_error(thd),
-                           wsrep_current_error_status(thd));
-      WSREP_LOG_THD(thd, "leave");
+      wsrep_after_command_before_result(thd);
+      if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
+      {
+        /* todo: Pass wsrep client state current error to override */
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        WSREP_LOG_THD(thd, "leave");
+      }
+    }
+    else
+    {
+      /* wsrep_after_command_before_result() already called elsewhere
+         or not necessary to call it */
+      assert(thd->wsrep_cs().state() == wsrep::client_state::s_none ||
+             thd->wsrep_cs().state() == wsrep::client_state::s_result);
     }
     if (WSREP(thd))
     {

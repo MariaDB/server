@@ -1026,7 +1026,8 @@ bool select_union_direct::send_eof()
   // Reset for each SELECT_LEX, so accumulate here
   limit_found_rows+= thd->limit_found_rows;
 
-  if (unit->thd->lex->current_select == last_select_lex)
+  if (unit->thd->lex->current_select == last_select_lex ||
+      thd->killed == ABORT_QUERY)
   {
     thd->limit_found_rows= limit_found_rows;
 

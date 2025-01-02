@@ -1103,21 +1103,12 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         }
         table->reset_default_fields();
 
-        /*
-          Reset the sentinel thd->bulk_param in order not to consume the next
-          values of a bound array in case one of statement executed by
-          the trigger's body is INSERT statement.
-        */
-        void *save_bulk_param= thd->bulk_param;
-        thd->bulk_param= nullptr;
-
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table,
                                                           table->
                                                           field_to_fill(),
                                                           *values, 0,
                                                           TRG_EVENT_INSERT)))
         {
-          thd->bulk_param= save_bulk_param;
           if (values_list.elements != 1 && ! thd->is_error())
 	  {
 	    info.records++;
@@ -1126,7 +1117,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  error=1;
 	  break;
         }
-        thd->bulk_param= save_bulk_param;
       }
 
       /*
@@ -1636,7 +1626,8 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
   if (insert_into_view && !fields.elements)
   {
     thd->lex->empty_field_list_on_rset= 1;
-    if (!table_list->table || table_list->is_multitable())
+    if (!thd->lex->first_select_lex()->leaf_tables.head()->table ||
+        table_list->is_multitable())
     {
       my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),
                table_list->view_db.str, table_list->view_name.str);
@@ -3946,6 +3937,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   if (sel_res)
     sel_res->prepare(lex->returning()->item_list, NULL);
 
+  DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
   TABLE_LIST *table;
   uint insert_tables;
