@@ -723,7 +723,7 @@ row_ins_foreign_trx_print(
 	ut_print_timestamp(dict_foreign_err_file);
 	fputs(" Transaction:\n", dict_foreign_err_file);
 
-	trx_print_low(dict_foreign_err_file, trx, 600,
+	trx_print_low(dict_foreign_err_file, trx,
 		      n_rec_locks, n_trx_locks, heap_size);
 
 	mysql_mutex_assert_owner(&dict_foreign_err_mutex);
