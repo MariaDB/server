@@ -7448,3 +7448,450 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
   // Allow a smaller minimum value for debug builds to help with testing
   VALID_RANGE(IF_DBUG(100, 10240) * 1024, ULLONG_MAX),
   DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));
+
+static void sysvar_path_freeup(char **tokens, int count)
+{
+  if (tokens)
+  {
+    for (int i = 0; i < count; i++)
+    {
+      free(tokens[i]);
+      tokens[i] = NULL;
+    }
+
+    free(tokens);
+    tokens = NULL;
+  }
+}
+
+static bool sysvar_path_check_duplicate(char** tokens, int count)
+{
+  for (int i = 0; i < count; i++)
+  {
+    for (int j = i + 1; j < count; j++)
+    {
+      if ( strcmp(tokens[i], tokens[j]) == 0 )
+        return true;
+    }
+  }
+
+  return false;
+}
+
+static bool sysvar_path_is_quote(CHARSET_INFO *cs, char *token,
+  bool prefix, bool use_mb, char quote)
+{
+  bool ret = false;
+  int len = 0;
+
+  if (prefix)
+  {
+    if (use_mb)
+    {
+      len = my_ismbchar( cs, token, token + strlen(token) - 1);
+      if (len == 0)
+      {
+        if (token[0] == quote)
+          ret = true;
+      }
+    }
+    else
+    {
+      if (token[0] == quote)
+        ret = true;
+    }
+  }
+  else
+  {
+    if (use_mb)
+    {
+      const char *end = token + strlen(token);
+      while (token < end)
+      {
+        len = my_ismbchar(cs, token, end - 1);
+        if (len)
+          token += len;
+        else
+          token++;
+      }
+
+      if (len == 0)
+      {
+        if ( *(token - 1) == quote )
+          ret = true;
+      }
+    }
+    else
+    {
+      if ( token[strlen(token) - 1 ] == quote)
+        ret = true;
+    }
+  }
+
+  return ret;
+}
+
+static bool sysvar_path_handle_quote_delimited(CHARSET_INFO *cs, char **tokens,
+  int *count, bool ansi_quotes, bool use_mb)
+{
+  bool ret = false;
+  size_t len = 0;
+  int ccount = 0;
+  bool prefix;
+  int qqty[2];  // quote qty
+
+  struct qobj
+  {
+    char quote;
+    int *qty;
+    int *chk;
+  };
+  qobj q[2];
+
+  qqty[0] = 0;  //  '`'
+  qqty[1] = 0;  // '\"'
+  q[0].quote = '`' ; q[0].qty = &qqty[0]; q[0].chk = &qqty[1];
+  q[1].quote = '\"'; q[1].qty = &qqty[1]; q[1].chk = &qqty[0];
+
+again:
+  for (int i = ccount; i < *count; i++)
+  {
+    if (ret) break;
+    len = strlen( tokens[i] );
+    if (len == 1)
+    {
+      for (int j = 0; j < 2; j++)
+      {
+        if (tokens[i][0] == q[j].quote)
+        {
+          if (j == 1 && ansi_quotes == false)
+          {
+            ret = true;
+            break;
+          }
+          if ( *(q[j].chk) % 2 )
+          {
+            ret = true;
+            break;
+          }
+          else
+          {
+            free(tokens[i]);
+            tokens[i] = NULL;
+            (*count)--;
+            (*(q[j].qty))++;
+            if ( (i + 1) < *count )
+            {
+              int k = i + 1;
+              for (; k < *count; k++)
+                tokens[i] = tokens[k];
+              free(tokens[k - 1]);
+              tokens[k - 1] = NULL;
+              ccount = i;
+              goto again;
+            }
+            break;
+          }
+        }
+      }
+    }
+    else if (len > 1)
+    {
+      for (int j = 0; j < 2; j++)
+      {
+        if (ret) break;
+        if(j == 0) prefix = true;
+        else       prefix = false;
+
+        for (int k = 0; k < 2; k++)
+        {
+          if ( sysvar_path_is_quote(cs, tokens[i], prefix, use_mb, q[k].quote) == true )
+          {
+            if (k == 1 && ansi_quotes == false)
+            {
+              ret = true;
+              break;
+            }
+            if ( *(q[k].chk) % 2 )
+            {
+              ret = true;
+              break;
+            }
+            else
+            {
+              if (prefix)
+              {
+                memcpy(tokens[i], &tokens[i][1], len - 1);
+                tokens[i][len - 1] = 0;
+                (*(q[k].qty))++;
+                len--;
+                break;
+              }
+              else
+              {
+                if (len == 1)
+                {
+                  free(tokens[i]);
+                  tokens[i] = NULL;
+                  (*count)--;
+                  (*(q[j].qty))++;
+                  if ( (i + 1) < *count )
+                  {
+                    int l = i + 1;
+                    for (; l < *count; l++)
+                      tokens[i] = tokens[l];
+                    free(tokens[l - 1]);
+                    tokens[l - 1] = NULL;
+                    ccount = i;
+                    goto again;
+                  }
+                  break;
+                }
+                else if (len > 1)
+                {
+                  tokens[i][len - 1] = 0;
+                  (*(q[k].qty))++;
+                  break;
+                }
+                else
+                {
+                  ret = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    else
+    {
+      ret = true;
+      break;
+    }
+  }
+
+  if (*count < 1)
+    ret = true;
+
+  if (!ret)
+  {
+    if (qqty[0] != 0 || qqty[1] != 0)
+    {
+      if (qqty[0] % 2 || qqty[1] % 2)
+        ret = true;
+    }
+  }
+
+  return ret;
+}
+
+static bool sysvar_path_parsing_utf(CHARSET_INFO *cs, LEX_CSTRING *cstring,
+  char ***tokens, int *token_cnt, bool ansi_quotes)
+{
+  int len;
+  const char *curr;
+  const char *token;
+  const char *end;
+
+  curr = token = cstring->str;
+  end = curr + cstring->length;
+
+  while (curr < end)
+  {
+    len = my_ismbchar(cs, curr, end - 1);
+    if (len)
+    {
+      curr += len;
+      if (curr < end)
+        continue;
+    }
+
+    if (*curr == ',' || curr >= end || end - 1 == curr)
+    {
+      if (*curr == ',' && curr == token)  // is it a continuous ',' ?
+      {
+        curr++;
+        token = curr;
+      }
+      else
+      {
+        if (end - 1 == curr)  // is last chunk of string ?
+        {
+          if ( (len == 0 && *curr == ',') == false )  // the last character is ',' ?
+            curr++;
+        }
+
+        char **tmp = (char **) realloc( *tokens, sizeof(char *) * (*token_cnt + 1) );
+        if (tmp == NULL)
+        {
+          fprintf(stderr, "Memory allocation failed\n");
+          goto err;
+        }
+        *tokens = tmp;
+
+        (*tokens)[*token_cnt] = (char *) calloc( curr - token + 1, sizeof(char) );
+        if ((*tokens)[*token_cnt] == NULL)
+        {
+          fprintf(stderr, "Memory allocation failed for token\n");
+          goto err;
+        }
+        memcpy( (*tokens)[*token_cnt], token, curr - token );
+
+        (*token_cnt)++;
+        if (curr < end)
+        {
+          curr++;
+          token = curr;
+        }
+      }
+    }
+    else
+      curr++;
+  }
+
+  if (*token_cnt == 0)
+    goto err;
+
+  return ( sysvar_path_handle_quote_delimited(cs, *tokens,
+          token_cnt, ansi_quotes, true) );
+
+err:
+  return true;
+}
+
+static bool sysvar_path_parsing_ascii(CHARSET_INFO *cs, LEX_CSTRING *cstring,
+  char ***tokens, int *token_cnt, bool ansi_quotes)
+{
+  char *input_str;
+  char *token;
+
+  input_str = (char *) calloc( cstring->length + 1, sizeof(char) );
+  if (input_str == NULL)
+    goto err;
+  memcpy(input_str, cstring->str, cstring->length);
+
+  token = strtok(input_str, ",");
+  if (token == NULL)
+    goto err;
+
+  // tokenize the entire string
+  while (token != NULL)
+  {
+    char **tmp = (char **) realloc( *tokens, sizeof(char *) * (*token_cnt + 1) );
+    if (tmp == NULL)
+    {
+      fprintf(stderr, "Memory allocation failed\n");
+      goto err;
+    }
+    *tokens = tmp;
+
+    (*tokens)[*token_cnt] = strdup(token);
+    if ((*tokens)[*token_cnt] == NULL)
+    {
+      fprintf(stderr, "Memory allocation failed for token\n");
+      goto err;
+    }
+
+    (*token_cnt)++;
+    token = strtok(NULL, ",");
+  }
+
+  free(input_str);
+
+  return ( sysvar_path_handle_quote_delimited(cs, *tokens,
+          token_cnt, ansi_quotes, false) );
+
+err:
+  if (input_str)
+    free(input_str);
+
+  return true;
+}
+
+static bool sysvar_path_on_check(sys_var *self, THD *thd, set_var *var)
+{
+  /* NULL is invalid. */
+  if (check_not_null(self, thd, var))
+    return true;
+
+  bool ret = false;
+  char **tokens = NULL;
+  int  token_cnt = 0;
+  bool ansi_quotes;
+  CHARSET_INFO *cs;
+  LEX_STRING *string_value;
+  LEX_CSTRING cstring;
+  size_t not_used;
+
+  ansi_quotes = thd->variables.sql_mode & MODE_ANSI_QUOTES;
+  cs = self->charset(thd);
+  string_value = &var->save_result.string_value;
+  cstring = *string_value;
+
+  // trim whitespace
+  trim_whitespace( cs, &cstring, &not_used );
+
+  // check string length after whitespace trimmed
+  if (cstring.length < 1)
+    goto err;
+
+  // parse string
+  if ( cs->use_mb() )
+  {
+    ret = sysvar_path_parsing_utf(cs, &cstring,
+            &tokens, &token_cnt, ansi_quotes);
+  }
+  else
+  {
+    ret = sysvar_path_parsing_ascii(cs, &cstring,
+            &tokens, &token_cnt, ansi_quotes);
+  }
+
+  if (ret)
+    goto err;
+
+  // check duplicate
+  ret = sysvar_path_check_duplicate(tokens, token_cnt);
+  if (ret)
+    goto err;
+
+  // rebase the string_value
+  if (var->value) // not set DEFAULT
+  {
+    memset(string_value->str, 0, string_value->length);
+    thd->sql_path.free_db_list();
+
+    for(int i = 0; i < token_cnt; i++)
+    {
+      strcat(string_value->str, tokens[i]);
+      if(i < token_cnt - 1)
+        strcat(string_value->str, ",");
+
+      thd->sql_path.append_db(tokens[i]);
+    }
+    string_value->length = strlen(string_value->str);
+  }
+  else
+  {
+    thd->sql_path.free_db_list();
+    thd->sql_path.strtok_db(global_system_variables.path);    
+  }
+
+  // free up
+  sysvar_path_freeup(tokens, token_cnt);
+
+  return false;
+
+err:
+  my_error(ER_INVALID_SCHEMA_NAME_LIST_SPEC, MYF(0), self->name.str);
+  sysvar_path_freeup(tokens, token_cnt);
+
+  return true;
+}
+
+static Sys_var_charptr Sys_pathdir(
+       "path", "SET PATH statement",
+       SESSION_VAR(path), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(".,sys"), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(sysvar_path_on_check));

@@ -105,7 +105,7 @@ a
 show status like '%rows%';
 Variable_name	Value
 Not_flushed_delayed_rows	0
-Rows_read	8
+Rows_read	9
 Rows_sent	5
 Rows_tmp_read	0
 Sort_rows	0
