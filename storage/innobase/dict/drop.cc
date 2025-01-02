@@ -247,7 +247,7 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
     mutex_lock();
     lock_release_on_drop(this);
     ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
-    ut_ad(ib_vector_is_empty(autoinc_locks));
+    ut_ad(autoinc_locks.empty());
     mem_heap_empty(lock.lock_heap);
     lock.table_locks.clear();
     /* commit_persist() already reset this. */
