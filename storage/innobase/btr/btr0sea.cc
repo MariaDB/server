@@ -1218,8 +1218,19 @@ btr_search_guess_on_hash(
   return true;
 }
 
-void btr_search_drop_page_hash_index(buf_block_t *block,
-                                     const dict_index_t *not_garbage) noexcept
+/** The maximum number of rec_fold() values to allocate in stack.
+The actual maximum number of records per page is 8189, limited by
+the 13-bit heap number field in the record header. */
+static constexpr size_t REC_FOLD_IN_STACK= 128;
+
+/** Drop any adaptive hash index entries that point to an index page.
+@param block        latched block containing index page, or a buffer-unfixed
+                    index page or a block in state BUF_BLOCK_REMOVE_HASH
+@param not_garbage  drop only if the index is set and NOT this
+@param folds        work area for REC_FOLD_IN_STACK rec_fold() values */
+static void btr_search_drop_page_hash_index(buf_block_t *block,
+                                            const dict_index_t *not_garbage,
+                                            uint32_t *folds) noexcept
 {
 retry:
   dict_index_t *index= block->index;
@@ -1251,9 +1262,9 @@ retry:
 
   ut_ad(btr_search.enabled);
 
-  const bool is_freed= index->freed();
+  bool holding_x= index->freed();
 
-  if (is_freed)
+  if (holding_x)
   {
     part.latch.rd_unlock();
     part.latch.wr_lock(SRW_LOCK_CALL);
@@ -1280,17 +1291,16 @@ retry:
 
   const uint32_t left_bytes_fields= block->ahi_left_bytes_fields;
 
-  /* NOTE: The AHI fields of block must not be accessed after
-  releasing part.latch, as we might only hold block->page.lock.s_lock()! */
+  /* NOTE: block->ahi_left_bytes_fields may change after we release part.latch,
+  as we might only hold block->page.lock.s_lock()! */
 
-  if (!is_freed)
+  if (!holding_x)
     part.latch.rd_unlock();
 
   const uint32_t n_bytes_fields= left_bytes_fields & ~buf_block_t::LEFT_SIDE;
   ut_ad(n_bytes_fields);
 
   const page_t *const page= block->page.frame;
-  uint32_t folds[128];
   size_t n_folds= 0;
   const rec_t *rec;
 
@@ -1312,7 +1322,7 @@ retry:
       if (!n_folds)
         n_folds++;
       else if (folds[n_folds] == folds[n_folds - 1]);
-      else if (++n_folds == array_elements(folds))
+      else if (++n_folds == REC_FOLD_IN_STACK)
         break;
     }
   }
@@ -1334,12 +1344,12 @@ retry:
       if (!n_folds)
         n_folds++;
       else if (folds[n_folds] == folds[n_folds - 1]);
-      else if (++n_folds == array_elements(folds))
+      else if (++n_folds == REC_FOLD_IN_STACK)
         break;
     }
   }
 
-  if (!is_freed)
+  if (!holding_x)
   {
     part.latch.wr_lock(SRW_LOCK_CALL);
     if (UNIV_UNLIKELY(!block->index))
@@ -1366,15 +1376,13 @@ retry:
   {
     if (rec != page + PAGE_NEW_SUPREMUM)
     {
-      if (!is_freed)
-        part.latch.wr_unlock();
+      holding_x= true;
       goto next_not_redundant;
     }
   }
   else if (rec != page + PAGE_OLD_SUPREMUM)
   {
-    if (!is_freed)
-      part.latch.wr_unlock();
+    holding_x= true;
     goto next_redundant;
   }
 
@@ -1394,6 +1402,13 @@ retry:
 cleanup:
   assert_block_ahi_valid(block);
   part.latch.wr_unlock();
+}
+
+void btr_search_drop_page_hash_index(buf_block_t *block,
+                                     const dict_index_t *not_garbage) noexcept
+{
+  uint32_t folds[REC_FOLD_IN_STACK];
+  btr_search_drop_page_hash_index(block, not_garbage, folds);
 }
 
 void btr_search_drop_page_hash_when_freed(const page_id_t page_id) noexcept
@@ -1456,8 +1471,10 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
   if (!enabled)
     return;
 
+  struct{uint32_t fold;uint32_t offset;} fr[REC_FOLD_IN_STACK / 2];
+
   if (rebuild)
-    btr_search_drop_page_hash_index(block, nullptr);
+    btr_search_drop_page_hash_index(block, nullptr, &fr[0].fold);
 
   const uint32_t n_bytes_fields{left_bytes_fields & ~buf_block_t::LEFT_SIDE};
 
@@ -1467,7 +1484,6 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
         (index->n_uniq ? index->n_uniq : index->n_fields));
 
   const page_t *const page= block->page.frame;
-  struct{uint32_t fold;uint32_t offset;} fr[64];
   size_t n_cached= 0;
   const rec_t *rec;
 
