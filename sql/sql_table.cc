@@ -4775,7 +4775,8 @@ int create_table_impl(THD *thd,
     handlerton *db_type;
     if (!internal_tmp_table &&
         ha_table_exists(thd, &db, &table_name,
-                        &create_info->org_tabledef_version, &db_type))
+                        &create_info->org_tabledef_version, &db_type,
+                        NULL, 0))
     {
       if (ha_check_if_updates_are_ignored(thd, db_type, "CREATE"))
       {
@@ -11078,7 +11079,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         on the name, now we can safely try to find out for sure.
       */
       if (!(alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN) &&
-          ha_table_exists(thd, &alter_ctx.new_db, &alter_ctx.new_name))
+          ha_table_exists(thd, &alter_ctx.new_db, &alter_ctx.new_name, NULL,
+                          NULL, NULL, 0))
       {
         /* Table will be closed in do_command() */
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias.str);

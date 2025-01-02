@@ -6809,7 +6809,7 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
 
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name, LEX_CUSTRING *table_id,
-                     handlerton **hton, bool *is_sequence)
+                     handlerton **hton, bool *is_sequence, uint flags)
 {
   handlerton *dummy;
   bool dummy2;
@@ -6846,7 +6846,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
 
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
-                                         db->str, table_name->str, "", 0);
+                                         db->str, table_name->str, "", flags);
   st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
 
   if (file_ext_exists(path, path_len, reg_ext))
