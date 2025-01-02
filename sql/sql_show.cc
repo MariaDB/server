@@ -4994,7 +4994,7 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     handlerton *hton;
     bool is_sequence;
 
-    if (ha_table_exists(thd, db_name, table_name, NULL, &hton, &is_sequence))
+    if (ha_table_exists(thd, db_name, table_name, NULL, &hton, &is_sequence, 0))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);

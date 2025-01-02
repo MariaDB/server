@@ -7385,7 +7385,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     {
       if (!(rights & CREATE_ACL))
       {
-        if (!ha_table_exists(thd, &table_list->db, &table_list->table_name))
+        if (!ha_table_exists(thd, &table_list->db, &table_list->table_name,
+                             NULL, NULL, NULL, 0))
         {
           my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db.str,
                    table_list->alias.str);
