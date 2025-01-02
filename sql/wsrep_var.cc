@@ -909,7 +909,7 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
       return true;
     }
 
-    if (!ha_table_exists(thd, &WSREP_LEX_SCHEMA, &WSREP_LEX_STREAMING))
+    if (!ha_table_exists(thd, &WSREP_LEX_SCHEMA, &WSREP_LEX_STREAMING, 0,0,0,0))
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WRONG_VALUE_FOR_VAR,
@@ -961,7 +961,7 @@ bool wsrep_trx_fragment_unit_check (sys_var *self, THD* thd, set_var* var)
       return true;
     }
 
-    if (!ha_table_exists(thd, &WSREP_LEX_SCHEMA, &WSREP_LEX_STREAMING))
+    if (!ha_table_exists(thd, &WSREP_LEX_SCHEMA, &WSREP_LEX_STREAMING,0,0,0,0))
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WRONG_VALUE_FOR_VAR,
