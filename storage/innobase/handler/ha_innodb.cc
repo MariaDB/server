@@ -48,6 +48,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/service_print_check_msg.h>
+#include <mysql/service_log_warnings.h>
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
@@ -2154,8 +2155,9 @@ static void innodb_transaction_abort(THD *thd, bool all, dberr_t err) noexcept
   {
     ut_ad(trx->state == TRX_STATE_NOT_STARTED);
     trx->state= TRX_STATE_ABORTED;
-    sql_print_error("InnoDB: Transaction was aborted due to %s",
-                    ut_strerr(err));
+    if (thd_log_warnings(thd) >= 4)
+      sql_print_error("InnoDB: Transaction was aborted due to %s",
+                      ut_strerr(err));
   }
   thd_mark_transaction_to_rollback(thd, all);
 }
