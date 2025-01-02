@@ -1,0 +1,317 @@
+--source include/have_innodb.inc
+
+--disable_warnings
+drop table if exists t3, t2, t1;
+--enable_warnings
+
+#
+# After update
+#
+
+CREATE TABLE t1 (
+    x INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+    x INT PRIMARY KEY,
+    y INT,
+    FOREIGN KEY (x) REFERENCES t1(x) ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE t3 (
+    old_x INT,
+    new_x INT
+) ENGINE=InnoDB;
+
+CREATE TRIGGER tr AFTER UPDATE ON t2
+    FOR EACH ROW
+   INSERT INTO t3 (old_x, new_x) VALUES (OLD.x, NEW.x);
+
+INSERT INTO t1 (x) VALUES (1);
+INSERT INTO t2 (x, y) VALUES (1, 20);
+
+UPDATE t1 SET x = 2;
+SELECT * FROM t3;
+UPDATE t2 SET y = 50;
+
+SELECT * FROM t3;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+
+DROP TABLE t3, t2, t1;
+
+
+#
+# After update with counter
+#
+
+create table t1(x int primary key) ENGINE=InnoDB;
+create table t2(x int primary key,
+            foreign key(x) references t1(x) on update CASCADE) ENGINE=InnoDB;
+
+CREATE TRIGGER tr_t2 AFTER UPDATE ON t2
+    FOR EACH ROW SET @counter=@counter+1;
+
+insert into t1 VALUES (1);
+insert into t2 VALUES (1);
+SET @counter=0;
+
+update t1 set x = 2;
+
+select * from t1;
+select * from t2;
+
+select @counter;
+DROP TABLE t2, t1;
+
+#
+# Before update
+#
+
+CREATE TABLE t1 (
+    x INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+
+CREATE TABLE t2 (
+    x INT PRIMARY KEY,
+    y INT,
+    FOREIGN KEY(x) REFERENCES t1(x) ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TRIGGER tr BEFORE UPDATE ON t2
+    FOR EACH ROW SET NEW.y = 50;
+
+INSERT INTO t1 (x) VALUES (1);
+INSERT INTO t2 (x, y) VALUES (1,2);
+
+UPDATE t1 SET x = 2;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+
+DROP TABLE t2, t1;
+
+#
+# Before update
+#
+
+CREATE TABLE t1 (
+    x INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+
+CREATE TABLE t2 (
+    x INT PRIMARY KEY,
+    y INT,
+    FOREIGN KEY(x) REFERENCES t1(x) ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TRIGGER tr BEFORE UPDATE ON t2
+    FOR EACH ROW SET NEW.y = 50;
+
+INSERT INTO t1 (x) VALUES (1);
+INSERT INTO t2 (x, y) VALUES (1,2);
+
+UPDATE t1 SET x = 2;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+
+DROP TABLE t2, t1;
+
+#
+# Update, foreign key on secondary index
+#
+
+create table t1(x int auto_increment primary key, y int, unique key(y)) ENGINE=InnoDB;
+create table t2(a int primary key, x int, z varchar(20),
+                foreign key(x) references t1(y) on update cascade) ENGINE=InnoDB;
+create table t3(id int auto_increment primary key, action_x int, action_z varchar(20), note varchar(50)) ENGINE=InnoDB;
+
+create trigger tr_t2 before update on t2
+    for each row
+        insert into t3(action_x, action_z, note) values (OLD.x, OLD.z, 'Update t2 — OLD'),
+        (NEW.x, NEW.z, 'Update t2 — NEW');
+    
+
+
+insert into t1 values (1, 10);
+insert into t2 values (1, 10, 'str');
+
+update t1 set y=20 where x=1;
+
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t3, t2, t1;
+
+#
+# Update, on update set null cascade
+#
+
+CREATE TABLE t1 (
+    id INT PRIMARY KEY,
+    value VARCHAR(50)
+) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+    id INT PRIMARY KEY,
+    t1_id INT,
+    t2_value VARCHAR(50),
+    FOREIGN KEY (t1_id) REFERENCES t1(id) ON UPDATE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TRIGGER tr_t2_before_update BEFORE UPDATE ON t2
+FOR EACH ROW SET NEW.t2_value = 'Updated by Trigger';
+
+INSERT INTO t1 (id, value) VALUES (1, 'parent_row');
+INSERT INTO t2 (id, t1_id, t2_value) VALUES (1, 1, 'child_row');
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+UPDATE t1 SET id = 2 WHERE id = 1;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t2, t1;
+
+#
+# Before update, indexes on virtual columns
+#
+
+create table t1(x int auto_increment primary key, y int, unique key(y)) ENGINE=InnoDB;
+create table t2(a int primary key, x int,
+                t int,
+                z varchar(20) as (CONCAT("test", t)),
+                y varchar(20) as (CONCAT("test2", t)),
+                y_another varchar(20) as (CONCAT("test3", x)),
+                unique(z),
+                unique(y),
+                unique(y_another),
+                foreign key(x) references t1(y) on update cascade) ENGINE=InnoDB;
+
+create trigger tr before update ON t2
+    for each row set new.t = 50;
+
+insert into t1 (x,y) values (1,1);
+insert into t2 (a,x,t) values (1,1,1);
+
+select * from t2;
+update t1 set y = 2;
+SELECT * FROM t2 FORCE INDEX (z) where z = 'test50';
+SELECT * FROM t2 FORCE INDEX (y) where y = 'test250';
+SELECT * FROM t2 FORCE INDEX (y_another) where y_another = 'test32';
+select * from t2;
+drop table t2,t1;
+
+#
+# Before delete
+#
+
+CREATE TABLE t1 (
+    x INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+    x INT PRIMARY KEY,
+    y INT,
+    FOREIGN KEY(x) REFERENCES t1(x) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TRIGGER tr BEFORE DELETE ON t2
+    FOR EACH ROW SET @deleted_value = OLD.y;
+
+INSERT INTO t1 (x) VALUES (1);
+INSERT INTO t2 (x, y) VALUES (1, 100);
+
+DELETE FROM t1 WHERE x = 1;
+
+SELECT @deleted_value AS deleted_value;
+
+SELECT * FROM t2;
+
+DROP TABLE t2, t1;
+
+#
+# After, before delete
+#
+
+CREATE TABLE t1 (
+    x INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+    x INT PRIMARY KEY,
+    y INT,
+    FOREIGN KEY(x) REFERENCES t1(x) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE t3 (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    log_event VARCHAR(255)
+) ENGINE=InnoDB;
+
+
+CREATE TRIGGER tr_before BEFORE DELETE ON t2
+    FOR EACH ROW 
+        SET @deleted_value = OLD.y;
+  
+
+CREATE TRIGGER tr_after AFTER DELETE ON t2
+    FOR EACH ROW
+        INSERT INTO t3 (log_event) VALUES ('AFTER DELETE TRIGGER EXECUTED');
+
+INSERT INTO t1 (x) VALUES (1), (2);
+INSERT INTO t2 (x, y) VALUES (1, 100), (2, 200);
+
+DELETE FROM t1 WHERE x = 1;
+
+SELECT @deleted_value AS before_deleted_value;
+
+SELECT * FROM t3;
+
+SELECT * FROM t2;
+
+SELECT * FROM t1;
+
+DROP TABLE t3, t2, t1;
+
+#
+# On delete set null
+#
+
+CREATE TABLE t1 (
+    id INT PRIMARY KEY,
+    value VARCHAR(50)
+) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+    id INT PRIMARY KEY,
+    t1_id INT,
+    t2_value VARCHAR(50),
+    FOREIGN KEY (t1_id) REFERENCES t1(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+
+CREATE TRIGGER tr_t2_before_update BEFORE UPDATE ON t2
+FOR EACH ROW SET NEW.t2_value = 'Updated by Trigger';
+
+INSERT INTO t1 (id, value) VALUES (1, 'parent_row');
+INSERT INTO t2 (id, t1_id, t2_value) VALUES (1, 1, 'child_row');
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DELETE FROM t1 WHERE id = 1;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t2, t1;
+
+

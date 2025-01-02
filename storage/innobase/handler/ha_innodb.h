@@ -432,6 +432,12 @@ public:
 			  const Column_definition& new_field,
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
+	row_prebuilt_t *get_prebuilt(const dict_table_t* table) {
+		build_template(true);
+		m_prebuilt->index = dict_table_get_first_index(table);
+		return m_prebuilt;
+	}
+	int update_prebuilt_upd_buf();
 
 	/** Check consistency between .frm indexes and InnoDB indexes
 	Set HA_DUPLICATE_KEY_NOT_IN_ORDER if multiple unique index
@@ -499,13 +505,13 @@ protected:
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
-
+public:
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
 
 	/** the size of upd_buf in bytes */
 	ulint			m_upd_buf_size;
-
+protected:
 	/** Flags that specificy the handler instance (table) capability. */
 	Table_flags		m_int_table_flags;
 
@@ -938,3 +944,17 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
+
+/** This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state
+
+@param[in] hton InnoDB handlerton
+@param[in] xid X/Open XA transaction identification
+
+@return 0 or error number */
+int innobase_rollback_by_xid(handlerton* hton, XID* xid);
+
+
+bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after);
+
+dberr_t innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node);
