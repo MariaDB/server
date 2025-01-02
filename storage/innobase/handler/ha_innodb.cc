@@ -2361,14 +2361,12 @@ void
 innobase_mysql_print_thd(
 /*=====================*/
 	FILE*	f,		/*!< in: output stream */
-	THD*	thd,		/*!< in: MySQL THD object */
-	uint	max_query_len)	/*!< in: max query length to print, or 0 to
-				use the default max length */
+	THD*	thd)		/*!< in: MySQL THD object */
 {
-	char	buffer[1024];
+	char	buffer[3072];
 
 	fputs(thd_get_error_context_description(thd, buffer, sizeof buffer,
-						max_query_len), f);
+						0), f);
 	putc('\n', f);
 }
 
