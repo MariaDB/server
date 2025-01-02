@@ -2807,6 +2807,9 @@ public:
 class Format_description_log_event: public Start_log_event_v3
 {
 public:
+#ifdef WITH_WSREP
+  bool skip_gtid_seqno_check;
+#endif /* WITH_WSREP */
   /*
      The size of the fixed header which _all_ events have
      (for binlogs written by this version, this is equal to
@@ -3658,6 +3661,9 @@ public:
     to the event when the transaction involves only one engine.
   */
   static const uchar FL_EXTRA_MULTI_ENGINE= 1;
+#ifdef WITH_WSREP
+  bool skip_gtid_seqno_check;
+#endif /* WITH_WSREP */
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
@@ -3684,6 +3690,13 @@ public:
 
   bool is_valid() const override
   {
+#ifdef WITH_WSREP
+    if (skip_gtid_seqno_check)
+    {
+      return true;
+    }
+#endif /* WITH_WSREP */
+
     /*
       seq_no is set to 0 if the structure of a serialized GTID event does not
       align with that as indicated by flags and extra_flags.

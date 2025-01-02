@@ -3310,6 +3310,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
     flags_extra(0), extra_engines(0)
 {
+#ifdef WITH_WSREP
+  skip_gtid_seqno_check = false;
+#endif /* WITH_WSREP */
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
   if (thd_arg->transaction->stmt.trans_did_wait() ||

@@ -2041,6 +2041,9 @@ Format_description_log_event::
 Format_description_log_event(uint8 binlog_ver, const char* server_ver)
   :Start_log_event_v3(), event_type_permutation(0)
 {
+#ifdef WITH_WSREP
+  skip_gtid_seqno_check = false;
+#endif /* WITH_WSREP */
   binlog_version= binlog_ver;
   switch (binlog_ver) {
   case 4: /* MySQL 5.0 */
@@ -2235,6 +2238,9 @@ Format_description_log_event(const uchar *buf, uint event_len,
    common_header_len(0), post_header_len(NULL), event_type_permutation(0)
 {
   DBUG_ENTER("Format_description_log_event::Format_description_log_event(char*,...)");
+#ifdef WITH_WSREP
+  skip_gtid_seqno_check = false;
+#endif /* WITH_WSREP */
   if (!Start_log_event_v3::is_valid())
     DBUG_VOID_RETURN; /* sanity check */
   buf+= LOG_EVENT_MINIMAL_HEADER_LEN;
@@ -2604,6 +2610,9 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
   : Log_event(buf, description_event), seq_no(0), commit_id(0),
     flags_extra(0), extra_engines(0)
 {
+#ifdef WITH_WSREP
+  skip_gtid_seqno_check = description_event->skip_gtid_seqno_check;
+#endif /* WITH_WSREP */
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
   const uchar *buf_0= buf;

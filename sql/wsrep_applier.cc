@@ -23,6 +23,7 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 
+#include "rpl_mi.h"
 #include "slave.h" // opt_log_slave_updates
 #include "debug_sync.h"
 
@@ -67,6 +68,22 @@ void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
     delete (Format_description_log_event*)thd->wsrep_apply_format;
   }
   thd->wsrep_apply_format= ev;
+}
+
+bool wsrep_skip_gtid_seqno(THD* thd)
+{
+  LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
+  Master_info *mi;
+
+  if ((mi= get_master_info(&lex_mi->connection_name,
+                           Sql_condition::WARN_LEVEL_ERROR)))
+  {
+    if (mi->using_gtid == Master_info::USE_GTID_NO)
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 Format_description_log_event*
@@ -147,11 +164,16 @@ int wsrep_apply_events(THD*        thd,
   else
     thd->variables.gtid_domain_id= global_system_variables.gtid_domain_id;
 
+
+  bool skip_gtid_seqno_check = wsrep_skip_gtid_seqno(thd);
+  Format_description_log_event* fdle = nullptr;
   while (buf_len)
   {
     int exec_res;
-    Log_event* ev= wsrep_read_log_event(&buf, &buf_len,
-                                          wsrep_get_apply_format(thd));
+    fdle = wsrep_get_apply_format(thd);
+    fdle->skip_gtid_seqno_check = skip_gtid_seqno_check;
+
+    Log_event* ev= wsrep_read_log_event(&buf, &buf_len, fdle);
     if (!ev)
     {
       WSREP_ERROR("applier could not read binlog event, seqno: %lld, len: %zu",

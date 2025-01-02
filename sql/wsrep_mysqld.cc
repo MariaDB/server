@@ -2459,7 +2459,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
       create table event.
     */
     if (thd->slave_thread &&
-	!(thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE))
+       !(thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE))
     {
       /* this is CTAS, either empty or populated table */
       ulonglong event_size = 0;
