@@ -1,0 +1,18 @@
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+# Case 1: Server goes through graceful shutdown and is restarted
+connection default;
+INSERT INTO t1 VALUES (1);
+Expect 100-10-2
+SELECT WSREP_LAST_SEEN_GTID();
+WSREP_LAST_SEEN_GTID()
+100-10-2
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
+Expect 100-10-2
+SELECT WSREP_LAST_SEEN_GTID();
+WSREP_LAST_SEEN_GTID()
+100-10-2
+SELECT * FROM t1;
+f1
+1
+DROP TABLE t1;

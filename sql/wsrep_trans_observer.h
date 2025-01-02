@@ -1,4 +1,4 @@
-/* Copyright 2016-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2016-2025 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -265,12 +265,17 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
   {
     DBUG_RETURN(ret);
   }
+
   if ((ret= thd->wsrep_cs().before_prepare()) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
+    /* Here we init xid with UUID and wsrep seqno. GTID is
+       set to undefined because commit order is decided later
+       in wsrep_before_commit(). wsrep_before_prepare() is
+       executed out of order. */
     wsrep_xid_init(&thd->wsrep_xid,
                    thd->wsrep_trx().ws_meta().gtid(),
-                   wsrep_gtid_server.gtid());
+                   wsrep_gtid_server.undefined());
   }
 
   mysql_mutex_lock(&thd->LOCK_thd_kill);
@@ -470,12 +475,6 @@ static inline
 int wsrep_after_statement(THD* thd)
 {
   DBUG_ENTER("wsrep_after_statement");
-  WSREP_DEBUG("wsrep_after_statement for %lu client_state %s "
-              " client_mode %s trans_state %s",
-              thd_get_thread_id(thd),
-              wsrep::to_c_string(thd->wsrep_cs().state()),
-              wsrep::to_c_string(thd->wsrep_cs().mode()),
-              wsrep::to_c_string(thd->wsrep_cs().transaction().state()));
   int ret= ((thd->wsrep_cs().state() != wsrep::client_state::s_none &&
                thd->wsrep_cs().mode() == Wsrep_client_state::m_local) &&
               !thd->internal_transaction() ?

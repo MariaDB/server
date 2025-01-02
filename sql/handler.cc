@@ -2454,6 +2454,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         // recovery mode
         if (IF_WSREP((wsrep_emulate_bin_log &&
                       wsrep_is_wsrep_xid(info->list + i) &&
+                      !wsrep_is_xid_gtid_undefined(info->list + i) &&
                       x <= wsrep_limit), false) ||
             (info->commit_list ?
              my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
