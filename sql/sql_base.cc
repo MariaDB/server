@@ -2087,7 +2087,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 
   if (table_list->open_strategy == TABLE_LIST::OPEN_IF_EXISTS)
   {
-    if (!ha_table_exists(thd, &table_list->db, &table_list->table_name))
+    if (!ha_table_exists(thd, &table_list->db, &table_list->table_name,
+                         NULL, NULL, NULL, 0))
       DBUG_RETURN(FALSE);
   }
   else if (table_list->open_strategy == TABLE_LIST::OPEN_STUB)
@@ -4313,7 +4314,7 @@ static bool upgrade_lock_if_not_exists(THD *thd,
     DEBUG_SYNC(thd,"create_table_before_check_if_exists");
     if (!create_info.or_replace() &&
         ha_table_exists(thd, &create_table->db, &create_table->table_name,
-                        NULL, &create_table->db_type))
+                        NULL, &create_table->db_type, NULL, 0))
     {
       if (create_info.if_not_exists())
       {
