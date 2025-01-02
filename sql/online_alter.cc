@@ -29,8 +29,8 @@ static int online_alter_savepoint_rollback(THD *thd, sv_id_t sv_id);
 static int online_alter_commit(THD *thd, bool all);
 static int online_alter_rollback(THD *thd, bool all);
 static int online_alter_prepare(THD *thd, bool all);
-static int online_alter_commit_by_xid(XID *x);
-static int online_alter_rollback_by_xid(XID *x);
+static int online_alter_commit_by_xa(XA_data *xid, bool is_ending_trans);
+static int online_alter_rollback_by_xa(XA_data *xid, bool is_ending_trans);
 
 static transaction_participant online_alter_tp=
 {
@@ -41,8 +41,8 @@ static transaction_participant online_alter_tp=
   NULL,                          /*savepoint_release*/
   online_alter_commit, online_alter_rollback, online_alter_prepare,
   [](XID*, uint){ return 0; },   /*recover*/
-  online_alter_commit_by_xid,
-  online_alter_rollback_by_xid,
+  [](XID *xid)->int { return online_alter_commit_by_xa((XA_data*)xid, true); },
+  [](XID *xid)->int { return online_alter_rollback_by_xa((XA_data*)xid, true);},
   NULL, NULL,
   NULL, NULL, NULL, NULL, NULL /* snapshot, *_ordered, checkpoint, versioned*/
 };
@@ -132,6 +132,8 @@ online_alter_cache_data *setup_cache_data(MEM_ROOT *root, TABLE_SHARE *share)
 static Online_alter_cache_list &get_cache_list(transaction_participant *ht,
                                                THD *thd)
 {
+  if (thd->transaction->xid_state.is_explicit_XA())
+    return *thd->transaction->xid_state.get_xid()->online_alter_cache;
   void *data= thd_get_ha_data(thd, ht);
   DBUG_ASSERT(data);
   return *(Online_alter_cache_list*)data;
@@ -140,6 +142,14 @@ static Online_alter_cache_list &get_cache_list(transaction_participant *ht,
 
 static Online_alter_cache_list &get_or_create_cache_list(THD *thd)
 {
+  if (thd->transaction->xid_state.is_explicit_XA())
+  {
+    XA_data *xa= thd->transaction->xid_state.get_xid();
+    if (!xa->online_alter_cache)
+      xa->online_alter_cache= new Online_alter_cache_list();
+    return *xa->online_alter_cache;
+  }
+
   void *data= thd_get_ha_data(thd, &online_alter_tp);
   if (!data)
   {
@@ -338,27 +348,33 @@ int online_alter_savepoint_rollback(THD *thd, sv_id_t sv_id)
   DBUG_RETURN(0);
 }
 
-static int online_alter_commit_by_xid(XID *x)
+inline
+static int online_alter_commit_by_xa(XA_data *xid, bool is_ending_trans)
 {
-  auto *xid= static_cast<XA_data*>(x);
-  if (likely(xid->online_alter_cache == NULL))
+  if (unlikely(xid->online_alter_cache == NULL))
     return 1;
   int res= online_alter_end_trans(*xid->online_alter_cache, current_thd,
                                   true, true);
-  delete xid->online_alter_cache;
-  xid->online_alter_cache= NULL;
+  if (is_ending_trans)
+  {
+    delete xid->online_alter_cache;
+    xid->online_alter_cache= NULL;
+  }
   return res;
 };
 
-static int online_alter_rollback_by_xid(XID *x)
+inline
+static int online_alter_rollback_by_xa(XA_data *xid, bool is_ending_trans)
 {
-  auto *xid= static_cast<XA_data*>(x);
-  if (likely(xid->online_alter_cache == NULL))
+  if (unlikely(xid->online_alter_cache == NULL))
     return 1;
   int res= online_alter_end_trans(*xid->online_alter_cache, current_thd,
-                                  true, false);
-  delete xid->online_alter_cache;
-  xid->online_alter_cache= NULL;
+                                  is_ending_trans, false);
+  if (is_ending_trans)
+  {
+    delete xid->online_alter_cache;
+    xid->online_alter_cache= NULL;
+  }
   return res;
 };
 
@@ -366,18 +382,13 @@ static int online_alter_commit(THD *thd, bool all)
 {
   int res;
   bool is_ending_transaction= ending_trans(thd, all);
-  if (is_ending_transaction 
-      && thd->transaction->xid_state.get_state_code() == XA_PREPARED)
-  {
-    res= online_alter_commit_by_xid(thd->transaction->xid_state.get_xid());
-    // cleanup was already done by prepare()
-  }
+  if (thd->transaction->xid_state.is_explicit_XA())
+    res= online_alter_commit_by_xa(thd->transaction->xid_state.get_xid(),
+                                   is_ending_transaction);
   else
-  {
     res= online_alter_end_trans(get_cache_list(&online_alter_tp, thd), thd,
                                 is_ending_transaction, true);
-    cleanup_tables(thd);
-  }
+  cleanup_tables(thd);
   return res;
 };
 
@@ -385,19 +396,13 @@ static int online_alter_rollback(THD *thd, bool all)
 {
   int res;
   bool is_ending_transaction= ending_trans(thd, all);
-  if (is_ending_transaction &&
-      (thd->transaction->xid_state.get_state_code() == XA_PREPARED ||
-       thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY))
-  {
-    res= online_alter_rollback_by_xid(thd->transaction->xid_state.get_xid());
-    // cleanup was already done by prepare()
-  }
+  if (thd->transaction->xid_state.is_explicit_XA())
+    res= online_alter_rollback_by_xa(thd->transaction->xid_state.get_xid(),
+                                     is_ending_transaction);
   else
-  {
     res= online_alter_end_trans(get_cache_list(&online_alter_tp, thd), thd,
                                 is_ending_transaction, false);
-    cleanup_tables(thd);
-  }
+  cleanup_tables(thd);
   return res;
 };
 
@@ -405,15 +410,8 @@ static int online_alter_prepare(THD *thd, bool all)
 {
   auto &cache_list= get_cache_list(&online_alter_tp, thd);
   int res= 0;
-  if (ending_trans(thd, all))
-  {
-    thd->transaction->xid_state.set_online_alter_cache(&cache_list);
-    thd_set_ha_data(thd, &online_alter_tp, NULL);
-  }
-  else
-  {
+  if (!ending_trans(thd, all))
     res= online_alter_end_trans(cache_list, thd, false, true);
-  }
 
   cleanup_tables(thd);
   return res;

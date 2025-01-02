@@ -2343,7 +2343,6 @@ int ha_rollback_trans(THD *thd, bool all)
       transaction_participant *ht= ha_info->ht();
       if ((err= ht->rollback(thd, all)))
       {
-        // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
