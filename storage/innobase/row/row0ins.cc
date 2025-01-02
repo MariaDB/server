@@ -2562,6 +2562,22 @@ row_ins_index_entry_big_rec(
 	return(error);
 }
 
+/** Check whether the executed sql command is from insert
+statement
+@param thd thread information
+@return true if it is insert statement */
+static bool thd_sql_is_insert(const THD *thd) noexcept
+{
+  switch(thd_sql_command(thd))
+  {
+    case SQLCOM_INSERT:
+    case SQLCOM_INSERT_SELECT:
+      return true;
+    default:
+      return false;
+  }
+}
+
 #if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
 /* Avoid GCC 4.8.5 internal compiler error due to srw_mutex::wr_unlock().
 We would only need this for row_ins_clust_index_entry_low(),
@@ -2712,7 +2728,7 @@ err_exit:
 	    && block->page.id().page_no() == index->page
 	    && !index->table->is_native_online_ddl()
 	    && (!dict_table_is_partition(index->table)
-	        || thd_sql_command(trx->mysql_thd) == SQLCOM_INSERT)) {
+		|| thd_sql_is_insert(trx->mysql_thd))) {
 
 		if (!index->table->n_rec_locks
 		    && !index->table->versioned()

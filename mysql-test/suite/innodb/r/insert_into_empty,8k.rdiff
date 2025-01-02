@@ -9,11 +9,10 @@
  CHECK TABLE t1;
  Table	Op	Msg_type	Msg_text
  test.t1	check	status	OK
-@@ -541,26 +541,4 @@
- DELETE FROM t1;
+@@ -542,28 +542,6 @@
  commit;
  DROP TABLE t1;
--#
+ #
 -#  MDEV-35475 Assertion `!rec_offs_nth_extern(offsets1, n)'
 -#               failed in cmp_rec_rec_simple_field
 -#
@@ -35,4 +34,7 @@
 -(REPEAT('x',16111),'bb'), (REPEAT('x',4805),'cc'),
 -(REPEAT('x',65535),'dd');
 -DROP TABLE t1;
- # End of 10.11 tests
+-#
+ #  Assertion `page_dir_get_n_heap(new_page) == 2U' failed
+ #                  in dberr_t PageBulk::init()
+ #

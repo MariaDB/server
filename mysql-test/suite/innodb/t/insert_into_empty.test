@@ -619,4 +619,23 @@ INSERT INTO t1 VALUES (REPEAT('x',4805),'a'), (REPEAT('x',16111),'b'),
 		      (REPEAT('x',65535),'dd');
 DROP TABLE t1;
 }
+
+--echo #
+--echo #  Assertion `page_dir_get_n_heap(new_page) == 2U' failed
+--echo #                  in dberr_t PageBulk::init()
+--echo #
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB PARTITION BY RANGE (f1) (PARTITION p0 VALUES LESS THAN (100));
+
+SET @old_bulk_op=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations');
+
+BEGIN;
+INSERT INTO t1 SELECT seq FROM seq_1_to_1;
+COMMIT;
+
+SELECT variable_value-@old_bulk_op bulk_operations
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations';
+DROP TABLE t1;
 --echo # End of 10.11 tests
