@@ -5805,6 +5805,20 @@ extern "C" void *thd_mdl_context(MYSQL_THD thd)
   return &thd->mdl_context;
 }
 
+
+/**
+  log_warnings accessor
+  @param thd   the current session
+
+  @return log warning level
+*/
+
+extern "C" int thd_log_warnings(const MYSQL_THD thd)
+{
+  return thd->variables.log_warnings;
+}
+
+
 /**
   Send check/repair message to the user
 
