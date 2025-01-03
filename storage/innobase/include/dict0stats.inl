@@ -25,120 +25,6 @@ Created Jan 23, 2012 Vasil Dimov
 *******************************************************/
 
 #include "dict0dict.h"
-#include "srv0srv.h"
-
-/*********************************************************************//**
-Set the persistent statistics flag for a given table. This is set only
-in the in-memory table object and is not saved on disk. It will be read
-from the .frm file upon first open from MySQL after a server restart. */
-UNIV_INLINE
-void
-dict_stats_set_persistent(
-/*======================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	ibool		ps_on,	/*!< in: persistent stats explicitly enabled */
-	ibool		ps_off)	/*!< in: persistent stats explicitly disabled */
-{
-	/* Not allowed to have both flags set, but a CREATE or ALTER
-	statement that contains "STATS_PERSISTENT=0 STATS_PERSISTENT=1" would
-	end up having both set. In this case we clear the OFF flag. */
-	if (ps_on && ps_off) {
-		ps_off = FALSE;
-	}
-
-	ib_uint32_t	stat_persistent = 0;
-
-	if (ps_on) {
-		stat_persistent |= DICT_STATS_PERSISTENT_ON;
-	}
-
-	if (ps_off) {
-		stat_persistent |= DICT_STATS_PERSISTENT_OFF;
-	}
-
-	/* we rely on this assignment to be atomic */
-	table->stat_persistent = stat_persistent;
-}
-
-/** @return whether persistent statistics is enabled for a given table */
-UNIV_INLINE
-bool
-dict_stats_is_persistent_enabled(const dict_table_t* table)
-{
-	/* Because of the nature of this check (non-locking) it is possible
-	that a table becomes:
-	* PS-disabled immediately after this function has returned TRUE or
-	* PS-enabled immediately after this function has returned FALSE.
-	This means that it is possible that we do:
-	+ dict_stats_update(DICT_STATS_RECALC_PERSISTENT) on a table that has
-	  just been PS-disabled or
-	+ dict_stats_update(DICT_STATS_RECALC_TRANSIENT) on a table that has
-	  just been PS-enabled.
-	This is acceptable. Avoiding this would mean that we would have to
-	hold dict_sys.latch or stats_mutex_lock() like for accessing the
-	other ::stat_ members which would be too big performance penalty,
-	especially when this function is called from
-	dict_stats_update_if_needed(). */
-
-	/* we rely on this read to be atomic */
-	ib_uint32_t	stat_persistent = table->stat_persistent;
-
-	if (stat_persistent & DICT_STATS_PERSISTENT_ON) {
-		ut_ad(!(stat_persistent & DICT_STATS_PERSISTENT_OFF));
-		return(true);
-	} else if (stat_persistent & DICT_STATS_PERSISTENT_OFF) {
-		return(false);
-	} else {
-		return(srv_stats_persistent);
-	}
-}
-
-/*********************************************************************//**
-Set the auto recalc flag for a given table (only honored for a persistent
-stats enabled table). The flag is set only in the in-memory table object
-and is not saved in InnoDB files. It will be read from the .frm file upon
-first open from MySQL after a server restart. */
-UNIV_INLINE
-void
-dict_stats_auto_recalc_set(
-/*=======================*/
-	dict_table_t*	table,			/*!< in/out: table */
-	ibool		auto_recalc_on,		/*!< in: explicitly enabled */
-	ibool		auto_recalc_off)	/*!< in: explicitly disabled */
-{
-	ut_ad(!auto_recalc_on || !auto_recalc_off);
-
-	ib_uint32_t	stats_auto_recalc = 0;
-
-	if (auto_recalc_on) {
-		stats_auto_recalc |= DICT_STATS_AUTO_RECALC_ON;
-	}
-
-	if (auto_recalc_off) {
-		stats_auto_recalc |= DICT_STATS_AUTO_RECALC_OFF;
-	}
-
-	/* we rely on this assignment to be atomic */
-	table->stats_auto_recalc = stats_auto_recalc;
-}
-
-/** @return whether auto recalc is enabled for a given table*/
-UNIV_INLINE
-bool
-dict_stats_auto_recalc_is_enabled(const dict_table_t* table)
-{
-	/* we rely on this read to be atomic */
-	ib_uint32_t	stats_auto_recalc = table->stats_auto_recalc;
-
-	if (stats_auto_recalc & DICT_STATS_AUTO_RECALC_ON) {
-		ut_ad(!(stats_auto_recalc & DICT_STATS_AUTO_RECALC_OFF));
-		return(true);
-	} else if (stats_auto_recalc & DICT_STATS_AUTO_RECALC_OFF) {
-		return(false);
-	} else {
-		return(srv_stats_auto_recalc);
-	}
-}
 
 /*********************************************************************//**
 Initialize table's stats for the first time when opening a table. */
@@ -150,13 +36,15 @@ dict_stats_init(
 {
 	ut_ad(!table->stats_mutex_is_owner());
 
-	if (table->stat_initialized) {
+	uint32_t stat = table->stat;
+
+	if (stat & dict_table_t::STATS_INITIALIZED) {
 		return;
 	}
 
 	dict_stats_upd_option_t	opt;
 
-	if (dict_stats_is_persistent_enabled(table)) {
+	if (table->stats_is_persistent(stat)) {
 		opt = DICT_STATS_FETCH_ONLY_IF_NOT_IN_MEMORY;
 	} else {
 		opt = DICT_STATS_RECALC_TRANSIENT;
@@ -178,7 +66,7 @@ dict_stats_deinit(
 	ut_ad(table->get_ref_count() == 0);
 
 #ifdef HAVE_valgrind
-	if (!table->stat_initialized) {
+	if (!table->stat_initialized()) {
 		return;
 	}
 
@@ -215,5 +103,6 @@ dict_stats_deinit(
 			sizeof(index->stat_n_leaf_pages));
 	}
 #endif /* HAVE_valgrind */
-	table->stat_initialized = FALSE;
+
+	table->stat = table->stat & ~dict_table_t::STATS_INITIALIZED;
 }
