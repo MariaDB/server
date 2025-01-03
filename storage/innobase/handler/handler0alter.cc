@@ -10194,7 +10194,7 @@ innobase_update_foreign_cache(
 			ib::error()
 				<< "Failed to load table "
 				<< table_name_t(const_cast<char*>(f))
-				<< " which has a foreign key constraint with"
+				<< " which has a foreign key constraint with "
 				<< user_table->name;
 			break;
 		}

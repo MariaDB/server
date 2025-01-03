@@ -901,18 +901,20 @@ void _ma_check_print_warning(HA_CHECK *param, const char *fmt, ...)
   DBUG_VOID_RETURN;
 }
 
+
 /*
   Create a transaction object
 
   SYNOPSIS
     info	Maria handler
+    all         If we should register a full transaction (1) or stmt(0)
 
   RETURN
     0 		ok
     #		Error number (HA_ERR_OUT_OF_MEM)
 */
 
-static int maria_create_trn_for_mysql(MARIA_HA *info)
+static int maria_create_trn_for_mysql(MARIA_HA *info, my_bool all)
 {
   THD *thd= ((TABLE*) info->external_ref)->in_use;
   TRN *trn= THD_TRN;
@@ -929,10 +931,17 @@ static int maria_create_trn_for_mysql(MARIA_HA *info)
   }
   _ma_set_trn_for_table(info, trn);
   if (!trnman_increment_locked_tables(trn))
-  {
-    trans_register_ha(thd, FALSE, maria_hton, trn->trid);
     trnman_new_statement(trn);
-  }
+
+  /*
+    Ensure that the transaction is registered.
+    We have to do that even if we had previous locked tables as the
+    statement could be 'create or replace locked_table SELECT ..'
+    in which case we do not yet have a transaction registered.
+  */
+  if (!all)
+    trans_register_ha(thd, FALSE, maria_hton, trn->trid);
+
 #ifdef EXTRA_DEBUG
   if (info->lock_type == F_WRLCK &&
       ! (trnman_get_flags(trn) & TRN_STATE_INFO_LOGGED))
@@ -3205,7 +3214,7 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     if (handler->s->lock_key_trees)
     {
       /* _ma_set_trn_for_table() will be called indirectly */
-      if (_ma_setup_live_state(handler))
+      if (_ma_setup_live_state(handler, 1))
         error= HA_ERR_OUT_OF_MEM;
     }
     else
@@ -3617,15 +3626,19 @@ static int maria_commit(THD *thd, bool all)
   MARIA_HA *used_instances;
   DBUG_ENTER("maria_commit");
 
-  /* No commit inside lock_tables() */
-  if ((!trn ||
-       thd->locked_tables_mode == LTM_LOCK_TABLES ||
-       thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES))
+  /* No commit inside lock_tables() except for create table */
+  if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
+      thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
+  {
+    if (trn && thd->lex->sql_command == SQLCOM_CREATE_TABLE)
+      DBUG_RETURN(ha_maria::implicit_commit(thd, 1));
     DBUG_RETURN(0);
+  }
 
   /* statement or transaction ? */
-  if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
-      !all)
+  if (!trn ||
+      ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
+       !all))
     DBUG_RETURN(0); // end of statement
 
   used_instances= (MARIA_HA*) trn->used_instances;

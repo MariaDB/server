@@ -104,7 +104,7 @@ master-bin.000008	#
 master-bin.000009	#
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000009	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	0-1-113
+master-bin.000009	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 select * from t4;
 a

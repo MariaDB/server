@@ -7180,6 +7180,12 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   DBUG_ASSERT(table->needs_reopen());
 
   /*
+    TABLE is going to be released, we should not access old part_info
+    anymore
+  */
+  lpt->part_info= part_info;
+
+  /*
     All instances of this table needs to be closed.
     Better to do that here, than leave the cleaning up to others.
     Acquire EXCLUSIVE mdl lock if not already acquired.

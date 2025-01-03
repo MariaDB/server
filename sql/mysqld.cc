@@ -3818,17 +3818,17 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
       /* Cache to avoid reading global_tmp_space_used too many times */
       ulonglong cached_space= global_tmp_space_used;
 
-      if (cached_space > global_max_tmp_space_usage && !no_error &&
-          global_max_tmp_space_usage)
+      if (global_max_tmp_space_usage && cached_space > global_max_tmp_space_usage &&
+          !no_error && !thd->in_binlog_commit)
       {
         global_tmp_space_used-= size_change;
         error= EE_GLOBAL_TMP_SPACE_FULL;
         my_errno= ENOSPC;
         goto exit;
       }
-      if (thd->status_var.tmp_space_used + size_change >
-          thd->variables.max_tmp_space_usage && !no_error &&
-          thd->variables.max_tmp_space_usage)
+      if (thd->variables.max_tmp_space_usage &&
+          thd->status_var.tmp_space_used + size_change >
+          thd->variables.max_tmp_space_usage && !no_error && !thd->in_binlog_commit)
       {
         global_tmp_space_used-= size_change;
         error= EE_LOCAL_TMP_SPACE_FULL;

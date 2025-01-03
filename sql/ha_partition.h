@@ -491,13 +491,7 @@ public:
 
   void return_record_by_parent() override;
 
-  bool vers_can_native(THD *thd) override
-  {
-    bool can= true;
-    for (uint i= 0; i < m_tot_parts && can; i++)
-      can= can && m_file[i]->vers_can_native(thd);
-    return can;
-  }
+  bool vers_can_native(THD *thd) override;
 
   /*
     -------------------------------------------------------------------------

@@ -3068,7 +3068,8 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
 */
 
 bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
-                                      TABLE *table, MYSQL_LOCK *lock)
+                                      TABLE *table, MYSQL_LOCK *lock,
+                                      bool restore_lock)
 {
   MYSQL_LOCK *merged_lock;
   DBUG_ENTER("restore_lock");
@@ -3088,7 +3089,8 @@ bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
   dst_table_list->lock_type= table->reginfo.lock_type;
   table->pos_in_locked_tables= dst_table_list;
 
-  add_back_last_deleted_lock(dst_table_list);
+  if (restore_lock)
+    add_back_last_deleted_lock(dst_table_list);
 
   table->mdl_ticket->downgrade_lock(table->reginfo.lock_type >=
                                     TL_FIRST_WRITE ?
@@ -3309,7 +3311,7 @@ ret:
 static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 {
   if (Table_triggers_list::check_n_load(thd, &share->db,
-                                        &share->table_name, entry, 0))
+                                        &share->table_name, entry, false, 0))
     return TRUE;
 
   /*
@@ -3552,8 +3554,17 @@ Open_table_context::recover_from_failed_open()
     case OT_ADD_HISTORY_PARTITION:
       DEBUG_SYNC(m_thd, "add_history_partition");
       if (!m_thd->locked_tables_mode)
+      {
+        /*
+          Change sql_command temporary to ensure that we can repair tables in
+          CREATE...SELECT.
+        */
+        enum_sql_command save_sql_command= m_thd->lex->sql_command;
+        m_thd->lex->sql_command= SQLCOM_REPAIR;
         result= lock_table_names(m_thd, m_thd->lex->create_info, m_failed_table,
                                 NULL, get_timeout(), 0);
+        m_thd->lex->sql_command= save_sql_command;
+      }
       else
       {
         DBUG_ASSERT(!result);
@@ -9670,7 +9681,7 @@ my_bool mysql_rm_tmp_tables(void)
     {
       file=dirp->dir_entry+idx;
 
-      if (!strncmp(file->name, tmp_file_prefix, tmp_file_prefix_length))
+      if (is_tmp_table(file->name))
       {
         char *ext= fn_ext(file->name);
         size_t ext_len= strlen(ext);

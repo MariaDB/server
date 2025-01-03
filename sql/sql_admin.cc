@@ -1527,7 +1527,7 @@ send_result_message:
       (!opt_readonly || thd->slave_thread) && !thd->lex->no_write_to_binlog)
   {
     thd->get_stmt_da()->set_overwrite_status(true);
-    auto res= write_bin_log(thd, true, thd->query(), thd->query_length());
+    bool res= write_bin_log(thd, true, thd->query(), thd->query_length());
     thd->get_stmt_da()->set_overwrite_status(false);
     if (res)
       goto err;

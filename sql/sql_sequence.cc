@@ -541,7 +541,10 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
     seq->is_unsigned= (*table->s->field)->is_unsigned();
     /* We set reserved_until when creating a new sequence. */
     if (seq->check_and_adjust(thd, true))
-      DBUG_RETURN(TRUE);
+    {
+      error= 1;
+      goto error;
+    }
   }
 
   error= seq->write_initial_sequence(table);
@@ -556,8 +559,11 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   if (trans_commit_implicit(thd))
     error= 1;
 
+error:
   if (!temporary_table)
   {
+    if (error)
+      table->s->tdc->flushed= 1;        // Remove from table def cache
     close_thread_tables(thd);
     lex->restore_backup_query_tables_list(&query_tables_list_backup);
     thd->restore_backup_open_tables_state(&open_tables_backup);
@@ -694,7 +700,20 @@ int SEQUENCE::read_initial_values(TABLE *table)
     */
     if (!has_active_transaction && !thd->transaction->stmt.is_empty() &&
         !thd->in_sub_stmt)
-      trans_commit_stmt(thd);
+    {
+      /*
+        We have to preserve the rollback flag marking this statement as
+        a DDL because Gtid_log_event::Gtid_log_event may be called later
+        as part of CREATE OR REPLACE and it needs to know if the statement
+        was a DDL.
+      */
+      uint save_unsafe_rollback_flags=
+        thd->transaction->stmt.m_unsafe_rollback_flags;
+      if (trans_commit_stmt(thd))
+        error= HA_ERR_COMMIT_ERROR;
+      thd->transaction->stmt.m_unsafe_rollback_flags=
+        save_unsafe_rollback_flags;
+    }
   }
   write_unlock(table);
   DBUG_RETURN(error);

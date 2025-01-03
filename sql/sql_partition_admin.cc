@@ -51,7 +51,7 @@ bool Sql_cmd_partition_unsupported::execute(THD *)
 static bool return_with_logging(THD *thd)
 {
   if (thd->slave_thread &&
-      write_bin_log_with_if_exists(thd, true, false, true))
+      write_bin_log_with_if_exists(thd, true, false, true) > 0)
     return(true);
   my_ok(thd);
   return(false);

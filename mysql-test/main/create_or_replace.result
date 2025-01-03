@@ -146,6 +146,7 @@ t1	CREATE TABLE `t1` (
   `1` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
+# Using lock tables with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
 CREATE OR REPLACE TABLE t1 (a int, b int);
@@ -154,10 +155,14 @@ a	b
 INSERT INTO t1 values(1,1);
 CREATE OR REPLACE TABLE t1 (a int, b int, c int);
 INSERT INTO t1 values(1,1,1);
+SELECT count(*) from t2;
+count(*)
+3
 CREATE OR REPLACE TABLE t3 (a int);
 ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP TABLE t1;
+# Using lock tables with CREATE OR REPLACE ... SELECT
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
 CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;
@@ -179,10 +184,37 @@ NULL	3	1
 INSERT INTO t1 values(1,1,1);
 CREATE OR REPLACE TABLE t1 (a int, b int, c int, d int);
 INSERT INTO t1 values(1,1,1,1);
+CREATE OR REPLACE TABLE t1 SELECT * from t2;
+SELECT * from t1;
+a
+1
+2
+3
+INSERT INTO t1 values(4);
+set @@drop_before_create_or_replace=0;
+CREATE OR REPLACE TABLE t1 (a int primary key) SELECT 1 as a from t2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT * from t1;
+a
+1
+2
+3
+4
+set @@drop_before_create_or_replace=1;
+CREATE OR REPLACE TABLE t1 (a int primary key) SELECT 1 as a from t2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT * from t1;
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+set @@drop_before_create_or_replace=default;
+SELECT count(*) from t2;
+count(*)
+3
 CREATE OR REPLACE TABLE t3 (a int);
 ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
-DROP TABLE t1;
+SELECT * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+# Testing write and read locks with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write, t1 as t1_read read;
 CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;
@@ -273,6 +305,7 @@ create or replace table test.t1;
 ERROR 42000: A table must have at least 1 column
 show tables;
 Tables_in_test
+t1
 t2
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
@@ -281,12 +314,24 @@ MDL_BACKUP_DML	Backup lock
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 create or replace table mysqltest2.t2;
 ERROR 42000: A table must have at least 1 column
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-create table t1 (i int);
-drop table t1;
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1,mysqltest2.t2;
+unlock tables;
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
@@ -302,6 +347,7 @@ create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 show tables;
 Tables_in_test
+t1
 t2
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
@@ -310,6 +356,9 @@ MDL_BACKUP_DML	Backup lock
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
+ERROR 42S21: Duplicate column name 'a'
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
@@ -317,12 +366,14 @@ MDL_BACKUP_DML	Backup lock
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
-create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
-ERROR 42S21: Duplicate column name 'a'
-select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
-LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-create table t1 (i int);
-drop table t1;
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1,mysqltest2.t2;
+unlock tables;
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
@@ -365,11 +416,21 @@ create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
 ERROR 22001: Data too long for column 'a' at row 1
 show tables;
 Tables_in_test
+t1
 t2
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-create table t1 (i int);
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+unlock tables;
 #
 # Testing CREATE .. LIKE
 #
@@ -587,12 +648,453 @@ DROP TABLE IF EXISTS tm, t;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+# Test triggers
+create table t1 (a int);
+insert into t1 values (1);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+create trigger trg2 before update on t1 for each row set @a:=1;
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+trigger_name
+trg1
+trg2
+create or replace table t1 (b int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+trigger_name
+drop table t1;
+create table t1 (a int);
+insert into t1 values (1);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+create trigger trg2 before update on t1 for each row set @a:=1;
+create or replace table t1;
+ERROR 42000: A table must have at least 1 column
+select * from t1;
+a
+1
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+trigger_name
+trg1
+trg2
+drop table t1;
+# Test table locks
+create table t1 (a int);
+create table t2 (a int);
+insert into t1 values (1);
+lock tables t1 write, t2 write;
+create or replace table t1 (b int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create or replace table t1 (c int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1,t2;
+c	a
+select * from t3;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+insert into t1 values (1);
+create or replace table t1;
+ERROR 42000: A table must have at least 1 column
+select * from t1;
+c
+1
+lock tables t1 write, t2 write;
+create or replace table t1 (d int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+unlock tables;
+drop table t1,t2;
+#
+# End of 11.8 tests
+#
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+create table t1 (a int);
+insert t1 values (1), (1);
+create table t2 (c int);
+create or replace table t2 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create or replace table t2 (a int, b int, key k (a), key k (b)) as select a, a as b from t1;
+ERROR 42000: Duplicate key name 'k'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create or replace table t2 (a int primary key) as select * from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+set @old_mode= @@sql_mode;
+set @@sql_mode='ALLOW_INVALID_DATES';
+create table t3 (dt datetime default '2008-02-31 00:00:00');
+set @@sql_mode= @old_mode;
+create or replace table t2 like t3;
+ERROR 42000: Invalid default value for 'dt'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# LOCK TABLES
+lock tables t2 write, t1 write;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 (y int);
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 like t1;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 (y int) as select * from t1;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+unlock tables;
+# SP
+create or replace procedure sp(n int)
+begin
+select concat('sp call ', n, ':') as '';
+show open tables like 't2';
+create or replace table t2 (y int);
+select 'create or replace table t2 (y int);' as '';
+show open tables like 't2';
+insert into t2 values (2);
+select 'insert into t2 values (2);' as '';
+show open tables like 't2';
+create or replace table t2 like t1;
+select 'create or replace table t2 like t1;' as '';
+show open tables like 't2';
+create or replace table t2 (y int) as select * from t1;
+select 'create or replace table t2 (y int) as select * from t1;' as '';
+show open tables like 't2';
+select 'select * from t2;' as '';
+select * from t2;
+show open tables  like 't2';
+end $
+flush tables;
+call sp(1);
+
+sp call 1:
+Database	Table	In_use	Name_locked
+
+create or replace table t2 (y int);
+Database	Table	In_use	Name_locked
+
+insert into t2 values (2);
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+create or replace table t2 like t1;
+Database	Table	In_use	Name_locked
+
+create or replace table t2 (y int) as select * from t1;
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+select * from t2;
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	0	0
+call sp(2);
+
+sp call 2:
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+create or replace table t2 (y int);
+Database	Table	In_use	Name_locked
+
+insert into t2 values (2);
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+create or replace table t2 like t1;
+Database	Table	In_use	Name_locked
+
+create or replace table t2 (y int) as select * from t1;
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+select * from t2;
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	0	0
+# SP under LOCK TABLES
+lock tables t2 write, t1 write;
+call sp(3);
+
+sp call 3:
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 (y int);
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+insert into t2 values (2);
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 like t1;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 (y int) as select * from t1;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+select * from t2;
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	1	0
+call sp(4);
+
+sp call 4:
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 (y int);
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+insert into t2 values (2);
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 like t1;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 (y int) as select * from t1;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+select * from t2;
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	1	0
+unlock tables;
+drop procedure sp;
+drop tables t1, t2, t3;
+# Trigger
+create table t1 (a int);
+create trigger a before insert on t1 for each row set @s= 1;
+create or replace table t1 (old int);
+show create trigger a;
+ERROR HY000: Trigger does not exist
+drop table t1;
+# PS: check thd->change_list sanity
+create table t1 (a int not null, b char(10) as (concat('', dayname('2020-02-02'))))  collate utf8_bin;
+prepare stmt from 'insert into t1 (b) values (2)';
+create or replace table t1 (x int);
+drop table t1;
+drop prepare stmt;
+# Foreign keys
+create table t1 (x int primary key, y int) engine innodb;
+create table t2 (x int references t1(x)) engine innodb;
+create or replace table t1 (x int primary key);
+create table t3 (x int);
+create or replace table t1 like t3;
+create or replace table t1 select * from t3;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop tables t3, t2, t1;
+# UNIQUE
+create table t1 (pk int auto_increment primary key, a varchar(2300), unique (a)) engine aria character set latin1;
+insert into t1 (a) values ('a'), ('b'), ('c');
+create table t2 (x int);
+create or replace table t2 engine aria select * from t1;
+select * from t2;
+pk	a
+1	a
+2	b
+3	c
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `pk` int(11) NOT NULL DEFAULT 0,
+  `a` varchar(2300) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+drop tables t2, t1;
+#
+# MDEV-28956 Locking is broken if CREATE OR REPLACE fails under LOCK TABLES
+#
+# Atomic CREATE OR REPLACE part:
+#
+create table t1 (pk int primary key) engine=innodb;
+create or replace table t2 (a int primary key references t1 (pk)) engine=innodb;
+create or replace table `t3#` (a int primary key references t1 (pk)) engine=innodb;
+lock tables t1 write, t2 write, `t3#` write;
+create or replace table t2 (c1 int not null, c1 varchar(255) ) engine=innodb;
+ERROR 42S21: Duplicate column name 'c1'
+create or replace table `t3#` (c1 int not null, c1 varchar(255) ) engine=innodb;
+ERROR 42S21: Duplicate column name 'c1'
+select * from t1;
+pk
+select * from t2;
+a
+select * from `t3#`;
+a
+unlock tables;
+select * from t2;
+a
+select * from `t3#`;
+a
+drop tables if exists t2, `t3#`, t1;
+#
+# MDEV-28933 CREATE OR REPLACE fails to recreate same constraint name
+#
+use test;
+create table t (a int primary key) engine=innodb;
+insert into t values (1),(2),(3);
+create or replace table u (
+a int primary key,
+constraint c foreign key d (a) references t (a)) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+c	test/u	test/t	1	0
+select * from information_schema.innodb_sys_foreign_cols;
+ID	FOR_COL_NAME	REF_COL_NAME	POS
+c	a	a	0
+create or replace table u (
+a int primary key,
+constraint c foreign key d (a) references t (a)) engine=innodb;
+insert into u values (1),(2),(3);
+create or replace table u (
+a int primary key,
+constraint c foreign key d (a) references t (a), e int, unique key(e)) engine=innodb select seq as a, seq as e, if(seq < 4,seq,1) from seq_1_to_3;
+create or replace table u (
+a int primary key,
+constraint c foreign key d (a) references t (a), e int, unique key(e)) engine=innodb select seq as a, seq as e, if(seq < 4,seq,1) from seq_1_to_4;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`u`, CONSTRAINT `c` FOREIGN KEY (`a`) REFERENCES `t` (`a`))
+create or replace table u (
+a int primary key,
+constraint c foreign key d (a) references t (a), e int, unique key(e)) engine=innodb select seq as a, if(seq < 3,seq,1) as e from seq_1_to_3;
+ERROR 23000: Duplicate entry '1' for key 'e'
+select * from u;
+a	e	if(seq < 4,seq,1)
+1	1	1
+2	2	2
+3	3	3
+select * from information_schema.innodb_sys_foreign;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+c	test/u	test/t	1	0
+select * from information_schema.innodb_sys_foreign_cols;
+ID	FOR_COL_NAME	REF_COL_NAME	POS
+c	a	a	0
+drop tables u, t;
+select * from information_schema.innodb_sys_foreign;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+select * from information_schema.innodb_sys_foreign_cols;
+ID	FOR_COL_NAME	REF_COL_NAME	POS
+#
+# MDEV-29544 SIGSEGV in HA_CREATE_INFO::finalize_locked_tables
+#
+call mtr.add_suppression("mysql.innodb_index_stats");
+set sql_mode= '';
+create table t (x int) engine innodb;
+insert into t values (77);
+alter table mysql.innodb_index_stats modify stat_description char(10);
+lock table t write;
+create or replace table t (y int);
+ERROR HY000: Error on rename of './test/t' to './test/#sql-create...' (errno: 168 "Unknown (generic) error from engine")
+unlock tables;
+alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
+select * from t;
+x
+77
+drop table t;
+set sql_mode= default;
+#
+# MDEV-29620 Assertion `next_insert_id == 0' failed in handler::ha_external_lock
+#
+create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
+drop table t1;
+#
+# MDEV-36435 Assertion failure in
+#            Table_specification_st::finalize_locked_tables upon attempt
+#            to create an already existing table under lock
+#
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+CREATE TABLE IF NOT EXISTS t1 (a INT);
+Warnings:
+Note	1050	Table 't1' already exists
+UNLOCK TABLES;
+CREATE TABLE t2 LIKE t1;
+LOCK TABLE t1 WRITE, t2 write;
+CREATE TABLE IF NOT EXISTS t2 LIKE t1;
+Warnings:
+Note	1050	Table 't2' already exists
+UNLOCK TABLES;
+DROP TABLE t1,t2;
+#
+# MDEV-36439 Assertion `thd_arg->lex->sql_command !=
+#            SQLCOM_CREATE_SEQUENCE || (flags2 & FL_DDL) || thd_arg->in_mult
+#            i_stmt_transaction_mode()' failed
+#
+create sequence s2 engine=innodb;
+create or replace sequence s2 engine=innodb;
+drop sequence s2;
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+RENAME TABLE s1 TO s2;
+CREATE OR REPLACE SEQUENCE s2 ENGINE=InnoDB;
+FLUSH TABLES;
+CREATE OR REPLACE SEQUENCE s2 ENGINE=InnoDB;
+DROP SEQUENCE s2;
+#
+# End of 12.0 tests
+#
 SET GLOBAL innodb_stats_persistent=@save_persistent;
 #
 # MDEV-23298 Assertion `table_list->prelocking_placeholder ==
 # TABLE_LIST::PRELOCK_NONE' failed in check_lock_and_start_stmt on
 # CREATE OR REPLACE TABLE
 #
+set @@session.drop_before_create_or_replace='ON';
 create table t2 (a int);
 insert into t2 values(1),(2);
 CREATE TABLE t1 (a INT);
@@ -621,6 +1123,55 @@ CREATE OR REPLACE TABLE t1 AS SELECT f(1);
 drop temporary table t1;
 drop table t1;
 drop function f;
+set @@session.drop_before_create_or_replace=default;
 #
 # End of 10.6 tests
+#
+#
+# MDEV-36497 Assertion failure after atomic CoR with Aria under lock
+# in transactional context
+#
+CREATE TABLE t1 (a INT) engine=aria;
+LOCK TABLE t1 WRITE;
+SET AUTOCOMMIT = OFF;
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=aria;
+SELECT 1;
+1
+1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) engine=myisam;
+LOCK TABLE t1 WRITE;
+SET AUTOCOMMIT = OFF;
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=aria;
+SELECT 1;
+1
+1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) engine=myisam;
+LOCK TABLE t1 WRITE;
+SET AUTOCOMMIT = ON;
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=aria;
+SELECT 1;
+1
+1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) engine=myisam;
+SET AUTOCOMMIT = ON;
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=aria;
+SELECT 1;
+1
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) engine=myisam;
+SET AUTOCOMMIT = OFF;
+CREATE OR REPLACE TABLE t1 (b INT) ENGINE=aria;
+SELECT 1;
+1
+1
+DROP TABLE t1;
+#
+# End of 12.3 tests
 #

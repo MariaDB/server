@@ -5,7 +5,7 @@ connection master;
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 change master to master_host='127.0.0.1';
@@ -20,7 +20,7 @@ connection master;
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 change master to master_host='0:0:0:0:0:FFFF:127.0.0.1';
@@ -35,7 +35,7 @@ connection master;
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 change master to master_host='0000:0000:0000:0000:0000:FFFF:127.0.0.1';
@@ -50,7 +50,7 @@ connection master;
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 change master to master_host='0:0000:0000:0:0000:FFFF:127.0.0.1';
@@ -65,7 +65,7 @@ connection master;
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 change master to master_host='0::0000:FFFF:127.0.0.1';
@@ -80,7 +80,7 @@ connection master;
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 change master to master_host='::FFFF:127.0.0.1';
@@ -95,7 +95,7 @@ connection master;
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 Master-Host: ::FFFF:127.0.0.1

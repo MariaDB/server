@@ -558,6 +558,28 @@ private:
   binlog_cache_mngr(const binlog_cache_mngr& info);
 };
 
+
+/*
+  Remove all row event from all binlog caches and clear all caches.
+  This is only called from CREATE .. SELECT, in which case it safe to delete
+  also events from the statement cache.
+*/
+
+void THD::binlog_remove_rows_events()
+{
+  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
+  DBUG_ENTER("THD::binlog_remove_rows_events");
+
+  if (!cache_mngr ||
+      (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open()))
+    DBUG_VOID_RETURN;
+
+  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->stmt_cache);
+  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->trx_cache);
+  cache_mngr->reset(1,1);
+  DBUG_VOID_RETURN;
+}
+
 /**
   The function handles the first phase of two-phase binlogged ALTER.
   On master binlogs START ALTER when that is configured to do so.
@@ -660,7 +682,7 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
       deferred for the second logging phase.
     */
     thd->set_binlog_flags_for_alter(Gtid_log_event::FL_START_ALTER_E1);
-    if(write_bin_log_with_if_exists(thd, false, false, if_exists, false))
+    if(write_bin_log_with_if_exists(thd, false, false, if_exists, false) > 0)
     {
       DBUG_ASSERT(thd->is_error());
 
@@ -1819,7 +1841,7 @@ int binlog_init(void *p)
     binlog_tp.start_consistent_snapshot= binlog_start_consistent_snapshot;
   }
   binlog_tp.flags= HTON_NO_ROLLBACK;
-  auto plugin= (st_plugin_int*)p;
+  st_plugin_int *plugin= (st_plugin_int*)p;
   plugin->data= &binlog_tp;
   return setup_transaction_participant(plugin);
 }
@@ -2341,6 +2363,8 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
 
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_binlog_write);
+
+  thd->in_binlog_commit= 1;
   if (!cache_mngr->stmt_cache.empty())
   {
 #ifdef WITH_WSREP
@@ -2371,6 +2395,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
     */
     cache_mngr->reset(false, true);
     THD_STAGE_INFO(thd, org_stage);
+    thd->in_binlog_commit= 0;
     DBUG_RETURN(error);
   }
 
@@ -2408,6 +2433,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
 
   THD_STAGE_INFO(thd, org_stage);
+  thd->in_binlog_commit= 0;
   DBUG_RETURN(error);
 }
 
@@ -4455,11 +4481,12 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
       error= LOG_INFO_EOF;
       goto end;
     }
-  }
+    log_name_len= (uint) strlen(full_log_name);
 
-  log_name_len= log_name ? (uint) strlen(full_log_name) : 0;
-  DBUG_PRINT("enter", ("log_name: %s, full_log_name: %s", 
-                       log_name ? log_name : "NULL", full_log_name));
+    DBUG_PRINT("enter", ("log_name: %s, full_log_name: %s",
+                         log_name, full_log_name));
+
+  }
 
   /* As the file is flushed, we can't get an error here */
   error= reinit_io_cache(&index_file, READ_CACHE, (my_off_t) 0, 0, 0);
@@ -6334,7 +6361,7 @@ bool use_trans_cache(const THD* thd, bool is_transactional)
 {
   if (is_transactional)
     return 1;
-  auto *const cache_mngr= thd->binlog_get_cache_mngr();
+  const binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
 
   return ((thd->is_current_stmt_binlog_format_row() ||
            thd->variables.binlog_direct_non_trans_update) ? 0 :
@@ -6906,7 +6933,7 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     binlog_cache_data *cache_data)
 {
   int error= 0;
-  auto *pending= cache_data->pending();
+  Rows_log_event *pending= cache_data->pending();
   if (pending)
   {
     /*
@@ -12467,10 +12494,10 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       case XID_EVENT:
       if (do_xa)
       {
-        xid_recovery_member *member=
-          (xid_recovery_member*)
-          my_hash_search(&xids, (uchar*) &static_cast<Xid_log_event*>(ev)->xid,
-                         sizeof(my_xid));
+        Xid_log_event *xid_ev= (Xid_log_event*) ev;
+
+        xid_recovery_member *member= (xid_recovery_member *)
+          my_hash_search(&xids, (uchar*) &xid_ev->xid, sizeof(my_xid));
 #ifndef HAVE_REPLICATION
         {
           if (member)
@@ -12480,6 +12507,12 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         if (ctx.decide_or_assess(member, round, fdle, linfo, end_pos))
           goto err2;
 #endif
+        DBUG_PRINT("xid", ("Xid_event xid: %llu", xid_ev->xid));
+        uchar *x= (uchar *) memdup_root(&mem_root,
+                                        (uchar*) &xid_ev->xid,
+                                        sizeof(xid_ev->xid));
+        if (!x || my_hash_insert(&ddl_log_ids, x))
+          goto err2;
       }
       break;
       case QUERY_EVENT:
@@ -12487,7 +12520,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         Query_log_event *query_ev= (Query_log_event*) ev;
         if (query_ev->xid)
         {
-          DBUG_PRINT("QQ", ("xid: %llu xid", query_ev->xid));
+          DBUG_PRINT("xid", ("Query_log_event xid: %llu", query_ev->xid));
           DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid));
           uchar *x= (uchar *) memdup_root(&mem_root,
                                           (uchar*) &query_ev->xid,
@@ -13030,7 +13063,7 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
   if (thd && opt_bin_log)
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    auto cache_mngr= thd->binlog_get_cache_mngr();
+    binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
     have_snapshot= cache_mngr && cache_mngr->last_commit_pos_file[0];
     if (have_snapshot)
     {

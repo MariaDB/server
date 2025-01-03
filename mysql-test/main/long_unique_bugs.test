@@ -532,8 +532,7 @@ delete from t2 using t1, t2 where t1.a=t2.c and t1.b='foo';
 # CREATE...SELECT
 --error ER_DUP_ENTRY
 create or replace table t2 (a int, b blob, unique(b)) as select * from t1;
---error ER_NO_SUCH_TABLE
-  select * from t2;
+ select * from t2;
 create or replace table t2 (a int, b blob, unique(b)) ignore as select * from t1;
   select * from t2;
 create or replace table t2 (a int, b blob, unique(b)) replace as select * from t1;

@@ -2227,6 +2227,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
   RETURN
     0       OK
+    1       Error (out of memory)
  */
 
 int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
@@ -5265,7 +5266,7 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
     init_sql_alloc(key_memory_table_triggers_list,
                    &tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
     if (!Table_triggers_list::check_n_load(thd, db_name,
-                                           table_name, &tbl, 1))
+                                           table_name, &tbl, true, 0))
     {
       table_list.table= &tbl;
       res= schema_table->process_table(thd, &table_list, table,
