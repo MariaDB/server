@@ -273,6 +273,7 @@ create or replace table test.t1;
 ERROR 42000: A table must have at least 1 column
 show tables;
 Tables_in_test
+t1
 t2
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
@@ -281,12 +282,24 @@ MDL_BACKUP_DML	Backup lock
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 create or replace table mysqltest2.t2;
 ERROR 42000: A table must have at least 1 column
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-create table t1 (i int);
-drop table t1;
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1,mysqltest2.t2;
+unlock tables;
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
@@ -302,6 +315,7 @@ create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 show tables;
 Tables_in_test
+t1
 t2
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
@@ -310,6 +324,9 @@ MDL_BACKUP_DML	Backup lock
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
+ERROR 42S21: Duplicate column name 'a'
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
@@ -317,12 +334,14 @@ MDL_BACKUP_DML	Backup lock
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
-create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
-ERROR 42S21: Duplicate column name 'a'
-select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
-LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-create table t1 (i int);
-drop table t1;
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1,mysqltest2.t2;
+unlock tables;
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
@@ -365,11 +384,21 @@ create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
 ERROR 22001: Data too long for column 'a' at row 1
 show tables;
 Tables_in_test
+t1
 t2
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-create table t1 (i int);
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+unlock tables;
 #
 # Testing CREATE .. LIKE
 #
@@ -586,5 +615,79 @@ ERROR HY000: Table 'tm' is specified twice, both as a target for 'CREATE' and as
 DROP TABLE IF EXISTS tm, t;
 #
 # End of 10.3 tests
+#
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+# Test triggers
+create table t1 (a int);
+insert into t1 values (1);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+create trigger trg2 before update on t1 for each row set @a:=1;
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+trigger_name
+trg1
+trg2
+create or replace table t1 (b int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+trigger_name
+drop table t1;
+create table t1 (a int);
+insert into t1 values (1);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+create trigger trg2 before update on t1 for each row set @a:=1;
+create or replace table t1;
+ERROR 42000: A table must have at least 1 column
+select * from t1;
+a
+1
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+trigger_name
+trg1
+trg2
+drop table t1;
+# Test table locks
+create table t1 (a int);
+create table t2 (a int);
+insert into t1 values (1);
+lock tables t1 write, t2 write;
+create or replace table t1 (b int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create or replace table t1 (c int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1,t2;
+c	a
+select * from t3;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+insert into t1 values (1);
+create or replace table t1;
+ERROR 42000: A table must have at least 1 column
+select * from t1;
+c
+1
+lock tables t1 write, t2 write;
+create or replace table t1 (d int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+unlock tables;
+drop table t1,t2;
+#
+# End of 11.8 tests
 #
 SET GLOBAL innodb_stats_persistent=@save_persistent;

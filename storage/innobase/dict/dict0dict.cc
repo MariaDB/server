@@ -1623,7 +1623,8 @@ dict_table_rename_in_cache(
 			foreign->heap, table->name.m_name);
 		foreign->foreign_table_name_lookup_set();
 
-		if (strchr(foreign->id, '/')) {
+		const bool tmp_id = (strchr(foreign->id, '\xFF') != NULL);
+		if (!tmp_id && strchr(foreign->id, '/')) {
 			/* This is a >= 4.0.18 format id */
 
 			ulint	db_len;
@@ -1767,10 +1768,16 @@ dict_table_rename_in_cache(
 		}
 
 		table->foreign_set.erase(it);
-		fk_set.insert(foreign);
 
-		if (foreign->referenced_table) {
-			foreign->referenced_table->referenced_set.insert(foreign);
+		if (!tmp_id) {
+			fk_set.insert(foreign);
+
+			if (foreign->referenced_table) {
+				foreign->referenced_table
+					->referenced_set.insert(foreign);
+			}
+		} else {
+			dict_foreign_free(foreign);
 		}
 	}
 
@@ -3202,63 +3209,16 @@ foreign constraint parser to get the referenced table.
 heap memory passed in */
 char*
 dict_get_referenced_table(
-	const char*    name,		  /*!< in: foreign key table name */
-	const char*    database_name,	  /*!< in: table db name */
-	ulint	       database_name_len, /*!< in: db name length */
-	const char*    table_name,	  /*!< in: table name */
-	ulint	       table_name_len,	  /*!< in: table name length */
+	LEX_CSTRING	database_name,	/*!< in: table db name */
+	LEX_CSTRING	table_name,	/*!< in: table name */
 	dict_table_t** table,		  /*!< out: table object or NULL */
 	mem_heap_t*    heap,		  /*!< in/out: heap memory */
 	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
 {
-	char		db_name[MAX_DATABASE_NAME_LEN];
-	char		tbl_name[MAX_TABLE_NAME_LEN];
-	CHARSET_INFO*	to_cs = &my_charset_filename;
-	uint		errors;
-	ut_ad(database_name || name);
-	ut_ad(table_name);
-
-	if (!strncmp(table_name, srv_mysql50_table_name_prefix,
-		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		/* This is a pre-5.1 table name
-		containing chars other than [A-Za-z0-9].
-		Discard the prefix and use raw UTF-8 encoding. */
-		table_name += sizeof(srv_mysql50_table_name_prefix) - 1;
-		table_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
-
-		to_cs = system_charset_info;
-	}
-
-	table_name_len = strconvert(from_cs, table_name, table_name_len, to_cs,
-				    tbl_name, MAX_TABLE_NAME_LEN, &errors);
-	table_name     = tbl_name;
-
-	if (database_name) {
-		to_cs = &my_charset_filename;
-		if (!strncmp(database_name, srv_mysql50_table_name_prefix,
-			     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-			database_name
-				+= sizeof(srv_mysql50_table_name_prefix) - 1;
-			database_name_len
-				-= sizeof(srv_mysql50_table_name_prefix) - 1;
-			to_cs = system_charset_info;
-		}
-
-		database_name_len = strconvert(
-			from_cs, database_name, database_name_len, to_cs,
-			db_name, MAX_DATABASE_NAME_LEN, &errors);
-		database_name = db_name;
-	} else {
-		/* Use the database name of the foreign key table */
-
-		database_name = name;
-		database_name_len = dict_get_db_name_len(name);
-	}
-
 	/* Copy database_name, '/', table_name, '\0' */
-	Identifier_chain2 ident({database_name, database_name_len},
-				{table_name, table_name_len});
-	size_t ref_nbytes= (database_name_len + table_name_len) *
+	Identifier_chain2 ident({database_name.str, database_name.length},
+				{table_name.str, table_name.length});
+	size_t ref_nbytes= (database_name.length + table_name.length) *
 			system_charset_info->casedn_multiply() + 2;
 	char *ref = static_cast<char*>(mem_heap_alloc(heap, ref_nbytes));
 

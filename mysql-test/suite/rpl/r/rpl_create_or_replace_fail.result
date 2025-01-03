@@ -11,7 +11,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE t1 (a INT NOT NULL)
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TEMPORARY TABLE t1 (x INT) PARTITION BY HASH(x)
+master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`t1`/* Generated to handle failed CREATE OR REPLACE */
 CREATE TABLE t1 (b INT);
 INSERT INTO t1 VALUES (NULL);
 connection slave;

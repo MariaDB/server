@@ -228,8 +228,9 @@ select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.meta
 create or replace table mysqltest2.t2;
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
-create table t1 (i int);
-drop table t1;
+show create table t1;
+drop table t1,mysqltest2.t2;
+unlock tables;
 
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
@@ -239,15 +240,15 @@ select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.meta
 --error ER_DUP_FIELDNAME
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 show tables;
-select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --error ER_DUP_FIELDNAME
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
-create table t1 (i int);
-drop table t1;
+show create table t1;
+drop table t1,mysqltest2.t2;
+unlock tables;
 
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
@@ -282,8 +283,9 @@ create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
 show tables;
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
-create table t1 (i int);
+show create table t1;
 drop table t1;
+unlock tables;
 --enable_view_protocol
 
 --echo #
@@ -514,6 +516,59 @@ DROP TABLE IF EXISTS tm, t;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-25292 Atomic CREATE OR REPLACE TABLE
+--echo #
+
+--echo # Test triggers
+
+create table t1 (a int);
+insert into t1 values (1);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+create trigger trg2 before update on t1 for each row set @a:=1;
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+create or replace table t1 (b int);
+show create table t1;
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+drop table t1;
+
+create table t1 (a int);
+insert into t1 values (1);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+create trigger trg2 before update on t1 for each row set @a:=1;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table t1;
+select * from t1;
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+drop table t1;
+
+--echo # Test table locks
+
+create table t1 (a int);
+create table t2 (a int);
+insert into t1 values (1);
+lock tables t1 write, t2 write;
+create or replace table t1 (b int);
+show create table t1;
+create or replace table t1 (c int);
+show create table t1;
+select * from t1,t2;
+--error ER_TABLE_NOT_LOCKED
+select * from t3;
+insert into t1 values (1);
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table t1;
+select * from t1;
+lock tables t1 write, t2 write;
+create or replace table t1 (d int);
+show create table t1;
+unlock tables;
+drop table t1,t2;
+
+--echo #
+--echo # End of 11.8 tests
 --echo #
 
 SET GLOBAL innodb_stats_persistent=@save_persistent;

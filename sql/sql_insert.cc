@@ -4026,6 +4026,28 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
 }
 
 
+select_create::select_create(THD *thd_arg, TABLE_LIST *table_arg,
+                             Table_specification_st *create_info_par,
+                             Alter_info *alter_info_arg,
+                             List<Item> &select_fields,enum_duplicates duplic,
+                             bool ignore,
+                             TABLE_LIST *select_tables_arg):
+  select_insert(thd_arg, table_arg, NULL, &select_fields, 0, 0, duplic,
+                ignore, NULL),
+  create_info(create_info_par),
+  select_tables(select_tables_arg),
+  alter_info(alter_info_arg),
+  m_plock(NULL), exit_done(0),
+  saved_tmp_table_share(0)
+{
+  DBUG_ASSERT(create_info->default_table_charset);
+  bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
+  bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
+  create_info->ddl_log_state_rm= &ddl_log_state_rm;
+  create_info->ddl_log_state_create= &ddl_log_state_create;
+}
+
+
 int
 select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 {
@@ -4790,8 +4812,6 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   {
     if (likely(!thd->is_error()))             // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
-    ddl_log_complete(&ddl_log_state_rm);
-    ddl_log_complete(&ddl_log_state_create);
     DBUG_RETURN(NULL);
   }
 
@@ -4828,9 +4848,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       mysql_unlock_tables(thd, *lock);
       *lock= 0;
     }
-    drop_open_table(thd, table, &table_list->db, &table_list->table_name);
-    ddl_log_complete(&ddl_log_state_rm);
-    ddl_log_complete(&ddl_log_state_create);
+    table->s->table_creation_was_logged= save_table_creation_was_logged;
     DBUG_RETURN(NULL);
     /* purecov: end */
   }
@@ -4883,9 +4901,7 @@ int select_create::postlock(THD *thd, TABLE **tables)
   if (unlikely(error))
     return error;
 
-  TABLE const *const table = *tables;
-  if (thd->is_current_stmt_binlog_format_row() &&
-      !table->s->tmp_table)
+  if (thd->is_current_stmt_binlog_format_row() && !create_info->tmp_table())
     return binlog_show_create_table(thd, *tables, create_info);
   return 0;
 }
@@ -4913,20 +4929,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   }
 
   if (!(table= create_table_from_items(thd, &values, &extra_lock)))
-  {
-    if (create_info->or_replace())
-    {
-      /* Original table was deleted. We have to log it */
-      log_drop_table(thd, &table_list->db, &table_list->table_name,
-                     &create_info->org_storage_engine_name,
-                     create_info->db_type == partition_hton,
-                     &create_info->org_tabledef_version,
-                     thd->lex->tmp_table());
-    }
-
-    /* abort() deletes table */
     DBUG_RETURN(-1);
-  }
 
   if (create_info->tmp_table())
   {
@@ -5040,6 +5043,10 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
                             create_info, WITH_DB_NAME);
   DBUG_ASSERT(result == 0); /* show_create_table() always return 0 */
 
+  /*
+    We have to log the query if the normal binlog is open or if we are using
+    Galera, which has it's own binlog if the normal binlog is not used.
+  */
   if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
   {
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
@@ -5174,7 +5181,8 @@ bool select_create::send_eof()
     the CREATE TABLE will already be logged if we are not using row based
     replication.
   */
-  if (!thd->is_current_stmt_binlog_format_row())
+  if (!thd->is_current_stmt_binlog_format_row() &&
+      create_info->table_was_deleted)
   {
     if (ddl_log_state_create.is_active())       // Not temporary table
       ddl_log_update_phase(&ddl_log_state_create, DDL_CREATE_TABLE_PHASE_LOG);
@@ -5253,14 +5261,13 @@ bool select_create::send_eof()
       thd->get_stmt_da()->set_overwrite_status(true);
     }
 #endif /* WITH_WSREP */
-    thd->binlog_xid= thd->query_id;
-    /* Remember xid's for the case of row based logging */
-    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-    ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
-    trans_commit_stmt(thd);
-    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
-      trans_commit_implicit(thd);
-    thd->binlog_xid= 0;
+
+    /*
+      If are using statement based replication the table will be deleted here
+      in case of a crash as we can't use xid to check if the query was logged
+      (as the query was logged before commit!)
+    */
+    create_info->finalize_create_table(thd, table_list, NullS, 0, 0);
 
 #ifdef WITH_WSREP
     if (WSREP(thd))
@@ -5295,15 +5302,6 @@ bool select_create::send_eof()
     ddl_log.org_table_id=   create_info->tabledef_version;
     backup_log_ddl(&ddl_log);
   }
-  /*
-    If are using statement based replication the table will be deleted here
-    in case of a crash as we can't use xid to check if the query was logged
-    (as the query was logged before commit!)
-  */
-  debug_crash_here("ddl_log_create_after_binlog");
-  ddl_log_complete(&ddl_log_state_rm);
-  ddl_log_complete(&ddl_log_state_create);
-  debug_crash_here("ddl_log_create_log_complete");
 
   /*
     exit_done must only be set after last potential call to
@@ -5380,9 +5378,6 @@ void select_create::abort_result_set()
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
-    bool table_creation_was_logged= (!tmp_table ||
-                                     table->s->table_creation_was_logged);
-
     /* CREATE SELECT failed. Remove all row events and clear caches */
     thd->binlog_remove_rows_events();
 
@@ -5402,12 +5397,21 @@ void select_create::abort_result_set()
 
     if (m_plock)
     {
+      /* Unlock the new created table */
       mysql_unlock_tables(thd, *m_plock);
       *m_plock= NULL;
       m_plock= NULL;
     }
 
+    debug_crash_here("ddl_log_create_before_open_table");
     drop_open_table(thd, table, &table_list->db, &table_list->table_name);
+
+    /* Table is deleted. We don't have to delete it again */
+    ddl_log_update_phase(&ddl_log_state_create, DDL_LOG_FINAL_PHASE);
+
+    /* If backup table, rename it to its original name */
+    create_info->revert_create_table(thd, table_list);
+
     table=0;                                    // Safety
     if (thd->log_current_statement())
     {
@@ -5415,23 +5419,8 @@ void select_create::abort_result_set()
       {
         /* Remove logging of drop, create + insert rows */
         binlog_reset_cache(thd);
-        /* Original table was deleted. We have to log it */
-        if (table_creation_was_logged)
-        {
-          thd->binlog_xid= thd->query_id;
-          ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-          ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
-          debug_crash_here("ddl_log_create_before_binlog");
-          log_drop_table(thd, &table_list->db, &table_list->table_name,
-                         &create_info->org_storage_engine_name,
-                         create_info->db_type == partition_hton,
-                         &create_info->tabledef_version,
-                         tmp_table);
-          debug_crash_here("ddl_log_create_after_binlog");
-          thd->binlog_xid= 0;
-        }
       }
-      else if (!tmp_table)
+      else if (!tmp_table && create_info->table_was_deleted)
       {
         backup_log_info ddl_log;
         bzero(&ddl_log, sizeof(ddl_log));
@@ -5445,9 +5434,8 @@ void select_create::abort_result_set()
       }
     }
   }
-
-  ddl_log_complete(&ddl_log_state_rm);
-  ddl_log_complete(&ddl_log_state_create);
+  else
+    create_info->revert_create_table(thd, table_list);
 
   if (create_info->table_was_deleted)
   {
@@ -5455,6 +5443,8 @@ void select_create::abort_result_set()
     (void) trans_rollback_stmt(thd);
     thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
   }
+  else if (create_info->pos_in_locked_tables)
+    create_info->finalize_locked_tables(thd, true /* failed */);
 
   DBUG_VOID_RETURN;
 }

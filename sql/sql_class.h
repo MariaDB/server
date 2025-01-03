@@ -863,6 +863,7 @@ typedef struct system_variables
   my_bool query_cache_wlock_invalidate;
   my_bool keep_files_on_create;
 
+  my_bool drop_before_create_or_replace;
   my_bool old_mode;
   my_bool old_passwords;
   my_bool big_tables;
@@ -6696,19 +6697,7 @@ public:
                 Table_specification_st *create_info_par,
                 Alter_info *alter_info_arg,
                 List<Item> &select_fields,enum_duplicates duplic, bool ignore,
-                TABLE_LIST *select_tables_arg):
-    select_insert(thd_arg, table_arg, NULL, &select_fields, 0, 0, duplic,
-                  ignore, NULL),
-    create_info(create_info_par),
-    select_tables(select_tables_arg),
-    alter_info(alter_info_arg),
-    m_plock(NULL), exit_done(0),
-    saved_tmp_table_share(0)
-    {
-      DBUG_ASSERT(create_info->default_table_charset);
-      bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
-      bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
-    }
+                TABLE_LIST *select_tables_arg);
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
 
   bool store_values(List<Item> &values) override;
