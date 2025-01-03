@@ -1,0 +1,74 @@
+include/master-slave.inc
+[connection master]
+drop table if exists t1;
+SET @old_debug= @@session.debug;
+CREATE TABLE t1 (i INT, KEY(i)) ENGINE=InnoDB;
+CREATE OR REPLACE TEMPORARY TABLE tmp (a int, b int, key(a)) engine=myisam;
+SET debug_dbug='+d,send_kill_after_delete';
+CREATE OR REPLACE TABLE t1 LIKE tmp;
+SET debug_dbug=@old_debug;
+SHOW TABLES;
+Tables_in_test
+tmp
+t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection slave;
+SHOW TABLES;
+Tables_in_test
+t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection master;
+drop temporary table if exists tmp;
+drop table t1;
+include/rpl_end.inc
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+# Test entry_pos in higher position, so drop chain executes before create chain
+# (see commit message: On linking two chains together)
+create table t1 (c int);
+create or replace table t1 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+create or replace table t1 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+drop table t1;
+#
+# MDEV-28956 Locking is broken if CREATE OR REPLACE fails under LOCK TABLES
+#
+# Non-atomic CREATE OR REPLACE part:
+#
+set @@drop_before_create_or_replace=1;
+create table t1 (pk int primary key) engine=innodb;
+create or replace table t2 (a int primary key references t1 (pk)) engine=innodb;
+lock tables t1 write, t2 write;
+create or replace table t2 (c1 int not null, c1 varchar(255) ) engine=innodb;
+ERROR 42S21: Duplicate column name 'c1'
+select * from t1;
+pk
+select * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+unlock tables;
+drop table t1;
+set @@drop_before_create_or_replace=default;
+#
+# MDEV-29664 Assertion `!n_mysql_tables_in_use' failed in innobase_close_connection
+#
+create table t1 (x int);
+set @old_dbug= @@debug_dbug;
+set @@debug_dbug= '+d,ha_end_bulk_insert_fail';
+create or replace table t2 (y int) engine innodb select * from t1;
+ERROR HY000: Out of memory.
+set @@debug_dbug= @old_dbug;
+drop table t1;

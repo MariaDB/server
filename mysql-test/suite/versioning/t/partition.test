@@ -51,7 +51,6 @@ with system versioning partition by hash(i);
 --error ER_VERS_ALTER_ENGINE_PROHIBITED
 eval alter table t1 engine=$non_default_engine;
 
-
 --echo ## CREATE TABLE
 
 --error ER_VERS_NOT_VERSIONED

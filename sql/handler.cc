@@ -5484,6 +5484,11 @@ int handler::ha_end_bulk_insert()
   DBUG_ENTER("handler::ha_end_bulk_insert");
   DBUG_EXECUTE_IF("crash_end_bulk_insert",
                   { extra(HA_EXTRA_FLUSH) ; DBUG_SUICIDE();});
+  if (DBUG_IF("ha_end_bulk_insert_fail"))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
   estimation_rows_to_insert= 0;
   DBUG_RETURN(end_bulk_insert());
 }
@@ -6890,6 +6895,68 @@ bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
     DBUG_RETURN(0);                                   // Not shared table
   my_error(ER_SLAVE_IGNORED_SHARED_TABLE, MYF(ME_NOTE), op);
   DBUG_RETURN(1);
+}
+
+
+/**
+   Check if an existing table can be renamed as part of create or replace
+   when replacing an existing table.
+
+   @retval
+   0  ok
+   -1 error why create/replace could not be done. Warning is given to user
+   1  Fatal error from open_table. Error given to user
+
+   @notes
+   The known cases are:
+   - The to-be renamed table is of type InnoDB and has a named foreign key
+*/
+
+static const char *create_err_msg=
+  "Engine does not support atomic create or replace "
+  "for table '%-.192s'. Original table will be deleted";
+
+static int ha_can_be_renamed_to_backup(THD *thd, TABLE *table)
+{
+  int res;
+  if ((res= table->file->can_be_renamed_to_backup()))
+  {
+    bool save_abort_on_warning= thd->abort_on_warning;
+    thd->abort_on_warning= false;
+    my_printf_error(HA_ERR_INTERNAL_ERROR, create_err_msg,
+                    MYF(ME_WARNING),
+                    table->s->table_name.str);
+    table->file->print_error(res, MYF(ME_WARNING));
+    thd->abort_on_warning= save_abort_on_warning;
+    return -1;
+  }
+  return 0;
+}
+
+
+int ha_check_if_table_can_be_renamed_to_backup(THD *thd, handlerton *hton,
+                                                TABLE_LIST *create_table)
+{
+  int res= 0;
+  Open_table_context ot_ctx(thd, (MYSQL_OPEN_IGNORE_FLUSH |
+                                  MYSQL_OPEN_HAS_MDL_LOCK |
+                                  MYSQL_LOCK_IGNORE_TIMEOUT));
+  if (!(hton->flags & HTON_CHECK_NEEDED_FOR_CREATE_OR_REPLACE))
+    return 0;
+
+  if (create_table->table)                      // Table is locked
+    return ha_can_be_renamed_to_backup(thd, create_table->table);
+
+  create_table->open_strategy= TABLE_LIST::OPEN_NORMAL;
+  if (open_table(thd, create_table, &ot_ctx))
+    return 1;                                   // Table should exists!
+  res= ha_can_be_renamed_to_backup(thd, create_table->table);
+
+  /* New opened tables are always first in the open list */
+  DBUG_ASSERT(create_table->table == thd->open_tables);
+  close_thread_table(thd, &thd->open_tables);
+  create_table->table= 0;
+  return res;
 }
 
 
