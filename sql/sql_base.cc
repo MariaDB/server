@@ -3053,7 +3053,8 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
 */
 
 bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
-                                      TABLE *table, MYSQL_LOCK *lock)
+                                      TABLE *table, MYSQL_LOCK *lock,
+                                      bool restore_lock)
 {
   MYSQL_LOCK *merged_lock;
   DBUG_ENTER("restore_lock");
@@ -3073,7 +3074,8 @@ bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
   dst_table_list->lock_type= table->reginfo.lock_type;
   table->pos_in_locked_tables= dst_table_list;
 
-  add_back_last_deleted_lock(dst_table_list);
+  if (restore_lock)
+    add_back_last_deleted_lock(dst_table_list);
 
   table->mdl_ticket->downgrade_lock(table->reginfo.lock_type >=
                                     TL_FIRST_WRITE ?
@@ -3294,7 +3296,7 @@ ret:
 static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 {
   if (Table_triggers_list::check_n_load(thd, &share->db,
-                                        &share->table_name, entry, 0))
+                                        &share->table_name, entry, false, 0))
     return TRUE;
 
   /*

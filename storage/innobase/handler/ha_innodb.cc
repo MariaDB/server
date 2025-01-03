@@ -4161,7 +4161,8 @@ static int innodb_init(void* p)
 		HTON_WSREP_REPLICATION |
 		HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
 		HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE |
-		HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT;
+		HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT |
+		HTON_CHECK_NEEDED_FOR_CREATE_OR_REPLACE;
 
 #ifdef WITH_WSREP
 	innobase_hton->abort_transaction=wsrep_abort_transaction;
@@ -15860,6 +15861,63 @@ ha_innobase::get_parent_foreign_key_list(
 
 	return(0);
 }
+
+/** Check if a table can be renamed to a backup table as part of
+create or replace.
+
+The rename cannot be done if:
+- The original table has a user declared foreign key name that also
+  exists in the new table.
+- The original foreign key definition refers to itself.
+
+@retval	0 Table can be renamed
+@retval # Error why it cannot be renamed
+*/
+
+int ha_innobase::can_be_renamed_to_backup() const
+{
+  int res= 0;                                  // ok to rename
+  THD *thd= table->in_use;
+
+  m_prebuilt->trx->op_info = "getting list of foreign keys for create/replace";
+  dict_sys.lock(SRW_LOCK_CALL);
+
+  for (dict_foreign_set::iterator it = m_prebuilt->table->foreign_set.begin();
+       it != m_prebuilt->table->foreign_set.end();
+       ++it)
+  {
+
+    FOREIGN_KEY_INFO	*pf_key_info;
+    dict_foreign_t	*foreign = *it;
+    Lex_ident_table     *table_name= &table_share->table_name;
+
+    if ((pf_key_info= get_foreign_key_info(thd, foreign)))
+    {
+      /* Check if new and old table has the same foreign key name */
+      if (!strncmp(pf_key_info->foreign_id->str, table_name->str,
+                   table_name->length) &&
+          !strncmp(pf_key_info->foreign_id->str + table_name->length,
+                   "_ibfk_",6))
+      {
+        /* Table contains a user defined id, cannot be used */
+        res= HA_ERR_ROW_IS_REFERENCED;
+        break;
+      }
+      /* Check if the old table is referencing itself */
+      if (!strcmp(foreign->foreign_table_name,
+                  foreign->referenced_table_name))
+      {
+        res= HA_ERR_CANNOT_ADD_FOREIGN;
+        break;
+      }
+    }
+  }
+
+  dict_sys.unlock();
+  m_prebuilt->trx->op_info = "";
+  return(res);
+}
+
 
 /** Table list item structure is used to store only the table
 and name. It is used by get_cascade_foreign_key_table_list to store

@@ -4,9 +4,11 @@
 
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
+--source include/have_sequence.inc
 
 SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent=OFF;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 #
 # Create help table
@@ -128,7 +130,7 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --disable_service_connection
-# Using lock tables with CREATE OR REPLACE
+--echo # Using lock tables with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
 CREATE OR REPLACE TABLE t1 (a int, b int);
@@ -137,12 +139,14 @@ SELECT * FROM t1;
 INSERT INTO t1 values(1,1);
 CREATE OR REPLACE TABLE t1 (a int, b int, c int);
 INSERT INTO t1 values(1,1,1);
+# End checks that locking is still in effect
+SELECT count(*) from t2;
 --error ER_TABLE_NOT_LOCKED
 CREATE OR REPLACE TABLE t3 (a int);
 UNLOCK TABLES;
 DROP TABLE t1;
 
-# Using lock tables with CREATE OR REPLACE ... SELECT
+--echo # Using lock tables with CREATE OR REPLACE ... SELECT
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
 CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;
@@ -153,11 +157,32 @@ SELECT * FROM t1;
 INSERT INTO t1 values(1,1,1);
 CREATE OR REPLACE TABLE t1 (a int, b int, c int, d int);
 INSERT INTO t1 values(1,1,1,1);
+
+CREATE OR REPLACE TABLE t1 SELECT * from t2;
+SELECT * from t1;
+INSERT INTO t1 values(4);
+set @@drop_before_create_or_replace=0;
+--error ER_DUP_ENTRY
+CREATE OR REPLACE TABLE t1 (a int primary key) SELECT 1 as a from t2;
+# Should have original content
+SELECT * from t1;
+set @@drop_before_create_or_replace=1;
+--error ER_DUP_ENTRY
+CREATE OR REPLACE TABLE t1 (a int primary key) SELECT 1 as a from t2;
+--error ER_TABLE_NOT_LOCKED
+SELECT * from t1;
+set @@drop_before_create_or_replace=default;
+
+# End checks that locking is still in effect
+SELECT count(*) from t2;
 --error ER_TABLE_NOT_LOCKED
 CREATE OR REPLACE TABLE t3 (a int);
 UNLOCK TABLES;
-DROP TABLE t1;
+# The last CREATE OR REPLACE removed table t1
+--error ER_NO_SUCH_TABLE
+SELECT * from t1;
 
+--echo # Testing write and read locks with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write, t1 as t1_read read;
 CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;
@@ -228,8 +253,9 @@ select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.meta
 create or replace table mysqltest2.t2;
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
-create table t1 (i int);
-drop table t1;
+show create table t1;
+drop table t1,mysqltest2.t2;
+unlock tables;
 
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
@@ -239,15 +265,15 @@ select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.meta
 --error ER_DUP_FIELDNAME
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 show tables;
-select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --error ER_DUP_FIELDNAME
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
-create table t1 (i int);
-drop table t1;
+show create table t1;
+drop table t1,mysqltest2.t2;
+unlock tables;
 
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
@@ -282,8 +308,9 @@ create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
 show tables;
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
-create table t1 (i int);
+show create table t1;
 drop table t1;
+unlock tables;
 --enable_view_protocol
 
 --echo #
@@ -514,6 +541,278 @@ DROP TABLE IF EXISTS tm, t;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-25292 Atomic CREATE OR REPLACE TABLE
+--echo #
+
+--echo # Test triggers
+
+create table t1 (a int);
+insert into t1 values (1);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+create trigger trg2 before update on t1 for each row set @a:=1;
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+create or replace table t1 (b int);
+show create table t1;
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+drop table t1;
+
+create table t1 (a int);
+insert into t1 values (1);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+create trigger trg2 before update on t1 for each row set @a:=1;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table t1;
+select * from t1;
+select trigger_name from information_schema.triggers where trigger_schema="test" and  event_object_table='t1';
+drop table t1;
+
+--echo # Test table locks
+
+create table t1 (a int);
+create table t2 (a int);
+insert into t1 values (1);
+lock tables t1 write, t2 write;
+create or replace table t1 (b int);
+show create table t1;
+create or replace table t1 (c int);
+show create table t1;
+--disable_service_connection
+select * from t1,t2;
+--enable_service_connection
+--error ER_TABLE_NOT_LOCKED
+select * from t3;
+insert into t1 values (1);
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table t1;
+--disable_service_connection
+select * from t1;
+--enable_service_connection
+lock tables t1 write, t2 write;
+create or replace table t1 (d int);
+show create table t1;
+unlock tables;
+drop table t1,t2;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-25292 Atomic CREATE OR REPLACE TABLE
+--echo #
+create table t1 (a int);
+insert t1 values (1), (1);
+create table t2 (c int);
+--error ER_DUP_KEYNAME
+create or replace table t2 (a int, b int, key k (a), key k (b));
+show create table t2;
+--error ER_DUP_KEYNAME
+create or replace table t2 (a int, b int, key k (a), key k (b)) as select a, a as b from t1;
+show create table t2;
+--error ER_DUP_ENTRY
+create or replace table t2 (a int primary key) as select * from t1;
+show create table t2;
+set @old_mode= @@sql_mode;
+set @@sql_mode='ALLOW_INVALID_DATES';
+create table t3 (dt datetime default '2008-02-31 00:00:00');
+set @@sql_mode= @old_mode;
+--error ER_INVALID_DEFAULT
+create or replace table t2 like t3;
+show create table t2;
+--echo # LOCK TABLES
+lock tables t2 write, t1 write;
+flush tables;
+show open tables like 't2';
+create or replace table t2 (y int);
+flush tables;
+show open tables like 't2';
+create or replace table t2 like t1;
+flush tables;
+show open tables like 't2';
+create or replace table t2 (y int) as select * from t1;
+flush tables;
+show open tables like 't2';
+unlock tables;
+--echo # SP
+--delimiter $
+create or replace procedure sp(n int)
+begin
+  select concat('sp call ', n, ':') as '';
+  show open tables like 't2';
+  create or replace table t2 (y int);
+  select 'create or replace table t2 (y int);' as '';
+  show open tables like 't2';
+  insert into t2 values (2);
+  select 'insert into t2 values (2);' as '';
+  show open tables like 't2';
+  create or replace table t2 like t1;
+  select 'create or replace table t2 like t1;' as '';
+  show open tables like 't2';
+  create or replace table t2 (y int) as select * from t1;
+  select 'create or replace table t2 (y int) as select * from t1;' as '';
+  show open tables like 't2';
+  select 'select * from t2;' as '';
+  select * from t2;
+  show open tables  like 't2';
+end $
+--delimiter ;
+flush tables;
+call sp(1); call sp(2);
+--echo # SP under LOCK TABLES
+lock tables t2 write, t1 write;
+call sp(3); call sp(4);
+unlock tables;
+drop procedure sp;
+drop tables t1, t2, t3;
+--echo # Trigger
+create table t1 (a int);
+create trigger a before insert on t1 for each row set @s= 1;
+create or replace table t1 (old int);
+--error ER_TRG_DOES_NOT_EXIST
+show create trigger a;
+drop table t1;
+--echo # PS: check thd->change_list sanity
+create table t1 (a int not null, b char(10) as (concat('', dayname('2020-02-02'))))  collate utf8_bin;
+prepare stmt from 'insert into t1 (b) values (2)';
+create or replace table t1 (x int);
+drop table t1;
+drop prepare stmt;
+--echo # Foreign keys
+--list_files $MYSQLD_DATADIR/test *sql*
+create table t1 (x int primary key, y int) engine innodb;
+create table t2 (x int references t1(x)) engine innodb;
+create or replace table t1 (x int primary key);
+create table t3 (x int);
+create or replace table t1 like t3;
+create or replace table t1 select * from t3;
+show create table t1;
+drop tables t3, t2, t1;
+--echo # UNIQUE
+create table t1 (pk int auto_increment primary key, a varchar(2300), unique (a)) engine aria character set latin1;
+insert into t1 (a) values ('a'), ('b'), ('c');
+create table t2 (x int);
+create or replace table t2 engine aria select * from t1;
+select * from t2;
+show create table t2;
+drop tables t2, t1;
+
+--echo #
+--echo # MDEV-28956 Locking is broken if CREATE OR REPLACE fails under LOCK TABLES
+--echo #
+--echo # Atomic CREATE OR REPLACE part:
+--echo #
+--disable_service_connection
+create table t1 (pk int primary key) engine=innodb;
+create or replace table t2 (a int primary key references t1 (pk)) engine=innodb;
+create or replace table `t3#` (a int primary key references t1 (pk)) engine=innodb;
+
+lock tables t1 write, t2 write, `t3#` write;
+--error ER_DUP_FIELDNAME
+create or replace table t2 (c1 int not null, c1 varchar(255) ) engine=innodb;
+--error ER_DUP_FIELDNAME
+create or replace table `t3#` (c1 int not null, c1 varchar(255) ) engine=innodb;
+select * from t1;
+# t2 is not locked and does not exists as t2 had foreign keys
+--error ER_TABLE_NOT_LOCKED
+select * from t2;
+--error ER_TABLE_NOT_LOCKED
+select * from `t3#`;
+unlock tables;
+
+--error ER_NO_SUCH_TABLE
+select * from t2;
+--error ER_NO_SUCH_TABLE
+select * from `t3#`;
+
+drop tables if exists t2, `t3#`, t1;
+--enable_service_connection
+
+--echo #
+--echo # MDEV-28933 CREATE OR REPLACE fails to recreate same constraint name
+--echo #
+use test;
+create table t (a int primary key) engine=innodb;
+create or replace table u (
+  a int primary key,
+  constraint c foreign key d (a) references t (a)) engine=innodb;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--error ER_CANT_CREATE_TABLE
+create or replace table u (
+  a int primary key,
+  constraint c foreign key d (a) references t (a)) engine=innodb;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+drop tables u, t;
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--echo #
+--echo # MDEV-29544 SIGSEGV in HA_CREATE_INFO::finalize_locked_tables
+--echo #
+call mtr.add_suppression("mysql.innodb_index_stats");
+set sql_mode= '';
+create table t (x int) engine innodb;
+insert into t values (77);
+alter table mysql.innodb_index_stats modify stat_description char(10);
+lock table t write;
+--replace_regex /#sql-create.*'/#sql-create...'/
+--replace_result $MYSQLD_DATADIR ./
+--error ER_ERROR_ON_RENAME
+create or replace table t (y int);
+# cleanup
+unlock tables;
+alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
+select * from t;
+drop table t;
+set sql_mode= default;
+
+--echo #
+--echo # MDEV-29620 Assertion `next_insert_id == 0' failed in handler::ha_external_lock
+--echo #
+create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
+drop table t1;
+
+--echo #
+--echo # MDEV-36435 Assertion failure in
+--echo #            Table_specification_st::finalize_locked_tables upon attempt
+--echo #            to create an already existing table under lock
+--echo #
+
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+CREATE TABLE IF NOT EXISTS t1 (a INT);
+UNLOCK TABLES;
+CREATE TABLE t2 LIKE t1;
+LOCK TABLE t1 WRITE, t2 write;
+CREATE TABLE IF NOT EXISTS t2 LIKE t1;
+UNLOCK TABLES;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-36439 Assertion `thd_arg->lex->sql_command !=
+--echo #            SQLCOM_CREATE_SEQUENCE || (flags2 & FL_DDL) || thd_arg->in_mult
+--echo #            i_stmt_transaction_mode()' failed
+--echo #
+create sequence s2 engine=innodb;
+create or replace sequence s2 engine=innodb;
+drop sequence s2;
+
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+RENAME TABLE s1 TO s2;
+CREATE OR REPLACE SEQUENCE s2 ENGINE=InnoDB;
+FLUSH TABLES;
+CREATE OR REPLACE SEQUENCE s2 ENGINE=InnoDB;
+DROP SEQUENCE s2;
+
+--echo #
+--echo # End of 12.0 tests
 --echo #
 
 SET GLOBAL innodb_stats_persistent=@save_persistent;

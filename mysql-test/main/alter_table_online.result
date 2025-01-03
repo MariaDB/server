@@ -96,17 +96,26 @@ alter table t2 add c int, algorithm=inplace, lock=none;
 create or replace table t2 (b int, foreign key (b)
 references t1 (a)
 on delete set null) engine=InnoDB;
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 alter table t2 add c int, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: ON DELETE SET NULL. Try LOCK=SHARED
 alter table t2 add c int, algorithm=inplace, lock=none;
 create or replace table t2 (b int, foreign key (b)
 references t1 (a)
 on delete no action) engine=InnoDB;
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 insert into t2 values (1),(2),(3);
 alter table t2 add c int, algorithm=copy, lock=none;
 create or replace table t2 (b int, foreign key (b)
 references t1 (a)
 on update restrict) engine=InnoDB;
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 insert into t2 values (1),(2),(3);
 alter table t2 add c int, algorithm=copy, lock=none;
 drop table t2, t1;

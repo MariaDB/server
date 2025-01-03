@@ -125,10 +125,12 @@ public:
   TABLE table;
   bool upgrading50to51;
   bool got_error;
+  int rename_flags;
 
   TRIGGER_RENAME_PARAM()
   {
     upgrading50to51= got_error= 0;
+    rename_flags= 0;
     table.reset();
   }
   ~TRIGGER_RENAME_PARAM()
@@ -313,12 +315,15 @@ public:
                         List<Item> *fields_in_update_stmt= nullptr);
   void empty_lists();
   bool create_lists_needed_for_files(MEM_ROOT *root);
-  bool save_trigger_file(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name);
+  bool save_trigger_file(THD *thd, const LEX_CSTRING *db,
+                         const LEX_CSTRING *table_name, uint flags);
 
-  static bool check_n_load(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
-                           TABLE *table, bool names_only);
+  static bool check_n_load(THD *thd, const LEX_CSTRING *db,
+                           const LEX_CSTRING *table_name,
+                           TABLE *table, bool names_only, uint flags);
   static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name, myf MyFlags);
+                                const LEX_CSTRING *table_name, uint flags,
+                                myf MyFlags);
   static bool prepare_for_rename(THD *thd, TRIGGER_RENAME_PARAM *param,
                                  const Lex_ident_db &db,
                                  const Lex_ident_table &old_alias,
@@ -336,11 +341,17 @@ public:
                    trigger_order_type ordering_clause,
                    const Lex_ident_trigger &anchor_trigger_name,
                    Trigger *trigger);
-  void add_trigger(trg_event_type event_type, 
+  void add_trigger(trg_event_type event_type,
                    trg_action_time_type action_time,
                    trigger_order_type ordering_clause,
                    const Lex_ident_trigger &anchor_trigger_name,
                    Trigger *trigger);
+  static bool rename_trigger_file(THD *thd,
+                                  const LEX_CSTRING *old_db,
+                                  const LEX_CSTRING *old_tab,
+                                  const LEX_CSTRING *new_db,
+                                  const LEX_CSTRING *new_tab,
+                                  uint flags);
   Trigger *get_trigger(trg_event_type event_type, 
                        trg_action_time_type action_time)
   {

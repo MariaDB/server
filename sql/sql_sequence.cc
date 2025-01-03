@@ -694,7 +694,20 @@ int SEQUENCE::read_initial_values(TABLE *table)
     */
     if (!has_active_transaction && !thd->transaction->stmt.is_empty() &&
         !thd->in_sub_stmt)
-      trans_commit_stmt(thd);
+    {
+      /*
+        We have to preserve the rollback flag marking this statement as
+        a DDL because Gtid_log_event::Gtid_log_event may be called later
+        as part of CREATE OR REPLACE and it needs to know if the statement
+        was a DDL.
+      */
+      uint save_unsafe_rollback_flags=
+        thd->transaction->stmt.m_unsafe_rollback_flags;
+      if (trans_commit_stmt(thd))
+        error= HA_ERR_COMMIT_ERROR;
+      thd->transaction->stmt.m_unsafe_rollback_flags=
+        save_unsafe_rollback_flags;
+    }
   }
   write_unlock(table);
   DBUG_RETURN(error);

@@ -1,11 +1,12 @@
 #
-# Check CREATE OR REPLACE TABLE for test that requires DEBUG
+# Check CREATE OR REPLACE TABLE for test that requires DEBUG or binlog format
 #
 
 --source include/have_debug.inc
 --source include/have_binlog_format_row.inc
 --source include/have_innodb.inc
 --source include/master-slave.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1;
@@ -32,4 +33,26 @@ SHOW TABLES;
 drop temporary table if exists tmp;
 --enable_warnings
 drop table t1;
+
+--echo #
+--echo # MDEV-36498 Failed CoR in non-atomic mode no longer generates DROP
+--echo # in RBR, replica diverges
+--echo #
+
+set drop_before_create_or_replace= on;
+
+RESET MASTER;
+
+create table t1 (a int);
+--error ER_DUP_ENTRY
+create or replace table t1 (a int primary key) as select 1 as a from seq_1_to_2;
+--source include/show_binlog_events.inc
+show tables;
+--sync_slave_with_master
+show tables;
+--connection master
+
+set drop_before_create_or_replace= default;
+
 --source include/rpl_end.inc
+
