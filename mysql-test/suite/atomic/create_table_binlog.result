@@ -1,0 +1,60 @@
+call mtr.add_suppression("marked as crashed");
+call mtr.add_suppression("client is using");
+call mtr.add_suppression("Size of datafile is");
+call mtr.add_suppression("Record-count is not ok");
+call mtr.add_suppression("Found.*key parts");
+call mtr.add_suppression("Number of rows changed");
+call mtr.add_suppression("Got an error from unknown thread");
+call mtr.add_suppression("Checking table");
+call mtr.add_suppression("Recovering table");
+create table t10 (p int primary key, new int) engine=innodb;
+insert into t10 values (1,1),(2,2),(3,1);
+create table t11 (new int) engine=myisam;
+create function func_with_sideeffect(arg int)
+returns integer
+begin
+insert into t11 set new=arg;
+return arg+1;
+end |
+create table const_table (new int, new2 int) engine=myisam;
+insert into const_table values (1,1),(2,2);
+flush tables;
+engine: myisam
+query: CREATE TABLE t1 (new int) select new,func_with_sideeffect(p) from t10
+crash point: ddl_log_create_before_binlog
+t10.frm
+t10.ibd
+t11.MYD
+t11.MYI
+t11.frm
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_complete
+t1.MYD
+t1.MYI
+t1.frm
+t10.frm
+t10.ibd
+t11.MYD
+t11.MYI
+t11.frm
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t1` (
+  `new` int(11) DEFAULT NULL,
+  `func_with_sideeffect(p)` int(11) DEFAULT NULL
+)
+select count(*) > 0 from t11;
+count(*) > 0
+1
+Warnings:
+Error	145	Table './test/t11' is marked as crashed and should be repaired
+Warning	1034	1 client is using or hasn't closed the table properly
+Warning	1034	Size of datafile is:        42       Should be: 21
+Error	1034	Record-count is not ok; is          6   Should be: 3
+Warning	1034	Found          6 key parts. Should be: 3
+Warning	1034	Number of rows changed from 3 to 6
+drop table t10,t11;
+drop function func_with_sideeffect;

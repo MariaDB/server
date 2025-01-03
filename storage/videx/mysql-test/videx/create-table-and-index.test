@@ -24,4 +24,17 @@ SHOW CREATE TABLE orders;
 
 DROP TABLE orders;
 
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create sequence s1 engine=videx;
+
+--echo #
+--echo # MDEV-38479 Crash in CREATE OR REPLACE SEQUENCE when new sequence
+--echo # cannot be created
+--echo #
+
+create sequence s1;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create or replace sequence s1 engine=videx;
+drop sequence s1;
+
 SET SESSION videx_server_ip=DEFAULT;

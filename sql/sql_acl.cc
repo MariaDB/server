@@ -11368,7 +11368,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   }
 
   if (binlog)
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+    if (write_bin_log(thd, FALSE, thd->query(), thd->query_length()))
+      result= TRUE;
 
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
@@ -11573,7 +11574,8 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
              wrong_users.c_ptr_safe());
 
   if (binlog)
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+    if (write_bin_log(thd, FALSE, thd->query(), thd->query_length()))
+      result= TRUE;
 
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
@@ -11667,7 +11669,8 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     my_error(ER_CANNOT_USER, MYF(0), "RENAME USER", wrong_users.c_ptr_safe());
 
   if (some_users_renamed && mysql_bin_log.is_open())
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+    if (write_bin_log(thd, FALSE, thd->query(), thd->query_length()))
+      result= TRUE;
 
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
@@ -11743,8 +11746,9 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   }
 
   if (some_users_altered)
-    result|= write_bin_log(thd, FALSE, thd->query(),
-                                     thd->query_length());
+    if (write_bin_log(thd, FALSE, thd->query(), thd->query_length()))
+      result= TRUE;
+
   DBUG_RETURN(result);
 }
 
@@ -11999,8 +12003,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
   if (result)
     my_message(ER_REVOKE_GRANTS, ER_THD(thd, ER_REVOKE_GRANTS), MYF(0));
   
-  result= result |
-    write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  if (write_bin_log(thd, FALSE, thd->query(), thd->query_length()))
+    result= TRUE;
 
   mysql_rwlock_unlock(&LOCK_grant);
 

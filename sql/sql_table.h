@@ -206,12 +206,24 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
 void close_cached_table(THD *thd, TABLE *table);
 void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);
-int write_bin_log(THD *thd, bool clear_error,
-                  char const *query, ulong query_length,
-                  bool is_trans= FALSE);
+
+int write_bin_log_with_stat(THD *thd, bool clear_error,
+                            char const *query, ulong query_length,
+                            bool is_trans= FALSE);
 int write_bin_log_with_if_exists(THD *thd, bool clear_error,
                                  bool is_trans, bool add_if_exists,
                                  bool commit_alter= false);
+/*
+  Write to binlog, but return true only if if write failed
+*/
+inline bool write_bin_log(THD *thd, bool clear_error,
+                         char const *query, ulong query_length,
+                         bool is_trans= FALSE)
+{
+  int res= write_bin_log_with_stat(thd, clear_error, query, query_length,
+                                   is_trans);
+  return res <= 0 ? false : true;
+}
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions);
 

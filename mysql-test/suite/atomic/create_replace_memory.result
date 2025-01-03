@@ -1,0 +1,59 @@
+create table const_table (new int, new2 int) engine=myisam;
+insert into const_table values (1,1),(2,2);
+flush tables;
+engine: memory
+query: CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_before_create_frm
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_create_table
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_create_table
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_finalize_create
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_finalize_create_after_link
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_binlog
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_revert
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_middle_complete
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_complete
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci

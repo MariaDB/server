@@ -145,8 +145,9 @@ struct table_name_t
 	@retval	NULL	if the table is not partitioned */
 	const char* part() const { return dict_is_partition(basename()); }
 	/** @return whether this is a temporary or intermediate table name */
-	inline bool is_temporary() const;
-};
+	inline bool is_temporary() const noexcept;
+	inline bool is_create_or_replace() const noexcept;
+  };
 
 /** Shift for spatial status */
 #define SPATIAL_STATUS_SHIFT	12
