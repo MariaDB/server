@@ -1,5 +1,5 @@
 -- source include/not_embedded.inc
--- source include/have_binlog_format_mixed.inc
+-- source include/have_binlog_format_statement.inc
 let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 

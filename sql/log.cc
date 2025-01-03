@@ -4444,11 +4444,12 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
       error= LOG_INFO_EOF;
       goto end;
     }
-  }
+    log_name_len= (uint) strlen(full_log_name);
 
-  log_name_len= log_name ? (uint) strlen(full_log_name) : 0;
-  DBUG_PRINT("enter", ("log_name: %s, full_log_name: %s", 
-                       log_name ? log_name : "NULL", full_log_name));
+    DBUG_PRINT("enter", ("log_name: %s, full_log_name: %s",
+                         log_name, full_log_name));
+
+  }
 
   /* As the file is flushed, we can't get an error here */
   error= reinit_io_cache(&index_file, READ_CACHE, (my_off_t) 0, 0, 0);
@@ -12380,10 +12381,10 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       case XID_EVENT:
       if (do_xa)
       {
-        xid_recovery_member *member=
-          (xid_recovery_member*)
-          my_hash_search(&xids, (uchar*) &static_cast<Xid_log_event*>(ev)->xid,
-                         sizeof(my_xid));
+        Xid_log_event *xid_ev= (Xid_log_event*) ev;
+
+        xid_recovery_member *member= (xid_recovery_member *)
+          my_hash_search(&xids, (uchar*) &xid_ev->xid, sizeof(my_xid));
 #ifndef HAVE_REPLICATION
         {
           if (member)
@@ -12393,6 +12394,12 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         if (ctx.decide_or_assess(member, round, fdle, linfo, end_pos))
           goto err2;
 #endif
+        DBUG_PRINT("xid", ("Xid_event xid: %llu", xid_ev->xid));
+        uchar *x= (uchar *) memdup_root(&mem_root,
+                                        (uchar*) &xid_ev->xid,
+                                        sizeof(xid_ev->xid));
+        if (!x || my_hash_insert(&ddl_log_ids, x))
+          goto err2;
       }
       break;
       case QUERY_EVENT:
@@ -12400,7 +12407,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         Query_log_event *query_ev= (Query_log_event*) ev;
         if (query_ev->xid)
         {
-          DBUG_PRINT("QQ", ("xid: %llu xid", query_ev->xid));
+          DBUG_PRINT("xid", ("Query_log_event xid: %llu", query_ev->xid));
           DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid));
           uchar *x= (uchar *) memdup_root(&mem_root,
                                           (uchar*) &query_ev->xid,
