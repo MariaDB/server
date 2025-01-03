@@ -1,0 +1,5 @@
+[row]
+binlog-format=row
+
+[stmt]
+binlog-format=statement

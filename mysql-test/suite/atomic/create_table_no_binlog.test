@@ -1,0 +1,14 @@
+# Testing of atomic CREATE TABLE without binary logging.
+# CREATE TABLE, CREATE TABLE ...LIKE and CREATE_TABLE ... SELECT are tested
+
+let $engines='myisam';
+
+let $crash_points='ddl_log_create_before_create_frm', 'storage_engine_middle_of_create', 'ddl_log_create_before_create_table', 'ddl_log_create_after_create_table', 'ddl_log_finalize_create', 'ddl_log_create_before_binlog', 'ddl_log_create_after_prepare_eof', 'ddl_log_create_after_binlog', 'ddl_log_create_complete';
+
+let $show_table_t1=1;
+let $statement_count=3;
+let $statements='CREATE TABLE t1 (new int)',
+                'CREATE TABLE t1 LIKE const_table',
+                'CREATE TABLE t1 SELECT old as new from t2';
+
+--source create_table.inc
