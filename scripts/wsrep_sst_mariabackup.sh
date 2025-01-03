@@ -540,7 +540,8 @@ adjust_progress()
     fi
 }
 
-encgroups='--mysqld|sst|xtrabackup'
+bkgroups='sst|xtrabackup|mariabackup'
+encgroups="--mysqld|$bkgroups"
 
 read_cnf()
 {
@@ -596,26 +597,34 @@ read_cnf()
         ssl_dhparams=$(parse_cnf "$encgroups" 'ssl-dhparams')
     fi
 
-    sockopt=$(parse_cnf sst sockopt "")
-    progress=$(parse_cnf sst progress "")
+    sockopt=$(parse_cnf sst sockopt)
+    progress=$(parse_cnf sst progress)
     ttime=$(parse_cnf sst time 0)
     cpat='.*\.pem$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
     [ "$OS" = 'FreeBSD' ] && cpat=$(echo "$cpat" | sed 's/\\|/|/g')
     cpat=$(parse_cnf sst cpat "$cpat")
-    scomp=$(parse_cnf sst compressor "")
-    sdecomp=$(parse_cnf sst decompressor "")
+    scomp=$(parse_cnf sst compressor)
+    sdecomp=$(parse_cnf sst decompressor)
 
-    rlimit=$(parse_cnf sst rlimit "")
+    rlimit=$(parse_cnf sst rlimit)
     uextra=$(parse_cnf sst use-extra 0)
-    speciald=$(parse_cnf sst sst-special-dirs 1)
-    iopts=$(parse_cnf sst inno-backup-opts "")
-    iapts=$(parse_cnf sst inno-apply-opts "")
-    impts=$(parse_cnf sst inno-move-opts "")
-    stimeout=$(parse_cnf sst sst-initial-timeout 300)
-    ssyslog=$(parse_cnf sst sst-syslog 0)
-    ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
+    speciald=$(parse_cnf sst 'sst-special-dirs' 1)
+    iopts=$(parse_cnf "$bkgroups" 'inno-backup-opts')
+    iapts=$(parse_cnf "$bkgroups" 'inno-apply-opts')
+    impts=$(parse_cnf "$bkgroups" 'inno-move-opts')
+    use_memory=$(parse_cnf "$bkgroups" 'use-memory')
+    if [ -z "$use_memory" ]; then
+        if [ -n "$INNODB_BUFFER_POOL_SIZE" ]; then
+            use_memory="$INNODB_BUFFER_POOL_SIZE"
+        else
+            use_memory=$(parse_cnf '--mysqld' 'innodb-buffer-pool-size')
+        fi
+    fi
+    stimeout=$(parse_cnf sst 'sst-initial-timeout' 300)
+    ssyslog=$(parse_cnf sst 'sst-syslog' 0)
+    ssystag=$(parse_cnf mysqld_safe 'syslog-tag' "${SST_SYSLOG_TAG:-}")
     ssystag="$ssystag-"
-    sstlogarchive=$(parse_cnf sst sst-log-archive 1)
+    sstlogarchive=$(parse_cnf sst 'sst-log-archive' 1)
     sstlogarchivedir=""
     if [ $sstlogarchive -ne 0 ]; then
         sstlogarchivedir=$(parse_cnf sst sst-log-archive-dir \
@@ -1052,6 +1061,9 @@ setup_commands()
     local recovery=""
     if [ -n "$INNODB_FORCE_RECOVERY" ]; then
         recovery=" --innodb-force-recovery=$INNODB_FORCE_RECOVERY"
+    fi
+    if [ -n "$use_memory" ]; then
+        INNOEXTRA="$INNOEXTRA --use-memory=$use_memory"
     fi
     INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
     INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts$INNOEXTRA --galera-info --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
