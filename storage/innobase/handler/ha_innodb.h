@@ -453,6 +453,7 @@ public:
 	@param ib_table InnoDB table definition
 	@retval true if not errors were found */
 	bool check_index_consistency(const dict_table_t* ib_table) noexcept;
+
 protected:
 	bool
 	can_convert_string(const Field_string* field,

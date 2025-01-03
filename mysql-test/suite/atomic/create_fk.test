@@ -1,0 +1,54 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1(
+  id SERIAL,
+  msg VARCHAR(100) CHARACTER SET utf8mb3,
+  KEY(msg))ENGINE=InnoDB;
+insert into t1 values(1,"a"),(2,"b");
+
+CREATE TABLE t2(
+id SERIAL,
+msg varchar(100) CHARACTER SET utf8mb3,
+msg_1 varchar(100) CHARACTER SET utf8mb3,
+INDEX (msg_1),
+INDEX (msg),
+CONSTRAINT fk_t1 FOREIGN KEY (msg) REFERENCES t1 (msg)
+ON DELETE CASCADE)ENGINE=InnoDB;
+
+insert into t2 values(1,"a","aa"),(2,"b","bb");
+
+--error ER_DUP_ENTRY
+CREATE OR REPLACE TABLE t2(
+id SERIAL,
+id2 int,
+msg varchar(100) CHARACTER SET utf8mb3,
+msg_1 varchar(100) CHARACTER SET utf8mb3,
+INDEX (msg_1),
+INDEX (msg),
+unique (id2),
+CONSTRAINT fk_t1 FOREIGN KEY (msg) REFERENCES t1 (msg)
+ON DELETE CASCADE)ENGINE=InnoDB SELECT 1 as id2 from seq_1_to_2;
+select * from t2;
+
+CREATE OR REPLACE TABLE t2(
+id SERIAL,
+msg varchar(100) CHARACTER SET utf8mb3,
+msg_1 varchar(100) CHARACTER SET utf8mb3,
+INDEX (msg_1),
+INDEX (msg),
+CONSTRAINT fk_t1 FOREIGN KEY (msg) REFERENCES t1 (msg)
+ON DELETE CASCADE)ENGINE=InnoDB;
+select * from t2;
+drop table t2,t1;
+
+--echo #
+--echo # Test foreign key references to same table
+--echo #
+
+create or replace table t1 (a int primary key, b int, c int, constraint d foreign key e (b) references t1 (a)) engine=innodb; 
+insert into t1 values (1,1,1);
+--error ER_NO_REFERENCED_ROW_2
+create or replace table t1 (a int primary key, b int, c int, g int, constraint d foreign key e (b) references t1 (a)) engine=innodb select 1 as a ,2 as b,3 as c;
+select * from t1;
+drop table t1;

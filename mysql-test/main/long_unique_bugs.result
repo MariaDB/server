@@ -553,7 +553,8 @@ c	d
 create or replace table t2 (a int, b blob, unique(b)) as select * from t1;
 ERROR 23000: Duplicate entry 'bar' for key 'b'
 select * from t2;
-ERROR 42S02: Table 'test.t2' doesn't exist
+c	d
+3	bar
 create or replace table t2 (a int, b blob, unique(b)) ignore as select * from t1;
 Warnings:
 Warning	1062	Duplicate entry 'bar' for key 'b'

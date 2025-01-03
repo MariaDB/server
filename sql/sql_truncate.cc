@@ -569,7 +569,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
   /* DDL is logged in statement format, regardless of binlog format. */
   if (binlog_stmt)
-    error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
+    error|= MY_TEST(write_bin_log(thd, !error, thd->query(),
+                                  thd->query_length()));
 
   /*
     A locked table ticket was upgraded to a exclusive lock. After the
