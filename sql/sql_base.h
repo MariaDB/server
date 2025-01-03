@@ -358,6 +358,7 @@ inline void setup_table_map(TABLE *table, TABLE_LIST *table_list, uint tablenr)
     table->maybe_null= embedding->outer_join;
     embedding= embedding->embedding;
   }
+  DBUG_ASSERT(tablenr <= MAX_TABLES);
   table->tablenr= tablenr;
   table->map= (table_map) 1 << tablenr;
   table->force_index= table_list->force_index;

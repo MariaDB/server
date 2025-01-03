@@ -3756,6 +3756,7 @@ next_file:
 		return(-1);
 	}
 
+	MSAN_STAT_WORKAROUND(&statinfo);
 	info->size = statinfo.st_size;
 
 	if (S_ISDIR(statinfo.st_mode)) {
