@@ -2449,7 +2449,7 @@ INSERT INTO t2 VALUES (3,2);
 SET AUTOCOMMIT = 0;
 START TRANSACTION;
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot TRUNCATE a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
 SELECT * FROM t1;
 id
 1
@@ -2461,7 +2461,7 @@ id
 2
 START TRANSACTION;
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot TRUNCATE a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
 SELECT * FROM t1;
 id
 1
@@ -2479,7 +2479,7 @@ id
 2
 COMMIT;
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot TRUNCATE a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
 SELECT * FROM t1;
 id
 1
@@ -2491,7 +2491,7 @@ id
 1
 2
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot TRUNCATE a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
 ROLLBACK;
 SELECT * FROM t1;
 id

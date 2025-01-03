@@ -49,7 +49,7 @@ INSERT INTO t1 VALUES (4);
 SELECT * FROM t1 ORDER BY 1;
 --source include/show_binlog_events.inc
 
---echo *** Test non-transactional GTID error (cannot be rolled back). ***
+--echo *** Test non-transactional GTID error ***
 SET server_id= 3;
 --error ER_GTID_STRICT_OUT_OF_ORDER
 SET gtid_seq_no= 1;
@@ -58,11 +58,6 @@ SET gtid_seq_no= 1;
 SET SESSION debug_dbug=@old_dbug;
 --error ER_GTID_STRICT_OUT_OF_ORDER
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
-# The table is still created, DDL cannot be rolled back.
-# Fix it up for replication.
-SET sql_log_bin= 0;
-DROP TABLE t2;
-SET sql_log_bin= 1;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
 
 --error ER_GTID_STRICT_OUT_OF_ORDER

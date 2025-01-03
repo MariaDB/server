@@ -38,6 +38,7 @@
 
    @fn     _ma_setup_live_state
    @param info		Maria handler
+   @param all
 
    @notes
      This function ensures that trn->used_tables contains a list of
@@ -52,7 +53,7 @@
    @retval 1  error (out of memory)
 */
 
-my_bool _ma_setup_live_state(MARIA_HA *info)
+my_bool _ma_setup_live_state(MARIA_HA *info, my_bool all)
 {
   TRN *trn;
   MARIA_SHARE *share= info->s;
@@ -63,7 +64,7 @@ my_bool _ma_setup_live_state(MARIA_HA *info)
 
   DBUG_ASSERT(share->lock_key_trees);
 
-  if (maria_create_trn_hook(info))
+  if (maria_create_trn_hook(info, all))
     DBUG_RETURN(1);
 
   trn= info->trn;
@@ -662,7 +663,7 @@ my_bool _ma_block_start_trans(void* param)
       out of memory conditions)
       TODO: Fix this by having one extra state pre-allocated
     */
-    DBUG_RETURN(_ma_setup_live_state(info));
+    DBUG_RETURN(_ma_setup_live_state(info, 0));
   }
   else
   {
@@ -691,7 +692,7 @@ my_bool _ma_block_start_trans(void* param)
       Assume for now that this doesn't fail (It can only fail in
       out of memory conditions)
     */
-    DBUG_RETURN(maria_create_trn_hook(info) != 0);
+    DBUG_RETURN(maria_create_trn_hook(info, 0) != 0);
   }
   DBUG_RETURN(0);
 }
@@ -737,7 +738,7 @@ my_bool _ma_block_start_trans_no_versioning(void* param)
       Assume for now that this doesn't fail (It can only fail in
       out of memory conditions)
     */
-    DBUG_RETURN(maria_create_trn_hook(info));
+    DBUG_RETURN(maria_create_trn_hook(info, 0));
   }
   DBUG_RETURN(0);
 }

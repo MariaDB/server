@@ -59,7 +59,7 @@ typedef struct st_state_history_closed {
 } MARIA_STATE_HISTORY_CLOSED;
 
 
-my_bool _ma_setup_live_state(MARIA_HA *info);
+my_bool _ma_setup_live_state(MARIA_HA *info, my_bool all);
 MARIA_STATE_HISTORY *_ma_remove_not_visible_states(MARIA_STATE_HISTORY
                                                    *org_history,
                                                    my_bool all,

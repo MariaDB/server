@@ -1,0 +1,898 @@
+create table const_table (new int, new2 int) engine=myisam;
+insert into const_table values (1,1),(2,2);
+flush tables;
+engine: myisam
+query: CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_before_create_frm
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: storage_engine_middle_of_create
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_before_create_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_create_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_send_data
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_finalize_create
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_finalize_create_after_link
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_binlog
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_prepare_eof
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_after_prepare_eof
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_after_binlog
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_after_revert
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_middle_complete
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_complete
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+query: CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_before_create_frm
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: storage_engine_middle_of_create
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_before_create_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_create_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_send_data
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_finalize_create
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_finalize_create_after_link
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_binlog
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_prepare_eof
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_after_prepare_eof
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_after_binlog
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_after_revert
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_middle_complete
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_complete
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+query: CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_before_create_frm
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: storage_engine_middle_of_create
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+)
+master-bin.000001	#	Annotate_rows	#	#	CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_before_create_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_create_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_send_data
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_finalize_create
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_finalize_create_after_link
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_before_binlog
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_before_prepare_eof
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_prepare_eof
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_binlog
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+)
+master-bin.000001	#	Annotate_rows	#	#	CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_after_revert
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+)
+master-bin.000001	#	Annotate_rows	#	#	CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_middle_complete
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+)
+master-bin.000001	#	Annotate_rows	#	#	CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_complete
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+)
+master-bin.000001	#	Annotate_rows	#	#	CREATE OR REPLACE TABLE t2 SELECT * from const_table
+query: CREATE OR REPLACE TABLE t2 (fail int primary key) select 1 as fail from const_table
+crash point: ddl_log_create_before_create_frm
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: storage_engine_middle_of_create
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_before_create_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_create_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_send_data
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_finalize_create
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_finalize_create_after_link
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_before_binlog
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_before_prepare_eof
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_after_prepare_eof
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_after_binlog
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_after_revert
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_middle_complete
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+crash point: ddl_log_create_complete
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+engine: innodb
+query: CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_before_create_frm
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: storage_engine_middle_of_create
+"No crash!"
+t2.frm
+t2.ibd
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_before_create_table
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_create_table
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_send_data
+"No crash!"
+t2.frm
+t2.ibd
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_finalize_create
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_finalize_create_after_link
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_binlog
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_prepare_eof
+"No crash!"
+t2.frm
+t2.ibd
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_after_prepare_eof
+"No crash!"
+t2.frm
+t2.ibd
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_after_binlog
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_after_revert
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_middle_complete
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+crash point: ddl_log_create_complete
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 (new int)
+query: CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_before_create_frm
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: storage_engine_middle_of_create
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_before_create_table
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_create_table
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_send_data
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_finalize_create
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_finalize_create_after_link
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_binlog
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_before_prepare_eof
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_after_prepare_eof
+"No crash!"
+t2.MYD
+t2.MYI
+t2.frm
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_after_binlog
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_after_revert
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_middle_complete
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+crash point: ddl_log_create_complete
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 LIKE const_table
+query: CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_before_create_frm
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: storage_engine_middle_of_create
+"No crash!"
+t2.frm
+t2.ibd
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_before_create_table
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_create_table
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_send_data
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_finalize_create
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_finalize_create_after_link
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_before_binlog
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_before_prepare_eof
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_prepare_eof
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_binlog
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_after_revert
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_middle_complete
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 SELECT * from const_table
+crash point: ddl_log_create_complete
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t2 SELECT * from const_table
+query: CREATE OR REPLACE TABLE t2 (fail int primary key) select 1 as fail from const_table
+crash point: ddl_log_create_before_create_frm
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: storage_engine_middle_of_create
+"No crash!"
+t2.frm
+t2.ibd
+crash point: ddl_log_create_before_create_table
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_create_table
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_send_data
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_finalize_create
+"No crash!"
+t2.frm
+t2.ibd
+crash point: ddl_log_finalize_create_after_link
+"No crash!"
+t2.frm
+t2.ibd
+crash point: ddl_log_create_before_binlog
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_before_prepare_eof
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `old` bigint(20) unsigned NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+crash point: ddl_log_create_after_prepare_eof
+"No crash!"
+t2.frm
+t2.ibd
+crash point: ddl_log_create_after_binlog
+"No crash!"
+t2.frm
+t2.ibd
+crash point: ddl_log_create_after_revert
+"No crash!"
+t2.frm
+t2.ibd
+crash point: ddl_log_create_middle_complete
+"No crash!"
+t2.frm
+t2.ibd
+crash point: ddl_log_create_complete
+"No crash!"
+t2.frm
+t2.ibd

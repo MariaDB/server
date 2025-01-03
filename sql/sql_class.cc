@@ -917,6 +917,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   system_thread= NON_SYSTEM_THREAD;
   killed_for_exceeding_limit_rows_warning_given= 0;
   shared_thd= 0;
+  tmp_table_binlog_handled= 0;
+  in_binlog_commit= 0;
   cleanup_done= free_connection_done= abort_on_warning= got_warning= 0;
   peer_port= 0;					// For SHOW PROCESSLIST
   transaction= &default_transaction;
@@ -8385,7 +8387,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       reset_binlog_for_next_statement();
 
       /* Temp tables changes are logged as a statement */
-      tmp_table_binlog_handled= 1;
+      tmp_table_binlog_handled= !error;
 
       DBUG_RETURN(error >= 0 ? error : 1);
     }

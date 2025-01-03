@@ -13850,8 +13850,11 @@ int ha_innobase::delete_table(const char *name)
     DBUG_RETURN(0);
   }
 
-  if (parent_trx->check_foreigns &&
-      delete_table_check_foreigns(*table, sqlcom))
+  const bool check_fk=
+    parent_trx->check_foreigns &&
+    !table->name.is_create_or_replace();
+
+  if (check_fk && delete_table_check_foreigns(*table, sqlcom))
   {
     dict_sys.unlock();
     DBUG_RETURN(HA_ERR_ROW_IS_REFERENCED);
@@ -14032,7 +14035,7 @@ err_exit:
 
   if (!table->no_rollback())
   {
-    if (trx->check_foreigns && delete_table_check_foreigns(*table, sqlcom))
+    if (check_fk && delete_table_check_foreigns(*table, sqlcom))
     {
       err= DB_CANNOT_DROP_CONSTRAINT;
       goto err_exit;
@@ -14458,7 +14461,8 @@ ha_innobase::rename_table(
 	normalize_table_name(norm_to, sizeof(norm_to), to);
 
 	dberr_t error = DB_SUCCESS;
-	const bool from_temp = dict_table_t::is_temporary_name(norm_from);
+	const bool from_temp = dict_table_t::is_temporary_name(norm_from)
+		&& !table_name_t{norm_from}.is_create_or_replace();
 
 	dict_table_t* t;
 	bool pause_purge = false, fts_exist = false;
