@@ -8185,6 +8185,20 @@ void ha_partition::return_record_by_parent()
   DBUG_ASSERT(0);
 }
 
+bool ha_partition::vers_can_native(THD *thd)
+{
+  /* Ensure that all partitions can handle native partition */
+  for (uint i= 0; i < m_tot_parts; i++)
+    if (!m_file[i]->vers_can_native(thd))
+      return 0;
+
+  if (thd->lex->part_info)
+  {
+    // PARTITION BY SYSTEM_TIME is not supported for now
+    return thd->lex->part_info->part_type != VERSIONING_PARTITION;
+  }
+  return 1;
+}
 
 /**
   Add index_next/prev from partitions without exact match.

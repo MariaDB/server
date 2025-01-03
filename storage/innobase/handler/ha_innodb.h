@@ -442,6 +442,9 @@ public:
 	@param ib_table InnoDB table definition
 	@retval true if not errors were found */
 	bool check_index_consistency(const dict_table_t* ib_table) noexcept;
+
+        /** Check if table has named foreign key constrants */
+        int can_be_renamed_to_backup() const override;
 protected:
 	bool
 	can_convert_string(const Field_string* field,

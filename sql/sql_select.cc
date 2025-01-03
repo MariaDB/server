@@ -52,6 +52,7 @@
 #include "sql_window.h"
 #include "tztime.h"
 
+#include "debug.h"               // debug_crash_here
 #include "debug_sync.h"          // DEBUG_SYNC
 #include <m_ctype.h>
 #include <my_bit.h>
@@ -25499,6 +25500,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   {
     if (join->procedure && join->procedure->end_of_records())
       DBUG_RETURN(NESTED_LOOP_ERROR);
+    debug_crash_here("ddl_log_create_after_send_data");
     DBUG_RETURN(NESTED_LOOP_OK);
   }
 
