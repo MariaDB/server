@@ -672,12 +672,17 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #endif
 
 /*
-  Io buffer size; Must be a power of 2 and a multiple of 512. May be
-  smaller what the disk page size. This influences the speed of the
-  isam btree library. eg to big to slow.
+  I/O buffer size. May be smaller than the disk page size.
+  This influences the speed of the isam btree library. E.g.: too big too slow.
   4096 is a common block size on SSDs.
 */
+#ifndef IO_SIZE
 #define IO_SIZE			4096U
+#endif
+#if (IO_SIZE < 512) || (IO_SIZE & (IO_SIZE-1))
+#error "IO_SIZE must be a positive multiple of 512 and power of 2"
+#endif
+
 /*
   How much overhead does malloc have. The code often allocates
   something like 1024-MALLOC_OVERHEAD bytes
