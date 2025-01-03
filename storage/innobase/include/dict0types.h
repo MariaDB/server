@@ -146,6 +146,13 @@ struct table_name_t
 	const char* part() const { return dict_is_partition(basename()); }
 	/** @return whether this is a temporary or intermediate table name */
 	inline bool is_temporary() const;
+
+	/** @return whether this belongs to CREATE OR REPLACE TABLE */
+	bool is_create_or_replace() const noexcept
+	{ return is_create_or_replace(m_name); }
+	/** @return whether name belongs to CREATE OR REPLACE TABLE */
+	static bool is_create_or_replace(const char *name) noexcept
+	{ return strstr(name, "/#sql-create"); }
 };
 
 /** Shift for spatial status */

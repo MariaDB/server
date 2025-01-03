@@ -1,0 +1,27 @@
+# Test of rename table when renaming of trigger fails
+
+--source include/have_debug.inc
+
+create table t1 (a int not null);
+
+delimiter |;
+create trigger t1_trg before insert on t1 for each row
+begin
+ if isnull(new.a) then
+   set new.a:= 1000;
+  end if;
+end|
+delimiter ;|
+insert into t1 values(1),(2),(3),(NULL);
+select * from t1;
+
+--eval set @@debug_dbug="+d,rename_trigger_fail"
+--error ER_ERROR_ON_RENAME
+create or replace table t1 select 1 as 'b';
+--eval set @@debug_dbug="";
+select * from t1;
+select count(*) from information_schema.triggers where trigger_name="t1_trg";
+create or replace table t1 select 1 as 'c';
+select * from t1;
+select count(*) from information_schema.triggers where trigger_name="t1_trg";
+drop table t1;

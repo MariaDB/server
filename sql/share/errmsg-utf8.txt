@@ -9008,13 +9008,11 @@ ER_GRANT_PLUGIN_USER_EXISTS
         geo "ბრძანება GRANT პარამეტრით IDENTIFIED WITH დაუშვებელია, რადგან მოხმარებელი %-.*s უკვე არსებობს"
         spa "GRANT con IDENTIFIED WITH es ilegal porque el usuario %-.*s ya existe"
         sw "GRANT yenye IDENTIFIED WITH ni kinyume cha sheria kwa sababu mtumiaji %-.*s tayari yupo"
-
 ER_TRUNCATE_ILLEGAL_FK 42000
         chi "无法截断外键约束中引用的表（%.192s）"
         eng "Cannot truncate a table referenced in a foreign key constraint (%.192s)"
         spa "No puedo truncar una tabla referenciada en una restricción de clave foránea (%.192s)"
         sw "Haiwezi kupunguza jedwali lililorejelewa katika kizuizi cha ufunguo wa kigeni (%.192s)"
-
 ER_PLUGIN_IS_PERMANENT
         chi "插件'%s'是force_plus_permanent，无法卸载"
         eng "Plugin '%s' is force_plus_permanent and can not be unloaded"
@@ -12422,3 +12420,6 @@ ER_FIELD_IN_GROUPING_NOT_GROUP_BY 42000
         eng "Argument '%-.192s' of GROUPING function is not in GROUP BY"
 ER_TOO_MANY_ARGS 42000
         eng "Too many arguments for function %s: %u; maximum allowed is %u."
+ER_DDL_ILLEGAL_FK 42000
+        eng "Cannot %s a table referenced in a foreign key constraint (%.192s)"
+        spa "No puedo %s una tabla referenciada en una restricción de clave foránea (%.192s)"

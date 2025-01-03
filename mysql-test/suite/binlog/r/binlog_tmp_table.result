@@ -54,16 +54,16 @@ set @@binlog_format="statement";
 create temporary table t1(i int);
 connection con2;
 use b51226;
+set @@binlog_format="statement";
 create temporary table t1(i int);
 connection con1;
-set @@binlog_format="statement";
 create temporary table t1(i int);
 ERROR 42S01: Table 't1' already exists
 disconnect con1;
 connection default;
 connection con2;
 insert into t1 values(1);
-disconnect con2;
 connection default;
+disconnect con2;
 DROP DATABASE b51226;
 FLUSH LOGS;

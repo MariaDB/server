@@ -113,7 +113,7 @@ insert t values (2, '2001-01-01', '2001-01-01');
 ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
 show status like "Feature_application_time_periods";
 Variable_name	Value
-Feature_application_time_periods	6
+Feature_application_time_periods	10
 drop table t;
 # MDEV-29387: Period name with more than 32 symbols crashes the server
 #

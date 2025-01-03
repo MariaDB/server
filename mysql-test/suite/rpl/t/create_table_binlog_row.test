@@ -1,0 +1,2 @@
+--source include/have_binlog_format_row.inc
+--source create_table_binlog.inc
