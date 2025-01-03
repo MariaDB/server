@@ -3732,7 +3732,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 
     However, do not crash, if current_thd is NULL, in release version.
   */
-  DBUG_ASSERT(!is_thread_specific || (mysqld_server_initialized && thd));
+  DBUG_ASSERT(!is_thread_specific || thd || !plugins_are_initialized);
 
   if (is_thread_specific && likely(thd))  /* If thread specific memory */
   {

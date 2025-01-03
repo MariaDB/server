@@ -20,6 +20,7 @@
 
 source include/have_debug.inc;
 source include/have_binlog_format_mixed_or_statement.inc;
+source include/have_sequence.inc;
 
 call mtr.add_suppression("Write to binary log failed: Error writing file*");
 
@@ -30,13 +31,28 @@ call mtr.add_suppression("Write to binary log failed: Error writing file*");
 let $query= CREATE TABLE t1 (a INT);
 source include/binlog_inject_error.inc;
 
+--error ER_NO_SUCH_TABLE
 INSERT INTO t1 VALUES (1),(2),(3);
+
+CREATE TABLE t1(a int);
+
+let $query= CREATE OR REPLACE TABLE t1 (a INT);
+source include/binlog_inject_error.inc;
+
+INSERT INTO t1 (a) VALUES (1);
+
+let $query= CREATE OR REPLACE TABLE t1 (b INT) select seq as b from seq_1_to_2;
+source include/binlog_inject_error.inc;
+
+INSERT INTO t1 (a) VALUES (2),(3);
 
 let $query= INSERT INTO t1 VALUES (4),(5),(6);
 source include/binlog_inject_error.inc;
 
 let $query= UPDATE t1 set a=a+1;
 source include/binlog_inject_error.inc;
+
+select * from t1;
 
 let $query= DELETE FROM t1;
 source include/binlog_inject_error.inc;

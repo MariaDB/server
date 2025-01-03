@@ -76,31 +76,50 @@ DROP TABLE t1;
 # End of 10.3 tests
 #
 CREATE TABLE t1 (a INT) ENGINE=Aria;
-INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (1),(1);
 CREATE TABLE t2 (b INT);
 CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
-SELECT * from t1;
-a
-1
-SELECT * from t2;
-a
-1
+CREATE OR REPLACE TABLE t2 (seq int primary key) as select 1 as seq from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT count(*) from t1;
+count(*)
+2
+SELECT count(*) from t2;
+count(*)
+2
 BEGIN;
 CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
-SELECT * from t2;
-a
-1
+CREATE OR REPLACE TABLE t2 (seq int primary key) as select 1 as seq from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT count(*) from t2;
+count(*)
+2
 COMMIT;
+set @@drop_before_create_or_replace=0;
 LOCK TABLES t1 read, t2 write;
 CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
-SELECT * from t2;
-a
-1
+CREATE OR REPLACE TABLE t2 (seq int primary key) as select 1 as seq from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT count(*) from t2;
+count(*)
+2
 UNLOCK TABLES;
+set @@drop_before_create_or_replace=1;
+LOCK TABLES t1 read, t2 write;
+CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
+CREATE OR REPLACE TABLE t2 (seq int primary key) as select 1 as seq from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+UNLOCK TABLES;
+SELECT count(*) from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+set @@drop_before_create_or_replace=default;
 CREATE TABLE t3 (a INT) engine=Aria;
 INSERT INTO t3 values(2);
 CREATE OR REPLACE TABLE t2 AS SELECT t1.a,t3.a as b FROM t1,t3;
 SELECT * from t2;
 a	b
+1	2
 1	2
 DROP TABLE t1, t2, t3;

@@ -1,0 +1,33 @@
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+create temporary table t2 (b int);
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
+CREATE TEMPORARY TABLE t1 (a int);
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+INSERT INTO t1 VALUES (1),(2),(3);
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TEMPORARY TABLE t1 (b int);
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
+CREATE OR REPLACE TEMPORARY TABLE t1 (c int);
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+SELECT * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
+CREATE TEMPORARY TABLE t1 like t2;
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+SELECT * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
+CREATE TEMPORARY TABLE t1 select seq as b from seq_1_to_2;
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+SELECT * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
