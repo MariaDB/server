@@ -27,14 +27,13 @@ class small_vector_base
 protected:
   typedef uint32_t Size_T;
   void *BeginX;
-  Size_T Size= 0, Capacity;
+  Size_T Size= 0;
   small_vector_base()= delete;
-  small_vector_base(void *small, size_t small_size)
-    : BeginX(small), Capacity(Size_T(small_size)) {}
-  ATTRIBUTE_COLD void grow_by_1(void *small, size_t element_size);
+  small_vector_base(void *small) : BeginX(small) {}
+  ATTRIBUTE_COLD
+  void grow_by_1(void *small, size_t element_size) noexcept;
 public:
   size_t size() const { return Size; }
-  size_t capacity() const { return Capacity; }
   bool empty() const { return !Size; }
   void clear() { Size= 0; }
 protected:
@@ -49,22 +48,32 @@ class small_vector : public small_vector_base
 
   using small_vector_base::set_size;
 
-  void grow_if_needed()
+  void grow_if_needed() noexcept
   {
-    if (unlikely(size() >= capacity()))
+    if (unlikely(size() >= N))
       grow_by_1(small, sizeof *small);
   }
 
 public:
-  small_vector() : small_vector_base(small, N)
+  small_vector() : small_vector_base(small)
   {
     TRASH_ALLOC(small, sizeof small);
   }
-  ~small_vector()
+  ~small_vector() noexcept
   {
     if (small != begin())
       my_free(begin());
     MEM_MAKE_ADDRESSABLE(small, sizeof small);
+  }
+
+  void deep_clear() noexcept
+  {
+    if (small != BeginX)
+    {
+      my_free(BeginX);
+      BeginX= small;
+    }
+    set_size(0);
   }
 
   using iterator= T *;
