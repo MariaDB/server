@@ -1617,7 +1617,6 @@ ha_innodb_binlog_reader::ha_innodb_binlog_reader(uint64_t file_no,
   page_buf= (uchar *)ut_malloc(srv_page_size, mem_key_binlog);
   chunk_rd.set_page_buf(page_buf);
   chunk_rd.seek(file_no, offset);
-  chunk_rd.skip_current();
   chunk_rd.skip_partial(true);
 }
 
@@ -2073,7 +2072,6 @@ ha_innodb_binlog_reader::init_gtid_pos(slave_connection_state *pos,
   if (res > 0)
   {
     chunk_rd.seek(file_no, offset);
-    chunk_rd.skip_current();
     chunk_rd.skip_partial(true);
   }
   return res;
