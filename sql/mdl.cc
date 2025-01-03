@@ -1077,6 +1077,10 @@ void MDL_ticket::destroy(MDL_ticket *ticket)
 {
   mysql_mdl_destroy(ticket->m_psi);
   ticket->m_psi= NULL;
+#ifndef DBUG_OFF
+  /* To be able to set a watchpoing when destory is called */
+  ticket->m_type= MDL_NOT_INITIALIZED;
+#endif
 
   delete ticket;
 }

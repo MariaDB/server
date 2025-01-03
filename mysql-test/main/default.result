@@ -435,7 +435,11 @@ create table t1 (a int);
 create or replace table t1 (a int default b, b int default a);
 ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 show create table t1;
-ERROR 42S02: Table 'test.t1' doesn't exist
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;
 #
 # Refering to other columns
 #
@@ -454,11 +458,11 @@ ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
 create or replace table t1 (a int default b, b int default (1+1));
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
 ERROR 01000: Expression for field `b` is referring to uninitialized field `c`
-CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
 ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
-CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
 ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
-CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
 ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 #
 # Allow defaults to refer to not default fields

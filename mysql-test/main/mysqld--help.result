@@ -297,6 +297,11 @@ The following specify which files/extra groups are read (specified before remain
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
+ --drop-before-create-or-replace 
+ CREATE OR REPLACE should drop old tables before creating
+ new ones. If not set then old table will be temporarly
+ renamed until create table succeeeds. If create does not
+ succeed the old table will be renamed back
  --encrypt-binlog    Encrypt binary logs (including relay logs)
  --encrypt-tmp-disk-tables 
  Encrypt temporary on-disk tables (created as part of
@@ -1721,6 +1726,7 @@ delayed-insert-timeout 300
 delayed-queue-size 1000
 disconnect-on-expired-password FALSE
 div-precision-increment 4
+drop-before-create-or-replace FALSE
 encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE

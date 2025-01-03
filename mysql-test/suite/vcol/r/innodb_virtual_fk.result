@@ -19,13 +19,37 @@ drop table t1;
 create table t1 (id int primary key);
 create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on update restrict);
 create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on update no action);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on delete cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on update cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on delete set null);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) virtual, key(id2), foreign key (id) references t1 (id) on update set null);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on update restrict);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on update no action);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on delete cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on update cascade);
 ERROR HY000: Function or expression 'id' cannot be used in the GENERATED ALWAYS AS clause of `id2`
 create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) references t1 (id) on delete set null);
@@ -34,7 +58,13 @@ create or replace table t2 (id int, id2 int as (id) stored, foreign key (id) ref
 ERROR HY000: Function or expression 'id' cannot be used in the GENERATED ALWAYS AS clause of `id2`
 create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on update restrict);
 create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on update no action);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on delete cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on update cascade);
 ERROR HY000: Function or expression 'id2' cannot be used in the GENERATED ALWAYS AS clause of `id3`
 create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) stored, foreign key (id) references t1 (id) on delete set null);
@@ -43,13 +73,37 @@ create or replace table t2 (id int, id2 int as (id) virtual, id3 int as (id2) st
 ERROR HY000: Function or expression 'id2' cannot be used in the GENERATED ALWAYS AS clause of `id3`
 create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on update restrict);
 create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on update no action);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on delete cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on update cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on delete set null);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int default (id), foreign key (id) references t1 (id) on update set null);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on update restrict);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on update no action);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on delete cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on update cascade);
 ERROR HY000: Function or expression 'id' cannot be used in the CHECK clause of `id2`
 create or replace table t2 (id int, id2 int check (id), foreign key (id) references t1 (id) on delete set null);
@@ -58,7 +112,13 @@ create or replace table t2 (id int, id2 int check (id), foreign key (id) referen
 ERROR HY000: Function or expression 'id' cannot be used in the CHECK clause of `id2`
 create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on update restrict);
 create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on update no action);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on delete cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on update cascade);
 ERROR HY000: Function or expression 'id' cannot be used in the CHECK clause of `CONSTRAINT_1`
 create or replace table t2 (id int, id2 int, check (id), foreign key (id) references t1 (id) on delete set null);
@@ -67,7 +127,13 @@ create or replace table t2 (id int, id2 int, check (id), foreign key (id) refere
 ERROR HY000: Function or expression 'id' cannot be used in the CHECK clause of `CONSTRAINT_1`
 create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on update restrict);
 create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on update no action);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on delete cascade);
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 't2'. Original table will be deleted
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on update cascade);
 ERROR HY000: Function or expression 'id2' cannot be used in the CHECK clause of `CONSTRAINT_1`
 create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on delete set null);
