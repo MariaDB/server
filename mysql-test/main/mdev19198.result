@@ -8,6 +8,10 @@ UNLOCK TABLES;
 LOCK TABLES t1 READ , t2 READ;
 CREATE TABLE IF NOT EXISTS t1 LIKE t2;
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+CREATE TABLE IF NOT EXISTS t1 (a int);
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+CREATE TABLE IF NOT EXISTS t1 select * from t2;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 UNLOCK TABLES;
 CREATE TABLE IF NOT EXISTS t1 LIKE t2;
 Warnings:

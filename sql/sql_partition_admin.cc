@@ -51,7 +51,7 @@ bool Sql_cmd_partition_unsupported::execute(THD *)
 static bool return_with_logging(THD *thd)
 {
   if (thd->slave_thread &&
-      write_bin_log_with_if_exists(thd, true, false, true))
+      write_bin_log_with_if_exists(thd, true, false, true) > 0)
     return(true);
   my_ok(thd);
   return(false);
@@ -978,7 +978,8 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
 
     query_cache_invalidate3(thd, first_table, FALSE);
     if (binlog_stmt)
-      error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
+      if (write_bin_log(thd, !error, thd->query(), thd->query_length()))
+        error= 1;
     thd->variables.option_bits= save_option_bits;
   }
 

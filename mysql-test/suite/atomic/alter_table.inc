@@ -2,16 +2,12 @@
 --source include/have_debug.inc
 --source include/have_log_bin.inc
 --source include/default_charset.inc
-
-if (!$BIG_TEST)
-{
-  --source include/not_valgrind.inc
-}
+--source include/test_db_charset_latin1.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
 
 # Starting with 11.7, this will hit the 900-second timeout on WITH_MSAN=ON CMAKE_BUILD_TYPE=Debug
 --source include/not_msan.inc
-
---source include/test_db_charset_latin1.inc
 
 #
 # Testing of atomic create table with crashes in a lot of different places
