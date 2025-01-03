@@ -376,17 +376,19 @@ static my_bool s3_info_init(S3_INFO *s3_info, const char *path,
 static int is_mariadb_internal_tmp_table(const char *table_name)
 {
   int length;
-  const int p_length= sizeof(tmp_file_prefix);  // prefix + '-'
+  int p_length= tmp_file_prefix_length;
   /* Temporary table from ALTER TABLE */
-  if (!strncmp(table_name, tmp_file_prefix "-" , p_length))
+  if (!strncmp(table_name, tmp_file_prefix, p_length) &&
+      table_name[p_length] == '-')
   {
     /*
       Internal temporary tables used by ALTER TABLE and ALTER PARTITION
       should be stored in S3
     */
-    if (!strncmp(table_name+p_length, "backup-", sizeof("backup-")-1) ||
-        !strncmp(table_name+p_length, "exchange-", sizeof("exchange-")-1) ||
-        !strncmp(table_name+p_length, "temptable-", sizeof("temptable-")-1))
+    p_length++;                                 // skip '-'
+    if (!strncmp(table_name+p_length, STRING_WITH_LEN("backup-")) ||
+        !strncmp(table_name+p_length, STRING_WITH_LEN("exchange-")) ||
+        !strncmp(table_name+p_length, STRING_WITH_LEN("temptable-")))
       return 0;
     /* Other temporary tables should be stored in Aria on local disk */
     return 1;
@@ -1078,7 +1080,8 @@ static int ha_s3_init(void *p)
   s3_hton->show_status= 0;
   s3_hton->prepare_for_backup= 0;
   s3_hton->end_backup= 0;
-  s3_hton->flags= ((s3_slave_ignore_updates ? HTON_IGNORE_UPDATES : 0) |
+  s3_hton->flags= HTON_EXPENSIVE_RENAME |
+                  ((s3_slave_ignore_updates ? HTON_IGNORE_UPDATES : 0) |
                    (s3_replicate_alter_as_create_select ?
                     HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE : 0));
   /* Copy global arguments to s3_access_key and s3_secret_key */

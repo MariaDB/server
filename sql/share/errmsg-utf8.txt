@@ -9008,13 +9008,11 @@ ER_GRANT_PLUGIN_USER_EXISTS
         geo "ბრძანება GRANT პარამეტრით IDENTIFIED WITH დაუშვებელია, რადგან მოხმარებელი %-.*s უკვე არსებობს"
         spa "GRANT con IDENTIFIED WITH es ilegal porque el usuario %-.*s ya existe"
         sw "GRANT yenye IDENTIFIED WITH ni kinyume cha sheria kwa sababu mtumiaji %-.*s tayari yupo"
-
 ER_TRUNCATE_ILLEGAL_FK 42000
         chi "无法截断外键约束中引用的表（%.192s）"
         eng "Cannot truncate a table referenced in a foreign key constraint (%.192s)"
         spa "No puedo truncar una tabla referenciada en una restricción de clave foránea (%.192s)"
         sw "Haiwezi kupunguza jedwali lililorejelewa katika kizuizi cha ufunguo wa kigeni (%.192s)"
-
 ER_PLUGIN_IS_PERMANENT
         chi "插件'%s'是force_plus_permanent，无法卸载"
         eng "Plugin '%s' is force_plus_permanent and can not be unloaded"
@@ -12418,3 +12416,6 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
         eng "Failed to parse saved optimizer context: %s at offset %d."
 ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
         eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
+ER_DDL_ILLEGAL_FK 42000
+        eng "Cannot %s a table referenced in a foreign key constraint (%.192s)"
+        spa "No puedo %s una tabla referenciada en una restricción de clave foránea (%.192s)"

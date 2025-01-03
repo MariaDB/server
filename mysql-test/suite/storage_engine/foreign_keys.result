@@ -66,6 +66,6 @@ DELETE FROM t1 WHERE b='a' LIMIT 2;
 SELECT a,b FROM t2;
 a	b
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
+ERROR 42000: Cannot TRUNCATE a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
 DROP TABLE t2;
 DROP TABLE t1;

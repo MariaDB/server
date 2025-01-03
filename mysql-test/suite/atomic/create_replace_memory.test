@@ -1,0 +1,13 @@
+# Testing of atomic CREATE OR REPLACE TABLE on memory without binary logging
+# Not binary logging is important as it exposes other possible bugs in the code
+
+let $engines='memory';
+
+let $crash_points='ddl_log_create_before_create_frm', 'ddl_log_create_before_create_table', 'ddl_log_create_after_create_table', 'ddl_log_finalize_create', 'ddl_log_finalize_create_after_link', 'ddl_log_create_before_binlog', 'ddl_log_create_after_revert', 'ddl_log_create_middle_complete', 'ddl_log_create_complete';
+
+let $show_table_t2=1; # All tests are using t2
+
+let $statement_count=1;
+let $statements='CREATE OR REPLACE TABLE t2 (new int)';
+
+--source create_table.inc

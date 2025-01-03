@@ -97,11 +97,19 @@ typedef ulonglong nested_join_map;
 #define VIEW_MD5_LEN 32
 #define MD5_BUFF_LENGTH (VIEW_MD5_LEN + 1) /* hex digest + NUL */
 
-
-#define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
+/*
+  Prefix for tmp tables, starts with #
+ */
+extern MYSQL_PLUGIN_IMPORT char tmp_file_prefix[];
 #define tmp_file_prefix_length 4
 #define TMP_TABLE_KEY_EXTRA 8
 #define ROCKSDB_DIRECTORY_NAME "#rocksdb"
+
+static inline bool is_tmp_table(const char *filename)
+{
+  return (filename[0] == '#' &&
+          !strncmp(filename+1, tmp_file_prefix+1, tmp_file_prefix_length-1));
+}
 
 #define HLINDEX_TEMPLATE "#i#%02u"
 #define HLINDEX_BUF_LEN  16 /* with extension .ibd/.MYI/etc and safety margin */
@@ -844,7 +852,7 @@ struct TABLE_SHARE
   enum Table_type table_type;
   enum tmp_table_type tmp_table;
 
-  /** Transactional or not. */
+  /** Created transactional or not. */
   enum ha_choice transactional;
   /** Per-page checksums or not. */
   enum ha_choice page_checksum;

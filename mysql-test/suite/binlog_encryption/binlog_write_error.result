@@ -3,111 +3,115 @@ call mtr.add_suppression("Write to binary log failed: Error writing file*");
 # Test injecting binlog write error when executing queries
 #
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-CREATE TABLE t1 (a INT);
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 CREATE TABLE t1 (a INT);
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 INSERT INTO t1 VALUES (1),(2),(3);
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1(a int);
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
+CREATE OR REPLACE TABLE t1 (a INT);
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+INSERT INTO t1 (a) VALUES (1);
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
+CREATE OR REPLACE TABLE t1 (b INT) select seq as b from seq_1_to_2;
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+INSERT INTO t1 (a) VALUES (2),(3);
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 INSERT INTO t1 VALUES (4),(5),(6);
-INSERT INTO t1 VALUES (4),(5),(6);
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-UPDATE t1 set a=a+1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 UPDATE t1 set a=a+1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
+select * from t1;
+a
+2
+3
+4
+5
+6
+7
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 DELETE FROM t1;
-DELETE FROM t1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t1 VALUES (new.a + 100);
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t1 VALUES (new.a + 100);
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-DROP TRIGGER tr1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 DROP TRIGGER tr1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-ALTER TABLE t1 ADD (b INT);
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 ALTER TABLE t1 ADD (b INT);
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-CREATE VIEW v1 AS SELECT a FROM t1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 CREATE VIEW v1 AS SELECT a FROM t1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-DROP VIEW v1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 DROP VIEW v1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-CREATE PROCEDURE p1(OUT rows_cnt INT) SELECT count(*) INTO rows_cnt FROM t1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 CREATE PROCEDURE p1(OUT rows_cnt INT) SELECT count(*) INTO rows_cnt FROM t1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-DROP PROCEDURE p1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 DROP PROCEDURE p1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-DROP TABLE t1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 DROP TABLE t1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-CREATE FUNCTION f1() RETURNS INT return 1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 CREATE FUNCTION f1() RETURNS INT return 1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-DROP FUNCTION f1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 DROP FUNCTION f1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-CREATE USER user1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 CREATE USER user1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM user1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM user1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-SET PASSWORD FOR user1=PASSWORD('foobar');
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 SET PASSWORD FOR user1=PASSWORD('foobar');
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
-DROP USER user1;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 DROP USER user1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;

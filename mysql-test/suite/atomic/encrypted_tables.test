@@ -1,0 +1,44 @@
+# Test create and replace on encrypted tables without encryption enabled.
+
+--source include/have_innodb.inc
+
+--disable_query_log
+call mtr.add_suppression("Encrypted page.*looks corrupted");
+call mtr.add_suppression("InnoDB: Failed to read page");
+call mtr.add_suppression("InnoDB: File.*is corrupted");
+call mtr.add_suppression("Table.*is corrupted");
+call mtr.add_suppression("Initialization of encryption failed for.*t_aria");
+
+--enable_query_log
+
+--echo #
+--echo # MDEV-39446 Atomic CREATE OR REPLACE fails if a table cannot be
+--echo # decrypted
+--echo #
+
+--let $restart_parameters = --plugin-load-add=file_key_management --file-key-management-filename=$SECURE_LOAD_PATH/keys.txt --aria-encrypt-tables=on --innodb-encrypt-tables=on
+ 
+--source include/restart_mysqld.inc
+ 
+create table t_inno (a int) engine=innodb;
+insert into t_inno values (1);
+create table t_aria (b int) engine=aria;
+insert into t_aria values (2);
+ 
+--let $restart_parameters =
+--source include/restart_mysqld.inc
+ 
+show tables;
+
+--error 0,ER_TABLE_CORRUPT
+create or replace table t_inno (c int) engine=innodb;
+--error 0,HA_ERR_NO_ENCRYPTION
+create or replace table t_aria (d int) engine=aria;
+
+--let $restart_parameters = --plugin-load-add=file_key_management --file-key-management-filename=$SECURE_LOAD_PATH/keys.txt --aria-encrypt-tables=on --innodb-encrypt-tables=on
+--source include/restart_mysqld.inc
+
+select * from t_inno;
+select * from t_aria;
+show tables;
+drop table if exists t_inno, t_aria;

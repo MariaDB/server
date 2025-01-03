@@ -40,5 +40,5 @@ int is_prefix(register const char *s, register const char *t)
 {
   while (*t)
     if (*s++ != *t++) return 0;
-  return 1;					/* WRONG */
+  return 1;					/* t was a prefix of s */
 }

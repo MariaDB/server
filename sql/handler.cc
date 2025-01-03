@@ -49,6 +49,7 @@
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
 #include "vector_mhnsw.h"
+#include "sql_truncate.h"      // fk_truncate_illegal_if_parent()
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -5789,6 +5790,11 @@ int handler::ha_end_bulk_insert()
   DBUG_ENTER("handler::ha_end_bulk_insert");
   DBUG_EXECUTE_IF("crash_end_bulk_insert",
                   { extra(HA_EXTRA_FLUSH) ; DBUG_SUICIDE();});
+  if (DBUG_IF("ha_end_bulk_insert_fail"))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
   estimation_rows_to_insert= 0;
   DBUG_RETURN(end_bulk_insert());
 }
@@ -7242,6 +7248,46 @@ bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
 }
 
 
+/*
+  Check if a table can be used with create or replace.
+  The handler should support renaming the table to a temporary name
+  and later be able to drop it
+
+  @return 0 Allowed
+  @return 1 Error. Error message given
+
+*/
+
+int ha_create_or_replace_table_not_allowed(THD *thd, handlerton *hton,
+                                           TABLE_LIST *table_list)
+{
+  int ret= 0;
+  if (hton->flags & HTON_SUPPORTS_FOREIGN_KEYS)
+  {
+    if (!table_list->table)                      // False if locked
+    {
+      Open_table_context ot_ctx{
+        thd, MYSQL_OPEN_IGNORE_FLUSH | MYSQL_OPEN_HAS_MDL_LOCK |
+        MYSQL_LOCK_IGNORE_TIMEOUT
+      };
+
+      if (open_table(thd, table_list, &ot_ctx))
+        return 1;
+      ret= fk_truncate_illegal_if_parent(thd, table_list->table,
+                                         "CREATE OR REPLACE");
+      /* New opened tables are always first in the open list */
+      DBUG_ASSERT(table_list->table == thd->open_tables);
+      close_thread_table(thd, &thd->open_tables);
+      table_list->table= nullptr;
+    }
+    else
+      ret= fk_truncate_illegal_if_parent(thd, table_list->table,
+                                         "CREATE OR REPLACE");
+  }
+  return ret;
+}
+
+
 /**
   Discover all table names in a given database
 */
@@ -7308,9 +7354,10 @@ bool Discovered_table_list::add_table(const char *tname, size_t tlen)
 
 bool Discovered_table_list::add_file(const char *fname)
 {
-  bool is_temp= strncmp(fname, STRING_WITH_LEN(tmp_file_prefix)) == 0;
+  bool is_temp= is_tmp_table(fname);
 
-  if ((is_temp && !with_temps) || !strncmp(fname,STRING_WITH_LEN(ROCKSDB_DIRECTORY_NAME)))
+  if ((is_temp && !with_temps) ||
+      !strncmp(fname,STRING_WITH_LEN(ROCKSDB_DIRECTORY_NAME)))
     return 0;
 
   char tname[SAFE_NAME_LEN + 1];
@@ -7947,7 +7994,8 @@ static int binlog_log_row_to_binlog(TABLE* table,
 {
   bool error= 0;
   THD *const thd= table->in_use;
-
+  binlog_cache_mngr *cache_mngr;
+  binlog_cache_data *cache;
   DBUG_ENTER("binlog_log_row_to_binlog");
 
   if (!thd->binlog_table_maps &&
@@ -7958,20 +8006,18 @@ static int binlog_log_row_to_binlog(TABLE* table,
   DBUG_ASSERT((WSREP_NNULL(thd) && wsrep_emulate_bin_log)
               || mysql_bin_log.is_open());
 
-  auto *cache_mngr= thd->binlog_setup_trx_data();
-  if (cache_mngr == NULL)
+  if (!(cache_mngr= thd->binlog_setup_trx_data()))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /* Ensure that all events in a GTID group are in the same cache */
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
     has_trans= 1;
 
-  auto *cache= binlog_get_cache_data(cache_mngr,
-                                     use_trans_cache(thd, has_trans));
+  cache= binlog_get_cache_data(cache_mngr, use_trans_cache(thd, has_trans));
 
-    error= (*log_func)(thd, table, mysql_bin_log.as_event_log(), cache,
-                       has_trans, thd->variables.binlog_row_image,
-                       before_record, after_record);
+  error= (*log_func)(thd, table, mysql_bin_log.as_event_log(), cache,
+                     has_trans, thd->variables.binlog_row_image,
+                     before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
 }
 

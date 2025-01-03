@@ -19,6 +19,16 @@ optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 drop table t1;
+#
+# Reading backup ddl log file
+#
+CREATE,MyISAM,0,test,t1,id: 1,,0,,,
+ALTER,MyISAM,0,test,t1,id: 1,MyISAM,0,test,t1,id: 2
+RENAME,MyISAM,0,test,t1,id: 2,MyISAM,0,test,t2,id: 2
+RENAME,MyISAM,0,test,t2,id: 2,MyISAM,0,test,t1,id: 2
+repair,MyISAM,0,test,t1,id: 2,,0,,,
+optimize,MyISAM,0,test,t1,id: 2,,0,,,
+DROP,MyISAM,0,test,t1,id: 2,,0,,,
 create table t1_innodb (a int) engine=innodb ;
 insert into t1_innodb values (1),(2);
 alter table t1_innodb add column b int;
@@ -34,6 +44,17 @@ test.t1_innodb	optimize	note	Table does not support optimize, doing recreate + a
 test.t1_innodb	optimize	status	OK
 drop table t1_innodb;
 #
+# Reading backup ddl log file
+#
+CREATE,InnoDB,0,test,t1_innodb,id: 1,,0,,,
+ALTER,InnoDB,0,test,t1_innodb,id: 1,InnoDB,0,test,t1_innodb,id: 2
+RENAME,InnoDB,0,test,t1_innodb,id: 2,InnoDB,0,test,t2_innodb,id: 2
+RENAME,InnoDB,0,test,t2_innodb,id: 2,InnoDB,0,test,t1_innodb,id: 2
+TRUNCATE,InnoDB,0,test,t1_innodb,id: 2,,0,,,
+repair,InnoDB,0,test,t1_innodb,id: 2,,0,test,t1_innodb,id: 3
+optimize,InnoDB,0,test,t1_innodb,id: 3,,0,test,t1_innodb,id: 4
+DROP,InnoDB,0,test,t1_innodb,id: 4,,0,,,
+#
 # Testing with temporary tables (should not be logged)
 #
 create temporary table tmp_t10 (a int) engine=myisam;
@@ -42,6 +63,9 @@ alter table tmp_t10 rename as tmp_t11;
 rename table tmp_t11 to tmp_t10;
 truncate table tmp_t10;
 drop table tmp_t10;
+#
+# Reading backup ddl log file
+#
 #
 # Testing with mix of normal and temporary tables
 #
@@ -57,6 +81,13 @@ drop table if exists tmp_t21,t21;
 Warnings:
 Note	1051	Unknown table 'test.tmp_t21'
 #
+# Reading backup ddl log file
+#
+CREATE,MyISAM,0,test,t20,id: 1,,0,,,
+DROP,MyISAM,0,test,t20,id: 1,,0,,,
+CREATE,MyISAM,0,test,t21,id: 2,,0,,,
+DROP,MyISAM,0,test,t21,id: 2,,0,,,
+#
 # Testing create select
 #
 create table t30 (a int) ;
@@ -69,7 +100,17 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 create table t32 (a int) ;
 drop table if exists t30,t31,t32,tmp_t30;
 Warnings:
-Note	1051	Unknown table 'test.t31,test.tmp_t30'
+Note	1051	Unknown table 'test.tmp_t30'
+#
+# Reading backup ddl log file
+#
+CREATE,MyISAM,0,test,t30,id: 1,,0,,,
+CREATE,MyISAM,0,test,t31,id: 2,,0,,,
+CREATE,MyISAM,0,test,t31,id: 3,,0,,,
+CREATE,MyISAM,0,test,t32,id: 4,,0,,,
+DROP,MyISAM,0,test,t30,id: 1,,0,,,
+DROP,MyISAM,0,test,t31,id: 3,,0,,,
+DROP,MyISAM,0,test,t32,id: 4,,0,,,
 #
 # Testing create LIKE
 #
@@ -86,6 +127,16 @@ t42	CREATE TABLE `t42` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t40, t41, t42;
 #
+# Reading backup ddl log file
+#
+CREATE,MyISAM,0,test,t40,id: 1,,0,,,
+CREATE,InnoDB,0,test,t41,id: 2,,0,,,
+CREATE,MyISAM,0,test,t42,id: 3,,0,,,
+CREATE,InnoDB,0,test,t42,id: 4,,0,,,
+DROP,MyISAM,0,test,t40,id: 1,,0,,,
+DROP,InnoDB,0,test,t41,id: 2,,0,,,
+DROP,InnoDB,0,test,t42,id: 4,,0,,,
+#
 # Testing rename
 #
 create table t50 (a int) ;
@@ -93,6 +144,18 @@ create table t51 (a int, b int) ;
 rename table t50 to t52, t51 to t53;
 rename table t52 to tmp, t53 to t52, tmp to t53;
 drop table t52,t53;
+#
+# Reading backup ddl log file
+#
+CREATE,MyISAM,0,test,t50,id: 1,,0,,,
+CREATE,MyISAM,0,test,t51,id: 2,,0,,,
+RENAME,MyISAM,0,test,t50,id: 1,MyISAM,0,test,t52,id: 1
+RENAME,MyISAM,0,test,t51,id: 2,MyISAM,0,test,t53,id: 2
+RENAME,MyISAM,0,test,t52,id: 1,MyISAM,0,test,tmp,id: 1
+RENAME,MyISAM,0,test,t53,id: 2,MyISAM,0,test,t52,id: 2
+RENAME,MyISAM,0,test,tmp,id: 1,MyISAM,0,test,t53,id: 1
+DROP,MyISAM,0,test,t52,id: 2,,0,,,
+DROP,MyISAM,0,test,t53,id: 1,,0,,,
 #
 # Testing enable/disable keys
 #
@@ -106,6 +169,13 @@ CREATE TEMPORARY TABLE t61 (i int(10), index(i) ) ENGINE=Aria;
 INSERT INTO t61 VALUES(1),(2),(3);
 ALTER TABLE t61 DISABLE KEYS;
 DROP TABLE t61;
+#
+# Reading backup ddl log file
+#
+CREATE,Aria,0,test,t60,id: 1,,0,,,
+CHANGE_INDEX,Aria,0,test,t60,id: 1,,0,,,
+CHANGE_INDEX,Aria,0,test,t60,id: 1,,0,,,
+DROP,Aria,0,test,t60,id: 1,,0,,,
 #
 # Testing load data
 #
@@ -123,10 +193,25 @@ insert into t71 select * from t70;
 unlock tables;
 drop table t70,t71;
 #
+# Reading backup ddl log file
+#
+CREATE,Aria,0,test,t70,id: 1,,0,,,
+BULK_INSERT,Aria,0,test,t70,id: 1,,0,,,
+BULK_INSERT,Aria,0,test,t70,id: 1,,0,,,
+CREATE,Aria,0,test,t71,id: 2,,0,,,
+BULK_INSERT,Aria,0,test,t71,id: 2,,0,,,
+DROP,Aria,0,test,t70,id: 1,,0,,,
+DROP,Aria,0,test,t71,id: 2,,0,,,
+#
 # Testing strange table names
 #
 create table `t 1` (a int) ;
 drop table `t 1`;
+#
+# Reading backup ddl log file
+#
+CREATE,MyISAM,0,test,t@00201,id: 1,,0,,,
+DROP,MyISAM,0,test,t@00201,id: 1,,0,,,
 #
 # Testing views and triggers
 #
@@ -137,11 +222,26 @@ drop trigger trg;
 drop view v1;
 drop table t80;
 #
+# Reading backup ddl log file
+#
+CREATE,MyISAM,0,test,t80,id: 1,,0,,,
+CREATE,VIEW,0,test,v1,,,0,,,
+CREATE,TRIGGER,0,test,trg,,,0,,,
+DROP,TRIGGER,0,test,trg,,,0,,,
+DROP,VIEW,0,test,v1,,,0,,,
+DROP,MyISAM,0,test,t80,id: 1,,0,,,
+#
 # Testing alter to a new storage engine
 #
 create table t85 (a int primary key, b int) engine=myisam ;
 alter table t85 engine=innodb;
 drop table t85;
+#
+# Reading backup ddl log file
+#
+CREATE,MyISAM,0,test,t85,id: 1,,0,,,
+ALTER,MyISAM,0,test,t85,id: 1,InnoDB,0,test,t85,id: 2
+DROP,InnoDB,0,test,t85,id: 2,,0,,,
 #
 # Testing create/drop/alter database
 #
@@ -151,6 +251,16 @@ create table mysqltest.t91 (a int primary key, b int) engine=innodb;
 alter database mysqltest character set utf8;
 drop database mysqltest;
 #
+# Reading backup ddl log file
+#
+CREATE,DATABASE,0,mysqltest,,,,0,,,
+CREATE,MyISAM,0,mysqltest,t90,id: 1,,0,,,
+CREATE,InnoDB,0,mysqltest,t91,id: 2,,0,,,
+ALTER,DATABASE,0,mysqltest,,,,0,,,
+DROP,MyISAM,0,mysqltest,t90,id: 1,,0,,,
+DROP,InnoDB,0,mysqltest,t91,id: 2,,0,,,
+DROP,DATABASE,0,mysqltest,,,,0,,,
+#
 # MENT-222 bug testing
 #
 CREATE TABLE IF NOT EXISTS t_exists LIKE t_exists_template;
@@ -159,83 +269,14 @@ Note	1050	Table 't_exists' already exists
 #
 # Reading backup ddl log file
 #
-CREATE,MyISAM,0,test,t1,id: 1,,0,,,
-ALTER,MyISAM,0,test,t1,id: 1,MyISAM,0,test,t1,id: 2
-RENAME,MyISAM,0,test,t1,id: 2,MyISAM,0,test,t2,id: 2
-RENAME,MyISAM,0,test,t2,id: 2,MyISAM,0,test,t1,id: 2
-repair,MyISAM,0,test,t1,id: 2,,0,,,
-optimize,MyISAM,0,test,t1,id: 2,,0,,,
-DROP,MyISAM,0,test,t1,id: 2,,0,,,
-CREATE,InnoDB,0,test,t1_innodb,id: 3,,0,,,
-ALTER,InnoDB,0,test,t1_innodb,id: 3,InnoDB,0,test,t1_innodb,id: 4
-RENAME,InnoDB,0,test,t1_innodb,id: 4,InnoDB,0,test,t2_innodb,id: 4
-RENAME,InnoDB,0,test,t2_innodb,id: 4,InnoDB,0,test,t1_innodb,id: 4
-TRUNCATE,InnoDB,0,test,t1_innodb,id: 4,,0,,,
-repair,InnoDB,0,test,t1_innodb,id: 4,,0,test,t1_innodb,id: 5
-optimize,InnoDB,0,test,t1_innodb,id: 5,,0,test,t1_innodb,id: 6
-DROP,InnoDB,0,test,t1_innodb,id: 6,,0,,,
-CREATE,MyISAM,0,test,t20,id: 7,,0,,,
-DROP,MyISAM,0,test,t20,id: 7,,0,,,
-CREATE,MyISAM,0,test,t21,id: 8,,0,,,
-DROP,MyISAM,0,test,t21,id: 8,,0,,,
-CREATE,MyISAM,0,test,t30,id: 9,,0,,,
-CREATE,MyISAM,0,test,t31,id: 10,,0,,,
-DROP,MyISAM,0,test,t31,id: 10,,0,,,
-CREATE,MyISAM,0,test,t31,id: 11,,0,,,
-DROP,MyISAM,0,test,t31,id: 11,,0,,,
-DROP_AFTER_CREATE,MyISAM,0,test,t31,id: 12,,0,,,
-CREATE,MyISAM,0,test,t32,id: 13,,0,,,
-DROP,MyISAM,0,test,t30,id: 9,,0,,,
-DROP,MyISAM,0,test,t32,id: 13,,0,,,
-CREATE,MyISAM,0,test,t40,id: 14,,0,,,
-CREATE,InnoDB,0,test,t41,id: 15,,0,,,
-CREATE,MyISAM,0,test,t42,id: 16,,0,,,
-DROP,MyISAM,0,test,t42,id: 16,,0,,,
-CREATE,InnoDB,0,test,t42,id: 17,,0,,,
-DROP,MyISAM,0,test,t40,id: 14,,0,,,
-DROP,InnoDB,0,test,t41,id: 15,,0,,,
-DROP,InnoDB,0,test,t42,id: 17,,0,,,
-CREATE,MyISAM,0,test,t50,id: 18,,0,,,
-CREATE,MyISAM,0,test,t51,id: 19,,0,,,
-RENAME,MyISAM,0,test,t50,id: 18,MyISAM,0,test,t52,id: 18
-RENAME,MyISAM,0,test,t51,id: 19,MyISAM,0,test,t53,id: 19
-RENAME,MyISAM,0,test,t52,id: 18,MyISAM,0,test,tmp,id: 18
-RENAME,MyISAM,0,test,t53,id: 19,MyISAM,0,test,t52,id: 19
-RENAME,MyISAM,0,test,tmp,id: 18,MyISAM,0,test,t53,id: 18
-DROP,MyISAM,0,test,t52,id: 19,,0,,,
-DROP,MyISAM,0,test,t53,id: 18,,0,,,
-CREATE,Aria,0,test,t60,id: 20,,0,,,
-CHANGE_INDEX,Aria,0,test,t60,id: 20,,0,,,
-CHANGE_INDEX,Aria,0,test,t60,id: 20,,0,,,
-DROP,Aria,0,test,t60,id: 20,,0,,,
-CREATE,Aria,0,test,t70,id: 21,,0,,,
-BULK_INSERT,Aria,0,test,t70,id: 21,,0,,,
-BULK_INSERT,Aria,0,test,t70,id: 21,,0,,,
-CREATE,Aria,0,test,t71,id: 22,,0,,,
-BULK_INSERT,Aria,0,test,t71,id: 22,,0,,,
-DROP,Aria,0,test,t70,id: 21,,0,,,
-DROP,Aria,0,test,t71,id: 22,,0,,,
-CREATE,MyISAM,0,test,t@00201,id: 23,,0,,,
-DROP,MyISAM,0,test,t@00201,id: 23,,0,,,
-CREATE,MyISAM,0,test,t80,id: 24,,0,,,
-CREATE,VIEW,0,test,v1,,,0,,,
-CREATE,TRIGGER,0,test,trg,,,0,,,
-DROP,TRIGGER,0,test,trg,,,0,,,
-DROP,VIEW,0,test,v1,,,0,,,
-DROP,MyISAM,0,test,t80,id: 24,,0,,,
-CREATE,MyISAM,0,test,t85,id: 25,,0,,,
-ALTER,MyISAM,0,test,t85,id: 25,InnoDB,0,test,t85,id: 26
-DROP,InnoDB,0,test,t85,id: 26,,0,,,
-CREATE,DATABASE,0,mysqltest,,,,0,,,
-CREATE,MyISAM,0,mysqltest,t90,id: 27,,0,,,
-CREATE,InnoDB,0,mysqltest,t91,id: 28,,0,,,
-ALTER,DATABASE,0,mysqltest,,,,0,,,
-DROP,MyISAM,0,mysqltest,t90,id: 27,,0,,,
-DROP,InnoDB,0,mysqltest,t91,id: 28,,0,,,
-DROP,DATABASE,0,mysqltest,,,,0,,,
 #
 # Cleanup
 #
 DROP TABLE t_exists;
 DROP TABLE t_exists_template;
+#
+# Reading backup ddl log file
+#
+DROP,MyISAM,0,test,t_exists,id: 1,,0,,,
+DROP,MyISAM,0,test,t_exists_template,id: 2,,0,,,
 disconnect con1;
