@@ -173,7 +173,7 @@ public:
   /*
     Make next read_data() skip any data from the current chunk (if any), and
     start reading data only from the beginning of the next chunk. */
-  void skip_current() { s.skip_current= true; }
+  void skip_current() { if (s.in_record) s.skip_current= true; }
   /*
     Used initially, after seeking potentially into the middle of a (commit)
     record, to skip any continuation chunks until we reach the start of the
