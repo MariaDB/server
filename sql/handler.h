@@ -31,6 +31,7 @@
 #include "structs.h"                            /* SHOW_COMP_OPTION */
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
+#include "backup.h"
 #include "ha_handler_stats.h"
 #include "optimizer_costs.h"
 
@@ -54,6 +55,7 @@ class Field_varstring;
 class Field_blob;
 class Column_definition;
 class select_result;
+typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 // the following is for checking tables
 
@@ -1847,6 +1849,18 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
   hton->notify_tabledef_changed() before commit (S3) or after (InnoDB).
 */
 #define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 20)
+/*
+  Indicates that rename table is expensive operation.
+  When set atomic CREATE OR REPLACE TABLE is not used.
+*/
+#define HTON_EXPENSIVE_RENAME (1 << 21)
+/*
+  Engine may not support rename of a table to a backup, as used by
+  CREATE OR REPLACE. If this flag is set, then MariaDB will call
+  handler->can_rename_to_backup() to check if atomic CREATE OR REPLACE
+  code can be used.
+*/
+#define HTON_CHECK_NEEDED_FOR_CREATE_OR_REPLACE (1 << 22)
 
 class Ha_trx_info;
 
@@ -2305,13 +2319,17 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   TABLE_LIST *pos_in_locked_tables;
   TABLE_LIST *merge_list;
   MDL_ticket *mdl_ticket;
-  bool table_was_deleted;
   sequence_definition *seq_create_info;
 
   void init()
   {
     bzero(this, sizeof(*this));
   }
+  /*
+    NOTE: share->tmp_table (tmp_table_type) is superset of this
+    HA_LEX_CREATE_TMP_TABLE which means TEMPORARY keyword in
+    CREATE TEMPORARY TABLE statement.
+  */
   bool tmp_table() const { return options & HA_LEX_CREATE_TMP_TABLE; }
   void use_default_db_type(THD *thd)
   {
@@ -2362,6 +2380,7 @@ struct Table_scope_and_contents_source_st:
   It does not include the "OR REPLACE" and "IF NOT EXISTS" parts, as these
   parts are handled on the SQL level and are not needed on the handler level.
 */
+
 struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                        public Schema_specification_st
 {
@@ -2369,12 +2388,25 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
   Alter_info *alter_info;
   bool repair;
 
+  /* Used for Atomic CREATE or REPLACE */
+  LEX_CSTRING tmp_name;
+  LEX_CSTRING backup_name;
+  DDL_LOG_STATE *ddl_log_state_create;
+  DDL_LOG_STATE *ddl_log_state_rm;
+  handlerton *org_hton;
+  backup_log_info drop_entry;
+  bool table_was_deleted, table_was_renamed, table_was_created;
+
   void init()
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
     alter_info= NULL;
+    tmp_name.length= 0;
+    ddl_log_state_rm= ddl_log_state_create= 0;
+    org_hton= 0;
     repair= 0;
+    table_was_deleted= table_was_renamed= table_was_created= 0;
   }
   ulong table_options_with_row_type()
   {
@@ -2387,6 +2419,10 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                   const Lex_table_charset_collation_attrs_st &default_cscl,
                   const Lex_table_charset_collation_attrs_st &convert_cscl,
                   const Charset_collation_context &ctx);
+  bool is_atomic_replace() const
+  {
+    return table_was_renamed;
+  }
 };
 
 
@@ -2476,6 +2512,12 @@ struct Table_specification_st: public HA_CREATE_INFO,
                                                   convert_charset_collation,
                                                   ctx);
   }
+  bool finalize_create_table(THD *thd, TABLE_LIST *orig_table,
+                             const char *query, size_t query_length,
+                             bool is_trans);
+  void end_create_table(THD *thd, TABLE_LIST *orig_table, bool rollback);
+  bool revert_create_table(THD *thd, TABLE_LIST *orig_table);
+  bool finalize_locked_tables(THD *thd, bool operation_failed);
 };
 
 
@@ -5574,6 +5616,12 @@ public:
 
   bool log_not_redoable_operation(const char *operation);
 
+  /* Can the table be renamed to a backup name as part of create or_replace */
+  virtual int can_be_renamed_to_backup() const
+  {
+    return 0;                                   /* Yes */
+  }
+
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);
@@ -5854,6 +5902,8 @@ bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all, bool *no_rollback);
+int ha_check_if_table_can_be_renamed_to_backup(THD *thd, handlerton *hton,
+                                               TABLE_LIST *create_table);
 inline void Cost_estimate::reset(handler *file)
 {
   reset();

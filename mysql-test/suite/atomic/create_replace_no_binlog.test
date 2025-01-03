@@ -1,0 +1,14 @@
+# Testing of atomic CREATE TABLE REPLACE without binary logging.
+
+let $engines='innodb';
+
+let $crash_points='ddl_log_create_before_create_frm', 'storage_engine_middle_of_create', 'ddl_log_create_before_create_table', 'ddl_log_create_after_create_table', 'ddl_log_create_after_send_data', 'ddl_log_finalize_create', 'ddl_log_finalize_create_after_link', 'ddl_log_create_before_binlog', 'ddl_log_create_before_prepare_eof','ddl_log_create_after_prepare_eof', 'ddl_log_create_after_binlog', 'ddl_log_create_after_revert', 'ddl_log_create_middle_complete', 'ddl_log_create_complete';
+
+let $show_table_t2=1; # All tests are using t2
+
+let $statement_count=3;
+let $statements='CREATE OR REPLACE TABLE t2 (new int)',
+                'CREATE OR REPLACE TABLE t2 LIKE const_table',
+                'CREATE OR REPLACE TABLE t2 SELECT * from const_table';
+
+--source create_table.inc

@@ -264,6 +264,9 @@ select * from cte for system_time as of @ts_1
 select * from cte;
 ERROR HY000: Table `cte` is not system-versioned
 create or replace table emp ( emp_id int, name varchar(127), mgr int) with system versioning;
+Warnings:
+Warning	122	Engine does not support atomic create or replace for table 'emp'. Original table will be deleted
+Warning	1215	Cannot add foreign key constraint for `emp`
 create or replace table addr ( emp_id int, address varchar(100)) with system versioning;
 insert emp values (1, 'bill', 0), (2, 'bill', 1), (3, 'kate', 1);
 insert addr values (1, 'Moscow'), (2, 'New York'), (3, 'London');

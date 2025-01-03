@@ -819,7 +819,7 @@ struct TABLE_SHARE
   enum Table_type table_type;
   enum tmp_table_type tmp_table;
 
-  /** Transactional or not. */
+  /** Created transactional or not. */
   enum ha_choice transactional;
   /** Per-page checksums or not. */
   enum ha_choice page_checksum;

@@ -59,38 +59,33 @@ while ($i)
   --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
   --error ER_DUP_ENTRY
   --eval set statement binlog_format=row for create or replace table t (a int primary key, b char) engine=$engine select 1 AS a, 'b' as b union select 1 as a, 'c' as b
-  --error ER_NO_SUCH_TABLE
   select * from t;
-  --echo #
-  --echo # Prove an expected lonely `DROP table t'
+  drop table t;
   --source include/show_binlog_events.inc
 
   # error before stmt commit
-  set statement binlog_format=statement for create table t (a int) select 1 as a;
+  set statement binlog_format=statement for create table t (a int) select 2 as a;
   --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
   --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
   --error ER_TRANS_CACHE_FULL
   --eval set statement binlog_format=row for create or replace table t (a text) engine=$engine select repeat ('a',1024) AS a union select repeat ('a',3*4096) AS a union select repeat ('a',3*4096) AS a
-  --error ER_NO_SUCH_TABLE
   select * from t;
-  --echo #
-  --echo # Prove an expected lonely `DROP table t'
+  drop table t;
   --source include/show_binlog_events.inc
 
   # error at stmt commit
-  set statement binlog_format=statement for create table t (a int) select 1 as a;
+  set statement binlog_format=statement for create table t (a int) select 3 as a;
   --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
   --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
   --error ER_TRANS_CACHE_FULL
   --eval set statement binlog_format=row for create or replace table t (a text) engine=$engine select repeat ('a',4096*3) AS a;
-  --error ER_NO_SUCH_TABLE
   select * from t;
-  --echo #
-  --echo # Prove an expected lonely `DROP table t'
+  drop table t;
   --source include/show_binlog_events.inc
 
 --dec $i
 }
+--sync_slave_with_master
 
 # Tests of mixed engines to demonstrate non-transaction table updates
 # are binlogged or otherwise MDEV-36027.

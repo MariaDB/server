@@ -1,0 +1,41 @@
+# Testing of atomic CREATE TABLE with binary logging and side effects
+# The test found an error in Open_table_context::recover_from_failed_open
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_mixed.inc
+
+call mtr.add_suppression("marked as crashed");
+call mtr.add_suppression("client is using");
+call mtr.add_suppression("Size of datafile is");
+call mtr.add_suppression("Record-count is not ok");
+call mtr.add_suppression("Found.*key parts");
+call mtr.add_suppression("Number of rows changed");
+call mtr.add_suppression("Got an error from unknown thread");
+call mtr.add_suppression("Checking table");
+call mtr.add_suppression("Recovering table");
+
+create table t10 (p int primary key, new int) engine=innodb;
+insert into t10 values (1,1),(2,2),(3,1);
+create table t11 (new int) engine=myisam;
+
+delimiter |;
+create function func_with_sideeffect(arg int)
+returns integer
+begin
+  insert into t11 set new=arg;
+  return arg+1;
+end |
+delimiter ;|
+
+let $engines='myisam';
+let $crash_points='ddl_log_create_before_binlog', 'ddl_log_create_complete';
+let $statement_count=1;
+let $statements='CREATE TABLE t1 (new int) select new,func_with_sideeffect(p) from t10';
+
+--source create_table.inc
+
+select count(*) > 0 from t11;
+
+drop table t10,t11;
+drop function func_with_sideeffect;

@@ -4150,6 +4150,14 @@ static Sys_var_set Sys_old_behavior(
        old_mode_names, DEFAULT(OLD_MODE_DEFAULT_VALUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(old_mode_deprecated));
 
+
+static Sys_var_mybool Sys_drop_before_create_replace(
+       "drop_before_create_or_replace",
+       "CREATE OR REPLACE should drop old tables before creating new ones. If not set then old table will be temporarly renamed until create table succeeeds. If create does not succeed the old table will be renamed back",
+       SESSION_VAR(drop_before_create_or_replace), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
+
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
 #else
