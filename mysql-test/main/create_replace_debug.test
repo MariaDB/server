@@ -1,0 +1,84 @@
+#
+# Check CREATE OR REPLACE TABLE for test that requires DEBUG
+#
+
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+SET @old_debug= @@session.debug;
+
+#
+# MDEV-5854
+# Interrupted CREATE OR REPLACE is written into binlog, and in a wrong format
+#
+
+CREATE TABLE t1 (i INT, KEY(i)) ENGINE=InnoDB;
+CREATE OR REPLACE TEMPORARY TABLE tmp (a int, b int, key(a)) engine=myisam;
+SET debug_dbug='+d,send_kill_after_delete';
+CREATE OR REPLACE TABLE t1 LIKE tmp;
+SET debug_dbug=@old_debug;
+SHOW TABLES;
+show create table t1;
+--sync_slave_with_master
+SHOW TABLES;
+show create table t1;
+--connection master
+
+--disable_warnings
+drop temporary table if exists tmp;
+--enable_warnings
+drop table t1;
+--source include/rpl_end.inc
+
+--echo #
+--echo # MDEV-25292 Atomic CREATE OR REPLACE TABLE
+--echo #
+
+--echo # Test entry_pos in higher position, so drop chain executes before create chain
+--echo # (see commit message: On linking two chains together)
+create table t1 (c int);
+--error ER_DUP_KEYNAME
+create or replace table t1 (a int, b int, key k (a), key k (b));
+--error ER_DUP_KEYNAME
+create or replace table t1 (a int, b int, key k (a), key k (b));
+drop table t1;
+
+--echo #
+--echo # MDEV-28956 Locking is broken if CREATE OR REPLACE fails under LOCK TABLES
+--echo #
+--echo # Non-atomic CREATE OR REPLACE part:
+--echo #
+
+# Simulate expensive rename
+set @@drop_before_create_or_replace=1;
+
+create table t1 (pk int primary key) engine=innodb;
+create or replace table t2 (a int primary key references t1 (pk)) engine=innodb;
+
+lock tables t1 write, t2 write;
+--error ER_DUP_FIELDNAME
+create or replace table t2 (c1 int not null, c1 varchar(255) ) engine=innodb;
+select * from t1;
+--error ER_TABLE_NOT_LOCKED
+select * from t2;
+unlock tables;
+drop table t1;
+
+set @@drop_before_create_or_replace=default;
+
+--echo #
+--echo # MDEV-29664 Assertion `!n_mysql_tables_in_use' failed in innobase_close_connection
+--echo #
+
+create table t1 (x int);
+set @old_dbug= @@debug_dbug;
+set @@debug_dbug= '+d,ha_end_bulk_insert_fail';
+--error ER_OUT_OF_RESOURCES
+create or replace table t2 (y int) engine innodb select * from t1;
+set @@debug_dbug= @old_dbug;
+drop table t1;

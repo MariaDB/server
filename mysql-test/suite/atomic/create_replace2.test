@@ -1,0 +1,208 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row_or_statement.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+
+--disable_query_log
+let $default_engine=InnoDB;
+let $extra_option= '';
+let $save_debug=`select @@debug_dbug`;
+let $show_error=0;
+let $drop_error=0;
+
+if ($MTR_COMBINATION_MYISAM)
+{
+  let $default_engine=MyISAM;
+}
+if ($MTR_COMBINATION_ARIA)
+{
+  let $default_engine=Aria;
+  call mtr.add_suppression("Checking table");
+  call mtr.add_suppression("marked as crashed");
+  call mtr.add_suppression("UNDO records skipped");
+}
+if ($MTR_COMBINATION_ARIA_NOTRANS)
+{
+  let $default_engine=Aria;
+  let $extra_option=' engine=aria,transactional=0';
+  call mtr.add_suppression("Checking table");
+  call mtr.add_suppression("marked as crashed");
+  let $extra=transactional=0;
+}
+if ($MTR_COMBINATION_LOCK_TABLES)
+{
+  let $default_engine=Aria;
+  call mtr.add_suppression("Checking table");
+  call mtr.add_suppression("marked as crashed");
+  call mtr.add_suppression("UNDO records skipped");
+  let $extra=lock tables;
+}
+
+if ($MTR_COMBINATION_STMT)
+{
+  let $binlog_format=include/set_binlog_format_statement.sql;
+  let $format=statement;
+}
+if ($MTR_COMBINATION_ROW)
+{
+  let $binlog_format=include/set_binlog_format_row.sql;
+  let $format=row;
+}
+if ($MTR_COMBINATION_MIX)
+{
+  --die
+}
+
+--eval set @@default_storage_engine=$default_engine
+
+--enable_query_log
+
+--echo # Crash recovery
+--echo # Engine: $default_engine
+--echo # Binlog_format: $format
+--echo # Extra: $extra
+--echo #
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $crash_count=12;
+let $crash_points='ddl_log_finalize_create',
+                  'ddl_log_create_before_create_frm',
+                  'ddl_log_create_before_create_table',
+                  'ddl_log_create_after_create_table',
+                  'ddl_log_create_after_send_data',
+                  'ddl_log_create_before_binlog',
+                  'ddl_log_create_before_prepare_eof',
+                  'ddl_log_create_after_prepare_eof',
+                  'ddl_log_create_after_binlog',
+                  'ddl_log_create_after_revert',
+                  'ddl_log_create_middle_complete',
+                  'ddl_log_create_complete';
+
+#let $crash_count=1;
+#let $crash_points='ddl_log_create_fk_fail';
+#                  'ddl_log_create_before_binlog3',
+#                  'ddl_log_create_before_binlog4';
+
+let $statement_count=3;
+let $statements='CREATE OR REPLACE TABLE t1 (new int) EXTRA_OPTION',
+                'CREATE OR REPLACE TABLE t1 LIKE const_table',
+                'CREATE OR REPLACE TABLE t1 EXTRA_OPTION SELECT * from const_table';
+
+#let $statement_count=1;
+#let $statements='CREATE OR REPLACE TABLE t1 EXTRA_OPTION SELECT * from const_table';
+
+--disable_query_log
+let create_const=`select REPLACE('create table const_table (new int, b int) EXTRA_OPTION', ' EXTRA_OPTION', $extra_option)`;
+eval $create_const;
+--replace_result $default_engine ENGINE ' PAGE_CHECKSUM=1' '' ' TRANSACTIONAL=0' ''
+show create table const_table;
+--enable_query_log
+insert into const_table values (1, 1), (2, 2);
+flush tables;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $keep_include_silent=1;
+let $grep_script=CREATE|DROP|table_id;
+--disable_query_log
+
+let $r=0;
+while ($r < $statement_count)
+{
+  inc $r;
+  let $STATEMENT=`select REPLACE(ELT($r, $statements), ' EXTRA_OPTION', $extra_option)`;
+  --echo # QUERY: $STATEMENT
+
+  let $c=0;
+  while ($c < $crash_count)
+  {
+    inc $c;
+    let $crash= `select ELT($c, $crash_points)`;
+    let $fk_error= `select '$crash' like 'ddl_log_create_fk_fail%'`;
+
+    --eval set @@default_storage_engine=$default_engine
+    create or replace table t1 (old int);
+#   if ($fk_error)
+#   {
+#     create or replace table t1 (old int primary key, y int) engine innodb;
+#     create table t2 (x int references t1(old)) engine innodb;
+#   }
+    create trigger a before insert on t1 for each row set @s= 1;
+    flush tables;
+    if ($MTR_COMBINATION_LOCK_TABLES)
+    {
+      lock tables t1 write, const_table read;
+    }
+
+    --source $binlog_format
+
+    RESET MASTER;
+    --echo # CRASH POINT: $crash
+    --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+    --disable_reconnect
+    --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=1
+    let $errno=0;
+    --error 0,2013
+    eval $STATEMENT;
+    let $error=$errno;
+    --enable_reconnect
+    --source include/wait_until_connected_again.inc
+    --disable_query_log
+    --eval set @@debug_dbug="$old_debug"
+
+    if ($error == 0)
+    {
+      --echo # No crash!
+      if ($MTR_COMBINATION_LOCK_TABLES)
+      {
+        unlock tables;
+      }
+    }
+    # Check which tables still exists
+    --replace_result .MAD .DATA1 .MYD .DATA1 .MAI .DATA2 .MYI .DATA2
+    --list_files $MYSQLD_DATADIR/test t*
+    --list_files $MYSQLD_DATADIR/test *sql*
+
+    --let $binlog_file=master-bin.000001
+    --source include/show_binlog_events.inc
+    if ($error)
+    {
+      --let $binlog_file=master-bin.000002
+      --source include/show_binlog_events.inc
+    }
+
+    if ($default_engine == Aria)
+    {
+      # Again we suppress 'marked as crashed', it works differently in --ps
+      --disable_warnings
+    }
+    --replace_result $default_engine ENGINE InnoDB ENGINE ' PAGE_CHECKSUM=1' '' ' TRANSACTIONAL=0' ''
+    --error $show_error
+    show create table t1;
+    --enable_warnings
+    if (`select locate('SELECT', '$STATEMENT')`)
+    {
+      --error $show_error
+      select * from t1;
+    }
+    --enable_warnings
+    --replace_column 6 '' 7 '' 8 '' 9 '' 10 '' 11 ''
+    show triggers;
+    # Drop the tables. The warnings will show what was dropped
+#   if ($fk_error)
+#   {
+#     drop table t2;
+#   }
+    --disable_warnings
+    --error $drop_error
+    drop table t1;
+    --enable_warnings
+  }
+}
+drop table if exists t1,const_table;
+--eval set @@debug_dbug="$save_debug"
+
+--enable_query_log

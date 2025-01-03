@@ -18,9 +18,6 @@ drop temporary table t1,t2_tmp,t3;
 set @@binlog_format="mixed";
 set @@create_tmp_table_binlog_formats="statement,mixed";
 CREATE TEMPORARY TABLE t1 LIKE information_schema.processlist;
-select benchmark(1,1);
-benchmark(1,1)
-0
 CREATE TEMPORARY TABLE t2_tmp like t2;
 CREATE TEMPORARY TABLE t3 like t3_hidden;
 drop temporary table t1,t2_tmp,t3;

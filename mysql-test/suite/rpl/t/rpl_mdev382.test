@@ -183,7 +183,7 @@ use `db1``; select 'oops!'`;
 CREATE TABLE `t``1` ( `a``` INT PRIMARY KEY) ENGINE=innodb;
 CREATE TABLE `t``2` ( `b``` INT PRIMARY KEY, `c``` INT NOT NULL,
     FOREIGN KEY fk (`c```) REFERENCES `t``1`(`a```)) ENGINE=innodb;
---error ER_TRUNCATE_ILLEGAL_FK
+--error ER_DDL_ILLEGAL_FK
 TRUNCATE `t``1`;
 DROP TABLE `t``2`;
 DROP TABLE `t``1`;

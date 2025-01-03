@@ -1,0 +1,65 @@
+--source include/not_windows.inc
+--source include/have_debug.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-25292 Atomic CREATE OR REPLACE TABLE
+--echo #
+
+# This does not work on Windows because of max path limit 255
+# (actually it does not work for path 254 already)
+# Note: on Windows use ER_BAD_DB_ERROR instead of ER_CANT_CREATE_TABLE
+# unless MDEV-28746 is fixed.
+
+--echo # Test multi-byte characters in table name
+set names utf8;
+let $save_debug=`select @@debug_dbug`;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+--echo # Filename is too long because it is converted to @274e@274e@274e@274e...
+--echo # so each '❎' is 5 bytes in filesystem, 51 x 5 = 255 bytes
+let $t= `select repeat('❎', 51)`;
+--error ER_CANT_CREATE_TABLE
+eval create table $t (x int);
+# The below case is useful for experimenting on Windows
+--echo # Let's find out max length for '❎'...
+--disable_query_log
+let $i= 50;
+while ($i)
+{
+  let $t= `select repeat('❎', $i)`;
+  --error 0,ER_CANT_CREATE_TABLE
+  eval create table $t (x int);
+  let $good_len= $i;
+  dec $i;
+  if (!$mysql_errno)
+  {
+    let $i= 0;
+  }
+}
+let $fn_len= `select $good_len * 5 + 4`; # 4 is extension length
+eval drop table $t;
+--enable_query_log
+--echo # Acceptable name length: $good_len; Filename length: $fn_len
+--echo # OK with 64-characters table name, filesystem name is 40 x 5 + 24 = 224 bytes
+let $t= `select concat(repeat('t', 24), repeat('❎', 40))`;
+eval create table $t (x int);
+--echo # Not OK with 65-characters table name
+let $t2= `select concat(repeat('t', 25), repeat('❎', 40))`;
+--error ER_WRONG_TABLE_NAME
+eval create table $t2 (x int);
+show tables;
+# Let's try atomic replace with such long name and see what happens
+eval create or replace table $t (y int);
+eval show create table $t;
+set @@debug_dbug="+d,ddl_log_create_before_binlog", @debug_crash_counter=1;
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--disable_reconnect
+--error 2013
+eval create or replace table $t (z int);
+--replace_regex /#sql-create-\w+-\w+-\w+\./#sql-create-PID-TID-SEQ./
+--list_files $MYSQLD_DATADIR/test *sql*
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+eval drop table $t;
+eval set @@debug_dbug="$save_debug";

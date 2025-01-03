@@ -41,7 +41,8 @@ void history_state_free(void *closed_history_)
 }
 
 
-static int dummy_maria_create_trn_hook(MARIA_HA *info __attribute__((unused)))
+static int dummy_maria_create_trn_hook(MARIA_HA *info __attribute__((unused)),
+                                       my_bool all __attribute__((unused)))
 {
   return 0;
 }

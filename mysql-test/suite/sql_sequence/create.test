@@ -2,6 +2,7 @@
 # Test create options with sequences
 #
 --source include/have_innodb.inc
+--source include/have_archive.inc
 
 drop table if exists t1;
 
@@ -20,6 +21,9 @@ select * from t1;
 create or replace sequence t1 engine=maria;
 show create sequence t1;
 show create table t1;
+select * from t1;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create or replace sequence t1 engine=archive;
 select * from t1;
 
 # Check start values

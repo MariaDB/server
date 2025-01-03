@@ -1,0 +1,28 @@
+#
+# MDEV-39446 Atomic CREATE OR REPLACE fails if a table cannot be
+# decrypted
+#
+# restart: --plugin-load-add=file_key_management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys.txt --aria-encrypt-tables=on --innodb-encrypt-tables=on
+create table t_inno (a int) engine=innodb;
+insert into t_inno values (1);
+create table t_aria (b int) engine=aria;
+insert into t_aria values (2);
+# restart
+show tables;
+Tables_in_test
+t_aria
+t_inno
+create or replace table t_inno (c int) engine=innodb;
+create or replace table t_aria (d int) engine=aria;
+# restart: --plugin-load-add=file_key_management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys.txt --aria-encrypt-tables=on --innodb-encrypt-tables=on
+select * from t_inno;
+a
+1
+select * from t_aria;
+b
+2
+show tables;
+Tables_in_test
+t_aria
+t_inno
+drop table if exists t_inno, t_aria;

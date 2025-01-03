@@ -109,6 +109,7 @@ static const char *fk_info_str(THD *thd, FOREIGN_KEY_INFO *fk_info)
 
   @param  thd    Thread context.
   @param  table  Table handle.
+  @param  ddl    DDL operation (CREATE OR REPLACE or TRUNCATE)
 
   @retval FALSE  This table is not parent in a non-self-referencing foreign
                  key. Statement can proceed.
@@ -116,8 +117,8 @@ static const char *fk_info_str(THD *thd, FOREIGN_KEY_INFO *fk_info)
                  error was emitted.
 */
 
-static bool
-fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
+bool fk_truncate_illegal_if_parent(THD *thd, TABLE *table,
+                                   const char *ddl)
 {
   FOREIGN_KEY_INFO *fk_info;
   List<FOREIGN_KEY_INFO> fk_list;
@@ -157,7 +158,7 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   /* Table is parent in a non-self-referencing foreign key. */
   if (fk_info)
   {
-    my_error(ER_TRUNCATE_ILLEGAL_FK, MYF(0), fk_info_str(thd, fk_info));
+    my_error(ER_DDL_ILLEGAL_FK, MYF(0), ddl, fk_info_str(thd, fk_info));
     return TRUE;
   }
 
@@ -229,7 +230,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 
   /* Whether to truncate regardless of foreign keys. */
   if (! (thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
-    if (fk_truncate_illegal_if_parent(thd, table_ref->table))
+    if (fk_truncate_illegal_if_parent(thd, table_ref->table, "TRUNCATE"))
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
 
   table= table_ref->table;
@@ -569,7 +570,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
   /* DDL is logged in statement format, regardless of binlog format. */
   if (binlog_stmt)
-    error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
+    error|= MY_TEST(write_bin_log(thd, !error, thd->query(),
+                                  thd->query_length()));
 
   /*
     A locked table ticket was upgraded to a exclusive lock. After the
