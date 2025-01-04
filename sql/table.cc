@@ -3647,6 +3647,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   LEX_CUSTRING frm= {0,0};
   LEX_CSTRING db_backup= thd->db;
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
+  DBUG_ASSERT(!thd->is_error());
 
   /*
     Ouch. Parser may *change* the string it's working on.

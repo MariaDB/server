@@ -386,4 +386,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	b	6	NULL	1	
 drop view v;
 drop table t;
+#
+# MDEV-35769 ER_SQL_DISCOVER_ERROR upon updating vector key column using incorrect value
+#
+create table t (v vector(1) not null, vector(v));
+insert into t values (0x31313131);
+flush tables;
+update t set v = 1;
+ERROR HY000: Cannot cast 'int' as 'vector' in assignment of `test`.`t`.`v`
+drop table t;
 # End of 11.7 tests

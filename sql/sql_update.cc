@@ -1877,6 +1877,8 @@ int multi_update::prepare(List<Item> &not_used_values,
                           *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
              TABLE::check_assignability_explicit_fields(*fields, *values,
                                                         ignore);
+  if (unlikely(error))
+    DBUG_RETURN(1);
 
   ti.rewind();
   while ((table_ref= ti++))
@@ -1893,8 +1895,6 @@ int multi_update::prepare(List<Item> &not_used_values,
         table->file->prepare_for_modify(true, true);
     }
   }
-  if (unlikely(error))
-    DBUG_RETURN(1);    
 
   /*
     Save tables being updated in update_tables
