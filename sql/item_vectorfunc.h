@@ -26,10 +26,10 @@ class Item_func_vec_distance_common: public Item_real_func
 {
   Item_field *get_field_arg() const
   {
-    if (args[0]->type() == Item::FIELD_ITEM && args[1]->const_item())
-      return (Item_field*)(args[0]);
-    if (args[1]->type() == Item::FIELD_ITEM && args[0]->const_item())
-      return (Item_field*)(args[1]);
+    if (args[0]->real_item()->type() == Item::FIELD_ITEM && args[1]->const_item())
+      return (Item_field*)(args[0]->real_item());
+    if (args[1]->real_item()->type() == Item::FIELD_ITEM && args[0]->const_item())
+      return (Item_field*)(args[1])->real_item();
     return NULL;
   }
   bool check_arguments() const override

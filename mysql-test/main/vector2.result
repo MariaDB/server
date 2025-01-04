@@ -369,3 +369,21 @@ vec_totext(v)
 [7]
 [6]
 drop table t;
+#
+# MDEV-35768 Vector key is not used upon selecting from views / subqueries
+#
+create table t (b vector(1) not null, vector(b));
+insert into t values (0x31313131),(0x32323232);
+create view v as select * from t;
+explain select * from t order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+explain select * from v order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+explain select * from (select * from t) sq order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+drop view v;
+drop table t;
+# End of 11.7 tests
