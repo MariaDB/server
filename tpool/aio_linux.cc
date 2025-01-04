@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 # include <atomic>
 # include <libaio.h>
 # include <sys/syscall.h>
+# include <cstdio>
 
 /**
   Invoke the io_getevents() system call, without timeout parameter.
