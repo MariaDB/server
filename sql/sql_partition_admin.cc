@@ -654,14 +654,10 @@ bool Sql_cmd_alter_table_exchange_partition::
                        swap_table_list->db.str,
                        swap_table_list->table_name.str,
                        "", 0);
-  /* create a unique temp name */
-  my_snprintf(temp_name, sizeof(temp_name), "%s-exchange-%lx-%llx",
-              tmp_file_prefix, current_pid, thd->thread_id);
-  if (lower_case_table_names)
-  {
-    // Ok to use latin1 as the file name is in the form '#sql-exchange-abc-def'
-    my_casedn_str_latin1(temp_name);
-  }
+
+  LEX_STRING tmp= { temp_name, sizeof(temp_name) };
+  make_tmp_table_name(thd, &tmp, "exchange");
+
   build_table_filename(temp_file_name, sizeof(temp_file_name),
                        table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);
