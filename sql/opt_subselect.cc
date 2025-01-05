@@ -28,6 +28,7 @@
 #include "sql_select.h"
 #include "sql_update.h"  // class Sql_cmd_update
 #include "sql_delete.h"  // class Sql_cmd_delete
+#include "sql_table.h"   // make_tmp_table_name
 #include "filesort.h"
 #include "opt_subselect.h"
 #include "sql_test.h"
@@ -4780,8 +4781,8 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path,"%s-subquery-%lx-%lx-%x", tmp_file_prefix,current_pid,
-            (ulong) thd->thread_id, thd->tmp_table++);
+    LEX_STRING tmp= { path, sizeof(path) };
+    make_tmp_table_name(thd, &tmp, "subquery");
   }
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 

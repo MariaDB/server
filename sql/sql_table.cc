@@ -636,6 +636,25 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
 
 
 /**
+  Create a temporary table name
+
+  @param to string. Note that to->length should contain buffer length
+*/
+
+void make_tmp_table_name(THD *thd, LEX_STRING *to, const char *prefix)
+{
+  to->length= my_snprintf((char*) to->str, to->length, "%s-%s-%lx-%llx-%x",
+                          tmp_file_prefix, prefix, current_pid,
+                          thd->thread_id, thd->tmp_table++);
+  if (lower_case_table_names)
+  {
+    // Ok to use latin1 as the file name is in the form '#sql-exchange-abc-def'
+    my_casedn_str_latin1(to->str);
+  }
+}
+
+
+/**
   Create path to a temporary table mysql_tmpdir/#sql-temptable-1234-12-1
   (i.e. to its .FRM file but without an extension).
 
@@ -652,18 +671,15 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
 
 uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen)
 {
+  LEX_STRING name;
   DBUG_ENTER("build_tmptable_filename");
 
-  char *p= strnmov(buff, mysql_tmpdir, bufflen);
-  my_snprintf(p, bufflen - (p - buff), "/%s-temptable-%lx-%llx-%x",
-              tmp_file_prefix, current_pid,
-              thd->thread_id, thd->tmp_table++);
+  char *p= strnmov(buff, mysql_tmpdir, bufflen-2);
+  *p++= '/';
 
-  if (lower_case_table_names)
-  {
-    /* Convert all except tmpdir to lower case */
-    my_casedn_str_latin1(p);
-  }
+  name= {p, bufflen - (p - buff) };
+
+  make_tmp_table_name(thd, &name, "temptable");
 
   size_t length= unpack_filename(buff, buff);
   DBUG_PRINT("exit", ("buff: '%s'", buff));
@@ -707,9 +723,10 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
                                  bool backup)
 {
   char tmp_name[FN_REFLEN];
-  my_snprintf(tmp_name, sizeof (tmp_name), "%s-%s-%lx-%s", tmp_file_prefix,
+
+  my_snprintf(tmp_name, sizeof(tmp_name), "%s-%s-%lx-%s", tmp_file_prefix,
               backup ? "backup" : "shadow",
-              (ulong) current_thd->thread_id, lpt->alter_info->table_name.str);
+              (ulong) lpt->thd->thread_id, lpt->alter_info->table_name.str);
   return build_table_filename(buff, bufflen, lpt->alter_info->db.str, tmp_name,
                               "", FN_IS_TMP);
 }
