@@ -109,7 +109,7 @@ extern my_bool opt_readonly;
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
 #include "row0ext.h"
-#include "handler0binlog.h"
+#include "innodb_binlog.h"
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
