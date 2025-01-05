@@ -2749,7 +2749,6 @@ bool ddl_log_close_binlogged_events(HASH *xids)
   @retval 0     Ok.
   @retval > 0   Fatal error. We have to abort (can't create ddl log)
   @return < -1  Recovery failed, but new log exists and is usable
-
 */
 
 int ddl_log_execute_recovery()
