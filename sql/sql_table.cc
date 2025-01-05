@@ -5714,7 +5714,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #endif
 
   /*
-    We the open source table to get its description in HA_CREATE_INFO
+    We open source table to get its description in HA_CREATE_INFO
     and Alter_info objects. This also acquires a shared metadata lock
     on this table which ensures that no concurrent DDL operation will
     mess with it.
@@ -5723,6 +5723,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     that we can safely perform table creation.
     Thus by holding both these locks we ensure that our statement is
     properly isolated from all concurrent operations which matter.
+    If the target table exists, it will also be opened.
   */
 
   res= open_tables(thd, *create_info, &thd->lex->query_tables, &not_used, 0);
