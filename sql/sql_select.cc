@@ -21807,8 +21807,8 @@ TABLE *Create_tmp_table::start(THD *thd,
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path, "%s-%s-%lx-%llx-%x", tmp_file_prefix, param->tmp_name,
-            current_pid, thd->thread_id, thd->tmp_table++);
+    LEX_STRING tmp= {path, sizeof(path) };
+    make_tmp_table_name(thd, &tmp, param->tmp_name);
   }
 
   /*
