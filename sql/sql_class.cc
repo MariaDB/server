@@ -3105,7 +3105,7 @@ struct Item_change_record: public ilink
 
 
 /*
-  Register an item tree tree transformation, performed by the query
+  Register an item tree transformation, performed by the query
   optimizer. We need a pointer to runtime_memroot because it may be !=
   thd->mem_root (due to possible set_n_backup_active_arena called for thd).
 */
@@ -7936,6 +7936,18 @@ void THD::issue_unsafe_warnings()
 
 /**
   Log the current query.
+
+  @param qtype      Query type
+  @param query_arg  Query to be logged
+  @param query_len  Query length
+  @param is_trans   If table is transactional. This is need to know in which
+                    cache the table changes has been logged
+  @param direct     Set if the query should be done directly to binary
+                    log instead of to the binary log cache.
+  suppress_use      Don't write 'use database' to the binary log. Used with
+                    statements like DROP DATABASE.
+  errcode           The error code if the statement failed.
+
 
   The query will be logged in either row format or statement format
   depending on the value of @c current_stmt_binlog_format_row field and

@@ -1934,7 +1934,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           In special cases like "RENAME TABLE `#mysql50#somename` TO `somename`"
           or "ALTER DATABASE `#mysql50#somename` UPGRADE DATA DIRECTORY NAME"
           we might be given table or database name with "#mysql50#" prefix (and
-          trigger's definiton contains un-prefixed version of the same name).
+          trigger's definition contains un-prefixed version of the same name).
           To remove this prefix we use check_n_cut_mysql50_prefix().
         */
 

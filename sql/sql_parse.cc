@@ -3688,7 +3688,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     /*
       change LOCK TABLE WRITE to transaction
     */
-    if (lex->sql_command== SQLCOM_LOCK_TABLES && wsrep_convert_LOCK_to_trx)
+    if (lex->sql_command == SQLCOM_LOCK_TABLES && wsrep_convert_LOCK_to_trx)
     {
       for (TABLE_LIST *table= all_tables; table; table= table->next_global)
       {
@@ -3700,7 +3700,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 	}
       }
     }
-    if (lex->sql_command== SQLCOM_UNLOCK_TABLES &&
+    if (lex->sql_command == SQLCOM_UNLOCK_TABLES &&
 	thd->wsrep_converted_lock_session)
     {
       thd->wsrep_converted_lock_session= false;
