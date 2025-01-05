@@ -17,12 +17,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /**************************************************//**
-@file handler/handler0binlog.cc
+@file handler/innodb_binlog.cc
 InnoDB implementation of binlog.
 *******************************************************/
 
 #include "ut0compr_int.h"
-#include "handler0binlog.h"
+#include "innodb_binlog.h"
 #include "mtr0log.h"
 #include "fsp0fsp.h"
 #include "trx0trx.h"

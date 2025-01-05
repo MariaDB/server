@@ -87,7 +87,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "btr0pcur.h"
 #include "ibuf0ibuf.h"
-#include "handler0binlog.h"
+#include "innodb_binlog.h"
 #include "zlib.h"
 #include "log.h"
 

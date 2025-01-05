@@ -17,12 +17,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /**************************************************//**
-@file include/fsp0binlog.h
+@file include/fsp_binlog.h
 InnoDB implementation of binlog.
 *******************************************************/
 
-#ifndef fsp0binlog_h
-#define fsp0binlog_h
+#ifndef fsp_binlog_h
+#define fsp_binlog_h
 
 #include <utility>
 #include <atomic>
@@ -207,4 +207,4 @@ extern dberr_t fsp_binlog_tablespace_create(uint64_t file_no,
 extern std::pair<uint64_t, uint64_t> fsp_binlog_write_chunk(
   struct chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type);
 
-#endif /* fsp0binlog_h */
+#endif /* fsp_binlog_h */
