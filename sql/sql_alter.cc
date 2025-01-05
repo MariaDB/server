@@ -454,15 +454,8 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
   }
 
   tmp_name.str= tmp_name_buff;
-  tmp_name.length= my_snprintf(tmp_name_buff, sizeof(tmp_name_buff),
-                               "%s-alter-%lx-%llx",
-                               tmp_file_prefix, current_pid, thd->thread_id);
-  /* Safety fix for InnoDB */
-  if (lower_case_table_names)
-  {
-    // Ok to latin1, as the file name is in the form '#sql-alter-abc-def'
-    tmp_name.length= my_casedn_str_latin1(tmp_name_buff);
-  }
+  tmp_name.length= sizeof(tmp_name_buff);
+  make_tmp_table_name(thd, (LEX_STRING*) &tmp_name, "alter");
 
   if (table_list->table->s->tmp_table == NO_TMP_TABLE)
   {
