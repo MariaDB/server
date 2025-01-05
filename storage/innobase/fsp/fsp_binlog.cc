@@ -17,7 +17,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /**************************************************//**
-@file fsp/fsp0binlog.cc
+@file fsp/fsp_binlog.cc
 InnoDB implementation of binlog.
 *******************************************************/
 
@@ -25,8 +25,8 @@ InnoDB implementation of binlog.
 #include "fsp0fsp.h"
 #include "buf0flu.h"
 #include "trx0trx.h"
-#include "fsp0binlog.h"
-#include "handler0binlog.h"
+#include "fsp_binlog.h"
+#include "innodb_binlog.h"
 
 #include "rpl_gtid_base.h"
 #include "log.h"
