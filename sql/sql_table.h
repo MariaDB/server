@@ -95,6 +95,7 @@ void build_lower_case_table_filename(char *buff, size_t bufflen,
                                      const LEX_CSTRING *table,
                                      uint flags);
 uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
+void make_tmp_table_name(THD *thd, LEX_STRING *to, const char *prefix);
 bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
                           const LEX_CSTRING *add);
 
