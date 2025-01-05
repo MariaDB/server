@@ -47,7 +47,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0xa.h"
 #include "ut0pool.h"
 #include "ut0vec.h"
-#include "handler0binlog.h"
+#include "innodb_binlog.h"
 #include "log.h"
 
 #include <set>

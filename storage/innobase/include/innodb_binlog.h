@@ -17,15 +17,15 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /**************************************************//**
-@file include/handler0binlog.h
+@file include/innodb_binlog.h
 InnoDB implementation of binlog.
 *******************************************************/
 
-#ifndef handler0binlog_h
-#define handler0binlog_h
+#ifndef innodb_binlog_h
+#define innodb_binlog_h
 
 #include "univ.i"
-#include "fsp0binlog.h"
+#include "fsp_binlog.h"
 
 
 struct fil_space_t;
@@ -94,4 +94,4 @@ extern bool innobase_binlog_write_direct
   (IO_CACHE *cache, handler_binlog_event_group_info *binlog_info,
    const rpl_gtid *gtid);
 
-#endif /* handler0binlog_h */
+#endif /* innodb_binlog_h */
