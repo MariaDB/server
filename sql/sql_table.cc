@@ -911,7 +911,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     if (write_log_replace_frm(lpt, part_info->list->entry_pos,
                               (const char*) bak_path,
                               (const char*) path) ||
-        ddl_log_write_execute_entry(part_info->list->entry_pos,
+        ddl_log_write_execute_entry(part_info->list->entry_pos, 0,
                                     &part_info->execute_entry))
     {
       mysql_mutex_unlock(&LOCK_gdl);
