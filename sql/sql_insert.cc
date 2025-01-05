@@ -4006,7 +4006,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
     DBUG_RETURN(res);
 
   /*
-    If sel_res is not empty, it means we have items in returing_list.
+    If sel_res is not empty, it means we have items in returning_list.
     So we prepare the list now
   */
   if (sel_res)
@@ -4747,12 +4747,12 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
     switch (item->type())
     {
-    /*
-      We have to take into account both the real table's fields and
-      pseudo-fields used in trigger's body. These fields are used
-      to copy defaults values later inside constructor of
-      the class Create_field.
-    */
+      /*
+        We have to take into account both the real table's fields and
+        pseudo-fields used in trigger's body. These fields are used
+        to copy defaults values later inside constructor of
+        the class Create_field.
+      */
     case Item::FIELD_ITEM:
     case Item::TRIGGER_FIELD_ITEM:
       table_field= ((Item_field *) item)->field;
@@ -4792,7 +4792,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
 
-  /* Check if LOCK TABLES + CREATE OR REPLACE of existing normal table*/
+  /* Check if LOCK TABLES + CREATE OR REPLACE of existing normal table */
   if (thd->locked_tables_mode && table_list->table &&
       !create_info->tmp_table())
   {
@@ -5372,7 +5372,7 @@ bool select_create::send_eof()
     }
 #endif /* WITH_WSREP */
 
-    /* Log query to ddl log */
+    /* Log changed table to ddl log */
     backup_log_info ddl_log;
     bzero(&ddl_log, sizeof(ddl_log));
     ddl_log.query= { C_STRING_WITH_LEN("CREATE") };
