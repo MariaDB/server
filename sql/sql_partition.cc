@@ -6746,7 +6746,7 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6802,7 +6802,7 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6836,7 +6836,7 @@ static bool write_log_convert_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   if (write_log_convert_partition(lpt, &next_entry, (const char*)path))
     goto error;
   DBUG_ASSERT(next_entry == part_info->list->entry_pos);
-  if (ddl_log_write_execute_entry(part_info->list->entry_pos,
+  if (ddl_log_write_execute_entry(part_info->list->entry_pos, 0,
                                   &part_info->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
@@ -6892,7 +6892,7 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
 
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                   &part_info->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
@@ -6960,7 +6960,7 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
   /* Overwrite the revert execute log entry with this retry execute entry */
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
