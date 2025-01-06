@@ -364,8 +364,10 @@ char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
+static bool opt_bin_log_nonempty, opt_bin_log_path;
 char *opt_binlog_storage_engine= const_cast<char *>("");
 static plugin_ref opt_binlog_engine_plugin;
+char *opt_binlog_directory;
 handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
@@ -5063,6 +5065,7 @@ static int init_server_components()
 
     char buf[FN_REFLEN];
     const char *ln;
+    /* ToDo: Here we also need to add in opt_binlog_directory, if given. */
     ln= mysql_bin_log.generate_name(opt_bin_logname, "-bin", 1, buf);
     if (!opt_bin_logname[0] && !opt_binlog_index_name)
     {
@@ -5461,6 +5464,14 @@ static int init_server_components()
   if (init_gtid_pos_auto_engines())
     unireg_abort(1);
 
+  if (opt_binlog_directory && opt_binlog_directory[0] &&
+      opt_bin_log_path)
+  {
+    sql_print_error("Cannot specify a directory path for the binlog in "
+                    "--log-bin when --binlog-directory-path is also used");
+    unireg_abort(1);
+  }
+
   if (opt_binlog_storage_engine && *opt_binlog_storage_engine && !opt_bootstrap)
   {
     LEX_CSTRING name= { opt_binlog_storage_engine, strlen(opt_binlog_storage_engine) };
@@ -5473,15 +5484,24 @@ static int init_server_components()
         sql_print_error("Unknown/unsupported storage engine: %s",
                         opt_binlog_storage_engine);
       else
-        sql_print_error("Engine %s is not available for --innodb-binlog-engine",
+        sql_print_error("Engine %s is not available for "
+                        "--binlog-storage-engine",
                         opt_binlog_storage_engine);
       unireg_abort(1);
     }
     if (!opt_binlog_engine_hton->binlog_write_direct ||
         !opt_binlog_engine_hton->get_binlog_reader)
     {
-      sql_print_error("Engine %s does not support --innodb-binlog-engine",
+      sql_print_error("Engine %s does not support --binlog-storage-engine",
                       opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+
+    if (opt_bin_log_nonempty)
+    {
+      sql_print_error("Binlog name can not be set with --log-bin when "
+                      "--binlog-storage-engine is used. Use --binlog-directory "
+                      "to specify a separate directory for binlogs");
       unireg_abort(1);
     }
   }
@@ -5538,15 +5558,20 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
+    mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
     int error;
     if (opt_binlog_engine_hton)
     {
-      if ((*opt_binlog_engine_hton->binlog_init)((size_t)max_binlog_size))
+      mysql_mutex_lock(log_lock);
+      if ((*opt_binlog_engine_hton->binlog_init)((size_t)max_binlog_size,
+                                                 opt_binlog_directory))
         error= 1;
+      mysql_mutex_unlock(log_lock);
+      if (unlikely(error))
+        unireg_abort(1);
     }
     if (true) /* ToDo: `else` branch (don't open legacy binlog if using engine implementation). */
     {
-      mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
       mysql_mutex_lock(log_lock);
       error= mysql_bin_log.open(opt_bin_logname, 0, 0,
                                 WRITE_CACHE, max_binlog_size, 0, TRUE);
@@ -8256,6 +8281,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int) OPT_BIN_LOG:
     opt_bin_log= MY_TEST(argument != disabled_my_option);
     opt_bin_log_used= 1;
+    opt_bin_log_nonempty= (argument && argument[0]);
+    opt_bin_log_path= argument &&
+      (strchr(argument, FN_LIBCHAR) || strchr(argument, FN_LIBCHAR2));
     break;
   case (int) OPT_LOG_BASENAME:
   {
