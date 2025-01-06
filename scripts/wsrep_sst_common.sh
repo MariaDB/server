@@ -209,6 +209,7 @@ INNODB_DATA_HOME_DIR=$(trim_dir "${INNODB_DATA_HOME_DIR:-}")
 INNODB_LOG_GROUP_HOME=$(trim_dir "${INNODB_LOG_GROUP_HOME:-}")
 INNODB_UNDO_DIR=$(trim_dir "${INNODB_UNDO_DIR:-}")
 INNODB_BUFFER_POOL=""
+INNODB_BUFFER_POOL_SIZE=""
 INNODB_FORCE_RECOVERY=""
 INNOEXTRA=""
 
@@ -327,6 +328,10 @@ case "$1" in
         ;;
     '--innodb-buffer-pool-filename')
         readonly INNODB_BUFFER_POOL=$(trim_string "$2")
+        shift
+        ;;
+    '--innodb-buffer-pool-size')
+        readonly INNODB_BUFFER_POOL_SIZE=$(trim_string "$2")
         shift
         ;;
     '--defaults-file')
@@ -607,6 +612,12 @@ case "$1" in
                        fi
                        skip_mysqld_arg=1
                        ;;
+                   '--innodb-buffer-pool-size')
+                       if [ -z "$INNODB_BUFFER_POOL_SIZE" ]; then
+                           MYSQLD_OPT_INNODB_BUFFER_POOL_SIZE=$(trim_string "$value")
+                       fi
+                       skip_mysqld_arg=1
+                       ;;
                    '--innodb-force-recovery')
                        if [ -n "$value" -a "$value" != "0" ]; then
                            INNODB_FORCE_RECOVERY=$(trim_string "$value")
@@ -696,6 +707,10 @@ if [ -n "${MYSQLD_OPT_INNODB_BUFFER_POOL:-}" -a \
      -z "$INNODB_BUFFER_POOL" ]; then
     readonly INNODB_BUFFER_POOL="$MYSQLD_OPT_INNODB_BUFFER_POOL"
 fi
+if [ -n "${MYSQLD_OPT_INNODB_BUFFER_POOL_SIZE:-}" -a \
+     -z "$INNODB_BUFFER_POOL_SIZE" ]; then
+    readonly INNODB_BUFFER_POOL_SIZE="$MYSQLD_OPT_INNODB_BUFFER_POOL_SIZE"
+fi
 if [ -n "${MYSQLD_OPT_LOG_BIN:-}" -a \
      -z "$WSREP_SST_OPT_BINLOG" ]; then
     readonly WSREP_SST_OPT_BINLOG="$MYSQLD_OPT_LOG_BIN"
@@ -751,6 +766,9 @@ if [ -n "$INNODB_UNDO_DIR" ]; then
 fi
 if [ -n "$INNODB_BUFFER_POOL" ]; then
     INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-filename='$INNODB_BUFFER_POOL'"
+fi
+if [ -n "$INNODB_BUFFER_POOL_SIZE" ]; then
+    INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-size='$INNODB_BUFFER_POOL_SIZE'"
 fi
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     INNOEXTRA="$INNOEXTRA --log-bin='$WSREP_SST_OPT_BINLOG'"
@@ -1775,14 +1793,14 @@ simple_cleanup()
 create_data()
 {
     OLD_PWD="$(pwd)"
+    DATA_DIR="$OLD_PWD"
 
     if [ -n "$DATA" -a "$DATA" != '.' ]; then
         [ ! -d "$DATA" ] && mkdir -p "$DATA"
         cd "$DATA"
+        DATA_DIR="$(pwd)"
+        cd "$OLD_PWD"
     fi
-    DATA_DIR="$(pwd)"
-
-    cd "$OLD_PWD"
 }
 
 create_dirs()
