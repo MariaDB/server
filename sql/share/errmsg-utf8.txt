@@ -11872,10 +11872,8 @@ ER_VERS_ENGINE_UNSUPPORTED
         spa "No se soporta versionado de sistema de transacción precisa para %`s"
         sw "Toleo la mfumo wa muamala kamili kwa %`s halitumiki"
 
-ER_UNUSED_23
-        eng "You should never see it"
-        spa "Nunca debería vd de ver esto"
-        sw "Hupaswi kuiona kamwe"
+ER_WRONG_VERSIONING_RANGE
+        eng "Incorrect system-version range '%-.32s' value: '%-.128T' and '%-.32s' value: '%-.128T'"
 
 ER_PARTITION_WRONG_TYPE
         chi "错误分区类型%`s，应当是%`s"
@@ -12270,5 +12268,27 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
+ER_SEQUENCE_TABLE_HAS_WRONG_NUMBER_OF_COLUMNS
+        eng "Wrong number of columns"
+ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_KEYS
+        eng "Sequence tables cannot have any keys"
+ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
+        eng "Sequence tables cannot have any constraints"
+ER_SEQUENCE_TABLE_ORDER_BY
+        eng "ORDER BY"
+ER_VARIABLE_IGNORED
+        eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+ER_INCORRECT_COLUMN_NAME_COUNT
+        eng "Incorrect column name count for derived table"
+        chi "派生表的列名计数不正确"
+WARN_SORTING_ON_TRUNCATED_LENGTH
+        eng "%llu values were longer than max_sort_length. Sorting used only the first %lu bytes"
+        ger "%llu Werte waren länger als max_sort_length. Sie wurden anhand der ersten %lu Bytes verglichen"
+        rus "%llu значений были длиннее, чем max_sort_length. Их сортировка проведена по первым %lu байтам"
+        swe "%llu värden var längre än max_sort_length=%lu"
+ER_VECTOR_BINARY_FORMAT_INVALID
+        eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
+ER_VECTOR_FORMAT_INVALID
+        eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
 ER_PSEUDO_THREAD_ID_OVERWRITE
         eng "Pseudo thread id should not be modified by the client as it will be overwritten"
