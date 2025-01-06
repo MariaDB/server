@@ -1535,7 +1535,7 @@ struct handlerton
   void *optimizer_costs;                        /* Costs are stored here */
 
   /* Optional implementation of binlog in the engine. */
-  bool (*binlog_init)(size_t binlog_size);
+  bool (*binlog_init)(size_t binlog_size, const char *directory);
   /* Binlog an event group that doesn't go through commit_ordered. */
   bool (*binlog_write_direct)(IO_CACHE *cache,
                               handler_binlog_event_group_info *binlog_info,

@@ -106,6 +106,7 @@ uint temp_pool_set_next();
 extern bool opt_large_files;
 extern bool opt_update_log, opt_bin_log, opt_error_log, opt_bin_log_compress;
 extern char *opt_binlog_storage_engine;
+extern char *opt_binlog_directory;
 extern handlerton *opt_binlog_engine_hton;
 extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
