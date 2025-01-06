@@ -1,5 +1,5 @@
---source include/have_innodb_binlog.inc
 --source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
 
 CREATE TABLE sbtest1(
   id INTEGER NOT NULL AUTO_INCREMENT,

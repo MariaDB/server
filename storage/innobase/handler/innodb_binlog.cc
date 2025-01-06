@@ -33,6 +33,7 @@ InnoDB implementation of binlog.
 
 
 uint32_t innodb_binlog_size_in_pages;
+const char *innodb_binlog_directory;
 
 /* Current write position in active binlog file. */
 uint32_t binlog_cur_page_no;
@@ -434,7 +435,7 @@ innodb_binlog_startup_init()
   use the innodb implementation (with --binlog-storage-engine=innodb).
 */
 bool
-innodb_binlog_init(size_t binlog_size)
+innodb_binlog_init(size_t binlog_size, const char *directory)
 {
   uint64_t pages= binlog_size >> srv_page_size_shift;
   if (UNIV_LIKELY(pages > (uint64_t)UINT32_MAX)) {
@@ -449,6 +450,16 @@ innodb_binlog_init(size_t binlog_size)
       (pages << srv_page_size_shift) << ".";
   }
   innodb_binlog_size_in_pages= (uint32_t)pages;
+
+  if (!directory || !directory[0])
+    directory= ".";
+  else if (strlen(directory) + BINLOG_NAME_MAX_LEN > OS_FILE_MAX_PATH)
+  {
+    ib::error() << "Specified binlog directory path '" << directory <<
+      "' is too long.";
+    return true;
+  }
+  innodb_binlog_directory= directory;
 
   first_open_binlog_file_no= ~(uint64_t)0;
   binlog_cur_end_offset[0].store(~(uint64_t)0, std::memory_order_relaxed);
@@ -537,7 +548,7 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   const uint32_t page_size= (uint32_t)srv_page_size;
   const uint32_t page_size_shift= (uint32_t)srv_page_size_shift;
   const uint32_t idx= file_no & 1;
-  char file_name[BINLOG_NAME_LEN];
+  char file_name[OS_FILE_MAX_PATH];
   uint32_t p_0, p_1, p_2, last_nonempty;
   dberr_t err;
   byte *p, *page_end;
@@ -643,9 +654,15 @@ innodb_binlog_discover()
   uint64_t file_no;
   const uint32_t page_size= (uint32_t)srv_page_size;
   const uint32_t page_size_shift= (uint32_t)srv_page_size_shift;
-  MY_DIR *dir= my_dir(".", MYF(MY_WME|MY_WANT_STAT));  // ToDo: configurable binlog directory, and don't ask my_dir to stat every file found
+  MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(MY_WANT_STAT));
   if (!dir)
+  {
+    if (my_errno == ENOENT)
+      return 0;
+    ib::error() << "Could not read the binlog directory '" <<
+      innodb_binlog_directory << "', error code " << my_errno << ".";
     return -1;
+  }
 
   struct found_binlogs UNINIT_VAR(binlog_files);
   binlog_files.found_binlogs= 0;
@@ -1110,7 +1127,7 @@ binlog_state_recover()
   state.init();
   uint64_t diff_state_interval= 0;
   uint32_t page_no= 0;
-  char filename[BINLOG_NAME_LEN];
+  char filename[OS_FILE_MAX_PATH];
 
   binlog_name_make(filename,
                    active_binlog_file_no.load(std::memory_order_relaxed));
@@ -1909,7 +1926,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
       }
       if (cur_open_file < (File)0)
       {
-        char filename[BINLOG_NAME_LEN];
+        char filename[OS_FILE_MAX_PATH];
         binlog_name_make(filename, file_no);
         cur_open_file= my_open(filename, O_RDONLY | O_BINARY, MYF(0));
         if (cur_open_file < (File)0)
