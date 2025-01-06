@@ -1,5 +1,10 @@
---source include/have_innodb_binlog.inc
 --source include/have_binlog_format_mixed.inc
+# ToDo: For now, this has to come _after_ have_log_bin.inc (or
+# have_binlog_format_*.inc), to override --log-bin=master-bin with empty
+# --log-bin, as engine does not allow to set the binlog name.
+# Alternatively, maybe could have separate have_innodb_binlog_format_*.inc
+# files and only need to include the one.
+--source include/have_innodb_binlog.inc
 
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 --let $gtid_pos= `SELECT @@last_gtid`

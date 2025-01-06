@@ -166,7 +166,7 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
   const uint32_t page_size= (uint32_t)srv_page_size;
   const uint32_t page_size_shift= srv_page_size_shift;
 
-  os_offset_t binlog_size= max_binlog_size;
+  os_offset_t binlog_size= innodb_binlog_size_in_pages << srv_page_size_shift;
   if (open_empty && file_size < binlog_size) {
     /*
       A crash may have left a partially pre-allocated file. If so, extend it
@@ -268,7 +268,7 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, fil_space_t **new_space)
 	if(srv_read_only_mode)
 		return DB_ERROR;
 
-        char name[BINLOG_NAME_LEN];
+        char name[OS_FILE_MAX_PATH];
         binlog_name_make(name, file_no);
 
 	os_file_create_subdirs_if_needed(name);
@@ -620,7 +620,7 @@ binlog_chunk_reader::fetch_current_page()
     /* Tablespace is not open, just read from the file. */
     if (cur_file_handle < (File)0)
     {
-      char filename[BINLOG_NAME_LEN];
+      char filename[OS_FILE_MAX_PATH];
       MY_STAT stat_buf;
 
       binlog_name_make(filename, s.file_no);

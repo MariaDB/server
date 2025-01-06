@@ -1,6 +1,6 @@
---source include/have_innodb_binlog.inc
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
+--source include/have_innodb_binlog.inc
 
 # Test a number of transactions that are large and get interleaved with each
 # other over multiple binlog files.

@@ -62,25 +62,29 @@ struct chunk_data_base {
 
 #define BINLOG_NAME_BASE "binlog-"
 #define BINLOG_NAME_EXT ".ibb"
-/* '.' + '/' + "binlog-" + (<=20 digits) + '.' + "ibb" + '\0'. */
-#define BINLOG_NAME_LEN 1 + 1 + 7 + 20 + 1 + 3 + 1
-static inline void
-binlog_name_make(char name_buf[BINLOG_NAME_LEN], uint64_t file_no)
-{
-  sprintf(name_buf, "./" BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT,
-          file_no);
-}
+/* '/' + "binlog-" + (<=20 digits) + '.' + "ibb" + '\0'. */
+#define BINLOG_NAME_MAX_LEN 1 + 1 + 7 + 20 + 1 + 3 + 1
 
 
 extern uint32_t innodb_binlog_size_in_pages;
+extern const char *innodb_binlog_directory;
 extern uint32_t binlog_cur_page_no;
 extern uint32_t binlog_cur_page_offset;
 extern ulonglong innodb_binlog_state_interval;
 extern rpl_binlog_state_base binlog_diff_state;
 
 
+static inline void
+binlog_name_make(char name_buf[OS_FILE_MAX_PATH], uint64_t file_no)
+{
+  snprintf(name_buf, OS_FILE_MAX_PATH,
+           "%s/" BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT,
+           innodb_binlog_directory, file_no);
+}
+
+
 extern void innodb_binlog_startup_init();
-extern bool innodb_binlog_init(size_t binlog_size);
+extern bool innodb_binlog_init(size_t binlog_size, const char *directory);
 extern void innodb_binlog_close();
 extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                               buf_block_t * &block, uint32_t &page_no,
