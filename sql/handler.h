@@ -1230,6 +1230,17 @@ typedef struct st_ha_create_table_option {
   struct st_mysql_sys_var *var;
 } ha_create_table_option;
 
+
+/* Struct used to return binlog file list for SHOW BINARY LOGS from engine. */
+struct binlog_file_entry
+{
+  binlog_file_entry *next;
+  LEX_CSTRING name;
+  /* The size is filled in by server, engine need not return it. */
+  my_off_t size;
+};
+
+
 class handler;
 class group_by_handler;
 class derived_handler;
@@ -1552,6 +1563,8 @@ struct handlerton
   void (*binlog_oob_free)(THD *thd, void *engine_data);
   /* Obtain an object to allow reading from the binlog. */
   handler_binlog_reader * (*get_binlog_reader)();
+  /* Obtain list of binlog files (SHOw BINARY LOGS). */
+  binlog_file_entry * (*get_binlog_file_list)(MEM_ROOT *mem_root);
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
