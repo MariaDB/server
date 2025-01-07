@@ -4033,6 +4033,34 @@ static void innobase_update_optimizer_costs(OPTIMIZER_COSTS *costs)
 }
 
 
+static binlog_file_entry *innodb_get_binlog_file_list(MEM_ROOT *mem_root)
+{
+  uint64_t first, last;
+  if (innodb_find_binlogs(&first, &last))
+    return nullptr;
+  binlog_file_entry *list;
+  binlog_file_entry **next_ptr= &list;
+  for (uint64_t i= first; i <= last; ++i)
+  {
+    binlog_file_entry *e= (binlog_file_entry *)alloc_root(mem_root, sizeof(*e));
+    if (!e)
+      return nullptr;
+    char name_buf[OS_FILE_MAX_PATH];
+    binlog_name_make(name_buf, i);
+    e->name.length= strlen(name_buf);
+    char *str= (char *)alloc_root(mem_root, e->name.length + 1);
+    if (!str)
+      return nullptr;
+    strcpy(str, name_buf);
+    e->name.str= str;
+    *next_ptr= e;
+    next_ptr= &(e->next);
+  }
+  *next_ptr= nullptr;
+  return list;
+}
+
+
 /** Initialize the InnoDB storage engine plugin.
 @param[in,out]	p	InnoDB handlerton
 @return error code
@@ -4106,6 +4134,7 @@ static int innodb_init(void* p)
         innobase_hton->binlog_oob_data= innodb_binlog_oob;
         innobase_hton->binlog_oob_free= innodb_free_oob;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
+        innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
 
 	innodb_remember_check_sysvar_funcs();
 
