@@ -124,7 +124,8 @@ public:
       bool has_delete_triggers= use_triggers &&
                                 table->triggers->has_delete_triggers();
       bool referenced_by_fk= table->file->referenced_by_foreign_key();
-      can_optimize= !referenced_by_fk && !has_delete_triggers;
+      can_optimize= !referenced_by_fk && !has_delete_triggers
+                    && !versioned && !table->versioned();
     }
   }
   Write_record(THD *thd, TABLE *table, COPY_INFO *info,
