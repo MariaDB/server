@@ -6185,7 +6185,8 @@ static bool xtrabackup_prepare_func(char** argv)
 		srv_max_dirty_pages_pct_lwm = srv_max_buf_pool_modified_pct;
 	}
 
-        if (innodb_init()) {
+	recv_sys.recovery_on = false;
+	if (innodb_init()) {
 		goto error_cleanup;
 	}
 
