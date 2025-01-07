@@ -142,6 +142,8 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_SHOW_COLUMNS_LEN sizeof(SPIDER_SQL_SHOW_COLUMNS_STR) - 1
 #define SPIDER_SQL_SELECT_COLUMNS_STR "select `column_name`,`column_default`,`is_nullable`,`character_set_name`,`collation_name`,`column_type`,`extra` from `information_schema`.`columns` where `table_schema` = "
 #define SPIDER_SQL_SELECT_COLUMNS_LEN sizeof(SPIDER_SQL_SELECT_COLUMNS_STR) - 1
+#define SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_STR "set statement lock_wait_timeout=1 for "
+#define SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN sizeof(SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_STR) - 1
 
 #define SPIDER_SQL_AUTO_INCREMENT_STR " auto_increment"
 #define SPIDER_SQL_AUTO_INCREMENT_LEN sizeof(SPIDER_SQL_AUTO_INCREMENT_STR) - 1
@@ -7049,6 +7051,7 @@ int spider_mbase_share::append_show_table_status()
 
     if (
       show_table_status[0 + (2 * roop_count)].reserve(
+        SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN +
         SPIDER_SQL_SHOW_TABLE_STATUS_LEN +
         db_names_str[roop_count].length() +
         SPIDER_SQL_LIKE_LEN + table_names_str[roop_count].length() +
@@ -7063,6 +7066,8 @@ int spider_mbase_share::append_show_table_status()
     )
       goto error;
     str = &show_table_status[0 + (2 * roop_count)];
+    str->q_append(SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_STR,
+                  SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN);
     str->q_append(
       SPIDER_SQL_SHOW_TABLE_STATUS_STR, SPIDER_SQL_SHOW_TABLE_STATUS_LEN);
     str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
@@ -7180,6 +7185,7 @@ int spider_mbase_share::append_show_index()
 
     if (
       show_index[0 + (2 * roop_count)].reserve(
+        SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN +
         SPIDER_SQL_SHOW_INDEX_LEN + db_names_str[roop_count].length() +
         SPIDER_SQL_DOT_LEN +
         table_names_str[roop_count].length() +
@@ -7194,6 +7200,8 @@ int spider_mbase_share::append_show_index()
     )
       goto error;
     str = &show_index[0 + (2 * roop_count)];
+    str->q_append(SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_STR,
+                  SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN);
     str->q_append(
       SPIDER_SQL_SHOW_INDEX_STR, SPIDER_SQL_SHOW_INDEX_LEN);
     append_table_name(str, roop_count);
@@ -7323,16 +7331,19 @@ int spider_mbase_share::discover_table_structure(
     str->length(strlen);
     sql_str.length(0);
     if (sql_str.reserve(
+          SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN +
       SPIDER_SQL_SELECT_COLUMNS_LEN + db_names_str[roop_count].length() +
       SPIDER_SQL_AND_LEN + SPIDER_SQL_TABLE_NAME_LEN + SPIDER_SQL_EQUAL_LEN +
       table_names_str[roop_count].length() + SPIDER_SQL_ORDER_LEN +
       SPIDER_SQL_ORDINAL_POSITION_LEN +
       /* SPIDER_SQL_VALUE_QUOTE_LEN */ 8 +
       SPIDER_SQL_SEMICOLON_LEN +
+          SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN +
       SPIDER_SQL_SHOW_INDEX_LEN + db_names_str[roop_count].length() +
       SPIDER_SQL_DOT_LEN + table_names_str[roop_count].length() +
       /* SPIDER_SQL_NAME_QUOTE_LEN */ 4 +
       SPIDER_SQL_SEMICOLON_LEN +
+          SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN +
       SPIDER_SQL_SHOW_TABLE_STATUS_LEN + db_names_str[roop_count].length() +
       SPIDER_SQL_LIKE_LEN + table_names_str[roop_count].length() +
       /* SPIDER_SQL_NAME_QUOTE_LEN */ 4
@@ -7340,6 +7351,8 @@ int spider_mbase_share::discover_table_structure(
       DBUG_PRINT("info",("spider alloc sql_str error"));
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
+    sql_str.q_append(SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_STR,
+                     SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN);
     sql_str.q_append(SPIDER_SQL_SELECT_COLUMNS_STR,
       SPIDER_SQL_SELECT_COLUMNS_LEN);
     sql_str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
@@ -7357,9 +7370,13 @@ int spider_mbase_share::discover_table_structure(
     sql_str.q_append(SPIDER_SQL_ORDINAL_POSITION_STR,
       SPIDER_SQL_ORDINAL_POSITION_LEN);
     sql_str.q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
+    sql_str.q_append(SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_STR,
+                     SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN);
     sql_str.q_append(SPIDER_SQL_SHOW_INDEX_STR, SPIDER_SQL_SHOW_INDEX_LEN);
     append_table_name(&sql_str, roop_count);
     sql_str.q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
+    sql_str.q_append(SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_STR,
+                     SPIDER_SQL_SET_STATEMENT_LOCK_WAIT_LEN);
     sql_str.q_append(
       SPIDER_SQL_SHOW_TABLE_STATUS_STR, SPIDER_SQL_SHOW_TABLE_STATUS_LEN);
     sql_str.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);

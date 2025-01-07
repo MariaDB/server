@@ -4753,7 +4753,12 @@ SPIDER_SHARE *spider_get_share(
 #endif
           1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
       ) {
-        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+        /*
+          TODO: use ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM
+          instead like in MDEV-29676
+        */
+        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM &&
+            *error_num != ER_LOCK_WAIT_TIMEOUT)
         {
           thd->clear_error();
         } else {
@@ -4777,7 +4782,8 @@ SPIDER_SHARE *spider_get_share(
 #endif
           1))
       ) {
-        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM &&
+            *error_num != ER_LOCK_WAIT_TIMEOUT)
         {
           thd->clear_error();
         } else {
