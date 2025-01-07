@@ -990,13 +990,6 @@ static int send_heartbeat_event(binlog_send_info *info,
 }
 
 
-struct binlog_file_entry
-{
-  binlog_file_entry *next;
-  LEX_CSTRING name;
-  my_off_t size;
-};
-
 /**
    Read all binary logs and return as a list
 
@@ -1020,6 +1013,13 @@ get_binlog_list(MEM_ROOT *memroot, bool reverse= true,
   char *fname, *buff, *end_pos;
   binlog_file_entry *current_list= NULL, *current_link= NULL, *e;
   DBUG_ENTER("get_binlog_list");
+
+  if (opt_binlog_engine_hton)
+  {
+    if (already_locked)
+      mysql_bin_log.unlock_index();
+    DBUG_RETURN((*opt_binlog_engine_hton->get_binlog_file_list)(memroot));
+  }
 
   if (!mysql_bin_log.is_open())
   {
