@@ -1,6 +1,6 @@
 #
 # BUG#45214 
-# This test verifies if the slave I/O tread tries to reconnect to
+# This test verifies if the slave I/O thread tries to reconnect to
 # master when it tries to get the values of the UNIX_TIMESTAMP, SERVER_ID,
 # COLLATION_SERVER and TIME_ZONE from master under network disconnection.
 # The COLLATION_SERVER and TIME_ZONE are got only on master server version 4.

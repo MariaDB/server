@@ -1,0 +1,88 @@
+# This test is based on `rpl_get_master_version_and_clock`.
+DISABLE_QUERY_LOG;
+
+SOURCE include/have_debug.inc;
+SOURCE include/have_debug_sync.inc;
+SOURCE include/have_log_bin.inc; # The test is agnostic of binlog formats.
+LET $rpl_topology= 1->2, 1->3, 1->4;
+SOURCE include/rpl_init.inc;
+
+# '2013' CR_SERVER_LOST
+# '2003' CR_CONN_HOST_ERROR
+# '2002' CR_CONNECTION_ERROR
+# '2006' CR_SERVER_GONE_ERROR
+# '1053' ER_SERVER_SHUTDOWN
+LET $slave_io_errno= 1053, 2002, 2003, 2006, 2013;
+LET $status_items= Slave_IO_Running;
+LET $slave_param= $status_items;
+LET $slave_param_value= Yes;
+
+#CALL mtr.add_suppression("Slave I/O: Master command COM_REGISTER_SLAVE failed: .*");
+#CALL mtr.add_suppression("Slave I/O: .* failed with error: Lost connection to MySQL server at 'reading initial communication packet'");
+#CALL mtr.add_suppression("Fatal error: The slave I/O thread stops because master and slave have equal MySQL server ids; .*");
+#CALL mtr.add_suppression("Slave I/O thread .* register on master");
+
+DELIMITER //
+  FOR i IN 2..4 DO
+    LET $rpl_connection_name= server_`i`;
+    SOURCE include/rpl_connection.inc;
+    SOURCE include/stop_slave.inc;
+  END FOR;
+  //
+
+  FOR i IN 2..4 DO
+    LET $rpl_connection_name= server_`i`;
+    SOURCE include/rpl_connection.inc;
+    SET master_connect_retry= (i-1) % 3; # 1, 2, 0
+
+    ECHO Case 1: Retry for reconnecting from a simulated disconnection;
+    # This section is based on include/rpl_get_master_version_and_clock.test
+
+    SET original_dbug = @@GLOBAL.debug_dbug;
+    SET @@GLOBAL.debug_dbug= "d,debug_lock.before_get_UNIX_TIMESTAMP";
+    CHANGE PRIMARY TO master_connect_retry= master_connect_retry;
+    SOURCE include/start_slave.inc;
+    # The replica will hang in `get_master_version_and_clock`.
+
+    LET $rpl_server_number= 1;
+    SOURCE include/rpl_stop_server.inc; # shut the primary down
+    SET DEBUG_SYNC= "now SIGNAL signal.get_unix_timestamp";
+    LET $rpl_connection_name= server_`i`;
+    SOURCE include/rpl_connection.inc;
+    SET @@GLOBAL.debug_dbug= original_dbug;
+
+    LET $slave_io_error_is_nonfatal= 1;
+    SOURCE include/wait_for_slave_io_error.inc;
+    SOURCE include/show_slave_status.inc;
+    SLEEP 2.5; # sleep until master_retry_count*master_connect_retry exhausts
+    SOURCE include/show_slave_status.inc;
+
+    ECHO Case 2: Retry for a failed simulated new connection;
+
+    LET $slave_name= master_retry_count;
+    CHANGE PRIMARY $slave_name TO master_connect_retry= master_connect_retry;
+    SOURCE include/start_slave.inc;
+    START REPLICA $slave_name; # `start_slave.inc` only expects success
+    
+    LET $slave_io_error_is_nonfatal= 1;
+    SOURCE include/wait_for_slave_io_error.inc;
+    SOURCE include/show_slave_status.inc;
+    SLEEP 2.5; # ditto
+    SOURCE include/show_slave_status.inc;
+
+    # Cleanup
+    LET $rpl_server_number= 1;
+    SOURCE include/rpl_start_server.inc;
+    LET $rpl_connection_name= server_`i`;
+    SOURCE include/rpl_connection.inc;
+    RESET REPLICA $slave_name;
+    # `wait_for_slave_io_to_start.inc` fails if the IO thread has an error.
+    START REPLICA;
+    SOURCE include/wait_for_slave_param.inc;
+  END FOR;
+  //
+DELIMITER ;
+
+#SET DEBUG_SYNC= 'RESET';
+SOURCE include/rpl_end.inc;
+ENABLE_QUERY_LOG;
