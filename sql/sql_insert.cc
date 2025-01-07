@@ -2114,25 +2114,12 @@ int Write_record::replace_row(ha_rows *inserted, ha_rows *deleted)
     if (can_optimize && key_nr == last_unique_key)
     {
       DBUG_PRINT("info", ("Updating row using ha_update_row()"));
-      if (table->versioned(VERS_TRX_ID))
-        table->vers_start_field()->store(0, false);
-
       error= table->file->ha_update_row(table->record[1], table->record[0]);
 
       if (likely(!error))
         ++*deleted;
       else if (error != HA_ERR_RECORD_IS_THE_SAME)
         return on_ha_error(error);
-
-      if (versioned)
-      {
-        store_record(table, record[2]);
-        error= vers_insert_history_row(table);
-        restore_record(table, record[2]);
-        if (unlikely(error))
-          return on_ha_error(error);
-      }
-
       break;
     }
     else

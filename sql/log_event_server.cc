@@ -8720,8 +8720,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     return error;
   }
 
-  const bool history_change= m_table->versioned() ?
-    !m_table->vers_end_field()->is_max() : false;
   TABLE_LIST *tl= m_table->pos_in_table_list;
   uint8 trg_event_map_save= tl->trg_event_map;
 
@@ -8772,8 +8770,12 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   {
     if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
       m_table->vers_update_fields();
-    if (!history_change && !m_table->vers_end_field()->is_max())
+    Field *end= m_table->vers_end_field();
+    const uchar *old_ptr= end->ptr_in_record(m_table->record[1]);
+
+    if (end->is_max(old_ptr) && !end->is_max())
     {
+      // This is a versioned delete, and we'll have to invoke ON DELETE actions
       tl->trg_event_map|= trg2bit(TRG_EVENT_DELETE);
     }
   }
