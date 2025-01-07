@@ -69,7 +69,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     }
     if (info->s->file_map) /* Don't use cache if mmap */
       break;
-#if defined(HAVE_MMAP) && defined(HAVE_MADVISE)
+#if defined(HAVE_MMAP) && defined(HAVE_MADVISE) && !defined(HAVE_valgrind)
     if ((share->options & HA_OPTION_COMPRESS_RECORD))
     {
       mysql_mutex_lock(&share->intern_lock);
@@ -155,7 +155,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
       error=end_io_cache(&info->rec_cache);
       /* Sergei will insert full text index caching here */
     }
-#if defined(HAVE_MMAP) && defined(HAVE_MADVISE)
+#if defined(HAVE_MMAP) && defined(HAVE_MADVISE)  && !defined(HAVE_valgrind)
     if (info->opt_flag & MEMMAP_USED)
       madvise((char*) share->file_map, share->state.state.data_file_length,
               MADV_RANDOM);
@@ -320,7 +320,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     mi_extra_keyflag(info, function);
     break;
   case HA_EXTRA_MMAP:
-#ifdef HAVE_MMAP
+#if defined(HAVE_MMAP) && !defined(HAVE_valgrind)
     mysql_mutex_lock(&share->intern_lock);
     /*
       Memory map the data file if it is not already mapped. It is safe
