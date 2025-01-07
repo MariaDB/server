@@ -97,5 +97,6 @@ extern void innodb_binlog_trx(trx_t *trx, mtr_t *mtr);
 extern bool innobase_binlog_write_direct
   (IO_CACHE *cache, handler_binlog_event_group_info *binlog_info,
    const rpl_gtid *gtid);
+extern bool innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last);
 
 #endif /* innodb_binlog_h */
