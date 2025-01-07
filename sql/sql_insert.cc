@@ -4738,6 +4738,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       */
       if (open_table(thd, table_list, &ot_ctx))
       {
+        abort();
         quick_rm_table(thd, create_info->db_type, &table_list->db,
                        table_case_name(create_info, &table_list->table_name),
                        0);
