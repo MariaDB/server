@@ -40,6 +40,8 @@ while ($i < 10) {
   inc $i;
 }
 
+SHOW BINARY LOGS;
+
 --exec $MYSQL_BINLOG --start-position=$gtid_pos3 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog3.txt
 
 DROP TABLE t1;

@@ -667,7 +667,7 @@ innodb_binlog_discover()
   struct found_binlogs UNINIT_VAR(binlog_files);
   binlog_files.found_binlogs= 0;
   size_t num_entries= dir->number_of_files;
-  fileinfo *entries= dir-> dir_entry;
+  fileinfo *entries= dir->dir_entry;
   for (size_t i= 0; i < num_entries; ++i) {
     const char *name= entries[i].name;
     uint64_t idx;
@@ -2129,5 +2129,49 @@ innobase_binlog_write_direct(IO_CACHE *cache,
   mtr.commit();
   /* ToDo: Should we sync the log here? Maybe depending on an extra bool parameter? */
   /* ToDo: Presumably innodb_binlog_write_cache() should be able to fail in some cases? Then return any such error to the caller. */
+  return false;
+}
+
+
+bool
+innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
+{
+  MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(0));
+  if (!dir)
+  {
+    ib::error() << "Could not read the binlog directory '" <<
+      innodb_binlog_directory << "', error code " << my_errno << ".";
+    return true;
+  }
+
+  size_t num_entries= dir->number_of_files;
+  fileinfo *entries= dir->dir_entry;
+  uint64_t first_file_no, last_file_no;
+  uint64_t num_file_no= 0;
+  for (size_t i= 0; i < num_entries; ++i) {
+    const char *name= entries[i].name;
+    uint64_t file_no;
+    if (!is_binlog_name(name, &file_no))
+      continue;
+    if (num_file_no == 0 || file_no < first_file_no)
+      first_file_no= file_no;
+    if (num_file_no == 0 || file_no > last_file_no)
+      last_file_no= file_no;
+    ++num_file_no;
+  }
+  my_dirend(dir);
+
+  if (num_file_no == 0)
+  {
+    ib::error() << "No binlog files found (deleted externally?)";
+    return true;
+  }
+  if (num_file_no != last_file_no - first_file_no + 1)
+  {
+    ib::error() << "Missing binlog files (deleted externally?)";
+    return true;
+  }
+  *out_first= first_file_no;
+  *out_last= last_file_no;
   return false;
 }
