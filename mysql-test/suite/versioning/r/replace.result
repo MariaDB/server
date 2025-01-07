@@ -63,8 +63,10 @@ connection default;
 replace into t1 values (1),(2);
 connection con1;
 replace into t1 values (1),(2);
-ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 drop table t1;
+#
+# MDEV-14794 Limitations which the row end as a part of PK imposes due to
+# CURRENT_TIMESTAMP behavior and otherwise
 #
 # MDEV-15330 Server crash or assertion `table->insert_values' failure in write_record upon LOAD DATA
 #
@@ -87,4 +89,19 @@ Warnings:
 Note	1831	Duplicate index `data_2`. This is deprecated and will be disallowed in a future release
 alter table t1 add system versioning;
 replace into t1 values ('o'), ('o');
+drop table t1;
+#
+# MDEV-15990 REPLACE on a precise-versioned table returns duplicate key
+# error (ER_DUP_ENTRY)
+#
+create or replace table t1 (
+pk int primary key,  i int,
+row_start bigint unsigned as row start,
+row_end bigint unsigned as row end,
+period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning;
+replace into t1 (pk,i) values (1,10),(1,100),(1,1000);
+select pk, i, row_end from t1 for system_time all;
+pk	i	row_end
+1	1000	18446744073709551615
 drop table t1;

@@ -116,4 +116,20 @@ alter table t1 add system versioning;
 replace into t1 values ('o'), ('o');
 drop table t1;
 
+--echo #
+--echo # MDEV-15990 REPLACE on a precise-versioned table returns duplicate key
+--echo # error (ER_DUP_ENTRY)
+--echo #
+
+create or replace table t1 (
+    pk int primary key,  i int,
+    row_start bigint unsigned as row start,
+    row_end bigint unsigned as row end,
+    period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning;
+replace into t1 (pk,i) values (1,10),(1,100),(1,1000);
+select pk, i, row_end from t1 for system_time all;
+drop table t1;
+
+
 --source suite/versioning/common_finish.inc
