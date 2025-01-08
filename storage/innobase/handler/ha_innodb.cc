@@ -13798,7 +13798,6 @@ int ha_innobase::delete_table(const char *name)
   if (err != DB_SUCCESS)
   {
 err_exit:
-    trx->dict_operation_lock_mode= false;
     trx->rollback();
     switch (err) {
     case DB_CANNOT_DROP_CONSTRAINT:
@@ -13820,7 +13819,7 @@ err_exit:
       dict_table_close(table_stats, true, thd, mdl_table);
     if (index_stats)
       dict_table_close(index_stats, true, thd, mdl_index);
-    dict_sys.unlock();
+    row_mysql_unlock_data_dictionary(trx);
     if (trx != parent_trx)
       trx->free();
     DBUG_RETURN(convert_error_code_to_mysql(err, 0, NULL));
