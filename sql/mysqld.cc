@@ -3077,9 +3077,12 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
                        MyFlags));
 
   DBUG_ASSERT(str != NULL);
+  DBUG_ASSERT(*str != '\0');
   DBUG_ASSERT(error != 0);
   DBUG_ASSERT((MyFlags & ~(ME_BELL | ME_ERROR_LOG | ME_ERROR_LOG_ONLY |
                            ME_NOTE | ME_WARNING | ME_FATAL)) == 0);
+
+  DBUG_ASSERT(str[strlen(str)-1] != '\n');
 
   if (MyFlags & ME_NOTE)
   {
