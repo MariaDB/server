@@ -1,0 +1,69 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+galera_buffered_error_log.err
+SELECT @@global.wsrep_buffered_error_log_buffer_size;
+@@global.wsrep_buffered_error_log_buffer_size
+10240
+SELECT @@global.wsrep_buffered_error_log_file_size;
+@@global.wsrep_buffered_error_log_file_size
+102400
+SELECT @@global.wsrep_buffered_error_log_rotations;
+@@global.wsrep_buffered_error_log_rotations
+5
+CREATE TABLE t1(a int not null primary key auto_increment, count int) engine=innodb;
+# List error log files - max file number .5
+galera_buffered_error_log.err
+galera_buffered_error_log.err.1
+galera_buffered_error_log.err.2
+galera_buffered_error_log.err.3
+galera_buffered_error_log.err.4
+galera_buffered_error_log.err.5
+# Change rotations larger
+SET GLOBAL wsrep_buffered_error_log_rotations=6;
+# List error log files - max file number .6
+galera_buffered_error_log.err
+galera_buffered_error_log.err.1
+galera_buffered_error_log.err.2
+galera_buffered_error_log.err.3
+galera_buffered_error_log.err.4
+galera_buffered_error_log.err.5
+galera_buffered_error_log.err.6
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+galera_buffered_error_log.err
+SELECT @@global.wsrep_buffered_error_log_buffer_size;
+@@global.wsrep_buffered_error_log_buffer_size
+10240
+SELECT @@global.wsrep_buffered_error_log_file_size;
+@@global.wsrep_buffered_error_log_file_size
+102400
+SELECT @@global.wsrep_buffered_error_log_rotations;
+@@global.wsrep_buffered_error_log_rotations
+6
+# Change rotations smaller and use different name
+SET GLOBAL wsrep_buffered_error_log_rotations=2;
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+EXPECT_2000
+3000
+DROP TABLE t1;
+# List error log files - max file number .2
+galera_buffered_error_log2.err
+galera_buffered_error_log2.err.1
+galera_buffered_error_log2.err.2
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+galera_buffered_error_log2.err
+SELECT @@global.wsrep_buffered_error_log_buffer_size;
+@@global.wsrep_buffered_error_log_buffer_size
+10240
+SELECT @@global.wsrep_buffered_error_log_file_size;
+@@global.wsrep_buffered_error_log_file_size
+102400
+SELECT @@global.wsrep_buffered_error_log_rotations;
+@@global.wsrep_buffered_error_log_rotations
+2
+# Reset
+SET @@global.wsrep_buffered_error_log_rotations=5;

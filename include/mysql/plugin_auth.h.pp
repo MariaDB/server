@@ -128,22 +128,32 @@ extern struct logger_service_st {
   void (*logger_init_mutexes)();
   LOGGER_HANDLE* (*open)(const char *path,
                          unsigned long long size_limit,
+                         unsigned long long buffer_limit,
                          unsigned int rotations);
   int (*close)(LOGGER_HANDLE *log);
   int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
   int (*printf)(LOGGER_HANDLE *log, const char *fmt, ...);
   int (*write)(LOGGER_HANDLE *log, const char *buffer, size_t size);
-  int (*rotate)(LOGGER_HANDLE *log);
+  int (*rotate)(LOGGER_HANDLE *log, const unsigned int n_rotations);
+  int (*rename_file)(LOGGER_HANDLE *log, const char *path);
+  int (*resize_buffer)(LOGGER_HANDLE *log, unsigned long long buffer_limit);
+  int (*resize_size)(LOGGER_HANDLE *log, unsigned long long size_limit);
+  int (*flush)(LOGGER_HANDLE *log);
 } *logger_service;
   void logger_init_mutexes();
   LOGGER_HANDLE *logger_open(const char *path,
                              unsigned long long size_limit,
+                             unsigned long long buffer_limit,
                              unsigned int rotations);
   int logger_close(LOGGER_HANDLE *log);
   int logger_vprintf(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
   int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...);
   int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size);
-  int logger_rotate(LOGGER_HANDLE *log);
+  int logger_rotate(LOGGER_HANDLE *log, const unsigned int n_rotations);
+  int logger_rename_file(LOGGER_HANDLE *log, const char* path);
+  int logger_resize_buffer(LOGGER_HANDLE *log, unsigned long long buffer_limit);
+  int logger_resize_size(LOGGER_HANDLE *log, unsigned long long size_limit);
+  int logger_flush(LOGGER_HANDLE *log);
 }
 extern "C" {
 extern struct my_md5_service_st {

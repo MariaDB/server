@@ -114,7 +114,11 @@ static struct logger_service_st logger_service_handler= {
   logger_vprintf,
   logger_printf,
   logger_write,
-  logger_rotate
+  logger_rotate,
+  logger_rename_file,
+  logger_resize_buffer,
+  logger_resize_size,
+  logger_flush
 };
 
 static struct thd_autoinc_service_st thd_autoinc_handler= {

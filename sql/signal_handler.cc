@@ -29,6 +29,10 @@
 #include "wsrep_server_state.h"
 #endif /* WITH_WSREP */
 
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
+
 #ifdef _WIN32
 #include <crtdbg.h>
 #include <direct.h>
@@ -145,6 +149,10 @@ extern "C" sig_handler handle_fatal_signal(int sig)
      we're wrong.
   */
   bool print_invalid_query_pointer= false;
+#endif
+
+#ifdef WITH_WSREP
+  wsrep_buffered_error_log.write_to_disk();
 #endif
 
   if (segfaulted)

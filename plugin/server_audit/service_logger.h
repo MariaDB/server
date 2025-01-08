@@ -24,22 +24,17 @@
   @file
   logger service
 
-  Log file with buffered writing and rotation implementation.
+  Log file with rotation implementation.
 
-  This service implements logging with possible buffered writing
-  and rotation of the log files. Interface intentionally tries to
-  be similar to FILE* related functions.
+  This service implements logging with possible rotation
+  of the log files. Interface intentionally tries to be similar to FILE*
+  related functions.
 
   So that one can open the log with logger_open(), specifying
-  the limit on the logfile size, possible buffer size and the
-  rotations number.
-
-  If buffer size is given, messages are written to buffer.
-  If size of messages in buffer grow over the specified
-  limit, they are written to logfile.
+  the limit on the logfile size and the rotations number.
 
   Then it's possible to write messages to the log with
-  logger_printf, logger_vprintf or logger_write functions.
+  logger_printf or logger_vprintf functions.
 
   As the size of the logfile grows over the specified limit,
   it is renamed to 'logfile.1'. The former 'logfile.1' becomes
@@ -68,55 +63,37 @@ extern struct logger_service_st {
   void (*logger_init_mutexes)();
   LOGGER_HANDLE* (*open)(const char *path,
                          unsigned long long size_limit,
-                         unsigned long long buffer_limit,
                          unsigned int rotations);
   int (*close)(LOGGER_HANDLE *log);
   int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
   int (*printf)(LOGGER_HANDLE *log, const char *fmt, ...);
   int (*write)(LOGGER_HANDLE *log, const char *buffer, size_t size);
-  int (*rotate)(LOGGER_HANDLE *log, const unsigned int n_rotations);
-  int (*rename_file)(LOGGER_HANDLE *log, const char *path);
-  int (*resize_buffer)(LOGGER_HANDLE *log, unsigned long long buffer_limit);
-  int (*resize_size)(LOGGER_HANDLE *log, unsigned long long size_limit);
-  int (*flush)(LOGGER_HANDLE *log);
+  int (*rotate)(LOGGER_HANDLE *log);
 } *logger_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
 #define logger_init_mutexes logger_service->logger_init_mutexes
-#define logger_open(path, size_limit, buffer_limit, rotations)	\
-  (logger_service->open(path, size_limit, buffer_limit, rotations))
+#define logger_open(path, size_limit, rotations) \
+  (logger_service->open(path, size_limit, rotations))
 #define logger_close(log) (logger_service->close(log))
-#define logger_rotate(log, rotations) (logger_service->rotate(log, rotations))
+#define logger_rotate(log) (logger_service->rotate(log))
 #define logger_vprintf(log, fmt, argptr) (logger_service->\
     vprintf(log, fmt, argptr))
 #define logger_printf (*logger_service->printf)
 #define logger_write(log, buffer, size) \
   (logger_service->write(log, buffer, size))
-#define logger_rename_file(log, path) \
-  (logger_service->rename_file(log, path))
-#define logger_resize_buffer(log, buffer_limit) \
-  (logger_service->resize_buffer(log, path))
-#define logger_resize_size(log, size_limit) \
-  (logger_service->resize_size(log, size_limit))
-#define logger_flush(log) \
-  (logger_service->flush(log))
 #else
 
   void logger_init_mutexes();
   LOGGER_HANDLE *logger_open(const char *path,
                              unsigned long long size_limit,
-                             unsigned long long buffer_limit,
                              unsigned int rotations);
   int logger_close(LOGGER_HANDLE *log);
   int logger_vprintf(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
   int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...);
   int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size);
-  int logger_rotate(LOGGER_HANDLE *log, const unsigned int n_rotations);
-  int logger_rename_file(LOGGER_HANDLE *log, const char* path);
-  int logger_resize_buffer(LOGGER_HANDLE *log, unsigned long long buffer_limit);
-  int logger_resize_size(LOGGER_HANDLE *log, unsigned long long size_limit);
-  int logger_flush(LOGGER_HANDLE *log);
+  int logger_rotate(LOGGER_HANDLE *log); 
 #endif
 
 

@@ -1,0 +1,33 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+galera_buffered_error_log.err
+SELECT @@global.wsrep_buffered_error_log_buffer_size;
+@@global.wsrep_buffered_error_log_buffer_size
+102400
+SELECT @@global.wsrep_buffered_error_log_file_size;
+@@global.wsrep_buffered_error_log_file_size
+1048576
+CREATE TABLE t1(a int not null primary key) engine=innodb;
+INSERT INTO t1 SELECT * FROM seq_1_to_1000;
+# Change file name
+Testing that old log contains something logged
+FOUND 1 /WSREP: Loading provider/ in galera_buffered_error_log.err
+SELECT @@global.wsrep_buffered_error_log_filename;
+@@global.wsrep_buffered_error_log_filename
+galera_buffered_error_log2.err
+SELECT @@global.wsrep_buffered_error_log_buffer_size;
+@@global.wsrep_buffered_error_log_buffer_size
+102400
+SELECT @@global.wsrep_buffered_error_log_file_size;
+@@global.wsrep_buffered_error_log_file_size
+1048576
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+DROP TABLE t1;
+# Change file name back to original
+Testing that second log contains something logged
+FOUND 4 /DROP TABLE/ in galera_buffered_error_log2.err

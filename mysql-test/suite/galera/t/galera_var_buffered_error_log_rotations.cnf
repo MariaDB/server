@@ -1,0 +1,13 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep-debug=1
+
+[mysqld.2]
+wsrep_buffered_error_log_buffer_size=10K
+wsrep_buffered_error_log_file_size=100K
+wsrep_buffered_error_log_filename="galera_buffered_error_log.err"
+wsrep_buffered_error_log_rotations=5
+loose-galera-log_rotations
+
+

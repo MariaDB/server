@@ -248,12 +248,14 @@ static my_off_t loc_tell(File fd)
 
 #ifdef HAVE_PSI_INTERFACE
 #undef HAVE_PSI_INTERFACE
-#include <mysql/service_logger.h>
-#include "../../mysys/file_logger.c"
+// Note: as this file is still C, these files are
+// added to this directory to avoid changing this.
+#include "service_logger.h"
+#include "file_logger.c"
 #define HAVE_PSI_INTERFACE
 #else
-#include <mysql/service_logger.h>
-#include "../../mysys/file_logger.c"
+#include "service_logger.h"
+#include "file_logger.c"
 #endif
 #endif /*!MARIADB_ONLY*/
 

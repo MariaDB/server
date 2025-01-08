@@ -151,7 +151,7 @@ static int sql_error_log_init(void *p __attribute__((unused)))
 {
   logger_init_mutexes();
 
-  logfile= logger_open(filename, size_limit, rotations);
+  logfile= logger_open(filename, size_limit, 0, rotations);
   if (logfile == NULL) {
     fprintf(stderr, "Could not create file '%s'\n",
             filename);
@@ -175,7 +175,7 @@ static void rotate_log(MYSQL_THD thd  __attribute__((unused)),
                        void *var_ptr  __attribute__((unused)),
                        const void *save  __attribute__((unused)))
 {
-  (void) logger_rotate(logfile);
+  (void) logger_rotate(logfile, 0);
 }
 
 
