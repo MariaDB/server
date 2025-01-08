@@ -4016,7 +4016,7 @@ static void print_long_unique_table(TABLE *table)
                 "table->field[%u]->offset = %" PRIdPTR "\n" // `%td` not available
                 "table->field[%u]->field_length = %d\n"
                 "table->field[%u]->null_pos wrt to record 0 = %" PRIdPTR "\n"
-                "table->field[%u]->null_bit_pos = %d\n",
+                "table->field[%u]->null_bit_pos = %d",
                 i, field->field_name.str,
                 i, field->ptr- table->record[0],
                 i, field->pack_length(),

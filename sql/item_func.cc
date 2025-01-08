@@ -1309,9 +1309,10 @@ longlong Item_func_minus::int_op()
   {
     if (args[1]->unsigned_flag)
     {
-      if ((ulonglong) val0 < (ulonglong) val1)
+      if ((ulonglong) val0 >= (ulonglong) val1)
+        res_unsigned= TRUE;
+      else if ((ulonglong)val1 - (ulonglong)val0 > (ulonglong)LONGLONG_MAX)
         goto err;
-      res_unsigned= TRUE;
     }
     else
     {
