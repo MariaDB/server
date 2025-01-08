@@ -476,6 +476,7 @@ public:
 
   void set_avg_frequency(uint i, double val)
   {
+    if (isnan(val)) return;
     avg_frequency[i]= (ulonglong) (val * Scale_factor_avg_frequency);
   }
 
