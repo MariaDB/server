@@ -7435,6 +7435,7 @@ public:
 public:
   multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables);
   ~multi_delete();
+  void cleanup();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
   int send_data(List<Item> &items) override;
   bool initialize_tables (JOIN *join) override;
@@ -7489,6 +7490,7 @@ public:
 	       List<Item> *fields, List<Item> *values,
 	       enum_duplicates handle_duplicates, bool ignore);
   ~multi_update();
+  void cleanup();
   bool init(THD *thd);
   bool init_for_single_table(THD *thd);
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;

@@ -1159,6 +1159,12 @@ multi_delete::initialize_tables(JOIN *join)
 
 multi_delete::~multi_delete()
 {
+  cleanup();
+}
+
+
+void multi_delete::cleanup()
+{
   for (table_being_deleted= delete_tables;
        table_being_deleted;
        table_being_deleted= table_being_deleted->next_local)
@@ -1854,7 +1860,7 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
   if (result)
   {
     res= false;
-    delete result;
+    result->cleanup();
   }
 
   status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
