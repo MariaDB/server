@@ -11116,7 +11116,7 @@ alter_stats_norebuild(
 	DBUG_ENTER("alter_stats_norebuild");
 	DBUG_ASSERT(!ctx->need_rebuild());
 
-	if (!dict_stats_is_persistent_enabled(ctx->new_table)) {
+	if (!ctx->new_table->stats_is_persistent()) {
 		DBUG_VOID_RETURN;
 	}
 
@@ -11150,8 +11150,7 @@ alter_stats_rebuild(
 {
 	DBUG_ENTER("alter_stats_rebuild");
 
-	if (!table->space
-	    || !dict_stats_is_persistent_enabled(table)) {
+	if (!table->space || !table->stats_is_persistent()) {
 		DBUG_VOID_RETURN;
 	}
 
@@ -11537,12 +11536,10 @@ err_index:
 	}
 	if (error != DB_SUCCESS) {
 		if (table_stats) {
-			dict_table_close(table_stats, false, m_user_thd,
-					 mdl_table);
+			dict_table_close(table_stats, m_user_thd, mdl_table);
 		}
 		if (index_stats) {
-			dict_table_close(index_stats, false, m_user_thd,
-					 mdl_index);
+			dict_table_close(index_stats, m_user_thd, mdl_index);
 		}
 		my_error_innodb(error, table_share->table_name.str, 0);
 		if (fts_exist) {
@@ -11578,11 +11575,11 @@ fail:
 			trx->rollback();
 			ut_ad(!trx->fts_trx);
 			if (table_stats) {
-				dict_table_close(table_stats, true, m_user_thd,
+				dict_table_close(table_stats, m_user_thd,
 						 mdl_table);
 			}
 			if (index_stats) {
-				dict_table_close(index_stats, true, m_user_thd,
+				dict_table_close(index_stats, m_user_thd,
 						 mdl_index);
 			}
 			row_mysql_unlock_data_dictionary(trx);
@@ -11636,10 +11633,10 @@ fail:
 	}
 
 	if (table_stats) {
-		dict_table_close(table_stats, true, m_user_thd, mdl_table);
+		dict_table_close(table_stats, m_user_thd, mdl_table);
 	}
 	if (index_stats) {
-		dict_table_close(index_stats, true, m_user_thd, mdl_index);
+		dict_table_close(index_stats, m_user_thd, mdl_index);
 	}
 
 	/* Commit or roll back the changes to the data dictionary. */
