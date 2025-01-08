@@ -4372,6 +4372,8 @@ CREATE TABLE t1(a VARCHAR(1027), b INT);
 INSERT INTO t1 SELECT seq, seq from seq_1_to_34;
 SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
 SET tmp_memory_table_size= 1056*2;
+Warnings:
+Warning	1292	Truncated incorrect tmp_memory_table_size value: '2112'
 SELECT COUNT(DISTINCT a) FROM t1;
 COUNT(DISTINCT a)
 34

@@ -802,9 +802,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
     Pass nominal parameters to init_alloc_root only to ensure that
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
+    The base one will mainly be use to allocate memory during authentication.
   */
   init_sql_alloc(key_memory_thd_main_mem_root,
-                 &main_mem_root, 64, 0, MYF(MY_THREAD_SPECIFIC));
+                 &main_mem_root, DEFAULT_ROOT_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   /*
     Allocation of user variables for binary logging is always done with main
@@ -5802,6 +5804,20 @@ extern "C" void *thd_mdl_context(MYSQL_THD thd)
 {
   return &thd->mdl_context;
 }
+
+
+/**
+  log_warnings accessor
+  @param thd   the current session
+
+  @return log warning level
+*/
+
+extern "C" int thd_log_warnings(const MYSQL_THD thd)
+{
+  return thd->variables.log_warnings;
+}
+
 
 /**
   Send check/repair message to the user

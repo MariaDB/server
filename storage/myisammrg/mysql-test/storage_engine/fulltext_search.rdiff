@@ -1,5 +1,5 @@
---- fulltext_search.result	2013-01-22 22:05:05.246633000 +0400
-+++ fulltext_search.reject	2013-01-23 02:50:28.807890289 +0400
+--- fulltext_search.result
++++ fulltext_search.reject
 @@ -4,129 +4,27 @@
  v2 TEXT <CUSTOM_COL_OPTIONS>,
  FULLTEXT v1 (v1)

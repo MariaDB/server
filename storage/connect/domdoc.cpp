@@ -243,8 +243,10 @@ int DOMDOC::DumpDoc(PGLOBAL g, char *ofn)
   try {
     Docp->save(ofn);
   } catch(_com_error e)  {
-    snprintf(g->Message, sizeof(g->Message), "%s: %s", MSG(COM_ERROR),
-            _com_util::ConvertBSTRToString(e.Description()));
+    int i = snprintf(g->Message, sizeof(g->Message), "%s: %s", MSG(COM_ERROR),
+                _com_util::ConvertBSTRToString(e.Description()));
+    for (i--; i >= 0 && g->Message[i] == '\n'; i--)
+      g->Message[i] = 0;
     rc = -1;
   }  catch(...) {}
 

@@ -1,5 +1,5 @@
---- main/alter_table_combinations.result	2022-05-24 17:16:56.769146869 +0200
-+++ main/alter_table_combinations.reject	2022-05-24 17:25:20.847126357 +0200
+--- main/alter_table_combinations.result
++++ main/alter_table_combinations.reject
 @@ -173,8 +173,7 @@
  t3	CREATE TABLE `t3` (
    `a` int(11) DEFAULT NULL,

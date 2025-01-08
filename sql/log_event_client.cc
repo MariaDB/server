@@ -1974,7 +1974,7 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
     print_event_info->auto_increment_offset=    auto_increment_offset;
   }
 
-  /* TODO: print the catalog when we feature SET CATALOG */
+  /* TODO: print the catalog when we feature USE CATALOG */
 
   if (likely(charset_inited) &&
       (unlikely(!print_event_info->charset_inited ||
@@ -1988,12 +1988,15 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
                       cs_info->cs_name.str, print_event_info->delimiter))
         goto err;
     }
+    else if (my_b_printf(file, "# Ignored (Unknown charset) "))
+      goto err;
+
     if (my_b_printf(file,"SET "
                     "@@session.character_set_client=%s,"
                     "@@session.collation_connection=%d,"
                     "@@session.collation_server=%d"
                     "%s\n",
-                    cs_info->cs_name.str,
+                    cs_info ? cs_info->cs_name.str : "Unknown",
                     uint2korr(charset+2),
                     uint2korr(charset+4),
                     print_event_info->delimiter))

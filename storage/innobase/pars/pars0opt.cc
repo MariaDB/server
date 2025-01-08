@@ -340,9 +340,7 @@ opt_calc_index_goodness(
 	ulint		op;
 	ulint		j;
 
-	/* At least for now we don't support using FTS indexes for queries
-	done through InnoDB's own SQL parser. */
-	if (dict_index_is_online_ddl(index) || (index->type & DICT_FTS)) {
+	if (!index->is_normal_btree() || !index->is_committed()) {
 		return(0);
 	}
 
@@ -558,7 +556,8 @@ opt_search_plan_for_table(
 	plan_t*		plan;
 	dict_index_t*	index;
 	ulint		n_fields;
-	ulint		best_last_op;
+	ulint		best_goodness = 0;
+	ulint		best_last_op = 0;
 	que_node_t*	index_plan[256];
 	que_node_t*	best_index_plan[256];
 
@@ -572,14 +571,9 @@ opt_search_plan_for_table(
 	/* Calculate goodness for each index of the table */
 
 	plan->index = index = dict_table_get_first_index(table);
-	ulint best_goodness = opt_calc_index_goodness(
-		index, sel_node, i, best_index_plan, &best_last_op);
 
-	while ((index = dict_table_get_next_index(index))) {
-		if (!index->is_btree()) {
-			continue;
-		}
-		ulint last_op;
+	do {
+		ulint last_op = 0;
 		ulint goodness = opt_calc_index_goodness(index, sel_node, i,
 							 index_plan, &last_op);
 		if (goodness > best_goodness) {
@@ -591,7 +585,9 @@ opt_search_plan_for_table(
 			       n_fields * sizeof *index_plan);
 			best_last_op = last_op;
 		}
-	}
+
+		index = dict_table_get_next_index(index);
+	} while (index);
 
 	n_fields = opt_calc_n_fields_from_goodness(best_goodness);
 

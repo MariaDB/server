@@ -118,6 +118,16 @@ struct recv_dblwr_t
                         const fil_space_t *space= nullptr,
                         byte *tmp_buf= nullptr) const noexcept;
 
+  /** Find the doublewrite copy of an encrypted page with the
+  smallest FIL_PAGE_LSN that is large enough for recovery.
+  @param space    tablespace object
+  @param page_no  page number to find
+  @param buf      buffer for unencrypted page
+  @return buf
+  @retval nullptr if the page was not found in doublewrite buffer */
+  byte *find_encrypted_page(const fil_node_t &space, uint32_t page_no,
+                            byte *buf) noexcept;
+
   /** Restore the first page of the given tablespace from
   doublewrite buffer.
   1) Find the page which has page_no as 0
@@ -229,8 +239,10 @@ public:
   /** @return maximum guaranteed size of a mini-transaction on recovery */
   static constexpr size_t MTR_SIZE_MAX{1U << 20};
 
-  /** whether we are applying redo log records during crash recovery */
-  bool recovery_on;
+  /** whether we are applying redo log records during crash recovery.
+  This can be cleared when holding mutex, or when pages.empty() and
+  we are holding exclusive log_sys.latch. */
+  Atomic_relaxed<bool> recovery_on= false;
   /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/
   bool apply_log_recs;

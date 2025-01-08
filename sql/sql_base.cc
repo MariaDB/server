@@ -8247,11 +8247,15 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
           DBUG_RETURN(1);
       }
       tablenr++;
-    }
-    if (tablenr > MAX_TABLES)
-    {
-      my_error(ER_TOO_MANY_TABLES,MYF(0), static_cast<int>(MAX_TABLES));
-      DBUG_RETURN(1);
+      /*
+        Test MAX_TABLES overflow here inside the loop as setup_table_map()
+        called in each iteration is sensitive for this
+      */
+      if (tablenr > MAX_TABLES)
+      {
+        my_error(ER_TOO_MANY_TABLES, MYF(0), static_cast<int>(MAX_TABLES));
+        DBUG_RETURN(1);
+      }
     }
     if (select_insert && !is_insert_tables_num_set)
     {

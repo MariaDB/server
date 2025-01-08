@@ -4158,6 +4158,7 @@ next_file:
 		return(-1);
 	}
 
+	MSAN_STAT_WORKAROUND(&statinfo);
 	info->size = statinfo.st_size;
 
 	if (S_ISDIR(statinfo.st_mode)) {
@@ -6857,7 +6858,8 @@ error:
 		srv_max_dirty_pages_pct_lwm = srv_max_buf_pool_modified_pct;
 	}
 
-        if (innodb_init()) {
+	recv_sys.recovery_on = false;
+	if (innodb_init()) {
 		goto error;
 	}
 

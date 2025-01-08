@@ -48,6 +48,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/service_print_check_msg.h>
+#include <mysql/service_log_warnings.h>
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
@@ -2083,8 +2084,9 @@ static void innodb_transaction_abort(THD *thd, bool all, dberr_t err) noexcept
   {
     ut_ad(trx->state == TRX_STATE_NOT_STARTED);
     trx->state= TRX_STATE_ABORTED;
-    sql_print_error("InnoDB: Transaction was aborted due to %s",
-                    ut_strerr(err));
+    if (thd_log_warnings(thd) >= 4)
+      sql_print_error("InnoDB: Transaction was aborted due to %s",
+                      ut_strerr(err));
   }
   thd_mark_transaction_to_rollback(thd, all);
 }
@@ -12844,7 +12846,7 @@ int create_table_info_t::create_table(bool create_fk)
 					    " on table %s. Please check"
 					    " the index definition to"
 					    " make sure it is of correct"
-					    " type\n",
+					    " type",
 					    FTS_DOC_ID_INDEX_NAME,
 					    m_table->name.m_name);
 
@@ -12916,7 +12918,7 @@ int create_table_info_t::create_table(bool create_fk)
 			"Create table '%s' with foreign key constraint"
 			" failed. There is no index in the referenced"
 			" table where the referenced columns appear"
-			" as the first columns.\n", m_table_name);
+			" as the first columns.", m_table_name);
 		break;
 
 	case DB_CHILD_NO_INDEX:
@@ -12926,7 +12928,7 @@ int create_table_info_t::create_table(bool create_fk)
 			"Create table '%s' with foreign key constraint"
 			" failed. There is no index in the referencing"
 			" table where referencing columns appear"
-			" as the first columns.\n", m_table_name);
+			" as the first columns.", m_table_name);
 		break;
 	case DB_NO_FK_ON_S_BASE_COL:
 		push_warning_printf(
@@ -12935,7 +12937,7 @@ int create_table_info_t::create_table(bool create_fk)
 			"Create table '%s' with foreign key constraint"
 			" failed. Cannot add foreign key constraint"
 			" placed on the base column of stored"
-			" column. \n",
+			" column. ",
 			m_table_name);
 	default:
 		break;
@@ -15204,7 +15206,7 @@ ha_innobase::optimize(
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    uint(err),
-				"InnoDB: Cannot defragment table %s: returned error code %d\n",
+				"InnoDB: Cannot defragment table %s: returned error code %d",
 				m_prebuilt->table->name.m_name, err);
 
 			if(err == ER_SP_ALREADY_EXISTS) {

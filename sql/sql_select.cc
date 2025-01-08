@@ -8816,8 +8816,11 @@ best_access_path(JOIN      *join,
         if (!(records < s->worst_seeks &&
               records <= thd->variables.max_seeks_for_key))
         {
-          // Don't use rowid filter
-          trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+          if (table->range_rowid_filter_cost_info_elems)
+          {
+            // Don't use rowid filter
+            trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+          }
           filter= NULL;
         }
         else
@@ -20527,8 +20530,8 @@ TABLE *Create_tmp_table::start(THD *thd,
     copy_func_count+= param->sum_func_count;
   param->copy_func_count= copy_func_count;
   
-  init_sql_alloc(key_memory_TABLE, &own_root, TABLE_ALLOC_BLOCK_SIZE, 0,
-                 MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(key_memory_TABLE, &own_root, TMP_TABLE_BLOCK_SIZE,
+                 TMP_TABLE_PREALLOC_SIZE, MYF(MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),
@@ -21056,7 +21059,7 @@ bool Create_tmp_table::finalize(THD *thd,
                                  MY_MIN(thd->variables.tmp_memory_table_size,
                                      thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_disk_table_size) /
-                                share->reclength);
+                                MY_ALIGN(share->reclength, sizeof(char*)));
   set_if_bigger(share->max_rows,1);		// For dummy start options
   /*
     Push the LIMIT clause to the temporary table creation, so that we
