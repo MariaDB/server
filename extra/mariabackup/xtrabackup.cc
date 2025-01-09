@@ -1226,7 +1226,8 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 
 static void backup_undo_trunc(uint32_t space_id)
 {
-  undo_trunc_ids.insert(space_id);
+  if (space_id)
+    undo_trunc_ids.insert(space_id);
 }
 
 /* Function to store the space id of page0 INIT_PAGE

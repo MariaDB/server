@@ -1,0 +1,45 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source filekeys_plugin.inc
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+CREATE TABLE t1(f1 text, index idx(f1(20))) ENGINE INNODB;
+
+# No checkpoint happens during this restart
+
+let $shutdown_timeout=;
+set global innodb_fast_shutdown=0;
+let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
+--source include/restart_mysqld.inc
+set global debug_dbug="+d,ib_log_checkpoint_avoid_hard";
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+
+INSERT INTO t1 SELECT repeat('a', 8000) FROM seq_1_to_1280;
+DELETE FROM t1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+INSERT INTO t1 VALUES('a');
+
+--echo # XTRABACKUP PREPARE
+exec $XTRABACKUP --prepare --target-dir=$basedir;
+
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+
+# Since there is no checkpoint during previous run, we can
+# Copy the datafile from t1.ibd and start the server
+
+remove_file $MYSQLD_DATADIR/test/t1.ibd;
+copy_file $basedir/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd;
+--enable_result_log
+let $restart_parameters=;
+--source include/start_mysqld.inc
+
+SELECT COUNT(*) FROM t1;
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;
