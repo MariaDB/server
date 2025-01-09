@@ -3227,6 +3227,11 @@ static int *mysql_sys_var_int(THD* thd, int offset)
   return (int *) intern_sys_var_ptr(thd, offset, true);
 }
 
+static unsigned int *mysql_sys_var_uint(THD* thd, int offset)
+{
+  return (unsigned int *) intern_sys_var_ptr(thd, offset, true);
+}
+
 static long *mysql_sys_var_long(THD* thd, int offset)
 {
   return (long *) intern_sys_var_ptr(thd, offset, true);
@@ -3897,18 +3902,27 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
       continue;
     if (!(register_var(plugin_name_ptr, opt->name, opt->flags)))
       continue;
-    switch (opt->flags & PLUGIN_VAR_TYPEMASK) {
+    switch (opt->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_UNSIGNED)) {
     case PLUGIN_VAR_BOOL:
       ((thdvar_bool_t *) opt)->resolve= mysql_sys_var_char;
       break;
     case PLUGIN_VAR_INT:
       ((thdvar_int_t *) opt)->resolve= mysql_sys_var_int;
       break;
+    case PLUGIN_VAR_INT | PLUGIN_VAR_UNSIGNED:
+      ((thdvar_uint_t *) opt)->resolve= mysql_sys_var_uint;
+      break;
     case PLUGIN_VAR_LONG:
       ((thdvar_long_t *) opt)->resolve= mysql_sys_var_long;
       break;
+    case PLUGIN_VAR_LONG | PLUGIN_VAR_UNSIGNED:
+      ((thdvar_ulong_t *) opt)->resolve= mysql_sys_var_ulong;
+      break;
     case PLUGIN_VAR_LONGLONG:
       ((thdvar_longlong_t *) opt)->resolve= mysql_sys_var_longlong;
+      break;
+    case PLUGIN_VAR_LONGLONG | PLUGIN_VAR_UNSIGNED:
+      ((thdvar_ulonglong_t *) opt)->resolve= mysql_sys_var_ulonglong;
       break;
     case PLUGIN_VAR_STR:
       ((thdvar_str_t *) opt)->resolve= mysql_sys_var_str;
