@@ -52,12 +52,6 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 
 #include <string.h>
 
-#ifdef UNIV_NONINL
-# include "fsp0fsp.inl"
-# include "mach0data.inl"
-# include "ut0rnd.inl"
-#endif
-
 #ifndef PRIuMAX
 #define PRIuMAX   "llu"
 #endif

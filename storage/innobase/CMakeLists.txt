@@ -362,7 +362,6 @@ SET(INNOBASE_SOURCES
 	include/ut0pool.h
 	include/ut0rbt.h
 	include/ut0rnd.h
-	include/ut0rnd.inl
 	include/ut0sort.h
 	include/ut0stage.h
 	include/ut0ut.h
