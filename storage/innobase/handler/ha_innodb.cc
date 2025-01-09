@@ -21399,9 +21399,7 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
 if needed.
 @param[in]	size	size in bytes
 @return	aligned size */
-ulint
-buf_pool_size_align(
-	ulint	size)
+ulint buf_pool_size_align(ulint size) noexcept
 {
   const ulong	m = srv_buf_pool_chunk_unit;
   size = ut_max((size_t) size, (size_t) MYSQL_SYSVAR_NAME(buffer_pool_size).min_val);

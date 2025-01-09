@@ -3256,7 +3256,7 @@ func_exit:
   return success;
 }
 
-void IORequest::fake_read_complete(os_offset_t offset) const
+void IORequest::fake_read_complete(os_offset_t offset) const noexcept
 {
   ut_ad(node);
   ut_ad(is_read());
@@ -3297,7 +3297,7 @@ void IORequest::fake_read_complete(os_offset_t offset) const
 }
 
 /** @return whether a page has been freed */
-inline bool fil_space_t::is_freed(uint32_t page)
+inline bool fil_space_t::is_freed(uint32_t page) noexcept
 {
   std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
   return freed_ranges.contains(page);
@@ -3598,7 +3598,7 @@ ATTRIBUTE_COLD buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
   return nullptr;
 }
 
-inline fil_space_t *fil_system_t::find(const char *path) const
+inline fil_space_t *fil_system_t::find(const char *path) const noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   for (fil_space_t &space : fil_system.space_list)
@@ -3608,7 +3608,7 @@ inline fil_space_t *fil_system_t::find(const char *path) const
 }
 
 /** Thread-safe function which sorts flush_list by oldest_modification */
-static void log_sort_flush_list()
+static void log_sort_flush_list() noexcept
 {
   /* Ensure that oldest_modification() cannot change during std::sort() */
   {

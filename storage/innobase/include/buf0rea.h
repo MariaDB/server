@@ -39,7 +39,7 @@ will be invoked on read completion.
 @retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
 after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id, bool unzip= true);
+dberr_t buf_read_page(const page_id_t page_id, bool unzip= true) noexcept;
 
 /** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
@@ -49,7 +49,7 @@ released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size)
+                              ulint zip_size) noexcept
   MY_ATTRIBUTE((nonnull));
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
@@ -67,7 +67,7 @@ wants to access
 @return number of page read requests issued; NOTE that if we read ibuf
 pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
-ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf);
+ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf) noexcept;
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
@@ -95,7 +95,7 @@ which could result in a deadlock if the OS does not support asynchronous io.
 @param[in]	ibuf		whether if we are inside ibuf routine
 @return number of page read requests issued */
 ulint
-buf_read_ahead_linear(const page_id_t page_id, bool ibuf);
+buf_read_ahead_linear(const page_id_t page_id, bool ibuf) noexcept;
 
 /** Schedule a page for recovery.
 @param space    tablespace
@@ -103,7 +103,7 @@ buf_read_ahead_linear(const page_id_t page_id, bool ibuf);
 @param recs     log records
 @param init     page initialization, or nullptr if the page needs to be read */
 void buf_read_recover(fil_space_t *space, const page_id_t page_id,
-                      page_recv_t &recs, recv_init *init);
+                      page_recv_t &recs, recv_init *init) noexcept;
 
 /** @name Modes used in read-ahead @{ */
 /** read only pages belonging to the insert buffer tree */

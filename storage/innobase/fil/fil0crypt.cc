@@ -1364,7 +1364,7 @@ the encryption parameters were changed
 @retval nullptr upon reaching the end of the iteration */
 inline fil_space_t *fil_system_t::default_encrypt_next(fil_space_t *space,
                                                        bool recheck,
-                                                       bool encrypt)
+                                                       bool encrypt) noexcept
 {
   mysql_mutex_assert_owner(&mutex);
 
@@ -1431,7 +1431,7 @@ encryption parameters were changed
 @retval fil_system.temp_space if there is no work to do
 @retval end() upon reaching the end of the iteration */
 space_list_t::iterator fil_space_t::next(space_list_t::iterator space,
-                                         bool recheck, bool encrypt)
+                                         bool recheck, bool encrypt) noexcept
 {
   mysql_mutex_lock(&fil_system.mutex);
 
@@ -1480,7 +1480,7 @@ space_list_t::iterator fil_space_t::next(space_list_t::iterator space,
 static bool fil_crypt_find_space_to_rotate(
 	key_state_t*		key_state,
 	rotate_thread_t*	state,
-	bool*			recheck)
+	bool*			recheck) noexcept
 {
 	/* we need iops to start rotating */
 	do {
