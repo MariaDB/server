@@ -2787,7 +2787,6 @@ restart:
           erase(r);
           continue;
         }
-      copy_if_needed:
         cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         break;
       case EXTENDED:
@@ -2839,8 +2838,14 @@ restart:
         last_offset= FIL_PAGE_TYPE;
         break;
       case OPTION:
-        if (storing == YES && rlen == 5 && *l == OPT_PAGE_CHECKSUM)
-          goto copy_if_needed;
+        /* OPTION records can be safely ignored in recovery */
+        if (storing == YES &&
+            rlen == 5/* OPT_PAGE_CHECKSUM and CRC-32C; see page_checksum() */)
+        {
+          cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
+          if (*cl == OPT_PAGE_CHECKSUM)
+            break;
+        }
         /* fall through */
       case RESERVED:
         continue;
