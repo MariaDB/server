@@ -4286,8 +4286,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
 
-    bool is_hash_field_needed= key->key_create_info.algorithm
-                               == HA_KEY_ALG_LONG_HASH;
     if (key->name.str == ignore_key)
     {
       /* ignore redundant keys */
@@ -4345,6 +4343,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                           create_info->db_type->index_options, FALSE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
+
+    bool is_hash_field_needed=
+            key_info->algorithm == HA_KEY_ALG_LONG_HASH
+            || (key_info->algorithm == HA_KEY_ALG_HASH
+                && key->type != Key::PRIMARY
+                && key_info->flags & HA_NOSAME
+                && !(file->ha_table_flags() & HA_CAN_HASH_KEYS)
+                && file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS);
 
     if (key->type == Key::FULLTEXT)
     {
@@ -4526,21 +4532,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     /* Check long unique keys */
     if (is_hash_field_needed)
-    {
-      if (auto_increment_key)
-      {
-        my_error(ER_NO_AUTOINCREMENT_WITH_UNIQUE, MYF(0),
-                 sql_field->field_name.str,
-                 key_info->name.str);
-        DBUG_RETURN(TRUE);
-      }
-    }
-    if (is_hash_field_needed ||
-        (key_info->algorithm == HA_KEY_ALG_HASH &&
-         key->type != Key::PRIMARY &&
-         key_info->flags & HA_NOSAME &&
-         !(file->ha_table_flags() & HA_CAN_HASH_KEYS ) &&
-         file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS))
     {
       Create_field *hash_fld= add_hash_field(thd, &alter_info->create_list,
                                              key_info);

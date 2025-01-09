@@ -393,6 +393,8 @@ c
 1
 DELETE FROM t;
 DROP TABLE t;
+create table t1 (a int auto_increment, unique(a), b text, unique (a, b));
+ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the USING HASH clause of `a`
 #
 # MDEV-28098 incorrect key in "dup value" error after long unique
 #

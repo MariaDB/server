@@ -394,6 +394,9 @@ DELETE FROM t;
 
 DROP TABLE t;
 
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int auto_increment, unique(a), b text, unique (a, b));
+
 --echo #
 --echo # MDEV-28098 incorrect key in "dup value" error after long unique
 --echo #
