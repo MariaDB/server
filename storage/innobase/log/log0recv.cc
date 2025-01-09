@@ -798,8 +798,8 @@ processed:
     if (crypt_data && !fil_crypt_check(crypt_data, name.c_str()))
       return nullptr;
     mysql_mutex_lock(&fil_system.mutex);
-    fil_space_t *space= fil_space_t::create(it->first, flags,
-                                            FIL_TYPE_TABLESPACE, crypt_data);
+    fil_space_t *space= fil_space_t::create(it->first, flags, false,
+                                            crypt_data);
     ut_ad(space);
     const char *filename= name.c_str();
     if (srv_operation == SRV_OPERATION_RESTORE)
@@ -905,8 +905,8 @@ deferred_spaces;
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
 void (*log_file_op)(uint32_t space_id, int type,
-		    const byte* name, ulint len,
-		    const byte* new_name, ulint new_len);
+		    const byte* name, size_t len,
+		    const byte* new_name, size_t new_len);
 
 void (*undo_space_trunc)(uint32_t space_id);
 
@@ -1359,6 +1359,7 @@ void recv_sys_t::clear()
   {
     buf_block_t *prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
     ut_ad(block->page.state() == buf_page_t::MEMORY);
+    block->page.hash= nullptr;
     UT_LIST_REMOVE(blocks, block);
     MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
     buf_block_free(block);
@@ -1405,14 +1406,11 @@ inline void recv_sys_t::free(const void *data)
     buf_block_t *block= &chunk->blocks[offs];
     ut_ad(block->page.frame == page_align(data));
     ut_ad(block->page.state() == buf_page_t::MEMORY);
-    ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
-          srv_page_size);
-    unsigned a= block->page.access_time;
-    ut_ad(a >= 1U << 16);
-    a-= 1U << 16;
-    block->page.access_time= a;
-    if (!(a >> 16))
+    ut_ad(uint16_t(block->page.free_offset - 1) < srv_page_size);
+    ut_ad(block->page.used_records);
+    if (!--block->page.used_records)
     {
+      block->page.hash= nullptr;
       UT_LIST_REMOVE(blocks, block);
       MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
       buf_block_free(block);
@@ -2006,7 +2004,7 @@ bool recv_sys_t::add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
     ut_ad(tail->lsn == lsn);
     block= UT_LIST_GET_LAST(blocks);
     ut_ad(block);
-    const size_t used= static_cast<uint16_t>(block->page.access_time - 1) + 1;
+    const size_t used= uint16_t(block->page.free_offset - 1) + 1;
     ut_ad(used >= ALIGNMENT);
     const byte *end= const_cast<const log_phys_t*>(tail)->end();
     if (!((reinterpret_cast<size_t>(end + len) ^
@@ -2027,7 +2025,7 @@ append:
     ut_ad(new_used > used);
     if (new_used > srv_page_size)
       break;
-    block->page.access_time= (block->page.access_time & ~0U << 16) |
+    block->page.free_offset=
       ut_calc_align<uint16_t>(static_cast<uint16_t>(new_used), ALIGNMENT);
     goto append;
   }
@@ -2042,7 +2040,8 @@ append:
     block= add_block();
     if (UNIV_UNLIKELY(!block))
       return true;
-    block->page.access_time= 1U << 16 |
+    block->page.used_records= 1;
+    block->page.free_offset=
       ut_calc_align<uint16_t>(static_cast<uint16_t>(size), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
     UT_LIST_ADD_FIRST(blocks, block);
@@ -2052,7 +2051,7 @@ append:
   }
   else
   {
-    size_t free_offset= static_cast<uint16_t>(block->page.access_time);
+    size_t free_offset= block->page.free_offset;
     ut_ad(!ut_2pow_remainder(free_offset, ALIGNMENT));
     if (UNIV_UNLIKELY(!free_offset))
     {
@@ -2065,7 +2064,8 @@ append:
     if (free_offset > srv_page_size)
       goto create_block;
 
-    block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
+    block->page.used_records++;
+    block->page.free_offset=
       ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
     MEM_MAKE_ADDRESSABLE(block->page.frame + free_offset - size, size);
     buf= block->page.frame + free_offset - size;
@@ -3955,7 +3955,12 @@ void recv_sys_t::apply(bool last_batch)
     }
   }
 
-  if (!last_batch)
+  if (last_batch)
+  {
+    mlog_init.clear();
+    dblwr.pages.clear();
+  }
+  else
     log_sys.latch.wr_unlock();
 
   mysql_mutex_unlock(&mutex);
@@ -4286,7 +4291,7 @@ next:
 		recv_spaces_t::iterator i = recv_spaces.find(space);
 		ut_ad(i != recv_spaces.end());
 
-		if (deferred_spaces.find(static_cast<uint32_t>(space))) {
+		if (deferred_spaces.find(space)) {
 			/* Skip redo logs belonging to
 			incomplete tablespaces */
 			goto next;
@@ -4322,7 +4327,7 @@ func_exit:
 			continue;
 		}
 
-		if (deferred_spaces.find(static_cast<uint32_t>(rs.first))) {
+		if (deferred_spaces.find(rs.first)) {
 			continue;
 		}
 
@@ -4493,6 +4498,7 @@ dberr_t recv_recovery_read_checkpoint()
   ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+  ut_ad(!recv_sys.recovery_on);
   ut_d(mysql_mutex_lock(&buf_pool.mutex));
   ut_ad(UT_LIST_GET_LEN(buf_pool.LRU) == 0);
   ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
@@ -4815,6 +4821,48 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id, lsn_t max_lsn,
   }
 
   goto check_if_corrupted;
+}
+
+byte *recv_dblwr_t::find_encrypted_page(const fil_node_t &node,
+                                        uint32_t page_no,
+                                        byte *buf) noexcept
+{
+  ut_ad(node.space->crypt_data);
+  ut_ad(node.space->full_crc32());
+  mysql_mutex_lock(&recv_sys.mutex);
+  byte *result_page= nullptr;
+  for (list::iterator page_it= pages.begin(); page_it != pages.end();
+       page_it++)
+  {
+    if (page_get_page_no(*page_it) != page_no ||
+        buf_page_is_corrupted(true, *page_it, node.space->flags))
+      continue;
+    memcpy(buf, *page_it, node.space->physical_size());
+    buf_tmp_buffer_t *slot= buf_pool.io_buf_reserve(false);
+    ut_a(slot);
+    slot->allocate();
+    bool invalidate=
+      !fil_space_decrypt(node.space, slot->crypt_buf, buf) ||
+      (node.space->is_compressed() &&
+       !fil_page_decompress(slot->crypt_buf, buf, node.space->flags));
+    slot->release();
+
+    if (invalidate ||
+        mach_read_from_4(buf + FIL_PAGE_SPACE_ID) != node.space->id)
+      continue;
+
+    result_page= *page_it;
+    pages.erase(page_it);
+    break;
+  }
+  mysql_mutex_unlock(&recv_sys.mutex);
+  if (result_page)
+    sql_print_information("InnoDB: Recovered page [page id: space="
+                          UINT32PF ", page number=" UINT32PF "] "
+                          "to '%s' from the doublewrite buffer.",
+                          node.space->id, page_no,
+                          node.name);
+  return result_page;
 }
 
 const byte *recv_dblwr_t::find_page(const page_id_t page_id, lsn_t max_lsn,

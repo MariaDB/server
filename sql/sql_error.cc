@@ -693,6 +693,7 @@ Sql_condition *Warning_info::push_warning(THD *thd,
                                           ulong current_row_number)
 {
   Sql_condition *cond= NULL;
+  DBUG_ASSERT(msg[strlen(msg)-1] != '\n');
 
   if (! m_read_only)
   {

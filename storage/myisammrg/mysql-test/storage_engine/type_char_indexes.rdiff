@@ -1,5 +1,5 @@
---- suite/storage_engine/type_char_indexes.result	2014-10-12 14:22:11.000000000 +0400
-+++ suite/storage_engine/type_char_indexes.reject	2014-10-12 14:22:41.000000000 +0400
+--- suite/storage_engine/type_char_indexes.result
++++ suite/storage_engine/type_char_indexes.reject
 @@ -137,7 +137,7 @@
  r3a
  EXPLAIN SELECT c,c20,v16,v128 FROM t1 WHERE v16 = 'varchar1a' OR v16 = 'varchar3a' ORDER BY v16;

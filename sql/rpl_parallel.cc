@@ -505,7 +505,8 @@ do_ftwrl_wait(rpl_group_info *rgi,
   {
     thd->set_time_for_next_stage();
     thd->ENTER_COND(&entry->COND_parallel_entry, &entry->LOCK_parallel_entry,
-                    &stage_waiting_for_ftwrl, old_stage);
+                    &stage_waiting_for_ftwrl,
+                    (*did_enter_cond ? nullptr : old_stage));
     *did_enter_cond= true;
     do
     {
@@ -551,6 +552,7 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
 {
   PSI_stage_info old_stage;
   int res= 0;
+  bool did_enter_cond= false;
 
   /*
     Wait here while the queue is busy. This is done to make FLUSH TABLES WITH
@@ -567,24 +569,28 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
   */
   DBUG_EXECUTE_IF("mark_busy_mdev_22370",my_sleep(1000000););
   mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
-  if (thd)
+  if (pool->busy)
   {
-    thd->set_time_for_next_stage();
-    thd->ENTER_COND(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool,
-                    &stage_waiting_for_rpl_thread_pool, &old_stage);
-  }
-  while (pool->busy)
-  {
-    if (thd && unlikely(thd->check_killed()))
+    if (thd)
     {
-      res= 1;
-      break;
+      thd->set_time_for_next_stage();
+      thd->ENTER_COND(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool,
+                      &stage_waiting_for_rpl_thread_pool, &old_stage);
+      did_enter_cond= true;
     }
-    mysql_cond_wait(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool);
+    do
+    {
+      if (thd && unlikely(thd->check_killed()))
+      {
+        res= 1;
+        break;
+      }
+      mysql_cond_wait(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool);
+    } while (pool->busy);
   }
   if (!res)
     pool->busy= true;
-  if (thd)
+  if (did_enter_cond)
     thd->EXIT_COND(&old_stage);
   else
     mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
@@ -865,8 +871,12 @@ do_retry:
   err= 0;
   errmsg= NULL;
 #ifdef WITH_WSREP
-  thd->wsrep_cs().reset_error();
-  WSREP_DEBUG("retrying async replication event");
+  DBUG_EXECUTE_IF("sync.wsrep_retry_event_group", {
+    const char act[]= "now "
+                      "SIGNAL sync.wsrep_retry_event_group_reached "
+                      "WAIT_FOR signal.wsrep_retry_event_group";
+    debug_sync_set_action(thd, STRING_WITH_LEN(act));
+  };);
 #endif /* WITH_WSREP */
 
   /*
@@ -1013,15 +1023,20 @@ do_retry:
   */
   thd->reset_killed();
 #ifdef WITH_WSREP
-  if (wsrep_before_command(thd))
+  if (WSREP(thd))
   {
-    WSREP_WARN("Parallel slave worker failed at wsrep_before_command() hook");
-    err= 1;
-    goto err;
+    /* Exec after statement hook to make sure that the failed transaction
+     * gets cleared and reset error state. */
+    if (wsrep_after_statement(thd))
+    {
+      WSREP_WARN("Parallel slave worker failed at wsrep_after_statement() hook");
+      err= 1;
+      goto err;
+    }
+    thd->wsrep_cs().reset_error();
+    wsrep_start_trx_if_not_started(thd);
+    WSREP_DEBUG("parallel slave retry, after trx start");
   }
-  wsrep_start_trx_if_not_started(thd);
-  WSREP_DEBUG("parallel slave retry, after trx start");
-
 #endif /* WITH_WSREP */
   strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)

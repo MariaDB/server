@@ -2731,12 +2731,6 @@ public:
   */
   virtual void under_not(Item_func_not * upper
                          __attribute__((unused))) {};
-  /*
-    If Item_field is wrapped in Item_direct_wrep remove this Item_direct_ref
-    wrapper.
-  */
-  virtual Item *remove_item_direct_ref() { return this; }
-	
 
   void register_in(THD *thd);	 
   
@@ -4334,8 +4328,8 @@ public:
 
   int save_in_field(Field *field, bool no_conversions) override;
 
-  void set_default();
-  void set_ignore();
+  void set_default(bool set_type_handler_null);
+  void set_ignore(bool set_type_handler_null);
   void set_null(const DTCollation &c);
   void set_null_string(const DTCollation &c)
   {
@@ -6109,11 +6103,6 @@ public:
   }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg) override
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
-  Item *remove_item_direct_ref() override
-  {
-    *ref= (*ref)->remove_item_direct_ref();
-    return this;
-  }
 };
 
 
@@ -6161,8 +6150,6 @@ public:
   Ref_Type ref_type() override { return DIRECT_REF; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_direct_ref>(thd, this); }
-  Item *remove_item_direct_ref() override
-  { return (*ref)->remove_item_direct_ref(); }
 
   /* Should be called if ref is changed */
   inline void ref_changed()
@@ -6546,7 +6533,6 @@ public:
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
   { return this; }
-  Item *remove_item_direct_ref() override { return this; }
   void print(String *str, enum_query_type query_type) override;
 };
 
@@ -7051,7 +7037,7 @@ public:
   {
     // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
     DBUG_ASSERT(0);
-    param->set_default();
+    param->set_default(true);
     return false;
   }
   table_map used_tables() const override;
@@ -7184,7 +7170,7 @@ public:
   }
   bool save_in_param(THD *, Item_param *param) override
   {
-    param->set_default();
+    param->set_default(true);
     return false;
   }
   Item *do_get_copy(THD *thd) const override
@@ -7222,7 +7208,7 @@ public:
   }
   bool save_in_param(THD *, Item_param *param) override
   {
-    param->set_ignore();
+    param->set_ignore(true);
     return false;
   }
 

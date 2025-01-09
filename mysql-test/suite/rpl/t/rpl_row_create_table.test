@@ -280,6 +280,25 @@ DROP TEMPORARY TABLES t7;
 DROP TABLES t4, t5;
 DROP TABLES IF EXISTS bug48506_t4;
 
+
+--echo *** MDEV-31794: Preserved unsupported table flags break replication
+CREATE TEMPORARY TABLE t1 (a INT) ENGINE=Aria TRANSACTIONAL=1;
+# After ALTER to MyISAM, TRANSACTIONAL=1 is a left-over option normally
+# invalid for MyISAM.
+ALTER TABLE t1 ENGINE=MyISAM;
+# Since row-based binlogging is used, the temporary table t1 is not binlogged,
+# so this CREATE TABLE LIKE is replicated as a plain CREATE TABLE which
+# specifies invalid TRANSACTIONAL=1 for a MyISAM table.
+# Test that the slave will still allow the create table.
+CREATE TABLE t2 LIKE t1;
+--sync_slave_with_master
+SHOW CREATE TABLE t2;
+
+--connection master
+DROP TEMPORARY TABLE t1;
+DROP TABLE t2;
+
+
 --source include/rpl_end.inc
 
 --echo end of the tests

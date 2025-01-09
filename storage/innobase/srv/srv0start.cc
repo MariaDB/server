@@ -242,7 +242,16 @@ close_and_exit:
 		srv_startup_is_before_trx_rollback_phase = false;
 	}
 
-	/* Enable checkpoints in buf_flush_page_cleaner(). */
+	/* Enable log_checkpoint() in buf_flush_page_cleaner().
+	If we are upgrading or resizing the log at startup, we must not
+	write any FILE_MODIFY or FILE_CHECKPOINT records to the old log file
+	because the ib_logfile0 could be in an old format that we can only
+	check for emptiness, or the write could lead to an overflow.
+
+	At this point, we are not holding recv_sys.mutex, but there are no
+	pending page reads, and buf_pool.flush_list is empty. Therefore,
+	we can clear the flag without risking any race condition with
+	buf_page_t::read_complete(). */
 	recv_sys.recovery_on = false;
 	log_sys.latch.wr_unlock();
 
@@ -734,8 +743,7 @@ err_exit:
   fil_set_max_space_id_if_bigger(space_id);
 
   mysql_mutex_lock(&fil_system.mutex);
-  fil_space_t *space= fil_space_t::create(space_id, fsp_flags,
-                                          FIL_TYPE_TABLESPACE, nullptr,
+  fil_space_t *space= fil_space_t::create(space_id, fsp_flags, false, nullptr,
                                           FIL_ENCRYPTION_DEFAULT, true);
   ut_ad(space);
   fil_node_t *file= space->add(name, fh, 0, false, true);
@@ -1562,8 +1570,6 @@ dberr_t srv_start(bool create_new_db)
 
 		err = recv_recovery_from_checkpoint_start();
 		recv_sys.close_files();
-
-		recv_sys.dblwr.pages.clear();
 
 		bool must_upgrade_ibuf = false;
 

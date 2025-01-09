@@ -1,5 +1,5 @@
---- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_opt_insert_method.result	2017-06-22 00:33:46.423995639 +0300
-+++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_opt_insert_method.reject	2017-06-22 02:39:45.243948128 +0300
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_opt_insert_method.result
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_opt_insert_method.reject
 @@ -5,7 +5,7 @@
  t1	CREATE TABLE `t1` (
    `a` int(11) DEFAULT NULL,

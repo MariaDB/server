@@ -459,8 +459,13 @@ protected:
 	@see build_template() */
 	void reset_template();
 
-	/** @return whether the table is read-only */
-	bool is_read_only(bool altering_to_supported= false) const;
+	/** Check the transaction is valid.
+        @param altering_to_supported  whether an ALTER TABLE is being run
+        to something else than ROW_FORMAT=COMPRESSED
+        @retval 0 if the transaction is valid for the current operation
+        @retval HA_ERR_TABLE_READONLY  if the table is read-only
+        @retval HA_ERR_ROLLBACK        if the transaction has been aborted */
+	int is_valid_trx(bool altering_to_supported= false) const noexcept;
 
 	inline void update_thd(THD* thd);
 	void update_thd();

@@ -1,5 +1,5 @@
---- lock.result	2013-01-23 01:24:01.797100027 +0400
-+++ lock.reject	2013-01-23 02:50:53.291582487 +0400
+--- lock.result
++++ lock.reject
 @@ -42,34 +42,67 @@
  UPDATE t1 SET id=1 WHERE id=-1;
  DROP TABLE t1,t2;

@@ -28,6 +28,25 @@ SELECT Socket FROM mysql.servers where Server_name = 's1';
 DROP SERVER s1;
 
 --echo #
+--echo # MDEV-33783 CREATE SERVER segfaults on wrong mysql.servers
+--echo #
+create server s1 foreign data wrapper foo options(user 'a');
+alter server s1 options(host 'server.example.org');
+rename table mysql.servers to mysql.servers_save;
+create table mysql.servers (x int);
+--error ER_FOREIGN_SERVER_DOESNT_EXIST
+alter server s1 options(host 'server.example.org');
+--error ER_CANT_FIND_SYSTEM_REC
+create server s2 foreign data wrapper foo options(user 'a');
+drop table mysql.servers;
+rename table mysql.servers_save to mysql.servers;
+drop server s1;
+
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
+SELECT Socket FROM mysql.servers where Server_name = 's1';
+DROP SERVER s1;
+
+--echo #
 --echo # MDEV-34716 - Arbitrary OPTIONS for CREATE SERVER
 --echo # MDEV-15696 - SHOW CREATE SERVER
 --echo #

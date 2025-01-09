@@ -49,6 +49,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/service_print_check_msg.h>
+#include <mysql/service_log_warnings.h>
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
@@ -1077,16 +1078,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {NullS, NullS, SHOW_LONG}
 };
 
-/*****************************************************************//**
-Frees a possible InnoDB trx object associated with the current THD.
-@return 0 or error number */
-static
-int
-innobase_close_connection(
-/*======================*/
-	THD*		thd);		/*!< in: MySQL thread handle for
-					which to close the connection */
-
 /** Cancel any pending lock request associated with the current THD.
 @sa THD::awake() @sa ha_kill_query() */
 static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels);
@@ -1147,31 +1138,6 @@ innobase_rollback_to_savepoint_can_release_mdl(
 					the user whose XA transaction should
 					be rolled back to savepoint */
 
-/*****************************************************************//**
-Sets a transaction savepoint.
-@return always 0, that is, always succeeds */
-static
-int
-innobase_savepoint(
-/*===============*/
-	THD*		thd,		/*!< in: handle to the MySQL thread of
-					the user's XA transaction for which
-					we need to take a savepoint */
-	void*		savepoint);	/*!< in: savepoint data */
-
-/*****************************************************************//**
-Release transaction savepoint name.
-@return 0 if success, HA_ERR_NO_SAVEPOINT if no savepoint with the
-given name */
-static
-int
-innobase_release_savepoint(
-/*=======================*/
-	THD*		thd,		/*!< in: handle to the MySQL thread
-					of the user whose transaction's
-					savepoint should be released */
-	void*		savepoint);	/*!< in: savepoint data */
-
 /** Request notification of log writes */
 static void innodb_log_flush_request(void *cookie);
 
@@ -1231,16 +1197,6 @@ which is in the prepared state
 static
 int
 innobase_commit_by_xid(
-/*===================*/
-	XID*		xid);		/*!< in: X/Open XA transaction
-					identification */
-/*******************************************************************//**
-This function is used to rollback one X/Open XA distributed transaction
-which is in the prepared state
-@return 0 or error number */
-static
-int
-innobase_rollback_by_xid(
 /*===================*/
 	XID*		xid);		/*!< in: X/Open XA transaction
 					identification */
@@ -2126,6 +2082,26 @@ static int innodb_ddl_recovery_done(handlerton*)
   return 0;
 }
 
+/** Report an aborted transaction or statement.
+@param thd   execution context
+@param all   true=transaction, false=statement
+@param err   InnoDB error code */
+static void innodb_transaction_abort(THD *thd, bool all, dberr_t err) noexcept
+{
+  if (!thd)
+    return;
+  if (!all);
+  else if (trx_t *trx = thd_to_trx(thd))
+  {
+    ut_ad(trx->state == TRX_STATE_NOT_STARTED);
+    trx->state= TRX_STATE_ABORTED;
+    if (thd_log_warnings(thd) >= 4)
+      sql_print_error("InnoDB: Transaction was aborted due to %s",
+                      ut_strerr(err));
+  }
+  thd_mark_transaction_to_rollback(thd, all);
+}
+
 /********************************************************************//**
 Converts an InnoDB error code to a MySQL error code and also tells to MySQL
 about a possible transaction rollback inside InnoDB caused by a lock wait
@@ -2188,14 +2164,9 @@ convert_error_code_to_mysql(
 
 	case DB_DEADLOCK:
 	case DB_RECORD_CHANGED:
-		/* Since we rolled back the whole transaction, we must
-		tell it also to MySQL so that MySQL knows to empty the
-		cached binlog for this transaction */
-
-		if (thd != NULL) {
-			thd_mark_transaction_to_rollback(thd, 1);
-		}
-
+		/* Since we rolled back the whole transaction, the
+		cached binlog must be emptied. */
+		innodb_transaction_abort(thd, true, error);
 		return error == DB_DEADLOCK
 			? HA_ERR_LOCK_DEADLOCK : HA_ERR_RECORD_CHANGED;
 
@@ -2204,11 +2175,8 @@ convert_error_code_to_mysql(
 		latest SQL statement in a lock wait timeout. Previously, we
 		rolled back the whole transaction. */
 
-		if (thd) {
-			thd_mark_transaction_to_rollback(
-				thd, innobase_rollback_on_timeout);
-		}
-
+		innodb_transaction_abort(thd, innobase_rollback_on_timeout,
+					 error);
 		return(HA_ERR_LOCK_WAIT_TIMEOUT);
 
 	case DB_NO_REFERENCED_ROW:
@@ -2286,9 +2254,6 @@ convert_error_code_to_mysql(
 		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
 			 (ulong) DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags));
 		return(HA_ERR_INDEX_COL_TOO_LONG);
-
-	case DB_NO_SAVEPOINT:
-		return(HA_ERR_NO_SAVEPOINT);
 
 	case DB_LOCK_TABLE_FULL:
 		/* Since we rolled back the whole transaction, we must
@@ -2844,7 +2809,7 @@ Gets the InnoDB transaction handle for a MySQL handler object, creates
 an InnoDB transaction struct if the corresponding MySQL thread struct still
 lacks one.
 @return InnoDB transaction handle */
-static inline
+static
 trx_t*
 check_trx_exists(
 /*=============*/
@@ -2900,6 +2865,139 @@ trx_deregister_from_2pc(
 {
   trx->is_registered= false;
   trx->active_commit_ordered= false;
+}
+
+/**
+  Set a transaction savepoint.
+
+  @param thd        server thread descriptor
+  @param savepoint  transaction savepoint storage area
+
+  @retval 0                   on success
+  @retval HA_ERR_NO_SAVEPOINT if the transaction is in an inconsistent state
+*/
+static int innobase_savepoint(THD *thd, void *savepoint) noexcept
+{
+  DBUG_ENTER("innobase_savepoint");
+
+  /* In the autocommit mode there is no sense to set a savepoint
+  (unless we are in sub-statement), so SQL layer ensures that
+  this method is never called in such situation.  */
+  trx_t *trx= check_trx_exists(thd);
+
+  /* Cannot happen outside of transaction */
+  DBUG_ASSERT(trx_is_registered_for_2pc(trx));
+
+  switch (UNIV_EXPECT(trx->state, TRX_STATE_ACTIVE)) {
+  default:
+    ut_ad("invalid state" == 0);
+    DBUG_RETURN(HA_ERR_NO_SAVEPOINT);
+  case TRX_STATE_NOT_STARTED:
+    trx_start_if_not_started_xa(trx, false);
+    /* fall through */
+  case TRX_STATE_ACTIVE:
+    const undo_no_t savept{trx->undo_no};
+    *static_cast<undo_no_t*>(savepoint)= savept;
+    trx->last_stmt_start= savept;
+    trx->end_bulk_insert();
+
+    if (trx->fts_trx)
+      fts_savepoint_take(trx->fts_trx, savepoint);
+
+    DBUG_RETURN(0);
+  }
+}
+
+/**
+  Releases a transaction savepoint.
+
+  @param thd        server thread descriptor
+  @param savepoint  transaction savepoint to be released
+
+  @return 0 always
+*/
+static int innobase_release_savepoint(THD *thd, void *savepoint) noexcept
+{
+  DBUG_ENTER("innobase_release_savepoint");
+  trx_t *trx= check_trx_exists(thd);
+  ut_ad(trx->mysql_thd == thd);
+  if (trx->fts_trx)
+    fts_savepoint_release(trx, savepoint);
+  DBUG_RETURN(0);
+}
+
+/**
+  Frees a possible InnoDB trx object associated with the current THD.
+
+  @param thd   server thread descriptor, which resources should be free'd
+
+  @return 0 always
+*/
+static int innobase_close_connection(THD *thd) noexcept
+{
+  if (auto trx= thd_to_trx(thd))
+  {
+    thd_set_ha_data(thd, innodb_hton_ptr, nullptr);
+    switch (trx->state) {
+    case TRX_STATE_ABORTED:
+      trx->state= TRX_STATE_NOT_STARTED;
+      /* fall through */
+    case TRX_STATE_NOT_STARTED:
+      ut_ad(!trx->id);
+      trx->will_lock= false;
+      break;
+    default:
+      ut_ad("invalid state" == 0);
+      return 0;
+    case TRX_STATE_PREPARED:
+      if (trx->has_logged_persistent())
+      {
+        trx_disconnect_prepared(trx);
+        return 0;
+      }
+      /* fall through */
+    case TRX_STATE_ACTIVE:
+      /* If we had reserved the auto-inc lock for some table (if
+      we come here to roll back the latest SQL statement) we
+      release it now before a possibly lengthy rollback */
+      lock_unlock_table_autoinc(trx);
+      trx_rollback_for_mysql(trx);
+    }
+    trx_deregister_from_2pc(trx);
+    trx->free();
+    DEBUG_SYNC(thd, "innobase_connection_closed");
+  }
+  return 0;
+}
+
+/**
+  XA ROLLBACK after XA PREPARE
+
+  @param xid   X/Open XA transaction identification
+
+  @retval 0            if the transaction was found and rolled back
+  @retval XAER_NOTA    if no such transaction exists
+  @retval XAER_RMFAIL  if InnoDB is in read-only mode
+*/
+static int innobase_rollback_by_xid(XID *xid) noexcept
+{
+  DBUG_EXECUTE_IF("innobase_xa_fail", return XAER_RMFAIL;);
+  if (high_level_read_only)
+    return XAER_RMFAIL;
+  if (trx_t *trx= trx_get_trx_by_xid(xid))
+  {
+    /* Lookup by xid clears the transaction xid.
+       For wsrep we clear it below. */
+    ut_ad(trx->xid.is_null() || wsrep_is_wsrep_xid(&trx->xid));
+    trx->xid.null();
+    trx_deregister_from_2pc(trx);
+    THD* thd= trx->mysql_thd;
+    dberr_t err= trx_rollback_for_mysql(trx);
+    ut_ad(!trx->will_lock);
+    trx->free();
+    return convert_error_code_to_mysql(err, 0, thd);
+  }
+  return XAER_NOTA;
 }
 
 /*********************************************************************//**
@@ -3577,7 +3675,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 
 	m_prebuilt->trx->read_view.open(m_prebuilt->trx);
 
-	innobase_register_trx(ht, m_user_thd, m_prebuilt->trx);
+	innobase_register_trx(innodb_hton_ptr, m_user_thd, m_prebuilt->trx);
 
 	/* We did the necessary inits in this function, no need to repeat them
 	in row_search_mvcc() */
@@ -4107,7 +4205,7 @@ static int innodb_init(void* p)
 	innodb_hton_ptr = innobase_hton;
 
 	innobase_hton->db_type = DB_TYPE_INNODB;
-	innobase_hton->savepoint_offset = sizeof(trx_named_savept_t);
+	innobase_hton->savepoint_offset = sizeof(undo_no_t);
 	innobase_hton->close_connection = innobase_close_connection;
 	innobase_hton->kill_query = innobase_kill_query;
 	innobase_hton->savepoint_set = innobase_savepoint;
@@ -4189,8 +4287,6 @@ static int innodb_init(void* p)
 			    + sizeof srv_mysql50_table_name_prefix - 1,
 			    test_filename));
 #endif /* DBUG_OFF */
-
-	os_file_set_umask(my_umask);
 
 	/* Setup the memory alloc/free tracing mechanisms before calling
 	any functions that could possibly allocate memory. */
@@ -4332,12 +4428,7 @@ innobase_commit_low(
 		tmp = thd_proc_info(trx->mysql_thd, "innobase_commit_low()");
 	}
 #endif /* WITH_WSREP */
-	if (trx_is_started(trx)) {
-		trx_commit_for_mysql(trx);
-	} else {
-		trx->will_lock = false;
-	}
-
+	trx_commit_for_mysql(trx);
 #ifdef WITH_WSREP
 	if (is_wsrep) {
 		thd_proc_info(trx->mysql_thd, tmp);
@@ -4366,7 +4457,7 @@ innobase_start_trx_and_assign_read_view(
 
 	/* The transaction should not be active yet, start it */
 
-	ut_ad(!trx_is_started(trx));
+	ut_ad(!trx->is_started());
 
 	trx_start_if_not_started_xa(trx, false);
 
@@ -4389,7 +4480,7 @@ innobase_start_trx_and_assign_read_view(
 
 	/* Set the MySQL flag to mark that there is an active transaction */
 
-	innobase_register_trx(innodb_hton_ptr, current_thd, trx);
+	innobase_register_trx(innodb_hton_ptr, thd, trx);
 
 	DBUG_RETURN(0);
 }
@@ -4465,7 +4556,7 @@ innobase_commit_ordered(
 
 	trx = check_trx_exists(thd);
 
-	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
+	if (!trx_is_registered_for_2pc(trx) && trx->is_started()) {
 		/* We cannot throw error here; instead we will catch this error
 		again in innobase_commit() and report it from there. */
 		DBUG_VOID_RETURN;
@@ -4485,19 +4576,36 @@ innobase_commit_ordered(
 /** Mark the end of a statement.
 @param trx transaction
 @return whether an error occurred */
-static bool end_of_statement(trx_t *trx)
+static bool end_of_statement(trx_t *trx) noexcept
 {
-  trx_mark_sql_stat_end(trx);
+  ut_d(const trx_state_t trx_state{trx->state});
+  ut_ad(trx_state == TRX_STATE_ACTIVE || trx_state == TRX_STATE_NOT_STARTED);
+
+  if (trx->fts_trx)
+    fts_savepoint_laststmt_refresh(trx);
+  if (trx->is_bulk_insert())
+  {
+    /* Allow a subsequent INSERT into an empty table
+    if !unique_checks && !foreign_key_checks. */
+
+    /* MDEV-25036 FIXME: we support buffered insert only for the first
+    insert statement */
+    trx->error_state= trx->bulk_insert_apply();
+  }
+  else
+  {
+    trx->last_stmt_start= trx->undo_no;
+    trx->end_bulk_insert();
+  }
+
   if (UNIV_LIKELY(trx->error_state == DB_SUCCESS))
     return false;
 
-  trx_savept_t savept;
-  savept.least_undo_no= 0;
+  undo_no_t savept= 0;
   trx->rollback(&savept);
   /* MariaDB will roll back the entire transaction. */
   trx->bulk_insert= false;
-  trx->last_sql_stat_start.least_undo_no= 0;
-  trx->savepoints_discard();
+  trx->last_stmt_start= 0;
   return true;
 }
 
@@ -4526,19 +4634,35 @@ innobase_commit(
 	ut_ad(!trx->dict_operation_lock_mode);
 	ut_ad(!trx->dict_operation);
 
-	/* Transaction is deregistered only in a commit or a rollback. If
-	it is deregistered we know there cannot be resources to be freed
-	and we could return immediately.  For the time being, we play safe
-	and do the cleanup though there should be nothing to clean up. */
-
-	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
-
-		sql_print_error("Transaction not registered for MariaDB 2PC,"
-				" but transaction is active");
+	switch (UNIV_EXPECT(trx->state, TRX_STATE_ACTIVE)) {
+	case TRX_STATE_ABORTED:
+		trx->state = TRX_STATE_NOT_STARTED;
+		/* fall through */
+	case TRX_STATE_NOT_STARTED:
+		break;
+	default:
+	case TRX_STATE_COMMITTED_IN_MEMORY:
+	case TRX_STATE_PREPARED_RECOVERED:
+		ut_ad("invalid state" == 0);
+		/* fall through */
+	case TRX_STATE_PREPARED:
+		ut_ad(commit_trx);
+		ut_ad(thd_test_options(thd, OPTION_NOT_AUTOCOMMIT
+				       | OPTION_BEGIN));
+		/* fall through */
+	case TRX_STATE_ACTIVE:
+		/* Transaction is deregistered only in a commit or a
+		rollback. If it is deregistered we know there cannot
+		be resources to be freed and we could return
+		immediately.  For the time being, we play safe and do
+		the cleanup though there should be nothing to clean
+		up. */
+		if (!trx_is_registered_for_2pc(trx)) {
+			sql_print_error("Transaction not registered"
+					" for MariaDB 2PC,"
+					" but transaction is active");
+		}
 	}
-
-	bool	read_only = trx->read_only || trx->id == 0;
-	DBUG_PRINT("info", ("readonly: %d", read_only));
 
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
@@ -4564,17 +4688,7 @@ innobase_commit(
 	} else {
 		/* We just mark the SQL statement ended and do not do a
 		transaction commit */
-
-		/* If we had reserved the auto-inc lock for some
-		table in this SQL statement we release it now */
-
-		if (!read_only) {
-			lock_unlock_table_autoinc(trx);
-		}
-
-		/* Store the current undo_no of the transaction so that we
-		know where to roll back if we have to roll back the next
-		SQL statement */
+		lock_unlock_table_autoinc(trx);
 		if (UNIV_UNLIKELY(end_of_statement(trx))) {
 			DBUG_RETURN(1);
 		}
@@ -4603,73 +4717,79 @@ innobase_rollback(
 					transaction FALSE - rollback the current
 					statement only */
 {
-	DBUG_ENTER("innobase_rollback");
-	DBUG_PRINT("trans", ("aborting transaction"));
+  DBUG_ENTER("innobase_rollback");
+  DBUG_PRINT("trans", ("aborting transaction"));
 
-	trx_t*	trx = check_trx_exists(thd);
+  if (!rollback_trx)
+    rollback_trx= !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN);
 
-	ut_ad(!trx->dict_operation_lock_mode);
-	ut_ad(!trx->dict_operation);
+  trx_t *trx= check_trx_exists(thd);
 
-	/* Reset the number AUTO-INC rows required */
+  ut_ad(trx->mysql_thd == thd);
+  ut_ad(!trx->is_recovered);
+  ut_ad(!trx->dict_operation_lock_mode);
+  ut_ad(!trx->dict_operation);
 
-	trx->n_autoinc_rows = 0;
+  /* Reset the number AUTO-INC rows required */
+  trx->n_autoinc_rows= 0;
+  /* This is a statement level variable. */
+  trx->fts_next_doc_id= 0;
 
-	/* If we had reserved the auto-inc lock for some table (if
-	we come here to roll back the latest SQL statement) we
-	release it now before a possibly lengthy rollback */
-	lock_unlock_table_autoinc(trx);
-
-	/* This is a statement level variable. */
-
-	trx->fts_next_doc_id = 0;
-
-	dberr_t		error;
+  const trx_state_t trx_state{trx->state};
+  switch (UNIV_EXPECT(trx_state, TRX_STATE_ACTIVE)) {
+  case TRX_STATE_ABORTED:
+    if (rollback_trx)
+      trx->state= TRX_STATE_NOT_STARTED;
+    /* fall through */
+  case TRX_STATE_NOT_STARTED:
+    ut_ad(!trx->id);
+    trx->will_lock= false;
+    if (rollback_trx)
+      trx_deregister_from_2pc(trx);
+    DBUG_RETURN(0);
+  default:
+  case TRX_STATE_COMMITTED_IN_MEMORY:
+  case TRX_STATE_PREPARED_RECOVERED:
+    ut_ad("invalid state" == 0);
+    /* fall through */
+  case TRX_STATE_PREPARED:
+    ut_ad(rollback_trx);
+    /* fall through */
+  case TRX_STATE_ACTIVE:
+    /* If we had reserved the auto-inc lock for some table (if
+    we come here to roll back the latest SQL statement) we
+    release it now before a possibly lengthy rollback */
+    lock_unlock_table_autoinc(trx);
 
 #ifdef WITH_WSREP
-	/* If trx was assigned wsrep XID in prepare phase and the
-	trx is being rolled back due to BF abort, clear XID in order
-	to avoid writing it to rollback segment out of order. The XID
-	will be reassigned when the transaction is replayed. */
-	if (trx->state != TRX_STATE_NOT_STARTED
-	    && wsrep_is_wsrep_xid(&trx->xid)) {
-		trx->xid.null();
-	}
+    /* If trx was assigned wsrep XID in prepare phase and the
+    trx is being rolled back due to BF abort, clear XID in order
+    to avoid writing it to rollback segment out of order. The XID
+    will be reassigned when the transaction is replayed. */
+    if (rollback_trx || wsrep_is_wsrep_xid(&trx->xid))
+      trx->xid.null();
 #endif /* WITH_WSREP */
-	if (rollback_trx
-	    || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-
-		error = trx_rollback_for_mysql(trx);
-
-		trx_deregister_from_2pc(trx);
-	} else {
-
-		error = trx_rollback_last_sql_stat_for_mysql(trx);
-	}
-
-	DBUG_RETURN(convert_error_code_to_mysql(error, 0, trx->mysql_thd));
-}
-
-/*****************************************************************//**
-Rolls back a transaction
-@return 0 or error number */
-static
-int
-innobase_rollback_trx(
-/*==================*/
-	trx_t*	trx)	/*!< in: transaction */
-{
-	DBUG_ENTER("innobase_rollback_trx");
-	DBUG_PRINT("trans", ("aborting transaction"));
-
-	/* If we had reserved the auto-inc lock for some table (if
-	we come here to roll back the latest SQL statement) we
-	release it now before a possibly lengthy rollback */
-	lock_unlock_table_autoinc(trx);
-	trx_deregister_from_2pc(trx);
-
-	DBUG_RETURN(convert_error_code_to_mysql(trx_rollback_for_mysql(trx),
-						0, trx->mysql_thd));
+    dberr_t error;
+    if (rollback_trx)
+    {
+      error= trx_rollback_for_mysql(trx);
+      trx_deregister_from_2pc(trx);
+    }
+    else
+    {
+      ut_a(trx_state == TRX_STATE_ACTIVE);
+      ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
+      error= trx->rollback(&trx->last_stmt_start);
+      if (trx->fts_trx)
+      {
+        fts_savepoint_rollback_last_stmt(trx);
+        fts_savepoint_laststmt_refresh(trx);
+      }
+      trx->last_stmt_start= trx->undo_no;
+      trx->end_bulk_insert();
+    }
+    DBUG_RETURN(convert_error_code_to_mysql(error, 0, trx->mysql_thd));
+  }
 }
 
 /** Invoke commit_checkpoint_notify_ha() on completed log flush requests.
@@ -4811,27 +4931,37 @@ innobase_rollback_to_savepoint(
 					be rolled back to savepoint */
 	void*		savepoint)	/*!< in: savepoint data */
 {
+  DBUG_ENTER("innobase_rollback_to_savepoint");
+  trx_t *trx= check_trx_exists(thd);
 
-	DBUG_ENTER("innobase_rollback_to_savepoint");
+  /* We are reading trx->state without holding trx->mutex here,
+  because the savepoint rollback should be invoked for a running
+  active transaction that is associated with the current thread. */
+  ut_ad(trx->mysql_thd);
 
-	trx_t*	trx = check_trx_exists(thd);
+  if (UNIV_UNLIKELY(trx->state != TRX_STATE_ACTIVE))
+  {
+    ut_ad("invalid state" == 0);
+    DBUG_RETURN(HA_ERR_NO_SAVEPOINT);
+  }
 
-	/* TODO: use provided savepoint data area to store savepoint data */
+  const undo_no_t *savept= static_cast<const undo_no_t*>(savepoint);
 
-	char	name[64];
+  if (UNIV_UNLIKELY(*savept > trx->undo_no))
+    /* row_mysql_handle_errors() should have invoked rollback during
+    a bulk insert into an empty table. */
+    DBUG_RETURN(HA_ERR_NO_SAVEPOINT);
 
-	longlong2str(longlong(savepoint), name, 36);
-
-	int64_t	mysql_binlog_cache_pos;
-
-	dberr_t	error = trx_rollback_to_savepoint_for_mysql(
-		trx, name, &mysql_binlog_cache_pos);
-
-	if (error == DB_SUCCESS && trx->fts_trx != NULL) {
-		fts_savepoint_rollback(trx, name);
-	}
-
-	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
+  dberr_t error= trx->rollback(savept);
+  /* Store the position for rolling back the next SQL statement */
+  if (trx->fts_trx)
+  {
+    fts_savepoint_laststmt_refresh(trx);
+    fts_savepoint_rollback(trx, savept);
+  }
+  trx->last_stmt_start= trx->undo_no;
+  trx->end_bulk_insert();
+  DBUG_RETURN(convert_error_code_to_mysql(error, 0, nullptr));
 }
 
 /*****************************************************************//**
@@ -4860,101 +4990,6 @@ innobase_rollback_to_savepoint_can_release_mdl(
 	}
 
 	DBUG_RETURN(false);
-}
-
-/*****************************************************************//**
-Release transaction savepoint name.
-@return 0 if success, HA_ERR_NO_SAVEPOINT if no savepoint with the
-given name */
-static
-int
-innobase_release_savepoint(
-/*=======================*/
-	THD*		thd,		/*!< in: handle to the MySQL thread
-					of the user whose transaction's
-					savepoint should be released */
-	void*		savepoint)	/*!< in: savepoint data */
-{
-	dberr_t		error;
-	trx_t*		trx;
-	char		name[64];
-
-	DBUG_ENTER("innobase_release_savepoint");
-
-	trx = check_trx_exists(thd);
-
-	/* TODO: use provided savepoint data area to store savepoint data */
-
-	longlong2str(longlong(savepoint), name, 36);
-
-	error = trx_release_savepoint_for_mysql(trx, name);
-
-	if (error == DB_SUCCESS && trx->fts_trx != NULL) {
-		fts_savepoint_release(trx, name);
-	}
-
-	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
-}
-
-/*****************************************************************//**
-Sets a transaction savepoint.
-@return always 0, that is, always succeeds */
-static
-int
-innobase_savepoint(
-/*===============*/
-	THD*		thd,	/*!< in: handle to the MySQL thread */
-	void*		savepoint)/*!< in: savepoint data */
-{
-	DBUG_ENTER("innobase_savepoint");
-
-	/* In the autocommit mode there is no sense to set a savepoint
-	(unless we are in sub-statement), so SQL layer ensures that
-	this method is never called in such situation.  */
-
-	trx_t*	trx = check_trx_exists(thd);
-
-	/* Cannot happen outside of transaction */
-	DBUG_ASSERT(trx_is_registered_for_2pc(trx));
-
-	/* TODO: use provided savepoint data area to store savepoint data */
-	char	name[64];
-
-	longlong2str(longlong(savepoint), name, 36);
-
-	dberr_t	error = trx_savepoint_for_mysql(trx, name, 0);
-
-	if (error == DB_SUCCESS && trx->fts_trx != NULL) {
-		fts_savepoint_take(trx->fts_trx, name);
-	}
-
-	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
-}
-
-
-/**
-  Frees a possible InnoDB trx object associated with the current THD.
-
-  @param hton  innobase handlerton
-  @param thd   server thread descriptor, which resources should be free'd
-
-  @return 0 always
-*/
-static int innobase_close_connection(THD *thd)
-{
-  if (auto trx= thd_to_trx(thd))
-  {
-    thd_set_ha_data(thd, innodb_hton_ptr, NULL);
-    if (trx->state == TRX_STATE_PREPARED && trx->has_logged_persistent())
-    {
-      trx_disconnect_prepared(trx);
-      return 0;
-    }
-    innobase_rollback_trx(trx);
-    trx->free();
-    DEBUG_SYNC(thd, "innobase_connection_closed");
-  }
-  return 0;
 }
 
 /** Cancel any pending lock request associated with the current THD.
@@ -7664,26 +7699,35 @@ ha_innobase::innobase_set_max_autoinc(
 	return(error);
 }
 
-/** @return whether the table is read-only */
-bool ha_innobase::is_read_only(bool altering_to_supported) const
+int ha_innobase::is_valid_trx(bool altering_to_supported) const noexcept
 {
   ut_ad(m_prebuilt->trx == thd_to_trx(m_user_thd));
 
   if (high_level_read_only)
   {
     ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
-    return true;
+    return HA_ERR_TABLE_READONLY;
   }
 
-  if (altering_to_supported)
-    return false;
+  switch (UNIV_EXPECT(m_prebuilt->trx->state, TRX_STATE_ACTIVE)) {
+  default:
+    ut_ad("invalid state" == 0);
+    /* fall through */
+  case TRX_STATE_ABORTED:
+    break;
+  case TRX_STATE_NOT_STARTED:
+    m_prebuilt->trx->will_lock= true;
+    /* fall through */
+  case TRX_STATE_ACTIVE:
+    if (altering_to_supported ||
+        !DICT_TF_GET_ZIP_SSIZE(m_prebuilt->table->flags) ||
+        !innodb_read_only_compressed)
+      return 0;
 
-  if (!DICT_TF_GET_ZIP_SSIZE(m_prebuilt->table->flags) ||
-      !innodb_read_only_compressed)
-    return false;
-
-  ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_UNSUPPORTED_COMPRESSED_TABLE);
-  return true;
+    ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_UNSUPPORTED_COMPRESSED_TABLE);
+    return HA_ERR_TABLE_READONLY;
+  }
+  return HA_ERR_ROLLBACK;
 }
 
 /********************************************************************//**
@@ -7709,12 +7753,8 @@ ha_innobase::write_row(
 	trx_t*		trx = thd_to_trx(m_user_thd);
 
 	/* Validation checks before we commence write_row operation. */
-	if (is_read_only()) {
-		DBUG_RETURN(HA_ERR_TABLE_READONLY);
-	}
-
-	if (!trx_is_started(trx)) {
-		trx->will_lock = true;
+	if (int err = is_valid_trx()) {
+		DBUG_RETURN(err);
 	}
 
 	ins_mode_t	vers_set_fields;
@@ -8484,10 +8524,8 @@ ha_innobase::update_row(
 
 	DBUG_ENTER("ha_innobase::update_row");
 
-	if (is_read_only()) {
-		DBUG_RETURN(HA_ERR_TABLE_READONLY);
-	} else if (!trx_is_started(trx)) {
-		trx->will_lock = true;
+	if (int err = is_valid_trx()) {
+		DBUG_RETURN(err);
 	}
 
 	if (m_upd_buf == NULL) {
@@ -8605,7 +8643,8 @@ func_exit:
 	if (error == DB_SUCCESS &&
 	    /* For sequences, InnoDB transaction may not have been started yet.
 	    Check THD-level wsrep state in that case. */
-	    (trx->is_wsrep() || (!trx_is_started(trx) && wsrep_on(m_user_thd)))
+	    (trx->is_wsrep()
+	     || (trx->state == TRX_STATE_NOT_STARTED && wsrep_on(m_user_thd)))
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)
 	    && (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)
@@ -8649,12 +8688,9 @@ ha_innobase::delete_row(
 
 	DBUG_ENTER("ha_innobase::delete_row");
 
-	if (is_read_only()) {
-		DBUG_RETURN(HA_ERR_TABLE_READONLY);
-	} else if (!trx_is_started(trx)) {
-		trx->will_lock = true;
+	if (int err = is_valid_trx()) {
+		DBUG_RETURN(err);
 	}
-
 	if (!m_prebuilt->upd_node) {
 		row_get_prebuilt_update_vector(m_prebuilt);
 	}
@@ -8931,10 +8967,15 @@ ha_innobase::index_read(
 		DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
 	}
 
+	const trx_state_t trx_state{m_prebuilt->trx->state};
+	if (trx_state == TRX_STATE_ABORTED) {
+		DBUG_RETURN(HA_ERR_ROLLBACK);
+	}
+
 	/* For R-Tree index, we will always place the page lock to
 	pages being searched */
 	if (index->is_spatial() && !m_prebuilt->trx->will_lock) {
-		if (trx_is_started(m_prebuilt->trx)) {
+		if (trx_state != TRX_STATE_NOT_STARTED) {
 			DBUG_RETURN(HA_ERR_READ_ONLY_TRANSACTION);
 		} else {
 			m_prebuilt->trx->will_lock = true;
@@ -9208,6 +9249,17 @@ ha_innobase::general_fetch(
 
 	ut_ad(trx == thd_to_trx(m_user_thd));
 
+	switch (UNIV_EXPECT(trx->state, TRX_STATE_ACTIVE)) {
+	default:
+		ut_ad("invalid state" == 0);
+		/* fall through */
+	case TRX_STATE_ABORTED:
+		DBUG_RETURN(HA_ERR_ROLLBACK);
+	case TRX_STATE_ACTIVE:
+	case TRX_STATE_NOT_STARTED:
+		break;
+	}
+
 	if (m_prebuilt->table->is_readable()) {
 	} else if (m_prebuilt->table->corrupted) {
 		DBUG_RETURN(HA_ERR_CRASHED);
@@ -9466,9 +9518,7 @@ ha_innobase::rnd_pos(
 Initialize FT index scan
 @return 0 or error number */
 
-int
-ha_innobase::ft_init()
-/*==================*/
+int ha_innobase::ft_init()
 {
 	DBUG_ENTER("ft_init");
 
@@ -9478,9 +9528,14 @@ ha_innobase::ft_init()
 	This is because the FTS implementation can acquire locks behind
 	the scenes. This has not been verified but it is safer to treat
 	them as regular read only transactions for now. */
-
-	if (!trx_is_started(trx)) {
+	switch (trx->state) {
+	default:
+		DBUG_RETURN(HA_ERR_ROLLBACK);
+	case TRX_STATE_ACTIVE:
+		break;
+	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = true;
+		break;
 	}
 
         /* If there is an FTS scan in progress, stop it */
@@ -9519,11 +9574,9 @@ ha_innobase::ft_init_ext(
 			out.write(key->ptr(), key->length());
 		}
 
-		if (flags & FT_BOOL) {
-			ib::info() << "BOOL search";
-		} else {
-			ib::info() << "NL search";
-		}
+		sql_print_information((flags & FT_BOOL)
+				      ? "InnoDB: BOOL search"
+				      : "InnoDB: NL search");
 	}
 
         /* Multi byte character sets like utf32 and utf16 are not
@@ -9548,8 +9601,17 @@ ha_innobase::ft_init_ext(
 	the scenes. This has not been verified but it is safer to treat
 	them as regular read only transactions for now. */
 
-	if (!trx_is_started(trx)) {
+	switch (trx->state) {
+	default:
+		ut_ad("invalid state" == 0);
+		my_printf_error(HA_ERR_ROLLBACK, "Invalid tansaction state",
+				ME_ERROR_LOG);
+		return nullptr;
+	case TRX_STATE_ACTIVE:
+		break;
+	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = true;
+		break;
 	}
 
 	dict_table_t*	ft_table = m_prebuilt->table;
@@ -12736,7 +12798,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 					    " on table %s. Please check"
 					    " the index definition to"
 					    " make sure it is of correct"
-					    " type\n",
+					    " type",
 					    FTS_DOC_ID_INDEX.str,
 					    m_table->name.m_name);
 
@@ -12809,7 +12871,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 			"Create table '%s' with foreign key constraint"
 			" failed. There is no index in the referenced"
 			" table where the referenced columns appear"
-			" as the first columns.\n", m_table_name);
+			" as the first columns.", m_table_name);
 		break;
 
 	case DB_CHILD_NO_INDEX:
@@ -12819,7 +12881,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 			"Create table '%s' with foreign key constraint"
 			" failed. There is no index in the referencing"
 			" table where referencing columns appear"
-			" as the first columns.\n", m_table_name);
+			" as the first columns.", m_table_name);
 		break;
 	case DB_NO_FK_ON_S_BASE_COL:
 		push_warning_printf(
@@ -12828,7 +12890,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 			"Create table '%s' with foreign key constraint"
 			" failed. Cannot add foreign key constraint"
 			" placed on the base column of stored"
-			" column. \n",
+			" column. ",
 			m_table_name);
 	default:
 		break;
@@ -13254,12 +13316,8 @@ ha_innobase::discard_or_import_tablespace(
 
 	DBUG_ENTER("ha_innobase::discard_or_import_tablespace");
 
-	ut_a(m_prebuilt->trx != NULL);
-	ut_a(m_prebuilt->trx->magic_n == TRX_MAGIC_N);
-	ut_a(m_prebuilt->trx == thd_to_trx(ha_thd()));
-
-	if (is_read_only()) {
-		DBUG_RETURN(HA_ERR_TABLE_READONLY);
+	if (int err = is_valid_trx()) {
+		DBUG_RETURN(err);
 	}
 
 	if (m_prebuilt->table->is_temporary()) {
@@ -13811,8 +13869,8 @@ int ha_innobase::truncate()
   }
 #endif
 
-  if (is_read_only())
-    DBUG_RETURN(HA_ERR_TABLE_READONLY);
+  if (int err= is_valid_trx())
+    DBUG_RETURN(err);
 
   HA_CREATE_INFO info;
   dict_table_t *ib_table= m_prebuilt->table;
@@ -15831,6 +15889,16 @@ ha_innobase::start_stmt(
 
 	trx = m_prebuilt->trx;
 
+	switch (trx->state) {
+	default:
+		DBUG_RETURN(HA_ERR_ROLLBACK);
+	case TRX_STATE_ACTIVE:
+		break;
+	case TRX_STATE_NOT_STARTED:
+		trx->will_lock = true;
+		break;
+	}
+
 	/* Reset the AUTOINC statement level counter for multi-row INSERTs. */
 	trx->n_autoinc_rows = 0;
 
@@ -15857,7 +15925,7 @@ ha_innobase::start_stmt(
 		}
 
 		trx->bulk_insert = false;
-		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
+		trx->last_stmt_start = trx->undo_no;
 	}
 
 	m_prebuilt->sql_stat_start = TRUE;
@@ -15915,10 +15983,6 @@ ha_innobase::start_stmt(
 
 	innobase_register_trx(ht, thd, trx);
 
-	if (!trx_is_started(trx)) {
-		trx->will_lock = true;
-	}
-
 	DBUG_RETURN(0);
 }
 
@@ -15972,6 +16036,28 @@ ha_innobase::external_lock(
 
 	if (table->s->tmp_table == INTERNAL_TMP_TABLE)
 		trx->check_unique_secondary = true;
+
+	const bool not_autocommit = thd_test_options(thd, OPTION_NOT_AUTOCOMMIT
+						     | OPTION_BEGIN);
+	bool not_started = false;
+	switch (trx->state) {
+	default:
+	case TRX_STATE_PREPARED:
+		ut_ad("invalid state" == 0);
+		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+	case TRX_STATE_ABORTED:
+		if (lock_type != F_UNLCK && not_autocommit) {
+			DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+		}
+		/* Reset the state if the transaction had been aborted. */
+		trx->state = TRX_STATE_NOT_STARTED;
+		/* fall through */
+	case TRX_STATE_NOT_STARTED:
+		not_started = true;
+		break;
+	case TRX_STATE_ACTIVE:
+		break;
+	}
 
 	/* Statement based binlogging does not work in isolation level
 	READ UNCOMMITTED and READ COMMITTED since the necessary
@@ -16050,7 +16136,7 @@ ha_innobase::external_lock(
 			break;
 		}
 		trx->bulk_insert = false;
-		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
+		trx->last_stmt_start = trx->undo_no;
 	}
 
 	switch (m_prebuilt->table->quiesce) {
@@ -16096,25 +16182,47 @@ ha_innobase::external_lock(
 		break;
 	}
 
-	if (lock_type == F_WRLCK) {
+	switch (lock_type) {
+	case F_UNLCK:
+		DEBUG_SYNC_C("ha_innobase_end_statement");
+		m_mysql_has_locked = false;
 
+		if (--trx->n_mysql_tables_in_use) {
+			break;
+		}
+
+		/* If the lock count drops to zero we know that the
+		current SQL statement has ended */
+		trx->mysql_n_tables_locked = 0;
+		m_prebuilt->used_in_HANDLER = FALSE;
+
+		if (!not_autocommit) {
+			if (!not_started) {
+				innobase_commit(thd, TRUE);
+			}
+		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
+			trx->read_view.close();
+		}
+		break;
+	case F_WRLCK:
 		/* If this is a SELECT, then it is in UPDATE TABLE ...
 		or SELECT ... FOR UPDATE */
 		m_prebuilt->select_lock_type = LOCK_X;
 		m_prebuilt->stored_select_lock_type = LOCK_X;
-	}
-
-	if (lock_type != F_UNLCK) {
-		/* MySQL is setting a new table lock */
-
+		goto set_lock;
+	case F_RDLCK:
+		/* Ensure that trx->lock.trx_locks is empty for read-only
+		autocommit transactions */
+		ut_ad(not_autocommit || trx->n_mysql_tables_in_use
+		      || UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
+set_lock:
 		*trx->detailed_error = 0;
 
 		innobase_register_trx(ht, thd, trx);
 
-		if (trx->isolation_level == TRX_ISO_SERIALIZABLE
-		    && m_prebuilt->select_lock_type == LOCK_NONE
-		    && thd_test_options(
-			    thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
+		if (not_autocommit
+		    && trx->isolation_level == TRX_ISO_SERIALIZABLE
+		    && m_prebuilt->select_lock_type == LOCK_NONE) {
 
 			/* To get serializable execution, we let InnoDB
 			conceptually add 'LOCK IN SHARE MODE' to all SELECTs
@@ -16162,41 +16270,11 @@ ha_innobase::external_lock(
 		trx->n_mysql_tables_in_use++;
 		m_mysql_has_locked = true;
 
-		if (!trx_is_started(trx)
+		if (not_started
 		    && (m_prebuilt->select_lock_type != LOCK_NONE
 			|| m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
 
 			trx->will_lock = true;
-		}
-
-		DBUG_RETURN(0);
-	}
-
-	DEBUG_SYNC_C("ha_innobase_end_statement");
-
-	/* MySQL is releasing a table lock */
-
-	trx->n_mysql_tables_in_use--;
-	m_mysql_has_locked = false;
-
-	/* If the MySQL lock count drops to zero we know that the current SQL
-	statement has ended */
-
-	if (trx->n_mysql_tables_in_use == 0) {
-
-		trx->mysql_n_tables_locked = 0;
-		m_prebuilt->used_in_HANDLER = FALSE;
-
-		if (!thd_test_options(
-				thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-
-			if (trx_is_started(trx)) {
-
-				innobase_commit(thd, TRUE);
-			}
-
-		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
-			trx->read_view.close();
 		}
 	}
 
@@ -16541,14 +16619,6 @@ ha_innobase::store_lock(
 	}
 	m_prebuilt->skip_locked= (lock_type == TL_WRITE_SKIP_LOCKED ||
 				  lock_type == TL_READ_SKIP_LOCKED);
-
-	if (!trx_is_started(trx)
-	    && (m_prebuilt->select_lock_type != LOCK_NONE
-	        || m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
-
-		trx->will_lock = true;
-	}
-
 	return(to);
 }
 
@@ -17030,61 +17100,30 @@ innobase_xa_prepare(
 					false - the current SQL statement
 					ended */
 {
-	trx_t*		trx = check_trx_exists(thd);
+  trx_t *trx= check_trx_exists(thd);
+  ut_ad(trx_is_registered_for_2pc(trx));
+  if (!prepare_trx)
+    prepare_trx= !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN);
 
-	thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
-
-	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
-
-		sql_print_error("Transaction not registered for MariaDB 2PC,"
-				" but transaction is active");
-	}
-
-	if (prepare_trx
-	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
-
-		/* We were instructed to prepare the whole transaction, or
-		this is an SQL statement end and autocommit is on */
-
-		ut_ad(trx_is_registered_for_2pc(trx));
-
-		trx_prepare_for_mysql(trx);
-	} else {
-		/* We just mark the SQL statement ended and do not do a
-		transaction prepare */
-
-		/* If we had reserved the auto-inc lock for some
-		table in this SQL statement we release it now */
-
-		lock_unlock_table_autoinc(trx);
-
-		/* Store the current undo_no of the transaction so that we
-		know where to roll back if we have to roll back the next
-		SQL statement */
-		if (UNIV_UNLIKELY(end_of_statement(trx))) {
-			return 1;
-		}
-	}
-
-	if (thd_sql_command(thd) != SQLCOM_XA_PREPARE
-	    && (prepare_trx
-		|| !thd_test_options(
-			thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
-
-		/* For mysqlbackup to work the order of transactions in binlog
-		and InnoDB must be the same. Consider the situation
-
-		  thread1> prepare; write to binlog; ...
-			  <context switch>
-		  thread2> prepare; write to binlog; commit
-		  thread1>			     ... commit
-
-		The server guarantees that writes to the binary log
-		and commits are in the same order, so we do not have
-		to handle this case. */
-	}
-
-	return(0);
+  switch (UNIV_EXPECT(trx->state, TRX_STATE_ACTIVE)) {
+  default:
+    ut_ad("invalid state" == 0);
+    return HA_ERR_GENERIC;
+  case TRX_STATE_NOT_STARTED:
+    if (prepare_trx)
+      trx_start_if_not_started_xa(trx, false);;
+    /* fall through */
+  case TRX_STATE_ACTIVE:
+    thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
+    if (prepare_trx)
+      trx_prepare_for_mysql(trx);
+    else
+    {
+      lock_unlock_table_autoinc(trx);
+      return end_of_statement(trx);
+    }
+    return 0;
+  }
 }
 
 /*******************************************************************//**
@@ -17136,41 +17175,6 @@ innobase_commit_by_xid(
 	}
 }
 
-/** This function is used to rollback one X/Open XA distributed transaction
-which is in the prepared state
-
-@param[in] hton InnoDB handlerton
-@param[in] xid X/Open XA transaction identification
-
-@return 0 or error number */
-static int innobase_rollback_by_xid(XID* xid)
-{
-	DBUG_EXECUTE_IF("innobase_xa_fail",
-			return XAER_RMFAIL;);
-
-	if (high_level_read_only) {
-		return(XAER_RMFAIL);
-	}
-
-	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
-#ifdef WITH_WSREP
-		/* If a wsrep transaction is being rolled back during
-		the recovery, we must clear the xid in order to avoid
-		writing serialisation history for rolled back transaction. */
-		if (wsrep_is_wsrep_xid(&trx->xid)) {
-			trx->xid.null();
-		}
-#endif /* WITH_WSREP */
-		int ret = innobase_rollback_trx(trx);
-		ut_ad(!trx->will_lock);
-		trx->free();
-
-		return(ret);
-	} else {
-		return(XAER_NOTA);
-	}
-}
-
 #ifndef EMBEDDED_LIBRARY
 /**
   This function is used to rollback one X/Open XA distributed transaction
@@ -17205,10 +17209,10 @@ static int innobase_recover_rollback_by_xid(const XID *xid)
   ut_ad(trx->is_recovered);
   ut_ad(trx->state == TRX_STATE_PREPARED);
 
-#ifdef WITH_WSREP
+# ifdef WITH_WSREP
   // prepared transactions must not be rolled back asynchronously when wsrep is on
   ut_ad(!(WSREP_ON || wsrep_recovery));
-#endif
+# endif
 
   if (trx->rsegs.m_redo.undo)
   {

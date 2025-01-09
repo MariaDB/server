@@ -34,6 +34,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include <my_sys.h>
 #include "ctype-uca.h"
 #include "ctype-unidata.h"
 #include "my_bit.h"
@@ -39438,5 +39439,130 @@ LEX_CSTRING my_ci_get_collation_name_uca(CHARSET_INFO *cs,
   return cs->coll_name;
 }
 
+
+/*
+  Add support for MySQL 8.0 utf8mb4_0900_.. collations
+*/
+
+#define mysql_0900_collation_start 255
+
+struct mysql_0900_to_mariadb_1400_mapping
+{
+  const char *mysql_col_name, *mariadb_col_name, *case_sensitivity;
+};
+
+struct mysql_0900_to_mariadb_1400_mapping mysql_0900_mapping[]=
+{
+  /* 255 Ascent insensitive, Case insensitive 'ai_ci' */
+  {"", "", "ai_ci"},
+  {"de_pb", "german2", "ai_ci"},
+  {"is", "icelandic", "ai_ci"},
+  {"lv", "latvian", "ai_ci"},
+  {"ro", "romanian", "ai_ci"},
+  {"sl", "slovenian", "ai_ci"},
+  {"pl", "polish", "ai_ci"},
+  {"et", "estonian", "ai_ci"},
+  {"es", "spanish", "ai_ci"},
+  {"sv", "swedish", "ai_ci"},
+  {"tr", "turkish", "ai_ci"},
+  {"cs", "czech", "ai_ci"},
+  {"da", "danish", "ai_ci"},
+  {"lt", "lithuanian", "ai_ci"},
+  {"sk", "slovak", "ai_ci"},
+  {"es_trad", "spanish2", "ai_ci"},
+  {"la", "roman", "ai_ci"},
+  {"fa", NullS, "ai_ci"},                             // Disabled in MySQL
+  {"eo", "esperanto", "ai_ci"},
+  {"hu", "hungarian", "ai_ci"},
+  {"hr", "croatian", "ai_ci"},
+  {"si", NullS, "ai_ci"},                             // Disabled in MySQL
+  {"vi", "vietnamese", "ai_ci"},
+
+  /* 278 Ascent sensitive, Case sensitive 'as_cs' */
+  {"","", "as_cs"},
+  {"de_pb", "german2", "as_cs"},
+  {"is", "icelandic", "as_cs"},
+  {"lv", "latvian", "as_cs"},
+  {"ro", "romanian", "as_cs"},
+  {"sl", "slovenian", "as_cs"},
+  {"pl", "polish", "as_cs"},
+  {"et", "estonian", "as_cs"},
+  {"es", "spanish", "as_cs"},
+  {"sv", "swedish", "as_cs"},
+  {"tr", "turkish", "as_cs"},
+  {"cs", "czech", "as_cs"},
+  {"da", "danish", "as_cs"},
+  {"lt", "lithuanian", "as_cs"},
+  {"sk", "slovak", "as_cs"},
+  {"es_trad", "spanish2", "as_cs"},
+  {"la", "roman", "as_cs"},
+  {"fa", NullS, "as_cs"},                             // Disabled in MySQL
+  {"eo", "esperanto", "as_cs"},
+  {"hu", "hungarian", "as_cs"},
+  {"hr", "croatian", "as_cs"},
+  {"si", NullS, "as_cs"},                             // Disabled in MySQL
+  {"vi", "vietnamese", "as_cs"},
+
+  {"", NullS, "as_cs"},                               // Missing
+  {"", NullS, "as_cs"},                               // Missing
+  {"_ja_0900_as_cs", NullS, "as_cs"},                 // Not supported
+  {"_ja_0900_as_cs_ks", NullS, "as_cs"},              // Not supported
+
+  /* 305 Ascent-sensitive, Case insensitive 'as_ci' */
+  {"","", "as_ci"},
+  {"ru", NullS, "ai_ci"},                             // Not supported
+  {"ru", NullS, "as_cs"},                             // Not supported
+  {"zh", NullS, "as_cs"},                             // Not supported
+  {NullS, NullS, ""}
+};
+
+
+/*
+  Map mysql character sets to MariaDB using the same definition but with
+  with the MySQL collation name and id.
+*/
+
+my_bool mysql_utf8mb4_0900_collation_definitions_add()
+{
+  uint id= mysql_0900_collation_start;
+  struct mysql_0900_to_mariadb_1400_mapping *map;
+  LEX_CSTRING mysql_utf8_bin= { STRING_WITH_LEN("utf8mb4_0900_bin") };
+  LEX_CSTRING mariadb_utf8_bin= { STRING_WITH_LEN("utf8mb4_bin") };
+
+  for (map= mysql_0900_mapping; map->mysql_col_name ; map++, id++)
+  {
+    if (map->mariadb_col_name)               /* Supported collation */
+    {
+      size_t org_length, ali_length;
+      char original[64], alias[64];
+      LEX_CSTRING org_name, alias_name;
+
+      org_length= (strxnmov(original, sizeof(original)-1,
+                            "utf8mb4_uca1400_",
+                            map->mariadb_col_name,
+                            (map->mariadb_col_name[0] ? "_" : ""),
+                            "nopad_",
+                            map->case_sensitivity,
+                            NullS) - original);
+      ali_length= (strxnmov(alias, sizeof(alias)-1,
+                            "utf8mb4_", map->mysql_col_name,
+                            (map->mysql_col_name[0] ? "_" : ""),
+                            "0900_",
+                            map->case_sensitivity,
+                            NullS) - alias);
+      org_name.str=      original;
+      org_name.length=   org_length;
+      alias_name.str=    alias;
+      alias_name.length= ali_length;
+
+      if (add_alias_for_collation(&org_name, &alias_name, id))
+        return 1;
+    }
+  }
+
+  if (add_alias_for_collation(&mariadb_utf8_bin, &mysql_utf8_bin, 309))
+    return 1;
+  return 0;
+}
 
 #endif /* HAVE_UCA_COLLATIONS */

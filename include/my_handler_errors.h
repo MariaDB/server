@@ -111,7 +111,8 @@ static const char *handler_error_messages[]=
   "Error during commit",
   "Cannot select partitions",
   "Cannot initialize encryption. Check that all encryption parameters have been set",
-  /* 200 */
+  "Transaction was aborted",
+  /* HA_ERR_LOCAL_TMP_SPACE_FULL=201 */
   "Local temporary space limit reached",
   "Global temporary space limit reached"
 };

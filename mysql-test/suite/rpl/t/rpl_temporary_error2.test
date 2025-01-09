@@ -2,6 +2,9 @@
 --source include/master-slave.inc
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
 
 --echo *** Provoke a deadlock on the slave, check that transaction retry succeeds. ***
 --connection master

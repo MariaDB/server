@@ -1,5 +1,5 @@
---- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/checksum_table_live.result	2017-06-22 00:33:46.419995639 +0300
-+++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/checksum_table_live.reject	2017-06-22 01:12:38.695980980 +0300
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/checksum_table_live.result
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/checksum_table_live.reject
 @@ -11,8 +11,8 @@
  test.t1	4272806499
  CHECKSUM TABLE t1, t2 QUICK;

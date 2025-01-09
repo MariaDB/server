@@ -6,6 +6,9 @@
 --echo #
 
 call mtr.add_suppression("\\[Warning\\] InnoDB: Over 67 percent of the buffer pool");
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
 
 CREATE TABLE t1 (col1 INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5);

@@ -1,0 +1,26 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (c varchar(10));
+create table t1 (c varchar(10)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into t1 values ('abc'), ('abd'), ('abcd'), ('abc');
+SELECT DISTINCT c FROM t1;
+c
+abc
+abd
+abcd
+SELECT DISTINCT c FROM t1 WHERE (c LIKE 'abc%');
+c
+abc
+abcd
+drop table t1, t2;
+drop server srv;
+for master_1
+for child2
+for child3

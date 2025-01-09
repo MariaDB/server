@@ -96,6 +96,8 @@ drop view v1;
 create table t1 (user_id char(64) character set utf8);
 insert t1 values(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15),(16),(17);
 set @@tmp_table_size = 1024;
+Warnings:
+Warning	1292	Truncated incorrect tmp_table_size value: '1024'
 select count(distinct user_id) from t1;
 count(distinct user_id)
 17
@@ -125,6 +127,8 @@ insert into t1 values
 ( 2 , 13 ),
 ( 3 , 14 );
 set @@tmp_table_size=1024;
+Warnings:
+Warning	1292	Truncated incorrect tmp_table_size value: '1024'
 select count(distinct a) from t1;
 count(distinct a)
 10

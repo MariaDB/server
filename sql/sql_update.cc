@@ -1108,19 +1108,14 @@ error:
         rows_inserted++;
       }
 
-      void *save_bulk_param= thd->bulk_param;
-      thd->bulk_param= nullptr;
-
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, TRUE)))
       {
         error= 1;
-        thd->bulk_param= save_bulk_param;
 
         break;
       }
-      thd->bulk_param= save_bulk_param;
 
       if (!--limit && using_limit)
       {
