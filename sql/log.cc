@@ -11385,7 +11385,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   binlog_checkpoint_found= false;
   for (round= 1;;)
   {
-    while ((ev= Log_event::read_log_event(round == 1 ? first_log : &log,
+    int error;
+    while ((ev= Log_event::read_log_event(round == 1 ? first_log : &log, &error,
                                           fdle, opt_master_verify_checksum))
            && ev->is_valid())
     {
@@ -11671,7 +11672,8 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
     return 1;
   }
 
-  if ((ev= Log_event::read_log_event(&log, &fdle,
+  int read_error;
+  if ((ev= Log_event::read_log_event(&log, &read_error, &fdle,
                                      opt_master_verify_checksum)) &&
       ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
   {
@@ -11895,10 +11897,11 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   Format_description_log_event *fdle;
   Log_event *ev;
   const char *errormsg = NULL;
+  int read_error;
 
   *out_gtid_list= NULL;
 
-  if (!(ev= Log_event::read_log_event(cache, &init_fdle,
+  if (!(ev= Log_event::read_log_event(cache, &read_error, &init_fdle,
                                       opt_master_verify_checksum)) ||
       ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
   {
@@ -11914,7 +11917,8 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   {
     Log_event_type typ;
 
-    ev= Log_event::read_log_event(cache, fdle, opt_master_verify_checksum);
+    ev= Log_event::read_log_event(cache, &read_error, fdle,
+                                  opt_master_verify_checksum);
     if (!ev)
     {
       errormsg= "Could not read GTID list event while looking for GTID "

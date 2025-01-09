@@ -1344,7 +1344,7 @@ public:
     we detect the event's type, then call the specific event's
     constructor and pass description_event as an argument.
   */
-  static Log_event* read_log_event(IO_CACHE* file,
+  static Log_event* read_log_event(IO_CACHE* file, int *out_error,
                                    const Format_description_log_event
                                    *description_event,
                                    my_bool crc_check,

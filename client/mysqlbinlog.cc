@@ -2702,6 +2702,7 @@ static Exit_status check_header(IO_CACHE* file,
   uchar buf[PROBE_HEADER_LEN];
   my_off_t tmp_pos, pos;
   MY_STAT my_file_stat;
+  int read_error;
 
   delete glob_description_event;
   if (!(glob_description_event= new Format_description_log_event(3)))
@@ -2802,7 +2803,8 @@ static Exit_status check_header(IO_CACHE* file,
         Format_description_log_event *new_description_event;
         my_b_seek(file, tmp_pos); /* seek back to event's start */
         if (!(new_description_event= (Format_description_log_event*) 
-              Log_event::read_log_event(file, glob_description_event,
+              Log_event::read_log_event(file, &read_error,
+                                        glob_description_event,
                                         opt_verify_binlog_checksum)))
           /* EOF can't be hit here normally, so it's a real error */
         {
@@ -2835,7 +2837,8 @@ static Exit_status check_header(IO_CACHE* file,
       {
         Log_event *ev;
         my_b_seek(file, tmp_pos); /* seek back to event's start */
-        if (!(ev= Log_event::read_log_event(file, glob_description_event,
+        if (!(ev= Log_event::read_log_event(file, &read_error,
+                                            glob_description_event,
                                             opt_verify_binlog_checksum)))
         {
           /* EOF can't be hit here normally, so it's a real error */
@@ -2948,8 +2951,10 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   {
     char llbuff[21];
     my_off_t old_off = my_b_tell(file);
+    int read_error;
 
-    Log_event* ev = Log_event::read_log_event(file, glob_description_event,
+    Log_event* ev = Log_event::read_log_event(file, &read_error,
+                                              glob_description_event,
                                               opt_verify_binlog_checksum);
     if (!ev)
     {
@@ -2958,15 +2963,15 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
         about a corruption, but treat it as EOF and move to the next binlog.
       */
       if (glob_description_event->flags & LOG_EVENT_BINLOG_IN_USE_F)
-        file->error= 0;
-      else if (file->error)
+        read_error= 0;
+      else if (read_error)
       {
         error("Could not read entry at offset %s: "
               "Error in log format or read error.",
               llstr(old_off,llbuff));
         goto err;
       }
-      // else file->error == 0 means EOF, that's OK, we break in this case
+      // else read_error == 0 means EOF, that's OK, we break in this case
 
       /*
         Emit a warning in the event that we finished processing input
