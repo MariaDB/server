@@ -3,18 +3,30 @@
 [mysqld.1]
 log-slave-updates
 loose-innodb
+gtid-domain-id=1
+gtid-ignore-duplicates=1
+gtid-strict-mode=1
 
 [mysqld.2]
 log-slave-updates
 loose-innodb
+gtid-domain-id=2
+gtid-ignore-duplicates=1
+gtid-strict-mode=1
 
 [mysqld.3]
 log-slave-updates
 loose-innodb
+gtid-domain-id=3
+gtid-ignore-duplicates=1
+gtid-strict-mode=1
 
 [mysqld.4]
 log-slave-updates
 loose-innodb
+gtid-domain-id=4
+gtid-ignore-duplicates=1
+gtid-strict-mode=1
 
 [ENV]
 SERVER_MYPORT_3=		@mysqld.3.port

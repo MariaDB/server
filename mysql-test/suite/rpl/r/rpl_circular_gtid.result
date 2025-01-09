@@ -42,19 +42,21 @@ STOP SLAVE IO_THREAD;
 include/wait_for_slave_io_to_stop.inc
 INSERT INTO t1 VALUES (10, 'E1');
 include/save_master_gtid.inc
-connection server_3;
+connection server_2;
 include/sync_with_master_gtid.inc
+INSERT INTO t1 VALUES (12, 'E3');
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	B0
 2	B1
 10	E1
+12	E3
 STOP SLAVE IO_THREAD;
 include/wait_for_slave_io_to_stop.inc
 connection server_1;
 INSERT INTO t1 VALUES (11, 'E2');
 include/save_master_gtid.inc
-connection server_2;
+connection server_3;
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -66,12 +68,12 @@ connection server_1;
 STOP SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_stop.inc
 connection server_3;
-STOP SLAVE SQL_THREAD;
-include/wait_for_slave_sql_to_stop.inc
+include/stop_slave.inc
 CHANGE MASTER TO master_host='127.0.0.1',master_port=SERVER_MYPORT_2;
 include/start_slave.inc
 connection server_2;
-include/stop_slave.inc
+STOP SLAVE SQL_THREAD;
+include/wait_for_slave_sql_to_stop.inc
 CHANGE MASTER TO master_host='127.0.0.1',master_port=SERVER_MYPORT_3;
 include/start_slave.inc
 connection server_3;
@@ -82,6 +84,7 @@ a	b
 2	B1
 10	E1
 11	E2
+12	E3
 connection server_1;
 CHANGE MASTER TO master_host='127.0.0.1',master_port=SERVER_MYPORT_3;
 include/start_slave.inc
@@ -97,6 +100,7 @@ a	b
 2	B1
 10	E1
 11	E2
+12	E3
 20	S3
 21	S2
 include/save_master_gtid.inc
@@ -108,6 +112,7 @@ a	b
 2	B1
 10	E1
 11	E2
+12	E3
 20	S3
 21	S2
 connection server_1;
