@@ -799,7 +799,7 @@ public:
   /** Prepare to release a file page to buf_pool.free. */
   void free_file_page() noexcept
   {
-    ut_ad((zip.fix.fetch_sub(REMOVE_HASH - MEMORY)) == REMOVE_HASH);
+    assert((zip.fix.fetch_sub(REMOVE_HASH - MEMORY)) == REMOVE_HASH);
     /* buf_LRU_block_free_non_file_page() asserts !oldest_modification() */
     ut_d(oldest_modification_= 0;)
     id_= page_id_t(~0ULL);
