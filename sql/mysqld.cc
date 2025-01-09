@@ -7359,7 +7359,7 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
 }
 
 
-static int show_binlog_space_total(THD *thd, SHOW_VAR *var, char *buff,
+static int show_binlog_space_total(THD *thd, SHOW_VAR *var, void *buff,
                                    struct system_status_var *status_var,
                                    enum enum_var_type scope)
 {
