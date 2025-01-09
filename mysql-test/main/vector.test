@@ -73,6 +73,7 @@ select * from (
 # see if order by uses index:
 --disable_view_protocol
 --disable_ps2_protocol
+--disable_cursor_protocol
 flush session status;
 --replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
@@ -84,6 +85,7 @@ flush session status;
 --replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 show status like 'handler_read_rnd_next'; # not used, wrong distance metric
+--enable_cursor_protocol
 --enable_ps2_protocol
 --enable_view_protocol
 
@@ -238,6 +240,7 @@ select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d 
 
 --disable_view_protocol
 --disable_ps2_protocol
+--disable_cursor_protocol
 flush session status;
 --replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
@@ -249,6 +252,7 @@ flush session status;
 --replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 show status like 'handler_read_rnd_next';
+--enable_cursor_protocol
 --enable_ps2_protocol
 --enable_view_protocol
 drop table t1;

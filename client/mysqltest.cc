@@ -9824,7 +9824,7 @@ void init_re(void)
     //"[[:space:]]*CALL[[:space:]]|" // XXX run_query_stmt doesn't read multiple result sets
     "[[:space:]]*CHANGE[[:space:]]|"
     "[[:space:]]*CHECKSUM[[:space:]]|"
-    "[[:space:]]*COMMIT[[:space:]]|"
+    "[[:space:]]*COMMIT[[:space:]]*|"
     "[[:space:]]*COMPOUND[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+DATABASE[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+INDEX[[:space:]]|"

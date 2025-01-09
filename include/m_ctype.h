@@ -485,9 +485,9 @@ typedef struct my_charset_loader_st
 {
   char error[128];
   void *(*once_alloc)(size_t);
-  void *(*malloc)(size_t);
-  void *(*realloc)(void *, size_t);
-  void (*free)(void *);
+  void *(*malloc)(size_t);                      /* Not used */
+  void *(*realloc)(void *, size_t);             /* Not used */
+  void (*free)(void *);                         /* Not used */
   void (*reporter)(enum loglevel, const char *format, ...);
   int  (*add_collation)(struct charset_info_st *cs);
 } MY_CHARSET_LOADER;
@@ -1753,6 +1753,7 @@ my_bool my_propagate_complex(CHARSET_INFO *cs, const uchar *str, size_t len);
 uint my_ci_get_id_generic(CHARSET_INFO *cs, my_collation_id_type_t type);
 LEX_CSTRING my_ci_get_collation_name_generic(CHARSET_INFO *cs,
                                              my_collation_name_mode_t mode);
+my_bool compare_collations(CHARSET_INFO *cs1, CHARSET_INFO *cs2);
 
 typedef struct 
 {

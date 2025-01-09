@@ -454,9 +454,8 @@ sub mtr_report_stats ($$$$) {
     # Print info about reporting the error
     print
       "The log files in var/log may give you some hint of what went wrong.\n\n",
-      "If you want to report this error, please read first ",
-      "the documentation\n",
-      "at http://dev.mysql.com/doc/mysql/en/mysql-test-suite.html\n\n";
+      "If you want to report this error, MariaDB's bug tracker is found at\n",
+      "https://jira.mariadb.org\n\n";
 
    }
   else

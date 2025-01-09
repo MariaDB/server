@@ -688,6 +688,14 @@ enum Log_event_type
   /* not ignored */
   XA_PREPARE_LOG_EVENT= 38,
 
+  /**
+    Extension of UPDATE_ROWS_EVENT, allowing partial values according
+    to binlog_row_value_options.
+  */
+  PARTIAL_UPDATE_ROWS_EVENT = 39,
+  TRANSACTION_PAYLOAD_EVENT = 40,
+  HEARTBEAT_LOG_EVENT_V2 = 41,
+
   /*
     Add new events here - right above this comment!
     Existing events (except ENUM_END_EVENT) should never change their numbers
@@ -4779,7 +4787,7 @@ public:
   */
   bool is_valid() const override
   {
-    return m_rows_buf && m_cols.bitmap;
+    return m_cols.bitmap;
   }
 
   uint     m_row_count;         /* The number of rows added to the event */

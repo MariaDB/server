@@ -67,6 +67,8 @@ trx_state_eq(
 			 && thd_get_error_number(trx->mysql_thd)));
 
 		return(true);
+	case TRX_STATE_ABORTED:
+		break;
 	}
 	ut_error;
 #endif /* UNIV_DEBUG */

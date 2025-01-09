@@ -798,9 +798,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
     Pass nominal parameters to init_alloc_root only to ensure that
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
+    The base one will mainly be use to allocate memory during authentication.
   */
   init_sql_alloc(key_memory_thd_main_mem_root,
-                 &main_mem_root, 64, 0, MYF(MY_THREAD_SPECIFIC));
+                 &main_mem_root, DEFAULT_ROOT_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   /*
     Allocation of user variables for binary logging is always done with main
@@ -1472,7 +1474,10 @@ void THD::update_stats(void)
 void THD::update_all_stats()
 {
   ulonglong end_cpu_time, end_utime;
-  double busy_time, cpu_time;
+  ulonglong busy_time, cpu_time;
+
+  status_var_add(status_var.query_time,
+                 (utime_after_query - utime_after_lock));
 
   /* This is set at start of query if opt_userstat_running was set */
   if (!userstat_running)
@@ -1480,10 +1485,10 @@ void THD::update_all_stats()
 
   end_cpu_time= my_getcputime();
   end_utime=    microsecond_interval_timer();
-  busy_time= (end_utime - start_utime) / 1000000.0;
-  cpu_time=  (end_cpu_time - start_cpu_time) / 10000000.0;
+  busy_time= end_utime - start_utime;
+  cpu_time=  end_cpu_time - start_cpu_time;
   /* In case there are bad values, 2629743 is the #seconds in a month. */
-  if (cpu_time > 2629743.0)
+  if (cpu_time > 2629743000000ULL)
     cpu_time= 0;
   status_var_add(status_var.cpu_time, cpu_time);
   status_var_add(status_var.busy_time, busy_time);
@@ -1925,6 +1930,7 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->table_open_cache_hits+= from_var->table_open_cache_hits;
   to_var->table_open_cache_misses+= from_var->table_open_cache_misses;
   to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows;
+  to_var->query_time+=          from_var->query_time;
 
   /*
     Update global_memory_used. We have to do this with atomic_add as the
@@ -1988,6 +1994,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                                     dec_var->table_open_cache_misses;
   to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows -
                                        dec_var->table_open_cache_overflows;
+  to_var->query_time+=            from_var->query_time - dec_var->query_time;
 
   /*
     We don't need to accumulate memory_used as these are not reset or used by
@@ -5921,6 +5928,20 @@ extern "C" void *thd_mdl_context(MYSQL_THD thd)
 {
   return &thd->mdl_context;
 }
+
+
+/**
+  log_warnings accessor
+  @param thd   the current session
+
+  @return log warning level
+*/
+
+extern "C" int thd_log_warnings(const MYSQL_THD thd)
+{
+  return thd->variables.log_warnings;
+}
+
 
 /**
   Send check/repair message to the user

@@ -78,7 +78,7 @@ const char *safe_vio_type_name(Vio *vio)
   return vio_type_name(vio_type(vio), &unused);
 }
 
-#include "sql_acl_getsort.ic"
+#include "sql_acl_getsort.inl"
 
 static Lex_ident_plugin native_password_plugin_name=
   "mysql_native_password"_Lex_ident_plugin;
@@ -4118,7 +4118,8 @@ bool acl_check_host(const char *host, const char *ip)
     return 0;
   mysql_mutex_lock(&acl_cache->lock);
 
-  if ((host && my_hash_search(&acl_check_hosts,(uchar*) host,strlen(host))) ||
+  if (allow_all_hosts ||
+      (host && my_hash_search(&acl_check_hosts,(uchar*) host,strlen(host))) ||
       (ip && my_hash_search(&acl_check_hosts,(uchar*) ip, strlen(ip))))
   {
     mysql_mutex_unlock(&acl_cache->lock);

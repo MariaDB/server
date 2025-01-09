@@ -19,6 +19,11 @@
 #include "string_ref.hpp"
 #include "string_buffer.hpp"
 
+#ifdef __GNUC__
+/* auto_ptr is deprecated */
+# pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 namespace dena {
 
 struct hstcpcli_filter {

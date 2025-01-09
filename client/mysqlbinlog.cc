@@ -164,7 +164,8 @@ static Domain_gtid_event_filter *domain_id_gtid_filter= NULL;
 static Server_gtid_event_filter *server_id_gtid_filter= NULL;
 
 static char *start_datetime_str, *stop_datetime_str;
-static my_time_t start_datetime= 0, stop_datetime= MY_TIME_T_MAX;
+static my_time_t start_datetime= 0, stop_datetime= 0;
+static bool stop_datetime_given= false;
 static ulonglong rec_count= 0;
 static MYSQL* mysql = NULL;
 static const char* dirname_for_local_load= 0;
@@ -1032,7 +1033,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       if (ev_type != ROTATE_EVENT && is_server_id_excluded(ev->server_id))
         goto end;
     }
-    if ((ev->when >= stop_datetime)
+    if ((stop_datetime_given && ev->when >= stop_datetime)
         || (pos >= stop_position_mot))
     {
       /* end the program */
@@ -2125,6 +2126,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
   case OPT_STOP_DATETIME:
     stop_datetime= convert_str_to_timestamp(stop_datetime_str);
+    stop_datetime_given= true;
     break;
   case OPT_BASE64_OUTPUT_MODE:
     int val;
@@ -3198,7 +3200,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
         Emit a warning in the event that we finished processing input
         before reaching the boundary indicated by --stop-datetime.
       */
-      if (stop_datetime != MY_TIME_T_MAX &&
+      if (stop_datetime_given &&
           stop_datetime > last_ev_when)
       {
           retval = OK_STOP;
@@ -3305,7 +3307,7 @@ int main(int argc, char** argv)
     if (stop_position != (ulonglong)(~(my_off_t)0))
       warning("The --stop-position option is ignored in raw mode");
 
-    if (stop_datetime != MY_TIME_T_MAX)
+    if (stop_datetime_given)
       warning("The --stop-datetime option is ignored in raw mode");
     result_file= 0;
     if (result_file_name)

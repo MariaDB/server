@@ -69,6 +69,46 @@ SELECT * FROM t1 ORDER BY a;
 ROLLBACK;
 SELECT * FROM t1 ORDER BY a;
 
+# MDEV-34049: Parallel access to temptable in different domain_id in parallel replication
+#
+# Temporary tables must be prevented from being accessed from multiple threads
+# at the same time in parallel replication. Withon one domain_id, this is done
+# by running wait_for_prior_commit() before accessing a temporary table. To
+# prevent the same temporary table from being accessed in parallel from two
+# domains in out-of-order parallel replication, an error must be raised on
+# attempt to change the gtid_domain_id while temporary tables are in use in
+# a session and binlogged. In row-based binlogging, temporary tables are not
+# binlogged, so gtid_domain_id can be freely changed.
+SET @old_mode= @@SESSION.binlog_format;
+SET SESSION binlog_format= row;
+SET SESSION gtid_domain_id= 200;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION gtid_domain_id= 0;
+BEGIN;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t1 SELECT * FROM t2;
+COMMIT;
+SET SESSION gtid_domain_id= 201;
+SET SESSION gtid_domain_id= 0;
+DELETE FROM t1 WHERE a=200;
+SET SESSION gtid_domain_id= 202;
+DROP TEMPORARY TABLE t2;
+
+SET SESSION binlog_format= mixed;
+SET SESSION gtid_domain_id= 0;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+SET SESSION gtid_domain_id= 0;
+--error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+SET SESSION gtid_domain_id= 204;
+SET SESSION binlog_format=statement;
+INSERT INTO t2 VALUES (2);
+--error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+SET SESSION gtid_domain_id= 205;
+DROP TEMPORARY TABLE t2;
+SET SESSION gtid_domain_id= @old_domain;
+SET SESSION binlog_format= @old_mode;
+
 
 --echo *** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
 --connection slave

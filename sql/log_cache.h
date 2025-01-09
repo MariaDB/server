@@ -108,9 +108,9 @@ public:
   void reset()
   {
     bool cache_was_empty= empty();
+    my_off_t trunc_len= MY_MIN(CACHE_FILE_TRUNC_SIZE, cache_log.buffer_length);
     bool truncate_file= (cache_log.file != -1 &&
-                         my_b_write_tell(&cache_log) >
-                         MY_MIN(CACHE_FILE_TRUNC_SIZE, binlog_stmt_cache_size));
+                         my_b_write_tell(&cache_log) > trunc_len);
     // m_file_reserved_bytes must be reset to 0, before truncate.
     m_file_reserved_bytes= 0;
     truncate(0,1);                              // Forget what's in cache

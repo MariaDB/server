@@ -1062,9 +1062,8 @@ typedef struct system_status_var
   ulonglong table_open_cache_hits;
   ulonglong table_open_cache_misses;
   ulonglong table_open_cache_overflows;
-  ulonglong send_metadata_skips;
+  ulonglong cpu_time, busy_time, query_time;
   double last_query_cost;
-  double cpu_time, busy_time;
   uint32 threads_running;
 
   /* Following variables are not cleared by FLUSH STATUS */
@@ -3508,8 +3507,8 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       implicit_xid.null();
-      init_sql_alloc(key_memory_thd_transactions, &mem_root, 256,
-                     0, MYF(MY_THREAD_SPECIFIC));
+      init_sql_alloc(key_memory_thd_transactions, &mem_root,
+                     DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
     }
   } default_transaction, *transaction;
   Global_read_lock global_read_lock;

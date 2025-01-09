@@ -1957,12 +1957,33 @@ Sys_pseudo_thread_id(
 static bool
 check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
 {
-  if (var->type != OPT_GLOBAL &&
-      error_if_in_trans_or_substatement(thd,
+  if (var->type != OPT_GLOBAL)
+  {
+    if (error_if_in_trans_or_substatement(thd,
           ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
           ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
     return true;
+    /*
+      All binlogged statements on a temporary table must be binlogged in the
+      same domain_id; it is not safe to run them in parallel in different
+      domains, temporary table must be exclusive to a single thread.
+      In row-based binlogging, temporary tables do not end up in the binlog,
+      so there is no such issue.
 
+      ToDo: When merging to next (non-GA) release, introduce a more specific
+      error that describes that the problem is changing gtid_domain_id with
+      open temporary tables in statement/mixed binlogging mode; it is not
+      really due to doing it inside a "transaction".
+    */
+    if (thd->has_thd_temporary_tables() &&
+        !thd->is_current_stmt_binlog_format_row() &&
+        var->save_result.ulonglong_value != thd->variables.gtid_domain_id)
+    {
+      my_error(ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+               MYF(0));
+        return true;
+    }
+  }
   return false;
 }
 
@@ -3096,6 +3117,14 @@ static Sys_var_proxy_user Sys_proxy_user(
 static Sys_var_external_user Sys_exterenal_user(
        "external_user", "The external user account used when logging in");
 
+
+static bool update_record_cache(sys_var *self, THD *thd, enum_var_type type)
+{
+  if (type == OPT_GLOBAL)
+    my_default_record_cache_size= global_system_variables.read_buff_size;
+  return false;
+}
+
 static Sys_var_ulong Sys_read_buff_size(
        "read_buffer_size",
        "Each thread that does a sequential scan allocates a buffer of "
@@ -3103,7 +3132,8 @@ static Sys_var_ulong Sys_read_buff_size(
        "you may want to increase this value",
        SESSION_VAR(read_buff_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE*2, INT_MAX32), DEFAULT(128*1024),
-       BLOCK_SIZE(IO_SIZE));
+       BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(update_record_cache));
 
 static bool check_read_only(sys_var *self, THD *thd, set_var *var)
 {
@@ -4451,7 +4481,7 @@ static Sys_var_ulonglong Sys_tmp_table_size(
        "will automatically convert it to an on-disk MyISAM or Aria table",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(16384));
 
 static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "tmp_memory_table_size",
@@ -4460,7 +4490,7 @@ static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "Same as tmp_table_size",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(16384));
 
 static Sys_var_ulonglong Sys_tmp_disk_table_size(
        "tmp_disk_table_size",
