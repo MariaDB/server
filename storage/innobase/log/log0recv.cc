@@ -2791,10 +2791,28 @@ restart:
         cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         break;
       case EXTENDED:
-        if (storing != YES)
+        if (storing == NO)
+          /* We really only care about WRITE records to page 0, to
+          invoke fil_space_set_recv_size_and_flags().  As of now, the
+          EXTENDED records refer to index or undo log pages (which
+          page 0 never can be), or we have the TRIM_PAGES subtype for
+          shrinking a tablespace, to a larger number of pages than 0.
+          Either way, we can ignore this record during the preparation
+          for multi-batch recovery. */
           continue;
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
+        if (storing == BACKUP)
+        {
+          if (rlen == 1 && undo_space_trunc)
+          {
+            cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
+            if (*cl == TRIM_PAGES)
+              undo_space_trunc(space_id);
+          }
+          continue;
+        }
+
         cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         if (rlen == 1 && *cl == TRIM_PAGES)
         {
@@ -2815,7 +2833,10 @@ restart:
             undo_space_trunc(space_id);
           continue;
         }
-        if (storing != BACKUP) last_offset= FIL_PAGE_TYPE;
+        /* This record applies to an undo log or index page, and it
+        may be followed by subsequent WRITE or similar records for the
+        same page in the same mini-transaction. */
+        last_offset= FIL_PAGE_TYPE;
         break;
       case OPTION:
         if (storing == YES && rlen == 5 && *l == OPT_PAGE_CHECKSUM)
