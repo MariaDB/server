@@ -41,6 +41,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0buf.h"
 #include "buf0dblwr.h"
 #include "buf0flu.h"
+#include "buf0checksum.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "page0page.h"
