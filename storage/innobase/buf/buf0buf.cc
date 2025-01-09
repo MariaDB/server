@@ -853,6 +853,26 @@ void buf_page_print(const byte *read_buf, ulint zip_size) noexcept
 #endif
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+
+/** Ensure that some adaptive hash index fields are initialized */
+static void buf_block_init_low(buf_block_t *block) noexcept
+{
+  /* No adaptive hash index entries may point to a previously unused
+  (and now freshly allocated) block. */
+  MEM_MAKE_DEFINED(&block->index, sizeof block->index);
+  MEM_MAKE_DEFINED(&block->n_pointers, sizeof block->n_pointers);
+  MEM_MAKE_DEFINED(&block->n_hash_helps, sizeof block->n_hash_helps);
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+  ut_a(!block->index);
+  ut_a(!block->n_pointers);
+  ut_a(!block->n_hash_helps);
+# endif
+}
+#else /* BTR_CUR_HASH_ADAPT */
+inline void buf_block_init_low(buf_block_t*) {}
+#endif /* BTR_CUR_HASH_ADAPT */
+
 /** Initialize a buffer page descriptor.
 @param[in,out]	block	buffer page descriptor
 @param[in]	frame	buffer page frame */
@@ -862,8 +882,7 @@ buf_block_init(buf_block_t* block, byte* frame)
 {
 	/* This function should only be executed at database startup or by
 	buf_pool.resize(). Either way, adaptive hash index must not exist. */
-	assert_block_ahi_empty_on_init(block);
-
+	buf_block_init_low(block);
 	block->page.frame = frame;
 
 	MEM_MAKE_DEFINED(&block->modify_clock, sizeof block->modify_clock);
@@ -871,10 +890,6 @@ buf_block_init(buf_block_t* block, byte* frame)
 	MEM_MAKE_DEFINED(&block->page.lock, sizeof block->page.lock);
 	block->page.lock.init();
 	block->page.init(buf_page_t::NOT_USED, page_id_t(~0ULL));
-#ifdef BTR_CUR_HASH_ADAPT
-	MEM_MAKE_DEFINED(&block->index, sizeof block->index);
-	ut_ad(!block->index);
-#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(block->in_unzip_LRU_list = false);
 	ut_d(block->in_withdraw_list = false);
 
@@ -1295,19 +1310,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block) noexcept
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		block->page.set_corrupt_id();
 
-		/* set other flags of buf_block_t */
-
-#ifdef BTR_CUR_HASH_ADAPT
-		/* This code should only be executed by resize(),
-		while the adaptive hash index is disabled. */
-		assert_block_ahi_empty(block);
-		assert_block_ahi_empty_on_init(new_block);
-		ut_ad(!block->index);
-		new_block->index	= NULL;
-		new_block->n_hash_helps	= 0;
-		new_block->n_fields	= 1;
-		new_block->left_side	= TRUE;
-#endif /* BTR_CUR_HASH_ADAPT */
+		buf_block_init_low(new_block);
 		ut_d(block->page.set_state(buf_page_t::MEMORY));
 		/* free block */
 		new_block = block;
@@ -2286,27 +2289,6 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
 #endif /* UNIV_DEBUG */
   return bpage;
-}
-
-/********************************************************************//**
-Initialize some fields of a control block. */
-UNIV_INLINE
-void
-buf_block_init_low(
-/*===============*/
-	buf_block_t*	block)	/*!< in: block to init */
-{
-#ifdef BTR_CUR_HASH_ADAPT
-	/* No adaptive hash index entries may point to a previously
-	unused (and now freshly allocated) block. */
-	assert_block_ahi_empty_on_init(block);
-	block->index		= NULL;
-
-	block->n_hash_helps	= 0;
-	block->n_fields		= 1;
-	block->n_bytes		= 0;
-	block->left_side	= TRUE;
-#endif /* BTR_CUR_HASH_ADAPT */
 }
 
 bool buf_zip_decompress(buf_block_t *block, bool check) noexcept
