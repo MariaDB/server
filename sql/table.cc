@@ -352,8 +352,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
   path_length= build_table_filename(path, sizeof(path) - 1,
                                     db, table_name, "", 0);
-  init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE,
+                 TABLE_PREALLOC_BLOCK_SIZE, MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),
                        &key_buff, key_length,
@@ -442,10 +442,12 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   bzero((char*) share, sizeof(*share));
   /*
     This can't be MY_THREAD_SPECIFIC for slaves as they are freed
-    during cleanup() from Relay_log_info::close_temporary_tables()
+    during cleanup() from Relay_log_info::close_temporary_tables().
+    We can also not use pre-alloc here, as internal temporary tables
+    are not freeing table->share->mem_root
   */
   init_sql_alloc(key_memory_table_share, &share->mem_root,
-                 TABLE_ALLOC_BLOCK_SIZE, 0,
+                 TABLE_PREALLOC_BLOCK_SIZE, 0,
                  MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
@@ -4118,7 +4120,7 @@ static void print_long_unique_table(TABLE *table)
                 "table->field[%u]->offset = %" PRIdPTR "\n" // `%td` not available
                 "table->field[%u]->field_length = %d\n"
                 "table->field[%u]->null_pos wrt to record 0 = %" PRIdPTR "\n"
-                "table->field[%u]->null_bit_pos = %d\n",
+                "table->field[%u]->null_bit_pos = %d",
                 i, field->field_name.str,
                 i, field->ptr- table->record[0],
                 i, field->pack_length(),
@@ -4269,7 +4271,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     goto err;
   }
   init_sql_alloc(key_memory_TABLE, &outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE,
-                 0, MYF(0));
+                 TABLE_PREALLOC_BLOCK_SIZE, MYF(0));
 
   /*
     We have to store the original alias in mem_root as constraints and virtual
@@ -4647,8 +4649,8 @@ partititon_err:
 
   thd->lex->context_analysis_only= save_context_analysis_only;
   DBUG_EXECUTE_IF("print_long_unique_internal_state",
-   print_long_unique_table(outparam););
-  DBUG_RETURN (OPEN_FRM_OK);
+                  print_long_unique_table(outparam););
+  DBUG_RETURN(OPEN_FRM_OK);
 
  err:
   if (! error_reported)
@@ -10256,7 +10258,14 @@ bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
       tabledef_version.length= 0;
   }
   else
+  {
     set_tabledef_version(s);
+    if (m_table_ref_type == TABLE_REF_NULL)
+    {
+      set_table_ref_id(s);
+      return TRUE;
+    }
+  }
   return FALSE;
 }
 

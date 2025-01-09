@@ -60,7 +60,7 @@ wait and check if an already running write is covering the request.
 @param durable  whether the write needs to be durable
 @param callback log write completion callback */
 void log_write_up_to(lsn_t lsn, bool durable,
-                     const completion_callback *callback= nullptr);
+                     const completion_callback *callback= nullptr) noexcept;
 
 /** Write to the log file up to the last log entry.
 @param durable  whether to wait for a durable write to complete */
@@ -249,6 +249,8 @@ public:
 
   /** latest completed checkpoint (protected by latch.wr_lock()) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
+  /** The log writer (protected by latch.wr_lock()) */
+  lsn_t (*writer)() noexcept;
   /** next checkpoint LSN (protected by latch.wr_lock()) */
   lsn_t next_checkpoint_lsn;
 
@@ -270,7 +272,8 @@ private:
   @return the value of buf_free */
   size_t lock_lsn() noexcept;
 
-  /** log sequence number when log resizing was initiated, or 0 */
+  /** log sequence number when log resizing was initiated;
+  0 if the log is not being resized, 1 if resize_start() is in progress */
   std::atomic<lsn_t> resize_lsn;
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
@@ -360,7 +363,8 @@ public:
   inline lsn_t get_write_target() const;
 
   /** @return LSN at which log resizing was started and is still in progress
-      @retval 0 if no log resizing is in progress */
+      @retval 0 if no log resizing is in progress
+      @retval 1 if resize_start() is in progress */
   lsn_t resize_in_progress() const noexcept
   { return resize_lsn.load(std::memory_order_relaxed); }
 
@@ -389,7 +393,6 @@ private:
   /** Write resize_buf to resize_log.
   @param b       resize_buf or resize_flush_buf
   @param length  the used length of b */
-  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
   void resize_write_buf(const byte *b, size_t length) noexcept;
 public:
 
@@ -493,6 +496,9 @@ public:
 #endif
 
 private:
+  /** Update writer and mtr_t::finisher */
+  void writer_update() noexcept;
+
   /** Wait in append_prepare() for buffer to become available
   @tparam spin  whether to use the spin-only lock_lsn()
   @param b      the value of buf_free
@@ -555,10 +561,20 @@ public:
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
   inline void write_checkpoint(lsn_t end_lsn) noexcept;
 
-  /** Write buf to ib_logfile0.
-  @tparam release_latch whether to invoke latch.wr_unlock()
+  /** Variations of write_buf() */
+  enum resizing_and_latch {
+    /** skip latch.wr_unlock(); log resizing may or may not be in progress */
+    RETAIN_LATCH,
+    /** invoke latch.wr_unlock(); !(resize_in_progress() > 1) */
+    NOT_RESIZING,
+    /** invoke latch.wr_unlock(); resize_in_progress() > 1 */
+    RESIZING
+  };
+
+  /** Write buf to ib_logfile0 and possibly ib_logfile101.
+  @tparam resizing whether to release latch and whether resize_in_progress()>1
   @return the current log sequence number */
-  template<bool release_latch> inline lsn_t write_buf() noexcept;
+  template<resizing_and_latch resizing> inline lsn_t write_buf() noexcept;
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;

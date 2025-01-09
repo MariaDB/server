@@ -1,5 +1,5 @@
---- ../storage/innobase/mysql-test/storage_engine/tbl_opt_row_format.result~	2017-05-24 00:40:12.854181048 +0300
-+++ ../storage/innobase/mysql-test/storage_engine/tbl_opt_row_format.reject	2017-05-24 00:49:06.578191030 +0300
+--- ../storage/innobase/mysql-test/storage_engine/tbl_opt_row_format.result~
++++ ../storage/innobase/mysql-test/storage_engine/tbl_opt_row_format.reject
 @@ -7,19 +7,39 @@
    `b` char(8) DEFAULT NULL
  ) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC

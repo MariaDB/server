@@ -1,5 +1,5 @@
---- suite/storage_engine/repair_table.result	2013-10-03 20:35:06.000000000 +0400
-+++ suite/storage_engine/repair_table.reject	2013-11-08 22:04:22.000000000 +0400
+--- suite/storage_engine/repair_table.result
++++ suite/storage_engine/repair_table.reject
 @@ -4,56 +4,57 @@
  CREATE TABLE t2 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  REPAIR TABLE t1;

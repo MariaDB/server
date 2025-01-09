@@ -10,6 +10,5 @@
 #
 ##############################################################################
 
-galera_sequences : MDEV-32561 WSREP FSM failure: no such a transition REPLICATING -> COMMITTED
 galera_as_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()
 galera_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()

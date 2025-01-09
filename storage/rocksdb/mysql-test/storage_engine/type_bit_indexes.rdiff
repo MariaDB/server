@@ -1,5 +1,5 @@
---- suite/storage_engine/type_bit_indexes.result	2017-12-12 20:34:34.000000000 +0200
-+++ suite/storage_engine/type_bit_indexes.reject	2017-12-12 20:35:24.539330056 +0200
+--- suite/storage_engine/type_bit_indexes.result
++++ suite/storage_engine/type_bit_indexes.reject
 @@ -69,7 +69,7 @@
  (1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF);
  EXPLAIN SELECT HEX(b+c) FROM t1 WHERE c > 1 OR HEX(b) < 0xFFFFFF;

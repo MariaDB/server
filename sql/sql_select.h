@@ -1442,6 +1442,7 @@ public:
 
   Pushdown_query *pushdown_query;
   JOIN_TAB *original_join_tab;
+  uint	   original_table_count;
   uint	   sort_space;
 
 /******* Join optimization state members start *******/

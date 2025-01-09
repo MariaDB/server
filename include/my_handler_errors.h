@@ -110,7 +110,8 @@ static const char *handler_error_messages[]=
   "Sequence values are conflicting",
   "Error during commit",
   "Cannot select partitions",
-  "Cannot initialize encryption. Check that all encryption parameters have been set"
+  "Cannot initialize encryption. Check that all encryption parameters have been set",
+  "Transaction was aborted",
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */

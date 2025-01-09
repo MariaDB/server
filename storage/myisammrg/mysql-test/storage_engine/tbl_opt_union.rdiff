@@ -1,5 +1,5 @@
---- tbl_opt_union.result	2013-01-22 22:05:05.246633000 +0400
-+++ tbl_opt_union.reject	2013-01-23 02:51:05.375430573 +0400
+--- tbl_opt_union.result
++++ tbl_opt_union.reject
 @@ -4,11 +4,11 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (

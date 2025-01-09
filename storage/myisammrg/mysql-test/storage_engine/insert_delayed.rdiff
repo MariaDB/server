@@ -1,5 +1,5 @@
---- insert_delayed.result	2013-01-23 01:23:49.461254916 +0400
-+++ insert_delayed.reject	2013-01-23 02:50:34.475819034 +0400
+--- insert_delayed.result
++++ insert_delayed.reject
 @@ -5,7 +5,16 @@
  connect  con0,localhost,root,,;
  SET lock_wait_timeout = 1;

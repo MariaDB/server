@@ -3472,4 +3472,14 @@ CREATE TABLE t (f POINT, KEY(f));
 DELETE FROM t WHERE f NOT IN (NULL,'x');
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-31219 Assertion `fixed' failed in Item_func_hybrid_field_type / Frame_positional_cursor
+--echo #
+
+CREATE TABLE t (a INT, b POINT);
+INSERT INTO t VALUES (1,POINT(0,0)),(2,POINT(0,0));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT NTH_VALUE(a,b) OVER () FROM t;
+DROP TABLE t;
+
 --echo # End of 10.5 tests

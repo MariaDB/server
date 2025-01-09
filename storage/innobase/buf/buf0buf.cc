@@ -1736,7 +1736,7 @@ struct find_interesting_trx
 {
   void operator()(const trx_t &trx)
   {
-    if (trx.state == TRX_STATE_NOT_STARTED)
+    if (!trx.is_started())
       return;
     if (trx.mysql_thd == nullptr)
       return;
@@ -1745,12 +1745,12 @@ struct find_interesting_trx
 
     if (!found)
     {
-      ib::warn() << "The following trx might hold "
+      sql_print_warning("InnoDB: The following trx might hold "
                     "the blocks in buffer pool to "
                     "be withdrawn. Buffer pool "
                     "resizing can complete only "
                     "after all the transactions "
-                    "below release the blocks.";
+                    "below release the blocks.");
       found= true;
     }
 
@@ -3228,6 +3228,8 @@ retry:
         ut_ad(!bpage->is_io_fixed(state));
         ut_ad(bpage->buf_fix_count(state));
       }
+      else
+        state= bpage->state();
 
       ut_ad(state >= buf_page_t::FREED);
       ut_ad(state < buf_page_t::READ_FIX);
@@ -3248,20 +3250,11 @@ retry:
       }
       else
       {
-        auto state= bpage->state();
-        ut_ad(state >= buf_page_t::FREED);
-        ut_ad(state < buf_page_t::READ_FIX);
-
         page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
         /* It does not make sense to use transactional_lock_guard here,
         because buf_relocate() would likely make the memory transaction
         too large. */
         hash_lock.lock();
-
-        if (state < buf_page_t::UNFIXED)
-          bpage->set_reinit(buf_page_t::FREED);
-        else
-          bpage->set_reinit(state & buf_page_t::LRU_MASK);
 
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_relocate(bpage, &free_block->page);
@@ -3508,8 +3501,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 	const bool seems_encrypted = !node.space->full_crc32() && key_version
 		&& node.space->crypt_data
 		&& node.space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
-	ut_ad(node.space->purpose != FIL_TYPE_TEMPORARY ||
-	      node.space->full_crc32());
+	ut_ad(!node.space->is_temporary() || node.space->full_crc32());
 
 	/* If traditional checksums match, we assume that page is
 	not anymore encrypted. */
@@ -3517,7 +3509,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 	    && !buf_is_zeroes(span<const byte>(dst_frame,
 					       node.space->physical_size()))
 	    && (key_version || node.space->is_compressed()
-		|| node.space->purpose == FIL_TYPE_TEMPORARY)) {
+		|| node.space->is_temporary())) {
 		if (buf_page_full_crc32_is_corrupted(
 			    bpage->id().space(), dst_frame,
 			    node.space->is_compressed())) {
@@ -3642,6 +3634,16 @@ database_corrupted_compressed:
     if (err == DB_PAGE_CORRUPTED || err == DB_DECRYPTION_FAILED)
     {
 release_page:
+      if (node.space->full_crc32() && node.space->crypt_data &&
+          recv_recovery_is_on() &&
+          recv_sys.dblwr.find_encrypted_page(node, id().page_no(),
+                                             const_cast<byte*>(read_frame)))
+      {
+        /* Recover from doublewrite buffer */
+        err= DB_SUCCESS;
+        goto success_page;
+      }
+
       if (recv_sys.free_corrupted_page(expected_id, node));
       else if (err == DB_FAIL)
         err= DB_PAGE_CORRUPTED;
@@ -3664,6 +3666,7 @@ release_page:
       return err;
     }
   }
+success_page:
 
   const bool recovery= frame && recv_recovery_is_on();
 
