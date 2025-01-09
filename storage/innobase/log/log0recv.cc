@@ -2509,7 +2509,7 @@ restart:
   ut_ad(log_sys.is_latest());
 
   alignas(8) byte iv[MY_AES_BLOCK_SIZE];
-  byte *decrypt_buf= storing == YES
+  byte *decrypt_buf= storing != BACKUP
     ? static_cast<byte*>(alloca(srv_page_size)) : nullptr;
 
   const lsn_t start_lsn{lsn};
@@ -2654,7 +2654,7 @@ restart:
         sql_print_warning("InnoDB: Ignoring malformed log record at LSN "
                           LSN_PF, lsn);
         /* the next record must not be same_page */
-        if (storing == YES) last_offset= 1;
+        if (storing != BACKUP) last_offset= 1;
         continue;
       }
       if (srv_operation == SRV_OPERATION_BACKUP)
@@ -2664,7 +2664,7 @@ restart:
                   lsn, b, l - recs + rlen, space_id, page_no));
       goto same_page;
     }
-    if (storing == YES) last_offset= 0;
+    if (storing != BACKUP) last_offset= 0;
     idlen= mlog_decode_varint_length(*l);
     if (UNIV_UNLIKELY(idlen > 5 || idlen >= rlen))
     {
@@ -2695,7 +2695,7 @@ restart:
       goto page_id_corrupted;
     l+= idlen;
     rlen-= idlen;
-    if (storing == YES)
+    if (storing != BACKUP)
     {
       mach_write_to_4(iv + 8, space_id);
       mach_write_to_4(iv + 12, page_no);
@@ -2745,15 +2745,15 @@ restart:
       ut_d(if ((b & 0x70) == INIT_PAGE || (b & 0x70) == OPTION)
              freed.erase(id));
       ut_ad(freed.find(id) == freed.end());
-      const byte *cl= storing == NO ? nullptr : l.ptr;
+      const byte *cl= nullptr; /* avoid bogus -Wmaybe-uninitialized */
       switch (b & 0x70) {
       case FREE_PAGE:
         ut_ad(freed.emplace(id).second);
         /* the next record must not be same_page */
-        if (storing == YES) last_offset= 1;
+        if (storing != BACKUP) last_offset= 1;
         goto free_or_init_page;
       case INIT_PAGE:
-        if (storing == YES) last_offset= FIL_PAGE_TYPE;
+        if (storing != BACKUP) last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
         if (storing == BACKUP)
           continue;
@@ -2808,13 +2808,14 @@ restart:
           trim({space_id, 0}, start_lsn);
           truncated_undo_spaces[space_id - srv_undo_space_id_start]=
             { start_lsn, page_no };
-          if (storing == BACKUP && undo_space_trunc)
+          if (storing != BACKUP)
+            /* the next record must not be same_page */
+            last_offset= 1;
+          else if (undo_space_trunc)
             undo_space_trunc(space_id);
-          /* the next record must not be same_page */
-          if (storing == YES) last_offset= 1;
           continue;
         }
-        if (storing == YES) last_offset= FIL_PAGE_TYPE;
+        if (storing != BACKUP) last_offset= FIL_PAGE_TYPE;
         break;
       case OPTION:
         if (storing == YES && rlen == 5 && *l == OPT_PAGE_CHECKSUM)
@@ -2825,7 +2826,13 @@ restart:
       case WRITE:
       case MEMMOVE:
       case MEMSET:
-        if (storing != YES)
+        if (storing == BACKUP)
+          continue;
+        if (storing == NO && UNIV_LIKELY(page_no != 0))
+          /* fil_space_set_recv_size_and_flags() is mandatory for storing==NO.
+          It is only applicable to page_no == 0. Other than that, we can just
+          ignore the payload and only compute the mini-transaction checksum;
+          there will be a subsequent call with storing==YES. */
           continue;
         if (UNIV_UNLIKELY(rlen == 0 || last_offset == 1))
           goto record_corrupted;
@@ -2867,7 +2874,7 @@ restart:
                                    last_offset)
                 : file_name_t::initial_flags;
               if (it == recv_spaces.end())
-                ut_ad(space_id == TRX_SYS_SPACE ||
+                ut_ad(storing == NO || space_id == TRX_SYS_SPACE ||
                       srv_is_undo_tablespace(space_id));
               else if (!it->second.space)
               {
