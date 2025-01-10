@@ -501,10 +501,11 @@ skip:
 @retval 0 if the adaptive hash index should not be rebuilt */
 static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor) noexcept
 {
-  ut_ad(cursor.flag != BTR_CUR_HASH);
+  ut_ad(cursor.flag == BTR_CUR_HASH_FAIL ||
+        cursor.flag == BTR_CUR_HASH_ABORT ||
+        cursor.flag == BTR_CUR_BINARY);
 
   dict_index_t *const index= cursor.index();
-
   const uint16_t n_uniq{dict_index_get_n_unique_in_tree(index)};
   dict_index_t::ahi &info= index->search_info;
 
@@ -1046,11 +1047,19 @@ btr_search_guess_on_hash(
   ut_ad(mtr->is_active());
   ut_ad(index->is_btree());
   ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
+  ut_ad(cursor->flag == BTR_CUR_BINARY);
 
-  if ((tuple->info_bits & REC_INFO_MIN_REC_FLAG) ||
-      !index->search_info.last_hash_succ ||
-      !index->search_info.n_hash_potential)
+  if ((tuple->info_bits & REC_INFO_MIN_REC_FLAG))
     return false;
+
+  if (!index->search_info.last_hash_succ ||
+      !index->search_info.n_hash_potential)
+  {
+  ahi_unusable:
+    if (!index->table->is_temporary() && btr_search.enabled)
+      cursor->flag= BTR_CUR_HASH_ABORT;
+    return false;
+  }
 
   ut_ad(!index->table->is_temporary());
 
@@ -1061,7 +1070,7 @@ btr_search_guess_on_hash(
     ~buf_block_t::LEFT_SIDE;
 
   if (dtuple_get_n_fields(tuple) < btr_search_get_n_fields(cursor))
-    return false;
+    goto ahi_unusable;
 
   const index_id_t index_id= index->id;
 
@@ -1070,7 +1079,6 @@ btr_search_guess_on_hash(
 #endif
   const uint32_t fold= dtuple_fold(tuple, cursor);
   cursor->fold= fold;
-  cursor->flag= BTR_CUR_HASH;
   btr_sea::partition &part= btr_search.get_part(*index);
 
   part.latch.rd_lock(SRW_LOCK_CALL);
@@ -1080,8 +1088,6 @@ btr_search_guess_on_hash(
   ahi_release_and_fail:
     part.latch.rd_unlock();
   fail:
-    cursor->flag= BTR_CUR_HASH_FAIL;
-
 #ifdef UNIV_SEARCH_PERF_STAT
     ++index->search_info.n_hash_fail;
     if (index->search_info.n_hash_succ > 0)
@@ -1096,7 +1102,10 @@ btr_search_guess_on_hash(
     { return node->fold == fold; });
 
   if (!node)
+  {
+    cursor->flag= BTR_CUR_HASH_FAIL;
     goto ahi_release_and_fail;
+  }
 
   const rec_t *rec= node->rec;
   buf_block_t *block= buf_pool.block_from_ahi(rec);
@@ -1127,6 +1136,7 @@ btr_search_guess_on_hash(
       block->page.lock.s_unlock();
     else
       block->page.lock.x_unlock();
+    cursor->flag= BTR_CUR_HASH_FAIL;
     goto ahi_release_and_fail;
   }
 
@@ -1137,6 +1147,7 @@ btr_search_guess_on_hash(
   if (index != block_index && index_id == block_index->id)
   {
     ut_a(block_index->freed());
+    cursor->flag= BTR_CUR_HASH_FAIL;
     goto block_and_ahi_release_and_fail;
   }
 
@@ -1169,6 +1180,7 @@ btr_search_guess_on_hash(
     default:
     mismatch:
       mtr->release_last_page();
+      cursor->flag= BTR_CUR_HASH_FAIL;
       goto fail;
     }
 
@@ -1183,6 +1195,7 @@ btr_search_guess_on_hash(
     index->search_info.n_hash_potential= n_hash_potential;
 
   index->search_info.last_hash_succ= true;
+  cursor->flag= BTR_CUR_HASH;
 
 #ifdef UNIV_SEARCH_PERF_STAT
   btr_search_n_succ++;
