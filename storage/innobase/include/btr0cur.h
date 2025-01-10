@@ -33,9 +33,6 @@ Created 10/16/1994 Heikki Tuuri
 #include "rem0types.h"
 #include "gis0type.h"
 #include "my_base.h"
-#ifdef BTR_CUR_HASH_ADAPT
-# include "srw_lock.h"
-#endif
 
 /** Mode flags for btr_cur operations; these can be ORed */
 enum {
@@ -658,14 +655,13 @@ struct btr_path_t {
 
 /** Values for the flag documenting the used search method */
 enum btr_cur_method {
-	BTR_CUR_HASH = 1,	/*!< successful shortcut using
+	BTR_CUR_BINARY,		/*!< success using the binary search */
+#ifdef BTR_CUR_HASH_ADAPT
+	BTR_CUR_HASH,		/*!< successful shortcut using
 				the hash index */
 	BTR_CUR_HASH_FAIL,	/*!< failure using hash, success using
-				binary search: the misleading hash
-				reference is stored in the field
-				hash_node, and might be necessary to
-				update */
-	BTR_CUR_BINARY,		/*!< success using the binary search */
+				binary search */
+#endif
 	BTR_CUR_INSERT_TO_IBUF,	/*!< performed the intended insert to
 				the insert buffer */
 	BTR_CUR_DEL_MARK_IBUF,	/*!< performed the intended delete
@@ -695,7 +691,7 @@ struct btr_cur_t {
 	ulint		tree_height;	/*!< Tree height if the search is done
 					for a pessimistic insert or update
 					operation */
-	ulint		up_match;	/*!< If the search mode was PAGE_CUR_LE,
+	uint16_t	up_match;	/*!< If the search mode was PAGE_CUR_LE,
 					the number of matched fields to the
 					the first user record to the right of
 					the cursor record after search_leaf();
@@ -708,27 +704,26 @@ struct btr_cur_t {
 					record if that record is on a
 					different leaf page! (See the note in
 					row_ins_duplicate_error_in_clust.) */
-	ulint		up_bytes;	/*!< number of matched bytes to the
+	uint16_t	up_bytes;	/*!< number of matched bytes to the
 					right at the time cursor positioned;
 					only used internally in searches: not
 					defined after the search */
-	ulint		low_match;	/*!< if search mode was PAGE_CUR_LE,
+	uint16_t	low_match;	/*!< if search mode was PAGE_CUR_LE,
 					the number of matched fields to the
 					first user record AT THE CURSOR or
 					to the left of it after search_leaf();
 					NOT defined for PAGE_CUR_GE or any
 					other search modes; see also the NOTE
 					in up_match! */
-	ulint		low_bytes;	/*!< number of matched bytes to the
+	uint16_t	low_bytes;	/*!< number of matched bytes to the
 					left at the time cursor positioned;
 					only used internally in searches: not
 					defined after the search */
-	ulint		n_fields;	/*!< prefix length used in a hash
-					search if hash_node != NULL */
-	ulint		n_bytes;	/*!< hash prefix bytes if hash_node !=
-					NULL */
-	ulint		fold;		/*!< fold value used in the search if
+#ifdef BTR_CUR_HASH_ADAPT
+	uint32_t	n_bytes_fields;	/*!< prefix used in a hash search */
+	uint32_t	fold;		/*!< fold value used in the search if
 					flag is BTR_CUR_HASH */
+#endif
 	/* @} */
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
   btr_cur_t() { memset((void*) this, 0, sizeof *this); }
@@ -770,6 +765,20 @@ struct btr_cur_t {
   @return error code */
   inline dberr_t open_random_leaf(rec_offs *&offsets, mem_heap_t *& heap,
                                   mtr_t &mtr);
+
+#ifdef BTR_CUR_HASH_ADAPT
+  void search_info_update() const noexcept;
+
+  /** Check if a guessed position for a tree cursor is correct.
+  @param tuple  search key
+  @param mode   PAGE_CUR_L, PAGE_CUR_LE, PAGE_CUR_G, PAGE_CUR_GE
+  @param comp   nonzero if ROW_FORMAT=REDUNDANT is not being used
+  @retval true  on mismatch or corruption
+  @retval false on a match; if mode=PAGE_CUR_LE, then up_match,low_match
+  will be set correctly. */
+  bool check_mismatch(const dtuple_t& tuple, page_cur_mode_t mode, ulint comp)
+    noexcept;
+#endif
 };
 
 /** Modify the delete-mark flag of a record.
