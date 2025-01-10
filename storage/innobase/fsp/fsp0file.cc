@@ -253,7 +253,7 @@ dberr_t Datafile::read_first_page_flags(const page_t *page) noexcept
     if (cflags == UINT32_MAX)
       switch (fsp_flags_is_incompatible_mysql(m_flags)) {
       case 0:
-        sql_print_error("InnoDB: Invalid flags 0x%zx in %s",
+        sql_print_error("InnoDB: Invalid flags 0x%" PRIx32 " in %s",
                         m_flags, m_filepath);
         return DB_CORRUPTION;
       case 3:
