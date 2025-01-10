@@ -1,0 +1,41 @@
+SET GLOBAL innodb_undo_log_truncate = 0;
+create table t1(keyc int primary key, c char(100)) engine = innodb;
+create table t2(keyc int primary key, c char(100)) engine = innodb;
+connect  con1,localhost,root,,;
+begin;
+insert into t1 select seq,'a' from seq_1_to_20000;
+connect  con2,localhost,root,,;
+begin;
+insert into t2 select seq,'a' from seq_1_to_20000;
+connection con1;
+update t1 set c = 'mysql';
+connection con2;
+update t2 set c = 'mysql';
+connection con1;
+update t1 set c = 'oracle';
+connection con2;
+update t2 set c = 'oracle';
+connection con1;
+delete from t1;
+connection con2;
+delete from t2;
+connection con1;
+commit;
+disconnect con1;
+connection con2;
+commit;
+disconnect con2;
+connection default;
+SET GLOBAL innodb_fast_shutdown = 0;
+# restart
+SET GLOBAL innodb_undo_log_truncate = 1;
+SET GLOBAL innodb_max_undo_log_size=DEFAULT;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+# Kill the server
+# Prepare full backup
+# Restore and check results
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+DROP TABLE t2, t1;

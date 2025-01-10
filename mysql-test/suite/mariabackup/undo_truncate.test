@@ -1,0 +1,67 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+SET GLOBAL innodb_undo_log_truncate = 0;
+
+LET $MYSQLD_DATADIR = `select @@datadir`;
+LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
+#
+# Perform DML action using multiple clients and multiple undo tablespace.
+#
+let basedir=$MYSQLTEST_VARDIR/tmp/backup;
+create table t1(keyc int primary key, c char(100)) engine = innodb;
+create table t2(keyc int primary key, c char(100)) engine = innodb;
+let DATADIR = `select @@datadir`;
+
+connect (con1,localhost,root,,);
+begin;
+send insert into t1 select seq,'a' from seq_1_to_20000;
+
+connect (con2,localhost,root,,);
+begin;
+send insert into t2 select seq,'a' from seq_1_to_20000;
+
+connection con1; reap; send update t1 set c = 'mysql';
+connection con2; reap; send update t2 set c = 'mysql';
+connection con1; reap; send update t1 set c = 'oracle';
+connection con2; reap; send update t2 set c = 'oracle';
+connection con1; reap; send delete from t1;
+connection con2; reap; delete from t2;
+connection con1; reap;
+
+commit; disconnect con1;
+connection con2; commit; disconnect con2;
+
+connection default;
+# Slow shutdown and restart to make sure ibuf merge is finished
+SET GLOBAL innodb_fast_shutdown = 0;
+let $shutdown_timeout=;
+--source include/restart_mysqld.inc
+# Ensure that buf_flush_page_cleaner() has woken up from its
+# first my_cond_timedwait() and gone idle.
+sleep 1;
+--source ../innodb/include/no_checkpoint_start.inc
+
+SET GLOBAL innodb_undo_log_truncate = 1;
+SET GLOBAL innodb_max_undo_log_size=DEFAULT;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir --throttle=1000;
+--enable_result_log
+--source ../innodb/include/no_checkpoint_end.inc
+
+--disable_result_log
+--echo # Prepare full backup
+exec $XTRABACKUP --prepare --target-dir=$basedir;
+
+--source include/start_mysqld.inc
+
+echo # Restore and check results;
+let $targetdir=$basedir;
+let $restart_parameters=;
+-- source include/restart_and_restore.inc
+--enable_result_log
+# Cleanup
+rmdir $basedir;
+DROP TABLE t2, t1;
