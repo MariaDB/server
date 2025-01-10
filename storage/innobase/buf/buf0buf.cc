@@ -2355,7 +2355,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   block->page.lock.x_lock();
 #ifdef BTR_CUR_HASH_ADAPT
   if (block->index)
-    btr_search_drop_page_hash_index(block, false);
+    btr_search_drop_page_hash_index(block, nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
   block->page.set_freed(block->page.state());
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
@@ -2992,8 +2992,7 @@ wait_for_unzip:
 		if (block->page.lock.x_lock_upgraded()) {
 			ut_ad(block->page.id() == page_id);
 			block->unfix();
-			mtr->page_lock_upgrade(*block);
-			return block;
+			return mtr->page_lock_upgrade(*block);
 		}
 	}
 
@@ -3006,11 +3005,6 @@ wait_for_unzip:
 	}
 
 	ut_ad(state < buf_page_t::READ_FIX || state > buf_page_t::WRITE_FIX);
-
-#ifdef BTR_CUR_HASH_ADAPT
-	btr_search_drop_page_hash_index(block, true);
-#endif /* BTR_CUR_HASH_ADAPT */
-
 	ut_ad(page_id_t(page_get_space_id(block->page.frame),
 			page_get_page_no(block->page.frame)) == page_id);
 
@@ -3065,7 +3059,7 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
   {
     block->page.lock.u_x_upgrade();
     block->page.unfix();
-    mtr->page_lock_upgrade(*block);
+    block= mtr->page_lock_upgrade(*block);
     ut_ad(modify_clock == block->modify_clock);
   }
   else if (!block->page.lock.x_lock_try())
@@ -3271,7 +3265,7 @@ retry:
 #ifdef BTR_CUR_HASH_ADAPT
     if (drop_hash_entry)
       btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage),
-                                      false);
+                                      nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
 
     return reinterpret_cast<buf_block_t*>(bpage);
