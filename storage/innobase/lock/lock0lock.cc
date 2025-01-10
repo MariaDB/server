@@ -1214,18 +1214,12 @@ func_exit:
 }
 #endif /* WITH_WSREP */
 
-inline bool lock_t::can_be_bypassed(const trx_t *blocking_trx,
-                                    bool has_s_lock_or_stronger) const
+static inline bool lock_rec_can_be_bypassing(const trx_t *trx,
+                                             const lock_t *lock)
 {
-  /* There is no need to lock lock_sys.wait_mutex to check
-  trx->lock.wait_trx here because the current function is executed under
-  the cell latch, and trx->lock.wait_trx transaction can change wait_trx
-  field only under the cell latch, wait_trx trx_t object can not be
-  deinitialized before releasing all its locks, and during releasing the
-  locks the cell latch will also be requested. So while the cell latch
-  is held, lock->trx->lock.wait_trx can't be changed. */
-  return has_s_lock_or_stronger && is_waiting() &&
-         trx->lock.wait_trx == blocking_trx && is_rec_granted_X_not_ii_gap();
+  ut_ad(!lock->is_insert_intention() || lock->is_gap());
+  return lock->trx == trx && !(lock->type_mode & (LOCK_WAIT | LOCK_GAP)) &&
+         lock_mode_stronger_or_eq(lock->mode(), LOCK_S);
 }
 
 /** Checks if some other transaction has a conflicting explicit lock request
@@ -1245,7 +1239,7 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
                                const trx_t *trx)
 {
   bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
-  bool bypass_mode= !is_supremum && lock_t::is_rec_granted_X_not_ii_gap(mode);
+  bool bypass_mode= !is_supremum && lock_t::is_rec_exclusive_not_gap(mode);
   bool has_s_lock_or_stronger= false;
   const lock_t *insert_after= nullptr;
   ut_d(const lock_t *bypassed= nullptr;)
@@ -1254,15 +1248,13 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
   for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
   {
-    if (bypass_mode && lock->trx == trx && !lock->is_gap() &&
-        !lock->is_waiting() && !lock->is_insert_intention() &&
-        lock_mode_stronger_or_eq(lock->mode(), LOCK_S))
+    if (bypass_mode && lock_rec_can_be_bypassing(trx, lock))
     {
       has_s_lock_or_stronger= true;
     }
     else if (lock_rec_has_to_wait(trx, mode, lock, is_supremum))
     {
-      if (!bypass_mode || !lock->can_be_bypassed(trx, has_s_lock_or_stronger))
+      if (!bypass_mode || !lock->can_be_bypassed(has_s_lock_or_stronger))
         return {lock, nullptr, ut_d(nullptr)};
       /* Store the first lock to bypass to invoke
       lock_rec_find_similar_on_page() only for the locks which precede all
@@ -1372,7 +1364,7 @@ static void lock_rec_queue_validate_bypass(const lock_t *checked_lock,
   auto mode = checked_lock->type_mode;
   const trx_t *trx = checked_lock->trx;
   bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
-  if (is_supremum || !lock_t::is_rec_granted_X_not_ii_gap(mode))
+  if (is_supremum || !lock_t::is_rec_exclusive_not_gap(mode))
     return;
   const lock_t *has_s_lock_or_stronger= nullptr;
   const lock_t *bypassed= nullptr;
@@ -1380,9 +1372,7 @@ static void lock_rec_queue_validate_bypass(const lock_t *checked_lock,
   for (lock_t *lock= lock_sys_t::get_first(*cell, page_id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
   {
-    if (lock->trx == trx && !lock->is_gap() &&
-        !lock->is_waiting() && !lock->is_insert_intention() &&
-        lock_mode_stronger_or_eq(lock->mode(), LOCK_S))
+    if (lock_rec_can_be_bypassing(trx, lock))
     {
       ut_ad(!bypassed || lock!=checked_lock);
       has_s_lock_or_stronger= lock;
@@ -1390,7 +1380,7 @@ static void lock_rec_queue_validate_bypass(const lock_t *checked_lock,
     }
     if (lock_rec_has_to_wait(trx, mode, lock, is_supremum))
     {
-      if (!lock->can_be_bypassed(trx, has_s_lock_or_stronger))
+      if (!lock->can_be_bypassed(has_s_lock_or_stronger))
         return;
       bypassed = lock;
     }
@@ -1456,7 +1446,7 @@ without checking for deadlocks or conflicts.
 @param[in]	holds_trx_mutex	whether the caller holds trx->mutex
 @return created lock */
 lock_t*
-lock_rec_create_low(
+lock_rec_create(
 	const conflicting_lock_info &c_lock_info,
 	unsigned	type_mode,
 	const page_id_t	page_id,
@@ -1637,7 +1627,7 @@ lock_rec_enqueue_waiting(
 
 	/* Enqueue the lock request that will wait to be granted, note that
 	we already own the trx mutex. */
-	lock_t* lock = lock_rec_create_low(
+	lock_t* lock = lock_rec_create(
 		c_lock_info,
 		type_mode | LOCK_WAIT, id, page, heap_no, index, trx, true);
 
@@ -1771,22 +1761,19 @@ static void lock_rec_add_to_queue(const conflicting_lock_info &c_lock_info,
 		goto create;
 	} else if (lock_t *first_lock = lock_sys_t::get_first(cell, id)) {
 		bool bypass_mode= !is_supremum
-			&& lock_t::is_rec_granted_X_not_ii_gap(type_mode);
+			&& lock_t::is_rec_exclusive_not_gap(type_mode);
 		bool has_s_lock_or_stronger= false;
 		for (lock_t* lock = first_lock;;) {
 			if (!lock_rec_get_nth_bit(lock, heap_no))
 				goto cont;
-			if (bypass_mode && lock->trx == trx && !lock->is_gap()
-			    && !lock->is_waiting()
-			    && !lock->is_insert_intention()
-			    && lock_mode_stronger_or_eq(lock->mode(), LOCK_S))
+			if (bypass_mode && lock_rec_can_be_bypassing(trx, lock))
 			{
 				has_s_lock_or_stronger= true;
 			}
 			/* There can be several locks suited for bypassing,
 			skip them all */
 			else if (lock->is_waiting() &&
-				 (!bypass_mode || !lock->can_be_bypassed(trx,
+				 (!bypass_mode || !lock->can_be_bypassed(
 				    has_s_lock_or_stronger)))
 					goto create;
 cont:
@@ -1827,9 +1814,9 @@ create:
 	because we should be moving an existing waiting lock request. */
 	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
 
-	lock_rec_create_low(c_lock_info,
-			    type_mode, id, page, heap_no, index, trx,
-			    caller_owns_trx_mutex);
+	lock_rec_create(c_lock_info,
+			type_mode, id, page, heap_no, index, trx,
+			caller_owns_trx_mutex);
 }
 
 /** A helper function for lock_rec_lock_slow(), which grants a Next Key Lock
@@ -2014,8 +2001,8 @@ lock_rec_lock(
 
   /* Simplified and faster path for the most common cases */
   if (!impl)
-    lock_rec_create_low(null_c_lock_info, mode, id, block->page.frame, heap_no,
-                        index, trx, false);
+    lock_rec_create(null_c_lock_info, mode, id, block->page.frame, heap_no,
+                    index, trx, false);
 
   return DB_SUCCESS_LOCKED_REC;
 }
@@ -2038,7 +2025,7 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
   heap_no= lock_rec_find_set_bit(wait_lock);
   bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
   bool bypass_mode=
-      !is_supremum && wait_lock->is_rec_granted_X_not_ii_gap();
+      !is_supremum && wait_lock->is_rec_exclusive_not_gap();
   bool has_s_lock_or_stronger= false;
   const lock_t *insert_after= nullptr;
   ut_d(const lock_t *bypassed= nullptr);
@@ -2058,19 +2045,15 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
     const byte *p= (const byte *) &lock[1];
     if (heap_no >= lock_rec_get_n_bits(lock) || !(p[bit_offset] & bit_mask))
       continue;
-    if (bypass_mode && lock->trx == trx && !lock->is_gap() &&
-        !lock->is_waiting() && !lock->is_insert_intention() &&
-        lock_mode_stronger_or_eq(lock->mode(), LOCK_S))
+    if (bypass_mode && lock_rec_can_be_bypassing(trx, lock))
     {
       has_s_lock_or_stronger= true;
     }
     else if (lock_has_to_wait(wait_lock, lock))
     {
-      if (!bypass_mode || !lock->can_be_bypassed(trx, has_s_lock_or_stronger))
+      if (!bypass_mode || !lock->can_be_bypassed(has_s_lock_or_stronger))
         return {lock, nullptr, ut_d(nullptr)};
-      /* Store the first lock to bypass to invoke
-      lock_rec_find_similar_on_page() only for the locks which precede all
-      bypassed locks. */
+      /* Store only the first lock to bypass. */
       ut_d(if (!bypassed)
         bypassed= lock;)
       /* There can be several locks to bypass, insert bypassing lock just
@@ -2838,7 +2821,8 @@ lock_rec_move(
 
 	ut_ad(!lock_sys_t::get_first(donator_cell, donator_id,
 				     donator_heap_no));
-	ut_d(lock_rec_queue_validate_bypass(lock_sys_t::get_first(receiver_cell,
+	ut_d(lock_rec_queue_validate_bypass(lock_sys_t::get_first(
+				       receiver_cell,
 				       receiver_id, receiver_heap_no),
 				       receiver_heap_no));
 }
@@ -4914,8 +4898,10 @@ reiterate:
     {
       ut_ad(!lock->index->table->is_temporary());
       bool supremum_bit= lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM);
+      /* if XA is being prepared, it must not own waiting locks */
+      ut_ad(!lock->is_waiting());
       bool rec_granted_exclusive_not_gap=
-        lock->is_rec_granted_exclusive_not_gap();
+        lock->is_rec_exclusive_not_gap();
       if (UNIV_UNLIKELY(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))
         continue; /* SPATIAL INDEX locking is broken. */
       const auto fold = lock->un_member.rec_lock.page_id.fold();
@@ -5088,7 +5074,9 @@ reiterate:
     if (!lock->is_table())
     {
       ut_ad(!lock->index->table->is_temporary());
-      if (!lock->is_rec_granted_exclusive_not_gap())
+      /* if XA is being prepared, it must not own waiting locks */
+      ut_ad(!lock->is_waiting());
+      if (!lock->is_rec_exclusive_not_gap())
         lock_rec_dequeue_from_page(lock, false);
       else if (UNIV_UNLIKELY(lock->type_mode &
                              (LOCK_PREDICATE | LOCK_PRDT_PAGE)))

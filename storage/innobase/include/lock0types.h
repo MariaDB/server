@@ -232,32 +232,36 @@ struct ib_lock_t
 		return(static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK));
 	}
 
-        bool is_rec_granted_exclusive_not_gap() const
+        static bool is_rec_exclusive_not_gap(unsigned type_mode)
         {
+          ut_ad(!(type_mode & LOCK_INSERT_INTENTION) || (type_mode & LOCK_GAP));
           return (type_mode & (LOCK_MODE_MASK | LOCK_GAP)) == LOCK_X;
         }
 
-        static inline bool is_rec_granted_X_not_ii_gap(unsigned type_mode)
+        bool is_rec_exclusive_not_gap() const
         {
-          return (type_mode & (LOCK_INSERT_INTENTION | LOCK_GAP |
-                               LOCK_MODE_MASK)) == LOCK_X;
-        }
-
-        bool is_rec_granted_X_not_ii_gap() const {
-          return is_rec_granted_X_not_ii_gap(type_mode);
+          ut_ad(!is_table());
+          return is_rec_exclusive_not_gap(type_mode);
         }
 
         /** Checks if a lock suits for bypassing.
         @param blocking_trx           transaction for which the lock is checked
-        @param has_s_lock_or_stronger if the transaction already holds not gap
-                                      and not insert intention S-lock or
-                                      stronger for the same heap_no as the
-                                      current lock
         @return true if lock suits, false otherwise */
-        inline bool can_be_bypassed(const trx_t *blocking_trx,
-                                    bool has_s_lock_or_stronger) const;
+        inline bool can_be_bypassed(bool has_s_lock_or_stronger) const
+        {
+          /* We don't neet do check supremum bit in the lock's bitmap here,
+          because the function is always called after checking for
+          bypasse_mode, which already contains check for supremum. */
+          ut_ad(!is_insert_intention() || is_gap());
+          /* We don't need to check
+                  trx->lock.wait_trx == blocking_trx && mode() == LOCK_X
+          condition here because there can be the following case:
+                       S1 X2(waits for S1) S3(waits for X2),
+          bypassing X1 must not conflict with S3. */
+          return has_s_lock_or_stronger && is_waiting() && !is_gap();
+        }
 
-	/** Print the lock object into the given output stream.
+        /** Print the lock object into the given output stream.
 	@param[in,out]	out	the output stream
 	@return the given output stream. */
 	std::ostream& print(std::ostream& out) const;

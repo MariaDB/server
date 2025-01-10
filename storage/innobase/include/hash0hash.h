@@ -107,23 +107,9 @@ public:
   @param element the being-removed element
   @param next    the next-element pointer in T */
   template<typename T>
-  void remove(T &element, T *T::*next) noexcept
+  void remove(const T &element, T *T::*next) noexcept
   {
     remove(search(next, [&element](const T *p){return p==&element;}), next);
-  }
-
-  /** Delete an element.
-  @tparam T      type of the element
-  @param remove  the being-removed element
-  @param next    the next-element pointer in T */
-  template<typename T>
-  void remove(const T &remove, T *T::*next)
-  {
-    T *prev;
-    for (prev= static_cast<T *>(node); prev && prev->*next != &remove;
-         prev= prev->*next);
-    ut_a(prev);
-    prev->*next= remove.*next;
   }
 
   /** Insert an element after another.
