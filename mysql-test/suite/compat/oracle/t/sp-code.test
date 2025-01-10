@@ -1085,4 +1085,18 @@ DELIMITER ;$$
 SHOW PROCEDURE CODE p1;
 DROP PROCEDURE p1;
 
+--echo #
+--echo # MDEV-10862 Stored procedures: default values for parameters (optional parameters)
+--echo #
 
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT 1)
+AS
+  var1 INT DEFAULT 5;
+BEGIN
+  SELECT par1, par2 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;

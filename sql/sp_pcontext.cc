@@ -269,6 +269,23 @@ sp_variable *sp_pcontext::find_variable(uint offset) const
 }
 
 
+uint sp_pcontext::default_context_var_count() const
+{
+  uint default_params= 0;
+  for (uint i= 0; i< context_var_count(); i++)
+  {
+    sp_variable *spvar= get_context_variable(i);
+    if (!spvar)
+      break;
+
+    if (spvar->default_value)
+      default_params++;
+  }
+
+  return default_params;
+}
+
+
 sp_variable *sp_pcontext::add_variable(THD *thd, const LEX_CSTRING *name)
 {
   sp_variable *p=
