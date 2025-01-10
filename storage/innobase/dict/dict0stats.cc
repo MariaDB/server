@@ -33,6 +33,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include <mysql_com.h>
 #include "log.h"
 #include "btr0btr.h"
+#include "btr0sea.h"
 #include "que0que.h"
 #include "scope.h"
 #include "debug_sync.h"
@@ -1916,6 +1917,7 @@ dict_stats_analyze_index_below_cur(
 			goto func_exit;
 		}
 
+		btr_search_drop_page_hash_index(block, index);
 		page = block->page.frame;
 
 		if (page_is_leaf(page)) {

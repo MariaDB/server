@@ -323,13 +323,14 @@ public:
 
   /** Latch a buffer pool block.
   @param block    block to be latched
-  @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
-  void page_lock(buf_block_t *block, ulint rw_latch);
+  @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH
+  @return block */
+  buf_block_t *page_lock(buf_block_t *block, ulint rw_latch) noexcept;
 
   /** Acquire a latch on a buffer-fixed buffer pool block.
   @param savepoint   savepoint location of the buffer-fixed block
   @param rw_latch    latch to acquire */
-  void upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch);
+  void upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch) noexcept;
 
   /** Register a change to the page latch state. */
   void lock_register(ulint savepoint, mtr_memo_type_t type)
@@ -340,8 +341,10 @@ public:
     slot.type= type;
   }
 
-  /** Upgrade U locks on a block to X */
-  void page_lock_upgrade(const buf_block_t &block);
+  /** Upgrade U locks on a block to X
+  @param block   block on which to upgrade
+  @return &block */
+  buf_block_t *page_lock_upgrade(const buf_block_t &block) noexcept;
 
   /** Upgrade index U lock to X */
   ATTRIBUTE_COLD void index_lock_upgrade();

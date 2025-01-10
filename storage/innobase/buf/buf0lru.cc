@@ -917,7 +917,7 @@ func_exit:
 		order to avoid bogus Valgrind or MSAN warnings.*/
 
 		MEM_MAKE_DEFINED(block->page.frame, srv_page_size);
-		btr_search_drop_page_hash_index(block, false);
+		btr_search_drop_page_hash_index(block, nullptr);
 		MEM_UNDEFINED(block->page.frame, srv_page_size);
 		mysql_mutex_lock(&buf_pool.mutex);
 	}

@@ -364,6 +364,8 @@ incompatible:
 			goto incompatible;
 		}
 
+		btr_search_drop_page_hash_index(block, index);
+
 		if (fil_page_get_type(block->page.frame) != FIL_PAGE_TYPE_BLOB
 		    || mach_read_from_4(&block->page.frame
 					[FIL_PAGE_DATA
@@ -1337,6 +1339,8 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     goto search_loop;
   }
 
+  btr_search_drop_page_hash_index(block, index());
+
   if (!!page_is_comp(block->page.frame) != index()->table->not_redundant() ||
       btr_page_get_index_id(block->page.frame) != index()->id ||
       fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE ||
@@ -1452,9 +1456,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
         mtr->rollback_to_savepoint(savepoint, savepoint + 1);
     reached_index_root_and_leaf:
       ut_ad(rw_latch == RW_X_LATCH);
-#ifdef BTR_CUR_HASH_ADAPT
-      btr_search_drop_page_hash_index(block, true);
-#endif
+      btr_search_drop_page_hash_index(block, index());
       if (page_cur_search_with_match(tuple, mode, &up_match, &low_match,
                                      &page_cur, nullptr))
         goto corrupted;
@@ -1752,6 +1754,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
   const page_cur_mode_t page_mode{btr_cur_nonleaf_mode(mode)};
 
   mtr->page_lock(block, RW_X_LATCH);
+  btr_search_drop_page_hash_index(block, index());
 
   up_match= 0;
   up_bytes= 0;
@@ -1820,6 +1823,8 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
     btr_read_failed(err, *index());
     goto func_exit;
   }
+
+  btr_search_drop_page_hash_index(block, index());
 
   if (!!page_is_comp(block->page.frame) != index()->table->not_redundant() ||
       btr_page_get_index_id(block->page.frame) != index()->id ||
@@ -1916,7 +1921,10 @@ search_loop:
     goto func_exit;
   }
   else
+  {
+    btr_search_drop_page_hash_index(block, index);
     btr_cur_nonleaf_make_young(&block->page);
+  }
 
 #ifdef UNIV_ZIP_DEBUG
   if (const page_zip_des_t *page_zip= buf_block_get_page_zip(block))
@@ -3531,6 +3539,9 @@ static void btr_cur_trim_alter_metadata(dtuple_t* entry,
 		mtr.commit();
 		return;
 	}
+
+	btr_search_drop_page_hash_index(block, index);
+
 	ut_ad(fil_page_get_type(block->page.frame) == FIL_PAGE_TYPE_BLOB);
 	ut_ad(mach_read_from_4(&block->page.frame
 			       [FIL_PAGE_DATA + BTR_BLOB_HDR_NEXT_PAGE_NO])

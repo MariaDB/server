@@ -1348,7 +1348,7 @@ bool mtr_t::memo_contains(const fil_space_t& space) const
   return false;
 }
 
-void mtr_t::page_lock_upgrade(const buf_block_t &block)
+buf_block_t *mtr_t::page_lock_upgrade(const buf_block_t &block) noexcept
 {
   ut_ad(block.page.lock.have_x());
 
@@ -1361,12 +1361,10 @@ void mtr_t::page_lock_upgrade(const buf_block_t &block)
   ut_d(if (dict_index_t *index= block.index))
   ut_ad(!index->freed());
 #endif /* BTR_CUR_HASH_ADAPT */
+  return const_cast<buf_block_t*>(&block);
 }
 
-/** Latch a buffer pool block.
-@param block    block to be latched
-@param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
-void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
+buf_block_t *mtr_t::page_lock(buf_block_t *block, ulint rw_latch) noexcept
 {
   mtr_memo_type_t fix_type;
   ut_d(const auto state= block->page.state());
@@ -1392,23 +1390,21 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
     {
       block->unfix();
       page_lock_upgrade(*block);
-      return;
+      return block;
     }
     ut_ad(!block->page.is_io_fixed());
   }
-
-#ifdef BTR_CUR_HASH_ADAPT
-  btr_search_drop_page_hash_index(block, true);
-#endif
 
 done:
   ut_ad(state < buf_page_t::UNFIXED ||
         page_id_t(page_get_space_id(block->page.frame),
                   page_get_page_no(block->page.frame)) == block->page.id());
   memo_push(block, fix_type);
+  return block;
 }
 
 void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
+  noexcept
 {
   ut_ad(is_active());
   mtr_memo_slot_t &slot= m_memo[savepoint];
@@ -1438,9 +1434,6 @@ void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
     ut_ad(!block->page.is_io_fixed());
   }
 
-#ifdef BTR_CUR_HASH_ADAPT
-  btr_search_drop_page_hash_index(block, true);
-#endif
   ut_ad(page_id_t(page_get_space_id(block->page.frame),
                   page_get_page_no(block->page.frame)) == block->page.id());
 }
@@ -1670,7 +1663,7 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
       }
     }
     else if (slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX) &&
-               block->page.id() == id)
+             block->page.id() == id)
     {
       ut_ad(!block->page.is_freed());
       ut_ad(!freed);
@@ -1693,7 +1686,7 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
       }
 #ifdef BTR_CUR_HASH_ADAPT
       if (block->index)
-        btr_search_drop_page_hash_index(block, false);
+        btr_search_drop_page_hash_index(block, nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
       block->page.set_freed(block->page.state());
     }
