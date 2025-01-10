@@ -63,7 +63,7 @@ const byte timestamp_max_bytes[7] = {
 };
 
 
-static const ulint MAX_DETAILED_ERROR_LEN = 256;
+static const ulint MAX_DETAILED_ERROR_LEN = 512;
 
 /*************************************************************//**
 Set detailed error message for the transaction. */
@@ -1764,9 +1764,6 @@ trx_print_low(
 			/*!< in: output stream */
 	const trx_t*	trx,
 			/*!< in: transaction */
-	ulint		max_query_len,
-			/*!< in: max query length to print,
-			or 0 to use the default max length */
 	ulint		n_rec_locks,
 			/*!< in: trx->lock.n_rec_locks */
 	ulint		n_trx_locks,
@@ -1856,7 +1853,7 @@ state_ok:
 	}
 
 	if (thd) {
-		innobase_mysql_print_thd(f, thd, uint(max_query_len));
+		innobase_mysql_print_thd(f, thd);
 	}
 }
 
@@ -1868,13 +1865,11 @@ void
 trx_print_latched(
 /*==============*/
 	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len)	/*!< in: max query length to print,
-					or 0 to use the default max length */
+	const trx_t*	trx)		/*!< in: transaction */
 {
 	lock_sys.assert_locked();
 
-	trx_print_low(f, trx, max_query_len,
+	trx_print_low(f, trx,
 		      trx->lock.n_rec_locks,
 		      UT_LIST_GET_LEN(trx->lock.trx_locks),
 		      mem_heap_get_size(trx->lock.lock_heap));
@@ -1888,9 +1883,7 @@ void
 trx_print(
 /*======*/
 	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len)	/*!< in: max query length to print,
-					or 0 to use the default max length */
+	const trx_t*	trx)		/*!< in: transaction */
 {
   ulint n_rec_locks, n_trx_locks, heap_size;
   {
@@ -1900,7 +1893,7 @@ trx_print(
     heap_size= mem_heap_get_size(trx->lock.lock_heap);
   }
 
-  trx_print_low(f, trx, max_query_len, n_rec_locks, n_trx_locks, heap_size);
+  trx_print_low(f, trx, n_rec_locks, n_trx_locks, heap_size);
 }
 
 /** Prepare a transaction.
