@@ -118,7 +118,7 @@ extern bool srv_undo_sources;
 
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
-extern	enum srv_shutdown_t	srv_shutdown_state;
+extern std::atomic<enum srv_shutdown_t> srv_shutdown_state;
 
 /** Files comprising the system tablespace */
 extern pfs_os_file_t	files[1000];

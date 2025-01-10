@@ -135,7 +135,7 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/tpool)
 
 SET(INNOBASE_SOURCES
 	arch/arch0arch.cc
-	# arch/arch0page.cc
+	arch/arch0page.cc
 	# arch/arch0log.cc
 	# arch/arch0recv.cc
 	btr/btr0btr.cc

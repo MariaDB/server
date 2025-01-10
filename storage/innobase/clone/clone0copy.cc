@@ -826,7 +826,7 @@ int Clone_Snapshot::add_file(const char *name, uint64_t size_bytes,
     page_size_t page_size(space->flags);
     /* Transparent compression is skipped if table compression is enabled. */
     if (page_size.is_compressed() ||
-        space->compression_type == Compression::NONE) {
+        space->compression_type == PAGE_UNCOMPRESSED) {
       file_meta->m_punch_hole = false;
     }
   }
@@ -965,7 +965,7 @@ int Clone_Snapshot::add_redo_file(char *file_name, uint64_t file_size,
   file_meta->m_alloc_size = 0;
 
   file_meta->m_space_id = dict_sys_t::s_log_space_id;
-  file_meta->m_compress_type = Compression::NONE;
+  file_meta->m_compress_type = PAGE_UNCOMPRESSED;
   file_meta->m_encryption_metadata = log_sys->m_encryption_metadata;
   file_meta->m_fsp_flags = UINT32_UNDEFINED;
   file_meta->m_punch_hole = false;

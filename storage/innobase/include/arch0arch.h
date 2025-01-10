@@ -316,7 +316,7 @@ struct Arch_Page_Pos {
   void set_next();
 
   /** Unique block number */
-  uint64_t m_block_num;
+  uint32_t m_block_num;
 
   /** Offset within a block */
   uint m_offset;

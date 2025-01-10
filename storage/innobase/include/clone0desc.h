@@ -43,12 +43,14 @@ const uint64_t CLONE_LOC_INVALID_ID = 0;
 /** Maximum base length for any serialized descriptor. This is only used for
 optimal allocation and has no impact on version compatibility. */
 const uint32_t CLONE_DESC_MAX_BASE_LEN =
-    64 + Encryption::KEY_LEN + Encryption::KEY_LEN;
+    64 + MY_AES_MAX_KEY_LENGTH + MY_AES_MAX_KEY_LENGTH;
 /** Align by 4K for O_DIRECT */
 const uint32_t CLONE_ALIGN_DIRECT_IO = 4 * 1024;
 
 /** Maximum number of concurrent tasks for each clone */
 const int CLONE_MAX_TASKS = 128;
+
+using space_id_t = decltype(fil_space_t::id);
 
 /** Snapshot state transfer during clone.
 
@@ -499,7 +501,7 @@ struct Clone_File_Meta {
   bool is_renamed() const { return m_renamed; }
 
   /** @return true, iff file is encrypted. */
-  bool can_encrypt() const { return m_encryption_metadata.can_encrypt(); }
+  // bool can_encrypt() const { return m_encryption_metadata.can_encrypt(); }
 
   /** Reset DDL state of file metadata. */
   void reset_ddl() {
@@ -520,7 +522,7 @@ struct Clone_File_Meta {
   uint32_t m_fsp_flags;
 
   /** File compression type */
-  Compression::Type m_compress_type;
+  uint32_t m_compress_type;
 
   /** If transparent compression is needed. It is derived information
   and is not transferred. */
@@ -559,8 +561,12 @@ struct Clone_File_Meta {
   /** File name */
   const char *m_file_name;
 
-  /** Encryption metadata. */
-  Encryption_metadata m_encryption_metadata;
+  /** Encryption metadata: Since there is no master key, we should not
+  try to transfer encryption key which in nor owned by SE. This would
+  require the cloned server to access the same key store. The other
+  solution is to decrypt and re-encrypt the whole dataset which would be
+  expensive. */
+  // Encryption_metadata m_encryption_metadata;
 };
 
 /** CLONE_DESC_FILE_METADATA: Descriptor for file metadata */

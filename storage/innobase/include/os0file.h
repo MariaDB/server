@@ -1026,9 +1026,9 @@ at current file offset.
 @return DB_SUCCESS if successful */
 dberr_t
 os_file_copy_func(
-	pfs_os_file_t	src,
+	os_file_t	src,
 	os_offset_t	src_offset,
-	pfs_os_file_t	dest,
+	os_file_t	dest,
 	os_offset_t	dest_offset,
 	uint		size);
 

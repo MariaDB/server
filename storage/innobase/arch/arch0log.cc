@@ -248,8 +248,7 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   bool create_new_group = false;
 
   memset(header, 0, LOG_FILE_HDR_SIZE);
-
-  log_request_checkpoint(*log_sys, true);
+  log_make_checkpoint();
 
   arch_mutex_enter();
 
@@ -398,7 +397,7 @@ void Arch_Group::adjust_end_lsn(lsn_t &stop_lsn, uint32_t &blk_len) {
   redo block size. */
   DBUG_EXECUTE_IF(
       "clone_arch_log_extra_bytes", blk_len = OS_FILE_LOG_BLOCK_SIZE;
-      stop_lsn += 64; stop_lsn = std::min(stop_lsn, log_get_lsn(*log_sys)););
+      stop_lsn += 64; stop_lsn = std::min(stop_lsn, log_sys.get_lsn()););
 }
 
 void Arch_Group::adjust_copy_length(lsn_t arch_lsn, uint32_t &copy_len) {

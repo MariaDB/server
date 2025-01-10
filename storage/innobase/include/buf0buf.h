@@ -1783,6 +1783,36 @@ public:
   /** Issue a warning that we could not free up buffer pool pages. */
   ATTRIBUTE_COLD void LRU_warn() noexcept;
 
+  /** Check if the page modifications are tracked.
+  @return true if page modifications are tracked, false otherwise. */
+  bool is_tracking() const { return track_page_lsn != LSN_MAX; }
+
+  /** Enable or Disable page tracking and set tracking LSN.
+  @param  tracking_lsn  Start LSN for tracking. LSN_MAX disables tracking. */
+  void set_tracking(lsn_t tracking_lsn) {
+    ut_ad(tracking_lsn == LSN_MAX || !is_tracking() ||
+          track_page_lsn <= tracking_lsn);
+    track_page_lsn= tracking_lsn;
+  }
+
+  /* Set maximum LSN for which IO is started. Used for early termination of
+  for tracking pages in flush list for which IO has already started.
+  @param  page_lsn  oldest LSN for page which is being submitted for write IO */
+  void set_max_lsn_io(lsn_t page_lsn)
+  {
+    if (page_lsn > max_lsn_io)
+      max_lsn_io= page_lsn;
+  }
+
+  /** Check if current page LSN is more than maximum LSN for which IO is
+  already started.
+  @param  page_lsn  oldest LSN for page which is being submitted for write IO
+  @return true iff page LSN value is more. */
+  bool is_lsn_more_than_max_io_lsn(lsn_t page_lsn)
+  {
+    return page_lsn > max_lsn_io;
+  }
+
 private:
   /** Temporary memory for page_compressed and encrypted I/O */
   struct io_buf_t
@@ -1802,6 +1832,13 @@ private:
 
   /** whether resize() is in the critical path */
   std::atomic<bool> resizing;
+
+  /** Page Tracking start LSN. Read-Write is protected by buffer pool mutex. */
+  lsn_t track_page_lsn;
+
+  /** Maximum LSN for which write io has already started. Read-Write is
+  protected by buffer pool mutex. */
+  lsn_t max_lsn_io;
 };
 
 /** The InnoDB buffer pool */

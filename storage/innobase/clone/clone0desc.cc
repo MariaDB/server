@@ -694,9 +694,9 @@ void Clone_Desc_File_MetaData::serialize(byte *&desc_file, uint &len,
                   m_file_meta.m_fsblk_size);
   /* Set file compression type for sparse file. */
   ulint file_flags = 0;
-  if (m_file_meta.m_compress_type == Compression::ZLIB) {
+  if (m_file_meta.m_compress_type == PAGE_ZLIB_ALGORITHM) {
     DESC_SET_FLAG(file_flags, CLONE_DESC_FILE_FLAG_ZLIB);
-  } else if (m_file_meta.m_compress_type == Compression::LZ4) {
+  } else if (m_file_meta.m_compress_type == PAGE_LZ4_ALGORITHM) {
     DESC_SET_FLAG(file_flags, CLONE_DESC_FILE_FLAG_LZ4);
   }
   /* Set file encryption type */
@@ -777,15 +777,15 @@ bool Clone_Desc_File_MetaData::deserialize(const byte *desc_file,
 
   m_file_meta.m_punch_hole = false;
 
-  m_file_meta.m_compress_type = Compression::NONE;
+  m_file_meta.m_compress_type = PAGE_UNCOMPRESSED;
   auto file_flags =
       static_cast<ulint>(mach_read_from_2(desc_file + CLONE_FILE_FLAGS_OFFSET));
 
   /* Get file compression type for sparse file. */
   if (DESC_CHECK_FLAG(file_flags, CLONE_DESC_FILE_FLAG_ZLIB)) {
-    m_file_meta.m_compress_type = Compression::ZLIB;
+    m_file_meta.m_compress_type = PAGE_ZLIB_ALGORITHM;
   } else if (DESC_CHECK_FLAG(file_flags, CLONE_DESC_FILE_FLAG_LZ4)) {
-    m_file_meta.m_compress_type = Compression::LZ4;
+    m_file_meta.m_compress_type = PAGE_LZ4_ALGORITHM;
   }
 
   /* Get file encryption information */
@@ -1081,7 +1081,7 @@ void Clone_File_Meta::init() {
   m_space_id = dict_sys_t::s_invalid_space_id;
   m_fsp_flags = UINT32_UNDEFINED;
 
-  m_compress_type = Compression::NONE;
+  m_compress_type = PAGE_UNCOMPRESSED;
   m_encryption_metadata = {};
   m_punch_hole = false;
   m_fsblk_size = 0;
