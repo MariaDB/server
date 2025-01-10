@@ -36,7 +36,6 @@ Created 10/4/1994 Heikki Tuuri
 # include "trx0roll.h"
 #endif
 
-#ifdef BTR_CUR_HASH_ADAPT
 /** Get the pad character code point for a type.
 @param type
 @return pad character code point
@@ -422,7 +421,7 @@ bool page_cur_search_with_match_bytes(const dtuple_t &tuple,
   else if (uint16_t last= page_header_get_offs(page, PAGE_LAST_INSERT))
   {
     const rec_t *rec= page + last;
-    if (page_header_get_field(page, PAGE_N_DIRECTION) > 3 &&
+    if (page_header_get_field(page, PAGE_N_DIRECTION) > 2 &&
         page_cur_try_search_shortcut_bytes(page, rec, index, tuple,
                                            iup_fields, ilow_fields,
                                            iup_bytes, ilow_bytes))
@@ -658,6 +657,7 @@ static int cmp_dtuple_rec_leaf(const dtuple_t &dtuple, const rec_t *rec,
   return ret;
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
 bool btr_cur_t::check_mismatch(const dtuple_t &tuple, bool ge, ulint comp)
   noexcept
 {
@@ -731,6 +731,7 @@ bool btr_cur_t::check_mismatch(const dtuple_t &tuple, bool ge, ulint comp)
     return cmp_dtuple_rec_leaf(tuple, rec, *index(), &match, comp) <= 0;
   }
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Try a search shortcut based on the last insert.
 @param page     index page
@@ -782,7 +783,6 @@ static bool page_cur_try_search_shortcut(const page_t *page, const rec_t *rec,
   *ilow= low;
   return true;
 }
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /****************************************************************//**
 Searches the right position for a page cursor. */
@@ -847,13 +847,12 @@ page_cur_search_with_match(
 				block, (dict_index_t*)index, tuple, mode,
 				cursor, rtr_info);
 		}
-#ifdef BTR_CUR_HASH_ADAPT
 	} else if (!n_core || mode != PAGE_CUR_LE || !page_is_leaf(page)
 		   || page_get_direction(page) != PAGE_RIGHT
 		   || (tuple->info_bits & REC_INFO_MIN_REC_FLAG)) {
 	} else if (uint16_t last =
 		   page_header_get_offs(page, PAGE_LAST_INSERT)) {
-		if (page_header_get_field(page, PAGE_N_DIRECTION) > 3
+		if (page_header_get_field(page, PAGE_N_DIRECTION) > 2
 		    && page_cur_try_search_shortcut(page, page + last, *index,
 						    *tuple,
 						    iup_matched_fields,
@@ -861,7 +860,6 @@ page_cur_search_with_match(
 			page_cur_position(page + last, block, cursor);
 			return false;
 		}
-#endif /* BTR_CUR_HASH_ADAPT */
 	}
 
 	/* If mode PAGE_CUR_G is specified, we are trying to position the
