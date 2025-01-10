@@ -558,8 +558,8 @@ buf_block_t *btr_root_block_sx(dict_index_t *index, mtr_t *mtr, dberr_t *err)
       return root;
   }
 #ifdef BTR_CUR_HASH_ADAPT
-  else
-    ut_ad(!root->index || !root->index->freed());
+  ut_d(else if (dict_index_t *index= root->index))
+    ut_ad(!index->freed());
 #endif
   return root;
 }
@@ -772,7 +772,7 @@ static rec_offs *btr_page_get_parent(rec_offs *offsets, mem_heap_t *heap,
       {
         ut_ad(block->page.lock.have_u_or_x() ||
               (!block->page.lock.have_s() && index->lock.have_x()));
-        ulint up_match= 0, low_match= 0;
+        uint16_t up_match= 0, low_match= 0;
         cursor->page_cur.block= block;
         if (page_cur_search_with_match(tuple, PAGE_CUR_LE, &up_match,
                                        &low_match, &cursor->page_cur,
@@ -1976,7 +1976,7 @@ btr_root_raise_and_insert(
 
 	ut_ad(dtuple_check_typed(tuple));
 	/* Reposition the cursor to the child node */
-	ulint low_match = 0, up_match = 0;
+	uint16_t low_match = 0, up_match = 0;
 
 	if (page_cur_search_with_match(tuple, PAGE_CUR_LE,
 				       &up_match, &low_match,
@@ -2660,7 +2660,7 @@ btr_insert_into_right_sibling(
 		return nullptr;
 	}
 
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
@@ -3142,7 +3142,7 @@ insert_empty:
 	page_cursor = btr_cur_get_page_cur(cursor);
 	page_cursor->block = insert_block;
 
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,

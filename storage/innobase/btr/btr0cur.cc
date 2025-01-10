@@ -1100,8 +1100,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
   MEM_UNDEFINED(&up_bytes, sizeof up_bytes);
   MEM_UNDEFINED(&low_match, sizeof low_match);
   MEM_UNDEFINED(&low_bytes, sizeof low_bytes);
-  ut_d(up_match= ULINT_UNDEFINED);
-  ut_d(low_match= ULINT_UNDEFINED);
+  ut_d(up_match= low_match= uint16_t(~0u));
 
   ut_ad(!(latch_mode & BTR_ALREADY_S_LATCHED) ||
         mtr->memo_contains_flagged(&index()->lock,
@@ -1118,7 +1117,6 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
         || latch_mode == BTR_MODIFY_TREE
         || latch_mode == BTR_MODIFY_ROOT_AND_LEAF);
 
-  flag= BTR_CUR_BINARY;
 #ifndef BTR_CUR_ADAPT
   guess= nullptr;
 #else
@@ -1126,6 +1124,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
   guess= info->root_guess;
 
 # ifdef BTR_CUR_HASH_ADAPT
+  flag= BTR_CUR_BINARY;
 #  ifdef UNIV_SEARCH_PERF_STAT
   info->n_searches++;
 #  endif
@@ -1138,9 +1137,9 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
                                     latch_mode, this, mtr))
   {
     /* Search using the hash index succeeded */
-    ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
-    ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
-    ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+    ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
+    ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
+    ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
     ++btr_cur_n_sea;
 
     return DB_SUCCESS;
@@ -1349,9 +1348,9 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
       if (page_cur_search_with_match(tuple, mode, &up_match, &low_match,
                                      &page_cur, nullptr))
         goto corrupted;
-      ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
-      ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
-      ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+      ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
+      ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
+      ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
       goto func_exit;
     }
 
@@ -1398,22 +1397,21 @@ release_tree:
 
   reached_latched_leaf:
 #ifdef BTR_CUR_HASH_ADAPT
-    if (btr_search.enabled && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG))
+    if (!(tuple->info_bits & REC_INFO_MIN_REC_FLAG) && btr_search.enabled)
     {
-      if (page_cur_search_with_match_bytes(tuple, mode,
-                                           &up_match, &up_bytes,
-                                           &low_match, &low_bytes, &page_cur))
+      if (page_cur_search_with_match_bytes(*tuple, mode, &up_match, &low_match,
+                                           &page_cur, &up_bytes, &low_bytes))
         goto corrupted;
     }
     else
 #endif /* BTR_CUR_HASH_ADAPT */
-    if (page_cur_search_with_match(tuple, mode, &up_match, &low_match,
-                                   &page_cur, nullptr))
-      goto corrupted;
+      if (page_cur_search_with_match(tuple, mode, &up_match, &low_match,
+                                     &page_cur, nullptr))
+        goto corrupted;
 
-    ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
-    ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
-    ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+    ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
+    ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
+    ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
 
     if (latch_mode == BTR_MODIFY_TREE &&
         btr_cur_need_opposite_intention(block->page, index()->is_clust(),
@@ -1656,9 +1654,9 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
       err= DB_CORRUPTION;
     else
     {
-      ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
-      ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
-      ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+      ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
+      ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
+      ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
 
 #ifdef BTR_CUR_HASH_ADAPT
       /* We do a dirty read of btr_search.enabled here.  We will recheck in
@@ -1770,8 +1768,9 @@ dberr_t btr_cur_search_to_nth_level(ulint level,
   MEM_UNDEFINED(&cursor->low_bytes, sizeof cursor->low_bytes);
   cursor->up_match= 0;
   cursor->low_match= 0;
+#ifdef BTR_CUR_HASH_ADAPT
   cursor->flag= BTR_CUR_BINARY;
-
+#endif
 #ifndef BTR_CUR_ADAPT
   buf_block_t *block= nullptr;
 #else
@@ -2518,13 +2517,8 @@ fail_err:
 		ut_ad(entry->is_metadata());
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
-	} else if (index->table->is_temporary()) {
-	} else {
-		if (!reorg && cursor->flag == BTR_CUR_HASH) {
-			btr_search_update_hash_node_on_insert(cursor);
-		} else {
-			btr_search_update_hash_on_insert(cursor);
-		}
+	} else if (!index->table->is_temporary()) {
+		btr_search_update_hash_on_insert(cursor, reorg);
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2588,7 +2582,9 @@ btr_cur_pessimistic_insert(
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
 
+#ifdef BTR_CUR_HASH_ADAPT
 	cursor->flag = BTR_CUR_BINARY;
+#endif
 
 	/* Check locks and write to undo log, if specified */
 
@@ -2694,9 +2690,8 @@ btr_cur_pessimistic_insert(
 			ut_ad(index->is_instant());
 			ut_ad(flags & BTR_NO_LOCKING_FLAG);
 			ut_ad(!(flags & BTR_CREATE_FLAG));
-		} else if (index->table->is_temporary()) {
-		} else {
-			btr_search_update_hash_on_insert(cursor);
+		} else if (!index->table->is_temporary()) {
+			btr_search_update_hash_on_insert(cursor, false);
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 		if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
@@ -3325,7 +3320,7 @@ static void btr_cur_trim_alter_metadata(dtuple_t* entry,
 	if (n_fields != index->n_uniq) {
 		ut_ad(n_fields
 		      >= index->n_core_fields);
-		entry->n_fields = n_fields;
+		entry->n_fields = uint16_t(n_fields);
 		return;
 	}
 
@@ -3361,7 +3356,7 @@ static void btr_cur_trim_alter_metadata(dtuple_t* entry,
 	ut_ad(n_fields >= index->n_core_fields);
 
 	mtr.commit();
-	entry->n_fields = n_fields + 1;
+	entry->n_fields = uint16_t(n_fields + 1);
 }
 
 /** Trim an update tuple due to instant ADD COLUMN, if needed.
@@ -3417,7 +3412,7 @@ btr_cur_trim(
 			ulint n_fields = upd_get_nth_field(update, 0)
 				->field_no;
 			ut_ad(n_fields + 1 >= entry->n_fields);
-			entry->n_fields = n_fields;
+			entry->n_fields = uint16_t(n_fields);
 		}
 	} else {
 		entry->trim(*index);
@@ -4817,10 +4812,10 @@ class btr_est_cur_t
 
   /** Matched fields and bytes which are used for on-page search, see
   btr_cur_t::(up|low)_(match|bytes) comments for details */
-  ulint m_up_match= 0;
-  ulint m_up_bytes= 0;
-  ulint m_low_match= 0;
-  ulint m_low_bytes= 0;
+  uint16_t m_up_match= 0;
+  uint16_t m_up_bytes= 0;
+  uint16_t m_low_match= 0;
+  uint16_t m_low_bytes= 0;
 
 public:
   btr_est_cur_t(dict_index_t *index, const dtuple_t &tuple,
@@ -4844,12 +4839,7 @@ public:
       m_page_mode= PAGE_CUR_LE;
       break;
     default:
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-      ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE ||
-            mode == PAGE_CUR_LE_OR_EXTENDS);
-#else  /* PAGE_CUR_LE_OR_EXTENDS */
       ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE);
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
       m_page_mode= mode;
       break;
     }

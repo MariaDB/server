@@ -59,7 +59,7 @@ btr_pcur_get_up_match(
 
 	btr_cursor = btr_pcur_get_btr_cur(cursor);
 
-	ut_ad(btr_cursor->up_match != ULINT_UNDEFINED);
+	ut_ad(btr_cursor->up_match != uint16_t(~0U));
 
 	return(btr_cursor->up_match);
 }
@@ -80,7 +80,7 @@ btr_pcur_get_low_match(
 	      || (cursor->pos_state == BTR_PCUR_IS_POSITIONED));
 
 	btr_cursor = btr_pcur_get_btr_cur(cursor);
-	ut_ad(btr_cursor->low_match != ULINT_UNDEFINED);
+	ut_ad(btr_cursor->low_match != uint16_t(~0U));
 
 	return(btr_cursor->low_match);
 }

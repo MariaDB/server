@@ -337,7 +337,7 @@ rtr_pcur_getnext_from_path(
 
 		if (mode == PAGE_CUR_RTREE_LOCATE) {
 			if (target_level == 0 && level == 0) {
-				ulint	low_match = 0, up_match = 0;
+				uint16_t low_match = 0, up_match = 0;
 
 				found = false;
 
@@ -564,8 +564,8 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
   MEM_UNDEFINED(&cur->up_bytes, sizeof cur->up_bytes);
   MEM_UNDEFINED(&cur->low_match, sizeof cur->low_match);
   MEM_UNDEFINED(&cur->low_bytes, sizeof cur->low_bytes);
-  ut_d(cur->up_match= ULINT_UNDEFINED);
-  ut_d(cur->low_match= ULINT_UNDEFINED);
+  ut_d(cur->up_match= uint16_t(~0U));
+  ut_d(cur->low_match= uint16_t(~0U));
 
   const bool latch_by_caller= latch_mode & BTR_ALREADY_S_LATCHED;
 
@@ -577,8 +577,9 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
   ut_ad(!latch_by_caller || latch_mode == BTR_SEARCH_LEAF ||
         latch_mode == BTR_MODIFY_LEAF);
 
+#ifdef BTR_CUR_HASH_ADAPT
   cur->flag= BTR_CUR_BINARY;
-
+#endif
 #ifndef BTR_CUR_ADAPT
   buf_block_t *guess= nullptr;
 #else
@@ -617,7 +618,7 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
   /* Start with the root page. */
   page_id_t page_id(index->table->space_id, index->page);
 
-  ulint up_match= 0, up_bytes= 0, low_match= 0, low_bytes= 0;
+  uint16_t up_match= 0, up_bytes= 0, low_match= 0, low_bytes= 0;
   ulint height= ULINT_UNDEFINED;
 
   /* We use these modified search modes on non-leaf levels of the
@@ -632,14 +633,8 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
     page_mode= PAGE_CUR_LE;
     break;
   default:
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-    ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE
-          || RTREE_SEARCH_MODE(mode)
-          || mode == PAGE_CUR_LE_OR_EXTENDS);
-#else /* PAGE_CUR_LE_OR_EXTENDS */
-    ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE
-          || RTREE_SEARCH_MODE(mode));
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
+    ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE ||
+          RTREE_SEARCH_MODE(mode));
     page_mode= mode;
     break;
   }
@@ -973,9 +968,9 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
     cur->up_match= up_match;
     cur->up_bytes= up_bytes;
 
-    ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
-    ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
-    ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+    ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
+    ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
+    ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
   }
 
   goto func_exit;
@@ -1685,7 +1680,7 @@ rtr_cur_restore_position(
 	ut_ad(r_cursor == node->cursor);
 
 search_again:
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	page_cursor->block = buf_page_get_gen(
 		page_id_t(index->table->space_id, page_no),

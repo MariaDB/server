@@ -2327,8 +2327,8 @@ dict_table_copy_v_types(
 	/* tuple could have more virtual columns than existing table,
 	if we are calling this for creating index along with adding
 	virtual columns */
-	ulint	n_fields = ut_min(dtuple_get_n_v_fields(tuple),
-				  static_cast<ulint>(table->n_v_def));
+	ulint	n_fields = std::min<ulint>(dtuple_get_n_v_fields(tuple),
+					   table->n_v_def);
 
 	for (ulint i = 0; i < n_fields; i++) {
 
@@ -3670,7 +3670,7 @@ dict_index_build_node_ptr(
 	dtuple_t*	tuple;
 	dfield_t*	field;
 	byte*		buf;
-	ulint n_unique = dict_index_get_n_unique_in_tree_nonleaf(index);
+	uint16_t n_unique = dict_index_get_n_unique_in_tree_nonleaf(index);
 
 	tuple = dtuple_create(heap, n_unique + 1);
 
@@ -3721,7 +3721,7 @@ dict_index_build_data_tuple(
 {
 	ut_ad(!index->is_clust());
 
-	dtuple_t* tuple = dtuple_create(heap, n_fields);
+	dtuple_t* tuple = dtuple_create(heap, uint16_t(n_fields));
 
 	dict_index_copy_types(tuple, index, n_fields);
 
