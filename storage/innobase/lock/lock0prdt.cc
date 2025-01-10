@@ -472,7 +472,7 @@ create:
 	because we should be moving an existing waiting lock request. */
 	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
 
-	lock_t* lock = lock_rec_create_low(null_c_lock_info,
+	lock_t* lock = lock_rec_create(null_c_lock_info,
 				       type_mode, block->page.id(),
 				       block->page.frame, PRDT_HEAPNO, index,
 				       trx, caller_owns_trx_mutex);
@@ -738,10 +738,10 @@ lock_prdt_lock(
 	lock_t*		lock = lock_sys_t::get_first(g.cell(), id);
 
 	if (lock == NULL) {
-		lock = lock_rec_create_low(
-			null_c_lock_info,
-			prdt_mode, block->page.id(), block->page.frame,
-			PRDT_HEAPNO, index, trx, FALSE);
+		lock = lock_rec_create(null_c_lock_info,
+				       prdt_mode, block->page.id(),
+				       block->page.frame, PRDT_HEAPNO, index,
+				       trx, FALSE);
 
 		status = LOCK_REC_SUCCESS_CREATED;
 	} else {
@@ -831,9 +831,9 @@ lock_place_prdt_page_lock(
 	}
 
 	if (lock == NULL) {
-		lock = lock_rec_create_low(null_c_lock_info,
-			mode, page_id, NULL, PRDT_HEAPNO,
-			index, trx, FALSE);
+		lock = lock_rec_create(null_c_lock_info,
+				       mode, page_id, NULL, PRDT_HEAPNO,
+				       index, trx, FALSE);
 
 #ifdef PRDT_DIAG
 		printf("GIS_DIAGNOSTIC: page lock %d\n", (int) page_no);

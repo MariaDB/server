@@ -60,7 +60,7 @@ struct conflicting_lock_info {
   lock must be inserted into linked list of locks for the certain cell of
   record locks hash table. */
   lock_t *insert_after;
-  /** Bypassed lock */
+  /** Fisrst bypassed lock */
   ut_d(const lock_t *bypassed;)
 };
 
@@ -1180,7 +1180,7 @@ without checking for deadlocks or conflicts.
 @param[in]	holds_trx_mutex	whether the caller holds trx->mutex
 @return created lock */
 lock_t*
-lock_rec_create_low(
+lock_rec_create(
 	const conflicting_lock_info   &c_lock_info,
 	unsigned	type_mode,
 	const page_id_t	page_id,

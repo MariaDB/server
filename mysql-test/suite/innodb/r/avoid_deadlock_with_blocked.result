@@ -6,6 +6,14 @@ connect  con3,localhost,root,,;
 connection default;
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t1 (id) VALUES (1);
+# Simplest scenario:
+# <con1, S, granted>,
+# <con1, S, granted>, <con2, X, waiting for con1>,
+# Before MDEV-34877:
+# <con1, S, granted>, <con2, X, waiting for con1>, <con1, X, waiting for con1>
+# After MDEV-34877:
+# <con1, S, granted>, <con1, X, granted>, <con2, X, waiting for con1>
+# Expected: instead of deadlocking, the con1's request should ingore con2's
 connection con1;
 BEGIN;
 SELECT * FROM t1 LOCK IN SHARE MODE;
@@ -25,6 +33,44 @@ connection con2;
 id
 1
 COMMIT;
+# The scenario when we bypass X<-S pair:
+# <con1, S, granted>,
+# <con1, S, granted>, <con2, X, waiting for con1>,
+# <con1, S, granted>, <con2, X, waiting for con1>, <con3, S, waiting for con2>
+# <con1, S, granted>, <con1, X, granted>, <con2, X, waiting for con1>, <con3, S, waiting for con2>
+connection con1;
+BEGIN;
+SELECT * FROM t1 LOCK IN SHARE MODE;
+id
+1
+connection con2;
+BEGIN;
+SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con2_will_wait';
+SELECT * FROM t1 FOR UPDATE;
+connection con3;
+SET DEBUG_SYNC = 'now WAIT_FOR con2_will_wait';
+BEGIN;
+SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con3_will_wait';
+SELECT * FROM t1 LOCK IN SHARE MODE;;
+connection con1;
+SET DEBUG_SYNC = 'now WAIT_FOR con3_will_wait';
+SELECT * FROM t1 FOR UPDATE;
+id
+1
+COMMIT;
+connection con2;
+id
+1
+COMMIT;
+connection con3;
+id
+1
+COMMIT;
+# A variant of the above scenario:
+# <con1, X REC_NOT_GAP, granted>,
+# <con1, X REC_NOT_GAP, granted>, <con2, S, waiting for con1>,
+# <con1, X REC_NOT_GAP, granted>, <con2, S, waiting for con1>, <con1, INSERT INTENTION, waiting for con1>
+# Expected: a deadlock, as INSERT INTENTION should not overtake locks on gap, to not slice them
 connection con1;
 BEGIN;
 SELECT * FROM t1 WHERE id=1 FOR UPDATE;
@@ -41,6 +87,13 @@ ROLLBACK;
 connection con2;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 COMMIT;
+# More complicated scenario:
+# <con1, S, granted>,
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>,
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con2>
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>, <con1, INSERT_INTENTION, waiting for con3>
+# <con1, S, granted>, <con3, X, waiting for con1>, <con1, INSERT_INTENTION, waiting for con3>
+# Expected: a deadlock, as INSERT INTENTION should not overtake locks on gap, to not slice them
 connection con1;
 BEGIN;
 SELECT * FROM t1 LOCK IN SHARE MODE;
@@ -66,6 +119,15 @@ connection con1;
 ROLLBACK;
 connection con3;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# More complicated scenario.
+# <con1, S, granted>,
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>,
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>, <con1, X REC_NOT_GAP, waiting for con2>
+# Before MDEV-34877:
+# <con1, S, granted>, <con3, X, waiting for con1>, <con1, X REC_NOT_GAP, waiting for con3>
+# After MDEV-34877:
+# <con1, S, granted>, <con1, X REC_NOT_GAP, granted>, <con3, X, waiting for con1>
 connection con1;
 BEGIN;
 SELECT * FROM t1 LOCK IN SHARE MODE;
@@ -95,6 +157,14 @@ connection con3;
 id
 1
 COMMIT;
+# A secenario, where con1 has to bypass two transactions:
+# <con1, S, granted>
+# <con1, S, granted> <con2, X, waiting>
+# <con1, S, granted> <con2, X, waiting> <con3, X, waiting>
+# Before MDEV-34877:
+# <con1, S, granted> <con2, X, waiting> <con3, X, waiting> <con1, X REC_NOT_GAP, waiting for con2>
+# After MDEV-34877:
+# <con1, S, granted> <con1, X REC_NOT_GAP, granted> <con2, X, waiting> <con3, X, waiting>
 connection con1;
 BEGIN;
 SELECT * FROM t1 LOCK IN SHARE MODE;
