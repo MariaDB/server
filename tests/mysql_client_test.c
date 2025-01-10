@@ -17475,7 +17475,7 @@ static my_bool query_str_variable(MYSQL *con,
   is_null= row[0] == NULL;
 
   if (!is_null)
-    my_snprintf(str, len, "%s", row[0]);
+    strmake(str, row[0], len-1);
 
   mysql_free_result(rs);
 
