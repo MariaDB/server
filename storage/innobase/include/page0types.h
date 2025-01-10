@@ -72,11 +72,6 @@ enum page_cur_mode_t {
 	PAGE_CUR_L	= 3,
 	PAGE_CUR_LE	= 4,
 
-/*      PAGE_CUR_LE_OR_EXTENDS = 5,*/ /* This is a search mode used in
-				 "column LIKE 'abc%' ORDER BY column DESC";
-				 we have to find strings which are <= 'abc' or
-				 which extend it */
-
 /* These search mode is for search R-tree index. */
 	PAGE_CUR_CONTAIN		= 7,
 	PAGE_CUR_INTERSECT		= 8,
