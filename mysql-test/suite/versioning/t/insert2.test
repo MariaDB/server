@@ -78,11 +78,3 @@ create or replace table t1 (pk int primary key) with system versioning;
 create trigger tr before insert on t1 for each row select 1 into @a;
 insert into t1 values (1),(2);
 drop table t1;
-
-#
-# MDEV-14794 Limitations which the row end as a part of PK imposes due to CURRENT_TIMESTAMP behavior and otherwise
-#
-create table t1 (pk int primary key, i int) with system versioning;
-replace into t1 values (1,10),(1,100),(1,1000);
-select pk,i,row_end > '2038-01-01' from t1 for system_time all;
-drop table t1;

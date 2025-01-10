@@ -16,9 +16,14 @@ update t1 set a1 = 'd' limit 1;
 update t1 set a1 = 'd2' where i1= 2;
 
 sync_slave_with_master;
-
+connection slave;
+select * from t1;
 connection master;
 drop table t1;
+
+sync_slave_with_master;
+connection master;
+
 
 --echo #
 --echo # MDEV-32093 long uniques break old->new replication
@@ -26,7 +31,6 @@ drop table t1;
 
 # this is techically a bug in replication, but it needs an old master
 # so we'll run it as a non-replicated test with BINLOG command
-sync_slave_with_master;
 create table t1 (id int not null, b1 varchar(255) not null, b2 varchar(2550) not null, unique (id), unique key (b1,b2) using hash) default charset utf8mb3;
 set global slave_exec_mode=idempotent;
 
@@ -40,10 +44,46 @@ binlog 'bBf2ZBMBAAAANAAAAJgHAAAAAHEAAAAAAAEABHRlc3QAAnQxAAQDDw8IBP0C4h0AeqMD4A==
 ### UPDATE t1 WHERE (42127, 'b', 'e', 39952170926) SET (23406, 'b', 'e', 39952170926)
 binlog 'bBf2ZBMBAAAANAAAAHUkAAAAAHEAAAAAAAEABHRlc3QAAnQxAAQDDw8IBP0C4h0AaTGFIg==bBf2ZBgBAAAASAAAAL0kAAAAAHEAAAAAAAEABP//8I+kAAABAGIBAGWuv1VNCQAAAPBuWwAAAQBiAQBlrr9VTQkAAADxS9Lu';
 
-drop table t1;
+sync_slave_with_master;
+select * from t1;
+connection master;
 set global slave_exec_mode=default;
+drop table t1;
 
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo # Idempotent scenario, which triggers REPLACE code to be used in the
+--echo # event, i.e. duplicated record will be deleted and then re-inserted.
+create table t1 (i1 int, a1 text, unique key i1 (a1)) engine=myisam;
+
+sync_slave_with_master;
+connection slave;
+set @save_slave_exec_mode= @@slave_exec_mode;
+set global slave_exec_mode = idempotent;
+insert into t1 values (1,1);
+connection master;
+insert into t1 values (2,1);
+sync_slave_with_master;
+connection slave;
+select * from t1;
+connection master;
+insert into t1 values (3,3);
+update t1 set a1 = 'd' limit 1;
+update t1 set a1 = 'd2' where i1= 3;
+sync_slave_with_master;
+
+connection slave;
+select * from t1;
+set global slave_exec_mode = @save_slave_exec_mode;
+connection master;
+drop table t1;
+sync_slave_with_master;
+connection master;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
 --source include/rpl_end.inc

@@ -4953,12 +4953,6 @@ uint handler::get_dup_key(int error)
   DBUG_RETURN(errkey);
 }
 
-bool handler::has_dup_ref() const
-{
-  DBUG_ASSERT(lookup_errkey != (uint)-1 || errkey != (uint)-1);
-  return ha_table_flags() & HA_DUPLICATE_POS || lookup_errkey != (uint)-1;
-}
-
 
 /**
   Delete all files with extension from bas_ext().
@@ -7516,8 +7510,12 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     return 0;
   if (!table_share->period.unique_keys)
     return 0;
-  if (table->versioned() && !table->vers_end_field()->is_max())
-    return 0;
+  if (table->versioned())
+  {
+    Field *end= table->vers_end_field();
+    if (!end->is_max(end->ptr_in_record(new_data)))
+      return 0;
+  }
 
   const bool is_update= old_data != NULL;
   uchar *record_buffer= lookup_buffer + table_share->max_unique_length
