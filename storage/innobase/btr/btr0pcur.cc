@@ -26,8 +26,8 @@ Created 2/23/1996 Heikki Tuuri
 
 #include "btr0pcur.h"
 #include "buf0rea.h"
+#include "btr0sea.h"
 #include "rem0cmp.h"
-#include "trx0trx.h"
 #include "ibuf0ibuf.h"
 
 /**************************************************************//**
@@ -271,11 +271,13 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
         memcmp_aligned<2>(block->page.frame + PAGE_HEADER + PAGE_INDEX_ID,
                           prev->page.frame + PAGE_HEADER + PAGE_INDEX_ID, 8))
       goto fail;
+    btr_search_drop_page_hash_index(prev, pcur->index());
   }
   else
     prev= nullptr;
 
   mtr->upgrade_buffer_fix(savepoint, mode);
+  btr_search_drop_page_hash_index(block, pcur->index());
 
   if (UNIV_UNLIKELY(block->modify_clock != modify_clock) ||
       UNIV_UNLIKELY(block->page.is_freed()) ||
