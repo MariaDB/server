@@ -807,6 +807,22 @@ dict_mem_foreign_create(void)
 	DBUG_RETURN(foreign);
 }
 
+/** Duplicate a string to a memory heap, with lower-case conversion
+@param heap  memory heap where string is allocated
+@param cs    the character set of the string
+@param str   the source string
+@return own: a NUL-terminated lower-cased copy of str */
+static LEX_STRING mem_heap_alloc_casedn_z(mem_heap_t *heap,
+                                          CHARSET_INFO *cs,
+                                          const LEX_CSTRING &str) noexcept
+{
+  size_t nbytes= str.length * cs->casedn_multiply() + 1;
+  LEX_STRING res;
+  res.str= static_cast<char*>(mem_heap_alloc(heap, nbytes));
+  res.length= cs->casedn_z(str.str, str.length, res.str, nbytes);
+  return res;
+}
+
 /**********************************************************************//**
 Sets the foreign_table_name_lookup pointer based on the value of
 lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup

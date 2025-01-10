@@ -280,7 +280,7 @@ btr_root_block_get(
 #ifndef BTR_CUR_ADAPT
   static constexpr buf_block_t *guess= nullptr;
 #else
-  buf_block_t *&guess= btr_search_get_info(index)->root_guess;
+  buf_block_t *&guess= index->search_info.root_guess;
   guess=
 #endif
   block=
@@ -1085,7 +1085,7 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
 #ifndef BTR_CUR_ADAPT
   static constexpr buf_block_t *guess= nullptr;
 #else
-  buf_block_t *&guess= btr_search_get_info(this)->root_guess;
+  buf_block_t *&guess= search_info.root_guess;
   guess=
 #endif
   root_block= buf_page_get_gen({table->space_id, page},
@@ -1095,14 +1095,12 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
   {
     btr_free_but_not_root(root_block, mtr.get_log_mode()
 #ifdef BTR_CUR_HASH_ADAPT
-		          ,n_ahi_pages() != 0
+		          ,any_ahi_pages()
 #endif
                          );
-
+    btr_search_drop_page_hash_index(root_block, false);
 #ifdef BTR_CUR_HASH_ADAPT
-    if (root_block->index)
-      btr_search_drop_page_hash_index(root_block, false);
-    ut_ad(n_ahi_pages() == 0);
+    ut_ad(!any_ahi_pages());
 #endif
     mtr.memset(root_block, PAGE_HEADER + PAGE_BTR_SEG_LEAF,
                FSEG_HEADER_SIZE, 0);
@@ -1147,7 +1145,7 @@ void btr_drop_temporary_table(const dict_table_t &table)
 #ifndef BTR_CUR_ADAPT
     static constexpr buf_block_t *guess= nullptr;
 #else
-    buf_block_t *guess= index->search_info->root_guess;
+    buf_block_t *guess= index->search_info.root_guess;
 #endif
     if (buf_block_t *block= buf_page_get_gen({SRV_TMP_SPACE_ID, index->page},
                                              0, RW_X_LATCH, guess, BUF_GET,

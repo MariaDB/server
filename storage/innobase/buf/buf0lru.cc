@@ -273,6 +273,10 @@ buf_block_t* buf_LRU_get_free_only()
 	while (block != NULL) {
 		ut_ad(block->page.in_free_list);
 		ut_d(block->page.in_free_list = FALSE);
+#ifdef BTR_CUR_HASH_ADAPT
+		ut_ad(!block->n_pointers);
+		ut_ad(!block->index);
+#endif
 		ut_ad(!block->page.oldest_modification());
 		ut_ad(!block->page.in_LRU_list);
 		ut_a(!block->page.in_file());
@@ -282,10 +286,6 @@ buf_block_t* buf_LRU_get_free_only()
 		    || UT_LIST_GET_LEN(buf_pool.withdraw)
 			>= buf_pool.withdraw_target
 		    || !buf_pool.will_be_withdrawn(block->page)) {
-			/* No adaptive hash index entries may point to
-			a free block. */
-			assert_block_ahi_empty(block);
-
 			block->page.set_state(buf_page_t::MEMORY);
 			block->page.set_os_used();
 			break;
@@ -981,7 +981,10 @@ buf_LRU_block_free_non_file_page(
 	void*		data;
 
 	ut_ad(block->page.state() == buf_page_t::MEMORY);
+#ifdef BTR_CUR_HASH_ADAPT
 	assert_block_ahi_empty(block);
+	block->n_hash_helps = 0;
+#endif
 	ut_ad(!block->page.in_free_list);
 	ut_ad(!block->page.oldest_modification());
 	ut_ad(!block->page.in_LRU_list);

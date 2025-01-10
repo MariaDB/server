@@ -890,12 +890,12 @@ struct buf_block_t{
 
 	Another exception is that ha_insert_for_fold() may
 	decrement n_pointers without holding the appropriate latch
-	in btr_search_latches[]. Thus, n_pointers must be
+	in btr_search.parts. Thus, n_pointers must be
 	protected by atomic memory access.
 
 	This implies that the fields may be read without race
 	condition whenever any of the following hold:
-	- the btr_search_sys.partition[].latch is being held, or
+	- the btr_search.parts.latch is being held, or
 	- state() == NOT_USED || state() == MEMORY,
 	and holding some latch prevents the state from changing to that.
 
