@@ -714,8 +714,8 @@ int spider_udf_bg_copy_exec_sql(
 long long spider_copy_tables_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   int error_num, roop_count, all_link_cnt = 0, use_table_charset;
   SPIDER_COPY_TABLES *copy_tables = NULL;
