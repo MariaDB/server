@@ -37,6 +37,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef UNIV_HOTBACKUP
 #include "handler.h"
 
+using space_id_t = decltype(fil_space_t::id);
+using page_no_t = uint32_t;
+
 /** Get capability flags for clone operation
 @param[out]     flags   capability flag */
 void innodb_clone_get_capability(Ha_clone_flagset &flags);

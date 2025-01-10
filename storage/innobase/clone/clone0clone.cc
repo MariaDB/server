@@ -951,7 +951,7 @@ int Clone_Task_Manager::handle_error_other_task(bool set_error) {
     case ER_NET_READ_INTERRUPTED:
     case ER_NET_ERROR_ON_WRITE:
     case ER_NET_WRITE_INTERRUPTED:
-    case ER_NET_WAIT_ERROR:
+    // case ER_NET_WAIT_ERROR:
       my_error(m_saved_error, MYF(0));
       break;
 
@@ -2337,7 +2337,7 @@ int Clone_Handle::file_callback(Ha_clone_cbk *cbk, Clone_Task *task, uint len,
                                 bool buf_cbk, uint64_t offset
 #ifdef UNIV_PFS_IO
                                 ,
-                                ut::Location location
+                                const char *src_file, uint src_line
 #endif /* UNIV_PFS_IO */
 ) {
   int err;
@@ -2362,7 +2362,7 @@ int Clone_Handle::file_callback(Ha_clone_cbk *cbk, Clone_Task *task, uint len,
   psi_op = is_copy_clone() ? PSI_FILE_READ : PSI_FILE_WRITE;
 
   register_pfs_file_io_begin(&state, locker, task->m_current_file_des, len,
-                             psi_op, location);
+                             psi_op, src_file, src_line);
 #endif /* UNIV_PFS_IO */
 
   /* Call appropriate callback to transfer data. */

@@ -30,6 +30,7 @@ Created 11/11/1995 Heikki Tuuri
 #include <mysql/service_thd_wait.h>
 #include <sql_class.h>
 
+#include "arch0arch.h"
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "buf0buf.h"
@@ -776,6 +777,16 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
   ut_ad((space == fil_system.temp_space)
         ? oldest_modification() == 2
         : oldest_modification() > 2);
+
+  buf_pool.set_max_lsn_io(oldest_modification());
+
+  /* TODO: Since the old frame LSN is already over-written, the optimization
+  to skip logging a page multiple times is disabled. To enable it, we would
+  require to bring back newest LSN in page and overwrite frame LSN later
+  in buf_flush_init_for_writing(). */
+  if (buf_pool.is_tracking() && !fsp_is_system_temporary(id().space()))
+    // arch_page_sys->track_page(bpage, buf_pool.track_page_lsn, frame_lsn, false);
+    arch_page_sys->track_page(this, 0, 0, false);
 
   /* Increment the I/O operation count used for selecting LRU policy. */
   buf_LRU_stat_inc_io();

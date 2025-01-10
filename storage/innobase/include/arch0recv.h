@@ -36,6 +36,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
 #include "arch0arch.h"
 #include "arch0page.h"
+#include <unordered_map>
 
 /** Info related to each group parsed at different stages of page archive
 recovery. */
@@ -46,7 +47,7 @@ class Arch_Recv_Group_Info {
     m_write_pos.init();
 
     m_last_reset_block = static_cast<byte *>(ut_zalloc(ARCH_PAGE_BLK_SIZE,
-                                                       mem_key_archive);
+                                                       mem_key_archive));
     m_last_data_block = static_cast<byte *>(ut_zalloc(ARCH_PAGE_BLK_SIZE,
                                                       mem_key_archive));
   }
@@ -122,7 +123,7 @@ struct Arch_Dblwr_Block {
   Arch_Blk_Flush_Type m_flush_type;
 
   /** Block number of the block flushed into the doublewrite buffer */
-  uint64_t m_block_num;
+  uint32_t m_block_num;
 
   /** Doublewrite buffer block */
   byte *m_block;

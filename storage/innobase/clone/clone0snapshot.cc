@@ -866,7 +866,7 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
   buf_page_mutex_enter(block);
   ut_ad(!fsp_is_checksum_disabled(bpage->id.space()));
   /* Get oldest and newest page modification LSN for dirty page. */
-  auto oldest_lsn = bpage->get_oldest_lsn();
+  auto oldest_lsn = bpage->oldest_modification();
   auto newest_lsn = bpage->get_newest_lsn();
   buf_page_mutex_exit(block);
 
@@ -893,7 +893,7 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
 
   memcpy(page_data, src_data, data_size);
 
-  auto cur_lsn = log_get_lsn(*log_sys);
+  auto cur_lsn = log_sys.get_lsn(std::memory_order_seq_cst);
   const auto frame_lsn =
       static_cast<lsn_t>(mach_read_from_8(page_data + FIL_PAGE_LSN));
 
@@ -947,7 +947,7 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
 
   /* Do transparent page compression if needed. */
   if (page_id.page_no() != 0 && file_meta->m_punch_hole &&
-      file_meta->m_compress_type != Compression::NONE) {
+      file_meta->m_compress_type != PAGE_UNCOMPRESSED) {
     auto compressed_data = page_data + data_size;
     memset(compressed_data, 0, data_size);
 

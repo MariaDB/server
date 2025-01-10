@@ -850,7 +850,7 @@ int Clone_Handle::apply_ddl(const Clone_File_Meta *new_meta,
 
     if (old_meta->m_compress_type != new_meta->m_compress_type) {
       old_meta->m_compress_type = new_meta->m_compress_type;
-      if (new_meta->m_compress_type == Compression::NONE) {
+      if (new_meta->m_compress_type == PAGE_UNCOMPRESSED) {
         update_mesg.assign("UNCOMPRESSED ");
       } else {
         update_mesg.assign("COMPRESSED ");
@@ -1008,7 +1008,7 @@ int Clone_Handle::fix_all_renamed(const Clone_Task *task) {
 int Clone_Handle::set_compression(Clone_file_ctx *file_ctx) {
   auto file_meta = file_ctx->get_file_meta();
 
-  if (file_meta->m_compress_type == Compression::NONE || file_ctx->deleted()) {
+  if (file_meta->m_compress_type == PAGE_UNCOMPRESSED || file_ctx->deleted()) {
     return 0;
   }
 

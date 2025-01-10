@@ -56,6 +56,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "sql/dd/types/table.h"
 #include "sql/rpl_msr.h"  // is_slave_configured()
 
+constexpr space_id_t SPACE_UNKNOWN = std::numeric_limits<space_id_t>::max();
+
 /* To get current session thread default THD */
 THD *thd_get_current_thd();
 

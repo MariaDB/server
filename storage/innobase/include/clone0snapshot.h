@@ -47,6 +47,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <vector>
 #include <functional>
 
+#define UNIV_PAGE_SIZE ((ulint)srv_page_size)
+
 struct Clone_file_ctx {
   /** File state:
   [CREATED] -------------> [DROPPING] --> [DROPPED] --> [DROPPED_HANDLED]
@@ -534,7 +536,7 @@ class Clone_Snapshot {
 
   /** @return chunk size in bytes. */
   inline uint32_t get_chunk_size() const {
-    return chunk_size() * UNIV_PAGE_SIZE;
+    return static_cast<uint32_t>(chunk_size() * UNIV_PAGE_SIZE);
   }
 
   /** @return number of blocks per chunk for different states. */
@@ -550,10 +552,10 @@ class Clone_Snapshot {
   void update_file_size(uint32_t file_index, uint64_t file_size);
 
   /** Encrypt tablespace key in header page with master key.
-  @param[in]            page_size       page size descriptor
+  @param[in]            fsp_flags       tablespace flag
   @param[in,out]        page_data       page data to update
   @return true, if successful. */
-  bool encrypt_key_in_header(const page_size_t &page_size, byte *page_data);
+  bool encrypt_key_in_header(ulint fsp_flags, byte *page_data);
 
   /** Encrypt tablespace key in header page with master key.
   @param[in,out]        log_header      page data to update
@@ -563,10 +565,9 @@ class Clone_Snapshot {
 
   /** Decrypt tablespace key in header page with master key.
   @param[in]            file_meta       clone file metadata
-  @param[in]            page_size       page size descriptor
   @param[in,out]        page_data       page data to update */
   void decrypt_key_in_header(const Clone_File_Meta *file_meta,
-                             const page_size_t &page_size, byte *&page_data);
+                             byte *&page_data);
 
   /** @return maximum blocks to transfer with file pinned. */
   uint32_t get_max_blocks_pin() const;
@@ -765,8 +766,10 @@ class Clone_Snapshot {
   /** Initialize disk byte estimate. */
   void init_disk_estimate() {
     /* Initial size is set to the redo file size on disk. */
-    Mysql_mutex_guard latch{&(log_sys->limits_mutex)};
-    m_data_bytes_disk = log_sys->m_capacity.current_physical_capacity();
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    /* TODO: Get physical capacity. */
+    m_data_bytes_disk = log_sys.log_capacity;
+    log_sys.latch.wr_unlock();
   }
 
   /** Initialize snapshot state for page copy
@@ -825,20 +828,19 @@ class Clone_Snapshot {
 
   /** Get page from buffer pool and make ready for write
   @param[in]    page_id         page ID chunk
-  @param[in]    page_size       page size descriptor
   @param[in]    file_ctx        clone file context
   @param[out]   page_data       data page
   @param[out]   data_size       page size in bytes
   @return error code */
-  int get_page_for_write(const page_id_t &page_id, const page_size_t &page_size,
+  int get_page_for_write(const page_id_t &page_id,
                          const Clone_file_ctx *file_ctx, byte *&page_data,
                          uint &data_size);
 
   /* Make page ready for flush by updating LSN anc checksum
-  @param[in]            page_size       page size descriptor
+  @param[in]            fsp_flags       tablespace flag
   @param[in]            page_lsn        LSN to update the page with
   @param[in,out]        page_data       data page */
-  void page_update_for_flush(const page_size_t &page_size, lsn_t page_lsn,
+  void page_update_for_flush(ulint fsp_flags, lsn_t page_lsn,
                              byte *&page_data);
 
   /** Build file metadata entry

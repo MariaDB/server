@@ -1489,6 +1489,10 @@ bool buf_pool_t::create() noexcept
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
   btr_search_sys_create();
 
+  /* Dirty Page Tracking is disabled by default. */
+  track_page_lsn = LSN_MAX;
+  max_lsn_io = 0;
+
 #ifdef __linux__
   if (srv_operation == SRV_OPERATION_NORMAL)
     buf_mem_pressure_detect_init();

@@ -220,8 +220,8 @@ class Clone_Task_Manager {
   void set_error(int err, const char *file_name) {
     mysql_mutex_lock(&m_state_mutex);
 
-    ib::info(ER_IB_CLONE_OPERATION) << "Clone Set Error code: " << err
-                                    << " Saved Error code: " << m_saved_error;
+    ib::info() << "Clone Set Error code: " << err
+               << " Saved Error code: " << m_saved_error;
 
     /* Override any network error as we should not be waiting for restart
     if other errors have occurred. */
@@ -477,11 +477,11 @@ class Clone_Task_Manager {
   @return true if network error */
   bool is_network_error(int err) {
     if (err == ER_NET_ERROR_ON_WRITE || err == ER_NET_READ_ERROR ||
-        err == ER_NET_WRITE_INTERRUPTED || err == ER_NET_READ_INTERRUPTED ||
-        err == ER_NET_WAIT_ERROR) {
-      return (true);
-    }
-    return (false);
+        err == ER_NET_WRITE_INTERRUPTED || err == ER_NET_READ_INTERRUPTED)
+        // err == ER_NET_WAIT_ERROR) {
+      return true;
+
+    return false;
   }
 
   /** Reserve free task from task manager and initialize
@@ -823,13 +823,14 @@ class Clone_Handle {
   @param[in]    len             data length
   @param[in]    buf_cbk         invoke buffer callback
   @param[in]    offset          file offset
-  @param[in]    location        location where func invoked
+  @param[in]    src_file        file name where func invoked
+  @param[in]    src_line        line where the func invoked
   @return error code */
   int file_callback(Ha_clone_cbk *cbk, Clone_Task *task, uint len, bool buf_cbk,
                     uint64_t offset
 #ifdef UNIV_PFS_IO
                     ,
-                    ut::Location location
+                    const char *src_file, uint src_line
 #endif /* UNIV_PFS_IO */
   );
 
@@ -1053,7 +1054,7 @@ class Clone_Handle {
 class Clone_Sys {
  public:
   /** RAII style wrapper to enter and exit wait stage. */
-  class Wait_stage : private ut::Non_copyable {
+  class Wait_stage : private ib::Non_copyable {
    public:
     /** Constructor to change the THD information string.
     @param[in]  new_info        new information string */
@@ -1067,7 +1068,7 @@ class Clone_Sys {
     const char *m_saved_info;
   };
 
-  class Acquire_clone : private ut::Non_copyable {
+  class Acquire_clone : private ib::Non_copyable {
    public:
     /** Constructor to get and pin clone handle. */
     explicit Acquire_clone();
@@ -1289,7 +1290,7 @@ class Clone_Sys {
   std::tuple<bool, Clone_Handle *> check_active_clone();
 
   /** @return GTID persistor */
-  Clone_persist_gtid &get_gtid_persistor() { return (m_gtid_persister); }
+  // Clone_persist_gtid &get_gtid_persistor() { return (m_gtid_persister); }
 
   /** Remember that all innodb spaces are initialized after last startup. */
   void set_space_initialized() { m_space_initialized.store(true); }
@@ -1341,7 +1342,7 @@ class Clone_Sys {
   std::atomic<bool> m_space_initialized;
 
   /** GTID persister */
-  Clone_persist_gtid m_gtid_persister;
+  // Clone_persist_gtid m_gtid_persister;
 };
 
 /** Clone system global */
