@@ -2338,7 +2338,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
     ibuf_merge_or_delete_for_page(nullptr, page_id, block->page.zip_size());
 #ifdef BTR_CUR_HASH_ADAPT
   if (block->index)
-    btr_search_drop_page_hash_index(block, false);
+    btr_search_drop_page_hash_index(block, nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
   block->page.set_freed(block->page.state());
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
@@ -3172,9 +3172,6 @@ wait_for_unzip:
 		mtr->lock_register(mtr->get_savepoint() - 1, MTR_MEMO_BUF_FIX);
 		goto corrupted;
 	}
-#ifdef BTR_CUR_HASH_ADAPT
-	btr_search_drop_page_hash_index(block, true);
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	ut_ad(block->page.frame == block->frame_address());
 	ut_ad(page_id_t(page_get_space_id(block->page.frame),
@@ -3278,8 +3275,7 @@ buf_page_get_gen(
     mtr->memo_push(block, mtr_memo_type_t(rw_latch));
     return block;
   }
-  mtr->page_lock(block, rw_latch);
-  return block;
+  return mtr->page_lock(block, rw_latch);
 }
 
 buf_block_t *buf_page_optimistic_fix(buf_block_t *block, page_id_t id) noexcept
@@ -3548,7 +3544,7 @@ retry:
 #ifdef BTR_CUR_HASH_ADAPT
     if (drop_hash_entry)
       btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage),
-                                      false);
+                                      nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
 
     if (ibuf_exist && !recv_recovery_is_on())
