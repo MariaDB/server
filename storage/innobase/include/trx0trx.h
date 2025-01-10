@@ -618,14 +618,14 @@ public:
   {
     ut_ad(!mutex_is_owner());
     mutex.wr_lock();
-    assert(!mutex_owner.exchange(pthread_self(),
-                                 std::memory_order_relaxed));
+    ut_d(assert(!mutex_owner.exchange(pthread_self(),
+                                      std::memory_order_relaxed)));
   }
   /** Release the mutex */
   void mutex_unlock()
   {
-    assert(mutex_owner.exchange(0, std::memory_order_relaxed) ==
-           pthread_self());
+    ut_d(assert(mutex_owner.exchange(0, std::memory_order_relaxed) ==
+                pthread_self()));
     mutex.wr_unlock();
   }
 #ifndef SUX_LOCK_GENERIC
