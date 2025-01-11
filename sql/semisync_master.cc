@@ -938,8 +938,8 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
             sql_print_information(
                 "Skipping semi-sync wait for transaction at pos %s, %lu. This "
                 "should be because semi-sync turned off and on during the "
-                "lifetime of this transaction.",
-                trx_wait_binlog_name, trx_wait_binlog_pos););
+                "lifetime of this transaction.", trx_wait_binlog_name,
+                static_cast<unsigned long>(trx_wait_binlog_pos)););
 
         /* The only known reason for a missing entry at this point is if
          * semi-sync was turned off then on, so on debug builds, we track

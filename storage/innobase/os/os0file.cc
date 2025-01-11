@@ -1619,8 +1619,8 @@ bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
-			sql_print_error("InnoDB: ftruncate of file %s"
-					" to %llu bytes failed with error %d",
+			sql_print_error("InnoDB: ftruncate of file %s to %"
+					PRIu64 " bytes failed with error %d",
 					name, size, errno);
 		}
 		return success;
@@ -1658,7 +1658,7 @@ bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
 	case 0:
 		return true;
 	default:
-		sql_print_error("InnoDB: preallocating %llu"
+		sql_print_error("InnoDB: preallocating %" PRIu64
 				" bytes for file %s failed with error %d",
 				size, name, err);
 		/* fall through */
