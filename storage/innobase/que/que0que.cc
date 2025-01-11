@@ -514,8 +514,7 @@ que_thr_step(
 			for_step(thr);
 		} else if (type == QUE_NODE_PROC) {
 			if (thr->prev_node == que_node_get_parent(node)) {
-				trx->last_sql_stat_start.least_undo_no
-					= trx->undo_no;
+				trx->last_stmt_start = trx->undo_no;
 			}
 
 			proc_step(thr);

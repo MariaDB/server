@@ -1,5 +1,5 @@
---- a/mysql-test/suite/sys_vars/r/sysvars_aria.result
-+++ b/mysql-test/suite/sys_vars/r/sysvars_aria.result
+--- suite/sys_vars/r/sysvars_aria.result
++++ suite/sys_vars/r/sysvars_aria,32bit.reject
 @@ -5,7 +5,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	8192

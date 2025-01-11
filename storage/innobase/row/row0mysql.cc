@@ -624,7 +624,7 @@ row_mysql_handle_errors(
 				function */
 	trx_t*		trx,	/*!< in: transaction */
 	que_thr_t*	thr,	/*!< in: query thread, or NULL */
-	trx_savept_t*	savept)	/*!< in: savepoint, or NULL */
+	const undo_no_t*savept)	/*!< in: pointer to savepoint, or nullptr */
 {
 	dberr_t	err;
 
@@ -680,8 +680,7 @@ handle_new_error:
 		}
 		/* MariaDB will roll back the entire transaction. */
 		trx->bulk_insert = false;
-		trx->last_sql_stat_start.least_undo_no = 0;
-		trx->savepoints_discard();
+		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:
 		err = lock_wait(thr);
@@ -699,7 +698,6 @@ handle_new_error:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
-
 		trx->rollback();
 		break;
 
@@ -1136,7 +1134,7 @@ row_lock_table_autoinc_for_mysql(
 
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
-		 && row_mysql_handle_errors(&err, trx, thr, NULL));
+		 && row_mysql_handle_errors(&err, trx, thr, nullptr));
 
 	trx->op_info = "";
 
@@ -1178,7 +1176,7 @@ row_lock_table(row_prebuilt_t* prebuilt)
 					 prebuilt->select_lock_type), thr);
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
-		 && row_mysql_handle_errors(&err, trx, thr, NULL));
+		 && row_mysql_handle_errors(&err, trx, thr, nullptr));
 
 	trx->op_info = "";
 
@@ -1217,7 +1215,6 @@ row_insert_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	ins_mode_t	ins_mode)
 {
-	trx_savept_t	savept;
 	que_thr_t*	thr;
 	dberr_t		err;
 	ibool		was_lock_wait;
@@ -1271,7 +1268,7 @@ row_insert_for_mysql(
 	roll back to the start of the transaction. For correctness, it
 	would suffice to roll back to the start of the first insert
 	into this empty table, but we will keep it simple and efficient. */
-	savept.least_undo_no = trx->bulk_insert ? 0 : trx->undo_no;
+	const undo_no_t savept{trx->bulk_insert ? 0 : trx->undo_no};
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
 
@@ -1579,7 +1576,6 @@ init_fts_doc_id_for_ref(
 dberr_t
 row_update_for_mysql(row_prebuilt_t* prebuilt)
 {
-	trx_savept_t	savept;
 	dberr_t		err;
 	que_thr_t*	thr;
 	dict_index_t*	clust_index;
@@ -1636,7 +1632,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	generated for the table: MySQL does not know anything about
 	the row id used as the clustered index key */
 
-	savept.least_undo_no = trx->undo_no;
+	undo_no_t savept = trx->undo_no;
 
 	thr = que_fork_get_first_thr(prebuilt->upd_graph);
 

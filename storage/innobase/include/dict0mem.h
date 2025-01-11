@@ -1188,6 +1188,14 @@ public:
 					     | DICT_FTS | DICT_CORRUPT)));
 	}
 
+	/** @return whether this is a normal, non-virtual B-tree index
+	(not SPATIAL or FULLTEXT) */
+	bool is_normal_btree() const noexcept {
+		return UNIV_LIKELY(!(type & (DICT_SPATIAL
+					     | DICT_FTS | DICT_CORRUPT
+					     | DICT_VIRTUAL)));
+	}
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 

@@ -26,7 +26,7 @@ let SEARCH_PATTERN = InnoDB: Resized log to 4\\.000MiB;
 --source include/search_pattern_in_file.inc
 
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE
-SET @save=@@GLOBAL.innodb_log_file_buffering;
+SET @save=@@global.innodb_log_file_buffering;
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_log_file_buffering=OFF;
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE

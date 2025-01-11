@@ -1,0 +1,53 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_2
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+#
+# Force SST
+#
+--echo Cleaning var directory ...
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mysql
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data
+
+--connection node_2
+
+--echo Starting server ...
+let $restart_noprint=2;
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+
+# Confirm that IST did not take place
+--let $assert_text = mariabackup: Using 128974848 bytes for buffer pool \(set by --use-memory parameter\)
+--let $assert_select = mariabackup: Using 128974848 bytes for buffer pool \(set by --use-memory parameter\)
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/mysqld.2/data/mariabackup.prepare.log
+--let $assert_only_after = Starting InnoDB instance for recovery
+--source include/assert_grep.inc
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

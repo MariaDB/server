@@ -1,5 +1,5 @@
---- a/mysql-test/suite/sys_vars/r/sysvars_wsrep.result
-+++ b/mysql-test/suite/sys_vars/r/sysvars_wsrep.result
+--- suite/sys_vars/r/sysvars_wsrep.result
++++ suite/sys_vars/r/sysvars_wsrep,32bit.reject
 @@ -307,7 +307,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0

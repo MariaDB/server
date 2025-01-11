@@ -2,6 +2,9 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
 
 --echo *** Test all-to-all replication with --gtid-ignore-duplicates ***
 

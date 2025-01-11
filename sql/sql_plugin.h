@@ -26,7 +26,7 @@
             SHOW_LONG_NOFLUSH, SHOW_LEX_STRING, SHOW_ATOMIC_COUNTER_UINT32_T, \
       /* SHOW_*_STATUS must be at the end, SHOW_LONG_STATUS being first */ \
             SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, SHOW_LONGLONG_STATUS, \
-            SHOW_UINT32_STATUS
+            SHOW_UINT32_STATUS, SHOW_MICROSECOND_STATUS,
 #include "mariadb.h"
 #undef SHOW_always_last
 

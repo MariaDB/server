@@ -1,5 +1,5 @@
---- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/update.result	2017-06-22 00:33:46.423995639 +0300
-+++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/update.reject	2017-06-22 19:29:57.267567148 +0300
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/update.result
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/update.reject
 @@ -29,20 +29,23 @@
  SAVEPOINT spt1;
  UPDATE t1 SET b = '';
