@@ -28,10 +28,6 @@ DROP EVENT ev1;
 SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ORDER BY TABLE_NAME;
 TABLE_NAME	COLUMN_NAME	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
-Warnings:
 column_stats	column_name	NULL	NULL
 column_stats	db_name	NULL	NULL
 column_stats	table_name	NULL	NULL
@@ -93,3 +89,7 @@ time_zone_transition	Time_zone_id	NULL	NULL
 time_zone_transition	Transition_time	NULL	NULL
 time_zone_transition_type	Time_zone_id	NULL	NULL
 time_zone_transition_type	Transition_type_id	NULL	NULL
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'

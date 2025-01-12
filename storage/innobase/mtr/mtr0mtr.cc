@@ -549,7 +549,7 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 }
 
 /** Set create_lsn. */
-inline void fil_space_t::set_create_lsn(lsn_t lsn)
+inline void fil_space_t::set_create_lsn(lsn_t lsn) noexcept
 {
   /* Concurrent log_checkpoint_low() must be impossible. */
   ut_ad(latch.have_wr());

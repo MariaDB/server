@@ -207,7 +207,7 @@ public:
       in save_priv.
   */
   virtual ACL_internal_access_result check(privilege_t want_access,
-                                           privilege_t *save_priv) const= 0;
+            privilege_t *save_priv, bool any_combination_will_do) const= 0;
 };
 
 /**
