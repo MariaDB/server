@@ -3077,9 +3077,12 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
                        MyFlags));
 
   DBUG_ASSERT(str != NULL);
+  DBUG_ASSERT(*str != '\0');
   DBUG_ASSERT(error != 0);
   DBUG_ASSERT((MyFlags & ~(ME_BELL | ME_ERROR_LOG | ME_ERROR_LOG_ONLY |
                            ME_NOTE | ME_WARNING | ME_FATAL)) == 0);
+
+  DBUG_ASSERT(str[strlen(str)-1] != '\n');
 
   if (MyFlags & ME_NOTE)
   {
@@ -7360,8 +7363,8 @@ static int show_threadpool_threads(THD *, SHOW_VAR *var, void *buff,
 #endif
 
 
-static int show_cached_thread_count(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_cached_thread_count(THD *thd, SHOW_VAR *var, void *buff,
+                                    system_status_var *, enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
