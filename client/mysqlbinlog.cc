@@ -148,6 +148,8 @@ static const longlong stop_position_default= (longlong)(~(my_off_t)0);
 
 static char *start_datetime_str, *stop_datetime_str;
 static my_time_t start_datetime= 0, stop_datetime= MY_TIME_T_MAX;
+static my_time_t last_processed_datetime= MY_TIME_T_MAX;
+
 static ulonglong rec_count= 0;
 static MYSQL* mysql = NULL;
 static const char* dirname_for_local_load= 0;
@@ -1011,6 +1013,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   DBUG_ENTER("process_event");
   Exit_status retval= OK_CONTINUE;
   IO_CACHE *const head= &print_event_info->head_cache;
+  my_time_t ev_when= ev->when;
 
   /* Bypass flashback settings to event */
   ev->is_flashback= opt_flashback;
@@ -1458,6 +1461,7 @@ err:
   retval= ERROR_STOP;
 end:
   rec_count++;
+  last_processed_datetime= ev_when;
 
   DBUG_PRINT("info", ("end event processing"));
   /*
@@ -2847,7 +2851,6 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   IO_CACHE cache,*file= &cache;
   uchar tmp_buff[BIN_LOG_HEADER_SIZE];
   Exit_status retval= OK_CONTINUE;
-  my_time_t last_ev_when= MY_TIME_T_MAX;
 
   if (logname && strcmp(logname, "-") != 0)
   {
@@ -2953,21 +2956,8 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
                   "end of input", stop_position);
       }
 
-      /*
-        Emit a warning in the event that we finished processing input
-        before reaching the boundary indicated by --stop-datetime.
-      */
-      if (stop_datetime != MY_TIME_T_MAX &&
-          stop_datetime > last_ev_when)
-      {
-          retval = OK_STOP;
-          warning("Did not reach stop datetime '%s' "
-                  "before end of input", stop_datetime_str);
-      }
-
       goto end;
     }
-    last_ev_when= ev->when;
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
         OK_CONTINUE)
       goto end;
@@ -3142,6 +3132,11 @@ int main(int argc, char** argv)
     // For next log, --start-position does not apply
     start_position= BIN_LOG_HEADER_SIZE;
   }
+
+  if (stop_datetime != MY_TIME_T_MAX &&
+      stop_datetime > last_processed_datetime)
+    warning("Did not reach stop datetime '%s' before end of input",
+            stop_datetime_str);
 
   /*
     If enable flashback, need to print the events from the end to the
