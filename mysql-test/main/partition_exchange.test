@@ -586,3 +586,17 @@ alter table t2 exchange partition p1 with table t2_working;
 
 # Cleanup
 drop tables t1, t1_working, t2, t2_working;
+
+--echo #
+--echo # MDEV-35612 EXCHANGE PARTITION does not work for tables with unique blobs
+--echo #
+create table t (a int, b text, unique (b), unique(a, b)) partition by list (a) (partition p0 values in (1,2), partition pdef default);
+create table tp (a int, b text, c int invisible, unique (b), unique(a, b));
+--error ER_TABLES_DIFFERENT_METADATA
+alter table t exchange partition p0 with table tp;
+
+create or replace table tp (a int, b text, unique (b), unique(a, b));
+alter table t exchange partition p0 with table tp;
+
+# cleanup
+drop table t, tp;

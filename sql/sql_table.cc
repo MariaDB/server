@@ -7852,7 +7852,16 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     DBUG_RETURN(1);
 
   /* Some very basic checks. */
-  if (table->s->fields != alter_info->create_list.elements ||
+  uint fields= table->s->fields;
+
+  /* There is no field count on system-invisible fields, count them. */
+  for (Field **f_ptr= table->field; *f_ptr; f_ptr++)
+  {
+    if ((*f_ptr)->invisible >= INVISIBLE_SYSTEM)
+      fields--;
+  }
+
+  if (fields != alter_info->create_list.elements ||
       table->s->db_type() != create_info->db_type ||
       table->s->tmp_table ||
       (table->s->row_type != create_info->row_type))
@@ -7863,6 +7872,9 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
   for (Field **f_ptr= table->field; *f_ptr; f_ptr++)
   {
     Field *field= *f_ptr;
+    /* Skip hidden generated field like long hash index. */
+    if (field->invisible >= INVISIBLE_SYSTEM)
+      continue;
     Create_field *tmp_new_field= tmp_new_field_it++;
 
     /* Check that NULL behavior is the same. */
@@ -7915,13 +7927,13 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     DBUG_RETURN(false);
 
   /* Go through keys and check if they are compatible. */
-  KEY *table_key;
-  KEY *table_key_end= table->key_info + table->s->keys;
+  KEY *table_key= table->s->key_info;
+  KEY *table_key_end= table_key + table->s->keys;
   KEY *new_key;
   KEY *new_key_end= key_info_buffer + key_count;
 
   /* Step through all keys of the first table and search matching keys. */
-  for (table_key= table->key_info; table_key < table_key_end; table_key++)
+  for (; table_key < table_key_end; table_key++)
   {
     /* Search a key with the same name. */
     for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
@@ -7964,7 +7976,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
   for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
   {
     /* Search a key with the same name. */
-    for (table_key= table->key_info; table_key < table_key_end; table_key++)
+    for (table_key= table->s->key_info; table_key < table_key_end; table_key++)
     {
       if (!lex_string_cmp(system_charset_info, &table_key->name,
                           &new_key->name))
