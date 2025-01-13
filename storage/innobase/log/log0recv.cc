@@ -2285,7 +2285,6 @@ struct recv_buf
   }
 };
 
-#ifdef HAVE_INNODB_MMAP
 /** Ring buffer wrapper for log_sys.buf[]; recv_sys.len == log_sys.file_size */
 struct recv_ring : public recv_buf
 {
@@ -2417,7 +2416,6 @@ struct recv_ring : public recv_buf
     return log_decrypt_buf(iv, tmp + s, b, static_cast<uint>(len));
   }
 };
-#endif
 
 template<typename source>
 void recv_sys_t::rewind(source &l, source &begin) noexcept
@@ -3152,7 +3150,6 @@ template
 recv_sys_t::parse_mtr_result
 recv_sys_t::parse_mtr<recv_sys_t::store::BACKUP>(bool) noexcept;
 
-#ifdef HAVE_INNODB_MMAP
 template<recv_sys_t::store storing>
 recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap(bool if_exists) noexcept
 {
@@ -3173,7 +3170,6 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap(bool if_exists) noexcept
 template
 recv_sys_t::parse_mtr_result
 recv_sys_t::parse_mmap<recv_sys_t::store::BACKUP>(bool) noexcept;
-#endif
 
 /** Apply the hashed log records to the page, if the page lsn is less than the
 lsn of a log record.

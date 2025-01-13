@@ -1212,7 +1212,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     end-= len;
     size_t s;
 
-#ifdef HAVE_INNODB_MMAP
+#ifdef HAVE_PMEM
     if (!resize_flush_buf)
     {
       ut_ad(is_mmap());
