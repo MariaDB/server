@@ -194,7 +194,7 @@ int spider_udf_direct_sql_create_conn_key(
         spider_dbton[roop_count2].wrapper : "NULL"));
     if (
       spider_dbton[roop_count2].wrapper &&
-      !strcmp(direct_sql->tgt_wrapper, spider_dbton[roop_count2].wrapper)
+      !strcasecmp(direct_sql->tgt_wrapper, spider_dbton[roop_count2].wrapper)
     ) {
         if (spider_dbton[roop_count2].db_access_type ==
           SPIDER_DB_ACCESS_TYPE_SQL)
@@ -1031,7 +1031,7 @@ int spider_udf_set_direct_sql_param_default(
             spider_dbton[roop_count].wrapper : "NULL"));
         if (
           spider_dbton[roop_count].wrapper &&
-          !strcmp(direct_sql->tgt_wrapper,
+          !strcasecmp(direct_sql->tgt_wrapper,
             spider_dbton[roop_count].wrapper)
         ) {
           if (spider_dbton[roop_count].db_access_type ==
