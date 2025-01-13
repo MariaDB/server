@@ -3952,6 +3952,24 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
   return 0;
 }
 
+void TABLE::update_keypart_vcol_info()
+{
+  for (uint k= 0; k < s->keys; k++)
+  {
+    KEY &info_k= key_info[k];
+    uint parts = (s->use_ext_keys ? info_k.ext_key_parts :
+                      info_k.user_defined_key_parts);
+    for (uint p= 0; p < parts; p++)
+    {
+      KEY_PART_INFO &kp= info_k.key_part[p];
+      if (kp.field != field[kp.fieldnr - 1])
+      {
+        kp.field->vcol_info = field[kp.fieldnr - 1]->vcol_info;
+      }
+    }
+  }
+}
+
 /*
   Open a table based on a TABLE_SHARE
 
@@ -4184,20 +4202,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
 
-    for (uint k= 0; k < share->keys; k++)
-    {
-      KEY &key_info= outparam->key_info[k];
-      uint parts = (share->use_ext_keys ? key_info.ext_key_parts :
-                    key_info.user_defined_key_parts);
-      for (uint p= 0; p < parts; p++)
-      {
-        KEY_PART_INFO &kp= key_info.key_part[p];
-        if (kp.field != outparam->field[kp.fieldnr - 1])
-        {
-          kp.field->vcol_info = outparam->field[kp.fieldnr - 1]->vcol_info;
-        }
-      }
-    }
+    outparam->update_keypart_vcol_info();
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
