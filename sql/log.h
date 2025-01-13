@@ -1041,6 +1041,14 @@ public:
   int rotate(bool force_rotate, bool* check_purge);
   void checkpoint_and_purge(ulong binlog_id);
   int rotate_and_purge(bool force_rotate, DYNAMIC_ARRAY* drop_gtid_domain= NULL);
+  int flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex);
+  int flush_binlog(DYNAMIC_ARRAY* drop_gtid_domain)
+  {
+    if (opt_binlog_engine_hton)
+      return flush_binlogs_engine(drop_gtid_domain);
+    else
+      return rotate_and_purge(true, drop_gtid_domain);
+  }
   /**
      Flush binlog cache and synchronize to disk.
 
