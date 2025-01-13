@@ -4108,7 +4108,7 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
 
   if (table->in_use->lex->without_validation)
   {
-    sql_print_warning("Table %`s.%`s was altered WITHOUT VALIDATION: "
+    sql_print_warning("Table %sQ.%sQ was altered WITHOUT VALIDATION: "
                       "the table might be corrupted",
                       part_table->s->db.str, part_table->s->table_name.str);
     DBUG_RETURN(false);
