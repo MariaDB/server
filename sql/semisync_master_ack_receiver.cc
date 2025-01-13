@@ -245,7 +245,7 @@ void Ack_receiver::run()
 
   if (listener.got_error())
   {
-    sql_print_error("Got error %M starting ack receiver thread",
+    sql_print_error("Got error %iE starting ack receiver thread",
                     listener.got_error());
     return;
   }

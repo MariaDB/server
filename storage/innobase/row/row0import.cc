@@ -4626,7 +4626,7 @@ static void row_import_autoinc(dict_table_t *table, row_prebuilt_t *prebuilt,
     btr_write_autoinc(dict_table_get_first_index(table), autoinc - 1);
   autoinc_set:
     table->autoinc= autoinc;
-    sql_print_information("InnoDB: %`.*s.%`s autoinc value set to " UINT64PF,
+    sql_print_information("InnoDB: %.*sQ.%sQ autoinc value set to " UINT64PF,
                           int(table->name.dblen()), table->name.m_name,
                           table->name.basename(), autoinc);
   }

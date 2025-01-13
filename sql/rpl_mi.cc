@@ -1522,7 +1522,7 @@ bool Master_info_index::remove_master_info(Master_info *mi, bool clear_log_files
         my_close(index_file_nr,MYF(0));
 
       sql_print_error("Create of Master Info Index file '%s' failed with "
-                      "error: %M",
+                      "error: %iE",
                       index_file_name, error);
       DBUG_RETURN(TRUE);
     }
