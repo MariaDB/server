@@ -94,13 +94,8 @@ static inline void MY_RELAX_CPU(void)
   __asm__ __volatile__ ("pause");
 #endif
 #elif defined(_ARCH_PWR8)
-#ifdef __FreeBSD__
-  uint64_t __tb;
-  __asm__ volatile ("mfspr %0, 268" : "=r" (__tb));
-#else
-  /* Changed from __ppc_get_timebase for musl compatibility */
+  /* Changed from __ppc_get_timebase for musl and clang compatibility */
   __builtin_ppc_get_timebase();
-#endif
 #elif defined __GNUC__ && (defined __arm__ || defined __aarch64__)
   /* Mainly, prevent the compiler from optimizing away delay loops */
 #ifdef _aarch64_
