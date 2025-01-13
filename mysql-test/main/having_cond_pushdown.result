@@ -3202,7 +3202,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
@@ -3544,7 +3543,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1 and 1",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
@@ -3671,7 +3669,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
@@ -3799,7 +3796,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
     "filesort": {
       "sort_key": "t1.c",
       "temporary_table": {
@@ -3867,7 +3863,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1 and 1",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
@@ -3985,7 +3980,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
     "table": {
       "table_name": "t3",
       "access_type": "ALL",
