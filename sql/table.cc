@@ -10708,12 +10708,12 @@ void TR_table::warn_schema_incorrect(const char *reason)
 {
   if (MYSQL_VERSION_ID == table->s->mysql_version)
   {
-    sql_print_error("%`s.%`s schema is incorrect: %s.",
+    sql_print_error("%sQ.%sQ schema is incorrect: %s.",
                     db.str, table_name.str, reason);
   }
   else
   {
-    sql_print_error("%`s.%`s schema is incorrect: %s. Created with MariaDB %d, "
+    sql_print_error("%sQ.%sQ schema is incorrect: %s. Created with MariaDB %d, "
                     "now running %d.",
                     db.str, table_name.str, reason, MYSQL_VERSION_ID,
                     static_cast<int>(table->s->mysql_version));
@@ -10724,7 +10724,7 @@ bool TR_table::check(bool error)
 {
   if (error)
   {
-    sql_print_warning("%`s.%`s does not exist (open failed).", db.str,
+    sql_print_warning("%sQ.%sQ does not exist (open failed).", db.str,
                       table_name.str);
     return true;
   }
