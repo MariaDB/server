@@ -9,11 +9,6 @@
 #ifndef DENA_DATABASE_HPP
 #define DENA_DATABASE_HPP
 
-#ifdef __GNUC__
-/* auto_ptr is deprecated */
-# pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
 #include <string>
 #include <memory>
 #include <vector>
@@ -26,10 +21,10 @@
 namespace dena {
 
 struct database_i;
-typedef std::auto_ptr<volatile database_i> database_ptr;
+typedef std::unique_ptr<volatile database_i> database_ptr;
 
 struct dbcontext_i;
-typedef std::auto_ptr<dbcontext_i> dbcontext_ptr;
+typedef std::unique_ptr<dbcontext_i> dbcontext_ptr;
 
 struct database_i {
   virtual ~database_i() = default;
