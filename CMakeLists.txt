@@ -78,15 +78,9 @@ ENDIF()
 # This is used by TokuDB only
 SET(MYSQL_PROJECT_NAME_DOCSTRING "MySQL project name")
 
-IF(CMAKE_VERSION VERSION_LESS "3.1")
-  IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
-  ENDIF()
-ELSE()
-  SET(CMAKE_C_STANDARD 99)
-  SET(CMAKE_CXX_STANDARD 11)
-ENDIF()
+# C and C++ standards (e.g. -std=c++17)
+SET(CMAKE_C_STANDARD 99)
+SET(CMAKE_CXX_STANDARD 17)
 
 # Lower case package names from PROJECT are used if not explictly upper case.
 SET(CPACK_PACKAGE_NAME "MariaDB")
