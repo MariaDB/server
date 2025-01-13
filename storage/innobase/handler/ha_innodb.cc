@@ -1345,19 +1345,17 @@ static void innodb_drop_database(handlerton*, char *path)
                                        DICT_ERR_IGNORE_NONE);
   if (table_stats)
   {
-    dict_sys.freeze(SRW_LOCK_CALL);
+    const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
     table_stats= dict_acquire_mdl_shared<false>(table_stats,
                                                 thd, &mdl_table);
-    dict_sys.unfreeze();
   }
   index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
                                        DICT_ERR_IGNORE_NONE);
   if (index_stats)
   {
-    dict_sys.freeze(SRW_LOCK_CALL);
+    const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
     index_stats= dict_acquire_mdl_shared<false>(index_stats,
                                                 thd, &mdl_index);
-    dict_sys.unfreeze();
   }
 
   trx_start_for_ddl(trx);
@@ -13610,20 +13608,18 @@ int ha_innobase::delete_table(const char *name)
                                          DICT_ERR_IGNORE_NONE);
     if (table_stats)
     {
-      dict_sys.freeze(SRW_LOCK_CALL);
+      const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
       table_stats= dict_acquire_mdl_shared<false>(table_stats,
                                                   thd, &mdl_table);
-      dict_sys.unfreeze();
     }
 
     index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
                                          DICT_ERR_IGNORE_NONE);
     if (index_stats)
     {
-      dict_sys.freeze(SRW_LOCK_CALL);
+      const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
       index_stats= dict_acquire_mdl_shared<false>(index_stats,
                                                   thd, &mdl_index);
-      dict_sys.unfreeze();
     }
 
     const bool skip_wait{table->name.is_temporary()};
@@ -13862,10 +13858,9 @@ int ha_innobase::truncate()
     /* fk_truncate_illegal_if_parent() should have failed in
     Sql_cmd_truncate_table::handler_truncate() if foreign_key_checks=ON
     and child tables exist. */
-    dict_sys.freeze(SRW_LOCK_CALL);
+    const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
     for (const auto foreign : m_prebuilt->table->referenced_set)
       ut_ad(foreign->foreign_table == m_prebuilt->table);
-    dict_sys.unfreeze();
   }
 #endif
 
@@ -13984,19 +13979,17 @@ int ha_innobase::truncate()
                                          DICT_ERR_IGNORE_NONE);
     if (table_stats)
     {
-      dict_sys.freeze(SRW_LOCK_CALL);
+      const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
       table_stats= dict_acquire_mdl_shared<false>(table_stats, m_user_thd,
                                                   &mdl_table);
-      dict_sys.unfreeze();
     }
     index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
                                          DICT_ERR_IGNORE_NONE);
     if (index_stats)
     {
-      dict_sys.freeze(SRW_LOCK_CALL);
+      const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
       index_stats= dict_acquire_mdl_shared<false>(index_stats, m_user_thd,
                                                   &mdl_index);
-      dict_sys.unfreeze();
     }
 
     if (table_stats && index_stats &&
@@ -14156,18 +14149,16 @@ ha_innobase::rename_table(
 		table_stats = dict_table_open_on_name(TABLE_STATS_NAME, false,
 						      DICT_ERR_IGNORE_NONE);
 		if (table_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
+			const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
 			table_stats = dict_acquire_mdl_shared<false>(
 				table_stats, thd, &mdl_table);
-			dict_sys.unfreeze();
 		}
 		index_stats = dict_table_open_on_name(INDEX_STATS_NAME, false,
 						      DICT_ERR_IGNORE_NONE);
 		if (index_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
+			const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
 			index_stats = dict_acquire_mdl_shared<false>(
 				index_stats, thd, &mdl_index);
-			dict_sys.unfreeze();
 		}
 
 		if (error == DB_SUCCESS && table_stats && index_stats
@@ -15712,10 +15703,8 @@ REPLACE, not an update.
 @return whether the table is referenced by a FOREIGN KEY */
 bool ha_innobase::referenced_by_foreign_key() const noexcept
 {
-  dict_sys.freeze(SRW_LOCK_CALL);
-  const bool empty= m_prebuilt->table->referenced_set.empty();
-  dict_sys.unfreeze();
-  return !empty;
+  const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
+  return !m_prebuilt->table->referenced_set.empty();
 }
 
 /*******************************************************************//**
