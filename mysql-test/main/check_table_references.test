@@ -116,3 +116,13 @@ insert into t values (1,10,10);
 check table t extended;
 
 drop table t;
+
+--echo # MDEV-35730 Server crashes in Field::ptr_in_record
+
+CREATE TABLE t (id INT, a TIME, b BIT, KEY(a,id)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,'00:00:00',0);
+SET FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t ADD FOREIGN KEY (b) REFERENCES t (a);
+SET FOREIGN_KEY_CHECKS = ON;
+CHECK TABLE t EXTENDED;
+DROP TABLE t;

@@ -175,3 +175,14 @@ check table t extended;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 drop table t;
+# MDEV-35730 Server crashes in Field::ptr_in_record
+CREATE TABLE t (id INT, a TIME, b BIT, KEY(a,id)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,'00:00:00',0);
+SET FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t ADD FOREIGN KEY (b) REFERENCES t (a);
+SET FOREIGN_KEY_CHECKS = ON;
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t_ibfk_1, record: '\x00')
+test.t	check	error	Corrupt
+DROP TABLE t;

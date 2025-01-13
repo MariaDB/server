@@ -131,8 +131,9 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
   {
     if (to_key_part->null_bit)
     {
-      *to_key++= MY_TEST(from_record[key_part->null_offset] &
-                         to_key_part->null_bit);
+      *to_key++= MY_TEST(!to_key_part->null_bit
+                         || (from_record[to_key_part->null_offset]
+                             & to_key_part->null_bit));
       key_length--;
       if (to_key[-1])
       {
@@ -140,7 +141,7 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
           Don't copy data for null values
           The -1 below is to subtract the null byte which is already handled
         */
-        length= MY_MIN(key_length, uint(key_part->store_length)-1);
+        length= MY_MIN(key_length, uint(to_key_part->store_length)-1);
         if (with_zerofill)
           bzero((char*) to_key, length);
         continue;
@@ -150,6 +151,7 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
     if (key_part->key_part_flag & HA_BLOB_PART ||
         key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
+      DBUG_ASSERT(to_key_part->length == key_part->length);
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
@@ -160,10 +162,13 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
     }
     else
     {
-      length= MY_MIN(key_length, key_part->length);
+      DBUG_ASSERT(to_key_part->length >= key_part->length);
+      length= MY_MIN(key_length, to_key_part->length);
+      uint from_length= MY_MIN(key_length, key_part->length);
       Field *field= key_part->field;
       CHARSET_INFO *cs= field->charset();
-      uint bytes= field->get_key_image(to_key, length, from_ptr, Field::itRAW);
+      uint bytes= field->get_key_image(to_key, from_length, from_ptr,
+                                       Field::itRAW);
       if (bytes < length)
         cs->fill((char*) to_key + bytes, length - bytes, ' ');
     }

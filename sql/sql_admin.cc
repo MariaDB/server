@@ -1922,6 +1922,10 @@ int check_foreign_key_relations(THD *thd, TABLE *table)
 
   for (const FOREIGN_KEY_INFO &fk: parent_fk_list)
   {
+    if (fk.foreign_db.streq(fk.referenced_db) &&
+        fk.foreign_table.streq(fk.referenced_table))
+      continue; // Self-referencing keys were already checked in the loop above
+
     TABLE *parent_table= find_fk_open_table(thd, fk.foreign_db.str,
                                             fk.foreign_db.length,
                                             fk.foreign_table.str,
