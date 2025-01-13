@@ -44,6 +44,8 @@ enum fsp_binlog_chunk_types {
   FSP_BINLOG_TYPE_GTID_STATE= 2,
   /* Out-of-band event group data. */
   FSP_BINLOG_TYPE_OOB_DATA= 3,
+  /* Dummy record, use to fill remainder of page (eg. FLUSH BINARY LOGS). */
+  FSP_BINLOG_TYPE_DUMMY= 4,
   /* Must be one more than the last type. */
   FSP_BINLOG_TYPE_END,
 
@@ -72,7 +74,9 @@ static constexpr uint32_t FSP_BINLOG_TYPE_MASK=
 */
 static constexpr uint64_t ALLOWED_NESTED_RECORDS=
   /* GTID STATE at start of page can occur in the middle of other record. */
-  ((uint64_t)1 << FSP_BINLOG_TYPE_GTID_STATE)
+  ((uint64_t)1 << FSP_BINLOG_TYPE_GTID_STATE) |
+  /* DUMMY data at tablespace end can occur in the middle of other record. */
+  ((uint64_t)1 << FSP_BINLOG_TYPE_DUMMY)
   ;
 /* Ensure that all types fit in the ALLOWED_NESTED_RECORDS bitmask. */
 static_assert(FSP_BINLOG_TYPE_END <= 8*sizeof(ALLOWED_NESTED_RECORDS));
@@ -204,7 +208,8 @@ extern fil_space_t *fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
                                     bool open_empty);
 extern dberr_t fsp_binlog_tablespace_create(uint64_t file_no,
                                             fil_space_t **new_space);
-extern std::pair<uint64_t, uint64_t> fsp_binlog_write_chunk(
+extern std::pair<uint64_t, uint64_t> fsp_binlog_write_rec(
   struct chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type);
+extern bool fsp_binlog_flush();
 
 #endif /* fsp_binlog_h */
