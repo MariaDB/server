@@ -663,9 +663,9 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
 
         writer_update();
       }
-      resize_lsn.store(start_lsn, std::memory_order_relaxed);
       status= success ? RESIZE_STARTED : RESIZE_FAILED;
     }
+    resize_lsn.store(start_lsn, std::memory_order_relaxed);
   }
 
   log_resize_release();
@@ -715,6 +715,8 @@ void log_t::resize_abort() noexcept
     resize_buf= nullptr;
     resize_target= 0;
     resize_lsn.store(0, std::memory_order_relaxed);
+    std::string path{get_log_file_path("ib_logfile101")};
+    IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
   }
 
   writer_update();
