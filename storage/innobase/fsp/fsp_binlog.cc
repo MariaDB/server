@@ -318,8 +318,17 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, fil_space_t **new_space)
 }
 
 
+/*
+  Write out a binlog record.
+  Split into chucks that each fit on a page.
+  The data for the record is provided by a class derived from chunk_data_base.
+
+  As a special case, a record write of type FSP_BINLOG_TYPE_FILLER does not
+  write any record, but moves to the next tablespace and writes the initial
+  GTID state record, used for FLUSH BINARY LOGS.
+*/
 std::pair<uint64_t, uint64_t>
-fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
+fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
 {
   uint32_t page_size= (uint32_t)srv_page_size;
   uint32_t page_size_shift= srv_page_size_shift;
@@ -467,6 +476,16 @@ fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
       page_offset= FIL_PAGE_DATA;
       continue;
     }
+
+    if (UNIV_UNLIKELY(chunk_type == FSP_BINLOG_TYPE_FILLER))
+    {
+      /*
+        Used for FLUSH BINARY LOGS, to move to the next tablespace and write
+        the initial GTID state record without writing any actual event data.
+      */
+      break;
+    }
+
     if (start_offset == 0)
     {
       start_file_no= file_no;
@@ -506,6 +525,74 @@ fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
   binlog_cur_end_offset[file_no & 1].store((page_no << page_size_shift) + page_offset,
                                            std::memory_order_relaxed);
   return {start_file_no, start_offset};
+}
+
+
+/*
+  Empty chunk data, used to pass a dummy record to fsp_binlog_write_rec()
+  in fsp_binlog_flush().
+*/
+struct chunk_data_flush : public chunk_data_base {
+  ~chunk_data_flush() { }
+
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
+  {
+    memset(p, 0xff, max_len);
+    return {max_len, true};
+  }
+};
+
+
+/*
+  Implementation of FLUSH BINARY LOGS.
+  Truncate the current binlog tablespace, fill up the last page with dummy data
+  (if needed), write the current GTID state to the first page in the next
+  tablespace file (for DELETE_DOMAIN_ID).
+
+  Relies on the server layer to prevent other binlog writes in parallel during
+  the operation.
+*/
+bool
+fsp_binlog_flush()
+{
+  uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
+  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
+  uint32_t page_no= binlog_cur_page_no;
+  fil_space_t *space= active_binlog_space;
+  chunk_data_flush dummy_data;
+  mtr_t mtr;
+
+  mtr.start();
+  mtr.x_lock_space(space);
+  /*
+    ToDo: Here, if we are already at precisely the end of a page, we need not
+    fill up that page with a dummy record, we can just truncate the tablespace
+    to that point. But then we need to handle an assertion m_modifications!=0
+    in mtr_t::commit_shrink().
+  */
+  fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_DUMMY);
+  if (page_no + 1 < space->size)
+  {
+    mtr.trim_pages(page_id_t(space_id, page_no + 1));
+    mtr.commit_shrink(*space, page_no + 1);
+  }
+  else
+    mtr.commit();
+
+  /* Flush out all pages in the (now filled-up) tablespace. */
+  while (buf_flush_list_space(space))
+    ;
+
+  /*
+    Now get a new GTID state record written to the next binlog tablespace.
+    This ensures that the new state (in case of DELETE_DOMAIN_ID) will be
+    persisted across a server restart.
+  */
+  mtr.start();
+  fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_FILLER);
+  mtr.commit();
+
+  return false;
 }
 
 

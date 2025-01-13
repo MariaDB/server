@@ -177,7 +177,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       DYNAMIC_ARRAY *drop_gtid_domain=
         (thd && (thd->lex->delete_gtid_domain.elements > 0)) ?
         &thd->lex->delete_gtid_domain : NULL;
-      if (mysql_bin_log.rotate_and_purge(true, drop_gtid_domain))
+      if (mysql_bin_log.flush_binlog(drop_gtid_domain))
         *write_to_binlog= -1;
 
       /* Note that WSREP(thd) might not be true here e.g. during

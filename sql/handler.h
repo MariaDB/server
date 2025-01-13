@@ -1566,6 +1566,11 @@ struct handlerton
   handler_binlog_reader * (*get_binlog_reader)();
   /* Obtain list of binlog files (SHOw BINARY LOGS). */
   binlog_file_entry * (*get_binlog_file_list)(MEM_ROOT *mem_root);
+  /*
+    End the current binlog file, and create and switch to a new one.
+    Used to implement FLUSH BINARY LOGS.
+  */
+  bool (*binlog_flush)();
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
