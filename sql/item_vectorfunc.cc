@@ -129,9 +129,9 @@ String *Item_func_vec_totext::val_str_ascii(String *str)
   if (r1->length() % 4)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_VECTOR_BINARY_FORMAT_INVALID,
-                        ER_THD(thd, ER_VECTOR_BINARY_FORMAT_INVALID));
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_VECTOR_BINARY_FORMAT_INVALID,
+                 ER_THD(thd, ER_VECTOR_BINARY_FORMAT_INVALID));
     null_value= true;
     return nullptr;
   }
