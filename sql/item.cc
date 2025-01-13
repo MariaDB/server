@@ -4168,6 +4168,7 @@ void Item_param::set_null()
   max_length= 0;
   decimals= 0;
   state= NULL_VALUE;
+  value.set_handler(&type_handler_null);
   DBUG_VOID_RETURN;
 }
 
@@ -4981,7 +4982,10 @@ void Item_param::set_default(bool set_type_handler_null)
   */
   null_value= true;
   if (set_type_handler_null)
+  {
+    value.set_handler(&type_handler_null);
     set_handler(&type_handler_null);
+  }
 }
 
 void Item_param::set_ignore(bool set_type_handler_null)
@@ -4990,7 +4994,10 @@ void Item_param::set_ignore(bool set_type_handler_null)
   state= IGNORE_VALUE;
   null_value= true;
   if (set_type_handler_null)
+  {
+    value.set_handler(&type_handler_null);
     set_handler(&type_handler_null);
+  }
 }
 
 /**
