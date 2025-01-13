@@ -4061,6 +4061,13 @@ static binlog_file_entry *innodb_get_binlog_file_list(MEM_ROOT *mem_root)
 }
 
 
+static bool
+innodb_binlog_flush()
+{
+  return fsp_binlog_flush();
+}
+
+
 /** Initialize the InnoDB storage engine plugin.
 @param[in,out]	p	InnoDB handlerton
 @return error code
@@ -4135,6 +4142,7 @@ static int innodb_init(void* p)
         innobase_hton->binlog_oob_free= innodb_free_oob;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
         innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
+        innobase_hton->binlog_flush= innodb_binlog_flush;
 
 	innodb_remember_check_sysvar_funcs();
 
