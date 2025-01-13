@@ -59,7 +59,7 @@ static bool prealloc_thread_end= false;
 struct binlog_oob_context {
   /*
     Structure used to encapsulate the data to be binlogged in an out-of-band
-    chunk, for use by fsp_binlog_write_chunk().
+    chunk, for use by fsp_binlog_write_rec().
   */
   struct chunk_data_oob : public chunk_data_base {
     /*
@@ -1176,7 +1176,7 @@ innodb_binlog_write_cache(IO_CACHE *cache,
                        handler_binlog_event_group_info *binlog_info, mtr_t *mtr)
 {
   chunk_data_cache chunk_data(cache, binlog_info);
-  fsp_binlog_write_chunk(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT);
+  fsp_binlog_write_rec(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT);
 }
 
 
@@ -1356,7 +1356,7 @@ binlog_oob_context::binlog_node(uint32_t node, uint64_t new_idx,
   mtr_t mtr;
   mtr.start();
   std::pair<uint64_t, uint64_t> new_file_no_offset=
-    fsp_binlog_write_chunk(oob_data, &mtr, FSP_BINLOG_TYPE_OOB_DATA);
+    fsp_binlog_write_rec(oob_data, &mtr, FSP_BINLOG_TYPE_OOB_DATA);
   mtr.commit();
   node_list[node].file_no= new_file_no_offset.first;
   node_list[node].offset= new_file_no_offset.second;
