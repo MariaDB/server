@@ -107,3 +107,12 @@ check table t3 extended;
 
 
 drop table t3, t2, t1;
+
+--echo # MDEV-35733 ASAN errors in row_mysql_store_col_in_innobase_format
+
+create table t (pk int primary key, a int, b int, key(b),
+                foreign key (a) references t (b)) engine=innodb;
+insert into t values (1,10,10);
+check table t extended;
+
+drop table t;

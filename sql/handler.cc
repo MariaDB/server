@@ -7961,7 +7961,8 @@ int handler::check_record_reference(const KEY *this_key, const KEY *ref_key,
 
   key_copy(key_buf, this_record, this_key, ref_key, prefix_length, false);
 
-  int error= ha_index_read_map(ref_record, key_buf, make_keypart_map(fk_parts),
+  int error= ha_index_read_map(ref_record, key_buf,
+                               make_prev_keypart_map(fk_parts),
                                HA_READ_KEY_EXACT);
 
   if (unlikely(error))

@@ -167,3 +167,11 @@ check table t3 extended;
 Table	Op	Msg_type	Msg_text
 test.t3	check	status	OK
 drop table t3, t2, t1;
+# MDEV-35733 ASAN errors in row_mysql_store_col_in_innobase_format
+create table t (pk int primary key, a int, b int, key(b),
+foreign key (a) references t (b)) engine=innodb;
+insert into t values (1,10,10);
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;
