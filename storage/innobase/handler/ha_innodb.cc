@@ -21154,7 +21154,7 @@ dberr_t innodb_decryption_failed(THD *thd, dict_table_t *table)
   const int dblen= int(table->name.dblen());
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       HA_ERR_DECRYPTION_FAILED,
-                      "Table %`.*s.%`s in tablespace " UINT32PF
+                      "Table %.*sQ.%sQ in tablespace " UINT32PF
                       " (file %s) cannot be decrypted.",
                       dblen, table->name.m_name,
                       table->name.m_name + dblen + 1,
@@ -21176,7 +21176,7 @@ void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
     (trx, &foreign, false);
   push_warning_printf(trx->mysql_thd, Sql_condition::WARN_LEVEL_WARN,
                       convert_error_code_to_mysql(err, 0, nullptr),
-                      "CREATE or ALTER TABLE %`.*s.%`s failed%s%.*s",
+                      "CREATE or ALTER TABLE %.*sQ.%sQ failed%s%.*s",
                       dblen, name, name + dblen + 1,
                       err == DB_DUPLICATE_KEY
                       ? ": duplicate name" : "",

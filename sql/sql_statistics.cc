@@ -320,7 +320,7 @@ static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_CHECK_NO_SUCH_TABLE,
                         "Got error %d when trying to open statistics "
-                        "table %`s for updating statistics",
+                        "table %sQ for updating statistics",
                         error_handler.got_error(), stat_table_name->str);
   }
   return res;
