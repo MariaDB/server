@@ -569,7 +569,9 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
   file->size-= space.size - size;
   space.size= space.size_in_header= size;
 
-  if (space.id == TRX_SYS_SPACE)
+  if (space.id == TRX_SYS_SPACE ||
+      space.id == SRV_SPACE_ID_BINLOG0 ||
+      space.id == SRV_SPACE_ID_BINLOG1)
     srv_sys_space.set_last_file_size(file->size);
   else
     space.set_create_lsn(m_commit_lsn);
