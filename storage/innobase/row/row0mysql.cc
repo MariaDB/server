@@ -1200,7 +1200,7 @@ static dberr_t row_mysql_get_table_error(trx_t *trx, dict_table_t *table)
   }
 
   const int dblen= int(table->name.dblen());
-  sql_print_error("InnoDB .ibd file is missing for table %`.*s.%`s",
+  sql_print_error("InnoDB .ibd file is missing for table %.*sQ.%sQ",
                   dblen, table->name.m_name, table->name.m_name + dblen + 1);
   return DB_TABLESPACE_NOT_FOUND;
 }
