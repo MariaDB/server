@@ -8293,6 +8293,36 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
   DBUG_RETURN(error);
 }
 
+
+/* Implementation of FLUSH BINARY LOGS for binlog implemented in engine. */
+int
+MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
+{
+  int error= 0;
+  DBUG_ENTER("MYSQL_BIN_LOG::flush_binlogs_engine");
+
+  mysql_mutex_lock(&LOCK_log);
+
+  // ToDo: Implement DELETE_DOMAIN_ID option. Ask the engine to load the oldest GTID state in the binlog, check that it matches the current GTID state in the to-be-deleted domains, then update the GTID state so the engine can write the state with domains deleted after it does the FLUSH. See also do_delete_gtid_domain().
+
+  if ((*opt_binlog_engine_hton->binlog_flush)())
+    error= 1;
+
+  mysql_mutex_lock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  mysql_mutex_unlock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_commit_ordered);
+
+  if (!error)
+  {
+    /* ToDo: Do purge, once implemented. */
+  }
+
+  DBUG_RETURN(error);
+}
+
+
 uint MYSQL_BIN_LOG::next_file_id()
 {
   uint res;
