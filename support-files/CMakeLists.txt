@@ -31,7 +31,6 @@ ELSE()
   SET(MYSQLD_USER "mysql")
   SET(MYSQLD_GROUP "mysql")
   SET(ini_file_extension "cnf")
-  SET(HOSTNAME "uname -n")
 
   # Define directly here, as cmake/install_layout.cmake has no LOGDIR to be inherited
   SET(su_user "su mysql mysql")
