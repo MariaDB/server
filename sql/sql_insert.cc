@@ -4131,7 +4131,7 @@ int select_insert::prepare2(JOIN *)
 }
 
 
-void select_insert::cleanup()
+void select_insert::reset_for_next_ps_execution()
 {
   /* select_insert/select_create are never re-used in prepared statement */
   DBUG_ASSERT(0);
@@ -4244,6 +4244,13 @@ bool select_insert::prepare_eof()
   DBUG_ENTER("select_insert::prepare_eof");
   DBUG_PRINT("enter", ("trans_table: %d, table_type: '%s'",
                        trans_table, table->file->table_type()));
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     select_insert::abort_result_set().
+
+  ****************************************************************************/
 
 #ifdef WITH_WSREP
   error= (thd->wsrep_cs().current_error()) ? -1 :
@@ -4377,6 +4384,12 @@ void select_insert::abort_result_set()
    */
   if (table && table->file->is_open())
   {
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     select_insert::prepare_eof().
+
+  ****************************************************************************/
     bool changed, transactional_table;
     /*
       If we are not in prelocked mode, we end the bulk insert started
@@ -4404,7 +4417,14 @@ void select_insert::abort_result_set()
       If table creation failed, the number of rows modified will also be
       zero, so no check for that is made.
     */
-    changed= (info.copied || info.deleted || info.updated);
+    if ((changed= (info.copied || info.deleted || info.updated)))
+    {
+      /*
+        We must invalidate the table in the query cache before binlog writing
+        and ha_autocommit_or_rollback.
+      */
+      query_cache_invalidate3(thd, table, 1);
+    }
     transactional_table= table->file->has_transactions_and_rollback();
     if (thd->transaction->stmt.modified_non_trans_table ||
         thd->log_current_statement)

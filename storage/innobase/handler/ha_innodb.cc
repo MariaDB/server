@@ -2381,9 +2381,6 @@ innobase_trx_init(
 
 	trx->check_unique_secondary = !thd_test_options(
 		thd, OPTION_RELAXED_UNIQUE_CHECKS);
-#ifdef WITH_WSREP
-	trx->wsrep = wsrep_on(thd);
-#endif
 
 	DBUG_VOID_RETURN;
 }
@@ -4173,9 +4170,6 @@ innobase_commit_low(
 		trx_commit_for_mysql(trx);
 	} else {
 		trx->will_lock = false;
-#ifdef WITH_WSREP
-		trx->wsrep = false;
-#endif /* WITH_WSREP */
 	}
 
 #ifdef WITH_WSREP
@@ -8571,7 +8565,10 @@ func_exit:
 	}
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS && trx->is_wsrep()
+	if (error == DB_SUCCESS &&
+	    /* For sequences, InnoDB transaction may not have been started yet.
+	    Check THD-level wsrep state in that case. */
+	    (trx->is_wsrep() || (!trx_is_started(trx) && wsrep_on(m_user_thd)))
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)
 	    && (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)

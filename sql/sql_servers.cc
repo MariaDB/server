@@ -283,7 +283,7 @@ end:
 
 static bool servers_load(THD *thd, TABLE_LIST *tables)
 {
-  TABLE *table;
+  TABLE *table= tables[0].table;
   READ_RECORD read_record_info;
   bool return_val= TRUE;
   DBUG_ENTER("servers_load");
@@ -292,7 +292,8 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
   free_root(&mem, MYF(0));
   init_sql_alloc(key_memory_servers, &mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
-  if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
+  table->use_all_columns();
+  if (init_read_record(&read_record_info,thd,table, NULL, NULL,
                        1,0, FALSE))
     DBUG_RETURN(1);
   while (!(read_record_info.read_record()))
@@ -405,7 +406,6 @@ get_server_from_table_to_cache(TABLE *table)
   FOREIGN_SERVER *server= (FOREIGN_SERVER *)alloc_root(&mem,
                                                        sizeof(FOREIGN_SERVER));
   DBUG_ENTER("get_server_from_table_to_cache");
-  table->use_all_columns();
 
   /* get each field into the server struct ptr */
   ptr= get_field(&mem, table->field[0]);

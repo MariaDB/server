@@ -953,6 +953,7 @@ trx_start_low(
 
 #ifdef WITH_WSREP
 	trx->xid->null();
+	trx->wsrep = wsrep_on(trx->mysql_thd);
 #endif /* WITH_WSREP */
 
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
@@ -1402,6 +1403,8 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     trx_finalize_for_fts(this, undo_no != 0);
 
 #ifdef WITH_WSREP
+  ut_ad(is_wsrep() == wsrep_on(mysql_thd));
+
   /* Serialization history has been written and the transaction is
   committed in memory, which makes this commit ordered. Release commit
   order critical section. */

@@ -7363,8 +7363,8 @@ static int show_threadpool_threads(THD *, SHOW_VAR *var, void *buff,
 #endif
 
 
-static int show_cached_thread_count(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_cached_thread_count(THD *thd, SHOW_VAR *var, void *buff,
+                                    system_status_var *, enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
