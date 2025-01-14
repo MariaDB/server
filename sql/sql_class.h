@@ -6565,7 +6565,6 @@ public:
     }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
 
-  int binlog_show_create_table(TABLE **tables, uint count);
   bool store_values(List<Item> &values, bool *trg_skip_row) override;
   bool send_eof() override;
   void abort_result_set() override;
