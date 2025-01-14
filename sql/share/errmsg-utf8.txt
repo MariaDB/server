@@ -12296,3 +12296,5 @@ ER_CANNOT_INIT_ENGINE_BINLOG_READER
         eng "Cannot initialize binlog reader from storage engine %s"
 ER_ENGINE_BINLOG_REQUIRES_GTID
         eng "GTID starting position is required on master with --binlog-storage-engine enabled"
+ER_ENGINE_BINLOG_NO_RESET_FILE_NUMBER
+	eng "RESET MASTER TO is not available when --binlog-storage-engine is enabled"

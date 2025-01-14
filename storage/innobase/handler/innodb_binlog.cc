@@ -429,6 +429,37 @@ innodb_binlog_startup_init()
 }
 
 
+static void
+innodb_binlog_init_state()
+{
+  first_open_binlog_file_no= ~(uint64_t)0;
+  binlog_cur_end_offset[0].store(~(uint64_t)0, std::memory_order_relaxed);
+  binlog_cur_end_offset[1].store(~(uint64_t)0, std::memory_order_relaxed);
+  last_created_binlog_file_no= ~(uint64_t)0;
+  active_binlog_file_no.store(~(uint64_t)0, std::memory_order_release);
+  active_binlog_space= nullptr;
+  binlog_cur_page_no= 0;
+  binlog_cur_page_offset= FIL_PAGE_DATA;
+  current_binlog_state_interval= innodb_binlog_state_interval;
+}
+
+
+/* Start the thread that pre-allocates new binlog files. */
+static void
+start_binlog_prealloc_thread()
+{
+  prealloc_thread_end= false;
+  binlog_prealloc_thr_obj= std::thread{innodb_binlog_prealloc_thread};
+
+  mysql_mutex_lock(&active_binlog_mutex);
+  while (last_created_binlog_file_no == ~(uint64_t)0) {
+    /* Wait for the first binlog file to be available. */
+    my_cond_wait(&active_binlog_cond, &active_binlog_mutex.m_mutex);
+  }
+  mysql_mutex_unlock(&active_binlog_mutex);
+}
+
+
 /*
   Open the InnoDB binlog implementation.
   This is called from server binlog layer if the user configured the binlog to
@@ -461,15 +492,8 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   }
   innodb_binlog_directory= directory;
 
-  first_open_binlog_file_no= ~(uint64_t)0;
-  binlog_cur_end_offset[0].store(~(uint64_t)0, std::memory_order_relaxed);
-  binlog_cur_end_offset[1].store(~(uint64_t)0, std::memory_order_relaxed);
-  last_created_binlog_file_no= ~(uint64_t)0;
-  active_binlog_file_no.store(~(uint64_t)0, std::memory_order_release);
-  active_binlog_space= nullptr;
-  binlog_cur_page_no= 0;
-  binlog_cur_page_offset= FIL_PAGE_DATA;
-  current_binlog_state_interval= innodb_binlog_state_interval;
+  innodb_binlog_init_state();
+
   /* Find any existing binlog files and continue writing in them. */
   int res= innodb_binlog_discover();
   if (res < 0)
@@ -484,15 +508,7 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
       return true;
   }
 
-  /* Start pre-allocating new binlog files. */
-  binlog_prealloc_thr_obj= std::thread{innodb_binlog_prealloc_thread};
-
-  mysql_mutex_lock(&active_binlog_mutex);
-  while (last_created_binlog_file_no == ~(uint64_t)0) {
-    /* Wait for the first binlog file to be available. */
-    my_cond_wait(&active_binlog_cond, &active_binlog_mutex.m_mutex);
-  }
-  mysql_mutex_unlock(&active_binlog_mutex);
+  start_binlog_prealloc_thread();
 
   return false;
 }
@@ -762,7 +778,7 @@ innodb_binlog_discover()
 }
 
 
-void innodb_binlog_close()
+void innodb_binlog_close(bool shutdown)
 {
   if (binlog_prealloc_thr_obj.joinable()) {
     mysql_mutex_lock(&active_binlog_mutex);
@@ -781,17 +797,11 @@ void innodb_binlog_close()
       }
     }
   }
-  /*
-    ToDo: This doesn't seem to free all memory. I'm still getting leaks in eg. --valgrind. Find out why and fix. Example:
-==3464576==    at 0x48407B4: malloc (vg_replace_malloc.c:381)
-==3464576==    by 0x15318CD: mem_strdup(char const*) (mem0mem.inl:452)
-==3464576==    by 0x15321DF: fil_space_t::add(char const*, pfs_os_file_t, unsigned int, bool, bool, unsigned int) (fil0fil.cc:306)
-==3464576==    by 0x1558445: fsp_binlog_tablespace_create(unsigned long) (fsp0fsp.cc:3900)
-==3464576==    by 0x1558C70: fsp_binlog_write_cache(st_io_cache*, unsigned long, mtr_t*) (fsp0fsp.cc:4013)
-  */
-  binlog_diff_state.free();
-  pthread_cond_destroy(&active_binlog_cond);
-  mysql_mutex_destroy(&active_binlog_mutex);
+  if (shutdown)
+  {
+    binlog_diff_state.free();
+    fsp_binlog_shutdown();
+  }
 }
 
 
@@ -2174,4 +2184,50 @@ innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
   *out_first= first_file_no;
   *out_last= last_file_no;
   return false;
+}
+
+
+bool
+innodb_reset_binlogs()
+{
+  bool err= false;
+
+  /* Close existing binlog tablespaces and stop the pre-alloc thread. */
+  innodb_binlog_close(false);
+
+  /* Delete all binlog files in the directory. */
+  MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(MY_WME));
+  if (!dir)
+  {
+    ib::error() << "Could not read the binlog directory '" <<
+      innodb_binlog_directory << "', error code " << my_errno << ".";
+    err= true;
+  }
+  else
+  {
+    size_t num_entries= dir->number_of_files;
+    fileinfo *entries= dir->dir_entry;
+    for (size_t i= 0; i < num_entries; ++i) {
+      const char *name= entries[i].name;
+      uint64_t file_no;
+      if (!is_binlog_name(name, &file_no))
+        continue;
+      char full_path[OS_FILE_MAX_PATH];
+      binlog_name_make(full_path, file_no);
+      if (my_delete(full_path, MYF(MY_WME)))
+        err= true;
+    }
+    my_dirend(dir);
+  }
+  /*
+    If we get an error deleting any of the existing files, we report the error
+    back up. But we still try to initialize an empty binlog state, better than
+    leaving a non-functional binlog with corrupt internal state.
+  */
+
+  /* Re-initialize empty binlog state and start the pre-alloc thread. */
+  innodb_binlog_init_state();
+  start_binlog_prealloc_thread();
+
+  return err;
 }

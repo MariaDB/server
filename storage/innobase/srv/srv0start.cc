@@ -2091,7 +2091,7 @@ void innodb_shutdown()
 		logs_empty_and_mark_files_at_shutdown();
 	}
 
-        innodb_binlog_close();
+        innodb_binlog_close(true);
 	os_aio_free();
 	fil_space_t::close_all();
 	/* Exit any remaining threads. */

@@ -6,6 +6,8 @@
 # files and only need to include the one.
 --source include/have_innodb_binlog.inc
 
+RESET MASTER;
+
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 --let $gtid_pos= `SELECT @@last_gtid`
 INSERT INTO t1 VALUES (1);
