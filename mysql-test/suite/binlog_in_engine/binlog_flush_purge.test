@@ -1,6 +1,8 @@
 --source include/have_binlog_format_row.inc
 --source include/have_innodb_binlog.inc
 
+RESET MASTER;
+
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
@@ -18,4 +20,16 @@ SHOW BINARY LOGS;
 FLUSH BINARY LOGS;
 SHOW BINARY LOGS;
 
+RESET MASTER;
+# ToDo: This will be racy, the second binlog file binlog-000001.ibb is
+# pre-allocated in the background, so will be visible or not depending on exact
+# timing. So just omit this SHOW BINARY LOGS or wait for both to be created
+# or something.
+SHOW BINARY LOGS;
+
+INSERT INTO t1 VALUES (100);
+INSERT INTO t2 VALUES (100, 'xyzzy');
+
 DROP TABLE t1, t2;
+
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt

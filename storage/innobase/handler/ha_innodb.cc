@@ -4094,6 +4094,7 @@ static int innodb_init(void* p)
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
         innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
         innobase_hton->binlog_flush= innodb_binlog_flush;
+        innobase_hton->reset_binlogs= innodb_reset_binlogs;
 
 	innodb_remember_check_sysvar_funcs();
 

@@ -1571,6 +1571,8 @@ struct handlerton
     Used to implement FLUSH BINARY LOGS.
   */
   bool (*binlog_flush)();
+  /* Engine implementation of RESET MASTER. */
+  bool (*reset_binlogs)();
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
