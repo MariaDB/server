@@ -148,3 +148,10 @@ execute stmt;
 
 drop table t2;
 drop table t1;
+
+--echo # MDEV-35737 MSAN errors in check_table_referential_checks_needed upon
+--echo # LOAD INDEX
+
+create table t (pk int primary key) engine=innodb;
+load index into cache t;
+drop table t;

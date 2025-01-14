@@ -5394,7 +5394,7 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   }
   if (unlikely((error= check(thd, check_opt))))
     return error;
-  if (check_table_referential_checks_needed(thd) &&
+  if (check_table_referential_checks_needed(thd->variables, *check_opt) &&
       unlikely(error = check_foreign_key_relations(thd, table)))
     return error;
   for (uint i= table->s->keys; i < table->s->total_keys; i++)

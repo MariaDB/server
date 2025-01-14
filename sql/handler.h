@@ -2752,7 +2752,7 @@ typedef class Item COND;
 
 typedef struct st_ha_check_opt
 {
-  st_ha_check_opt() = default;                        /* Remove gcc warning */
+  st_ha_check_opt() = default;
   uint flags;       /* isam layer flags (e.g. for myisamchk) */
   uint sql_flags;   /* sql layer flags - for something myisamchk cannot do */
   uint handler_flags; /* Reserved for handler usage */

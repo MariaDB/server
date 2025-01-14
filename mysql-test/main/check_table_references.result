@@ -224,3 +224,10 @@ test.nosuchtable	check	Error	Table 'test.nosuchtable' doesn't exist
 test.nosuchtable	check	status	Operation failed
 drop table t2;
 drop table t1;
+# MDEV-35737 MSAN errors in check_table_referential_checks_needed upon
+# LOAD INDEX
+create table t (pk int primary key) engine=innodb;
+load index into cache t;
+Table	Op	Msg_type	Msg_text
+test.t	preload_keys	note	The storage engine for the table doesn't support preload_keys
+drop table t;

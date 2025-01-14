@@ -650,7 +650,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     /* open only one table from local list of command */
     while (1)
     {
-      Check_table_prelocking_strategy prelocking_strategy;
+      Check_table_prelocking_strategy prelocking_strategy(*check_opt);
       open_error= open_only_one_table(thd, table,
                                       no_errors_from_open,
                                       (view_operator_func != NULL),
@@ -1603,12 +1603,13 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
 bool mysql_preload_keys(THD* thd, TABLE_LIST* tables)
 {
   DBUG_ENTER("mysql_preload_keys");
+  HA_CHECK_OPT check_opt {};
   /*
     We cannot allow concurrent inserts. The storage engine reads
     directly from the index file, bypassing the cache. It could read
     outdated information if parallel inserts into cache blocks happen.
   */
-  DBUG_RETURN(mysql_admin_table(thd, tables, 0,
+  DBUG_RETURN(mysql_admin_table(thd, tables, &check_opt,
                                 &msg_preload_keys, TL_READ_NO_INSERT,
                                 0, 0, 0, 0,
                                 &handler::preload_keys, 0, false));

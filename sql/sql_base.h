@@ -398,10 +398,11 @@ inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
 }
 
 inline static
-bool check_table_referential_checks_needed(THD *thd)
+bool check_table_referential_checks_needed(const system_variables &variables,
+                                           const HA_CHECK_OPT &check_opt)
 {
-  return thd->lex->check_opt.flags & T_EXTEND
-         && !(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS);
+  bool check_fk= !(variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS);
+  return check_opt.flags & T_EXTEND && check_fk;
 }
 
 /**
@@ -514,12 +515,15 @@ public:
 
 class Check_table_prelocking_strategy : public DML_prelocking_strategy
 {
+  const HA_CHECK_OPT &check_opt;
 public:
+  explicit Check_table_prelocking_strategy(const HA_CHECK_OPT &check_opt)
+    : check_opt(check_opt) {}
   bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
                     TABLE_LIST *table_list, bool *need_prelocking) override;
   bool may_need_prelocking(THD *thd, TABLE_LIST *table) const override
   {
-    return check_table_referential_checks_needed(thd);
+    return check_table_referential_checks_needed(thd->variables, check_opt);
   }
 
   TABLE_LIST::enum_open_strategy
