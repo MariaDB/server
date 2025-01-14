@@ -5200,7 +5200,6 @@ Check_table_prelocking_strategy::handle_table(THD *thd,
                                               TABLE_LIST *tables,
                                               bool *need_prelocking)
 {
-  Query_arena_stmt stmt_ctx(thd);
   List <FOREIGN_KEY_INFO> fk_child_list, fk_parent_list;
   tables->table->file->get_foreign_key_list(thd, &fk_child_list);
   tables->table->file->get_parent_foreign_key_list(thd, &fk_parent_list);

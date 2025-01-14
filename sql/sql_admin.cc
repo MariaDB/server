@@ -1468,6 +1468,13 @@ send_result_message:
     }
     close_thread_tables(thd);
 
+    /*
+      Opening tables and extending table list doesn't happen on the prepare
+      stage here, so we have to make sure that Prepared_statement won't try to
+      reuse table lists, that have a statement execution lifetime.
+    */
+    table->next_global= table->next_local;
+
     if (storage_engine_name[0])
     {
       /* Table was changed (repair, optimize or something similar) */
