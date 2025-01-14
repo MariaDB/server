@@ -547,7 +547,7 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 }
 
 /** Set create_lsn. */
-inline void fil_space_t::set_create_lsn(lsn_t lsn)
+inline void fil_space_t::set_create_lsn(lsn_t lsn) noexcept
 {
   /* Concurrent log_checkpoint_low() must be impossible. */
   ut_ad(latch.have_wr());
@@ -1214,7 +1214,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     end-= len;
     size_t s;
 
-#ifdef HAVE_INNODB_MMAP
+#ifdef HAVE_PMEM
     if (!resize_flush_buf)
     {
       ut_ad(is_mmap());

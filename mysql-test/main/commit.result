@@ -579,3 +579,23 @@ a
 # This statement should work, since last statement committed.
 INSERT INTO t1 VALUES (1);
 DROP TABLE t1;
+#
+# MDEV-35335 implicit commit at START TRANSACTION doesn't reset characteristics
+#
+create table t1 (a int) engine=innodb;
+insert t1 values (1);
+start transaction;
+set session transaction isolation level serializable;
+start transaction;
+select * from t1;
+a
+1
+connect con1,localhost,root;
+set session innodb_lock_wait_timeout=0;
+update t1 set a=2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+rollback;
+drop table t1;
+# End of 10.6 tests

@@ -5212,7 +5212,7 @@ void lock_trx_print_wait_and_mvcc_state(FILE *file, const trx_t *trx,
 {
 	fprintf(file, "---");
 
-	trx_print_latched(file, trx, 600);
+	trx_print_latched(file, trx);
 	trx->read_view.print_limits(file);
 
 	if (const lock_t* wait_lock = trx->lock.wait_lock) {
@@ -6944,11 +6944,11 @@ namespace Deadlock
     ulint n_trx_locks= UT_LIST_GET_LEN(trx.lock.trx_locks);
     ulint heap_size= mem_heap_get_size(trx.lock.lock_heap);
 
-    trx_print_low(lock_latest_err_file, &trx, 3000,
+    trx_print_low(lock_latest_err_file, &trx,
                   n_rec_locks, n_trx_locks, heap_size);
 
     if (srv_print_all_deadlocks)
-      trx_print_low(stderr, &trx, 3000, n_rec_locks, n_trx_locks, heap_size);
+      trx_print_low(stderr, &trx, n_rec_locks, n_trx_locks, heap_size);
   }
 
   /** Print lock data to the deadlock file and possibly to stderr.

@@ -54,12 +54,12 @@ enum srv_checksum_algorithm_t {
   SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
 };
 
-inline bool is_checksum_strict(srv_checksum_algorithm_t algo)
+inline bool is_checksum_strict(srv_checksum_algorithm_t algo) noexcept
 {
   return algo == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32;
 }
 
-inline bool is_checksum_strict(ulint algo)
+inline bool is_checksum_strict(ulint algo) noexcept
 {
   return algo == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32;
 }
@@ -96,31 +96,31 @@ public:
     m_id(uint64_t{space} << 32 | page_no) {}
 
   constexpr page_id_t(uint64_t id) : m_id(id) {}
-  constexpr bool operator==(const page_id_t& rhs) const
+  constexpr bool operator==(const page_id_t& rhs) const noexcept
   { return m_id == rhs.m_id; }
-  constexpr bool operator!=(const page_id_t& rhs) const
+  constexpr bool operator!=(const page_id_t& rhs) const noexcept
   { return m_id != rhs.m_id; }
-  constexpr bool operator<(const page_id_t& rhs) const
+  constexpr bool operator<(const page_id_t& rhs) const noexcept
   { return m_id < rhs.m_id; }
-  constexpr bool operator>(const page_id_t& rhs) const
+  constexpr bool operator>(const page_id_t& rhs) const noexcept
   { return m_id > rhs.m_id; }
-  constexpr bool operator<=(const page_id_t& rhs) const
+  constexpr bool operator<=(const page_id_t& rhs) const noexcept
   { return m_id <= rhs.m_id; }
-  constexpr bool operator>=(const page_id_t& rhs) const
+  constexpr bool operator>=(const page_id_t& rhs) const noexcept
   { return m_id >= rhs.m_id; }
-  page_id_t &operator--() { ut_ad(page_no()); m_id--; return *this; }
-  page_id_t &operator++()
+  page_id_t &operator--() noexcept { ut_ad(page_no()); m_id--; return *this; }
+  page_id_t &operator++() noexcept
   {
     ut_ad(page_no() < 0xFFFFFFFFU);
     m_id++;
     return *this;
   }
-  page_id_t operator-(uint32_t i) const
+  page_id_t operator-(uint32_t i) const noexcept
   {
     ut_ad(page_no() >= i);
     return page_id_t(m_id - i);
   }
-  page_id_t operator+(uint32_t i) const
+  page_id_t operator+(uint32_t i) const noexcept
   {
     ut_ad(page_no() < ~i);
     return page_id_t(m_id + i);
@@ -128,28 +128,30 @@ public:
 
   /** Retrieve the tablespace id.
   @return tablespace id */
-  constexpr uint32_t space() const { return static_cast<uint32_t>(m_id >> 32); }
+  constexpr uint32_t space() const noexcept
+  { return static_cast<uint32_t>(m_id >> 32); }
 
   /** Retrieve the page number.
   @return page number */
-  constexpr uint32_t page_no() const { return static_cast<uint32_t>(m_id); }
+  constexpr uint32_t page_no() const noexcept
+  { return static_cast<uint32_t>(m_id); }
 
   /** Retrieve the fold value.
   @return fold value */
-  constexpr ulint fold() const
+  constexpr ulint fold() const noexcept
   { return (ulint{space()} << 20) + space() + page_no(); }
 
   /** Reset the page number only.
   @param[in]	page_no	page number */
-  void set_page_no(uint32_t page_no)
+  void set_page_no(uint32_t page_no) noexcept
   {
     m_id= (m_id & ~uint64_t{0} << 32) | page_no;
   }
 
-  constexpr ulonglong raw() const { return m_id; }
+  constexpr ulonglong raw() const noexcept { return m_id; }
 
   /** Flag the page identifier as corrupted. */
-  void set_corrupted() { m_id= ~0ULL; }
+  void set_corrupted() noexcept { m_id= ~0ULL; }
 
   /** @return whether the page identifier belongs to a corrupted page */
   constexpr bool is_corrupted() const { return m_id == ~0ULL; }
@@ -182,53 +184,55 @@ enum rw_lock_type_t
 class page_hash_latch : private rw_lock
 {
   /** Wait for a shared lock */
-  void read_lock_wait();
+  void read_lock_wait() noexcept;
   /** Wait for an exclusive lock */
-  void write_lock_wait();
+  void write_lock_wait() noexcept;
 public:
   /** Acquire a shared lock */
-  inline void lock_shared();
+  inline void lock_shared() noexcept;
   /** Acquire an exclusive lock */
-  inline void lock();
+  inline void lock() noexcept;
 
   /** @return whether an exclusive lock is being held by any thread */
-  bool is_write_locked() const { return rw_lock::is_write_locked(); }
+  bool is_write_locked() const noexcept { return rw_lock::is_write_locked(); }
 
   /** @return whether any lock is being held by any thread */
-  bool is_locked() const { return rw_lock::is_locked(); }
+  bool is_locked() const noexcept { return rw_lock::is_locked(); }
   /** @return whether any lock is being held or waited for by any thread */
-  bool is_locked_or_waiting() const { return rw_lock::is_locked_or_waiting(); }
+  bool is_locked_or_waiting() const noexcept
+  { return rw_lock::is_locked_or_waiting(); }
 
   /** Release a shared lock */
-  void unlock_shared() { read_unlock(); }
+  void unlock_shared() noexcept { read_unlock(); }
   /** Release an exclusive lock */
-  void unlock() { write_unlock(); }
+  void unlock() noexcept { write_unlock(); }
 };
 #elif defined _WIN32 || SIZEOF_SIZE_T >= 8
 class page_hash_latch
 {
   srw_spin_lock_low lk;
 public:
-  void lock_shared() { lk.rd_lock(); }
-  void unlock_shared() { lk.rd_unlock(); }
-  void lock() { lk.wr_lock(); }
-  void unlock() { lk.wr_unlock(); }
-  bool is_write_locked() const { return lk.is_write_locked(); }
-  bool is_locked() const { return lk.is_locked(); }
-  bool is_locked_or_waiting() const { return lk.is_locked_or_waiting(); }
+  void lock_shared() noexcept { lk.rd_lock(); }
+  void unlock_shared() noexcept { lk.rd_unlock(); }
+  void lock() noexcept { lk.wr_lock(); }
+  void unlock() noexcept { lk.wr_unlock(); }
+  bool is_write_locked() const noexcept { return lk.is_write_locked(); }
+  bool is_locked() const noexcept { return lk.is_locked(); }
+  bool is_locked_or_waiting() const noexcept
+  { return lk.is_locked_or_waiting(); }
 };
 #else
 class page_hash_latch
 {
   srw_spin_mutex lk;
 public:
-  void lock_shared() { lock(); }
-  void unlock_shared() { unlock(); }
-  void lock() { lk.wr_lock(); }
-  void unlock() { lk.wr_unlock(); }
-  bool is_locked() const { return lk.is_locked(); }
-  bool is_write_locked() const { return is_locked(); }
-  bool is_locked_or_waiting() const { return is_locked(); }
+  void lock_shared() noexcept { lock(); }
+  void unlock_shared() noexcept { unlock(); }
+  void lock() noexcept { lk.wr_lock(); }
+  void unlock() noexcept { lk.wr_unlock(); }
+  bool is_locked() const noexcept { return lk.is_locked(); }
+  bool is_write_locked() const noexcept { return is_locked(); }
+  bool is_locked_or_waiting() const noexcept { return is_locked(); }
 };
 #endif
 

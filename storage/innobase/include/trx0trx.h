@@ -211,9 +211,6 @@ trx_print_low(
 			/*!< in: output stream */
 	const trx_t*	trx,
 			/*!< in: transaction */
-	ulint		max_query_len,
-			/*!< in: max query length to print,
-			or 0 to use the default max length */
 	ulint		n_rec_locks,
 			/*!< in: trx->lock.n_rec_locks */
 	ulint		n_trx_locks,
@@ -228,9 +225,7 @@ void
 trx_print_latched(
 /*==============*/
 	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len);	/*!< in: max query length to print,
-					or 0 to use the default max length */
+	const trx_t*	trx);		/*!< in: transaction */
 
 /**********************************************************************//**
 Prints info about a transaction.
@@ -239,9 +234,7 @@ void
 trx_print(
 /*======*/
 	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len);	/*!< in: max query length to print,
-					or 0 to use the default max length */
+	const trx_t*	trx);		/*!< in: transaction */
 
 /**********************************************************************//**
 Determines if a transaction is in the given state.
@@ -671,14 +664,14 @@ public:
   {
     ut_ad(!mutex_is_owner());
     mutex.wr_lock();
-    ut_ad(!mutex_owner.exchange(pthread_self(),
-                                std::memory_order_relaxed));
+    ut_d(assert(!mutex_owner.exchange(pthread_self(),
+                                      std::memory_order_relaxed)));
   }
   /** Release the mutex */
   void mutex_unlock()
   {
-    ut_ad(mutex_owner.exchange(0, std::memory_order_relaxed)
-	  == pthread_self());
+    ut_d(assert(mutex_owner.exchange(0, std::memory_order_relaxed) ==
+                pthread_self()));
     mutex.wr_unlock();
   }
 #ifndef SUX_LOCK_GENERIC

@@ -3,7 +3,6 @@ connection default;
 CREATE TABLE t1 ENGINE=InnoDB SELECT * FROM seq_1_to_100000000;
 connection con1;
 KILL QUERY @id;
-disconnect con1;
 connection default;
 ERROR 70100: Query execution was interrupted
 CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB;
@@ -18,3 +17,26 @@ execute stmt;
 execute stmt;
 drop table t;
 # End of 10.5 tests
+#
+# MDEV-35647 Possible hang during CREATE TABLE…SELECT error handling
+#
+call mtr.add_suppression("InnoDB: DROP TABLE `test`\\.`t4`: Record changed");
+SET @save_debug= @@GLOBAL.innodb_evict_tables_on_commit_debug;
+SET GLOBAL innodb_evict_tables_on_commit_debug=on;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SET GLOBAL innodb_evict_tables_on_commit_debug=@save_debug;
+connection con1;
+CREATE TABLE t2 (b BLOB) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),('2025-01-21 00:00:00');
+SET STATEMENT innodb_snapshot_isolation=ON FOR
+CREATE TABLE t3 ENGINE=InnoDB AS SELECT * FROM t1;
+connection default;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET STATEMENT innodb_snapshot_isolation=ON FOR
+CREATE TABLE t4 (b BLOB CHECK (b)) ENGINE=InnoDB AS SELECT b FROM t2;
+ERROR 22007: Truncated incorrect DOUBLE value: '2025-01-21 00:00:00'
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t3,t2,t1;
+# End of 10.6 tests

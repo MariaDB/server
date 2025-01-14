@@ -677,3 +677,23 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES (1);
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35335 implicit commit at START TRANSACTION doesn't reset characteristics
+--echo #
+create table t1 (a int) engine=innodb;
+insert t1 values (1);
+start transaction;
+set session transaction isolation level serializable;
+start transaction;
+select * from t1;
+connect con1,localhost,root;
+set session innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+update t1 set a=2;
+disconnect con1;
+connection default;
+rollback;
+drop table t1;
+
+--echo # End of 10.6 tests

@@ -36,9 +36,19 @@ SET GLOBAL innodb_log_file_buffering=@save;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_log_file_mmap=OFF;
 
+--connect con1,localhost,root
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send SET GLOBAL innodb_log_file_size=7340032;
+--connection default
+let $ignore= `SELECT @id := $ID`;
+KILL QUERY @id;
+--connection con1
+reap;
+
+--connection default
 send SET GLOBAL innodb_log_file_size=5242880;
 
---connect con1,localhost,root
+--connection con1
 send UPDATE t SET b='' WHERE a<10;
 
 --connection default

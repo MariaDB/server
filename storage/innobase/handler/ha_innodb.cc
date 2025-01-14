@@ -2258,14 +2258,12 @@ void
 innobase_mysql_print_thd(
 /*=====================*/
 	FILE*	f,		/*!< in: output stream */
-	THD*	thd,		/*!< in: MySQL THD object */
-	uint	max_query_len)	/*!< in: max query length to print, or 0 to
-				use the default max length */
+	THD*	thd)		/*!< in: MySQL THD object */
 {
-	char	buffer[1024];
+	char	buffer[3072];
 
 	fputs(thd_get_error_context_description(thd, buffer, sizeof buffer,
-						max_query_len), f);
+						0), f);
 	putc('\n', f);
 }
 
@@ -13767,7 +13765,6 @@ int ha_innobase::delete_table(const char *name)
   if (err != DB_SUCCESS)
   {
 err_exit:
-    trx->dict_operation_lock_mode= false;
     trx->rollback();
     switch (err) {
     case DB_CANNOT_DROP_CONSTRAINT:
@@ -13789,7 +13786,7 @@ err_exit:
       dict_table_close(table_stats, true, thd, mdl_table);
     if (index_stats)
       dict_table_close(index_stats, true, thd, mdl_index);
-    dict_sys.unlock();
+    row_mysql_unlock_data_dictionary(trx);
     if (trx != parent_trx)
       trx->free();
     DBUG_RETURN(convert_error_code_to_mysql(err, 0, NULL));
@@ -19436,18 +19433,14 @@ static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
   "Redo log buffer size in bytes.",
   NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
 
-#ifdef HAVE_INNODB_MMAP
   static constexpr const char *innodb_log_file_mmap_description=
     "Whether ib_logfile0"
-# ifdef HAVE_PMEM
-    " resides in persistent memory or"
-# endif
+    " resides in persistent memory (when supported) or"
     " should initially be memory-mapped";
 static MYSQL_SYSVAR_BOOL(log_file_mmap, log_sys.log_mmap,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   innodb_log_file_mmap_description,
   nullptr, nullptr, log_sys.log_mmap_default);
-#endif
 
 #if defined __linux__ || defined _WIN32
 static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
@@ -19921,9 +19914,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
-#ifdef HAVE_INNODB_MMAP
   MYSQL_SYSVAR(log_file_mmap),
-#endif
 #if defined __linux__ || defined _WIN32
   MYSQL_SYSVAR(log_file_buffering),
 #endif
@@ -21377,9 +21368,7 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
 if needed.
 @param[in]	size	size in bytes
 @return	aligned size */
-ulint
-buf_pool_size_align(
-	ulint	size)
+ulint buf_pool_size_align(ulint size) noexcept
 {
   const size_t m = srv_buf_pool_chunk_unit;
   size = ut_max(size, (size_t) MYSQL_SYSVAR_NAME(buffer_pool_size).min_val);

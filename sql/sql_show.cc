@@ -4663,6 +4663,19 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
 }
 
 
+/*
+  Hide error for a non-existing table.
+  For example, this error can occur when we use a where condition
+  with a db name and table, but the table does not exist or
+  there is a view with the same name.
+*/
+static bool hide_object_error(uint err)
+{
+  return err == ER_NO_SUCH_TABLE || err == ER_WRONG_OBJECT ||
+         err == ER_NOT_SEQUENCE;
+}
+
+
 /**
   Fill I_S table with data obtained by performing full-blown table open.
 
@@ -4798,17 +4811,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   {
     if (!is_show_fields_or_keys)
     {
-      /*
-        Hide error for a non-existing table and skip processing.
-        For example, this error can occur when we use a where condition
-        with a db name and table, but the table does not exist or
-        there is a view with the same name.
-        Some errors, like ER_UNKNOWN_STORAGE_ENGINE, can still allow table
-        processing, if the information schema table supports that.
-      */
-      run= run && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE
-               && thd->get_stmt_da()->sql_errno() != ER_WRONG_OBJECT
-               && thd->get_stmt_da()->sql_errno() != ER_NOT_SEQUENCE;
+      run= run && !hide_object_error(thd->get_stmt_da()->sql_errno());
       if (!run)
         thd->clear_error();
       else if (!ext_error_handling)
@@ -4904,8 +4907,8 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     else
       table->field[3]->store(STRING_WITH_LEN("ERROR"), cs);
 
-    if (unlikely(thd->is_error() &&
-                 thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE))
+    if (unlikely(thd->is_error()) &&
+        hide_object_error(thd->get_stmt_da()->sql_errno()))
     {
       thd->clear_error();
       return 0;
@@ -5142,9 +5145,7 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
   share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
-    if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
-        thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE)
+    if (hide_object_error(thd->get_stmt_da()->sql_errno()))
     {
       res= 0;
     }
@@ -5190,10 +5191,17 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
     goto end_share;
   }
 
-  if (!open_table_from_share(thd, share, table_name, 0,
-                             (EXTRA_RECORD | OPEN_FRM_FILE_ONLY),
-                             thd->open_options, &tbl, FALSE))
+  res= open_table_from_share(thd, share, table_name, 0,
+                             EXTRA_RECORD | OPEN_FRM_FILE_ONLY,
+                             thd->open_options, &tbl, FALSE);
+  if (res && hide_object_error(thd->get_stmt_da()->sql_errno()))
+    res= 0;
+  else
   {
+    char buf[NAME_CHAR_LEN + 1];
+    if (unlikely(res))
+      get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
+
     tbl.s= share;
     table_list.table= &tbl;
     table_list.view= (LEX*) share->is_view;
@@ -5327,7 +5335,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_ENTER("get_all_tables");
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
-  TABLE_LIST table_acl_check;
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   IS_table_read_plan *plan= tables->is_table_read_plan;
@@ -5470,8 +5477,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     }
   }
 
-  bzero((char*) &table_acl_check, sizeof(table_acl_check));
-
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
 
@@ -5480,9 +5485,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (!(check_access(thd, SELECT_ACL, db_name->str,
-                       &thd->col_access, NULL, 0, 1) ||
-          (!thd->col_access && check_grant_db(thd, db_name->str))) ||
+    if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get_all3(sctx, db_name->str, 0))
 #endif
@@ -5504,6 +5507,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))
         {
+          TABLE_LIST table_acl_check;
+          table_acl_check.reset();
           table_acl_check.db= *db_name;
           table_acl_check.table_name= *table_name;
           table_acl_check.grant.privilege= thd->col_access;

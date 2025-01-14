@@ -3354,6 +3354,8 @@ err:
   }
   else if (info->errmsg != NULL)
     safe_strcpy(info->error_text, sizeof(info->error_text), info->errmsg);
+  else if (info->error_text[0] == 0)
+    safe_strcpy(info->error_text, sizeof(info->error_text), ER(info->error));
 
   my_message(info->error, info->error_text, MYF(0));
 

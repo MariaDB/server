@@ -1333,9 +1333,7 @@ enum options_xtrabackup
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_LOCK_WAIT_TIMEOUT,
   OPT_INNODB_LOG_BUFFER_SIZE,
-#ifdef HAVE_INNODB_MMAP
   OPT_INNODB_LOG_FILE_MMAP,
-#endif
 #if defined __linux__ || defined _WIN32
   OPT_INNODB_LOG_FILE_BUFFERING,
 #endif
@@ -1899,13 +1897,11 @@ struct my_option xb_server_options[] =
    (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
    GET_UINT, REQUIRED_ARG, 2U << 20,
    2U << 20, log_sys.buf_size_max, 0, 4096, 0},
-#ifdef HAVE_INNODB_MMAP
   {"innodb_log_file_mmap", OPT_INNODB_LOG_FILE_SIZE,
    "Whether ib_logfile0 should be memory-mapped",
    (G_PTR*) &log_sys.log_mmap,
    (G_PTR*) &log_sys.log_mmap, 0, GET_BOOL, NO_ARG,
    log_sys.log_mmap_default, 0, 0, 0, 0, 0},
-#endif
 #if defined __linux__ || defined _WIN32
   {"innodb_log_file_buffering", OPT_INNODB_LOG_FILE_BUFFERING,
    "Whether the file system cache for ib_logfile0 is enabled during --backup",
@@ -3392,7 +3388,6 @@ skip:
 	return(FALSE);
 }
 
-#ifdef HAVE_INNODB_MMAP
 static int
 xtrabackup_copy_mmap_snippet(ds_file_t *ds, const byte *start, const byte *end)
 {
@@ -3431,7 +3426,7 @@ static bool xtrabackup_copy_mmap_logfile()
         /* Set the sequence bit (the backed-up log will not wrap around) */
         size_t seqo= recv_sys.offset - seq_offset;
         if (seqo < log_sys.START_OFFSET)
-          seqo+= log_sys.file_size - log_sys.START_OFFSET;
+          seqo+= static_cast<size_t>(log_sys.file_size - log_sys.START_OFFSET);
         const byte *seq= &log_sys.buf[seqo];
         ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.lsn - seq_offset));
         if (!*seq)
@@ -3492,7 +3487,6 @@ static bool xtrabackup_copy_mmap_logfile()
     msg(">> log scanned up to (" LSN_PF ")", recv_sys.lsn);
   return false;
 }
-#endif
 
 /** Copy redo log until the current end of the log is reached
 @return whether the operation failed */
@@ -3504,10 +3498,9 @@ static bool xtrabackup_copy_logfile()
   ut_a(dst_log_file);
   ut_ad(recv_sys.is_initialised());
 
-#ifdef HAVE_INNODB_MMAP
   if (log_sys.is_mmap())
     return xtrabackup_copy_mmap_logfile();
-#endif
+
   const size_t sequence_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
   const size_t block_size_1{log_sys.write_size - 1};
 
