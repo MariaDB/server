@@ -98,8 +98,8 @@ static void unlink_blobs(TABLE *table);
 #endif
 static bool check_view_insertability(THD *thd, TABLE_LIST *view,
                                      List<Item> &fields);
-static int binlog_show_create_table_(THD *thd, TABLE *table,
-                                     Table_specification_st *create_info);
+static int binlog_show_create_table(THD *thd, TABLE *table,
+                                    Table_specification_st *create_info);
 
 /*
   Check that insert/update fields are from the same single table of a view.
@@ -4960,7 +4960,7 @@ int select_create::postlock(THD *thd, TABLE **tables)
   TABLE const *const table = *tables;
   if (thd->is_current_stmt_binlog_format_row() &&
       !table->s->tmp_table)
-    return binlog_show_create_table_(thd, *tables, create_info);
+    return binlog_show_create_table(thd, *tables, create_info);
   return 0;
 }
 
@@ -5083,7 +5083,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
 }
 
 
-static int binlog_show_create_table_(THD *thd, TABLE *table,
+static int binlog_show_create_table(THD *thd, TABLE *table,
                                      Table_specification_st *create_info)
 {
   /*
@@ -5177,7 +5177,7 @@ bool binlog_create_table(THD *thd, TABLE *table, bool replace)
                              HA_CREATE_USED_DEFAULT_CHARSET);
   /* Ensure we write all engine options to binary log */
   create_info.used_fields|= HA_CREATE_PRINT_ALL_OPTIONS;
-  result= binlog_show_create_table_(thd, table, &create_info) != 0;
+  result= binlog_show_create_table(thd, table, &create_info) != 0;
   thd->variables.option_bits= save_option_bits;
   return result;
 }
