@@ -244,7 +244,7 @@ void thr_timer_end(thr_timer_t *timer_data)
   Come here when some timer in queue is due.
 */
 
-static sig_handler process_timers(struct timespec *now)
+static void process_timers(struct timespec *now)
 {
   thr_timer_t *timer_data;
   DBUG_ENTER("process_timers");
