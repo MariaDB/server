@@ -4550,6 +4550,17 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
       DBUG_RETURN(1);
     }
 
+    if (opt_binlog_engine_hton)
+    {
+      if (next_log_number)
+      {
+        my_error(ER_ENGINE_BINLOG_NO_RESET_FILE_NUMBER, MYF(0));
+        DBUG_RETURN(true);
+      }
+      DBUG_ASSERT(create_new_log);
+      DBUG_RETURN(reset_engine_binlogs(thd, init_state, init_state_len));
+    }
+
     /*
       Mark that a RESET MASTER is in progress.
       This ensures that a binlog checkpoint will not try to write binlog
@@ -4809,6 +4820,29 @@ err:
   mysql_mutex_unlock(&LOCK_index);
   mysql_mutex_unlock(&LOCK_log);
   DBUG_RETURN(error);
+}
+
+
+bool
+MYSQL_BIN_LOG::reset_engine_binlogs(THD *thd, rpl_gtid *init_state,
+                                    uint32 init_state_len)
+{
+  bool err;
+  DBUG_ASSERT(!is_relay_log);
+
+  mysql_mutex_lock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_index);
+
+  err= (*opt_binlog_engine_hton->reset_binlogs)();
+  if (init_state)
+    rpl_global_gtid_binlog_state.load(init_state, init_state_len);
+  else
+    rpl_global_gtid_binlog_state.reset();
+
+  mysql_mutex_unlock(&LOCK_index);
+  mysql_mutex_unlock(&LOCK_log);
+
+  return err;
 }
 
 
