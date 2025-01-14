@@ -104,6 +104,14 @@ fsp_binlog_init()
 }
 
 
+void
+fsp_binlog_shutdown()
+{
+  pthread_cond_destroy(&active_binlog_cond);
+  mysql_mutex_destroy(&active_binlog_mutex);
+}
+
+
 /** Write out all pages, flush, and close/detach a binlog tablespace.
 @param[in] file_no	 Index of the binlog tablespace
 @return DB_SUCCESS or error code */
@@ -738,6 +746,7 @@ binlog_chunk_reader::fetch_current_page()
         actually maintaining that, to save unnecessary buffer pool
         lookup.
       */
+  goto_next_file:
       if (cur_file_handle >= (File)0)
       {
         my_close(cur_file_handle, MYF(0));
@@ -753,6 +762,8 @@ binlog_chunk_reader::fetch_current_page()
                          s.page_no << srv_page_size_shift, MYF(MY_WME));
     if (res == (size_t)-1)
       return CHUNK_READER_ERROR;
+    if (res == 0 && my_errno == HA_ERR_FILE_TOO_SHORT)
+      goto goto_next_file;
     page_ptr= page_buffer;
     return CHUNK_READER_FOUND;
   }

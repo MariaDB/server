@@ -85,7 +85,7 @@ binlog_name_make(char name_buf[OS_FILE_MAX_PATH], uint64_t file_no)
 
 extern void innodb_binlog_startup_init();
 extern bool innodb_binlog_init(size_t binlog_size, const char *directory);
-extern void innodb_binlog_close();
+extern void innodb_binlog_close(bool shutdown);
 extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                               buf_block_t * &block, uint32_t &page_no,
                               uint32_t &page_offset, fil_space_t *space);
@@ -98,5 +98,6 @@ extern bool innobase_binlog_write_direct
   (IO_CACHE *cache, handler_binlog_event_group_info *binlog_info,
    const rpl_gtid *gtid);
 extern bool innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last);
+extern bool innodb_reset_binlogs();
 
 #endif /* innodb_binlog_h */

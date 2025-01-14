@@ -1,6 +1,9 @@
 --source include/have_binlog_format_mixed.inc
 --source include/have_innodb_binlog.inc
 
+# RESET MASTER deliberately omitted here for now; the test should be able to
+# work on top of any existing binlog.
+
 CREATE TABLE sbtest1(
   id INTEGER NOT NULL AUTO_INCREMENT,
   k INTEGER DEFAULT '0' NOT NULL,
