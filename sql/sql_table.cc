@@ -64,6 +64,7 @@
 #include "rpl_rli.h"
 #include "log.h"
 #include "vector_mhnsw.h"
+#include "sql_type_vector.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -6904,7 +6905,8 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
 
       if (!is_equal)
       {
-        if (field->table->file->can_convert_nocopy(*field, *new_field))
+        if (!dynamic_cast<const Field_vector *>(field) &&
+            field->table->file->can_convert_nocopy(*field, *new_field))
         {
           /*
             New column type differs from the old one, but storage engine can
