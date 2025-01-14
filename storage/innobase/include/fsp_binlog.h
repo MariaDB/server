@@ -202,6 +202,7 @@ extern std::atomic<uint64_t> binlog_cur_written_offset[2];
 extern std::atomic<uint64_t> binlog_cur_end_offset[2];
 
 extern void fsp_binlog_init();
+extern void fsp_binlog_shutdown();
 extern dberr_t fsp_binlog_tablespace_close(uint64_t file_no);
 extern fil_space_t *fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
                                     uint64_t file_no, size_t file_size,
