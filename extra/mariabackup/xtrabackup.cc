@@ -3404,7 +3404,7 @@ static bool xtrabackup_copy_mmap_logfile()
         /* Set the sequence bit (the backed-up log will not wrap around) */
         size_t seqo= recv_sys.offset - seq_offset;
         if (seqo < log_sys.START_OFFSET)
-          seqo+= log_sys.file_size - log_sys.START_OFFSET;
+          seqo+= static_cast<size_t>(log_sys.file_size - log_sys.START_OFFSET);
         const byte *seq= &log_sys.buf[seqo];
         ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.lsn - seq_offset));
         if (!*seq)
