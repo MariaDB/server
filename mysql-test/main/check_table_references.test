@@ -126,3 +126,26 @@ ALTER TABLE t ADD FOREIGN KEY (b) REFERENCES t (a);
 SET FOREIGN_KEY_CHECKS = ON;
 CHECK TABLE t EXTENDED;
 DROP TABLE t;
+
+
+--echo # MDEV-35731 Assertion `(mem_root->flags & 4) == 0' failed upon 2nd
+--echo # execution of CHECK TABLE with FK
+
+create table t1 (a int) engine=innodb;
+set foreign_key_checks = off;
+alter table t1 add foreign key (a) references x(x);
+set foreign_key_checks = on;
+prepare stmt from 'check table t1 extended';
+execute stmt;
+execute stmt;
+
+create table t2 (a int) engine=innodb;
+set foreign_key_checks = off;
+alter table t2 add foreign key (a) references x(x);
+set foreign_key_checks = on;
+prepare stmt from 'check table t1, t2, nosuchtable extended';
+execute stmt;
+execute stmt;
+
+drop table t2;
+drop table t1;
