@@ -36,8 +36,12 @@ int check_openssl_compatibility()
 static uint testing;
 static size_t alloc_size, alloc_count;
 
-static void *coc_malloc(size_t size, const char *f __attribute__((unused)),
-                                             int l __attribute__((unused)))
+static void *coc_malloc(size_t size
+#ifndef LIBRESSL_VERSION_NUMBER
+                        , const char *f __attribute__((unused)),
+                        int l __attribute__((unused))
+#endif
+)
 {
   if (unlikely(testing))
   {
@@ -47,15 +51,22 @@ static void *coc_malloc(size_t size, const char *f __attribute__((unused)),
   return malloc(size);
 }
 
-static void *coc_realloc(void *addr, size_t num,
-                         const char *file __attribute__((unused)),
-                         int line __attribute__((unused)))
+static void *coc_realloc(void *addr, size_t num
+#ifndef LIBRESSL_VERSION_NUMBER
+                         , const char *file __attribute__((unused)),
+                         int line __attribute__((unused))
+#endif
+)
 {
   return realloc(addr, num);
 }
 
-static void coc_free(void *addr, const char *file __attribute__((unused)),
-                    int line __attribute__((unused)))
+static void coc_free(void *addr
+#ifndef LIBRESSL_VERSION_NUMBER
+                     , const char *file __attribute__((unused)),
+                     int line __attribute__((unused))
+#endif
+)
 {
   free(addr);
 }
