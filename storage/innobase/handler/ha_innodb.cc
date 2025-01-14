@@ -19475,18 +19475,14 @@ static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
   "Redo log buffer size in bytes.",
   NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
 
-#ifdef HAVE_INNODB_MMAP
   static constexpr const char *innodb_log_file_mmap_description=
     "Whether ib_logfile0"
-# ifdef HAVE_PMEM
-    " resides in persistent memory or"
-# endif
+    " resides in persistent memory (when supported) or"
     " should initially be memory-mapped";
 static MYSQL_SYSVAR_BOOL(log_file_mmap, log_sys.log_mmap,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   innodb_log_file_mmap_description,
   nullptr, nullptr, log_sys.log_mmap_default);
-#endif
 
 #if defined __linux__ || defined _WIN32
 static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
@@ -19982,9 +19978,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
-#ifdef HAVE_INNODB_MMAP
   MYSQL_SYSVAR(log_file_mmap),
-#endif
 #if defined __linux__ || defined _WIN32
   MYSQL_SYSVAR(log_file_buffering),
 #endif

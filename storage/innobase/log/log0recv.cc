@@ -2285,7 +2285,6 @@ struct recv_buf
   }
 };
 
-#ifdef HAVE_INNODB_MMAP
 /** Ring buffer wrapper for log_sys.buf[]; recv_sys.len == log_sys.file_size */
 struct recv_ring : public recv_buf
 {
@@ -2417,7 +2416,6 @@ struct recv_ring : public recv_buf
     return log_decrypt_buf(iv, tmp + s, b, static_cast<uint>(len));
   }
 };
-#endif
 
 template<typename source>
 void recv_sys_t::rewind(source &l, source &begin) noexcept
@@ -2700,43 +2698,57 @@ restart:
       mach_write_to_4(iv + 8, space_id);
       mach_write_to_4(iv + 12, page_no);
     }
-    got_page_op= !(b & 0x80);
-    if (!got_page_op);
-    else if (storing == BACKUP && srv_operation == SRV_OPERATION_BACKUP)
-    {
-      if (page_no == 0 && (b & 0xf0) == INIT_PAGE && first_page_init)
-        first_page_init(space_id);
-      continue;
-    }
-    else if (storing == YES && file_checkpoint &&
-             space_id != TRX_SYS_SPACE && !srv_is_undo_tablespace(space_id))
-    {
-      recv_spaces_t::iterator i= recv_spaces.lower_bound(space_id);
-      if (i != recv_spaces.end() && i->first == space_id);
-      else if (lsn < file_checkpoint)
-        /* We have not seen all records between the checkpoint and
-        FILE_CHECKPOINT. There should be a FILE_DELETE for this
-        tablespace later. */
-        recv_spaces.emplace_hint(i, space_id, file_name_t("", false));
-      else
-      {
-        const page_id_t id(space_id, page_no);
-        if (!srv_force_recovery)
-        {
-          ib::error() << "Missing FILE_DELETE or FILE_MODIFY for " << id
-                      << " at " << lsn
-                      << "; set innodb_force_recovery=1 to ignore the record.";
-          goto corrupted;
-        }
-        ib::warn() << "Ignoring record for " << id << " at " << lsn;
-        continue;
-      }
-    }
     DBUG_PRINT("ib_log",
                ("scan " LSN_PF ": rec %x len %zu page %u:%u",
                 lsn, b, l - recs + rlen, space_id, page_no));
+    got_page_op= !(b & 0x80);
     if (got_page_op)
     {
+      if (storing == BACKUP)
+      {
+        if (page_no == 0 && (b & 0xf0) == INIT_PAGE && first_page_init)
+          first_page_init(space_id);
+        else if (rlen == 1 && undo_space_trunc)
+        {
+          mach_write_to_4(iv + 8, space_id);
+          mach_write_to_4(iv + 12, page_no);
+          byte eb[1/*type,length*/ + 5/*space_id*/ + 5/*page_no*/ + 1/*rlen*/];
+          if (*l.copy_if_needed(iv, eb, recs, 1) == TRIM_PAGES)
+            undo_space_trunc(space_id);
+        }
+        continue;
+      }
+      if (storing == YES && UNIV_LIKELY(space_id != TRX_SYS_SPACE) &&
+          !srv_is_undo_tablespace(space_id))
+      {
+        ut_ad(file_checkpoint != 0);
+        recv_spaces_t::iterator i= recv_spaces.lower_bound(space_id);
+        if (i != recv_spaces.end() && i->first == space_id);
+        else if (lsn < file_checkpoint)
+          /* We have not seen all records between the checkpoint and
+          FILE_CHECKPOINT. There should be a FILE_DELETE for this
+          tablespace later. */
+          recv_spaces.emplace_hint(i, space_id, file_name_t("", false));
+        else
+        {
+          if (!srv_force_recovery)
+          {
+            sql_print_error("InnoDB: Missing FILE_DELETE or FILE_MODIFY for "
+                            "[page id: space=" UINT32PF
+                            ", page number=" UINT32PF "]"
+                            " at " LSN_PF
+                            "; set innodb_force_recovery=1 to"
+                            " ignore the record.",
+                            space_id, page_no, lsn);
+            goto corrupted;
+          }
+          sql_print_warning("InnoDB: Ignoring record for "
+                            "[page id: space=" UINT32PF
+                            ", page number=" UINT32PF "] at " LSN_PF,
+                            space_id, page_no, lsn);
+          continue;
+        }
+      }
     same_page:
       if (!rlen);
       else if (UNIV_UNLIKELY(l - recs + rlen > srv_page_size))
@@ -2750,13 +2762,11 @@ restart:
       case FREE_PAGE:
         ut_ad(freed.emplace(id).second);
         /* the next record must not be same_page */
-        if (storing != BACKUP) last_offset= 1;
+        last_offset= 1;
         goto free_or_init_page;
       case INIT_PAGE:
-        if (storing != BACKUP) last_offset= FIL_PAGE_TYPE;
+        last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-        if (storing == BACKUP)
-          continue;
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
         store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
@@ -2801,17 +2811,6 @@ restart:
           continue;
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
-        if (storing == BACKUP)
-        {
-          if (rlen == 1 && undo_space_trunc)
-          {
-            cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
-            if (*cl == TRIM_PAGES)
-              undo_space_trunc(space_id);
-          }
-          continue;
-        }
-
         cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         if (rlen == 1 && *cl == TRIM_PAGES)
         {
@@ -2825,10 +2824,9 @@ restart:
           trim({space_id, 0}, start_lsn);
           truncated_undo_spaces[space_id - srv_undo_space_id_start]=
             { start_lsn, page_no };
-          if (storing != BACKUP)
-            /* the next record must not be same_page */
-            last_offset= 1;
-          else if (undo_space_trunc)
+          /* the next record must not be same_page */
+          last_offset= 1;
+          if (undo_space_trunc)
             undo_space_trunc(space_id);
           continue;
         }
@@ -2852,8 +2850,6 @@ restart:
       case WRITE:
       case MEMMOVE:
       case MEMSET:
-        if (storing == BACKUP)
-          continue;
         if (storing == NO && UNIV_LIKELY(page_no != 0))
           /* fil_space_set_recv_size_and_flags() is mandatory for storing==NO.
           It is only applicable to page_no == 0. Other than that, we can just
@@ -3152,7 +3148,6 @@ template
 recv_sys_t::parse_mtr_result
 recv_sys_t::parse_mtr<recv_sys_t::store::BACKUP>(bool) noexcept;
 
-#ifdef HAVE_INNODB_MMAP
 template<recv_sys_t::store storing>
 recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap(bool if_exists) noexcept
 {
@@ -3173,7 +3168,6 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap(bool if_exists) noexcept
 template
 recv_sys_t::parse_mtr_result
 recv_sys_t::parse_mmap<recv_sys_t::store::BACKUP>(bool) noexcept;
-#endif
 
 /** Apply the hashed log records to the page, if the page lsn is less than the
 lsn of a log record.

@@ -1879,15 +1879,11 @@ skip_monitors:
 	if (srv_print_verbose_log) {
 		sql_print_information("InnoDB: "
 				      "log sequence number " LSN_PF
-#ifdef HAVE_INNODB_MMAP
 				      "%s"
-#endif
 				      "; transaction id " TRX_ID_FMT,
 				      recv_sys.lsn,
-#ifdef HAVE_INNODB_MMAP
 				      log_sys.is_mmap()
 				      ? " (memory-mapped)" : "",
-#endif
 				      trx_sys.get_max_trx_id());
 	}
 

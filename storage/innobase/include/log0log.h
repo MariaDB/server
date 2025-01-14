@@ -282,7 +282,6 @@ public:
   uint write_size;
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
-#ifdef HAVE_INNODB_MMAP
   /** whether the memory-mapped interface is enabled for the log */
   my_bool log_mmap;
   /** the default value of log_mmap */
@@ -294,7 +293,6 @@ public:
 # else /* an unnecessary read-ahead of a large ib_logfile0 is a risk */
 # endif
     false;
-#endif
 #if defined __linux__ || defined _WIN32
   /** whether file system caching is enabled for the log */
   my_bool log_buffered;
@@ -347,11 +345,7 @@ public:
   void set_buf_free(size_t f) noexcept
   { ut_ad(f < buf_free_LOCK); buf_free.store(f, std::memory_order_relaxed); }
 
-#ifdef HAVE_INNODB_MMAP
   bool is_mmap() const noexcept { return !flush_buf; }
-#else
-  static constexpr bool is_mmap() { return false; }
-#endif
 
   /** @return whether a handle to the log is open;
   is_mmap() && !is_opened() holds for PMEM */
@@ -412,14 +406,9 @@ public:
   @return whether the memory allocation succeeded */
   bool attach(log_file_t file, os_offset_t size);
 
-#ifdef HAVE_INNODB_MMAP
   /** Disable memory-mapped access (update log_mmap) */
   void clear_mmap();
   void close_file(bool really_close= true);
-#else
-  static void clear_mmap() {}
-  void close_file();
-#endif
 #if defined __linux__ || defined _WIN32
   /** Try to enable or disable file system caching (update log_buffered) */
   void set_buffered(bool buffered);

@@ -1,0 +1,4 @@
+[pread]
+--innodb-log-file-mmap=OFF
+[mmap]
+--innodb-log-file-mmap=ON
