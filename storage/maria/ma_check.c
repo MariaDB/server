@@ -1185,7 +1185,7 @@ static int check_keys_in_record(HA_CHECK *param, MARIA_HA *info, int extend,
 {
   MARIA_SHARE *share= info->s;
   MARIA_KEYDEF *keyinfo;
-  char llbuff[22+4];
+  char llbuff[21*2];
   uint keynr;
 
   param->tmp_record_checksum+= (ha_checksum) start_recpos;
