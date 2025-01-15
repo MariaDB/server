@@ -2232,7 +2232,7 @@ end_loop:
   if (wait_lock)
   {
   abort_wait:
-    lock_sys_t::cancel<false>(trx, wait_lock);
+    lock_sys.cancel<false>(trx, wait_lock);
     lock_sys.deadlock_check();
   }
 
@@ -6431,7 +6431,7 @@ static void lock_release_autoinc_locks(trx_t *trx)
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
 template <bool from_deadlock= false, bool inner_trx_lock= true>
-void lock_cancel_waiting_and_release(lock_t *lock)
+static void lock_cancel_waiting_and_release(lock_t *lock) noexcept
 {
   lock_sys.assert_locked(*lock);
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
@@ -6475,18 +6475,18 @@ void lock_cancel_waiting_and_release(lock_t *lock)
     trx->mutex_unlock();
 }
 
-void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
+inline void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx) noexcept
 {
-  lock_sys.wr_lock(SRW_LOCK_CALL);
-  mysql_mutex_lock(&lock_sys.wait_mutex);
+  wr_lock(SRW_LOCK_CALL);
+  mysql_mutex_lock(&wait_mutex);
   if (lock_t *lock= trx->lock.wait_lock)
   {
     /* check if victim is still waiting */
     if (lock->is_waiting())
       lock_cancel_waiting_and_release(lock);
   }
-  lock_sys.wr_unlock();
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  wr_unlock();
+  mysql_mutex_unlock(&wait_mutex);
 }
 
 #ifdef WITH_WSREP
@@ -6510,10 +6510,10 @@ void lock_sys_t::cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx)
 @retval DB_DEADLOCK   if trx->lock.was_chosen_as_deadlock_victim was set
 @retval DB_LOCK_WAIT  if the lock was canceled */
 template<bool check_victim>
-dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock)
+dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock) noexcept
 {
   DEBUG_SYNC_C("lock_sys_t_cancel_enter");
-  mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+  mysql_mutex_assert_owner(&wait_mutex);
   ut_ad(trx->state == TRX_STATE_ACTIVE);
   /* trx->lock.wait_lock may be changed by other threads as long as
   we are not holding lock_sys.latch.
@@ -6521,27 +6521,27 @@ dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock)
   So, trx->lock.wait_lock==lock does not necessarily hold, but both
   pointers should be valid, because other threads cannot assign
   trx->lock.wait_lock=nullptr (or invalidate *lock) while we are
-  holding lock_sys.wait_mutex. Also, the type of trx->lock.wait_lock
+  holding wait_mutex. Also, the type of trx->lock.wait_lock
   (record or table lock) cannot be changed by other threads. So, it is
-  safe to call lock->is_table() while not holding lock_sys.latch. If
-  we have to release and reacquire lock_sys.wait_mutex, we must reread
+  safe to call lock->is_table() while not holding latch. If
+  we have to release and reacquire wait_mutex, we must reread
   trx->lock.wait_lock. We must also reread trx->lock.wait_lock after
-  lock_sys.latch acquiring, as it can be changed to not-null in lock moving
-  functions even if we hold lock_sys.wait_mutex. */
+  latch acquiring, as it can be changed to not-null in lock moving
+  functions even if we hold wait_mutex. */
   dberr_t err= DB_SUCCESS;
   /* This would be too large for a memory transaction, except in the
   DB_DEADLOCK case, which was already tested in lock_trx_handle_wait(). */
   if (lock->is_table())
   {
-    if (!lock_sys.rd_lock_try())
+    if (!rd_lock_try())
     {
-      mysql_mutex_unlock(&lock_sys.wait_mutex);
-      lock_sys.rd_lock(SRW_LOCK_CALL);
-      mysql_mutex_lock(&lock_sys.wait_mutex);
+      mysql_mutex_unlock(&wait_mutex);
+      rd_lock(SRW_LOCK_CALL);
+      mysql_mutex_lock(&wait_mutex);
       lock= trx->lock.wait_lock;
-      /* Even if waiting lock was cancelled while lock_sys.wait_mutex was
-      unlocked, we need to return deadlock error if transaction was chosen
-      as deadlock victim to rollback it */
+      /* Even if the waiting lock was cancelled while we did not hold
+      wait_mutex, we need to return deadlock error if the transaction
+      was chosen as deadlock victim to be rolled back. */
       if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
         err= DB_DEADLOCK;
       else if (lock)
@@ -6552,10 +6552,10 @@ dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock)
       /* This function is invoked from the thread which executes the
       transaction. Table locks are requested before record locks. Some other
       transaction can't change trx->lock.wait_lock from table to record for the
-      current transaction at this point, because the current transaction has not
-      requested record locks yet. There is no need to move any table locks by
-      other threads. And trx->lock.wait_lock can't be set to null while we are
-      holding lock_sys.wait_mutex. That's why there is no need to reload
+      current transaction at this point, because the current transaction has
+      not requested record locks yet. There is no need to move any table locks
+      by other threads. And trx->lock.wait_lock can't be set to null while we
+      are holding wait_mutex. That's why there is no need to reload
       trx->lock.wait_lock here. */
       ut_ad(lock == trx->lock.wait_lock);
 resolve_table_lock:
@@ -6563,11 +6563,11 @@ resolve_table_lock:
       if (!table->lock_mutex_trylock())
       {
         /* The correct latching order is:
-        lock_sys.latch, table->lock_latch, lock_sys.wait_mutex.
-        Thus, we must release lock_sys.wait_mutex for a blocking wait. */
-        mysql_mutex_unlock(&lock_sys.wait_mutex);
+        latch, table->lock_latch, wait_mutex.
+        Thus, we must release wait_mutex for a blocking wait. */
+        mysql_mutex_unlock(&wait_mutex);
         table->lock_mutex_lock();
-        mysql_mutex_lock(&lock_sys.wait_mutex);
+        mysql_mutex_lock(&wait_mutex);
         /* Cache trx->lock.wait_lock under the corresponding latches. */
         lock= trx->lock.wait_lock;
         if (!lock)
@@ -6594,20 +6594,20 @@ resolve_table_lock:
 retreat:
       table->lock_mutex_unlock();
     }
-    lock_sys.rd_unlock();
+    rd_unlock();
   }
   else
   {
     /* To prevent the record lock from being moved between pages
-    during a page split or merge, we must hold exclusive lock_sys.latch. */
-    if (!lock_sys.wr_lock_try())
+    during a page split or merge, we must hold exclusive latch. */
+    if (!wr_lock_try())
     {
-      mysql_mutex_unlock(&lock_sys.wait_mutex);
-      lock_sys.wr_lock(SRW_LOCK_CALL);
-      mysql_mutex_lock(&lock_sys.wait_mutex);
+      mysql_mutex_unlock(&wait_mutex);
+      wr_lock(SRW_LOCK_CALL);
+      mysql_mutex_lock(&wait_mutex);
       /* Cache trx->lock.wait_lock under the corresponding latches. */
       lock= trx->lock.wait_lock;
-      /* Even if waiting lock was cancelled while lock_sys.wait_mutex was
+      /* Even if waiting lock was cancelled while wait_mutex was
       unlocked, we need to return deadlock error if transaction was chosen
       as deadlock victim to rollback it */
       if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
@@ -6631,13 +6631,13 @@ resolve_record_lock:
       rpl.rpl_parallel_optimistic_xa_lsu_off */
       err= DB_LOCK_WAIT;
     }
-    lock_sys.wr_unlock();
+    wr_unlock();
   }
 
   return err;
 }
 
-template dberr_t lock_sys_t::cancel<false>(trx_t *, lock_t *);
+template dberr_t lock_sys_t::cancel<false>(trx_t *, lock_t *) noexcept;
 
 /*********************************************************************//**
 Unlocks AUTO_INC type locks that were possibly reserved by a trx. This
@@ -6689,7 +6689,7 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
     err= DB_DEADLOCK;
   /* Cache trx->lock.wait_lock to avoid unnecessary atomic variable load */
   else if (lock_t *wait_lock= trx->lock.wait_lock)
-    err= lock_sys_t::cancel<true>(trx, wait_lock);
+    err= lock_sys.cancel<true>(trx, wait_lock);
   lock_sys.deadlock_check();
   mysql_mutex_unlock(&lock_sys.wait_mutex);
   return err;
@@ -7153,7 +7153,7 @@ static lock_t *Deadlock::check_and_resolve(trx_t *trx, lock_t *wait_lock)
     return wait_lock;
 
   if (wait_lock)
-    lock_sys_t::cancel<false>(trx, wait_lock);
+    lock_sys.cancel<false>(trx, wait_lock);
 
   lock_sys.deadlock_check();
   return reinterpret_cast<lock_t*>(-1);

@@ -869,7 +869,7 @@ public:
   @retval DB_DEADLOCK   if trx->lock.was_chosen_as_deadlock_victim was set
   @retval DB_LOCK_WAIT  if the lock was canceled */
   template<bool check_victim>
-  static dberr_t cancel(trx_t *trx, lock_t *lock);
+  dberr_t cancel(trx_t *trx, lock_t *lock) noexcept;
 
   /** Note that a record lock wait started */
   inline void wait_start();
@@ -924,7 +924,7 @@ public:
   void prdt_page_free_from_discard(const page_id_t id, bool all= false);
 
   /** Cancel possible lock waiting for a transaction */
-  static void cancel_lock_wait_for_trx(trx_t *trx);
+  inline void cancel_lock_wait_for_trx(trx_t *trx) noexcept;
 #ifdef WITH_WSREP
   /** Cancel lock waiting for a wsrep BF abort. */
   static void cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx);
