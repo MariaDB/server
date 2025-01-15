@@ -32,7 +32,7 @@
 #define VERSION_my_print_error          0x0100
 #define VERSION_my_sha1                 0x0101
 #define VERSION_my_sha2                 0x0100
-#define VERSION_my_snprintf             0x0100
+#define VERSION_my_snprintf             0x0200
 #define VERSION_progress_report         0x0100
 #define VERSION_thd_alloc               0x0200
 #define VERSION_thd_autoinc             0x0100
