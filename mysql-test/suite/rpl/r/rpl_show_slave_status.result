@@ -67,6 +67,8 @@ Slave_DDL_Groups	#
 Slave_Non_Transactional_Groups	#
 Slave_Transactional_Groups	#
 Replicate_Rewrite_DB	#
+Connects_Tried	#
+Primary_Retry_Count	#
 *
 * When modifying this test after adding a column to SHOW SLAVE STATUS,
 * _only_ additions at the end are allowed, the column number of existing

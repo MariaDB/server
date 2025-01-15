@@ -5,7 +5,7 @@
 
 --disable_query_log
 CALL mtr.add_suppression('SET @master_heartbeat_period to master failed with error');
-CALL mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
+CALL mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: Replica I/O thread: register on primary failed, reconnecting to try again');
 call mtr.add_suppression("Could not read packet:.* errno: 11");
 --enable_query_log
 

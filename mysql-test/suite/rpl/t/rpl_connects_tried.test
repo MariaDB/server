@@ -1,0 +1,52 @@
+# This test is based on `rpl_get_master_version_and_clock`.
+--SOURCE include/have_debug.inc
+--SOURCE include/have_debug_sync.inc
+--SOURCE include/have_log_bin.inc # The test is agnostic of binlog formats.
+--SOURCE include/master-slave.inc
+
+--LET $rpl_server_number= 1
+--LET $status_items= Slave_IO_Running
+
+#--CALL mtr.add_suppression("Slave I/O: Master command COM_REGISTER_SLAVE failed: .*")
+#--CALL mtr.add_suppression("Slave I/O: .* failed with error: Lost connection to MySQL server at 'reading initial communication packet'")
+#--CALL mtr.add_suppression("Fatal error: The slave I/O thread stops because master and slave have equal MySQL server ids; .*")
+#--CALL mtr.add_suppression("Slave I/O thread .* register on master")
+
+--CONNECTION slave
+--SOURCE include/stop_slave.inc
+
+--LET @original_master_connect_retry= `SELECT master_connect_retry FROM information_schema.SLAVE_STATUS`
+CHANGE MASTER TO master_connect_retry= 1;
+--LET $original_dbug= @@GLOBAL.debug_dbug
+SET @@GLOBAL.debug_dbug= "d,debug_lock.before_get_UNIX_TIMESTAMP";
+
+--SOURCE include/start_slave.inc
+# The replica will hang in `get_master_version_and_clock`.
+
+--SOURCE include/rpl_stop_server.inc # shut the primary down
+--CONNECTION slave
+SET DEBUG_SYNC= "now SIGNAL signal.get_unix_timestamp";
+SET @@GLOBAL.debug_dbug= original_dbug;
+
+--LET $slave_io_error_is_nonfatal= 1
+# '2013' CR_SERVER_LOST
+# '2003' CR_CONN_HOST_ERROR
+# '2002' CR_CONNECTION_ERROR
+# '2006' CR_SERVER_GONE_ERROR
+# '1053' ER_SERVER_SHUTDOWN
+--LET $slave_io_errno= 1053, 2002, 2003, 2006, 2013
+--SOURCE include/wait_for_slave_io_error.inc
+
+SOURCE include/show_slave_status.inc;
+SLEEP 2;
+SOURCE include/show_slave_status.inc;
+
+--SOURCE include/rpl_start_server.inc
+--CONECTION slave
+CHANGE MASTER TO master_connect_retry= 1;
+# `wait_for_slave_io_to_start.inc` fails if the IO thread has an error.
+--LET $slave_param= Slave_IO_Running
+--LET $slave_param_value= Yes
+--SOURCE include/wait_for_slave_param.inc
+#--SET DEBUG_SYNC= 'RESET'
+SOURCE include/rpl_end.inc;

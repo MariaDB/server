@@ -85,6 +85,8 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+Connects_Tried	0
+Primary_Retry_Count	100000
 Connection_name	slave2
 Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
@@ -150,6 +152,8 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+Connects_Tried	0
+Primary_Retry_Count	100000
 "Command: STOP ALL SLAVES --> STOP ALL REPLICAS"
 STOP ALL REPLICAS;
 Warnings:

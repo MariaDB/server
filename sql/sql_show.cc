@@ -9201,14 +9201,16 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   Constants for columns that are present in
   SHOW ALL SLAVES STATUS
   that are not in SHOW SLAVE STATUS. Specifically, columns 0 and 1, and
-  everything at and above 56.
+  everything between 56 and 64 inclusive.
     0: Connection_name
     1: Slave_SQL_State
     56: Retried_transactions
+    64: Master_Slave_time_diff
 */
 #define SLAVE_STATUS_COL_CONNECTION_NAME 0
 #define SLAVE_STATUS_COL_SLAVE_SQL_STATE 1
 #define SLAVE_STATUS_COL_RETRIED_TRANSACTIONS 56
+#define SLAVE_STATUS_COL_MASTER_SLAVE_TIME_DIFF 64
 
 static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
@@ -9220,18 +9222,13 @@ static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (uint i=0; !field_info->end_marker(); field_info++, i++)
   {
     if (all_slaves ||
-        // not SLAVE_STATUS_COL_CONNECTION_NAME,
-        // SLAVE_STATUS_COL_SLAVE_SQL_STATE
-        // and less
-        // SLAVE_STATUS_COL_RETRIED_TRANSACTIONS
-        !(i <= SLAVE_STATUS_COL_SLAVE_SQL_STATE ||
-          i >= SLAVE_STATUS_COL_RETRIED_TRANSACTIONS))
+        (i > SLAVE_STATUS_COL_SLAVE_SQL_STATE &&
+         i < SLAVE_STATUS_COL_RETRIED_TRANSACTIONS) ||
+        i > SLAVE_STATUS_COL_MASTER_SLAVE_TIME_DIFF)
     {
       LEX_CSTRING field_name= field_info->name();
       Item_field *field= new (thd->mem_root)
         Item_field(thd, context, field_name);
-      DBUG_ASSERT(all_slaves || (i > SLAVE_STATUS_COL_SLAVE_SQL_STATE &&
-                                 i < SLAVE_STATUS_COL_RETRIED_TRANSACTIONS));
       if (!field || add_item_to_list(thd, field))
         return 1;
     }
@@ -10710,6 +10707,8 @@ ST_FIELD_INFO slave_status_info[]=
   Column("Master_last_event_time", Datetime(0), NULLABLE),
   Column("Slave_last_event_time", Datetime(0), NULLABLE),
   Column("Master_Slave_time_diff", SLonglong(10), NULLABLE),
+  Column("Connects_Tried", ULonglong(20), NOT_NULL),
+  Column("Primary_Retry_Count", ULonglong(20), NOT_NULL),
   CEnd()
 };
 

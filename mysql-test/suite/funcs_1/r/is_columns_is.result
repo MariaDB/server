@@ -390,6 +390,7 @@ def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	4096	1228
 def	information_schema	SESSION_VARIABLES	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(4096)			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Connection_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Connects_Tried	66	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Connect_Retry	7	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10)			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Executed_log_entries	59	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Exec_Master_Log_Pos	24	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL	NO	NO
@@ -419,6 +420,7 @@ def	information_schema	SLAVE_STATUS	Master_SSL_Verify_Server_Cert	36	NULL	NO	var
 def	information_schema	SLAVE_STATUS	Master_User	5	NULL	YES	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(384)			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Max_relay_log_size	58	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Parallel_Mode	49	NULL	NO	varchar	15	45	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(15)			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Primary_Retry_Count	67	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Read_Master_Log_Pos	9	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Relay_Log_File	10	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Relay_Log_Pos	11	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL	NO	NO
@@ -1129,6 +1131,8 @@ NULL	information_schema	SLAVE_STATUS	Slave_heartbeat_period	float	NULL	NULL	NULL
 NULL	information_schema	SLAVE_STATUS	Master_last_event_time	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	SLAVE_STATUS	Slave_last_event_time	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	SLAVE_STATUS	Master_Slave_time_diff	bigint	NULL	NULL	NULL	NULL	bigint(10)
+NULL	information_schema	SLAVE_STATUS	Connects_Tried	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	information_schema	SLAVE_STATUS	Primary_Retry_Count	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	information_schema	SPATIAL_REF_SYS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
 3.0000	information_schema	SPATIAL_REF_SYS	AUTH_NAME	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	int	NULL	NULL	NULL	NULL	int(5)

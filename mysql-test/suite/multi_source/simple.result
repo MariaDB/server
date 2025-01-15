@@ -83,6 +83,8 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+Connects_Tried	0
+Primary_Retry_Count	100000
 Connection_name	slave2
 Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
@@ -148,6 +150,8 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+Connects_Tried	0
+Primary_Retry_Count	100000
 #
 # MDEV:16437: merge 5.7 P_S replication instrumentation and tables
 #
@@ -269,6 +273,8 @@ Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
+Connects_Tried	0
+Primary_Retry_Count	100000
 reset slave 'slave1';
 show all slaves status;
 Connection_name	slave1
@@ -336,6 +342,8 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+Connects_Tried	0
+Primary_Retry_Count	100000
 Connection_name	slave2
 Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
@@ -401,6 +409,8 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+Connects_Tried	0
+Primary_Retry_Count	100000
 reset slave 'slave1' all;
 show all slaves status;
 Connection_name	slave2
@@ -468,6 +478,8 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+Connects_Tried	0
+Primary_Retry_Count	100000
 stop all slaves;
 Warnings:
 Note	1938	SLAVE 'slave2' stopped
@@ -537,6 +549,8 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+Connects_Tried	0
+Primary_Retry_Count	100000
 stop all slaves;
 #
 # MDEV-21858: START/STOP ALL SLAVES does not return access errors
