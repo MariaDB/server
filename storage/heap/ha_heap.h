@@ -59,7 +59,7 @@ public:
             HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER | HA_READ_RANGE :
             HA_ONLY_WHOLE_INDEX | HA_KEY_SCAN_NOT_ROR);
   }
-  const key_map *keys_to_use_for_scanning() override { return &btree_keys; }
+  const key_map *keys_to_use_for_scanning() override;
   uint max_supported_keys()          const override { return MAX_KEY; }
   uint max_supported_key_part_length() const override { return MAX_KEY_LENGTH; }
   IO_AND_CPU_COST scan_time() override;
@@ -121,5 +121,4 @@ public:
   int find_unique_row(uchar *record, uint unique_idx) override;
 private:
   void update_key_stats();
-  void set_keys_for_scanning(void);
 };
