@@ -1732,7 +1732,7 @@ static struct my_option my_long_options[] =
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"vertical", 'E', "Print the output of a query (rows) vertically.",
    &vertical, &vertical, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"wait", 'w', "Wait and retry if connection is down.", 0, 0, 0, GET_NO_ARG,
+  {"wait", 'w', "Wait and retry if connection is down.", &wait_flag, 0, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"xml", 'X', "Produce XML output.", &opt_xml, &opt_xml, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
