@@ -413,7 +413,7 @@ dberr_t Arch_File_Ctx::open(bool read_only, lsn_t start_lsn, uint file_index,
   }
 
   m_file = os_file_create(innodb_arch_file_key, m_name_buf, option,
-      OS_FILE_NORMAL, OS_CLONE_LOG_FILE, read_only, &success);
+      OS_CLONE_LOG_FILE, read_only, &success);
 
   if (!success) {
     return (DB_CANNOT_OPEN_FILE);

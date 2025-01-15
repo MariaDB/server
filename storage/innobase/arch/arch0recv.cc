@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
  *******************************************************/
 
 #include "arch0recv.h"
+#include "sql_class.h"
 
 dberr_t Arch_Page_Sys::recover() {
   DBUG_PRINT("page_archiver", ("Crash Recovery"));
@@ -41,9 +42,8 @@ dberr_t Arch_Page_Sys::recover() {
 
   auto err = arch_recv.init_dblwr();
 
-  if (err == DB_FILE_READ_BEYOND_SIZE) {
-    ib::error(ER_IB_ERR_PAGE_ARCH_DBLWR_INIT_FAILED);
-  }
+  if (err != DB_SUCCESS)
+    sql_print_error("Page Archiver's doublewrite initialisation failed");
 
   /* Scan for group directories and files */
   if (!arch_recv.scan_for_groups()) {
@@ -54,15 +54,14 @@ dberr_t Arch_Page_Sys::recover() {
   err = arch_recv.recover();
 
   if (err != DB_SUCCESS) {
-    ib::error(ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED);
+    sql_print_error(ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED));
     return err;
   }
 
   err = arch_recv.load_archiver();
 
-  if (err != DB_SUCCESS) {
-    ib::error(ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED);
-  }
+  if (err != DB_SUCCESS)
+    sql_print_error(ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED));
 
   return err;
 }
@@ -104,7 +103,7 @@ dberr_t Arch_Dblwr_Ctx::read_file() {
   }
 
   if (m_file_ctx.get_phy_size() < m_file_size) {
-    return DB_FILE_READ_BEYOND_SIZE;
+    return DB_ERROR;
   }
 
   ut_ad(m_buf != nullptr);
@@ -169,7 +168,7 @@ void Arch_Dblwr_Ctx::validate_and_fill_blocks(size_t num_files) {
     }
 
     dblwr_block.m_block = dblwr_block_offset;
-    dblwr_block.m_block_num = block_num;
+    dblwr_block.m_block_num = static_cast<uint32_t>(block_num);
 
     m_blocks.push_back(dblwr_block);
   }
@@ -201,7 +200,8 @@ void Arch_Page_Sys::Recovery::read_group_dirs(const std::string file_path) {
     group_info.m_start_lsn = start_lsn;
 
   } catch (const std::exception &) {
-    ib::error(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT) << ARCH_PAGE_FILE;
+    sql_print_error(ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT),
+                    ARCH_PAGE_FILE);
     return;
   }
 }
@@ -232,14 +232,15 @@ void Arch_Page_Sys::Recovery::read_group_files(const std::string dir_path,
   try {
     size_t found = file_path.find(ARCH_PAGE_FILE);
 
-    size_t file_index = static_cast<uint>(
+    auto file_index = static_cast<uint>(
         std::stoi(file_path.substr(found + strlen(ARCH_PAGE_FILE))));
 
     if (info.m_file_start_index > file_index) {
       info.m_file_start_index = file_index;
     }
   } catch (const std::exception &) {
-    ib::error(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT) << ARCH_PAGE_FILE;
+    sql_print_error(ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT),
+                    ARCH_PAGE_FILE);
     return;
   }
 }
@@ -254,9 +255,11 @@ bool Arch_Page_Sys::Recovery::scan_for_groups() {
     return false;
   }
 
-  Dir_Walker::walk(m_arch_dir_name, false, [&](const std::string file_path) {
+  auto read_directory_fn= [&](const char *, const char *file_path)
+  {
     read_group_dirs(file_path);
-  });
+  };
+  os_file_scan_directory(m_arch_dir_name.c_str(), read_directory_fn, false);
 
   if (m_dir_group_info_map.size() == 0) {
     return false;
@@ -264,9 +267,12 @@ bool Arch_Page_Sys::Recovery::scan_for_groups() {
 
   for (auto it = m_dir_group_info_map.begin(); it != m_dir_group_info_map.end();
        ++it) {
-    Dir_Walker::walk(it->first, true, [&](const std::string file_path) {
-      read_group_files(it->first, file_path);
-    });
+    auto read_files_fn= [&](const char *dir_path, const char *file_path)
+    {
+      read_group_files(dir_path, file_path);
+    };
+    /* TODO: Implement Dir_Walker::walk(recursive=true). */
+    os_file_scan_directory(it->first.c_str(), read_files_fn, false);
   }
 
   ut_d(print());
@@ -560,6 +566,7 @@ void Arch_File_Ctx::Recovery::reset_print(uint file_start_index) {
   DBUG_PRINT("page_archiver", ("Latest stop points"));
   uint file_index = 0;
   for (auto stop_point : m_file_ctx.m_stop_points) {
+    ut_ad(stop_point);
     DBUG_PRINT("page_archiver",
                ("\tFile %u : %" PRIu64 "", file_index, stop_point));
     ++file_index;
@@ -632,7 +639,7 @@ dberr_t Arch_File_Ctx::Recovery::parse_stop_points(bool last_file,
   }
 
   if (phy_size < offset + ARCH_PAGE_BLK_SIZE) {
-    return DB_FILE_READ_BEYOND_SIZE;
+    return DB_ERROR;
   }
 
   auto err = m_file_ctx.read(buf, offset, ARCH_PAGE_BLK_SIZE);
@@ -650,8 +657,9 @@ dberr_t Arch_File_Ctx::Recovery::parse_stop_points(bool last_file,
   }
 
   info.m_write_pos.init();
-  info.m_write_pos.m_block_num = Arch_Block::get_block_number(buf);
-  info.m_write_pos.m_offset =
+  info.m_write_pos.m_block_num=
+      static_cast<uint32_t>(Arch_Block::get_block_number(buf));
+  info.m_write_pos.m_offset=
       Arch_Block::get_data_len(buf) + ARCH_PAGE_BLK_HEADER_LENGTH;
 
   return err;
@@ -665,7 +673,7 @@ dberr_t Arch_File_Ctx::Recovery::parse_reset_points(
   byte buf[ARCH_PAGE_BLK_SIZE];
 
   if (m_file_ctx.get_phy_size() < ARCH_PAGE_BLK_SIZE) {
-    return DB_FILE_READ_BEYOND_SIZE;
+    return DB_ERROR;
   }
 
   /* Read reset block to fetch reset points. */
@@ -675,7 +683,7 @@ dberr_t Arch_File_Ctx::Recovery::parse_reset_points(
     return err;
   }
 
-  auto block_num = Arch_Block::get_block_number(buf);
+  auto block_num = static_cast<uint32_t>(Arch_Block::get_block_number(buf));
   auto data_len = Arch_Block::get_data_len(buf);
 
   if (file_index != block_num) {

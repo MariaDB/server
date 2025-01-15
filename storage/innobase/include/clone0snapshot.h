@@ -881,7 +881,7 @@ class Clone_Snapshot {
   /** Get chunk size
   @return chunk size in pages */
   inline uint32_t chunk_size() const {
-    auto size = static_cast<uint32_t>(ut_2_exp(m_chunk_size_pow2));
+    auto size = static_cast<uint32_t>(1 << m_chunk_size_pow2);
     return size;
   }
 
@@ -889,7 +889,7 @@ class Clone_Snapshot {
   @return block size in pages */
   uint32_t block_size() {
     ut_a(m_block_size_pow2 <= SNAPSHOT_MAX_BLOCK_SIZE_POW2);
-    auto size = static_cast<uint32_t>(ut_2_exp(m_block_size_pow2));
+    auto size = static_cast<uint32_t>(1 << m_block_size_pow2);
 
     return size;
   }
