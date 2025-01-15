@@ -451,12 +451,13 @@ public:
   }
 
   /** Notify the start of a bulk insert operation
-  @param table table to do bulk operation */
-  void start_bulk_insert(dict_table_t *table)
+  @param table table to do bulk operation
+  @param also_primary start bulk insert operation for primary index */
+  void start_bulk_insert(dict_table_t *table, bool also_primary)
   {
     first|= BULK;
     if (!table->is_temporary())
-      bulk_store= new row_merge_bulk_t(table);
+      bulk_store= new row_merge_bulk_t(table, also_primary);
   }
 
   /** Notify the end of a bulk insert operation */
@@ -509,6 +510,12 @@ public:
   bool bulk_buffer_exist() const
   {
     return bulk_store && is_bulk_insert();
+  }
+
+  /** @return whether InnoDB has to skip sort for clustered index */
+  bool skip_sort_pk() const
+  {
+    return bulk_store && !bulk_store->m_sort_primary_key;
   }
 
   /** Free bulk insert operation */
@@ -1152,16 +1159,21 @@ public:
     return false;
   }
 
-  /** @return logical modification time of a table only
-  if the table has bulk buffer exist in the transaction */
-  trx_mod_table_time_t *check_bulk_buffer(dict_table_t *table)
+  /**
+  @return logical modification time of a table
+  @retval nullptr if the table doesn't have bulk buffer or
+  can skip sorting for primary key */
+  trx_mod_table_time_t *use_bulk_buffer(dict_index_t *index) noexcept
   {
     if (UNIV_LIKELY(!bulk_insert))
       return nullptr;
-    ut_ad(table->skip_alter_undo || !check_unique_secondary);
-    ut_ad(table->skip_alter_undo || !check_foreigns);
-    auto it= mod_tables.find(table);
+    ut_ad(index->table->skip_alter_undo || !check_unique_secondary);
+    ut_ad(index->table->skip_alter_undo || !check_foreigns);
+    auto it= mod_tables.find(index->table);
     if (it == mod_tables.end() || !it->second.bulk_buffer_exist())
+      return nullptr;
+    /* Avoid using bulk buffer for load statement */
+    if (index->is_clust() && it->second.skip_sort_pk())
       return nullptr;
     return &it->second;
   }

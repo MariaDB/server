@@ -5053,7 +5053,9 @@ dberr_t row_merge_bulk_t::alloc_block()
   return DB_SUCCESS;
 }
 
-row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table)
+row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table,
+                                   bool sort_primary_key)
+  : m_sort_primary_key(sort_primary_key)
 {
   ulint n_index= 0;
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
@@ -5179,6 +5181,33 @@ dberr_t row_merge_bulk_t::write_to_tmp_file(ulint index_no)
   return DB_SUCCESS;
 }
 
+ATTRIBUTE_COLD
+dberr_t row_merge_bulk_t::load_one_row(trx_t *trx)
+{
+  /* Load the single row into the clustered index. BtrBulk has
+  nothing to do for bulk insert here and used only as a interface
+  to insert single row. */
+  dict_index_t *index= m_merge_buf[0].index;
+  BtrBulk btr_bulk(index, trx);
+  ut_ad(m_merge_buf[0].n_tuples == 1);
+  dberr_t err= row_merge_insert_index_tuples(index, index->table,
+                                             OS_FILE_CLOSED, nullptr,
+                                             &m_merge_buf[0], &btr_bulk,
+                                             0, 0, 0, nullptr,
+                                             index->table->space_id,
+                                             nullptr,
+                                             m_blob_file.fd == OS_FILE_CLOSED
+                                             ? nullptr : &m_blob_file);
+  if (err != DB_SUCCESS)
+    trx->error_info= index;
+  else if (index->table->persistent_autoinc)
+    btr_write_autoinc(index, 1);
+  err= btr_bulk.finish(err);
+  if (err == DB_SUCCESS && index->is_clust())
+    index->table->stat_n_rows= 1;
+  return err;
+}
+
 dberr_t row_merge_bulk_t::bulk_insert_buffered(const dtuple_t &row,
                                                const dict_index_t &ind,
                                                trx_t *trx)
@@ -5254,6 +5283,8 @@ add_to_buf:
   }
 
 func_exit:
+  if (!m_sort_primary_key && ind.is_clust())
+    err= load_one_row(trx);
   if (large_tuple_heap)
     mem_heap_free(large_tuple_heap);
   return err;
@@ -5325,9 +5356,16 @@ func_exit:
 
 dberr_t row_merge_bulk_t::write_to_table(dict_table_t *table, trx_t *trx)
 {
-  ulint i= 0;
-  for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
-       index; index= UT_LIST_GET_NEXT(indexes, index))
+  dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
+  ut_ad(index->is_clust());
+  ulint i= !m_sort_primary_key;
+  if (i)
+    /* For clustered index, InnoDB does call load_one_row() while
+    buffering the first insert and uses row_ins_clust_index_entry()
+    for subsequent rows. So skip the clustered index while applying
+    the buffered insert operation */
+    index= UT_LIST_GET_NEXT(indexes, index);
+  for (; index; index= UT_LIST_GET_NEXT(indexes, index))
   {
     if (!index->is_btree())
       continue;
