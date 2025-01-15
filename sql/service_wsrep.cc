@@ -1,4 +1,4 @@
-/* Copyright 2018-2024 Codership Oy <info@codership.com>
+/* Copyright 2018-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -86,7 +86,9 @@ extern "C" const char *wsrep_thd_query(const THD *thd)
         return "SET PASSWORD";
       /* fallthrough */
     default:
+    {
       return (thd->query() ? thd->query() : "NULL");
+    }
   }
   return "NULL";
 }

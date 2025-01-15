@@ -2433,6 +2433,7 @@ public:
     delayed_insert_threads--;
 
     my_free(thd.query());
+    thd->reset_query_inner();
     thd.security_ctx->user= 0;
     thd.security_ctx->host= 0;
   }

@@ -2286,8 +2286,10 @@ int ha_rollback_trans(THD *thd, bool all)
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
-        WSREP_WARN("handlerton rollback failed, thd %lld %lld conf %d SQL %s",
+        WSREP_WARN("handlerton rollback failed, thd %lld %lld "
+                   "conf %d wsrep_err %s SQL %s",
                    thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
+                   wsrep::to_c_string(thd->wsrep_cs().current_error()),
                    thd->query());
 #endif /* WITH_WSREP */
       }
@@ -2300,11 +2302,12 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_WSREP
-  if (thd->is_error())
+  if (WSREP(thd) && thd->is_error())
   {
-    WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
-                thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
-                thd->get_stmt_da()->message(), is_real_trans);
+    WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: msg %s is_real %d wsrep_err %s",
+                thd->thread_id, all? "TRUE" : "FALSE",
+                thd->get_stmt_da()->message(), is_real_trans,
+                wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
 
   // REPLACE|INSERT INTO ... SELECT uses TOI in consistency check
