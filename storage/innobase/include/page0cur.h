@@ -222,23 +222,18 @@ bool page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
                                size_t hdr_size, size_t data_size);
 
 MY_ATTRIBUTE((warn_unused_result))
-/****************************************************************//**
-Searches the right position for a page cursor. */
-bool
-page_cur_search_with_match(
-/*=======================*/
-	const dtuple_t*		tuple,	/*!< in: data tuple */
-	page_cur_mode_t		mode,	/*!< in: PAGE_CUR_L,
-					PAGE_CUR_LE, PAGE_CUR_G, or
-					PAGE_CUR_GE */
-	uint16_t*		iup_matched_fields,
-					/*!< in/out: already matched
-					fields in upper limit record */
-	uint16_t*		ilow_matched_fields,
-					/*!< in/out: already matched
-					fields in lower limit record */
-	page_cur_t*		cursor,	/*!< in/out: page cursor */
-	rtr_info_t*		rtr_info);/*!< in/out: rtree search stack */
+/** Search the right position for a page cursor.
+@param tuple        search key
+@param mode         search mode
+@param iup_fields   matched fields in the upper limit record
+@param ilow_fields  matched fields in the low limit record
+@param cursor       page cursor
+@param rtr_info     R-tree search stack, or nullptr
+@return whether the page is corrupted */
+bool page_cur_search_with_match(const dtuple_t *tuple, page_cur_mode_t mode,
+                                uint16_t *iup_fields, uint16_t *ilow_fields,
+                                page_cur_t *cursor, rtr_info_t *rtr_info)
+  noexcept;
 
 /** Search the right position for a page cursor.
 @param tuple        search key
@@ -248,7 +243,7 @@ page_cur_search_with_match(
 @param cursor       page cursor
 @param iup_bytes    matched bytes after iup_fields
 @param ilow_bytes   matched bytes after ilow_fields
-@return whether the first partially matched field in the lower limit record,
+@return whether the first partially matched field is in the lower limit record,
 or the page is corrupted */
 bool page_cur_search_with_match_bytes(const dtuple_t &tuple,
                                       page_cur_mode_t mode,
