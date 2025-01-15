@@ -3136,6 +3136,10 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
     (*field++)->set_null();
     (*field++)->set_null();
   }
+
+  (*field++)->store(static_cast<long long>(mi->connects_tried), true);
+  (*field++)->store(static_cast<long long>(mi->retry_count), true);
+
   mysql_mutex_unlock(&mi->rli.err_lock);
   mysql_mutex_unlock(&mi->err_lock);
   mysql_mutex_unlock(&mi->rli.data_lock);
@@ -4373,9 +4377,9 @@ static bool check_io_slave_killed(Master_info *mi, const char *info)
 
   @details Terminates current connection to master
   and initiates new connection with safe_reconnect(), which sleeps for
-  @c mi->connect_retry msecs and increases @c mi->TODO for each attempt -
-  if it exceeds @c master_retry_count then connection is not re-established
-  and function signals error.
+  @c mi->connect_retry msecs and increases @c mi->connects_tried for each
+  attempt - if it exceeds @c mi->retry_count then connection is not
+  re-established and function signals error.
   Unless @c suppres_warnings is TRUE, a warning is put in the server error log
   when reconnecting. The warning message and messages used to report errors
   are built from @c messages struct.
@@ -4400,7 +4404,7 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
 #ifdef SIGNAL_WITH_VIO_CLOSE  
   thd->clear_active_vio();
 #endif
-  if (!master_retry_count) // The user explicitly turned off reconnects... sure?
+  if (!mi->retry_count) // The user explicitly turned off reconnects... sure?
     return 1;
   thd->proc_info= messages->proc_info;
   end_server(mysql);
@@ -6919,7 +6923,7 @@ static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi)
 
   IMPLEMENTATION
     Try to connect until successful or slave killed or we have retried
-    master_retry_count times
+    mi->retry_count times
 */
 
 static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
@@ -6927,7 +6931,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 {
   int slave_was_killed;
   int last_errno= -2;                           // impossible error
-  ulong err_count=0;
+  mi->connects_tried= 0; // reset retry counter
   my_bool my_true= 1;
   DBUG_ENTER("connect_to_master");
   set_slave_max_allowed_packet(thd, mysql);
@@ -7002,10 +7006,10 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                  " - retry-time: %d  maximum-retries: %lu  message: %s",
                  (reconnect ? "reconnecting" : "connecting"),
                  mi->user, mi->host, mi->port,
-                 mi->connect_retry, master_retry_count,
+                 mi->connect_retry, mi->retry_count,
                  mysql_error(mysql));
     }
-    if (++err_count == master_retry_count)
+    if (++(mi->connects_tried) == mi->retry_count)
     {
       slave_was_killed=1;
       if (reconnect)
@@ -7047,7 +7051,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 
   IMPLEMENTATION
     Try to connect until successful or slave killed or we have retried
-    master_retry_count times
+    mi->retry_count times
 */
 
 static int safe_reconnect(THD* thd, MYSQL* mysql, Master_info* mi,

@@ -74,10 +74,12 @@ if ($tmp)
   --echo Slave_Non_Transactional_Groups	#
   --echo Slave_Transactional_Groups	#
   --echo Replicate_Rewrite_DB	#
+  --echo Connects_Tried	#
+  --echo Primary_Retry_Count	#
 }
 if (!$tmp) {
   # Note: after WL#5177, fields 13-18 shall not be filtered-out.
-  --replace_column 4 # 5 # 6 # 7 # 8 # 9 # 10 # 13 # 14 # 15 # 16 # 17 # 18 # 22 # 23 # 24 # 25 # 26 # 40 # 41 # 42 # 44 # 51 # 52 # 53 # 54 #
+  --replace_column 4 # 5 # 6 # 7 # 8 # 9 # 10 # 13 # 14 # 15 # 16 # 17 # 18 # 22 # 23 # 24 # 25 # 26 # 40 # 41 # 42 # 44 # 51 # 52 # 53 # 54 # 55 # 56 #
   query_vertical
   SHOW SLAVE STATUS;
 }

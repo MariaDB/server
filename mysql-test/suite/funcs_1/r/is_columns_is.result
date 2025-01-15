@@ -1129,6 +1129,8 @@ NULL	information_schema	SLAVE_STATUS	Slave_heartbeat_period	float	NULL	NULL	NULL
 NULL	information_schema	SLAVE_STATUS	Master_last_event_time	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	SLAVE_STATUS	Slave_last_event_time	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	SLAVE_STATUS	Master_Slave_time_diff	bigint	NULL	NULL	NULL	NULL	bigint(10)
+NULL	information_schema	SLAVE_STATUS	Connects_Tried	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	information_schema	SLAVE_STATUS	Primary_Retry_Count	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	information_schema	SPATIAL_REF_SYS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
 3.0000	information_schema	SPATIAL_REF_SYS	AUTH_NAME	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	int	NULL	NULL	NULL	NULL	int(5)

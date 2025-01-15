@@ -255,7 +255,7 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
 
   m_row.connection_retry_interval= (unsigned int) mi->connect_retry;
 
-  m_row.connection_retry_count= master_retry_count; //(ulong) mi->retry_count;
+  m_row.connection_retry_count= mi->retry_count;
 
   m_row.heartbeat_interval= (double)mi->heartbeat_period;
 
