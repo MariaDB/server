@@ -1435,6 +1435,7 @@ C_MODE_START
   @param level          log message level
   @param format         log message format string
 */
+ATTRIBUTE_FORMAT(printf, 2, 3)
 static void buffered_option_error_reporter(enum loglevel level,
                                            const char *format, ...)
 {
@@ -1465,6 +1466,7 @@ static void buffered_option_error_reporter(enum loglevel level,
   to print general character set subsystem initialization errors,
   such as Index.xml syntax problems, bad XML tag hierarchy, etc.
 */
+ATTRIBUTE_FORMAT(printf, 2, 3)
 static void charset_error_reporter(enum loglevel level,
                                    const char *format, ...)
 {
@@ -8725,7 +8727,7 @@ mysql_getopt_value(const char *name, uint length,
   return option->value;
 }
 
-
+ATTRIBUTE_FORMAT(printf, 2, 3)
 static void option_error_reporter(enum loglevel level, const char *format, ...)
 {
   va_list args;
@@ -9257,7 +9259,7 @@ static int test_if_case_insensitive(const char *dir_name)
                                buff, 0666, O_RDWR, MYF(0))) < 0)
   {
     if (!opt_abort)
-      sql_print_warning("Can't create test file '%s' (Errcode: %M)", buff, my_errno);
+      sql_print_warning("Can't create test file '%s' (Errcode: %iE)", buff, my_errno);
     DBUG_RETURN(-1);
   }
   mysql_file_close(file, MYF(0));

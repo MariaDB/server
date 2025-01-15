@@ -13257,10 +13257,11 @@ bool Binlog_commit_by_rotate::replace_binlog_file()
   DBUG_EXECUTE_IF("simulate_required_size_too_big", required_size= 10000;);
   if (required_size > m_cache_data->file_reserved_bytes())
   {
-    sql_print_information("Could not rename binlog cache to binlog(as "
+    sql_print_information("Could not rename binlog cache to binlog (as "
                           "requested by --binlog-commit-by-rotate-threshold). "
-                          "Required %llu bytes but only %llu bytes reserved.",
-                          required_size, m_cache_data->file_reserved_bytes());
+                          "Required %zu bytes but only %lu bytes reserved.",
+                          required_size, static_cast<unsigned long>(
+                            m_cache_data->file_reserved_bytes()));
     return false;
   }
 

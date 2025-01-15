@@ -166,6 +166,7 @@ static void mi_check_print(HA_CHECK *param, const LEX_CSTRING* msg_type,
 
 // collect errors printed by mi_check routines
 
+ATTRIBUTE_FORMAT(printf, 3, 0)
 static void mi_check_print_msg(HA_CHECK *param,	const LEX_CSTRING *msg_type,
 			       const char *fmt, va_list args)
 {
