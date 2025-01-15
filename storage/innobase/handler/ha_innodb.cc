@@ -5097,7 +5097,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
         may be executed as part of a multi-transaction DDL operation, such
         as rollback_inplace_alter_table() or ha_innobase::delete_table(). */;
         trx->error_state= DB_INTERRUPTED;
-        lock_sys_t::cancel<false>(trx, lock);
+        lock_sys.cancel<false>(trx, lock);
       }
       lock_sys.deadlock_check();
     }

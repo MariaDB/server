@@ -170,6 +170,8 @@ struct TrxFactory {
 		allocated object. trx_t objects are allocated by
 		ut_zalloc_nokey() in Pool::Pool() which would not call
 		the constructors of the trx_t members. */
+		new(&trx->autoinc_locks) trx_t::autoinc_lock_vector();
+
 		new(&trx->mod_tables) trx_mod_tables_t();
 
 		new(&trx->lock.table_locks) lock_list();
@@ -231,6 +233,8 @@ struct TrxFactory {
 		ut_free(trx->detailed_error);
 
 		trx->mutex_destroy();
+
+		trx->autoinc_locks.~small_vector();
 
 		trx->mod_tables.~trx_mod_tables_t();
 
@@ -334,20 +338,11 @@ trx_t *trx_create()
 
 	trx->assert_freed();
 
-	mem_heap_t*	heap;
-	ib_alloc_t*	alloc;
-
 	/* We just got trx from pool, it should be non locking */
 	ut_ad(!trx->will_lock);
 	ut_ad(!trx->rw_trx_hash_pins);
 
 	DBUG_LOG("trx", "Create: " << trx);
-
-	heap = mem_heap_create(sizeof(ib_vector_t) + sizeof(void*) * 8);
-
-	alloc = ib_heap_allocator_create(heap);
-
-	trx->autoinc_locks = ib_vector_create(alloc, sizeof(void**), 4);
 
 	ut_ad(trx->mod_tables.empty());
 	ut_ad(trx->lock.n_rec_locks == 0);
@@ -364,6 +359,7 @@ trx_t *trx_create()
 /** Free the memory to trx_pools */
 void trx_t::free()
 {
+  autoinc_locks.fake_defined();
 #ifdef HAVE_MEM_CHECK
   if (xid.is_null())
     MEM_MAKE_DEFINED(&xid, sizeof xid);
@@ -372,6 +368,7 @@ void trx_t::free()
                      sizeof xid.data - (xid.gtrid_length + xid.bqual_length));
 #endif
   MEM_CHECK_DEFINED(this, sizeof *this);
+  autoinc_locks.make_undefined();
 
   ut_ad(!n_mysql_tables_in_use);
   ut_ad(!mysql_log_file_name);
@@ -390,14 +387,7 @@ void trx_t::free()
   trx_sys.rw_trx_hash.put_pins(this);
   mysql_thd= nullptr;
 
-  // FIXME: We need to avoid this heap free/alloc for each commit.
-  if (autoinc_locks)
-  {
-    ut_ad(ib_vector_is_empty(autoinc_locks));
-    /* We allocated a dedicated heap for the vector. */
-    ib_vector_free(autoinc_locks);
-    autoinc_locks= NULL;
-  }
+  autoinc_locks.deep_clear();
 
   MEM_NOACCESS(&skip_lock_inheritance_and_n_ref,
                sizeof skip_lock_inheritance_and_n_ref);
@@ -495,7 +485,7 @@ inline void trx_t::release_locks()
     lock_release(this);
     ut_ad(!lock.n_rec_locks);
     ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
-    ut_ad(ib_vector_is_empty(autoinc_locks));
+    ut_ad(autoinc_locks.empty());
     mem_heap_empty(lock.lock_heap);
   }
 
@@ -923,7 +913,7 @@ trx_start_low(
 	trx->wsrep = wsrep_on(trx->mysql_thd);
 #endif /* WITH_WSREP */
 
-	ut_a(ib_vector_is_empty(trx->autoinc_locks));
+	ut_a(trx->autoinc_locks.empty());
 	ut_a(trx->lock.table_locks.empty());
 
 	/* No other thread can access this trx object through rw_trx_hash,
