@@ -581,6 +581,13 @@ ENDIF()
 
 INCLUDE(build_depends)
 
+OPTION(WITH_SBOM "Generate Software Bill of Materials (SBOM)" "${SBOM_DEFAULT}")
+MARK_AS_ADVANCED(WITH_SBOM)
+IF(WITH_SBOM)
+  INCLUDE(generate_sbom)
+  GENERATE_SBOM()
+ENDIF()
+
 INCLUDE(CPack)
 
 IF(WIN32 AND SIGNCODE)

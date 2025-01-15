@@ -33,6 +33,7 @@ TAGS
 Testing/
 tmp/
 VERSION.dep
+cmake/submodule_info.cmake
 configure
 client/async_example
 client/mysql
@@ -113,6 +114,7 @@ plugin/auth_pam/config_auth_pam.h
 plugin/aws_key_management/aws-sdk-cpp
 plugin/aws_key_management/aws_sdk_cpp
 plugin/aws_key_management/aws_sdk_cpp-prefix
+sbom.json
 scripts/comp_sql
 scripts/make_binary_distribution
 scripts/msql2mysql
