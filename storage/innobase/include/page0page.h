@@ -636,30 +636,54 @@ page_rec_check(
 /** Get the record pointed to by a directory slot.
 @param[in] slot   directory slot
 @return pointer to record */
-inline rec_t *page_dir_slot_get_rec(page_dir_slot_t *slot)
+inline rec_t *page_dir_slot_get_rec(page_t *page, page_dir_slot_t *slot)
+  noexcept
 {
-  return page_align(slot) + mach_read_from_2(my_assume_aligned<2>(slot));
+  return page + mach_read_from_2(my_assume_aligned<2>(slot));
 }
-inline const rec_t *page_dir_slot_get_rec(const page_dir_slot_t *slot)
+inline const rec_t *page_dir_slot_get_rec(const page_t *page,
+                                          const page_dir_slot_t *slot) noexcept
+{
+  return page_dir_slot_get_rec(const_cast<page_t*>(page),
+                               const_cast<rec_t*>(slot));
+}
+
+inline rec_t *page_dir_slot_get_rec(page_dir_slot_t *slot) noexcept
+{
+  return page_dir_slot_get_rec(page_align(slot), slot);
+}
+inline const rec_t *page_dir_slot_get_rec(const page_dir_slot_t *slot) noexcept
 {
   return page_dir_slot_get_rec(const_cast<rec_t*>(slot));
 }
 
-inline rec_t *page_dir_slot_get_rec_validate(page_dir_slot_t *slot)
+inline rec_t *page_dir_slot_get_rec_validate(page_t *page,
+                                             page_dir_slot_t *slot) noexcept
 {
   const size_t s= mach_read_from_2(my_assume_aligned<2>(slot));
-  page_t *page= page_align(slot);
-
   return UNIV_LIKELY(s >= PAGE_NEW_INFIMUM &&
                      s <= page_header_get_field(page, PAGE_HEAP_TOP))
     ? page + s
     : nullptr;
 }
+
+inline const rec_t *page_dir_slot_get_rec_validate(const page_t *page,
+                                                   const page_dir_slot_t *slot)
+  noexcept
+{
+  return page_dir_slot_get_rec_validate(const_cast<page_t*>(page),
+                                        const_cast<page_dir_slot_t*>(slot));
+}
+
+inline rec_t *page_dir_slot_get_rec_validate(page_dir_slot_t *slot) noexcept
+{
+  return page_dir_slot_get_rec_validate(page_align(slot), slot);
+}
 inline const rec_t *page_dir_slot_get_rec_validate(const page_dir_slot_t *slot)
+  noexcept
 {
   return page_dir_slot_get_rec_validate(const_cast<rec_t*>(slot));
 }
-
 
 /***************************************************************//**
 Gets the number of records owned by a directory slot.
