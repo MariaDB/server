@@ -15851,7 +15851,8 @@ ha_innobase::extra(
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
 			if (dberr_t err = trx->bulk_insert_apply()) {
-				return err;
+				return convert_error_code_to_mysql(
+					 err, 0, trx->mysql_thd);
 			}
 			break;
 		}
