@@ -7845,7 +7845,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       MYSQL_BIN_LOG::open() will write the buffered description event.
     */
     old_pos= rli->event_relay_log_pos;
-    if ((ev= Log_event::read_log_event(cur_log,
+    int error;
+    if ((ev= Log_event::read_log_event(cur_log, &error,
                                        rli->relay_log.description_event_for_exec,
                                        opt_slave_sql_verify_checksum)))
 
@@ -7862,8 +7863,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       DBUG_RETURN(ev);
     }
     if (opt_reckless_slave)                     // For mysql-test
-      cur_log->error = 0;
-    if (unlikely(cur_log->error < 0))
+      error = 0;
+    if (unlikely(error))
     {
       errmsg = "slave SQL thread aborted because of I/O error";
       if (hot_log)

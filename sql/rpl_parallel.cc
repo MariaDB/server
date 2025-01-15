@@ -1037,14 +1037,15 @@ do_retry:
     /* The loop is here so we can try again the next relay log file on EOF. */
     for (;;)
     {
+      int error;
       old_offset= cur_offset;
-      ev= Log_event::read_log_event(&rlog, description_event,
+      ev= Log_event::read_log_event(&rlog, &error, description_event,
                                     opt_slave_sql_verify_checksum);
       cur_offset= my_b_tell(&rlog);
 
       if (ev)
         break;
-      if (unlikely(rlog.error < 0))
+      if (unlikely(error))
       {
         errmsg= "slave SQL thread aborted because of I/O error";
         err= 1;

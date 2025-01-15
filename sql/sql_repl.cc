@@ -4188,7 +4188,8 @@ bool mysql_show_binlog_events(THD* thd)
     my_off_t scan_pos = BIN_LOG_HEADER_SIZE;
     while (scan_pos < pos)
     {
-      ev= Log_event::read_log_event(&log, description_event,
+      int error;
+      ev= Log_event::read_log_event(&log, &error, description_event,
                                     opt_master_verify_checksum);
       scan_pos = my_b_tell(&log);
       if (ev == NULL || !ev->is_valid())
@@ -4263,8 +4264,9 @@ bool mysql_show_binlog_events(THD* thd)
       writing about this in the server log would be confusing as it isn't
       related to server operational status.
     */
+    int error;
     for (event_count = 0;
-         (ev = Log_event::read_log_event(&log,
+         (ev = Log_event::read_log_event(&log, &error,
                                          description_event,
                                          (opt_master_verify_checksum ||
                                           verify_checksum_once), false)); )
@@ -4308,7 +4310,7 @@ bool mysql_show_binlog_events(THD* thd)
 	      break;
     }
 
-    if (unlikely(event_count < unit->lim.get_select_limit() && log.error))
+    if (unlikely(event_count < unit->lim.get_select_limit() && error))
     {
       errmsg = "Wrong offset or I/O error";
       mysql_mutex_unlock(log_lock);
