@@ -1229,6 +1229,17 @@ DROP TABLE t1;
 
 --echo # End of 10.8 tests
 
+--echo #
+--echo # MDEV-35849: index records in a wrong order
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY, a VARCHAR(1), KEY (a DESC)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,NULL),(2,'x');
+CHECK TABLE t;
+DROP TABLE t;
+
+--echo # End of 11.8 tests
+
 --disable_query_log
 
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*t[12].ibd.");

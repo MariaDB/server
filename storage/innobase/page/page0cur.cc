@@ -606,7 +606,7 @@ static int page_cur_dtuple_cmp(const dtuple_t &dtuple, const rec_t *rec,
         {
           if (i < cur_field || dtuple.fields[i].len == UNIV_SQL_NULL)
             continue;
-          ret= 1;
+          ret= field->descending ? -1 : 1;
           break;
         }
       }
