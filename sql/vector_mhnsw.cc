@@ -686,8 +686,13 @@ int MHNSW_Share::acquire(MHNSW_Share **ctx, TABLE *table, bool for_update)
 
   graph->file->position(graph->record[0]);
   (*ctx)->set_lengths(FVector::data_to_value_size(graph->field[FIELD_VEC]->value_length()));
-  (*ctx)->start= (*ctx)->get_node(graph->file->ref);
-  return (*ctx)->start->load_from_record(graph);
+
+  auto node= (*ctx)->get_node(graph->file->ref);
+  if ((err= node->load_from_record(graph)))
+    return err;
+
+  (*ctx)->start= node; // set the shared start only when node is fully loaded
+  return 0;
 }
 
 /* copy the vector, preprocessed as needed */
