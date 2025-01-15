@@ -19,11 +19,6 @@
 #include "string_ref.hpp"
 #include "string_buffer.hpp"
 
-#ifdef __GNUC__
-/* auto_ptr is deprecated */
-# pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
 namespace dena {
 
 struct hstcpcli_filter {
@@ -35,7 +30,7 @@ struct hstcpcli_filter {
 };
 
 struct hstcpcli_i;
-typedef std::auto_ptr<hstcpcli_i> hstcpcli_ptr;
+typedef std::unique_ptr<hstcpcli_i> hstcpcli_ptr;
 
 struct hstcpcli_i {
   virtual ~hstcpcli_i() = default;

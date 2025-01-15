@@ -115,7 +115,7 @@ hstcpsvr::start_listen()
     arg.cshared = &cshared;
     arg.vshared = &vshared;
     arg.worker_id = i;
-    std::auto_ptr< thread<worker_throbj> > thr(
+    std::unique_ptr< thread<worker_throbj> > thr(
       new thread<worker_throbj>(arg, stack_size));
     threads.push_back_ptr(thr);
   }
