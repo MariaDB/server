@@ -54,7 +54,7 @@ class Clone_Monitor {
         m_work_bytes_left(),
         m_cur_phase(NOT_STARTED) {
     m_pfs_data_chunk_size =
-        static_cast<uint>(ut_2_exp(PFS_DATA_CHUNK_SIZE_POW2));
+        static_cast<uint>(1 << PFS_DATA_CHUNK_SIZE_POW2);
   }
 
   /** Destructor. */
