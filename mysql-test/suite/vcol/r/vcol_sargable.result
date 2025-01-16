@@ -298,3 +298,35 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-35833: Assertion `marked_for_read()' failed for query with vcols
+#
+CREATE TABLE t1 (
+id int,
+v2 int AS (id),
+v3 int AS (id+0),
+a1 int AS (v2 + v3),
+KEY a1 (a1)
+);
+insert t1(id) values (1),(2);
+explain format=json DELETE FROM t1 WHERE v2+v3 > 'a';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a1"],
+      "key": "a1",
+      "key_length": "5",
+      "used_key_parts": ["a1"],
+      "rows": 2,
+      "attached_condition": "t1.a1 > 'a'"
+    }
+  }
+}
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+drop table t1;

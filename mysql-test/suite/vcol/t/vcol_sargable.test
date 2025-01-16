@@ -185,3 +185,20 @@ alter table t1
 explain format=json select * from t1 where year(a)+1=2025;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-35833: Assertion `marked_for_read()' failed for query with vcols
+--echo #
+CREATE TABLE t1 (
+  id int,
+  v2 int AS (id),
+  v3 int AS (id+0),
+  a1 int AS (v2 + v3),
+  KEY a1 (a1)
+);
+insert t1(id) values (1),(2);
+
+explain format=json DELETE FROM t1 WHERE v2+v3 > 'a';
+
+drop table t1;
+
