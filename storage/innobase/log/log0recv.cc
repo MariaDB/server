@@ -1747,7 +1747,7 @@ dberr_t recv_sys_t::find_checkpoint()
       {
         log_sys.next_checkpoint_lsn= checkpoint_lsn;
         log_sys.next_checkpoint_no= field == log_t::CHECKPOINT_1;
-        lsn= end_lsn;
+        log_sys.last_checkpoint_end_lsn= lsn= end_lsn;
       }
     }
     if (!log_sys.next_checkpoint_lsn)

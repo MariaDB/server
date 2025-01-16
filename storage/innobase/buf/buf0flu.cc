@@ -1885,6 +1885,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   next_checkpoint_no++;
   const lsn_t checkpoint_lsn{next_checkpoint_lsn};
   last_checkpoint_lsn= checkpoint_lsn;
+  last_checkpoint_end_lsn= end_lsn;
 
   DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
                         checkpoint_lsn, get_flushed_lsn()));

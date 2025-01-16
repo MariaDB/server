@@ -865,9 +865,10 @@ class Arch_Group {
   created, when the stream of data is written to a sequence of new files.
   @param[in]  start_offset    offset at which a new file starts, expressed
                               in bytes from the beginning of the stream
-  @param[in]  header          header to format */
-  typedef std::function<dberr_t(uint64_t start_offset, byte *header)>
-      Get_file_header_callback;
+  @param[in]  header          header to format
+  @paran[in]  header_len      length of header */
+  typedef std::function<dberr_t(uint64_t start_offset, byte *header,
+      uint64_t header_len)> Get_file_header_callback;
 
   /** Constructor: Initialize members
   @param[in]    start_lsn       start LSN for the group
@@ -1447,9 +1448,9 @@ class Arch_Log_Sys {
   /** Update checkpoint LSN and related information in redo
   log header block.
   @param[in,out] header          redo log header buffer
-  @param[in]     file_start_lsn  LSN of first data byte within file
-  @param[in]     checkpoint_lsn  LSN of the checkpoint within the file or 0 */
-  void update_header(byte *header, lsn_t file_start_lsn, lsn_t checkpoint_lsn);
+  @param[in]     checkpoint_lsn  LSN of the checkpoint
+  @param[in]     end_lsn         LSN of the checkpoint record */
+  void update_header(byte *header, lsn_t checkpoint_lsn, lsn_t end_lsn);
 
   /** Check and set log archive system state and output the
   amount of redo log available for archiving.
@@ -1465,18 +1466,6 @@ class Arch_Log_Sys {
   @param[in]  length    data to copy in bytes
   @return error code */
   dberr_t copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn, uint length);
-
-  /** Update m_state to the given state. Then check if Arch_Log_Sys is active
-  and accordingly register or unregister the @see m_log_consumer. It is caller
-  that should acquire log_sys's: m_files_mutex and writer_mutex prior before
-  calling this method.
-  @param[in]  state   state to assign to m_state */
-  void update_state_low(Arch_State state);
-
-  /** Acquires log_sys's m_files_mutex, writer_mutex and calls
-  @see update_state_low(state).
-  @param[in]  state   state to assign to m_state */
-  void update_state(Arch_State state);
 
  private:
   /** Mutex to protect concurrent start, stop operations */

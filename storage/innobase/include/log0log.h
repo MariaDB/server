@@ -222,7 +222,7 @@ public:
   size_t write_to_log;
 
   /** Last written LSN; protected by latch */
-  lsn_t write_lsn;
+  Atomic_relaxed<lsn_t> write_lsn;
 
   /** Buffer for writing data to ib_logfile0, or nullptr if is_mmap().
   In write_buf(), buf and flush_buf may be swapped */
@@ -241,6 +241,10 @@ public:
 
   /** latest completed checkpoint (protected by latch.wr_lock()) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
+
+  /** LSN for last checkpoint record. */
+  lsn_t last_checkpoint_end_lsn;
+
   /** The log writer (protected by latch.wr_lock()) */
   lsn_t (*writer)() noexcept;
   /** next checkpoint LSN (protected by latch.wr_lock()) */
