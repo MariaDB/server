@@ -32,8 +32,6 @@ Created 9/7/2013 Jimmy Yang
 #include "dict0mem.h"
 #include "que0que.h"
 
-extern const conflicting_lock_info null_c_lock_info;
-
 /*********************************************************************//**
 Get a minimum bounding box from a Predicate
 @return	the minimum bounding box */

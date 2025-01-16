@@ -60,9 +60,11 @@ struct conflicting_lock_info {
   lock must be inserted into linked list of locks for the certain cell of
   record locks hash table. */
   lock_t *insert_after;
-  /** Fisrst bypassed lock */
+  /** First bypassed lock */
   ut_d(const lock_t *bypassed;)
 };
+
+extern const conflicting_lock_info null_c_lock_info;
 
 /*********************************************************************//**
 Gets the heap_no of the smallest user record on a page.
