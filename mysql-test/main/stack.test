@@ -40,11 +40,13 @@ begin
 end;
 $$
 
-delimiter ;$$
-
 call recursion(0,2,@s1);
 call recursion(0,3,@s2);
 call recursion(0,4,@s3);
+$$
+
+delimiter ;$$
+
 
 select @s1 > 0 && @s2 > 0 && @s3 > 0;
 if (`select @s2-@s1 <> @s3 - @s2`)
