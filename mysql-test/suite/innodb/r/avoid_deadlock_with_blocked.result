@@ -90,7 +90,7 @@ COMMIT;
 # More complicated scenario:
 # <con1, S, granted>,
 # <con1, S, granted>, <con2, S REC_NOT_GAP, granted>,
-# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con2>
+# <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>
 # <con1, S, granted>, <con2, S REC_NOT_GAP, granted>, <con3, X, waiting for con1>, <con1, INSERT_INTENTION, waiting for con3>
 # <con1, S, granted>, <con3, X, waiting for con1>, <con1, INSERT_INTENTION, waiting for con3>
 # Expected: a deadlock, as INSERT INTENTION should not overtake locks on gap, to not slice them
@@ -104,7 +104,6 @@ BEGIN;
 SELECT * FROM t1 WHERE id=1 LOCK IN SHARE MODE;
 id
 1
-connection default;
 connection con3;
 SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con3_will_wait';
 SELECT * FROM t1 FOR UPDATE;
