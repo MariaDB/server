@@ -107,6 +107,7 @@ void log_t::create()
   lsn_lock.init();
 
   last_checkpoint_lsn= FIRST_LSN;
+  last_checkpoint_end_lsn= FIRST_LSN;
   log_capacity= 0;
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
@@ -441,6 +442,7 @@ void log_t::create(lsn_t lsn) noexcept
   write_lsn= lsn;
 
   last_checkpoint_lsn= 0;
+  last_checkpoint_end_lsn= 0;
 
   DBUG_PRINT("ib_log", ("write header " LSN_PF, lsn));
 
