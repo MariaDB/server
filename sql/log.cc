@@ -401,14 +401,18 @@ public:
       last_commit_pos_file[0]= 0;
       last_commit_pos_offset= 0;
     }
-    /*
-      Use a custom write_function to spill to the engine-implemented binlog.
-      And re-use the IO_CACHE::append_read_pos as a handle for our
-      write_function; it is unused when the cache is not SEQ_READ_APPEND.
-    */
-    trx_cache.cache_log.write_function= binlog_spill_to_engine;
-    trx_cache.cache_log.append_read_pos= (uchar *)this;
-    engine_binlog_info= {0, 0, 0};
+    if (likely(opt_binlog_engine_hton) &&
+        likely(opt_binlog_engine_hton->binlog_oob_data))
+    {
+      /*
+        Use a custom write_function to spill to the engine-implemented binlog.
+        And re-use the IO_CACHE::append_read_pos as a handle for our
+        write_function; it is unused when the cache is not SEQ_READ_APPEND.
+      */
+      trx_cache.cache_log.write_function= binlog_spill_to_engine;
+      trx_cache.cache_log.append_read_pos= (uchar *)this;
+      engine_binlog_info= {0, 0, 0};
+    }
   }
 
   binlog_cache_data* get_binlog_cache_data(bool is_transactional)
