@@ -44,7 +44,7 @@ of the multiplication result:
 #include <intrin.h>
 #pragma warning(pop)
 #endif
-__forceinline unsigned int nlz (ulonglong x)
+__forceinline unsigned int nlz (unsigned long long x)
 {
 #if defined(_M_IX86) || defined(_M_X64)
   unsigned long n;
@@ -67,7 +67,7 @@ __forceinline unsigned int nlz (ulonglong x)
 #endif
 }
 #else
-inline unsigned int nlz (ulonglong x)
+inline unsigned int nlz (unsigned long long x)
 {
   static unsigned char table [48] = {
     32,  6,  5,  0,  4, 12,  0, 20,
