@@ -902,7 +902,7 @@ serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
     p + (buf_size - (2*COMPR_INT_MAX32 + COMPR_INT_MAX64));
 
   if (state->iterate(
-    [buf, buf_size, pmax, &p] (const rpl_gtid *gtid) {
+    [pmax, &p] (const rpl_gtid *gtid) {
       if (UNIV_UNLIKELY(p > pmax))
         return true;
       p= compr_int_write(p, gtid->domain_id);
@@ -1497,7 +1497,8 @@ again:
   {
   case ST_initial:
     chunk_rd->seek(e->file_no, e->offset);
-    static_assert(sizeof(e->rd_buf) == 5*COMPR_INT_MAX64);
+    static_assert(sizeof(e->rd_buf) == 5*COMPR_INT_MAX64,
+                  "rd_buf size must match code using it");
     res= chunk_rd->read_data(e->rd_buf, 5*COMPR_INT_MAX64, true);
     if (res < 0)
       return -1;
@@ -1664,7 +1665,8 @@ again:
   switch (state)
   {
   case ST_read_next_event_group:
-    static_assert(sizeof(rd_buf) == 5*COMPR_INT_MAX64);
+    static_assert(sizeof(rd_buf) == 5*COMPR_INT_MAX64,
+                  "rd_buf size must match code using it");
     res= chunk_rd.read_data(rd_buf, 5*COMPR_INT_MAX64, true);
     if (res <= 0)
       return res;
@@ -1848,7 +1850,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
       */
       mtr.start();
       mtr_started= true;
-      uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
+      uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (uint32_t)(file_no & 1);
       dberr_t err= DB_SUCCESS;
       block= buf_page_get_gen(page_id_t{space_id, page_no}, 0, RW_S_LATCH,
                               nullptr, BUF_GET_IF_IN_POOL, &mtr, &err);
