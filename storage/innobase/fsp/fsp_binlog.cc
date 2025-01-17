@@ -121,7 +121,7 @@ fsp_binlog_tablespace_close(uint64_t file_no)
   mtr_t mtr;
   dberr_t res;
 
-  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
+  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (uint32_t)(file_no & 1);
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(space_id);
   mysql_mutex_unlock(&fil_system.mutex);
@@ -200,7 +200,7 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
     return nullptr;
   }
 
-  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
+  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (uint32_t)(file_no & 1);
 
   if (!open_empty) {
     page_t *page_buf= static_cast<byte*>(aligned_malloc(page_size, page_size));
@@ -305,7 +305,7 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, fil_space_t **new_space)
 
 	mysql_mutex_lock(&fil_system.mutex);
         /* ToDo: Need to ensure file (N-2) is no longer active before creating (N). */
-	uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
+	uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (uint32_t)(file_no & 1);
 	if (!(*new_space= fil_space_t::create(space_id,
                                                 ( FSP_FLAGS_FCRC32_MASK_MARKER |
 						  FSP_FLAGS_FCRC32_PAGE_SSIZE()),
@@ -563,7 +563,7 @@ bool
 fsp_binlog_flush()
 {
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
-  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
+  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (uint32_t)(file_no & 1);
   uint32_t page_no= binlog_cur_page_no;
   fil_space_t *space= active_binlog_space;
   chunk_data_flush dummy_data;
@@ -669,7 +669,7 @@ binlog_chunk_reader::fetch_current_page()
           case.
         */
         buf_block_t *hint_block= nullptr;
-        uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (s.file_no & 1);
+        uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (uint32_t)(s.file_no & 1);
         dberr_t err= DB_SUCCESS;
         block= buf_page_get_gen(page_id_t{space_id, s.page_no}, 0,
                                 RW_S_LATCH, hint_block, BUF_GET_IF_IN_POOL,
