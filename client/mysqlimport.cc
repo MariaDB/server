@@ -760,7 +760,17 @@ static void lock_table(MYSQL *mysql, int tablecount, char **raw_tablename)
 }
 
 
-
+/*
+  Check server version, and return true if bulk load can be enabled
+  Works around MDEV-34703 (fixed in 10.11.11, 11.4.5, 11.7.2)
+*/
+static bool can_enable_innodb_bulk_load(MYSQL* mysql)
+{
+  auto ver = mysql_get_server_version(mysql);
+  return ver >= 110702 ||
+      (ver >= 110405 && ver < 110500) ||
+      (ver >= 101111 && ver < 101200);
+}
 
 static MYSQL *db_connect(char *host, char *database,
                          char *user, char *passwd)
@@ -822,6 +832,11 @@ static MYSQL *db_connect(char *host, char *database,
   if (ignore_foreign_keys)
     mysql_query(mysql, "set foreign_key_checks= 0;");
 
+  if (can_enable_innodb_bulk_load(mysql))
+  {
+    if (mysql_query(mysql, "set unique_checks=0;"))
+      db_error(mysql);
+  }
   if (mysql_query(mysql, "/*!40101 set @@character_set_database=binary */;"))
     db_error(mysql);
   if (mysql_query(mysql, "set @save_tz=@@session.time_zone"))
