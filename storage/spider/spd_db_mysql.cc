@@ -3197,7 +3197,7 @@ void spider_db_mbase::reset_opened_handler()
   {
     tmp_spider = (*tmp_link_for_hash)->spider;
     tmp_link_idx = (*tmp_link_for_hash)->link_idx;
-    tmp_spider->clear_handler_opened(tmp_link_idx, conn->conn_kind);
+    tmp_spider->clear_handler_opened(tmp_link_idx);
   }
   DBUG_VOID_RETURN;
 }
@@ -7381,7 +7381,7 @@ int spider_mbase_share::discover_table_structure(
     int *need_mon= &need_mon_deref;
     if (!(conn = spider_get_conn(
       spider_share, 0, spider_share->conn_keys[roop_count], trx, NULL, FALSE,
-      FALSE, SPIDER_CONN_KIND_MYSQL, &error_num))
+      FALSE, &error_num))
     ) {
       DBUG_RETURN(error_num);
     }

@@ -4517,7 +4517,6 @@ SPIDER_SHARE *spider_get_share(
         &spider->conn_can_fo, sizeof(uchar) * share->link_bitmap_size,
         &spider->sql_kind, sizeof(uint) * share->link_count,
         &spider->connection_ids, sizeof(ulonglong) * share->link_count,
-        &spider->conn_kind, sizeof(uint) * share->link_count,
         &spider->db_request_id, sizeof(ulonglong) * share->link_count,
         &spider->db_request_phase, sizeof(uchar) * share->link_bitmap_size,
         &spider->m_handler_opened, sizeof(uchar) * share->link_bitmap_size,
@@ -4558,7 +4557,6 @@ SPIDER_SHARE *spider_get_share(
       tmp_cid += SPIDER_SQL_HANDLER_CID_LEN + 1;
       result_list->upd_tmp_tbl_prms[roop_count].init();
       result_list->upd_tmp_tbl_prms[roop_count].field_count = 1;
-      spider->conn_kind[roop_count] = SPIDER_CONN_KIND_MYSQL;
     }
     spider_trx_set_link_idx_for_all(spider);
 
@@ -4613,7 +4611,6 @@ SPIDER_SHARE *spider_get_share(
           !(spider->conns[roop_count] =
             spider_get_conn(share, roop_count, spider->conn_keys[roop_count],
               spider->wide_handler->trx, spider, FALSE, TRUE,
-              SPIDER_CONN_KIND_MYSQL,
               error_num))
         ) {
           if (
@@ -4993,7 +4990,6 @@ SPIDER_SHARE *spider_get_share(
         &spider->conn_can_fo, sizeof(uchar) * share->link_bitmap_size,
         &spider->sql_kind, sizeof(uint) * share->link_count,
         &spider->connection_ids, sizeof(ulonglong) * share->link_count,
-        &spider->conn_kind, sizeof(uint) * share->link_count,
         &spider->db_request_id, sizeof(ulonglong) * share->link_count,
         &spider->db_request_phase, sizeof(uchar) * share->link_bitmap_size,
         &spider->m_handler_opened, sizeof(uchar) * share->link_bitmap_size,
@@ -5031,7 +5027,6 @@ SPIDER_SHARE *spider_get_share(
       tmp_cid += SPIDER_SQL_HANDLER_CID_LEN + 1;
       result_list->upd_tmp_tbl_prms[roop_count].init();
       result_list->upd_tmp_tbl_prms[roop_count].field_count = 1;
-      spider->conn_kind[roop_count] = SPIDER_CONN_KIND_MYSQL;
     }
     spider_trx_set_link_idx_for_all(spider);
 
@@ -5083,7 +5078,6 @@ SPIDER_SHARE *spider_get_share(
           !(spider->conns[roop_count] =
             spider_get_conn(share, roop_count, spider->conn_keys[roop_count],
               spider->wide_handler->trx, spider, FALSE, TRUE,
-              SPIDER_CONN_KIND_MYSQL,
               error_num))
         ) {
           if (
@@ -5703,11 +5697,9 @@ int spider_open_all_tables(
     }
 
     /* create conn */
-    if (
-      !(conn = spider_get_conn(
-        &tmp_share, 0, tmp_share.conn_keys[0], trx, NULL, FALSE, FALSE,
-        SPIDER_CONN_KIND_MYSQL, &error_num))
-    ) {
+    if (!(conn= spider_get_conn(&tmp_share, 0, tmp_share.conn_keys[0], trx,
+                                NULL, FALSE, FALSE, &error_num)))
+    {
       spider_sys_index_end(table_tables);
       spider_close_sys_table(thd, table_tables,
         &open_tables_backup, TRUE);
@@ -5801,11 +5793,9 @@ int spider_open_all_tables(
       }
 
       /* create another conn */
-      if (
-        (!(conn = spider_get_conn(
-        &tmp_share, 0, tmp_share.conn_keys[0], trx, spider, TRUE, FALSE,
-        SPIDER_CONN_KIND_MYSQL, &error_num)))
-      ) {
+      if ((!(conn= spider_get_conn(&tmp_share, 0, tmp_share.conn_keys[0], trx,
+                                   spider, TRUE, FALSE, &error_num))))
+      {
         spider_free_tmp_dbton_handler(spider);
         spider_free(trx, share, MYF(0));
         delete spider;
@@ -8850,9 +8840,8 @@ void *spider_table_bg_sts_action(
         if (!conns[spider->search_link_idx])
         {
           spider_get_conn(share, spider->search_link_idx,
-            share->conn_keys[spider->search_link_idx],
-            trx, spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
-            &error_num);
+                          share->conn_keys[spider->search_link_idx], trx,
+                          spider, FALSE, FALSE, &error_num);
           if (conns[spider->search_link_idx])
           {
             conns[spider->search_link_idx]->error_mode = 0;
@@ -9003,9 +8992,8 @@ void *spider_table_bg_crd_action(
         if (!conns[spider->search_link_idx])
         {
           spider_get_conn(share, spider->search_link_idx,
-            share->conn_keys[spider->search_link_idx],
-            trx, spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
-            &error_num);
+                          share->conn_keys[spider->search_link_idx], trx,
+                          spider, FALSE, FALSE, &error_num);
           if (conns[spider->search_link_idx])
           {
             conns[spider->search_link_idx]->error_mode = 0;

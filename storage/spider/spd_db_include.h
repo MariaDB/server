@@ -174,8 +174,6 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_LOP_CHK_PRM_PRF_STR "spider_lc_"
 #define SPIDER_SQL_LOP_CHK_PRM_PRF_LEN (sizeof(SPIDER_SQL_LOP_CHK_PRM_PRF_STR) - 1)
 
-#define SPIDER_CONN_KIND_MYSQL (1 << 0)
-
 #define SPIDER_SQL_KIND_SQL (1 << 0)
 #define SPIDER_SQL_KIND_HANDLER (1 << 1)
 
