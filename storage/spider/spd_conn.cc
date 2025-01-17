@@ -112,7 +112,6 @@ const uchar *spider_conn_get_key(
   auto conn= static_cast<const SPIDER_CONN *>(conn_);
   DBUG_ENTER("spider_conn_get_key");
   *length = conn->conn_key_length;
-  DBUG_PRINT("info",("spider conn_kind=%u", conn->conn_kind));
 #ifdef DBUG_TRACE
   spider_print_keys(conn->conn_key, conn->conn_key_length);
 #endif
@@ -402,7 +401,6 @@ SPIDER_CONN *spider_create_conn(
   ha_spider *spider,
   int link_idx,
   int base_link_idx,
-  uint conn_kind,
   int *error_num
 ) {
   int *need_mon;
@@ -556,7 +554,6 @@ SPIDER_CONN *spider_create_conn(
   conn->semi_trx_isolation_chk = FALSE;
   conn->semi_trx_chk = FALSE;
   conn->link_idx = base_link_idx;
-  conn->conn_kind = conn_kind;
   conn->conn_need_mon = need_mon;
   if (spider)
     conn->need_mon = &spider->need_mons[base_link_idx];
@@ -643,13 +640,11 @@ SPIDER_CONN *spider_get_conn(
   ha_spider *spider,
   bool another,
   bool thd_chg,
-  uint conn_kind,
   int *error_num
 ) {
   SPIDER_CONN *conn = NULL;
   int base_link_idx = link_idx;
   DBUG_ENTER("spider_get_conn");
-  DBUG_PRINT("info",("spider conn_kind=%u", conn_kind));
 
   if (spider)
     link_idx = spider->conn_link_idx[base_link_idx];
@@ -688,7 +683,8 @@ SPIDER_CONN *spider_get_conn(
           pthread_mutex_unlock(&spider_conn_mutex);
           if (spider_param_max_connections())
           { /* enable connection pool */
-            conn = spider_get_conn_from_idle_connection(share, link_idx, conn_key, spider, conn_kind, base_link_idx, error_num);
+            conn= spider_get_conn_from_idle_connection(
+                share, link_idx, conn_key, spider, base_link_idx, error_num);
             /* failed get conn, goto error */
             if (!conn)
               goto error;
@@ -697,8 +693,8 @@ SPIDER_CONN *spider_get_conn(
           else
           { /* did not enable conncetion pool , create_conn */
             DBUG_PRINT("info",("spider create new conn"));
-            if (!(conn = spider_create_conn(share, spider, link_idx,
-              base_link_idx, conn_kind, error_num)))
+            if (!(conn= spider_create_conn(share, spider, link_idx,
+                                           base_link_idx, error_num)))
               goto error;
             *conn->conn_key = *conn_key;
             if (spider)
@@ -722,8 +718,8 @@ SPIDER_CONN *spider_get_conn(
     } else {
       DBUG_PRINT("info",("spider create new conn"));
       /* conn_recycle_strict = 0 and conn_recycle_mode = 0 or 2 */
-      if (!(conn = spider_create_conn(share, spider, link_idx, base_link_idx,
-        conn_kind, error_num)))
+      if (!(conn= spider_create_conn(share, spider, link_idx, base_link_idx,
+                                     error_num)))
         goto error;
       *conn->conn_key = *conn_key;
       if (spider)
@@ -872,8 +868,7 @@ int spider_check_and_get_casual_read_conn(
     '0' + spider->result_list.casual_read[link_idx];
   if (!(spider->conns[link_idx]= spider_get_conn(
           spider->share, link_idx, spider->conn_keys[link_idx],
-          spider->wide_handler->trx, spider, FALSE, TRUE,
-          SPIDER_CONN_KIND_MYSQL, &error_num)))
+          spider->wide_handler->trx, spider, FALSE, TRUE, &error_num)))
   {
     *spider->conn_keys[link_idx] = first_byte_bak;
     DBUG_RETURN(error_num);
@@ -3023,9 +3018,8 @@ void *spider_bg_sts_action(
         if (!conns[spider.search_link_idx])
         {
           spider_get_conn(share, spider.search_link_idx,
-            share->conn_keys[spider.search_link_idx],
-            trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
-            &error_num);
+                          share->conn_keys[spider.search_link_idx], trx,
+                          &spider, FALSE, FALSE, &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
           spider.search_link_idx = -1;
         }
@@ -3298,9 +3292,8 @@ void *spider_bg_crd_action(
         if (!conns[spider.search_link_idx])
         {
           spider_get_conn(share, spider.search_link_idx,
-            share->conn_keys[spider.search_link_idx],
-            trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
-            &error_num);
+                          share->conn_keys[spider.search_link_idx], trx,
+                          &spider, FALSE, FALSE, &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
           spider.search_link_idx = -1;
         }
@@ -3854,8 +3847,6 @@ bool spider_conn_use_handler(
     spider->share->use_handlers[link_idx]);
   DBUG_ENTER("spider_conn_use_handler");
   DBUG_PRINT("info",("spider use_handler=%d", use_handler));
-  DBUG_PRINT("info",("spider spider->conn_kind[link_idx]=%u",
-    spider->conn_kind[link_idx]));
   if (spider->do_direct_update)
   {
     spider->sql_kinds |= SPIDER_SQL_KIND_SQL;
@@ -3921,7 +3912,7 @@ bool spider_conn_need_open_handler(
 ) {
   DBUG_ENTER("spider_conn_need_open_handler");
   DBUG_PRINT("info",("spider spider=%p", spider));
-  if (spider->handler_opened(link_idx, spider->conn_kind[link_idx]))
+  if (spider->handler_opened(link_idx))
   {
       DBUG_PRINT("info",("spider HA already opened"));
       DBUG_RETURN(FALSE);
@@ -3934,7 +3925,6 @@ SPIDER_CONN* spider_get_conn_from_idle_connection(
   int link_idx,
   char *conn_key,
   ha_spider *spider,
-  uint conn_kind,
   int base_link_idx,
   int *error_num
   )
@@ -4022,7 +4012,8 @@ SPIDER_CONN* spider_get_conn_from_idle_connection(
     if (ip_port_conn)
       pthread_mutex_unlock(&ip_port_conn->mutex);
     DBUG_PRINT("info",("spider create new conn"));
-    if (!(conn = spider_create_conn(share, spider, link_idx, base_link_idx, conn_kind, error_num)))
+    if (!(conn= spider_create_conn(share, spider, link_idx, base_link_idx,
+                                   error_num)))
       DBUG_RETURN(conn);
     *conn->conn_key = *conn_key;
     if (spider)

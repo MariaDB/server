@@ -2673,13 +2673,11 @@ int spider_internal_xa_commit_by_xid(
       goto error;
     }
 
-    if (
-      !(conn = spider_get_conn(
-        &tmp_share, 0, tmp_share.conn_keys[0], trx, NULL, FALSE, FALSE,
-        SPIDER_CONN_KIND_MYSQL, &error_num)) &&
-      (force_commit == 0 ||
-        (force_commit == 1 && error_num != ER_XAER_NOTA))
-    ) {
+    if (!(conn= spider_get_conn(&tmp_share, 0, tmp_share.conn_keys[0], trx,
+                                NULL, FALSE, FALSE, &error_num)) &&
+        (force_commit == 0 ||
+         (force_commit == 1 && error_num != ER_XAER_NOTA)))
+    {
       spider_sys_index_end(table_xa_member);
       spider_free_tmp_share_alloc(&tmp_share);
       free_root(&mem_root, MYF(0));
@@ -2903,13 +2901,11 @@ int spider_internal_xa_rollback_by_xid(
       goto error;
     }
 
-    if (
-      !(conn = spider_get_conn(
-        &tmp_share, 0, tmp_share.conn_keys[0], trx, NULL, FALSE, FALSE,
-        SPIDER_CONN_KIND_MYSQL, &error_num)) &&
-      (force_commit == 0 ||
-        (force_commit == 1 && error_num != ER_XAER_NOTA))
-    ) {
+    if (!(conn= spider_get_conn(&tmp_share, 0, tmp_share.conn_keys[0], trx,
+                                NULL, FALSE, FALSE, &error_num)) &&
+        (force_commit == 0 ||
+         (force_commit == 1 && error_num != ER_XAER_NOTA)))
+    {
       spider_sys_index_end(table_xa_member);
       spider_free_tmp_share_alloc(&tmp_share);
       free_root(&mem_root, MYF(0));
@@ -3409,8 +3405,7 @@ int spider_end_trx(
 
 int spider_check_trx_and_get_conn(
   THD *thd,
-  ha_spider *spider,
-  bool use_conn_kind
+  ha_spider *spider
 ) {
   int error_num, roop_count, search_link_idx;
   SPIDER_TRX *trx;
@@ -3500,7 +3495,7 @@ int spider_check_trx_and_get_conn(
       *spider->conn_keys[0] = first_byte;
       for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
       {
-        if (!spider->handler_opened(roop_count, SPIDER_CONN_KIND_MYSQL))
+        if (!spider->handler_opened(roop_count))
           spider->conns[roop_count] = NULL;
       }
       bool search_link_idx_is_checked = FALSE;
@@ -3513,12 +3508,9 @@ int spider_check_trx_and_get_conn(
           spider->conn_link_idx, roop_count, share->link_count,
           SPIDER_LINK_STATUS_RECOVERY)
       ) {
-        uint tgt_conn_kind = (use_conn_kind ? spider->conn_kind[roop_count] :
-          SPIDER_CONN_KIND_MYSQL);
         if (roop_count == spider->search_link_idx)
           search_link_idx_is_checked = TRUE;
         if (
-            tgt_conn_kind == SPIDER_CONN_KIND_MYSQL &&
               !spider->conns[roop_count]
         ) {
           *spider->conn_keys[roop_count] = first_byte;
@@ -3527,8 +3519,6 @@ int spider_check_trx_and_get_conn(
               spider_get_conn(share, roop_count,
                 spider->conn_keys[roop_count], trx,
                 spider, FALSE, TRUE,
-                use_conn_kind ? spider->conn_kind[roop_count] :
-                  SPIDER_CONN_KIND_MYSQL,
                 &error_num))
           ) {
             if (
@@ -3607,8 +3597,6 @@ int spider_check_trx_and_get_conn(
               spider_get_conn(share, roop_count,
                 spider->conn_keys[roop_count], trx,
                 spider, FALSE, TRUE,
-                use_conn_kind ? spider->conn_kind[roop_count] :
-                  SPIDER_CONN_KIND_MYSQL,
                 &error_num))
           ) {
             if (

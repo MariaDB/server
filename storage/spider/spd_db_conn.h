@@ -1175,8 +1175,7 @@ int spider_db_open_handler(
 int spider_db_close_handler(
   ha_spider *spider,
   SPIDER_CONN *conn,
-  int link_idx,
-  uint tgt_conn_kind
+  int link_idx
 );
 
 
