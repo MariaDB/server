@@ -1587,7 +1587,7 @@ mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 
 #include <openssl/x509v3.h>
 
-static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr)
+static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr, int is_local)
 {
   SSL *ssl;
   X509 *server_cert= NULL;
@@ -1628,7 +1628,8 @@ static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr)
     mysql->tls_self_signed_error= *errptr= "SSL certificate is self-signed";
     break;
   case X509_V_OK:
-    ret_validation= X509_check_host(server_cert, mysql->host,
+    ret_validation= !is_local &&
+                    X509_check_host(server_cert, mysql->host,
                                     strlen(mysql->host), 0, 0) != 1 &&
                     X509_check_ip_asc(server_cert, mysql->host, 0) != 1;
     *errptr= "SSL certificate validation failure";
@@ -2171,7 +2172,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     /* Verify server cert */
     if ((!mysql->options.extension ||
          !mysql->options.extension->tls_allow_invalid_server_cert) &&
-        ssl_verify_server_cert(mysql, &cert_error))
+        ssl_verify_server_cert(mysql, &cert_error, vio_type == VIO_TYPE_SOCKET))
     {
       set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                                ER(CR_SSL_CONNECTION_ERROR), cert_error);
