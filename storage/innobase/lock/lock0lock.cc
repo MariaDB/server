@@ -4913,8 +4913,6 @@ reiterate:
       bool supremum_bit= lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM);
       /* if XA is being prepared, it must not own waiting locks */
       ut_ad(!lock->is_waiting());
-      ut_ad(!lock->is_insert_intention() ||
-            (lock->type_mode & (LOCK_GAP | LOCK_PREDICATE)) || supremum_bit);
       bool rec_granted_exclusive_not_gap=
         lock->is_rec_exclusive_not_gap();
       if (UNIV_UNLIKELY(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))
@@ -5091,9 +5089,6 @@ reiterate:
       ut_ad(!lock->index->table->is_temporary());
       /* if XA is being prepared, it must not own waiting locks */
       ut_ad(!lock->is_waiting());
-      ut_ad(!lock->is_insert_intention() ||
-            (lock->type_mode & (LOCK_GAP | LOCK_PREDICATE)) ||
-            lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
       if (!lock->is_rec_exclusive_not_gap())
         lock_rec_dequeue_from_page(lock, false);
       else if (UNIV_UNLIKELY(lock->type_mode &
