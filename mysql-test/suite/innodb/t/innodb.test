@@ -2605,3 +2605,10 @@ CHECK TABLE t1;
 ALTER TABLE t1 FORCE;
 # Cleanup
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35723: applying zero offset to null pointer on INSERT
+--echo #
+CREATE TABLE t1(c TEXT(1) NOT NULL, INDEX (c)) ENGINE=InnoDB;
+INSERT INTO t1 SET c='';
+DROP TABLE t1;
