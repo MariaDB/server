@@ -26,6 +26,7 @@ InnoDB implementation of binlog.
 #include "mtr0log.h"
 #include "fsp0fsp.h"
 #include "trx0trx.h"
+#include "small_vector.h"
 
 #include "rpl_gtid_base.h"
 #include "handler.h"
@@ -159,16 +160,9 @@ class innodb_binlog_oob_reader {
       a prior tree that must be traversed first.
     */
     bool is_leftmost;
-  } init_stack[8], *stack;
+  };
+  small_vector<stack_entry, 8>stack;
 
-  /*
-    If the stack_len is == sizeof(init_stack)/sizeof(init_stack[0]), then we
-    are using the embedded stack memory. Otherwise we are using a dynamically
-    allocated stack that must be freed.
-  */
-  uint32_t stack_len;
-  /* Current top of stack. */
-  uint32_t stack_top;
   /* State machine current state. */
   enum oob_states state;
 
@@ -176,13 +170,12 @@ public:
   innodb_binlog_oob_reader();
   ~innodb_binlog_oob_reader();
 
-  bool start_traversal(uint64_t file_no, uint64_t offset);
-  bool oob_traversal_done() { return stack_top == 0; }
+  void start_traversal(uint64_t file_no, uint64_t offset);
+  bool oob_traversal_done() { return stack.empty(); }
  int read_data(binlog_chunk_reader *chunk_rd, uchar *buf, int max_len);
 
 private:
-  bool ensure_stack(uint32_t length);
-  bool push_state(enum oob_states state, uint64_t file_no, uint64_t offset,
+  void push_state(enum oob_states state, uint64_t file_no, uint64_t offset,
                   bool is_leftmost);
 };
 
@@ -474,14 +467,14 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   uint64_t pages= binlog_size >> srv_page_size_shift;
   if (UNIV_LIKELY(pages > (uint64_t)UINT32_MAX)) {
     pages= UINT32_MAX;
-    ib::warn() << "Requested max_binlog_size is larger than the maximum " <<
-      "InnoDB tablespace size, truncated to " <<
-      (pages << srv_page_size_shift) << ".";
+    sql_print_warning("Requested max_binlog_size is larger than the maximum "
+                      "InnoDB tablespace size, truncated to %llu",
+                      (pages << srv_page_size_shift));
   } else if (pages < 2) {  /* Minimum one data page and one index page. */
     pages= 2;
-    ib::warn() << "Requested max_binlog_size is smaller than the minimum " <<
-      "size supported by InnoDB, truncated to " <<
-      (pages << srv_page_size_shift) << ".";
+    sql_print_warning("Requested max_binlog_size is smaller than the minimum "
+                      "size supported by InnoDB, truncated to %llu",
+                      (pages << srv_page_size_shift));
   }
   innodb_binlog_size_in_pages= (uint32_t)pages;
 
@@ -489,8 +482,8 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
     directory= ".";
   else if (strlen(directory) + BINLOG_NAME_MAX_LEN > OS_FILE_MAX_PATH)
   {
-    ib::error() << "Specified binlog directory path '" << directory <<
-      "' is too long.";
+    sql_print_error("Specified binlog directory path '%s' is too long",
+                    directory);
     return true;
   }
   innodb_binlog_directory= directory;
@@ -582,7 +575,7 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
                                    OS_FILE_OPEN, OS_DATA_FILE,
                                    srv_read_only_mode, &ret);
   if (!ret) {
-    ib::warn() << "Unable to open file " << file_name;
+    sql_print_warning("Unable to open file '%s'", file_name);
     return -1;
   }
 
@@ -679,8 +672,8 @@ innodb_binlog_discover()
   {
     if (my_errno == ENOENT)
       return 0;
-    ib::error() << "Could not read the binlog directory '" <<
-      innodb_binlog_directory << "', error code " << my_errno << ".";
+    sql_print_error("Could not read the binlog directory '%s', error code %d",
+                    innodb_binlog_directory, my_errno);
     return -1;
   }
 
@@ -715,9 +708,9 @@ innodb_binlog_discover()
     if (res < 0) {
       file_no= binlog_files.last_file_no;
       active_binlog_file_no.store(file_no, std::memory_order_release);
-      ib::warn() << "Binlog number " << binlog_files.last_file_no <<
-        " could no be opened. Starting a new binlog file from number " <<
-        (file_no + 1) << ".";
+      sql_print_warning("Binlog number %llu could no be opened. Starting a new "
+                        "binlog file from number %llu",
+                        binlog_files.last_file_no,(file_no + 1));
       return 0;
     }
 
@@ -747,9 +740,9 @@ innodb_binlog_discover()
         active_binlog_space= space;
         binlog_cur_page_no= page_no;
         binlog_cur_page_offset= pos_in_page;
-        ib::warn() << "Binlog number " << binlog_files.prev_file_no
-                   << " could not be opened, starting from binlog number "
-                   << file_no << " instead." ;
+        sql_print_warning("Binlog number %llu could not be opened, starting "
+                          "from binlog number %llu instead",
+                          binlog_files.prev_file_no, file_no);
         return 1;
       }
       file_no= binlog_files.prev_file_no;
@@ -1161,8 +1154,8 @@ binlog_state_recover()
   }
   if (diff_state_interval == 0 || diff_state_interval % srv_page_size != 0)
   {
-    ib::warn() << "Invalid differential binlog state interval " <<
-      diff_state_interval << " found in binlog file, ignoring";
+    sql_print_warning("Invalid differential binlog state interval %llu found "
+                      "in binlog file, ignoring", diff_state_interval);
     current_binlog_state_interval= 0;  /* Disable in this binlog file */
   }
   else
@@ -1437,64 +1430,35 @@ innodb_free_oob(THD *thd, void *engine_data)
 
 
 innodb_binlog_oob_reader::innodb_binlog_oob_reader()
-  : stack(init_stack), stack_len(sizeof(init_stack)/sizeof(init_stack[0])),
-    stack_top(0)
 {
+  /* Nothing. */
 }
 
 
 innodb_binlog_oob_reader::~innodb_binlog_oob_reader()
 {
-  if (stack_len > sizeof(init_stack)/sizeof(init_stack[0]))
-    ut_free(stack);
+  /* Nothing. */
 }
 
 
-bool
-innodb_binlog_oob_reader::ensure_stack(uint32_t needed_length)
-{
-  uint32_t len= stack_len;
-  if (len >= needed_length)
-    return false;
-  do
-    len*= 2;
-  while (len < needed_length);
-  size_t needed= len*sizeof(stack_entry);
-  stack_entry *new_stack= (stack_entry *) ut_malloc(needed, mem_key_binlog);
-  if (!new_stack)
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), needed);
-    return true;
-  }
-
-  memcpy(new_stack, stack, stack_len*sizeof(stack_entry));
-  stack= new_stack;
-  stack_len= len;
-  return false;
-}
-
-
-bool
+void
 innodb_binlog_oob_reader::push_state(enum oob_states state, uint64_t file_no,
-                                  uint64_t offset, bool is_leftmost)
+                                     uint64_t offset, bool is_leftmost)
 {
-  uint32_t idx= stack_top;
-  if (ensure_stack(idx + 1))
-    return true;
-  stack[idx].state= state;
-  stack[idx].file_no= file_no;
-  stack[idx].offset= offset;
-  stack[idx].is_leftmost= is_leftmost;
-  stack_top= idx + 1;
-  return false;
+  stack_entry new_entry;
+  new_entry.state= state;
+  new_entry.file_no= file_no;
+  new_entry.offset= offset;
+  new_entry.is_leftmost= is_leftmost;
+  stack.emplace_back(std::move(new_entry));
 }
 
 
-bool
+void
 innodb_binlog_oob_reader::start_traversal(uint64_t file_no, uint64_t offset)
 {
-  stack_top= 0;
-  return push_state(ST_initial, file_no, offset, true);
+  stack.clear();
+  push_state(ST_initial, file_no, offset, true);
 }
 
 
@@ -1521,14 +1485,14 @@ innodb_binlog_oob_reader::read_data(binlog_chunk_reader *chunk_rd,
   std::pair<uint64_t, const unsigned char *> v_and_p;
   int size;
 
-  if (stack_top <= 0)
+  if (stack.empty())
   {
     ut_ad(0 /* Should not call when no more oob data to read. */);
     return 0;
   }
 
 again:
-  e= &(stack[stack_top - 1]);
+  e= &(stack[stack.size() - 1]);
   switch (e->state)
   {
   case ST_initial:
@@ -1632,8 +1596,8 @@ again:
     if (chunk_rd->end_of_record())
     {
       /* This oob record done, pop the state. */
-      ut_ad(stack_top > 0);
-      --stack_top;
+      ut_ad(!stack.empty());
+      stack.erase(stack.end() - 1, stack.end());
     }
     return size;
 
@@ -2157,8 +2121,8 @@ innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
   MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(0));
   if (!dir)
   {
-    ib::error() << "Could not read the binlog directory '" <<
-      innodb_binlog_directory << "', error code " << my_errno << ".";
+    sql_print_error("Could not read the binlog directory '%s', error code %d",
+                    innodb_binlog_directory, my_errno);
     return true;
   }
 
@@ -2181,12 +2145,12 @@ innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
 
   if (num_file_no == 0)
   {
-    ib::error() << "No binlog files found (deleted externally?)";
+    sql_print_error("No binlog files found (deleted externally?)");
     return true;
   }
   if (num_file_no != last_file_no - first_file_no + 1)
   {
-    ib::error() << "Missing binlog files (deleted externally?)";
+    sql_print_error("Missing binlog files (deleted externally?)");
     return true;
   }
   *out_first= first_file_no;
@@ -2208,8 +2172,8 @@ innodb_reset_binlogs()
   MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(MY_WME));
   if (!dir)
   {
-    ib::error() << "Could not read the binlog directory '" <<
-      innodb_binlog_directory << "', error code " << my_errno << ".";
+    sql_print_error("Could not read the binlog directory '%s', error code %d",
+                    innodb_binlog_directory, my_errno);
     err= true;
   }
   else
