@@ -3279,6 +3279,7 @@ static int send_one_binlog_file(binlog_send_info *info,
   {
     if (opt_binlog_engine_hton)
     {
+      info->dirlen= 0;
       if (send_engine_events(info))
         return 1;
     }
