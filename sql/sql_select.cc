@@ -3683,7 +3683,8 @@ bool JOIN::make_aggr_tables_info()
   bool is_having_added_as_table_cond= false;
   DBUG_ENTER("JOIN::make_aggr_tables_info");
 
-  
+  DBUG_ASSERT(current_ref_ptrs == items0);
+
   sort_and_group_aggr_tab= NULL;
 
   if (group_optimized_away)
@@ -3790,7 +3791,6 @@ bool JOIN::make_aggr_tables_info()
         */
         init_items_ref_array();
         items1= ref_ptr_array_slice(2);
-        //items1= items0 + all_fields.elements;
         if (change_to_use_tmp_fields(thd, items1,
                                      tmp_fields_list1, tmp_all_fields1,
                                      fields_list.elements, all_fields))
@@ -25199,12 +25199,13 @@ join_read_first(JOIN_TAB *tab)
   tab->read_record.table=table;
   if (tab->index >= table->s->keys)
   {
-    ORDER *order= tab->join->order ? tab->join->order : tab->join->group_list;
+    ORDER *order= tab->full_index_scan_order;
     DBUG_ASSERT(tab->index < table->s->total_keys);
     DBUG_ASSERT(tab->index == table->s->keys);
     DBUG_ASSERT(tab->sorted);
     DBUG_ASSERT(order);
     DBUG_ASSERT(order->next == NULL);
+    DBUG_ASSERT(order->item[0]->real_item()->type() == Item::FUNC_ITEM);
     tab->read_record.read_record_func= join_hlindex_read_next;
     error= tab->table->hlindex_read_first(tab->index, *order->item,
                                           tab->join->select_limit);
@@ -27110,6 +27111,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   int best_key= -1;
   bool changed_key= false;
   THD *thd= tab->join->thd;
+  ORDER *best_key_order= 0;
   Json_writer_object trace_wrapper(thd);
   Json_writer_array  trace_arr(thd, "test_if_skip_sort_order");
   DBUG_ENTER("test_if_skip_sort_order");
@@ -27342,6 +27344,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
          !table->is_clustering_key(best_key)))
       goto use_filesort;
 
+    best_key_order= order;
     if (select && table->opt_range_keys.is_set(best_key) && best_key != ref_key)
     {
       key_map tmp_map;
@@ -27441,6 +27444,7 @@ check_reverse_order:
                                  join_read_first:
                                  join_read_last);
         tab->type=JT_NEXT;           // Read with index_first(), index_next()
+        tab->full_index_scan_order= best_key_order;
 
         /*
           Currently usage of rowid filters is not supported in InnoDB

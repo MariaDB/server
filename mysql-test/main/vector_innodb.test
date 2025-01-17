@@ -242,3 +242,15 @@ insert into t values (1,0x38383838),(2,0x37373737),(3,0x31313131);
 alter table t modify v vector(2) not null;
 select hex(v) from t order by a;
 drop table t;
+
+--echo #
+--echo # MDEV-35793: Server crashes in
+--echo # Item_func_vec_distance_common::get_const_arg
+--echo #
+
+create table t (pk int primary key, v vector(1) not null, vector(v)) engine=innodb;
+insert into t values (1,0x31313131),(2,0x32323232); # optional, fails either way
+select distinct vec_distance_euclidean(v, 0x30303030) as d from t order by pk;
+drop table t;
+
+--echo # End of 11.7 tests
