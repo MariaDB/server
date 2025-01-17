@@ -61,13 +61,14 @@ unsigned char *compr_int_write(unsigned char *p, uint64_t v) {
     ToDo: On big-endian can use more efficient little-endian conversion, since
     we know the pointer is 8-byte aligned.
   */
-  int8store(p1, (uint8korr(p1) & ~mask1) | v1);
+  int8store((unsigned char *)p1,
+            (uint8korr((unsigned char *)p1) & ~mask1) | v1);
 #else
   *p1= (*p1 & ~mask1) | v1;
 #endif
   if (offset + bytes >= 8) {
 #ifdef WORDS_BIGENDIAN
-    int8store(p2, v2);
+    int8store((unsigned char *)p2, v2);
 #else
     *p2= v2;
 #endif
@@ -91,7 +92,7 @@ compr_int_read(const unsigned char *p)
     ToDo: On big-endian can use more efficient little-endian conversion, since
     we know the pointer is 8-byte aligned.
   */
-  uint64_t v1= uint8korr(p_align);
+  uint64_t v1= uint8korr((unsigned char *)p_align);
 #else
   uint64_t v1= p_align[0];
 #endif
@@ -103,7 +104,8 @@ compr_int_read(const unsigned char *p)
     uint64_t mask2= (~(uint64_t)0) >> ((16 - (offset + bytes)) << 3);
 #ifdef WORDS_BIGENDIAN
     v= (v1 >> (3 + offset_bits)) |
-      ((uint8korr(p_align + 1) & mask2) << (61 - offset_bits));
+      ((uint8korr((unsigned char *)(p_align + 1)) & mask2) <<
+       (61 - offset_bits));
 #else
     v= (v1 >> (3 + offset_bits)) | ((p_align[1] & mask2) << (61 - offset_bits));
 #endif
