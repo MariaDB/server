@@ -3375,7 +3375,8 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
         goto err;
       }
       if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg) ||
-          fake_format_description_event(info, info->fdev, &info->errmsg, pos))
+          fake_format_description_event(info, info->fdev, &info->errmsg,
+                                        (uint32_t)pos))
       {
         info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         goto err;

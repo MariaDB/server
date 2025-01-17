@@ -184,18 +184,18 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
       restart.
     */
     if (!os_file_set_size(file_name, fh, binlog_size, false)) {
-      ib::warn() << "Failed to change the size of InnoDB binlog file " <<
-        file_name << " from " << file_size << " to " << binlog_size <<
-        " bytes (error code: " << errno << ").";
+      sql_print_warning("Failed to change the size of InnoDB binlog file '%s' "
+                        "from %zu to %zu bytes (error code: %d)", file_name,
+                        file_size, (size_t)binlog_size, errno);
     } else {
       file_size= (size_t)binlog_size;
     }
   }
   if (file_size < 2*page_size)
   {
-    ib::warn() << "InnoDB binlog file number " << file_no << " is too short"
-      " (" << file_size << " bytes), should be at least " << 2*page_size <<
-      " bytes.";
+    sql_print_warning("InnoDB binlog file number %llu is too short (%zu bytes), "
+                      "should be at least %u bytes",
+                      file_no, file_size, 2*page_size);
     os_file_close(fh);
     return nullptr;
   }
@@ -211,7 +211,7 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
 
     dberr_t err= os_file_read(IORequestRead, fh, page_buf, 0, page_size, nullptr);
     if (err != DB_SUCCESS) {
-      ib::warn() << "Unable to read first page of file " << file_name;
+      sql_print_warning("Unable to read first page of file '%s'", file_name);
       aligned_free(page_buf);
       os_file_close(fh);
       return nullptr;
@@ -220,9 +220,8 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
     /* ToDo: Maybe use leaner page format for binlog tablespace? */
     uint32_t id1= mach_read_from_4(FIL_PAGE_SPACE_ID + page_buf);
     if (id1 != space_id) {
-      ib::warn() << "Binlog file " << file_name <<
-        " has inconsistent tablespace id " << id1 <<
-        " (expected " << space_id << ")";
+      sql_print_warning("Binlog file %s has inconsistent tablespace id %u "
+                        "(expected %u)", file_name, id1, space_id);
       aligned_free(page_buf);
       os_file_close(fh);
       return nullptr;
@@ -298,7 +297,7 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, fil_space_t **new_space)
 	/* We created the binlog file and now write it full of zeros */
 	if (!os_file_set_size(name, fh,
 			      os_offset_t{size} << srv_page_size_shift)) {
-		ib::error() << "Unable to allocate " << name;
+		sql_print_error("Unable to allocate file %s", name);
 		os_file_close(fh);
 		os_file_delete(innodb_data_file_key, name);
 		return DB_ERROR;
@@ -625,8 +624,8 @@ int
 binlog_chunk_reader::read_error_corruption(uint64_t file_no, uint64_t page_no,
                                            const char *msg)
 {
-  ib::error() << "Corrupt binlog found on page " << page_no <<
-    " in binlog number " << file_no << ": " << msg;
+  sql_print_error("Corrupt binlog found on page %llu in binlog number %llu: "
+                  "%s", page_no, file_no, msg);
   return -1;
 }
 
