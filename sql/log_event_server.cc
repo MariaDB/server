@@ -2396,6 +2396,7 @@ void Format_description_log_event::pack_info(Protocol *protocol)
   pos= int10_to_str(binlog_version, pos, 10);
   protocol->store(buf, (uint) (pos-buf), &my_charset_bin);
 }
+#endif /* defined(HAVE_REPLICATION) */
 
 bool
 Format_description_log_event::to_packet(String *packet)
@@ -2447,7 +2448,6 @@ Format_description_log_event::to_packet(String *packet)
 
   return false;
 }
-#endif /* defined(HAVE_REPLICATION) */
 
 bool Format_description_log_event::write(Log_event_writer *writer)
 {
