@@ -79,7 +79,9 @@ static constexpr uint64_t ALLOWED_NESTED_RECORDS=
   ((uint64_t)1 << FSP_BINLOG_TYPE_DUMMY)
   ;
 /* Ensure that all types fit in the ALLOWED_NESTED_RECORDS bitmask. */
-static_assert(FSP_BINLOG_TYPE_END <= 8*sizeof(ALLOWED_NESTED_RECORDS));
+static_assert(FSP_BINLOG_TYPE_END <= 8*sizeof(ALLOWED_NESTED_RECORDS),
+              "Binlog types must be <64 to fit "
+              "in ALLOWED_NESTED_RECORDS bitmask");
 
 
 class binlog_chunk_reader {
