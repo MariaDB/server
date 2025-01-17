@@ -1,0 +1,71 @@
+--echo #
+--echo # MDEV-30877: Output cardinality for derived table ignores GROUP BY
+--echo #
+
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+create table t1 (
+  group_id int,
+  b int,
+  index (group_id)
+);
+
+insert into t1 select seq/1000, seq from seq_1_to_20000;
+
+create table t2 (a int, b int, index(a));
+insert into t2 select seq, seq from seq_1_to_10;
+
+analyze table t1 persistent for all;
+
+set optimizer_trace=1;
+explain
+select *
+from
+  t2,
+  (select count(*) cnt, group_id from t1 group by group_id) TBL
+where
+  1;
+
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo # Try the same with multiple tables
+create table t3(c int);
+insert into t3 select seq from seq_1_to_10;
+explain
+select *
+from
+  t2,
+  (select count(*) cnt, group_id from t1,t3 group by group_id) TBL;
+
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+
+--echo # Now, without an index
+explain
+select *
+from
+  t2,
+  (select count(*) cnt, group_id from t1 use index(),t3 group by group_id) TBL;
+
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+
+set optimizer_trace=default;
+drop table t1, t2, t3;
+

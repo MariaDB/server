@@ -6352,6 +6352,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       for (i= 0; i < join->table_count ; i++)
         if (double rr= join->best_positions[i].records_read)
           records= COST_MULT(records, rr);
+
+      records= estimate_post_group_cardinality(join, records);
       rows= double_to_rows(records);
       set_if_smaller(rows, unit->lim.get_select_limit());
       join->select_lex->increase_derived_records(rows);
@@ -6381,6 +6383,156 @@ error:
   DBUG_RETURN (1);
 }
 
+
+/*
+  @brief
+    Given a SELECT with GROUP BY clause, estimate the cardinality of output
+    after the grouping operation is performed.
+
+  @detail
+    Consider a query
+
+      SELECT ...
+      FROM t1, t2, t3 ...
+      WHERE ...
+      GROUP BY
+        col1, col2, ...
+
+    Join optimizer produces an estimate of record cobinations after all tables
+    are joined.
+    GROUP BY operation combines groups of rows into one and leaves fewer rows
+    as output.
+
+    We use these approaches to estimate the number of groups:
+
+    1. Number of rows in a table. In "GROUP BY t1.col, t1.col2", it doesn't
+    matter how many rows other join tables have. We can say that there will
+    be at most #rows(t1) groups.
+
+    2. Number of rows in an index. If the GROUP BY calsue has form:
+
+    GROUP BY keyXpart1, keyXpart2, keyXpart3
+
+    then we can use index statistics on keyX to find out number of distinct
+    values. Note that we don't need to cover all key parts: for
+
+    GROUP BY keyXpart3
+
+    we can still index statistics on n_distinct(keyX, n_parts=3), although it
+    would produce a (probably generous) upper bound.
+
+    The above criteria handle the basic cases and are easy to check for.
+    Feel free to come up with tighter bounds.
+
+  @param
+    join_output_card  Number of rows after join operation
+
+  @return
+    Number of rows that will be left after grouping operation
+*/
+
+double estimate_post_group_cardinality(JOIN *join, double join_output_card)
+{
+  ORDER *cur_group;
+  key_map possible_keys= key_map_full;
+  TABLE  *dep_table= NULL;
+  List<Item_field> item_fields;
+
+  Json_writer_object wrapper(join->thd);
+  Json_writer_object trace(join->thd, "materialized_output_cardinality");
+
+  trace.add("join_output_card", join_output_card);
+
+  /*
+    Walk the GROUP BY list and check the following:
+    - all elements depend on single table in this SELECT.
+    - all elements are Item_field objects
+  */
+  for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
+  {
+    Item *item= *cur_group->item;
+    Item *real_item= item->real_item();
+    table_map item_used_tables= item->used_tables();
+
+    /*
+      Allow (1-2): Item_field objects referring to table in this select
+      (3) and it must be the same table as we saw before
+    */
+    if (!(item->used_tables() & PSEUDO_TABLE_BITS) &&  // (1)
+        real_item->type() == Item::FIELD_ITEM &&       // (2)
+        (!dep_table || dep_table->map == item_used_tables)) // (3)
+    {
+      Item_field *itf= (Item_field*)real_item;
+      dep_table= itf->field->table;
+      possible_keys.intersect(itf->field->part_of_key);
+      item_fields.push_back(itf);
+    }
+    else
+    {
+      /*
+        It's a complex expression and/or refers to different/multiple tables.
+        We don't handle such cases atm.
+      */
+      dep_table= NULL;
+      break;
+    }
+  }
+
+  if (!dep_table)
+    return join_output_card;
+
+  double out_rows= join_output_card;
+
+  /*
+    Ok, all GROUP BY columns refer to dep_table.
+    Use number of rows in dep_table as an upper bound for number of groups.
+    (TODO: use dep_table's found_records as a tighter bound?)
+  */
+  double table_records= rows2double(dep_table->stat_records());
+  if (table_records < out_rows)
+    out_rows= table_records;
+
+  /* Walk through indexes that cover all GROUP BY columns */
+  uint best_key=MAX_KEY;
+  uint key;
+  key_map::Iterator key_it(possible_keys);
+  while ((key= key_it++) != key_map::Iterator::BITMAP_END)
+  {
+    const KEY *keyinfo= dep_table->key_info + key;
+    Item_field *itf;
+    /* Find max keypart that is covered by the GROUP BY columns */
+    List_iterator<Item_field> iter(item_fields);
+    uint max_part= 0;
+    while ((itf= iter++))
+    {
+      for (uint key_part= 0; key_part < keyinfo->usable_key_parts; key_part++)
+      {
+        if (itf->field->field_index == keyinfo->key_part[key_part].field->field_index)
+        {
+          max_part= key_part;
+          break;
+        }
+      }
+    }
+    /*
+      Get the number of different values with this many key parts. This should
+      be greater than 1.
+    */
+    double index_card= (table_records / keyinfo->actual_rec_per_key(max_part));
+    if (index_card > 1.0 && index_card < out_rows)
+    {
+      out_rows= index_card;
+      best_key= key;
+    }
+  }
+
+  trace.add("post_group_card", out_rows);
+  Json_writer_object trace_est(join->thd, "estimate_source");
+  trace_est.add_table_name(dep_table);
+  if (best_key != MAX_KEY)
+    trace_est.add("index", dep_table->key_info[best_key].name.str);
+  return out_rows;
+}
 
 /*****************************************************************************
   Check with keys are used and with tables references with tables
