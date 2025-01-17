@@ -3910,9 +3910,10 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
+bool Item_func_set_collation::eq(const Item *item,
+                                 const Eq_config &config) const
 {
-  return Item_func::eq(item, binary_cmp) &&
+  return Item_func::eq(item, config) &&
          collation.collation == item->collation.collation;
 }
 

@@ -917,7 +917,7 @@ public:
     { return singleton(); }
 
     enum Functype functype() const override { return CHAR_TYPECAST_FUNC; }
-    bool eq(const Item *item, bool binary_cmp) const override
+    bool eq(const Item *item, const Eq_config &config) const override
     {
       if (this == item)
         return true;
@@ -927,7 +927,7 @@ public:
       if (type_handler() != item->type_handler())
         return false;
       Item_typecast_fbt *cast= (Item_typecast_fbt*) item;
-      return args[0]->eq(cast->args[0], binary_cmp);
+      return args[0]->eq(cast->args[0], config);
     }
     LEX_CSTRING func_name_cstring() const override
     {
