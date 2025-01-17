@@ -22,6 +22,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "my_valgrind.h"
 #include <iterator>
 #include <memory>
+#include <algorithm>
 
 class small_vector_base
 {
