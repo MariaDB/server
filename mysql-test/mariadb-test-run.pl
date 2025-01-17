@@ -182,6 +182,7 @@ my @DEFAULT_SUITES= qw(
     atomic-
     binlog-
     binlog_encryption-
+    binlog_in_engine-
     client-
     csv-
     compat/oracle-
