@@ -5559,13 +5559,12 @@ static int init_server_components()
   if (opt_bin_log)
   {
     mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
-    int error;
+    bool error;
     if (opt_binlog_engine_hton)
     {
       mysql_mutex_lock(log_lock);
-      if ((*opt_binlog_engine_hton->binlog_init)((size_t)max_binlog_size,
-                                                 opt_binlog_directory))
-        error= 1;
+      error= (*opt_binlog_engine_hton->binlog_init)((size_t)max_binlog_size,
+                                                    opt_binlog_directory);
       mysql_mutex_unlock(log_lock);
       if (unlikely(error))
         unireg_abort(1);

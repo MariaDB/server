@@ -32,6 +32,8 @@ InnoDB implementation of binlog.
 #include "log.h"
 
 
+static int innodb_binlog_inited= 0;
+
 uint32_t innodb_binlog_size_in_pages;
 const char *innodb_binlog_directory;
 
@@ -426,6 +428,7 @@ innodb_binlog_startup_init()
 {
   fsp_binlog_init();
   binlog_diff_state.init();
+  innodb_binlog_inited= 1;
 }
 
 
@@ -493,6 +496,7 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   innodb_binlog_directory= directory;
 
   innodb_binlog_init_state();
+  innodb_binlog_inited= 2;
 
   /* Find any existing binlog files and continue writing in them. */
   int res= innodb_binlog_discover();
@@ -780,24 +784,28 @@ innodb_binlog_discover()
 
 void innodb_binlog_close(bool shutdown)
 {
-  if (binlog_prealloc_thr_obj.joinable()) {
-    mysql_mutex_lock(&active_binlog_mutex);
-    prealloc_thread_end= true;
-    pthread_cond_signal(&active_binlog_cond);
-    mysql_mutex_unlock(&active_binlog_mutex);
-    binlog_prealloc_thr_obj.join();
-  }
+  if (innodb_binlog_inited >= 2)
+  {
+    if (binlog_prealloc_thr_obj.joinable()) {
+      mysql_mutex_lock(&active_binlog_mutex);
+      prealloc_thread_end= true;
+      pthread_cond_signal(&active_binlog_cond);
+      mysql_mutex_unlock(&active_binlog_mutex);
+      binlog_prealloc_thr_obj.join();
+    }
 
-  uint64_t file_no= first_open_binlog_file_no;
-  if (file_no != ~(uint64_t)0) {
-    if (file_no <= last_created_binlog_file_no) {
-      fsp_binlog_tablespace_close(file_no);
-      if (file_no + 1 <= last_created_binlog_file_no) {
-        fsp_binlog_tablespace_close(file_no + 1);
+    uint64_t file_no= first_open_binlog_file_no;
+    if (file_no != ~(uint64_t)0) {
+      if (file_no <= last_created_binlog_file_no) {
+        fsp_binlog_tablespace_close(file_no);
+        if (file_no + 1 <= last_created_binlog_file_no) {
+          fsp_binlog_tablespace_close(file_no + 1);
+        }
       }
     }
   }
-  if (shutdown)
+
+  if (shutdown && innodb_binlog_inited >= 1)
   {
     binlog_diff_state.free();
     fsp_binlog_shutdown();
@@ -2192,6 +2200,7 @@ innodb_reset_binlogs()
 {
   bool err= false;
 
+  ut_a(innodb_binlog_inited >= 2);
   /* Close existing binlog tablespaces and stop the pre-alloc thread. */
   innodb_binlog_close(false);
 
