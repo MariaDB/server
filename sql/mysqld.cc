@@ -9770,7 +9770,7 @@ void init_server_psi_keys(void)
 
 */
 
-static my_thread_id thread_id_max= UINT_MAX32;
+static my_thread_id thread_id_max= MY_THREAD_ID_MAX;
 
 #include <vector>
 #include <algorithm>
