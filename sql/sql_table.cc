@@ -9276,19 +9276,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       LEX_CSTRING tmp_name;
       bzero((char*) &key_create_info, sizeof(key_create_info));
       if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-        key_info->algorithm= (alter_info->flags & ALTER_CHANGE_COLUMN) ?
-          HA_KEY_ALG_UNDEF : HA_KEY_ALG_HASH;
+        key_info->algorithm= alter_ctx->fast_alter_partition ?
+          HA_KEY_ALG_HASH : HA_KEY_ALG_UNDEF;
       /*
-        This one goes to mysql_prepare_create_table():
-
-            key_info->algorithm= key->key_create_info.algorithm;
-
-        For HA_KEY_ALG_LONG_HASH if we didn't change ANY column, we pass
-        HA_KEY_ALG_HASH to ensure mysql_prepare_create_table() does add_hash_field().
-        This protects fast alter partition from losing hash properties.
-        In case of any column changes we drop algorithm to HA_KEY_ALG_UNDEF and
-        let decide mysql_prepare_create_table() if the hash field is needed
-        depending on new types.
+        For fast alter partition we set HA_KEY_ALG_HASH above to make sure it
+        doesn't lose the hash property.
+        Otherwise we let mysql_prepare_create_table() decide if the hash field
+        is needed depending on the (possibly changed) data types.
       */
       key_create_info.algorithm= key_info->algorithm;
       /*
@@ -10317,7 +10311,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   TABLE *table, *new_table= nullptr;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool partition_changed= false;
-  bool fast_alter_partition= false;
 #endif
   /*
     Create .FRM for new version of table with a temporary name.
@@ -10844,7 +10837,7 @@ do_continue:;
       Partitioning: part_info is prepared and returned via thd->work_part_info
     */
     if (prep_alter_part_table(thd, table, alter_info, create_info,
-                              &partition_changed, &fast_alter_partition))
+                        &partition_changed, &alter_ctx.fast_alter_partition))
     {
       DBUG_RETURN(true);
     }
@@ -10879,7 +10872,7 @@ do_continue:;
     Note, one can run a separate "ALTER TABLE t1 FORCE;" statement
     before or after the partition change ALTER statement to upgrade data types.
   */
-  if (IF_PARTITIONING(!fast_alter_partition, 1))
+  if (!alter_ctx.fast_alter_partition)
     Create_field::upgrade_data_types(alter_info->create_list);
 
   if (create_info->check_fields(thd, alter_info,
@@ -10891,7 +10884,7 @@ do_continue:;
     promote_first_timestamp_column(&alter_info->create_list);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (fast_alter_partition)
+  if (alter_ctx.fast_alter_partition)
   {
     /*
       ALGORITHM and LOCK clauses are generally not allowed by the

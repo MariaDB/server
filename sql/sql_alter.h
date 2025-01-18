@@ -328,6 +328,7 @@ public:
   /** Name of table for the above error. */
   const char   *fk_error_table= NULL;
   bool         modified_primary_key= false;
+  bool         fast_alter_partition= false;
 
 private:
   char new_filename[FN_REFLEN + 1];
