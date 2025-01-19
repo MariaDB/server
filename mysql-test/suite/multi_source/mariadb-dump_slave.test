@@ -1,0 +1,42 @@
+# Interactions with --dump-slave; based on `main.rpl_mysqldump_slave`
+
+--source include/have_log_bin.inc
+
+--connect (replica,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (active_primary,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (inactive_primary,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connection replica
+
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+--eval CHANGE MASTER 'active_repl' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root'
+START REPLICA 'active_repl';
+--replace_result $SERVER_MYPORT_3 MYPORT_3
+--eval CHANGE MASTER 'inactive_repl' TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root'
+STOP REPLICA 'inactive_repl';
+
+--echo # Basic
+--echo  MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--replace_result $SERVER_MYPORT_2 MYPORT_2 $SERVER_MYPORT_3 MYPORT_3
+--exec $MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+
+--echo # MDEV-7611 mysqldump --dump-slave always starts stopped slave
+--echo  MYSQL_DUMP --compact --dump-slave test
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec $MYSQL_DUMP --compact --dump-slave test
+START REPLICA 'active_repl';
+STOP REPLICA 'inactive_repl';
+
+--echo # MDEV-5624 mysqldump --dump-slave option does not restart the replication if the dump has failed
+--echo  MYSQL_DUMP --compact --dump-slave no_such_db
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--error 2
+--exec $MYSQL_DUMP --compact --dump-slave no_such_db
+START REPLICA 'active_repl';
+STOP REPLICA 'inactive_repl';
+
+--echo # Cleanup
+--source include/reset_master_slave.inc
+--disconnect replica
+--disconnect active_primary
+--disconnect inactive_primary
