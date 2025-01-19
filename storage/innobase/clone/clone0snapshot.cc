@@ -242,7 +242,7 @@ bool Clone_Snapshot::is_aborted() const {
 void Clone_Snapshot::set_abort() {
   Mysql_mutex_guard guard(&m_snapshot_mutex);
   m_aborted = true;
-  ib::info(ER_IB_CLONE_OPERATION) << "Clone Snapshot aborted";
+  ib::info() << "Clone Snapshot aborted";
 }
 
 Clone_Snapshot::State_transit::State_transit(Clone_Snapshot *snapshot,
@@ -573,7 +573,7 @@ int Clone_Snapshot::change_state(Clone_Desc_State *state_desc,
       ut_o(break);
 
     case CLONE_SNAPSHOT_FILE_COPY:
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone State BEGIN FILE COPY";
+      ib::info() << "Clone State BEGIN FILE COPY";
 
       err = init_file_copy(new_state);
 
@@ -582,7 +582,7 @@ int Clone_Snapshot::change_state(Clone_Desc_State *state_desc,
       break;
 
     case CLONE_SNAPSHOT_PAGE_COPY:
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone State BEGIN PAGE COPY";
+      ib::info() << "Clone State BEGIN PAGE COPY";
 
       err = init_page_copy(new_state, temp_buffer, temp_buffer_len);
 
@@ -590,14 +590,14 @@ int Clone_Snapshot::change_state(Clone_Desc_State *state_desc,
       break;
 
     case CLONE_SNAPSHOT_REDO_COPY:
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone State BEGIN REDO COPY";
+      ib::info() << "Clone State BEGIN REDO COPY";
 
       err = init_redo_copy(new_state, cbk);
 
       break;
 
     case CLONE_SNAPSHOT_DONE: {
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone State DONE ";
+      ib::info() << "Clone State DONE ";
 
       State_transit transit_guard(this, new_state);
       m_monitor.init_state(PSI_NOT_INSTRUMENTED, m_enable_pfs);
@@ -736,72 +736,6 @@ int Clone_Snapshot::get_next_page(uint chunk_num, uint &block_num,
   return (err);
 }
 
-bool Clone_Snapshot::encrypt_key_in_log_header(byte *log_header,
-                                               uint32_t header_len) {
-  size_t offset = LOG_ENCRYPTION + LOG_HEADER_ENCRYPTION_INFO_OFFSET;
-  ut_a(offset + Encryption::INFO_SIZE <= header_len);
-
-  auto encryption_info = log_header + offset;
-
-  /* Get log Encryption Key and IV. */
-  Encryption_metadata encryption_metadata;
-  auto success = Encryption::decode_encryption_info(encryption_metadata,
-                                                    encryption_info, false);
-
-  if (success) {
-    /* Encrypt with master key and fill encryption information. */
-    success = Encryption::fill_encryption_info(encryption_metadata, true,
-                                               encryption_info);
-  }
-  return (success);
-}
-
-bool Clone_Snapshot::encrypt_key_in_header(const page_size_t &page_size,
-                                           byte *page_data) {
-  auto offset = fsp_header_get_encryption_offset(page_size);
-  ut_ad(offset != 0 && offset + Encryption::INFO_SIZE <= UNIV_PAGE_SIZE);
-
-  auto encryption_info = page_data + offset;
-
-  /* Get tablespace Encryption Key and IV. */
-  Encryption_metadata encryption_metadata;
-  auto success = Encryption::decode_encryption_info(encryption_metadata,
-                                                    encryption_info, false);
-  if (!success) {
-    return (false);
-  }
-
-  /* Encrypt with master key and fill encryption information. */
-  success = Encryption::fill_encryption_info(encryption_metadata, true,
-                                             encryption_info);
-  if (!success) {
-    return (false);
-  }
-
-  const auto frame_lsn =
-      static_cast<lsn_t>(mach_read_from_8(page_data + FIL_PAGE_LSN));
-
-  /* Update page checksum */
-  page_update_for_flush(page_size, frame_lsn, page_data);
-
-  return (true);
-}
-
-void Clone_Snapshot::decrypt_key_in_header(const Clone_File_Meta *file_meta,
-                                           const page_size_t &page_size,
-                                           byte *&page_data) {
-  byte encryption_info[Encryption::INFO_SIZE];
-
-  /* Get tablespace encryption information. */
-  Encryption::fill_encryption_info(file_meta->m_encryption_metadata, false,
-                                   encryption_info);
-
-  /* Set encryption information in page. */
-  auto offset = fsp_header_get_encryption_offset(page_size);
-  ut_ad(offset != 0 && offset < UNIV_PAGE_SIZE);
-  memcpy(page_data + offset, encryption_info, sizeof(encryption_info));
-}
-
 void Clone_Snapshot::page_update_for_flush(const page_size_t &page_size,
                                            lsn_t page_lsn, byte *&page_data) {
   /* For compressed table, must copy the compressed page. */
@@ -822,25 +756,6 @@ void Clone_Snapshot::page_update_for_flush(const page_size_t &page_size,
     buf_flush_init_for_writing(nullptr, page_data, nullptr, page_lsn, false,
                                false);
   }
-}
-
-/** Set Page encryption information for IORequest.
-@param[in,out]  request         IO request
-@param[in]      page_id         page id
-@param[in]      file_ctx        clone file context */
-static void set_page_encryption(IORequest &request, const page_id_t &page_id,
-                                const Clone_file_ctx *file_ctx) {
-  auto file_meta = file_ctx->get_file_meta_read();
-
-  /* Page zero is never encrypted. Need to also check the FSP encryption
-  flag in case decryption is in progress. */
-  if (!file_meta->can_encrypt() ||
-      !FSP_FLAGS_GET_ENCRYPTION(file_meta->m_fsp_flags) ||
-      page_id.page_no() == 0) {
-    request.clear_encrypted();
-    return;
-  }
-  request.get_encryption_info().set(file_meta->m_encryption_metadata);
 }
 
 int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
@@ -898,17 +813,8 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
       static_cast<lsn_t>(mach_read_from_8(page_data + FIL_PAGE_LSN));
 
   /* First page of a encrypted tablespace. */
-  if (file_meta->can_encrypt() && page_id.page_no() == 0) {
-    /* Update unencrypted tablespace key in page 0 to be send over
-    SSL connection. */
-    decrypt_key_in_header(file_meta, page_size, page_data);
-
-    /* Force to recalculate the checksum if the page is not dirty. */
-    if (!page_is_dirty) {
-      page_is_dirty = true;
-      newest_lsn = frame_lsn;
-    }
-  }
+  /* TODO: Encryption metadata: Key*/
+  ut_ad(!file_meta->can_encrypt());
 
   /* If the page is not dirty but frame LSN is zero, it could be half
   initialized page left from incomplete operation. Assign valid LSN and checksum
@@ -967,7 +873,6 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
   }
 
   IORequest request(IORequest::WRITE);
-  set_page_encryption(request, page_id, file_ctx);
 
   /* Encrypt page if TDE is enabled. */
   if (err == 0 && request.is_encrypted()) {
@@ -1339,7 +1244,7 @@ int Clone_Snapshot::wait(Wait_type wait_type, const Clone_file_ctx *ctx,
       }
 
       if (alert) {
-        ib::info(ER_IB_CLONE_TIMEOUT) << info_mesg; /* purecov: tested */
+        ib::info() << info_mesg; /* purecov: tested */
       }
 
       if (check_intr && thd_killed(nullptr)) {

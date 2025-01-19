@@ -551,24 +551,6 @@ class Clone_Snapshot {
   @param[in]    file_size       new file size */
   void update_file_size(uint32_t file_index, uint64_t file_size);
 
-  /** Encrypt tablespace key in header page with master key.
-  @param[in]            fsp_flags       tablespace flag
-  @param[in,out]        page_data       page data to update
-  @return true, if successful. */
-  bool encrypt_key_in_header(ulint fsp_flags, byte *page_data);
-
-  /** Encrypt tablespace key in header page with master key.
-  @param[in,out]        log_header      page data to update
-  @param[in]            header_len      length of log header
-  @return true, if successful. */
-  bool encrypt_key_in_log_header(byte *log_header, uint32_t header_len);
-
-  /** Decrypt tablespace key in header page with master key.
-  @param[in]            file_meta       clone file metadata
-  @param[in,out]        page_data       page data to update */
-  void decrypt_key_in_header(const Clone_File_Meta *file_meta,
-                             byte *&page_data);
-
   /** @return maximum blocks to transfer with file pinned. */
   uint32_t get_max_blocks_pin() const;
 

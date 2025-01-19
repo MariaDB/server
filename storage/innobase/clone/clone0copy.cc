@@ -235,7 +235,7 @@ int Clone_Snapshot::init_file_copy(Snapshot_State new_state) {
     return ER_INTERNAL_ERROR; /* purecov: inspected */
   }
 
-  ib::info(ER_IB_CLONE_OPERATION)
+  ib::info()
       << "Clone State FILE COPY : " << m_num_current_chunks << " chunks, "
       << " chunk size : " << (chunk_size() * UNIV_PAGE_SIZE) / (1024 * 1024)
       << " M";
@@ -317,7 +317,7 @@ int Clone_Snapshot::init_page_copy(Snapshot_State new_state, byte *page_buffer,
   aligned_size = ut_calc_align(m_num_pages, chunk_size());
   m_num_current_chunks = aligned_size >> m_chunk_size_pow2;
 
-  ib::info(ER_IB_CLONE_OPERATION)
+  ib::info()
       << "Clone State PAGE COPY : " << m_num_pages << " pages, "
       << m_num_duplicate_pages << " duplicate pages, " << m_num_current_chunks
       << " chunks, "
@@ -420,7 +420,7 @@ int Clone_Snapshot::wait_trx_end(THD *thd, trx_id_t trx_id) {
     }
 
     if (alert) {
-      ib::warn(ER_IB_CLONE_TIMEOUT)
+      ib::warn()
           << "Waiting for prepared transaction to exit";
     }
     return (0);
@@ -439,7 +439,7 @@ int Clone_Snapshot::wait_trx_end(THD *thd, trx_id_t trx_id) {
                              nullptr, is_timeout);
 
   if (err == 0 && is_timeout) {
-    ib::info(ER_IB_CLONE_TIMEOUT)
+    ib::info()
         << "Clone wait for prepared transaction timed out";
     my_error(ER_INTERNAL_ERROR, MYF(0),
              "Innodb Clone wait for prepared transaction timed out.");
@@ -564,7 +564,7 @@ int Clone_Snapshot::init_redo_copy(Snapshot_State new_state,
 
   m_num_current_chunks = m_num_redo_chunks;
 
-  ib::info(ER_IB_CLONE_OPERATION)
+  ib::info()
       << "Clone State REDO COPY : " << m_num_current_chunks << " chunks, "
       << " chunk size : " << (chunk_size() * UNIV_PAGE_SIZE) / (1024 * 1024)
       << " M";
@@ -729,12 +729,7 @@ bool Clone_Snapshot::file_ctx_changed(const fil_node_t *node,
 
   const auto file_meta = file_ctx->get_file_meta_read();
 
-  /* Check if encryption property has changed. */
-  if (file_meta->m_encryption_metadata.m_type !=
-          space->m_encryption_metadata.m_type ||
-      space->encryption_op_in_progress != Encryption::Progress::NONE) {
-    return true;
-  }
+  /* TODO: Check if encryption property has changed. */
 
   /* Check if compression property has changed. */
   if (file_meta->m_compress_type != space->compression_type) {
@@ -805,7 +800,8 @@ int Clone_Snapshot::add_file(const char *name, uint64_t size_bytes,
   auto space = node->space;
   file_meta->m_space_id = space->id;
   file_meta->m_compress_type = space->compression_type;
-  file_meta->m_encryption_metadata = space->m_encryption_metadata;
+  /* TOD0: File metadata: Encryption information */
+  // file_meta->m_encryption_metadata = space->m_encryption_metadata;
   file_meta->m_fsp_flags = static_cast<uint32_t>(space->flags);
   file_meta->m_punch_hole = node->punch_hole;
   file_meta->m_fsblk_size = node->block_size;
@@ -966,8 +962,9 @@ int Clone_Snapshot::add_redo_file(char *file_name, uint64_t file_size,
 
   file_meta->m_space_id = dict_sys_t::s_log_space_id;
   file_meta->m_compress_type = PAGE_UNCOMPRESSED;
-  file_meta->m_encryption_metadata = log_sys->m_encryption_metadata;
-  file_meta->m_fsp_flags = UINT32_UNDEFINED;
+  /* TOD0: File metadata: Encryption information */
+  // file_meta->m_encryption_metadata = log_sys->m_encryption_metadata;
+  file_meta->m_fsp_flags = ULINT32_UNDEFINED;
   file_meta->m_punch_hole = false;
   file_meta->m_fsblk_size = 0;
 
@@ -1069,7 +1066,7 @@ int Clone_Handle::send_state_metadata(Clone_Task *task, Ha_clone_cbk *callback,
     ut_ad(task->m_is_master);
     ut_ad(m_clone_task_manager.is_restarted());
 
-    ib::info(ER_IB_CLONE_RESTART)
+    ib::info()
         << "CLONE COPY: Skip ACK after restart for state "
         << state_desc.m_state;
     return (0);
@@ -1151,7 +1148,7 @@ int Clone_Handle::send_file_metadata(Clone_Task *task,
     file_desc.m_file_meta.m_file_name_len = 0;
     file_desc.m_file_meta.m_file_name_alloc_len = 0;
 
-  } else if (file_meta->m_space_id == dict_sys_t::s_invalid_space_id) {
+  } else if (file_meta->m_space_id == UINT32_MAX) {
     /* Server buffer dump file ib_buffer_pool. */
     ut_ad(file_desc.m_state == CLONE_SNAPSHOT_FILE_COPY);
     ut_ad(file_meta->m_file_index == 0);
@@ -1234,7 +1231,7 @@ int Clone_Handle::send_data(Clone_Task *task, const Clone_file_ctx *file_ctx,
   auto file_type = OS_CLONE_DATA_FILE;
   bool is_log_file = (data_desc.m_state == CLONE_SNAPSHOT_REDO_COPY);
 
-  if (is_log_file || file_meta->m_space_id == dict_sys_t::s_invalid_space_id) {
+  if (is_log_file || file_meta->m_space_id == UINT32_MAX) {
     file_type = OS_CLONE_LOG_FILE;
   }
 
@@ -1304,7 +1301,7 @@ void Clone_Handle::display_progress(
     percent_done = current_percent;
     disp_time = current_time;
 
-    ib::info(ER_IB_CLONE_OPERATION)
+    ib::info()
         << "Stage progress: " << percent_done << "% completed.";
   }
 }
@@ -1657,7 +1654,7 @@ int Clone_Handle::restart_copy(THD *thd, const byte *loc, uint loc_len) {
           }
 
           if (result && alert) {
-            ib::info(ER_IB_CLONE_TIMEOUT) << "Clone Master Restart "
+            ib::info() << "Clone Master Restart "
                                              "wait for idle state";
           }
           return (0);
@@ -1668,7 +1665,7 @@ int Clone_Handle::restart_copy(THD *thd, const byte *loc, uint loc_len) {
       return (err);
 
     } else if (is_timeout) {
-      ib::info(ER_IB_CLONE_TIMEOUT)
+      ib::info()
           << "Clone Master restart wait for idle timed out";
 
       my_error(ER_INTERNAL_ERROR, MYF(0),

@@ -125,7 +125,7 @@ int Clone_Snapshot::update_sys_file_name(bool replace,
   auto space_id = file_meta->m_space_id;
 
   /* Update buffer pool dump file path for provisioning. */
-  if (space_id == dict_sys_t::s_invalid_space_id) {
+  if (space_id == UINT32_MAX) {
     ut_ad(0 == strcmp(file_name.c_str(), SRV_BUF_DUMP_FILENAME_DEFAULT));
 
     char path[OS_FILE_MAX_PATH];
@@ -562,7 +562,7 @@ int Clone_Handle::check_space(const Clone_Task *task) {
   auto db_err = os_get_free_space(data_dir, free_space);
   /* We skip space check if the OS interface returns error. */
   if (db_err != DB_SUCCESS) {
-    ib::warn(ER_IB_CLONE_VALIDATE)
+    ib::warn()
         << "Clone could not validate available free space";
     return (0);
   }
@@ -581,7 +581,7 @@ int Clone_Handle::check_space(const Clone_Task *task) {
     my_error(err, MYF(0), clone_space.c_str(), avaiable_space.c_str());
   }
 
-  ib::info(ER_IB_CLONE_VALIDATE)
+  ib::info()
       << "Clone estimated size: " << clone_space.c_str()
       << " Available space: " << avaiable_space.c_str();
   return (err);
@@ -682,7 +682,7 @@ int Clone_Handle::apply_state_metadata(Clone_Task *task,
     err = ack_state_metadata(task, callback, &state_desc);
 
     if (err != 0) {
-      ib::info(ER_IB_CLONE_OPERATION)
+      ib::info()
           << "Clone Apply Master ACK finshed state: " << state_desc.m_state;
     }
   }
@@ -789,7 +789,7 @@ int Clone_Handle::apply_file_delete(Clone_Task *task, Clone_file_ctx *file_ctx,
   mesg.append(" - ");
   mesg.append(std::to_string(end_chunk));
 
-  ib::info(ER_IB_MSG_CLONE_DDL_INVALIDATE) << mesg;
+  ib::info() << "Clone DDL Invalidate : " << mesg;
   return 0;
 }
 
@@ -827,7 +827,7 @@ int Clone_Handle::apply_ddl(const Clone_File_Meta *new_meta,
     mesg.append(" Space ID: ");
     mesg.append(std::to_string(new_meta->m_space_id));
 
-    ib::info(ER_IB_MSG_CLONE_DDL_APPLY) << mesg;
+    ib::info() << "Clone DDL APPLY: " << mesg;
     return 0;
   }
 
@@ -837,17 +837,7 @@ int Clone_Handle::apply_ddl(const Clone_File_Meta *new_meta,
   if (!new_meta->is_renamed()) {
     std::string update_mesg;
     /* Set new encryption and compression type. */
-    if (old_meta->m_encryption_metadata.m_type !=
-        new_meta->m_encryption_metadata.m_type) {
-      old_meta->m_encryption_metadata.m_type =
-          new_meta->m_encryption_metadata.m_type;
-      if (!new_meta->can_encrypt()) {
-        update_mesg.assign("UNENCRYPTED ");
-      } else {
-        update_mesg.assign("ENCRYPTED ");
-      }
-    }
-
+    /* TODO: Handle if encryption is enabled/disabled. */
     if (old_meta->m_compress_type != new_meta->m_compress_type) {
       old_meta->m_compress_type = new_meta->m_compress_type;
       if (new_meta->m_compress_type == PAGE_UNCOMPRESSED) {
@@ -866,7 +856,7 @@ int Clone_Handle::apply_ddl(const Clone_File_Meta *new_meta,
     mesg.append(" Space ID: ");
     mesg.append(std::to_string(new_meta->m_space_id));
 
-    ib::info(ER_IB_MSG_CLONE_DDL_APPLY) << mesg;
+    ib::info() << "Clone DDL APPLY: " << mesg;
     return err;
   }
 
@@ -924,7 +914,7 @@ int Clone_Handle::apply_ddl(const Clone_File_Meta *new_meta,
   rename_mesg.append(" Space ID: ");
   rename_mesg.append(std::to_string(new_meta->m_space_id));
 
-  ib::info(ER_IB_MSG_CLONE_DDL_APPLY) << rename_mesg;
+  ib::info() << "Clone DDL APPLY: " << rename_mesg;
 
   if (err == 0) {
     err = set_compression(new_ctx);
@@ -987,7 +977,7 @@ int Clone_Handle::fix_all_renamed(const Clone_Task *task) {
     auto file_meta = file_ctx->get_file_meta_read();
     mesg.append(std::to_string(file_meta->m_space_id));
 
-    ib::info(ER_IB_MSG_CLONE_DDL_APPLY) << mesg;
+    ib::info() << "Clone DDL APPLY: " << mesg;
     return err;
   };
 
@@ -1075,23 +1065,12 @@ int Clone_Handle::file_create_init(const Clone_file_ctx *file_ctx,
     page_no_t size_in_pages =
         is_undo_file ? UNDO_INITIAL_SIZE_IN_PAGES : FIL_IBD_FILE_INITIAL_SIZE;
 
-    byte encryption_info[Encryption::INFO_SIZE];
-    byte *encryption_ptr = nullptr;
-
     dberr_t db_err = DB_SUCCESS;
     std::string mesg("CREATE NEW FILE : ");
 
-    if (file_meta->m_transfer_encryption_key) {
-      encryption_ptr = &encryption_info[0];
-      mesg.append(" WRITE KEY: ");
-
-      bool success = Encryption::fill_encryption_info(
-          file_meta->m_encryption_metadata, true, encryption_info);
-
-      if (!success) {
-        db_err = DB_ERROR; /* purecov: inspected */
-      }
-    }
+    ut_ad(!m_file_meta.m_transfer_encryption_key);
+    /* TODO: Write page header encryption information. */
+    byte *encryption_ptr = nullptr;
 
     if (db_err == DB_SUCCESS) {
       db_err = fil_write_initial_pages(
@@ -1107,7 +1086,7 @@ int Clone_Handle::file_create_init(const Clone_file_ctx *file_ctx,
       mesg.append(" FAILED"); /* purecov: inspected */
     }
 
-    ib::info(ER_IB_MSG_CLONE_DDL_APPLY) << mesg;
+    ib::info() << "Clone DDL APPLY: " << mesg;
 
     return db_err;
   };
@@ -1190,7 +1169,7 @@ int Clone_Handle::apply_file_metadata(Clone_Task *task,
 
     auto file_type = OS_CLONE_DATA_FILE;
 
-    if (file_meta->m_space_id == dict_sys_t::s_invalid_space_id) {
+    if (file_meta->m_space_id == UINT32_MAX) {
       file_type = OS_CLONE_LOG_FILE;
     }
 
@@ -1205,7 +1184,7 @@ int Clone_Handle::apply_file_metadata(Clone_Task *task,
       mesg.append(file_name);
       mesg.append(" Space ID: ");
       mesg.append(std::to_string(file_meta->m_space_id));
-      ib::info(ER_IB_MSG_CLONE_DDL_APPLY) << mesg;
+      ib::info() << "Clone DDL APPLY: " << mesg;
 
     } else {
       /* Create the file and write initial pages if created by DDL. */
@@ -1312,7 +1291,7 @@ int Clone_Handle::sparse_file_write(Clone_File_Meta *file_meta,
         /* Disable for whole file */
         file_meta->m_punch_hole = false;
         ut_ad(err == DB_IO_NO_PUNCH_HOLE);
-        ib::info(ER_IB_CLONE_PUNCH_HOLE)
+        ib::info()
             << "Innodb Clone Apply failed to punch hole: "
             << file_meta->m_file_name;
       }
@@ -1335,31 +1314,7 @@ int Clone_Handle::modify_and_write(const Clone_Task *task, uint64_t offset,
   auto snapshot = m_clone_task_manager.get_snapshot();
   auto file_meta = snapshot->get_file_by_index(task->m_current_file_index);
 
-  if (file_meta->can_encrypt()) {
-    bool success = true;
-
-    bool is_page_copy = (snapshot->get_state() == CLONE_SNAPSHOT_PAGE_COPY);
-    bool key_page = (is_page_copy && offset == 0);
-
-    bool is_log_file = (snapshot->get_state() == CLONE_SNAPSHOT_REDO_COPY);
-    bool key_log = (is_log_file && file_meta->m_file_index == 0 && offset == 0);
-
-    if (key_page) {
-      /* Encrypt tablespace key with master key for encrypted tablespace. */
-      page_size_t page_size(file_meta->m_fsp_flags);
-      success = snapshot->encrypt_key_in_header(page_size, buffer);
-
-    } else if (key_log) {
-      /* Encrypt redo log key with master key */
-      success = snapshot->encrypt_key_in_log_header(buffer, buf_len);
-    }
-    if (!success) {
-      int err = ER_INTERNAL_ERROR;
-      my_error(err, MYF(0), "Innodb Clone Apply Failed to Encrypt Key");
-      ut_d(ut_error);
-      ut_o(return (err));
-    }
-  }
+  ut_ad(!file_meta->can_encrypt());
 
   if (file_meta->m_punch_hole) {
     auto err = sparse_file_write(file_meta, buffer, buf_len,
@@ -1411,7 +1366,7 @@ int Clone_Handle::receive_data(Clone_Task *task, uint64_t offset,
     mesg.append(" Space ID: ");
     mesg.append(std::to_string(file_meta->m_space_id));
 
-    ib::info(ER_IB_MSG_CLONE_DDL_APPLY) << mesg;
+    ib::info() << "Clone DDL APPLY: " << mesg;
     return 0;
   }
 
@@ -1432,7 +1387,7 @@ int Clone_Handle::receive_data(Clone_Task *task, uint64_t offset,
   auto file_type = OS_CLONE_DATA_FILE;
 
   if (is_log_file || is_page_copy ||
-      file_meta->m_space_id == dict_sys_t::s_invalid_space_id ||
+      file_meta->m_space_id == UINT32_MAX ||
       file_meta->m_punch_hole) {
     file_type = OS_CLONE_LOG_FILE;
   }
@@ -1676,35 +1631,35 @@ int Clone_Snapshot::init_apply_state(Clone_Desc_State *state_desc) {
 
   switch (m_snapshot_state) {
     case CLONE_SNAPSHOT_FILE_COPY:
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone Apply State FILE COPY: ";
+      ib::info() << "Clone Apply State FILE COPY: ";
       break;
 
     case CLONE_SNAPSHOT_PAGE_COPY:
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone Apply State PAGE COPY: ";
+      ib::info() << "Clone Apply State PAGE COPY: ";
       break;
 
     case CLONE_SNAPSHOT_REDO_COPY:
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone Apply State REDO COPY: ";
+      ib::info() << "Clone Apply State REDO COPY: ";
       break;
 
     case CLONE_SNAPSHOT_DONE:
       /* Extend and flush data files. */
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone Apply State FLUSH DATA: ";
+      ib::info() << "Clone Apply State FLUSH DATA: ";
       err = extend_and_flush_files(false);
       if (err != 0) {
-        ib::info(ER_IB_CLONE_OPERATION)
+        ib::info()
             << "Clone Apply FLUSH DATA failed code: " << err;
         break;
       }
       /* Flush redo files. */
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone Apply State FLUSH REDO: ";
+      ib::info() << "Clone Apply State FLUSH REDO: ";
       err = extend_and_flush_files(true);
       if (err != 0) {
-        ib::info(ER_IB_CLONE_OPERATION)
+        ib::info()
             << "Clone Apply FLUSH REDO failed code: " << err;
         break;
       }
-      ib::info(ER_IB_CLONE_OPERATION) << "Clone Apply State DONE";
+      ib::info() << "Clone Apply State DONE";
       break;
 
     case CLONE_SNAPSHOT_NONE:
@@ -1752,7 +1707,7 @@ int Clone_Snapshot::extend_and_flush_files(bool flush_redo) {
     size_t aligned_size = 0;
     /* If file size is not aligned to extent size, recovery handling has
     some issues. This work around eliminates dependency with that. */
-    if (file_meta->m_fsp_flags != UINT32_UNDEFINED) {
+    if (file_meta->m_fsp_flags != ULINT32_UNDEFINED) {
       page_size_t page_size(file_meta->m_fsp_flags);
       auto extent_size = page_size.physical() * FSP_EXTENT_SIZE;
       /* Skip extending files smaller than one extent. */
