@@ -83,7 +83,7 @@ static void rename_file(const std::string &from_file,
   auto ret = std::rename(from_file.c_str(), to_file.c_str());
 
   if (ret != 0) {
-    ib::fatal(UT_LOCATION_HERE, ER_IB_CLONE_STATUS_FILE)
+    ib::fatal()
         << "Error renaming file from: " << from_file.c_str()
         << " to: " << to_file.c_str();
   }
@@ -98,7 +98,7 @@ static void create_file(std::string &file_name) {
     file.close();
     return;
   }
-  ib::error(ER_IB_CLONE_STATUS_FILE)
+  ib::error()
       << "Error creating file : " << file_name.c_str();
 }
 
@@ -108,7 +108,7 @@ static void remove_file(const std::string &file) {
   os_file_type_t file_type;
 
   if (!os_file_status(file.c_str(), nullptr, &file_type)) {
-    ib::error(ER_IB_CLONE_STATUS_FILE)
+    ib::error()
         << "Error checking a file to remove : " << file.c_str();
     return;
   }
@@ -124,7 +124,7 @@ static void remove_file(const std::string &file) {
       remove_file(to_remove);
     };
     if (!os_file_scan_directory(file.c_str(), scan_cbk, true)) {
-      ib::error(ER_IB_CLONE_STATUS_FILE)
+      ib::error()
           << "Error removing directory : " << file.c_str();
     }
   } else {
@@ -137,7 +137,7 @@ static void remove_file(const std::string &file) {
     auto ret = std::remove(file.c_str());
 
     if (ret != 0) {
-      ib::error(ER_IB_CLONE_STATUS_FILE)
+      ib::error()
           << "Error removing file : " << file.c_str();
     }
   }
@@ -361,7 +361,7 @@ static bool get_clone_timeout_config(THD *thd, const std::string &config_name,
   err_str.append(config_name);
 
   if (err != 0) {
-    ib::error(ER_IB_CLONE_INTERNAL) << err_str;
+    ib::error() << err_str;
     return false;
   }
 
@@ -370,7 +370,7 @@ static bool get_clone_timeout_config(THD *thd, const std::string &config_name,
   } catch (const std::exception &e) {
     err_str.append(" Exception: ");
     err_str.append(e.what());
-    ib::error(ER_IB_CLONE_INTERNAL) << err_str;
+    ib::error() << err_str;
     ut_d(ut_error);
     ut_o(return false);
   }
@@ -424,7 +424,7 @@ int innodb_clone_begin(handlerton *, THD *thd, const byte *&loc, uint &loc_len,
         return (ER_INTERNAL_ERROR);
       }
 
-      ib::info(ER_IB_CLONE_START_STOP) << "Clone Begin Master Task: Restart";
+      ib::info() << "Clone Begin Master Task: Restart";
       err = clone_hdl->restart_copy(thd, loc, loc_len);
 
       break;
@@ -451,7 +451,7 @@ int innodb_clone_begin(handlerton *, THD *thd, const byte *&loc, uint &loc_len,
       }
 
       /* Log user and host beginning clone operation. */
-      ib::info(ER_IB_CLONE_START_STOP) << "Clone Begin Master Task by "
+      ib::info() << "Clone Begin Master Task by "
                                        << sctx_user.str << "@" << sctx_host.str;
       break;
     }
@@ -538,7 +538,7 @@ int innodb_clone_begin(handlerton *, THD *thd, const byte *&loc, uint &loc_len,
   }
 
   if (task_id > 0) {
-    ib::info(ER_IB_CLONE_START_STOP) << "Clone Begin Task ID: " << task_id;
+    ib::info() << "Clone Begin Task ID: " << task_id;
   }
 
   /* Get the current locator from clone handle. */
@@ -605,7 +605,7 @@ int innodb_clone_ack(handlerton *hton, THD *thd, const byte *loc, uint loc_len,
     clone_hdl->save_error(err);
   } else {
     /* For error input, return after saving it */
-    ib::info(ER_IB_CLONE_OPERATION) << "Clone set error ACK: " << in_err;
+    ib::info() << "Clone set error ACK: " << in_err;
     clone_hdl->save_error(in_err);
   }
 
@@ -660,7 +660,7 @@ int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
   if (!wait_reconnect || is_abort) {
     if (is_copy && is_master) {
       if (is_abort) {
-        ib::info(ER_IB_CLONE_RESTART)
+        ib::info()
             << "Clone Master aborted by concurrent clone";
         clone_hdl->set_abort();
       } else if (in_err != 0) {
@@ -681,7 +681,7 @@ int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
     clone_sys->drop_clone(clone_hdl);
 
     auto da = thd->get_stmt_da();
-    ib::info(ER_IB_CLONE_START_STOP)
+    ib::info()
         << "Clone"
         << (is_copy ? " End" : (is_init ? " Apply Version End" : " Apply End"))
         << (is_master ? " Master" : "") << " Task ID: " << task_id
@@ -697,20 +697,20 @@ int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
   ut_ad(is_master);
 
   auto da = thd->get_stmt_da();
-  ib::info(ER_IB_CLONE_RESTART)
+  ib::info()
       << "Clone Master n/w error code: " << in_err << ": "
       << ((da == nullptr || !da->is_error()) ? "" : da->message_text());
 
   auto time_out = get_donor_timeout(thd);
 
   if (time_out.count() <= 0) {
-    ib::info(ER_IB_CLONE_RESTART)
+    ib::info()
         << "Clone Master Skip wait after n/w error. Dropping Snapshot.";
     clone_sys->drop_clone(clone_hdl);
     return (0);
   }
 
-  ib::info(ER_IB_CLONE_RESTART) << "Clone Master wait " << time_out.count()
+  ib::info() << "Clone Master wait " << time_out.count()
                                 << " minutes for restart after n/w error";
 
   /* Set state to idle and wait for re-connect */
@@ -729,31 +729,31 @@ int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
         result = !clone_hdl->is_active();
 
         if (thd_killed(thd) || clone_hdl->is_interrupted()) {
-          ib::info(ER_IB_CLONE_RESTART)
+          ib::info()
               << "Clone End Master wait for Restart interrupted";
           my_error(ER_QUERY_INTERRUPTED, MYF(0));
           return (ER_QUERY_INTERRUPTED);
 
         } else if (Clone_Sys::s_clone_sys_state == CLONE_SYS_ABORT) {
-          ib::info(ER_IB_CLONE_RESTART)
+          ib::info()
               << "Clone End Master wait for Restart aborted by DDL";
           my_error(ER_CLONE_DDL_IN_PROGRESS, MYF(0));
           return (ER_CLONE_DDL_IN_PROGRESS);
 
         } else if (clone_hdl->is_abort()) {
           result = false;
-          ib::info(ER_IB_CLONE_RESTART) << "Clone End Master wait for Restart"
+          ib::info() << "Clone End Master wait for Restart"
                                            " aborted by concurrent clone";
           return (0);
         }
 
         if (!result) {
-          ib::info(ER_IB_CLONE_RESTART)
+          ib::info()
               << "Clone Master restarted successfully by "
                  "other task after n/w failure";
 
         } else if (alert) {
-          ib::info(ER_IB_CLONE_RESTART)
+          ib::info()
               << "Clone Master still waiting for restart";
         }
         return (0);
@@ -761,7 +761,7 @@ int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
       clone_sys->get_mutex(), is_timeout);
 
   if (err == 0 && is_timeout && clone_hdl->is_idle()) {
-    ib::info(ER_IB_CLONE_TIMEOUT)
+    ib::info()
         << "Clone End Master wait "
            "for restart timed out after "
         << time_out.count() << " minutes. Dropping Snapshot";
@@ -799,7 +799,7 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
 
   switch (mode) {
     case HA_CLONE_MODE_RESTART: {
-      ib::info(ER_IB_CLONE_RESTART) << "Clone Apply Begin Master Task: Restart";
+      ib::info() << "Clone Apply Begin Master Task: Restart";
       auto err = clone_hdl->restart_apply(thd, loc, loc_len);
 
       /* Reduce reference count */
@@ -815,7 +815,7 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
 
       if (clone_hdl != nullptr) {
         clone_sys->drop_clone(clone_hdl);
-        ib::error(ER_IB_CLONE_INTERNAL)
+        ib::error()
             << "Clone Apply Begin Master found duplicate clone";
         clone_hdl = nullptr;
         ut_d(ut_error);
@@ -827,10 +827,10 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
       if (clone_hdl != nullptr) {
         clone_sys->drop_clone(clone_hdl);
         clone_hdl = nullptr;
-        ib::info(ER_IB_CLONE_START_STOP) << "Clone Apply Master Loop Back";
+        ib::info() << "Clone Apply Master Loop Back";
         ut_ad(data_dir != nullptr);
       }
-      ib::info(ER_IB_CLONE_START_STOP) << "Clone Apply Begin Master Task";
+      ib::info() << "Clone Apply Begin Master Task";
       break;
 
     case HA_CLONE_MODE_ADD_TASK:
@@ -846,7 +846,7 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
 
     case HA_CLONE_MODE_VERSION:
       /* Cannot have input locator or existing clone */
-      ib::info(ER_IB_CLONE_START_STOP)
+      ib::info()
           << "Clone Apply Begin Master Version Check";
       ut_ad(loc == nullptr);
       ut_ad(clone_hdl == nullptr);
@@ -936,7 +936,7 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
   }
 
   if (task_id > 0) {
-    ib::info(ER_IB_CLONE_START_STOP)
+    ib::info()
         << "Clone Apply Begin Task ID: " << task_id;
   }
   /* Get the current locator from clone handle. */
@@ -957,7 +957,7 @@ int innodb_clone_apply(handlerton *hton, THD *thd, const byte *loc,
   if (in_err != 0 || cbk == nullptr) {
     clone_hdl->save_error(in_err);
     auto da = thd->get_stmt_da();
-    ib::info(ER_IB_CLONE_OPERATION)
+    ib::info()
         << "Clone Apply set error code: " << in_err << ": "
         << ((in_err == 0 || da == nullptr || !da->is_error())
                 ? ""
@@ -1068,7 +1068,7 @@ static int file_roll_forward(const std::string &data_file, int final_state) {
       std::string saved_file(data_file);
       saved_file.append(CLONE_INNODB_SAVED_FILE_EXTN);
       rename_file(data_file, saved_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone File Roll Forward: Save data file " << data_file
           << " state: " << cur_state;
     }
@@ -1082,7 +1082,7 @@ static int file_roll_forward(const std::string &data_file, int final_state) {
       std::string cloned_file(data_file);
       cloned_file.append(CLONE_INNODB_REPLACED_FILE_EXTN);
       rename_file(cloned_file, data_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone File Roll Forward: Rename clone to data file " << data_file
           << " state: " << cur_state;
     }
@@ -1096,7 +1096,7 @@ static int file_roll_forward(const std::string &data_file, int final_state) {
       std::string saved_file(data_file);
       saved_file.append(CLONE_INNODB_SAVED_FILE_EXTN);
       remove_file(saved_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone File Roll Forward: Remove saved data file " << data_file
           << " state: " << cur_state;
     }
@@ -1107,7 +1107,7 @@ static int file_roll_forward(const std::string &data_file, int final_state) {
       break;
 
     default:
-      ib::fatal(UT_LOCATION_HERE, ER_IB_CLONE_STATUS_FILE)
+      ib::fatal()
           << "Clone File Roll Forward: Invalid File State: " << cur_state;
   }
   return (cur_state);
@@ -1124,7 +1124,7 @@ static void file_rollback(const std::string &data_file) {
       std::string cloned_file(data_file);
       cloned_file.append(CLONE_INNODB_REPLACED_FILE_EXTN);
       rename_file(data_file, cloned_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone File Roll Back: Rename data to cloned file " << data_file
           << " state: " << cur_state;
     }
@@ -1135,7 +1135,7 @@ static void file_rollback(const std::string &data_file) {
       std::string saved_file(data_file);
       saved_file.append(CLONE_INNODB_SAVED_FILE_EXTN);
       rename_file(saved_file, data_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone File Roll Back: Rename saved to data file " << data_file
           << " state: " << cur_state;
     }
@@ -1146,7 +1146,7 @@ static void file_rollback(const std::string &data_file) {
       std::string cloned_file(data_file);
       cloned_file.append(CLONE_INNODB_REPLACED_FILE_EXTN);
       remove_file(cloned_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone File Roll Back: Remove cloned file " << data_file
           << " state: " << cur_state;
     }
@@ -1157,7 +1157,7 @@ static void file_rollback(const std::string &data_file) {
       break;
 
     default:
-      ib::fatal(UT_LOCATION_HERE, ER_IB_CLONE_STATUS_FILE)
+      ib::fatal()
           << "Clone File Roll Back: Invalid File State: " << cur_state;
   }
 }
@@ -1192,7 +1192,7 @@ static void old_file_roll_forward(const std::string &data_file,
     case FILE_STATE_REPLACED:
       /* If the file is also cloned, we can skip here as it would be handled
       with other cloned files. */
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone Old File Roll Forward: Skipped cloned file " << data_file
           << " state: " << cur_state;
       break;
@@ -1205,7 +1205,7 @@ static void old_file_roll_forward(const std::string &data_file,
       std::string saved_file(data_file);
       saved_file.append(CLONE_INNODB_SAVED_FILE_EXTN);
       rename_file(data_file, saved_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone Old File Roll Forward: Saved data file " << data_file
           << " state: " << cur_state;
     }
@@ -1219,7 +1219,7 @@ static void old_file_roll_forward(const std::string &data_file,
       std::string saved_file(data_file);
       saved_file.append(CLONE_INNODB_SAVED_FILE_EXTN);
       remove_file(saved_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone Old File Roll Forward: Remove saved file " << data_file
           << " state: " << cur_state;
     }
@@ -1230,7 +1230,7 @@ static void old_file_roll_forward(const std::string &data_file,
       break;
 
     default:
-      ib::fatal(UT_LOCATION_HERE, ER_IB_CLONE_STATUS_FILE)
+      ib::fatal()
           << "Clone Old File Roll Forward: Invalid File State: " << cur_state;
   }
 }
@@ -1246,7 +1246,7 @@ static void old_file_rollback(const std::string &data_file) {
     case FILE_STATE_REPLACED:
       /* If the file is also cloned, we can skip here as it would be handled
       with other cloned files. */
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone Old File Roll Back: Skip cloned file " << data_file
           << " state: " << cur_state;
       break;
@@ -1256,7 +1256,7 @@ static void old_file_rollback(const std::string &data_file) {
       std::string saved_file(data_file);
       saved_file.append(CLONE_INNODB_SAVED_FILE_EXTN);
       rename_file(saved_file, data_file);
-      ib::info(ER_IB_CLONE_STATUS_FILE)
+      ib::info()
           << "Clone Old File Roll Back: Renamed saved data file " << data_file
           << " state: " << cur_state;
     }
@@ -1268,7 +1268,7 @@ static void old_file_rollback(const std::string &data_file) {
       break;
 
     default:
-      ib::fatal(UT_LOCATION_HERE, ER_IB_CLONE_STATUS_FILE)
+      ib::fatal()
           << "Clone Old File Roll Back: Invalid File State: " << cur_state;
   }
 }
@@ -2019,7 +2019,7 @@ bool Fixup_data::fix_config_tables(THD *thd) {
 template <typename T>
 void Fixup_data::fix_objects(THD *thd, const DD_Objs_Iter<T> &begin,
                              const DD_Objs_Iter<T> &end, size_t thread_number) {
-  ib::info(ER_IB_CLONE_SQL) << "Clone: Fix Object count: " << (end - begin)
+  ib::info() << "Clone: Fix Object count: " << (end - begin)
                             << " task: " << thread_number;
 
   bool thread_created = false;
@@ -2120,7 +2120,8 @@ bool Fixup_data::fix_one_object(THD *thd, const dd::Table *table,
   /* Throw warning for MyIsam and CSV tables for which data is
   not cloned. These tables would be empty after clone. */
   if (!is_drop() && !is_system_schema(schema_name)) {
-    ib::warn(ER_IB_CLONE_NON_INNODB_TABLE, schema_name, table_name);
+    ib::warn() << "Non innodb table: " << schema_name << "." << table_name
+               << " is not cloned and is empty";
   }
 
   auto ret_val =
@@ -2172,7 +2173,7 @@ bool Fixup_data::execute_sql(THD *thd, const char *schema_name,
     ++m_num_errors;
 
     auto da = thd->get_stmt_da();
-    ib::info(ER_IB_CLONE_SQL)
+    ib::info()
         << "Clone: Failed to " << sql_stmt << " task: " << thread_number
         << " code: " << err << ": "
         << ((da == nullptr || !da->is_error()) ? "" : da->message_text());
@@ -2207,14 +2208,14 @@ bool Fixup_data::fix_one_object(THD *thd, const dd::Schema *schema,
   }
 
   if (my_mkdir(schema_dir, 0777, MYF(0)) < 0) {
-    ib::error(ER_IB_CLONE_INTERNAL)
+    ib::error()
         << "Clone: Failed to create schema directory: " << schema_name
         << " task: " << thread_number;
     ++m_num_errors;
     return (true);
   }
 
-  ib::info(ER_IB_CLONE_SQL)
+  ib::info()
       << "Clone: Fixed Schema: " << schema_name << " task: " << thread_number;
   return (false);
 }
@@ -2249,14 +2250,14 @@ bool fix_cloned_tables(THD *thd) {
 
   Fixup_data clone_fixup(true, false);
 
-  ib::info(ER_IB_CLONE_SQL) << "Clone Fixup: check and create schema directory";
+  ib::info() << "Clone Fixup: check and create schema directory";
   DD_Objs<dd::Schema> schemas;
 
   if (dc->fetch_global_components(&schemas) || clone_fixup.fix(thd, schemas)) {
     return (true);
   }
 
-  ib::info(ER_IB_CLONE_SQL)
+  ib::info()
       << "Clone Fixup: create empty MyIsam and CSV tables";
   DD_Objs<dd::Table> tables;
 
@@ -2264,12 +2265,12 @@ bool fix_cloned_tables(THD *thd) {
     return (true);
   }
 
-  ib::info(ER_IB_CLONE_SQL) << "Clone Fixup: replication configuration tables";
+  ib::info() << "Clone Fixup: replication configuration tables";
   if (clone_fixup.fix_config_tables(thd)) {
     return (true);
   }
 
-  ib::info(ER_IB_CLONE_SQL) << "Clone Fixup: finished successfully";
+  ib::info() << "Clone Fixup: finished successfully";
   remove_file(fixup_file);
   return (false);
 }
@@ -2299,13 +2300,13 @@ static bool clone_execute_query(THD *thd, const char *sql_stmt,
 
     /* Skip error, if asked. Don't skip query interruption request. */
     if (skip_error && sql_errno != ER_QUERY_INTERRUPTED) {
-      ib::info(ER_IB_CLONE_SQL)
+      ib::info()
           << "Clone: Skipped " << sql_stmt << " task: " << thread_number
           << " Reason = " << sql_errno << ": " << sql_errmsg;
       return (false);
     }
 
-    ib::info(ER_IB_CLONE_SQL)
+    ib::info()
         << "Clone: Failed to " << sql_stmt << " task: " << thread_number
         << " code: " << sql_errno << ": " << sql_errmsg;
 
@@ -2365,18 +2366,18 @@ static int clone_drop_binary_logs(THD *thd) {
 }
 
 static int clone_drop_user_data(THD *thd, bool allow_threads) {
-  ib::warn(ER_IB_CLONE_USER_DATA, "Started");
+  ib::warn() << "Clone removing all user data for provisioning: Started";
   Clone_handler::set_drop_data();
 
   auto dc = dd::get_dd_client(thd);
   Releaser releaser(dc);
   Fixup_data clone_fixup(allow_threads, true);
 
-  ib::info(ER_IB_CLONE_SQL) << "Clone Drop all user data";
+  ib::info() << "Clone Drop all user data";
   DD_Objs<dd::Table> tables;
 
   if (dc->fetch_global_components(&tables) || clone_fixup.fix(thd, tables)) {
-    ib::info(ER_IB_CLONE_SQL) << "Clone failed to drop all user tables";
+    ib::info() << "Clone failed to drop all user tables";
     my_error(ER_INTERNAL_ERROR, MYF(0), "Clone failed to drop all user tables");
 
     /* Get the first error reported. */
@@ -2384,11 +2385,11 @@ static int clone_drop_user_data(THD *thd, bool allow_threads) {
     return (da->mysql_errno());
   }
 
-  ib::info(ER_IB_CLONE_SQL) << "Clone Drop User schemas";
+  ib::info() << "Clone Drop User schemas";
   DD_Objs<dd::Schema> schemas;
 
   if (dc->fetch_global_components(&schemas) || clone_fixup.fix(thd, schemas)) {
-    ib::info(ER_IB_CLONE_SQL) << "Clone failed to drop all user schemas";
+    ib::info() << "Clone failed to drop all user schemas";
     my_error(ER_INTERNAL_ERROR, MYF(0),
              "Clone failed to drop all user schemas");
 
@@ -2397,12 +2398,12 @@ static int clone_drop_user_data(THD *thd, bool allow_threads) {
     return (da->mysql_errno());
   }
 
-  ib::info(ER_IB_CLONE_SQL) << "Clone Drop User tablespaces";
+  ib::info() << "Clone Drop User tablespaces";
   DD_Objs<dd::Tablespace> tablesps;
 
   if (dc->fetch_global_components(&tablesps) ||
       clone_fixup.fix(thd, tablesps)) {
-    ib::info(ER_IB_CLONE_SQL) << "Clone failed to drop all user tablespaces";
+    ib::info() << "Clone failed to drop all user tablespaces";
     my_error(ER_INTERNAL_ERROR, MYF(0),
              "Clone failed to drop all user tablespaces");
 
@@ -2418,8 +2419,8 @@ static int clone_drop_user_data(THD *thd, bool allow_threads) {
       return (err);
     }
   }
-  ib::info(ER_IB_CLONE_SQL) << "Clone Drop: finished successfully";
-  ib::warn(ER_IB_CLONE_USER_DATA, "Finished");
+  ib::info() << "Clone Drop: finished successfully";
+  ib::warn() << "Clone removing all user data for provisioning: Finished";
   return (0);
 }
 
@@ -2431,7 +2432,7 @@ static void clone_init_compression(THD *thd) {
     return;
   }
 
-  ib::info(ER_IB_CLONE_SQL) << "Clone: Started initializing compressed tables";
+  ib::info() << "Clone: Started initializing compressed tables";
 
   auto dc = dd::get_dd_client(thd);
   Releaser releaser(dc);
@@ -2485,7 +2486,7 @@ static void clone_init_compression(THD *thd) {
                                   dd_index->tablespace_id());
   }
   compression_initialized = true;
-  ib::info(ER_IB_CLONE_SQL) << "Clone: Finished initializing compressed tables";
+  ib::info() << "Clone: Finished initializing compressed tables";
 }
 
 Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
@@ -2521,7 +2522,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
   if (type == Type::SYSTEM_REDO_DISABLE || type == Type::SPACE_IMPORT) {
     if (clone_active) {
       get_mesg(true, ntfn_mesg);
-      ib::info(ER_IB_MSG_CLONE_DDL_NTFN) << ntfn_mesg;
+      ib::info() "Clone DDL Notification: " << ntfn_mesg;
 
       m_error = ER_CLONE_IN_PROGRESS;
       my_error(ER_CLONE_IN_PROGRESS, MYF(0));
@@ -2556,7 +2557,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
   }
 
   get_mesg(true, ntfn_mesg);
-  ib::info(ER_IB_MSG_CLONE_DDL_NTFN) << ntfn_mesg;
+  ib::info() "Clone DDL Notification: " << ntfn_mesg;
 
   DEBUG_SYNC_C("clone_notify_ddl_before_state_block");
 
@@ -2617,7 +2618,7 @@ Clone_notify::~Clone_notify() {
   if (clone_sys->check_active_clone(false)) {
     std::string ntfn_mesg;
     get_mesg(false, ntfn_mesg);
-    ib::info(ER_IB_MSG_CLONE_DDL_NTFN) << ntfn_mesg;
+    ib::info() "Clone DDL Notification: " << ntfn_mesg;
   }
 }
 
@@ -2672,7 +2673,7 @@ void Clone_notify::get_mesg(bool begin, std::string &mesg) {
   mesg.append("Space ID: ");
   mesg.append(std::to_string(m_space_id));
 
-  if (m_space_id == dict_sys_t::s_invalid_space_id) {
+  if (m_space_id == UINT32_MAX) {
     return;
   }
   auto fil_space = fil_space_get(m_space_id);
@@ -2700,7 +2701,7 @@ static int clone_init_tablespaces(THD *thd) {
     return ER_LOCK_WAIT_TIMEOUT;
   }
 
-  ib::info(ER_IB_CLONE_SQL) << "Clone: Started loading tablespaces";
+  ib::info() << "Clone: Started loading tablespaces";
   auto dc = dd::get_dd_client(thd);
   Releaser releaser(dc);
 
@@ -2728,11 +2729,11 @@ static int clone_init_tablespaces(THD *thd) {
     const char *space_name = dd_space->name().c_str();
 
     /* Get space ID. */
-    space_id_t space_id = dict_sys_t::s_invalid_space_id;
+    space_id_t space_id = UINT32_MAX;
 
     if (!se_data.exists(dd_space_key_strings[DD_SPACE_ID]) ||
         se_data.get(dd_space_key_strings[DD_SPACE_ID], &space_id)) {
-      ib::error(ER_IB_CLONE_INTERNAL)
+      ib::error()
           << "Clone Error getting ID from DD, space: : " << space_name;
       ut_d(ut_error);
       ut_o(continue);
@@ -2749,7 +2750,7 @@ static int clone_init_tablespaces(THD *thd) {
     uint32_t space_flags = 0;
     if (!se_data.exists(dd_space_key_strings[DD_SPACE_FLAGS]) ||
         se_data.get(dd_space_key_strings[DD_SPACE_FLAGS], &space_flags)) {
-      ib::error(ER_IB_CLONE_INTERNAL)
+      ib::error()
           << "Clone Error getting flags from DD, space: : " << space_name;
       ut_d(ut_error);
       ut_o(continue);
@@ -2775,14 +2776,14 @@ static int clone_init_tablespaces(THD *thd) {
                             space_name, filename.c_str(), false, false);
 
     if (err != DB_SUCCESS) {
-      ib::error(ER_IB_CLONE_INTERNAL)
+      ib::error()
           << "Clone Error opening space: " << space_name
           << " File: " << filename;
     }
   }
 
   clone_sys->set_space_initialized();
-  ib::info(ER_IB_CLONE_SQL) << "Clone: Finished loading tablespaces";
+  ib::info() << "Clone: Finished loading tablespaces";
 
   release_backup_lock(thd);
   return 0;

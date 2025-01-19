@@ -36,6 +36,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "mem0mem.h"
 #include "os0file.h"
 #include "univ.i"
+#include "fil0fil.h"
 
 /** Invalid locator ID. */
 const uint64_t CLONE_LOC_INVALID_ID = 0;
@@ -501,6 +502,7 @@ struct Clone_File_Meta {
   bool is_renamed() const { return m_renamed; }
 
   /** @return true, iff file is encrypted. */
+  bool can_encrypt() const { return false; }
   // bool can_encrypt() const { return m_encryption_metadata.can_encrypt(); }
 
   /** Reset DDL state of file metadata. */
@@ -562,7 +564,7 @@ struct Clone_File_Meta {
   const char *m_file_name;
 
   /** Encryption metadata: Since there is no master key, we should not
-  try to transfer encryption key which in nor owned by SE. This would
+  try to transfer encryption key which in not owned by SE. This would
   require the cloned server to access the same key store. The other
   solution is to decrypt and re-encrypt the whole dataset which would be
   expensive. */

@@ -12440,30 +12440,21 @@ ER_IB_MSG_CLONE_DDL_APPLY
   eng "Clone DDL APPLY: %s"
 ER_IB_MSG_CLONE_DDL_INVALIDATE
   eng "Clone DDL Invalidate : %s"
-
 ER_PATH_IN_DATADIR
   eng "Path is within the current data directory '%-.192s'"
-
 ER_IB_MSG_PAGE_ARCH_NO_RESET_POINTS
   eng "Could not find appropriate reset points."
-
 ER_IB_WRN_PAGE_ARCH_FLUSH_DATA
   eng "Unable to flush. Page archiving data may be corrupt in case of a crash."
-
 ER_IB_ERR_PAGE_ARCH_INVALID_DOUBLE_WRITE_BUF
   eng "Page archiver's doublewrite buffer for %ld is not valid."
-
 ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED
   eng "Page archiver system's recovery failed."
-
 ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT
   eng "Invalid archived file name format. The archived file is supposed to have the format %s + [0-9]*."
-
 ER_PAGE_TRACKING_NOT_STARTED
   eng "Page Tracking is not started yet."
-
 ER_PAGE_TRACKING_RANGE_NOT_TRACKED
   eng "Tracking was not enabled for the LSN range specified"
-
 ER_PAGE_TRACKING_CANNOT_PURGE
   eng "Cannot purge data when concurrent clone is in progress. Try later."
