@@ -4227,8 +4227,6 @@ SPIDER_SHARE *spider_get_share(
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int crd_sync;
 #endif
-  char first_byte;
-  int semi_table_lock_conn;
   int search_link_idx;
   uint sql_command = thd_sql_command(thd);
   SPIDER_Open_tables_backup open_tables_backup;
@@ -4425,13 +4423,6 @@ SPIDER_SHARE *spider_get_share(
       pthread_mutex_unlock(&share->mutex);
     }
 
-    semi_table_lock_conn = spider_param_semi_table_lock_connection(thd,
-      share->semi_table_lock_conn);
-    if (semi_table_lock_conn)
-      first_byte = '0' +
-        spider_param_semi_table_lock(thd, share->semi_table_lock);
-    else
-      first_byte = '0';
 
     if (!(spider->wide_handler->trx = spider_get_trx(thd, TRUE, error_num)))
     {
@@ -4551,7 +4542,6 @@ SPIDER_SHARE *spider_get_share(
     for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
     {
       spider->conn_keys[roop_count] = tmp_name;
-      *tmp_name = first_byte;
       tmp_name += share->conn_keys_lengths[roop_count] + 1;
       spider->m_handler_cid[roop_count] = tmp_cid;
       tmp_cid += SPIDER_SQL_HANDLER_CID_LEN + 1;
@@ -4909,14 +4899,6 @@ SPIDER_SHARE *spider_get_share(
       pthread_mutex_unlock(&share->mutex);
     }
 
-    semi_table_lock_conn = spider_param_semi_table_lock_connection(thd,
-      share->semi_table_lock_conn);
-    if (semi_table_lock_conn)
-      first_byte = '0' +
-        spider_param_semi_table_lock(thd, share->semi_table_lock);
-    else
-      first_byte = '0';
-
     spider->share = share;
     if (!(spider->wide_handler->trx = spider_get_trx(thd, TRUE, error_num)))
     {
@@ -5021,7 +5003,6 @@ SPIDER_SHARE *spider_get_share(
     for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
     {
       spider->conn_keys[roop_count] = tmp_name;
-      *tmp_name = first_byte;
       tmp_name += share->conn_keys_lengths[roop_count] + 1;
       spider->m_handler_cid[roop_count] = tmp_cid;
       tmp_cid += SPIDER_SQL_HANDLER_CID_LEN + 1;
