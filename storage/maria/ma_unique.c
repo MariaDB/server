@@ -259,6 +259,8 @@ my_bool _ma_unique_comp(MARIA_UNIQUEDEF *def, const uchar *a, const uchar *b,
     {
       if (a_length != b_length)
         return 1;
+      if (pos_a == NULL || pos_b == NULL)
+        return 0;
       end= pos_a+a_length;
       while (pos_a != end)
       {

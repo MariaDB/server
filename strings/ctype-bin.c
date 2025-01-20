@@ -199,7 +199,7 @@ static int my_strnncollsp_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
 {
   const uchar *end;
   size_t length;
-
+  if (a == NULL) return -1;
   end= a + (length= MY_MIN(a_length, b_length));
   while (a < end)
   {
@@ -291,9 +291,15 @@ int my_wc_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
 void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
                       const uchar *key, size_t len,ulong *nr1, ulong *nr2)
 {
-  const uchar *end = key + len;
-  ulong tmp1= *nr1;
-  ulong tmp2= *nr2;
+  const uchar *end;
+  ulong tmp1;
+  ulong tmp2;
+
+  if (key == NULL || len == 0)
+    return;
+  end = key + len;
+  tmp1= *nr1;
+  tmp2= *nr2;
 
   for (; key < end ; key++)
   {

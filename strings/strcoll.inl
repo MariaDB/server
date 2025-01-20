@@ -247,8 +247,8 @@ MY_FUNCTION_NAME(strnncollsp)(CHARSET_INFO *cs __attribute__((unused)),
                               const uchar *a, size_t a_length, 
                               const uchar *b, size_t b_length)
 {
-  const uchar *a_end= a + a_length;
-  const uchar *b_end= b + b_length;
+  const uchar *a_end= (a_length == 0) ? a : a + a_length;
+  const uchar *b_end= (b_length == 0) ? b : b + b_length;
   for ( ; ; )
   {
     int a_weight, b_weight, res;

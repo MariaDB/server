@@ -842,7 +842,7 @@ my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
   const char *strend;
   if ((cs->state & MY_CS_NONASCII) && length > 0)
     return MY_REPERTOIRE_UNICODE30;
-  for (strend= str + length; str < strend; str++)
+  for (strend= (length == 0) ? str : str + length; str < strend; str++)
   {
     if (((uchar) *str) > 0x7F)
       return MY_REPERTOIRE_UNICODE30;
@@ -1289,7 +1289,8 @@ my_convert_fix(CHARSET_INFO *to_cs, char *to, size_t to_length,
   my_wc_t wc;
   my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
   my_charset_conv_wc_mb wc_mb= to_cs->cset->wc_mb;
-  const uchar *from_end= (const uchar*) from + from_length;
+  const uchar *from_end= (from_length == 0) ?
+    (const uchar*) from : (const uchar*) from + from_length;
   uchar *to_end= (uchar*) to + to_length;
   char *to_start= to;
 
