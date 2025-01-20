@@ -194,6 +194,17 @@ public:
   my_bool start_param;
   my_bool read_types;
 
+private:
+  /*
+    On next statement execution, start with re-preparing the statement.
+    This is used by the optimizer. If there is an error during
+    once-per-statement optimization, the statement may be left in an undefined
+    state. When we execute the statement next time, we should start from
+    scratch.
+  */
+  bool reprepare_on_next_execution{false};
+public:
+
 #ifndef EMBEDDED_LIBRARY
   bool (*set_params)(Prepared_statement *st, uchar *data, uchar *data_end,
                      uchar *read_pos, String *expanded_query);
@@ -4401,6 +4412,16 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
+  if (reprepare_on_next_execution)
+  {
+    /*
+      Something has happened on previous execution that requires us to
+      re-prepare before we try to execute.
+    */
+    reprepare_on_next_execution= false;
+    goto start_with_reprepare;
+  }
+
   /* Check if we got an error when sending long data */
   if (unlikely(state == Query_arena::STMT_ERROR))
   {
@@ -4448,6 +4469,7 @@ reexecute:
     DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
     thd->clear_error();
 
+start_with_reprepare:
     error= reprepare();
 
     if (likely(!error))                         /* Success */
@@ -4461,6 +4483,10 @@ reexecute:
     }
   }
   reset_stmt_params(this);
+
+  if (reprepare_observer.is_reprepare_after_requested())
+    reprepare_on_next_execution= true;
+
 #ifdef PROTECT_STATEMENT_MEMROOT
   if (!error)
   {

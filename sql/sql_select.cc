@@ -68,6 +68,7 @@
 #include "create_tmp_table.h"
 #include "optimizer_defaults.h"
 #include "derived_handler.h"
+#include "sql_prepare.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -2316,6 +2317,14 @@ JOIN::optimize_inner()
     if (thd->is_error() ||
         (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
     {
+      /*
+        If there was an error above, the data structures may be left in some
+        undefined state. If this is a prepared statement, it might be not safe
+        to try running it again. Request that next prepared statement execution
+        starts processing from scratch.
+      */
+      if (thd->m_reprepare_observer)
+        thd->m_reprepare_observer->request_reprepare_after();
       if (arena)
         thd->restore_active_arena(arena, &backup);
       DBUG_RETURN(1);

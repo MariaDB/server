@@ -73,9 +73,20 @@ public:
     return m_attempt <= MAX_REPREPARE_ATTEMPTS;
   }
 
+  /*
+    Request that re-prepare is done before the NEXT statement execution
+    (execution of this statement can proceed)
+  */
+  void request_reprepare_after()
+  {
+    reprepare_after_requested= true;
+  }
+
+  bool is_reprepare_after_requested() const { return reprepare_after_requested; }
 private:
   bool m_invalidated{false};
   int m_attempt{0};
+  bool reprepare_after_requested{false};
 
   static const int MAX_REPREPARE_ATTEMPTS= 3;
 };

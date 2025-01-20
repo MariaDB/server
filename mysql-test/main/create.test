@@ -1945,3 +1945,20 @@ SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭�
 SET NAMES DEFAULT;
 
 --echo # End of 10.5 Test
+
+--echo #
+--echo # MDEV-35318 Assertion `tl->jtbm_subselect' failed in JOIN::calc_allowed_top_level_tables on 2nd execution of PS
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2); # Optional, fails either way
+
+PREPARE stmt FROM 'CREATE TABLE tmp AS SELECT * FROM (select t1.* from t t1 join t t2 on(t1.a = t2.a)) sq WHERE "x"=0';
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+
+DROP TABLE t;
+
+--echo # End of 11.7 Test
