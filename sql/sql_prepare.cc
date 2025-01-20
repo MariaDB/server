@@ -4401,6 +4401,16 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
+  if (lex->needs_reprepare)
+  {
+    /*
+      Something has happened on previous execution that requires us to
+      re-prepare before we try to execute.
+    */
+    lex->needs_reprepare= false;
+    goto start_with_reprepare;
+  }
+
   /* Check if we got an error when sending long data */
   if (unlikely(state == Query_arena::STMT_ERROR))
   {
@@ -4448,6 +4458,7 @@ reexecute:
     DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
     thd->clear_error();
 
+start_with_reprepare:
     error= reprepare();
 
     if (likely(!error))                         /* Success */

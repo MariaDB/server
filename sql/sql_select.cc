@@ -2316,6 +2316,12 @@ JOIN::optimize_inner()
     if (thd->is_error() ||
         (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
     {
+      /*
+        If there was an error above, the data structures may have been left in
+        some undefined state. If this is a PS/SP statement, it might not be
+        safe to run it again. Note that it needs to be re-prepared.
+      */
+      thd->lex->needs_reprepare= true;
       if (arena)
         thd->restore_active_arena(arena, &backup);
       DBUG_RETURN(1);
