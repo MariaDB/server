@@ -1338,6 +1338,7 @@ void LEX::start(THD *thd_arg)
   clause_winfuncs.empty();
 
   table_count_update= 0;
+  needs_reprepare= false;
 
   has_returning_list= false;
 
