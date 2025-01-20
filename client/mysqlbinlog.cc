@@ -43,11 +43,6 @@
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include <atomic>
-#if 0 /* FIXME: the following is broken for now */
-# include "mariadb_rpl.h"
-#else
-enum Item_result {STRING_RESULT,REAL_RESULT,INT_RESULT,ROW_RESULT,DECIMAL_RESULT};
-#endif
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"
