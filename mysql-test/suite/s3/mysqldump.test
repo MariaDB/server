@@ -18,7 +18,7 @@ alter table t1 engine=S3;
 --echo #####
 --echo # mysqldump with --copy-s3-tables=1
 --echo ###
---exec $MYSQL_DUMP --compact --copy-s3-tables=1 $database
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --copy-s3-tables=1 $database
 --echo #####
 --echo # mysqldump with --copy-s3-tables=1 XML
 --echo ###
