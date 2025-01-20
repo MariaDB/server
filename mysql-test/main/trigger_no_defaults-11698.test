@@ -19,7 +19,7 @@ delimiter ;|
 insert t1 (b) values (10);
 --error ER_NO_DEFAULT_FOR_FIELD
 insert t1 (b) values (20);
-# arguably the statement below should fail too
+--error ER_BAD_NULL_ERROR
 insert t1 (b) values (30);
 select * from t1;
 drop table t1;

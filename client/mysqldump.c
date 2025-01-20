@@ -3208,7 +3208,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
           fprintf(sql_file,
                   "SET @saved_cs_client     = @@character_set_client;\n"
-                  "SET character_set_client = utf8;\n"
+                  "SET character_set_client = utf8mb4;\n"
                   "/*!50001 CREATE VIEW %s AS SELECT\n",
                   result_table);
 
@@ -3276,7 +3276,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       {
         fprintf(sql_file,
                 "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n"
-                "/*!40101 SET character_set_client = utf8 */;\n"
+                "/*!40101 SET character_set_client = utf8mb4 */;\n"
                 "%s%s;\n"
                 "/*!40101 SET character_set_client = @saved_cs_client */;\n",
                 is_log_table ? "CREATE TABLE IF NOT EXISTS " : "",

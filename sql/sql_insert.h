@@ -46,6 +46,13 @@ void kill_delayed_threads(void);
 bool binlog_create_table(THD *thd, TABLE *table, bool replace);
 bool binlog_drop_table(THD *thd, TABLE *table);
 
+static inline void restore_default_record_for_insert(TABLE *t)
+{
+  restore_record(t,s->default_values);
+  if (t->triggers)
+    t->triggers->default_extra_null_bitmap();
+}
+
 #ifdef EMBEDDED_LIBRARY
 inline void kill_delayed_threads(void) {}
 #endif

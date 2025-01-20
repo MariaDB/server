@@ -65,6 +65,7 @@
 #include "transaction.h"
 #include "opt_trace.h"
 #include "my_cpu.h"
+#include "scope.h"
 
 
 #include "lex_symbol.h"
@@ -1305,7 +1306,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 {
   Protocol *protocol= thd->protocol;
   char buff[2048];
-  String buffer(buff, sizeof(buff), system_charset_info);
+  String buffer(buff, sizeof(buff), &my_charset_utf8mb4_general_ci);
   List<Item> field_list;
   bool error= TRUE;
   DBUG_ENTER("mysqld_show_create");
@@ -1729,7 +1730,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   def_value->length(0);
   if (has_default)
   {
-    StringBuffer<MAX_FIELD_WIDTH> str(field->charset());
+    StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
     if (field->default_value)
     {
       field->default_value->print(&str);
@@ -2256,11 +2257,11 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       {
         packet->append(STRING_WITH_LEN(" INVISIBLE"));
       }
-      def_value.set(def_value_buf, sizeof(def_value_buf), system_charset_info);
+      def_value.set(def_value_buf, sizeof(def_value_buf), &my_charset_utf8mb4_general_ci);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));
-        packet->append(def_value.ptr(), def_value.length(), system_charset_info);
+        packet->append(def_value.ptr(), def_value.length(), &my_charset_utf8mb4_general_ci);
       }
 
       if (field->vers_update_unversioned())
@@ -6476,8 +6477,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   {
     Field *field;
     LEX_CSTRING tmp_string;
-    Sql_mode_save sql_mode_backup(thd);
-    thd->variables.sql_mode= sql_mode;
+    SCOPE_VALUE(thd->variables.sql_mode, sql_mode);
 
     if (sph->type() == SP_TYPE_FUNCTION)
     {

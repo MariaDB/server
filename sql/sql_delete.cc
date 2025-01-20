@@ -742,8 +742,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     table->mark_columns_needed_for_delete();
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
-      !table->prepare_triggers_for_delete_stmt_or_event())
+  if (!table->prepare_triggers_for_delete_stmt_or_event() &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE)
     will_batch= !table->file->start_bulk_delete();
 
   /*
@@ -1444,6 +1444,13 @@ void multi_delete::abort_result_set()
 {
   DBUG_ENTER("multi_delete::abort_result_set");
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::send_eof().
+
+  ***************************************************************************/
+
   /* the error was handled or nothing deleted and no side effects return */
   if (error_handled ||
       (!thd->transaction->stmt.modified_non_trans_table && !deleted))
@@ -1643,6 +1650,13 @@ bool multi_delete::send_eof()
   killed_status= (local_error == 0)? NOT_KILLED : thd->killed;
   /* reset used flags */
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::abort_result_set().
+
+  ***************************************************************************/
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;

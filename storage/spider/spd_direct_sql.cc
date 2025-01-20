@@ -1297,8 +1297,8 @@ void spider_udf_free_direct_sql_alloc(
 long long spider_direct_sql_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error,
+  unsigned char *is_null,
+  unsigned char *error,
   my_bool bg
 ) {
   int error_num, roop_count;

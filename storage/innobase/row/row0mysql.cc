@@ -211,6 +211,14 @@ row_mysql_read_blob_ref(
 
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
 
+	if (!*len) {
+		/* Field_blob::store() if (!length) would encode both
+		the length and the pointer in the same area. An empty
+		string must be a valid (nonnull) pointer in the
+		collation functions that cmp_data() may invoke. */
+		return ref;
+	}
+
 	memcpy(&data, ref + col_len - 8, sizeof data);
 
 	return(data);

@@ -1026,7 +1026,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           INSERT INTO t1 (fields) VALUES ...
           INSERT INTO t1 VALUES ()
         */
-        restore_record(table,s->default_values);	// Get empty record
+        restore_default_record_for_insert(table);
         table->reset_default_fields();
 
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table, fields,
@@ -1055,7 +1055,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         */
         if (thd->lex->used_tables || // Column used in values()
             table->s->visible_fields != table->s->fields)
-	  restore_record(table,s->default_values);	// Get empty record
+          restore_default_record_for_insert(table);
         else
         {
           TABLE_SHARE *share= table->s;
@@ -1089,24 +1089,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  }
 	  error=1;
 	  break;
-        }
-      }
-
-      /*
-        with triggers a field can get a value *conditionally*, so we have to
-        repeat has_no_default_value() check for every row
-      */
-      if (table->triggers &&
-          table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
-      {
-        for (Field **f=table->field ; *f ; f++)
-        {
-          if (unlikely(!(*f)->has_explicit_value() &&
-                       has_no_default_value(thd, *f, table_list)))
-          {
-            error= 1;
-            goto values_loop_end;
-          }
         }
       }
 
@@ -2134,6 +2116,9 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
+          /*
+            Optimized dup handling via UPDATE (and insert history for versioned).
+          */
           if (table->versioned(VERS_TRX_ID))
           {
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
@@ -2168,25 +2153,39 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
         }
         else
         {
+          /*
+            Normal dup handling via DELETE (or UPDATE to history for versioned)
+            and repeating the cycle of INSERT.
+          */
           if (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
 
-          if (!table->versioned(VERS_TIMESTAMP))
+          bool do_delete= !table->versioned(VERS_TIMESTAMP);
+          if (do_delete)
             error= table->file->ha_delete_row(table->record[1]);
           else
           {
+            /* Update existing row to history */
             store_record(table, record[2]);
             restore_record(table, record[1]);
             table->vers_update_end();
             error= table->file->ha_update_row(table->record[1],
                                               table->record[0]);
             restore_record(table, record[2]);
+            if (error == HA_ERR_FOUND_DUPP_KEY ||        /* Unique index, any SE */
+                error == HA_ERR_FOREIGN_DUPLICATE_KEY || /* Unique index, InnoDB */
+                error == HA_ERR_RECORD_IS_THE_SAME)      /* No index */
+            {
+              /* Such history row was already generated from previous cycles */
+              error= table->file->ha_delete_row(table->record[1]);
+              do_delete= true;
+            }
           }
           if (unlikely(error))
             goto err;
-          if (!table->versioned(VERS_TIMESTAMP))
+          if (do_delete)
             info->deleted++;
           else
             info->updated++;
@@ -2685,12 +2684,21 @@ end_create:
   DBUG_RETURN(thd->is_error());
 }
 
-#define memdup_vcol(thd, vcol)                                            \
-  if (vcol)                                                               \
-  {                                                                       \
-    (vcol)= (Virtual_column_info*)(thd)->memdup((vcol), sizeof(*(vcol))); \
-    (vcol)->expr= NULL;                                                   \
+static inline
+bool memdup_vcol(THD *thd, Virtual_column_info *&vcol)
+{
+  if (vcol)
+  {
+    vcol= (Virtual_column_info*)(thd->memdup(vcol, sizeof(*vcol)));
+    if (!vcol)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
+    vcol->expr= NULL;
   }
+  return false;
+}
 
 /**
   As we can't let many client threads modify the same TABLE
@@ -2834,9 +2842,12 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
     (*field)->flags|= ((*org_field)->flags & LONG_UNIQUE_HASH_FIELD);
     (*field)->invisible= (*org_field)->invisible;
-    memdup_vcol(client_thd, (*field)->vcol_info);
-    memdup_vcol(client_thd, (*field)->default_value);
-    memdup_vcol(client_thd, (*field)->check_constraint);
+    if (memdup_vcol(client_thd, (*field)->vcol_info))
+      goto error;
+    if (memdup_vcol(client_thd, (*field)->default_value))
+      goto error;
+    if (memdup_vcol(client_thd, (*field)->check_constraint))
+      goto error;
     if (*org_field == found_next_number_field)
       (*field)->table->found_next_number_field= *field;
   }
@@ -2853,6 +2864,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                                  &error_reported,
                                  VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING)))
       goto error;
+
+    copy->update_keypart_vcol_info();
   }
 
   switch_defaults_to_nullable_trigger_fields(copy);
@@ -4065,7 +4078,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     */
     table->file->ha_start_bulk_insert((ha_rows) 0);
   }
-  restore_record(table,s->default_values);		// Get empty record
+  restore_default_record_for_insert(table);
   table->reset_default_fields();
   table->next_number_field=table->found_next_number_field;
 
@@ -4146,7 +4159,7 @@ int select_insert::prepare2(JOIN *)
 }
 
 
-void select_insert::cleanup()
+void select_insert::reset_for_next_ps_execution()
 {
   /* select_insert/select_create are never re-used in prepared statement */
   DBUG_ASSERT(0);
@@ -4210,7 +4223,7 @@ int select_insert::send_data(List<Item> &values)
         originally touched by INSERT ... SELECT, so we have to restore
         their original values for the next row.
       */
-      restore_record(table, s->default_values);
+      restore_default_record_for_insert(table);
     }
     if (table->next_number_field)
     {
@@ -4259,6 +4272,13 @@ bool select_insert::prepare_eof()
   DBUG_ENTER("select_insert::prepare_eof");
   DBUG_PRINT("enter", ("trans_table: %d, table_type: '%s'",
                        trans_table, table->file->table_type()));
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     select_insert::abort_result_set().
+
+  ****************************************************************************/
 
 #ifdef WITH_WSREP
   error= (thd->wsrep_cs().current_error()) ? -1 :
@@ -4393,6 +4413,12 @@ void select_insert::abort_result_set()
    */
   if (table && table->file->is_open())
   {
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     select_insert::prepare_eof().
+
+  ****************************************************************************/
     bool changed, transactional_table;
     /*
       If we are not in prelocked mode, we end the bulk insert started
@@ -4420,7 +4446,14 @@ void select_insert::abort_result_set()
       If table creation failed, the number of rows modified will also be
       zero, so no check for that is made.
     */
-    changed= (info.copied || info.deleted || info.updated);
+    if ((changed= (info.copied || info.deleted || info.updated)))
+    {
+      /*
+        We must invalidate the table in the query cache before binlog writing
+        and ha_autocommit_or_rollback.
+      */
+      query_cache_invalidate3(thd, table, 1);
+    }
     transactional_table= table->file->has_transactions_and_rollback();
     if (thd->transaction->stmt.modified_non_trans_table ||
         thd->log_current_statement)

@@ -3667,6 +3667,27 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
+bool
+Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
+                                  const Virtual_column_info* vcol, bool &error) const
+{
+  error= true;
+  Item *cmp_expr= vcol->expr->build_clone(thd);
+  if (!cmp_expr)
+    return false;
+  Item::func_processor_rename_table param;
+  param.old_db=    Lex_ident_db(vcol_share->db);
+  param.old_table= Lex_ident_table(vcol_share->table_name);
+  param.new_db=    Lex_ident_db(share->db);
+  param.new_table= Lex_ident_table(share->table_name);
+  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
+
+  error= false;
+  return type_handler()  == vcol->type_handler()
+      && is_stored() == vcol->is_stored()
+      && expr->eq(cmp_expr, true);
+}
+
 
 class Vcol_expr_context
 {
@@ -4077,6 +4098,24 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
   return 0;
 }
 
+void TABLE::update_keypart_vcol_info()
+{
+  for (uint k= 0; k < s->keys; k++)
+  {
+    KEY &info_k= key_info[k];
+    uint parts = (s->use_ext_keys ? info_k.ext_key_parts :
+                      info_k.user_defined_key_parts);
+    for (uint p= 0; p < parts; p++)
+    {
+      KEY_PART_INFO &kp= info_k.key_part[p];
+      if (kp.field != field[kp.fieldnr - 1])
+      {
+        kp.field->vcol_info = field[kp.fieldnr - 1]->vcol_info;
+      }
+    }
+  }
+}
+
 /*
   Open a table based on a TABLE_SHARE
 
@@ -4309,20 +4348,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
 
-    for (uint k= 0; k < share->keys; k++)
-    {
-      KEY &key_info= outparam->key_info[k];
-      uint parts = (share->use_ext_keys ? key_info.ext_key_parts :
-                    key_info.user_defined_key_parts);
-      for (uint p= 0; p < parts; p++)
-      {
-        KEY_PART_INFO &kp= key_info.key_part[p];
-        if (kp.field != outparam->field[kp.fieldnr - 1])
-        {
-          kp.field->vcol_info = outparam->field[kp.fieldnr - 1]->vcol_info;
-        }
-      }
-    }
+    outparam->update_keypart_vcol_info();
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -9401,8 +9427,8 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
 {
   if (triggers)
   {
-    if (triggers->has_triggers(TRG_EVENT_DELETE,
-                               TRG_ACTION_AFTER))
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER))
     {
       /*
         The table has AFTER DELETE triggers that might access to
@@ -9411,8 +9437,7 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
       */
       (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
     }
-    if (triggers->has_triggers(TRG_EVENT_UPDATE,
-                               TRG_ACTION_AFTER))
+    if (triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER))
     {
       /*
         The table has AFTER UPDATE triggers that might access to subject
@@ -9427,17 +9452,19 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
 
 bool TABLE::prepare_triggers_for_delete_stmt_or_event()
 {
-  if (triggers &&
-      triggers->has_triggers(TRG_EVENT_DELETE,
-                             TRG_ACTION_AFTER))
+  if (triggers)
   {
-    /*
-      The table has AFTER DELETE triggers that might access to subject table
-      and therefore might need delete to be done immediately. So we turn-off
-      the batching.
-    */
-    (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
-    return TRUE;
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER DELETE triggers that might access to subject table
+        and therefore might need delete to be done immediately. So we turn-off
+        the batching.
+      */
+      (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+      return TRUE;
+    }
   }
   return FALSE;
 }
@@ -9445,17 +9472,19 @@ bool TABLE::prepare_triggers_for_delete_stmt_or_event()
 
 bool TABLE::prepare_triggers_for_update_stmt_or_event()
 {
-  if (triggers &&
-      triggers->has_triggers(TRG_EVENT_UPDATE,
-                             TRG_ACTION_AFTER))
+  if (triggers)
   {
-    /*
-      The table has AFTER UPDATE triggers that might access to subject
-      table and therefore might need update to be done immediately.
-      So we turn-off the batching.
-    */ 
-    (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-    return TRUE;
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER UPDATE triggers that might access to subject
+        table and therefore might need update to be done immediately.
+        So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+      return TRUE;
+    }
   }
   return FALSE;
 }

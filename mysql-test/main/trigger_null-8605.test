@@ -391,3 +391,28 @@ create trigger tr before update on t1 for each row set @a = 1;
 --error ER_BAD_NULL_ERROR
 insert into t1 (pk, i) values (null, null);
 drop table t1;
+
+--echo #
+--echo # MDEV-19761 Before Trigger not processed for Not Null Columns if no explicit value and no DEFAULT
+--echo #
+create table t1( id int, rate int not null);
+create trigger test_trigger before insert on t1 for each row
+	set new.rate=if(new.rate is null,10,new.rate);
+
+insert into t1 (id) values (1);
+insert into t1 values (2,3);
+select * from t1;
+
+delimiter $$;
+create or replace trigger test_trigger before insert on t1 for each row
+	if new.rate is null then set new.rate = 15; end if;
+$$
+delimiter ;$$
+
+insert into t1 (id) values (3);
+insert into t1 values (4,5);
+select * from t1;
+
+drop table t1;
+
+--echo # End of 10.5 tests
