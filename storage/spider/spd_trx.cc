@@ -3311,6 +3311,8 @@ static int spider_trx_get_conn(ha_spider *spider, SPIDER_TRX *trx,
       /* TODO: do we need the check for !from_if here? */
       if (!from_if)
         conn->error_mode&= spider->error_mode;
+      if (conn->queued_connect)
+        conn->queued_connect_share= share;
     }
     else if (!(conn =
                spider_get_conn(share, roop_count,
