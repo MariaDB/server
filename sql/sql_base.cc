@@ -4700,6 +4700,7 @@ restart:
             goto error;
 
           error= FALSE;
+          VALGRIND_YIELD;
           goto restart;
         }
         goto error;
@@ -4765,6 +4766,7 @@ restart:
               goto error;
 
             error= FALSE;
+            VALGRIND_YIELD;
             goto restart;
           }
           /*
