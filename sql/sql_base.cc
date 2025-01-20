@@ -4718,6 +4718,7 @@ restart:
             goto error;
 
           error= FALSE;
+          pthread_yield();
           goto restart;
         }
         goto error;
@@ -4783,6 +4784,7 @@ restart:
               goto error;
 
             error= FALSE;
+            pthread_yield();
             goto restart;
           }
           /*
