@@ -3411,9 +3411,6 @@ int spider_check_trx_and_get_conn(
   SPIDER_TRX *trx;
   SPIDER_SHARE *share = spider->share;
   SPIDER_CONN *conn;
-  char first_byte, first_byte_bak;
-  int semi_table_lock_conn = spider_param_semi_table_lock_connection(thd,
-    share->semi_table_lock_conn);
   DBUG_ENTER("spider_check_trx_and_get_conn");
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
   {
@@ -3428,28 +3425,15 @@ int spider_check_trx_and_get_conn(
     if (!trx_ha || trx_ha->wait_for_reusing)
       spider_trx_set_link_idx_for_all(spider);
 
-
-    if (semi_table_lock_conn)
-      first_byte = '0' +
-        spider_param_semi_table_lock(thd, share->semi_table_lock);
-    else
-      first_byte = '0';
-    DBUG_PRINT("info",("spider semi_table_lock_conn = %d",
-      semi_table_lock_conn));
-    DBUG_PRINT("info",("spider semi_table_lock = %d",
-      spider_param_semi_table_lock(thd, share->semi_table_lock)));
-    DBUG_PRINT("info",("spider first_byte = %d", first_byte));
     if (
       !trx_ha ||
       trx_ha->wait_for_reusing ||
       trx->spider_thread_id != spider->spider_thread_id ||
       trx->trx_conn_adjustment != spider->trx_conn_adjustment ||
-      first_byte != *spider->conn_keys[0] ||
       share->link_statuses[spider->conn_link_idx[spider->search_link_idx]] ==
         SPIDER_LINK_STATUS_NG
     ) {
-      DBUG_PRINT("info",(first_byte != *spider->conn_keys[0] ?
-        "spider change conn type" : trx != spider->wide_handler->trx ?
+      DBUG_PRINT("info",(trx != spider->wide_handler->trx ?
         "spider change thd" : "spider next trx"));
       spider->wide_handler->trx = trx;
       spider->trx_conn_adjustment = trx->trx_conn_adjustment;
@@ -3491,8 +3475,6 @@ int spider_check_trx_and_get_conn(
       }
       spider->spider_thread_id = trx->spider_thread_id;
 
-      first_byte_bak = *spider->conn_keys[0];
-      *spider->conn_keys[0] = first_byte;
       for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
       {
         if (!spider->handler_opened(roop_count))
@@ -3513,7 +3495,6 @@ int spider_check_trx_and_get_conn(
         if (
               !spider->conns[roop_count]
         ) {
-          *spider->conn_keys[roop_count] = first_byte;
           if (
             !(conn =
               spider_get_conn(share, roop_count,
@@ -3543,7 +3524,6 @@ int spider_check_trx_and_get_conn(
               );
             }
             DBUG_PRINT("info",("spider get conn error"));
-            *spider->conn_keys[0] = first_byte_bak;
             spider->spider_thread_id = 0;
             DBUG_RETURN(error_num);
           }

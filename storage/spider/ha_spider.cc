@@ -1006,9 +1006,6 @@ int ha_spider::reset()
   THD *thd = ha_thd();
   SPIDER_TRX *tmp_trx, *trx_bak;
   SPIDER_CONDITION *tmp_cond;
-/*
-  char first_byte, first_byte_bak;
-*/
   backup_error_status();
   DBUG_ENTER("ha_spider::reset");
   DBUG_PRINT("info",("spider this=%p", this));
