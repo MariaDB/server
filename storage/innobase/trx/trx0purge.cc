@@ -1189,7 +1189,10 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
 
   dict_table_t *table= trx_purge_table_open(id, mdl_context, mdl);
   if (table == reinterpret_cast<dict_table_t*>(-1))
+  {
+    VALGRIND_YIELD;
     goto retry;
+  }
 
   for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
        thr= UT_LIST_GET_NEXT(thrs, thr))
@@ -1205,6 +1208,7 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
         {
           if (table)
             dict_table_close(table, thd, *mdl);
+          VALGRIND_YIELD;
           goto retry;
         }
       }

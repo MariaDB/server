@@ -4721,6 +4721,7 @@ restart:
             goto error;
 
           error= FALSE;
+          pthread_yield();
           goto restart;
         }
         goto error;
@@ -4786,6 +4787,7 @@ restart:
 
             error= FALSE;
             sroutine_to_open= &thd->lex->sroutines_list.first;
+            pthread_yield();
             goto restart;
           }
           /*
