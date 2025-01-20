@@ -43,3 +43,9 @@ SELECT @@GLOBAL.replicate_do_db;
 
 # Cleanup.
 SET @@GLOBAL.replicate_do_db = @save_replicate_do_db;
+#
+# MDEV-35688 UBSAN: SUMMARY: UndefinedBehaviorSanitizer: nullptr-with-offset in my_casedn_utf8mb3
+#
+show variables like 'replicate_do_db';
+Variable_name	Value
+replicate_do_db	
