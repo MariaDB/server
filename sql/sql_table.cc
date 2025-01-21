@@ -1176,7 +1176,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
   char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
   LEX_CUSTRING version;
-  LEX_CSTRING partition_engine_name= {NULL, 0};
   StringBuffer<160> unknown_tables(system_charset_info);
   DDL_LOG_STATE local_ddl_log_state;
   const char *comment_start;
@@ -1263,6 +1262,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     const LEX_CSTRING db= table->db;
     const LEX_CSTRING table_name= table->table_name;
     LEX_CSTRING cpath= {0,0};
+    LEX_CSTRING partition_engine_name= {NULL, 0};
     handlerton *hton= 0;
     Table_type table_type;
     size_t path_length= 0;
