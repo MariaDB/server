@@ -6948,6 +6948,7 @@ void Field_iterator_natural_join::next()
 {
   cur_column_ref= column_ref_it++;
   DBUG_ASSERT(!cur_column_ref || ! cur_column_ref->table_field ||
+              !cur_column_ref->table_field->field ||
               cur_column_ref->table_ref->table ==
               cur_column_ref->table_field->field->table);
 }
