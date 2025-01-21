@@ -9677,6 +9677,7 @@ fk_check_column_changes(THD *thd, const TABLE *table,
 
   *bad_column_name= NULL;
   enum fk_column_change_type result= FK_COLUMN_NO_CHANGE;
+  bool strict_mode= thd->is_strict_mode();
 
   while ((column= column_it++))
   {
@@ -9722,7 +9723,7 @@ fk_check_column_changes(THD *thd, const TABLE *table,
         goto func_exit;
       }
 
-      if (old_field_not_null != new_field_not_null)
+      if (strict_mode && old_field_not_null != new_field_not_null)
       {
         if (referenced && !new_field_not_null)
         {

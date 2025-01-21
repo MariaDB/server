@@ -44,6 +44,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "dict0priv.h"
 #include "fts0priv.h"
 #include "srv0start.h"
+#include "ha_innodb.h"
 
 /*****************************************************************//**
 Based on a table object, this function builds the entry to be inserted
@@ -1890,6 +1891,7 @@ dict_create_add_foreigns_to_dictionary(
 
 	error = DB_SUCCESS;
 
+	bool strict_mode = thd_is_strict_mode(trx->mysql_thd);
 	for (dict_foreign_set::const_iterator it = local_fk_set.begin();
 	     it != local_fk_set.end();
 	     ++it) {
@@ -1897,7 +1899,7 @@ dict_create_add_foreigns_to_dictionary(
 		foreign = *it;
 		ut_ad(foreign->id != NULL);
 
-		if (!foreign->check_fk_constraint_valid()) {
+		if (strict_mode && !foreign->check_fk_constraint_valid()) {
 			error = DB_CANNOT_ADD_CONSTRAINT;
 		} else {
 			error = dict_create_add_foreign_to_dictionary(
