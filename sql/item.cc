@@ -3557,7 +3557,7 @@ bool Item_field::eq(const Item *item, const Eq_config &config) const
     return 0;
   
   Item_field *item_field= (Item_field*) real_item2;
-  if (item_field->field && field)
+  if (!config.omit_table_names && item_field->field && field)
     return item_field->field == field;
   /*
     We may come here when we are trying to find a function in a GROUP BY
@@ -3571,12 +3571,13 @@ bool Item_field::eq(const Item *item, const Eq_config &config) const
   */
   return (!lex_string_cmp(system_charset_info, &item_field->name,
                           &field_name) &&
-	  (!item_field->table_name.str || !table_name.str ||
+          (config.omit_table_names ||
+           (!item_field->table_name.str || !table_name.str ||
 	   (!my_strcasecmp(table_alias_charset, item_field->table_name.str,
 			   table_name.str) &&
 	    (!item_field->db_name.str || !db_name.str ||
 	     (item_field->db_name.str && !strcmp(item_field->db_name.str,
-                                                 db_name.str))))));
+                                                 db_name.str)))))));
 }
 
 

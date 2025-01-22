@@ -659,7 +659,7 @@ public:
   bool cleanup_session_expr();
   bool fix_and_check_expr(THD *thd, TABLE *table);
   bool check_access(THD *thd);
-  inline bool is_equal(const Virtual_column_info* vcol) const;
+  inline bool is_equal(const Virtual_column_info* vcol, bool cmp_names) const;
   inline void print(String*);
 };
 

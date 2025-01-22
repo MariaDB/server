@@ -1250,6 +1250,28 @@ ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Tables have different definitions
 DROP TABLE t1, t2;
 #
+# MDEV-34033 Exchange partition with virtual columns fails
+#
+create or replace table t1(
+id int primary key,
+col1 int,
+col2 boolean as (col1 is null))
+partition by list (id) ( partition p1 values in (1)
+);
+create or replace table t1_working like t1;
+alter table t1_working remove partitioning;
+alter table t1 exchange partition p1 with table t1_working;
+create or replace table t2(
+id int primary key,
+col1 int,
+col2 boolean as (true))
+partition by list (id) ( partition p1 values in (1)
+);
+create or replace table t2_working like t2;
+alter table t2_working remove partitioning;
+alter table t2 exchange partition p1 with table t2_working;
+drop tables t1, t1_working, t2, t2_working;
+#
 # MDEV-35612 EXCHANGE PARTITION does not work for tables with unique blobs
 #
 create table t (a int, b text, unique (b), unique(a, b)) partition by list (a) (partition p0 values in (1,2), partition pdef default);

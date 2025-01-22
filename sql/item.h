@@ -1274,7 +1274,9 @@ public:
   struct Eq_config
   {
     bool binary_cmp;        /**< Make binary comparison */
-    Eq_config(bool binary_cmp) : binary_cmp(binary_cmp) {}
+    bool omit_table_names;  /**< Skip table and db names comparison */
+    Eq_config(bool binary_cmp, bool omit_table_names= false)
+      : binary_cmp(binary_cmp), omit_table_names(omit_table_names) {}
   };
   virtual bool eq(const Item *, const Eq_config &config) const;
   enum_field_types field_type() const
@@ -8183,11 +8185,12 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
                      bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
                      int *escape);
 
-inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol) const
+inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol,
+                                          bool omit_table_names) const
 {
   return type_handler()  == vcol->type_handler()
       && stored_in_db == vcol->is_stored()
-      && expr->eq(vcol->expr, true);
+      && expr->eq(vcol->expr, {true, omit_table_names});
 }
 
 inline void Virtual_column_info::print(String* str)
