@@ -985,6 +985,29 @@ UPDATE t1 SET pk=1;
 SELECT pk,t=@blob FROM t1;
 DROP TABLE t2, t1;
 
+--echo #
+--echo # MDEV-29182 Assertion fld->field_no < table->n_v_def failed on cascade
+--echo #
+--echo # NOTE: the upstream (10.5) regression test uses a column-level inline
+--echo # "REFERENCES t1(a)" clause. On 10.4, InnoDB re-parses the raw CREATE
+--echo # TABLE statement in dict_create_foreign_constraints_low(), which only
+--echo # recognizes "CONSTRAINT ... FOREIGN KEY" / "FOREIGN KEY" clauses and
+--echo # silently drops column-level inline REFERENCES (a separate pre-existing
+--echo # 10.4 defect). With an unregistered FK the cascade never runs, so the
+--echo # MDEV-29182 code path is not exercised. This test therefore uses the
+--echo # equivalent table-level FOREIGN KEY syntax to actually reach the
+--echo # row_ins_cascade_calc_update_vec() virtual-column handling.
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(3), c INT AS (LENGTH(b)) VIRTUAL,
+                INDEX(c)) ENGINE=InnoDB;
+CREATE TABLE t2(a INT, b INT GENERATED ALWAYS AS(a) VIRTUAL, INDEX(b),
+                FOREIGN KEY (a) REFERENCES t1(a) ON UPDATE CASCADE) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1,b='fu';
+INSERT INTO t2 SET a=1;
+UPDATE t1 SET a=2,b='bar';
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2,t1;
+
 --echo # End of 10.4 tests
 
 --source include/wait_until_count_sessions.inc
