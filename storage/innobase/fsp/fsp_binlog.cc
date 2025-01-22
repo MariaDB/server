@@ -377,6 +377,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
           to re-use tablespace ids between just two, SRV_SPACE_ID_BINLOG0 and
           SRV_SPACE_ID_BINLOG1.
         */
+        ut_ad(!pending_prev_end_offset);
         pending_prev_end_offset= page_no << page_size_shift;
         mysql_mutex_lock(&active_binlog_mutex);
         /* ToDo: Make this wait killable?. */
@@ -389,7 +390,6 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
         ++file_no;
         binlog_cur_written_offset[file_no & 1].store(0, std::memory_order_relaxed);
         binlog_cur_end_offset[file_no & 1].store(0, std::memory_order_relaxed);
-        active_binlog_file_no.store(file_no, std::memory_order_release);
         active_binlog_space= space= last_created_binlog_space;
         pthread_cond_signal(&active_binlog_cond);
         mysql_mutex_unlock(&active_binlog_mutex);
@@ -527,9 +527,15 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
   binlog_cur_page_no= page_no;
   binlog_cur_page_offset= page_offset;
   if (UNIV_UNLIKELY(pending_prev_end_offset != 0))
+  {
+    mysql_mutex_lock(&active_binlog_mutex);
     binlog_cur_end_offset[(file_no-1) & 1].store(pending_prev_end_offset,
                                                  std::memory_order_relaxed);
-  binlog_cur_end_offset[file_no & 1].store((page_no << page_size_shift) + page_offset,
+    active_binlog_file_no.store(file_no, std::memory_order_release);
+    pthread_cond_signal(&active_binlog_cond);
+    mysql_mutex_unlock(&active_binlog_mutex);
+  }
+  binlog_cur_end_offset[file_no & 1].store(((uint64_t)page_no << page_size_shift) + page_offset,
                                            std::memory_order_relaxed);
   return {start_file_no, start_offset};
 }
@@ -655,7 +661,16 @@ binlog_chunk_reader::fetch_current_page()
     uint64_t active= active2;
     uint64_t end_offset=
       binlog_cur_end_offset[s.file_no&1].load(std::memory_order_acquire);
-    ut_ad(s.file_no <= active);
+    if (s.file_no > active)
+    {
+      ut_ad(s.page_no == 0);
+      ut_ad(s.in_page_offset == 0);
+      /*
+        Allow a reader that reached the very end of the active binlog file to
+        have moved ahead early to the start of the coming binlog file.
+      */
+      return CHUNK_READER_EOF;
+    }
 
     if (s.file_no + 1 >= active) {
       /* Check if we should read from the buffer pool or from the file. */
@@ -1019,8 +1034,8 @@ bool binlog_chunk_reader::data_available()
   uint64_t active= active_binlog_file_no.load(std::memory_order_acquire);
   if (active != s.file_no)
   {
-    ut_ad(active > s.file_no);
-    return true;
+    ut_ad(active > s.file_no || (s.page_no == 0 && s.in_page_offset == 0));
+    return active > s.file_no;
   }
   uint64_t end_offset=
     binlog_cur_end_offset[s.file_no&1].load(std::memory_order_acquire);
