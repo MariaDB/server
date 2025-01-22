@@ -33867,9 +33867,10 @@ check_rules(MY_CHARSET_LOADER *loader,
             const MY_COLL_RULES *rules,
             const MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
-  const MY_COLL_RULE *r, *rlast;
-  for (r= rules->rule, rlast= rules->rule + rules->nrules; r < rlast; r++)
+  size_t i;
+  for (i= 0; i < rules->nrules; i++)
   {
+    const MY_COLL_RULE *r= &rules->rule[i];
     if (r->curr[0] > dst->maxchar)
     {
       my_snprintf(loader->error, sizeof(loader->error),
@@ -34492,7 +34493,6 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
                   MY_COLL_RULES *rules,
                   MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
-  MY_COLL_RULE *r, *rlast;
   int ncontractions= 0;
   size_t i, npages= (src->maxchar + 1) / 256;
 
@@ -34517,8 +34517,9 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
     Mark pages that will be otherwriten as NULL.
     We'll allocate their own memory.
   */
-  for (r= rules->rule, rlast= rules->rule + rules->nrules; r < rlast; r++)
+  for (i= 0; i < rules->nrules; i++)
   {
+    const MY_COLL_RULE *r= &rules->rule[i];
     if (!r->curr[1]) /* If not a contraction */
     {
       uint pagec= (r->curr[0] >> 8);
@@ -34564,9 +34565,9 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
     Now iterate through the rules, overwrite weights for the characters
     that appear in the rules, and put all contractions into contraction list.
   */
-  for (r= rules->rule; r < rlast;  r++)
+  for (i= 0; i < rules->nrules; i++)
   {
-    if (apply_one_rule(loader, rules, r, dst))
+    if (apply_one_rule(loader, rules, &rules->rule[i], dst))
       return TRUE;
   }
 
