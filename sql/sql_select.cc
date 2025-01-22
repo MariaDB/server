@@ -20788,6 +20788,8 @@ do_select(JOIN *join, Procedure *procedure)
         */
         clear_tables(join, &cleared_tables);
       }
+      if (join->tmp_table_param.copy_funcs.elements)
+        copy_fields(&join->tmp_table_param);
       if (!join->having || join->having->val_int())
       {
         List<Item> *columns_list= (procedure ? &join->procedure_fields_list :

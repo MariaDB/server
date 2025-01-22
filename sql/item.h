@@ -6383,7 +6383,14 @@ protected:
     Type_std_attributes::set(item);
     name= item->name;
     set_handler(item->type_handler());
+#ifndef DBUG_OFF
+    copied_in= 0;
+#endif
   }
+
+#ifndef DBUG_OFF
+  bool copied_in;
+#endif
 
 public:
 
@@ -6451,7 +6458,10 @@ public:
   double val_real() override;
   longlong val_int() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
-  { return get_date_from_string(thd, ltime, fuzzydate); }
+  {
+    DBUG_ASSERT(copied_in);
+    return get_date_from_string(thd, ltime, fuzzydate);
+  }
   void copy() override;
   int save_in_field(Field *field, bool no_conversions) override;
   Item *do_get_copy(THD *thd) const override
@@ -6481,9 +6491,13 @@ public:
     null_value= tmp.is_null();
     m_value= tmp.is_null() ? Timestamp_or_zero_datetime() :
                              Timestamp_or_zero_datetime(tmp);
+#ifndef DBUG_OFF
+    copied_in=1;
+#endif
   }
   int save_in_field(Field *field, bool) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     if (null_value)
       return set_field_to_null(field);
@@ -6492,30 +6506,35 @@ public:
   }
   longlong val_int() override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? 0 :
            m_value.to_datetime(current_thd).to_longlong();
   }
   double val_real() override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? 0e0 :
            m_value.to_datetime(current_thd).to_double();
   }
   String *val_str(String *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_string(to, decimals);
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_decimal(to);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     bool res= m_value.to_TIME(thd, ltime, fuzzydate);
     DBUG_ASSERT(!res);
@@ -6523,6 +6542,7 @@ public:
   }
   bool val_native(THD *thd, Native *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value || m_value.to_native(to, decimals);
   }
