@@ -7047,7 +7047,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
             alter_expr= ALTER_STORED_GCOL_EXPR;
           else
             alter_expr= ALTER_VIRTUAL_GCOL_EXPR;
-          if (!field->vcol_info->is_equal(new_field->vcol_info))
+          if (!field->vcol_info->is_equal(new_field->vcol_info, false))
           {
             ha_alter_info->handler_flags|= alter_expr;
             value_changes= true;
@@ -7521,12 +7521,8 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     {
       if (!tmp_new_field->field->vcol_info)
         DBUG_RETURN(false);
-      bool err;
-      if (!field->vcol_info->is_equivalent(thd, table->s, create_info->table->s,
-                                           tmp_new_field->field->vcol_info, err))
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info, true))
         DBUG_RETURN(false);
-      if (err)
-        DBUG_RETURN(true);
     }
 
     /*
