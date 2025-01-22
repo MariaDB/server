@@ -9183,6 +9183,9 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     }
     else
     {
+      if (opt_binlog_engine_hton)
+        update_binlog_end_pos();
+
       /*
         If we rotated the binlog, and if we are using the unoptimized thread
         scheduling where every thread runs its own commit_ordered(), then we
@@ -9423,8 +9426,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         Note: must be _after_ the RUN_HOOK(after_flush) or else
         semi-sync might not have put the transaction into
         it's list before dump-thread tries to send it
+
+        When --binlog-storage-engine, the binlog write happens during
+        commit_ordered(), so postpone the update until then.
       */
-      update_binlog_end_pos(commit_offset);
+      if (!opt_binlog_engine_hton)
+        update_binlog_end_pos(commit_offset);
 
       if (unlikely(any_error))
         sql_print_error("Failed to run 'after_flush' hooks");
@@ -9582,6 +9589,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DEBUG_SYNC(leader->thd, "commit_after_group_run_commit_ordered");
   mysql_mutex_unlock(&LOCK_commit_ordered);
   DEBUG_SYNC(leader->thd, "commit_after_group_release_commit_ordered");
+
+  if (opt_binlog_engine_hton)
+    update_binlog_end_pos();
 
   if (check_purge)
     checkpoint_and_purge(binlog_id);

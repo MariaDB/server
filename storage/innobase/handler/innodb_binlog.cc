@@ -696,8 +696,9 @@ innodb_binlog_discover()
   */
   fil_space_t *space, *prev_space;
   uint32_t page_no, prev_page_no, pos_in_page, prev_pos_in_page;
-  // ToDo: Do we need aligned_malloc() for page_buf, to be able to read a page into it (like IO_DIRECT maybe) ?
-  std::unique_ptr<byte[]> page_buf(new byte[page_size]);
+  std::unique_ptr<byte, void (*)(void *)>
+    page_buf(static_cast<byte*>(aligned_malloc(page_size, page_size)),
+             &aligned_free);
   if (!page_buf)
     return -1;
   if (binlog_files.found_binlogs >= 1) {
