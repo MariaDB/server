@@ -22,6 +22,7 @@ Reading and writing of compressed integers.
 Created 2024-10-01 Kristian Nielsen <knielsen@knielsen-hq.org>
 *******************************************************/
 
+#include "univ.i"
 #include "ut0compr_int.h"
 
 /* Read and write compressed (up to) 64-bit integers. */
