@@ -10414,10 +10414,12 @@ commit_try_rebuild(
 	char* old_name= mem_heap_strdup(ctx->heap, user_table->name.m_name);
 
 	dberr_t error = row_rename_table_for_mysql(user_table->name.m_name,
-						   ctx->tmp_name, trx, false);
+						   ctx->tmp_name, trx,
+						   RENAME_REBUILD);
 	if (error == DB_SUCCESS) {
 		error = row_rename_table_for_mysql(
-			rebuilt_table->name.m_name, old_name, trx, false);
+			rebuilt_table->name.m_name, old_name, trx,
+			RENAME_REBUILD);
 		if (error == DB_SUCCESS) {
 			/* The statistics for the surviving indexes will be
 			re-inserted in alter_stats_rebuild(). */

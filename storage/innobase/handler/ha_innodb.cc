@@ -13889,10 +13889,10 @@ err_exit:
 @param[in,out]	trx	InnoDB data dictionary transaction
 @param[in]	from	old table name
 @param[in]	to	new table name
-@param[in]	use_fk	whether to enforce FOREIGN KEY
+@param[in]	fk	how to handle FOREIGN KEY
 @return DB_SUCCESS or error code */
 static dberr_t innobase_rename_table(trx_t *trx, const char *from,
-                                     const char *to, bool use_fk)
+                                     const char *to, rename_fk fk)
 {
 	dberr_t	error;
 	char	norm_to[FN_REFLEN];
@@ -13910,7 +13910,7 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	ut_ad(trx->will_lock);
 
-	error = row_rename_table_for_mysql(norm_from, norm_to, trx, use_fk);
+	error = row_rename_table_for_mysql(norm_from, norm_to, trx, fk);
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
@@ -13936,7 +13936,8 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 #endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
-					par_case_name, norm_to, trx, false);
+					par_case_name, norm_to, trx,
+					RENAME_IGNORE_FK);
 			}
 		}
 
@@ -14132,7 +14133,8 @@ int ha_innobase::truncate()
 
   if (error == DB_SUCCESS)
   {
-    error= innobase_rename_table(trx, ib_table->name.m_name, temp_name, false);
+    error= innobase_rename_table(trx, ib_table->name.m_name, temp_name,
+                                 RENAME_REBUILD);
     if (error == DB_SUCCESS)
       error= trx->drop_table(*ib_table);
   }
@@ -14330,7 +14332,8 @@ ha_innobase::rename_table(
 	row_mysql_lock_data_dictionary(trx);
 
 	if (error == DB_SUCCESS) {
-		error = innobase_rename_table(trx, from, to, true);
+		error = innobase_rename_table(trx, from, to,
+					      RENAME_ALTER_COPY);
 	}
 
 	DEBUG_SYNC(thd, "after_innobase_rename_table");
