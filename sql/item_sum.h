@@ -496,6 +496,7 @@ public:
   void make_const () 
   { 
     used_tables_cache= 0;
+    new_used_tables_cache= 0;
     const_item_cache= true;
   }
   void reset_forced_const() { const_item_cache= false; }
