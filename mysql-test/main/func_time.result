@@ -1314,6 +1314,47 @@ SELECT UTC_TIMESTAMP();
 SET TIMESTAMP=1;
 SELECT UTC_TIMESTAMP();
 SET TIMESTAMP=0;
+#
+# MDEV-11341 STR_TO_DATE does not return NULL for invalid dates
+#
+SELECT STR_TO_DATE('1949-02-30','%Y-%m-%d');
+STR_TO_DATE('1949-02-30','%Y-%m-%d')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1949-02-30' for function str_to_date
+SELECT STR_TO_DATE('1949-02-28','%Y-%m-%d');
+STR_TO_DATE('1949-02-28','%Y-%m-%d')
+1949-02-28
+SELECT STR_TO_DATE('1949-06-31','%Y-%m-%d');
+STR_TO_DATE('1949-06-31','%Y-%m-%d')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1949-06-31' for function str_to_date
+SELECT STR_TO_DATE('2000-02-29','%Y-%m-%d');
+STR_TO_DATE('2000-02-29','%Y-%m-%d')
+2000-02-29
+SELECT STR_TO_DATE('1900-02-29','%Y-%m-%d');
+STR_TO_DATE('1900-02-29','%Y-%m-%d')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1900-02-29' for function str_to_date
+SET sql_mode=ALLOW_INVALID_DATES;
+SELECT STR_TO_DATE('1949-02-30','%Y-%m-%d');
+STR_TO_DATE('1949-02-30','%Y-%m-%d')
+1949-02-30
+SELECT STR_TO_DATE('1949-02-28','%Y-%m-%d');
+STR_TO_DATE('1949-02-28','%Y-%m-%d')
+1949-02-28
+SELECT STR_TO_DATE('1949-06-31','%Y-%m-%d');
+STR_TO_DATE('1949-06-31','%Y-%m-%d')
+1949-06-31
+SELECT STR_TO_DATE('2000-02-29','%Y-%m-%d');
+STR_TO_DATE('2000-02-29','%Y-%m-%d')
+2000-02-29
+SELECT STR_TO_DATE('1900-02-29','%Y-%m-%d');
+STR_TO_DATE('1900-02-29','%Y-%m-%d')
+1900-02-29
+SET sql_mode=DEFAULT;
 End of 5.0 tests
 select date_sub("0050-01-01 00:00:01",INTERVAL 2 SECOND);
 date_sub("0050-01-01 00:00:01",INTERVAL 2 SECOND)
