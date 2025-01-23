@@ -199,6 +199,7 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
                          bool merge) override;
   void recalc_used_tables(st_select_lex *new_parent, bool after_pullout);
+  void new_recalc_used_tables(st_select_lex *new_parent, bool after_pullout);
   virtual bool exec();
   /*
     If subquery optimization or execution determines that the subquery has
@@ -207,6 +208,7 @@ public:
   void make_const()
   { 
     used_tables_cache= 0;
+    new_used_tables_cache= 0;
     const_item_cache= 0;
     forced_const= TRUE; 
   }
@@ -303,6 +305,7 @@ class Item_singlerow_subselect :public Item_subselect
 protected:
   Item_cache *value, **row;
   uchar strategy;
+  bool degenerated;
 public:
   Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_singlerow_subselect(THD *thd_arg): Item_subselect(thd_arg), value(0), row (0)
