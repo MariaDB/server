@@ -33,8 +33,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "clone0clone.h"
 #include <string>
 #ifdef UNIV_DEBUG
-#include "current_thd.h" /* current_thd */
-#include "debug_sync.h"  /* DBUG_SIGNAL_WAIT_FOR */
+#include "debug_sync.h"
 #endif                   /* UNIV_DEBUG */
 
 /** Global Clone System */
@@ -574,7 +573,7 @@ int Clone_Sys::wait_for_free(THD *thd) {
     my_error(ER_INTERNAL_ERROR, MYF(0),
              "Clone BEGIN timeout waiting for DDL in critical section");
     ut_d(ut_error);
-    ut_o(return (ER_INTERNAL_ERROR));
+    return ER_INTERNAL_ERROR;
   }
 
   return (0);
@@ -712,9 +711,6 @@ void Clone_Task_Manager::debug_wait(uint chunk_num, Clone_Task *task) {
   });
 
   if (state == CLONE_SNAPSHOT_FILE_COPY) {
-    DBUG_SIGNAL_WAIT_FOR(current_thd, "gr_clone_wait", "gr_clone_paused",
-                         "gr_clone_continue");
-
     DEBUG_SYNC_C("clone_file_copy");
 
   } else if (state == CLONE_SNAPSHOT_PAGE_COPY) {
@@ -1166,7 +1162,7 @@ bool Clone_Task_Manager::drop_task(THD *thd, uint task_id, bool &is_master) {
 
       mysql_mutex_unlock(&m_state_mutex);
       ut_d(ut_error);
-      ut_o(return (false));
+      return false;
     }
   }
 
@@ -1534,7 +1530,7 @@ void Clone_Task_Manager::reinit_copy_state(const byte *loc, uint loc_len) {
   if (m_current_state == CLONE_SNAPSHOT_NONE) {
     mysql_mutex_unlock(&m_state_mutex);
     ut_d(ut_error);
-    ut_o(return);
+    return;
   }
 
   /* Reset to beginning of current state */
@@ -2201,7 +2197,7 @@ int Clone_Handle::move_to_next_state(Clone_Task *task, Ha_clone_cbk *callback,
                "Clone: state change wait for other tasks timed out: "
                "Wait too long for state transition");
       ut_d(ut_error);
-      ut_o(return (ER_INTERNAL_ERROR));
+      return ER_INTERNAL_ERROR;
     }
   }
   return (err);
@@ -2237,7 +2233,7 @@ int Clone_Handle::open_file(Clone_Task *task, const Clone_file_ctx *file_ctx,
     return (0);
   }
 
-  ulint option;
+  os_file_create_t option;
   bool read_only;
 
   if (create_file) {
@@ -2249,9 +2245,7 @@ int Clone_Handle::open_file(Clone_Task *task, const Clone_file_ctx *file_ctx,
     read_only = true;
   }
 
-  option |= OS_FILE_ON_ERROR_NO_EXIT;
   bool success = false;
-
   auto handle = os_file_create(innodb_clone_file_key, file_name.c_str(), option,
                                file_type, read_only, &success);
 
@@ -2298,10 +2292,15 @@ int Clone_Handle::open_file(Clone_Task *task, const Clone_file_ctx *file_ctx,
 
   /* Set cache to false if direct IO(O_DIRECT) is used. */
   if (file_type == OS_CLONE_DATA_FILE) {
-    task->m_file_cache = !srv_is_direct_io();
-
+    task->m_file_cache= fil_system.is_buffered();
     DBUG_EXECUTE_IF("clone_no_zero_copy", task->m_file_cache = false;);
   }
+  #if defined __linux__ || defined _WIN32
+  else if (file_type == OS_CLONE_LOG_FILE)
+  {
+    task->m_file_cache= log_sys.log_buffered;
+  }
+  #endif
 
   auto file_meta = file_ctx->get_file_meta_read();
 

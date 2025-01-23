@@ -60,6 +60,16 @@ ut_uint64_align_up(
 	ib_uint64_t	 n,		/*!< in: number to be rounded */
 	ulint		 align_no);	/*!< in: align by this number
 					which must be a power of 2 */
+
+/** Rounds upward to a multiple of a power of 2 */
+static inline void *ut_align(const void *ptr, ulint align_no) {
+  ut_ad(align_no > 0);
+  ut_ad(((align_no - 1) & align_no) == 0);
+  ut_ad(ptr);
+  static_assert(sizeof(void *) == sizeof(ulint));
+  return ((void *)((((ulint)ptr) + align_no - 1) & ~(align_no - 1)));
+}
+
 /** Round down a pointer to the nearest aligned address.
 @param ptr        pointer
 @param alignment  a power of 2
