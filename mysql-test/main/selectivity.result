@@ -144,9 +144,9 @@ and total_revenue = (select max(total_revenue) from revenue0)
 order by s_suppkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	ALL	PRIMARY	NULL	NULL	NULL	10	100.00	Using filesort
-1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	10	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	1	100.00	Using where
 3	DERIVED	lineitem	range	i_l_shipdate,i_l_suppkey	i_l_shipdate	4	NULL	269	100.00	Using where; Using temporary; Using filesort
-2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	269	100.00	
+2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	100.00	
 4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	269	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_suppkey` AS `s_suppkey`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`revenue0`.`total_revenue` AS `total_revenue` from `dbt3_s001`.`supplier` join `dbt3_s001`.`revenue0` where `revenue0`.`supplier_no` = `dbt3_s001`.`supplier`.`s_suppkey` and `revenue0`.`total_revenue` = (/* select#2 */ select max(`revenue0`.`total_revenue`) from `dbt3_s001`.`revenue0`) order by `dbt3_s001`.`supplier`.`s_suppkey`
@@ -165,9 +165,9 @@ and total_revenue = (select max(total_revenue) from revenue0)
 order by s_suppkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	ALL	PRIMARY	NULL	NULL	NULL	10	100.00	Using filesort
-1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	10	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	1	100.00	Using where
 3	DERIVED	lineitem	range	i_l_shipdate,i_l_suppkey	i_l_shipdate	4	NULL	269	100.00	Using where; Using temporary; Using filesort
-2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	269	100.00	
+2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	100.00	
 4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	269	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_suppkey` AS `s_suppkey`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`revenue0`.`total_revenue` AS `total_revenue` from `dbt3_s001`.`supplier` join `dbt3_s001`.`revenue0` where `revenue0`.`supplier_no` = `dbt3_s001`.`supplier`.`s_suppkey` and `revenue0`.`total_revenue` = (/* select#2 */ select max(`revenue0`.`total_revenue`) from `dbt3_s001`.`revenue0`) order by `dbt3_s001`.`supplier`.`s_suppkey`

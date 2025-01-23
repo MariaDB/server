@@ -182,6 +182,19 @@ public:
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
 
+  static const size_t NOT_FOUND= (size_t)-1;
+
+  /// @returns index of the first element equal to el, or NOT_FOUND
+  size_t find_first(const Elem &el) const
+  {
+    for (size_t i=0; i < size() ; i++)
+    {
+      if (el == at(i))
+        return i;
+    }
+    return NOT_FOUND;
+  }
+
   size_t size() const { return array.elements; }
 
   const Elem *end() const
