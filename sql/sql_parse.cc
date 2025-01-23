@@ -9589,7 +9589,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 
   if (server_threads.iterate(kill_threads_callback, &arg))
   {
-    my_error(ER_KILL_DENIED_ERROR, MYF(0), (ulong)arg.thread_id);
+    my_error(ER_KILL_DENIED_ERROR, MYF(0), (long long)arg.thread_id);
     return ER_KILL_DENIED_ERROR;
   }
 
@@ -9716,8 +9716,10 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
                     "KILL USER", buf);
     break;
   case ER_OUT_OF_RESOURCES:
+    DBUG_ASSERT(thd->is_error());
+    break;
   default:
-    my_error_ensure(error, ER_OUT_OF_RESOURCES, MYF(0));
+    my_error(ER_UNKNOWN_ERROR, MYF(0));
   }
 }
 

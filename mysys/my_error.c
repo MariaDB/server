@@ -133,6 +133,23 @@ void my_error(uint nr, myf MyFlags, ...)
   DBUG_VOID_RETURN;
 }
 
+bool format_matches(const char *fmt, const char *ensure_fmt)
+{
+
+}
+
+void my_error_ensure(unsigned int my_err, const char *ensure_format,
+                     unsigned long MyFlags, ...)
+{
+  va_list args;
+  DBUG_ENTER("my_error_ensure");
+  DBUG_PRINT("my", ("nr: %d  MyFlags: %lu  errno: %d", my_err, MyFlags, errno));
+  va_start(args, MyFlags);
+  my_errorv(my_err, MyFlags, args);
+  va_end(args);
+  DBUG_VOID_RETURN;
+}
+
 
 /**
   Print an error message.

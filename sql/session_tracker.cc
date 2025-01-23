@@ -578,7 +578,7 @@ bool sysvartrack_global_update(THD *thd, char *str, size_t len)
   Session_sysvars_tracker::vars_list dummy;
   DBUG_EXECUTE_IF("dbug_session_tracker_parse_error",
                   {
-                    my_error(ER_OUTOFMEMORY, MYF(0), 1);
+                    my_error(ER_OUTOFMEMORY, MYF(0), (size_t)1);
                     return true;
                   });
 

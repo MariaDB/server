@@ -7596,7 +7596,7 @@ int Rows_log_event::update_sequence()
         thd->rgi_slave->wait_commit_sub_id)
     {
       err= ER_LOCK_DEADLOCK;
-      my_error(err, MYF(0));
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
     }
   }
   /*

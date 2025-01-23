@@ -6895,8 +6895,8 @@ binary:
             else
             {
               if (!my_charset_same($2, $1))
-                my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                  $2->name, $1->csname));
+                my_yyabort_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
+                                 $2->name, $1->csname);
               Lex->charset= $2;
             }
           }

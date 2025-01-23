@@ -337,8 +337,8 @@ static int create_header_files(struct errors *error_head)
   }
   /* finishing off with mysqld_error.h */
   fprintf(er_definef, "#define ER_ERROR_LAST %d\n", er_last);
-  fprintf(er_definef, "#include \"%s\"\n", ENSUREFILE);
   fprintf(er_definef, "#endif /* ER_ERROR_FIRST */\n");
+  fprintf(er_definef, "#include \"mysqld_err_ensure.h\"\n");
   my_fclose(er_definef, MYF(0));
   my_fclose(sql_statef, MYF(0));
   my_fclose(er_namef, MYF(0));

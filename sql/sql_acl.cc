@@ -2384,7 +2384,7 @@ end:
     case 0:
       break;
     case ER_SET_PASSWORD_AUTH_PLUGIN:
-      my_error(res, MYF(0), plugin_name);
+      my_error(ER_SET_PASSWORD_AUTH_PLUGIN, MYF(0), plugin_name);
       break;
     default:
       DBUG_ASSERT(0);

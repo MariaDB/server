@@ -29,6 +29,7 @@ ENDIF()
 # To preserve timestamp, first generate a temp header file, then copy it
 # to mysqld_error.h using cmake -E copy_if_different
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
+                          ${CMAKE_BINARY_DIR}/include/mysqld_err_ensure.h.tmp
    COMMAND comp_err
 	--charset=${PROJECT_SOURCE_DIR}/sql/share/charsets
 	--out-dir=${CMAKE_BINARY_DIR}/sql/share/
