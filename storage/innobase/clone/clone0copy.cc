@@ -589,7 +589,7 @@ bool Clone_Snapshot::build_file_name(Clone_File_Meta *file_meta,
     /* purecov: begin deadcode */
     my_error(ER_PATH_LENGTH, MYF(0), "CLONE FILE NAME");
     ut_d(ut_error);
-    ut_o(return false);
+    return false;
     /* purecov: end */
   }
 
@@ -688,7 +688,7 @@ bool Clone_Snapshot::file_ctx_changed(const fil_node_t *node,
   if (file_index == 0) {
     /* purecov: begin deadcode */
     ut_d(ut_error);
-    ut_o(return true);
+    return true;
     /* purecov: end */
   }
 
@@ -705,7 +705,7 @@ bool Clone_Snapshot::file_ctx_changed(const fil_node_t *node,
   if (file_ctx == nullptr) {
     /* purecov: begin deadcode */
     ut_d(ut_error);
-    ut_o(return false);
+    return false;
     /* purecov: end */
   }
 
@@ -732,9 +732,8 @@ bool Clone_Snapshot::file_ctx_changed(const fil_node_t *node,
   /* TODO: Check if encryption property has changed. */
 
   /* Check if compression property has changed. */
-  if (file_meta->m_compress_type != space->compression_type) {
+  if (file_meta->can_compress() != space->is_compressed())
     return true;
-  }
 
   return false;
 }
@@ -799,12 +798,17 @@ int Clone_Snapshot::add_file(const char *name, uint64_t size_bytes,
   /* Set space ID, compression and encryption attribute */
   auto space = node->space;
   file_meta->m_space_id = space->id;
-  file_meta->m_compress_type = space->compression_type;
-  /* TOD0: File metadata: Encryption information */
-  // file_meta->m_encryption_metadata = space->m_encryption_metadata;
+  file_meta->m_is_compressed= space->is_compressed();
   file_meta->m_fsp_flags = static_cast<uint32_t>(space->flags);
   file_meta->m_punch_hole = node->punch_hole;
   file_meta->m_fsblk_size = node->block_size;
+
+  crypt_data= space->crypt_data;
+  file_meta->m_is_encrypted= crypt_data && !crypt_data->not_encrypted()
+      && crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
+      && (!crypt_data->is_default_encryption() || srv_encrypt_tables);
+  /* TOD0: File metadata: Encryption information */
+  // file_meta->m_encryption_metadata = space->m_encryption_metadata;
 
   /* Modify file meta encryption flag if space encryption or decryption
   already started. This would allow clone to send pages accordingly
@@ -815,16 +819,6 @@ int Clone_Snapshot::add_file(const char *name, uint64_t size_bytes,
   } else if (space->encryption_op_in_progress ==
              Encryption::Progress::ENCRYPTION) {
     fsp_flags_set_encryption(file_meta->m_fsp_flags);
-  }
-
-  /* If file node supports punch hole then check if we need it. */
-  if (file_meta->m_punch_hole) {
-    page_size_t page_size(space->flags);
-    /* Transparent compression is skipped if table compression is enabled. */
-    if (page_size.is_compressed() ||
-        space->compression_type == PAGE_UNCOMPRESSED) {
-      file_meta->m_punch_hole = false;
-    }
   }
 
   bool is_redo_copy = (get_state() == CLONE_SNAPSHOT_REDO_COPY);
@@ -960,8 +954,8 @@ int Clone_Snapshot::add_redo_file(char *file_name, uint64_t file_size,
 
   file_meta->m_alloc_size = 0;
 
-  file_meta->m_space_id = dict_sys_t::s_log_space_id;
-  file_meta->m_compress_type = PAGE_UNCOMPRESSED;
+  file_meta->m_space_id= SRV_SPACE_ID_UPPER_BOUND;
+  file_meta->m_is_compressed= false;
   /* TOD0: File metadata: Encryption information */
   // file_meta->m_encryption_metadata = log_sys->m_encryption_metadata;
   file_meta->m_fsp_flags = ULINT32_UNDEFINED;
@@ -1735,7 +1729,7 @@ int Clone_Handle::close_and_unpin_file(Clone_Task *task) {
     err = ER_INTERNAL_ERROR;
     my_error(ER_INTERNAL_ERROR, MYF(0), "Clone file missing before unpin");
     ut_d(ut_error);
-    ut_o(return err);
+    return err;
     /* purecov: end */
   }
 

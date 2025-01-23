@@ -30,8 +30,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
  *******************************************************/
 
+#include "buf0flu.h"
 #include "clone0snapshot.h"
 #include "clone0clone.h"
+#include "fil0pagecompress.h"
 #include "log0log.h" /* log_get_lsn */
 #include "page0zip.h"
 #include "handler.h"
@@ -74,8 +76,7 @@ Clone_Snapshot::Clone_Snapshot(Clone_Handle_Type hdl_type,
       m_enable_pfs(false) {
   mysql_mutex_init(0, &m_snapshot_mutex, nullptr);
 
-  m_snapshot_heap =
-      mem_heap_create(SNAPSHOT_MEM_INITIAL_SIZE, UT_LOCATION_HERE);
+  m_snapshot_heap= mem_heap_create(SNAPSHOT_MEM_INITIAL_SIZE);
 
   m_chunk_size_pow2 = SNAPSHOT_DEF_CHUNK_SIZE_POW2;
   m_block_size_pow2 = SNAPSHOT_DEF_BLOCK_SIZE_POW2;
@@ -112,7 +113,7 @@ void Clone_Snapshot::get_state_info(bool do_estimate,
 
   switch (m_snapshot_state) {
     case CLONE_SNAPSHOT_FILE_COPY:
-      state_desc->m_num_files = num_data_files();
+      state_desc->m_num_files = static_cast<uint>(num_data_files());
       break;
 
     case CLONE_SNAPSHOT_PAGE_COPY:
@@ -120,7 +121,7 @@ void Clone_Snapshot::get_state_info(bool do_estimate,
       break;
 
     case CLONE_SNAPSHOT_REDO_COPY:
-      state_desc->m_num_files = num_redo_files();
+      state_desc->m_num_files = static_cast<uint>(num_redo_files());
       break;
 
     case CLONE_SNAPSHOT_DONE:
@@ -481,7 +482,7 @@ int Clone_Snapshot::get_next_block(uint chunk_num, uint &block_num,
   ++block_num;
 
   /* Convert offset and length in bytes. */
-  data_size *= UNIV_PAGE_SIZE;
+  data_size *= static_cast<uint32_t>(UNIV_PAGE_SIZE);
   data_offset *= UNIV_PAGE_SIZE;
   data_offset += start_offset;
 
@@ -512,7 +513,7 @@ void Clone_Snapshot::update_block_size(uint buff_size) {
   mysql_mutex_lock(&m_snapshot_mutex);
 
   /* Transfer data block is used only for direct IO. */
-  if (m_snapshot_state != CLONE_SNAPSHOT_INIT || !srv_is_direct_io()) {
+  if (m_snapshot_state != CLONE_SNAPSHOT_INIT || fil_system.is_buffered()) {
     mysql_mutex_unlock(&m_snapshot_mutex);
     return;
   }
@@ -570,7 +571,7 @@ int Clone_Snapshot::change_state(Clone_Desc_State *state_desc,
       err = ER_INTERNAL_ERROR;
       my_error(err, MYF(0), "Innodb Clone Snapshot Invalid state");
       ut_d(ut_error);
-      ut_o(break);
+      break;
 
     case CLONE_SNAPSHOT_FILE_COPY:
       ib::info() << "Clone State BEGIN FILE COPY";
@@ -682,18 +683,14 @@ int Clone_Snapshot::get_next_page(uint chunk_num, uint &block_num,
   ++block_num;
 
   /* Get the data file for current page. */
-  bool found;
-  const page_size_t &page_size =
-      fil_space_get_page_size(clone_page.m_space_id, &found);
 
   auto file_meta = file_ctx->get_file_meta_read();
-
-  ut_ad(found);
   ut_ad(file_meta->m_space_id == clone_page.m_space_id);
 
   /* Data offset could be beyond 32 BIT integer. */
   data_offset = static_cast<uint64_t>(clone_page.m_page_no);
-  data_offset *= page_size.physical();
+  uint32_t page_size= fil_space_t::physical_size(file_meta->m_fsp_flags);
+  data_offset*= page_size;
 
   auto file_index = file_meta->m_file_index;
 
@@ -725,9 +722,9 @@ int Clone_Snapshot::get_next_page(uint chunk_num, uint &block_num,
   if (clone_page.m_page_no == 0) {
     auto space_size = fsp_header_get_field(data_buf, FSP_SIZE);
 
-    auto size_bytes = static_cast<uint64_t>(space_size);
+    auto size_bytes= static_cast<uint64_t>(space_size);
 
-    size_bytes *= page_size.physical();
+    size_bytes*= page_size;
 
     if (file_meta->m_file_size < size_bytes) {
       file_size = size_bytes;
@@ -736,13 +733,46 @@ int Clone_Snapshot::get_next_page(uint chunk_num, uint &block_num,
   return (err);
 }
 
-void Clone_Snapshot::page_update_for_flush(const page_size_t &page_size,
-                                           lsn_t page_lsn, byte *&page_data) {
+void Clone_Snapshot::page_compress_encrypt(const Clone_File_Meta *file_meta,
+                                          byte *&page_data, uint32_t data_size,
+                                          ulint zip_size, bool full_crc32,
+                                          bool compress, bool encrypt,
+                                          uint32_t page_no)
+{
+  auto encrypted_data= page_data + data_size;
+
+  /* Do transparent page compression if needed. */
+  if (compress)
+  {
+    auto compressed_data= page_data + data_size;
+    memset(compressed_data, 0, data_size);
+
+    auto len= fil_page_compress(page_data, compressed_data,
+      file_meta->m_fsp_flags, file_meta->m_fsblk_size, encrypt);
+
+    if (len > 0) {
+      encrypted_data= page_data;
+      page_data= compressed_data;
+    }
+  }
+
+  if (encrypt)
+  {
+    memset(encrypted_data, 0, data_size);
+    /* TODO: Pass encryption metadata. */
+    ut_ad(false);
+    page_data= fil_encrypt_buf(nullptr, file_meta->m_space_id, page_no,
+      page_data, zip_size, encrypted_data, full_crc32);
+  }
+}
+
+void Clone_Snapshot::page_update_for_flush(ulint zip_size, byte *&page_data,
+                                           bool full_crc32) {
   /* For compressed table, must copy the compressed page. */
-  if (page_size.is_compressed()) {
+  if (zip_size) {
     page_zip_des_t page_zip;
 
-    auto data_size = page_size.physical();
+    auto data_size= zip_size;
     page_zip_set_size(&page_zip, data_size);
     page_zip.data = page_data;
     ut_d(page_zip.m_start = 0);
@@ -750,66 +780,54 @@ void Clone_Snapshot::page_update_for_flush(const page_size_t &page_size,
     page_zip.n_blobs = 0;
     page_zip.m_nonempty = false;
 
-    buf_flush_init_for_writing(nullptr, page_data, &page_zip, page_lsn, false,
-                               false);
+    buf_flush_init_for_writing(nullptr, page_data, &page_zip, full_crc32);
   } else {
-    buf_flush_init_for_writing(nullptr, page_data, nullptr, page_lsn, false,
-                               false);
+    buf_flush_init_for_writing(nullptr, page_data, nullptr, full_crc32);
   }
 }
 
 int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
-                                       const page_size_t &page_size,
+                                       uint32_t page_size,
                                        const Clone_file_ctx *file_ctx,
-                                       byte *&page_data, uint &data_size) {
+                                       byte *&page_data, uint &data_size)
+{
   auto file_meta = file_ctx->get_file_meta_read();
 
   mtr_t mtr;
   mtr_start(&mtr);
 
-  ut_ad(data_size >= 2 * page_size.physical());
+  ut_ad(data_size >= 2 * page_size);
 
-  data_size = page_size.physical();
+  data_size= page_size;
+  auto zip_size= fil_space_t::zip_size(file_meta->m_fsp_flags);
 
   /* Space header page is modified with SX latch while extending. Also,
   we would like to serialize with page flush to disk. */
   auto block =
-      buf_page_get_gen(page_id, page_size, RW_SX_LATCH, nullptr,
-                       Page_fetch::POSSIBLY_FREED, UT_LOCATION_HERE, &mtr);
+      buf_page_get_gen(page_id, zip_size, RW_SX_LATCH, nullptr,
+                       BUF_GET_POSSIBLY_FREED, &mtr);
   auto bpage = &block->page;
 
-  buf_page_mutex_enter(block);
-  ut_ad(!fsp_is_checksum_disabled(bpage->id.space()));
+  ut_ad(!fsp_is_system_temporary(bpage->id().space()));
   /* Get oldest and newest page modification LSN for dirty page. */
   auto oldest_lsn = bpage->oldest_modification();
-  auto newest_lsn = bpage->get_newest_lsn();
-  buf_page_mutex_exit(block);
 
-  bool page_is_dirty = (oldest_lsn > 0);
+  bool page_is_dirty= (oldest_lsn > 0);
+  byte *src_data= buf_block_get_frame(block);
 
-  byte *src_data;
-
-  if (bpage->zip.data != nullptr) {
-    ut_ad(bpage->size.is_compressed());
+  if (bpage->zip.data)
     /* If the page is not dirty, then zip descriptor always has the latest
     flushed page copy with LSN and checksum set properly. If the page is
     dirty, the latest modified page is in uncompressed form for uncompressed
     page types. The LSN in such case is to be taken from block newest LSN and
     checksum needs to be recalculated. */
-    if (page_is_dirty && page_is_uncompressed_type(block->frame)) {
-      src_data = block->frame;
-    } else {
-      src_data = bpage->zip.data;
-    }
-  } else {
-    ut_ad(!bpage->size.is_compressed());
-    src_data = block->frame;
-  }
+    if (!page_is_dirty || page_is_uncompressed_type(src_data))
+      src_data= bpage->zip.data;
 
   memcpy(page_data, src_data, data_size);
 
   auto cur_lsn = log_sys.get_lsn(std::memory_order_seq_cst);
-  const auto frame_lsn =
+  auto frame_lsn=
       static_cast<lsn_t>(mach_read_from_8(page_data + FIL_PAGE_LSN));
 
   /* First page of a encrypted tablespace. */
@@ -820,76 +838,73 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
   initialized page left from incomplete operation. Assign valid LSN and checksum
   before copy. */
   if (frame_lsn == 0 && oldest_lsn == 0) {
-    page_is_dirty = true;
-    newest_lsn = cur_lsn;
+    page_is_dirty= true;
+    frame_lsn= cur_lsn;
+    mach_write_to_8(page_data + FIL_PAGE_LSN, frame_lsn);
+  }
+
+  bool full_crc32= fil_space_t::full_crc32(file_meta->m_fsp_flags);
+  auto page_no= page_id.page_no();
+  auto page_type= fil_page_get_type(page_data);
+
+  bool compression= file_meta->can_compress();
+  bool encryption= file_meta->can_encrypt();
+
+  /* Disable compression and encryption based on page number. */
+  if (page_no == 0
+      || (page_id.space() == TRX_SYS_SPACE && page_no == TRX_SYS_PAGE_NO)) {
+    compression= false;
+    encryption= false;
+  }
+
+  /* Disable compression based on page type: fil_page_compress() */
+  if (page_type == 0 || page_type == FIL_PAGE_TYPE_FSP_HDR
+      || page_type == FIL_PAGE_TYPE_XDES
+      || page_type == FIL_PAGE_PAGE_COMPRESSED)
+    compression= false;
+
+  /* Disable encryption based on page type: fil_space_encrypt_valid_page_type() */
+  if (page_type == FIL_PAGE_TYPE_FSP_HDR || page_type == FIL_PAGE_TYPE_XDES
+      || (page_type == FIL_PAGE_RTREE && !full_crc32))
+    encryption= false;
+
+  bool encrypt_before_checksum= !zip_size && full_crc32;
+
+  if (encrypt_before_checksum && (compression || encryption))
+  {
+    page_is_dirty= true;
+    page_compress_encrypt(file_meta, page_data, data_size, zip_size,
+                          full_crc32, compression, encryption, page_no);
   }
 
   /* If page is dirty, we need to set checksum and page LSN. */
   if (page_is_dirty) {
-    ut_ad(newest_lsn > 0);
-    page_update_for_flush(page_size, newest_lsn, page_data);
+    ut_ad(frame_lsn > 0);
+    page_update_for_flush(zip_size, page_data, full_crc32);
   }
 
-  BlockReporter reporter(false, page_data, page_size, false);
+  /* TODO: Validate checksum after updating page. */
+  // BlockReporter reporter(false, page_data, page_size, false);
 
-  const auto page_lsn =
+  const auto page_lsn=
       static_cast<lsn_t>(mach_read_from_8(page_data + FIL_PAGE_LSN));
 
   const auto page_checksum = static_cast<uint32_t>(
       mach_read_from_4(page_data + FIL_PAGE_SPACE_OR_CHKSUM));
 
-  int err = 0;
-
-  if (reporter.is_corrupted() || page_lsn > cur_lsn ||
+  int err= 0;
+  if (/* reporter.is_corrupted() || */ page_lsn > cur_lsn ||
       (page_checksum != 0 && page_lsn == 0)) {
     my_error(ER_INTERNAL_ERROR, MYF(0), "Innodb Clone Corrupt Page");
     err = ER_INTERNAL_ERROR;
     ut_d(ut_error);
   }
 
-  auto encrypted_data = page_data + data_size;
-  /* Data length could be less for compressed page */
-  auto data_len = data_size;
-
-  /* Do transparent page compression if needed. */
-  if (page_id.page_no() != 0 && file_meta->m_punch_hole &&
-      file_meta->m_compress_type != PAGE_UNCOMPRESSED) {
-    auto compressed_data = page_data + data_size;
-    memset(compressed_data, 0, data_size);
-
-    IORequest request(IORequest::WRITE);
-    request.compression_algorithm(file_meta->m_compress_type);
-    ulint compressed_len = 0;
-
-    auto buf_ptr = os_file_compress_page(
-        request.compression_algorithm(), file_meta->m_fsblk_size, page_data,
-        data_size, compressed_data, &compressed_len);
-
-    if (buf_ptr != page_data) {
-      encrypted_data = page_data;
-      page_data = compressed_data;
-      data_len = static_cast<uint>(compressed_len);
-    }
-  }
-
-  IORequest request(IORequest::WRITE);
-
-  /* Encrypt page if TDE is enabled. */
-  if (err == 0 && request.is_encrypted()) {
-    Encryption encryption(request.encryption_algorithm());
-    ulint encrypt_len = data_len;
-
-    memset(encrypted_data, 0, data_size);
-    auto ret_data = encryption.encrypt(request, page_data, data_len,
-                                       encrypted_data, &encrypt_len);
-    if (ret_data != page_data) {
-      page_data = encrypted_data;
-      data_len = static_cast<uint>(encrypt_len);
-    }
-  }
-
+  if (!encrypt_before_checksum && (compression || encryption))
+    page_compress_encrypt(file_meta, page_data, data_size, zip_size,
+                          full_crc32, compression, encryption, page_no);
   mtr_commit(&mtr);
-  return (err);
+  return err;
 }
 
 uint32_t Clone_Snapshot::get_max_blocks_pin() const {
@@ -959,7 +974,7 @@ Clone_file_ctx *Clone_Snapshot::get_page_file_ctx(uint32_t chunk_num,
   if (file_index == 0) {
     /* purecov: begin deadcode */
     ut_d(ut_error);
-    ut_o(return nullptr);
+    return nullptr;
     /* purecov: end */
   }
   --file_index;
@@ -980,12 +995,7 @@ void Clone_file_ctx::get_file_name(std::string &name) const {
   /* Add file name extension. */
   switch (m_extension) {
     case Extension::REPLACE:
-      if (m_meta.m_space_id == dict_sys_t::s_log_space_id) {
-        const auto [directory, file] = Fil_path::split(name);
-        name = directory + CLONE_INNODB_REPLACED_FILE_EXTN + file;
-      } else {
-        name.append(CLONE_INNODB_REPLACED_FILE_EXTN);
-      }
+      name.append(CLONE_INNODB_REPLACED_FILE_EXTN);
       break;
 
     case Extension::DDL:
@@ -1014,7 +1024,7 @@ bool Clone_Snapshot::begin_ddl_state(Clone_notify::Type type, space_id_t space,
         /* purecov: begin deadcode */
         /* Clone must have started at this point. */
         ut_d(ut_error);
-        ut_o(break);
+        break;
         /* purecov: end */
 
       case CLONE_SNAPSHOT_INIT:
@@ -1083,7 +1093,7 @@ bool Clone_Snapshot::begin_ddl_state(Clone_notify::Type type, space_id_t space,
       default:
         /* purecov: begin deadcode */
         ut_d(ut_error);
-        ut_o(break);
+        break;
         /* purecov: end */
     }
     break;
@@ -1240,7 +1250,7 @@ int Clone_Snapshot::wait(Wait_type wait_type, const Clone_file_ctx *ctx,
 
     if (wait) {
       if (no_wait || (alert && early_exit)) {
-        return ER_QUERY_TIMEOUT; /* purecov: inspected */
+        return ER_STATEMENT_TIMEOUT; /* purecov: inspected */
       }
 
       if (alert) {
@@ -1293,7 +1303,7 @@ bool Clone_Snapshot::block_state_change(Clone_notify::Type type,
   mysql_mutex_assert_owner(&m_snapshot_mutex);
 
   bool undo_ddl_ntfn = (type == Clone_notify::Type::SPACE_UNDO_DDL);
-  bool undo_space = fsp_is_undo_tablespace(space);
+  bool undo_space= srv_is_undo_tablespace(space);
 
   /* For undo DDL, there could be recursive notification for file create
   and drop which are !undo_ddl_ntfn. For such notifications we don't need
@@ -1415,7 +1425,7 @@ int Clone_Snapshot::begin_ddl_file(Clone_notify::Type type, space_id_t space,
   if (file_index == 0) {
     /* purecov: begin deadcode */
     ut_d(ut_error);
-    ut_o(return 0);
+    return 0;
     /* purecov: end */
   }
   --file_index;
@@ -1466,7 +1476,7 @@ void Clone_Snapshot::end_ddl_file(Clone_notify::Type type, space_id_t space) {
   if (file_index == 0) {
     /* purecov: begin deadcode */
     ut_d(ut_error);
-    ut_o(return);
+    return;
     /* purecov: end */
   }
   --file_index;
@@ -1492,10 +1502,10 @@ void Clone_Snapshot::end_ddl_file(Clone_notify::Type type, space_id_t space) {
   if (blocking_clone) {
     auto fil_space = fil_space_get(space);
 
-    ut_ad(fil_space->files.size() == 1);
+    ut_ad(UT_LIST_GET_LEN(fil_space->chain) == 1);
 
-    auto &file = fil_space->files.front();
-    build_file_name(file_meta, file.name);
+    auto node= UT_LIST_GET_FIRST(fil_space->chain);
+    build_file_name(file_meta, node->name);
 
     /* Wait for any previously waiting clone threads to restart. This is to
     avoid starvation of clone by repeated renames. We ignore any error. Although

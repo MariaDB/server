@@ -442,6 +442,15 @@ extern PSI_stage_info	srv_stage_alter_table_read_pk_internal_sort;
 extern PSI_stage_info	srv_stage_buffer_pool_load;
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
+/** Performance schema stage event for monitoring clone file copy progress. */
+extern PSI_stage_info srv_stage_clone_file_copy;
+
+/** Performance schema stage event for monitoring clone redo copy progress. */
+extern PSI_stage_info srv_stage_clone_redo_copy;
+
+/** Performance schema stage event for monitoring clone page copy progress. */
+extern PSI_stage_info srv_stage_clone_page_copy;
+
 /** Alternatives for srv_force_recovery. Non-zero values are intended
 to help the user get a damaged database up so that he can dump intact
 tables and rows with SELECT INTO OUTFILE. The database must not otherwise

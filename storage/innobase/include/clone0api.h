@@ -36,6 +36,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "univ.i"
 #ifndef UNIV_HOTBACKUP
 #include "handler.h"
+#include <fil0fil.h>
 
 using space_id_t = decltype(fil_space_t::id);
 using page_no_t = uint32_t;

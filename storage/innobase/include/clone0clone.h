@@ -35,6 +35,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <chrono>
 #include "db0err.h"
+#include "my_global.h"
 #include "mysql/plugin.h"  // thd_killed()
 #include "handler.h"
 #include "univ.i"

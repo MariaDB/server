@@ -100,7 +100,7 @@ int Clone_Snapshot::fix_ddl_extension(const char *data_dir,
 
   auto file_meta = file_ctx->get_file_meta();
   bool is_undo_file = fsp_is_undo_tablespace(file_meta->m_space_id);
-  bool is_redo_file = file_meta->m_space_id == dict_sys_t::s_log_space_id;
+  bool is_redo_file = file_meta->m_space_id == SRV_SPACE_ID_UPPER_BOUND;
 
   auto extn = Clone_file_ctx::Extension::NONE;
   const std::string file_path(file_meta->m_file_name);
@@ -148,7 +148,7 @@ int Clone_Snapshot::update_sys_file_name(bool replace,
     int err = ER_CLONE_PROTOCOL;
     my_error(err, MYF(0), "Wrong Clone RPC: Invalid File Index");
     ut_d(ut_error);
-    ut_o(return err);
+    return err;
     /* purecov: end */
   }
 
@@ -484,7 +484,7 @@ int Clone_Snapshot::create_desc(const char *data_dir,
     /* If data directory is being replaced. */
     bool replace_dir = (data_dir == nullptr);
     bool is_undo_file = fsp_is_undo_tablespace(file_meta->m_space_id);
-    bool is_redo_file = file_meta->m_space_id == dict_sys_t::s_log_space_id;
+    bool is_redo_file = file_meta->m_space_id == SRV_SPACE_ID_UPPER_BOUND;
 
     /* Check if file is already present in recipient. */
     err = handle_existing_file(replace_dir, is_undo_file, is_redo_file,
@@ -542,7 +542,7 @@ int Clone_Handle::apply_task_metadata(Clone_Task *task,
     int err = ER_CLONE_PROTOCOL;
     my_error(err, MYF(0), "Wrong Clone RPC: Invalid Task Descriptor");
     ut_d(ut_error);
-    ut_o(return (err));
+    return err;
   }
   task->m_task_meta = task_desc.m_task_meta;
   return (0);
@@ -600,7 +600,7 @@ int Clone_Handle::apply_state_metadata(Clone_Task *task,
     err = ER_CLONE_PROTOCOL;
     my_error(err, MYF(0), "Wrong Clone RPC: Invalid State Descriptor");
     ut_d(ut_error);
-    ut_o(return (err));
+    return err;
   }
   if (m_clone_handle_type == CLONE_HDL_COPY) {
     ut_ad(state_desc.m_is_ack);
@@ -838,13 +838,12 @@ int Clone_Handle::apply_ddl(const Clone_File_Meta *new_meta,
     std::string update_mesg;
     /* Set new encryption and compression type. */
     /* TODO: Handle if encryption is enabled/disabled. */
-    if (old_meta->m_compress_type != new_meta->m_compress_type) {
-      old_meta->m_compress_type = new_meta->m_compress_type;
-      if (new_meta->m_compress_type == PAGE_UNCOMPRESSED) {
+    if (old_meta->can_compress() != new_meta->can_compress()) {
+      old_meta->m_is_compressed = new_meta->m_is_compressed;
+      if (new_meta->can_compress())
         update_mesg.assign("UNCOMPRESSED ");
-      } else {
+      else
         update_mesg.assign("COMPRESSED ");
-      }
     }
 
     auto err = set_compression(file_ctx);
@@ -998,9 +997,8 @@ int Clone_Handle::fix_all_renamed(const Clone_Task *task) {
 int Clone_Handle::set_compression(Clone_file_ctx *file_ctx) {
   auto file_meta = file_ctx->get_file_meta();
 
-  if (file_meta->m_compress_type == PAGE_UNCOMPRESSED || file_ctx->deleted()) {
+  if (!file_meta->can_compress() || file_ctx->deleted())
     return 0;
-  }
 
   /* Disable punch hole if donor compression is not effective. */
   page_size_t page_size(file_meta->m_fsp_flags);
@@ -1110,7 +1108,7 @@ int Clone_Handle::apply_file_metadata(Clone_Task *task,
     int err = ER_CLONE_PROTOCOL;
     my_error(err, MYF(0), "Wrong Clone RPC: Invalid File Descriptor");
     ut_d(ut_error);
-    ut_o(return (err));
+    return err;
   }
   const auto file_desc_meta = &file_desc.m_file_meta;
   auto snapshot = m_clone_task_manager.get_snapshot();
@@ -1480,7 +1478,7 @@ int Clone_Handle::apply_data(Clone_Task *task, Ha_clone_cbk *callback) {
     int err = ER_CLONE_PROTOCOL;
     my_error(err, MYF(0), "Wrong Clone RPC: Invalid Data Descriptor");
     ut_d(ut_error);
-    ut_o(return (err));
+    return err;
   }
   /* Identify the task for the current block of data. */
   int err = 0;
@@ -1523,7 +1521,7 @@ int Clone_Handle::apply(THD *, uint task_id, Ha_clone_cbk *callback) {
     err = ER_CLONE_PROTOCOL;
     my_error(err, MYF(0), "Wrong Clone RPC: Invalid Descriptor Header");
     ut_d(ut_error);
-    ut_o(return (err));
+    return err;
   }
 
   /* Check the descriptor type in header and apply */
@@ -1548,7 +1546,7 @@ int Clone_Handle::apply(THD *, uint task_id, Ha_clone_cbk *callback) {
 
     default:
       ut_d(ut_error);
-      ut_o(break);
+      break;
   }
 
   if (err != 0) {
@@ -1668,7 +1666,7 @@ int Clone_Snapshot::init_apply_state(Clone_Desc_State *state_desc) {
       err = ER_INTERNAL_ERROR;
       my_error(err, MYF(0), "Innodb Clone Snapshot Invalid state");
       ut_d(ut_error);
-      ut_o(break);
+      break;
   }
   return (err);
 }
@@ -1689,8 +1687,7 @@ int Clone_Snapshot::extend_and_flush_files(bool flush_redo) {
     file_ctx->get_file_name(file_name);
 
     auto file = os_file_create(
-        innodb_clone_file_key, file_name.c_str(),
-        OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+        innodb_clone_file_key, file_name.c_str(), OS_FILE_OPEN,
         flush_redo ? OS_CLONE_LOG_FILE : OS_CLONE_DATA_FILE, false, &success);
 
     if (!success) {

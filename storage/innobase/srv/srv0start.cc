@@ -153,6 +153,9 @@ static PSI_stage_info*	srv_stages[] =
 	&srv_stage_alter_table_merge_sort,
 	&srv_stage_alter_table_read_pk_internal_sort,
 	&srv_stage_buffer_pool_load,
+	&srv_stage_clone_file_copy,
+	&srv_stage_clone_redo_copy,
+	&srv_stage_clone_page_copy,
 };
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 

@@ -390,6 +390,20 @@ void buf_flush_assign_full_crc32_checksum(byte* page) noexcept
 	mach_write_to_4(page + payload, my_crc32c(0, page, payload));
 }
 
+bool page_is_uncompressed_type(const byte *page)
+{
+  switch (fil_page_get_type(page))
+  {
+    case FIL_PAGE_TYPE_ALLOCATED:
+    case FIL_PAGE_INODE:
+    case FIL_PAGE_IBUF_BITMAP:
+    case FIL_PAGE_TYPE_FSP_HDR:
+    case FIL_PAGE_TYPE_XDES:
+      return true;
+  }
+  return false;
+}
+
 /** Initialize a page for writing to the tablespace.
 @param[in]	block			buffer block; NULL if bypassing
 					the buffer pool
@@ -433,6 +447,7 @@ buf_flush_init_for_writing(
 		case FIL_PAGE_TYPE_FSP_HDR:
 		case FIL_PAGE_TYPE_XDES:
 			/* These are essentially uncompressed pages. */
+			ut_ad(page_is_uncompressed_type(page));
 			memcpy(page_zip->data, page, size);
 			/* fall through */
 		case FIL_PAGE_TYPE_ZBLOB:

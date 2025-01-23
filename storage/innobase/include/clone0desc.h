@@ -501,8 +501,11 @@ struct Clone_File_Meta {
   /** @return true, iff file is deleted. */
   bool is_renamed() const { return m_renamed; }
 
-  /** @return true, iff file is encrypted. */
-  bool can_encrypt() const { return false; }
+  /** @return true, iff file pages are encrypted. */
+  bool can_encrypt() const { return m_is_encrypted; }
+
+  /** @return true, iff file pages are compressed. */
+  bool can_compress() const { return m_is_compressed; }
   // bool can_encrypt() const { return m_encryption_metadata.can_encrypt(); }
 
   /** Reset DDL state of file metadata. */
@@ -523,8 +526,11 @@ struct Clone_File_Meta {
   /** Tablespace FSP flags */
   uint32_t m_fsp_flags;
 
-  /** File compression type */
-  uint32_t m_compress_type;
+  /** Page compression is enabled. */
+  bool m_is_compressed;
+
+  /** Page encryption is enabled. */
+  bool m_is_encrypted;
 
   /** If transparent compression is needed. It is derived information
   and is not transferred. */

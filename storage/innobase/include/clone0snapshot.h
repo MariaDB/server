@@ -810,20 +810,27 @@ class Clone_Snapshot {
 
   /** Get page from buffer pool and make ready for write
   @param[in]    page_id         page ID chunk
+  @param[in]    page_size       physical page size on disk
   @param[in]    file_ctx        clone file context
   @param[out]   page_data       data page
   @param[out]   data_size       page size in bytes
   @return error code */
-  int get_page_for_write(const page_id_t &page_id,
+  int get_page_for_write(const page_id_t &page_id, uint32_t page_size,
                          const Clone_file_ctx *file_ctx, byte *&page_data,
                          uint &data_size);
 
   /* Make page ready for flush by updating LSN anc checksum
-  @param[in]            fsp_flags       tablespace flag
-  @param[in]            page_lsn        LSN to update the page with
-  @param[in,out]        page_data       data page */
-  void page_update_for_flush(ulint fsp_flags, lsn_t page_lsn,
-                             byte *&page_data);
+  @param[in]       zip_size       ROW_FORMAT=COMPRESSED page size, or 0
+  @param[in,out]   page_data       data page
+  @param[in]       full_crc32      whether to use full_crc32 algorithm */
+  void page_update_for_flush(ulint zip_size, byte *&page_data,
+                             bool full_crc32);
+
+  /* Handle page compression and encryption. */
+  void page_compress_encrypt(
+      const Clone_File_Meta *file_meta, byte *&page_data, uint32_t data_size,
+      ulint zip_size, bool full_crc32, bool compress, bool encrypt,
+      uint32_t page_no);
 
   /** Build file metadata entry
   @param[in]    file_name       name of the file

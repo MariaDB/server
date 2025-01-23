@@ -620,18 +620,14 @@ static const uint CLONE_FILE_FSBLK_OFFSET = CLONE_FILE_FSP_OFFSET + 4;
 
 /** File Metadata: File space flags in next 2 bytes [Maximum 16 flags] */
 static const uint CLONE_FILE_FLAGS_OFFSET = CLONE_FILE_FSBLK_OFFSET + 4;
-/** Clone File Flag: Compression type ZLIB*/
-static const uint CLONE_DESC_FILE_FLAG_ZLIB = 1;
-/** Clone File Flag: Compression type LZ4*/
-static const uint CLONE_DESC_FILE_FLAG_LZ4 = 2;
 /** Clone File Flag: Encryption type AES */
-static const uint CLONE_DESC_FILE_FLAG_AES = 3;
+static const uint CLONE_DESC_FILE_FLAG_AES = 1;
 /** Clone File Flag: File is renamed. */
-static const uint CLONE_DESC_FILE_FLAG_RENAMED = 4;
+static const uint CLONE_DESC_FILE_FLAG_RENAMED = 2;
 /** Clone File Flag: File is deleted. */
-static const uint CLONE_DESC_FILE_FLAG_DELETED = 5;
+static const uint CLONE_DESC_FILE_FLAG_DELETED = 3;
 /** Clone File Flag: File metadata has encryption key. */
-static const uint CLONE_DESC_FILE_HAS_KEY = 6;
+static const uint CLONE_DESC_FILE_HAS_KEY = 4;
 
 /** File Metadata: Tablespace ID in 4 bytes */
 static const uint CLONE_FILE_SPACE_ID_OFFSET = CLONE_FILE_FLAGS_OFFSET + 2;
@@ -691,11 +687,6 @@ void Clone_Desc_File_MetaData::serialize(byte *&desc_file, uint &len,
                   m_file_meta.m_fsblk_size);
   /* Set file compression type for sparse file. */
   ulint file_flags = 0;
-  if (m_file_meta.m_compress_type == PAGE_ZLIB_ALGORITHM) {
-    DESC_SET_FLAG(file_flags, CLONE_DESC_FILE_FLAG_ZLIB);
-  } else if (m_file_meta.m_compress_type == PAGE_LZ4_ALGORITHM) {
-    DESC_SET_FLAG(file_flags, CLONE_DESC_FILE_FLAG_LZ4);
-  }
   /* TODO: Encryption metadata transfer: Set file encryption type */
   ut_ad(!m_file_meta.m_transfer_encryption_key);
 
@@ -766,16 +757,8 @@ bool Clone_Desc_File_MetaData::deserialize(const byte *desc_file,
 
   m_file_meta.m_punch_hole = false;
 
-  m_file_meta.m_compress_type = PAGE_UNCOMPRESSED;
   auto file_flags =
       static_cast<ulint>(mach_read_from_2(desc_file + CLONE_FILE_FLAGS_OFFSET));
-
-  /* Get file compression type for sparse file. */
-  if (DESC_CHECK_FLAG(file_flags, CLONE_DESC_FILE_FLAG_ZLIB)) {
-    m_file_meta.m_compress_type = PAGE_ZLIB_ALGORITHM;
-  } else if (DESC_CHECK_FLAG(file_flags, CLONE_DESC_FILE_FLAG_LZ4)) {
-    m_file_meta.m_compress_type = PAGE_LZ4_ALGORITHM;
-  }
 
   /* Get file encryption information */
   /* TODO: Encryption metadata transfer: Set file encryption type */
@@ -1044,11 +1027,13 @@ void Clone_File_Meta::init() {
   m_space_id = UINT32_MAX;
   m_fsp_flags = ULINT32_UNDEFINED;
 
-  m_compress_type = PAGE_UNCOMPRESSED;
   /* TODO: Encryption metadata transfer: Set file encryption type */
   // m_encryption_metadata = {};
   m_punch_hole = false;
   m_fsblk_size = 0;
+
+  m_is_compressed= false;
+  m_is_encrypted= false;
 
   m_transfer_encryption_key = false;
 
