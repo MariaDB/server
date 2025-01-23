@@ -433,7 +433,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
     goto err;
 
   int was_cut;
-  if (check_date(l_time, fuzzydate | TIME_INVALID_DATES, &was_cut))
+  if (check_date(l_time, fuzzydate, &was_cut))
     goto err;
 
   if (val != val_end)
