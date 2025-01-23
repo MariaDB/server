@@ -10628,7 +10628,7 @@ ST_FIELD_INFO slave_status_info[]=
   Column("Master_Host", Varchar(HOSTNAME_LENGTH), NULLABLE),
   Column("Master_User", Varchar(USERNAME_LENGTH), NULLABLE),
   Column("Master_Port", UShort(5), NOT_NULL),
-  Column("Connect_Retry", SLong(10), NOT_NULL),
+  Column("Connect_Retry", ULong(10), NOT_NULL),
   Column("Master_Log_File", Varchar(FN_REFLEN), NOT_NULL),
   Column("Read_Master_Log_Pos", ULonglong(20), NOT_NULL),
   Column("Relay_Log_File", Varchar(FN_REFLEN), NOT_NULL),
@@ -10686,7 +10686,7 @@ ST_FIELD_INFO slave_status_info[]=
   Column("Gtid_Slave_Pos", Varchar(), NOT_NULL),
   Column("Master_last_event_time", Datetime(0), NULLABLE),
   Column("Slave_last_event_time", Datetime(0), NULLABLE),
-  Column("Master_Slave_time_diff", SLong(10), NULLABLE),
+  Column("Master_Slave_time_diff", ULong(10), NULLABLE),
   CEnd()
 };
 #endif
