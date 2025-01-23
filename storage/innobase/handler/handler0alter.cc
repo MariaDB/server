@@ -30,6 +30,7 @@ Smart ALTER TABLE
 #include <sql_class.h>
 #include <sql_table.h>
 #include <mysql/plugin.h>
+#include <strfunc.h>
 
 /* Include necessary InnoDB headers */
 #include "btr0sea.h"
@@ -3231,6 +3232,9 @@ innobase_get_foreign_key_info(
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
 	const CHARSET_INFO*	cs = thd_charset(trx->mysql_thd);
+	char db_name[MAX_DATABASE_NAME_LEN + 1];
+	char t_name[MAX_TABLE_NAME_LEN + 1];
+	static_assert(MAX_TABLE_NAME_LEN == MAX_DATABASE_NAME_LEN, "");
 
 	DBUG_ENTER("innobase_get_foreign_key_info");
 
@@ -3295,14 +3299,15 @@ innobase_get_foreign_key_info(
 
 		add_fk[num_fk] = dict_mem_foreign_create();
 
+		LEX_CSTRING t = innodb_convert_name(cs, fk_key->ref_table,
+						    t_name);
+		LEX_CSTRING d = fk_key->ref_db.str
+			? innodb_convert_name(cs, fk_key->ref_db, db_name)
+			: LEX_CSTRING{table->name.m_name, table->name.dblen()};
 		dict_sys.lock(SRW_LOCK_CALL);
 
-		referenced_table_name = dict_get_referenced_table(
-			table->name.m_name,
-			LEX_STRING_WITH_LEN(fk_key->ref_db),
-			LEX_STRING_WITH_LEN(fk_key->ref_table),
-			&referenced_table,
-			add_fk[num_fk]->heap, cs);
+		referenced_table_name = dict_table_lookup(
+			d, t, &referenced_table, add_fk[num_fk]->heap);
 
 		/* Test the case when referenced_table failed to
 		open, if trx->check_foreigns is not set, we should

@@ -431,7 +431,7 @@ void
 dict_mem_foreign_table_name_lookup_set(
 /*===================================*/
 	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
+	bool		do_alloc);	/*!< in: is an alloc needed */
 
 /**********************************************************************//**
 Sets the referenced_table_name_lookup pointer based on the value of

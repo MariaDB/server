@@ -2608,7 +2608,7 @@ row_rename_table_for_mysql(
 		memcpy(par_case_name, old_name,
 			strlen(old_name));
 		par_case_name[strlen(old_name)] = 0;
-		innobase_casedn_str(par_case_name);
+		my_casedn_str(system_charset_info, par_case_name);
 #else
 		/* On Windows platfrom, check
 		whether there exists table name in
