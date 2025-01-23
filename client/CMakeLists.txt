@@ -56,9 +56,17 @@ TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c connection_pool.cc)
 TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
 
+ADD_LIBRARY(import_util STATIC import_util.cc import_util.h)
+IF (PCRE2_DEBIAN_HACK)
+  SET_SOURCE_FILES_PROPERTIES(import_util.cc PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")
+ENDIF()
+TARGET_LINK_LIBRARIES(import_util PRIVATE pcre2-posix pcre2-8)
+TARGET_INCLUDE_DIRECTORIES(import_util PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.cc)
-target_include_directories(mariadb-import PRIVATE ${CMAKE_SOURCE_DIR}/tpool)
-target_link_libraries(mariadb-import PRIVATE tpool ${CLIENT_LIB})
+TARGET_INCLUDE_DIRECTORIES(mariadb-import PRIVATE ${CMAKE_SOURCE_DIR}/tpool)
+TARGET_LINK_LIBRARIES(mariadb-import PRIVATE tpool ${CLIENT_LIB} import_util)
+
 
 MYSQL_ADD_EXECUTABLE(mariadb-upgrade mysql_upgrade.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(mariadb-upgrade ${CLIENT_LIB})
@@ -101,3 +109,6 @@ FOREACH(t mariadb mariadb-test mariadb-check mariadb-dump mariadb-import mariadb
 ENDFOREACH()
 
 ADD_DEFINITIONS(-DHAVE_DLOPEN)
+IF(WITH_UNIT_TESTS)
+  ADD_SUBDIRECTORY(${PROJECT_SOURCE_DIR}/unittest/client ${PROJECT_BINARY_DIR}/unittest/client)
+ENDIF()
