@@ -317,7 +317,7 @@ a	7.0000
 b	3.5000
 explain SELECT s.name, AVG(s.val) AS median FROM (SELECT x.name, x.val FROM t1 x, t1 y WHERE x.name=y.name GROUP BY x.name, x.val HAVING SUM(y.val <= x.val) >= COUNT(*)/2 AND SUM(y.val >= x.val) >= COUNT(*)/2) AS s GROUP BY s.name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	289	Using temporary; Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	17	Using temporary; Using filesort
 2	DERIVED	x	ALL	NULL	NULL	NULL	NULL	17	Using temporary; Using filesort
 2	DERIVED	y	ALL	NULL	NULL	NULL	NULL	17	Using where; Using join buffer (flat, BNL join)
 drop table t1;

@@ -515,6 +515,23 @@ select * from v2	{
                   ]
                 },
                 {
+                  "materialized_output_cardinality": {
+                    "join_output_cardinality": 1,
+                    "estimation": [
+                      {
+                        "table": "t1",
+                        "steps": [
+                          {
+                            "column": "b",
+                            "cardinality": 2
+                          }
+                        ],
+                        "cardinality": 2
+                      }
+                    ]
+                  }
+                },
+                {
                   "check_split_materialized": {
                     "not_applicable": "no candidate field can be accessed through ref"
                   }
@@ -803,7 +820,7 @@ explain select * from v2	{
 # Non-Mergeable view
 explain select * from v1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v1	{
@@ -909,6 +926,24 @@ explain select * from v1	{
                   ]
                 },
                 {
+                  "materialized_output_cardinality": {
+                    "join_output_cardinality": 10,
+                    "estimation": [
+                      {
+                        "table": "t1",
+                        "steps": [
+                          {
+                            "column": "b",
+                            "cardinality": 4
+                          }
+                        ],
+                        "cardinality": 4
+                      }
+                    ],
+                    "post_group_cardinality": 4
+                  }
+                },
+                {
                   "check_split_materialized": {
                     "not_applicable": "group list has no candidates"
                   }
@@ -953,9 +988,9 @@ explain select * from v1	{
               {
                 "table": "<derived2>",
                 "table_scan": {
-                  "rows": 10,
-                  "read_cost": 0.010103506,
-                  "read_and_compare_cost": 0.010446846
+                  "rows": 4,
+                  "read_cost": 0.010041402,
+                  "read_and_compare_cost": 0.010178738
                 }
               }
             ]
@@ -974,19 +1009,19 @@ explain select * from v1	{
                       "considered_access_paths": [
                         {
                           "access_type": "scan",
-                          "rows": 10,
-                          "rows_after_filter": 10,
-                          "rows_out": 10,
-                          "cost": 0.010446846,
+                          "rows": 4,
+                          "rows_after_filter": 4,
+                          "rows_out": 4,
+                          "cost": 0.010178738,
                           "index_only": false,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "rows_read": 10,
-                        "rows_out": 10,
-                        "cost": 0.010446846,
+                        "rows_read": 4,
+                        "rows_out": 4,
+                        "cost": 0.010178738,
                         "uses_join_buffering": false
                       }
                     }
@@ -996,15 +1031,15 @@ explain select * from v1	{
               {
                 "plan_prefix": "",
                 "table": "<derived2>",
-                "rows_for_plan": 10,
-                "cost_for_plan": 0.010446846
+                "rows_for_plan": 4,
+                "cost_for_plan": 0.010178738
               }
             ]
           },
           {
             "best_join_order": ["<derived2>"],
-            "rows": 10,
-            "cost": 0.010446846
+            "rows": 4,
+            "cost": 0.010178738
           },
           {
             "attaching_conditions_to_tables": {

@@ -1,0 +1,108 @@
+--echo #
+--echo # MDEV-30877: Output cardinality for derived table ignores GROUP BY
+--echo #
+
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+create table t1 (
+  groups_20 int,
+  groups_20_2 int,
+  b int,
+  index (groups_20)
+);
+
+insert into t1 select seq/1000, seq/1000, seq from seq_1_to_20000;
+
+create table t2 (a int, b int, index(a));
+insert into t2 select seq, seq from seq_1_to_10;
+
+analyze table t1 persistent for all;
+
+set optimizer_trace=1;
+--echo # Case 1: one indexed column
+explain
+select *
+from
+  t2,
+  (select count(*) cnt, groups_20 from t1
+   group by groups_20) TBL
+where
+  1;
+
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+
+--echo # Case 2: one non- indexed column
+explain
+select *
+from
+  t2,
+  (select count(*) cnt, groups_20_2 from t1
+   group by groups_20_2) TBL
+where
+  1;
+
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo # Case 4: one indexed column, multiple tables
+create table t3(c int);
+insert into t3 select seq from seq_1_to_10;
+explain
+select *
+from
+  t2,
+  (select count(*) cnt, groups_20 from t1,t3
+   group by groups_20) TBL;
+
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+
+--echo # Case 5: group by two tables
+explain
+select *
+from
+  t2,
+  (select count(*) cnt, groups_20 from t1,t3
+   group by groups_20, t3.c) TBL;
+
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo # Now, without an index
+explain
+select *
+from
+  t2,
+  (select count(*) cnt, groups_20 from t1 use index(),t3 group by groups_20) TBL;
+
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+
+set optimizer_trace=default;
+drop table t1, t2, t3;
+
