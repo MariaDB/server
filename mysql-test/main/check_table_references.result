@@ -267,3 +267,14 @@ Table	Op	Msg_type	Msg_text
 test.t	check	Warning	Bogus foreign key t_ibfk_1 is skipped.
 test.t	check	error	Corrupt
 drop table t;
+# In a->b relation, `a` key_part can be shorter than `b`
+create table t (a varchar(1), b varchar(8), key(b),
+foreign key(a) references t(b)) engine=innodb;
+set foreign_key_checks = off;
+insert into t values ('d','dd');
+set foreign_key_checks = on;
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t_ibfk_1, record: 'd')
+test.t	check	error	Corrupt
+drop table t;

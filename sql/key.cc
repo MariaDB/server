@@ -174,7 +174,7 @@ void key_copy(uchar *to_key, uchar *extra_buff,
 
       if (to_key_part->is_var_length())
         key_length-= HA_KEY_BLOB_LENGTH;
-      length= MY_MIN(key_length, key_part->length);
+      length= MY_MIN(key_length, to_key_part->length);
       uint bytes= field->get_key_image(to_key, length, from_ptr,
                                    Field::image_type(to_key_info->algorithm));
       if (with_zerofill && bytes < length)
