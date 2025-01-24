@@ -950,8 +950,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   if (fields.elements || !value_count || table_list->view != 0)
   {
-    if (table->triggers &&
-        table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
+    if (table->field != table->field_to_fill())
     {
       /* BEFORE INSERT triggers exist, the check will be done later, per row */
     }
