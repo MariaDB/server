@@ -694,6 +694,7 @@ bool Log_to_csv_event_handler::
 {
   TABLE_LIST table_list;
   TABLE *table;
+  const char *cause= 0;
   bool result= TRUE;
   bool need_close= FALSE;
   bool need_pop= FALSE;
@@ -728,13 +729,19 @@ bool Log_to_csv_event_handler::
   need_pop= TRUE;
 
   if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
+  {
+    cause= "can't open file";
     goto err;
+  }
 
   need_close= TRUE;
 
   if (table->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE) ||
       table->file->ha_rnd_init_with_error(0))
+  {
+    cause= "can't initialize table handler";
     goto err;
+  }
 
   need_rnd_end= TRUE;
 
@@ -753,12 +760,20 @@ bool Log_to_csv_event_handler::
 
   /* check that all columns exist */
   if (table->s->fields < 6)
+  {
+    cause= "incorrect number of fields in the log table";
     goto err;
+  }
 
   DBUG_ASSERT(table->field[0]->type() == MYSQL_TYPE_TIMESTAMP);
 
-  table->field[0]->store_timestamp(
-                  hrtime_to_my_time(event_time), hrtime_sec_part(event_time));
+  if (table->field[0]->store_timestamp(hrtime_to_my_time(event_time),
+                                       hrtime_sec_part(event_time)))
+  {
+    cause= "Can't write data (possible incorrect log table structure)";
+    goto err;
+  }
+
 
   /* do a write */
   if (table->field[1]->store(user_host, user_host_len, client_cs) ||
@@ -766,7 +781,10 @@ bool Log_to_csv_event_handler::
       table->field[3]->store((longlong) global_system_variables.server_id,
                              TRUE) ||
       table->field[4]->store(command_type, command_type_len, client_cs))
+  {
+    cause= "Can't write data (possible incorrect log table structure)";
     goto err;
+  }
 
   /*
     A positive return value in store() means truncation.
@@ -774,7 +792,10 @@ bool Log_to_csv_event_handler::
   */
   table->field[5]->flags|= FIELDFLAG_HEX_ESCAPE;
   if (table->field[5]->store(sql_text, sql_text_len, client_cs) < 0)
+  {
+    cause= "Can't write data (possible incorrect log table structure)";
     goto err;
+  }
 
   /* mark all fields as not null */
   table->field[1]->set_notnull();
@@ -790,14 +811,22 @@ bool Log_to_csv_event_handler::
   }
 
   if (table->file->ha_write_row(table->record[0]))
+  {
+    cause= "Can't write record";
     goto err;
+  }
 
   result= FALSE;
 
 err:
   if (result && !thd->killed)
+  {
+    const char *msg= error_handler.message();
+    if (!msg || !msg[0])
+      msg= cause;
     sql_print_error("Failed to write to mysql.general_log: %s",
-                    error_handler.message());
+                    msg);
+  }
 
   if (need_rnd_end)
   {
@@ -850,6 +879,8 @@ bool Log_to_csv_event_handler::
 {
   TABLE_LIST table_list;
   TABLE *table;
+  const char *cause= 0;
+  const char *msg;
   bool result= TRUE;
   bool need_close= FALSE;
   bool need_rnd_end= FALSE;
@@ -874,13 +905,19 @@ bool Log_to_csv_event_handler::
                             TL_WRITE_CONCURRENT_INSERT);
 
   if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
+  {
+    cause= "can't open file";
     goto err;
+  }
 
   need_close= TRUE;
 
   if (table->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE) ||
       table->file->ha_rnd_init_with_error(0))
+  {
+    cause= "can't initialize table handler";
     goto err;
+  }
 
   need_rnd_end= TRUE;
 
@@ -891,12 +928,19 @@ bool Log_to_csv_event_handler::
 
   /* check that all columns exist */
   if (table->s->fields < 13)
+  {
+    cause= "incorrect number of fields in the log table";
     goto err;
+  }
+
+  // It can be used in 13 places below so assign it here
+  cause= "Can't write data (possible incorrect log table structure)";
 
   /* store the time and user values */
   DBUG_ASSERT(table->field[0]->type() == MYSQL_TYPE_TIMESTAMP);
-  table->field[0]->store_timestamp(
-             hrtime_to_my_time(current_time), hrtime_sec_part(current_time));
+  if(table->field[0]->store_timestamp(hrtime_to_my_time(current_time),
+                                      hrtime_sec_part(current_time)))
+    goto err;
   if (table->field[1]->store(user_host, user_host_len, client_cs))
     goto err;
 
@@ -976,9 +1020,13 @@ bool Log_to_csv_event_handler::
                               (longlong) thd->get_stmt_da()->affected_rows() :
                               0, TRUE))
     goto err;
+  cause= 0; // just for safety
 
   if (table->file->ha_write_row(table->record[0]))
+  {
+    cause= "Can't write record";
     goto err;
+  }
 
   result= FALSE;
 
@@ -986,8 +1034,13 @@ err:
   thd->pop_internal_handler();
 
   if (result && !thd->killed)
+  {
+    msg= error_handler.message();
+    if (!msg || !msg[0])
+      msg= cause;
     sql_print_error("Failed to write to mysql.slow_log: %s",
-                    error_handler.message());
+                    msg);
+  }
 
   if (need_rnd_end)
   {
