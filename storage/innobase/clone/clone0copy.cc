@@ -34,11 +34,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "clone0clone.h"
 #include "dict0dict.h"
 #include "fsp0sysspace.h"
-#include "sql/binlog.h"
-#include "sql/clone_handler.h"
+#include "log.h"
+#include "clone_handler.h"
 #include "handler.h"
-#include "sql/mysqld.h"
+#include "mysqld.h"
 #include "srv0start.h"
+#include "trx0sys.h"
 
 /** Callback to add an archived redo file to current snapshot
 @param[in]      file_name       file name
@@ -48,11 +49,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 @return error code */
 static int add_redo_file_callback(char *file_name, uint64_t file_size,
                                   uint64_t file_offset, void *context) {
-  auto snapshot = static_cast<Clone_Snapshot *>(context);
-
-  auto err = snapshot->add_redo_file(file_name, file_size, file_offset);
-
-  return (err);
+  auto snapshot= static_cast<Clone_Snapshot *>(context);
+  auto err= snapshot->add_redo_file(file_name, file_size, file_offset);
+  return err;
 }
 
 /** Callback to add tracked page IDs to current snapshot
@@ -92,31 +91,31 @@ int Clone_Snapshot::add_buf_pool_file() {
   /* Generate the file name. */
   buf_dump_generate_path(path, sizeof(path));
 
-  /* Add if the file is found. */
-  int err = 0;
+  os_file_type_t type;
+  bool exists= false;
 
-  if (os_file_exists(path)) {
-    auto file_size = os_file_get_size(path);
-    auto size_bytes = file_size.m_total_size;
+  bool ret= os_file_status(path, &exists, &type);
 
-    /* Check for error */
-    if (size_bytes == static_cast<os_offset_t>(~0)) {
-      char errbuf[MYSYS_STRERROR_SIZE];
-      my_error(ER_CANT_OPEN_FILE, MYF(0), path, errno,
-               my_strerror(errbuf, sizeof(errbuf), errno));
-      return (ER_CANT_OPEN_FILE);
-    }
+  if (!ret || !exists)
+    return 0;
 
-    /* Always the first file in list */
-    ut_ad(num_data_files() == 0);
+  auto file_size = os_file_get_size(path);
+  auto size_bytes = file_size.m_total_size;
 
-    m_data_bytes_disk += size_bytes;
-    m_monitor.add_estimate(size_bytes);
-
-    err = add_file(path, size_bytes, size_bytes, nullptr, false);
+  /* Check for error */
+  if (size_bytes == static_cast<os_offset_t>(~0)) {
+    char errbuf[MYSYS_STRERROR_SIZE];
+    my_error(ER_CANT_OPEN_FILE, MYF(0), path, errno,
+             my_strerror(errbuf, sizeof(errbuf), errno));
+    return ER_CANT_OPEN_FILE;
   }
+  /* Always the first file in list */
+  ut_ad(num_data_files() == 0);
 
-  return (err);
+  m_data_bytes_disk += size_bytes;
+  m_monitor.add_estimate(size_bytes);
+
+  return add_file(path, size_bytes, size_bytes, nullptr, false);
 }
 
 int Clone_Snapshot::init_redo_archiving() {
@@ -134,7 +133,7 @@ int Clone_Snapshot::init_redo_archiving() {
 
   m_redo_header = static_cast<byte *>(mem_heap_zalloc(
       m_snapshot_heap,
-      m_redo_header_size + m_redo_trailer_size + UNIV_SECTOR_SIZE));
+      m_redo_header_size + m_redo_trailer_size + OS_FILE_LOG_BLOCK_SIZE));
 
   if (m_redo_header == nullptr) {
     /* purecov: begin inspected */
@@ -145,7 +144,7 @@ int Clone_Snapshot::init_redo_archiving() {
   }
 
   m_redo_header =
-      static_cast<byte *>(ut_align(m_redo_header, UNIV_SECTOR_SIZE));
+      static_cast<byte *>(ut_align(m_redo_header, OS_FILE_LOG_BLOCK_SIZE));
 
   m_redo_trailer = m_redo_header + m_redo_header_size;
 
@@ -162,7 +161,7 @@ int Clone_Snapshot::init_redo_archiving() {
 
   if (m_redo_file_size < LOG_FILE_MIN_SIZE) {
     my_error(ER_INTERNAL_ERROR, MYF(0));
-    return ERR_R_INTERNAL_ERROR; /* purecov: inspected */
+    return ER_INTERNAL_ERROR; /* purecov: inspected */
   }
 
   return 0;
@@ -329,147 +328,8 @@ int Clone_Snapshot::init_page_copy(Snapshot_State new_state, byte *page_buffer,
   return err;
 }
 
-int Clone_Snapshot::synchronize_binlog_gtid(Clone_Alert_Func cbk) {
-  /* Get a list of binlog prepared transactions and wait for them to commit
-  or rollback. This is to ensure that any possible unordered transactions
-  are completed. */
-  auto error = wait_for_binlog_prepared_trx();
-
-  if (error != 0) {
-    return (error);
-  }
-
-  /* Persist non-innodb GTIDs */
-  auto &gtid_persistor = clone_sys->get_gtid_persistor();
-  gtid_persistor.wait_flush(true, false, cbk);
-
-  error = update_binlog_position();
-  return (error);
-}
-
-int Clone_Snapshot::update_binlog_position() {
-  /* Since the caller ensures all future commits are in order of binary log and
-  innodb updates trx sys page for all transactions by default, any single
-  transaction commit here would ensure that the binary log position is
-  synchronized. However, currently we don't create any special table for clone
-  and we cannot execute transaction/dml here. A possible simplification for
-  future.
-
-  Ideally the only case we need to update innodb trx sys page is when no
-  transaction commit has happened yet after forced ordering is imposed. We
-  end up updating the page in more cases but is harmless. We follow the steps
-  below.
-
-  1. Note the last updated Innodb binary log position - P1
-
-  2. Note the current log position from binary log - P2
-     All transactions up to this point are already prepared and may or may not
-     be committed.
-
-  3. Note the Innodb binary log position again - P3
-     if P1 != P3 then exit as there is already some new transaction committed.
-     if P1 == P3 then update the trx sys log position with P2
-  *Check and update in [3] are atomic for trx sys page.
-
-  4. Wait for all binary log prepared transaction to complete. We have
-  updated the trx sys page out of order but it is sufficient to ensure that
-  all transaction up to the updated binary log position are committed. */
-
-  /* 1. Read binary log position from innodb. */
-  Log_info log_info1;
-  char file_name[TRX_SYS_MYSQL_LOG_NAME_LEN + 1];
-  uint64_t file_pos;
-  trx_sys_read_binlog_position(&file_name[0], file_pos);
-
-  /* 2. Get current binary log position. */
-  Log_info log_info;
-  mysql_bin_log.get_current_log(&log_info);
-
-  /* 3. Check and write binary log position in Innodb. */
-  bool written = trx_sys_write_binlog_position(
-      &file_name[0], file_pos, &log_info.log_file_name[0], log_info.pos);
-
-  /* 4. If we had to write current binary log position, should wait for all
-  prepared transactions to finish to make sure that all transactions up to
-  the binary log position is committed. */
-  if (written) {
-    auto err = wait_for_binlog_prepared_trx();
-    return (err);
-  }
-  return (0);
-}
-
-int Clone_Snapshot::wait_trx_end(THD *thd, trx_id_t trx_id) {
-  auto trx = trx_rw_is_active(trx_id, false);
-  if (trx == nullptr) {
-    return (0);
-  }
-
-  auto wait_cond = [&](bool alert, bool &result) {
-    /* Check if transaction is still active. */
-    auto trx = trx_rw_is_active(trx_id, false);
-    if (trx == nullptr) {
-      result = false;
-      return (0);
-    }
-
-    result = true;
-    if (thd_killed(thd)) {
-      my_error(ER_QUERY_INTERRUPTED, MYF(0));
-      return (ER_QUERY_INTERRUPTED);
-    }
-
-    if (alert) {
-      ib::warn()
-          << "Waiting for prepared transaction to exit";
-    }
-    return (0);
-  };
-
-  bool is_timeout = false;
-
-  /* Sleep for 10 millisecond */
-  Clone_Msec sleep_time(10);
-  /* Generate alert message every 5 second. */
-  Clone_Sec alert_interval(5);
-  /* Wait for 5 minutes. */
-  Clone_Sec time_out(Clone_Min(5));
-
-  auto err = Clone_Sys::wait(sleep_time, time_out, alert_interval, wait_cond,
-                             nullptr, is_timeout);
-
-  if (err == 0 && is_timeout) {
-    ib::info()
-        << "Clone wait for prepared transaction timed out";
-    my_error(ER_INTERNAL_ERROR, MYF(0),
-             "Innodb Clone wait for prepared transaction timed out.");
-    err = ER_INTERNAL_ERROR;
-  }
-  return (err);
-}
-
 /* To get current session thread default THD */
 THD *thd_get_current_thd();
-
-int Clone_Snapshot::wait_for_binlog_prepared_trx() {
-  /* Return if binary log is not enabled. */
-  if (!opt_bin_log) {
-    return (0);
-  }
-  auto thd = thd_get_current_thd();
-  /* Get all binlog prepared transactions. */
-  std::vector<trx_id_t> trx_ids;
-  trx_sys_get_binlog_prepared(trx_ids);
-
-  /* Now wait for the transactions to finish. */
-  for (auto trx_id : trx_ids) {
-    auto err = wait_trx_end(thd, trx_id);
-    if (err != 0) {
-      return (err);
-    }
-  }
-  return (0);
-}
 
 int Clone_Snapshot::init_redo_copy(Snapshot_State new_state,
                                    Clone_Alert_Func cbk) {
@@ -500,15 +360,20 @@ int Clone_Snapshot::init_redo_copy(Snapshot_State new_state,
   this point a transaction can commit only in the order they are written to
   binary log. We have ensure this by forcing ordered commit and waiting for
   all unordered transactions to finish. */
-  if (binlog_error == 0) {
-    binlog_error = synchronize_binlog_gtid(cbk);
-  }
+
+  /* TODO: Binary log position needs to be synchronized across all SEs and we
+  need to do it in SE agnostic way after acquiring commit lock. Skip poring
+  binary log synchronization in Innodb. */
+  // if (binlog_error == 0) {
+  //   binlog_error = synchronize_binlog_gtid(cbk);
+  // }
 
   /* Save all dynamic metadata to DD buffer table and let all future operations
   to save data immediately after generation. This makes clone recovery
   independent of dynamic metadata stored in redo log and avoids generating
   redo log during recovery. */
-  dict_persist_t::Enable_immediate dyn_metadata_guard(dict_persist);
+  /* Dynamic metadata not there for MariaDB */
+  // dict_persist_t::Enable_immediate dyn_metadata_guard(dict_persist);
 
   /* Use it only for local clone. For remote clone, donor session is different
   from the sessions created within mtr test case. */
@@ -729,7 +594,9 @@ bool Clone_Snapshot::file_ctx_changed(const fil_node_t *node,
 
   const auto file_meta = file_ctx->get_file_meta_read();
 
-  /* TODO: Check if encryption property has changed. */
+  /* Check if encryption property has changed. */
+  if (file_meta->can_encrypt() != space->is_encrypted())
+    return true;
 
   /* Check if compression property has changed. */
   if (file_meta->can_compress() != space->is_compressed())
@@ -761,7 +628,7 @@ int Clone_Snapshot::add_file(const char *name, uint64_t size_bytes,
     auto file_meta = file_ctx->get_file_meta();
 
     file_meta->m_alloc_size = alloc_bytes;
-    file_meta->m_file_index = num_data_files();
+    file_meta->m_file_index = static_cast<uint32_t>(num_data_files());
     m_data_file_vector.push_back(file_ctx);
 
     if (!by_ddl) {
@@ -803,23 +670,21 @@ int Clone_Snapshot::add_file(const char *name, uint64_t size_bytes,
   file_meta->m_punch_hole = node->punch_hole;
   file_meta->m_fsblk_size = node->block_size;
 
-  crypt_data= space->crypt_data;
-  file_meta->m_is_encrypted= crypt_data && !crypt_data->not_encrypted()
-      && crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
-      && (!crypt_data->is_default_encryption() || srv_encrypt_tables);
+  file_meta->m_is_encrypted= space->is_encrypted();
   /* TOD0: File metadata: Encryption information */
   // file_meta->m_encryption_metadata = space->m_encryption_metadata;
 
   /* Modify file meta encryption flag if space encryption or decryption
   already started. This would allow clone to send pages accordingly
   during page copy and persist the flag. */
-  if (space->encryption_op_in_progress == Encryption::Progress::DECRYPTION) {
-    fsp_flags_unset_encryption(file_meta->m_fsp_flags);
+  /* TODO: Handle Encrypt/Un-Encrypt DDL via notification infrastructure. */
+  // if (space->encryption_op_in_progress == Encryption::Progress::DECRYPTION) {
+  //   fsp_flags_unset_encryption(file_meta->m_fsp_flags);
 
-  } else if (space->encryption_op_in_progress ==
-             Encryption::Progress::ENCRYPTION) {
-    fsp_flags_set_encryption(file_meta->m_fsp_flags);
-  }
+  // } else if (space->encryption_op_in_progress ==
+  //            Encryption::Progress::ENCRYPTION) {
+  //   fsp_flags_set_encryption(file_meta->m_fsp_flags);
+  // }
 
   bool is_redo_copy = (get_state() == CLONE_SNAPSHOT_REDO_COPY);
 
@@ -853,16 +718,9 @@ dberr_t Clone_Snapshot::add_node(fil_node_t *node, bool by_ddl) {
   ut_ad(m_snapshot_handle_type == CLONE_HDL_COPY);
 
   auto space = node->space;
-
-  /* Skip deleted tablespaces. Their pages may still be in
-  the buffer pool. */
-  if (space->is_deleted()) {
-    return (DB_SUCCESS);
-  }
-
   bool is_page_copy = (get_state() == CLONE_SNAPSHOT_PAGE_COPY);
 
-  if (by_ddl && is_page_copy && space->can_encrypt()) {
+  if (by_ddl && is_page_copy && space->is_encrypted()) {
     /* Add page 0 always for encrypted tablespace. */
     Clone_Page page_zero;
     page_zero.m_space_id = space->id;
@@ -870,9 +728,6 @@ dberr_t Clone_Snapshot::add_node(fil_node_t *node, bool by_ddl) {
     m_page_set.insert(page_zero);
     ++m_num_pages;
   }
-
-  /* Find out the file size from node. */
-  page_size_t page_sz(space->flags);
 
   /* For compressed pages the file size doesn't match
   physical page size multiplied by number of pages. It is
@@ -962,7 +817,7 @@ int Clone_Snapshot::add_redo_file(char *file_name, uint64_t file_size,
   file_meta->m_punch_hole = false;
   file_meta->m_fsblk_size = 0;
 
-  file_meta->m_file_index = num_redo_files();
+  file_meta->m_file_index = static_cast<uint32_t>(num_redo_files());
 
   m_redo_file_vector.push_back(file_ctx);
 
@@ -971,11 +826,11 @@ int Clone_Snapshot::add_redo_file(char *file_name, uint64_t file_size,
 
   /* In rare case of small redo file, large concurrent DMLs and
   slow data transfer. Currently we support maximum 1k redo files. */
-  if (num_redo_files() > SRV_N_LOG_FILES_CLONE_MAX) {
+  if (num_redo_files() > LOG_FILE_MAX_NUM) {
     my_error(ER_INTERNAL_ERROR, MYF(0),
              "More than %zu archived redo files. Please retry clone.",
-             SRV_N_LOG_FILES_CLONE_MAX);
-    return (ER_INTERNAL_ERROR);
+             LOG_FILE_MAX_NUM);
+    return ER_INTERNAL_ERROR;
   }
 
   return (0);
@@ -1134,7 +989,8 @@ int Clone_Handle::send_file_metadata(Clone_Task *task,
   file_desc.m_file_meta = *file_meta;
   file_desc.m_state = snapshot->get_state();
 
-  if (is_redo) {
+  if (is_redo)
+  {
     /* For Redo log always send the fixed redo file size. */
     file_desc.m_file_meta.m_file_size = snapshot->get_redo_file_size();
 
@@ -1142,7 +998,9 @@ int Clone_Handle::send_file_metadata(Clone_Task *task,
     file_desc.m_file_meta.m_file_name_len = 0;
     file_desc.m_file_meta.m_file_name_alloc_len = 0;
 
-  } else if (file_meta->m_space_id == UINT32_MAX) {
+  }
+  else if (file_meta->m_space_id == UINT32_MAX)
+  {
     /* Server buffer dump file ib_buffer_pool. */
     ut_ad(file_desc.m_state == CLONE_SNAPSHOT_FILE_COPY);
     ut_ad(file_meta->m_file_index == 0);
@@ -1154,12 +1012,15 @@ int Clone_Handle::send_file_metadata(Clone_Task *task,
 
     file_desc.m_file_meta.m_file_name_alloc_len = 0;
 
-  } else if (!fsp_is_ibd_tablespace(
-                 static_cast<space_id_t>(file_meta->m_space_id))) {
+  }
+  else if (file_meta->m_space_id == TRX_SYS_SPACE
+           || srv_is_undo_tablespace(file_meta->m_space_id))
+  {
     /* For system tablespace, remove path. */
     auto name_ptr = strrchr(file_meta->m_file_name, OS_PATH_SEPARATOR);
 
-    if (name_ptr != nullptr) {
+    if (name_ptr != nullptr)
+    {
       name_ptr++;
 
       file_desc.m_file_meta.m_file_name = name_ptr;
@@ -1178,10 +1039,8 @@ int Clone_Handle::send_file_metadata(Clone_Task *task,
   callback->clear_flags();
 
   /* Check for secure transfer for encrypted table. */
-  if (file_meta->can_encrypt() || srv_undo_log_encrypt ||
-      srv_redo_log_encrypt) {
+  if (file_meta->can_encrypt() || srv_encrypt_tables || srv_encrypt_log)
     callback->set_secure();
-  }
 
   auto err = callback->buffer_cbk(nullptr, 0);
 
@@ -1272,8 +1131,7 @@ int Clone_Handle::send_data(Clone_Task *task, const Clone_file_ctx *file_ctx,
 
     err = file_callback(callback, task, size, false, offset
 #ifdef UNIV_PFS_IO
-                        ,
-                        UT_LOCATION_HERE
+    , __FILE__, __LINE__
 #endif /* UNIV_PFS_IO */
     );
   }

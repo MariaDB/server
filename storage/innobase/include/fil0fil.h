@@ -48,6 +48,25 @@ struct named_spaces_tag_t;
 
 using space_list_t= ilist<fil_space_t, space_list_tag_t>;
 
+/** Iterate over the files in all the tablespaces. */
+class Fil_iterator {
+ public:
+  using Function = std::function<dberr_t(fil_node_t *)>;
+
+  /** For each data file.
+  @param[in]  f Callback */
+  template <typename F>
+  static dberr_t for_each_file(F &&f) {
+    return iterate([=](fil_node_t *file) { return (f(file)); });
+  }
+
+  /** Iterate through all persistent tablespace files
+  returning the nodes via callback function f.
+  @param[in] f Callback
+  @return any error returned by the callback function. */
+  static dberr_t iterate(Function &&f);
+};
+
 /** Undo tablespaces starts with space_id. */
 extern uint32_t srv_undo_space_id_start;
 /** The number of UNDO tablespaces that are open and ready to use. */
@@ -715,6 +734,9 @@ public:
   }
   /** @return whether the compression enabled for the tablespace. */
   bool is_compressed() const noexcept { return is_compressed(flags); }
+
+  /** @return whether encryption is enabled for the tablespace. */
+  bool is_encrypted() const;
 
   /** Get the compression algorithm for full crc32 format.
   @param flags contents of FSP_SPACE_FLAGS

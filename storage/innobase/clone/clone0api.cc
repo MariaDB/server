@@ -36,14 +36,14 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "clone0api.h"
 #include "clone0clone.h"
 
-#include "sql/clone_handler.h"
-#include "sql/mysqld.h"
-#include "sql/sql_backup_lock.h"
-#include "sql/sql_class.h"
-#include "sql/sql_table.h"
-#include "sql/sql_thd_internal_api.h"
-#include "sql/statement/ed_connection.h"
-#include "sql/strfunc.h"
+#include "clone_handler.h"
+#include "mysqld.h"
+#include "sql_backup_lock.h"
+#include "sql_class.h"
+#include "sql_table.h"
+#include "sql_thd_internal_api.h"
+#include "statement/ed_connection.h"
+#include "strfunc.h"
 
 #include "dict0dd.h"
 #include "ha_innodb.h"
@@ -1023,6 +1023,18 @@ const int FILE_STATE_REPLACED = FILE_SAVED + FILE_DATA;
   we consider them atomic. In case of a failure the state rolls back exactly
   in reverse order.
 */
+
+/** Check if a file exists.
+@param[in]  path  file path name
+@return true if file exists. */
+static bool os_file_exists(const char *path)
+{
+  os_file_type_t type;
+  bool exists= false;
+  bool ret= os_file_status(path, &exists, &type);
+
+  return ret && exists;
+}
 
 /** Get current state of a clone file.
 @param[in]      data_file       data file name

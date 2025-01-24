@@ -47,7 +47,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <vector>
 #include <functional>
 
-#define UNIV_PAGE_SIZE ((ulint)srv_page_size)
+#define UNIV_PAGE_SIZE ((uint32_t)srv_page_size)
 
 struct Clone_file_ctx {
   /** File state:
@@ -671,28 +671,6 @@ class Clone_Snapshot {
   @param[in]    type    type of DDL notification
   @param[in]    space   space ID for the ddl operation */
   void end_ddl_file(Clone_notify::Type type, space_id_t space);
-
-  /** Synchronize snapshot with binary log and GTID.
-  @param[in]    cbk     alert callback for long wait
-  @return error code. */
-  int synchronize_binlog_gtid(Clone_Alert_Func cbk);
-
-  /** Make sure that the trx sys page binary log position correctly reflects
-  all transactions committed to innodb. It updates binary log position
-  in transaction sys page, if required. The caller must ensure that any new
-  transaction is committed in order of binary log.
-  @return error code. */
-  int update_binlog_position();
-
-  /** Wait for already prepared binlog transactions to end.
-  @return error code. */
-  int wait_for_binlog_prepared_trx();
-
-  /** Wait for a transaction to end.
-  @param[in]    thd     current THD
-  @param[in]    trx_id  transaction to wait for
-  @return error code. */
-  int wait_trx_end(THD *thd, trx_id_t trx_id);
 
   /** Begin state transition before waiting for DDL. */
   void begin_transit_ddl_wait() {
