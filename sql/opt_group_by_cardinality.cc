@@ -215,7 +215,7 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
     if (tab->table->map == table_bit)
     {
       table= tab->table;
-      table_records_after_where= tab->found_records;
+      table_records_after_where= rows2double(tab->found_records);
       break;
     }
   }
