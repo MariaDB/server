@@ -58,6 +58,11 @@ const char ARCH_PAGE_FILE[] = "ib_page_";
 /** TODO: Replace with more appropriate value based on log_sys.write_size */
 constexpr uint32_t OS_FILE_LOG_BLOCK_SIZE = 512;
 
+/** Minimum Archived file size */
+constexpr size_t LOG_FILE_MIN_SIZE = 64 * 1024;
+
+constexpr size_t LOG_FILE_MAX_NUM = 1000;
+
 /** @} */
 
 /** File name for the durable file which indicates whether a group was made

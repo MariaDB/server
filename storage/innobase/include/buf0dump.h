@@ -26,6 +26,7 @@ Created April 08, 2011 Vasil Dimov
 
 #ifndef buf0dump_h
 #define buf0dump_h
+#include <stddef.h>
 
 /** Start the buffer pool dump/load task and instructs it to start a dump. */
 void buf_dump_start();
@@ -40,5 +41,10 @@ void buf_load_at_startup();
 
 /** Wait for currently running load/dumps to finish*/
 void buf_load_dump_end();
+
+/** Generate the path to the buffer pool dump/load file.
+@param[out]     path            generated path
+@param[in]      path_size       size of 'path', used as in snprintf(3). */
+void buf_dump_generate_path(char *path, size_t path_size);
 
 #endif /* buf0dump_h */

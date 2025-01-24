@@ -3277,6 +3277,41 @@ fil_space_t::name_type fil_space_t::name() const noexcept
   return name_type{path, len};
 }
 
+bool fil_space_t::is_encrypted() const
+{
+  ut_ad(referenced());
+  if (!crypt_data)
+    return false;
+
+  mysql_mutex_lock(&crypt_data->mutex);
+  bool encrypted= !crypt_data->not_encrypted()
+                  && crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
+                  && (!crypt_data->is_default_encryption()
+                      || srv_encrypt_tables);
+
+  mysql_mutex_unlock(&crypt_data->mutex);
+  return encrypted;
+}
+
+dberr_t Fil_iterator::iterate(Function &&f)
+{
+  dberr_t err= DB_SUCCESS;
+  mysql_mutex_lock(&fil_system.mutex);
+  for (fil_space_t &space : fil_system.space_list)
+  {
+    if (space.is_temporary())
+      continue;
+
+    auto node= UT_LIST_GET_FIRST(space.chain);
+    err= f(node);
+
+    while (err == DB_SUCCESS && (node= UT_LIST_GET_NEXT(chain, node)))
+      err= f(node);
+  }
+  mysql_mutex_unlock(&fil_system.mutex);
+  return err;
+}
+
 #ifdef UNIV_DEBUG
 
 fil_space_t *fil_space_t::next_in_space_list() noexcept
