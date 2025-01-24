@@ -106,6 +106,9 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
     form a key.
 
   @param to_key      buffer that will be used as a key
+  @param extra_buff  a buffer to store extra intermediate data of a size not
+                     less than a maximum length of a field in a to-table.
+                     Can be null if from_key_info == to_key_info
   @param from_record full record to be copied from
   @param from_key_info  a descriptor of the index that corresponds a data to be
                         copied from the record
@@ -117,7 +120,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
   @param with_zerofill  skipped bytes in the key buffer to be filled with 0
 */
 
-void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
+void key_copy(uchar *to_key, uchar *extra_buff,
+              const uchar *from_record, const KEY *from_key_info,
               const KEY *to_key_info, uint key_length, bool with_zerofill)
 {
   uint length;
@@ -148,17 +152,36 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
       }
     }
     auto *from_ptr= key_part->field->ptr_in_record(from_record);
-    if (key_part->key_part_flag & HA_BLOB_PART ||
-        key_part->key_part_flag & HA_VAR_LENGTH_PART)
+    if (key_part->is_var_length() || to_key_part->is_var_length())
     {
       DBUG_ASSERT(to_key_part->length == key_part->length);
-      key_length-= HA_KEY_BLOB_LENGTH;
+      Field *field= key_part->field;
+
+      if (to_key_part->is_var_length() != key_part->is_var_length())
+      {
+        key_part->field->move_field_offset(key_part->field->table->record[0]
+                                           - from_record);
+        uchar *to_ptr= to_key_part->field->ptr;
+        to_key_part->field->ptr= extra_buff;
+
+        key_part->field->save_in_field(to_key_part->field);
+        field= to_key_part->field;
+        from_ptr= extra_buff;
+
+        to_key_part->field->ptr= to_ptr;
+        key_part->field->move_field_offset(from_record
+                                           - key_part->field->table->record[0]);
+      }
+
+      if (to_key_part->is_var_length())
+        key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
-      uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
-                                   Field::image_type(from_key_info->algorithm));
+      uint bytes= field->get_key_image(to_key, length, from_ptr,
+                                   Field::image_type(to_key_info->algorithm));
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
-      to_key+= HA_KEY_BLOB_LENGTH;
+      if (to_key_part->is_var_length())
+        to_key+= HA_KEY_BLOB_LENGTH;
     }
     else
     {
@@ -178,7 +201,8 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
 void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
               uint key_length, bool with_zerofill)
 {
-  key_copy(to_key, from_record, key_info, key_info, key_length, with_zerofill);
+  key_copy(to_key, NULL, from_record, key_info, key_info, key_length,
+           with_zerofill);
 }
 
 /**

@@ -93,6 +93,10 @@ typedef struct st_key_part_info {	/* Info about a key part */
   uint16 key_part_flag;                 /* 0 or HA_REVERSE_SORT */
   uint8 type;
   uint8 null_bit;                       /* Position to null_bit */
+  bool is_var_length() const
+  {
+    return key_part_flag & HA_BLOB_PART || key_part_flag & HA_VAR_LENGTH_PART;
+  }
 } KEY_PART_INFO ;
 
 class engine_option_value;

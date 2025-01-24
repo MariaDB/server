@@ -7959,7 +7959,8 @@ int handler::check_record_reference(const KEY *this_key, const KEY *ref_key,
     if (this_key->key_part[kp].field->is_real_null())
       return 0;
 
-  key_copy(key_buf, this_record, this_key, ref_key, prefix_length, false);
+  key_copy(key_buf, ref_record, this_record, this_key, ref_key, prefix_length,
+           false);
 
   int error= ha_index_read_map(ref_record, key_buf,
                                make_prev_keypart_map(fk_parts),

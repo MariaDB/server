@@ -155,3 +155,41 @@ drop table t1;
 create table t (pk int primary key) engine=innodb;
 load index into cache t;
 drop table t;
+
+--echo # MDEV-35908 Unexpected error, crash, MSAN errors, assertion failures
+--echo # upon CHECK
+
+create table t (pk int primary key, a varchar(15), b char(15), key(a), key(b),
+                foreign key (a) references t(b) on delete cascade)
+               engine=innodb;
+
+--error ER_NO_REFERENCED_ROW_2
+insert into t values (1,'foo', 'foo');
+
+set foreign_key_checks = off;
+insert into t values (1,'foo', 'foo');
+insert into t values (2,'fee', 'qwe');
+insert into t values (3,'fii', 'fiii');
+
+--echo # This one is really confusing, but it's a valid reference to 'foo'
+--echo # See the select results after b='foo' record is deleted.
+insert into t values (4,'foo ', 'floo');
+set foreign_key_checks = on;
+
+check table t extended;
+
+drop table t;
+
+create table t (pk int primary key, a char(15), b varchar(15), key(b), foreign key (a) references t(b)) engine=innodb;
+insert into t values (1,'foo', 'foo');
+check table t extended;
+drop table t;
+
+
+--echo # Bogus table: length of `b` is bigger than length of `a`
+create table t (a time, b inet6, key(a)) engine=innodb;
+alter table t add foreign key (b) references t (a);
+insert into t values ('00:00:00','8000:0020:2020:2020:2020:2020:2020:2020');
+check table t extended;
+
+drop table t;

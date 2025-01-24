@@ -1830,6 +1830,37 @@ static bool check_key_description(THD *thd, const KEY *key,
 }
 
 static
+bool check_foreign_key_description(THD *thd, const TABLE *this_table,
+                                   const TABLE *ref_table,
+                                   const KEY *this_key, const KEY *ref_key,
+                                   const FOREIGN_KEY_INFO &fk)
+{
+  if (!check_key_description(thd, this_key, this_table, fk.foreign_fields))
+  {
+    report_check_key_wrong_description(thd, this_key, this_table, fk);
+    return false;
+  }
+  if (!check_key_description(thd, ref_key, ref_table, fk.referenced_fields))
+  {
+    report_check_key_wrong_description(thd, ref_key, ref_table, fk);
+    return false;
+  }
+
+  for (uint kp = 0; kp < fk.foreign_fields.size(); kp++)
+  {
+    if(this_key->key_part[kp].length > ref_key->key_part[kp].length)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          HA_ERR_INDEX_CORRUPT,
+                          "Bogus foreign key %s is skipped.",
+                          fk.foreign_id.str);
+      return false;
+    }
+  }
+  return true;
+}
+
+static
 int check_foreign_key_relation(THD *thd, const TABLE *this_table,
                                const TABLE *ref_table,
                                const FOREIGN_KEY_INFO &fk, uchar *key_buf)
@@ -1846,16 +1877,10 @@ int check_foreign_key_relation(THD *thd, const TABLE *this_table,
   if (!this_key || !ref_key)
     return HA_ADMIN_CORRUPT;
 
-  if (!check_key_description(thd, this_key, this_table, fk.foreign_fields))
-  {
-    report_check_key_wrong_description(thd, this_key, this_table, fk);
+
+  if (!check_foreign_key_description(thd, this_table, ref_table, this_key,
+                                     ref_key, fk))
     return HA_ADMIN_CORRUPT;
-  }
-  if (!check_key_description(thd, ref_key, ref_table, fk.referenced_fields))
-  {
-    report_check_key_wrong_description(thd, ref_key, ref_table, fk);
-    return HA_ADMIN_CORRUPT;
-  }
 
   size_t kp_num= fk.foreign_fields.size();
   return check_key_referential_integrity(this_table, ref_table, this_key,
