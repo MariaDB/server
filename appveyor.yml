@@ -40,5 +40,6 @@ branches:
   only:
     - /bb-/
     - /\d+\.\d+$/
+    - main
 
 image: Visual Studio 2022
