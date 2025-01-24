@@ -661,8 +661,9 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   has_triggers= (table->triggers &&
                  (table->triggers->has_triggers(TRG_EVENT_UPDATE,
                                                 TRG_ACTION_BEFORE) ||
-                 table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                               TRG_ACTION_AFTER)));
+                  table->triggers->has_triggers(TRG_EVENT_UPDATE,
+                                                TRG_ACTION_AFTER)) &&
+                 table->triggers->match_updatable_columns(fields));
 
   if (table_list->has_period())
     has_triggers= table->triggers &&
@@ -1110,7 +1111,8 @@ error:
 
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                     TRG_ACTION_AFTER, TRUE)))
+                                                     TRG_ACTION_AFTER, true,
+                                                     fields)))
       {
         error= 1;
 
@@ -2436,7 +2438,8 @@ int multi_update::send_data(List<Item> &not_used_values)
       }
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                     TRG_ACTION_AFTER, TRUE)))
+                                                     TRG_ACTION_AFTER, true,
+                                                     fields_for_table[offset])))
         DBUG_RETURN(1);
     }
     else
@@ -2696,7 +2699,8 @@ int multi_update::do_updates()
         goto err2;
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                            TRG_ACTION_BEFORE, TRUE))
+                                            TRG_ACTION_BEFORE, true,
+                                            fields_for_table[offset]))
         goto err2;
 
       if (!can_compare_record || compare_record(table))
@@ -2756,7 +2760,8 @@ int multi_update::do_updates()
 
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                     TRG_ACTION_AFTER, TRUE)))
+                                                     TRG_ACTION_AFTER, true,
+                                                     fields_for_table[offset])))
         goto err2;
     }
 

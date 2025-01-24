@@ -995,3 +995,23 @@ DROP USER mysqltest_u1@localhost;
 USE test;
 
 --echo End of 5.1 tests.
+
+--echo #
+--echo # MDEV-34551: Column list in the trigger definition
+--echo #
+
+--echo # Check that a FOR UPDATE trigger with the `OF` clause is dumped correctly.
+CREATE TABLE t1 (a INT, b INT);
+CREATE TRIGGER t1_bu BEFORE UPDATE OF a ON t1 FOR EACH ROW SET @a = NEW.a;
+CREATE TRIGGER t1_au AFTER  UPDATE OF a ON t1 FOR EACH ROW SET @a = NEW.a;
+
+--echo # dump the table t1 and its triggers. The `OF` clause should be dumped out
+--echo # for triggers t1_bu, t1_au.
+--exec $MYSQL_DUMP --compact test t1
+
+--echo # Clean up
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

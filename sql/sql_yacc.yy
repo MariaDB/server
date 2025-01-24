@@ -8452,7 +8452,7 @@ persistent_index_stat_spec:
 table_column_list:
           /* empty */
           {}
-        | ident 
+        | ident
           {
             Lex->column_list->push_back((LEX_STRING*)
                 thd->memdup(&$1, sizeof(LEX_STRING)), thd->mem_root);
@@ -18341,6 +18341,52 @@ trigger_follows_precedes_clause:
             }
           ;
 
+opt_on_update_cols:
+            /* empty */
+            {
+              Lex->trg_chistics.on_update_col_names= NULL;
+            }
+          | OF_SYM on_update_cols
+            {
+              if (Lex->trg_chistics.event != TRG_EVENT_UPDATE)
+              {
+                thd->parse_error(ER_SYNTAX_ERROR, $1.pos());
+                MYSQL_YYABORT;
+              }
+	    }
+          ;
+
+on_update_cols:
+          ident
+          {
+            List<LEX_CSTRING> *col_names_list;
+            LEX_CSTRING *col_name;
+
+            col_names_list=
+              new (thd->mem_root) List<LEX_CSTRING>;
+
+            col_name= (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
+
+            if (unlikely(col_names_list == NULL) ||
+                unlikely(col_name == NULL) ||
+                unlikely(col_names_list->push_back(col_name, thd->mem_root)))
+              MYSQL_YYABORT;
+
+            Lex->trg_chistics.on_update_col_names= col_names_list;
+          }
+        | on_update_cols ',' ident
+          {
+            LEX_CSTRING *col_name;
+
+            col_name= (LEX_CSTRING *) thd->memdup(&$3, sizeof(LEX_CSTRING));
+
+            if (unlikely(col_name == NULL) ||
+                unlikely(Lex->trg_chistics.on_update_col_names->push_back
+                  (col_name, thd->mem_root)))
+              MYSQL_YYABORT;
+          }
+	;
+
 trigger_tail:
           remember_name
           opt_if_not_exists
@@ -18351,15 +18397,16 @@ trigger_tail:
           sp_name
           trg_action_time
           trg_event
+          opt_on_update_cols
           ON
-          remember_name /* $8 */
-          { /* $9 */
+          remember_name /* $9 */
+          { /* $10 */
             Lex->raw_trg_on_table_name_begin= YYLIP->get_tok_start();
           }
-          table_ident /* $10 */
+          table_ident /* $11 */
           FOR_SYM
-          remember_name /* $12 */
-          { /* $13 */
+          remember_name /* $13 */
+          { /* $14 */
             Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
           }
           EACH_SYM
@@ -18367,8 +18414,8 @@ trigger_tail:
           {
             Lex->trg_chistics.ordering_clause_begin= YYLIP->get_cpp_ptr();
           }
-          trigger_follows_precedes_clause /* $17 */
-          { /* $18 */
+          trigger_follows_precedes_clause /* $18 */
+          { /* $19 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
@@ -18376,10 +18423,10 @@ trigger_tail:
               my_yyabort_error((ER_SP_NO_RECURSIVE_CREATE, MYF(0), "TRIGGER"));
 
             lex->stmt_definition_begin= $1;
-            lex->ident.str= $8;
-            lex->ident.length= $12 - $8;
+            lex->ident.str= $9;
+            lex->ident.length= $13 - $9;
             lex->spname= $4;
-            (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($17);
+            (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($18);
             lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
             if (unlikely(!lex->make_sp_head(thd, $4, &sp_handler_trigger,
@@ -18388,8 +18435,8 @@ trigger_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $19 */ force_lookahead /* $20 */
-          { /* $21 */
+          sp_proc_stmt /* $20 */ force_lookahead /* $21 */
+          { /* $22 */
             LEX *lex= Lex;
 
             lex->sql_command= SQLCOM_CREATE_TRIGGER;
@@ -18402,7 +18449,7 @@ trigger_tail:
               lex->query_tables can be wiped out.
             */
             if (!lex->first_select_lex()->
-                 add_table_to_list(thd, $10, (LEX_CSTRING*) 0,
+                 add_table_to_list(thd, $11, (LEX_CSTRING*) 0,
                                    TL_OPTION_UPDATING, TL_READ_NO_INSERT,
                                    MDL_SHARED_NO_WRITE))
               MYSQL_YYABORT;
