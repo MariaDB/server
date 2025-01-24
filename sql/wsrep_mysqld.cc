@@ -1342,6 +1342,42 @@ static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
     key_arr->keys_len= 0;
 }
 
+class Unknown_storage_engine_handler : public Internal_error_handler
+{
+public:
+  Unknown_storage_engine_handler()
+    : m_handled_errors(0), m_unhandled_errors(0)
+  {}
+
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl) override
+  {
+    *cond_hdl= NULL;
+    if (sql_errno == ER_UNKNOWN_STORAGE_ENGINE)
+    {
+      m_handled_errors++;
+    }
+    else if (*level == Sql_condition::WARN_LEVEL_ERROR)
+    {
+      m_unhandled_errors++;
+    }
+    return FALSE;
+  }
+
+  bool safely_trapped_errors()
+  {
+    return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
+  }
+
+private:
+  int m_handled_errors;
+  int m_unhandled_errors;
+};
+
 /*!
  * @param thd    thread
  * @param tables list of tables
@@ -1365,15 +1401,16 @@ bool wsrep_append_fk_parent_table(THD *thd, TABLE_LIST *tables,
       TABLE_LIST::enum_open_strategy save_open_strategy= table->open_strategy;
       table->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
 
-      Diagnostics_area *da= thd->get_stmt_da();
-      Warning_info tmp_wi(thd->query_id, false, true);
-      da->push_warning_info(&tmp_wi);
+      Unknown_storage_engine_handler no_storage_engine;
+      thd->push_internal_handler(&no_storage_engine);
 
       if (open_table(thd, table, &ot_ctx))
       {
-        if (da->is_error() && da->sql_errno() == ER_UNKNOWN_STORAGE_ENGINE)
+        if (no_storage_engine.safely_trapped_errors())
         {
-          thd->get_stmt_da()->reset_diagnostics_area();
+          Diagnostics_area *da= thd->get_stmt_da();
+          da->reset_diagnostics_area();
+          da->clear_warning_info(thd->query_id);
         }
         else
         {
@@ -1381,7 +1418,8 @@ bool wsrep_append_fk_parent_table(THD *thd, TABLE_LIST *tables,
         }
       }
 
-      da->pop_warning_info();
+      thd->pop_internal_handler();
+
       table->next_global= save_next_global;
       table->open_strategy= save_open_strategy;
 
