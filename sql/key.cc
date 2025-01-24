@@ -154,7 +154,6 @@ void key_copy(uchar *to_key, uchar *extra_buff,
     auto *from_ptr= key_part->field->ptr_in_record(from_record);
     if (key_part->is_var_length() || to_key_part->is_var_length())
     {
-      DBUG_ASSERT(to_key_part->length == key_part->length);
       Field *field= key_part->field;
 
       if (to_key_part->is_var_length() != key_part->is_var_length())
