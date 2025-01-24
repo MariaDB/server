@@ -130,8 +130,9 @@ if(MSVC)
   if(CMAKE_C_COMPILER_ID MATCHES Clang)
     target_compile_options(wolfssl PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-function-pointer-types>)
   endif()
+  remove_definitions(-DHAVE_CONFIG_H)
   target_compile_definitions(wolfssl PRIVATE
-    _CRT_USE_CONFORMING_ANNEX_K_TIME HAVE_GMTIME_S WOLFSSL_HAVE_MIN WOLFSSL_HAVE_MAX)
+    WOLFSSL_HAVE_MIN WOLFSSL_HAVE_MAX)
 endif()
 
 CONFIGURE_FILE(user_settings.h.in user_settings.h)
