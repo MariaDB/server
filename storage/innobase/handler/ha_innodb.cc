@@ -12447,9 +12447,9 @@ create_table_info_t::create_foreign_keys()
 
 	if (sqlcom == SQLCOM_ALTER_TABLE) {
 		mem_heap_t*   heap = mem_heap_create(10000);
-		LEX_CSTRING t{innodb_convert_name(cs, m_form->s->table_name,
-						  t_name)};
-		LEX_CSTRING d{innodb_convert_name(cs, m_form->s->db, db_name)};
+		LEX_CSTRING t = innodb_convert_name(cs, m_form->s->table_name,
+						  t_name);
+		LEX_CSTRING d = innodb_convert_name(cs, m_form->s->db, db_name);
 		dict_table_t* alter_table;
 		char* n = dict_table_lookup(d, t, &alter_table, heap);
 
@@ -12638,7 +12638,7 @@ create_table_info_t::create_foreign_keys()
 		memcpy(foreign->foreign_col_names, column_names,
 		       i * sizeof(void*));
 
-		LEX_CSTRING t{innodb_convert_name(cs, fk->ref_table, t_name)};
+		LEX_CSTRING t = innodb_convert_name(cs, fk->ref_table, t_name);
 		LEX_CSTRING d = fk->ref_db.str
 			? innodb_convert_name(cs, fk->ref_db, db_name)
 			: LEX_CSTRING{table->name.m_name, table->name.dblen()};
