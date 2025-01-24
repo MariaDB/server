@@ -1,7 +1,7 @@
 # Check if we can safely upgrade.  An upgrade is only safe if it's from one
 # of our RPMs in the same version family.
 
-installed=`rpm -q --whatprovides mysql-server 2> /dev/null`
+installed=$(rpm -q --whatprovides mariadb-server 2> /dev/null || rpm -q --whatprovides mysql-server 2> /dev/null)
 if [ $? -eq 0 -a -n "$installed" ]; then
   installed=`echo "$installed"|sed -n 1p`
   vendor=`rpm -q --queryformat='%''{VENDOR}' "$installed" 2> /dev/null | sed 's/Monty Program AB/MariaDB Foundation/'`
@@ -28,8 +28,8 @@ startup script in %{_sysconfdir}/init.d/.
 
   if [ "$old_family" != "$new_family" ]; then
     error_text="$error_text
-Upgrading directly from MySQL $old_family to MariaDB $new_family may not
-be safe in all cases.  A manual dump and restore using mysqldump is
+Upgrading directly from MariaDB $old_family to MariaDB $new_family may not
+be safe in all cases.  A manual dump and restore using mariadb-dump (or mysqldump) is
 recommended.  It is important to review the MariaDB manual's Upgrading
 section for version-specific incompatibilities.
 "
@@ -45,17 +45,17 @@ A manual upgrade is required.
 
 - Ensure that you have a complete, working backup of your data and my.cnf
   files
-- Shut down the MySQL server cleanly
-- Remove the existing MySQL packages.  Usually this command will
+- Shut down the MySQL or MariaDB server cleanly
+- Remove the existing MySQL or MariaDB packages.  Usually this command will
   list the packages you should remove:
-  rpm -qa | grep -i '^mysql-'
+  rpm -qa | grep -i '^mariadb-\|^mysql-'
 
   You may choose to use 'rpm --nodeps -ev <package-name>' to remove
   the package which contains the mysqlclient shared library.  The
   library will be reinstalled by the MariaDB-shared package.
 - Install the new MariaDB packages supplied by $myvendor
 - Ensure that the MariaDB server is started
-- Run the 'mysql_upgrade' program
+- Run 'mariadb-upgrade' or 'mysql_upgrade' program
 
 This is a brief description of the upgrade process.  Important details
 can be found in the MariaDB manual, in the Upgrading section.
@@ -65,8 +65,8 @@ HERE
   fi
 fi
 
-# Create a MySQL user and group. Do not report any problems if it already exists.
+# Create a MariaDB user and group. Do not report any problems if it already exists.
 groupadd -r %{mysqld_group} 2> /dev/null || true
-useradd -M -r --home %{mysqldatadir} --shell /sbin/nologin --comment "MySQL server" --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
+useradd -M -r --home %{mysqldatadir} --shell /sbin/nologin --comment "MariaDB server" --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
 # The user may already exist, make sure it has the proper group nevertheless (BUG#12823)
 usermod --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
