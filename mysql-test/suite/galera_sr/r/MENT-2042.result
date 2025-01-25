@@ -3,22 +3,7 @@ connection node_1;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
-SET DEBUG_SYNC='trans_xa_commit_after_acquire_commit_lock SIGNAL before_commit WAIT_FOR continue';
 XA START 'a';
-INSERT INTO t1 VALUES(1);
-XA END 'a';
-XA PREPARE 'a';
-XA COMMIT 'a';;
-connection node_1a;
-SET DEBUG_SYNC='now WAIT_FOR before_commit';
-SET DEBUG_SYNC = 'now SIGNAL continue';
-connection node_1;
-ERROR 70100: Query execution was interrupted
-Expect transaction 'a' in prepared state
-XA RECOVER;
-formatID	gtrid_length	bqual_length	data
-1	1	0	a
-XA ROLLBACK 'a';
+ERROR 42000: This version of MariaDB doesn't yet support 'XA transactions with Galera replication'
 DROP TABLE t1;
-SET DEBUG_SYNC = 'RESET';
 disconnect node_1a;

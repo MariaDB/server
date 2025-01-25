@@ -16,39 +16,8 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
 # Execute XA transaction up to COMMIT
 #
 
-SET DEBUG_SYNC='trans_xa_commit_after_acquire_commit_lock SIGNAL before_commit WAIT_FOR continue';
+--error ER_NOT_SUPPORTED_YET
 XA START 'a';
-INSERT INTO t1 VALUES(1);
-XA END 'a';
-XA PREPARE 'a';
---send XA COMMIT 'a';
 
-#
-# Kill the XA COMMIT statement. If bug is present the
-# assertion fires.
-#
---connection node_1a
-SET DEBUG_SYNC='now WAIT_FOR before_commit';
---disable_query_log
---eval KILL QUERY $connection_id
---enable_query_log
-SET DEBUG_SYNC = 'now SIGNAL continue';
-
-#
-# Expect that the query is interrupted, and the transaction
-# is still in prepared state
-#
---connection node_1
---error ER_QUERY_INTERRUPTED
---reap
-
---echo Expect transaction 'a' in prepared state
-XA RECOVER;
-
-#
-# Cleanup
-#
-XA ROLLBACK 'a';
 DROP TABLE t1;
-SET DEBUG_SYNC = 'RESET';
 --disconnect node_1a
