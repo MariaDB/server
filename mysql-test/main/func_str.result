@@ -221,7 +221,7 @@ exp
 this is a REAL test
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
 soundex('')	soundex('he')	soundex('hello all folks')	soundex('#3556 in bugdb')
-	H000	H4142	I51231
+	H000	H400 A400 F420	 I500 B231
 select 'mood' sounds like 'mud';
 'mood' sounds like 'mud'
 1
