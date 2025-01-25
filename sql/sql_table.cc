@@ -7954,10 +7954,10 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
   /* Some very basic checks. */
   uint fields= table->s->fields;
 
-  /* There is no field count on system-invisible fields, count them. */
+  /* There is no field count on fully-invisible fields, count them. */
   for (Field **f_ptr= table->field; *f_ptr; f_ptr++)
   {
-    if ((*f_ptr)->invisible >= INVISIBLE_SYSTEM)
+    if ((*f_ptr)->invisible >= INVISIBLE_FULL)
       fields--;
   }
 
