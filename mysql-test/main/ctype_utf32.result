@@ -950,6 +950,33 @@ select hex(soundex(_utf32 0x000000BF000000C0));
 hex(soundex(_utf32 0x000000BF000000C0))
 000000C0000000300000003000000030
 set names latin1;
+set names latin1;
+set character_set_connection=utf32;
+select soundex('','0'),soundex('he','0'),soundex('hello all folks','0'),soundex('#3556 in bugdb','0');
+soundex('','0')	soundex('he','0')	soundex('hello all folks','0')	soundex('#3556 in bugdb','0')
+	H000	H4142	I51231
+select hex(soundex('','0')),hex(soundex('he','0')),hex(soundex('hello all folks','0')),hex(soundex('#3556 in bugdb','0'));
+hex(soundex('','0'))	hex(soundex('he','0'))	hex(soundex('hello all folks','0'))	hex(soundex('#3556 in bugdb','0'))
+	00000048000000300000003000000030	0000004800000034000000310000003400000032	000000490000003500000031000000320000003300000031
+select soundex('','1'),soundex('he','1'),soundex('hello all folks','1'),soundex('#3556 in bugdb','1');
+soundex('','1')	soundex('he','1')	soundex('hello all folks','1')	soundex('#3556 in bugdb','1')
+	H000	H400 A400 F420	 I500 B231
+select hex(soundex('','1')),hex(soundex('he','1')),hex(soundex('hello all folks','1')),hex(soundex('#3556 in bugdb','1'));
+hex(soundex('','1'))	hex(soundex('he','1'))	hex(soundex('hello all folks','1'))	hex(soundex('#3556 in bugdb','1'))
+	00000048000000300000003000000030	0000004800000034000000300000003000000020000000410000003400000030000000300000002000000046000000340000003200000030	00000020000000490000003500000030000000300000002000000042000000320000003300000031
+select soundex('',0),soundex('he',0),soundex('hello all folks',0),soundex('#3556 in bugdb',0);
+soundex('',0)	soundex('he',0)	soundex('hello all folks',0)	soundex('#3556 in bugdb',0)
+	H000	H4142	I51231
+select hex(soundex('',0)),hex(soundex('he',0)),hex(soundex('hello all folks',0)),hex(soundex('#3556 in bugdb',0));
+hex(soundex('',0))	hex(soundex('he',0))	hex(soundex('hello all folks',0))	hex(soundex('#3556 in bugdb',0))
+	00000048000000300000003000000030	0000004800000034000000310000003400000032	000000490000003500000031000000320000003300000031
+select soundex('',1),soundex('he',1),soundex('hello all folks',1),soundex('#3556 in bugdb',1);
+soundex('',1)	soundex('he',1)	soundex('hello all folks',1)	soundex('#3556 in bugdb',1)
+	H000	H400 A400 F420	 I500 B231
+select hex(soundex('',1)),hex(soundex('he',1)),hex(soundex('hello all folks',1)),hex(soundex('#3556 in bugdb',1));
+hex(soundex('',1))	hex(soundex('he',1))	hex(soundex('hello all folks',1))	hex(soundex('#3556 in bugdb',1))
+	00000048000000300000003000000030	0000004800000034000000300000003000000020000000410000003400000030000000300000002000000046000000340000003200000030	00000020000000490000003500000030000000300000002000000042000000320000003300000031
+set names latin1;
 create table t1(a blob, b text charset utf32);
 select data_type, character_octet_length, character_maximum_length
 from information_schema.columns where table_name='t1';

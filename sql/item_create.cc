@@ -2381,10 +2381,11 @@ protected:
 };
 
 
-class Create_func_soundex : public Create_func_arg1
+class Create_func_soundex : public Create_native_func
 {
 public:
-  Item *create_1_arg(THD *thd, Item *arg1) override;
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_soundex s_singleton;
 
@@ -5790,10 +5791,42 @@ Create_func_sleep::create_1_arg(THD *thd, Item *arg1)
 
 Create_func_soundex Create_func_soundex::s_singleton;
 
-Item*
-Create_func_soundex::create_1_arg(THD *thd, Item *arg1)
+Item* 
+Create_func_soundex::create_native(THD *thd, const LEX_CSTRING *name,
+  List<Item> *item_list)
 {
-  return new (thd->mem_root) Item_func_soundex(thd, arg1);
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count){
+  case 1:
+  {
+    Item *param_1= item_list->pop();
+    DBUG_ASSERT(!param_1->is_explicit_name());
+    func= new (thd->mem_root) Item_func_soundex(thd, param_1);
+    break;
+  }
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    DBUG_ASSERT(!param_1->is_explicit_name());
+    DBUG_ASSERT(!param_2 || !param_2->is_explicit_name());
+    func= new (thd->mem_root) Item_func_soundex(thd, param_1, param_2);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    DBUG_ASSERT(0);
+    break;
+  }
+  }
+
+  return func;
 }
 
 

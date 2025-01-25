@@ -1350,9 +1350,12 @@ public:
 class Item_func_soundex :public Item_str_func
 {
   String tmp_value;
+  String *soundex(String *, String);
 public:
   Item_func_soundex(THD *thd, Item *a): Item_str_func(thd, a) {}
+  Item_func_soundex(THD *thd, Item *a, Item *b):Item_str_func(thd, a, b) {}
   String *val_str(String *) override;
+  String *val_str_legacy(String *);
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {

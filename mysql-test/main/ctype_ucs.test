@@ -617,7 +617,22 @@ select hex(soundex(_ucs2 0x041004110412));
 select hex(soundex(_ucs2 0x00BF00C0));
 set names latin1;
 --enable_service_connection
-
+#
+# MDEV-9473 SOUNDEX feature for multiple words
+#
+--disable_service_connection
+set names latin1;
+set character_set_connection=ucs2;
+select soundex('','0'),soundex('he','0'),soundex('hello all folks','0'),soundex('#3556 in bugdb','0');
+select hex(soundex('','0')),hex(soundex('he','0')),hex(soundex('hello all folks','0')),hex(soundex('#3556 in bugdb','0'));
+select soundex('','1'),soundex('he','1'),soundex('hello all folks','1'),soundex('#3556 in bugdb','1');
+select hex(soundex('','1')),hex(soundex('he','1')),hex(soundex('hello all folks','1')),hex(soundex('#3556 in bugdb','1'));
+select soundex('',0),soundex('he',0),soundex('hello all folks',0),soundex('#3556 in bugdb',0);
+select hex(soundex('',0)),hex(soundex('he',0)),hex(soundex('hello all folks',0)),hex(soundex('#3556 in bugdb',0));
+select soundex('',1),soundex('he',1),soundex('hello all folks',1),soundex('#3556 in bugdb',1);
+select hex(soundex('',1)),hex(soundex('he',1)),hex(soundex('hello all folks',1)),hex(soundex('#3556 in bugdb',1));
+set names latin1;
+--enable_service_connection
 #
 # Bug #14290: character_maximum_length for text fields
 #
