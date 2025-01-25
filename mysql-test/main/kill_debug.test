@@ -338,6 +338,7 @@ connection default;
 error ER_QUERY_INTERRUPTED;
 reap;
 
+SET debug_sync='RESET';
 SET debug_sync='mysql_checksum_table_before_calculate_checksum SIGNAL parked WAIT_FOR go';
 send CHECKSUM TABLE t1;
 connection con1;

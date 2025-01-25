@@ -252,6 +252,7 @@ KILL QUERY id;
 SET debug_sync='now SIGNAL go';
 connection default;
 ERROR 70100: Query execution was interrupted
+SET debug_sync='RESET';
 SET debug_sync='mysql_checksum_table_before_calculate_checksum SIGNAL parked WAIT_FOR go';
 CHECKSUM TABLE t1;
 connection con1;
