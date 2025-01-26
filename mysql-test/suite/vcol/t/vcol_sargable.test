@@ -144,6 +144,68 @@ explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue5'
 drop table t1;
 
 --echo #
+--echo # Tests with JSON_VALUE
+--echo #
+create table t1 (a int, js1 json);
+insert into t1
+select seq, concat('{"size":', seq, ', "color":"hue', seq ,'"}') from seq_1_to_100;
+select * from t1 limit 3;
+
+alter table t1
+  add size1 int as (cast(json_value(js1, '$.size') as int)),
+  add index(size1);
+
+explain
+select * from t1 where size1=10;
+
+--echo # The "JSON" datatype uses binary collation.
+--echo #  JSON_VALUE will produce output in binary collation, too:
+select collation(json_value(js1, '$.color')) from t1 limit 1;
+
+--echo # If one is fine with _bin comparisons, they can use index access:
+alter table t1
+  add color1 varchar(100) collate utf8mb4_bin as (json_value(js1, '$.color')),
+  add index(color1);
+explain select * from t1 where json_value(js1, '$.color')='hue10';
+alter table t1 drop column color1;
+
+--echo # Using different collation in column substitution prevents
+--echo # the optimization from working:
+alter table t1
+  add color2 varchar(100) collate utf8mb4_unicode_ci as (json_value(js1, '$.color')),
+  add index(color2);
+explain select * from t1 where json_value(js1, '$.color')='hue10';
+alter table t1 drop column color2;
+
+
+--echo # Explicitly specifying the collation helps:
+alter table t1
+  add color3 varchar(100) collate utf8mb4_unicode_ci as
+  (json_value(js1, '$.color') collate utf8mb4_unicode_ci),
+  add index(color3);
+explain select * from t1
+where
+  json_value(js1, '$.color') collate utf8mb4_unicode_ci='hue10';
+
+--echo #
+--echo # Alternatively, one can store JSON in a column with the same
+--echo # collation as default and then casts are not needed:
+--echo #
+create table t2(
+  js1 longtext COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL CHECK (json_valid(`js1`))
+);
+insert into t2 select js1 from t1;
+
+alter table t2
+  add color3 varchar(100) as (json_value(js1, '$.color')),
+  add index(color3);
+explain select * from t2
+where
+  json_value(js1, '$.color')='hue10';
+
+drop table t1,t2;
+
+--echo #
 --echo # Test interplay with sargable_casefold optimization:
 --echo #
 create table t1 (
