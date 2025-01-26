@@ -7375,6 +7375,7 @@ int handler::ha_write_row(const uchar *buf)
         ht->flags & HTON_WSREP_REPLICATION &&
         !error && (error= wsrep_after_row(ha_thd())))
     {
+      DEBUG_SYNC_C("ha_write_row_end");
       DBUG_RETURN(error);
     }
 #endif /* WITH_WSREP */
