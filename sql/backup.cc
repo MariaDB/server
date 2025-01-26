@@ -671,7 +671,10 @@ void backup_log_ddl(const backup_log_info *info)
     ptr= add_name_to_buffer(ptr, &info->org_table);
     ptr= add_id_to_buffer(ptr,   &info->org_table_id);
 
-    /* The following fields are only set in case of rename */
+    /*
+      The following fields are only set in case of rename, repair or
+      alter table
+    */
     ptr= add_str_to_buffer(ptr,  &info->new_storage_engine_name);
     ptr= add_bool_to_buffer(ptr, info->new_partitioned);
     ptr= add_name_to_buffer(ptr, &info->new_database);
