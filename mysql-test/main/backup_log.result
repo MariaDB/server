@@ -171,9 +171,8 @@ ALTER,InnoDB,0,test,t1_innodb,id: 3,InnoDB,0,test,t1_innodb,id: 4
 RENAME,InnoDB,0,test,t1_innodb,id: 4,InnoDB,0,test,t2_innodb,id: 4
 RENAME,InnoDB,0,test,t2_innodb,id: 4,InnoDB,0,test,t1_innodb,id: 4
 TRUNCATE,InnoDB,0,test,t1_innodb,id: 4,,0,,,
-ALTER,InnoDB,0,test,t1_innodb,id: 4,InnoDB,0,test,t1_innodb,id: 5
-repair,InnoDB,0,test,t1_innodb,id: 4,,0,,,
-ALTER,InnoDB,0,test,t1_innodb,id: 5,InnoDB,0,test,t1_innodb,id: 6
+repair,InnoDB,0,test,t1_innodb,id: 4,,0,test,t1_innodb,id: 5
+optimize,InnoDB,0,test,t1_innodb,id: 5,,0,test,t1_innodb,id: 6
 DROP,InnoDB,0,test,t1_innodb,id: 6,,0,,,
 CREATE,MyISAM,0,test,t20,id: 7,,0,,,
 DROP,MyISAM,0,test,t20,id: 7,,0,,,
