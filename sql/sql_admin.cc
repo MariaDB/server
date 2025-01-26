@@ -817,6 +817,25 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     }
 
     /*
+      This has to be tested separately from the following test as
+      optimizer table takes a MDL_SHARED_WRITE lock but we want to
+      log this to the ddl log.
+    */
+
+    if (lock_type == TL_WRITE && table->mdl_request.type >= MDL_SHARED_WRITE)
+    {
+      /* Store information about table for ddl log */
+      storage_engine_partitioned= table->table->file->partition_engine();
+      strmake(storage_engine_name, table->table->file->real_table_type(),
+              sizeof(storage_engine_name)-1);
+      tabledef_version.str= tabledef_version_buff;
+      if ((tabledef_version.length= table->table->s->tabledef_version.length))
+        memcpy((char*) tabledef_version.str,
+               table->table->s->tabledef_version.str,
+               MY_UUID_SIZE);
+    }
+
+    /*
       Close all instances of the table to allow MyISAM "repair"
       (which is internally also used from "optimize") to rename files.
       @todo: This code does not close all instances of the table.
@@ -834,16 +853,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         thd->close_unused_temporary_table_instances(table);
       else
       {
-        /* Store information about table for ddl log */
-        storage_engine_partitioned= table->table->file->partition_engine();
-        strmake(storage_engine_name, table->table->file->real_table_type(),
-                sizeof(storage_engine_name)-1);
-        tabledef_version.str= tabledef_version_buff;
-        if ((tabledef_version.length= table->table->s->tabledef_version.length))
-          memcpy((char*) tabledef_version.str,
-                 table->table->s->tabledef_version.str,
-                 MY_UUID_SIZE);
-
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
           goto err;
         DEBUG_SYNC(thd, "after_admin_flush");
@@ -1473,6 +1482,14 @@ send_result_message:
       ddl_log.org_database=     table->db;
       ddl_log.org_table=        table->table_name;
       ddl_log.org_table_id=     tabledef_version;
+      if (recreate_used)
+      {
+        LEX_CUSTRING tabledef_version=
+          { recreate_info.tabledef_version, MY_UUID_SIZE };
+        ddl_log.new_database=     table->db;
+        ddl_log.new_table=        table->table_name;
+        ddl_log.new_table_id=     tabledef_version;
+      }
       backup_log_ddl(&ddl_log);
     }
 
