@@ -12236,7 +12236,11 @@ end_inplace:
     inplace_alter_table_committed= 0;
   }
 
-  if (!alter_ctx.tmp_table)
+  /*
+    We do not log ALTER ENTRY, when used with REPAIR, to the ddl.log as the
+    logging will done in mysql_admin_table()
+  */
+  if (!alter_ctx.tmp_table && !create_info->repair)
   {
     backup_log_info ddl_log;
     bzero(&ddl_log, sizeof(ddl_log));
@@ -12253,6 +12257,9 @@ end_inplace:
     ddl_log.new_table_id=            alter_ctx.tmp_id;
     backup_log_ddl(&ddl_log);
   }
+  if (create_info->repair)
+    memcpy(recreate_info->tabledef_version, alter_ctx.tmp_id.str,
+           sizeof(recreate_info->tabledef_version));
 
   table_list->table= NULL;			// For query cache
   query_cache_invalidate3(thd, table_list, false);
@@ -12272,7 +12279,8 @@ end_temporary:
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
   thd_progress_end(thd);
-  *recreate_info= Recreate_info(copied, deleted);
+  recreate_info->copied= copied;
+  recreate_info->duplicate= deleted;
   thd->my_ok_with_recreate_info(*recreate_info,
                                 (ulong) thd->get_stmt_da()->
                                           current_statement_warn_count());
@@ -13061,6 +13069,7 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list,
   create_info.row_type=ROW_TYPE_NOT_USED;
   create_info.alter_info= &alter_info;
   create_info.recreate_identical_table= 1;
+  create_info.repair= 1;     // Don't write ALTER TABLE to ddl log
   /* Force alter table to recreate table */
   alter_info.flags= (ALTER_CHANGE_COLUMN | ALTER_RECREATE);
   alter_info.partition_flags= thd->lex->alter_info.partition_flags;

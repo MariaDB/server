@@ -268,23 +268,22 @@ public:
 
 class Recreate_info
 {
-  ha_rows m_records_copied;
-  ha_rows m_records_duplicate;
 public:
+  ha_rows copied;
+  ha_rows duplicate;
+  uchar tabledef_version[MY_UUID_SIZE];
+
   Recreate_info()
-   :m_records_copied(0),
-    m_records_duplicate(0)
-  { }
-  Recreate_info(ha_rows records_copied,
-                ha_rows records_duplicate)
-   :m_records_copied(records_copied),
-    m_records_duplicate(records_duplicate)
-  { }
-  ha_rows records_copied() const { return m_records_copied; }
-  ha_rows records_duplicate() const { return m_records_duplicate; }
+   :copied(0),
+    duplicate(0)
+  {
+    bzero(tabledef_version, sizeof(tabledef_version));
+  }
+  ha_rows records_copied() const { return copied; }
+  ha_rows records_duplicate() const { return duplicate; }
   ha_rows records_processed() const
   {
-    return m_records_copied + m_records_duplicate;
+    return copied + duplicate;
   }
 };
 
