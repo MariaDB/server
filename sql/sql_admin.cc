@@ -1902,11 +1902,18 @@ int check_foreign_key_relations(THD *thd, TABLE *table)
 
   for (const FOREIGN_KEY_INFO &fk: fk_list)
   {
-    const KEY *key= table->find_key_by_name(fk.foreign_key_name);
+    TABLE *ref_table= find_fk_open_table(thd, fk.referenced_db.str,
+                                         fk.referenced_db.length,
+                                         fk.referenced_table.str,
+                                         fk.referenced_table.length);
+    if (!ref_table)
+      continue;
+    const KEY *key= ref_table->find_key_by_name(fk.referenced_key_name);
     if (!key)
       continue;
     max_key_len= max(max_key_len,
-                     key_get_prefix_store_length(key, fk.referenced_fields.size()));
+                     key_get_prefix_store_length(key,
+                                                 fk.referenced_fields.size()));
   }
 
   for (const FOREIGN_KEY_INFO &fk: parent_fk_list)
@@ -1916,7 +1923,7 @@ int check_foreign_key_relations(THD *thd, TABLE *table)
       continue;
     max_key_len= max(max_key_len,
                      key_get_prefix_store_length(key,
-                                             fk.foreign_fields.size()));
+                                                 fk.referenced_fields.size()));
   }
 
   uchar *key_buf= new(thd) uchar[max_key_len];

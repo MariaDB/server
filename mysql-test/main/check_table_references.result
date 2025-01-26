@@ -278,3 +278,14 @@ Table	Op	Msg_type	Msg_text
 test.t	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t_ibfk_1, record: 'd')
 test.t	check	error	Corrupt
 drop table t;
+# MDEV-35936 More ASAN errors in check_key_referential_integrity
+create table t1 (a char(64)) engine=innodb;
+insert into t1 values ('foo');
+create table t2 (b char(128), key(b)) engine=innodb;
+insert into t2 values ('foo');
+alter table t1 add foreign key (a) references t2 (b);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+drop table t2;
