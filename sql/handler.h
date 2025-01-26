@@ -2359,12 +2359,14 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
+  bool repair;
 
   void init()
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
     alter_info= NULL;
+    repair= 0;
   }
   ulong table_options_with_row_type()
   {
