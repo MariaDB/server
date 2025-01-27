@@ -790,7 +790,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       }
     }
     end_read_record(&info);
-    if (unlikely(deltempfile->get(table)) ||
+    /*
+      If error more than 1 it is an error code from info.read_record(),
+      so delete should be aborted. In case of error < 0 we should not
+      terminate
+    */
+    if (error > 1 ||
+        unlikely(deltempfile->get(table)) ||
         unlikely(table->file->ha_index_or_rnd_end()) ||
         unlikely(init_read_record(&info, thd, table, 0, &deltempfile->sort, 0,
                                   1, false)))
