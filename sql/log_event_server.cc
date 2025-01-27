@@ -6688,7 +6688,8 @@ Write_rows_log_event::do_after_row_operations(int error)
 
 bool Rows_log_event::process_triggers(trg_event_type event,
                                       trg_action_time_type time_type,
-                                      bool old_row_is_record1)
+                                      bool old_row_is_record1,
+                                      bool *skip_row_indicator)
 {
   bool result;
   DBUG_ENTER("Rows_log_event::process_triggers");
@@ -6697,12 +6698,14 @@ bool Rows_log_event::process_triggers(trg_event_type event,
   {
     result= m_table->triggers->process_triggers(thd, event,
                                                 time_type,
-                                                old_row_is_record1);
+                                                old_row_is_record1,
+                                                skip_row_indicator);
   }
   else
     result= m_table->triggers->process_triggers(thd, event,
                                                 time_type,
-                                                old_row_is_record1);
+                                                old_row_is_record1,
+                                                skip_row_indicator);
 
   DBUG_RETURN(result);
 }
@@ -6875,11 +6878,17 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
   if (table->s->long_unique_table)
     table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
 
+  bool trg_skip_row= false;
   if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, true,
+                                &trg_skip_row)))
   {
     DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
   }
+
+  /* In case any of triggers signals to skip the current row, do it. */
+  if (trg_skip_row)
+    return false;
 
   // Handle INSERT.
   if (table->versioned(VERS_TIMESTAMP))
@@ -7056,7 +7065,7 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
       DBUG_PRINT("info",("Deleting offending row and trying to write new one again"));
       if (invoke_triggers &&
           unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE,
-                                    TRUE)))
+                                    true, &trg_skip_row)))
         error= HA_ERR_GENERIC; // in case if error is not set yet
       else
       {
@@ -7066,17 +7075,18 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
           table->file->print_error(error, MYF(0));
           DBUG_RETURN(error);
         }
-        if (invoke_triggers &&
+        if (invoke_triggers && !trg_skip_row &&
             unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER,
-                                      TRUE)))
+                                      true, nullptr)))
           DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
       }
       /* Will retry ha_write_row() with the offending row removed. */
     }
   }
 
-  if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_AFTER, TRUE)))
+  if (invoke_triggers && !trg_skip_row &&
+      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_AFTER, true,
+                                nullptr)))
     error= HA_ERR_GENERIC; // in case if error is not set yet
 
   DBUG_RETURN(error);
@@ -7963,10 +7973,12 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif
     thd_proc_info(thd, message);
 
+    bool trg_skip_row= false;
     if (invoke_triggers &&
-        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE)))
+        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, false,
+                                  &trg_skip_row)))
       error= HA_ERR_GENERIC; // in case if error is not set yet
-    if (likely(!error))
+    if (likely(!error) && !trg_skip_row)
     {
       if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
       {
@@ -7981,8 +7993,9 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
         error= m_table->file->ha_delete_row(m_table->record[0]);
       }
     }
-    if (invoke_triggers && likely(!error) &&
-        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, FALSE)))
+    if (invoke_triggers && likely(!error) && !trg_skip_row &&
+        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, false,
+                                  nullptr)))
       error= HA_ERR_GENERIC; // in case if error is not set yet
     m_table->file->ha_index_or_rnd_end();
   }
@@ -8085,6 +8098,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
     get_quote_char_for_identifier(thd, table_name.str, table_name.length);
+  bool trg_skip_row= false;
   my_snprintf(msg, sizeof msg,
               "Update_rows_log_event::find_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
@@ -8180,12 +8194,18 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
   thd_proc_info(thd, message);
   if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, true,
+                                &trg_skip_row)))
   {
     error= HA_ERR_GENERIC; // in case if error is not set yet
     goto err;
   }
 
+  if (trg_skip_row)
+  {
+    error= 0;
+    goto err;
+  }
   if (m_table->versioned())
   {
     if (m_table->versioned(VERS_TIMESTAMP))
@@ -8211,7 +8231,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   }
 
   if (invoke_triggers && likely(!error) &&
-      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, true,
+                                nullptr)))
     error= HA_ERR_GENERIC; // in case if error is not set yet
 
 

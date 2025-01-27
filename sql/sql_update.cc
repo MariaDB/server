@@ -984,9 +984,18 @@ update_begin:
         cut_fields_for_portion_of_time(thd, table,
                                        table_list->period_conditions);
 
+      bool trg_skip_row= false;
       if (fill_record_n_invoke_before_triggers(thd, table, *fields, *values, 0,
-                                               TRG_EVENT_UPDATE))
+                                               TRG_EVENT_UPDATE,
+                                               &trg_skip_row))
         break; /* purecov: inspected */
+      if (trg_skip_row)
+      {
+        updated_or_same++;
+        thd->get_stmt_da()->inc_current_row_for_warning();
+
+        continue;
+      }
 
       found++;
 
@@ -1115,6 +1124,7 @@ error:
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, true,
+                                                     nullptr,
                                                      fields)))
       {
         error= 1;
@@ -2365,11 +2375,17 @@ int multi_update::send_data(List<Item> &not_used_values)
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
 
+      bool trg_skip_row= false;
       if (fill_record_n_invoke_before_triggers(thd, table,
                                                *fields_for_table[offset],
                                                *values_for_table[offset], 0,
-                                               TRG_EVENT_UPDATE))
+                                               TRG_EVENT_UPDATE,
+                                               &trg_skip_row))
 	DBUG_RETURN(1);
+
+      if (trg_skip_row)
+        continue;
+
       /*
         Reset the table->auto_increment_field_not_null as it is valid for
         only one row.
@@ -2442,6 +2458,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, true,
+                                                     nullptr,
                                                      fields_for_table[offset])))
         DBUG_RETURN(1);
     }
@@ -2700,11 +2717,17 @@ int multi_update::do_updates()
       if (table->vfield &&
           table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
         goto err2;
+
+      bool trg_skip_row= false;
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                             TRG_ACTION_BEFORE, true,
+                                            &trg_skip_row,
                                             fields_for_table[offset]))
         goto err2;
+
+      if (trg_skip_row)
+        continue;
 
       if (!can_compare_record || compare_record(table))
       {
@@ -2764,6 +2787,7 @@ int multi_update::do_updates()
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, true,
+                                                     nullptr,
                                                      fields_for_table[offset])))
         goto err2;
     }

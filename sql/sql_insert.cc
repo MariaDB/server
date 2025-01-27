@@ -1057,6 +1057,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
     while ((values= its++))
     {
+      bool trg_skip_row= false;
+
       thd->get_stmt_da()->inc_current_row_for_warning();
       if (fields.elements || !value_count)
       {
@@ -1070,7 +1072,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table, fields,
                                                           *values, 0,
-                                                          TRG_EVENT_INSERT)))
+                                                          TRG_EVENT_INSERT,
+                                                          &trg_skip_row)))
         {
           if (values_list.elements != 1 && ! thd->is_error())
           {
@@ -1119,7 +1122,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
                                                           table->
                                                           field_to_fill(),
                                                           *values, 0,
-                                                          TRG_EVENT_INSERT)))
+                                                          TRG_EVENT_INSERT,
+                                                          &trg_skip_row)))
         {
           if (values_list.elements != 1 && ! thd->is_error())
 	  {
@@ -1131,6 +1135,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         }
       }
 
+      if (trg_skip_row)
+        continue;
       /*
         with triggers a field can get a value *conditionally*, so we have to
         repeat has_no_default_value() check for every row
@@ -2077,12 +2083,19 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
         */
         DBUG_ASSERT(info->update_fields->elements ==
                     info->update_values->elements);
+
+        bool trg_skip_row= false;
+
         if (fill_record_n_invoke_before_triggers(thd, table,
                                                  *info->update_fields,
                                                  *info->update_values,
                                                  info->ignore,
-                                                 TRG_EVENT_UPDATE))
+                                                 TRG_EVENT_UPDATE,
+                                                 &trg_skip_row))
           goto before_trg_err;
+
+        if (trg_skip_row)
+          goto ok;
 
         bool different_records= (!records_are_comparable(table) ||
                                  compare_record(table));
@@ -2158,7 +2171,8 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
           insert_id_for_cur_row= table->file->insert_id_for_cur_row= 0;
           trg_error= (table->triggers &&
                       table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                        TRG_ACTION_AFTER, TRUE));
+                                                        TRG_ACTION_AFTER, true,
+                                                        nullptr));
           info->copied++;
         }
 
@@ -2254,10 +2268,16 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
         }
         else
         {
+          bool trg_skip_row= false;
+
           if (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                TRG_ACTION_BEFORE, TRUE))
+                                                TRG_ACTION_BEFORE, true,
+                                                &trg_skip_row))
             goto before_trg_err;
+
+          if (trg_skip_row)
+            continue;
 
           if (!table->versioned(VERS_TIMESTAMP))
             error= table->file->ha_delete_row(table->record[1]);
@@ -2280,7 +2300,8 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             thd->transaction->stmt.modified_non_trans_table= TRUE;
           if (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                TRG_ACTION_AFTER, TRUE))
+                                                TRG_ACTION_AFTER, true,
+                                                nullptr))
           {
             trg_error= 1;
             goto after_trg_or_ignored_err;
@@ -2327,7 +2348,8 @@ after_trg_n_copied_inc:
   thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
   trg_error= (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
-                                                TRG_ACTION_AFTER, TRUE));
+                                                TRG_ACTION_AFTER, true,
+                                                nullptr));
 
 ok:
   /*
@@ -4279,9 +4301,10 @@ int select_insert::send_data(List<Item> &values)
 {
   DBUG_ENTER("select_insert::send_data");
   bool error=0;
+  bool trg_skip_row= false;
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
-  if (store_values(values))
+  if (store_values(values, &trg_skip_row))
     DBUG_RETURN(1);
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
   if (unlikely(thd->is_error()))
@@ -4300,10 +4323,11 @@ int select_insert::send_data(List<Item> &values)
     }
   }
 
-  error= write_record(thd, table, &info, sel_result);
+  if (!trg_skip_row)
+    error= write_record(thd, table, &info, sel_result);
   table->auto_increment_field_not_null= FALSE;
 
-  if (likely(!error))
+  if (likely(!error) && !trg_skip_row)
   {
     if (table->triggers || info.handle_duplicates == DUP_UPDATE)
     {
@@ -4337,7 +4361,7 @@ int select_insert::send_data(List<Item> &values)
 }
 
 
-bool select_insert::store_values(List<Item> &values)
+bool select_insert::store_values(List<Item> &values, bool *trg_skip_row)
 {
   DBUG_ENTER("select_insert::store_values");
   bool error;
@@ -4345,10 +4369,12 @@ bool select_insert::store_values(List<Item> &values)
   table->reset_default_fields();
   if (fields->elements)
     error= fill_record_n_invoke_before_triggers(thd, table, *fields, values,
-                                                true, TRG_EVENT_INSERT);
+                                                true, TRG_EVENT_INSERT,
+                                                trg_skip_row);
   else
     error= fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
-                                                values, true, TRG_EVENT_INSERT);
+                                                values, true, TRG_EVENT_INSERT,
+                                                trg_skip_row);
 
   DBUG_RETURN(error);
 }
@@ -5138,10 +5164,11 @@ bool binlog_drop_table(THD *thd, TABLE *table)
 }
 
 
-bool select_create::store_values(List<Item> &values)
+bool select_create::store_values(List<Item> &values, bool *trg_skip_row)
 {
   return fill_record_n_invoke_before_triggers(thd, table, field, values,
-                                              true, TRG_EVENT_INSERT);
+                                              true, TRG_EVENT_INSERT,
+                                              trg_skip_row);
 }
 
 

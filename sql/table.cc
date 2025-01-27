@@ -9467,16 +9467,23 @@ int TABLE::period_make_insert(Item *src, Field *dst)
     res= update_generated_fields();
   }
 
+  bool trg_skip_row= false;
   if (likely(!res) && triggers)
     res= triggers->process_triggers(thd, TRG_EVENT_INSERT,
-                                    TRG_ACTION_BEFORE, true);
+                                    TRG_ACTION_BEFORE, true, &trg_skip_row);
+
+  if (trg_skip_row)
+  {
+    restore_record(this, record[1]);
+    return false;
+  }
 
   if (likely(!res))
     res = file->ha_write_row(record[0]);
 
   if (likely(!res) && triggers)
     res= triggers->process_triggers(thd, TRG_EVENT_INSERT,
-                                    TRG_ACTION_AFTER, true);
+                                    TRG_ACTION_AFTER, true, nullptr);
 
   restore_record(this, record[1]);
   if (res)

@@ -4949,7 +4949,7 @@ protected:
                         &m_curr_row_end, &m_master_reclength, m_rows_end);
   }
   bool process_triggers(trg_event_type event, trg_action_time_type time_type,
-                        bool old_row_is_record1);
+                        bool old_row_is_record1, bool *skip_row_indicator);
 
   /**
     Helper function to check whether there is an auto increment

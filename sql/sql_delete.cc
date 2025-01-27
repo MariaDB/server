@@ -276,7 +276,7 @@ int update_portion_of_time(THD *thd, TABLE *table,
 
   if (likely(!res) && table->triggers)
     res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
-                                           TRG_ACTION_AFTER, true);
+                                           TRG_ACTION_AFTER, true, nullptr);
   restore_record(table, record[1]);
   if (res)
     table->file->restore_auto_increment(prev_insert_id);
@@ -872,13 +872,19 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
                                               delete_history);
     if (delete_record)
     {
+      bool trg_skip_row= false;
+
       if (!delete_history && table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_BEFORE, FALSE))
+                                            TRG_ACTION_BEFORE, FALSE,
+                                            &trg_skip_row))
       {
         error= 1;
         break;
       }
+
+      if (trg_skip_row)
+        continue;
 
       // no LIMIT / OFFSET
       if (returning && result->send_data(returning->item_list) < 0)
@@ -911,7 +917,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
         deleted++;
         if (!delete_history && table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                              TRG_ACTION_AFTER, FALSE))
+                                              TRG_ACTION_AFTER, false,
+                                              nullptr))
         {
           error= 1;
           break;
@@ -1256,12 +1263,19 @@ int multi_delete::send_data(List<Item> &values)
 
     if (secure_counter < 0)
     {
+      bool trg_skip_row= false;
+
       /* We are scanning the current table */
       DBUG_ASSERT(del_table == table_being_deleted);
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_BEFORE, FALSE))
+                                            TRG_ACTION_BEFORE, false,
+                                            &trg_skip_row))
         DBUG_RETURN(1);
+
+      if (trg_skip_row)
+        continue;
+
       table->status|= STATUS_DELETED;
 
       error= table->delete_row();
@@ -1272,7 +1286,8 @@ int multi_delete::send_data(List<Item> &values)
           thd->transaction->stmt.modified_non_trans_table= TRUE;
         if (table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                              TRG_ACTION_AFTER, FALSE))
+                                              TRG_ACTION_AFTER, false,
+                                              nullptr))
           DBUG_RETURN(1);
       }
       else if (!ignore)
@@ -1435,13 +1450,19 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
   bool will_batch= !table->file->start_bulk_delete();
   while (likely(!(local_error= info.read_record())) && likely(!thd->killed))
   {
+    bool trg_skip_row= false;
+
     if (table->triggers &&
         unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                   TRG_ACTION_BEFORE, FALSE)))
+                                                   TRG_ACTION_BEFORE, false,
+                                                   &trg_skip_row)))
     {
       local_error= 1;
       break;
     }
+
+    if (trg_skip_row)
+      continue;
 
     local_error= table->delete_row();
     if (unlikely(local_error) && !ignore)
@@ -1460,7 +1481,8 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       deleted++;
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_AFTER, FALSE))
+                                            TRG_ACTION_AFTER, false,
+                                            nullptr))
       {
         local_error= 1;
         break;

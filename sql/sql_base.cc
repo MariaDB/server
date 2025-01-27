@@ -9154,6 +9154,32 @@ static bool not_null_fields_have_null_values(TABLE *table)
   return false;
 }
 
+
+/**
+  The auxiliary function to determine whether a row should be skipped
+  or handled after invocation of triggers.
+
+  @return true in case either there is no BEFORE INSERT triggers or
+               the statement SIGNAL SQLSTATE '02TRG' wasn't executed by
+               BEFORE INSERT triggers, else return false meaning that the row
+               mustn't be processed by the INSERT statement.
+*/
+
+static inline bool no_need_to_skip_a_row(bool *skip_row_indicator)
+{
+  /*
+    A row currently being processed mustn't be skipped in case the parameter
+    skip_row_indicator passed into fill_record_n_invoke_before_triggers()
+    is not null (that is true for BEFORE INSERT triggers) and a value stored by
+    this pointer has the value false, meaning that no SIGNAL statement with
+    the SQLSTATE = '02TRG' was raised on processing triggers.
+  */
+  return
+    !skip_row_indicator ||
+    !*skip_row_indicator;
+}
+
+
 /**
   Fill fields in list with values from the list of items and invoke
   before triggers.
@@ -9164,6 +9190,9 @@ static bool not_null_fields_have_null_values(TABLE *table)
   @param values        values to fill with
   @param ignore_errors TRUE if we should ignore errors
   @param event         event type for triggers to be invoked
+  @param [out] skip_row_indicator  the flag whose value tells whether to skip
+                                   the current record by INSERT/LOAD statements
+                                   or process it
 
   @detail
     This function assumes that fields which values will be set and triggers
@@ -9179,7 +9208,8 @@ bool
 fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                      List<Item> &fields,
                                      List<Item> &values, bool ignore_errors,
-                                     enum trg_event_type event)
+                                     enum trg_event_type event,
+                                     bool *skip_row_indicator)
 {
   int result;
   Table_triggers_list *triggers= table->triggers;
@@ -9191,7 +9221,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
   {
 
     if (triggers->process_triggers(thd, event, TRG_ACTION_BEFORE,
-                                   true, &fields) ||
+                                   true, skip_row_indicator, &fields) ||
         not_null_fields_have_null_values(table))
     {
       return TRUE;
@@ -9201,7 +9231,8 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
       Re-calculate virtual fields to cater for cases when base columns are
       updated by the triggers.
     */
-    if (table->vfield && fields.elements)
+    if (table->vfield && fields.elements &&
+        no_need_to_skip_a_row(skip_row_indicator))
     {
       Item *fld= (Item_field*) fields.head();
       Item_field *item_field= fld->field_for_view_update();
@@ -9344,6 +9375,9 @@ err:
   @param values        values to fill with
   @param ignore_errors TRUE if we should ignore errors
   @param event         event type for triggers to be invoked
+  @param [out] skip_row_indicator  the flag whose value tells whether to skip
+                                   the current record by INSERT statement or
+                                   process it
 
   @detail
     This function assumes that fields which values will be set and triggers
@@ -9358,7 +9392,8 @@ err:
 bool
 fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
                                      List<Item> &values, bool ignore_errors,
-                                     enum trg_event_type event)
+                                     enum trg_event_type event,
+                                     bool *skip_row_indicator)
 {
   bool result;
   Table_triggers_list *triggers= table->triggers;
@@ -9366,13 +9401,15 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   result= fill_record(thd, table, ptr, values, ignore_errors, false, false);
 
   if (!result && triggers && *ptr)
-    result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||
+    result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, true,
+                                       skip_row_indicator) ||
             not_null_fields_have_null_values(table);
   /*
     Re-calculate virtual fields to cater for cases when base columns are
     updated by the triggers.
   */
-  if (!result && triggers && *ptr)
+  if (!result && triggers && *ptr &&
+      no_need_to_skip_a_row(skip_row_indicator))
   {
     DBUG_ASSERT(table == (*ptr)->table);
     if (table->vfield)
