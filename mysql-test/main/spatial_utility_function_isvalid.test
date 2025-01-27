@@ -387,3 +387,31 @@ create or replace table tb1 as SELECT  st_validate(POINTFROMTEXT(' POINT( 4 1 ) 
 create or replace table tb1 as SELECT  st_validate(ST_GeomFromText (' linestring( 4 1,4 4 ) ')) a;
 create table tb2 as  SELECT (st_validate (ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') ))  )) a;
 drop table tb1, tb2;
+
+--echo ########################################################################
+--echo # MDEV-35126 Wrong results from st_isvalid or st_validate function, while using multipolygon.
+--echo ########################################################################
+select ST_isvalid(ST_GEOMFROMTEXT('multipolygon(((28 26,28 0,84 0,84 42,28 26),(52 18,66 23,73 9,48 6,52 18)), ((59 18,67 18,67 13,59 13,59 18)))'));
+
+select ST_isvalid(ST_GEOMFROMTEXT(' MULTIPOLYGON((( 0 0, 6 0, 1 2, 0 0)), (( 7 7, 1 8, 7 0, 7 7 ))) '));
+
+# Concave shapes are not well-supported.  This is correctly marked as invalid.
+SELECT ST_isvalid(ST_GEOMFROMTEXT(' MULTIPOLYGON((( 40 40, 80 40, 100 0, 120 40, 160 40, 130 70, 150 110, 100 90, 50 110, 70 70, 40 40)), ((70 50, 80 50, 80 60, 70 60, 70 50)))'));
+
+# Concave shapes are not well-supported.  This is correctly marked as invalid.
+SELECT ST_isvalid(ST_GEOMFROMTEXT(' MULTIPOLYGON((( 40 40, 80 40, 100 0, 120 40, 160 40, 130 70, 150 110, 100 90, 50 110, 70 70, 40 40)), ((90 50, 100 50, 100 60, 90 60, 90 50)))'));
+
+# Concave shapes are not well-supported.  This is incorrectly marked as invalid.
+SELECT ST_isvalid(ST_GEOMFROMTEXT(' MULTIPOLYGON((( 40 40, 80 40, 100 0, 120 40, 160 40, 130 70, 150 110, 100 90, 50 110, 70 70, 40 40)), ((60 20, 70 20, 70 30, 60 30, 60 20)))'));
+
+SELECT ST_isvalid(ST_GEOMFROMTEXT(' MULTIPOLYGON((( 80 200, 110 210, 140 270, 70 280, 40 250, 60 220, 80 200)), (( 120 210, 160 260, 140 260, 120 210)))'));
+
+SELECT ST_isvalid(ST_GEOMFROMTEXT(' MULTIPOLYGON((( 80 200, 110 210, 140 270, 70 280, 40 250, 60 220, 80 200)), (( 90 220, 110 240, 60 250, 90 220)))'));
+
+SELECT ST_isvalid(ST_GEOMFROMTEXT(' MULTIPOLYGON((( 0 0, 5 5, 5 0, 0 5, 0 0)), (( 2 0, 3 0, 2 1, 2 0 ))) '));
+SELECT ST_isvalid(ST_GEOMFROMTEXT(' MULTIPOLYGON((( 0 0, 3 0, 0 3, 0 0)), (( 3 0, 3 3, 0 3, 3 0))) '));
+
+SELECT ST_IsValid(ST_GEOMFROMTEXT(' POLYGON( ( 0 0, 0 0, 8 0, 0 0 ) )  '));
+SELECT ST_IsValid(ST_GEOMFROMTEXT('  MULTIPOLYGON( ( ( 2 2, 2 8, 8 8, 8 2, 2 2 ), ( 4 4, 4 6, 6 6, 6 4, 4 4 ) ), ( ( 2 2, 1 2, 0 5, 2 9, 2 2 ) ) ) ')) c;
+SELECT ST_IsValid(ST_GEOMFROMTEXT('  MULTIPOLYGON( ( (2 2, 2 4, 4 4, 4 2, 2 2) ), ( (3 5, 2 5, 2 4, 3 4, 3 5) ) ) '));
+

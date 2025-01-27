@@ -653,6 +653,8 @@ public:
   int make_clockwise(String *result) const override;
   const Class_info *get_class_info() const override;
   uint init_from_opresult(String *bin, const char *opres, uint res_len) override;
+private:
+  int shapes_valid(int *valid) const;
 };
 
 

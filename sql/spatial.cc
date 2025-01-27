@@ -2117,72 +2117,194 @@ bool Gis_polygon::get_points(Geometry::PointContainer &points) const
 }
 
 
+class Gcalc_poly_transporter : public Gcalc_shape_transporter
+{
+protected:
+  gcalc_shape_info m_si;
+  int m_points_in_ring;
+  int m_error;
+public:
+  Gcalc_poly_transporter(Gcalc_heap *heap) :
+    Gcalc_shape_transporter(heap), m_si(0), m_error(0) {}
+
+  int get_error() const { return m_error; }
+  int single_point(double x, double y) override { return 0; }
+  int start_line() override { return 0; }
+  int complete_line() override { return 0; }
+
+  int start_poly() override
+  {
+    int_start_poly();
+    return 0;
+  }
+
+  int complete_poly() override
+  {
+    int_complete_poly();
+    return 0;
+  }
+  int start_ring() override
+  {
+    int_start_ring();
+    m_points_in_ring= m_heap->get_n_points();
+    return 0;
+  }
+  int complete_ring() override
+  {
+    int_complete_ring();
+    m_si++;
+    if (m_heap->get_n_points() - m_points_in_ring < 3)
+      m_error= 1;
+    return 0;
+  }
+  int add_point(double x, double y) override
+  {
+    return int_add_point(m_si, x, y);
+  }
+
+  int start_collection(int n_objects) override { return 0; }
+  int empty_shape() override { return 0; }
+};
+
+
 int Gis_polygon::is_valid(int *valid) const
 {
-  Geometry *exterior_ring, *interior_ring;
-  MBR exterior_mbr, interior_mbr;
-  uint32 num_interior_ring;
-  Geometry_buffer buffer;
+  Gcalc_scan_iterator scan_it;
+  Gcalc_heap collector;
+  Gcalc_poly_transporter trn(&collector);
+  MBR mbr;
+  uint32 num_rings;
   const char *c_end;
-  String wkb= 0;
+  char *border_count, *touches_count, *internals;
+  int result= 0;
+
   *valid= 0;
 
-  if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
+  if (this->num_interior_ring(&num_rings))
     return 1;
 
-  wkb.q_append(SRID_PLACEHOLDER);
-  if (this->exterior_ring(&wkb) ||
-      !(exterior_ring= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+  num_rings++;
+
+  if(this->get_mbr(&mbr, &c_end))
     return 1;
 
-  int valid_ring, simple;
-  if (exterior_ring->is_valid(&valid_ring) ||
-      exterior_ring->is_simple(&simple))
+  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
+
+  if (this->store_shapes(&trn))
     return 1;
 
-  if (!valid_ring || !simple)
-    return 0;
+  if (trn.get_error())
+    goto exit;
 
-  if (exterior_ring->get_mbr(&exterior_mbr, &c_end) ||
-      this->num_interior_ring(&num_interior_ring))
-    return 1;
+  collector.prepare_operation();
+  scan_it.init(&collector);
 
-  std::vector<MBR> interior_mbrs;
-  for(uint32 i= 1; i <= num_interior_ring; i++)
+  border_count= (char *) my_alloca(num_rings);
+  bzero(border_count, num_rings);
+  touches_count= (char *) my_alloca(num_rings);
+  internals= (char *) my_alloca(num_rings);
+
+  while (scan_it.more_points())
   {
-    String interior_wkb= 0;
-    if (interior_wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
-      return 1;
+    const Gcalc_scan_iterator::event_point *events;
 
-    interior_wkb.q_append(SRID_PLACEHOLDER);
-    if (this->interior_ring_n(i, &interior_wkb))
-      break;
-
-    if (!(interior_ring= Geometry::construct(&buffer, interior_wkb.ptr(),
-                                             interior_wkb.length())) ||
-        interior_ring->get_mbr(&interior_mbr, &c_end))
-      return 1;
-
-    if (!exterior_mbr.contains(&interior_mbr) ||
-        exterior_mbr.equals(&interior_mbr))
-      return 0;
-
-    if (interior_ring->is_simple(&simple))
-      return 1;
-
-    if (!simple)
-      return 0;
-
-    for (const auto &mbr : interior_mbrs)
+    if (scan_it.step())
     {
-      if (interior_mbr.equals(&mbr) || interior_mbr.within(&mbr))
-        return 0;
+      result= 1;
+      goto exit;
     }
-    interior_mbrs.push_back(interior_mbr);
+
+    events= scan_it.get_events();
+
+    Gcalc_point_iterator pit(&scan_it);
+    int outer_border= 0;
+
+    bzero(internals, num_rings);
+    /* Walk to the event, marking polygons we met */
+    for (; pit.point() != scan_it.get_event_position(); ++pit)
+    {
+      gcalc_shape_info si= pit.point()->get_shape();
+      internals[si]^= 1;
+      if (si != 0) /* interior ring */
+      {
+        if (!internals[0])
+        {
+          /* Internal ring outside the outer. */
+          goto exit;
+        }
+        for (uint n=1; n<num_rings; n++)
+        {
+          if (n != si && internals[n]) /* Internal ring inside another internal */
+            goto exit;
+        }
+      }
+    }
+
+    if (events->simple_event())
+      continue;
+
+    bzero(touches_count, num_rings);
+
+    /* Check the status of the event point */
+    for (; events; events= events->get_next())
+    {
+      gcalc_shape_info si= events->get_shape();
+      if (events->event == scev_thread ||
+          events->event == scev_end || /* should never happen. */
+          events->event == scev_single_point ||
+          events->event == scev_intersection)
+      {
+        /* These types of events never happen in valid polygon. */
+        goto exit;
+      }
+
+      touches_count[si]++;
+      if (events->event == scev_two_threads || events->event == scev_two_ends)
+      {
+        if (touches_count[si] > 2)
+          goto exit;
+      }
+      else
+      {
+        if (touches_count[si] > 1)
+          goto exit;
+      }
+
+      if (si == 0) /* outer ring */
+        outer_border= 1;
+      else
+      {
+        if (!outer_border && !internals[0])
+        {
+          /* Inner ring outside the outer ring. */
+          goto exit;
+        }
+        if (outer_border)
+        {
+          if (border_count[si]++ > 1)
+          {
+            /*
+              We can't have more than one point of the
+              internal ring on the border of the outer ring.
+            */
+            goto exit;
+          }
+        }
+      }
+    }
   }
 
   *valid= 1;
-  return 0;
+
+exit:
+  collector.reset();
+  scan_it.reset();
+  my_afree(border_count);
+  my_afree(touches_count);
+  my_afree(internals);
+
+  return result;
+
 }
 
 
@@ -3680,253 +3802,164 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
 }
 
 
-struct Edge
+class Gcalc_multipoly_transporter : public Gcalc_shape_transporter
 {
-  double x1, y1;
-  double x2, y2;
-  double m, b;  // slope, y-intercept
+protected:
+  gcalc_shape_info m_si;
+public:
+  Gcalc_multipoly_transporter(Gcalc_heap *heap) :
+    Gcalc_shape_transporter(heap), m_si(0) {}
 
-  double slope() const
+  int single_point(double x, double y) override { return 0; }
+  int start_line() override { return 0; }
+  int complete_line() override { return 0; }
+
+  int start_poly() override
   {
-    if (x2 - x1 == 0)
-      return (double)(~0);  // effectively inf
-    return (y2 - y1) / (x2 - x1);
+    int_start_poly();
+    return 0;
   }
 
-  Edge(double X1, double Y1,
-       double X2, double Y2)
-    : x1(X1),
-      y1(Y1),
-      x2(X2),
-      y2(Y2),
-      m(slope()),
-      b(y1 - (m * x1))
+  int complete_poly() override
   {
+    int_complete_poly();
+    m_si++;
+    return 0;
+  }
+  int start_ring() override
+  {
+    int_start_ring();
+    return 0;
+  }
+  int complete_ring() override
+  {
+    int_complete_ring();
+    return 0;
+  }
+  int add_point(double x, double y) override
+  {
+    return int_add_point(m_si, x, y);
   }
 
-  Edge(const Edge& rhs) = default;
-  Edge &operator=(const Edge &rhs) = default;
-
-  double find_intersection_point(const Edge& other) const
+  int start_collection(int n_objects) override
   {
-    return (other.b - b) / (m - other.m);
+    return 0;
   }
 
-  double eval_at(double x) const
-  {
-    return m * x + b;
-  }
-
-  bool has_x(double x) const
-  {
-    if (m == 0) {
-      // line parallel to x axis
-      return (x2 >= x1) ?
-          (x < x2 && x > x1) :
-          (x < x1 && x > x2);
-    }
-    auto y = eval_at(x);
-    bool has_it = false;
-    if (m < 0)
-    {
-      has_it = (y < y1 && y > y2);
-      if (!has_it)
-      {
-        Edge tmp = reorient();
-        has_it = (y > tmp.y1 && y < tmp.y2);
-      }
-    }
-    else
-    {
-      has_it = (y > y1 && y < y2);
-      if (!has_it)
-      {
-        Edge tmp = reorient();
-        has_it = (y < tmp.y1 && y > tmp.y2);
-      }
-    }
-    return has_it;
-  }
-
-  Edge reorient() const
-  {
-    // Swaps (x1, y1) and (x2, y2), effectively changing the slope
-    // of the edge but nothing more.
-    return {x2, y2, x1, y1};
-  }
+  int empty_shape() override { return 0; }
 };
-
-struct Polygon
-{
-  std::vector<Edge> edges;
-  using Vertices = std::vector<std::pair<double, double>>;
-
-  Polygon(const std::vector<Edge> &Edges)
-    : edges(Edges)
-  {
-  }
-
-  Polygon(const Edge &e_0, const Edge &e_1, const Edge &e_2)
-    : edges{e_0, e_1, e_2}
-  {
-  }
-
-  bool intersects_with(const Polygon& other) const
-  {
-    for (auto my_edge : edges)
-    {
-      for (auto their_edge : other.edges)
-      {
-        auto x = my_edge.find_intersection_point(their_edge);
-        if (my_edge.has_x(x) && their_edge.has_x(x))
-          return true;
-      }
-    }
-    return false;
-  }
-
-  std::vector<Polygon> get_triangles(size_t step_size=1) const
-  {
-    // Must be more than one edge in the polygon.
-    assert(edges.size() > 1);
-
-    // Partition the polygon into triangles.  When step_size is one, then
-    // go around the polygon vertex-by-vertex.  When step size is larger,
-    // then skip vertices correspondingly (e.g., step_size 2 means every
-    // other vertex).
-    std::vector<Polygon> triangles;
-    Vertices points = get_vertices();
-    for (size_t pt = 0; pt < points.size(); ++pt)
-    {
-      size_t i = pt;
-      double e0_x1 = points[i].first;
-      double e0_y1 = points[i].second;
-      i += step_size;
-      if (i >= points.size())
-        i = i % points.size();
-      double e0_x2 = points[i].first;
-      double e0_y2 = points[i].second;
-      Edge e0(e0_x1, e0_y1, e0_x2, e0_y2);
-      double e1_x1 = points[i].first;
-      double e1_y1 = points[i].second;
-      i += step_size;
-      if (i >= points.size())
-        i = i % points.size();
-      double e1_x2 = points[i].first;
-      double e1_y2 = points[i].second;
-      Edge e1(e1_x1, e1_y1, e1_x2, e1_y2);
-      Edge e2(e1.x2, e1.y2, e0.x1, e0.y1);
-      Polygon triangle(e0, e1, e2);
-      triangles.push_back(triangle);
-    }
-    return triangles;
-  }
-
-  Vertices get_vertices() const
-  {
-    // Decompose this polygon into a set of vertices.
-    Vertices v;
-    for (auto e : edges)
-      v.push_back({e.x1, e.y1});
-    return v;
-  }
-};
-
-// assumes polygons are closed as they cannot be created unless they're closed
-static bool polygons_intersect(const std::vector<Polygon> &polygons)
-{
-  for (size_t p = 0; p < polygons.size() - 1; ++p) {
-    Polygon poly_1 = polygons[p];
-    Polygon poly_2 = polygons[p + 1];
-    if (poly_1.intersects_with(poly_2))
-      return true;
-  }
-  // wrap-around case
-  return polygons[polygons.size() - 1].intersects_with(polygons[0]);
-}
-
-
-static bool polygons_overlap(const std::vector<Polygon> &polygons)
-{
-  // 3 is hard-coded, make limit into a session var
-  for (size_t step_size = 1; step_size <= 3; ++step_size)
-  {
-    const size_t end = polygons.size();
-    for (size_t p = 0; p < end; ++p)
-    {
-      std::vector<Polygon> t_0, t_1;
-      t_0= polygons[p].get_triangles(step_size);
-      if (p < end - 1)
-        t_1 = polygons[p + 1].get_triangles(step_size);
-      else
-        t_1 = polygons[0].get_triangles(step_size);
-      for (const Polygon &ta : t_0)
-        for (const Polygon &tb : t_1)
-          if (ta.intersects_with(tb))
-            return true;
-    }
-  }
-
-  return false;
-}
-
-
-using PointContainerCollection = std::vector<Geometry::PointContainer>;
-static bool intersects_overlaps(const PointContainerCollection &points)
-{
-  std::vector<Polygon> polygons;
-  for (const Geometry::PointContainer &polygon : points)
-  {
-    std::vector<Edge> edges;
-    for (size_t i = 0; i < polygon.size() - 1; ++i)
-      edges.push_back({polygon[i].first, polygon[i].second,
-              polygon[i+1].first, polygon[i+1].second});
-    polygons.push_back({edges});
-  }
-  return polygons_intersect(polygons) || polygons_overlap(polygons);
-}
 
 
 int Gis_multi_polygon::is_valid(int *valid) const
 {
-  Geometry_buffer buffer;
+  int result= 0;
+  Gcalc_scan_iterator scan_it;
+  Gcalc_heap collector;
+  Gcalc_multipoly_transporter trn(&collector);
+  MBR mbr;
   uint32 num_geometries;
-  PointContainerCollection interior_points;
-  Geometry *geometry;
-  *valid= 0;
+  const char *c_end;
+  char *internals;
 
   if (this->num_geometries(&num_geometries))
     return 1;
 
-  for (uint32 i= 1; i <= num_geometries; i++)
+  if (shapes_valid(valid))
+    return 1;
+
+  if (*valid == 0)
+    return 0;
+
+  *valid= 0;
+
+  if (num_geometries < 1)
+    return 0;
+  
+  if(this->get_mbr(&mbr, &c_end))
+    return 1;
+
+
+  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
+
+  if (this->store_shapes(&trn))
+    return 1;
+
+  
+  collector.prepare_operation();
+  scan_it.init(&collector);
+  internals= (char *) my_alloca(num_geometries);
+
+  while (scan_it.more_points())
   {
-    String wkb= 0;
-    if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
-      return 0;
+    const Gcalc_scan_iterator::event_point *events, *next_ev;
 
-    wkb.q_append(SRID_PLACEHOLDER);
-    if (this->geometry_n(i, &wkb) ||
-        !(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
-      return 1;
+    if (scan_it.step())
+    {
+      result= 1;
+      goto exit;
+    }
 
-    int internal_valid;
-    if (geometry->is_valid(&internal_valid))
-      return 1;
+    events= scan_it.get_events();
 
-    if (!internal_valid)
-      return 0;
+    Gcalc_point_iterator pit(&scan_it);
 
-    Geometry::PointContainer points;
-    geometry->get_points(points);  // returns true on error, not inspecting now
-    interior_points.push_back(points);  // one container per geometry
-    if (i > 1 && intersects_overlaps(interior_points)) {
-      *valid= 0;
-      return 0;
+    bzero(internals, num_geometries);
+    /* Walk to the event, marking polygons we met */
+    for (; pit.point() != scan_it.get_event_position(); ++pit)
+    {
+      gcalc_shape_info si= pit.point()->get_shape();
+      internals[si]^= 1;
+    }
+
+    if (events->simple_event())
+      continue;
+
+    /* Check the status of the event point */
+    for (; events; events= events->get_next())
+    {
+      gcalc_shape_info si= events->get_shape();
+      if (events->event == scev_thread ||
+          events->event == scev_end || /* should never happen. */
+          events->event == scev_single_point ||
+          events->event == scev_intersection)
+      {
+        /* These types of events never happen in valid multipolygon. */
+        goto exit;
+      }
+
+      if ((internals[si]^= 1))
+      {
+        for (uint n=0; n<num_geometries; n++)
+        {
+          if (n != si && internals[n])
+          {
+            /* Polygons overlap */
+            goto exit;
+          }
+        }
+      }
+
+      if ((next_ev= events->get_next()))
+      {
+        if (next_ev->event != scev_two_ends &&
+            events->event != scev_two_ends &&
+            events->cmp_dx_dy(events->dx, events->dy,
+                              next_ev->dx, next_ev->dy) == 0)
+        {
+          /* Only can touch at points, not lines. */
+          goto exit;
+        }
+      }
     }
   }
 
   *valid= 1;
-  return 0;
+
+exit:
+  collector.reset();
+  scan_it.reset();
+
+  return result;
 }
 
 
@@ -4134,6 +4167,38 @@ int Gis_multi_polygon::store_shapes(Gcalc_shape_transporter *trn) const
       return 1;
     data+= p.get_data_size();
   }
+  return 0;
+}
+
+
+int Gis_multi_polygon::shapes_valid(int *valid) const
+{
+  uint32 n_polygons;
+  Gis_polygon p;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_polygons= uint4korr(data);
+  data+= 4;
+
+  *valid= 0;
+
+  while (n_polygons--)
+  {
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    data+= WKB_HEADER_SIZE;
+    p.set_data_ptr(data, (uint32) (m_data_end - data));
+    if (p.is_valid(valid))
+      return 1;
+
+    if (*valid == 0)
+      break;
+
+    data+= p.get_data_size();
+  }
+
   return 0;
 }
 
