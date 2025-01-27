@@ -1660,7 +1660,7 @@ int ha_commit_trans(THD *thd, bool all)
       thd->m_transaction_psi= NULL;
     }
 #ifdef WITH_WSREP
-    if (wsrep_is_active(thd) && is_real_trans && !error)
+    if (WSREP(thd) && wsrep_is_active(thd) && is_real_trans && !error)
       wsrep_commit_empty(thd, all);
 #endif /* WITH_WSREP */
 
@@ -7375,6 +7375,7 @@ int handler::ha_write_row(const uchar *buf)
         ht->flags & HTON_WSREP_REPLICATION &&
         !error && (error= wsrep_after_row(ha_thd())))
     {
+      DEBUG_SYNC_C("ha_write_row_end");
       DBUG_RETURN(error);
     }
 #endif /* WITH_WSREP */

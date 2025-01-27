@@ -1863,11 +1863,18 @@ int wsrep_to_buf_helper(
       domain_id= wsrep_gtid_server.domain_id;
       server_id= wsrep_gtid_server.server_id;
     }
-    Gtid_log_event gtid_event(thd, seqno, domain_id, true,
-                              LOG_EVENT_SUPPRESS_USE_F, true, 0);
-    gtid_event.server_id= server_id;
-    if (!gtid_event.is_valid()) ret= 0;
-    ret= writer.write(&gtid_event);
+    /*
+    * Ignore if both thd->variables.gtid_seq_no and
+    * thd->variables.wsrep_gtid_seq_no are not set.
+    */
+    if (seqno)
+    {
+      Gtid_log_event gtid_event(thd, seqno, domain_id, true,
+                                LOG_EVENT_SUPPRESS_USE_F, true, 0);
+      gtid_event.server_id= server_id;
+      if (!gtid_event.is_valid()) ret= 0;
+      ret= writer.write(&gtid_event);
+    }
   }
   /*
     It's local DDL so in case of possible gtid seqno (SET gtid_seq_no=X)

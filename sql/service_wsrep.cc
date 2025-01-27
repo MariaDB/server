@@ -82,8 +82,7 @@ extern "C" const char *wsrep_thd_query(const THD *thd)
     case SQLCOM_REVOKE:
       return "REVOKE";
     case SQLCOM_SET_OPTION:
-      if (thd->lex->definer)
-        return "SET PASSWORD";
+      return "SET OPTION";
       /* fallthrough */
     default:
     {

@@ -9,3 +9,5 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
+
+galera_sequences : MDEV-35934/MDEV-33850 For Galera, create sequence with low cache got signal 6 error: [ERROR] WSREP: FSM: no such a transition REPLICATING -> COMMITTED
