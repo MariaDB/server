@@ -3099,8 +3099,9 @@ public:
 
   bool append_for_log(THD *thd, String *str) override;
 
-  Item *do_get_copy(THD *) const override { return nullptr; }
-  Item *do_build_clone(THD *thd) const override { return nullptr; }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_splocal>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
   /*
     Override the inherited create_field_for_create_select(),
