@@ -9,9 +9,9 @@ set @@global.max_binlog_cache_size = 4096;
 set @@global.    binlog_cache_size = 4096;
 
 --echo #
---echo # MDEV-35207
+--echo # MDEV-35207 ignored error at binlogging by CREATE-TABLE-SELECT leads to assert
 --echo #
-# fixate the current (write) binlog position
+# fix the current (write) binlog position
 --let $binlog_file_0= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $binlog_start_0 = query_get_value(SHOW MASTER STATUS, Position, 1)
 
@@ -45,7 +45,7 @@ if (!$cmp)
 
 --echo
 --echo #
---echo # TODO: MDEV-35499 errored CoRS does not DROP table in binlog
+--echo # MDEV-35499 errored CREATE-OR-REPLACE-SELECT does not DROP table in binlog
 --echo #
 --let $i = 2
 while ($i)
@@ -95,7 +95,7 @@ while ($i)
 SET @@global.max_binlog_cache_size = @max_binlog_cache_size;
 SET @@global.    binlog_cache_size = @binlog_cache_size;
 
-# prove binlog is sane for slave as well
+# test that binlog replicates correctly to slave
 # --connection slave
 --sync_slave_with_master
 

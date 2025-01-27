@@ -320,6 +320,11 @@ public:
     incident= TRUE;
   }
   
+  void clear_incident(void)
+  {
+    incident= FALSE;
+  }
+
   bool has_incident(void)
   {
     return(incident);
@@ -1957,13 +1962,9 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
   */
   if (ending_trans(thd, all))
   {
-    DBUG_ASSERT(!cache_mngr->trx_cache.has_incident() ||
-		thd->lex->sql_command != SQLCOM_CREATE_TABLE ||
-		thd->is_current_stmt_binlog_format_row());
-
-    if (cache_mngr->trx_cache.has_incident() &&
-	thd->lex->sql_command != SQLCOM_CREATE_TABLE)
+    if (cache_mngr->trx_cache.has_incident())
       error= mysql_bin_log.write_incident(thd);
+
     thd->reset_binlog_for_next_statement();
 
     cache_mngr->reset(false, true);
@@ -2358,6 +2359,18 @@ void binlog_reset_cache(THD *thd)
     cache_mngr->reset(true, true);
   }
   DBUG_VOID_RETURN;
+}
+
+
+void binlog_clear_incident(THD *thd)
+{
+  binlog_cache_mngr *const cache_mngr= opt_bin_log ?
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton) : 0;
+  if (cache_mngr)
+  {
+    cache_mngr->stmt_cache.clear_incident();
+    cache_mngr->trx_cache.clear_incident();
+  }
 }
 
 

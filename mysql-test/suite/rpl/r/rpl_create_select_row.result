@@ -6,7 +6,7 @@ set @binlog_cache_size             = @@global.binlog_cache_size;
 set @@global.max_binlog_cache_size = 4096;
 set @@global.    binlog_cache_size = 4096;
 #
-# MDEV-35207
+# MDEV-35207 ignored error at binlogging by CREATE-TABLE-SELECT leads to assert
 #
 connect  conn_err,localhost,root,,;
 call mtr.add_suppression("Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage");
@@ -22,7 +22,7 @@ disconnect conn_err;
 connection master;
 
 #
-# TODO: MDEV-35499 errored CoRS does not DROP table in binlog
+# MDEV-35499 errored CREATE-OR-REPLACE-SELECT does not DROP table in binlog
 #
 #
 # Engine = innodb

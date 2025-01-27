@@ -5316,8 +5316,13 @@ void select_create::abort_result_set()
 
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
+  /*
+    In the error case, we remove any partially created table. So clear any
+    incident event generates due to cache error, as it no longer relevant.
+  */
+  binlog_clear_incident(thd);
 
-  bool has_drop_table_logged= false;
+  bool drop_table_was_logged= false;
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
@@ -5364,7 +5369,7 @@ void select_create::abort_result_set()
                          create_info->db_type == partition_hton,
                          &create_info->tabledef_version,
                          tmp_table);
-          has_drop_table_logged= true;
+          drop_table_was_logged= true;
           debug_crash_here("ddl_log_create_after_binlog");
           thd->binlog_xid= 0;
         }
@@ -5389,7 +5394,7 @@ void select_create::abort_result_set()
 
   if (create_info->table_was_deleted)
   {
-    if (has_drop_table_logged)
+    if (drop_table_was_logged)
     {
       /* for DROP binlogging the error status has to be canceled first */
       Diagnostics_area new_stmt_da(thd->query_id, false, true);
