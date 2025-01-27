@@ -1193,6 +1193,14 @@ SHOW CREATE TABLE t;
 --disable_prepare_warnings
 DROP TABLE t;
 
+# Rename the index from lowercase to uppercase
+CREATE TABLE t1 (a INT,b INT,KEY(b)) ENGINE=INNODB;
+ALTER TABLE t1 RENAME KEY b TO B;
+SHOW CREATE TABLE t1;
+SELECT name FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE table_id IN (SELECT table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1");
+CHECK TABLE t1;
+DROP TABLE t1;
+
 --disable_query_log
 
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*t[12].ibd.");

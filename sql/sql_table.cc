@@ -7704,8 +7704,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
          new_key < new_key_end;
          new_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!strcmp(table_key->name.str, new_key->name.str))
         break;
     }
     if (new_key >= new_key_end)
@@ -7755,8 +7754,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
     /* Search an old key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!strcmp(table_key->name.str, new_key->name.str))
         break;
     }
     if (table_key >= table_key_end)
@@ -7788,9 +7786,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         continue;
       }
 
-      DBUG_ASSERT(
-          lex_string_cmp(system_charset_info, &old_key->name, &new_key->name));
-
+      DBUG_ASSERT(strcmp(old_key->name.str, new_key->name.str));
       ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
       ha_alter_info->rename_keys.push_back(
           Alter_inplace_info::Rename_key_pair(old_key, new_key));

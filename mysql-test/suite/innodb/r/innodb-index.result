@@ -1947,3 +1947,20 @@ Warnings:
 Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 DROP TABLE t;
+CREATE TABLE t1 (a INT,b INT,KEY(b)) ENGINE=INNODB;
+ALTER TABLE t1 RENAME KEY b TO B;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `B` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT name FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE table_id IN (SELECT table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1");
+name
+GEN_CLUST_INDEX
+B
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
