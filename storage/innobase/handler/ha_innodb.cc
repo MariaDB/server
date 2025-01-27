@@ -16313,6 +16313,7 @@ ha_innobase::external_lock(
 	case F_UNLCK:
 		DEBUG_SYNC_C("ha_innobase_end_statement");
 		m_mysql_has_locked = false;
+		ut_a(trx->n_mysql_tables_in_use);
 
 		if (--trx->n_mysql_tables_in_use) {
 			break;

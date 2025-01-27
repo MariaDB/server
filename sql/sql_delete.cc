@@ -773,27 +773,21 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
                                              MEM_STRIP_BUF_SIZE);
 
     THD_STAGE_INFO(thd, stage_searching_rows_for_update);
-    while (!(error=info.read_record()) && !thd->killed &&
-          ! thd->is_error())
+    while (!(error=info.read_record()) && !thd->killed && !thd->is_error())
     {
       if (record_should_be_deleted(thd, table, select, explain, delete_history))
       {
         table->file->position(table->record[0]);
-        if (unlikely((error=
-                      deltempfile->unique_add((char*) table->file->ref))))
-        {
-          error= 1;
-          goto terminate_delete;
-        }
+        if ((error= deltempfile->unique_add((char*) table->file->ref)))
+          break;
         if (!--tmplimit && using_limit)
           break;
       }
     }
     end_read_record(&info);
-    if (unlikely(deltempfile->get(table)) ||
-        unlikely(table->file->ha_index_or_rnd_end()) ||
-        unlikely(init_read_record(&info, thd, table, 0, &deltempfile->sort, 0,
-                                  1, false)))
+    if (table->file->ha_index_or_rnd_end() || error > 0 ||
+        deltempfile->get(table) ||
+        init_read_record(&info, thd, table, 0, &deltempfile->sort, 0, 1, 0))
     {
       error= 1;
       goto terminate_delete;
