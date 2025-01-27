@@ -2335,3 +2335,14 @@ DROP TABLE t1;
 #
 # End of 11.3 tests
 #
+# Start of 11.4 tests
+#
+# MDEV-35677 Assertion `thd->is_error()' failed in virtual bool Field::sp_prepare_and_store_item(THD*, Item**)
+#
+CREATE FUNCTION f() RETURNS INT DETERMINISTIC RETURN (SELECT a FROM t);
+CREATE TABLE t (c TIMESTAMP);
+SELECT * FROM t WHERE c=f();
+ERROR 42S22: Unknown column 'a' in 'SELECT'
+DROP TABLE t;
+DROP FUNCTION f;
+# End of 11.4 tests

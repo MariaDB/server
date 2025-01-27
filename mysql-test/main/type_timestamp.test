@@ -1370,3 +1370,21 @@ DROP TABLE t1;
 --echo #
 --echo # End of 11.3 tests
 --echo #
+
+--echo # Start of 11.4 tests
+
+--echo #
+--echo # MDEV-35677 Assertion `thd->is_error()' failed in virtual bool Field::sp_prepare_and_store_item(THD*, Item**)
+--echo #
+
+CREATE FUNCTION f() RETURNS INT DETERMINISTIC RETURN (SELECT a FROM t);
+CREATE TABLE t (c TIMESTAMP);
+# with view protocol it raises ER_VIEW_INVALID
+--disable_view_protocol
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM t WHERE c=f();
+--enable_view_protocol
+DROP TABLE t;
+DROP FUNCTION f;
+
+--echo # End of 11.4 tests

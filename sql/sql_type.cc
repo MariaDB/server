@@ -7959,8 +7959,13 @@ Type_handler_datetime_common::convert_item_for_comparison(
                           const char *msg,
                           Sql_condition **cond_hdl) override
     {
-      hit++;
-      return *level >= Sql_condition::WARN_LEVEL_WARN;
+      if (sql_errno == ER_TRUNCATED_WRONG_VALUE ||
+          sql_errno == ER_DATETIME_FUNCTION_OVERFLOW)
+      {
+        hit++;
+        return *level >= Sql_condition::WARN_LEVEL_WARN;
+      }
+      return false;
     }
   } cnt_handler;
 
