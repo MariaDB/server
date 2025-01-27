@@ -624,6 +624,7 @@ performance schema instrumented if "UNIV_PFS_THREAD"
 is defined */
 static PSI_thread_info	all_innodb_threads[] = {
 	PSI_KEY(page_cleaner_thread),
+	PSI_KEY(page_encrypt_thread),
 	PSI_KEY(trx_rollback_clean_thread),
 	PSI_KEY(thread_pool_thread)
 };
