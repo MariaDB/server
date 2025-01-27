@@ -2367,7 +2367,7 @@ i_s_fts_deleted_generic_fill(
 		rw_lock_s_unlock(&dict_sys.latch);
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)
-		   || !user_table->is_readable()) {
+		   || !user_table->is_accessible()) {
 		dict_table_close(user_table, FALSE, FALSE);
 		rw_lock_s_unlock(&dict_sys.latch);
 		DBUG_RETURN(0);
@@ -2744,7 +2744,8 @@ no_fts:
 		DBUG_RETURN(0);
 	}
 
-	if (!user_table->fts || !user_table->fts->cache) {
+	if (!user_table->fts || !user_table->fts->cache
+	    || !user_table->is_accessible()) {
 		dict_table_close(user_table, FALSE, FALSE);
 		goto no_fts;
 	}
@@ -3186,8 +3187,14 @@ i_s_fts_index_table_fill(
 		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
+no_fts:
 		rw_lock_s_unlock(&dict_sys.latch);
 		DBUG_RETURN(0);
+	}
+
+	if (!user_table->is_accessible()) {
+		dict_table_close(user_table, FALSE, FALSE);
+		goto no_fts;
 	}
 
 	int		ret = 0;
@@ -3345,7 +3352,8 @@ no_fts:
 		DBUG_RETURN(0);
 	}
 
-	if (!dict_table_has_fts_index(user_table)) {
+	if (!user_table->is_accessible()
+	    || !dict_table_has_fts_index(user_table)) {
 		dict_table_close(user_table, FALSE, FALSE);
 		goto no_fts;
 	}

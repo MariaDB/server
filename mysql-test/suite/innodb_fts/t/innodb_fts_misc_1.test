@@ -960,3 +960,16 @@ CREATE FULLTEXT INDEX i ON t1 (f2);
 SELECT * FROM t1 WHERE match(f2) against("bbb");
 # Cleanup
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35937 sym_node->table != NULL in pars_retrieve_table_def
+--echo #
+CREATE TABLE t1 (a TEXT ,FULLTEXT (a)) ENGINE=INNODB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SET @save_ft = @@GLOBAL.innodb_ft_aux_table;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+SELECT * FROM information_schema.innodb_ft_config;
+SELECT * FROM information_schema.innodb_ft_index_cache;
+SELECT * FROM information_schema.innodb_ft_index_table;
+DROP TABLE t1;
+SET GLOBAL innodb_ft_aux_table=@save_ft;

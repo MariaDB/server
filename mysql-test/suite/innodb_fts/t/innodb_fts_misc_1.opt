@@ -1,1 +1,4 @@
 --innodb-ft-deleted
+--innodb-ft-config
+--innodb-ft-index-cache
+--innodb-ft-index-table

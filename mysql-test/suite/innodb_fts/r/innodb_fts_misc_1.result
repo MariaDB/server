@@ -993,3 +993,18 @@ FTS_DOC_ID	f1	f2
 4294967298	txt	bbb
 100000000000	aaa	bbb
 DROP TABLE t1;
+#
+# MDEV-35937 sym_node->table != NULL in pars_retrieve_table_def
+#
+CREATE TABLE t1 (a TEXT ,FULLTEXT (a)) ENGINE=INNODB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SET @save_ft = @@GLOBAL.innodb_ft_aux_table;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+SELECT * FROM information_schema.innodb_ft_config;
+KEY	VALUE
+SELECT * FROM information_schema.innodb_ft_index_cache;
+WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+SELECT * FROM information_schema.innodb_ft_index_table;
+WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+DROP TABLE t1;
+SET GLOBAL innodb_ft_aux_table=@save_ft;
