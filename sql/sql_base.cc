@@ -3800,6 +3800,45 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
 
     thd->pop_internal_handler();
     safe_to_ignore_table= no_such_table_handler.safely_trapped_errors();
+
+#ifdef WITH_WSREP
+    /*
+      Append a table level shared key for the referenced/foreign table for:
+        - statement that updates existing rows (UPDATE, multi-update)
+        - statement that deletes existing rows (DELETE, DELETE_MULTI)
+      This is done to avoid potential MDL conflicts with concurrent DDLs.
+
+      The table level shared key are not appended if the wsrep client state is
+      not s_exec, as in the case during statement prepare it perform semantic
+      analysis of the parsed tree and send a response packet to the client.
+      While doing sematic analysis it opens all required tables to check access
+      rights. These operations to test prepared statements does not require to
+      append table level shared key, they will be added later.
+    */
+    if (tables->prelocking_placeholder == TABLE_LIST::PRELOCK_FK &&
+        WSREP(thd) && !thd->wsrep_applier && !error &&
+        wsrep_is_active(thd) &&
+        thd->wsrep_cs().state() == wsrep::client_state::s_exec &&
+        (sql_command_flags[lex->sql_command] &
+         (CF_UPDATES_DATA | CF_DELETES_DATA)))
+    {
+      const int rcode = wsrep_append_table_keys(thd, tables,
+          NULL, WSREP_SERVICE_KEY_SHARED);
+      if (rcode)
+      {
+        WSREP_ERROR("Appending table key failed: %s, %d",
+                    wsrep_thd_query(thd), rcode);
+        error = true;
+      }
+
+      DBUG_EXECUTE_IF(
+        "wsrep_print_foreign_keys_table",
+        sql_print_information("Foreign key referenced table found: %s.%s",
+                              tables->db.str,
+                              tables->table_name.str);
+      );
+    }
+#endif
   }
   else if (tables->parent_l && (thd->open_options & HA_OPEN_FOR_REPAIR))
   {
