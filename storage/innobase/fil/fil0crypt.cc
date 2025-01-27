@@ -80,6 +80,10 @@ static uint n_fil_crypt_iops_allocated = 0;
 
 #define DEBUG_KEYROTATION_THROTTLING 0
 
+#ifdef UNIV_PFS_THREAD
+mysql_pfs_key_t page_encrypt_thread_key;
+#endif /* UNIV_PFS_THREAD */
+
 /** Statistics variables */
 static fil_crypt_stat_t crypt_stat;
 static ib_mutex_t crypt_stat_mutex;
@@ -2145,6 +2149,10 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(fil_crypt_thread)(void*)
 {
+	my_thread_init();
+#ifdef UNIV_PFS_THREAD
+	pfs_register_thread(page_encrypt_thread_key);
+#endif /* UNIV_PFS_THREAD */
 	mutex_enter(&fil_crypt_threads_mutex);
 	uint thread_no = srv_n_fil_crypt_threads_started;
 	srv_n_fil_crypt_threads_started++;
@@ -2242,6 +2250,7 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 
+	my_thread_end();
 	return os_thread_exit();
 }
 
