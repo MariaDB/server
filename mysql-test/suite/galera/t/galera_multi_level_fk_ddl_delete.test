@@ -1,0 +1,356 @@
+#
+# BF-BF conflict on MDL locks between DDL and delete query
+# when multi-level foreign key like t3 -> t2 -> t1
+# are present.
+#
+# If bug is present, expect the wait condition
+# to timeout and when the DELETE applies, it
+# will be granted a MDL lock of type SHARED_READ
+# for table t1. When resumed, the DROP TABLE will
+# also try to MDL lock t1, causing a BF-BF conflict
+# on that MDL lock.
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # 1. BF-BF conflict on MDL locks between: DROP TABLE t6 and DELETE on t1
+--echo #    with foreign key references as below:
+--echo #    - t1<-t2<-t3<-t4
+--echo #    - t3<-t5
+--echo #    - t2<-t6
+--echo #
+
+
+#
+# Setup
+#
+--connection node_2
+SET GLOBAL wsrep_slave_threads=2;
+
+CREATE TABLE t1 (
+  id INTEGER PRIMARY KEY,
+  f2 INTEGER
+);
+
+CREATE TABLE t2 (
+  id INT PRIMARY KEY,
+  t1_id INT NOT NULL,
+  t5_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t1_id(t1_id),
+  CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE,
+  KEY key_t5_id(t5_id)
+);
+
+CREATE TABLE t3 (
+  id INT PRIMARY KEY,
+  t2_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t2_id(t2_id),
+  CONSTRAINT key_t2_id FOREIGN KEY (t2_id) REFERENCES t2 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE t4 (
+  id INT PRIMARY KEY,
+  t3_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t3_id(t3_id),
+  CONSTRAINT key_t3_id FOREIGN KEY (t3_id) REFERENCES t3 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE t5 (
+  id INT PRIMARY KEY,
+  t3_id_1 INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t3_id_1(t3_id_1),
+  CONSTRAINT key_t3_id_1 FOREIGN KEY (t3_id_1) REFERENCES t3 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE t6 (
+  id INT PRIMARY KEY,
+  t2_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t2_id_1(t2_id),
+  CONSTRAINT key_t2_id_1 FOREIGN KEY (t2_id) REFERENCES t2 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+
+INSERT INTO t2 VALUES (1,1,1,1234);
+INSERT INTO t2 VALUES (2,2,2,1234);
+
+INSERT INTO t3 VALUES (1,1,1234);
+INSERT INTO t3 VALUES (2,2,1234);
+
+INSERT INTO t4 VALUES (1,1,1234);
+INSERT INTO t4 VALUES (2,2,1234);
+
+INSERT INTO t5 VALUES (1,1,1234);
+INSERT INTO t5 VALUES (2,2,1234);
+
+ALTER TABLE t2 ADD CONSTRAINT key_t5_id FOREIGN KEY (t5_id)
+REFERENCES t5 (id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--let $fk_parent_query = DROP TABLE t6
+--let $fk_child_query = DELETE FROM t1 WHERE id = 3
+--let $fk_mdl_lock_num = 5
+--source galera_multi_level_foreign_key.inc
+
+
+#
+# Verify Foreign key for referenced table added.
+#
+--connection node_1
+--let assert_text= Foreign key referenced table found: 4 tables
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 4
+--let assert_select= Foreign key referenced table found:
+--source include/assert_grep.inc
+
+--let assert_text= Foreign key referenced table found: test.t2
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 1
+--let assert_select= Foreign key referenced table found: test.t2
+--source include/assert_grep.inc
+
+--let assert_text= Foreign key referenced table found: test.t3
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 1
+--let assert_select= Foreign key referenced table found: test.t3
+--source include/assert_grep.inc
+
+--let assert_text= Foreign key referenced table found: test.t4
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 1
+--let assert_select= Foreign key referenced table found: test.t4
+--source include/assert_grep.inc
+
+--let assert_text= Foreign key referenced table found: test.t5
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 1
+--let assert_select= Foreign key referenced table found: test.t5
+--source include/assert_grep.inc
+
+
+#
+# Verify delete and drop table has succeded.
+#
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM test.t1
+--source include/wait_condition.inc
+
+select * from t1;
+select * from t2;
+select * from t3;
+select * from t4;
+select * from t5;
+--error ER_NO_SUCH_TABLE
+select * from t6;
+
+--connection node_1
+select * from t1;
+select * from t2;
+select * from t3;
+select * from t4;
+select * from t5;
+--error ER_NO_SUCH_TABLE
+select * from t6;
+
+
+#
+# Cleanup
+#
+ALTER TABLE t2 DROP FOREIGN KEY key_t5_id;
+DROP TABLE t5, t4, t3, t2, t1;
+
+
+--echo #
+--echo # 2. BF-BF conflict on MDL locks between:
+--echo #    ALTER TABLE t3 (whose parent table are t3 -> t2 -> t1), and
+--echo #    DELETE on t1 with t2 referencing t1, and t3 referencing t2.
+--echo #
+
+#
+# Setup
+#
+--connection node_2
+SET GLOBAL wsrep_slave_threads=2;
+
+CREATE TABLE t1 (
+  id INTEGER PRIMARY KEY,
+  f2 INTEGER
+);
+
+CREATE TABLE t2 (
+  id INT PRIMARY KEY,
+  t1_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t1_id(t1_id),
+  CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE t3 (
+  id INT PRIMARY KEY,
+  t2_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t2_id(t2_id)
+);
+
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+
+INSERT INTO t2 VALUES (1,1,1234);
+INSERT INTO t2 VALUES (2,2,1234);
+
+
+#
+# ALTER TABLE t3 and wait for it to reach node_2
+#
+--let $fk_parent_query = ALTER TABLE t3 ADD CONSTRAINT key_t2_id FOREIGN KEY (t2_id) REFERENCES t2 (id) ON UPDATE CASCADE ON DELETE CASCADE
+#
+# Issue a DELETE to table that references t1
+#
+--let $fk_child_query = DELETE FROM t1 WHERE id = 3
+--let $fk_mdl_lock_num = 3
+--source galera_multi_level_foreign_key.inc
+
+
+#
+# Verify Foreign key for referenced table added.
+#
+--connection node_1
+--let assert_text= Foreign key referenced table found: 2 tables
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 6
+--let assert_select= Foreign key referenced table found:
+--source include/assert_grep.inc
+
+--let assert_text= Foreign key referenced table found: test.t2
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 2
+--let assert_select= Foreign key referenced table found: test.t2
+--source include/assert_grep.inc
+
+--let assert_text= Foreign key referenced table found: test.t3
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 2
+--let assert_select= Foreign key referenced table found: test.t3
+--source include/assert_grep.inc
+
+
+#
+# Verify delete and alter table has succeded.
+#
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM test.t1
+--source include/wait_condition.inc
+
+select * from t1;
+select * from t2;
+select * from t3;
+
+--connection node_1
+select * from t1;
+select * from t2;
+select * from t3;
+
+
+#
+# Cleanup
+#
+DROP TABLE t3, t2, t1;
+
+
+--echo #
+--echo # 3. BF-BF conflict on MDL locks between:
+--echo #    CREATE TABLE t3 (whose parent table are t3 -> t2 -> t1), and
+--echo #    DELETE on t1 with t2 referencing t1, and t3 referencing t2.
+--echo #
+
+#
+# Setup
+#
+--connection node_2
+SET GLOBAL wsrep_slave_threads=2;
+
+CREATE TABLE t1 (
+  id INTEGER PRIMARY KEY,
+  f2 INTEGER
+);
+
+CREATE TABLE t2 (
+  id INT PRIMARY KEY,
+  t1_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t1_id(t1_id),
+  CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+
+INSERT INTO t2 VALUES (1,1,1234);
+INSERT INTO t2 VALUES (2,2,1234);
+
+
+--let $fk_parent_query = CREATE TABLE t3 (id INT PRIMARY KEY, t2_id INT NOT NULL, f2 INTEGER NOT NULL, KEY key_t2_id(t2_id), CONSTRAINT key_t2_id FOREIGN KEY (t2_id) REFERENCES t2 (id) ON UPDATE CASCADE ON DELETE CASCADE)
+--let $fk_child_query = DELETE FROM t1 WHERE id = 3
+--let $fk_mdl_lock_num = 3
+--source galera_multi_level_foreign_key.inc
+
+
+#
+# Verify Foreign key for referenced table added.
+#
+--connection node_1
+--let assert_text= Foreign key referenced table found: 2 tables
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 8
+--let assert_select= Foreign key referenced table found:
+--let $assert_only_after = CURRENT_TEST:
+--source include/assert_grep.inc
+
+--let assert_text= Foreign key referenced table found: test.t2
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 3
+--let assert_select= Foreign key referenced table found: test.t2
+--source include/assert_grep.inc
+
+--let assert_text= Foreign key referenced table found: test.t3
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
+--let assert_count= 3
+--let assert_select= Foreign key referenced table found: test.t3
+--source include/assert_grep.inc
+
+
+#
+# Verify delete and create table has succeded.
+#
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM test.t1
+--source include/wait_condition.inc
+
+select * from t1;
+select * from t2;
+select * from t3;
+
+--connection node_1
+select * from t1;
+select * from t2;
+select * from t3;
+
+
+#
+# Cleanup
+#
+DROP TABLE t3, t2, t1;

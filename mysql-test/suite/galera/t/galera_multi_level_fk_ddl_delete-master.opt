@@ -1,0 +1,1 @@
+--log-error=$MYSQLTEST_VARDIR/tmp/galera_multi_level_fk_ddl_delete.err
