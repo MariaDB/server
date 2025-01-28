@@ -24,3 +24,17 @@ create table products(
 insert into categories values (1, 'drinks', 'drinks');
 update categories set cat_description=2 where cat_id=1;
 drop table products, categories;
+
+
+--echo #
+--echo # MDEV-35081 - Assertion `!n_mysql_tables_in_use' failed after error
+--echo #              upon binary logging of DML involving vector table
+--echo #
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+CREATE TABLE t (pk INT PRIMARY KEY, v VECTOR(1) NOT NULL, VECTOR(v)) ENGINE=InnoDB;
+
+--error ER_BINLOG_STMT_MODE_AND_ROW_ENGINE
+UPDATE t SET pk = 2 WHERE pk = 1;
+
+# Cleanup
+DROP TABLE t;
