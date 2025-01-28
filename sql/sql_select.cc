@@ -70,6 +70,8 @@
 #include "derived_handler.h"
 #include "create_tmp_table.h"
 
+#include <unordered_map>
+
 /*
   A key part number that means we're using a fulltext scan.
 
@@ -282,10 +284,13 @@ static bool change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 				     List<Item> &new_list2,
 				     uint elements, List<Item> &items);
 // Create list for using with tempory table
-static bool change_refs_to_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
-				      List<Item> &new_list1,
-				      List<Item> &new_list2,
-				      uint elements, List<Item> &items);
+class OrderByColumnFixer;
+static bool change_refs_to_tmp_fields(THD *thd,
+                                      Ref_ptr_array ref_pointer_array,
+                                      List<Item> &new_list1,
+                                      List<Item> &new_list2, uint elements,
+                                      List<Item> &items,
+                                      OrderByColumnFixer &obcf);
 static void init_tmptable_sum_functions(Item_sum **func);
 static void update_tmptable_sum_func(Item_sum **func,TABLE *tmp_table);
 static void copy_sum_funcs(Item_sum **func_ptr, Item_sum **end);
@@ -3588,6 +3593,101 @@ bool JOIN::add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *table_fields)
 }
 
 
+/*
+  ORDER BY structures have an item member which points somewhere into the
+  JOIN::ref_ptrs array.  In fact, it is a pointer to a pointer to an item
+  and the entries in the JOIN::ref_ptrs structure can shift around during
+  make_aggr_tables_info.  This will happen when a temporary table is needed
+  and existing item references must point into the new temporary table.  In
+  that case, the entries in the ref_ptrs array are replaced with new Item
+  instances which point to columns from the temporary table, but are done so
+  based on the boundary (or border) between the two lists that were glued
+  together to make all_fields (see the setup_fields function).  Any object
+  holding a pointer to somewhere in the ref_ptrs array will now be pointing
+  at an item referencing the temporary table.  This is the desired effect,
+  but when multiple ORDER BY fields are specified in the query and the ref_ptrs
+  updated, the ORDER BY structures may not be pointing at the correct new
+  temporary item field because of the way that ref_ptrs is built during
+  change_refs_to_tmp_fields.
+
+  This class works by remembering what the old ORDER BY item pointer values
+  were before the new temporary table was created.  When new temporary field
+  items are created from existing items, this class remembers them as a mapping
+  from existing items to the new temporary items.  Then, after the new
+  temporary table is created and the new ref_ptrs array installed, this class
+  fixes the ORDER BY item fields to point to the correct new temporary item
+  fields created for the new temporary table.
+*/
+class OrderByColumnFixer
+{
+  // Unordered maps are constant time for insertion and lookups on average.
+  using ORDER_BY_to_OrigItem= std::unordered_map<ORDER *, Item *>;
+  ORDER_BY_to_OrigItem order_to_orig;
+
+  using OrigItem_to_TmpTableItem= std::unordered_map<Item*, Item*>;
+  OrigItem_to_TmpTableItem orig_to_tmp;
+
+  using Item_to_RefAddr= std::unordered_map<Item*, Item **>;
+  Item_to_RefAddr items_to_ref_addrs;
+
+public:
+  OrderByColumnFixer(ORDER *order_by_list)
+  {
+    /* Remember the current ORDER BY item pointer values as a mapping
+       from ORDER BY to the item pointer.  Later, we'll use the item
+       pointer to look up the new temporary item created to replace it.
+    */
+    for (ORDER *next= order_by_list; next; next= next->next)
+      order_to_orig.insert(std::make_pair(next, *next->item));
+  }
+  ~OrderByColumnFixer() = default;
+
+  void map_orig_to_tmp(Item *orig, Item *tmp)
+  {
+    /* Remember which new temporary item field pointers correspond to
+       their original counterparts.  We'll use this to find the new
+       temporary items and their respective positions in JOIN::ref_ptrs.
+    */
+    if (orig && tmp)
+      orig_to_tmp.insert(std::make_pair(orig, tmp));
+  }
+
+  void repair_order_by_columns(Ref_ptr_array refs)
+  {
+    // This method runs in linear time on average.
+    /* refs[i] are (potentially) new temporary item fields for the new
+       temp table and &refs[i] are the addresses to those pointers which
+       we need to update ORDER BY's item pointer-to-a-pointer.
+    */
+    for (uint i= 0; i < refs.size(); ++i)
+      items_to_ref_addrs.insert(std::make_pair(refs[i], &refs[i]));
+
+    /* For each ORDER BY, look at its old prior item that we remembered
+       when the constructor was called, and look up the new temporary table
+       item for it.  Then, using that, look up the new ref_ptr offset and
+       fix up the ORDER BY field accordingly.
+     */
+    for (ORDER_BY_to_OrigItem::iterator iter= order_to_orig.begin();
+         iter != order_to_orig.end();
+         ++iter)
+    {
+      ORDER *order_by= iter->first;
+      Item *orig_item= iter->second;
+
+      OrigItem_to_TmpTableItem::iterator ott= orig_to_tmp.find(orig_item);
+      if (ott == orig_to_tmp.end())
+        continue;
+      Item_to_RefAddr::iterator itra= items_to_ref_addrs.find(ott->second);
+      if (itra == items_to_ref_addrs.end())
+        continue;
+
+      // Make ORDER BY point to the correct entry in the ref_ptrs array.
+      order_by->item= itra->second;
+    }
+  }
+};
+
+
 /**
   Set info for aggregation tables
 
@@ -3825,6 +3925,7 @@ bool JOIN::make_aggr_tables_info()
       optimize_distinct();
 
    /* Change sum_fields reference to calculated fields in tmp_table */
+    OrderByColumnFixer obcf(order);
     items1= ref_ptr_array_slice(2);
     if ((sort_and_group || curr_tab->table->group ||
          tmp_table_param.precomputed_group_by) && 
@@ -3837,15 +3938,16 @@ bool JOIN::make_aggr_tables_info()
     }
     else
     {
-      if (change_refs_to_tmp_fields(thd, items1,
-                                    tmp_fields_list1, tmp_all_fields1,
-                                    fields_list.elements, all_fields))
+      if (change_refs_to_tmp_fields(thd, items1, tmp_fields_list1,
+                                    tmp_all_fields1, fields_list.elements,
+                                    all_fields, obcf))
         DBUG_RETURN(true);
     }
     curr_all_fields= &tmp_all_fields1;
     curr_fields_list= &tmp_fields_list1;
     // Need to set them now for correct group_fields setup, reset at the end.
     set_items_ref_array(items1);
+    obcf.repair_order_by_columns(ref_ptrs);
     curr_tab->ref_array= &items1;
     curr_tab->all_fields= &tmp_all_fields1;
     curr_tab->fields= &tmp_fields_list1;
@@ -28225,6 +28327,8 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   @param res_all_fields        new list of all items
   @param elements              number of elements in select item list
   @param all_fields            all fields list
+  @param obcf                  object that maps original item fields to their
+                               temporary table item field counterparts
 
   @retval
     0	ok
@@ -28232,11 +28336,12 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     1	error
 */
 
-static bool
-change_refs_to_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
-			  List<Item> &res_selected_fields,
-			  List<Item> &res_all_fields, uint elements,
-			  List<Item> &all_fields)
+static bool change_refs_to_tmp_fields(THD *thd,
+                                      Ref_ptr_array ref_pointer_array,
+                                      List<Item> &res_selected_fields,
+                                      List<Item> &res_all_fields,
+                                      uint elements, List<Item> &all_fields,
+                                      OrderByColumnFixer &obcf)
 {
   List_iterator_fast<Item> it(all_fields);
   Item *item, *new_item;
@@ -28254,6 +28359,7 @@ change_refs_to_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
         return 1;
     }
 
+    obcf.map_orig_to_tmp(item, new_item);
     if (res_all_fields.push_back(new_item, thd->mem_root))
       return 1;
     ref_pointer_array[((i < border)? all_fields.elements-i-1 : i-border)]=
