@@ -15,3 +15,4 @@ galera_wan : MDEV-35940 Unallowed state transition: donor -> synced in galera_wa
 galera_vote_rejoin_ddl : MDEV-35940 Unallowed state transition: donor -> synced in galera_wan
 galera_bf_abort_lock_table : MDEV-35941 galera_bf_abort_lock_table fails with wait for metadata lock
 mysql-wsrep#198 : MDEV-35941 galera_bf_abort_lock_table fails with wait for metadata lock
+MW-329 : MDEV-35951 Complete freeze during MW-329 test
