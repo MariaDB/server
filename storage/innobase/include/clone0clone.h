@@ -977,12 +977,13 @@ class Clone_Handle {
                    uint32_t size, Ha_clone_cbk *callback);
 
   /** Read compressed length from the page
-    @param[in]	 buffer		 data buffer
-    @param[in]   len		 buffer length
-    @param[in]   block_size      block size
-    @param[out]  compressed_len  compressed length
-    @return true for compressed page false otherwise. */
-  bool read_compressed_len(unsigned char *buffer, uint32_t len,
+  @param[in]   buffer          data buffer
+  @param[in]   len             buffer length
+  @param[in]   crc32           if full_crc32 is used
+  @param[in]   block_size      block size
+  @param[out]  compressed_len  compressed length
+  @return true for compressed page false otherwise. */
+  bool read_compressed_len(unsigned char *buffer, uint32_t len, bool crc32,
                            uint32_t block_size, uint32_t &compressed_len);
 
   /** Write pages to file and punch holes

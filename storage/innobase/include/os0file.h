@@ -1118,6 +1118,11 @@ void os_aio_refresh_stats() noexcept;
 no pending io operations. */
 bool os_aio_all_slots_free() noexcept;
 
+/** Get available free space on disk
+@param[in]  path       pathname of a directory or file in disk
+@param[out] free_space free space available in bytes
+@return DB_SUCCESS if all OK */
+dberr_t os_get_free_space(const char *path, uint64_t &free_space);
 
 /** This function returns information about the specified file
 @param[in]	path		pathname of the file

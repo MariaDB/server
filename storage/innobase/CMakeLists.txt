@@ -153,7 +153,7 @@ SET(INNOBASE_SOURCES
 	# clone/clone0api.cc
 	clone/clone0clone.cc
 	clone/clone0copy.cc
-	# clone/clone0apply.cc
+	clone/clone0apply.cc
 	clone/clone0desc.cc
 	clone/clone0snapshot.cc
 	data/data0data.cc

@@ -44,6 +44,10 @@ Created 10/21/1995 Heikki Tuuri
 # include <sys/sendfile.h>
 #endif
 
+#ifndef _WIN32
+# include <sys/statvfs.h>
+#endif /* !_WIN32 */
+
 #include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -1482,6 +1486,30 @@ os_file_size_t os_file_get_size(const char *filename) noexcept
 	return(file_size);
 }
 
+/** Get available free space on disk
+@param[in]  path       pathname of a directory or file in disk
+@param[out] free_space free space available in bytes
+@return DB_SUCCESS if all OK */
+static dberr_t os_get_free_space_posix(const char *path, uint64_t &free_space)
+{
+  struct statvfs stat;
+  auto ret = statvfs(path, &stat);
+
+  if (ret && (errno == ENOENT || errno == ENOTDIR))
+    /* file or directory  does not exist */
+    return DB_NOT_FOUND;
+  else if (ret)
+  {
+    /* file exists, but stat call failed */
+    os_file_handle_error_no_exit(path, "statvfs", false);
+    return DB_FAIL;
+  }
+  free_space= stat.f_bsize;
+  free_space*= stat.f_bavail;
+
+  return DB_SUCCESS;
+}
+
 /** This function returns information about the specified file
 @param[in]	path		pathname of the file
 @param[out]	stat_info	information of a file in a directory
@@ -2465,6 +2493,51 @@ os_file_size_t os_file_get_size(const char *filename) noexcept
 	return(file_size);
 }
 
+/** Get available free space on disk
+@param[in]      path            pathname of a directory or file in disk
+@param[out]     block_size      Block size to use for IO in bytes
+@param[out]     free_space      free space available in bytes
+@return DB_SUCCESS if all OK */
+static dberr_t os_get_free_space_win32(const char *path, uint32_t &block_size,
+                                       uint64_t &free_space)
+{
+  char volname[MAX_PATH];
+  BOOL result= GetVolumePathName(path, volname, MAX_PATH);
+
+  if (!result)
+  {
+    ib::error(ER_IB_MSG_806)
+        << "os_file_get_status_win32: "
+        << "Failed to get the volume path name for: " << path
+        << "- OS error number " << GetLastError();
+    return DB_FAIL;
+  }
+
+  DWORD sectorsPerCluster;
+  DWORD bytesPerSector;
+  DWORD numberOfFreeClusters;
+  DWORD totalNumberOfClusters;
+
+  result=
+      GetDiskFreeSpace((LPCSTR)volname, &sectorsPerCluster, &bytesPerSector,
+                       &numberOfFreeClusters, &totalNumberOfClusters);
+
+  if (!result)
+  {
+    ib::error(ER_IB_MSG_807) << "GetDiskFreeSpace(" << volname << ",...) "
+                             << "failed "
+                             << "- OS error number " << GetLastError();
+    return DB_FAIL;
+  }
+
+  block_size= bytesPerSector * sectorsPerCluster;
+
+  free_space= static_cast<uint64_t>(block_size);
+  free_space*= numberOfFreeClusters;
+
+  return DB_SUCCESS;
+}
+
 /** This function returns information about the specified file
 @param[in]	path		pathname of the file
 @param[out]	stat_info	information of a file in a directory
@@ -3054,6 +3127,19 @@ static bool os_is_sparse_file_supported(os_file_t fh) noexcept
 	will do the magic. */
 	return DB_SUCCESS == os_file_punch_hole_posix(fh, 0, srv_page_size);
 #endif /* _WIN32 */
+}
+
+dberr_t os_get_free_space(const char *path, uint64_t &free_space)
+{
+#ifdef _WIN32
+  uint32_t block_size;
+  auto err= os_get_free_space_win32(path, block_size, free_space);
+
+#else /* !_WIN32 */
+  auto err= os_get_free_space_posix(path, free_space);
+
+#endif /* !_WIN32 */
+  return err;
 }
 
 /** Truncate a file to a specified size in bytes.

@@ -1938,7 +1938,7 @@ class Fixup_data {
       ut_d(ut_error);
       return false;
     }
-    bool is_undo = fsp_is_undo_tablespace(space_id);
+    bool is_undo= srv_is_undo_tablespace(space_id);
 
     /* Add skipped undo tablespace files to list of old files to remove. */
     if (is_undo && !allow_concurrent()) {
