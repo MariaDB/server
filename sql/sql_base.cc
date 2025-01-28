@@ -9830,7 +9830,6 @@ int TABLE::hlindex_lock(uint nr)
   DBUG_ASSERT(hlindex);
   if (hlindex->in_use == in_use)
     return 0;
-  hlindex->in_use= in_use;      // mark in use for this query
   hlindex->use_all_columns();
 
   THR_LOCK_DATA *lock_data;
@@ -9839,6 +9838,8 @@ int TABLE::hlindex_lock(uint nr)
 
   int res= hlindex->file->ha_external_lock(in_use,
              reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
+  if (res == 0)
+    hlindex->in_use= in_use;      // mark in use for this query
   if (hlindex->file->lock_count() > 0)
   {
     /*
