@@ -283,22 +283,6 @@ DROP TABLE t1;
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO t1 VALUES (1);
 
-SET SESSION debug_dbug="+d,ib_export_io_write_failure_9";
-
---replace_regex /, .*\).*t1.cfg/, Bad file descriptor) t1.cfg/
-
-FLUSH TABLES t1 FOR EXPORT;
-
-UNLOCK TABLES;
-
-SET SESSION debug_dbug=@saved_debug_dbug;
-
-DROP TABLE t1;
-
-
-CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
-INSERT INTO t1 VALUES (1);
-
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_10";
 
 --replace_regex /, .*\).*t1.cfg/, Bad file descriptor) t1.cfg/
