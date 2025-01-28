@@ -59,6 +59,11 @@ class Field_varstring;
 class Field_blob;
 class Column_definition;
 class select_result;
+class handler_binlog_reader;
+struct rpl_gtid;
+struct slave_connection_state;
+struct rpl_binlog_state_base;
+struct handler_binlog_event_group_info;
 
 // the following is for checking tables
 
@@ -1225,6 +1230,17 @@ typedef struct st_ha_create_table_option {
   struct st_mysql_sys_var *var;
 } ha_create_table_option;
 
+
+/* Struct used to return binlog file list for SHOW BINARY LOGS from engine. */
+struct binlog_file_entry
+{
+  binlog_file_entry *next;
+  LEX_CSTRING name;
+  /* The size is filled in by server, engine need not return it. */
+  my_off_t size;
+};
+
+
 class handler;
 class group_by_handler;
 class derived_handler;
@@ -1527,6 +1543,35 @@ struct handlerton
   /* Called at startup to update default engine costs */
   void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
   void *optimizer_costs;                        /* Costs are stored here */
+
+  /* Optional implementation of binlog in the engine. */
+  bool (*binlog_init)(size_t binlog_size, const char *directory);
+  /* Binlog an event group that doesn't go through commit_ordered. */
+  bool (*binlog_write_direct)(IO_CACHE *cache,
+                              handler_binlog_event_group_info *binlog_info,
+                              const rpl_gtid *gtid);
+  /*
+    Binlog parts of large transactions out-of-band, in different chunks in the
+    binlog as the transaction executes. This limits the amount of data that
+    must be binlogged transactionally during COMMIT. The engine_data points to
+    a pointer location that the engine can set to maintain its own context
+    for the out-of-band data.
+   */
+  bool (*binlog_oob_data)(THD *thd, const unsigned char *data, size_t data_len,
+                          void **engine_data);
+  /* Call to allow engine to release the engine_data from binlog_oob_data(). */
+  void (*binlog_oob_free)(THD *thd, void *engine_data);
+  /* Obtain an object to allow reading from the binlog. */
+  handler_binlog_reader * (*get_binlog_reader)();
+  /* Obtain list of binlog files (SHOw BINARY LOGS). */
+  binlog_file_entry * (*get_binlog_file_list)(MEM_ROOT *mem_root);
+  /*
+    End the current binlog file, and create and switch to a new one.
+    Used to implement FLUSH BINARY LOGS.
+  */
+  bool (*binlog_flush)();
+  /* Engine implementation of RESET MASTER. */
+  bool (*reset_binlogs)();
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
@@ -5797,4 +5842,43 @@ inline void Cost_estimate::reset(handler *file)
 
 int get_select_field_pos(Alter_info *alter_info, int select_field_count,
                          bool versioned);
+
+/* Struct with info about an event group to be binlogged by a storage engine. */
+struct handler_binlog_event_group_info {
+  /* Opaque pointer for the engine's use. */
+  void *engine_ptr;
+  /* End of data that has already been binlogged out-of-band. */
+  my_off_t out_of_band_offset;
+  /*
+    Offset of the GTID event, which comes first in the event group, but is put
+    at the end of the IO_CACHE containing the data to be binlogged.
+  */
+  my_off_t gtid_offset;
+};
+
+
+/*
+  Class for reading a binlog implemented in an engine.
+*/
+class handler_binlog_reader {
+private:
+  /* Position and length of any remaining data in buf[]. */
+  uint32_t buf_data_pos;
+  uint32_t buf_data_remain;
+  /* Buffer used when reading data out via read_binlog_data(). */
+  uchar buf[32768];
+
+public:
+  handler_binlog_reader()
+    : buf_data_pos(0), buf_data_remain(0)
+  { }
+  virtual ~handler_binlog_reader() { };
+  virtual int read_binlog_data(uchar *buf, uint32_t len) = 0;
+  virtual bool data_available()= 0;
+  virtual int init_gtid_pos(slave_connection_state *pos,
+                            rpl_binlog_state_base *state) = 0;
+
+  int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
+};
+
 #endif /* HANDLER_INCLUDED */

@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c TEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0, 'Start');
+*** Generating 25 large transactions in 5 interleaved connections
+connection master;
+INSERT INTO t1 VALUES (0, 1, 'End');
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+2552	33150	128776	5000383
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+2552	33150	128776	5000383
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

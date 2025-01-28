@@ -47,6 +47,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0xa.h"
 #include "ut0pool.h"
 #include "ut0vec.h"
+#include "innodb_binlog.h"
 #include "log.h"
 
 #include <set>
@@ -105,6 +106,8 @@ trx_init(
 	trx->op_info = "";
 
 	trx->active_commit_ordered = false;
+
+	trx->active_prepare = false;
 
 	trx->isolation_level = TRX_ISO_REPEATABLE_READ;
 
@@ -417,6 +420,7 @@ void trx_t::free()
                                    bulk_insert */);
   MEM_NOACCESS(&is_registered, sizeof is_registered);
   MEM_NOACCESS(&active_commit_ordered, sizeof active_commit_ordered);
+  MEM_NOACCESS(&active_prepare, sizeof active_prepare);
   MEM_NOACCESS(&flush_log_later, sizeof flush_log_later);
   MEM_NOACCESS(&duplicates, sizeof duplicates);
   MEM_NOACCESS(&dict_operation, sizeof dict_operation);
@@ -1165,6 +1169,10 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
     }
     else
       trx_sys.assign_new_trx_no(this);
+
+    /* Include binlog data in the commit record, if any. */
+    innodb_binlog_trx(this, mtr);
+
     UT_LIST_REMOVE(rseg->undo_list, undo);
     /* Change the undo log segment state from TRX_UNDO_ACTIVE, to
     define the transaction as committed in the file based domain,
@@ -1749,7 +1757,7 @@ void trx_commit_complete_for_mysql(trx_t *trx)
   case 0:
     return;
   case 1:
-    if (trx->active_commit_ordered)
+    if (trx->active_commit_ordered && trx->active_prepare)
       return;
   }
   trx_flush_log_if_needed(lsn, trx);

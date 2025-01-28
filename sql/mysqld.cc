@@ -364,6 +364,11 @@ char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
+static bool opt_bin_log_nonempty, opt_bin_log_path;
+char *opt_binlog_storage_engine= const_cast<char *>("");
+static plugin_ref opt_binlog_engine_plugin;
+char *opt_binlog_directory;
+handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
@@ -1980,6 +1985,8 @@ static void clean_up(bool print_message)
   injector::free_instance();
   mysql_bin_log.cleanup();
   Gtid_index_writer::gtid_index_cleanup();
+  if (opt_binlog_engine_plugin)
+    plugin_unlock(0, opt_binlog_engine_plugin);
 
   my_tz_free();
   my_dboptions_cache_free();
@@ -5063,6 +5070,7 @@ static int init_server_components()
 
     char buf[FN_REFLEN];
     const char *ln;
+    /* ToDo: Here we also need to add in opt_binlog_directory, if given. */
     ln= mysql_bin_log.generate_name(opt_bin_logname, "-bin", 1, buf);
     if (!opt_bin_logname[0] && !opt_binlog_index_name)
     {
@@ -5461,6 +5469,48 @@ static int init_server_components()
   if (init_gtid_pos_auto_engines())
     unireg_abort(1);
 
+  if (opt_binlog_directory && opt_binlog_directory[0] &&
+      opt_bin_log_path)
+  {
+    sql_print_error("Cannot specify a directory path for the binlog in "
+                    "--log-bin when --binlog-directory-path is also used");
+    unireg_abort(1);
+  }
+
+  if (opt_binlog_storage_engine && *opt_binlog_storage_engine && !opt_bootstrap)
+  {
+    LEX_CSTRING name= { opt_binlog_storage_engine, strlen(opt_binlog_storage_engine) };
+    opt_binlog_engine_plugin= ha_resolve_by_name(0, &name, false);
+    if (!opt_binlog_engine_plugin ||
+        !ha_storage_engine_is_enabled(opt_binlog_engine_hton=
+                                      plugin_hton(opt_binlog_engine_plugin)))
+    {
+      if (!opt_binlog_engine_plugin)
+        sql_print_error("Unknown/unsupported storage engine: %s",
+                        opt_binlog_storage_engine);
+      else
+        sql_print_error("Engine %s is not available for "
+                        "--binlog-storage-engine",
+                        opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+    if (!opt_binlog_engine_hton->binlog_write_direct ||
+        !opt_binlog_engine_hton->get_binlog_reader)
+    {
+      sql_print_error("Engine %s does not support --binlog-storage-engine",
+                      opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+
+    if (opt_bin_log_nonempty)
+    {
+      sql_print_error("Binlog name can not be set with --log-bin when "
+                      "--binlog-storage-engine is used. Use --binlog-directory "
+                      "to specify a separate directory for binlogs");
+      unireg_abort(1);
+    }
+  }
+
 #ifdef USE_ARIA_FOR_TMP_TABLES
   if (!ha_storage_engine_is_enabled(maria_hton) && !opt_bootstrap)
   {
@@ -5493,6 +5543,13 @@ static int init_server_components()
   start_handle_manager();
 #endif
 
+  /*
+    When binlog is stored in InnoDB, checksums are done on the page level, so
+    set the default for per-event checksums to OFF.
+  */
+  if (opt_binlog_engine_hton)
+    binlog_checksum_options= 0;
+
   tc_log= get_tc_log_implementation();
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
@@ -5506,14 +5563,26 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
-    int error;
     mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
-    mysql_mutex_lock(log_lock);
-    error= mysql_bin_log.open(opt_bin_logname, 0, 0,
-                              WRITE_CACHE, max_binlog_size, 0, TRUE);
-    mysql_mutex_unlock(log_lock);
-    if (unlikely(error))
-      unireg_abort(1);
+    bool error;
+    if (opt_binlog_engine_hton)
+    {
+      mysql_mutex_lock(log_lock);
+      error= (*opt_binlog_engine_hton->binlog_init)((size_t)max_binlog_size,
+                                                    opt_binlog_directory);
+      mysql_mutex_unlock(log_lock);
+      if (unlikely(error))
+        unireg_abort(1);
+    }
+    if (true) /* ToDo: `else` branch (don't open legacy binlog if using engine implementation). */
+    {
+      mysql_mutex_lock(log_lock);
+      error= mysql_bin_log.open(opt_bin_logname, 0, 0,
+                                WRITE_CACHE, max_binlog_size, 0, TRUE);
+      mysql_mutex_unlock(log_lock);
+      if (unlikely(error))
+        unireg_abort(1);
+    }
   }
 
 #ifdef HAVE_REPLICATION
@@ -6517,6 +6586,13 @@ struct my_option my_long_options[]=
   {"binlog-ignore-db", OPT_BINLOG_IGNORE_DB,
    "Tells the master that updates to the given database should not be logged to the binary log.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  /* ToDo: A read-only sysvar to show the value of @@binlog_storage_engine. I don't think the complexity of dynamically setting it is worth trying to implement that, not at first at least. */
+  {"binlog-storage-engine", 0,
+   "Store the binlog transactionally in a supporting storage engine instead "
+   "of as separate files. Currently only InnoDB is supported.",
+   &opt_binlog_storage_engine,
+   &opt_binlog_storage_engine,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS
   {"bootstrap", OPT_BOOTSTRAP, "Used by mysql installation scripts.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -6606,9 +6682,6 @@ struct my_option my_long_options[]=
    &debug_assert_on_not_freed_memory, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
    0},
 #endif /* DBUG_OFF */
-  /* default-storage-engine should have "MyISAM" as def_value. Instead
-     of initializing it here it is done in init_common_variables() due
-     to a compiler bug in Sun Studio compiler. */
   {"default-storage-engine", 0, "The default storage engine for new tables",
    &default_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0 },
@@ -8210,6 +8283,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int) OPT_BIN_LOG:
     opt_bin_log= MY_TEST(argument != disabled_my_option);
     opt_bin_log_used= 1;
+    opt_bin_log_nonempty= (argument && argument[0]);
+    opt_bin_log_path= argument &&
+      (strchr(argument, FN_LIBCHAR) || strchr(argument, FN_LIBCHAR2));
     break;
   case (int) OPT_LOG_BASENAME:
   {

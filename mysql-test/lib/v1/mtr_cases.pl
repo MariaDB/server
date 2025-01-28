@@ -864,6 +864,7 @@ our @tags=
   "binlog_formats", ["row", "statement"]],
 
  ["include/have_innodb.inc", "innodb_test", 1],
+ ["include/have_innodb_binlog.inc", "innodb_test", 1],
  ["include/have_log_bin.inc", "need_binlog", 1],
  ["include/big_test.inc", "big_test", 1],
  ["include/have_debug.inc", "need_debug", 1],

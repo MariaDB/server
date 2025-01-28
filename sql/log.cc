@@ -103,6 +103,8 @@ static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
                               bool using_trx, bool is_ro_1pc);
+static int binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data,
+                                  size_t len);
 
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
@@ -362,15 +364,20 @@ Log_event::select_checksum_alg(const binlog_cache_data *data)
 
 class binlog_cache_mngr {
 public:
-  binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
+  binlog_cache_mngr(THD *thd_arg,
+                    my_off_t param_max_binlog_stmt_cache_size,
                     my_off_t param_max_binlog_cache_size,
                     ulong *param_ptr_binlog_stmt_cache_use,
                     ulong *param_ptr_binlog_stmt_cache_disk_use,
                     ulong *param_ptr_binlog_cache_use,
                     ulong *param_ptr_binlog_cache_disk_use,
                     bool precompute_checksums)
-    : stmt_cache(precompute_checksums), trx_cache(precompute_checksums),
-      last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+    : thd(thd_arg),
+      stmt_cache(precompute_checksums),
+      trx_cache(precompute_checksums),
+      last_commit_pos_offset(0),
+      engine_binlog_info {0, 0, 0},
+      using_xa(FALSE), xa_xid(0)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
                                       param_ptr_binlog_stmt_cache_use,
@@ -383,6 +390,9 @@ public:
 
   void reset(bool do_stmt, bool do_trx)
   {
+    if (engine_binlog_info.engine_ptr)
+      (*opt_binlog_engine_hton->binlog_oob_free)(thd,
+                                                 engine_binlog_info.engine_ptr);
     if (do_stmt)
       stmt_cache.reset();
     if (do_trx)
@@ -391,6 +401,18 @@ public:
       using_xa= FALSE;
       last_commit_pos_file[0]= 0;
       last_commit_pos_offset= 0;
+    }
+    if (likely(opt_binlog_engine_hton) &&
+        likely(opt_binlog_engine_hton->binlog_oob_data))
+    {
+      /*
+        Use a custom write_function to spill to the engine-implemented binlog.
+        And re-use the IO_CACHE::append_read_pos as a handle for our
+        write_function; it is unused when the cache is not SEQ_READ_APPEND.
+      */
+      trx_cache.cache_log.write_function= binlog_spill_to_engine;
+      trx_cache.cache_log.append_read_pos= (uchar *)this;
+      engine_binlog_info= {0, 0, 0};
     }
   }
 
@@ -403,6 +425,8 @@ public:
   {
     return (is_transactional ? &trx_cache.cache_log : &stmt_cache.cache_log);
   }
+
+  THD *thd;
 
   binlog_cache_data stmt_cache;
 
@@ -417,6 +441,9 @@ public:
   */
   char last_commit_pos_file[FN_REFLEN];
   my_off_t last_commit_pos_offset;
+
+  /* Context for engine-implemented binlogging. */
+  handler_binlog_event_group_info engine_binlog_info;
 
   /*
     Flag set true if this transaction is committed with log_xid() as part of
@@ -1722,14 +1749,49 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
   DBUG_ENTER("binlog_flush_cache");
   DBUG_PRINT("enter", ("end_ev: %p", end_ev));
 
-  if ((using_stmt && !cache_mngr->stmt_cache.empty()) ||
-      (using_trx && !cache_mngr->trx_cache.empty())   ||
-      thd->transaction->xid_state.is_explicit_XA())
+  bool doing_stmt= using_stmt && !cache_mngr->stmt_cache.empty();
+  bool doing_trx= using_trx && !cache_mngr->trx_cache.empty();
+  if (doing_stmt || doing_trx || thd->transaction->xid_state.is_explicit_XA())
   {
     if (using_stmt && thd->binlog_flush_pending_rows_event(TRUE, FALSE))
       DBUG_RETURN(1);
     if (using_trx && thd->binlog_flush_pending_rows_event(TRUE, TRUE))
       DBUG_RETURN(1);
+
+    if (opt_binlog_engine_hton)
+    {
+      /*
+        Write the end_event into the cache, in preparation for sending the
+        cache to the engine to be binlogged as a whole.
+      */
+      binlog_cache_data *cache_data;
+      if (doing_trx || !doing_stmt)
+      {
+        end_ev->cache_type= Log_event::EVENT_TRANSACTIONAL_CACHE;
+        cache_data= &cache_mngr->trx_cache;
+      }
+      else
+      {
+        end_ev->cache_type= Log_event::EVENT_STMT_CACHE;
+        cache_data= &cache_mngr->stmt_cache;
+      }
+      if (mysql_bin_log.write_event(end_ev, cache_data, &cache_data->cache_log))
+        DBUG_RETURN(1);
+
+      if (cache_mngr->engine_binlog_info.out_of_band_offset)
+      {
+        /*
+          This is a "large" transaction, where parts of the transaction were
+          already binlogged out-of-band to the engine binlog.
+
+          Binlog the remaining bits of event data as well, so all the event
+          group is consecutive out-of-band data and the commit record will
+          only contain the GTID event (depending on engine implementation).
+        */
+        if (my_b_flush_io_cache(&cache_mngr->trx_cache.cache_log, 0))
+          DBUG_RETURN(1);
+      }
+    }
 
     /*
       Doing a commit or a rollback including non-transactional tables,
@@ -1765,6 +1827,31 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
   DBUG_ASSERT(!using_stmt || cache_mngr->stmt_cache.empty());
   DBUG_ASSERT(!using_trx || cache_mngr->trx_cache.empty());
   DBUG_RETURN(error);
+}
+
+
+extern "C"
+void
+binlog_get_cache(THD *thd, IO_CACHE **out_cache,
+                 handler_binlog_event_group_info **out_context,
+                 const rpl_gtid **out_gtid)
+{
+  IO_CACHE *cache= nullptr;
+  handler_binlog_event_group_info *context= nullptr;
+  binlog_cache_mngr *cache_mngr;
+  const rpl_gtid *gtid= nullptr;
+  if (likely(!opt_bootstrap /* ToDo needed? */) &&
+      opt_binlog_engine_hton &&
+      (cache_mngr= thd->binlog_get_cache_mngr()))
+  {
+    context= &cache_mngr->engine_binlog_info;
+    cache= !cache_mngr->trx_cache.empty() ?
+      &cache_mngr->trx_cache.cache_log : &cache_mngr->stmt_cache.cache_log;
+    gtid= thd->get_last_commit_gtid();
+  }
+  *out_cache= cache;
+  *out_context= context;
+  *out_gtid= gtid;
 }
 
 
@@ -4386,6 +4473,17 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
       DBUG_RETURN(1);
     }
 
+    if (opt_binlog_engine_hton)
+    {
+      if (next_log_number)
+      {
+        my_error(ER_ENGINE_BINLOG_NO_RESET_FILE_NUMBER, MYF(0));
+        DBUG_RETURN(true);
+      }
+      DBUG_ASSERT(create_new_log);
+      DBUG_RETURN(reset_engine_binlogs(thd, init_state, init_state_len));
+    }
+
     /*
       Mark that a RESET MASTER is in progress.
       This ensures that a binlog checkpoint will not try to write binlog
@@ -4645,6 +4743,29 @@ err:
   mysql_mutex_unlock(&LOCK_index);
   mysql_mutex_unlock(&LOCK_log);
   DBUG_RETURN(error);
+}
+
+
+bool
+MYSQL_BIN_LOG::reset_engine_binlogs(THD *thd, rpl_gtid *init_state,
+                                    uint32 init_state_len)
+{
+  bool err;
+  DBUG_ASSERT(!is_relay_log);
+
+  mysql_mutex_lock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_index);
+
+  err= (*opt_binlog_engine_hton->reset_binlogs)();
+  if (init_state)
+    rpl_global_gtid_binlog_state.load(init_state, init_state_len);
+  else
+    rpl_global_gtid_binlog_state.reset();
+
+  mysql_mutex_unlock(&LOCK_index);
+  mysql_mutex_unlock(&LOCK_log);
+
+  return err;
 }
 
 
@@ -6162,6 +6283,43 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
   return (thd->transaction->stmt.modified_non_trans_table);
 }
 
+
+static int
+binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
+{
+  /*
+    Tricky: The mysys IO_CACHE write function can be called either from
+    my_b_flush_io_cache(), where it must write everything it was asked to; or
+    from _my_b_write(), where it needs only write as much as is efficient (eg.
+    an integer multiple of some block size), and any remainder (which must be
+    < cache size) will be put in the cache.
+
+    The two cases are distinguished on whether the passed-in data pointer is
+    equal to cache->write_buffer or not.
+
+    We want each oob record to be the full size, so write only integer
+    multiples of the cache size in the latter case.
+  */
+  if (data != cache->write_buffer)
+  {
+    len-= (len % cache->buffer_length);
+    if (!len)
+      return false;
+  }
+
+  /* ToDo: If len > the cache size (32k default), then split up the write in multiple oob writes to the engine. This can happen if there is a large single write to the IO_CACHE. Maybe the split could happen also in the engine, depending if I want to split the size here to the binlog_cache_size which is known here, or if I want to split it to an engine imposed max size. But since the commit record size is determined by the upper layer here, I think it makes sense to determine the oob record size here also. */
+
+  binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
+  void **engine_ptr= &mngr->engine_binlog_info.engine_ptr;
+  bool res= (*opt_binlog_engine_hton->binlog_oob_data)(mngr->thd, data, len,
+                                                       engine_ptr);
+  mngr->engine_binlog_info.out_of_band_offset+= len;
+  cache->pos_in_file+= len;
+
+  return res;
+}
+
+
 /*
   These functions are placed in this file since they need access to
   binlog_hton, which has internal linkage.
@@ -6174,9 +6332,36 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
                                                    MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
-      open_cached_file(&cache_mngr->trx_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
+                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)))
+  {
+    my_free(cache_mngr);
+    return NULL;
+  }
+  IO_CACHE *trx_cache= &cache_mngr->trx_cache.cache_log;
+  my_bool res;
+  if (likely(opt_binlog_engine_hton) &&
+      likely(opt_binlog_engine_hton->binlog_oob_data))
+  {
+    /*
+      With binlog implementation in engine, we do not need to spill large
+      transactions to temporary file, we will binlog data out-of-band spread
+      through the binlog as the transaction runs. Setting the file to INT_MIN
+      makes IO_CACHE not attempt to create the temporary file.
+    */
+    res= init_io_cache(trx_cache, (File)INT_MIN, (size_t)binlog_cache_size,
+                       WRITE_CACHE, 0L, 0, MYF(MY_WME | MY_NABP));
+    /*
+      Use a custom write_function to spill to the engine-implemented binlog.
+      And re-use the IO_CACHE::append_read_pos as a handle for our
+      write_function; it is unused when the cache is not SEQ_READ_APPEND.
+    */
+    trx_cache->write_function= binlog_spill_to_engine;
+    trx_cache->append_read_pos= (uchar *)cache_mngr;
+  }
+  else
+    res= open_cached_file(trx_cache, mysql_tmpdir, LOG_PREFIX,
+                          (size_t)binlog_cache_size, MYF(MY_WME));
+  if (unlikely(res))
   {
     my_free(cache_mngr);
     return NULL;
@@ -6191,7 +6376,7 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
   bool precompute_checksums=
     !WSREP_NNULL(thd) && !encrypt_binlog && !opt_binlog_legacy_event_pos;
   cache_mngr= new (cache_mngr)
-          binlog_cache_mngr(max_binlog_stmt_cache_size,
+          binlog_cache_mngr(thd, max_binlog_stmt_cache_size,
                             max_binlog_cache_size,
                             &binlog_stmt_cache_use,
                             &binlog_stmt_cache_disk_use,
@@ -6806,7 +6991,8 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
 /* Generate a new global transaction ID, and write it to the binlog */
 
 bool
-MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
+MYSQL_BIN_LOG::write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
+                                bool direct_write,
                                 bool is_transactional, uint64 commit_id,
                                 bool has_xid, bool is_ro_1pc)
 {
@@ -6864,6 +7050,10 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
                             commit_id, has_xid, is_ro_1pc);
+  /* ToDo: Something better than this hack conditional. At least pass direct_write into the Gtid event contructor or something? */
+  if (!direct_write)
+    gtid_event.cache_type= is_transactional ?
+      Log_event::EVENT_TRANSACTIONAL_CACHE : Log_event::EVENT_STMT_CACHE;
 
   /* Write the event to the binary log. */
   DBUG_ASSERT(this == &mysql_bin_log);
@@ -6876,7 +7066,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   }
 #endif
 
-  if (write_event(&gtid_event))
+  if (write_event(&gtid_event, NULL, dest))
     DBUG_RETURN(true);
   status_var_add(thd->status_var.binlog_bytes_written, gtid_event.data_written);
 
@@ -6996,6 +7186,61 @@ MYSQL_BIN_LOG::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 }
 
 
+/* ToDo: Should this be a service? */
+bool
+load_global_binlog_state(rpl_binlog_state_base *state)
+{
+  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  bool err= state->load_nolock(&rpl_global_gtid_binlog_state);
+  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  return err;
+}
+
+
+/*
+  Used to initialize the binlog GTID state after restart when using
+  --binlog-storage-engine. The engine passes in the GTID binlog state it has
+  restored, and optionally passes a binlog reader. The intention is that the
+  engine can restore a state corresponding to a slightly earlier point in the
+  binlog file, and then we will use the reader to read any extra GTID events
+  and compute the final restored binlog GTID state from that.
+*/
+bool
+binlog_recover_gtid_state(rpl_binlog_state_base *state,
+                          handler_binlog_reader *reader)
+{
+  String packet;
+  Format_description_log_event fd_event(4);
+
+  if (reader)
+  {
+    for (;;)
+    {
+      packet.length(0);
+      int err= reader->read_log_event(&packet, 0, MAX_MAX_ALLOWED_PACKET);
+      if (err == LOG_READ_EOF)
+        break;
+      if (err)
+        return true;
+      Log_event_type event_type=
+          (Log_event_type)((uchar)packet[LOG_EVENT_OFFSET]);
+      if (event_type != GTID_EVENT)
+        continue;
+      rpl_gtid gtid;
+      uchar flags2;
+      if (Gtid_log_event::peek((uchar*) packet.ptr(), packet.length(),
+                               BINLOG_CHECKSUM_ALG_OFF, &gtid.domain_id,
+                               &gtid.server_id, &gtid.seq_no, &flags2,
+                               &fd_event))
+        return true;
+      state->update_nolock(&gtid);
+    }
+  }
+  rpl_global_gtid_binlog_state.load_nolock(state);
+  return false;
+}
+
+
 bool
 MYSQL_BIN_LOG::append_state_pos(String *str)
 {
@@ -7078,7 +7323,9 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   bool is_trans_cache= FALSE;
   bool using_trans= event_info->use_trans_cache();
   bool direct= event_info->use_direct_logging();
+  bool events_direct;
   ulong UNINIT_VAR(prev_binlog_id);
+  uint64 UNINIT_VAR(commit_id);
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
 
   /*
@@ -7165,35 +7412,18 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       DBUG_RETURN(0);
 #endif /* HAVE_REPLICATION */
 
+    binlog_cache_mngr * cache_mngr= NULL;
     IO_CACHE *file= NULL;
 
+    events_direct= direct;
     if (direct)
     {
-      /* We come here only for incident events */
+      /* Write the event to the binlog immediately. */
       int res;
-      uint64 commit_id= 0;
-      MDL_request mdl_request;
+
       DBUG_PRINT("info", ("direct is set"));
       DBUG_ASSERT(!thd->backup_commit_lock);
-
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
-      if (thd->mdl_context.acquire_lock(&mdl_request,
-                                        thd->variables.lock_wait_timeout))
-        DBUG_RETURN(1);
-      thd->backup_commit_lock= &mdl_request;
-
-      if ((res= thd->wait_for_prior_commit()))
-      {
-        if (mdl_request.ticket)
-          thd->mdl_context.release_lock(mdl_request.ticket);
-        thd->backup_commit_lock= 0;
-        DBUG_RETURN(res);
-      }
-      file= &log_file;
-      my_org_b_tell= my_b_tell(file);
-      mysql_mutex_lock(&LOCK_log);
-      prev_binlog_id= current_binlog_id;
+      commit_id= 0;
       DBUG_EXECUTE_IF("binlog_force_commit_id",
         {
           const LEX_CSTRING commit_name= { STRING_WITH_LEN("commit_id") };
@@ -7204,17 +7434,55 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                                              commit_name.length);
           commit_id= entry->val_int(&null_value);
         });
-      res= write_gtid_event(thd, true, using_trans, commit_id);
-      if (mdl_request.ticket)
-        thd->mdl_context.release_lock(mdl_request.ticket);
-      thd->backup_commit_lock= 0;
-      if (res)
-        goto err;
+
+      if (opt_binlog_engine_hton)
+      {
+        events_direct= false;
+        if (!(cache_mngr= thd->binlog_setup_trx_data()))
+          DBUG_RETURN(1);
+        cache_data= cache_mngr->get_binlog_cache_data(false);
+        DBUG_ASSERT(cache_data->empty());
+        file= &cache_data->cache_log;
+        /* Set cache_type to ensure we don't get checksums for this event */
+        event_info->cache_type= Log_event::EVENT_STMT_CACHE;
+
+        /* ToDo: Can we do some refactoring to this huge MYSQL_LOG_BIN::write() function, to split out common pieces of functionality in sub-functions, and reduce code duplication in this opt_binlog_engine_hton branch? */
+      }
+      else
+      {
+        MDL_request mdl_request;
+
+        MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                       MDL_EXPLICIT);
+        if (thd->mdl_context.acquire_lock(&mdl_request,
+                                          thd->variables.lock_wait_timeout))
+          DBUG_RETURN(1);
+        thd->backup_commit_lock= &mdl_request;
+
+        if ((res= thd->wait_for_prior_commit()))
+        {
+          if (mdl_request.ticket)
+            thd->mdl_context.release_lock(mdl_request.ticket);
+          thd->backup_commit_lock= 0;
+          DBUG_RETURN(res);
+        }
+        file= &log_file;
+        /* ToDo: Isn't this a race bug? Seems we can get a stale my_org_b_tell here since we're taking it outside of the mutex, which could leave to double accounting another binlog write. */
+        my_org_b_tell= my_b_tell(file);
+        mysql_mutex_lock(&LOCK_log);
+        prev_binlog_id= current_binlog_id;
+        res= write_gtid_event(thd, &log_file, true, true, using_trans, commit_id);
+        if (mdl_request.ticket)
+          thd->mdl_context.release_lock(mdl_request.ticket);
+        thd->backup_commit_lock= 0;
+        if (res)
+          goto err;
+      }
     }
     else
     {
-      binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
-      if (!cache_mngr)
+      /* Write the event to the stmt or trx cache, and binlog it later. */
+      if (!(cache_mngr= thd->binlog_setup_trx_data()))
         goto err;
 
       is_trans_cache= use_trans_cache(thd, using_trans);
@@ -7239,7 +7507,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
     if (with_annotate && *with_annotate)
     {
       DBUG_ASSERT(event_info->get_type_code() == TABLE_MAP_EVENT);
-      Annotate_rows_log_event anno(thd, using_trans, direct);
+      Annotate_rows_log_event anno(thd, using_trans, events_direct);
       /* Annotate event should be written not more than once */
       *with_annotate= 0;
       if (write_event(&anno, cache_data, file))
@@ -7253,7 +7521,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
         {
           Intvar_log_event e(thd,(uchar) LAST_INSERT_ID_EVENT,
                              thd->first_successful_insert_id_in_prev_stmt_for_binlog,
-                             using_trans, direct);
+                             using_trans, events_direct);
           if (write_event(&e, cache_data, file))
             goto err;
         }
@@ -7264,14 +7532,14 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                              nb_elements()));
           Intvar_log_event e(thd, (uchar) INSERT_ID_EVENT,
                              thd->auto_inc_intervals_in_cur_stmt_for_binlog.
-                             minimum(), using_trans, direct);
+                             minimum(), using_trans, events_direct);
           if (write_event(&e, cache_data, file))
             goto err;
         }
         if (thd->used & THD::RAND_USED)
         {
           Rand_log_event e(thd,thd->rand_saved_seed1,thd->rand_saved_seed2,
-                           using_trans, direct);
+                           using_trans, events_direct);
           if (write_event(&e, cache_data, file))
             goto err;
         }
@@ -7289,7 +7557,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                             user_var_event->th->user_var_log_event_data_type(
                                user_var_event->charset_number),
                                  using_trans,
-                                 direct);
+                                 events_direct);
             if (write_event(&e, cache_data, file))
               goto err;
           }
@@ -7308,79 +7576,148 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
 err:
     if (direct)
     {
-      my_off_t offset= my_b_tell(file);
-      bool check_purge= false;
       DBUG_ASSERT(!is_relay_log);
-
-      if (likely(!error))
+      if (opt_binlog_engine_hton)
       {
-        bool synced;
+        handler_binlog_event_group_info *engine_context=
+          &cache_mngr->engine_binlog_info;
+        engine_context->gtid_offset= my_b_tell(file);
+        my_off_t binlog_total_bytes;
+        MDL_request mdl_request;
+        int res;
+        MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                       MDL_EXPLICIT);
+        if (thd->mdl_context.acquire_lock(&mdl_request,
+                                          thd->variables.lock_wait_timeout))
+          goto engine_fail;
+        thd->backup_commit_lock= &mdl_request;
 
-        update_gtid_index((uint32)offset, thd->get_last_commit_gtid());
-
-        if ((error= flush_and_sync(&synced)))
+        if (thd->wait_for_prior_commit())
         {
+          if (mdl_request.ticket)
+            thd->mdl_context.release_lock(mdl_request.ticket);
+          thd->backup_commit_lock= 0;
+          goto engine_fail;
         }
-        else
+        mysql_mutex_lock(&LOCK_log);
+        res= write_gtid_event(thd, file, true, false, using_trans, commit_id);
+        if (mdl_request.ticket)
+          thd->mdl_context.release_lock(mdl_request.ticket);
+        thd->backup_commit_lock= 0;
+        if (res)
+          goto engine_fail;
+
+        binlog_total_bytes= my_b_bytes_in_cache(file);
+        /*
+          Engine-in-binlog does not support the after-sync method.
+          This is for consistency with the binlogging of transactions in the
+          engine, which commit atomically at the same time in binlog and engine.
+
+          In any case, for non-transactional event group (eg. DDL), the
+          after-sync and after-commit semisync methods are mostly the same; the
+          change has already become visible to other connections on the master
+          when it is binlogged.
+
+          ToDo: If semi-sync is enabled, obtain the binlog coords from the
+          engine to be waited for later at after-commit.
+
+          ToDo2: Do we still need this chainining of mutexes?
+        */
+        mysql_mutex_lock(&LOCK_after_binlog_sync);
+        mysql_mutex_unlock(&LOCK_log);
+        mysql_mutex_lock(&LOCK_commit_ordered);
+        mysql_mutex_unlock(&LOCK_after_binlog_sync);
+        if ((*opt_binlog_engine_hton->binlog_write_direct)
+            (file, engine_context, thd->get_last_commit_gtid()))
+          goto engine_fail;
+        /* ToDo: Need to set last_commit_pos_offset here? */
+        /* ToDo: Maybe binlog_write_direct() could return the coords. */
+        mysql_mutex_unlock(&LOCK_commit_ordered);
+
+        update_binlog_end_pos();
+        status_var_add(thd->status_var.binlog_bytes_written, binlog_total_bytes);
+
+        goto engine_ok;
+      engine_fail:
+        error= 1;
+      engine_ok:
+        cache_mngr->reset(true, false);
+      }
+      else
+      {
+        my_off_t offset= my_b_tell(file);
+        bool check_purge= false;
+
+        if (likely(!error))
         {
-          mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
-          mysql_mutex_assert_owner(&LOCK_log);
-          mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
-          mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-#ifdef HAVE_REPLICATION
-          if (repl_semisync_master.report_binlog_update(thd, thd,
-                                                        log_file_name, offset))
+          bool synced;
+
+          update_gtid_index((uint32)offset, thd->get_last_commit_gtid());
+
+          if ((error= flush_and_sync(&synced)))
           {
-            sql_print_error("Failed to run 'after_flush' hooks");
-            error= 1;
           }
           else
-#endif
           {
-            /*
-              update binlog_end_pos so it can be read by dump thread
-              note: must be _after_ the RUN_HOOK(after_flush) or else
-              semi-sync might not have put the transaction into
-              it's list before dump-thread tries to send it
-            */
-            update_binlog_end_pos(offset);
-            if (unlikely((error= rotate(false, &check_purge))))
-              check_purge= false;
+            mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+            mysql_mutex_assert_owner(&LOCK_log);
+            mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+            mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+#ifdef HAVE_REPLICATION
+            if (repl_semisync_master.report_binlog_update(thd, thd,
+                                                         log_file_name, offset))
+            {
+              sql_print_error("Failed to run 'after_flush' hooks");
+              error= 1;
+            }
+            else
+#endif
+            {
+              /*
+                update binlog_end_pos so it can be read by dump thread
+                note: must be _after_ the RUN_HOOK(after_flush) or else
+                semi-sync might not have put the transaction into
+                it's list before dump-thread tries to send it
+              */
+              update_binlog_end_pos(offset);
+              if (unlikely((error= rotate(false, &check_purge))))
+                check_purge= false;
+            }
           }
         }
-      }
 
-      status_var_add(thd->status_var.binlog_bytes_written,
-                     offset - my_org_b_tell);
+        status_var_add(thd->status_var.binlog_bytes_written,
+                       offset - my_org_b_tell);
 
-      mysql_mutex_lock(&LOCK_after_binlog_sync);
-      mysql_mutex_unlock(&LOCK_log);
+        mysql_mutex_lock(&LOCK_after_binlog_sync);
+        mysql_mutex_unlock(&LOCK_log);
 
-      DEBUG_SYNC(thd, "commit_after_release_LOCK_log");
+        DEBUG_SYNC(thd, "commit_after_release_LOCK_log");
 
-      mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
-      mysql_mutex_assert_not_owner(&LOCK_log);
-      mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
-      mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+        mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+        mysql_mutex_assert_not_owner(&LOCK_log);
+        mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
+        mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-      if (repl_semisync_master.wait_after_sync(log_file_name, offset))
-      {
-        error=1;
-        /* error is already printed inside hook */
-      }
+        if (repl_semisync_master.wait_after_sync(log_file_name, offset))
+        {
+          error=1;
+          /* error is already printed inside hook */
+        }
 #endif
 
-      /*
-        Take mutex to protect against a reader seeing partial writes of 64-bit
-        offset on 32-bit CPUs.
-      */
-      mysql_mutex_lock(&LOCK_commit_ordered);
-      mysql_mutex_unlock(&LOCK_after_binlog_sync);
-      last_commit_pos_offset= offset;
-      mysql_mutex_unlock(&LOCK_commit_ordered);
+        /*
+          Take mutex to protect against a reader seeing partial writes of 64-bit
+          offset on 32-bit CPUs.
+        */
+        mysql_mutex_lock(&LOCK_commit_ordered);
+        mysql_mutex_unlock(&LOCK_after_binlog_sync);
+        last_commit_pos_offset= offset;
+        mysql_mutex_unlock(&LOCK_commit_ordered);
 
-      if (check_purge)
-        checkpoint_and_purge(prev_binlog_id);
+        if (check_purge)
+          checkpoint_and_purge(prev_binlog_id);
+      }
     }
 
     if (unlikely(error))
@@ -7397,14 +7734,14 @@ err:
 
 
 void
-MYSQL_BIN_LOG::update_gtid_index(uint32 offset, rpl_gtid gtid)
+MYSQL_BIN_LOG::update_gtid_index(uint32 offset, const rpl_gtid *gtid)
 {
   if (!unlikely(gtid_index))
     return;
 
   rpl_gtid *gtid_list;
   uint32 gtid_count;
-  int err= gtid_index->process_gtid_check_batch(offset, &gtid,
+  int err= gtid_index->process_gtid_check_batch(offset, gtid,
                                                 &gtid_list, &gtid_count);
   if (err)
     return;
@@ -7851,6 +8188,36 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
 
   DBUG_RETURN(error);
 }
+
+
+/* Implementation of FLUSH BINARY LOGS for binlog implemented in engine. */
+int
+MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
+{
+  int error= 0;
+  DBUG_ENTER("MYSQL_BIN_LOG::flush_binlogs_engine");
+
+  mysql_mutex_lock(&LOCK_log);
+
+  // ToDo: Implement DELETE_DOMAIN_ID option. Ask the engine to load the oldest GTID state in the binlog, check that it matches the current GTID state in the to-be-deleted domains, then update the GTID state so the engine can write the state with domains deleted after it does the FLUSH. See also do_delete_gtid_domain().
+
+  if ((*opt_binlog_engine_hton->binlog_flush)())
+    error= 1;
+
+  mysql_mutex_lock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  mysql_mutex_unlock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_commit_ordered);
+
+  if (!error)
+  {
+    /* ToDo: Do purge, once implemented. */
+  }
+
+  DBUG_RETURN(error);
+}
+
 
 uint MYSQL_BIN_LOG::next_file_id()
 {
@@ -8338,7 +8705,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
       If waitee->commit_started is set, it means that the transaction we need
       to wait for has already queued up for group commit. In this case it is
-      safe for us to queue up immediately as well, increasing the opprtunities
+      safe for us to queue up immediately as well, increasing the opportunities
       for group commit. Because waitee has taken the LOCK_prepare_ordered
       before setting the flag, so there is no risk that we can queue ahead of
       it.
@@ -8723,6 +9090,9 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     }
     else
     {
+      if (opt_binlog_engine_hton)
+        update_binlog_end_pos();
+
       /*
         If we rotated the binlog, and if we are using the unoptimized thread
         scheduling where every thread runs its own commit_ordered(), then we
@@ -8963,8 +9333,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         Note: must be _after_ the RUN_HOOK(after_flush) or else
         semi-sync might not have put the transaction into
         it's list before dump-thread tries to send it
+
+        When --binlog-storage-engine, the binlog write happens during
+        commit_ordered(), so postpone the update until then.
       */
-      update_binlog_end_pos(commit_offset);
+      if (!opt_binlog_engine_hton)
+        update_binlog_end_pos(commit_offset);
 
       if (unlikely(any_error))
         sql_print_error("Failed to run 'after_flush' hooks");
@@ -9123,6 +9497,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   mysql_mutex_unlock(&LOCK_commit_ordered);
   DEBUG_SYNC(leader->thd, "commit_after_group_release_commit_ordered");
 
+  if (opt_binlog_engine_hton)
+    update_binlog_end_pos();
+
   if (check_purge)
     checkpoint_and_purge(binlog_id);
 
@@ -9153,7 +9530,10 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   DBUG_ASSERT(!(entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
                 mngr->get_binlog_cache_log(FALSE)->error));
 
-  if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
+  if (!opt_binlog_engine_hton)
+  {
+  if (write_gtid_event(entry->thd, &log_file, is_prepared_xa(entry->thd),
+                       true,
                        entry->using_trx_cache, commit_id,
                        has_xid, entry->ro_1pc))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
@@ -9193,6 +9573,12 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                     DBUG_RETURN(ER_ERROR_ON_WRITE);
                   });
 
+  /*
+    Write the end event (XID_EVENT, commit QUERY_LOG_EVENT) directly to the
+    legacy binary log. This is required to get the correct end position in the
+    event as currently needed by non-GTID slaves (since write_cache() does a
+    direct write of the cache, leaving end positions at zero).
+  */
   if (write_event(entry->end_event))
   {
     entry->error_cache= NULL;
@@ -9200,6 +9586,30 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   }
   status_var_add(entry->thd->status_var.binlog_bytes_written,
                  entry->end_event->data_written);
+  }
+  else
+  {
+    DBUG_ASSERT((!entry->using_stmt_cache || mngr->stmt_cache.empty()) ||
+                (!entry->using_trx_cache || mngr->trx_cache.empty())
+                /* ToDo: Support combined stmt/trx caches?*/);
+    DBUG_ASSERT((entry->using_stmt_cache && !mngr->stmt_cache.empty()) ||
+                (entry->using_trx_cache && !mngr->trx_cache.empty())
+                /* Assert that empty transaction is handled elsewhere. */);
+    IO_CACHE *cache= (entry->using_trx_cache && !mngr->trx_cache.empty()) ?
+      &mngr->trx_cache.cache_log : &mngr->stmt_cache.cache_log;
+    /*
+      The GTID event cannot go first since we only allocate the GTID at binlog
+      time. So write the GTID at the very end, and record its offset so that the
+      engine can pick it out and binlog it at the start.
+    */
+    mngr->engine_binlog_info.gtid_offset= my_b_tell(cache);
+    /* ToDo: This gets written with a checksum! Which is wrong, need some way to mark that GTID is being written to a cache... */
+    if (write_gtid_event(entry->thd, cache, is_prepared_xa(entry->thd),
+                         false,
+                         entry->using_trx_cache, commit_id,
+                         has_xid, entry->ro_1pc))
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+  }
 
   if (entry->incident_event)
   {
@@ -12548,6 +12958,12 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
   ulong UNINIT_VAR(prev_binlog_id);
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (opt_binlog_engine_hton && value)
+  {
+    /* ToDo: Should this be an error instead? Or an SQL-level warning at least. */
+    sql_print_information("Value of binlog_checksum forced to NONE since binlog_storage_engine is enabled, and InnoDB uses its own superior checksumming of pages");
+    value= 0;
+  }
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
   if(mysql_bin_log.is_open())
   {

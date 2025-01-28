@@ -1813,6 +1813,16 @@ Sys_max_binlog_size(
        BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_max_binlog_size));
 
+
+static Sys_var_charptr_fscs Sys_binlog_directory(
+       "binlog_directory",
+       "Directory path (absolute or relative to datadir) where binlog files "
+       "are stored. If this is used, must not specify a directory path for "
+       "--log-bin",
+       READ_ONLY GLOBAL_VAR(opt_binlog_directory), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+
 static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 {
   return false;
@@ -2324,7 +2334,7 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   bool first= true;
 
   str.length(0);
-  rpl_gtid gtid= thd->get_last_commit_gtid();
+  rpl_gtid gtid= *thd->get_last_commit_gtid();
   if ((gtid.seq_no > 0 &&
        rpl_slave_state_tostring_helper(&str, &gtid, &first)) ||
       !(p= thd->strmake(str.ptr(), str.length())))

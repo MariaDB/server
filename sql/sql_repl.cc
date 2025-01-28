@@ -130,6 +130,7 @@ struct binlog_send_info {
   slave_connection_state *until_gtid_state;
   slave_connection_state until_gtid_state_obj;
   Format_description_log_event *fdev;
+  handler_binlog_reader *engine_binlog_reader;
   int mariadb_slave_capability;
   enum_gtid_skip_type gtid_skip_group;
   enum_gtid_until_state gtid_until_group;
@@ -169,6 +170,7 @@ struct binlog_send_info {
                    char *lfn)
     : thd(thd_arg), net(&thd_arg->net), packet(packet_arg),
       log_file_name(lfn), until_gtid_state(NULL), fdev(NULL),
+      engine_binlog_reader(NULL),
       gtid_skip_group(GTID_SKIP_NOT), gtid_until_group(GTID_UNTIL_NOT_DONE),
       flags(flags_arg), current_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
       slave_gtid_strict_mode(false), send_fake_gtid_list(false),
@@ -188,6 +190,7 @@ struct binlog_send_info {
     bzero(&error_gtid, sizeof(error_gtid));
     until_binlog_state.init();
   }
+  ~binlog_send_info() { delete engine_binlog_reader; }
 };
 
 // prototype
@@ -279,6 +282,52 @@ static int fake_gtid_list_event(binlog_send_info *info,
   if ((err= fake_event_header(packet, GTID_LIST_EVENT,
                               str.length(), &do_checksum, &crc,
                               errmsg, info->current_checksum_alg, current_pos)))
+  {
+    info->error= ER_UNKNOWN_ERROR;
+    return err;
+  }
+
+  packet->append(str);
+  if (do_checksum)
+  {
+    crc= my_checksum(crc, (uchar*)str.ptr(), str.length());
+  }
+
+  if ((err= fake_event_footer(packet, do_checksum, crc, errmsg)) ||
+      (err= fake_event_write(info->net, packet, errmsg)))
+  {
+    info->error= ER_UNKNOWN_ERROR;
+    return err;
+  }
+
+  return 0;
+}
+
+
+static int fake_format_description_event(binlog_send_info *info,
+                                         Format_description_log_event *fdev,
+                                         const char **errmsg,
+                                         uint32 current_pos)
+{
+  my_bool do_checksum;
+  int err;
+  ha_checksum crc;
+  char buf[320];
+  String str(buf, sizeof(buf), system_charset_info);
+  String* packet= info->packet;
+
+  str.length(0);
+  fdev->dont_set_created= true;
+  if (fdev->to_packet(&str))
+  {
+    info->error= ER_UNKNOWN_ERROR;
+    *errmsg= "Failed due to out-of-memory writing Format_description event";
+    return -1;
+  }
+  if ((err= fake_event_header(packet, FORMAT_DESCRIPTION_EVENT,
+                              str.length(), &do_checksum, &crc,
+                              errmsg, BINLOG_CHECKSUM_ALG_CRC32,
+                              current_pos)))
   {
     info->error= ER_UNKNOWN_ERROR;
     return err;
@@ -941,13 +990,6 @@ static int send_heartbeat_event(binlog_send_info *info,
 }
 
 
-struct binlog_file_entry
-{
-  binlog_file_entry *next;
-  LEX_CSTRING name;
-  my_off_t size;
-};
-
 /**
    Read all binary logs and return as a list
 
@@ -971,6 +1013,13 @@ get_binlog_list(MEM_ROOT *memroot, bool reverse= true,
   char *fname, *buff, *end_pos;
   binlog_file_entry *current_list= NULL, *current_link= NULL, *e;
   DBUG_ENTER("get_binlog_list");
+
+  if (opt_binlog_engine_hton)
+  {
+    if (already_locked)
+      mysql_bin_log.unlock_index();
+    DBUG_RETURN((*opt_binlog_engine_hton->get_binlog_file_list)(memroot));
+  }
 
   if (!mysql_bin_log.is_open())
   {
@@ -1314,6 +1363,11 @@ end:
 }
 
 
+static const char *gtid_too_old_errmsg=
+  "Could not find GTID state requested by slave in any binlog "
+  "files. Probably the slave state is too old and required binlog files "
+  "have been purged.";
+
 /*
   Helper function for gtid_find_binlog_pos() below.
   Check a binlog file against a slave position. Use a GTID index if present.
@@ -1404,6 +1458,52 @@ gtid_check_binlog_file(slave_connection_state *state,
 
 end:
   return res;
+}
+
+
+/*
+  Do some checks on each GTID in the starting GTID state found when searching
+  for the starting GTID position in the binlog.
+*/
+static void
+found_pos_check_gtid(const rpl_gtid *found_gtid, slave_connection_state *state,
+                     slave_connection_state *until_gtid_state)
+{
+  const rpl_gtid *gtid= state->find(found_gtid->domain_id);
+  if (!gtid)
+  {
+    /*
+      Contains_all_slave_gtid() returns false if there is any domain in
+      Gtid_list_event which is not in the requested slave position.
+
+      We may delete a domain from the slave state inside this loop, but
+      we only do this when it is the very last GTID logged for that
+      domain in earlier binlogs, and then we can not encounter it in any
+      further GTIDs in the Gtid_list.
+    */
+    DBUG_ASSERT(0);
+  } else if (gtid->server_id == found_gtid->server_id &&
+             gtid->seq_no == found_gtid->seq_no)
+  {
+    /*
+      The slave requested to start from the very beginning of this
+      domain in this binlog file. So delete the entry from the state,
+      we do not need to skip anything.
+    */
+    state->remove(gtid);
+  }
+
+  if (until_gtid_state &&
+      (gtid= until_gtid_state->find(found_gtid->domain_id)) &&
+      gtid->server_id == found_gtid->server_id &&
+      gtid->seq_no <= found_gtid->seq_no)
+  {
+    /*
+      We've already reached the stop position in UNTIL for this domain,
+      since it is before the start position.
+    */
+    until_gtid_state->remove(gtid);
+  }
 }
 
 
@@ -1503,43 +1603,7 @@ gtid_find_binlog_pos(slave_connection_state *state, char *out_name,
           their UNTIL condition.
         */
         for (i= 0; i < count; ++i)
-        {
-          const rpl_gtid *gtid= state->find(gtids[i].domain_id);
-          if (!gtid)
-          {
-            /*
-              Contains_all_slave_gtid() returns false if there is any domain in
-              Gtid_list_event which is not in the requested slave position.
-
-              We may delete a domain from the slave state inside this loop, but
-              we only do this when it is the very last GTID logged for that
-              domain in earlier binlogs, and then we can not encounter it in any
-              further GTIDs in the Gtid_list.
-            */
-            DBUG_ASSERT(0);
-          } else if (gtid->server_id == gtids[i].server_id &&
-                     gtid->seq_no == gtids[i].seq_no)
-          {
-            /*
-              The slave requested to start from the very beginning of this
-              domain in this binlog file. So delete the entry from the state,
-              we do not need to skip anything.
-            */
-            state->remove(gtid);
-          }
-
-          if (until_gtid_state &&
-              (gtid= until_gtid_state->find(gtids[i].domain_id)) &&
-              gtid->server_id == gtids[i].server_id &&
-              gtid->seq_no <= gtids[i].seq_no)
-          {
-            /*
-              We've already reached the stop position in UNTIL for this domain,
-              since it is before the start position.
-            */
-            until_gtid_state->remove(gtid);
-          }
-        }
+          found_pos_check_gtid(&(gtids[i]), state, until_gtid_state);
       }
 
       goto end;
@@ -1548,9 +1612,7 @@ gtid_find_binlog_pos(slave_connection_state *state, char *out_name,
   }
 
   /* We reached the end without finding anything. */
-  errormsg= "Could not find GTID state requested by slave in any binlog "
-    "files. Probably the slave state is too old and required binlog files "
-    "have been purged.";
+  errormsg= gtid_too_old_errmsg;
 
 end:
   if (glev)
@@ -1561,6 +1623,26 @@ end:
 
   free_root(&memroot, MYF(0));
   return errormsg;
+}
+
+
+static const char *
+gtid_find_engine_pos(handler_binlog_reader *binlog_reader,
+                     slave_connection_state *pos,
+                     slave_connection_state *until_gtid_pos,
+                     rpl_binlog_state *until_binlog_state)
+{
+  int res= binlog_reader->init_gtid_pos(pos, until_binlog_state);
+  if (res < 0)
+    return "Error while looking up GTID position in engine binlog";
+  if (res == 0)
+    return gtid_too_old_errmsg;
+  until_binlog_state->iterate(
+    [pos, until_gtid_pos] (const rpl_gtid *gtid) -> bool {
+      found_pos_check_gtid(gtid, pos, until_gtid_pos);
+      return false;
+    });
+  return nullptr;
 }
 
 
@@ -2245,7 +2327,10 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);
 
-  pos= my_b_tell(log);
+  if (opt_binlog_engine_hton)
+    pos= 4;  // ToDo: Support for semi-sync in binlog-in-engine
+  else
+    pos= my_b_tell(log);
   if (repl_semisync_master.update_sync_header(info->thd,
                                               (uchar*) packet->c_ptr_safe(),
                                               info->log_file_name + info->dirlen,
@@ -2332,6 +2417,18 @@ static int init_binlog_sender(binlog_send_info *info,
   String slave_until_gtid_str(str_buf2, sizeof(str_buf2), system_charset_info);
   connect_gtid_state.length(0);
 
+  /* ToDo: Need more complex logic here. I want to be able to at least switch from legacy to innodb binlog without having to RESET MASTER. So we need to be able to start reading from legacy and then switch over to the binlog in innodb. Also, we might want to pass the init GTID position in so that the binlog reader can find the place to start by itself? But probably still want to allocate the reader here like this. */
+  if (opt_binlog_engine_hton &&
+      !(info->engine_binlog_reader=
+        (*opt_binlog_engine_hton->get_binlog_reader)()))
+  {
+    LEX_CSTRING *engine_name= hton_name(opt_binlog_engine_hton);
+    my_error(ER_CANNOT_INIT_ENGINE_BINLOG_READER, MYF(0), engine_name->str);
+    info->errmsg= "Error while initializing engine binlog reader";
+    info->error= ER_CANNOT_INIT_ENGINE_BINLOG_READER;
+    return 1;
+  }
+
   /** save start file/pos that was requested by slave */
   strmake(info->start_log_file_name, log_ident,
           sizeof(info->start_log_file_name));
@@ -2355,6 +2452,14 @@ static int init_binlog_sender(binlog_send_info *info,
       info->until_gtid_state= &info->until_gtid_state_obj;
       info->is_until_before_gtids= get_slave_gtid_until_before_gtids(thd);
     }
+  }
+  else if (opt_binlog_engine_hton)
+  {
+    my_error(ER_ENGINE_BINLOG_REQUIRES_GTID, MYF(0));
+    info->errmsg=
+      "Slave must enable GTID mode when master uses --binlog-storage-engine";
+    info->error= ER_ENGINE_BINLOG_REQUIRES_GTID;
+    return 1;
   }
 
   DBUG_EXECUTE_IF("binlog_force_reconnect_after_22_events",
@@ -2418,14 +2523,31 @@ static int init_binlog_sender(binlog_send_info *info,
       info->error= error;
       return 1;
     }
-    if ((info->errmsg= gtid_find_binlog_pos(&info->gtid_state,
-                                            search_file_name,
-                                            info->until_gtid_state,
-                                            &info->until_binlog_state,
-                                            &found_in_index, &start_seek)))
+
+    if (opt_binlog_engine_hton)
     {
-      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      return 1;
+      if ((info->errmsg= gtid_find_engine_pos(info->engine_binlog_reader,
+                                              &info->gtid_state,
+                                              info->until_gtid_state,
+                                              &info->until_binlog_state)))
+      {
+        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+        return 1;
+      }
+      found_in_index= true;
+      start_seek= 0;  /* Not used when binlog implemented in engine. */
+    }
+    else
+    {
+      if ((info->errmsg= gtid_find_binlog_pos(&info->gtid_state,
+                                              search_file_name,
+                                              info->until_gtid_state,
+                                              &info->until_binlog_state,
+                                              &found_in_index, &start_seek)))
+      {
+        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+        return 1;
+      }
     }
 
     if (found_in_index)
@@ -2448,7 +2570,8 @@ static int init_binlog_sender(binlog_send_info *info,
   }
   linfo->index_file_offset= 0;
 
-  if (mysql_bin_log.find_log_pos(linfo, name, 1))
+  if (!opt_binlog_engine_hton &&
+      mysql_bin_log.find_log_pos(linfo, name, 1))
   {
     info->errmsg= "Could not find first log file name in binary "
         "log index file";
@@ -2461,7 +2584,8 @@ static int init_binlog_sender(binlog_send_info *info,
   // note: publish that we use file, before we open it
   thd->set_current_linfo(linfo);
 
-  if (check_start_offset(info, linfo->log_file_name, *pos))
+  if (!opt_binlog_engine_hton &&
+      check_start_offset(info, linfo->log_file_name, *pos))
     return 1;
 
   if (*pos > BIN_LOG_HEADER_SIZE)
@@ -2891,6 +3015,47 @@ static my_off_t get_binlog_end_pos(binlog_send_info *info,
   return 0;
 }
 
+
+/*
+  Helper function for send_events() and send_engine_events().
+  After an event has been sent to the client, it handles sending a fake
+  GTID_LIST event if needed; and it handles checking the GTID until stop
+  condition, if any.
+*/
+static bool
+send_event_gtid_list_and_until(binlog_send_info *info, ulong *ev_offset,
+                               Log_event_type event_type, my_off_t log_pos)
+{
+  if (unlikely(info->send_fake_gtid_list) &&
+      info->gtid_skip_group == GTID_SKIP_NOT)
+  {
+    Gtid_list_log_event glev(&info->until_binlog_state, 0);
+
+    if (reset_transmit_packet(info, info->flags, ev_offset, &info->errmsg) ||
+        fake_gtid_list_event(info, &glev, &info->errmsg, (uint32)log_pos))
+    {
+      info->error= ER_UNKNOWN_ERROR;
+      return true;
+    }
+    info->send_fake_gtid_list= false;
+  }
+
+  if (info->until_gtid_state &&
+      is_until_reached(info, ev_offset, event_type, &info->errmsg,
+                       (uint32)log_pos))
+  {
+    if (info->errmsg)
+    {
+      info->error= ER_UNKNOWN_ERROR;
+      return true;
+    }
+    info->should_stop= true;
+  }
+
+  return false;
+}
+
+
 /**
  * This function sends events from one binlog file
  * but only up until end_pos
@@ -2905,10 +3070,12 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
   ulong ev_offset;
 
   String *packet= info->packet;
+  DBUG_ASSERT(!info->engine_binlog_reader);
   linfo->pos= my_b_tell(log);
   info->last_pos= my_b_tell(log);
 
   log->end_of_file= end_pos;
+
   while (linfo->pos < end_pos)
   {
     if (should_stop(info))
@@ -2921,8 +3088,8 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
 
     info->last_pos= linfo->pos;
     error= Log_event::read_log_event(log, packet, info->fdev,
-                       opt_master_verify_checksum ? info->current_checksum_alg
-                                                  : BINLOG_CHECKSUM_ALG_OFF);
+                                     opt_master_verify_checksum ? info->current_checksum_alg
+                                     : BINLOG_CHECKSUM_ALG_OFF);
     linfo->pos= my_b_tell(log);
 
     if (unlikely(error))
@@ -2976,32 +3143,9 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
                                            ev_offset, &info->error_gtid))))
       return 1;
 
-    if (unlikely(info->send_fake_gtid_list) &&
-        info->gtid_skip_group == GTID_SKIP_NOT)
-    {
-      Gtid_list_log_event glev(&info->until_binlog_state, 0);
-
-      if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg) ||
-          fake_gtid_list_event(info, &glev, &info->errmsg, (uint32)my_b_tell(log)))
-      {
-        info->error= ER_UNKNOWN_ERROR;
-        return 1;
-      }
-      info->send_fake_gtid_list= false;
-    }
-
-    if (info->until_gtid_state &&
-        is_until_reached(info, &ev_offset, event_type, &info->errmsg,
-                         (uint32)my_b_tell(log)))
-    {
-      if (info->errmsg)
-      {
-        info->error= ER_UNKNOWN_ERROR;
-        return 1;
-      }
-      info->should_stop= true;
-      return 0;
-    }
+    if (send_event_gtid_list_and_until(info, &ev_offset, event_type,
+                                       my_b_tell(log)))
+      return 1;
 
     /* Abort server before it sends the XID_EVENT */
     DBUG_EXECUTE_IF("crash_before_send_xid",
@@ -3016,6 +3160,96 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
 
   return 0;
 }
+
+
+/**
+ * Send events from binlog implemented in storage engine. Will wait for more
+ * data to become available as needed.
+ *
+ * return 0 - OK
+ *        else NOK
+ */
+static int send_engine_events(binlog_send_info *info)
+{
+  int error;
+  ulong ev_offset;
+
+  String *packet= info->packet;
+  handler_binlog_reader *reader= info->engine_binlog_reader;
+  DBUG_ASSERT(reader);
+  while (!should_stop(info))
+  {
+    /* reset the transmit packet for the event read from binary log
+       file */
+    if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
+      return 1;
+
+    error= reader->read_log_event(packet, packet->length(),
+                                  info->thd->variables.max_allowed_packet);
+    if (unlikely(error) && error != LOG_READ_EOF)
+    {
+      set_read_error(info, error);
+      return 1;
+    }
+    if (error == LOG_READ_EOF)
+    {
+      PSI_stage_info old_stage;
+
+      /**
+       * check if we should wait for more data
+       */
+      if ((info->flags & BINLOG_DUMP_NON_BLOCK) ||
+          (info->thd->variables.server_id == 0))
+      {
+        info->should_stop= true;
+        return 0;
+      }
+
+      /**
+       * flush data before waiting
+       */
+      if (net_flush(info->net))
+      {
+        info->errmsg= "failed on net_flush()";
+        info->error= ER_UNKNOWN_ERROR;
+        return 1;
+      }
+
+      mysql_bin_log.lock_binlog_end_pos();
+      info->thd->ENTER_COND(mysql_bin_log.get_bin_log_cond(),
+                            mysql_bin_log.get_binlog_end_pos_lock(),
+                            &stage_master_has_sent_all_binlog_to_slave,
+                            &old_stage);
+      while (!should_stop(info, true) &&
+             !reader->data_available())
+      {
+        //DBUG_ASSERT(!info->heartbeat_period /* ToDo: Implement support for heartbeat events while waiting for more data. */);
+        int ret= mysql_bin_log.wait_for_update_binlog_end_pos(info->thd, NULL);
+        if (ret != 0 && ret != ETIMEDOUT && ret != ETIME)
+        {
+          ret= 1; // error
+          break;
+        }
+      }
+      info->thd->EXIT_COND(&old_stage);
+      continue;
+    }
+
+    Log_event_type event_type=
+        (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
+
+    DBUG_ASSERT(event_type != START_ENCRYPTION_EVENT);
+    if (((info->errmsg= send_event_to_slave(info, event_type, nullptr,
+                                            ev_offset, &info->error_gtid))))
+      return 1;
+
+    if (send_event_gtid_list_and_until(info, &ev_offset, event_type, 0))
+      return 1;
+  }
+
+  return 0;
+}
+
 
 /**
  * This function sends one binlog file to slave
@@ -3032,7 +3266,8 @@ static int send_one_binlog_file(binlog_send_info *info,
   mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
 
   /* seek to the requested position, to start the requested dump */
-  if (start_pos != BIN_LOG_HEADER_SIZE)
+  if (!opt_binlog_engine_hton &&
+      start_pos != BIN_LOG_HEADER_SIZE)
   {
     my_b_seek(log, start_pos);
     linfo->pos= start_pos;
@@ -3042,6 +3277,14 @@ static int send_one_binlog_file(binlog_send_info *info,
   sending_new_binlog_file++;
   while (!should_stop(info))
   {
+    if (opt_binlog_engine_hton)
+    {
+      info->dirlen= 0;
+      if (send_engine_events(info))
+        return 1;
+    }
+    else
+    {
     /**
      * get end pos of current log file, this function
      * will wait if there is nothing available
@@ -3058,6 +3301,7 @@ static int send_one_binlog_file(binlog_send_info *info,
      */
     if (send_events(info, log, linfo, end_pos))
       return 1;
+    }
   }
 
   return 1;
@@ -3121,6 +3365,26 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   while (!should_stop(info))
   {
+    /* ToDo: do some re-factoring/cleanup so that the code path for binlog-in-engine becomes separate from the legacy code path, sharing common code but avoiding much of the old cruft. */
+    if (opt_binlog_engine_hton) {
+      /* Build a legacy Format_description event for slave. */
+      if (!(info->fdev= new Format_description_log_event
+            (4, 0, BINLOG_CHECKSUM_ALG_OFF)))
+      {
+        info->errmsg= "Out of memory initializing format_description event";
+        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+        goto err;
+      }
+      if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg) ||
+          fake_format_description_event(info, info->fdev, &info->errmsg,
+                                        (uint32_t)pos))
+      {
+        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+        goto err;
+      }
+    }
+    else
+    {
     /*
       Tell the client about the log name with a fake Rotate event;
       this is needed even if we also send a Format_description_log_event
@@ -3171,6 +3435,8 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       goto err;
     }
+
+    }  /* !opt_binlog_engine_hton */
 
     /*
       We want to corrupt the first event that will be sent to the slave.

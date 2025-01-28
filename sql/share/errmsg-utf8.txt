@@ -12292,3 +12292,9 @@ ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
 ER_PSEUDO_THREAD_ID_OVERWRITE
         eng "Pseudo thread id should not be modified by the client as it will be overwritten"
+ER_CANNOT_INIT_ENGINE_BINLOG_READER
+        eng "Cannot initialize binlog reader from storage engine %s"
+ER_ENGINE_BINLOG_REQUIRES_GTID
+        eng "GTID starting position is required on master with --binlog-storage-engine enabled"
+ER_ENGINE_BINLOG_NO_RESET_FILE_NUMBER
+	eng "RESET MASTER TO is not available when --binlog-storage-engine is enabled"

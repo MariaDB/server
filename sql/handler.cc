@@ -1964,6 +1964,10 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (! hi->is_trx_read_write())
       continue;
+    /* We do not need to 2pc the binlog with the engine that implements it. */
+    /* ToDo: This needs refinement, at least to handle the case when we are not binlogging. And maybe the logic could happen more elegantly in a different place, higher in the call stack? */
+    if (ht == opt_binlog_engine_hton)
+      continue;
     /*
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.
@@ -9135,4 +9139,69 @@ void handler::set_optimizer_costs(THD *thd)
 {
   optimizer_where_cost=      thd->variables.optimizer_where_cost;
   optimizer_scan_setup_cost= thd->variables.optimizer_scan_setup_cost;
+}
+
+
+int handler_binlog_reader::read_log_event(String *packet, uint32_t ev_offset,
+                                          size_t max_allowed)
+{
+  uint32_t sofar= 0;
+  bool header_read= false;
+  uint32_t target_size= EVENT_LEN_OFFSET + 4;
+  int res;
+
+  /*
+    Loop, first reading the "length" field, and then continuing to read data
+    until a full event has been placed in the packet.
+  */
+  for (;;)
+  {
+    if (buf_data_remain <= 0)
+    {
+      res= read_binlog_data(buf, sizeof(buf));
+      if (res <= 0)
+      {
+        /* ToDo: Here, if we get EOF in the middle of trying to read an event, we should probably return LOG_READ_IO or some other error, not LOG_READ_EOF? */
+        res= (res < 0 ? LOG_READ_IO : LOG_READ_EOF);
+        goto err;
+      }
+      buf_data_pos= 0;
+      buf_data_remain= res;
+    }
+    uint32_t amount= std::min(target_size - sofar, buf_data_remain);
+    packet->append((char *)buf + buf_data_pos, amount);
+    buf_data_pos+= amount;
+    buf_data_remain-= amount;
+    sofar+= amount;
+    if (target_size == sofar)
+    {
+      if (header_read)
+        break;
+      else
+      {
+        header_read= true;
+        target_size= uint4korr(&((*packet)[EVENT_LEN_OFFSET + ev_offset]));
+        if (target_size < LOG_EVENT_MINIMAL_HEADER_LEN)
+        {
+          res= LOG_READ_BOGUS;
+          goto err;
+        }
+	else if (target_size > max_allowed)
+        {
+          res= LOG_READ_TOO_LARGE;
+          goto err;
+        }
+	/*
+          Note that here we rely on the fact that all valid events have more
+          data after the length. This way we avoid conditional for the
+          (useless) special case where we don't need to read anything more
+          after having read the first part.
+        */
+        DBUG_ASSERT(LOG_EVENT_MINIMAL_HEADER_LEN > EVENT_LEN_OFFSET+4);
+      }
+    }
+  }
+  res= 0;  /* Success */
+err:
+  return res;
 }

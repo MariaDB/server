@@ -600,6 +600,7 @@ class binlog_cache_mngr;
 class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
+struct rpl_binlog_state_base;
 
 class MYSQL_BIN_LOG: public TC_LOG, private Event_log
 {
@@ -763,7 +764,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
-  void update_gtid_index(uint32 offset, rpl_gtid gtid);
+  void update_gtid_index(uint32 offset, const rpl_gtid *gtid);
 
 public:
   void purge(bool all);
@@ -1040,6 +1041,14 @@ public:
   int rotate(bool force_rotate, bool* check_purge);
   void checkpoint_and_purge(ulong binlog_id);
   int rotate_and_purge(bool force_rotate, DYNAMIC_ARRAY* drop_gtid_domain= NULL);
+  int flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex);
+  int flush_binlog(DYNAMIC_ARRAY* drop_gtid_domain)
+  {
+    if (opt_binlog_engine_hton)
+      return flush_binlogs_engine(drop_gtid_domain);
+    else
+      return rotate_and_purge(true, drop_gtid_domain);
+  }
   /**
      Flush binlog cache and synchronize to disk.
 
@@ -1091,6 +1100,8 @@ public:
   bool reset_logs(THD* thd, bool create_new_log,
                   rpl_gtid *init_state, uint32 init_state_len,
                   ulong next_log_number);
+  bool reset_engine_binlogs(THD *thd, rpl_gtid *init_state,
+                            uint32 init_state_len);
   void wait_for_last_checkpoint_event();
   void close(uint exiting);
   void clear_inuse_flag_when_closing(File file);
@@ -1115,8 +1126,9 @@ public:
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
-  bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
-                        uint64 commit_id,
+  bool write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
+                        bool direct_write,
+                        bool is_transactional, uint64 commit_id,
                         bool has_xid= false, bool ro_1pc= false);
   int read_state_from_file();
   int write_state_to_file();
@@ -1189,6 +1201,11 @@ public:
   my_off_t binlog_end_pos;
   char binlog_end_pos_file[FN_REFLEN];
 };
+
+extern bool load_global_binlog_state(rpl_binlog_state_base *state);
+extern bool binlog_recover_gtid_state(rpl_binlog_state_base *state,
+                                      handler_binlog_reader *reader);
+
 
 class Log_event_handler
 {
