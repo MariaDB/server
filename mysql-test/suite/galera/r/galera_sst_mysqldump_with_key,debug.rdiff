@@ -1,5 +1,5 @@
---- r/galera_sst_mysqldump_with_key.result	2021-04-10 14:33:29.441606621 +0300
-+++ r/galera_sst_mysqldump_with_key,debug.reject	2021-04-10 15:02:45.367881573 +0300
+--- r/galera_sst_mysqldump_with_key.result
++++ r/galera_sst_mysqldump_with_key,debug.reject
 @@ -358,6 +358,190 @@
  1
  DROP TABLE t1;

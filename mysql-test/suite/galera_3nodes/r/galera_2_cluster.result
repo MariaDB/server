@@ -3,7 +3,6 @@ connection node_1;
 connect node_5, 127.0.0.1, root, , test, $NODE_MYPORT_5;
 connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
 connection node_4;
-CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_1, master_use_gtid=current_pos;;
 START SLAVE;
 include/wait_for_slave_to_start.inc
 connection node_1;
