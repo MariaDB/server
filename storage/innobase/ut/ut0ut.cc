@@ -40,6 +40,7 @@ Created 5/11/1994 Heikki Tuuri
 #ifndef DBUG_OFF
 #include "rem0rec.h"
 #endif
+#include <iomanip>
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -283,6 +284,34 @@ ut_copy_file(
 			break;
 		}
 	} while (len > 0);
+}
+
+void ut_format_byte_value(uint64_t data_bytes, std::string &data_str)
+{
+  int unit_sz= 1024;
+  auto exp = static_cast<int>(
+      (data_bytes == 0) ? 0 : std::log(data_bytes) / std::log(unit_sz));
+  auto data_value=static_cast<double>(data_bytes) / std::pow(unit_sz, exp);
+
+  char unit[]= " KMGTPE";
+  auto index= static_cast<size_t>(exp > 0 ? exp : 0);
+
+  /* 64 BIT number should never go beyond Exabyte. */
+  auto max_index= sizeof(unit) - 2;
+  if (index > max_index)
+  {
+    ut_d(ut_error);
+    index = max_index;
+  }
+
+  std::stringstream data_strm;
+  if (index == 0)
+    data_strm << std::setprecision(2) << std::fixed << data_value << " "
+              << "Bytes";
+  else
+    data_strm << std::setprecision(2) << std::fixed << data_value << " "
+              << unit[index] << "iB";
+  data_str = data_strm.str();
 }
 
 /** Convert an error number to a human readable text message.

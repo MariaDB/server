@@ -99,7 +99,7 @@ int Clone_Snapshot::fix_ddl_extension(const char *data_dir,
   bool replace_dir = (data_dir == nullptr);
 
   auto file_meta = file_ctx->get_file_meta();
-  bool is_undo_file = fsp_is_undo_tablespace(file_meta->m_space_id);
+  bool is_undo_file = srv_is_undo_tablespace(file_meta->m_space_id);
   bool is_redo_file = file_meta->m_space_id == SRV_SPACE_ID_UPPER_BOUND;
 
   auto extn = Clone_file_ctx::Extension::NONE;
@@ -136,7 +136,7 @@ int Clone_Snapshot::update_sys_file_name(bool replace,
   }
 
   /* Change name to system configured file when replacing current directory. */
-  if (!fsp_is_system_tablespace(space_id)) {
+  if (!is_system_tablespace(space_id)) {
     return (0);
   }
 
@@ -182,10 +182,10 @@ int Clone_Snapshot::update_sys_file_name(bool replace,
   }
 
   auto &file = srv_sys_space.m_files[node_index];
-  page_size_t page_sz(srv_sys_space.flags());
+  auto page_sz= fil_space_t::physical_size(srv_sys_space.flags());
 
   auto size_bytes = static_cast<uint64_t>(file.size());
-  size_bytes *= page_sz.physical();
+  size_bytes *= page_sz;
 
   /* Check if the file size matches with configured files. */
   if (file_meta->m_file_size != size_bytes) {
@@ -247,31 +247,28 @@ int Clone_Snapshot::handle_existing_file(bool replace, bool undo_file,
     m_undo_file_indexes.push_back(data_file_index);
     /* With concurrent DDL support there could be deleted undo file
     indexes here. At the end of every stage, new undo files could be
-    added limited by FSP_MAX_UNDO_TABLESPACES. */
+    added limited by TRX_SYS_MAX_UNDO_SPACES. */
     ut_ad(m_undo_file_indexes.size() <=
-          CLONE_MAX_TRANSFER_STAGES * FSP_MAX_UNDO_TABLESPACES);
+          CLONE_MAX_TRANSFER_STAGES * TRX_SYS_MAX_UNDO_SPACES);
   }
 
-  auto type = Fil_path::get_file_type(data_file);
-  int err = 0;
+  os_file_type_t type= OS_FILE_TYPE_UNKNOWN;
+  bool exists= false;
 
-  /* Consider redo files as existing always if we are cloning to
-  the same directory on which we are working. */
-  if (redo_file && replace && type == OS_FILE_TYPE_MISSING) {
-    type = OS_FILE_TYPE_FILE;
-  }
-
-  /* Nothing to do if file doesn't exist. */
-  if (type == OS_FILE_TYPE_MISSING) {
+  bool ret= os_file_status(data_file.c_str(), &exists, &type);
+  if (ret && !exists)
+  {
+    int err= 0;
     if (replace) {
       /* Add file to new file list to enable rollback. */
-      err = clone_add_to_list_file(CLONE_INNODB_NEW_FILES, data_file.c_str());
+      err= clone_add_to_list_file(CLONE_INNODB_NEW_FILES, data_file.c_str());
     }
-    extn = Clone_file_ctx::Extension::NONE;
+    /* Nothing to do if file doesn't exist. */
+    extn= Clone_file_ctx::Extension::NONE;
     return err;
   }
 
-  if (type != OS_FILE_TYPE_FILE) {
+  if (!ret || type != OS_FILE_TYPE_FILE) {
     /* purecov: begin inspected */
     /* Either the stat() call failed or the name is a
     directory/block device, or permission error etc. */
@@ -288,118 +285,93 @@ int Clone_Snapshot::handle_existing_file(bool replace, bool undo_file,
     my_error(ER_FILE_EXISTS_ERROR, MYF(0), data_file.c_str());
     return ER_FILE_EXISTS_ERROR;
   }
-
-  std::string replace_path, clone_file;
-
-  if (redo_file) {
-    const auto [directory, file] = Fil_path::split(data_file);
-    replace_path = directory;
-    clone_file = directory + CLONE_INNODB_REPLACED_FILE_EXTN + file;
-  } else {
-    replace_path = data_file;
-    clone_file = data_file + CLONE_INNODB_REPLACED_FILE_EXTN;
-  }
+  std::string clone_file= data_file + CLONE_INNODB_REPLACED_FILE_EXTN;
 
   /* Check that file with clone extension is not present */
-  type = Fil_path::get_file_type(clone_file);
+  type= OS_FILE_TYPE_UNKNOWN;
+  exists= false;
+  ret= os_file_status(clone_file.c_str(), &exists, &type);
 
-  if (type != OS_FILE_TYPE_MISSING) {
-    /* purecov: begin inspected */
+  if (ret && exists)
+  {
     my_error(ER_FILE_EXISTS_ERROR, MYF(0), clone_file.c_str());
     return ER_FILE_EXISTS_ERROR;
-    /* purecov: end */
   }
-
-  extn = Clone_file_ctx::Extension::REPLACE;
+  extn= Clone_file_ctx::Extension::REPLACE;
 
   /* Add file name to files to be replaced before recovery. */
-  err =
-      clone_add_to_list_file(CLONE_INNODB_REPLACED_FILES, replace_path.c_str());
-
-  return err;
+  return clone_add_to_list_file(CLONE_INNODB_REPLACED_FILES, data_file.c_str());
 }
 
 int Clone_Snapshot::build_file_path(const char *data_dir,
                                     const Clone_File_Meta *file_meta,
-                                    std::string &built_path) {
+                                    std::string &built_path)
+{
   std::string source;
 
-  bool redo_file = (m_snapshot_state == CLONE_SNAPSHOT_REDO_COPY);
-  bool absolute_path = false;
+  bool redo_file= (m_snapshot_state == CLONE_SNAPSHOT_REDO_COPY);
+  bool absolute_path= false;
 
-  if (!redo_file) {
+  if (!redo_file)
+  {
     source.assign(file_meta->m_file_name);
 
-    bool replace = (data_dir == nullptr);
-    auto err = update_sys_file_name(replace, file_meta, source);
+    bool replace= (data_dir == nullptr);
+    auto err= update_sys_file_name(replace, file_meta, source);
 
-    if (err != 0) {
-      return err; /* purecov: inspected */
-    }
-    absolute_path = Fil_path::is_absolute_path(source);
+    if (err != 0)
+      return err;
+    absolute_path= is_absolute_path(source.c_str());
   }
 
   /* For absolute path, copy the name and return. */
-  if (absolute_path) {
-    auto is_hard_path = test_if_hard_path(source.c_str());
+  if (absolute_path)
+  {
+    auto is_hard_path= test_if_hard_path(source.c_str());
 
     /* Check if the absolute path is not in right format */
-    if (is_hard_path == 0) {
-      /* purecov: begin inspected */
+    if (is_hard_path == 0)
+    {
       my_error(ER_WRONG_VALUE, MYF(0), "file path", source.c_str());
-      return (ER_WRONG_VALUE);
-      /* purecov: end */
+      return ER_WRONG_VALUE;
     }
 
     built_path.assign(source);
     return 0;
   }
-
-  bool undo_file = fsp_is_undo_tablespace(file_meta->m_space_id);
+  bool undo_file= srv_is_undo_tablespace(file_meta->m_space_id);
 
   /* Append appropriate data directory path. */
-
-  /* Use configured path when cloning into current data directory. */
-  if (data_dir == nullptr) {
-    /* Get file path from redo configuration. */
-    if (redo_file) {
-      /* Path returned by log_directory_path() will have the
-      #innodb_redo directory at the end. */
-      built_path = log_directory_path(log_sys->m_files_ctx);
-    } else if (undo_file) {
-      /* Get file path from undo configuration. */
-      built_path = std::string{srv_undo_dir};
-    } else {
-      built_path = std::string{};
-    }
-  } else {
-    built_path = std::string{data_dir};
-    /* Add #innodb_redo directory to the path if this is redo file. */
-    if (redo_file) {
-      /* Add path separator at the end of file path, if not there. */
-      Fil_path::append_separator(built_path);
-      built_path += LOG_DIRECTORY_NAME;
-    }
-  }
+  if (data_dir != nullptr)
+    built_path= std::string{data_dir};
+  else if (redo_file)
+    /* Use configured path when cloning into current data directory. */
+    built_path= std::string{srv_log_group_home_dir};
+  else if (undo_file)
+    built_path= std::string{srv_undo_dir};
+  else
+    built_path = std::string{};
 
   /* Add path separator if required. */
-  Fil_path::append_separator(built_path);
+  if (!built_path.empty() && built_path.back() != OS_PATH_SEPARATOR)
+    built_path+= OS_PATH_SEPARATOR_STR;
 
   /* Add file name. For redo file use standard name. */
-  if (redo_file) {
+  if (redo_file)
+  {
+    /* TODO: Append all data to sinlgle redo log file. */
     /* This is redo file. Use standard name. */
-    built_path += log_file_name(log_sys->m_files_ctx,
-                                Log_file_id{file_meta->m_file_index});
+    built_path+= LOG_FILE_NAME;
     return 0;
   }
-
   ut_ad(!source.empty());
 
-  if (Fil_path::has_prefix(source, Fil_path::DOT_SLASH)) {
+  /* Remove dot slash prefix from source, if there. */
+  std::string dot_slash= "." + OS_PATH_SEPARATOR;
+  if (std::equal(dot_slash.begin(), dot_slash.end(), source.begin()))
     source.erase(0, 2);
-  }
 
-  built_path.append(source);
+  built_path+= source;
   return 0;
 }
 
@@ -483,7 +455,7 @@ int Clone_Snapshot::create_desc(const char *data_dir,
   } else {
     /* If data directory is being replaced. */
     bool replace_dir = (data_dir == nullptr);
-    bool is_undo_file = fsp_is_undo_tablespace(file_meta->m_space_id);
+    bool is_undo_file = srv_is_undo_tablespace(file_meta->m_space_id);
     bool is_redo_file = file_meta->m_space_id == SRV_SPACE_ID_UPPER_BOUND;
 
     /* Check if file is already present in recipient. */
@@ -555,7 +527,7 @@ int Clone_Handle::check_space(const Clone_Task *task) {
     return (0);
   }
   uint64_t free_space;
-  auto MySQL_datadir_abs_path = MySQL_datadir_path.abs_path();
+  std::string MySQL_datadir_abs_path= mysql_real_data_home;
   auto data_dir =
       (replace_datadir() ? MySQL_datadir_abs_path.c_str() : get_datadir());
 
@@ -1001,14 +973,12 @@ int Clone_Handle::set_compression(Clone_file_ctx *file_ctx) {
     return 0;
 
   /* Disable punch hole if donor compression is not effective. */
-  page_size_t page_size(file_meta->m_fsp_flags);
-
-  if (page_size.is_compressed() ||
-      file_meta->m_fsblk_size * 2 > srv_page_size) {
-    /* purecov: begin inspected */
-    file_meta->m_punch_hole = false;
+  auto comp_type= fil_space_t::get_compression_algo(file_meta->m_fsp_flags);
+  if (comp_type == PAGE_UNCOMPRESSED ||
+      file_meta->m_fsblk_size * 2 > srv_page_size)
+  {
+    file_meta->m_punch_hole= false;
     return 0;
-    /* purecov: end */
   }
 
   os_file_stat_t stat_info;
@@ -1018,79 +988,65 @@ int Clone_Handle::set_compression(Clone_file_ctx *file_ctx) {
   os_file_get_status(file_name.c_str(), &stat_info, false, false);
 
   /* Check and disable punch hole if recipient cannot support it. */
-  if (!IORequest::is_punch_hole_supported() ||
-      stat_info.block_size * 2 > srv_page_size) {
-    file_meta->m_punch_hole = false; /* purecov: inspected */
-  } else {
-    file_meta->m_punch_hole = true;
-  }
+  file_meta->m_punch_hole= (stat_info.block_size * 2 <= srv_page_size);
 
   /* Old format for compressed and encrypted page is
   dependent on file system block size. */
   if (file_meta->can_encrypt() &&
       file_meta->m_fsblk_size != stat_info.block_size) {
-    /* purecov: begin tested */
-    auto donor_str = std::to_string(file_meta->m_fsblk_size);
-    auto recipient_str = std::to_string(stat_info.block_size);
+    auto donor_str= std::to_string(file_meta->m_fsblk_size);
+    auto recipient_str= std::to_string(stat_info.block_size);
 
+   /* TODO: Check and get rid of this restriction. */
     my_error(ER_CLONE_CONFIG, MYF(0), "FS Block Size", donor_str.c_str(),
              recipient_str.c_str());
     return ER_CLONE_CONFIG;
-    /* purecov: end */
   }
 
   return 0;
 }
 
 int Clone_Handle::file_create_init(const Clone_file_ctx *file_ctx,
-                                   ulint file_type, bool init) {
+                                   ulint file_type, bool init)
+{
   /* Create the file and path. */
-  File_init_cbk init_cbk = [&](pfs_os_file_t file) {
-    if (!init) {
+  File_init_cbk init_cbk= [&](pfs_os_file_t file)
+  {
+    if (!init)
       return DB_SUCCESS;
-    }
-
-    bool punch_hole = false;
 
     std::string file_name;
     file_ctx->get_file_name(file_name);
 
-    const auto file_meta = file_ctx->get_file_meta_read();
-    auto flags = file_meta->m_fsp_flags;
+    const auto file_meta= file_ctx->get_file_meta_read();
+    bool is_undo_file= srv_is_undo_tablespace(file_meta->m_space_id);
 
-    bool is_undo_file = fsp_is_undo_tablespace(file_meta->m_space_id);
+    page_no_t size_in_pages=
+        is_undo_file ? SRV_UNDO_TABLESPACE_SIZE_IN_PAGES : FIL_IBD_FILE_INITIAL_SIZE;
 
-    page_no_t size_in_pages =
-        is_undo_file ? UNDO_INITIAL_SIZE_IN_PAGES : FIL_IBD_FILE_INITIAL_SIZE;
-
-    dberr_t db_err = DB_SUCCESS;
+    dberr_t db_err= DB_SUCCESS;
     std::string mesg("CREATE NEW FILE : ");
 
-    ut_ad(!m_file_meta.m_transfer_encryption_key);
-    /* TODO: Write page header encryption information. */
-    byte *encryption_ptr = nullptr;
-
-    if (db_err == DB_SUCCESS) {
-      db_err = fil_write_initial_pages(
-          file, file_name.c_str(), FIL_TYPE_TABLESPACE, size_in_pages,
-          encryption_ptr, file_meta->m_space_id, flags, punch_hole);
-    }
+    ut_ad(!file_meta->m_transfer_encryption_key);
+    /* TODO: 1. Check if initial pages need to be written.
+             2. Write page header encryption information. */
+    if (!os_file_set_size(file_name.c_str(), file,
+                          size_in_pages << srv_page_size_shift,
+                          file_meta->m_punch_hole))
+      db_err= DB_OUT_OF_FILE_SPACE;
 
     mesg.append(file_name);
     mesg.append(" Space ID: ");
     mesg.append(std::to_string(file_meta->m_space_id));
 
-    if (db_err != DB_SUCCESS) {
-      mesg.append(" FAILED"); /* purecov: inspected */
-    }
+    if (db_err != DB_SUCCESS)
+      mesg.append(" FAILED");
 
     ib::info() << "Clone DDL APPLY: " << mesg;
-
     return db_err;
   };
 
-  auto err = open_file(nullptr, file_ctx, file_type, true, init_cbk);
-
+  auto err= open_file(nullptr, file_ctx, file_type, true, init_cbk);
   return err;
 }
 
@@ -1218,74 +1174,89 @@ int Clone_Handle::apply_file_metadata(Clone_Task *task,
 }
 
 bool Clone_Handle::read_compressed_len(unsigned char *buffer, uint32_t len,
-                                       uint32_t block_size,
-                                       uint32_t &compressed_len) {
-  ut_a(len >= 2);
+                                       bool crc32, uint32_t block_size,
+                                       uint32_t &compressed_len)
+{
+  bool compressed=false;
+  if (crc32)
+  {
+    ut_a(len >= FIL_PAGE_TYPE + 2);
+    compressed_len= buf_page_full_crc32_size(buffer, &compressed, nullptr);
+    return compressed;
+  }
+  uint32_t header_len= FIL_PAGE_DATA;
 
-  /* Validate compressed page type */
-  auto page_type = mach_read_from_2(buffer + FIL_PAGE_TYPE);
-
-  if (page_type == FIL_PAGE_COMPRESSED ||
-      page_type == FIL_PAGE_COMPRESSED_AND_ENCRYPTED) {
-    compressed_len = mach_read_from_2(buffer + FIL_PAGE_COMPRESS_SIZE_V1);
-    compressed_len += FIL_PAGE_DATA;
-
-    /* Align compressed length */
-    compressed_len = ut_calc_align(compressed_len, block_size);
-    return true;
+  switch (fil_page_get_type(buffer))
+  {
+    case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+      header_len+= FIL_PAGE_ENCRYPT_COMP_METADATA_LEN;
+      break;
+    case FIL_PAGE_PAGE_COMPRESSED:
+      header_len+= FIL_PAGE_COMP_METADATA_LEN;
+      break;
+    default:
+      compressed_len= static_cast<uint32_t>(srv_page_size);
+      return false;
   }
 
-  return false;
+  compressed=true;
+  ut_a(len >= FIL_PAGE_DATA + FIL_PAGE_COMP_SIZE + 2);
+  compressed_len= mach_read_from_2(buffer + FIL_PAGE_DATA + FIL_PAGE_COMP_SIZE);
+
+  compressed_len+= header_len;
+
+  /* Align compressed length. TODO: Check if this is required. */
+  compressed_len= ut_calc_align(compressed_len, block_size);
+  return true;
 }
 
 int Clone_Handle::sparse_file_write(Clone_File_Meta *file_meta,
                                     unsigned char *buffer, uint32_t len,
                                     pfs_os_file_t file, uint64_t start_off) {
-  dberr_t err = DB_SUCCESS;
-  page_size_t page_size(file_meta->m_fsp_flags);
-  auto page_len = page_size.physical();
-
-  IORequest request(IORequest::WRITE);
-  request.disable_compression();
-  request.clear_encrypted();
+  dberr_t err= DB_SUCCESS;
+  auto page_len= fil_space_t::physical_size(file_meta->m_fsp_flags);
 
   /* Loop through all pages in current data block */
   while (len >= page_len) {
+    bool full_crc32= fil_space_t::full_crc32(file_meta->m_fsp_flags);
     uint32_t comp_len;
-    bool is_compressed = read_compressed_len(
-        buffer, len, static_cast<uint32_t>(file_meta->m_fsblk_size), comp_len);
+    bool is_compressed= read_compressed_len(
+        buffer, len, full_crc32,
+        static_cast<uint32_t>(file_meta->m_fsblk_size), comp_len);
 
-    auto write_len = is_compressed ? comp_len : page_len;
+    auto write_len= is_compressed ? comp_len : page_len;
 
     /* Punch hole if needed */
-    bool first_page = (start_off == 0);
+    bool first_page= (start_off == 0);
 
     /* In rare case during file copy the page could be a torn page
     and the size may not be correct. In such case the page is going to
     be replaced later during page copy.*/
-    if (first_page || write_len > page_len) {
-      write_len = page_len;
-    }
+    if (first_page || write_len > page_len)
+      write_len= page_len;
 
     /* Write Data Page */
-    errno = 0;
-    err = os_file_write(request, "Clone data file", file,
-                        reinterpret_cast<char *>(buffer), start_off,
-                        (start_off == 0) ? page_len : write_len);
-    if (err != DB_SUCCESS) {
+    errno= 0;
+    err= os_file_write(IORequestWrite, "Clone data file", file,
+                       reinterpret_cast<char *>(buffer), start_off,
+                       (start_off == 0) ? page_len : write_len);
+    if (err != DB_SUCCESS)
+    {
       char errbuf[MYSYS_STRERROR_SIZE];
       my_error(ER_ERROR_ON_WRITE, MYF(0), file_meta->m_file_name, errno,
                my_strerror(errbuf, sizeof(errbuf), errno));
 
-      return (ER_ERROR_ON_WRITE);
+      return ER_ERROR_ON_WRITE;
     }
 
-    os_offset_t offset = start_off + write_len;
-    os_offset_t hole_size = page_len - write_len;
+    os_offset_t offset= start_off + write_len;
+    os_offset_t hole_size= page_len - write_len;
 
-    if (file_meta->m_punch_hole && hole_size > 0) {
-      err = os_file_punch_hole(file.m_file, offset, hole_size);
-      if (err != DB_SUCCESS) {
+    if (file_meta->m_punch_hole && hole_size > 0)
+    {
+      err= os_file_punch_hole(file.m_file, offset, hole_size);
+      if (err != DB_SUCCESS)
+      {
         /* Disable for whole file */
         file_meta->m_punch_hole = false;
         ut_ad(err == DB_IO_NO_PUNCH_HOLE);
@@ -1294,10 +1265,9 @@ int Clone_Handle::sparse_file_write(Clone_File_Meta *file_meta,
             << file_meta->m_file_name;
       }
     }
-
-    start_off += page_len;
-    buffer += page_len;
-    len -= page_len;
+    start_off+= page_len;
+    buffer+= page_len;
+    len-= page_len;
   }
 
   /* Must have consumed all data. */
@@ -1320,15 +1290,11 @@ int Clone_Handle::modify_and_write(const Clone_Task *task, uint64_t offset,
     return err;
   }
 
-  /* No more compression/encryption is needed. */
-  IORequest request(IORequest::WRITE);
-  request.disable_compression();
-  request.clear_encrypted();
-
-  /* For redo/undo log files and uncompressed tables ,directly write to file */
+  /* No more compression/encryption is needed. For redo/undo log files and
+  uncompressed tables, directly write to file */
   errno = 0;
   auto db_err =
-      os_file_write(request, "Clone data file", task->m_current_file_des,
+      os_file_write(IORequestWrite, "Clone data file", task->m_current_file_des,
                     reinterpret_cast<char *>(buffer), offset, buf_len);
   if (db_err != DB_SUCCESS) {
     char errbuf[MYSYS_STRERROR_SIZE];
@@ -1704,8 +1670,8 @@ int Clone_Snapshot::extend_and_flush_files(bool flush_redo) {
     /* If file size is not aligned to extent size, recovery handling has
     some issues. This work around eliminates dependency with that. */
     if (file_meta->m_fsp_flags != ULINT32_UNDEFINED) {
-      page_size_t page_size(file_meta->m_fsp_flags);
-      auto extent_size = page_size.physical() * FSP_EXTENT_SIZE;
+      auto page_size= fil_space_t::physical_size(file_meta->m_fsp_flags);
+      auto extent_size= page_size * FSP_EXTENT_SIZE;
       /* Skip extending files smaller than one extent. */
       if (file_size > extent_size) {
         aligned_size = ut_uint64_align_up(file_size, extent_size);
@@ -1713,11 +1679,10 @@ int Clone_Snapshot::extend_and_flush_files(bool flush_redo) {
     }
 
     if (file_size < file_meta->m_file_size) {
-      success = os_file_set_size(file_name.c_str(), file, file_size,
-                                 file_meta->m_file_size, true);
+      success = os_file_set_size(file_name.c_str(), file,
+                                 file_meta->m_file_size);
     } else if (file_size < aligned_size) {
-      success = os_file_set_size(file_name.c_str(), file, file_size,
-                                 aligned_size, true);
+      success = os_file_set_size(file_name.c_str(), file, aligned_size);
     } else {
       success = os_file_flush(file);
     }

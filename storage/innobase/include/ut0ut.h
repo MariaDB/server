@@ -190,6 +190,11 @@ ut_copy_file(
 	FILE*	dest,	/*!< in: output file */
 	FILE*	src);	/*!< in: input file to be appended to output */
 
+/** Convert byte value to string with unit
+@param[in]  data_bytes byte value
+@param[out] data_str   formatted string */
+void ut_format_byte_value(uint64_t data_bytes, std::string &data_str);
+
 /*************************************************************//**
 Convert an error number to a human readable text message. The
 returned string is static and should not be freed or modified.

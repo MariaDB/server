@@ -755,7 +755,9 @@ bool Clone_Desc_File_MetaData::deserialize(const byte *desc_file,
   m_file_meta.m_fsblk_size =
       mach_read_from_4(desc_file + CLONE_FILE_FSBLK_OFFSET);
 
-  m_file_meta.m_punch_hole = false;
+  m_file_meta.m_punch_hole= false;
+  m_file_meta.m_is_compressed= m_file_meta.m_fsp_flags != ULINT32_UNDEFINED
+      && fil_space_t::is_compressed(m_file_meta.m_fsp_flags);
 
   auto file_flags =
       static_cast<ulint>(mach_read_from_2(desc_file + CLONE_FILE_FLAGS_OFFSET));
@@ -814,6 +816,7 @@ bool Clone_Desc_File_MetaData::deserialize(const byte *desc_file,
   /* Extract Encryption key information if transferred. */
   /* TODO: Encryption metadata transfer: Set file encryption type */
   ut_ad(!m_file_meta.m_transfer_encryption_key);
+  m_file_meta.m_is_encrypted= false;
   ut_ad(m_header.m_length
     == CLONE_FILE_FNAME_OFFSET + m_file_meta.m_file_name_len);
   return (true);
