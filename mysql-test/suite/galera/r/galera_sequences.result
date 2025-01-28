@@ -249,13 +249,10 @@ CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
 ALTER TABLE t ENGINE=MYISAM;
 ERROR 42000: This version of MariaDB doesn't yet support 'non-InnoDB sequences in Galera cluster'
 ALTER SEQUENCE t INCREMENT BY 1 CACHE=10;
-ERROR 42000: This version of MariaDB doesn't yet support 'non-InnoDB sequences in Galera cluster'
+ERROR 42000: This version of MariaDB doesn't yet support 'CACHE without INCREMENT BY 0 in Galera cluster'
 ALTER SEQUENCE t INCREMENT BY 1 NOCACHE;
-ERROR 42000: This version of MariaDB doesn't yet support 'non-InnoDB sequences in Galera cluster'
 ALTER SEQUENCE t INCREMENT BY 0 NOCACHE;
-ERROR 42000: This version of MariaDB doesn't yet support 'non-InnoDB sequences in Galera cluster'
 ALTER SEQUENCE t INCREMENT BY 0 CACHE=10;
-ERROR 42000: This version of MariaDB doesn't yet support 'non-InnoDB sequences in Galera cluster'
 DROP SEQUENCE t;
 CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
