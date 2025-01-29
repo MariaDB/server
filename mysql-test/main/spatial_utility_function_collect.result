@@ -135,3 +135,10 @@ tb1	CREATE TABLE `tb1` (
   `(ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )) )` geometry DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE tb1;
+#
+# MDEV-35975 Server crashes after CREATE VIEW as SELECT ST_COLLECT
+#
+create view v1 as SELECT ST_COLLECT(ST_GEOMFROMTEXT('POINT(0 0)'));
+drop view v1;
+create view v1 as SELECT GROUP_CONCAT(ST_GEOMFROMTEXT('POINT(0 0)'));
+drop view v1;
