@@ -132,6 +132,8 @@ static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
   WSREP_INFO("Donor monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_donor_monitor);
 
+  sd_notify(0, "STATUS=WSREP state transfer (role donor) completed.\n");
+
   return NULL;
 }
 
@@ -168,6 +170,8 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
 
   WSREP_INFO("Joiner monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_joiner_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role joiner) completed.\n");
 
   return NULL;
 }
