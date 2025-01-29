@@ -120,8 +120,7 @@ Handler_read_rnd_next	4
 Variable_name	Value
 Handler_delete	1
 Handler_read_key	2
-Handler_read_rnd	1
-Handler_read_rnd_next	6
+Handler_read_rnd_next	4
 
 DROP TABLE t1;
 #4
@@ -928,9 +927,9 @@ Variable_name	Value
 Handler_delete	8
 Handler_read_key	19
 Handler_read_next	3
-Handler_read_rnd	8
+Handler_read_rnd	5
 Handler_read_rnd_deleted	1
-Handler_read_rnd_next	15
+Handler_read_rnd_next	11
 
 DROP TABLE t1, t2, t3;
 #20
@@ -1066,8 +1065,7 @@ Handler_read_rnd_next	12
 Variable_name	Value
 Handler_delete	3
 Handler_read_key	4
-Handler_read_rnd	3
-Handler_read_rnd_next	34
+Handler_read_rnd_next	30
 
 DROP TABLE t1, t2;
 #22

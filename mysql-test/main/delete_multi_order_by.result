@@ -237,3 +237,157 @@ update t2, t1 set t2.field=t1.field  where t1.id1=t2.id2 and 0=1;
 delete t1, t2 from t2 inner join t1 on t1.id1=t2.id2  where 0=1;
 drop table t1, t2;
 set session sql_buffer_result=default;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select * from t1;
+id	v
+2	3
+1	4
+select * from t2;
+id	v
+5	5
+6	6
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 1;
+id	v	id	v
+1	4	5	5
+delete t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 1;
+select * from t1;
+id	v
+2	3
+select * from t2;
+id	v
+6	6
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select * from t1;
+id	v
+2	3
+1	4
+select * from t2;
+id	v
+5	5
+6	6
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+id	v	id	v
+1	4	5	5
+1	4	6	6
+delete t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+select * from t1;
+id	v
+2	3
+select * from t2;
+id	v
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select * from t1;
+id	v
+2	3
+1	4
+select * from t2;
+id	v
+5	5
+6	6
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 3;
+id	v	id	v
+1	4	5	5
+1	4	6	6
+2	3	5	5
+delete t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 3;
+select * from t1;
+id	v
+select * from t2;
+id	v
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select * from t1;
+id	v
+1	1000
+2	2000
+3	3000
+4	4000
+5	5000
+select * from t2;
+id	v
+10	100
+20	200
+30	300
+40	400
+50	500
+select * from t3;
+id	v
+11	111
+22	222
+33	333
+44	444
+55	555
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+id	v	id	v	id	v
+1	1000	10	100	11	111
+1	1000	10	100	22	222
+1	1000	10	100	33	333
+delete t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+select * from t1;
+id	v
+2	2000
+3	3000
+4	4000
+5	5000
+select * from t2;
+id	v
+20	200
+30	300
+40	400
+50	500
+select * from t3;
+id	v
+44	444
+55	555
+drop table t1, t2, t3;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select * from t1;
+id	v
+1	1000
+2	2000
+3	3000
+4	4000
+5	5000
+select * from t2;
+id	v
+10	100
+20	200
+30	300
+40	400
+50	500
+select * from t3;
+id	v
+11	111
+22	222
+33	333
+44	444
+55	555
+delete t1.*, t2.*, t3.* from t1, t2, t3;
+select * from t1;
+id	v
+select * from t2;
+id	v
+select * from t3;
+id	v
+drop table t1, t2, t3;

@@ -3394,12 +3394,12 @@ o_custkey in (select c_custkey from customer
 where c_nationkey in (1,2));
 select o_orderkey, o_totalprice from t;
 o_orderkey	o_totalprice
-1856	189361.42
 324	26868.85
+1856	189361.42
 1221	117397.16
 3139	40975.96
-1925	146382.71
 1344	43809.37
+1925	146382.71
 4903	34363.63
 5607	24660.06
 delete from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and

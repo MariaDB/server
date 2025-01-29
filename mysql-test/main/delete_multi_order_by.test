@@ -1,6 +1,9 @@
 #
 # MDEV-30469 Support ORDER BY and LIMIT for multi-table DELETE, index hints for single-table DELETE.
 #
+
+--source include/have_innodb.inc
+
 create table t1 (id int primary key, v int);
 create table t2 (id int primary key, v int);
 insert into t1 (id, v) values (4,1),(3,2),(2,3),(1,4);
@@ -129,3 +132,74 @@ delete t1, t2 from t2 inner join t1 on t1.id1=t2.id2  where 0=1;
 
 drop table t1, t2;
 set session sql_buffer_result=default;
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select * from t1;
+select * from t2;
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 1;
+delete t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 1;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select * from t1;
+select * from t2;
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+delete t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select * from t1;
+select * from t2;
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 3;
+delete t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 3;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select * from t1;
+select * from t2;
+select * from t3;
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+delete t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t1, t2, t3;
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select * from t1;
+select * from t2;
+select * from t3;
+delete t1.*, t2.*, t3.* from t1, t2, t3;
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t1, t2, t3;
