@@ -1,7 +1,6 @@
 !include ../galera_2nodes.cnf
 
-[mysqld]
-log-bin
+[mysqld.1]
 wsrep-debug=1
-loose-mysql-wsrep198=1
+loose-galera-bf-abort-lock-table=1
 
