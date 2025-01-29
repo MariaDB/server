@@ -125,7 +125,7 @@ static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role donor) ongoing...");
     }
   }
 
@@ -162,7 +162,7 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role joiner) ongoing...");
     }
   }
 
