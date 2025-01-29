@@ -85,6 +85,27 @@ ERROR 22007: Incorrect date value: '2003-02-29' for column `test`.`t1`.`col1` at
 INSERT ignore INTO t1 VALUES('2003-02-30');
 Warnings:
 Warning	1265	Data truncated for column 'col1' at row 1
+INSERT INTO t1 VALUES('2001-01-01W');
+ERROR 22007: Incorrect date value: '2001-01-01W' for column `test`.`t1`.`col1` at row 1
+INSERT INTO t1 VALUES('2001-01-01T');
+ERROR 22007: Incorrect date value: '2001-01-01T' for column `test`.`t1`.`col1` at row 1
+set @@sql_mode='strict_all_tables';
+INSERT INTO t1 VALUES('2001-01-01W');
+ERROR 22007: Incorrect date value: '2001-01-01W' for column `test`.`t1`.`col1` at row 1
+INSERT INTO t1 VALUES('2001-01-01T');
+ERROR 22007: Incorrect date value: '2001-01-01T' for column `test`.`t1`.`col1` at row 1
+set @@sql_mode='strict_all_tables,strict_trans_tables';
+INSERT INTO t1 VALUES('2001-01-01W');
+ERROR 22007: Incorrect date value: '2001-01-01W' for column `test`.`t1`.`col1` at row 1
+INSERT INTO t1 VALUES('2001-01-01T');
+ERROR 22007: Incorrect date value: '2001-01-01T' for column `test`.`t1`.`col1` at row 1
+set @@sql_mode='';
+INSERT INTO t1 VALUES('2001-01-01W');
+Warnings:
+Warning	1265	Data truncated for column 'col1' at row 1
+INSERT INTO t1 VALUES('2001-01-01T');
+Warnings:
+Warning	1265	Data truncated for column 'col1' at row 1
 set @@sql_mode='STRICT_ALL_TABLES,ALLOW_INVALID_DATES';
 INSERT ignore INTO t1 VALUES('2003-02-31');
 select * from t1;
@@ -95,6 +116,8 @@ col1
 0000-00-00
 2004-01-04
 0000-00-00
+2001-01-01
+2001-01-01
 2003-02-31
 drop table t1;
 set @@sql_mode='strict_trans_tables';
@@ -111,6 +134,27 @@ ERROR 22007: Incorrect date value: '2003-02-29' for column `test`.`t1`.`col1` at
 INSERT ignore INTO t1 VALUES('2003-02-30');
 Warnings:
 Warning	1265	Data truncated for column 'col1' at row 1
+INSERT INTO t1 VALUES('2001-01-01W');
+ERROR 22007: Incorrect date value: '2001-01-01W' for column `test`.`t1`.`col1` at row 1
+INSERT INTO t1 VALUES('2001-01-01T');
+ERROR 22007: Incorrect date value: '2001-01-01T' for column `test`.`t1`.`col1` at row 1
+set @@sql_mode='strict_all_tables';
+INSERT INTO t1 VALUES('2001-01-01W');
+ERROR 22007: Incorrect date value: '2001-01-01W' for column `test`.`t1`.`col1` at row 1
+INSERT INTO t1 VALUES('2001-01-01T');
+ERROR 22007: Incorrect date value: '2001-01-01T' for column `test`.`t1`.`col1` at row 1
+set @@sql_mode='strict_all_tables,strict_trans_tables';
+INSERT INTO t1 VALUES('2001-01-01W');
+ERROR 22007: Incorrect date value: '2001-01-01W' for column `test`.`t1`.`col1` at row 1
+INSERT INTO t1 VALUES('2001-01-01T');
+ERROR 22007: Incorrect date value: '2001-01-01T' for column `test`.`t1`.`col1` at row 1
+set @@sql_mode='';
+INSERT INTO t1 VALUES('2001-01-01W');
+Warnings:
+Warning	1265	Data truncated for column 'col1' at row 1
+INSERT INTO t1 VALUES('2001-01-01T');
+Warnings:
+Warning	1265	Data truncated for column 'col1' at row 1
 set @@sql_mode='STRICT_ALL_TABLES,ALLOW_INVALID_DATES';
 INSERT ignore INTO t1 VALUES('2003-02-31');
 select * from t1;
@@ -118,6 +162,8 @@ col1
 0000-00-00
 2004-01-04
 0000-00-00
+2001-01-01
+2001-01-01
 2003-02-31
 drop table t1;
 set @@sql_mode='ansi,traditional';
