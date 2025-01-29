@@ -3553,6 +3553,9 @@ Item_sum_str::fix_fields(THD *thd, Item **ref)
   if (check_sum_func(thd, ref))
     return TRUE;
 
+  if (arg_count)
+    memcpy (orig_args, args, sizeof (Item *) * arg_count);
+
   base_flags|= item_base_t::FIXED;
   return FALSE;
 }
@@ -3988,8 +3991,6 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
 
   /* orig_args is only used for print() */
   orig_args= (Item**) (order + arg_count_order);
-  if (arg_count)
-    memcpy(orig_args, args, sizeof(Item*) * arg_count);
   if (limit_clause)
   {
     row_limit= row_limit_arg;
