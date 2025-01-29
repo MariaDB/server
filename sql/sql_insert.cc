@@ -4264,7 +4264,11 @@ bool select_insert::store_values(List<Item> &values)
 bool select_insert::prepare_eof()
 {
   int error;
-  bool const trans_table= table->file->has_transactions_and_rollback();
+  // make sure any ROW format pending event is logged in the same binlog cache
+  bool const trans_table= (thd->is_current_stmt_binlog_format_row() > 0 &&
+                           table->file->row_logging) ?
+    table->file->row_logging_has_trans :
+    table->file->has_transactions_and_rollback();
   bool changed;
   bool binary_logged= 0;
   killed_state killed_status= thd->killed;
