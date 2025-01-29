@@ -536,6 +536,7 @@ ALTER TABLE t2 REMOVE PARTITIONING;
 --error ER_PARTITION_EXCHANGE_DIFFERENT_OPTION
 ALTER TABLE t1 EXCHANGE PARTITION pm WITH TABLE t2;
 DROP TABLE t1, t2;
+--disable_prepare_warnings
 
 --echo #
 --echo # MDEV-14642 Assertion `table->s->db_create_options == part_table->s->db_create_options' failed in compare_table_with_partition
@@ -595,11 +596,17 @@ create table t (a int, b text, unique (b), unique(a, b)) partition by list (a) (
 create table tp (a int, b text, c int invisible, unique (b), unique(a, b));
 --error ER_TABLES_DIFFERENT_METADATA
 alter table t exchange partition p0 with table tp;
-
 create or replace table tp (a int, b text, unique (b), unique(a, b));
 alter table t exchange partition p0 with table tp;
-
-# cleanup
 drop table t, tp;
 
---disable_prepare_warnings
+# same for system versioning:
+create table t (a int, b int) with system versioning partition by list (a) (partition p0 values in (1,2));
+create table tp (a int, b int); # without system versioning
+--error ER_TABLES_DIFFERENT_METADATA
+alter table t exchange partition p0 with table tp;
+create or replace table tp (a int, b int) with system versioning;
+alter table t exchange partition p0 with table tp;
+drop table t, tp;
+
+--echo # End of 10.5 tests

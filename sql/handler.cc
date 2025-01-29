@@ -1756,7 +1756,7 @@ int ha_commit_trans(THD *thd, bool all)
       thd->m_transaction_psi= NULL;
     }
 #ifdef WITH_WSREP
-    if (wsrep_is_active(thd) && is_real_trans && !error)
+    if (WSREP(thd) && wsrep_is_active(thd) && is_real_trans && !error)
       wsrep_commit_empty(thd, all);
 #endif /* WITH_WSREP */
 
@@ -2286,9 +2286,14 @@ int ha_rollback_trans(THD *thd, bool all)
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
-        WSREP_WARN("handlerton rollback failed, thd %lld %lld conf %d SQL %s",
-                   thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
-                   thd->query());
+        if (WSREP(thd))
+        {
+          WSREP_WARN("handlerton rollback failed, thd %lld %lld "
+                     "conf %d wsrep_err %s SQL %s",
+                     thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
+                     wsrep::to_c_string(thd->wsrep_cs().current_error()),
+                     thd->query());
+        }
 #endif /* WITH_WSREP */
       }
       status_var_increment(thd->status_var.ha_rollback_count);
@@ -2300,11 +2305,12 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_WSREP
-  if (thd->is_error())
+  if (WSREP(thd) && thd->is_error())
   {
-    WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
-                thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
-                thd->get_stmt_da()->message(), is_real_trans);
+    WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: msg %s is_real %d wsrep_err %s",
+                thd->thread_id, all? "TRUE" : "FALSE",
+                thd->get_stmt_da()->message(), is_real_trans,
+                wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
 
   // REPLACE|INSERT INTO ... SELECT uses TOI in consistency check
@@ -5935,7 +5941,10 @@ int handler::calculate_checksum()
   for (;;)
   {
     if (thd->killed)
-      return HA_ERR_ABORTED_BY_USER;
+    {
+      error= HA_ERR_ABORTED_BY_USER;
+      break;
+    }
 
     ha_checksum row_crc= 0;
     error= ha_rnd_next(table->record[0]);
@@ -7759,6 +7768,7 @@ int handler::ha_write_row(const uchar *buf)
         ht->flags & HTON_WSREP_REPLICATION &&
         !error && (error= wsrep_after_row(ha_thd())))
     {
+      DEBUG_SYNC_C("ha_write_row_end");
       DBUG_RETURN(error);
     }
 #endif /* WITH_WSREP */

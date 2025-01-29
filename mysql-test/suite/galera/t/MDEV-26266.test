@@ -10,6 +10,8 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/force_restart.inc
 
 SET SESSION query_prealloc_size=8192;
 SET max_session_mem_used=50000;

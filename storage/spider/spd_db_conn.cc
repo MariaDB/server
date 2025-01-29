@@ -73,7 +73,7 @@ int spider_db_connect(
   THD* thd = current_thd;
   longlong connect_retry_interval;
   DBUG_ENTER("spider_db_connect");
-  DBUG_ASSERT(conn->conn_kind != SPIDER_CONN_KIND_MYSQL || conn->need_mon);
+  DBUG_ASSERT(conn->need_mon);
   DBUG_PRINT("info",("spider link_idx=%d", link_idx));
   DBUG_PRINT("info",("spider conn=%p", conn));
 
@@ -221,7 +221,6 @@ void spider_db_disconnect(
 ) {
   DBUG_ENTER("spider_db_disconnect");
   DBUG_PRINT("info",("spider conn=%p", conn));
-  DBUG_PRINT("info",("spider conn->conn_kind=%u", conn->conn_kind));
   if (conn->db_conn->is_connected())
   {
     conn->db_conn->disconnect();
@@ -10363,9 +10362,9 @@ int spider_db_open_handler(
   spider_db_handler *dbton_hdl = spider->dbton_handler[conn->dbton_id];
   DBUG_ENTER("spider_db_open_handler");
   spider_lock_before_query(conn, &spider->need_mons[link_idx]);
-  if (!spider->handler_opened(link_idx, conn->conn_kind))
+  if (!spider->handler_opened(link_idx))
     *handler_id_ptr = conn->opened_handlers;
-  if (!spider->handler_opened(link_idx, conn->conn_kind))
+  if (!spider->handler_opened(link_idx))
     my_sprintf(spider->m_handler_cid[link_idx],
                (spider->m_handler_cid[link_idx],
                 SPIDER_SQL_HANDLER_CID_FORMAT,
@@ -10390,7 +10389,7 @@ int spider_db_open_handler(
       goto error;
     }
     dbton_hdl->reset_sql(SPIDER_SQL_TYPE_HANDLER);
-  if (!spider->handler_opened(link_idx, conn->conn_kind))
+  if (!spider->handler_opened(link_idx))
   {
     if ((error_num = dbton_hdl->insert_opened_handler(conn, link_idx)))
       goto error;
@@ -10407,15 +10406,14 @@ error:
 int spider_db_close_handler(
   ha_spider *spider,
   SPIDER_CONN *conn,
-  int link_idx,
-  uint tgt_conn_kind
+  int link_idx
 ) {
   int error_num= 0;
   spider_db_handler *dbton_hdl = spider->dbton_handler[conn->dbton_id];
   DBUG_ENTER("spider_db_close_handler");
   DBUG_PRINT("info",("spider conn=%p", conn));
   spider_lock_before_query(conn, &spider->need_mons[link_idx]);
-  if (spider->handler_opened(link_idx, tgt_conn_kind))
+  if (spider->handler_opened(link_idx))
   {
       dbton_hdl->reset_sql(SPIDER_SQL_TYPE_HANDLER);
       if ((error_num = dbton_hdl->append_close_handler_part(

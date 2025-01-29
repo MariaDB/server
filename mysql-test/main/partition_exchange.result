@@ -1353,3 +1353,11 @@ ERROR HY000: Tables have different definitions
 create or replace table tp (a int, b text, unique (b), unique(a, b));
 alter table t exchange partition p0 with table tp;
 drop table t, tp;
+create table t (a int, b int) with system versioning partition by list (a) (partition p0 values in (1,2));
+create table tp (a int, b int);
+alter table t exchange partition p0 with table tp;
+ERROR HY000: Tables have different definitions
+create or replace table tp (a int, b int) with system versioning;
+alter table t exchange partition p0 with table tp;
+drop table t, tp;
+# End of 10.5 tests

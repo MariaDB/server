@@ -1,0 +1,39 @@
+--- foreign_sql_mode.result
++++ foreign_sql_mode,INPLACE,NON-STRICT.rdiff
+@@ -3,14 +3,14 @@
+ CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
+ CREATE TABLE t2(f1 INT, FOREIGN KEY(f1) REFERENCES t1(f2) ON UPDATE CASCADE)ENGINE=InnoDB;
+ ALTER TABLE t2 MODIFY COLUMN f1 INT NOT NULL;
+-ERROR HY000: Column 'f1' cannot be NOT NULL: needed in a foreign key constraint 't2_ibfk_1' SET NULL
+ INSERT INTO t1 VALUES(1, 1);
+ INSERT INTO t2 VALUES(1);
+ UPDATE t1 SET f2= NULL;
++ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f1`) REFERENCES `t1` (`f2`) ON UPDATE CASCADE)
+ DELETE FROM t2;
+ SELECT * FROM t1;
+ f1	f2
+-1	NULL
++1	1
+ UPDATE t1 SET f2 = NULL;
+ SELECT * FROM t1;
+ f1	f2
+@@ -40,11 +40,10 @@
+ FOREIGN KEY(f1) REFERENCES `t#1`(f2)
+ ON UPDATE CASCADE)ENGINE=InnoDB;
+ ALTER TABLE `t#1` MODIFY COLUMN f2 INT;
+-ERROR HY000: Cannot change column 'f2': used in a foreign key constraint 't#2_ibfk_1' of table 'test.t#2'
+ INSERT INTO `t#1` VALUES(1, 1);
+ INSERT INTO `t#2` VALUES(1);
+ UPDATE `t#1` SET f2= NULL;
+-ERROR 23000: Column 'f2' cannot be null
++ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t#2`, CONSTRAINT `t#2_ibfk_1` FOREIGN KEY (`f1`) REFERENCES `t#1` (`f2`) ON UPDATE CASCADE)
+ DELETE FROM `t#2`;
+ SELECT * FROM `t#1`;
+ f1	f2
+@@ -60,6 +59,5 @@
+ PRIMARY KEY(f1, f2),
+ FOREIGN KEY(f2, f3) REFERENCES t1(f2, f1)
+ ON UPDATE CASCADE)ENGINE=InnoDB;
+-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ DROP TABLE IF EXISTS t2;
+ DROP TABLE IF EXISTS t1;

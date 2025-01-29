@@ -415,4 +415,14 @@ select * from t1;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-35911 Assertion `marked_for_write_or_computed()' failed in bool Field_new_decimal::store_value(const my_decimal*, int*)
+--echo #
+set sql_mode='';
+create table t1 (c fixed,c2 binary (1),c5 fixed not null);
+create trigger tr1 before update on t1 for each row set @a=0;
+insert into t1 (c) values (1);
+drop table t1;
+set sql_mode=default;
+
 --echo # End of 10.5 tests

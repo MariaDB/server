@@ -174,7 +174,8 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   name(rhs.name),
   option_list(rhs.option_list),
   generated(rhs.generated), invisible(false),
-  without_overlaps(rhs.without_overlaps), old(rhs.old), period(rhs.period)
+  without_overlaps(rhs.without_overlaps), old(rhs.old), length(rhs.length),
+  period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -201,7 +202,7 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 /*
   Test if a foreign key (= generated key) is a prefix of the given key
-  (ignoring key name, key type and order of columns)
+  (ignoring key name and type, but minding the algorithm)
 
   NOTES:
     This is only used to test if an index for a FOREIGN KEY exists
@@ -216,6 +217,16 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 bool is_foreign_key_prefix(Key *a, Key *b)
 {
+  ha_key_alg a_alg= a->key_create_info.algorithm;
+  ha_key_alg b_alg= b->key_create_info.algorithm;
+
+  // The real algorithm in InnoDB will be BTREE if none was given by user.
+  a_alg= a_alg == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE : a_alg;
+  b_alg= b_alg == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE : b_alg;
+
+  if (a_alg != b_alg)
+    return false;
+
   /* Ensure that 'a' is the generated key */
   if (a->generated)
   {

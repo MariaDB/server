@@ -1018,7 +1018,7 @@ inline_mysql_file_create(
 #ifdef HAVE_PSI_FILE_INTERFACE
   PSI_file_key key, const char *src_file, uint src_line,
 #endif
-  const char *filename, int create_flags, int access_flags, myf myFlags)
+  const char *filename, mode_t create_flags, int access_flags, myf myFlags)
 {
   File file;
 #ifdef HAVE_PSI_FILE_INTERFACE
@@ -1344,7 +1344,7 @@ inline_mysql_file_create_with_symlink(
 #ifdef HAVE_PSI_FILE_INTERFACE
   PSI_file_key key, const char *src_file, uint src_line,
 #endif
-  const char *linkname, const char *filename, int create_flags,
+  const char *linkname, const char *filename, mode_t create_flags,
   int access_flags, myf flags)
 {
   File file;

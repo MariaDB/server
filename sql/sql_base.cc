@@ -782,6 +782,22 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   }
 }
 
+static inline bool check_field_pointers(const TABLE *table)
+{
+  for (Field **pf= table->field; *pf; pf++)
+  {
+    Field *f= *pf;
+    if (f->ptr < table->record[0] || f->ptr > table->record[0]
+                                              + table->s->reclength)
+      return false;
+    if (f->null_ptr &&
+        (f->null_ptr < table->record[0] || f->null_ptr > table->record[0]
+                                                       + table->s->reclength))
+      return false;
+  }
+  return true;
+}
+
 
 /*
   Close all tables used by the current substatement, or all tables
@@ -832,6 +848,8 @@ int close_thread_tables(THD *thd)
     /* Table might be in use by some outer statement. */
     DBUG_PRINT("tcache", ("table: '%s'  query_id: %lu",
                           table->s->table_name.str, (ulong) table->query_id));
+
+    DBUG_SLOW_ASSERT(check_field_pointers(table));
 
     if (thd->locked_tables_mode)
     {
@@ -8571,6 +8589,24 @@ err_no_arena:
 }
 
 
+static void unwind_stored_field_offsets(const List<Item> &fields, Field *end)
+{
+  for (Item &item_field: fields)
+  {
+    Field *f= item_field.field_for_view_update()->field;
+    if (f == end)
+      break;
+
+    if (f->stored_in_db())
+    {
+      TABLE *table= f->table;
+      f->move_field_offset((my_ptrdiff_t) (table->record[0] -
+                                           table->record[1]));
+    }
+  }
+}
+
+
 /******************************************************************************
 ** Fill a record with data (for INSERT or UPDATE)
 ** Returns : 1 if some field has wrong type
@@ -8626,7 +8662,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (!(field= fld->field_for_view_update()))
     {
       my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name.str);
-      goto err;
+      goto err_unwind_fields;
     }
     value=v++;
     DBUG_ASSERT(value);
@@ -8654,7 +8690,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
           unlikely(value->save_in_field(rfield, 0) < 0) && !ignore_errors)
       {
         my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
-        goto err;
+        goto err_unwind_fields;
       }
       /*
         In sql MODE_SIMULTANEOUS_ASSIGNMENT,
@@ -8669,20 +8705,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   }
 
   if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
-  {
-    // restore fields pointers on record[0]
-    f.rewind();
-    while ((fld= f++))
-    {
-      rfield= fld->field_for_view_update()->field;
-      if (rfield->stored_in_db())
-      {
-        table= rfield->table;
-        rfield->move_field_offset((my_ptrdiff_t) (table->record[0] -
-                                                  table->record[1]));
-      }
-    }
-  }
+    unwind_stored_field_offsets(fields, NULL);
 
   if (update)
     table_arg->evaluate_update_default_function();
@@ -8700,6 +8723,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   DBUG_RETURN(thd->is_error());
+err_unwind_fields:
+  if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
+    unwind_stored_field_offsets(fields, rfield);
 err:
   DBUG_PRINT("error",("got error"));
   thd->abort_on_warning= save_abort_on_warning;

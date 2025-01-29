@@ -19389,5 +19389,14 @@ EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
 ERROR HY000: Invalid sjis character string: '_x81'
 SET sql_mode=DEFAULT;
 #
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_sjis'' collate sjis_japanese_nopad_ci, _sjis 0x0001050001) as c1;
+c1
+-1
+select strcmp(_sjis'' collate sjis_nopad_bin, _sjis 0x0001050001) as c1;
+c1
+-1
+#
 # End of 10.5 tests
 #

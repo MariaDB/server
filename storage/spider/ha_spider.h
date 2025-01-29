@@ -62,8 +62,6 @@ public:
   uint               sql_kinds;
   uint               *sql_kind;
   ulonglong          *connection_ids;
-  uint               conn_kinds;
-  uint               *conn_kind;
   char               *conn_keys_first_ptr;
   char               **conn_keys;
   SPIDER_CONN        **conns;
@@ -632,15 +630,13 @@ public:
   int check_ha_range_eof();
   int drop_tmp_tables();
   bool handler_opened(
-    int link_idx,
-    uint tgt_conn_kind
+    int link_idx
   );
   void set_handler_opened(
     int link_idx
   );
   void clear_handler_opened(
-    int link_idx,
-    uint tgt_conn_kind
+    int link_idx
   );
   int close_opened_handler(
     int link_idx,

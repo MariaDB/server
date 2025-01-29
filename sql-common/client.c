@@ -4236,3 +4236,28 @@ int STDCALL mysql_cancel(MYSQL *mysql)
 	return vio_shutdown(mysql->net.vio, SHUT_RDWR);
   return -1;
 }
+
+
+MYSQL_RES *STDCALL mysql_use_result(MYSQL *mysql)
+{
+  return (*mysql->methods->use_result)(mysql);
+}
+
+
+MYSQL_FIELD *STDCALL mysql_fetch_fields(MYSQL_RES *res)
+{
+  return (res)->fields;
+}
+
+
+ulong STDCALL
+mysql_real_escape_string(MYSQL *mysql, char *to,const char *from,
+			 ulong length)
+{
+  my_bool overflow;
+  if (mysql->server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)
+    return (ulong) escape_quotes_for_mysql(mysql->charset, to, 0, from, length,
+                                           &overflow);
+  return (ulong) escape_string_for_mysql(mysql->charset, to, 0, from, length,
+                                         &overflow);
+}

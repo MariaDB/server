@@ -3107,8 +3107,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `altcol1` blob DEFAULT '',
-  KEY `altcol1` (`altcol1`(2300)),
-  KEY `h` (`altcol1`(2300))
+  KEY `altcol1` (`altcol1`(2300))
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 show create table t2;
 Table	Create Table

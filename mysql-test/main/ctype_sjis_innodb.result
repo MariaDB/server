@@ -1,0 +1,23 @@
+# Start of 10.5 tests
+#
+# MDEV-28328 Assertion failures in btr0cur.cc upon INSERT or in row0sel.cc afterwards
+#
+SET NAMES utf8mb3;
+CREATE TABLE t (
+a year(4) DEFAULT NULL,
+b varbinary(2545) DEFAULT '',
+c mediumtext COLLATE sjis_japanese_nopad_ci NOT NULL,
+d decimal(7,7) DEFAULT NULL,
+e char(219) COLLATE sjis_japanese_nopad_ci DEFAULT '',
+f bigint(25) DEFAULT 0,
+g bigint(20) DEFAULT NULL,
+h datetime(1) DEFAULT '1900-01-01 00:00:00.0',
+PRIMARY KEY (c(25),e)
+) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_nopad_ci;
+INSERT IGNORE INTO t VALUES ... a mixture of non-ASCII and binary content
+SELECT * FROM t /*output suppressed, just make sure it does not crash*/;
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+# End of 10.5 tests

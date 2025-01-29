@@ -4445,13 +4445,15 @@ declared as NOT NULL
 @param n_drop_fk number of constraints that are being dropped
 @param col_name  modified column name
 @param new_field_flags Modified field flags
+@param strict_mode     Whether the sql_mode is strict
 @retval true Not allowed (will call my_error())
 @retval false Allowed
 */
 static
 bool check_foreigns_nullability(const dict_table_t *user_table,
                                 dict_foreign_t **drop_fk, ulint n_drop_fk,
-                                const char *col_name, uint32_t new_field_flags)
+                                const char *col_name, uint32_t new_field_flags,
+                                bool strict_mode)
 {
   ut_ad(dict_sys.locked());
 
@@ -4463,7 +4465,7 @@ bool check_foreigns_nullability(const dict_table_t *user_table,
       if (innobase_dropping_foreign(foreign, drop_fk, n_drop_fk))
         continue;
 
-      if (foreign->on_update_cascade_null(col_name))
+      if (strict_mode && foreign->on_update_cascade_null(col_name))
         goto non_null_error;
 
       if (foreign->type & (foreign->DELETE_SET_NULL |
@@ -4485,7 +4487,7 @@ non_null_error:
   {
     for (dict_foreign_t *foreign : user_table->referenced_set)
     {
-      if (foreign->on_update_cascade_not_null(col_name))
+      if (strict_mode && foreign->on_update_cascade_not_null(col_name))
       {
         char display_name[FN_REFLEN];
         const int dblen= int(table_name_t(const_cast<char*>(foreign->
@@ -4587,6 +4589,7 @@ column that is being dropped or modified to NOT NULL.
 @param user_table InnoDB table as it is before the ALTER operation
 @param drop_fk constraints being dropped
 @param n_drop_fk number of constraints that are being dropped
+@param strict_mode Whether the strict sql_mode is set
 @retval true Not allowed (will call my_error())
 @retval false Allowed
 */
@@ -4598,7 +4601,8 @@ innobase_check_foreigns(
 	const TABLE*		old_table,
 	const dict_table_t*	user_table,
 	dict_foreign_t**	drop_fk,
-	ulint			n_drop_fk)
+	ulint			n_drop_fk,
+	bool			strict_mode)
 {
 	for (Field** fp = old_table->field; *fp; fp++) {
 		ut_ad(!(*fp)->real_maybe_null()
@@ -4623,7 +4627,8 @@ innobase_check_foreigns(
 			if (check_foreigns_nullability(user_table, drop_fk,
 						       n_drop_fk,
 						       (*fp)->field_name.str,
-						       it->flags)) {
+						       it->flags,
+						       strict_mode)) {
 				return true;
 			}
 		}
@@ -6654,7 +6659,8 @@ acquire_lock:
 	if (new_clustered) {
 		if (innobase_check_foreigns(
 			    ha_alter_info, old_table,
-			    user_table, ctx->drop_fk, ctx->num_to_drop_fk)) {
+			    user_table, ctx->drop_fk, ctx->num_to_drop_fk,
+			    thd_is_strict_mode(ctx->trx->mysql_thd))) {
 new_clustered_failed:
 			DBUG_ASSERT(ctx->trx != ctx->prebuilt->trx);
 			ctx->trx->rollback();

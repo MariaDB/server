@@ -1240,6 +1240,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
                                   Item *item) {
     return
       !item->with_sum_func() &&
+      !item->with_window_func() &&
       /*
         We can't change name of Item_field or Item_ref, because it will
         prevent its correct resolving, but we should save name of
