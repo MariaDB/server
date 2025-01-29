@@ -11036,6 +11036,37 @@ commit_cache_norebuild(
 		dict_index_remove_from_cache(index->table, index);
 	}
 
+	if (ctx->num_to_add_index) {
+		for (dict_foreign_t* foreign: ctx->new_table->foreign_set) {
+			if (foreign->foreign_table == ctx->new_table
+			    && !foreign->foreign_index) {
+				foreign->foreign_index =
+					dict_foreign_find_index(
+						foreign->foreign_table,
+						nullptr,
+						foreign->foreign_col_names,
+						foreign->n_fields, nullptr,
+						/*check_charsets=*/TRUE,
+						/*check_null=*/FALSE,
+						nullptr, nullptr, nullptr);
+			}
+		}
+		for (dict_foreign_t* foreign: ctx->new_table->referenced_set) {
+			if (foreign->referenced_table == ctx->new_table
+			    && !foreign->referenced_index) {
+				foreign->referenced_index =
+					dict_foreign_find_index(
+						foreign->referenced_table,
+						nullptr,
+						foreign->referenced_col_names,
+						foreign->n_fields, nullptr,
+						/*check_charsets=*/TRUE,
+						/*check_null=*/FALSE,
+						nullptr, nullptr, nullptr);
+			}
+		}
+	}
+
 	fts_clear_all(ctx->old_table);
 
 	if (!ctx->is_instant()) {
