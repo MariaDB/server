@@ -4677,9 +4677,10 @@ innobase_commit(
 		ut_ad("invalid state" == 0);
 		/* fall through */
 	case TRX_STATE_PREPARED:
-		ut_ad(commit_trx);
+		ut_ad(commit_trx || trx->is_wsrep());
 		ut_ad(thd_test_options(thd, OPTION_NOT_AUTOCOMMIT
-				       | OPTION_BEGIN));
+				       | OPTION_BEGIN)
+		      || trx->is_wsrep());
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 		/* Transaction is deregistered only in a commit or a
