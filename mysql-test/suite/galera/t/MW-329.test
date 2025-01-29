@@ -15,13 +15,16 @@ INSERT INTO t1 (f1) VALUES (1),(65535);
 #
 
 DELIMITER |;
-CREATE PROCEDURE proc_insert ()
+CREATE PROCEDURE proc_insert (repeat_count int)
 BEGIN
+        DECLARE current_num int;
         DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+        SET current_num = 0;
         SET SESSION wsrep_sync_wait = 0;
-        WHILE 1 DO
-		INSERT INTO t1 (f1) VALUES (FLOOR( 1 + RAND( ) * 65535 ));
-		SELECT SLEEP(0.1);
+        WHILE current_num < repeat_count do
+            INSERT INTO t1 (f1) VALUES (FLOOR( 1 + RAND( ) * 65535 ));
+            SELECT SLEEP(0.1);
+            SET current_num = current_num + 1;
         END WHILE;
 END|
 DELIMITER ;|
@@ -31,7 +34,7 @@ DELIMITER ;|
 --let $connection_id = `SELECT CONNECTION_ID()`
 --disable_query_log
 --disable_result_log
---send CALL proc_insert();
+--send CALL proc_insert(500);
 
 #
 # Run concurrent UPDATEs. We expect that each UPDATE will report that
@@ -39,7 +42,7 @@ DELIMITER ;|
 #
 
 --connection node_2
---let $count = 10
+--let $count = 2
 --let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
 
 while ($count)
@@ -78,14 +81,8 @@ while ($count)
 --enable_query_log
 
 #
-# Terminate the stored procedure
 #
-
---connection node_1
---disable_query_log
---eval KILL CONNECTION $connection_id
---enable_query_log
-
+#
 --connection node_1b
 --error 0,2013,1317
 --reap
@@ -95,6 +92,8 @@ while ($count)
 --connection node_1
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;
+
+--disconnect node_1b
 
 # Due to MW-330, Multiple "conflict state 3 after post commit" warnings if table is dropped while SP is running
 CALL mtr.add_suppression("WSREP: .* conflict state after post commit ");
