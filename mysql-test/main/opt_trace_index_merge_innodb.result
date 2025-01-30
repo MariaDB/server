@@ -62,16 +62,6 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t1",
@@ -196,6 +186,16 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 ],
                 "selectivity_for_columns": [],
                 "cond_selectivity": 0.001
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },

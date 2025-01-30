@@ -1,0 +1,1326 @@
+set default_storage_engine=innodb;
+CREATE TABLE t1 (f1 INT NOT NULL);
+INSERT INTO t1 VALUES (9),(0), (7);
+CREATE TABLE t2 (f1 INT NOT NULL);
+INSERT INTO t2 VALUES
+(5),(3),(0),(3),(1),(0),(1),(7),(1),(0),(0),(8),(4),(9),(0),(2),(0),(8),(5),(1);
+CREATE TABLE t3 (f1 INT NOT NULL);
+INSERT INTO t3 VALUES (9),(0), (7), (4), (5);
+CREATE TABLE t4 (f1 INT NOT NULL);
+INSERT INTO t4 VALUES (0), (7);
+CREATE TABLE t5 (f1 INT NOT NULL, PRIMARY KEY(f1));
+INSERT INTO t5 VALUES (7);
+CREATE TABLE t6(f1 INT NOT NULL, PRIMARY KEY(f1));
+INSERT INTO t6 VALUES (7);
+ANALYZE TABLE t1, t2, t3, t4, t5, t6;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+test.t5	analyze	status	Engine-independent statistics collected
+test.t5	analyze	status	OK
+test.t6	analyze	status	Engine-independent statistics collected
+test.t6	analyze	status	OK
+set join_cache_level = 8;
+# Warning expected: hint must be ignored as malformed (no table names)
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_PREFIX()*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4215	Hint JOIN_PREFIX() is ignored as malformed
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(q1) JOIN_PREFIX(@q1)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4215	Hint JOIN_PREFIX(@`q1` ) is ignored as malformed
+Note	1003	select /*+ QB_NAME(`q1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+# Hint must be ignored as malformed (table names are not allowed for the fixed order)
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_FIXED_ORDER(t2)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4215	Hint JOIN_FIXED_ORDER(`t2`) is ignored as malformed
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+# Hint is applied: QB name is allowed for the fixed order
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(qb1) JOIN_FIXED_ORDER(@qb1)*/ count(*) FROM t2, t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`qb1`) JOIN_FIXED_ORDER(@`qb1`) */ straight_join count(0) AS `count(*)` from `test`.`t2` join `test`.`t1`
+# Invalid QB name for the fixed order
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(qb1) JOIN_FIXED_ORDER(@qb3)*/ count(*) FROM t2, t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4211	Query block name `qb3` is not found for JOIN_FIXED_ORDER hint
+Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t2` join `test`.`t1`
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_FIXED_ORDER()*/ STRAIGHT_JOIN count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_FIXED_ORDER(@`select#1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+# JOIN_FIXED_ORDER() cannot be combined with other join order hints
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_PREFIX(t2) JOIN_FIXED_ORDER()*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4210	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_FIXED_ORDER() JOIN_PREFIX(t2)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_FIXED_ORDER(@`select#1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+# Multiple join order hints of same type are not allowed (except JOIN_ORDER())
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_PREFIX(t1) JOIN_PREFIX(t2)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_SUFFIX(t1) JOIN_SUFFIX(t2)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4210	Hint JOIN_SUFFIX(`t2`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+# Multiple JOIN_ORDER() hints are applied
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(q1) JOIN_ORDER(t2,t1) JOIN_ORDER(@q1 t3,t2)*/ count(*)
+FROM t1, t2, t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`q1`) JOIN_ORDER(@`q1` `t2`,`t1`) JOIN_ORDER(@`q1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3`
+# Variation of last syntax
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(q1) JOIN_ORDER(t2@q1, t1) JOIN_ORDER(t3, t2@q1)*/ count(*)
+FROM t1, t2, t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`q1`) JOIN_ORDER(@`q1` `t2`@`q1`,`t1`) JOIN_ORDER(@`q1` `t3`,`t2`@`q1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3`
+# Invalid mix of notations
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(q1) JOIN_PREFIX(@q1 t2, t1@q1)*/ count(*)
+FROM t1, t2, t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Warning	1064	Optimizer hint syntax error near '@q1)*/ count(*)
+FROM t1, t2, t3' at line 2
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3`
+# Hint is correct
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(qb1) JOIN_SUFFIX(t1@qb1, t2)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`qb1`) JOIN_SUFFIX(@`qb1` `t1`@`qb1`,`t2`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(qb1) JOIN_PREFIX(@qb1, t2)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	1064	Optimizer hint syntax error near ', t2)*/ count(*) FROM t1, t2' at line 2
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+# Invalid table name
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_SUFFIX(t3)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4212	Unresolved table name `t3` for JOIN_SUFFIX hint
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+# Invalid query block name
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(qb1) JOIN_SUFFIX(@qbXXX t1)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4211	Query block name `qbXXX` is not found for JOIN_SUFFIX hint
+Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(qb1) JOIN_SUFFIX(t1, t2@qb3)*/ count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4212	Unresolved table name `t2`@`qb3` for JOIN_SUFFIX hint
+Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(qb1) JOIN_FIXED_ORDER(@qbXXX)*/ count(*) FROM t2, t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	4211	Query block name `qbXXX` is not found for JOIN_FIXED_ORDER hint
+Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t2` join `test`.`t1`
+# Warning expected as the hint must not confuse `t2` in the subquery
+# with `t2` in the join
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_PREFIX(t2@subq)*/ (SELECT /*+ QB_NAME(subq)*/ max(f1) FROM t2) as SQ, f1
+FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+Warnings:
+Warning	4212	Unresolved table name `t2`@`subq` for JOIN_PREFIX hint
+Note	1003	/* select#1 */ select (/* select#2 */ select /*+ QB_NAME(`subq`) */ max(`test`.`t2`.`f1`) from `test`.`t2`) AS `SQ`,`test`.`t2`.`f1` AS `f1` from `test`.`t2`
+# No more than 64 join order hints are allowed. It is hard to construct
+# a test case where 64 hints will be applicable and only one, exceeding
+# the maximum, will produce a warning. Usually so many hints will conflict
+# with each other and generate warnings.
+# But in the case below we can observe that the first warning
+# is about JOIN_ORDER(t1,t2,t3,t4,t5,t6) which is actually
+# the last hint in the list, and it is the 65th in order.
+# This happens because the check for exceeding the maximum is performed
+# during the preparation phase, while other checks are performed during
+# hints application. So, if JOIN_ORDER(t1,t2,t3,t4,t5,t6)
+# is mentioned first in the list of warnings, the test case passes.
+EXPLAIN EXTENDED
+SELECT /*+
+JOIN_PREFIX(t2,t1) JOIN_SUFFIX(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2) JOIN_ORDER(t2,t1) JOIN_ORDER(t3,t2)
+JOIN_ORDER(t1,t2,t3,t4,t5,t6) */
+count(*) FROM t1, t2, t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Warning	4210	Hint JOIN_ORDER(`t1`,`t2`,`t3`,`t4`,`t5`,`t6`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_SUFFIX(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3`
+# Original query with no hints
+SELECT count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+count(*)
+10
+explain extended SELECT count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# Check name resolving
+SELECT /*+ QB_NAME(q1) JOIN_PREFIX(t3, t2, t2@subq2) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t2) AND
+t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t2);
+count(*)
+300
+explain extended SELECT /*+ QB_NAME(q1) JOIN_PREFIX(t3, t2, t2@subq2) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t2) AND
+t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t2.f1	20	5.00	Using where; FirstMatch(t2); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+Warnings:
+Note	1003	select /*+ QB_NAME(`q1`) JOIN_PREFIX(@`q1` `t3`,`t2`,`t2`@`subq2`) */ count(0) AS `count(*)` from `test`.`t1` semi join (`test`.`t2`) semi join (`test`.`t2`) join `test`.`t2` join `test`.`t3` where `test`.`t2`.`f1` = `test`.`t2`.`f1`
+# Check conflicting hints
+# Second JOIN_PREFIX is conflicting
+SELECT /*+ JOIN_PREFIX(t3, t2, t1) JOIN_PREFIX(t2, t1) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t2`,`t1`) is ignored as conflicting/duplicated
+explain extended SELECT /*+ JOIN_PREFIX(t3, t2, t1) JOIN_PREFIX(t2, t1) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t2`,`t1`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t3`,`t2`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# Second JOIN_SUFFIX is conflicting
+SELECT /*+ JOIN_SUFFIX(t3, t2) JOIN_SUFFIX(t2, t1) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+Warnings:
+Warning	4210	Hint JOIN_SUFFIX(`t2`,`t1`) is ignored as conflicting/duplicated
+explain extended SELECT /*+ JOIN_SUFFIX(t3, t2) JOIN_SUFFIX(t2, t1) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+Warnings:
+Warning	4210	Hint JOIN_SUFFIX(`t2`,`t1`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# Both JOIN_ORDERs applicable
+SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5@subq2) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5@subq2) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Start temporary
+1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	4	test.t4.f1	3	16.67	Using where; End temporary; Using join buffer (flat, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) JOIN_ORDER(@`select#1` `t1`,`t2`,`t5`@`subq2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# Unresolved table name t7 in JOIN_ORDER hint, hint ignored
+SELECT /*+ JOIN_ORDER(t1, t7, t5) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+Warnings:
+Warning	4212	Unresolved table name `t7` for JOIN_ORDER hint
+explain extended SELECT /*+ JOIN_ORDER(t1, t7, t5) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Warning	4212	Unresolved table name `t7` for JOIN_ORDER hint
+Note	1003	select count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# All hints are applicable
+SELECT /*+ JOIN_PREFIX(t2, t5@subq2, t4@subq1)
+JOIN_ORDER(t4@subq1, t3) JOIN_SUFFIX(t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ JOIN_PREFIX(t2, t5@subq2, t4@subq1)
+JOIN_ORDER(t4@subq1, t3) JOIN_SUFFIX(t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Start temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	4	test.t4.f1	3	16.67	Using where; End temporary; Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`,`t5`@`subq2`,`t4`@`subq1`) JOIN_ORDER(@`select#1` `t4`@`subq1`,`t3`) JOIN_SUFFIX(@`select#1` `t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# Second JOIN_ORDER is ignored
+SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t2, t3) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+Warnings:
+Warning	4210	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
+explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t2, t3) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+Warnings:
+Warning	4210	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# JOIN_SUFFIX is ignored
+SELECT /*+ JOIN_ORDER(t3, t2) JOIN_SUFFIX(t3) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+Warnings:
+Warning	4210	Hint JOIN_SUFFIX(`t3`) is ignored as conflicting/duplicated
+explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_SUFFIX(t3) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+Warnings:
+Warning	4210	Hint JOIN_SUFFIX(`t3`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# JOIN_PREFIX is ignored
+SELECT /*+ JOIN_ORDER(t3, t2) JOIN_PREFIX(t2) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
+explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_PREFIX(t2) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# All hints are applicable
+SELECT /*+ JOIN_ORDER(t4@subq1, t3) JOIN_SUFFIX(t1) JOIN_PREFIX(t2, t5@subq2, t4@subq1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ JOIN_ORDER(t4@subq1, t3) JOIN_SUFFIX(t1) JOIN_PREFIX(t2, t5@subq2, t4@subq1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Start temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	4	test.t4.f1	3	16.67	Using where; End temporary; Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t4`@`subq1`,`t3`) JOIN_SUFFIX(@`select#1` `t1`) JOIN_PREFIX(@`select#1` `t2`,`t5`@`subq2`,`t4`@`subq1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# JOIN_PREFIX with all tables.
+SELECT /*+ JOIN_PREFIX(t2, t5@subq2, t4@subq1, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ JOIN_PREFIX(t2, t5@subq2, t4@subq1, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Start temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	4	test.t4.f1	3	16.67	Using where; End temporary; Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`,`t5`@`subq2`,`t4`@`subq1`,`t3`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# JOIN_SUFFIX with all tables.
+SELECT /*+ JOIN_SUFFIX(t2, t5@subq2, t4@subq1, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ JOIN_SUFFIX(t2, t5@subq2, t4@subq1, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Start temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	4	test.t4.f1	3	16.67	Using where; End temporary; Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t2`,`t5`@`subq2`,`t4`@`subq1`,`t3`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# JOIN_ORDER with all tables.
+SELECT /*+ JOIN_ORDER(t2, t5@subq2, t4@subq1, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ JOIN_ORDER(t2, t5@subq2, t4@subq1, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Start temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	4	test.t4.f1	3	16.67	Using where; End temporary; Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t2`,`t5`@`subq2`,`t4`@`subq1`,`t3`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# JOIN_PREFIX, JOIN_ORDER, JOIN_SUFFIX with all tables.
+SELECT /*+  JOIN_SUFFIX(t2, t5@subq2, t4@subq1, t3, t1)
+JOIN_ORDER(t2, t5@subq2, t4@subq1, t3, t1)
+JOIN_PREFIX(t2, t5@subq2, t4@subq1, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+  JOIN_SUFFIX(t2, t5@subq2, t4@subq1, t3, t1)
+JOIN_ORDER(t2, t5@subq2, t4@subq1, t3, t1)
+JOIN_PREFIX(t2, t5@subq2, t4@subq1, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Start temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	4	test.t4.f1	3	16.67	Using where; End temporary; Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t2`,`t5`@`subq2`,`t4`@`subq1`,`t3`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t5`@`subq2`,`t4`@`subq1`,`t3`,`t1`) JOIN_PREFIX(@`select#1` `t2`,`t5`@`subq2`,`t4`@`subq1`,`t3`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# JOIN_ORDER is ignored due to STRAIGHT_JOIN.
+SELECT /*+  QB_NAME(q1) JOIN_ORDER(t2, t1) */ STRAIGHT_JOIN count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+Warnings:
+Warning	4210	Hint JOIN_ORDER(`t2`,`t1`) is ignored as conflicting/duplicated
+explain extended SELECT /*+  QB_NAME(q1) JOIN_ORDER(t2, t1) */ STRAIGHT_JOIN count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+3	MATERIALIZED	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Warning	4210	Hint JOIN_ORDER(`t2`,`t1`) is ignored as conflicting/duplicated
+Note	1003	/* select#1 */ select /*+ QB_NAME(`q1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3` where <expr_cache><`test`.`t1`.`f1`>(<in_optimizer>(`test`.`t1`.`f1`,<exists>(/* select#2 */ select /*+ QB_NAME(`subq1`) */ `test`.`t4`.`f1` from `test`.`t4` where <cache>(`test`.`t1`.`f1`) = `test`.`t4`.`f1`))) and <expr_cache><`test`.`t2`.`f1`>(<in_optimizer>(`test`.`t2`.`f1`,`test`.`t2`.`f1` in ( <materialize> (/* select#3 */ select /*+ QB_NAME(`subq2`) */ `test`.`t5`.`f1` from `test`.`t5` ), <primary_index_lookup>(`test`.`t2`.`f1` in <temporary table> on distinct_key where `test`.`t2`.`f1` = `<subquery3>`.`f1`))))
+# Test JOIN_FIXED_ORDER.
+SELECT /*+  QB_NAME(q1) JOIN_FIXED_ORDER(@q1) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+  QB_NAME(q1) JOIN_FIXED_ORDER(@q1) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+3	MATERIALIZED	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ QB_NAME(`q1`) JOIN_FIXED_ORDER(@`q1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3` where <expr_cache><`test`.`t1`.`f1`>(<in_optimizer>(`test`.`t1`.`f1`,<exists>(/* select#2 */ select /*+ QB_NAME(`subq1`) */ `test`.`t4`.`f1` from `test`.`t4` where <cache>(`test`.`t1`.`f1`) = `test`.`t4`.`f1`))) and <expr_cache><`test`.`t2`.`f1`>(<in_optimizer>(`test`.`t2`.`f1`,`test`.`t2`.`f1` in ( <materialize> (/* select#3 */ select /*+ QB_NAME(`subq2`) */ `test`.`t5`.`f1` from `test`.`t5` ), <primary_index_lookup>(`test`.`t2`.`f1` in <temporary table> on distinct_key where `test`.`t2`.`f1` = `<subquery3>`.`f1`))))
+SELECT /*+  JOIN_FIXED_ORDER() */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+  JOIN_FIXED_ORDER() */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+3	MATERIALIZED	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ JOIN_FIXED_ORDER(@`select#1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3` where <expr_cache><`test`.`t1`.`f1`>(<in_optimizer>(`test`.`t1`.`f1`,<exists>(/* select#2 */ select /*+ QB_NAME(`subq1`) */ `test`.`t4`.`f1` from `test`.`t4` where <cache>(`test`.`t1`.`f1`) = `test`.`t4`.`f1`))) and <expr_cache><`test`.`t2`.`f1`>(<in_optimizer>(`test`.`t2`.`f1`,`test`.`t2`.`f1` in ( <materialize> (/* select#3 */ select /*+ QB_NAME(`subq2`) */ `test`.`t5`.`f1` from `test`.`t5` ), <primary_index_lookup>(`test`.`t2`.`f1` in <temporary table> on distinct_key where `test`.`t2`.`f1` = `<subquery3>`.`f1`))))
+SELECT /*+  QB_NAME(q1) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+  QB_NAME(q1) */ count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`q1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# Testing STRAIGHT_JOIN
+SELECT count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+count(*)
+10
+explain extended SELECT count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` straight_join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# t3 can not be first
+SELECT /*+ JOIN_PREFIX(t3, t1) */ count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+count(*)
+10
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t3`,`t1`) is ignored as conflicting/duplicated
+explain extended SELECT /*+ JOIN_PREFIX(t3, t1) */ count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t3`,`t1`) is ignored as conflicting/duplicated
+Note	1003	select count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` straight_join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# Hint is applicable
+SELECT /*+ JOIN_PREFIX(t1, t2, t3) */ count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ JOIN_PREFIX(t1, t2, t3) */ count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t1`,`t2`,`t3`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` straight_join `test`.`t3` where `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# Hint is applicable
+SELECT /*+ JOIN_SUFFIX(t4, t5) */ count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ JOIN_SUFFIX(t4, t5) */ count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t3); Using join buffer (incremental, BNLH join)
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t4`,`t5`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` straight_join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# Alternative syntax
+SELECT /*+ QB_NAME(q1) JOIN_ORDER(@q1 t2, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ QB_NAME(q1) JOIN_ORDER(@q1 t2, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	4	test.t1.f1	2	50.00	Using where; FirstMatch(t1); Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`q1`) JOIN_ORDER(@`q1` `t2`,`t3`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+# Alternative syntax
+SELECT /*+ QB_NAME(q1) JOIN_PREFIX(@q1 t2, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ QB_NAME(q1) JOIN_PREFIX(@q1 t2, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	select /*+ QB_NAME(`q1`) JOIN_PREFIX(@`q1` `t2`,`t3`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# Alternative syntax
+SELECT /*+ QB_NAME(q1) JOIN_SUFFIX(@q1 t2, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+count(*)
+10
+explain extended SELECT /*+ QB_NAME(q1) JOIN_SUFFIX(@q1 t2, t3, t1) */ count(*)
+FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
+AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	4	test.t4.f1	3	16.67	Using where; End temporary; Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`q1`) JOIN_SUFFIX(@`q1` `t2`,`t3`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
+DROP TABLE t1, t2, t3, t4 ,t5, t6;
+# Testing embedded join
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f1 INT);
+CREATE TABLE t3 (f1 INT);
+CREATE TABLE t4 (f1 INT);
+EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t2, t4, t1)  */ 1  FROM t1
+JOIN t2 ON 1
+RIGHT JOIN t3 ON 1
+JOIN t4 ON  1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Warning	4210	Hint JOIN_ORDER(`t2`,`t4`,`t1`) is ignored as conflicting/duplicated
+Note	1003	select 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
+EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t2, t1, t4)  */ 1  FROM t1
+JOIN t2 ON 1
+RIGHT JOIN t3 ON 1
+JOIN t4 ON  1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t2`,`t1`,`t4`) */ 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
+EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t4, t1, t2)  */ 1  FROM t1
+JOIN t2 ON 1
+RIGHT JOIN t3 ON 1
+JOIN t4 ON  1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t4`,`t1`,`t2`) */ 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
+EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t3, t4)  */ 1  FROM t1
+JOIN t2 ON 1
+RIGHT JOIN t3 ON 1
+JOIN t4 ON  1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t4`) */ 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
+EXPLAIN SELECT /*+ JOIN_ORDER(t4, t3)  */ 1  FROM t1
+JOIN t2 ON 1
+RIGHT JOIN t3 ON 1
+JOIN t4 ON  1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (incremental, BNL join)
+EXPLAIN EXTENDED SELECT /*+ JOIN_SUFFIX(t1)  */ 1  FROM t1
+JOIN t2 ON 1
+RIGHT JOIN t3 ON 1
+JOIN t4 ON  1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t1`) */ 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
+EXPLAIN EXTENDED SELECT /*+ JOIN_SUFFIX(t2, t1)  */ 1  FROM t1
+JOIN t2 ON 1
+RIGHT JOIN t3 ON 1
+JOIN t4 ON  1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t2`,`t1`) */ 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
+DROP TABLE t1, t2, t3, t4;
+CREATE TABLE t1
+(
+f1 INT(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (f1)
+);
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE TABLE t2
+(
+f1 INT(11) DEFAULT NULL
+);
+INSERT INTO t2 VALUES (0),(1),(2);
+CREATE TABLE t3
+(
+f1 INT(11) DEFAULT NULL
+);
+INSERT INTO t3 VALUES (0),(1),(2);
+# Original query
+EXPLAIN EXTENDED DELETE
+FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
+RIGHT OUTER JOIN t2 ON (ta1.f1 = t2.f1)
+WHERE (9) IN (SELECT f1 FROM t3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where; Start temporary; End temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	Using where
+1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	delete  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+# Applicable hint
+EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(t2, t3, ta2) */
+FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
+RIGHT OUTER JOIN t2 ON (ta1.f1 = t2.f1)
+WHERE (9) IN (SELECT f1 FROM t3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta2`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+# Applicable hint
+EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(t2, t3, ta1, ta2) */
+FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
+RIGHT OUTER JOIN t2 ON (ta1.f1 = t2.f1)
+WHERE (9) IN (SELECT f1 FROM t3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	Using where
+1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta1`,`ta2`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+# Applicable hint
+EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(t2, t3, ta2, ta1) */
+FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
+RIGHT OUTER JOIN t2 ON (ta1.f1 = t2.f1)
+WHERE (9) IN (SELECT f1 FROM t3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta2`,`ta1`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+# Hint should be ignored
+EXPLAIN EXTENDED DELETE /*+ JOIN_SUFFIX(ta2, t3, ta1) */
+FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
+RIGHT OUTER JOIN t2 ON (ta1.f1 = t2.f1)
+WHERE (9) IN (SELECT f1 FROM t3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where; Start temporary; End temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	Using where
+1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Warning	4210	Hint JOIN_SUFFIX(`ta2`,`t3`,`ta1`) is ignored as conflicting/duplicated
+Note	1003	delete  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+# Both hints are ignored
+EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(ta1, t2, t3) JOIN_SUFFIX(t3, ta2) */
+FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
+RIGHT OUTER JOIN t2 ON (ta1.f1 = t2.f1)
+WHERE (9) IN (SELECT f1 FROM t3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where; Start temporary; End temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	Using where
+1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`ta1`,`t2`,`t3`) is ignored as conflicting/duplicated
+Warning	4210	Hint JOIN_SUFFIX(`t3`,`ta2`) is ignored as conflicting/duplicated
+Note	1003	delete  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+DROP TABLE t1, t2, t3;
+# Const table behavior, table order is not changed, hint is applicable.
+# Note: Const tables are excluded from the process of dependency setting
+# since they are always first in the table order. Note that it
+# does not prevent the hint from being applied to the non-const
+# tables of the hint.
+CREATE TABLE t1(f1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2(f1 INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(t1, t2)  */ 1 FROM t1 JOIN t2 ON t1.f1 = t2.f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+Warnings:
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t1`,`t2`) */ 1 AS `1` from `test`.`t2` where `test`.`t2`.`f1` = 1
+EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(t2, t1)  */ 1 FROM t1 JOIN t2 ON t1.f1 = t2.f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+Warnings:
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`,`t1`) */ 1 AS `1` from `test`.`t2` where `test`.`t2`.`f1` = 1
+DROP TABLE t1, t2;
+#
+# Bug#23144274 WL9158:ASSERTION `JOIN->BEST_READ < DOUBLE(1.79769313486231570815E+308L)' FAILED
+#
+CREATE TABLE t1 (
+f1 int(11) NOT NULL AUTO_INCREMENT,
+f2 varchar(255) DEFAULT NULL,
+PRIMARY KEY (f1));
+CREATE TABLE t2 (
+f1 int(11) NOT NULL AUTO_INCREMENT,
+f2 varchar(255) CHARACTER SET utf8mb3 DEFAULT NULL,
+f3 varchar(10) DEFAULT NULL,
+PRIMARY KEY (f1),
+KEY f3(f3));
+EXPLAIN SELECT /*+ JOIN_SUFFIX(t1, t2) */ t2.f3 FROM t2 LEFT JOIN t1
+ON t2.f1 = t1.f1 WHERE t1.f2 NOT LIKE ('FMGAU') OR t2.f2 > 't';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	Using where
+Warnings:
+Warning	4210	Hint JOIN_SUFFIX(`t1`,`t2`) is ignored as conflicting/duplicated
+DROP TABLE t1, t2;
+CREATE TABLE t1
+(
+f1 int(11) DEFAULT NULL,
+KEY f1 (f1)
+);
+CREATE TABLE t2
+(
+f1 int(11) DEFAULT NULL,
+f2 varchar(255) CHARACTER SET utf8mb3 DEFAULT NULL,
+KEY f2 (f2),
+KEY f1 (f1)
+);
+CREATE TABLE t3 (
+f1 int(11) DEFAULT NULL,
+f2 varchar(255) CHARACTER SET cp932 DEFAULT NULL,
+KEY f1 (f1),
+KEY f2 (f2)
+);
+EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t2, t3) JOIN_ORDER(t1, t2)  */ t3.f1
+FROM ( t2 INNER JOIN t3 ON t3.f2 = t2.f2 LEFT JOIN t1 ON t1.f1 = t3.f1 )
+WHERE NOT (t2.f1 >= 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	range	f2,f1	f1	5	NULL	1	100.00	Using index condition
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	f1	f1	5	test.t3.f1	1	100.00	Using where; Using index
+Warnings:
+Warning	4210	Hint JOIN_ORDER(`t1`,`t2`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t2`,`t3`) */ `test`.`t3`.`f1` AS `f1` from `test`.`t2` join `test`.`t3` left join `test`.`t1` on(`test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t3`.`f1` is not null) where `test`.`t2`.`f1` < 7 and convert(`test`.`t3`.`f2` using utf8mb3) = `test`.`t2`.`f2`
+EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t1, t2)  JOIN_ORDER(t2, t3) */ t3.f1
+FROM ( t2 INNER JOIN t3 ON t3.f2 = t2.f2 LEFT JOIN t1 ON t1.f1 = t3.f1 )
+WHERE NOT (t2.f1 >= 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t1	ref	f1	f1	5	test.t3.f1	1	100.00	Using where; Using index
+1	SIMPLE	t2	ref	f2,f1	f2	768	func	1	100.00	Using index condition; Using where
+Warnings:
+Warning	4210	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t1`,`t2`) */ `test`.`t3`.`f1` AS `f1` from `test`.`t2` join `test`.`t3` left join `test`.`t1` on(`test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t3`.`f1` is not null) where `test`.`t2`.`f1` < 7 and convert(`test`.`t3`.`f2` using utf8mb3) = `test`.`t2`.`f2`
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1 (
+f1 INT(11) NOT NULL AUTO_INCREMENT,
+f2 INT(11) DEFAULT NULL,
+PRIMARY KEY (f1)
+);
+CREATE TABLE t2 (
+f1 INT(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (f1)
+);
+EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(t1, t1) */ t2.f1 FROM t1 JOIN t2 ON t1.f2 = t2.f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.f2	1	100.00	
+Warnings:
+Warning	4210	Hint JOIN_PREFIX(`t1`,`t1`) is ignored as conflicting/duplicated
+Note	1003	select `test`.`t2`.`f1` AS `f1` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f2`
+DROP TABLE t1, t2;
+CREATE TABLE t1
+(
+f1 DATETIME,
+f2 DATE,
+f3 VARCHAR(1),
+KEY (f1)
+) ENGINE=myisam;
+CREATE TABLE t2
+(
+f1 VARCHAR(1),
+f2 INT,
+f3 VARCHAR(1),
+KEY (f1)
+) ENGINE=innodb;
+CREATE TABLE t3
+(
+f1 VARCHAR(1),
+f2 DATE,
+f3 DATETIME,
+f4 INT
+) ENGINE=myisam;
+EXPLAIN EXTENDED
+UPDATE /*+ JOIN_ORDER(t2, als1, als3) JOIN_FIXED_ORDER() */ t3 AS als1
+JOIN t1 AS als2 ON (als1.f3 = als2 .f1)
+JOIN t1 AS als3 ON (als1.f1 = als3.f3)
+RIGHT OUTER JOIN t3 AS als4 ON (als1.f3 = als4.f2)
+SET als1.f4 = 'eogqjvbhzodzimqahyzlktkbexkhdwxwgifikhcgblhgswxyutepc'
+WHERE ('i','b') IN (SELECT f3, f1 FROM t2 WHERE f2 <> f2 AND als2.f2 IS NULL);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Warning	4210	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
+Note	1276	Field or reference 'test.als2.f2' of SELECT #2 was resolved in SELECT #1
+Note	1003	update /*+ JOIN_ORDER(@`select#1` `t2`,`als1`,`als3`) */ (`test`.`t2`) join `test`.`t3` `als4` left join (`test`.`t3` `als1` join `test`.`t1` `als2` join `test`.`t1` `als3`) on(`test`.`als1`.`f3` = `test`.`als4`.`f2` and multiple equal(`test`.`als1`.`f1`, `test`.`als3`.`f3`) and multiple equal(`test`.`als1`.`f3`, `test`.`als2`.`f1`)) set `test`.`als1`.`f4` = 'eogqjvbhzodzimqahyzlktkbexkhdwxwgifikhcgblhgswxyutepc' where 0
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1(
+f1 VARCHAR(1)) ENGINE=myisam;
+CREATE TABLE t2(
+f1 VARCHAR(1),
+f2 VARCHAR(1),
+f3 DATETIME,
+KEY(f2)) ENGINE=innodb;
+CREATE TABLE t3(
+f1 INT,
+f2 DATE,
+f3 VARCHAR(1),
+KEY(f3)) ENGINE=myisam;
+CREATE TABLE t4(
+f1 VARCHAR(1),
+KEY(f1)) ENGINE=innodb;
+ALTER TABLE t4 DISABLE KEYS;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t4` doesn't have this option
+INSERT INTO t4 VALUES ('x'), (NULL), ('d'), ('x'), ('u');
+ALTER TABLE t4 ENABLE KEYS;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t4` doesn't have this option
+CREATE TABLE t5(
+f1 VARCHAR(1),
+KEY(f1) ) ENGINE=myisam;
+INSERT INTO t5 VALUES  (NULL), ('s'), ('c'), ('x'), ('z');
+EXPLAIN EXTENDED UPDATE /*+ JOIN_ORDER(t4, alias1, alias3)  */ t3 AS alias1
+JOIN t5 ON (alias1.f3 = t5.f1)
+JOIN t3 AS alias3 ON (alias1.f2 = alias3.f2 )
+RIGHT OUTER JOIN t1 ON (alias1.f3 = t1.f1)
+SET alias1.f1 = -1
+WHERE ( 'v', 'o' )  IN
+(SELECT DISTINCT t2.f1, t2.f2 FROM t4 RIGHT OUTER JOIN t2 ON (t4.f1 = t2.f1)
+WHERE t2.f3 BETWEEN '2001-10-04' AND '2003-05-15');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	update /*+ JOIN_ORDER(@`select#1` `t4`,`alias1`,`alias3`) */ `test`.`t1` semi join (`test`.`t2` left join `test`.`t4` on(`test`.`t4`.`f1` = `test`.`t2`.`f1` and `test`.`t2`.`f1` is not null)) left join (`test`.`t3` `alias1` join `test`.`t5` join `test`.`t3` `alias3`) on(`test`.`alias1`.`f3` = NULL and `test`.`t5`.`f1` = NULL and `test`.`alias3`.`f2` = `test`.`alias1`.`f2` and NULL is not null and `test`.`alias1`.`f2` is not null and NULL is not null) set `test`.`alias1`.`f1` = -1 where 0
+DROP TABLE t1, t2, t3, t4, t5;
+CREATE TABLE t1 (
+f1 INT(11) DEFAULT NULL,
+f3 VARCHAR(1) DEFAULT NULL,
+f2 INT(11) DEFAULT NULL,
+KEY (f1)
+) ENGINE=MyISAM;
+CREATE TABLE t2(
+f1 INT(11) DEFAULT NULL
+) ENGINE=MyISAM;
+CREATE TABLE t3 (
+f1 VARCHAR(1) DEFAULT NULL,
+f2 VARCHAR(1) DEFAULT NULL,
+KEY (f2)
+) ENGINE=InnoDB;
+EXPLAIN EXTENDED UPDATE /*+ JOIN_SUFFIX(ta1, t2) */
+t1 AS ta1 JOIN t1 AS ta2 ON ta1.f1 = ta2.f1 RIGHT JOIN t2 ON (ta1.f1 = t2.f1)
+SET ta1.f2 = '', ta2.f3 = ''
+WHERE ('n', 'r') IN (SELECT f2, f1 FROM t3 WHERE f1 <> f2 XOR ta2.f3 IS NULL);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1276	Field or reference 'test.ta2.f3' of SELECT #2 was resolved in SELECT #1
+Note	1003	update /*+ JOIN_SUFFIX(@`select#1` `ta1`,`t2`) */ `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta2`.`f1` = NULL and `test`.`ta1`.`f1` = NULL and NULL is not null and NULL is not null) set `test`.`ta1`.`f2` = '',`test`.`ta2`.`f3` = '' where 0
+DROP TABLE t1, t2, t3;
+CREATE TABLE t2(f1 VARCHAR(255) DEFAULT NULL, f2 INT(11) DEFAULT NULL,
+KEY (f1), KEY (f2)) charset latin1 ENGINE=MyISAM;
+CREATE TABLE t4(f1 INT(11) DEFAULT NULL, f2 INT(11) DEFAULT NULL, KEY (f1))
+charset latin1 ENGINE=MyISAM;
+CREATE TABLE t5(f1 INT(11) NOT NULL AUTO_INCREMENT, f2 INT(11) DEFAULT NULL, PRIMARY KEY (f1))
+charset latin1 ENGINE=InnoDB;
+CREATE TABLE t6(f1 INT(11) NOT NULL AUTO_INCREMENT, PRIMARY KEY (f1))
+charset latin1 ENGINE=InnoDB;
+CREATE TABLE t7 (f1 VARCHAR(255) DEFAULT NULL)
+charset latin1 ENGINE=InnoDB;
+CREATE TABLE t10(f1 INT(11) NOT NULL AUTO_INCREMENT,f2 INT(11) DEFAULT NULL,f3 VARCHAR(10) DEFAULT NULL,
+PRIMARY KEY (f1),KEY (f2),KEY (f3)) charset latin1 ENGINE=MyISAM;
+CREATE TABLE t11(f1 INT(11) DEFAULT NULL,f2 VARCHAR(10) DEFAULT NULL,
+KEY (f1),KEY (f2)) charset latin1 ENGINE=InnoDB;
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_ORDER(alias11, alias8) */ 1
+FROM t4 AS alias4
+LEFT JOIN t5 AS alias5 JOIN t6 AS alias6 ON alias5.f2 = alias6.f1
+LEFT JOIN t7 AS alias7 JOIN t2 AS alias8 ON alias7.f1 = alias8.f1
+ON alias5.f1 = alias8.f2 ON alias4.f2 = alias6.f1
+JOIN t10 AS alias10 JOIN t11 AS alias11 ON alias10.f1 = alias11.f1
+ON alias4.f2 = alias11.f2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1105	Cannot use key `f2` part[0] for lookup: `test`.`t11`.`f2` of type `varchar` = "`alias4`.`f2`" of type `int`
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `alias11`,`alias8`) */ 1 AS `1` from `test`.`t4` `alias4` left join (`test`.`t5` `alias5` join `test`.`t6` `alias6` left join (`test`.`t7` `alias7` join `test`.`t2` `alias8`) on(`test`.`alias8`.`f2` = `test`.`alias5`.`f1` and `test`.`alias8`.`f1` = `test`.`alias7`.`f1` and `test`.`alias7`.`f1` is not null)) on(`test`.`alias5`.`f2` = NULL and `test`.`alias6`.`f1` = NULL and NULL is not null and `test`.`alias5`.`f2` is not null) join `test`.`t10` `alias10` join `test`.`t11` `alias11` where 0
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_ORDER(alias11, alias10, alias8, alias7) */ 1
+FROM t4 AS alias4
+LEFT JOIN t5 AS alias5 JOIN t6 AS alias6 ON alias5.f2 = alias6.f1
+LEFT JOIN t7 AS alias7 JOIN t2 AS alias8 ON alias7.f1 = alias8.f1
+ON alias5.f1 = alias8.f2 ON alias4.f2 = alias6.f1
+JOIN t10 AS alias10 JOIN t11 AS alias11 ON alias10.f1 = alias11.f1
+ON alias4.f2 = alias11.f2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1105	Cannot use key `f2` part[0] for lookup: `test`.`t11`.`f2` of type `varchar` = "`alias4`.`f2`" of type `int`
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `alias11`,`alias10`,`alias8`,`alias7`) */ 1 AS `1` from `test`.`t4` `alias4` left join (`test`.`t5` `alias5` join `test`.`t6` `alias6` left join (`test`.`t7` `alias7` join `test`.`t2` `alias8`) on(`test`.`alias8`.`f2` = `test`.`alias5`.`f1` and `test`.`alias7`.`f1` = `test`.`alias8`.`f1` and `test`.`alias5`.`f1` is not null and `test`.`alias8`.`f1` is not null)) on(`test`.`alias5`.`f2` = NULL and `test`.`alias6`.`f1` = NULL and NULL is not null and `test`.`alias5`.`f2` is not null) join `test`.`t10` `alias10` join `test`.`t11` `alias11` where 0
+DROP TABLES t2, t4, t5, t6, t7, t10, t11;
+CREATE TABLE t1 (f1 VARCHAR(255) DEFAULT NULL, f2 VARCHAR(255) DEFAULT NULL,
+KEY (f1), KEY (f2)) ENGINE=InnoDB;
+CREATE TABLE t2(f1 VARCHAR(255) DEFAULT NULL, f2 INT(11) DEFAULT NULL,
+KEY (f1), KEY (f2)) ENGINE=InnoDB;
+CREATE TABLE t3(
+f1 INT(11) NOT NULL AUTO_INCREMENT, f2 VARCHAR(255) DEFAULT NULL,
+PRIMARY KEY (f1), KEY (f2)) ENGINE=InnoDB;
+CREATE TABLE t4(f1 INT(11) DEFAULT NULL, f2 INT(11) DEFAULT NULL, KEY (f1)) ENGINE=InnoDB;
+CREATE TABLE t6(f1 INT(11) NOT NULL AUTO_INCREMENT, PRIMARY KEY (f1)) ENGINE=InnoDB;
+CREATE TABLE t7 (f1 VARCHAR(255) DEFAULT NULL) ENGINE=InnoDB;
+CREATE TABLE t10(f1 INT(11) NOT NULL AUTO_INCREMENT,f2 INT(11) DEFAULT NULL,f3 VARCHAR(10) DEFAULT NULL,
+PRIMARY KEY (f1),KEY (f2),KEY (f3)) ENGINE=InnoDB;
+EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(alias8, alias6) */ 1
+FROM t1 AS alias1
+LEFT JOIN t7 alias7
+JOIN t2 AS alias2
+LEFT JOIN t3 AS alias3 JOIN t4 AS alias4 ON alias4.f2 = alias3.f1
+ON alias4.f1 =  alias2.f1
+ON alias2.f2 = alias7.f1
+JOIN t10 AS alias5
+LEFT JOIN t6 AS alias6 JOIN t2 AS alias8 ON alias6.f1 = alias8.f2
+ON alias6.f1 =  alias5.f1
+ON alias5.f3 = alias7.f1
+ON alias1.f2 = alias7.f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	alias1	index	NULL	f2	1023	NULL	1	100.00	Using index
+1	SIMPLE	alias7	ALL	NULL	NULL	NULL	NULL	1	10.00	Using where
+1	SIMPLE	alias2	ref	f2	f2	5	test.alias7.f1	1	100.00	Using where
+1	SIMPLE	alias4	ref	f1	f1	5	test.alias2.f1	1	100.00	Using where
+1	SIMPLE	alias3	eq_ref	PRIMARY	PRIMARY	4	test.alias4.f2	1	100.00	
+1	SIMPLE	alias5	ref	f3	f3	43	test.alias7.f1	1	100.00	Using where; Using index
+1	SIMPLE	alias8	ref	f2	f2	5	test.alias5.f1	1	100.00	Using where; Using index
+1	SIMPLE	alias6	eq_ref	PRIMARY	PRIMARY	4	test.alias8.f2	1	100.00	Using where
+Warnings:
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `alias8`,`alias6`) */ 1 AS `1` from `test`.`t1` `alias1` left join (`test`.`t7` `alias7` join `test`.`t2` `alias2` left join (`test`.`t3` `alias3` join `test`.`t4` `alias4`) on(`test`.`alias3`.`f1` = `test`.`alias4`.`f2` and `test`.`alias4`.`f1` = `test`.`alias2`.`f1` and `test`.`alias2`.`f1` is not null and `test`.`alias4`.`f2` is not null) join `test`.`t10` `alias5` left join (`test`.`t6` `alias6` join `test`.`t2` `alias8`) on(`test`.`alias8`.`f2` = `test`.`alias5`.`f1` and `test`.`alias6`.`f1` = `test`.`alias5`.`f1` and `test`.`alias5`.`f1` is not null and `test`.`alias8`.`f2` is not null)) on(`test`.`alias7`.`f1` = `test`.`alias1`.`f2` and `test`.`alias5`.`f3` = `test`.`alias1`.`f2` and `test`.`alias2`.`f2` = `test`.`alias7`.`f1` and `test`.`alias1`.`f2` is not null and `test`.`alias7`.`f1` is not null and `test`.`alias7`.`f1` is not null) where 1
+DROP TABLES t1, t2, t3, t4, t6, t7, t10;
+#
+# Bug#23144230 WL#9158 : OPT_HINTS_QB::APPLY_JOIN_ORDER_HINTS - MYSQLD GOT SIGNAL 11
+#
+CREATE TABLE t1 (
+f1 int(11) NOT NULL AUTO_INCREMENT,
+f2 int(11) DEFAULT NULL,
+f3 int(11) DEFAULT NULL,
+PRIMARY KEY (f1),
+KEY f2 (f2))
+ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=latin1;
+CREATE TABLE t2 (
+f1 int(11) NOT NULL AUTO_INCREMENT,
+f2 int(11) DEFAULT NULL,
+f3 int(11) DEFAULT NULL,
+PRIMARY KEY (f1),
+KEY f2 (f2))
+ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=latin1;
+EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(alias1) */ alias2.f3 AS field1
+FROM ( SELECT * FROM t1 ) AS alias1 JOIN ( SELECT * FROM t2 ) AS alias2
+ON alias1.f2 = alias2.f3
+WHERE alias2.f2 IS NULL HAVING (field1 != 3 AND field1 >= 8);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ref	f2	f2	5	const	1	100.00	Using index condition; Using where
+1	SIMPLE	t1	ref	f2	f2	5	test.t2.f3	1	100.00	Using index
+Warnings:
+Warning	4212	Unresolved table name `alias1` for JOIN_PREFIX hint
+Note	1003	select `test`.`t2`.`f3` AS `field1` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`f2` = `test`.`t2`.`f3` and `test`.`t2`.`f2` is null having `f3` <> 3 and `f3` >= 8
+DROP TABLE t1, t2;
+#
+# Bug#23651098 WL#9158 : ASSERTION `!(SJ_NEST->SJ_INNER_TABLES & JOIN->CONST_TABLE_MAP)' FAILED
+#
+CREATE TABLE t1
+(
+f1 INT(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (f1)
+) ENGINE=InnoDB;
+CREATE TABLE t2
+(
+f1 VARCHAR(1) DEFAULT NULL
+) ENGINE=MyISAM;
+CREATE TABLE t3
+(
+f1 VARCHAR(1) DEFAULT NULL
+) ENGINE=MyISAM;
+EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(t2, t1) */ t1.f1 FROM t1, t2
+WHERE t2.f1 IN (SELECT t3.f1 FROM t3) AND t1.f1 = 183;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`,`t1`) */ NULL AS `f1` from `test`.`t1` semi join (`test`.`t3`) join `test`.`t2` where 0
+DROP TABLE t1, t2, t3;
+#
+# Bug23715779 SELECT QUERY WITH JOIN_PREFIX() HINT RETURNS INCORRECT RESULT
+#
+CREATE TABLE t1(f1 INT(11) NOT NULL);
+INSERT INTO t1 VALUES (10);
+CREATE TABLE t2
+(
+f1 INT(11) NOT NULL AUTO_INCREMENT,
+f2 INT(11) DEFAULT NULL,
+PRIMARY KEY (f1),
+KEY (f2)
+);
+INSERT INTO t2 VALUES (1, 7), (2, 1), (4, 7);
+CREATE TABLE t4(f1 INT DEFAULT NULL);
+INSERT INTO t4 VALUES (2);
+ANALYZE TABLE t1, t2, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+SELECT
+COUNT(*) FROM t1 JOIN t2 AS ta3 JOIN t2 AS ta4
+WHERE ta4.f1 IN (SELECT /*+ QB_NAME(qb1) */ f1 FROM t4) AND
+ta3.f2 IN (SELECT /*+ QB_NAME(qb2) */ f2 FROM t2);
+COUNT(*)
+3
+explain extended SELECT
+COUNT(*) FROM t1 JOIN t2 AS ta3 JOIN t2 AS ta4
+WHERE ta4.f1 IN (SELECT /*+ QB_NAME(qb1) */ f1 FROM t4) AND
+ta3.f2 IN (SELECT /*+ QB_NAME(qb2) */ f2 FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	index	f2	f2	5	NULL	3	100.00	Using where; Using index; LooseScan
+1	PRIMARY	ta3	ref	f2	f2	5	test.t2.f2	1	33.33	Using index
+1	PRIMARY	ta4	index	PRIMARY	f2	5	NULL	3	100.00	Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	5	test.ta4.f1	1	100.00	Using where; FirstMatch(ta4); Using join buffer (incremental, BNLH join)
+Warnings:
+Note	1003	select count(0) AS `COUNT(*)` from `test`.`t1` semi join (`test`.`t4`) semi join (`test`.`t2`) join `test`.`t2` `ta3` join `test`.`t2` `ta4` where `test`.`t4`.`f1` = `test`.`ta4`.`f1` and `test`.`ta3`.`f2` = `test`.`t2`.`f2`
+SELECT /*+ JOIN_PREFIX(t2@qb2, t4@qb1, ta3, ta4) */
+COUNT(*) FROM t1 JOIN t2 AS ta3 JOIN t2 AS ta4
+WHERE ta4.f1 IN (SELECT /*+ QB_NAME(qb1) */ f1 FROM t4) AND
+ta3.f2 IN (SELECT /*+ QB_NAME(qb2) */ f2 FROM t2);
+COUNT(*)
+3
+explain extended SELECT /*+ JOIN_PREFIX(t2@qb2, t4@qb1, ta3, ta4) */
+COUNT(*) FROM t1 JOIN t2 AS ta3 JOIN t2 AS ta4
+WHERE ta4.f1 IN (SELECT /*+ QB_NAME(qb1) */ f1 FROM t4) AND
+ta3.f2 IN (SELECT /*+ QB_NAME(qb2) */ f2 FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	index	f2	f2	5	NULL	3	100.00	Using where; Using index; Start temporary
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	ta3	ref	f2	f2	5	test.t2.f2	1	33.33	Using index
+1	PRIMARY	ta4	eq_ref	PRIMARY	PRIMARY	4	test.t4.f1	1	33.33	End temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`@`qb2`,`t4`@`qb1`,`ta3`,`ta4`) */ count(0) AS `COUNT(*)` from `test`.`t1` semi join (`test`.`t4`) semi join (`test`.`t2`) join `test`.`t2` `ta3` join `test`.`t2` `ta4` where `test`.`ta4`.`f1` = `test`.`t4`.`f1` and `test`.`ta3`.`f2` = `test`.`t2`.`f2`
+DROP TABLE t1, t2, t4;

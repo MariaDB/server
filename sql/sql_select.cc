@@ -5765,54 +5765,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   stat_vector[i]=0;
   join->outer_join=outer_join;
 
-  if (join->outer_join)
+  if (join->propagate_dependencies(stat))
   {
-    /* 
-       Build transitive closure for relation 'to be dependent on'.
-       This will speed up the plan search for many cases with outer joins,
-       as well as allow us to catch illegal cross references/
-       Warshall's algorithm is used to build the transitive closure.
-       As we use bitmaps to represent the relation the complexity
-       of the algorithm is O((number of tables)^2).
-
-       The classic form of the Warshall's algorithm would look like: 
-       for (i= 0; i < table_count; i++)
-       {
-         for (j= 0; j < table_count; j++)
-         {
-           for (k= 0; k < table_count; k++)
-           {
-             if (bitmap_is_set(stat[j].dependent, i) &&
-                 bitmap_is_set(stat[i].dependent, k))
-               bitmap_set_bit(stat[j].dependent, k);
-           }
-         }
-       }  
-    */
-    
-    for (s= stat ; s < stat_end ; s++)
-    {
-      TABLE *table= s->table;
-      for (JOIN_TAB *t= stat ; t < stat_end ; t++)
-      {
-        if (t->dependent & table->map)
-          t->dependent |= table->reginfo.join_tab->dependent;
-      }
-      if (outer_join & s->table->map)
-        s->table->maybe_null= 1;
-    }
-    /* Catch illegal cross references for outer joins */
-    for (i= 0, s= stat ; i < table_count ; i++, s++)
-    {
-      if (s->dependent & s->table->map)
-      {
-        join->table_count=0;			// Don't use join->table
-        my_message(ER_WRONG_OUTER_JOIN,
-                   ER_THD(join->thd, ER_WRONG_OUTER_JOIN), MYF(0));
-        goto error;
-      }
-      s->key_dependent= s->dependent;
-    }
+    // Illegal cross-references found
+    table_count= 0;
+    my_message(ER_WRONG_OUTER_JOIN, ER_THD(thd, ER_WRONG_OUTER_JOIN), MYF(0));
+    goto error;
   }
 
   {
@@ -5825,9 +5783,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
     }
   }
-
-  if (unlikely(thd->trace_started()))
-    trace_table_dependencies(thd, stat, join->table_count);
 
   if (join->conds || outer_join)
   {
@@ -6320,6 +6275,13 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->const_tables=const_count;
   join->found_const_table_map=found_const_table_map;
 
+  if (join->select_lex->opt_hints_qb)
+    join->select_lex->opt_hints_qb->apply_join_order_hints(join);
+  join->update_key_dependencies();
+
+  if (unlikely(thd->trace_started()))
+    trace_table_dependencies(thd, join->join_tab, join->table_count);
+
   if (sj_nests)
     join->select_lex->update_available_semijoin_strategies(thd);
 
@@ -6410,6 +6372,102 @@ error:
       tmp_table->table->reginfo.join_tab= NULL;
   }
   DBUG_RETURN (1);
+}
+
+
+/*
+  Propagate dependencies between tables.
+
+  @returns false if success, true if error
+
+   Build transitive closure for relation 'to be dependent on'.
+   This will speed up the plan search for many cases with outer joins,
+   as well as allow us to catch illegal cross references/
+   Warshall's algorithm is used to build the transitive closure.
+   As we use bitmaps to represent the relation the complexity
+   of the algorithm is O((number of tables)^2).
+
+   The classic form of the Warshall's algorithm would look like:
+   for (i= 0; i < table_count; i++)
+   {
+     for (j= 0; j < table_count; j++)
+     {
+       for (k= 0; k < table_count; k++)
+       {
+         if (bitmap_is_set(stat[j].dependent, i) &&
+             bitmap_is_set(stat[i].dependent, k))
+           bitmap_set_bit(stat[j].dependent, k);
+       }
+     }
+   }
+*/
+
+bool JOIN::propagate_dependencies(JOIN_TAB *stat)
+{
+  for (JOIN_TAB *s= stat; s < stat + table_count; s++)
+  {
+    TABLE *table= s->table;
+    if (outer_join & s->table->map)
+      s->table->maybe_null= 1;
+
+    if (!table->reginfo.join_tab->dependent)
+      continue;
+    // Add my dependencies to other tables depending on me
+    for (JOIN_TAB *t= stat; t < stat + table_count; t++)
+    {
+      if (t->dependent & table->map)
+        t->dependent |= table->reginfo.join_tab->dependent;
+    }
+  }
+  // Catch illegal cross references
+  for (JOIN_TAB *s= stat; s < stat + table_count; s++)
+  {
+    if (s->dependent & s->table->map)
+      return true;
+  }
+  return false;
+}
+
+
+void JOIN::update_key_dependencies()
+{
+  for (JOIN_TAB *tab= join_tab; tab < join_tab + table_count; tab++)
+    tab->key_dependent |= tab->dependent;
+}
+
+
+/*
+  Export dependencies of the JOIN tables to a newly allocated array of bitmaps
+  (table_map's).
+  This array may be used to restore the original dependencies
+  (see restore_table_dependencies())
+*/
+
+table_map *JOIN::export_table_dependencies() const
+{
+  table_map *orig_dep_array=
+      (table_map *)thd->alloc(sizeof(table_map) * table_count);
+
+  if (orig_dep_array == nullptr)
+    return nullptr;
+
+  for (uint i= 0; i < table_count; i++)
+    orig_dep_array[i]= join_tab[i].dependent;
+
+  return orig_dep_array;
+}
+
+
+/*
+  Restore dependencies of the JOIN tables from a previously exported array
+  of bitmaps (table_map's) (see export_table_dependencies()).
+  This function overwrites the existing dependencies with those from the array.
+*/
+
+void JOIN::restore_table_dependencies(table_map *orig_dep_array)
+{
+  for (uint i = 0; i < table_count; i++)
+    join_tab[i].dependent= orig_dep_array[i];
 }
 
 
@@ -11476,12 +11534,17 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
   bool found_eq_ref= 0;
   DBUG_ENTER("get_plans_for_tables");
 
+  table_map remaining_allowed_tables=
+       (join->emb_sjm_nest ?
+                    (join->emb_sjm_nest->sj_inner_tables &
+                     ~join->const_table_map & remaining_tables):
+                    remaining_tables);
   s= *pos;
   do
   {
     table_map real_table_bit= s->table->map;
     if ((*allowed_tables & real_table_bit) &&
-        !(remaining_tables & s->dependent))
+        !(remaining_allowed_tables & s->dependent))
     {
 #ifdef DBUG_ASSERT_EXISTS
       DBUG_ASSERT(!check_interleaving_with_nj(s));
@@ -15723,15 +15786,15 @@ uint check_join_cache_usage(JOIN_TAB *tab,
          !(join->allowed_join_cache_types & JOIN_CACHE_INCREMENTAL_BIT);
   bool no_hashed_cache=
          !(join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT);
-  bool no_bnl_cache= !hint_table_state(join->thd, tab->tab_list->table,
-                                       BNL_HINT_ENUM, true);
+  bool hint_disables_bnl= !hint_table_state(join->thd, tab->tab_list->table,
+                                            BNL_HINT_ENUM, true);
   bool no_bka_cache= !hint_table_state(join->thd, tab->tab_list->table,
           BKA_HINT_ENUM, join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
   bool hint_forces_bka= hint_table_state(join->thd, tab->tab_list->table,
                                          BKA_HINT_ENUM, false);
   join->return_tab= 0;
 
-  if (tab->no_forced_join_cache || (no_bnl_cache && no_bka_cache))
+  if (tab->no_forced_join_cache || (hint_disables_bnl && no_bka_cache))
     goto no_join_cache;
 
   if (cache_level < 4 && hint_table_state(join->thd, tab->tab_list->table,
@@ -15875,7 +15938,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_NEXT:
   case JT_ALL:
   case JT_RANGE:
-    if (no_bnl_cache)
+    if (hint_disables_bnl)
       goto no_join_cache;
     if (cache_level == 1)
       prev_cache= 0;
@@ -15915,7 +15978,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         tab->is_ref_for_hash_join() ||
 	((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6))
     {
-      if (no_bnl_cache)
+      if (hint_disables_bnl)
         goto no_join_cache;
       if (!tab->hash_join_is_possible() ||
           tab->make_scan_filter())
@@ -32457,6 +32520,15 @@ void JOIN::set_allowed_join_cache_types()
 
 bool JOIN::is_allowed_hash_join_access(const TABLE *table)
 {
+  /*
+    If both NO_BNL() and NO_BKA() hints are specified then
+    hash join is not allowed
+  */
+  if (!hint_table_state(thd, table, BNL_HINT_ENUM, true) &&
+      !hint_table_state(thd, table, BKA_HINT_ENUM, true))
+  {
+    return false;
+  }
   return allowed_join_cache_types & JOIN_CACHE_HASHED_BIT &&
          (max_allowed_join_cache_level > JOIN_CACHE_HASHED_BIT ||
            hint_table_state(thd, table, BNL_HINT_ENUM, false) ||

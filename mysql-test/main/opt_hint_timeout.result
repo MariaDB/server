@@ -49,7 +49,7 @@ SELECT /*+ MAX_EXECUTION_TIME(10) MAX_EXECUTION_TIME(100) */ count(*) FROM t1;
 count(*)
 512
 Warnings:
-Warning	4207	Hint MAX_EXECUTION_TIME(100) is ignored as conflicting/duplicated
+Warning	4210	Hint MAX_EXECUTION_TIME(100) is ignored as conflicting/duplicated
 # Wrong values
 SELECT /*+ MAX_EXECUTION_TIME(0) */ count(*) FROM t1;
 count(*)
@@ -102,7 +102,7 @@ SELECT /*+ MAX_EXECUTION_TIME(30) */ count(*) FROM t1;
 count(*)
 512
 Warnings:
-Warning	4207	Hint MAX_EXECUTION_TIME(30) is ignored as conflicting/duplicated
+Warning	4210	Hint MAX_EXECUTION_TIME(30) is ignored as conflicting/duplicated
 SELECT count(*) FROM t1
 UNION
 SELECT /*+ MAX_EXECUTION_TIME(30) */ count(*) FROM t1;
