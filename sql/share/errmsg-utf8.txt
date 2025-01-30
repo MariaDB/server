@@ -12296,7 +12296,8 @@ WARN_INDEX_HINTS_IGNORED
         eng "Index hints are ignored because they are incompatible with RETURNING clause"
         ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
-        eng "The row is skipped by a trigger implementation"ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR
+        eng "The row is skipped by a trigger implementation"
+ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR
         eng "Optimizer hint syntax error"
 ER_WARN_CONFLICTING_HINT
         eng "Hint %s is ignored as conflicting/duplicated"
@@ -12308,3 +12309,5 @@ ER_UNRESOLVED_INDEX_HINT_NAME
         eng "Unresolved index name %s for %s hint"
 ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED
         eng "Optimizer hints are not supported inside view definitions"
+ER_WARN_MALFORMED_HINT
+        eng "Hint %s is ignored as malformed"

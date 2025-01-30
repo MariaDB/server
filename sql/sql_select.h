@@ -378,8 +378,9 @@ typedef struct st_join_table {
   */
   table_map	dependent;
   /*
-    key_dependent is dependent but add those tables that are used to compare
-    with a key field in a simple expression. See add_key_field().
+    Normally `key_dependent` is the same as `dependent` but may also include
+    tables that are used to compare with a key field in a simple expression
+    (see add_key_field()).
     It is only used to prune searches in best_extension_by_limited_search()
   */
   table_map     key_dependent;
@@ -1955,6 +1956,10 @@ public:
   bool optimize_upper_rownum_func();
   void calc_allowed_top_level_tables(SELECT_LEX *lex);
   table_map get_allowed_nj_tables(uint idx);
+  bool propagate_dependencies(JOIN_TAB *stat);
+  void update_key_dependencies();
+  table_map *export_table_dependencies() const;
+  void restore_table_dependencies(table_map *orig_dep_array);
 
 private:
   /**

@@ -39,6 +39,8 @@
   Currently, this process is done at the parser stage. (This is one of the
   causes why hints do not work across VIEW bounds, here or in MySQL).
 
+  Query-block level hints can be reached through SELECT_LEX::opt_hints_qb.
+
   == Hint "fixing" ==
 
   During Name Resolution, hints are attached the real objects they control:
@@ -64,10 +66,17 @@
 
   == API for checking hints ==
 
-  The optimizer checks hints' instructions using these calls:
+  The optimizer checks hints' instructions using these calls for table/index
+  level hints:
     hint_table_state()
     hint_table_state_or_fallback()
     hint_key_state()
+  For query block-level hints:
+    opt_hints_qb->semijoin_enabled()
+    opt_hints_qb->sj_enabled_strategies()
+    opt_hints_qb->apply_join_order_hints(join) - This adds extra dependencies
+      between tables that ensure that the optimizer picks a join order
+      prescribed by the hints.
 */
 
 
@@ -90,32 +99,15 @@
 struct LEX;
 struct TABLE;
 
-/**
-  Hint types, MAX_HINT_ENUM should be always last.
-  This enum should be synchronized with opt_hint_info
-  array(see opt_hints.cc).
-*/
-enum opt_hints_enum
-{
-  BKA_HINT_ENUM= 0,
-  BNL_HINT_ENUM,
-  ICP_HINT_ENUM,
-  MRR_HINT_ENUM,
-  NO_RANGE_HINT_ENUM,
-  QB_NAME_HINT_ENUM,
-  MAX_EXEC_TIME_HINT_ENUM,
-  SEMIJOIN_HINT_ENUM,
-  SUBQUERY_HINT_ENUM,
-  MAX_HINT_ENUM // This one must be the last in the list
-};
-
-
 struct st_opt_hint_info
 {
   LEX_CSTRING hint_type;  // Hint "type", like "BKA" or "MRR".
   bool check_upper_lvl;   // true if upper level hint check is needed (for hints
                           // which can be specified on more than one level).
   bool has_arguments;     // true if hint has additional arguments.
+  bool irregular_hint;    // true if hint requires some special handling.
+                          // Currently it's used only for join order hints
+                          // since they need a special printing procedure.
 };
 
 typedef Optimizer_hint_parser Parser;
@@ -137,24 +129,11 @@ public:
     hints_specified.clear_all();
   }
 
-  /**
-     Check if hint is specified.
-
-     @param type_arg   hint type
-
-     @return true if hint is specified,
-             false otherwise
-  */
   my_bool is_specified(opt_hints_enum type_arg) const
   {
     return hints_specified.is_set(type_arg);
   }
-  /**
-     Set switch value and set hint into specified state.
 
-     @param type_arg           hint type
-     @param switch_state_arg   switch value
-  */
   void set_switch(opt_hints_enum type_arg,
                   bool switch_state_arg)
   {
@@ -164,13 +143,7 @@ public:
       hints.clear_bit(type_arg);
     hints_specified.set_bit(type_arg);
   }
-  /**
-     Get switch value.
 
-     @param type_arg    hint type
-
-     @return switch value.
-  */
   bool is_switched_on(opt_hints_enum type_arg) const
   {
     return hints.is_set(type_arg);
@@ -364,6 +337,15 @@ protected:
     DBUG_ASSERT(0);
     return 0;
   }
+
+  /**
+    Function prints hints which are non-standard and don't
+    fit into existing hint infrastructure.
+
+   @param thd             pointer to THD object
+   @param str             pointer to String object
+ */
+  virtual void print_irregular_hints(THD *thd, String *str) {}
 };
 
 
@@ -416,6 +398,10 @@ class Opt_hints_table;
                present after that)
     - [NO_]SEMIJOIN
     - SUBQUERY
+    - JOIN_PREFIX
+    - JOIN_SUFFIX
+    - JOIN_ORDER
+    - JOIN_FIXED_ORDER
 */
 
 class Opt_hints_qb : public Opt_hints
@@ -423,6 +409,14 @@ class Opt_hints_qb : public Opt_hints
   uint select_number;     // SELECT_LEX number
   LEX_CSTRING sys_name;   // System QB name
   char buff[32];          // Buffer to hold sys name
+
+  // Array of join order hints
+  Mem_root_array<Parser::Join_order_hint *, false> join_order_hints;
+  // Bitmap marking ignored hints
+  ulonglong join_order_hints_ignored;
+  // Max capacity to avoid overflowing of join_order_hints_ignored bitmap
+  static const uint MAX_ALLOWED_JOIN_ORDER_HINTS=
+      sizeof(join_order_hints_ignored) * 8;
 
 public:
   Opt_hints_qb(Opt_hints *opt_hints_arg,
@@ -454,15 +448,7 @@ public:
   }
 
   void append_hint_arguments(THD *thd, opt_hints_enum hint,
-                             String *str) override
-  {
-    if (hint == SUBQUERY_HINT_ENUM)
-      subquery_hint->append_args(thd, str);
-    else if (hint == SEMIJOIN_HINT_ENUM)
-      semijoin_hint->append_args(thd, str);
-    else
-      DBUG_ASSERT(0);
-   }
+                             String *str) override;
 
   /**
     Function finds Opt_hints_table object corresponding to
@@ -477,6 +463,14 @@ public:
   */
   Opt_hints_table *fix_hints_for_table(TABLE *table,
                                        const Lex_ident_table &alias);
+
+   /**
+     Checks if join order hints are applicable and
+     applies table dependencies if possible.
+
+    @param join JOIN object
+  */
+  void apply_join_order_hints(JOIN *join);
 
   /**
     Returns whether semi-join is enabled for this query block
@@ -507,7 +501,7 @@ public:
 
   const Parser::Semijoin_hint* semijoin_hint= nullptr;
 
-  /*
+  /**
     Bitmap of strategies listed in the SEMIJOIN/NO_SEMIJOIN hint body, e.g.
     FIRSTMATCH | LOOSESCAN
   */
@@ -515,6 +509,32 @@ public:
 
   const Parser::Subquery_hint *subquery_hint= nullptr;
   uint subquery_strategy= SUBS_NOT_TRANSFORMED;
+
+  /**
+    Returns TRUE if the query block has at least one of the hints
+    JOIN_PREFIX(), JOIN_SUFFIX(), JOIN_ORDER()  (but not JOIN_FIXED_ORDER()!)
+  */
+  bool has_join_order_hints() const
+  {
+    return join_order_hints.size() > 0;
+  }
+
+  /*
+    Adds a join order hint to the array if the capacity is not exceeded.
+    Returns FALSE on success,
+            TRUE on failure (capacity exceeded)
+  */
+  bool add_join_order_hint(Parser::Join_order_hint *hint_arg)
+  {
+    if (join_order_hints.size() >= MAX_ALLOWED_JOIN_ORDER_HINTS)
+      return true;
+    join_order_hints.push_back(hint_arg);
+    return false;
+  }
+
+  const Parser::Join_order_hint *join_prefix= nullptr;
+  const Parser::Join_order_hint *join_suffix= nullptr;
+  const Parser::Join_order_hint *join_fixed_order= nullptr;
 
   void trace_hints(THD *thd)
   {
@@ -528,6 +548,18 @@ public:
       obj.add("hints", str.c_ptr_safe());
     }
   }
+
+private:
+  bool set_join_hint_deps(JOIN *join, const Parser::Join_order_hint *hint);
+  void update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
+                               table_map hint_tab_map);
+  table_map get_other_dep(JOIN *join, opt_hints_enum type,
+                           table_map hint_tab_map, table_map table_map);
+  bool compare_table_name(const Parser::Table_name_and_Qb *hint_table_and_qb,
+                          const TABLE_LIST *table);
+  void print_irregular_hints(THD *thd, String *str) override;
+  void print_join_order_warn(THD *thd, opt_hints_enum type,
+                             const Parser::Table_name_and_Qb &tbl_name);
 };
 
 

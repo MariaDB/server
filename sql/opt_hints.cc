@@ -32,16 +32,20 @@
 
 struct st_opt_hint_info opt_hint_info[]=
 {
-  {{STRING_WITH_LEN("BKA")}, true, false},
-  {{STRING_WITH_LEN("BNL")}, true, false},
-  {{STRING_WITH_LEN("ICP")}, true, false},
-  {{STRING_WITH_LEN("MRR")}, true, false},
-  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true, false},
-  {{STRING_WITH_LEN("QB_NAME")}, false, false},
-  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, true},
-  {{STRING_WITH_LEN("SEMIJOIN")}, false, true},
-  {{STRING_WITH_LEN("SUBQUERY")}, false, true},
-  {null_clex_str, 0, 0}
+  {{STRING_WITH_LEN("BKA")}, true, false, false},
+  {{STRING_WITH_LEN("BNL")}, true, false, false},
+  {{STRING_WITH_LEN("ICP")}, true, false, false},
+  {{STRING_WITH_LEN("MRR")}, true, false, false},
+  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true, false, false},
+  {{STRING_WITH_LEN("QB_NAME")}, false, false, false},
+  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, true, false},
+  {{STRING_WITH_LEN("SEMIJOIN")}, false, true, false},
+  {{STRING_WITH_LEN("SUBQUERY")}, false, true, false},
+  {{STRING_WITH_LEN("JOIN_PREFIX")}, false, true, true},
+  {{STRING_WITH_LEN("JOIN_SUFFIX")}, false, true, true},
+  {{STRING_WITH_LEN("JOIN_ORDER")}, false, true, true},
+  {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
+  {null_clex_str, 0, 0, 0}
 };
 
 /**
@@ -51,9 +55,6 @@ struct st_opt_hint_info opt_hint_info[]=
 
 const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 
-static const Lex_ident_sys null_ident_sys;
-
-static
 void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
                 const Lex_ident_sys *qb_name_arg,
@@ -146,7 +147,7 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
            NULL if failed to create the object
 */
 
-static Opt_hints_global *get_global_hints(Parse_context *pc)
+Opt_hints_global *get_global_hints(Parse_context *pc)
 {
   LEX *lex= pc->thd->lex;
 
@@ -159,7 +160,7 @@ static Opt_hints_global *get_global_hints(Parse_context *pc)
 }
 
 
-static Opt_hints_qb *get_qb_hints(Parse_context *pc)
+Opt_hints_qb *get_qb_hints(Parse_context *pc)
 {
   if (pc->select->opt_hints_qb)
     return pc->select->opt_hints_qb;
@@ -197,10 +198,10 @@ static Opt_hints_qb *get_qb_hints(Parse_context *pc)
            NULL otherwise
 */
 
-static Opt_hints_qb *find_qb_hints(Parse_context *pc,
-                                   const Lex_ident_sys &qb_name,
-                                   opt_hints_enum hint_type,
-                                   bool hint_state)
+Opt_hints_qb *find_qb_hints(Parse_context *pc,
+                            const Lex_ident_sys &qb_name,
+                            opt_hints_enum hint_type,
+                            bool hint_state)
 {
   if (qb_name.length == 0) // no QB NAME is used
     return pc->select->opt_hints_qb;
@@ -229,9 +230,9 @@ static Opt_hints_qb *find_qb_hints(Parse_context *pc,
             NULL if failed to create the object
 */
 
-static Opt_hints_table *get_table_hints(Parse_context *pc,
-                                        const Lex_ident_sys &table_name,
-                                        Opt_hints_qb *qb)
+Opt_hints_table *get_table_hints(Parse_context *pc,
+                                 const Lex_ident_sys &table_name,
+                                 Opt_hints_qb *qb)
 {
   Opt_hints_table *tab=
     static_cast<Opt_hints_table *> (qb->find_by_name(table_name));
@@ -280,9 +281,12 @@ void Opt_hints::print(THD *thd, String *str)
   // Print the hints stored in the bitmap
   for (uint i= 0; i < MAX_HINT_ENUM; i++)
   {
-    if (is_specified(static_cast<opt_hints_enum>(i)))
+    if (opt_hint_info[i].irregular_hint)
+      continue;
+    opt_hints_enum hint_type= static_cast<opt_hints_enum>(i);
+    if (is_specified(hint_type))
     {
-      append_hint_type(str, static_cast<opt_hints_enum>(i));
+      append_hint_type(str, hint_type);
       str->append(STRING_WITH_LEN("("));
       uint32 len_before_name= str->length();
       append_name(thd, str);
@@ -290,7 +294,7 @@ void Opt_hints::print(THD *thd, String *str)
       if (len_after_name > len_before_name)
         str->append(' ');
       if (opt_hint_info[i].has_arguments)
-        append_hint_arguments(thd, static_cast<opt_hints_enum>(i), str);
+        append_hint_arguments(thd, hint_type, str);
       if (str->length() == len_after_name + 1)
       {
         // No additional arguments were printed, trim the space added before
@@ -299,6 +303,8 @@ void Opt_hints::print(THD *thd, String *str)
       str->append(STRING_WITH_LEN(") "));
     }
   }
+
+  print_irregular_hints(thd, str);
 
   for (uint i= 0; i < child_array.size(); i++)
     child_array[i]->print(thd, str);
@@ -361,10 +367,12 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
                            MEM_ROOT *mem_root_arg,
                            uint select_number_arg)
   : Opt_hints(Lex_ident_sys(), opt_hints_arg, mem_root_arg),
-    select_number(select_number_arg)
+    select_number(select_number_arg),
+    join_order_hints(mem_root_arg),
+      join_order_hints_ignored(0)
 {
   sys_name.str= buff;
-  sys_name.length= my_snprintf(buff, sizeof(buff), "%s%lx",
+  sys_name.length= my_snprintf(buff, sizeof(buff), "%s%x",
                                sys_qb_prefix.str, select_number);
 }
 
@@ -422,6 +430,26 @@ uint Opt_hints_qb::sj_enabled_strategies(uint opt_switches) const
   }
 
   return opt_switches;
+}
+
+
+void Opt_hints_qb::append_hint_arguments(THD *thd, opt_hints_enum hint,
+                                         String *str)
+{
+  switch (hint)
+  {
+  case SUBQUERY_HINT_ENUM:
+    subquery_hint->append_args(thd, str);
+    break;
+  case SEMIJOIN_HINT_ENUM:
+    semijoin_hint->append_args(thd, str);
+    break;
+  case JOIN_FIXED_ORDER_HINT_ENUM:
+    join_fixed_order->append_args(thd, str);
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
 }
 
 
@@ -559,562 +587,345 @@ bool hint_table_state(const THD *thd, const TABLE *table,
   return fallback_value;
 }
 
-/*
-  Resolve a parsed table level hint, i.e. set up proper Opt_hint_* structures
-  which will be used later during query preparation and optimization.
 
-  Return value:
-  - false: no critical errors, warnings on duplicated hints,
-          unresolved query block names, etc. are allowed
-  - true: critical errors detected, break further hints processing
-*/
-bool Parser::Table_level_hint::resolve(Parse_context *pc) const
+void append_table_name(THD *thd, String *str, const LEX_CSTRING &table_name,
+                       const LEX_CSTRING &qb_name)
 {
-  const Table_level_hint_type &table_level_hint_type= *this;
-  opt_hints_enum hint_type;
-  bool hint_state; // ON or OFF
+  /* Append table name */
+  append_identifier(thd, str, &table_name);
 
-  switch (table_level_hint_type.id())
+  /* Append QB name */
+  if (qb_name.length > 0)
   {
-  case TokenID::keyword_BNL:
-     hint_type= BNL_HINT_ENUM;
-     hint_state= true;
-     break;
-  case TokenID::keyword_NO_BNL:
-     hint_type= BNL_HINT_ENUM;
-     hint_state= false;
-     break;
-  case TokenID::keyword_BKA:
-     hint_type= BKA_HINT_ENUM;
-     hint_state= true;
-     break;
-  case TokenID::keyword_NO_BKA:
-     hint_type= BKA_HINT_ENUM;
-     hint_state= false;
-     break;
-  default:
-     DBUG_ASSERT(0);
-     return true;
+    str->append(STRING_WITH_LEN("@"));
+    append_identifier(thd, str, &qb_name);
+  }
+}
+
+
+void Opt_hints_qb::apply_join_order_hints(JOIN *join)
+{
+  if (join_fixed_order)
+  {
+    DBUG_ASSERT(join_order_hints.size() == 0 && !join_prefix && !join_suffix);
+    // The hint is already applied at Parser::Join_order_hint::resolve()
+    return;
+  }
+  DBUG_ASSERT(!join_fixed_order);
+
+  // Apply hints in the same order they were specified in the query
+  for (uint hint_idx= 0; hint_idx < join_order_hints.size(); hint_idx++)
+  {
+    Parser::Join_order_hint* hint= join_order_hints[hint_idx];
+    if (join->select_options & SELECT_STRAIGHT_JOIN)
+    {
+      // Only mark as ignored and print the warning
+      join_order_hints_ignored |= 1ULL << hint_idx;
+      print_warn(join->thd, ER_WARN_CONFLICTING_HINT, hint->hint_type, true,
+                 nullptr, nullptr, nullptr, hint);
+    }
+    else if (set_join_hint_deps(join, hint))
+    {
+      // Mark as ignored
+      join_order_hints_ignored |= 1ULL << hint_idx;
+    }
+  }
+}
+
+
+/**
+  @brief
+    Resolve hint tables, check and set table dependencies according to one 
+    JOIN_ORDER, JOIN_PREFIX, or JOIN_SUFFIX hint.
+
+  @param join  pointer to JOIN object
+  @param hint  The hint
+
+  @detail
+    If the hint is ignored due to circular table dependencies, original
+    dependencies are restored and a warning is generated.
+
+    == Dependencies that we add ==
+    For any JOIN_HINT(t1, t2, t3, t4) we add the these dependencies:
+
+    t2.dependent|= {t1}
+    t3.dependent|= {t1,t2}
+    t4.dependent|= {t1,t2,t3}
+      and so forth.
+
+    This makes sure that the listed tables occur in the join order in the order
+    they are listed in the hint.
+
+    For JOIN_ORDER, this is all what we need.
+    For JOIN_PREFIX(t1, t2, ...) we also add dependencies on {t1,t2,...}
+       for all tables not listed in the hint.
+    For JOIN_SUFFIX(t1, t2, ...) dependencies on all tables that are NOT listed
+       in the hint are added to all tables LISTED in the hint: {t1, t2, ...}
+
+  @return false if hint is applied, true otherwise.
+*/
+
+bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
+                                      const Parser::Join_order_hint *hint)
+{
+  /*
+    Make a copy of original table dependencies. If an error occurs
+    when applying the hint, the original dependencies will be restored.
+  */
+  table_map *orig_dep_array= join->export_table_dependencies();
+
+  // Map of the tables, specified in the hint
+  table_map hint_tab_map= 0;
+
+  for (const Parser::Table_name_and_Qb& tbl_name_and_qb : hint->table_names)
+  {
+    bool hint_table_found= false;
+    for (uint i= 0; i < join->table_count; i++)
+    {
+      TABLE_LIST *table= join->join_tab[i].tab_list;
+      if (!compare_table_name(&tbl_name_and_qb, table))
+      {
+        hint_table_found= true;
+        /*
+          Const tables are excluded from the process of dependency setting
+          since they are always first in the table order. Note that it
+          does not prevent the hint from being applied to the non-const tables
+        */
+        if (join->const_table_map & table->get_map())
+          break;
+
+        JOIN_TAB *join_tab= &join->join_tab[i];
+        // Hint tables are always dependent on preceding tables
+        join_tab->dependent |= hint_tab_map;
+        update_nested_join_deps(join, join_tab, hint_tab_map);
+        hint_tab_map |= join_tab->tab_list->get_map();
+        break;
+      }
+    }
+
+    if (!hint_table_found)
+    {
+      print_join_order_warn(join->thd, hint->hint_type, tbl_name_and_qb);
+      join->restore_table_dependencies(orig_dep_array);
+      return true;
+    }
   }
 
-  if (const At_query_block_name_opt_table_name_list &
-       at_query_block_name_opt_table_name_list= *this)
+  // Add dependencies that are related to non-hint tables
+  for (uint i= 0; i < join->table_count; i++)
   {
-    // this is @ query_block_name opt_table_name_list
-    const Lex_ident_sys qb_name_sys= Query_block_name::to_ident_sys(pc->thd);
-    Opt_hints_qb *qb= find_qb_hints(pc, qb_name_sys, hint_type, hint_state);
-    if (qb == NULL)
-      return false;
-    if (at_query_block_name_opt_table_name_list.is_empty())
+    JOIN_TAB *join_tab= &join->join_tab[i];
+    const table_map dependent_tables=
+        get_other_dep(join, hint->hint_type, hint_tab_map,
+                      join_tab->tab_list->get_map());
+    update_nested_join_deps(join, join_tab, dependent_tables);
+    join_tab->dependent |= dependent_tables;
+  }
+
+  if (join->propagate_dependencies(join->join_tab))
+  {
+    join->restore_table_dependencies(orig_dep_array);
+    print_warn(join->thd, ER_WARN_CONFLICTING_HINT, hint->hint_type, true,
+               nullptr, nullptr, nullptr, hint);
+    return true;
+  }
+  return false;
+}
+
+
+/**
+  Function updates dependencies for nested joins. If a table
+  specified in the hint belongs to a nested join, we need
+  to update dependencies of all tables of the nested join
+  with the same dependency as for the hint table. It is also
+  necessary to update all tables of the nested joins this table
+  is part of.
+
+  @param join             pointer to JOIN object
+  @param hint_tab         pointer to JOIN_TAB object
+  @param hint_tab_map     map of the tables, specified in the hint
+
+
+  @detail
+   This function is called when the caller has added a dependency:
+
+      hint_tab now also depends on hint_tab_map.
+
+   For example:
+
+      FROM t0 ... LEFT JOIN ( ... t1 ... t2 ... ) ON ...
+
+   hint_tab=t1,  hint_tab_map={t0}.
+
+   We want to avoid the situation where the optimizer has constructed a join
+   prefix with table t2 and without table t0:
+
+    ... t2
+
+   and now it needs to add t1 to the join prefix (it must do so, see
+   add_table_function_dependencies, check_interleaving_with_nj) but it can't
+   do that because t0 is not in the join prefix, and it's not possible to add
+   t0 as that would break the NO-INTERLEAVING rule (see mentioned functions)
+
+   In order to avoid this situation, we make t2 also depend t0 (that is, also
+   depend on any tables outside the join nest that we've made t1 to depend on)
+
+   Note that inside the join nest
+
+      LEFT JOIN  ( ... t1 ... t2 ... )
+
+   t1 and t2 may not be direct children but rather occur inside children join
+   nests:
+
+      LEFT JOIN  ( ... LEFT JOIN (...t1...) ... LEFT JOIN (...t2...) ... )
+*/
+
+void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
+                                           table_map hint_tab_map)
+{
+  const TABLE_LIST *table= hint_tab->tab_list;
+  if (table->embedding)
+  {
+    for (uint i= 0; i < join->table_count; i++)
     {
-      // e.g. BKA(@qb1)
-      if (qb->set_switch(hint_state, hint_type, false))
+      JOIN_TAB *tab= &join->join_tab[i];
+      /* Walk up the nested joins that tab->table is a part of */
+      for (TABLE_LIST *emb= tab->tab_list->embedding; emb; emb=emb->embedding)
       {
-        print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &qb_name_sys, nullptr, nullptr, nullptr);
-      }
-      return false;
-    }
-    else
-    {
-      // e.g. BKA(@qb1 t1, t2, t3)
-      const Opt_table_name_list &opt_table_name_list= *this;
-      for (const Table_name &table : opt_table_name_list)
-      {
-        const Lex_ident_sys table_name_sys= table.to_ident_sys(pc->thd);
-        Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
-        if (!tab)
-          return false;
-        if (tab->set_switch(hint_state, hint_type, true))
+        /*
+          Apply the rule only for outer joins. Semi-joins do not impose such
+          limitation
+        */
+        if (emb->on_expr)
         {
-          print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                     &qb_name_sys, &table_name_sys, nullptr,
-                     nullptr);
+          const NESTED_JOIN *const nested_join= emb->nested_join;
+          /* Is hint_tab somewhere inside this nested join, too? */
+          if (hint_tab->embedding_map & nested_join->nj_map)
+          {
+            /*
+              Yes, it is. Then, tab->table be also dependent on all outside
+              tables that hint_tab is dependent on:
+            */
+            tab->dependent |= (hint_tab_map & ~nested_join->used_tables);
+          }
         }
       }
     }
   }
-  else
-  {
-    // this is opt_hint_param_table_list
-    const Opt_table_name_list &table_name_list= *this;
-    const Opt_hint_param_table_list &opt_hint_param_table_list= *this;
-    Opt_hints_qb *qb= find_qb_hints(pc, Lex_ident_sys(), hint_type, hint_state);
-    if (qb == NULL)
-      return false;
-    if (table_name_list.is_empty() && opt_hint_param_table_list.is_empty())
-    {
-      // e.g. BKA()
-      if (qb->set_switch(hint_state, hint_type, false))
-      {
-        print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, nullptr, nullptr, nullptr);
-      }
-      return false;
-    }
-    for (const Table_name &table : table_name_list)
-    {
-      // e.g. BKA(t1, t2)
-      const Lex_ident_sys table_name_sys= table.to_ident_sys(pc->thd);
-      Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
-      if (!tab)
-        return false;
-      if (tab->set_switch(hint_state, hint_type, true))
-      {
-        print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, &table_name_sys, nullptr, nullptr);
-      }
-    }
-  
-    for (const Hint_param_table &table : opt_hint_param_table_list)
-    {
-      // e.g. BKA(t1@qb1, t2@qb2)
-      const Lex_ident_sys qb_name_sys= table.Query_block_name::
-                                         to_ident_sys(pc->thd);
-      Opt_hints_qb *qb= find_qb_hints(pc, qb_name_sys, hint_type, hint_state);
-      if (qb == NULL)
-        return false;
-      const Lex_ident_sys table_name_sys= table.Table_name::
-                                            to_ident_sys(pc->thd);
-      Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
-      if (!tab)
-        return false;
-      if (tab->set_switch(hint_state, hint_type, true))
-      {
-         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                    &qb_name_sys, &table_name_sys, nullptr, nullptr);
-      }
-    }
-  }
-  return false;
 }
 
-/*
-  Resolve a parsed index level hint, i.e. set up proper Opt_hint_* structures
-  which will be used later during query preparation and optimization.
 
-  Return value:
-  - false: no critical errors, warnings on duplicated hints,
-          unresolved query block names, etc. are allowed
-  - true: critical errors detected, break further hints processing
+/**
+  Function returns a map of dependencies which must be applied to the
+  particular table of a JOIN, according to the join order hint
+
+  @param join          JOIN to which the hints are being applied
+  @param type          hint type
+  @param hint_tab_map  Bitmap of all tables listed in the hint.
+  @param table_map     Bit of the table that we're setting extra dependencies
+                       for.
+
+  @detail
+  This returns extra dependencies between tables listed in the Hint and tables
+  that are not listed. Depending on hint type, these are:
+
+  JOIN_PREFIX(t1, t2, ...) - all not listed tables depend on {t1,t2,...}.
+
+  JOIN_SUFFIX(t1, t2, ...) - all tables listed in the hint depend on all tables
+                             that are not listed in the hint
+  JOIN_ORDER(t1, t2, ...)  - No extra dependencies needed.
+
+  @return bitmap of dependencies to apply
 */
-bool Parser::Index_level_hint::resolve(Parse_context *pc) const
+
+table_map Opt_hints_qb::
+    get_other_dep(JOIN *join, opt_hints_enum type, table_map hint_tab_map,
+                  table_map table_map)
 {
-  const Index_level_hint_type &index_level_hint_type= *this;
-  opt_hints_enum hint_type;
-  bool hint_state; // ON or OFF
-
-  switch (index_level_hint_type.id())
+  switch (type)
   {
-  case TokenID::keyword_NO_ICP:
-     hint_type= ICP_HINT_ENUM;
-     hint_state= false;
-     break;
-  case TokenID::keyword_MRR:
-     hint_type= MRR_HINT_ENUM;
-     hint_state= true;
-     break;
-  case TokenID::keyword_NO_MRR:
-     hint_type= MRR_HINT_ENUM;
-     hint_state= false;
-     break;
-  case TokenID::keyword_NO_RANGE_OPTIMIZATION:
-     hint_type= NO_RANGE_HINT_ENUM;
-     hint_state= true;
-     break;
-  default:
-     DBUG_ASSERT(0);
-     return true;
+    case JOIN_PREFIX_HINT_ENUM:
+      if (hint_tab_map & table_map)  // Hint table: No additional dependencies
+        return 0;
+      // Other tables: depend on all hint tables
+      return hint_tab_map;
+    case JOIN_SUFFIX_HINT_ENUM:
+      if (hint_tab_map & table_map)  // Hint table: depends on all other tables
+        return join->all_tables_map() & ~hint_tab_map;
+      return 0;
+    case JOIN_ORDER_HINT_ENUM:
+      return 0;  // No additional dependencies
+    default:
+      DBUG_ASSERT(0);
+      break;
   }
-
-  const Hint_param_table_ext &table_ext= *this;
-  const Lex_ident_sys qb_name_sys= table_ext.Query_block_name::
-                                     to_ident_sys(pc->thd);
-  const Lex_ident_sys table_name_sys= table_ext.Table_name::
-                                        to_ident_sys(pc->thd);
-  Opt_hints_qb *qb= find_qb_hints(pc, qb_name_sys, hint_type, hint_state);
-  if (qb == NULL)
-    return false;
-
-  Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
-  if (!tab)
-    return false;
-
-  if (is_empty())  // Table level hint
-  {
-    if (tab->set_switch(hint_state, hint_type, false))
-    {
-      print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, nullptr, nullptr);
-    }
-    return false;
-  }
-
-  for (const Hint_param_index &index_name : *this)
-  {
-    const Lex_ident_sys index_name_sys= index_name.to_ident_sys(pc->thd);
-    Opt_hints_key *idx= (Opt_hints_key *)tab->find_by_name(index_name_sys);
-    if (!idx)
-    {
-      idx= new (pc->thd->mem_root)
-          Opt_hints_key(index_name_sys, tab, pc->thd->mem_root);
-      tab->register_child(idx);
-    }
-
-    if (idx->set_switch(hint_state, hint_type, true))
-    {
-      print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
-    }
-  }
-  return false;
+  return 0;
 }
 
-/*
-  Resolve a parsed query block name hint, i.e. set up proper Opt_hint_*
-  structures which will be used later during query preparation and optimization.
 
-  Return value:
-  - false: no critical errors, warnings on duplicated hints,
-          unresolved query block names, etc. are allowed
-  - true: critical errors detected, break further hints processing
+/**
+  Function compares hint table name and TABLE_LIST table name.
+  Query block name is taken into account also.
+
+  @param hint_table_and_qb         table/query block names given in the hint
+  @param table                     pointer to TABLE_LIST object
+
+  @return false if table names are equal, true otherwise.
 */
-bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
+
+bool Opt_hints_qb::compare_table_name(
+    const Parser::Table_name_and_Qb *hint_table_and_qb,
+    const TABLE_LIST *table)
 {
-  Opt_hints_qb *qb= pc->select->opt_hints_qb;
+  const LEX_CSTRING &join_tab_qb_name=
+      table->opt_hints_qb ? table->opt_hints_qb->get_name() : Lex_ident_sys();
 
-  DBUG_ASSERT(qb);
+  /*
+    If QB name is not specified explicitly for a table name int hint,
+    for example `JOIN_PREFIX(t2)` or `JOIN_SUFFIX(@q1 t3)` then QB name is
+    considered to be equal to `Opt_hints_qb::get_name()`
+  */
+  const LEX_CSTRING &hint_tab_qb_name=
+      hint_table_and_qb->qb_name.length > 0 ? hint_table_and_qb->qb_name :
+                                              this->get_name();
 
-  const Lex_ident_sys qb_name_sys= Query_block_name::to_ident_sys(pc->thd);
-
-  if (qb->get_name().str ||                        // QB name is already set
-      qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
-  {
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, true,
-               &qb_name_sys, nullptr, nullptr, nullptr);
-    return false;
-  }
-
-  qb->set_name(qb_name_sys);
-  return false;
+  CHARSET_INFO *cs= charset_info();
+  // Compare QB names
+  if (cs->strnncollsp(join_tab_qb_name, hint_tab_qb_name))
+      return true;
+  // Compare table names
+  return cs->strnncollsp(table->alias, hint_table_and_qb->table_name);
 }
 
 
-void Parser::Semijoin_hint::fill_strategies_map(Opt_hints_qb *qb) const
+void Opt_hints_qb::print_irregular_hints(THD *thd, String *str)
 {
-  // Loop for hints like SEMIJOIN(firstmatch, dupsweedout)
-  const Hint_param_opt_sj_strategy_list &hint_param_strategy_list= *this;
-  for (const Semijoin_strategy &strat : hint_param_strategy_list)
-    add_strategy_to_map(strat.id(), qb);
-
-  // Loop for hints like SEMIJOIN(@qb1 firstmatch, dupsweedout)
-  const Opt_sj_strategy_list &opt_sj_strategy_list= *this;
-  for (const Semijoin_strategy &strat : opt_sj_strategy_list)
-    add_strategy_to_map(strat.id(), qb);
-}
-
-
-void Parser::Semijoin_hint::add_strategy_to_map(TokenID token_id,
-                                                Opt_hints_qb *qb) const
-{
-  switch(token_id)
+  /* Print join order hints */
+  for (uint i= 0; i < join_order_hints.size(); i++)
   {
-  case TokenID::keyword_DUPSWEEDOUT:
-    qb->semijoin_strategies_map |= OPTIMIZER_SWITCH_DUPSWEEDOUT;
-    break;
-  case TokenID::keyword_FIRSTMATCH:
-    qb->semijoin_strategies_map |= OPTIMIZER_SWITCH_FIRSTMATCH;
-    break;
-  case TokenID::keyword_LOOSESCAN:
-    qb->semijoin_strategies_map |= OPTIMIZER_SWITCH_LOOSE_SCAN;
-    break;
-  case TokenID::keyword_MATERIALIZATION:
-    qb->semijoin_strategies_map |= OPTIMIZER_SWITCH_MATERIALIZATION;
-    break;
-  default:
-    DBUG_ASSERT(0);
-  }
-}
-
-/*
-  Resolve a parsed semijoin hint, i.e. set up proper Opt_hint_* structures
-  which will be used later during query preparation and optimization.
-
-  Return value:
-  - false: no critical errors, warnings on duplicated hints,
-          unresolved query block names, etc. are allowed
-  - true: critical errors detected, break further hints processing
-*/
-bool Parser::Semijoin_hint::resolve(Parse_context *pc) const
-{
-  const Semijoin_hint_type &semijoin_hint_type= *this;
-  bool hint_state; // true - SEMIJOIN(), false - NO_SEMIJOIN()
-  if (semijoin_hint_type.id() == TokenID::keyword_SEMIJOIN)
-    hint_state= true;
-  else
-    hint_state= false;
-  Opt_hints_qb *qb;
-  if (const At_query_block_name_opt_strategy_list &
-         at_query_block_name_opt_strategy_list __attribute__((unused)) = *this)
-  {
-    /*
-      This is @ query_block_name opt_strategy_list,
-      e.g. SEMIJOIN(@qb1) or SEMIJOIN(@qb1 firstmatch, loosescan)
-    */
-    const Lex_ident_sys qb_name= Query_block_name::to_ident_sys(pc->thd);
-    qb= resolve_for_qb_name(pc, hint_state, &qb_name);
-  }
-  else
-  {
-    //  This is opt_strategy_list, e.g. SEMIJOIN(loosescan, dupsweedout)
-    Lex_ident_sys empty_qb_name= Lex_ident_sys();
-    qb= resolve_for_qb_name(pc, hint_state, &empty_qb_name);
-  }
-  if (qb)
-    qb->semijoin_hint= this;
-  return false;
-}
-
-
-/*
-  Helper function to be called by Semijoin_hint::resolve().
-
-  Return value:
-  - pointer to Opt_hints_qb if the hint was resolved successfully
-  - NULL if the hint was ignored
-*/
-Opt_hints_qb* Parser::Semijoin_hint::resolve_for_qb_name(Parse_context *pc,
-                      bool hint_state, const Lex_ident_sys *qb_name) const
-{
-  Opt_hints_qb *qb= find_qb_hints(pc, *qb_name, SEMIJOIN_HINT_ENUM, hint_state);
-  if (!qb)
-    return nullptr;
-  if (qb->subquery_hint)
-  {
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, SEMIJOIN_HINT_ENUM,
-               hint_state, qb_name, nullptr, nullptr, this);
-    return nullptr;
-  }
-  if (qb->set_switch(hint_state, SEMIJOIN_HINT_ENUM, false))
-  {
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, SEMIJOIN_HINT_ENUM,
-               hint_state, qb_name, nullptr, nullptr, this);
-    return nullptr;
-  }
-  fill_strategies_map(qb);
-  return qb;
-}
-
-
-void Parser::Semijoin_hint::append_args(THD *thd, String *str) const
-{
-  // Loop for hints without query block name, e.g. SEMIJOIN(firstmatch, dupsweedout)
-  const Hint_param_opt_sj_strategy_list &hint_param_strategy_list= *this;
-  uint32 len_before= str->length();
-  for (const Semijoin_strategy &strat : hint_param_strategy_list)
-  {
-    if (str->length() > len_before)
-       str->append(STRING_WITH_LEN(", "));
-    append_strategy_name(strat.id(), str);
-  }
-
-  // Loop for hints with query block name, e.g. SEMIJOIN(@qb1 firstmatch, dupsweedout)
-  const Opt_sj_strategy_list &opt_sj_strategy_list= *this;
-  for (const Semijoin_strategy &strat : opt_sj_strategy_list)
-  {
-    if (str->length() > len_before)
-       str->append(STRING_WITH_LEN(", "));
-    append_strategy_name(strat.id(), str);
+    if (join_order_hints_ignored & (1ULL << i))
+      continue;
+    const Parser::Join_order_hint *hint= join_order_hints[i];
+    str->append(opt_hint_info[hint->hint_type].hint_type);
+    str->append(STRING_WITH_LEN("("));
+    append_name(thd, str);
+    str->append(STRING_WITH_LEN(" "));
+    hint->append_args(thd, str);
+    str->append(STRING_WITH_LEN(") "));
   }
 }
 
 
-void Parser::Semijoin_hint::
-  append_strategy_name(TokenID token_id, String *str) const
+void Opt_hints_qb::print_join_order_warn(THD *thd, opt_hints_enum type,
+                                  const Parser::Table_name_and_Qb &tbl_name)
 {
-  switch(token_id)
-  {
-  case TokenID::keyword_DUPSWEEDOUT:
-    str->append(STRING_WITH_LEN("DUPSWEEDOUT"));
-    break;
-  case TokenID::keyword_FIRSTMATCH:
-    str->append(STRING_WITH_LEN("FIRSTMATCH"));
-    break;
-  case TokenID::keyword_LOOSESCAN:
-    str->append(STRING_WITH_LEN("LOOSESCAN"));
-    break;
-  case TokenID::keyword_MATERIALIZATION:
-    str->append(STRING_WITH_LEN("MATERIALIZATION"));
-    break;
-  default:
-    DBUG_ASSERT(0);
-  }
-}
-
-/*
-  Resolve a parsed subquery hint, i.e. set up proper Opt_hint_* structures
-  which will be used later during query preparation and optimization.
-
-  Return value:
-  - false: no critical errors, warnings on duplicated hints,
-          unresolved query block names, etc. are allowed
-  - true: critical errors detected, break further hints processing
-*/
-bool Parser::Subquery_hint::resolve(Parse_context *pc) const
-{
-  Opt_hints_qb *qb;
-  if (const At_query_block_name_subquery_strategy &
-         at_query_block_name_subquery_strategy= *this)
-  {
-    /*
-      This is @ query_block_name subquery_strategy,
-      e.g. SUBQUERY(@qb1 INTOEXISTS)
-    */
-    const Lex_ident_sys qb_name= Query_block_name::to_ident_sys(pc->thd);
-    const Subquery_strategy &strat= at_query_block_name_subquery_strategy;
-    qb= resolve_for_qb_name(pc, strat.id(), &qb_name);
-  }
-  else
-  {
-    //  This is subquery_strategy, e.g. SUBQUERY(MATERIALIZATION)
-    Lex_ident_sys empty_qb_name= Lex_ident_sys();
-    const Hint_param_subquery_strategy &strat= *this;
-    qb= resolve_for_qb_name(pc, strat.id(), &empty_qb_name);
-  }
-  if (qb)
-    qb->subquery_hint= this;
-  return false;
-}
-
-
-/*
-  Helper function to be called by Subquery_hint::resolve().
-
-  Return value:
-  - pointer to Opt_hints_qb if the hint was resolved successfully
-  - NULL if the hint was ignored
-*/
-Opt_hints_qb* Parser::Subquery_hint::resolve_for_qb_name(Parse_context *pc,
-                      TokenID token_id, const Lex_ident_sys *qb_name) const
-{
-  Opt_hints_qb *qb= find_qb_hints(pc, *qb_name, SUBQUERY_HINT_ENUM, true);
-  if (!qb)
-    return nullptr;
-  if (qb->semijoin_hint)
-  {
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, SUBQUERY_HINT_ENUM,
-               true, qb_name, nullptr, nullptr, this);
-    return nullptr;
-  }
-  if (qb->set_switch(true, SUBQUERY_HINT_ENUM, false))
-  {
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, SUBQUERY_HINT_ENUM,
-               true, qb_name, nullptr, nullptr, this);
-    return nullptr;
-  }
-  set_subquery_strategy(token_id, qb);
-  return qb;
-}
-
-
-void Parser::Subquery_hint::set_subquery_strategy(TokenID token_id,
-                                                  Opt_hints_qb *qb) const
-{
-  switch(token_id)
-  {
-  case TokenID::keyword_INTOEXISTS:
-    qb->subquery_strategy= SUBS_IN_TO_EXISTS;
-    break;
-  case TokenID::keyword_MATERIALIZATION:
-    qb->subquery_strategy= SUBS_MATERIALIZATION;
-    break;
-  default:
-    DBUG_ASSERT(0);
-  }
-}
-
-
-void Parser::Subquery_hint::append_args(THD *thd, String *str) const
-{
-  TokenID token_id;
-  if (const At_query_block_name_subquery_strategy &
-         at_query_block_name_subquery_strategy= *this)
-  {
-    const Subquery_strategy &strat= at_query_block_name_subquery_strategy;
-    token_id= strat.id();
-  }
-  else
-  {
-    const Hint_param_subquery_strategy& hint_param_strat= *this;
-    token_id= hint_param_strat.id();
-  }
-
-  switch(token_id)
-  {
-  case TokenID::keyword_INTOEXISTS:
-    str->append(STRING_WITH_LEN("INTOEXISTS"));
-    break;
-  case TokenID::keyword_MATERIALIZATION:
-    str->append(STRING_WITH_LEN("MATERIALIZATION"));
-    break;
-  default:
-    DBUG_ASSERT(0);
-  }
-}
-
-
-/*
-  This is the first step of MAX_EXECUTION_TIME() hint resolution. It is invoked
-  during the parsing phase, but at this stage some essential information is
-  not yet available, preventing a full validation of the hint.
-  Particularly, the type of SQL command, mark of a stored procedure execution
-  or whether SELECT_LEX is not top-level (i.e., a subquery) are not yet set.
-  However, some basic checks like the numeric argument validation or hint
-  duplication check can still be performed.
-  The second step of hint validation is performed during the JOIN preparation
-  phase, within Opt_hints_global::resolve(). By this point, all necessary
-  information is up-to-date, allowing the hint to be fully resolved
-*/
-bool Parser::Max_execution_time_hint::resolve(Parse_context *pc) const
-{
-  const Unsigned_Number& hint_arg= *this;
-  const ULonglong_null time_ms= hint_arg.get_ulonglong();
-
-  if (time_ms.is_null() || time_ms.value() == 0 || time_ms.value() > INT_MAX32)
-  {
-    print_warn(pc->thd, ER_BAD_OPTION_VALUE, MAX_EXEC_TIME_HINT_ENUM,
-               true, NULL, NULL, NULL, this);
-    return false;
-  }
-
-  Opt_hints_global *global_hint= get_global_hints(pc);
-  if (global_hint->is_specified(MAX_EXEC_TIME_HINT_ENUM))
-  {
-    // Hint duplication: /*+ MAX_EXECUTION_TIME ... MAX_EXECUTION_TIME */
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, MAX_EXEC_TIME_HINT_ENUM, true,
-               NULL, NULL, NULL, this);
-    return false;
-  }
-
-  global_hint->set_switch(true, MAX_EXEC_TIME_HINT_ENUM, false);
-  global_hint->max_exec_time_hint= this;
-  global_hint->max_exec_time_select_lex= pc->select;
-  return false;
-}
-
-
-void Parser::Max_execution_time_hint::append_args(THD *thd, String *str) const
-{
-  const Unsigned_Number& hint_arg= *this;
-  str->append(ErrConvString(hint_arg.str, hint_arg.length,
-                            &my_charset_latin1).lex_cstring());
-}
-
-
-ulonglong Parser::Max_execution_time_hint::get_milliseconds() const
-{
-  const Unsigned_Number& hint_arg= *this;
-  return hint_arg.get_ulonglong().value();
+  String tbl_name_str, hint_type_str;
+  hint_type_str.append(opt_hint_info[type].hint_type);
+  append_table_name(thd, &tbl_name_str, tbl_name.table_name, tbl_name.qb_name);
+  uint err_code= ER_UNRESOLVED_TABLE_HINT_NAME;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      err_code, ER_THD(thd, err_code),
+                      tbl_name_str.c_ptr_safe(), hint_type_str.c_ptr_safe());
 }
 
 
@@ -1179,58 +990,3 @@ const char *dbug_print_hints(Opt_hints_qb *hint)
     return "Couldn't fit into buffer";
 }
 #endif
-
-
-bool Parser::Hint_list::resolve(Parse_context *pc) const
-{
-  if (pc->thd->lex->create_view)
-  {
-    // we're creating or modifying a view, hints are not allowed here
-    push_warning_printf(pc->thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED,
-                        ER_THD(pc->thd, ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED));
-    return false;
-  }
-
-  if (!get_qb_hints(pc))
-    return true;
-
-  for (Hint_list::iterator li= this->begin(); li != this->end(); ++li)
-  {
-    const Optimizer_hint_parser::Hint &hint= *li;
-    if (const Table_level_hint &table_hint= hint)
-    {
-      if (table_hint.resolve(pc))
-        return true;
-    }
-    else if (const Index_level_hint &index_hint= hint)
-    {
-      if (index_hint.resolve(pc))
-        return true;
-    }
-    else if (const Qb_name_hint &qb_hint= hint)
-    {
-      if (qb_hint.resolve(pc))
-        return true;
-    }
-    else if (const Max_execution_time_hint &max_hint= hint)
-    {
-      if (max_hint.resolve(pc))
-        return true;
-    }
-    else if (const Semijoin_hint &sj_hint= hint)
-    {
-      if (sj_hint.resolve(pc))
-        return true;
-    }
-    else if (const Subquery_hint &subq_hint= hint)
-    {
-      if (subq_hint.resolve(pc))
-        return true;
-    }
-    else {
-      DBUG_ASSERT(0);
-    }
-  }
-  return false;
-}
