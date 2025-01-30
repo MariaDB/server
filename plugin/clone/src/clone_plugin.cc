@@ -145,8 +145,7 @@ int validate_local_params(THD *thd)
   /* Check if network packet size is enough. */
   Key_Values local_configs = {{"max_allowed_packet", ""}};
 
-  int err = 0;
-  //    mysql_service_clone_protocol->mysql_clone_get_configs(thd, local_configs);
+  int err= clone_get_configs(thd, static_cast<void *>(&local_configs));
 
   if (err != 0)
     return (err);
@@ -258,19 +257,13 @@ static bool scan_donor_list(const std::string &donor_list,
 static int match_valid_donor_address(MYSQL_THD thd, const char *host,
                                      uint port)
 {
-  // myclone::Key_Values configs = {{"clone_valid_donor_list", ""}};
+  myclone::Key_Values configs= {{"clone_valid_donor_list", ""}};
 
   /* Get Clone configuration parameter value safely. */
-  // int err =
-  //    mysql_service_clone_protocol->mysql_clone_get_configs(thd, configs);
-  // if (err != 0)
-  //   return err;
-  // auto &valid_str = configs[0].second;
-
-  std::string valid_str;
-  if (clone_valid_donor_list)
-    valid_str.assign(clone_valid_donor_list);
-
+  int err= clone_get_configs(thd, static_cast<void *>(&configs));
+  if (err != 0)
+    return err;
+  auto &valid_str = configs[0].second;
   bool found = false;
 
   Donor_Callback callback = [&](std::string &valid_host, uint32_t valid_port)

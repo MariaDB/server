@@ -22,6 +22,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
 */
+#include "sql_plugin.h"
 #include "my_global.h"
 #include "mysql/plugin.h"
 #include "mysql/service_clone_protocol.h"
@@ -576,4 +577,211 @@ int clone_send_error(THD * thd, uchar err_cmd, bool is_fatal)
     return err;
   }
   return 0;
+}
+
+/**
+  Get configuration parameter value in utf8
+  @param[in]   thd   server session THD
+  @param[in]   config_name  parameter name
+  @param[out]  utf8_val     parameter value in utf8 string
+  @return error code.
+*/
+static int get_utf8_config(THD *thd, std::string config_name,
+                           String &utf8_val)
+{
+  char val_buf[1024];
+  SHOW_VAR show;
+  show.type= SHOW_SYS;
+
+  /* Get system configuration parameter. */
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
+  auto var= intern_find_sys_var(config_name.c_str(), config_name.length());
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
+
+  if (var == nullptr) {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "Clone failed to get system configuration parameter.");
+    return ER_INTERNAL_ERROR;
+  }
+
+  show.value= reinterpret_cast<char *>(var);
+  show.name= var->name.str;
+
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  size_t val_length;
+  const CHARSET_INFO *fromcs;
+
+  auto value= get_one_variable(thd, &show, OPT_GLOBAL, SHOW_SYS, nullptr,
+                                &fromcs, val_buf, &val_length);
+
+  uint dummy_err;
+  const CHARSET_INFO *tocs= &my_charset_utf8mb4_bin;
+  utf8_val.copy(value, val_length, fromcs, tocs, &dummy_err);
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  return 0;
+}
+
+using Clone_Values= std::vector<std::string>;
+using Clone_Key_Values= std::vector<std::pair<std::string, std::string>>;
+
+int clone_get_charsets(MYSQL_THD thd, void *char_sets)
+{
+  auto charset_vals= static_cast<Clone_Values *>(char_sets);
+
+  for (CHARSET_INFO **cs= all_charsets;
+       cs < all_charsets + array_elements(all_charsets); cs++)
+  {
+    CHARSET_INFO *tmp_cs= cs[0];
+    if (tmp_cs && (tmp_cs->state & MY_CS_PRIMARY) &&
+        (tmp_cs->state & MY_CS_AVAILABLE))
+    {
+      std::string charset;
+      charset.assign(tmp_cs->cs_name.str, tmp_cs->cs_name.length);
+      charset_vals->push_back(charset);
+    }
+  }
+  return 0;
+}
+
+int clone_validate_charsets(MYSQL_THD thd, void *char_sets)
+{
+  if (!thd)
+    return 0;
+  auto charset_vals= static_cast<Clone_Values *>(char_sets);
+  int last_error = 0;
+
+  for (auto &char_set : *charset_vals)
+  {
+    auto charset_obj= get_charset_by_name(char_set.c_str(), MYF(0));
+
+    /* Check if character set collation is available. */
+    if (!charset_obj)
+    {
+      my_error(ER_CLONE_CHARSET, MYF(0), char_set.c_str());
+      /* Continue and check for all other errors. */
+      last_error= ER_CLONE_CHARSET;
+    }
+  }
+  return last_error;
+}
+
+int clone_get_configs(THD * thd, void *configs)
+{
+  int err= 0;
+  auto key_vals= static_cast<Clone_Key_Values*>(configs);
+
+  for (auto &key_val : *key_vals)
+  {
+    String utf8_str;
+    auto &config_name= key_val.first;
+    err = get_utf8_config(thd, config_name, utf8_str);
+
+    if (err != 0)
+      break;
+
+    auto &config_val= key_val.second;
+    config_val.assign(utf8_str.c_ptr_quick());
+  }
+  return err;
+}
+
+/**
+ Says whether a character is a digit or a dot.
+ @param c character
+ @return true if c is a digit or a dot, otherwise false
+ */
+static bool is_digit_or_dot(char c) { return std::isdigit(c) || c == '.'; }
+
+/**
+ Compares versions, ignoring suffixes, i.e. 8.0.25 should be the same
+ as 8.0.25-debug, but 8.0.25 isn't the same as 8.0.251.
+ @param ver1 version1 string
+ @param ver2 version2 string
+ @return true if versions match (ignoring suffixes), false otherwise
+ */
+static bool compare_prefix_version(std::string ver1, std::string ver2)
+{
+  size_t i;
+  /* we iterate  over both versions */
+  for (i= 0; i < ver1.size() && i < ver2.size(); i++)
+  {
+    if (!is_digit_or_dot(ver1[i]))
+      /*  If in one version we have something else than digit or dot,
+      we check what's in other version - if we also have a suffix or still
+      a version. */
+      return !is_digit_or_dot(ver2[i]);
+
+    /* We still compare version, and have a difference */
+    if (ver1[i] != ver2[i]) return false;
+  }
+  if (i < ver1.size())
+    /* we finished iterate over ver2, but still have some digits in ver1 */
+    return !std::isdigit(ver1[i]);
+
+  if (i < ver2.size())
+    /* we finished iterate over ver1, but still have some digits in ver2 */
+    return !std::isdigit(ver2[i]);
+
+  return true;
+}
+
+int clone_validate_configs(MYSQL_THD thd, void *configs)
+{
+  auto key_vals= static_cast<Clone_Key_Values*>(configs);
+  int last_error= 0;
+
+  for (auto &key_val : *key_vals)
+  {
+    String utf8_str;
+    auto &config_name = key_val.first;
+    auto config_err = get_utf8_config(thd, config_name, utf8_str);
+
+    if (config_err != 0)
+    {
+      last_error= config_err;
+      /* Continue and check for all other errors. */
+      continue;
+    }
+
+    auto &donor_val= key_val.second;
+    std::string config_val;
+    config_val.assign(utf8_str.c_ptr_quick());
+
+    /* Check if the parameter value matches. */
+    if (config_val == donor_val)
+      continue;
+
+    int critical_error= 0;
+
+    /* Throw specific error for some configurations. These errors are critical
+    because user can no way clone from the current donor. */
+    if (config_name.compare("version_compile_os") == 0)
+      critical_error = ER_CLONE_OS;
+    else if (config_name.compare("version") == 0)
+    {
+      /* we want to allow to add some suffix to the version and still match
+      i.e. 8.0.25 should be the same as 8.0.25-debug */
+      if (compare_prefix_version(config_val, donor_val)) {
+        continue;
+      }
+      critical_error = ER_CLONE_DONOR_VERSION;
+    }
+    else if (config_name.compare("version_compile_machine") == 0)
+      critical_error = ER_CLONE_PLATFORM;
+
+    /* For critical errors, exit immediately. */
+    if (critical_error != 0)
+    {
+      last_error= critical_error;
+      my_error(last_error, MYF(0), donor_val.c_str(), config_val.c_str());
+      break;
+    }
+
+    last_error= ER_CLONE_CONFIG;
+    my_error(ER_CLONE_CONFIG, MYF(0), config_name.c_str(), donor_val.c_str(),
+             config_val.c_str());
+    /* Continue and check for all other configuration mismatch. */
+  }
+  return last_error;
 }

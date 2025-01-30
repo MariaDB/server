@@ -37,6 +37,10 @@ extern struct clone_protocol_service_st {
   THD* (*start_statement_fn)(THD* thd, unsigned int thread_key,
                                   unsigned int statement_key);
   void (*finish_statement_fn)(THD* thd);
+  int (*get_charsets_fn)(THD* thd, void *char_sets);
+  int (*validate_charsets_fn)(THD* thd, void *char_sets);
+  int (*get_configs_fn)(THD* thd, void *configs);
+  int (*validate_configs_fn)(THD* thd, void *configs);
   MYSQL* (*connect_fn)(THD* thd, const char *host, uint32_t port,
                              const char *user, const char *passwd,
                              mysql_clone_ssl_context *ssl_ctx,
@@ -61,6 +65,10 @@ extern struct clone_protocol_service_st {
   THD* clone_start_statement(THD* thd, unsigned int thread_key,
                                   unsigned int statement_key);
   void clone_finish_statement(THD* thd);
+  int clone_get_charsets(THD* thd, void *char_sets);
+  int clone_validate_charsets(THD* thd, void *char_sets);
+  int clone_get_configs(THD* thd, void *configs);
+  int clone_validate_configs(THD* thd, void *configs);
   MYSQL* clone_connect(THD* thd, const char *host, uint32_t port,
                        const char *user, const char *passwd,
                        mysql_clone_ssl_context *ssl_ctx,

@@ -40,20 +40,6 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-// #ifdef __cplusplus
-// #include <string>
-// #include <vector>
-/** Vector of string values */
-// using Mysql_Clone_Values = std::vector<std::string>&;
-/** Vector of string Key-Value pairs. */
-// using Mysql_Clone_Key_Values = std::vector<std::pair<std::string, std::string>>&;
-// #else
-// #define Mysql_Clone_Values void *
-// #define Mysql_Clone_Key_Values void *
-// #endif /* __cplusplus */
-// #else
-// #define Mysql_Clone_Values void *
-// #define Mysql_Clone_Key_Values void *
 #endif /* MYSQL_ABI_CHECK */
 
 typedef struct st_net_server NET_SERVER;
@@ -98,16 +84,16 @@ extern struct clone_protocol_service_st {
   @param[in,out]  thd        server session THD
   @param[out]     char_sets  all character set collations
   @return error code.
-  int (*get_charsets_fn)(MYSQL_THD thd, Mysql_Clone_Values char_sets);
 */
+  int (*get_charsets_fn)(MYSQL_THD thd, void *char_sets);
 
 /**
   Check if all characters sets are supported by server
   @param[in,out]  thd        server session THD
   @param[in]      char_sets  all character set collations to validate
   @return error code.
-  int (*validate_charsets_fn)(MYSQL_THD thd, Mysql_Clone_Values char_sets);
 */
+  int (*validate_charsets_fn)(MYSQL_THD thd, void *char_sets);
 
 /**
   Get system configuration parameter values.
@@ -115,16 +101,16 @@ extern struct clone_protocol_service_st {
   @param[in,out]  configs    a list of configuration key value pair
                              keys are input and values are output
   @return error code.
-  int (*get_configs_fn)(MYSQL_THD thd, Mysql_Clone_Key_Values configs);
 */
+  int (*get_configs_fn)(MYSQL_THD thd, void *configs);
 
 /**
   Check if configuration parameter values match
   @param[in,out]  thd        server session THD
   @param[in]      configs    a list of configuration key value pair
   @return error code.
-  int (*validate_configs_fn)(MYSQL_THD thd, Mysql_Clone_Key_Values configs);
 */
+  int (*validate_configs_fn)(MYSQL_THD thd, void *configs);
 
 /**
   Connect to a remote server and switch to clone protocol
@@ -236,17 +222,17 @@ extern struct clone_protocol_service_st {
 #define clone_finish_statement(thd) \
   (clone_protocol_service->finish_statement_fn(thd))
 
-/* #define clone_get_charsets(thd, char_sets) \
+ #define clone_get_charsets(thd, char_sets) \
    (clone_protocol_service->get_charsets_fn((thd), (char_sets)))
 
  #define clone_validate_charsets(thd, char_sets) \
     (clone_protocol_service->validate_charsets_fn((thd), (char_sets)))
 
- #define clone_get_configs(thd, configs) \
+#define clone_get_configs(thd, configs) \
    (clone_protocol_service->get_configs_fn((thd), (configs)))
 
  #define clone_validate_configs(thd, configs) \
-    (clone_protocol_service->validate_configs_fn((thd), (configs))) */
+    (clone_protocol_service->validate_configs_fn((thd), (configs)))
 
 #define clone_connect(thd, host, port, user, passwd, ssl_ctx, socket) \
   (clone_protocol_service->connect_fn((thd), (host), (port), (user), (passwd), \
@@ -287,10 +273,13 @@ extern struct clone_protocol_service_st {
                                   unsigned int statement_key);
   void clone_finish_statement(MYSQL_THD thd);
 
-  // int clone_get_charsets(MYSQL_THD thd, Mysql_Clone_Values char_sets);
-  // int clone_validate_charsets(MYSQL_THD thd, Mysql_Clone_Values char_sets);
-  // int clone_get_configs(MYSQL_THD thd, Mysql_Clone_Key_Values configs);
-  // int clone_validate_configs(MYSQL_THD thd, Mysql_Clone_Key_Values configs);
+  int clone_get_charsets(MYSQL_THD thd, void *char_sets);
+
+  int clone_validate_charsets(MYSQL_THD thd, void *char_sets);
+
+  int clone_get_configs(MYSQL_THD thd, void *configs);
+
+  int clone_validate_configs(MYSQL_THD thd, void *configs);
 
   MYSQL* clone_connect(MYSQL_THD thd, const char *host, uint32_t port,
                        const char *user, const char *passwd,

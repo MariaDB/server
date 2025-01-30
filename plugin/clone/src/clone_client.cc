@@ -898,8 +898,7 @@ int Client::connect_remote(bool is_restart, bool use_aux) {
   /* Get Clone SSL configuration parameter value safely. */
   Key_Values ssl_configs = {
       {"clone_ssl_key", ""}, {"clone_ssl_cert", ""}, {"clone_ssl_ca", ""}};
-  auto err = 0; // mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(),
-                //                                                       ssl_configs);
+  auto err= clone_get_configs(get_thd(), static_cast<void *>(&ssl_configs));
 
   if (err != 0) {
     return err;
@@ -1001,8 +1000,7 @@ int Client::connect_remote(bool is_restart, bool use_aux) {
 
 bool Client::plugin_is_loadable(std::string &so_name) {
   Key_Values configs = {{"plugin_dir", ""}};
-  auto err = 0;
-      // mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(), configs);
+  auto err= clone_get_configs(get_thd(), static_cast<void *>(&configs));
 
   if (err != 0) {
     return false;
@@ -1072,19 +1070,18 @@ int Client::validate_remote_params() {
   }
 
   /* Validate character sets */
-  auto err = 0; // mysql_service_clone_protocol->mysql_clone_validate_charsets(
-      // get_thd(), m_parameters.m_charsets);
-  if (err != 0) {
-    last_error = err;
-  }
+  auto err= clone_validate_charsets(
+      get_thd(), static_cast<void *>(&m_parameters.m_charsets));
+  if (err != 0)
+    last_error= err;
 
   /* Validate configurations */
-  // err = mysql_service_clone_protocol->mysql_clone_validate_configs(
-  //     get_thd(), m_parameters.m_configs);
-  if (err != 0) {
-    last_error = err;
-  }
-  return (last_error);
+  err= clone_validate_configs(
+      get_thd(), static_cast<void *>(&m_parameters.m_configs));
+  if (err != 0)
+    last_error= err;
+
+  return last_error;
 }
 
 int Client::extract_string(const uchar *&packet, size_t &length,

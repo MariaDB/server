@@ -453,18 +453,17 @@ int Server::send_params() {
 
     if (server->send_only_plugin_name()) {
       auto err = server->send_key_value(COM_RES_PLUGIN, pstring, pstring);
-      return (err != 0);
+      return err != 0 ? TRUE : FALSE;
     }
 
     /* Send plugin dynamic library name. */
     String_Key dstring;
 
     auto plugin_dl = plugin_dlib(plugin);
-    if (plugin_dl != nullptr) {
+    if (plugin_dl)
       dstring.assign(plugin_dl->dl.str, plugin_dl->dl.length);
-    }
 
-    auto err = server->send_key_value(COM_RES_PLUGIN_V2, pstring, dstring);
+    auto err= server->send_key_value(COM_RES_PLUGIN_V2, pstring, dstring);
     return err != 0 ? TRUE : FALSE;
   };
 
@@ -472,10 +471,9 @@ int Server::send_params() {
   backup lock here and no new plugins can be installed or uninstalled at this
   point. However, there could be some left over plugins in PLUGIN_IS_DELETED
   state which are uninstalled but not removed yet. */
-  auto result = plugin_foreach(get_thd(), plugin_cbk, MYSQL_ANY_PLUGIN, this);
-
-  if (result) {
-    err = ER_INTERNAL_ERROR;
+  if (plugin_foreach(get_thd(), plugin_cbk, MYSQL_ANY_PLUGIN, this))
+  {
+    err= ER_INTERNAL_ERROR;
     my_error(err, MYF(0), "Clone error sending plugin information");
     return err;
   }
@@ -483,28 +481,25 @@ int Server::send_params() {
   /* Send character sets and collations */
   String_Keys char_sets;
 
-  // err = mysql_service_clone_protocol->mysql_clone_get_charsets(get_thd(),
-  //                                                              char_sets);
-  if (err != 0) {
+  err= clone_get_charsets(get_thd(), static_cast<void *>(&char_sets));
+  if (err != 0)
     return err;
-  }
 
-  for (auto &element : char_sets) {
-    err = send_key_value(COM_RES_COLLATION, element, element);
-    if (err != 0) {
+  for (auto &element : char_sets)
+  {
+    err= send_key_value(COM_RES_COLLATION, element, element);
+    if (err != 0)
       return err;
-    }
   }
 
   /* Send configurations for validation. */
-  err = send_configs(COM_RES_CONFIG);
+  err= send_configs(COM_RES_CONFIG);
 
-  if (err != 0 || skip_other_configs()) {
+  if (err != 0 || skip_other_configs())
     return err;
-  }
 
   /* Send other configurations required by recipient. */
-  err = send_configs(COM_RES_CONFIG_V3);
+  err= send_configs(COM_RES_CONFIG_V3);
 
   return err;
 }
@@ -525,8 +520,7 @@ int Server::send_configs(Command_Response rcmd) {
 
   auto &configs = (rcmd == COM_RES_CONFIG_V3) ? other_configs : all_configs;
 
-  int err = 0;
-      // mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(), configs);
+  int err= clone_get_configs(get_thd(), static_cast<void *>(&configs));
 
   if (err != 0) {
     return err;
