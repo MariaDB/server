@@ -1854,8 +1854,11 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     DBUG_PRINT("query",("%s", thd->query()));
 
 #ifdef WITH_WSREP
-    WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
-		thd_get_thread_id(thd), wsrep_thd_query(thd));
+    if (WSREP(thd))
+    {
+      WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
+		  thd_get_thread_id(thd), wsrep_thd_query(thd));
+    }
 #endif
 
     if (unlikely(!(expected_error= !is_rb_alter ? error_code : 0)) ||
@@ -2949,7 +2952,12 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 bool
 Gtid_log_event::write(Log_event_writer *writer)
 {
-  uchar buf[GTID_HEADER_LEN+2+sizeof(XID) + /* flags_extra: */ 1+4];
+  uchar buf[GTID_HEADER_LEN+2
+    + sizeof(XID)
+    + 1 // flags_extra:
+    + 1 // extra_engines
+    + 8 // sa_seq_no
+  ];
   size_t write_len= 13;
 
   int8store(buf, seq_no);

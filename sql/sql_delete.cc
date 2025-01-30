@@ -726,8 +726,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     table->mark_columns_needed_for_delete();
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
-      !table->prepare_triggers_for_delete_stmt_or_event())
+  if (!table->prepare_triggers_for_delete_stmt_or_event() &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE)
     will_batch= !table->file->start_bulk_delete();
 
   /*
@@ -759,27 +759,21 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
                                              MEM_STRIP_BUF_SIZE);
 
     THD_STAGE_INFO(thd, stage_searching_rows_for_update);
-    while (!(error=info.read_record()) && !thd->killed &&
-          ! thd->is_error())
+    while (!(error=info.read_record()) && !thd->killed && !thd->is_error())
     {
       if (record_should_be_deleted(thd, table, select, explain, delete_history))
       {
         table->file->position(table->record[0]);
-        if (unlikely((error=
-                      deltempfile->unique_add((char*) table->file->ref))))
-        {
-          error= 1;
-          goto terminate_delete;
-        }
+        if ((error= deltempfile->unique_add((char*) table->file->ref)))
+          break;
         if (!--tmplimit && using_limit)
           break;
       }
     }
     end_read_record(&info);
-    if (unlikely(deltempfile->get(table)) ||
-        unlikely(table->file->ha_index_or_rnd_end()) ||
-        unlikely(init_read_record(&info, thd, table, 0, &deltempfile->sort, 0,
-                                  1, false)))
+    if (table->file->ha_index_or_rnd_end() || error > 0 ||
+        deltempfile->get(table) ||
+        init_read_record(&info, thd, table, 0, &deltempfile->sort, 0, 1, 0))
     {
       error= 1;
       goto terminate_delete;
@@ -1248,6 +1242,13 @@ void multi_delete::abort_result_set()
 {
   DBUG_ENTER("multi_delete::abort_result_set");
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::send_eof().
+
+  ***************************************************************************/
+
   /* the error was handled or nothing deleted and no side effects return */
   if (error_handled ||
       (!thd->transaction->stmt.modified_non_trans_table && !deleted))
@@ -1449,6 +1450,13 @@ bool multi_delete::send_eof()
   killed_status= (local_error == 0)? NOT_KILLED : thd->killed;
   /* reset used flags */
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::abort_result_set().
+
+  ***************************************************************************/
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;

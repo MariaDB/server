@@ -1420,18 +1420,18 @@ public:
     we detect the event's type, then call the specific event's
     constructor and pass description_event as an argument.
   */
-  static Log_event* read_log_event(IO_CACHE* file,
+  static Log_event* read_log_event(IO_CACHE* file, int *out_error,
                                    const Format_description_log_event
                                    *description_event,
                                    my_bool crc_check, my_bool print_errors,
                                    size_t max_allowed_packet);
-  static Log_event* read_log_event(IO_CACHE* file,
+  static Log_event* read_log_event(IO_CACHE* file, int *out_error,
                                    const Format_description_log_event
                                    *description_event,
                                    my_bool crc_check, my_bool print_errors= 1)
   {
-    return read_log_event(file, description_event, crc_check, print_errors,
-                          get_max_packet());
+    return read_log_event(file, out_error, description_event, crc_check,
+                          print_errors, get_max_packet());
   }
 
   /**

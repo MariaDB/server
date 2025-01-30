@@ -545,7 +545,7 @@ int select_unit::delete_record()
   tables of JOIN - exec_tmp_table_[1 | 2].
 */
 
-void select_unit::cleanup()
+void select_unit::reset_for_next_ps_execution()
 {
   table->file->extra(HA_EXTRA_RESET_STATE);
   table->file->ha_delete_all_rows();
@@ -900,11 +900,11 @@ bool select_unit_ext::send_eof()
   return (MY_TEST(error));
 }
 
-void select_union_recursive::cleanup()
+void select_union_recursive::reset_for_next_ps_execution()
 {
   if (table)
   {
-    select_unit::cleanup();
+    select_unit::reset_for_next_ps_execution();
     free_tmp_table(thd, table);
   }
 
@@ -2330,8 +2330,7 @@ bool st_select_lex_unit::exec_inner()
   if (uncacheable || !item || !item->assigned() || describe)
   {
     if (!fake_select_lex && !(with_element && with_element->is_recursive))
-      union_result->cleanup();
-
+      union_result->reset_for_next_ps_execution();
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())
     {
       ha_rows records_at_start= 0;
@@ -2727,7 +2726,7 @@ bool st_select_lex_unit::cleanup()
   {
     if (union_result)
     {
-      ((select_union_recursive *) union_result)->cleanup();
+      ((select_union_recursive *) union_result)->reset_for_next_ps_execution();
       delete union_result;
       union_result= 0;
     }

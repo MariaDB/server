@@ -4737,7 +4737,11 @@ public:
       case SQLCOM_LOAD:
         return duplicates == DUP_REPLACE;
       default:
-        return false;
+        /*
+          Row injections (i.e. row binlog events and BINLOG statements) should
+          generate history.
+        */
+        return is_stmt_row_injection();
     }
   }
 

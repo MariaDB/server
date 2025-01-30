@@ -941,6 +941,10 @@ typedef struct st_spider_transaction
   uint               trx_ha_reuse_count;
   XID_STATE          internal_xid_state;
   SPIDER_CONN        *join_trx_top;
+  /*
+    Assigned from the global variable `spider_thread_id', which
+    starts from 1 and increments
+  */
   ulonglong          spider_thread_id;
   ulonglong          trx_conn_adjustment;
   uint               locked_connections;
@@ -1582,7 +1586,14 @@ typedef struct st_spider_trx_ha
   */
   uint                       *conn_link_idx;
   uchar                      *conn_can_fo;
-  /* TODO: document */
+  /*
+    TODO: better documentation of this field.
+
+    By assigning true to wait_for_reusing, in
+    spider_check_trx_and_get_conn the fields of the spider handler
+    will be updated using the trx, as well as some other small
+    behavioural differences there.
+  */
   bool                       wait_for_reusing;
 } SPIDER_TRX_HA;
 

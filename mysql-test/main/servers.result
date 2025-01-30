@@ -43,3 +43,10 @@ ERROR HY000: Can't read record in system table
 drop table mysql.servers;
 rename table mysql.servers_save to mysql.servers;
 drop server s1;
+#
+# MDEV-35641 foreign server "disappears" after ALTERing the servers system table to use innodb and FLUSH PRIVILEGES
+#
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
+ALTER TABLE mysql.servers ENGINE=innodb;
+FLUSH PRIVILEGES;
+drop server s1;

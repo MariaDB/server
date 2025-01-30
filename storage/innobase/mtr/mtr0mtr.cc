@@ -1796,14 +1796,14 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
     m_log.close(log_write<FREE_PAGE>(id, nullptr));
 }
 
-void small_vector_base::grow_by_1(void *small, size_t element_size)
+void small_vector_base::grow_by_1(void *small, size_t element_size) noexcept
 {
   const size_t cap= Capacity*= 2, s= cap * element_size;
   void *new_begin;
   if (BeginX == small)
   {
     new_begin= my_malloc(PSI_NOT_INSTRUMENTED, s, MYF(0));
-    memcpy(new_begin, BeginX, size() * element_size);
+    memcpy(new_begin, BeginX, s / 2);
     TRASH_FREE(small, size() * element_size);
   }
   else

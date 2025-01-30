@@ -7412,10 +7412,10 @@ int spider_mbase_share::discover_table_structure(
     SPIDER_CONN *conn;
     int need_mon_deref;
     int *need_mon= &need_mon_deref;
-    if (!(conn= spider_get_conn(spider_share, 0,
-                                spider_share->conn_keys[roop_count], trx, NULL,
-                                FALSE, FALSE, &error_num)))
-    {
+    if (!(conn = spider_get_conn(
+      spider_share, 0, spider_share->conn_keys[roop_count], trx, NULL, FALSE,
+      FALSE, &error_num))
+    ) {
       DBUG_RETURN(error_num);
     }
     spider_lock_before_query(conn, need_mon);

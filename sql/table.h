@@ -1728,6 +1728,7 @@ public:
   bool is_filled_at_execution();
 
   bool update_const_key_parts(COND *conds);
+  void update_keypart_vcol_info();
 
   inline void initialize_opt_range_structures();
 

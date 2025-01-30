@@ -935,9 +935,6 @@ int ha_spider::reset()
   THD *thd = ha_thd();
   SPIDER_TRX *tmp_trx, *trx_bak;
   SPIDER_CONDITION *tmp_cond;
-/*
-  char first_byte, first_byte_bak;
-*/
   backup_error_status();
   DBUG_ENTER("ha_spider::reset");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -10146,7 +10143,7 @@ int ha_spider::append_lock_tables_list()
 
   if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
     DBUG_RETURN(error_num);
-  if ((error_num= spider_check_trx_and_get_conn(wide_handler->trx->thd, this)))
+  if ((error_num = spider_check_trx_and_get_conn(wide_handler->trx->thd, this)))
   {
     DBUG_RETURN(error_num);
   }

@@ -26,7 +26,7 @@ LTRIM(now()) AS a0,
 LPAD(now(),10) AS b0;
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `a0` varchar(64) NOT NULL DEFAULT ltrim(current_timestamp()),
   `a1` varchar(64) GENERATED ALWAYS AS (ltrim(`a0`)) STORED,
@@ -35,7 +35,7 @@ CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t2` (
   `a0` varchar(64) NOT NULL DEFAULT ltrim_oracle(current_timestamp()),
   `a1` varchar(64) GENERATED ALWAYS AS (ltrim_oracle(`a0`)) STORED,
@@ -44,13 +44,13 @@ CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v1` AS SELECT
  1 AS `a0`,
   1 AS `b0` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v2` AS SELECT
  1 AS `a0`,
   1 AS `b0` */;

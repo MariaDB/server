@@ -22,8 +22,8 @@ then
   . /etc/default/mariadb
 fi
 
-MARIADB="/usr/bin/mariadb --defaults-file=/etc/mysql/debian.cnf"
-MYADMIN="/usr/bin/mariadb-admin --defaults-file=/etc/mysql/debian.cnf"
+MARIADB="/usr/bin/mariadb --defaults-extra-file=/etc/mysql/debian.cnf"
+MYADMIN="/usr/bin/mariadb-admin --defaults-extra-file=/etc/mysql/debian.cnf"
 # Don't run full mariadb-upgrade on every server restart, use --version-check to do it only once
 MYUPGRADE="/usr/bin/mariadb-upgrade --defaults-extra-file=/etc/mysql/debian.cnf --version-check --silent"
 MYCHECK_SUBJECT="WARNING: mariadb-check has found corrupt tables"

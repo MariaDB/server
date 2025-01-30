@@ -1,0 +1,85 @@
+--source include/have_innodb.inc
+--let $datadir= `select @@datadir`
+
+--echo #
+--echo #  MDEV-35169 ALTER TABLE...IMPORT TABLESPACE does not
+--echo #		work with INDEX DESC
+--echo #
+
+--echo # prepare cfg for primary key with desc column
+create table t1 (pk int, a int, primary key(pk desc)) engine=InnoDB;
+insert into t1 values (1,10),(2,20),(3,15);
+flush table t1 for export;
+--copy_file $datadir/test/t1.ibd $datadir/test/t1_pk.ibd.desc
+--copy_file $datadir/test/t1.cfg $datadir/test/t1_pk.cfg.desc
+unlock tables;
+drop table t1;
+
+--echo # prepare cfg for secondary index with desc column
+create table t1 (pk int primary key, a int,key(a desc)) engine=InnoDB;
+insert into t1 values (1,10),(2,20),(3,15);
+flush table t1 for export;
+--copy_file $datadir/test/t1.ibd $datadir/test/t1.ibd.desc
+--copy_file $datadir/test/t1.cfg $datadir/test/t1.cfg.desc
+unlock tables;
+drop table t1;
+
+--echo # prepare cfg for secondary index with ascending column
+create table t1 (pk int primary key, a int, key(a)) engine=InnoDB;
+insert into t1 values (1,10),(2,20),(3,15);
+flush table t1 for export;
+--copy_file $datadir/test/t1.ibd $datadir/test/t1.ibd.asc
+--copy_file $datadir/test/t1.cfg $datadir/test/t1.cfg.asc
+unlock tables;
+drop table t1;
+
+--echo # Import desc tablespace into desc frm
+
+--echo # Import into table with desc primary key column
+create table t1 (pk int, a int, primary key(pk desc)) engine=InnoDB;
+alter table t1 discard tablespace;
+--copy_file $datadir/test/t1_pk.ibd.desc $datadir/test/t1.ibd
+--copy_file $datadir/test/t1_pk.cfg.desc $datadir/test/t1.cfg
+alter table t1 import tablespace;
+check table t1 extended;
+drop table t1;
+
+--echo # Import into table with desc secondary index
+create table t1 (pk int primary key, a int, key(a desc))engine=InnoDB;
+alter table t1 discard tablespace;
+--copy_file $datadir/test/t1.ibd.desc $datadir/test/t1.ibd
+--copy_file $datadir/test/t1.cfg.desc $datadir/test/t1.cfg
+alter table t1 import tablespace;
+check table t1 extended;
+drop table t1;
+
+--echo # Import asc tablespace into desc frm
+create table t1 (pk int primary key, a int, key(a desc))engine=InnoDB;
+alter table t1 discard tablespace;
+--copy_file $datadir/test/t1.ibd.asc $datadir/test/t1.ibd
+--copy_file $datadir/test/t1.cfg.asc $datadir/test/t1.cfg
+--error ER_TABLE_SCHEMA_MISMATCH
+alter table t1 import tablespace;
+check table t1 extended;
+drop table t1;
+
+--echo # Import desc tablespace into asc frm
+create table t1 (pk int primary key, a int, key(a)) engine=InnoDB;
+alter table t1 discard tablespace;
+--copy_file $datadir/test/t1.ibd.desc $datadir/test/t1.ibd
+--copy_file $datadir/test/t1.cfg.desc $datadir/test/t1.cfg
+--error ER_TABLE_SCHEMA_MISMATCH
+alter table t1 import tablespace;
+check table t1 extended;
+drop table t1;
+
+--echo # Import asc tablespace into asc frm
+create table t1 (pk int primary key, a int, key(a)) engine=InnoDB;
+alter table t1 discard tablespace;
+--copy_file $datadir/test/t1.ibd.asc $datadir/test/t1.ibd
+--copy_file $datadir/test/t1.cfg.asc $datadir/test/t1.cfg
+alter table t1 import tablespace;
+check table t1 extended;
+drop table t1;
+
+--remove_files_wildcard $datadir/test t1*sc

@@ -44,7 +44,8 @@ class THD;
 class Item;
 #define MYSQL_THD THD*
 #else
-#define MYSQL_THD void*
+struct THD;
+typedef struct THD* MYSQL_THD;
 #endif
 
 typedef char my_bool;

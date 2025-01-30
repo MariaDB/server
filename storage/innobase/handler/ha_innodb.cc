@@ -620,6 +620,7 @@ performance schema instrumented if "UNIV_PFS_THREAD"
 is defined */
 static PSI_thread_info	all_innodb_threads[] = {
 	PSI_KEY(page_cleaner_thread),
+	PSI_KEY(page_encrypt_thread),
 	PSI_KEY(trx_rollback_clean_thread),
 	PSI_KEY(thread_pool_thread)
 };
@@ -1266,9 +1267,7 @@ static void innodb_drop_database(handlerton*, char *path)
   namebuf[len] = '/';
   namebuf[len + 1] = '\0';
 
-#ifdef _WIN32
-  innobase_casedn_str(namebuf);
-#endif /* _WIN32 */
+  IF_WIN(my_casedn_str(system_charset_info, namebuf),);
 
   THD * const thd= current_thd;
   trx_t *trx= innobase_trx_allocate(thd);
@@ -2332,21 +2331,6 @@ dtype_get_mblen(
 	}
 }
 
-/******************************************************************//**
-Converts an identifier to a table name. */
-void
-innobase_convert_from_table_id(
-/*===========================*/
-	CHARSET_INFO*	cs,	/*!< in: the 'from' character set */
-	char*		to,	/*!< out: converted identifier */
-	const char*	from,	/*!< in: identifier to convert */
-	ulint		len)	/*!< in: length of 'to', in bytes */
-{
-	uint	errors;
-
-	strconvert(cs, from, FN_REFLEN, &my_charset_filename, to, (uint) len, &errors);
-}
-
 /**********************************************************************
 Check if the length of the identifier exceeds the maximum allowed.
 return true when length of identifier is too long. */
@@ -2369,21 +2353,6 @@ innobase_check_identifier_length(
 		DBUG_RETURN(true);
 	}
 	DBUG_RETURN(false);
-}
-
-/******************************************************************//**
-Converts an identifier to UTF-8. */
-void
-innobase_convert_from_id(
-/*=====================*/
-	CHARSET_INFO*	cs,	/*!< in: the 'from' character set */
-	char*		to,	/*!< out: converted identifier */
-	const char*	from,	/*!< in: identifier to convert */
-	ulint		len)	/*!< in: length of 'to', in bytes */
-{
-	uint	errors;
-
-	strconvert(cs, from, FN_REFLEN, system_charset_info, to, (uint) len, &errors);
 }
 
 /******************************************************************//**
@@ -2432,16 +2401,6 @@ innobase_basename(
 	const char*	name = base_name(path_name);
 
 	return((name) ? name : "null");
-}
-
-/******************************************************************//**
-Makes all characters in a NUL-terminated UTF-8 string lower case. */
-void
-innobase_casedn_str(
-/*================*/
-	char*	a)	/*!< in/out: string to put in lower case */
-{
-	my_casedn_str(system_charset_info, a);
 }
 
 /** Determines the current SQL statement.
@@ -3580,13 +3539,13 @@ innobase_format_name(
 	ulint		buflen,	/*!< in: length of buf, in bytes */
 	const char*	name)	/*!< in: table name to format */
 {
-	const char*     bufend;
+	char*     bufend;
 
 	bufend = innobase_convert_name(buf, buflen, name, strlen(name), NULL);
 
 	ut_ad((ulint) (bufend - buf) < buflen);
 
-	buf[bufend - buf] = '\0';
+	*bufend = '\0';
 }
 
 /**********************************************************************//**
@@ -4636,9 +4595,10 @@ innobase_commit(
 		ut_ad("invalid state" == 0);
 		/* fall through */
 	case TRX_STATE_PREPARED:
-		ut_ad(commit_trx);
+		ut_ad(commit_trx || trx->is_wsrep());
 		ut_ad(thd_test_options(thd, OPTION_NOT_AUTOCOMMIT
-				       | OPTION_BEGIN));
+				       | OPTION_BEGIN)
+		      || trx->is_wsrep());
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 		/* Transaction is deregistered only in a commit or a
@@ -5014,7 +4974,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
         may be executed as part of a multi-transaction DDL operation, such
         as rollback_inplace_alter_table() or ha_innobase::delete_table(). */;
         trx->error_state= DB_INTERRUPTED;
-        lock_sys_t::cancel<false>(trx, lock);
+        lock_sys.cancel<false>(trx, lock);
       }
       lock_sys.deadlock_check();
     }
@@ -5309,7 +5269,7 @@ normalize_table_name_c_low(
 	memcpy(norm_name + db_len + 1, name_ptr, name_len + 1);
 
 	if (set_lower_case) {
-		innobase_casedn_str(norm_name);
+		my_casedn_str(system_charset_info, norm_name);
 	}
 }
 
@@ -6205,7 +6165,7 @@ ha_innobase::open_dict_table(
 			case name, including the partition
 			separator "P" */
 			strcpy(par_case_name, norm_name);
-			innobase_casedn_str(par_case_name);
+			my_casedn_str(system_charset_info, par_case_name);
 #else
 			/* On Windows platfrom, check
 			whether there exists table name in
@@ -9698,8 +9658,7 @@ ha_innobase::ft_init_ext(
 
 	/* If tablespace is discarded, we should return here */
 	if (!ft_table->space) {
-		my_error(ER_TABLESPACE_MISSING, MYF(0), table->s->db.str,
-			 table->s->table_name.str);
+		my_error(ER_TABLESPACE_MISSING, MYF(0), ft_table->name.m_name);
 		return(NULL);
 	}
 
@@ -12350,6 +12309,73 @@ public:
 	const char* str() { return buf; }
 };
 
+/** Construct an InnoDB table name from a schema and table name.
+@param table_name   buffer InnoDB table name being constructed
+@param db           schema name
+@param name         table name
+@return table_name filled in */
+static char *copy_name(char *table_name, LEX_CSTRING db, LEX_CSTRING name)
+  noexcept
+{
+  memcpy(table_name, db.str, db.length);
+  table_name[db.length] = '/';
+  memcpy(table_name + db.length + 1, name.str, name.length + 1);
+  return table_name;
+}
+
+char *dict_table_lookup(LEX_CSTRING db, LEX_CSTRING name,
+                        dict_table_t **table, mem_heap_t *heap) noexcept
+{
+  const size_t len= db.length + name.length + 1;
+  char *ref= static_cast<char*>(mem_heap_alloc(heap, len + 1));
+  copy_name(ref, db, name);
+
+  switch (lower_case_table_names) {
+  case 2: /* store as given, compare in lower case */
+    my_casedn_str(system_charset_info, ref);
+    *table= dict_sys.load_table({ref, len});
+    return copy_name(ref, db, name);
+  case 0: /* store and compare as given; case sensitive */
+#ifndef _WIN32 /* On Windows, InnoDB treats 0 as lower_case_table_names=1 */
+    break;
+#endif
+  case 1: /* store and compare in lower case */
+    my_casedn_str(system_charset_info, ref);
+  }
+
+  *table = dict_sys.load_table({ref, len});
+  return ref;
+}
+
+/** Convert a schema or table name to InnoDB (and file system) format.
+@param cs   source character set
+@param name name encoded in cs
+@param buf  output buffer (MAX_TABLE_NAME_LEN + 1 bytes)
+@return the converted string (within buf) */
+LEX_CSTRING innodb_convert_name(CHARSET_INFO *cs, LEX_CSTRING name, char *buf)
+  noexcept
+{
+  CHARSET_INFO *to_cs= &my_charset_filename;
+  if (!strncmp(name.str, srv_mysql50_table_name_prefix,
+               sizeof srv_mysql50_table_name_prefix - 1))
+  {
+    /* Before MySQL 5.1 introduced my_charset_filename, schema and
+    table names were stored in the file system as specified by the
+    user, hopefully in ASCII encoding, but it could also be in ISO
+    8859-1 or UTF-8. Such schema or table names are distinguished by
+    the #mysql50# prefix.
+
+    Let us discard that prefix and convert the name to UTF-8
+    (system_charset_info). */
+    name.str+= sizeof srv_mysql50_table_name_prefix - 1;
+    name.length-= sizeof srv_mysql50_table_name_prefix - 1;
+    to_cs= system_charset_info;
+  }
+  uint errors;
+  return LEX_CSTRING{buf, strconvert(cs, name.str, name.length, to_cs,
+                                     buf, MAX_TABLE_NAME_LEN, &errors)};
+}
+
 /** Create InnoDB foreign keys from MySQL alter_info. Collect all
 dict_foreign_t items into local_fk_set and then add into system table.
 @return		DB_SUCCESS or specific error code */
@@ -12365,6 +12391,9 @@ create_table_info_t::create_foreign_keys()
 	const char*	      ref_column_names[MAX_COLS_PER_FK];
 	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
 					  MAX_TABLE_NAME_LEN + 1];
+	char db_name[MAX_DATABASE_NAME_LEN + 1];
+	char t_name[MAX_TABLE_NAME_LEN + 1];
+	static_assert(MAX_TABLE_NAME_LEN == MAX_DATABASE_NAME_LEN, "");
 	dict_index_t*	      index	  = NULL;
 	fkerr_t		      index_error = FK_SUCCESS;
 	dict_index_t*	      err_index	  = NULL;
@@ -12372,59 +12401,57 @@ create_table_info_t::create_foreign_keys()
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
 	const CHARSET_INFO*   cs	= thd_charset(m_thd);
 	const char*	      operation = "Create ";
-	const char*	      name	= m_table_name;
 
 	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(m_thd));
+	LEX_CSTRING name= {m_table_name, strlen(m_table_name)};
 
 	if (sqlcom == SQLCOM_ALTER_TABLE) {
-		dict_table_t* table_to_alter;
 		mem_heap_t*   heap = mem_heap_create(10000);
-		ulint	      highest_id_so_far;
-		char*	      n = dict_get_referenced_table(
-			name, LEX_STRING_WITH_LEN(m_form->s->db),
-			LEX_STRING_WITH_LEN(m_form->s->table_name),
-			&table_to_alter, heap, cs);
+		LEX_CSTRING t = innodb_convert_name(cs, m_form->s->table_name,
+						  t_name);
+		LEX_CSTRING d = innodb_convert_name(cs, m_form->s->db, db_name);
+		dict_table_t* alter_table;
+		char* n = dict_table_lookup(d, t, &alter_table, heap);
 
 		/* Starting from 4.0.18 and 4.1.2, we generate foreign key id's
 		in the format databasename/tablename_ibfk_[number], where
 		[number] is local to the table; look for the highest [number]
-		for table_to_alter, so that we can assign to new constraints
+		for alter_table, so that we can assign to new constraints
 		higher numbers. */
 
 		/* If we are altering a temporary table, the table name after
 		ALTER TABLE does not correspond to the internal table name, and
-		table_to_alter is NULL. TODO: should we fix this somehow? */
+		alter_table=nullptr. But, we do not support FOREIGN KEY
+		constraints for temporary tables. */
 
-		if (table_to_alter) {
-			n		  = table_to_alter->name.m_name;
-			highest_id_so_far = dict_table_get_highest_foreign_id(
-				table_to_alter);
-		} else {
-			highest_id_so_far = 0;
+		if (alter_table) {
+			n = alter_table->name.m_name;
+			number = 1 + dict_table_get_highest_foreign_id(
+				alter_table);
 		}
 
 		char* bufend = innobase_convert_name(
 			create_name, sizeof create_name, n, strlen(n), m_thd);
-		create_name[bufend - create_name] = '\0';
-		number				  = highest_id_so_far + 1;
+		*bufend = '\0';
 		mem_heap_free(heap);
 		operation = "Alter ";
-	} else if (strstr(name, "#P#") || strstr(name, "#p#")) {
+	} else if (strstr(m_table_name, "#P#")
+		   || strstr(m_table_name, "#p#")) {
 		/* Partitioned table */
 		create_name[0] = '\0';
 	} else {
 		char* bufend = innobase_convert_name(create_name,
 						     sizeof create_name,
-						     name,
-						     strlen(name), m_thd);
-		create_name[bufend - create_name] = '\0';
+						     LEX_STRING_WITH_LEN(name),
+						     m_thd);
+		*bufend = '\0';
 	}
 
 	Alter_info* alter_info = m_create_info->alter_info;
 	ut_ad(alter_info);
 	List_iterator_fast<Key> key_it(alter_info->key_list);
 
-	dict_table_t* table = dict_sys.find_table({name,strlen(name)});
+	dict_table_t* table = dict_sys.find_table({name.str, name.length});
 	if (!table) {
 		ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
 				"%s table %s foreign key constraint"
@@ -12471,27 +12498,27 @@ create_table_info_t::create_foreign_keys()
 				col->field_name.length);
 			success = find_col(table, column_names + i);
 			if (!success) {
-				key_text k(fk);
 				ib_foreign_warn(
 					m_trx, DB_CANNOT_ADD_CONSTRAINT,
 					create_name,
 					"%s table %s foreign key %s constraint"
 					" failed. Column %s was not found.",
-					operation, create_name, k.str(),
+					operation, create_name,
+					key_text(fk).str(),
 					column_names[i]);
 				dict_foreign_free(foreign);
 				return (DB_CANNOT_ADD_CONSTRAINT);
 			}
 			++i;
 			if (i >= MAX_COLS_PER_FK) {
-				key_text k(fk);
 				ib_foreign_warn(
 					m_trx, DB_CANNOT_ADD_CONSTRAINT,
 					create_name,
 					"%s table %s foreign key %s constraint"
 					" failed. Too many columns: %u (%u "
 					"allowed).",
-					operation, create_name, k.str(), i,
+					operation, create_name,
+					key_text(fk).str(), i,
 					MAX_COLS_PER_FK);
 				dict_foreign_free(foreign);
 				return (DB_CANNOT_ADD_CONSTRAINT);
@@ -12503,9 +12530,9 @@ create_table_info_t::create_foreign_keys()
 			&index_error, &err_col, &err_index);
 
 		if (!index) {
-			key_text k(fk);
 			foreign_push_index_error(m_trx, operation, create_name,
-						 k.str(), column_names,
+						 key_text(fk).str(),
+						 column_names,
 						 index_error, err_col,
 						 err_index, table);
 			dict_foreign_free(foreign);
@@ -12571,14 +12598,12 @@ create_table_info_t::create_foreign_keys()
 		memcpy(foreign->foreign_col_names, column_names,
 		       i * sizeof(void*));
 
-		foreign->referenced_table_name = dict_get_referenced_table(
-			name, LEX_STRING_WITH_LEN(fk->ref_db),
-			LEX_STRING_WITH_LEN(fk->ref_table),
-			&foreign->referenced_table, foreign->heap, cs);
-
-		if (!foreign->referenced_table_name) {
-			return (DB_OUT_OF_MEMORY);
-		}
+		LEX_CSTRING t = innodb_convert_name(cs, fk->ref_table, t_name);
+		LEX_CSTRING d = fk->ref_db.str
+			? innodb_convert_name(cs, fk->ref_db, db_name)
+			: LEX_CSTRING{table->name.m_name, table->name.dblen()};
+		foreign->referenced_table_name = dict_table_lookup(
+			d, t, &foreign->referenced_table, foreign->heap);
 
 		if (!foreign->referenced_table && m_trx->check_foreigns) {
 			char  buf[MAX_TABLE_NAME_LEN + 1] = "";
@@ -12588,15 +12613,15 @@ create_table_info_t::create_foreign_keys()
 				buf, MAX_TABLE_NAME_LEN,
 				foreign->referenced_table_name,
 				strlen(foreign->referenced_table_name), m_thd);
-			buf[bufend - buf] = '\0';
-			key_text k(fk);
+			*bufend = '\0';
 			ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT,
 					create_name,
 					"%s table %s with foreign key %s "
 					"constraint failed. Referenced table "
 					"%s not found in the data dictionary.",
-					operation, create_name, k.str(), buf);
-			return (DB_CANNOT_ADD_CONSTRAINT);
+					operation, create_name,
+					key_text(fk).str(), buf);
+			return DB_CANNOT_ADD_CONSTRAINT;
 		}
 
 		/* Don't allow foreign keys on partitioned tables yet. */
@@ -12619,7 +12644,6 @@ create_table_info_t::create_foreign_keys()
 				success = find_col(foreign->referenced_table,
 						   ref_column_names + j);
 				if (!success) {
-					key_text k(fk);
 					ib_foreign_warn(
 						m_trx,
 						DB_CANNOT_ADD_CONSTRAINT,
@@ -12628,9 +12652,9 @@ create_table_info_t::create_foreign_keys()
 						"constraint failed. "
 						"Column %s was not found.",
 						operation, create_name,
-						k.str(), ref_column_names[j]);
-
-					return (DB_CANNOT_ADD_CONSTRAINT);
+						key_text(fk).str(),
+						ref_column_names[j]);
+					return DB_CANNOT_ADD_CONSTRAINT;
 				}
 			}
 			++j;
@@ -12650,16 +12674,15 @@ create_table_info_t::create_foreign_keys()
 				&err_index);
 
 			if (!index) {
-				key_text k(fk);
 				foreign_push_index_error(
-					m_trx, operation, create_name, k.str(),
+					m_trx, operation, create_name,
+					key_text(fk).str(),
 					column_names, index_error, err_col,
 					err_index, foreign->referenced_table);
-
-				return (DB_CANNOT_ADD_CONSTRAINT);
+				return DB_CANNOT_ADD_CONSTRAINT;
 			}
 		} else {
-			ut_a(m_trx->check_foreigns == FALSE);
+			ut_a(!m_trx->check_foreigns);
 			index = NULL;
 		}
 
@@ -12696,7 +12719,6 @@ create_table_info_t::create_foreign_keys()
 					NULL
 					if the column is not allowed to be
 					NULL! */
-					key_text k(fk);
 					ib_foreign_warn(
 						m_trx,
 						DB_CANNOT_ADD_CONSTRAINT,
@@ -12707,9 +12729,9 @@ create_table_info_t::create_foreign_keys()
 						"but column '%s' is defined as "
 						"NOT NULL.",
 						operation, create_name,
-						k.str(), col_name);
+						key_text(fk).str(), col_name);
 
-					return (DB_CANNOT_ADD_CONSTRAINT);
+					return DB_CANNOT_ADD_CONSTRAINT;
 				}
 			}
 		}
@@ -13565,7 +13587,7 @@ int ha_innobase::delete_table(const char *name)
     if (!table && lower_case_table_names == 1 && is_partition(norm_name))
     {
       IF_WIN(normalize_table_name_c_low(norm_name, name, false),
-             innobase_casedn_str(norm_name));
+             my_casedn_str(system_charset_info, norm_name));
       table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
     }
 #endif
@@ -13837,10 +13859,10 @@ err_exit:
 @param[in,out]	trx	InnoDB data dictionary transaction
 @param[in]	from	old table name
 @param[in]	to	new table name
-@param[in]	use_fk	whether to enforce FOREIGN KEY
+@param[in]	fk	how to handle FOREIGN KEY
 @return DB_SUCCESS or error code */
 static dberr_t innobase_rename_table(trx_t *trx, const char *from,
-                                     const char *to, bool use_fk)
+                                     const char *to, rename_fk fk)
 {
 	dberr_t	error;
 	char	norm_to[FN_REFLEN];
@@ -13858,7 +13880,7 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	ut_ad(trx->will_lock);
 
-	error = row_rename_table_for_mysql(norm_from, norm_to, trx, use_fk);
+	error = row_rename_table_for_mysql(norm_from, norm_to, trx, fk);
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
@@ -13872,7 +13894,8 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 				case name, including the partition
 				separator "P" */
 				strcpy(par_case_name, norm_from);
-				innobase_casedn_str(par_case_name);
+				my_casedn_str(system_charset_info,
+					      par_case_name);
 #else
 				/* On Windows platfrom, check
 				whether there exists table name in
@@ -13883,7 +13906,8 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 #endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
-					par_case_name, norm_to, trx, false);
+					par_case_name, norm_to, trx,
+					RENAME_IGNORE_FK);
 			}
 		}
 
@@ -14079,7 +14103,8 @@ int ha_innobase::truncate()
 
   if (error == DB_SUCCESS)
   {
-    error= innobase_rename_table(trx, ib_table->name.m_name, temp_name, false);
+    error= innobase_rename_table(trx, ib_table->name.m_name, temp_name,
+                                 RENAME_REBUILD);
     if (error == DB_SUCCESS)
       error= trx->drop_table(*ib_table);
   }
@@ -14277,7 +14302,8 @@ ha_innobase::rename_table(
 	row_mysql_lock_data_dictionary(trx);
 
 	if (error == DB_SUCCESS) {
-		error = innobase_rename_table(trx, from, to, true);
+		error = innobase_rename_table(trx, from, to,
+					      RENAME_ALTER_COPY);
 	}
 
 	DEBUG_SYNC(thd, "after_innobase_rename_table");
@@ -14320,7 +14346,7 @@ ha_innobase::rename_table(
 		my_error(ER_TABLE_EXISTS_ERROR, MYF(0), to);
 		error = DB_ERROR;
 	} else if (error == DB_LOCK_WAIT_TIMEOUT) {
-		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), to);
+		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 		error = DB_LOCK_WAIT;
 	}
 
@@ -15835,7 +15861,8 @@ ha_innobase::extra(
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
 			if (dberr_t err = trx->bulk_insert_apply()) {
-				return err;
+				return convert_error_code_to_mysql(
+					 err, 0, trx->mysql_thd);
 			}
 			break;
 		}
@@ -16247,6 +16274,7 @@ ha_innobase::external_lock(
 	case F_UNLCK:
 		DEBUG_SYNC_C("ha_innobase_end_statement");
 		m_mysql_has_locked = false;
+		ut_a(trx->n_mysql_tables_in_use);
 
 		if (--trx->n_mysql_tables_in_use) {
 			break;
@@ -20945,25 +20973,6 @@ const char*	SET_TRANSACTION_MSG =
 
 const char*	INNODB_PARAMETERS_MSG =
 	"Please refer to https://mariadb.com/kb/en/library/innodb-system-variables/";
-
-/**********************************************************************
-Converts an identifier from my_charset_filename to UTF-8 charset.
-@return result string length, as returned by strconvert() */
-uint
-innobase_convert_to_filename_charset(
-/*=================================*/
-	char*		to,	/* out: converted identifier */
-	const char*	from,	/* in: identifier to convert */
-	ulint		len)	/* in: length of 'to', in bytes */
-{
-	uint		errors;
-	CHARSET_INFO*	cs_to = &my_charset_filename;
-	CHARSET_INFO*	cs_from = system_charset_info;
-
-	return(static_cast<uint>(strconvert(
-				cs_from, from, uint(strlen(from)),
-				cs_to, to, static_cast<uint>(len), &errors)));
-}
 
 /**********************************************************************
 Converts an identifier from my_charset_filename to UTF-8 charset.

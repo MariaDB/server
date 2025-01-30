@@ -1490,6 +1490,26 @@ dict_table_t::rename_tablespace(span<const char> new_name, bool replace) const
   return err;
 }
 
+/**********************************************************************
+Converts an identifier from my_charset_filename to UTF-8 charset.
+@return result string length, as returned by strconvert() */
+static
+uint
+innobase_convert_to_filename_charset(
+/*=================================*/
+	char*		to,	/* out: converted identifier */
+	const char*	from,	/* in: identifier to convert */
+	ulint		len)	/* in: length of 'to', in bytes */
+{
+	uint		errors;
+	CHARSET_INFO*	cs_to = &my_charset_filename;
+	CHARSET_INFO*	cs_from = system_charset_info;
+
+	return(static_cast<uint>(strconvert(
+				cs_from, from, uint(strlen(from)),
+				cs_to, to, static_cast<uint>(len), &errors)));
+}
+
 /**********************************************************************//**
 Renames a table object.
 @return TRUE if success */
@@ -1622,19 +1642,20 @@ dict_table_rename_in_cache(
 			foreign->referenced_table->referenced_set.erase(foreign);
 		}
 
-		if (strlen(foreign->foreign_table_name)
-		    < strlen(table->name.m_name)) {
+		const bool do_alloc = strlen(foreign->foreign_table_name)
+			< strlen(table->name.m_name);
+
+		if (do_alloc) {
 			/* Allocate a longer name buffer;
 			TODO: store buf len to save memory */
 
 			foreign->foreign_table_name = mem_heap_strdup(
 				foreign->heap, table->name.m_name);
-			dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
 		} else {
 			strcpy(foreign->foreign_table_name,
 			       table->name.m_name);
-			dict_mem_foreign_table_name_lookup_set(foreign, FALSE);
 		}
+		dict_mem_foreign_table_name_lookup_set(foreign, do_alloc);
 		if (strchr(foreign->id, '/')) {
 			/* This is a >= 4.0.18 format id */
 
@@ -3105,20 +3126,13 @@ dict_scan_id(
 	mem_heap_t*	heap,	/*!< in: heap where to allocate the id
 				(NULL=id will not be allocated, but it
 				will point to string near ptr) */
-	const char**	id,	/*!< out,own: the id; NULL if no id was
+	const char**	id)	/*!< out,own: the id; NULL if no id was
 				scannable */
-	ibool		table_id,/*!< in: TRUE=convert the allocated id
-				as a table name; FALSE=convert to UTF-8 */
-	ibool		accept_also_dot)
-				/*!< in: TRUE if also a dot can appear in a
-				non-quoted id; in a quoted id it can appear
-				always */
 {
 	char		quote	= '\0';
 	ulint		len	= 0;
 	const char*	s;
 	char*		str;
-	char*		dst;
 
 	*id = NULL;
 
@@ -3154,7 +3168,6 @@ dict_scan_id(
 		}
 	} else {
 		while (!my_isspace(cs, *ptr) && *ptr != '(' && *ptr != ')'
-		       && (accept_also_dot || *ptr != '.')
 		       && *ptr != ',' && *ptr != '\0') {
 
 			ptr++;
@@ -3188,123 +3201,13 @@ dict_scan_id(
 		str = mem_heap_strdupl(heap, s, len);
 	}
 
-	if (!table_id) {
-convert_id:
-		/* Convert the identifier from connection character set
-		to UTF-8. */
-		len = 3 * len + 1;
-		*id = dst = static_cast<char*>(mem_heap_alloc(heap, len));
-
-		innobase_convert_from_id(cs, dst, str, len);
-	} else if (!strncmp(str, srv_mysql50_table_name_prefix,
-			    sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		/* This is a pre-5.1 table name
-		containing chars other than [A-Za-z0-9].
-		Discard the prefix and use raw UTF-8 encoding. */
-		str += sizeof(srv_mysql50_table_name_prefix) - 1;
-		len -= sizeof(srv_mysql50_table_name_prefix) - 1;
-		goto convert_id;
-	} else {
-		/* Encode using filename-safe characters. */
-		len = 5 * len + 1;
-		*id = dst = static_cast<char*>(mem_heap_alloc(heap, len));
-
-		innobase_convert_from_table_id(cs, dst, str, len);
-	}
-
+	ulint dstlen = 3 * len + 1;
+        char *dst = static_cast<char*>(mem_heap_alloc(heap, dstlen));
+	*id = dst;
+	uint errors;
+	strconvert(cs, str, uint(len), system_charset_info, dst,
+                   uint(dstlen), &errors);
 	return(ptr);
-}
-
-/*********************************************************************//**
-Open a table from its database and table name, this is currently used by
-foreign constraint parser to get the referenced table.
-@return complete table name with database and table name, allocated from
-heap memory passed in */
-char*
-dict_get_referenced_table(
-	const char*    name,		  /*!< in: foreign key table name */
-	const char*    database_name,	  /*!< in: table db name */
-	ulint	       database_name_len, /*!< in: db name length */
-	const char*    table_name,	  /*!< in: table name */
-	ulint	       table_name_len,	  /*!< in: table name length */
-	dict_table_t** table,		  /*!< out: table object or NULL */
-	mem_heap_t*    heap,		  /*!< in/out: heap memory */
-	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
-{
-	char*		ref;
-	char		db_name[MAX_DATABASE_NAME_LEN];
-	char		tbl_name[MAX_TABLE_NAME_LEN];
-	CHARSET_INFO*	to_cs = &my_charset_filename;
-	uint		errors;
-	ut_ad(database_name || name);
-	ut_ad(table_name);
-
-	if (!strncmp(table_name, srv_mysql50_table_name_prefix,
-		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		/* This is a pre-5.1 table name
-		containing chars other than [A-Za-z0-9].
-		Discard the prefix and use raw UTF-8 encoding. */
-		table_name += sizeof(srv_mysql50_table_name_prefix) - 1;
-		table_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
-
-		to_cs = system_charset_info;
-	}
-
-	table_name_len = strconvert(from_cs, table_name, table_name_len, to_cs,
-				    tbl_name, MAX_TABLE_NAME_LEN, &errors);
-	table_name     = tbl_name;
-
-	if (database_name) {
-		to_cs = &my_charset_filename;
-		if (!strncmp(database_name, srv_mysql50_table_name_prefix,
-			     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-			database_name
-				+= sizeof(srv_mysql50_table_name_prefix) - 1;
-			database_name_len
-				-= sizeof(srv_mysql50_table_name_prefix) - 1;
-			to_cs = system_charset_info;
-		}
-
-		database_name_len = strconvert(
-			from_cs, database_name, database_name_len, to_cs,
-			db_name, MAX_DATABASE_NAME_LEN, &errors);
-		database_name = db_name;
-	} else {
-		/* Use the database name of the foreign key table */
-
-		database_name = name;
-		database_name_len = dict_get_db_name_len(name);
-	}
-
-	/* Copy database_name, '/', table_name, '\0' */
-	const size_t len = database_name_len + table_name_len + 1;
-	ref = static_cast<char*>(mem_heap_alloc(heap, len + 1));
-	memcpy(ref, database_name, database_name_len);
-	ref[database_name_len] = '/';
-	memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
-
-	/* Values;  0 = Store and compare as given; case sensitive
-	            1 = Store and compare in lower; case insensitive
-	            2 = Store as given, compare in lower; case semi-sensitive */
-	if (lower_case_table_names == 2) {
-		innobase_casedn_str(ref);
-		*table = dict_sys.load_table({ref, len});
-		memcpy(ref, database_name, database_name_len);
-		ref[database_name_len] = '/';
-		memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
-
-	} else {
-#ifndef _WIN32
-		if (lower_case_table_names == 1) {
-			innobase_casedn_str(ref);
-		}
-#else
-		innobase_casedn_str(ref);
-#endif /* !_WIN32 */
-		*table = dict_sys.load_table({ref, len});
-	}
-
-	return(ref);
 }
 
 /*********************************************************************//**
@@ -3563,7 +3466,7 @@ loop:
 		}
 	}
 
-	ptr = dict_scan_id(cs, ptr, heap, &id, FALSE, TRUE);
+	ptr = dict_scan_id(cs, ptr, heap, &id);
 
 	if (id == NULL) {
 

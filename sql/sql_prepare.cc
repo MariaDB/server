@@ -2875,8 +2875,8 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
     DBUG_VOID_RETURN;                           // out of memory
 
   // See comments on thd->free_list in mysql_sql_stmt_execute()
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL;
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_immediate()
     with an empty THD::change_list. It can be non empty as the above
@@ -2899,8 +2899,6 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_immediate(query.str, (uint) query.length);
   change_list_savepoint.rollback(thd);
-  thd->free_items();
-  thd->free_list= free_list_backup;
 
   /*
     stmt->execute_immediately() sets thd->query_string with the executed
@@ -3076,7 +3074,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 
   if (lex->result)
   {
-    lex->result->cleanup();
+    lex->result->reset_for_next_ps_execution();
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func.clear_all();
@@ -3465,8 +3463,13 @@ void mysql_sql_stmt_execute(THD *thd)
     so they don't get freed in case of re-prepare.
     See MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
   */
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+  /*
+    Hide and restore at scope exit the "external" (e.g. "SET STATEMENT") Item list.
+    It will be freed normaly in THD::cleanup_after_query().
+  */
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  // Free items created by execute_loop() at scope exit
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_loop() with an empty
     THD::change_list. It can be non-empty because the above
@@ -3490,12 +3493,6 @@ void mysql_sql_stmt_execute(THD *thd)
 
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
   change_list_savepoint.rollback(thd);
-  thd->free_items();    // Free items created by execute_loop()
-  /*
-    Now restore the "external" (e.g. "SET STATEMENT") Item list.
-    It will be freed normaly in THD::cleanup_after_query().
-  */
-  thd->free_list= free_list_backup;
 
   stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;

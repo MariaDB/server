@@ -32,7 +32,6 @@ RESET MASTER;
 #
 --let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
 
-
 #
 # nodes 1 and 2 form a galera cluster, node 2 operates as slave for native MariaDB master in node 3
 #
@@ -134,7 +133,7 @@ SELECT *  FROM t1;
 SET DEBUG_SYNC = "RESET";
 
 #********************************************************************************
-#	test phase 2
+#       test phase 2
 #********************************************************************************
 
 --echo #
@@ -197,3 +196,7 @@ DROP TABLE t1;
 --connection node_3
 DROP TABLE t1;
 RESET MASTER;
+
+--connection node_1
+--disconnect node_2a
+--disconnect node_3

@@ -1,42 +1,86 @@
---echo
---echo # MDEV-27037 mysqlbinlog emits a warning when reaching EOF before stop-datetime
---echo
+#
+# Test ensures that --stop-datetime work correctly for mysqlbinlog. This high
+# level test sets up the binary log (and tags certain locations for comparison),
+# and the helper file binlog_mysqlbinlog_warn_stop_datetime.inc performs the
+# actual tests.
+#
+# References:
+#   MDEV-27037: mysqlbinlog emits a warning when reaching EOF before
+#               stop-condition
+#   MDEV-35528: mariadb-binlog cannot process more than 1 logfiles when
+#               --stop-datetime is specified
+#
+--source include/have_log_bin.inc
 
---source include/have_binlog_format_statement.inc
+--let $binlog_out_relpath= tmp/warn_datetime_test_file.out
+--let $binlog_out= $MYSQLTEST_VARDIR/$binlog_out_relpath
 
---let ignored_output_file= $MYSQLTEST_VARDIR/tmp/warn_pos_test_file.out
+--let $b1_timestamp1= 2024-12-01 10:20:30.123456
+--let $b1_timestamp2= 2024-12-02 10:20:30.123456
+--let $b1_timestamp3= 2024-12-03 10:20:30.123456
+--let $b2_timestamp1= 2024-12-04 10:20:30.123456
+--let $b2_timestamp2= 2024-12-05 10:20:30.123456
+--let $b2_timestamp3= 2024-12-06 10:20:30.123456
+--let $b2_timestamp_not_reached= 2024-12-07 10:20:30.123456
 
-set timestamp=1000000000;
-CREATE TABLE t1(word VARCHAR(20));
-set timestamp=1000000010;
-INSERT INTO t1 VALUES ("abirvalg");
-set timestamp=1000000020;
-INSERT INTO t1 SELECT * FROM t1;
---let MYSQLD_DATADIR= `select @@datadir;`
-flush logs;
+--eval SET TIMESTAMP= UNIX_TIMESTAMP('$b1_timestamp1')
 
---echo Case: Default, must not see warning.
---echo # MYSQL_BINLOG --short-form MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
---exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000001 --result-file=$ignored_output_file 2>&1
+--echo #
+--echo # Clear the existing binary log state, and start fresh using
+--echo # the timestamp variable set above
+--echo #
+RESET MASTER;
 
---echo Case: Stop datetime before EOF, must not see warning.
---echo # MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:50' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
---exec $MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:50' $MYSQLD_DATADIR/master-bin.000001 --result-file=$ignored_output_file 2>&1
+--let $binlog_f1= query_get_value(SHOW MASTER STATUS, File, 1)
+create table t1 (a int);
+insert into t1 values (1);
+--eval SET TIMESTAMP= UNIX_TIMESTAMP('$b1_timestamp2')
+insert into t1 values (2);
+--eval SET TIMESTAMP= UNIX_TIMESTAMP('$b1_timestamp3')
+flush binary logs;
+--let $binlog_f2= query_get_value(SHOW MASTER STATUS, File, 1)
+--eval SET TIMESTAMP= UNIX_TIMESTAMP('$b2_timestamp1')
+insert into t1 values (3);
+insert into t1 values (4);
+--eval SET TIMESTAMP= UNIX_TIMESTAMP('$b2_timestamp2')
+--let $binlog_f2_gtid_after_midpoint= `SELECT @@GLOBAL.gtid_binlog_pos`
+insert into t1 values (5);
+insert into t1 values (6);
+insert into t1 values (7);
+--let $binlog_f2_last_gtid= `SELECT @@GLOBAL.gtid_binlog_pos`
+--eval SET TIMESTAMP=UNIX_TIMESTAMP('$b2_timestamp3')
+flush binary logs;
+drop table t1;
 
---echo Case: Stop datetime between records, must not see warning.
---echo # MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
---exec $MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' $MYSQLD_DATADIR/master-bin.000001 --result-file=$ignored_output_file 2>&1
+--echo # Ensuring binary log order is correct
+--let $binlog_f1_show= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+if (`SELECT strcmp('$binlog_f1','$binlog_f1_show') != 0`)
+{
+  --echo # Real binlog_f1: $binlog_f1
+  --echo # First binlog in SHOW BINLOG FILES: $binlog_f1_show
+  --die Wrong order of binary log files in SHOW BINARY LOGS
+}
+--let $binlog_f2_show= query_get_value(SHOW BINARY LOGS, Log_name, 2)
+if (`SELECT strcmp('$binlog_f2','$binlog_f2_show') != 0`)
+{
+  --echo # Real binlog_f2: $binlog_f2
+  --echo # First binlog in SHOW BINLOG FILES: $binlog_f2_show
+  --die Wrong order of binary log files in SHOW BINARY LOGS
+}
 
---echo Case: Stop datetime at EOF, must not see warning.
---echo # MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
---exec $MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' $MYSQLD_DATADIR/master-bin.000001 --result-file=$ignored_output_file 2>&1
+--echo #
+--echo #
+--echo # Test using --read-from-remote-server
+--echo #
+--let $read_from_remote_server= 1
+--source binlog_mysqlbinlog_warn_stop_datetime.inc
 
---echo Case: Stop datetime after EOF, must see warning.
---echo # MYSQL_BINLOG --short-form --stop-datetime='2035-01-19 03:14:05' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
---exec $MYSQL_BINLOG --short-form --stop-datetime='2035-01-19 03:14:05' $MYSQLD_DATADIR/master-bin.000001 --result-file=$ignored_output_file 2>&1
+--echo #
+--echo #
+--echo # Test using local binlog files
+--echo #
+--let $read_from_remote_server= 0
+--source binlog_mysqlbinlog_warn_stop_datetime.inc
 
-DROP TABLE t1;
-
---remove_file $ignored_output_file
-
+--echo #
 --echo # End of binlog_mysqlbinlog_warn_stop_datetime.test

@@ -1865,7 +1865,9 @@ trx_undo_report_row_operation(
 	} else if (index->table->is_temporary()) {
 	} else if (trx_has_lock_x(*trx, *index->table)
 		   && index->table->bulk_trx_id == trx->id) {
-		m.first->second.start_bulk_insert(index->table);
+		m.first->second.start_bulk_insert(
+			index->table,
+			thd_sql_command(trx->mysql_thd) != SQLCOM_LOAD);
 
 		if (dberr_t err = m.first->second.bulk_insert_buffered(
 			    *clust_entry, *index, trx)) {

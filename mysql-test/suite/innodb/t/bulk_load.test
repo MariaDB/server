@@ -1,0 +1,52 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/big_test.inc
+
+CREATE TABLE t1(f1 INT NOT NULL,f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq from seq_1_to_131072;
+INSERT INTO t1 VALUES(131073, 131073), (131074, 131073);
+--replace_result $MYSQLTEST_VARDIR VARDIR
+--disable_cursor_protocol
+--disable_ps2_protocol
+eval SELECT * INTO OUTFILE "$MYSQLTEST_VARDIR/tmp/t1.outfile" FROM t1;
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+--echo # successful load statement using bulk insert
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,
+                f2 INT NOT NULL)ENGINE=InnoDB;
+SET unique_checks=0, foreign_key_checks=0;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1.outfile' INTO TABLE t2;
+SELECT COUNT(*) FROM t2;
+CHECK TABLE t2 EXTENDED;
+DROP TABLE t2;
+
+CREATE TABLE t2(f1 INT NOT NULL, PRIMARY KEY(f1 DESC),
+                f2 INT NOT NULL)ENGINE=InnoDB;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1.outfile' INTO TABLE t2;
+SELECT COUNT(*) FROM t2;
+CHECK TABLE t2 EXTENDED;
+DROP TABLE t2;
+
+--echo # load statement using bulk insert fails during secondary index
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,
+                f2 INT NOT NULL UNIQUE KEY)ENGINE=InnoDB;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+--error ER_ERROR_DURING_COMMIT
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1.outfile' INTO TABLE t2;
+SELECT COUNT(*) FROM t2;
+CHECK TABLE t2 EXTENDED;
+DROP TABLE t2;
+
+--echo # load statement using bulk insert fails during primary index
+CREATE TABLE t2(f1 INT NOT NULL,
+                f2 INT NOT NULL PRIMARY KEY)ENGINE=InnoDB;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+--error ER_DUP_ENTRY
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1.outfile' INTO TABLE t2;
+SELECT COUNT(*) FROM t2;
+CHECK TABLE t2 EXTENDED;
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.outfile
+DROP TABLE t2, t1;

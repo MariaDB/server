@@ -881,7 +881,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   DBUG_RETURN(0);
 }
 
-Log_event* Log_event::read_log_event(IO_CACHE* file,
+Log_event* Log_event::read_log_event(IO_CACHE* file, int *out_error,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check, my_bool print_errors,
                                      size_t max_allowed_packet)
@@ -892,6 +892,7 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
   const char *error= 0;
   Log_event *res= 0;
 
+  *out_error= 0;
   switch (read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF,
                          max_allowed_packet))
   {
@@ -942,14 +943,22 @@ err:
 #endif
 
     /*
-      The SQL slave thread will check if file->error<0 to know
+      The SQL slave thread will check *out_error to know
       if there was an I/O error. Even if there is no "low-level" I/O errors
       with 'file', any of the high-level above errors is worrying
       enough to stop the SQL thread now ; as we are skipping the current event,
       going on with reading and successfully executing other events can
       only corrupt the slave's databases. So stop.
     */
-    file->error= -1;
+    *out_error= 1;
+    /*
+      Clear any error that might have been set in the IO_CACHE from a read
+      error, while we are still holding the relay log mutex (if reading from
+      the hot log). Otherwise the error might interfere unpredictably with
+      write operations to the same IO_CACHE in the IO thread.
+    */
+    file->error= 0;
+
 
 #ifndef MYSQL_CLIENT
     if (!print_errors)

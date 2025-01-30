@@ -1247,6 +1247,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
                                   Item *item) {
     return
       !item->with_sum_func() &&
+      !item->with_window_func() &&
       /*
         We can't change name of Item_field or Item_ref, because it will
         prevent its correct resolving, but we should save name of
@@ -3855,7 +3856,7 @@ void subselect_single_select_engine::cleanup()
   DBUG_ENTER("subselect_single_select_engine::cleanup");
   prepared= executed= 0;
   join= 0;
-  result->cleanup();
+  result->reset_for_next_ps_execution();
   select_lex->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
   DBUG_VOID_RETURN;
 }
@@ -3865,7 +3866,7 @@ void subselect_union_engine::cleanup()
 {
   DBUG_ENTER("subselect_union_engine::cleanup");
   unit->reinit_exec_mechanism();
-  result->cleanup();
+  result->reset_for_next_ps_execution();
   unit->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
     sl->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
@@ -5541,7 +5542,7 @@ void subselect_hash_sj_engine::cleanup()
   }
   DBUG_ASSERT(lookup_engine->engine_type() == UNIQUESUBQUERY_ENGINE);
   lookup_engine->cleanup();
-  result->cleanup(); /* Resets the temp table as well. */
+  result->reset_for_next_ps_execution(); /* Resets the temp table as well. */
   DBUG_ASSERT(tmp_table);
   free_tmp_table(thd, tmp_table);
   tmp_table= NULL;

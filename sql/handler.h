@@ -5797,4 +5797,8 @@ inline void Cost_estimate::reset(handler *file)
 
 int get_select_field_pos(Alter_info *alter_info, int select_field_count,
                          bool versioned);
+
+#ifndef DBUG_OFF
+const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names= true);
+#endif /* DBUG_OFF */
 #endif /* HANDLER_INCLUDED */

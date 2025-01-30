@@ -497,7 +497,7 @@ void wsrep_backup_kill_for_commit(THD *thd)
 
 void wsrep_restore_kill_after_commit(THD *thd)
 {
-  DBUG_ASSERT(WSREP(thd));
+  DBUG_ASSERT(wsrep_is_active(thd));
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   thd->killed= thd->wsrep_abort_by_kill;
   my_free(thd->killed_err);
