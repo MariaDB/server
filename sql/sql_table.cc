@@ -2944,7 +2944,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
     my_error(ER_WRONG_KEY_COLUMN, MYF(0), file->table_type(), field_name.str);
     DBUG_RETURN(TRUE);
   }
-  if (key_part_length > max_key_part_length && key.type != Key::FULLTEXT)
+  if (key_part_length > max_key_part_length)
   {
     if (key.type == Key::MULTIPLE)
     {
@@ -2956,7 +2956,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
       /* Align key length to multibyte char boundary */
       key_part_length-= key_part_length % column->charset->mbmaxlen;
     }
-    else if (key.type != Key::UNIQUE)
+    else if (key.type == Key::PRIMARY)
     {
       key_part_length= MY_MIN(max_key_length, max_key_part_length);
       my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
@@ -3023,14 +3023,15 @@ my_bool init_key_info(THD *thd, Alter_info *alter_info,
         DBUG_RETURN(TRUE);
 
       key.length+= kp.length;
-      if (key.length > max_key_length && key.type == Key::UNIQUE)
-        is_hash_field_needed= true;  // for case "a BLOB UNIQUE"
-
-      if (key.length > max_key_length && key.type != Key::FULLTEXT &&
-          !is_hash_field_needed)
+      if (key.length > max_key_length)
       {
-        my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
-        DBUG_RETURN(TRUE);
+        if (key.type == Key::UNIQUE)
+          is_hash_field_needed= true;  // for case "a BLOB UNIQUE"
+        else if (key.type <= Key::MULTIPLE)
+        {
+          my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
+          DBUG_RETURN(TRUE);
+        }
       }
 
       KEY_CREATE_INFO *key_cinfo= &key.key_create_info;
