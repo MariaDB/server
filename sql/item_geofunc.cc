@@ -2089,7 +2089,6 @@ longlong Item_func_isvalid::val_int()
   if ((args[0]->null_value ||
       !(geometry= Geometry::construct(&buffer, wkb->ptr(), wkb->length()))))
   {
-    my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
     null_value= 1;
     return 1;
   }
@@ -2196,7 +2195,7 @@ longlong Item_func_issimple::val_int()
   if ((args[0]->null_value ||
        !(geometry= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
   {
-    /* We got NULL as an argument. Have to return -1 */
+    null_value= 1;
     DBUG_RETURN(-1);
   }
 
@@ -2315,7 +2314,7 @@ longlong Item_func_isring::val_int()
       !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
       geom->is_closed(&isclosed))
   {
-    /* IsRing(NULL) should return -1 */
+    null_value= 1;
     return -1;
   }
 
