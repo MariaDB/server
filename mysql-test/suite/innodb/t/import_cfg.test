@@ -81,3 +81,5 @@ alter table t1 discard tablespace;
 alter table t1 import tablespace;
 check table t1 extended;
 drop table t1;
+
+--remove_files_wildcard $datadir/test t1*sc
