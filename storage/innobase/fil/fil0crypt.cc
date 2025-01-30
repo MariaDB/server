@@ -2008,10 +2008,18 @@ static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 	mysql_mutex_unlock(&crypt_data->mutex);
 }
 
+#ifdef UNIV_PFS_THREAD
+mysql_pfs_key_t page_encrypt_thread_key;
+#endif /* UNIV_PFS_THREAD */
+
 /** A thread which monitors global key state and rotates tablespaces
 accordingly */
 static void fil_crypt_thread()
 {
+	my_thread_init();
+#ifdef UNIV_PFS_THREAD
+	pfs_register_thread(page_encrypt_thread_key);
+#endif /* UNIV_PFS_THREAD */
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	rotate_thread_t thr(srv_n_fil_crypt_threads_started++);
 	pthread_cond_signal(&fil_crypt_cond); /* signal that we started */
@@ -2089,6 +2097,7 @@ wait_for_work:
 	pthread_cond_signal(&fil_crypt_cond); /* signal that we stopped */
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
+	my_thread_end();
 #ifdef UNIV_PFS_THREAD
 	pfs_delete_thread();
 #endif

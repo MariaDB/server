@@ -7405,7 +7405,7 @@ int spider_mbase_share::discover_table_structure(
     int *need_mon= &need_mon_deref;
     if (!(conn = spider_get_conn(
       spider_share, 0, spider_share->conn_keys[roop_count], trx, NULL, FALSE,
-      FALSE, SPIDER_CONN_KIND_MYSQL, &error_num))
+      FALSE, &error_num))
     ) {
       DBUG_RETURN(error_num);
     }

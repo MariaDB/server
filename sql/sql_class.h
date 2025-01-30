@@ -50,6 +50,7 @@
 #include "session_tracker.h"
 #include "backup.h"
 #include "xa.h"
+#include "scope.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 
@@ -459,6 +460,7 @@ public:
   bool invisible;
   bool without_overlaps;
   bool old;
+  uint length;
   Lex_ident period;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
@@ -466,7 +468,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -477,7 +479,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() = default;
@@ -5979,7 +5981,8 @@ public:
   */
   virtual int send_data(List<Item> &items)=0;
   virtual ~select_result_sink() = default;
-  void reset(THD *thd_arg) { thd= thd_arg; }
+  // Used in cursors to initialize and reset
+  void reinit(THD *thd_arg) { thd= thd_arg; }
 };
 
 class select_result_interceptor;
@@ -6053,15 +6056,11 @@ public:
   */
   virtual bool check_simple_select() const;
   virtual void abort_result_set() {}
-  /*
-    Cleanup instance of this class for next execution of a prepared
-    statement/stored procedure.
-  */
-  virtual void cleanup();
+  virtual void reset_for_next_ps_execution();
   void set_thd(THD *thd_arg) { thd= thd_arg; }
-  void reset(THD *thd_arg)
+  void reinit(THD *thd_arg)
   {
-    select_result_sink::reset(thd_arg);
+    select_result_sink::reinit(thd_arg);
     unit= NULL;
   }
 #ifdef EMBEDDED_LIBRARY
@@ -6167,9 +6166,9 @@ public:
     elsewhere. (this is used by ANALYZE $stmt feature).
   */
   void disable_my_ok_calls() { suppress_my_ok= true; }
-  void reset(THD *thd_arg)
+  void reinit(THD *thd_arg)
   {
-    select_result::reset(thd_arg);
+    select_result::reinit(thd_arg);
     suppress_my_ok= false;
   }
 protected:
@@ -6221,7 +6220,7 @@ private:
     {}
     void reset(THD *thd_arg)
     {
-      select_result_interceptor::reset(thd_arg);
+      select_result_interceptor::reinit(thd_arg);
       spvar_list= NULL;
       field_count= 0;
     }
@@ -6265,7 +6264,7 @@ public:
   void reset(THD *thd_arg, sp_lex_keeper *lex_keeper)
   {
     sp_cursor_statistics::reset();
-    result.reset(thd_arg);
+    result.reinit(thd_arg);
     m_lex_keeper= lex_keeper;
     server_side_cursor= NULL;
   }
@@ -6293,7 +6292,7 @@ public:
   bool send_eof() override;
   bool check_simple_select() const override { return FALSE; }
   void abort_result_set() override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   select_result_interceptor *result_interceptor() override { return NULL; }
 };
 
@@ -6328,7 +6327,9 @@ public:
   { path[0]=0; }
   ~select_to_file();
   bool send_eof() override;
-  void cleanup() override;
+  void abort_result_set() override;
+  void reset_for_next_ps_execution() override;
+  bool free_recources();
 };
 
 
@@ -6405,7 +6406,7 @@ class select_insert :public select_result_interceptor {
   bool send_eof() override;
   void abort_result_set() override;
   /* not implemented: select_insert is never re-used in prepared statements */
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 
@@ -6631,7 +6632,7 @@ public:
   int delete_record();
   bool send_eof() override;
   virtual bool flush();
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
                                    const LEX_CSTRING *alias,
@@ -6806,9 +6807,10 @@ class select_union_recursive :public select_unit
  */
   List<TABLE_LIST> rec_table_refs;
   /*
-    The count of how many times cleanup() was called with cleaned==false
-    for the unit specifying the recursive CTE for which this object was created
-    or for the unit specifying a CTE that mutually recursive with this CTE.
+    The count of how many times reset_for_next_ps_execution() was called with
+    cleaned==false for the unit specifying the recursive CTE for which this
+    object was created or for the unit specifying a CTE that mutually
+    recursive with this CTE.
   */
   uint cleanup_count;
   long row_counter;
@@ -6827,7 +6829,7 @@ class select_union_recursive :public select_unit
                            bool create_table,
                            bool keep_row_order,
                            uint hidden) override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 /**
@@ -6897,7 +6899,7 @@ public:
   {
     result->abort_result_set(); /* purecov: inspected */
   }
-  void cleanup() override
+  void reset_for_next_ps_execution() override
   {
     send_records= 0;
   }
@@ -7000,7 +7002,7 @@ public:
                            uint hidden) override;
   bool init_result_table(ulonglong select_options);
   int send_data(List<Item> &items) override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   ha_rows get_null_count_of_col(uint idx)
   {
     DBUG_ASSERT(idx < table->s->fields);
@@ -7033,7 +7035,7 @@ public:
                                   bool mx, bool all):
     select_subselect(thd_arg, item_arg), cache(0), fmax(mx), is_all(all)
   {}
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   int send_data(List<Item> &items) override;
   bool cmp_real();
   bool cmp_int();
@@ -7450,7 +7452,7 @@ public:
   int send_data(List<Item> &items) override;
   bool send_eof() override;
   bool check_simple_select() const override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 /* Bits in sql_command_flags */

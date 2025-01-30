@@ -1983,8 +1983,11 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     DBUG_PRINT("query",("%s", thd->query()));
 
 #ifdef WITH_WSREP
-    WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
-		thd_get_thread_id(thd), wsrep_thd_query(thd));
+    if (WSREP(thd))
+    {
+      WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
+		  thd_get_thread_id(thd), wsrep_thd_query(thd));
+    }
 #endif
 
     if (unlikely(!(expected_error= !is_rb_alter ? error_code : 0)) ||
@@ -5386,7 +5389,7 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
   char fname[FN_REFLEN+10];
   char *ext;
   int fd;
-  int error= 1;
+  int error= 1, read_error;
   IO_CACHE file;
   Load_log_event *lev= 0;
   Relay_log_info const *rli= rgi->rli;
@@ -5405,7 +5408,7 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
     goto err;
   }
   if (!(lev= (Load_log_event*)
-        Log_event::read_log_event(&file,
+        Log_event::read_log_event(&file, &read_error,
                                   rli->relay_log.description_event_for_exec,
                                   opt_slave_sql_verify_checksum)) ||
       lev->get_type_code() != NEW_LOAD_EVENT)

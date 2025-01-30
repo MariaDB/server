@@ -175,7 +175,8 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   name(rhs.name),
   option_list(rhs.option_list),
   generated(rhs.generated), invisible(false),
-  without_overlaps(rhs.without_overlaps), old(rhs.old), period(rhs.period)
+  without_overlaps(rhs.without_overlaps), old(rhs.old), length(rhs.length),
+  period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -202,7 +203,7 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 /*
   Test if a foreign key (= generated key) is a prefix of the given key
-  (ignoring key name, key type and order of columns)
+  (ignoring key name and type, but minding the algorithm)
 
   NOTES:
     This is only used to test if an index for a FOREIGN KEY exists
@@ -217,6 +218,16 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 bool is_foreign_key_prefix(Key *a, Key *b)
 {
+  ha_key_alg a_alg= a->key_create_info.algorithm;
+  ha_key_alg b_alg= b->key_create_info.algorithm;
+
+  // The real algorithm in InnoDB will be BTREE if none was given by user.
+  a_alg= a_alg == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE : a_alg;
+  b_alg= b_alg == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE : b_alg;
+
+  if (a_alg != b_alg)
+    return false;
+
   /* Ensure that 'a' is the generated key */
   if (a->generated)
   {
@@ -3102,7 +3113,7 @@ void Item_change_list::rollback_item_tree_changes()
 ** Functions to provide a interface to select results
 *****************************************************************************/
 
-void select_result::cleanup()
+void select_result::reset_for_next_ps_execution()
 {
   /* do nothing */
 }
@@ -3171,6 +3182,7 @@ void select_send::abort_result_set()
     */
     thd->spcont->end_partial_result_set= TRUE;
   }
+  reset_for_next_ps_execution();
   DBUG_VOID_RETURN;
 }
 
@@ -3181,7 +3193,7 @@ void select_send::abort_result_set()
   stored procedure statement.
 */
 
-void select_send::cleanup()
+void select_send::reset_for_next_ps_execution()
 {
   is_result_set_started= FALSE;
 }
@@ -3219,7 +3231,7 @@ bool select_send::send_eof()
   if (unlikely(thd->is_error()))
     return TRUE;
   ::my_eof(thd);
-  is_result_set_started= 0;
+  reset_for_next_ps_execution();
   return FALSE;
 }
 
@@ -3228,10 +3240,22 @@ bool select_send::send_eof()
   Handling writing to file
 ************************************************************************/
 
+bool select_to_file::free_recources()
+{
+  if (file >= 0)
+  {
+    (void) end_io_cache(&cache);
+    bool error= mysql_file_close(file, MYF(MY_WME));
+    file= -1;
+    return error;
+  }
+  return FALSE;
+}
+
 bool select_to_file::send_eof()
 {
-  int error= MY_TEST(end_io_cache(&cache));
-  if (unlikely(mysql_file_close(file, MYF(MY_WME))) ||
+  int error= false;
+  if (unlikely(free_recources()) ||
       unlikely(thd->is_error()))
     error= true;
 
@@ -3239,20 +3263,19 @@ bool select_to_file::send_eof()
   {
     ::my_ok(thd,row_count);
   }
-  file= -1;
   return error;
 }
 
+void select_to_file::abort_result_set()
+{
+  select_result_interceptor::abort_result_set();
+  free_recources();
+}
 
-void select_to_file::cleanup()
+void select_to_file::reset_for_next_ps_execution()
 {
   /* In case of error send_eof() may be not called: close the file here. */
-  if (file >= 0)
-  {
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    file= -1;
-  }
+  free_recources();
   path[0]= '\0';
   row_count= 0;
 }
@@ -3260,12 +3283,8 @@ void select_to_file::cleanup()
 
 select_to_file::~select_to_file()
 {
-  if (file >= 0)
-  {					// This only happens in case of error
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    file= -1;
-  }
+  DBUG_ASSERT(file < 0);
+  free_recources(); // just in case
 }
 
 /***************************************************************************
@@ -3752,9 +3771,9 @@ int select_singlerow_subselect::send_data(List<Item> &items)
 }
 
 
-void select_max_min_finder_subselect::cleanup()
+void select_max_min_finder_subselect::reset_for_next_ps_execution()
 {
-  DBUG_ENTER("select_max_min_finder_subselect::cleanup");
+  DBUG_ENTER("select_max_min_finder_subselect::reset_for_next_ps_execution");
   cache= 0;
   DBUG_VOID_RETURN;
 }
@@ -3979,7 +3998,7 @@ bool select_dumpvar::check_simple_select() const
 }
 
 
-void select_dumpvar::cleanup()
+void select_dumpvar::reset_for_next_ps_execution()
 {
   row_count= 0;
 }
@@ -4409,10 +4428,10 @@ void select_materialize_with_stats::reset()
 }
 
 
-void select_materialize_with_stats::cleanup()
+void select_materialize_with_stats::reset_for_next_ps_execution()
 {
   reset();
-  select_unit::cleanup();
+  select_unit::reset_for_next_ps_execution();
 }
 
 

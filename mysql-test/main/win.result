@@ -4684,6 +4684,29 @@ w2_total	w1_total	u
 200	200	2
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-35869: degenerated subquery with window function
+#
+CREATE TABLE t1 (a int DEFAULT 10);
+INSERT INTO t1 VALUES (7), (2), (3);
+SELECT * FROM t1 WHERE (SELECT AVG(3)) > 2;
+a
+7
+2
+3
+SELECT * FROM t1 WHERE (SELECT AVG(3) OVER ()) > 2;
+a
+7
+2
+3
+INSERT INTO t1 VALUES((SELECT avg(4) OVER ()));
+SELECT * FROM t1;
+a
+7
+2
+3
+4
+DROP TABLE t1;
 # End of 10.5 tests
 #
 # MDEV-28206 SIGSEGV in Item_field::fix_fields when using LEAD...OVER

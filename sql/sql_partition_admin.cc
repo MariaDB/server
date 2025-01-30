@@ -241,6 +241,8 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
     part_create_info.row_type= table->s->row_type;
   }
 
+  part_create_info.table= part_table;
+
   /*
     NOTE: ha_blackhole does not support check_if_compatible_data,
     so this always fail for blackhole tables.

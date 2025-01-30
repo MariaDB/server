@@ -227,11 +227,7 @@ int spider_end_trx(
   SPIDER_CONN *conn
 );
 
-int spider_check_trx_and_get_conn(
-  THD *thd,
-  ha_spider *spider,
-  bool use_conn_kind
-);
+int spider_check_trx_and_get_conn(THD *thd, ha_spider *spider);
 
 THD *spider_create_tmp_thd();
 

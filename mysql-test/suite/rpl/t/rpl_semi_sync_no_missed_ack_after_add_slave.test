@@ -86,6 +86,10 @@ if (`SELECT $slave1_sent_ack`)
 
 --connection server_3
 --echo # Verifying server_3 did send ACK
+--let $status_var= Rpl_semi_sync_slave_send_ack
+--let $status_var_comparsion= >
+--let $status_var_value= 0
+--source include/wait_for_status_var.inc
 --let $slave2_sent_ack= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_slave_send_ack', Value, 1)
 if (`SELECT NOT $slave2_sent_ack`)
 {

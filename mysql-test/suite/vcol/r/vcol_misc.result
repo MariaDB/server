@@ -577,3 +577,17 @@ drop table t;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-26891 Segfault in Field::register_field_in_read_map upon INSERT DELAYED with virtual columns
+#
+CREATE TABLE t (
+id INT AUTO_INCREMENT,
+a varchar(16) NOT NULL DEFAULT '',
+b varchar(16) GENERATED ALWAYS AS (a) VIRTUAL,
+KEY `col_year` (b(8),id)
+) ENGINE=MyISAM;
+INSERT DELAYED INTO t (a) VALUES ('foo'),('bar');
+DROP TABLE t;
+#
+# End of 10.5 tests
+#

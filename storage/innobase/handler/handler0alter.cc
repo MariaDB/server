@@ -30,6 +30,7 @@ Smart ALTER TABLE
 #include <sql_class.h>
 #include <sql_table.h>
 #include <mysql/plugin.h>
+#include <strfunc.h>
 
 /* Include necessary InnoDB headers */
 #include "btr0sea.h"
@@ -3230,6 +3231,9 @@ innobase_get_foreign_key_info(
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
 	const CHARSET_INFO*	cs = thd_charset(trx->mysql_thd);
+	char db_name[MAX_DATABASE_NAME_LEN + 1];
+	char t_name[MAX_TABLE_NAME_LEN + 1];
+	static_assert(MAX_TABLE_NAME_LEN == MAX_DATABASE_NAME_LEN, "");
 
 	DBUG_ENTER("innobase_get_foreign_key_info");
 
@@ -3294,14 +3298,15 @@ innobase_get_foreign_key_info(
 
 		add_fk[num_fk] = dict_mem_foreign_create();
 
+		LEX_CSTRING t = innodb_convert_name(cs, fk_key->ref_table,
+						    t_name);
+		LEX_CSTRING d = fk_key->ref_db.str
+			? innodb_convert_name(cs, fk_key->ref_db, db_name)
+			: LEX_CSTRING{table->name.m_name, table->name.dblen()};
 		dict_sys.lock(SRW_LOCK_CALL);
 
-		referenced_table_name = dict_get_referenced_table(
-			table->name.m_name,
-			LEX_STRING_WITH_LEN(fk_key->ref_db),
-			LEX_STRING_WITH_LEN(fk_key->ref_table),
-			&referenced_table,
-			add_fk[num_fk]->heap, cs);
+		referenced_table_name = dict_table_lookup(
+			d, t, &referenced_table, add_fk[num_fk]->heap);
 
 		/* Test the case when referenced_table failed to
 		open, if trx->check_foreigns is not set, we should
@@ -4449,13 +4454,15 @@ declared as NOT NULL
 @param n_drop_fk number of constraints that are being dropped
 @param col_name  modified column name
 @param new_field_flags Modified field flags
+@param strict_mode     Whether the sql_mode is strict
 @retval true Not allowed (will call my_error())
 @retval false Allowed
 */
 static
 bool check_foreigns_nullability(const dict_table_t *user_table,
                                 dict_foreign_t **drop_fk, ulint n_drop_fk,
-                                const char *col_name, uint32_t new_field_flags)
+                                const char *col_name, uint32_t new_field_flags,
+                                bool strict_mode)
 {
   ut_ad(dict_sys.locked());
 
@@ -4467,7 +4474,7 @@ bool check_foreigns_nullability(const dict_table_t *user_table,
       if (innobase_dropping_foreign(foreign, drop_fk, n_drop_fk))
         continue;
 
-      if (foreign->on_update_cascade_null(col_name))
+      if (strict_mode && foreign->on_update_cascade_null(col_name))
         goto non_null_error;
 
       if (foreign->type & (foreign->DELETE_SET_NULL |
@@ -4489,7 +4496,7 @@ non_null_error:
   {
     for (dict_foreign_t *foreign : user_table->referenced_set)
     {
-      if (foreign->on_update_cascade_not_null(col_name))
+      if (strict_mode && foreign->on_update_cascade_not_null(col_name))
       {
         char display_name[FN_REFLEN];
         const int dblen= int(table_name_t(const_cast<char*>(foreign->
@@ -4591,6 +4598,7 @@ column that is being dropped or modified to NOT NULL.
 @param user_table InnoDB table as it is before the ALTER operation
 @param drop_fk constraints being dropped
 @param n_drop_fk number of constraints that are being dropped
+@param strict_mode Whether the strict sql_mode is set
 @retval true Not allowed (will call my_error())
 @retval false Allowed
 */
@@ -4602,7 +4610,8 @@ innobase_check_foreigns(
 	const TABLE*		old_table,
 	const dict_table_t*	user_table,
 	dict_foreign_t**	drop_fk,
-	ulint			n_drop_fk)
+	ulint			n_drop_fk,
+	bool			strict_mode)
 {
 	for (Field** fp = old_table->field; *fp; fp++) {
 		ut_ad(!(*fp)->real_maybe_null()
@@ -4627,7 +4636,8 @@ innobase_check_foreigns(
 			if (check_foreigns_nullability(user_table, drop_fk,
 						       n_drop_fk,
 						       (*fp)->field_name.str,
-						       it->flags)) {
+						       it->flags,
+						       strict_mode)) {
 				return true;
 			}
 		}
@@ -6665,7 +6675,8 @@ acquire_lock:
 	if (new_clustered) {
 		if (innobase_check_foreigns(
 			    ha_alter_info, old_table,
-			    user_table, ctx->drop_fk, ctx->num_to_drop_fk)) {
+			    user_table, ctx->drop_fk, ctx->num_to_drop_fk,
+			    thd_is_strict_mode(ctx->trx->mysql_thd))) {
 new_clustered_failed:
 			DBUG_ASSERT(ctx->trx != ctx->prebuilt->trx);
 			ctx->trx->rollback();
@@ -10429,10 +10440,12 @@ commit_try_rebuild(
 	char* old_name= mem_heap_strdup(ctx->heap, user_table->name.m_name);
 
 	dberr_t error = row_rename_table_for_mysql(user_table->name.m_name,
-						   ctx->tmp_name, trx, false);
+						   ctx->tmp_name, trx,
+						   RENAME_REBUILD);
 	if (error == DB_SUCCESS) {
 		error = row_rename_table_for_mysql(
-			rebuilt_table->name.m_name, old_name, trx, false);
+			rebuilt_table->name.m_name, old_name, trx,
+			RENAME_REBUILD);
 		if (error == DB_SUCCESS) {
 			/* The statistics for the surviving indexes will be
 			re-inserted in alter_stats_rebuild(). */
@@ -11047,6 +11060,37 @@ commit_cache_norebuild(
 		}
 
 		dict_index_remove_from_cache(index->table, index);
+	}
+
+	if (ctx->num_to_add_index) {
+		for (dict_foreign_t* foreign: ctx->new_table->foreign_set) {
+			if (foreign->foreign_table == ctx->new_table
+			    && !foreign->foreign_index) {
+				foreign->foreign_index =
+					dict_foreign_find_index(
+						foreign->foreign_table,
+						nullptr,
+						foreign->foreign_col_names,
+						foreign->n_fields, nullptr,
+						/*check_charsets=*/TRUE,
+						/*check_null=*/FALSE,
+						nullptr, nullptr, nullptr);
+			}
+		}
+		for (dict_foreign_t* foreign: ctx->new_table->referenced_set) {
+			if (foreign->referenced_table == ctx->new_table
+			    && !foreign->referenced_index) {
+				foreign->referenced_index =
+					dict_foreign_find_index(
+						foreign->referenced_table,
+						nullptr,
+						foreign->referenced_col_names,
+						foreign->n_fields, nullptr,
+						/*check_charsets=*/TRUE,
+						/*check_null=*/FALSE,
+						nullptr, nullptr, nullptr);
+			}
+		}
 	}
 
 	fts_clear_all(ctx->old_table);

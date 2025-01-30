@@ -561,7 +561,7 @@ hstest_thread::test_9(int test_num)
     flds += std::string(buf);
   }
   int connected = 0;
-  std::auto_ptr<auto_mysql_stmt> stmt;
+  std::unique_ptr<auto_mysql_stmt> stmt;
   string_buffer wbuf;
   for (int i = 0; i < num; ++i) {
     const double tm1 = gettimeofday_double();
@@ -1474,7 +1474,7 @@ hstest_main(int argc, char **argv)
   #endif
   const int num_thrs = shared.num_threads;
   typedef thread<hstest_thread> thread_type;
-  typedef std::auto_ptr<thread_type> thread_ptr;
+  typedef std::unique_ptr<thread_type> thread_ptr;
   typedef auto_ptrcontainer< std::vector<thread_type *> > thrs_type;
   thrs_type thrs;
   for (int i = 0; i < num_thrs; ++i) {
