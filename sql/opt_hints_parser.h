@@ -29,6 +29,29 @@ class st_select_lex;
 class Opt_hints_qb;
 
 /**
+  Hint types, MAX_HINT_ENUM should be always last.
+  This enum should be synchronized with opt_hint_info
+  array(see opt_hints.cc).
+*/
+enum opt_hints_enum
+{
+  BKA_HINT_ENUM= 0,
+  BNL_HINT_ENUM,
+  ICP_HINT_ENUM,
+  MRR_HINT_ENUM,
+  NO_RANGE_HINT_ENUM,
+  QB_NAME_HINT_ENUM,
+  MAX_EXEC_TIME_HINT_ENUM,
+  SEMIJOIN_HINT_ENUM,
+  SUBQUERY_HINT_ENUM,
+  JOIN_PREFIX_HINT_ENUM,
+  JOIN_SUFFIX_HINT_ENUM,
+  JOIN_ORDER_HINT_ENUM,
+  JOIN_FIXED_ORDER_HINT_ENUM,
+  MAX_HINT_ENUM // This one must be the last in the list
+};
+
+/**
   Environment data for the name resolution phase
 */
 struct Parse_context {
@@ -63,9 +86,12 @@ public:
     tAT= '@',
     tLPAREN= '(',
     tRPAREN= ')',
+    // Other token types
+    tIDENT= 'i',
+    tUNSIGNED_NUMBER= 'n',
 
     // Keywords
-    keyword_BKA,
+    keyword_BKA = 256, // Value must be greater than any of the above
     keyword_BNL,
     keyword_NO_BKA,
     keyword_NO_BNL,
@@ -83,10 +109,10 @@ public:
     keyword_LOOSESCAN,
     keyword_DUPSWEEDOUT,
     keyword_INTOEXISTS,
-
-    // Other token types
-    tIDENT,
-    tUNSIGNED_NUMBER
+    keyword_JOIN_PREFIX,
+    keyword_JOIN_SUFFIX,
+    keyword_JOIN_ORDER,
+    keyword_JOIN_FIXED_ORDER
   };
 
   class Token: public Lex_cstring
@@ -819,23 +845,95 @@ public:
 
 
   /*
+    join_order_hint_type ::= JOIN_FIXED_ORDER
+                             | JOIN_ORDER
+                             | JOIN_PREFIX
+                             | JOIN_SUFFIX
+  */
+  class Join_order_hint_type_cond
+  {
+  public:
+    static bool allowed_token_id(TokenID id)
+    {
+      return id == TokenID::keyword_JOIN_FIXED_ORDER ||
+             id == TokenID::keyword_JOIN_ORDER ||
+             id == TokenID::keyword_JOIN_PREFIX ||
+             id == TokenID::keyword_JOIN_SUFFIX;
+    }
+  };
+  class Join_order_hint_type: public TokenChoice<Parser,
+                                                 Join_order_hint_type_cond>
+  {
+  public:
+    using TokenChoice::TokenChoice;
+  };
+
+  /*
+    Struct representing table names listed in optimizer hints bodies.
+    They may optionally include query block names, for example:
+    t1, t2@qb1, t3, t4@qb5
+  */
+  struct Table_name_and_Qb: public Sql_alloc
+  {
+    Lex_ident_sys table_name;
+    Lex_ident_sys qb_name;      // may be empty
+
+    Table_name_and_Qb(const Lex_ident_sys& tbl, const Lex_ident_sys& qb) :
+      table_name(tbl), qb_name(qb)
+    {}
+
+    Table_name_and_Qb(Lex_ident_sys&& tbl, Lex_ident_sys&& qb) :
+      table_name(std::move(tbl)), qb_name(std::move(qb))
+    {}
+  };
+
+  /*
+    join_order_hint ::= join_order_hint_type ( table_level_hint_body )
+  */
+  class Join_order_hint: public AND4<Parser,
+                                   Join_order_hint_type,
+                                   LParen,
+                                   Table_level_hint_body,
+                                   RParen>,
+                         public Printable_parser_rule
+  {
+  public:
+    using AND4::AND4;
+
+    opt_hints_enum hint_type= MAX_HINT_ENUM;
+
+    bool resolve(Parse_context *pc);
+
+    void append_args(THD *thd, String *str) const override;
+
+    /*
+      Table names (optionally augmented with query block names) listed in
+      the hint body.
+    */
+    List<Table_name_and_Qb> table_names;
+  };
+
+
+  /*
     hint ::=   index_level_hint
              | table_level_hint
              | qb_name_hint
              | max_execution_time_hint
              | semijoin_hint
              | subquery_hint
+             | join_order_hint
   */
-  class Hint: public OR6<Parser,
+  class Hint: public OR7<Parser,
                          Index_level_hint,
                          Table_level_hint,
                          Qb_name_hint,
                          Max_execution_time_hint,
                          Semijoin_hint,
-                         Subquery_hint>
+                         Subquery_hint,
+                         Join_order_hint>
   {
   public:
-    using OR6::OR6;
+    using OR7::OR7;
   };
 
 private:

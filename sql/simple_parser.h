@@ -519,24 +519,27 @@ protected:
   };
 
   /*
-     A rule consisting of a choice of six rules:
-        rule ::= rule1 | rule2 | rule3 | rule4 | rule5 | rule6
+     A rule consisting of a choice of seven rules:
+        rule ::= rule1 | rule2 | rule3 | rule4 | rule5 | rule6 | rule7
   */
-  template<class PARSER, class A, class B, class C, class D, class E, class F>
-  class OR6: public A, public B, public C, public D, public E, public F
+  template<class PARSER, class A, class B, class C, class D, class E, class F,
+           class G>
+  class OR7: public A, public B, public C, public D, public E, public F,
+      public G
   {
   public:
-    OR6()
+    OR7()
     { }
-    OR6(OR6 &&rhs)
+    OR7(OR7 &&rhs)
      :A(std::move(static_cast<A&&>(rhs))),
       B(std::move(static_cast<B&&>(rhs))),
       C(std::move(static_cast<C&&>(rhs))),
       D(std::move(static_cast<D&&>(rhs))),
       E(std::move(static_cast<E&&>(rhs))),
-      F(std::move(static_cast<F&&>(rhs)))
+      F(std::move(static_cast<F&&>(rhs))),
+      G(std::move(static_cast<G&&>(rhs)))
     { }
-    OR6 & operator=(OR6 &&rhs)
+    OR7 & operator=(OR7 &&rhs)
     {
       A::operator=(std::move(static_cast<A&&>(rhs)));
       B::operator=(std::move(static_cast<B&&>(rhs)));
@@ -544,9 +547,10 @@ protected:
       D::operator=(std::move(static_cast<D&&>(rhs)));
       E::operator=(std::move(static_cast<E&&>(rhs)));
       F::operator=(std::move(static_cast<F&&>(rhs)));
+      G::operator=(std::move(static_cast<G&&>(rhs)));
       return *this;
     }
-    OR6(PARSER *p)
+    OR7(PARSER *p)
      :A(p),
       B(A::operator bool() ? B() : B(p)),
       C(A::operator bool() || B::operator bool() ? C() : C(p)),
@@ -555,14 +559,18 @@ protected:
       E(A::operator bool() || B::operator bool() || C::operator bool() ||
         D::operator bool() ? E() : E(p)),
       F(A::operator bool() || B::operator bool() || C::operator bool() ||
-        D::operator bool() || E::operator bool() ? F() : F(p))
+        D::operator bool() || E::operator bool() ? F() : F(p)),
+      G(A::operator bool() || B::operator bool() || C::operator bool() ||
+        D::operator bool() || E::operator bool() || F::operator bool() ?
+          G() : G(p))
     {
       DBUG_ASSERT(!operator bool() || !p->is_error());
     }
     operator bool() const
     {
       return A::operator bool() || B::operator bool() || C::operator bool() ||
-             D::operator bool() || E::operator bool() || F::operator bool();
+             D::operator bool() || E::operator bool() || F::operator bool() ||
+             G::operator bool();
     }
   };
 
