@@ -1948,6 +1948,10 @@ public:
   bool optimize_upper_rownum_func();
   void calc_allowed_top_level_tables(SELECT_LEX *lex);
   table_map get_allowed_nj_tables(uint idx);
+  bool propagate_dependencies();
+  void init_key_dependencies();
+  table_map *export_table_dependencies() const;
+  void restore_table_dependencies(table_map *orig_dep_array);
 
 private:
   /**

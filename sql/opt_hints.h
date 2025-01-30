@@ -90,26 +90,6 @@
 struct LEX;
 struct TABLE;
 
-/**
-  Hint types, MAX_HINT_ENUM should be always last.
-  This enum should be synchronized with opt_hint_info
-  array(see opt_hints.cc).
-*/
-enum opt_hints_enum
-{
-  BKA_HINT_ENUM= 0,
-  BNL_HINT_ENUM,
-  ICP_HINT_ENUM,
-  MRR_HINT_ENUM,
-  NO_RANGE_HINT_ENUM,
-  QB_NAME_HINT_ENUM,
-  MAX_EXEC_TIME_HINT_ENUM,
-  SEMIJOIN_HINT_ENUM,
-  SUBQUERY_HINT_ENUM,
-  MAX_HINT_ENUM // This one must be the last in the list
-};
-
-
 struct st_opt_hint_info
 {
   LEX_CSTRING hint_type;  // Hint "type", like "BKA" or "MRR".
@@ -129,32 +109,26 @@ class Opt_hints_map : public Sql_alloc
 {
   Bitmap<64> hints;           // hint state
   Bitmap<64> hints_specified; // true if hint is specified
+  Bitmap<64> hints_ignored;   // true if hint is specified but ignored
 
 public:
   Opt_hints_map()
   {
     hints.clear_all();
     hints_specified.clear_all();
+    hints_ignored.clear_all();
   }
 
-  /**
-     Check if hint is specified.
-
-     @param type_arg   hint type
-
-     @return true if hint is specified,
-             false otherwise
-  */
   my_bool is_specified(opt_hints_enum type_arg) const
   {
     return hints_specified.is_set(type_arg);
   }
-  /**
-     Set switch value and set hint into specified state.
 
-     @param type_arg           hint type
-     @param switch_state_arg   switch value
-  */
+  my_bool is_ignored(opt_hints_enum type_arg) const
+  {
+    return hints_ignored.is_set(type_arg);
+  }
+
   void set_switch(opt_hints_enum type_arg,
                   bool switch_state_arg)
   {
@@ -164,16 +138,15 @@ public:
       hints.clear_bit(type_arg);
     hints_specified.set_bit(type_arg);
   }
-  /**
-     Get switch value.
 
-     @param type_arg    hint type
-
-     @return switch value.
-  */
   bool is_switched_on(opt_hints_enum type_arg) const
   {
     return hints.is_set(type_arg);
+  }
+  
+  void set_ignored(opt_hints_enum type_arg)
+  {
+    hints_ignored.set_bit(type_arg);
   }
 };
 
@@ -241,6 +214,17 @@ public:
   bool is_specified(opt_hints_enum type_arg) const
   {
     return hints_map.is_specified(type_arg);
+  }
+
+  // OLEGS: is it needed?
+  void set_ignored(opt_hints_enum type_arg)
+  {
+    hints_map.set_ignored(type_arg);
+  }
+
+  bool is_ignored(opt_hints_enum type_arg) const
+  {
+    return hints_map.is_ignored(type_arg);
   }
 
   /**
@@ -416,6 +400,10 @@ class Opt_hints_table;
                present after that)
     - [NO_]SEMIJOIN
     - SUBQUERY
+    - JOIN_PREFIX
+    - JOIN_SUFFIX
+    - JOIN_ORDER
+    - JOIN_FIXED_ORDER_HINT_ENUM
 */
 
 class Opt_hints_qb : public Opt_hints
@@ -454,15 +442,7 @@ public:
   }
 
   void append_hint_arguments(THD *thd, opt_hints_enum hint,
-                             String *str) override
-  {
-    if (hint == SUBQUERY_HINT_ENUM)
-      subquery_hint->append_args(thd, str);
-    else if (hint == SEMIJOIN_HINT_ENUM)
-      semijoin_hint->append_args(thd, str);
-    else
-      DBUG_ASSERT(0);
-   }
+                             String *str) override;
 
   /**
     Function finds Opt_hints_table object corresponding to
@@ -477,6 +457,14 @@ public:
   */
   Opt_hints_table *fix_hints_for_table(TABLE *table,
                                        const Lex_ident_table &alias);
+
+   /**
+     Checks if join order hints are applicable and
+     applies table dependencies if possible.
+ 
+    @param join JOIN object
+  */
+  void apply_join_order_hints(JOIN *join);
 
   /**
     Returns whether semi-join is enabled for this query block
@@ -516,6 +504,26 @@ public:
   const Parser::Subquery_hint *subquery_hint= nullptr;
   uint subquery_strategy= SUBS_NOT_TRANSFORMED;
 
+  // Array of join order hints
+  Mem_root_array<Parser::Join_order_hint *, false> join_order_hints; // OLEGS: check has_trivial_destr == true
+  // Bit map of which hints are ignored.
+  ulonglong join_order_hints_ignored;
+
+  void register_join_order_hint(Parser::Join_order_hint *hint_arg)
+  {
+    join_order_hints.push_back(hint_arg);
+  }
+
+  // OLEGS: wrong schema, order of hints are important!
+  const Parser::Join_order_hint *join_prefix= nullptr;
+  //bool join_prefix_applied= false;
+  const Parser::Join_order_hint *join_suffix= nullptr;
+  //bool join_suffix_applied= false;
+  //List<Parser::Join_order_hint> join_order_hints;
+  //bool join_order_applied= false;
+  const Parser::Join_order_hint *join_fixed_order= nullptr; // OLEGS: not implemented
+  bool join_fixed_order_applied= false;
+
   void trace_hints(THD *thd)
   {
     if (unlikely(thd->trace_started()))
@@ -528,6 +536,18 @@ public:
       obj.add("hints", str.c_ptr_safe());
     }
   }
+  
+private:
+  bool set_join_hint_deps(JOIN *join, const Parser::Join_order_hint *hint,
+                          opt_hints_enum type);
+  void update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
+                               table_map hint_tab_map);
+  table_map get_other_dep(opt_hints_enum type, table_map hint_tab_map,
+                          table_map table_map);
+  bool compare_table_name(const Parser::Table_name_and_Qb &hint_table_and_qb,
+                          const TABLE_LIST *table);
+  void print_join_order_warn(THD *thd, opt_hints_enum type,
+                             const Parser::Table_name_and_Qb &tbl_name);
 };
 
 

@@ -1,0 +1,175 @@
+diff a/sql/opt_hints.cc b/sql/opt_hints.cc	(rejected hunks)
+@@ -1141,6 +1141,173 @@ bool Opt_hints_global::resolve(THD *thd)
+ }
+ 
+ 
++/*
++  Resolve a parsed join order hint, i.e. set up proper Opt_hint_* structures
++  which will be used later during query preparation and optimization.
++
++  Return value:
++  - false: no critical errors, warnings on duplicated hints,
++          unresolved query block names, etc. are allowed
++  - true: critical errors detected, break further hints processing
++*/
++bool Parser::Join_order_hint::resolve(Parse_context *pc) const
++{
++  const Join_order_hint_type &join_order_hint_type= *this;
++  opt_hints_enum hint_type;
++
++  switch (join_order_hint_type.id())
++  {
++  case TokenID::keyword_JOIN_FIXED_ORDER:
++     hint_type= JOIN_FIXED_ORDER_HINT_ENUM;
++     break;
++  case TokenID::keyword_JOIN_ORDER:
++     hint_type= JOIN_ORDER_HINT_ENUM;
++     break;
++  case TokenID::keyword_JOIN_PREFIX:
++     hint_type= JOIN_PREFIX_HINT_ENUM;
++     break;
++  case TokenID::keyword_JOIN_SUFFIX:
++     hint_type= JOIN_SUFFIX_HINT_ENUM;
++     break;
++  default:
++     DBUG_ASSERT(0);
++     return true;
++  }
++
++  // OLEGS: very much duplication with Table_level_hint::resolve()
++  if (const At_query_block_name_opt_table_name_list &
++       at_query_block_name_opt_table_name_list= *this)
++  {
++    // this is @ query_block_name opt_table_name_list
++    const Lex_ident_sys qb_name_sys= Query_block_name::to_ident_sys(pc->thd);
++    Opt_hints_qb *qb= find_qb_hints(pc, qb_name_sys, hint_type, true);
++    if (qb == nullptr)
++      return false;
++    if (at_query_block_name_opt_table_name_list.is_empty())
++    {
++      if (hint_type != JOIN_FIXED_ORDER_HINT_ENUM)
++      {
++        // Skipping table name(s) only allowed for the JOIN_FIXED_ORDER hint
++        // OLEGS: generate warning
++        
++        return false;
++      }
++      // it is JOIN_ORDER_FIXED(@qb1)
++      if (qb->get_switch(JOIN_PREFIX_HINT_ENUM) ||
++          qb->get_switch(JOIN_SUFFIX_HINT_ENUM) ||
++          qb->get_switch(JOIN_ORDER_HINT_ENUM))
++      {
++        // OLEGS: conflicting hint, generate warning
++        print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, true,
++                   &qb_name_sys, nullptr, nullptr, (Parser::Hint*) nullptr);
++        
++        return false;
++      }
++      // OLEGS: MySQL has:
++      // pc->select->add_base_options(SELECT_STRAIGHT_JOIN);
++      // but we probably need to set some switch as well for printing
++      
++      
++    }
++    else
++    {
++      // e.g. JOIN_PREFIX(@qb1 t1, t2, t3)
++      const Opt_table_name_list &opt_table_name_list= *this;
++      for (const Table_name &table : opt_table_name_list)
++      {
++        const Lex_ident_sys table_name_sys= table.to_ident_sys(pc->thd);
++        if (qb->get_switch(hint_type) || qb->get_switch(JOIN_FIXED_ORDER_HINT_ENUM))
++        {
++          
++          return false;
++        }
++        qb->register_join_order_hint(this);
++        // Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
++        // if (!tab)
++        //   return false;
++        // if (tab->set_switch(hint_state, hint_type, false))
++        // {
++        //   print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
++        //              &qb_name_sys, &table_name_sys, nullptr,
++        //              (Parser::Hint*) nullptr);
++        // }
++      }
++    }
++  }
++  else
++  {
++    // this is opt_hint_param_table_list
++    const Opt_table_name_list &table_name_list= *this;
++    const Opt_hint_param_table_list &opt_hint_param_table_list= *this;
++    Opt_hints_qb *qb= find_qb_hints(pc, Lex_ident_sys(), hint_type, true);
++    if (qb == nullptr)
++      return false;
++    if (table_name_list.is_empty() && opt_hint_param_table_list.is_empty())
++    {
++      if (hint_type != JOIN_FIXED_ORDER_HINT_ENUM)
++      {
++        // Skipping table name(s) only allowed for the JOIN_FIXED_ORDER hint
++        // OLEGS: generate warning
++        
++        return false;
++      }
++      // it is JOIN_FIXED_ORDER()
++      if (qb->get_switch(JOIN_PREFIX_HINT_ENUM) ||
++          qb->get_switch(JOIN_SUFFIX_HINT_ENUM) ||
++          qb->get_switch(JOIN_ORDER_HINT_ENUM))
++      {
++        // OLEGS: conflicting hint, generate warning
++        print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, true,
++                   &qb_name_sys, nullptr, nullptr, (Parser::Hint*) nullptr);
++        
++        return false;
++      }
++      
++      // OLEGS: process the hint.
++      // OLEGS: see above
++    }
++     // OLEGS: should we iterate over table names here?
++
++  //   for (const Table_name &table : table_name_list)
++  //   {
++  //     // e.g. BKA(t1, t2)
++  //     const Lex_ident_sys table_name_sys= table.to_ident_sys(pc->thd);
++  //     Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
++  //     if (!tab)
++  //       return false;
++  //     if (tab->set_switch(hint_state, hint_type, true))
++  //     {
++  //       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
++  //                  &null_ident_sys, &table_name_sys, nullptr,
++  //                  (Parser::Hint*) nullptr);
++  //     }
++  //   }
++  
++  //   for (const Hint_param_table &table : opt_hint_param_table_list)
++  //   {
++  //     // e.g. BKA(t1@qb1, t2@qb2)
++  //     const Lex_ident_sys qb_name_sys= table.Query_block_name::
++  //                                        to_ident_sys(pc->thd);
++  //     Opt_hints_qb *qb= find_qb_hints(pc, qb_name_sys, hint_type, hint_state);
++  //     if (qb == NULL)
++  //       return false;
++  //     const Lex_ident_sys table_name_sys= table.Table_name::
++  //                                           to_ident_sys(pc->thd);
++  //     Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
++  //     if (!tab)
++  //       return false;
++  //     if (tab->set_switch(hint_state, hint_type, true))
++  //     {
++  //        print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
++  //                   &qb_name_sys, &table_name_sys, nullptr,
++  //                   (Parser::Hint*) nullptr);
++  //     }
++  //   }
++  }
++  return false;
++}
++
++
+ bool Parser::Hint_list::resolve(Parse_context *pc) const
+ {
+   if (pc->thd->lex->create_view)

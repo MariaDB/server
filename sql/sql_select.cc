@@ -5574,7 +5574,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   key_map const_ref, eq_part;
   bool has_expensive_keyparts;
   TABLE **table_vector;
-  JOIN_TAB *stat,*stat_end,*s,**stat_ref, **stat_vector;
+  JOIN_TAB *s,**stat_ref, **stat_vector;
   KEYUSE *keyuse,*start_keyuse;
   table_map outer_join=0;
   table_map no_rows_const_tables= 0;
@@ -5600,7 +5600,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   */
 
   if (!multi_alloc_root(join->thd->mem_root,
-                        &stat, sizeof(JOIN_TAB)*(table_count),
+                        &join->join_tab, sizeof(JOIN_TAB)*(table_count),
                         &stat_ref, sizeof(JOIN_TAB*)* MAX_TABLES,
                         &stat_vector, sizeof(JOIN_TAB*)* (table_count +1),
                         &table_vector, sizeof(TABLE*)*(table_count*2),
@@ -5612,7 +5612,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(1);
 
   /* The following should be optimized to only clear critical things */
-  bzero((void*)stat, sizeof(JOIN_TAB)* table_count);
+  bzero((void*)join->join_tab, sizeof(JOIN_TAB)* table_count);
   join->top_join_tab_count= table_count;
 
   /* Initialize POSITION objects */
@@ -5623,11 +5623,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   join->best_ref= stat_vector;
 
-  stat_end=stat+table_count;
   found_const_table_map= all_table_map=0;
   const_count=0;
+  JOIN_TAB *join_tab_end= join->join_tab + join->table_count;
 
-  for (s= stat, i= 0; (tables= ti++); s++, i++)
+  for (s= join->join_tab, i= 0; (tables= ti++); s++, i++)
   {
     TABLE_LIST *embedding= tables->embedding;
     TABLE *table= tables->table;
@@ -5748,71 +5748,31 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   if (join->outer_join)
   {
-    /* 
-       Build transitive closure for relation 'to be dependent on'.
-       This will speed up the plan search for many cases with outer joins,
-       as well as allow us to catch illegal cross references/
-       Warshall's algorithm is used to build the transitive closure.
-       As we use bitmaps to represent the relation the complexity
-       of the algorithm is O((number of tables)^2).
-
-       The classic form of the Warshall's algorithm would look like: 
-       for (i= 0; i < table_count; i++)
-       {
-         for (j= 0; j < table_count; j++)
-         {
-           for (k= 0; k < table_count; k++)
-           {
-             if (bitmap_is_set(stat[j].dependent, i) &&
-                 bitmap_is_set(stat[i].dependent, k))
-               bitmap_set_bit(stat[j].dependent, k);
-           }
-         }
-       }  
-    */
-    
-    for (s= stat ; s < stat_end ; s++)
+    if (join->propagate_dependencies())
     {
-      TABLE *table= s->table;
-      for (JOIN_TAB *t= stat ; t < stat_end ; t++)
-      {
-        if (t->dependent & table->map)
-          t->dependent |= table->reginfo.join_tab->dependent;
-      }
-      if (outer_join & s->table->map)
-        s->table->maybe_null= 1;
+      // Illegal cross-references found
+      table_count= 0;
+      my_message(ER_WRONG_OUTER_JOIN, ER_THD(thd, ER_WRONG_OUTER_JOIN), MYF(0));
+      return true;
     }
-    /* Catch illegal cross references for outer joins */
-    for (i= 0, s= stat ; i < table_count ; i++, s++)
-    {
-      if (s->dependent & s->table->map)
-      {
-        join->table_count=0;			// Don't use join->table
-        my_message(ER_WRONG_OUTER_JOIN,
-                   ER_THD(join->thd, ER_WRONG_OUTER_JOIN), MYF(0));
-        goto error;
-      }
-      s->key_dependent= s->dependent;
-    }
+    join->init_key_dependencies();
   }
 
+  for (JOIN_TAB *s= join->join_tab; s < join_tab_end; s++)
   {
-    for (JOIN_TAB *s= stat ; s < stat_end ; s++)
+    TABLE_LIST *tl= s->table->pos_in_table_list;
+    if (tl->embedding && tl->embedding->sj_subq_pred)
     {
-      TABLE_LIST *tl= s->table->pos_in_table_list;
-      if (tl->embedding && tl->embedding->sj_subq_pred)
-      {
-        s->embedded_dependent= tl->embedding->original_subq_pred_used_tables;
-      }
+      s->embedded_dependent= tl->embedding->original_subq_pred_used_tables;
     }
   }
 
   if (unlikely(thd->trace_started()))
-    trace_table_dependencies(thd, stat, join->table_count);
+    trace_table_dependencies(thd, join->join_tab, join->table_count);
 
   if (join->conds || outer_join)
   {
-    if (update_ref_and_keys(thd, keyuse_array, stat, join->table_count,
+    if (update_ref_and_keys(thd, keyuse_array, join->join_tab, join->table_count,
                             join->conds, ~outer_join, join->select_lex, &sargables))
       goto error;
     /*
@@ -6115,7 +6075,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
-  join->join_tab= stat;
   join->make_notnull_conds_for_range_scans();
 
   /* Calc how many (possible) matched records in each table */
@@ -6129,7 +6088,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     Json_writer_object rows_estimation_wrapper(thd);
     Json_writer_array rows_estimation(thd, "rows_estimation");
 
-    for (s=stat ; s < stat_end ; s++)
+    for (s= join->join_tab ; s < join_tab_end; s++)
     {
       s->startup_cost= 0;
       if (s->type == JT_SYSTEM || s->type == JT_CONST)
@@ -6294,12 +6253,22 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   if (pull_out_semijoin_tables(join))
     DBUG_RETURN(TRUE);
 
-  join->join_tab=stat;
+  //join->join_tab= join->stat_begin;
   join->top_join_tab_count= table_count;
   join->map2table=stat_ref;
   join->table= table_vector;
   join->const_tables=const_count;
   join->found_const_table_map=found_const_table_map;
+
+  /*
+    Apply join order hints, with the exception of
+    JOIN_FIXED_ORDER and STRAIGHT_JOIN.
+  */
+  if (join->select_lex->opt_hints_qb &&
+      !(join->select_options & SELECT_STRAIGHT_JOIN))
+  {
+    join->select_lex->opt_hints_qb->apply_join_order_hints(join);
+  }
 
   if (sj_nests)
     join->select_lex->update_available_semijoin_strategies(thd);
@@ -6387,6 +6356,92 @@ error:
       tmp_table->table->reginfo.join_tab= NULL;
   }
   DBUG_RETURN (1);
+}
+
+
+/*
+  Propagate dependencies between tables.
+
+  @returns false if success, true if error
+
+   Build transitive closure for relation 'to be dependent on'.
+   This will speed up the plan search for many cases with outer joins,
+   as well as allow us to catch illegal cross references/
+   Warshall's algorithm is used to build the transitive closure.
+   As we use bitmaps to represent the relation the complexity
+   of the algorithm is O((number of tables)^2).
+
+   The classic form of the Warshall's algorithm would look like: 
+   for (i= 0; i < table_count; i++)
+   {
+     for (j= 0; j < table_count; j++)
+     {
+       for (k= 0; k < table_count; k++)
+       {
+         if (bitmap_is_set(stat[j].dependent, i) &&
+             bitmap_is_set(stat[i].dependent, k))
+           bitmap_set_bit(stat[j].dependent, k);
+       }
+     }
+   }  
+*/
+
+bool JOIN::propagate_dependencies()
+{
+  JOIN_TAB *join_tab_end= join_tab + table_count;
+  for (JOIN_TAB *s= join_tab; s < join_tab_end; s++)
+  {
+    TABLE *table= s->table;
+    if (outer_join & s->table->map)
+      s->table->maybe_null= 1;
+
+    if (!table->reginfo.join_tab->dependent)
+      continue;
+    // Add my dependencies to other tables depending on me
+    for (JOIN_TAB *t= join_tab; t < join_tab_end ; t++)
+    {
+      if (t->dependent & table->map)
+        t->dependent |= table->reginfo.join_tab->dependent;
+    }
+  }
+  // Catch illegal cross references
+  for (JOIN_TAB *tab= join_tab; tab < join_tab_end; tab++)
+  {
+    if (tab->dependent & tab->table->map)
+      return true;
+  }
+  return false;
+}
+
+
+void JOIN::init_key_dependencies()
+{
+  JOIN_TAB *const tab_end = join_tab + table_count;
+  for (JOIN_TAB *tab = join_tab; tab < tab_end; tab++)
+    tab->key_dependent = tab->dependent;
+}
+
+
+// OLEGS: comment
+table_map *JOIN::export_table_dependencies() const
+{
+  table_map *orig_dep_array=
+      (table_map *)thd->alloc(sizeof(table_map) * table_count);
+
+  if (orig_dep_array == nullptr)
+    return nullptr;
+
+  for (uint i= 0; i < table_count; i++)
+    orig_dep_array[i]= join_tab[i].dependent;
+
+  return orig_dep_array;
+}
+
+// OLEGS: comment
+void JOIN::restore_table_dependencies(table_map *orig_dep_array)
+{
+  for (uint i = 0; i < table_count; i++)
+    join_tab[i].dependent= orig_dep_array[i];
 }
 
 

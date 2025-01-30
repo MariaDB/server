@@ -1,0 +1,24 @@
+diff a/sql/opt_hints_parser.h b/sql/opt_hints_parser.h	(rejected hunks)
+@@ -814,17 +866,19 @@ class Optimizer_hint_parser: public Optimizer_hint_tokenizer,
+              | max_execution_time_hint
+              | semijoin_hint
+              | subquery_hint
++             | join_order_hint
+   */
+-  class Hint: public OR6<Parser,
++  class Hint: public OR7<Parser,
+                          Index_level_hint,
+                          Table_level_hint,
+                          Qb_name_hint,
+                          Max_execution_time_hint,
+                          Semijoin_hint,
+-                         Subquery_hint>
++                         Subquery_hint,
++                         Join_order_hint>
+   {
+   public:
+-    using OR6::OR6;
++    using OR7::OR7;
+ 
+     /**
+       Append additional hint arguments to the printed string.
