@@ -977,7 +977,7 @@ create or replace table t1 (
                                             partition pn current);
 
 --echo # fill the table until full
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 --error ER_RECORD_FILE_FULL
 insert into t1 (f) select f from t1;
 --echo # leave space for exactly one record in current partition
@@ -995,8 +995,9 @@ create or replace table t1 (
   partition by system_time interval 1 year (partition p1 history,
                                             partition pn current);
 
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 'load.data' from t1;
 --enable_ps2_protocol
@@ -1005,6 +1006,7 @@ load data infile 'load.data' replace into table t1;
 load data infile 'load.data' replace into table t1;
 --error ER_RECORD_FILE_FULL
 load data infile 'load.data' replace into table t1;
+--enable_cursor_protocol
 
 # Cleanup
 --let $datadir= `select @@datadir`
@@ -1341,9 +1343,11 @@ partition by system_time limit 100 (
   partition pn current);
 
 insert into t1 select seq from seq_0_to_49;
+--disable_cursor_protocol
 --disable_ps2_protocol
 select x into outfile 'MDEV-20077.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 load data infile 'MDEV-20077.data' replace into table t1 (x);
 load data infile 'MDEV-20077.data' replace into table t1 (x);

@@ -497,7 +497,7 @@ select next value for t1;
 next value for t1
 1
 select next value for t1, minimum_value;
-ERROR 42S22: Unknown column 'minimum_value' in 'field list'
+ERROR 42S22: Unknown column 'minimum_value' in 'SELECT'
 drop sequence t1;
 #
 # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions

@@ -136,9 +136,6 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
                                    ulint n_cols, ulint n_v_cols, ulint flags,
                                    ulint flags2)
 {
-  ut_ad(!space || space->purpose == FIL_TYPE_TABLESPACE ||
-        space->purpose == FIL_TYPE_TEMPORARY ||
-        space->purpose == FIL_TYPE_IMPORT);
   ut_a(dict_tf2_is_valid(flags, flags2));
   ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
 
@@ -819,7 +816,7 @@ void
 dict_mem_foreign_table_name_lookup_set(
 /*===================================*/
 	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc)	/*!< in: is an alloc needed */
+	bool		do_alloc)	/*!< in: is an alloc needed */
 {
 	if (lower_case_table_names == 2) {
 		if (do_alloc) {
@@ -833,7 +830,8 @@ dict_mem_foreign_table_name_lookup_set(
 		}
 		strcpy(foreign->foreign_table_name_lookup,
 		       foreign->foreign_table_name);
-		innobase_casedn_str(foreign->foreign_table_name_lookup);
+		my_casedn_str(system_charset_info,
+			      foreign->foreign_table_name_lookup);
 	} else {
 		foreign->foreign_table_name_lookup
 			= foreign->foreign_table_name;
@@ -863,7 +861,8 @@ dict_mem_referenced_table_name_lookup_set(
 		}
 		strcpy(foreign->referenced_table_name_lookup,
 		       foreign->referenced_table_name);
-		innobase_casedn_str(foreign->referenced_table_name_lookup);
+		my_casedn_str(system_charset_info,
+			      foreign->referenced_table_name_lookup);
 	} else {
 		foreign->referenced_table_name_lookup
 			= foreign->referenced_table_name;

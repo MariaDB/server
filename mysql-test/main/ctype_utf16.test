@@ -741,6 +741,8 @@ CREATE TABLE t1 (
   s3 MEDIUMTEXT CHARACTER SET utf16,
   s4 LONGTEXT CHARACTER SET utf16
 );
+#check after fix MDEV-31540
+--disable_cursor_protocol
 --disable_view_protocol
 --enable_metadata
 SET NAMES utf8, @@character_set_results=NULL;
@@ -751,6 +753,7 @@ SET NAMES utf8;
 SELECT *, HEX(s1) FROM t1;
 --disable_metadata
 --enable_view_protocol
+--enable_cursor_protocol
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
@@ -1026,6 +1029,15 @@ SET NAMES utf8;
 # surrogate pairs is replaced to a single question mark.
 SELECT CAST(_utf16 0x0061D83DDE0E0062 AS INT);
 
+--echo #
+--echo # MDEV-23138 Odd behavior of character_set variables set to utf16 (when allowed)
+--echo #
+
+SET character_set_connection=utf16;
+SET tx_isolation= 'READ-COMMITTED';
+SELECT @@tx_isolation;
+SET tx_isolation=DEFAULT;
+SET NAMES utf8mb3;
 
 --echo #
 --echo # End of 10.5 tests

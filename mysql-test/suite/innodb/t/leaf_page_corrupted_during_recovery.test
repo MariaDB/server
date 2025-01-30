@@ -2,9 +2,8 @@
 --source include/have_debug.inc
 
 --disable_query_log
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to read page 19 from file '.*test.t1\\.ibd': Page read from tablespace is corrupted\\.");
-call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) corrupted page .*, page number=19\\]");
+call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page 19 in file .*t1\\.ibd");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Plugin initialization aborted at srv0start\\.cc.* with error Data structure corruption");
 call mtr.add_suppression("\\[ERROR\\] Plugin 'InnoDB' (init function|registration)");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption");

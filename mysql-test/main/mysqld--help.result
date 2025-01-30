@@ -719,10 +719,24 @@ The following specify which files/extra groups are read (specified before remain
  costs. disable_max_seek = Disable 'max_seek optimization'
  for secondary keys and slight adjustment of filter cost.
  disable_forced_index_in_group_by = Disable automatic
- forced index in GROUP BY. This variable will be deleted
- in MariaDB 11.0 as it is not needed with the new 11.0
- optimizer.
+ forced index in GROUP BY. fix_innodb_cardinality =
+ Disable doubling of the Cardinality for InnoDB secondary
+ keys. fix_reuse_range_for_ref = Do a better job at
+ reusing range access estimates when estimating ref
+ access. fix_card_multiplier = Fix the computation in
+ selectivity_for_indexes. selectivity_multiplier. This
+ variable will be deleted in MariaDB 11.0 as it is not
+ needed with the new 11.0 optimizer.
  Use 'ALL' to set all combinations.
+ --optimizer-join-limit-pref-ratio=# 
+ For queries with JOIN and ORDER BY LIMIT : make the
+ optimizer consider a join order that allows to short-cut
+ execution after producing #LIMIT matches if that promises
+ N times speedup. (A conservative setting here would be is
+ a high value, like 100 so the short-cutting plan is used
+ if it promises a speedup of 100x or more). Short-cutting
+ plans are inherently risky so the default is 0 which
+ means do not consider this optimization
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
@@ -1695,7 +1709,8 @@ old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
-optimizer-adjust-secondary-key-costs 
+optimizer-adjust-secondary-key-costs fix_reuse_range_for_ref,fix_card_multiplier
+optimizer-join-limit-pref-ratio 0
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
 optimizer-prune-level 1
@@ -1770,14 +1785,14 @@ profiling-history-size 15
 progress-report-time 5
 protocol-version 10
 proxy-protocol-networks 
-query-alloc-block-size 16384
+query-alloc-block-size 32768
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
 query-cache-size 1048576
 query-cache-strip-comments FALSE
 query-cache-type OFF
 query-cache-wlock-invalidate FALSE
-query-prealloc-size 24576
+query-prealloc-size 32768
 range-alloc-block-size 4096
 read-binlog-speed-limit 0
 read-buffer-size 131072

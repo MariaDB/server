@@ -310,7 +310,7 @@ a char(2) NOT NULL DEFAULT '',
 PRIMARY KEY (a)
 ) ENGINE=MyISAM;
 INSERT INTO t4 VALUES ('CD');
-set @@tmp_table_size=8192;
+set @@tmp_table_size=16384;
 EXPLAIN
 SELECT * FROM t3 AS tx JOIN t2 AS ty ON (tx.pk = ty.pk)
 WHERE

@@ -649,7 +649,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 
  search_loop:
   auto buf_mode= BUF_GET;
-  ulint rw_latch= RW_NO_LATCH;
+  rw_lock_type_t rw_latch= RW_NO_LATCH;
 
   if (height)
   {
@@ -660,7 +660,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
       rw_latch= upper_rw_latch;
   }
   else if (latch_mode <= BTR_MODIFY_LEAF)
-    rw_latch= latch_mode;
+    rw_latch= rw_lock_type_t(latch_mode);
 
   dberr_t err;
   auto block_savepoint= mtr->get_savepoint();
@@ -671,8 +671,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     if (err)
     {
     err_exit:
-      if (err == DB_DECRYPTION_FAILED)
-        btr_decryption_failed(*index);
+      btr_read_failed(err, *index);
       mtr->rollback_to_savepoint(savepoint);
     }
   func_exit:
@@ -1285,11 +1284,13 @@ rtr_page_get_father_block(
 	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
 				its page x-latched */
 {
-  rec_t *rec=
-    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  const page_t *const page= cursor->block()->page.frame;
+  const rec_t *rec= page_is_comp(page)
+    ? page_rec_next_get<true>(page, page + PAGE_NEW_INFIMUM)
+    : page_rec_next_get<false>(page, page + PAGE_OLD_INFIMUM);
   if (!rec)
     return nullptr;
-  cursor->page_cur.rec= rec;
+  cursor->page_cur.rec= const_cast<rec_t*>(rec);
   return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor, mtr);
 }
 

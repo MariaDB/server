@@ -150,11 +150,11 @@ SELECT @@log_warnings;
 @@log_warnings
 1
 SELECT local.log_warnings;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.log_warnings;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT log_warnings = @@session.log_warnings;
-ERROR 42S22: Unknown column 'log_warnings' in 'field list'
+ERROR 42S22: Unknown column 'log_warnings' in 'SELECT'
 SET @@global.log_warnings = @start_global_value;
 SELECT @@global.log_warnings;
 @@global.log_warnings

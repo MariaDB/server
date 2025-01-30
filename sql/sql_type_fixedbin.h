@@ -253,6 +253,10 @@ public:
     {
       return singleton();
     }
+    bool val_bool() override
+    {
+      return m_value.to_bool();
+    }
     longlong val_int() override
     {
       return 0;
@@ -290,8 +294,9 @@ public:
       str->append(tmp);
       str->append('\'');
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_literal_fbt>(thd, this); }
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
     // Non-overriding methods
     void set_value(const Fbt &value)
@@ -761,9 +766,9 @@ public:
       Fbt_null tmp(arg);
       return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
     }
-    int compare(cmp_item *ci) override
+    int compare(const cmp_item *ci) const override
     {
-      cmp_item_fbt *tmp= static_cast<cmp_item_fbt*>(ci);
+      const cmp_item_fbt *tmp= static_cast<const cmp_item_fbt*>(ci);
       DBUG_ASSERT(!m_null_value);
       DBUG_ASSERT(!tmp->m_null_value);
       return m_native.cmp(tmp->m_native);
@@ -777,13 +782,13 @@ public:
   class in_fbt :public in_vector
   {
     Fbt m_value;
-    static int cmp_fbt(void *cmp_arg, Fbt *a, Fbt *b)
+    static int cmp_fbt(void *cmp_arg, const void *a, const void *b)
     {
-      return a->cmp(*b);
+      return static_cast<const Fbt*>(a)->cmp(*static_cast<const Fbt*>(b));
     }
   public:
     in_fbt(THD *thd, uint elements)
-     :in_vector(thd, elements, sizeof(Fbt), (qsort2_cmp) cmp_fbt, 0),
+     :in_vector(thd, elements, sizeof(Fbt), cmp_fbt, 0),
       m_value(Fbt::zero())
     { }
     const Type_handler *type_handler() const override
@@ -867,8 +872,9 @@ public:
     {
       return Item::save_in_field(field, no_conversions);
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_copy_fbt>(thd, this); }
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
   };
 
   class Item_char_typecast_func_handler_fbt_to_binary:
@@ -968,7 +974,7 @@ public:
       Fbt_null tmp(args[0]);
       return null_value= tmp.is_null() || tmp.to_native(to);
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_typecast_fbt>(thd, this); }
   };
 
@@ -978,8 +984,9 @@ public:
   public:
     Item_cache_fbt(THD *thd)
      :Item_cache(thd, singleton()) { }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_cache_fbt>(thd, this); }
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
     bool cache_value() override
     {
       if (!example)

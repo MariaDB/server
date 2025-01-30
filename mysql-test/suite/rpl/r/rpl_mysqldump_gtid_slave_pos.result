@@ -1,0 +1,153 @@
+include/master-slave.inc
+[connection master]
+# Initialize
+connection slave;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+# Setup data
+connection master;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# 1. run some replication load that adds records to gtid_slave_pos table
+# 2. stop slave, remove loaded data (it will be replicated), delete from
+#    gtid_slave_pos as the table is going to be restored
+# 3. take dump from slave (master has an empty gtid_slave_pos)
+#    with --gtid and for the default value of both
+#    --dump-slave and --master-data
+# and in loop for the two options do:
+#   4. reset the slave state to install some initial state
+#   5. restart slave server, restore the dump
+#   6. check the final state which must be equal to the dump's one
+#   7. start replication to see no error                => Q.E.D.
+#      unless the test runs on a buggy version in which case set  to zero.
+# 1.
+include/stop_slave.inc
+delete from mysql.gtid_slave_pos;
+connection master;
+insert into t1 set a = 5;
+insert into t1 set a = 4;
+insert into t1 set a = 3;
+insert into t1 set a = 2;
+insert into t1 set a = 1;
+include/save_master_gtid.inc
+connection slave;
+SET @@global.gtid_cleanup_batch_size = $val;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+select * from mysql.gtid_slave_pos;
+domain_id	sub_id	server_id	seq_no
+0	2	1	1
+0	3	1	2
+0	4	1	3
+0	5	1	4
+0	6	1	5
+0	7	1	6
+select @@global.gtid_slave_pos as "after initial slave got in sync";
+after initial slave got in sync
+0-1-6
+# 2.
+include/stop_slave.inc
+# 3. A
+include/stop_slave.inc
+include/stop_slave.inc
+# 4.
+set statement sql_log_bin=0 for delete from mysql.gtid_slave_pos;
+insert into mysql.gtid_slave_pos values (99 + 2, 1, 1, 1);
+# 5.
+include/rpl_restart_server.inc [server_number=2]
+SET @@global.gtid_cleanup_batch_size = $val;
+select * from mysql.gtid_slave_pos;
+domain_id	sub_id	server_id	seq_no
+101	1	1	1
+select @@global.gtid_slave_pos as "before dump restore";
+before dump restore
+101-1-1
+# 6.
+select * from mysql.gtid_slave_pos;
+domain_id	sub_id	server_id	seq_no
+0	2	1	6
+select @@global.gtid_slave_pos as "after dump restore";
+after dump restore
+0-1-6
+# 7.
+reset slave;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-6
+change master to master_use_gtid=no;
+connection master;
+insert into t1 select 1+max(a),2 from t1;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+select * from mysql.gtid_slave_pos;
+domain_id	sub_id	server_id	seq_no
+0	2	1	6
+0	3	1	1
+0	4	1	2
+0	5	1	3
+0	6	1	4
+0	7	1	5
+0	8	1	6
+0	9	1	7
+select @@global.gtid_slave_pos as "after slave got in sync";
+after slave got in sync
+0-1-7
+include/stop_slave.inc
+# 4.
+set statement sql_log_bin=0 for delete from mysql.gtid_slave_pos;
+insert into mysql.gtid_slave_pos values (99 + 1, 1, 1, 1);
+# 5.
+include/rpl_restart_server.inc [server_number=2]
+SET @@global.gtid_cleanup_batch_size = $val;
+select * from mysql.gtid_slave_pos;
+domain_id	sub_id	server_id	seq_no
+100	1	1	1
+select @@global.gtid_slave_pos as "before dump restore";
+before dump restore
+100-1-1
+# 6.
+select * from mysql.gtid_slave_pos;
+domain_id	sub_id	server_id	seq_no
+0	2	1	6
+select @@global.gtid_slave_pos as "after dump restore";
+after dump restore
+0-1-6
+# 7.
+reset slave;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-6
+change master to master_use_gtid=no;
+connection master;
+insert into t1 select 1+max(a),1 from t1;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+select * from mysql.gtid_slave_pos;
+domain_id	sub_id	server_id	seq_no
+0	2	1	6
+0	3	1	1
+0	4	1	2
+0	5	1	3
+0	6	1	4
+0	7	1	5
+0	8	1	6
+0	9	1	7
+0	10	1	8
+select @@global.gtid_slave_pos as "after slave got in sync";
+after slave got in sync
+0-1-8
+#
+# Cleanup
+#
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+SET @@global.gtid_cleanup_batch_size= $old_gtid_cleanup_batch_size;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc

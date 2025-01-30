@@ -558,7 +558,9 @@ from
 --echo #
 --echo # MDEV-6081: ORDER BY+ref(const): selectivity is very incorrect (MySQL Bug#14338686)
 --echo #
+--source include/have_sequence.inc
 
+insert into t2 select seq,seq,seq from seq_10000_to_11000;
 alter table t2 add key2 int;
 update t2 set key2=key1;
 alter table t2 add key(key2);

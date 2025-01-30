@@ -222,3 +222,38 @@ DROP TABLE t1;
 #
 # End of 10.4 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-28345 ASAN: use-after-poison or unknown-crash in my_strtod_int from charset_info_st::strntod or test_if_number
+#
+SET sql_mode='';
+CREATE TABLE t1 (c CHAR(10) KEY);
+INSERT INTO t1 VALUES (1.755555555);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SELECT * FROM t1 PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t1.c	1.75555555	1.75555555	10	10	0	0	10.0000	NULL	ENUM('1.75555555') NOT NULL
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (c BLOB) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1.3),(1.1);
+SELECT * FROM t1 PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t1.c	1.1	1.3	3	3	0	0	3.0000	NULL	ENUM('1.1','1.3') NOT NULL
+DROP TABLE t1;
+#
+# MDEV-31881 ASAN: unknown-crash in check_ulonglong (sql/sql_analyse.cc) on SELECT ... FROM ... PROCEDURE ANALYSE()
+#
+CREATE TABLE t (a INT, b CHAR(10));
+INSERT INTO t VALUES (0,'0000000000');
+SELECT * FROM t PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.a	0	0	1	1	1	0	0.0000	0.0000	ENUM('0') NOT NULL
+test.t.b	0000000000	0000000000	10	10	0	0	10.0000	NULL	ENUM('0000000000') NOT NULL
+DROP TABLE t;
+#
+# End of 10.5 tests
+#

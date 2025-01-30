@@ -209,7 +209,7 @@ extern "C" my_bool wsrep_thd_is_local_toi(const MYSQL_THD thd);
 extern "C" my_bool wsrep_thd_is_in_rsu(const MYSQL_THD thd);
 /* Return true if thd is in BF mode, either high_priority or TOI */
 extern "C" my_bool wsrep_thd_is_BF(const MYSQL_THD thd, my_bool sync);
-/* Return true if thd is streaming */
+/* Return true if thd is streaming in progress */
 extern "C" my_bool wsrep_thd_is_SR(const MYSQL_THD thd);
 extern "C" void wsrep_handle_SR_rollback(MYSQL_THD BF_thd, MYSQL_THD victim_thd);
 /* Return thd retry counter */

@@ -1,5 +1,5 @@
---- max_record_size.result	2019-07-03 11:54:44.591421526 +0300
-+++ max_record_size.reject	2019-07-03 12:41:03.319664978 +0300
+--- max_record_size.result
++++ max_record_size.reject
 @@ -3,45 +3,104 @@
  c1 CHAR(255), c2 CHAR(255), c3 CHAR(255), c4 CHAR(255),
  c5 CHAR(255), c6 CHAR(255), c7 CHAR(255), c8 CHAR(255),

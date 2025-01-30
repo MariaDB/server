@@ -587,37 +587,43 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 
 	/* Check the contents of the first page of the
 	first datafile. */
-	err = it->validate_first_page(flushed_lsn);
+	err = it->validate_first_page(it->m_first_page);
+	const page_t *first_page = it->m_first_page;
 
 	if (err != DB_SUCCESS) {
-		if (recv_sys.dblwr.restore_first_page(
-				it->m_space_id, it->m_filepath,
-				it->handle())) {
-			it->close();
-			return(err);
+		mysql_mutex_lock(&recv_sys.mutex);
+		first_page = recv_sys.dblwr.find_page(
+			page_id_t(space_id(), 0), LSN_MAX);
+		mysql_mutex_unlock(&recv_sys.mutex);
+		if (!first_page) {
+			err = DB_CORRUPTION;
+		} else {
+			err = it->read_first_page_flags(first_page);
+			if (err == DB_SUCCESS) {
+				err = it->validate_first_page(first_page);
+			}
 		}
-		err = it->read_first_page(
-			m_ignore_read_only && srv_read_only_mode);
 	}
 
 	/* Make sure the tablespace space ID matches the
 	space ID on the first page of the first datafile. */
-	if (space_id() != it->m_space_id) {
+	if (err != DB_SUCCESS) {
+	} else if (space_id() != it->m_space_id) {
 
 		ib::error()
 			<< "The data file '" << it->filepath()
 			<< "' has the wrong space ID. It should be "
 			<< space_id() << ", but " << it->m_space_id
 			<< " was found";
-
-		it->close();
-
-		return(err);
+		err = DB_CORRUPTION;
+	} else {
+		*flushed_lsn = mach_read_from_8(
+			first_page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	}
 
 	it->close();
 
-	return(DB_SUCCESS);
+	return err;
 }
 
 /** Check if a file can be opened in the correct mode.
@@ -930,8 +936,7 @@ SysTablespace::open_or_create(
 		} else if (is_temp) {
 			ut_ad(space_id() == SRV_TMP_SPACE_ID);
 			space = fil_space_t::create(
-				SRV_TMP_SPACE_ID, flags(),
-				FIL_TYPE_TEMPORARY, NULL);
+				SRV_TMP_SPACE_ID, flags(), false, nullptr);
 			ut_ad(space == fil_system.temp_space);
 			if (!space) {
 				err = DB_ERROR;
@@ -942,8 +947,7 @@ SysTablespace::open_or_create(
 		} else {
 			ut_ad(space_id() == TRX_SYS_SPACE);
 			space = fil_space_t::create(
-				TRX_SYS_SPACE, it->flags(),
-				FIL_TYPE_TABLESPACE, NULL);
+				TRX_SYS_SPACE, it->flags(), false, nullptr);
 			ut_ad(space == fil_system.sys_space);
 			if (!space) {
 				err = DB_ERROR;

@@ -50,6 +50,7 @@
 #include "session_tracker.h"
 #include "backup.h"
 #include "xa.h"
+#include "scope.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 
@@ -69,8 +70,8 @@ void set_thd_stage_info(void *thd,
 
 #include "wsrep.h"
 #include "wsrep_on.h"
-#ifdef WITH_WSREP
 #include <inttypes.h>
+#ifdef WITH_WSREP
 /* wsrep-lib */
 #include "wsrep_client_service.h"
 #include "wsrep_client_state.h"
@@ -214,6 +215,7 @@ extern "C" const char *thd_client_ip(MYSQL_THD thd);
 extern "C" LEX_CSTRING *thd_current_db(MYSQL_THD thd);
 extern "C" int thd_current_status(MYSQL_THD thd);
 extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd);
+extern "C" int thd_double_innodb_cardinality(MYSQL_THD thd);
 
 /**
   @class CSET_STRING
@@ -454,6 +456,7 @@ public:
   bool invisible;
   bool without_overlaps;
   bool old;
+  uint length;
   Lex_ident period;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
@@ -461,7 +464,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -472,7 +475,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() = default;
@@ -759,6 +762,7 @@ typedef struct system_variables
   ulong net_retry_count;
   ulong net_wait_timeout;
   ulong net_write_timeout;
+  ulonglong optimizer_join_limit_pref_ratio;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
@@ -1035,7 +1039,6 @@ typedef struct system_status_var
   ulonglong table_open_cache_hits;
   ulonglong table_open_cache_misses;
   ulonglong table_open_cache_overflows;
-  ulonglong send_metadata_skips;
   double last_query_cost;
   double cpu_time, busy_time;
   uint32 threads_running;
@@ -2668,6 +2671,39 @@ struct thd_async_state
 };
 
 
+enum class THD_WHERE
+{
+  NOWHERE = 0,
+  CHECKING_TRANSFORMED_SUBQUERY,
+  IN_ALL_ANY_SUBQUERY,
+  JSON_TABLE_ARGUMENT,
+  FIELD_LIST,
+  PARTITION_FUNCTION,
+  FROM_CLAUSE,
+  DEFAULT_WHERE,
+  ON_CLAUSE,
+  WHERE_CLAUSE,
+  SET_LIST,
+  INSERT_LIST,
+  VALUES_CLAUSE,
+  UPDATE_CLAUSE,
+  RETURNING,
+  FOR_SYSTEM_TIME,
+  ORDER_CLAUSE,
+  HAVING_CLAUSE,
+  GROUP_STATEMENT,
+  PROCEDURE_LIST,
+  CHECK_OPTION,
+  DO_STATEMENT,
+  HANDLER_STATEMENT,
+  USE_WHERE_STRING, // ugh, a compromise for vcol...
+};
+
+
+class THD;
+const char *thd_where(THD *thd);
+
+
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -2720,13 +2756,6 @@ public:
   MDL_request *backup_commit_lock;
 
   void reset_for_next_command(bool do_clear_errors= 1);
-  /*
-    Constant for THD::where initialization in the beginning of every query.
-
-    It's needed because we do not save/restore THD::where normally during
-    primary (non subselect) query execution.
-  */
-  static const char * const DEFAULT_WHERE;
 
 #ifdef EMBEDDED_LIBRARY
   struct st_mysql  *mysql;
@@ -2798,7 +2827,7 @@ public:
     A pointer to the stack frame of handle_one_connection(),
     which is called first in the thread for handling a client
   */
-  char	  *thread_stack;
+  void *thread_stack;
 
   /**
     Currently selected catalog.
@@ -2882,15 +2911,29 @@ public:
   const char *get_proc_info() const
   { return proc_info; }
 
+  // Used by thd_where() when where==USE_WHERE_STRING
+  const char *where_str;
+
   /*
     Used in error messages to tell user in what part of MySQL we found an
     error. E. g. when where= "having clause", if fix_fields() fails, user
     will know that the error was in having clause.
   */
-  const char *where;
+  THD_WHERE where;
 
   /* Needed by MariaDB semi sync replication */
   Trans_binlog_info *semisync_info;
+
+#ifndef DBUG_OFF
+  /*
+    If Active_tranx is missing an entry for a transaction which is planning to
+    await an ACK, this ensures that the reason is because semi-sync was turned
+    off then on in-between the binlogging of the transaction, and before it had
+    started waiting for the ACK.
+  */
+  ulong expected_semi_sync_offs;
+#endif
+
   /* If this is a semisync slave connection. */
   bool semi_sync_slave;
   ulonglong client_capabilities;  /* What the client supports */
@@ -3201,7 +3244,7 @@ public:
       bzero((char*)this, sizeof(*this));
       implicit_xid.null();
       init_sql_alloc(key_memory_thd_transactions, &mem_root,
-                     ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+                     DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
     }
   } default_transaction, *transaction;
   Global_read_lock global_read_lock;
@@ -3873,6 +3916,10 @@ public:
   void free_connection();
   void reset_for_reuse();
   void store_globals();
+  void reset_stack()
+  {
+    thread_stack= 0;
+  }
   void reset_globals();
   bool trace_started()
   {
@@ -4458,6 +4505,7 @@ public:
     is_slave_error= 0;
     if (killed == KILL_BAD_DATA)
       reset_killed();
+    my_errno= 0;
     DBUG_VOID_RETURN;
   }
 
@@ -4573,14 +4621,19 @@ public:
     return !stmt_arena->is_conventional();
   }
 
+  void register_item_tree_change(Item **place)
+  {
+    /* TODO: check for OOM condition here */
+    if (is_item_tree_change_register_required())
+      nocheck_register_item_tree_change(place, *place, mem_root);
+  }
+
   void change_item_tree(Item **place, Item *new_value)
   {
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));
-    /* TODO: check for OOM condition here */
-    if (is_item_tree_change_register_required())
-      nocheck_register_item_tree_change(place, *place, mem_root);
+    register_item_tree_change(place);
     *place= new_value;
     DBUG_VOID_RETURN;
   }
@@ -5509,9 +5562,11 @@ public:
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
 
-  /** This flag denotes that record locking should be skipped during INSERT
-  and gap locking during SELECT. Only used by the streaming replication thread
-  that only modifies the wsrep_schema.SR table. */
+  /** This flag denotes that record locking should be skipped during INSERT,
+     gap locking during SELECT, and write-write conflicts due to innodb
+     snapshot isolation during DELETE.
+     Only used by the streaming replication thread that only modifies the
+     mysql.wsrep_streaming_log table. */
   my_bool                   wsrep_skip_locking;
 
   mysql_cond_t              COND_wsrep_thd;
@@ -5757,10 +5812,18 @@ public:
     lex= backup_lex;
   }
 
-  bool should_collect_handler_stats() const
+  bool should_collect_handler_stats()
   {
-    return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
-           lex->analyze_stmt;
+    /*
+      We update handler_stats.active to ensure that we have the same
+      value across the whole statement.
+      This function is only called from TABLE::init() so the value will
+      be the same for the whole statement.
+    */
+    handler_stats.active=
+      ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
+       lex->analyze_stmt);
+    return handler_stats.active;
   }
 
   /* Return true if we should create a note when an unusable key is found */
@@ -5904,7 +5967,8 @@ public:
   */
   virtual int send_data(List<Item> &items)=0;
   virtual ~select_result_sink() = default;
-  void reset(THD *thd_arg) { thd= thd_arg; }
+  // Used in cursors to initialize and reset
+  void reinit(THD *thd_arg) { thd= thd_arg; }
 };
 
 class select_result_interceptor;
@@ -5978,15 +6042,11 @@ public:
   */
   virtual bool check_simple_select() const;
   virtual void abort_result_set() {}
-  /*
-    Cleanup instance of this class for next execution of a prepared
-    statement/stored procedure.
-  */
-  virtual void cleanup();
+  virtual void reset_for_next_ps_execution();
   void set_thd(THD *thd_arg) { thd= thd_arg; }
-  void reset(THD *thd_arg)
+  void reinit(THD *thd_arg)
   {
-    select_result_sink::reset(thd_arg);
+    select_result_sink::reinit(thd_arg);
     unit= NULL;
   }
 #ifdef EMBEDDED_LIBRARY
@@ -6092,9 +6152,9 @@ public:
     elsewhere. (this is used by ANALYZE $stmt feature).
   */
   void disable_my_ok_calls() { suppress_my_ok= true; }
-  void reset(THD *thd_arg)
+  void reinit(THD *thd_arg)
   {
-    select_result::reset(thd_arg);
+    select_result::reinit(thd_arg);
     suppress_my_ok= false;
   }
 protected:
@@ -6146,7 +6206,7 @@ private:
     {}
     void reset(THD *thd_arg)
     {
-      select_result_interceptor::reset(thd_arg);
+      select_result_interceptor::reinit(thd_arg);
       spvar_list= NULL;
       field_count= 0;
     }
@@ -6190,7 +6250,7 @@ public:
   void reset(THD *thd_arg, sp_lex_keeper *lex_keeper)
   {
     sp_cursor_statistics::reset();
-    result.reset(thd_arg);
+    result.reinit(thd_arg);
     m_lex_keeper= lex_keeper;
     server_side_cursor= NULL;
   }
@@ -6218,7 +6278,7 @@ public:
   bool send_eof() override;
   bool check_simple_select() const override { return FALSE; }
   void abort_result_set() override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   select_result_interceptor *result_interceptor() override { return NULL; }
 };
 
@@ -6253,7 +6313,9 @@ public:
   { path[0]=0; }
   ~select_to_file();
   bool send_eof() override;
-  void cleanup() override;
+  void abort_result_set() override;
+  void reset_for_next_ps_execution() override;
+  bool free_recources();
 };
 
 
@@ -6330,7 +6392,7 @@ class select_insert :public select_result_interceptor {
   bool send_eof() override;
   void abort_result_set() override;
   /* not implemented: select_insert is never re-used in prepared statements */
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 
@@ -6481,6 +6543,7 @@ public:
     aggregate functions as normal functions.
   */
   bool precomputed_group_by;
+  bool group_concat;
   bool force_copy_fields;
   /*
     If TRUE, create_tmp_field called from create_tmp_table will convert
@@ -6499,7 +6562,7 @@ public:
      group_length(0), group_null_parts(0),
      using_outer_summary_function(0),
      schema_table(0), materialized_subquery(0), force_not_null_cols(0),
-     precomputed_group_by(0),
+     precomputed_group_by(0), group_concat(0),
      force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {
     init();
@@ -6556,7 +6619,7 @@ public:
   int delete_record();
   bool send_eof() override;
   virtual bool flush();
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
                                    const LEX_CSTRING *alias,
@@ -6731,9 +6794,10 @@ class select_union_recursive :public select_unit
  */
   List<TABLE_LIST> rec_table_refs;
   /*
-    The count of how many times cleanup() was called with cleaned==false
-    for the unit specifying the recursive CTE for which this object was created
-    or for the unit specifying a CTE that mutually recursive with this CTE.
+    The count of how many times reset_for_next_ps_execution() was called with
+    cleaned==false for the unit specifying the recursive CTE for which this
+    object was created or for the unit specifying a CTE that mutually
+    recursive with this CTE.
   */
   uint cleanup_count;
   long row_counter;
@@ -6752,7 +6816,7 @@ class select_union_recursive :public select_unit
                            bool create_table,
                            bool keep_row_order,
                            uint hidden) override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 /**
@@ -6822,7 +6886,7 @@ public:
   {
     result->abort_result_set(); /* purecov: inspected */
   }
-  void cleanup() override
+  void reset_for_next_ps_execution() override
   {
     send_records= 0;
   }
@@ -6925,7 +6989,7 @@ public:
                            uint hidden) override;
   bool init_result_table(ulonglong select_options);
   int send_data(List<Item> &items) override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   ha_rows get_null_count_of_col(uint idx)
   {
     DBUG_ASSERT(idx < table->s->fields);
@@ -6958,7 +7022,7 @@ public:
                                   bool mx, bool all):
     select_subselect(thd_arg, item_arg), cache(0), fmax(mx), is_all(all)
   {}
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   int send_data(List<Item> &items) override;
   bool cmp_real();
   bool cmp_int();
@@ -7084,10 +7148,10 @@ struct SORT_FIELD_ATTR
   CHARSET_INFO *cs;
   uint pack_sort_string(uchar *to, const Binary_string *str,
                         CHARSET_INFO *cs) const;
-  int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
-                                     uchar *b, size_t *b_len);
-  int compare_packed_varstrings(uchar *a, size_t *a_len,
-                                uchar *b, size_t *b_len);
+  int compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                     const uchar *b, size_t *b_len);
+  int compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                const uchar *b, size_t *b_len);
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
   void set_length_and_original_length(THD *thd, uint length_arg);
@@ -7375,7 +7439,7 @@ public:
   int send_data(List<Item> &items) override;
   bool send_eof() override;
   bool check_simple_select() const override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 /* Bits in sql_command_flags */
@@ -7515,6 +7579,11 @@ public:
   DDL statement that may be subject to error filtering.
 */
 #define CF_WSREP_MAY_IGNORE_ERRORS (1U << 24)
+/**
+   Basic DML statements that create writeset.
+*/
+#define CF_WSREP_BASIC_DML (1u << 25)
+
 #endif /* WITH_WSREP */
 
 

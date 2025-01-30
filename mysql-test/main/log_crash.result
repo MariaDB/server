@@ -1,0 +1,17 @@
+#
+# MDEV-33373: Unexpected ER_FILE_NOT_FOUND upon reading from logging
+# table after crash recovery
+#
+call mtr.add_suppression("Table 'general_log' is marked as crashed and should be repaired");
+SET GLOBAL log_output="TABLE";
+CREATE TABLE t (a INT);
+# restart
+DROP TABLE t;
+SELECT count(*) FROM mysql.general_log;
+count(*)
+5
+Warnings:
+Error	1194	Table 'general_log' is marked as crashed and should be repaired
+#
+# End of 10.5 tests
+#

@@ -1,5 +1,9 @@
 --source include/have_innodb.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 --echo #
 --echo # MDEV-26642 Weird SELECT view when a record is
 --echo #            modified to the same value by two transactions
@@ -152,10 +156,12 @@ BEGIN; INSERT INTO t SET a=2;
 
 --connection consistent
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SAVEPOINT sp1;
 --disable_ps2_protocol
 --error ER_CHECKREAD
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 --enable_ps2_protocol
+SAVEPOINT sp1;
 
 --connection con_weird
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -181,3 +187,5 @@ SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 
 --connection default
 DROP TABLE t;
+
+--echo # End of 10.6 tests

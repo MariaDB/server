@@ -44,7 +44,10 @@ DELETE FROM comments WHERE id = 200;
 SELECT * FROM entries;
 SELECT * FROM comments;
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_command('dump --dump_plugins no');
+--enable_cursor_protocol
 
 DROP TABLE entries;
 DROP TABLE comments;

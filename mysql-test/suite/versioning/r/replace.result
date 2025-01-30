@@ -27,7 +27,9 @@ id	x	current
 1	2	0
 1	3	1
 drop table t;
+#
 # MDEV-15645 Assertion `table->insert_values' failed in write_record upon REPLACE into a view with underlying versioned table
+#
 create or replace table t1 (a int, b int, primary key (a), unique(b)) with system versioning;
 insert into t1 values (1,1);
 create or replace table t2 (c int);
@@ -48,7 +50,9 @@ INSERT INTO t1 () VALUES (),(),(),(),(),();
 UPDATE IGNORE t1 SET f = 1;
 REPLACE t1 SELECT * FROM t1;
 DROP TABLE t1;
+#
 # MDEV-22540 ER_DUP_ENTRY upon REPLACE or Assertion failed
+#
 set timestamp=1589245268.41934;
 create table t1 (a int primary key) with system versioning;
 insert into t1 values (1),(2);
@@ -60,4 +64,27 @@ replace into t1 values (1),(2);
 connection con1;
 replace into t1 values (1),(2);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+drop table t1;
+#
+# MDEV-15330 Server crash or assertion `table->insert_values' failure in write_record upon LOAD DATA
+#
+create table t1 (a int, b int, c int, vc int as (c), unique(a), unique(b)) with system versioning;
+insert ignore into t1 (a,b,c) values (1,2,3);
+select a, b, c into outfile '15330.data' from t1;
+load data infile '15330.data' ignore into table t1 (a,b,c);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'a'
+load data infile '15330.data' replace into table t1 (a,b,c);
+drop table t1;
+#
+# MDEV-35343 unexpected replace behaviour when long unique index on system versioned table
+#
+create table t1 (data char(10));
+insert into t1 values ('o');
+alter ignore table t1 add unique index (data);
+alter ignore table t1 add unique index (data);
+Warnings:
+Note	1831	Duplicate index `data_2`. This is deprecated and will be disallowed in a future release
+alter table t1 add system versioning;
+replace into t1 values ('o'), ('o');
 drop table t1;

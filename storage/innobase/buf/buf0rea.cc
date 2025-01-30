@@ -57,6 +57,7 @@ that the block has been replaced with the real block.
 @return           w->state() */
 inline uint32_t buf_pool_t::watch_remove(buf_page_t *w,
                                          buf_pool_t::hash_chain &chain)
+  noexcept
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(xtest() || page_hash.lock_get(chain).is_write_locked());
@@ -95,7 +96,7 @@ and the lock released later.
 @retval	NULL	in case of an error */
 TRANSACTIONAL_TARGET
 static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
-                                          ulint zip_size, bool unzip)
+                                          ulint zip_size, bool unzip) noexcept
 {
   mtr_t mtr;
 
@@ -212,6 +213,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     page_zip_set_size(&bpage->zip, zip_size);
     bpage->zip.data = (page_zip_t*) data;
 
+    bpage->lock.init();
     bpage->init(buf_page_t::READ_FIX, page_id);
     bpage->lock.x_lock(true);
 
@@ -265,7 +267,7 @@ buf_read_page_low(
 	ulint			mode,
 	const page_id_t		page_id,
 	ulint			zip_size,
-	bool			unzip)
+	bool			unzip) noexcept
 {
 	buf_page_t*	bpage;
 
@@ -325,15 +327,13 @@ buf_read_page_low(
 			     dst, bpage);
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
+		recv_sys.free_corrupted_page(page_id, *space->chain.start);
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 	} else if (sync) {
 		thd_wait_end(nullptr);
 		/* The i/o was already completed in space->io() */
 		fio.err = bpage->read_complete(*fio.node);
 		space->release();
-		if (fio.err == DB_FAIL) {
-			fio.err = DB_PAGE_CORRUPTED;
-		}
 		if (mariadb_timer) {
 			mariadb_increment_pages_read_time(mariadb_timer);
 		}
@@ -353,14 +353,12 @@ performed by ibuf routines, a situation which could result in a deadlock if
 the OS does not support asynchronous i/o.
 @param[in]	page_id		page id of a page which the current thread
 wants to access
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	ibuf		whether we are inside ibuf routine
 @return number of page read requests issued; NOTE that if we read ibuf
 pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
 TRANSACTIONAL_TARGET
-ulint
-buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
+ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf) noexcept
 {
   if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
     /* Disable the read-ahead for temporary tablespace */
@@ -370,9 +368,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
     /* No read-ahead to avoid thread deadlocks */
     return 0;
 
-  if (ibuf_bitmap_page(page_id, zip_size) || trx_sys_hdr_page(page_id))
-    /* If it is an ibuf bitmap page or trx sys hdr, we do no
-    read-ahead, as that could break the ibuf page access order */
+  if (trx_sys_hdr_page(page_id))
     return 0;
 
   if (os_aio_pending_reads_approx() >
@@ -382,6 +378,17 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
   fil_space_t* space= fil_space_t::get(page_id.space());
   if (!space)
     return 0;
+
+  const unsigned zip_size{space->zip_size()};
+
+  if (ibuf_bitmap_page(page_id, zip_size))
+  {
+    /* If it is a change buffer bitmap page, we do no
+    read-ahead, as that could break the ibuf page access order */
+  no_read_ahead:
+    space->release();
+    return 0;
+  }
 
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
   ulint count= 5 + buf_read_ahead_area / 8;
@@ -402,9 +409,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
         goto read_ahead;
   }
 
-no_read_ahead:
-  space->release();
-  return 0;
+  goto no_read_ahead;
 
 read_ahead:
   if (space->is_stopping())
@@ -443,31 +448,22 @@ read_ahead:
   return count;
 }
 
-/** High-level function which reads a page from a file to buf_pool
-if it is not already there. Sets the io_fix and an exclusive lock
-on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@retval DB_SUCCESS if the page was read and is not corrupted
-@retval DB_SUCCESS_LOCKED_REC if the page was not read
-@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted
-@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
+dberr_t buf_read_page(const page_id_t page_id, bool unzip) noexcept
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
-  if (!space)
+  if (UNIV_UNLIKELY(!space))
   {
-    ib::info() << "trying to read page " << page_id
-               << " in nonexisting or being-dropped tablespace";
+    sql_print_information("InnoDB: trying to read page "
+                          "[page id: space=" UINT32PF
+                          ", page number=" UINT32PF "]"
+                          " in nonexisting or being-dropped tablespace",
+                          page_id.space(), page_id.page_no());
     return DB_TABLESPACE_DELETED;
   }
 
   buf_LRU_stat_inc_io(); /* NOT protected by buf_pool.mutex */
   return buf_read_page_low(space, true, BUF_READ_ANY_PAGE,
-                           page_id, zip_size, false);
+                           page_id, space->zip_size(), unzip);
 }
 
 /** High-level function which reads a page asynchronously from a file to the
@@ -478,7 +474,7 @@ released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size)
+                              ulint zip_size) noexcept
 {
 	buf_read_page_low(space, false, BUF_READ_ANY_PAGE,
 			  page_id, zip_size, false);
@@ -514,12 +510,10 @@ NOTE 3: the calling thread must want access to the page given: this rule is
 set to prevent unintended read-aheads performed by ibuf routines, a situation
 which could result in a deadlock if the OS does not support asynchronous io.
 @param[in]	page_id		page id; see NOTE 3 above
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	ibuf		whether if we are inside ibuf routine
 @return number of page read requests issued */
 TRANSACTIONAL_TARGET
-ulint
-buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
+ulint buf_read_ahead_linear(const page_id_t page_id, bool ibuf) noexcept
 {
   /* check if readahead is disabled.
   Disable the read ahead logic for temporary tablespace */
@@ -546,14 +540,11 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
     /* This is not a border page of the area */
     return 0;
 
-  if (ibuf_bitmap_page(page_id, zip_size) || trx_sys_hdr_page(page_id))
-    /* If it is an ibuf bitmap page or trx sys hdr, we do no
-    read-ahead, as that could break the ibuf page access order */
-    return 0;
-
   fil_space_t *space= fil_space_t::get(page_id.space());
   if (!space)
     return 0;
+
+  const unsigned zip_size= space->zip_size();
 
   if (high_1.page_no() > space->last_page_number())
   {
@@ -562,6 +553,11 @@ fail:
     space->release();
     return 0;
   }
+
+  if (ibuf_bitmap_page(page_id, zip_size) || trx_sys_hdr_page(page_id))
+    /* If it is an ibuf bitmap page or trx sys hdr, we do no
+    read-ahead, as that could break the ibuf page access order */
+    goto fail;
 
   /* How many out of order accessed pages can we ignore
   when working out the access pattern for linear readahead */
@@ -694,7 +690,7 @@ failed:
 @param recs     log records
 @param init     page initialization, or nullptr if the page needs to be read */
 void buf_read_recover(fil_space_t *space, const page_id_t page_id,
-                      page_recv_t &recs, recv_init *init)
+                      page_recv_t &recs, recv_init *init) noexcept
 {
   ut_ad(space->id == page_id.space());
   space->reacquire();

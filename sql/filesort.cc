@@ -288,7 +288,6 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     sort->init_record_pointers();
     if (pq.init(param.max_rows,
                 true,                           // max_at_top
-                NULL,                           // compare_function
                 compare_length,
                 &make_sortkey, &param, sort->get_sort_keys()))
     {
@@ -480,7 +479,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                     MYF(0),
                     ER_THD(thd, ER_FILSORT_ABORT),
                     kill_errno ? ER_THD(thd, kill_errno) :
-                    thd->killed == ABORT_QUERY ? "" :
+                    thd->killed == ABORT_QUERY ? "LIMIT ROWS EXAMINED" :
                     thd->get_stmt_da()->message());
 
     if ((thd->killed == ABORT_QUERY || kill_errno) &&
@@ -641,13 +640,6 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
 }
 
 #ifndef DBUG_OFF
-
-/* Buffer where record is returned */
-char dbug_print_row_buff[512];
-
-/* Temporary buffer for printing a column */
-char dbug_print_row_buff_tmp[512];
-
 /*
   Print table's current row into a buffer and return a pointer to it.
 
@@ -660,38 +652,53 @@ char dbug_print_row_buff_tmp[512];
   Only columns in table->read_set are printed
 */
 
-const char* dbug_print_table_row(TABLE *table)
+const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
 {
   Field **pfield;
-  String tmp(dbug_print_row_buff_tmp,
-             sizeof(dbug_print_row_buff_tmp),&my_charset_bin);
+  const size_t alloc_size= 512;
+  char *row_buff= (char *) alloc_root(&table->mem_root, alloc_size);
+  char *row_buff_tmp= (char *) alloc_root(&table->mem_root, alloc_size);
+  String tmp(row_buff_tmp, alloc_size, &my_charset_bin);
+  String output(row_buff, alloc_size, &my_charset_bin);
 
-  String output(dbug_print_row_buff, sizeof(dbug_print_row_buff),
-                &my_charset_bin);
+  auto move_back_lambda= [table, rec]() mutable {
+    table->move_fields(table->field, table->record[0], rec);
+  };
+  auto move_back_guard= make_scope_exit(move_back_lambda, false);
+
+  if (rec != table->record[0])
+  {
+    table->move_fields(table->field, rec, table->record[0]);
+    move_back_guard.engage();
+  }
+
+  SCOPE_VALUE(table->read_set, (table->read_set && table->write_set) ?
+                                table->write_set : table->read_set);
 
   output.length(0);
   output.append(table->alias);
   output.append('(');
   bool first= true;
-
-  for (pfield= table->field; *pfield ; pfield++)
+  if (print_names)
   {
-    const LEX_CSTRING *name;
-    if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
-      continue;
-    
-    if (first)
-      first= false;
-    else
-      output.append(',');
+    for (pfield= table->field; *pfield ; pfield++)
+    {
+      if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
+        continue;
 
-    name= (*pfield)->field_name.str ? &(*pfield)->field_name: &NULL_clex_str;
-    output.append(name);
+      if (first)
+        first= false;
+      else
+        output.append(STRING_WITH_LEN(", "));
+
+      output.append((*pfield)->field_name.str
+                    ? (*pfield)->field_name : NULL_clex_str);
+    }
+
+    output.append(STRING_WITH_LEN(")=("));
+    first= true;
   }
 
-  output.append(STRING_WITH_LEN(")=("));
-
-  first= true;
   for (pfield= table->field; *pfield ; pfield++)
   {
     Field *field=  *pfield;
@@ -702,7 +709,7 @@ const char* dbug_print_table_row(TABLE *table)
     if (first)
       first= false;
     else
-      output.append(',');
+      output.append(STRING_WITH_LEN(", "));
 
     if (field->is_null())
       output.append(&NULL_clex_str);
@@ -716,17 +723,14 @@ const char* dbug_print_table_row(TABLE *table)
     }
   }
   output.append(')');
-  
+
   return output.c_ptr_safe();
 }
 
 
-const char* dbug_print_row(TABLE *table, uchar *rec)
+const char* dbug_print_table_row(TABLE *table)
 {
-  table->move_fields(table->field, rec, table->record[0]);
-  const char* ret= dbug_print_table_row(table);
-  table->move_fields(table->field, table->record[0], rec);
-  return ret;
+  return dbug_print_row(table, table->record[0]);
 }
 
 
@@ -1834,7 +1838,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
   uchar *strpos;
   Merge_chunk *buffpek;
   QUEUE queue;
-  qsort2_cmp cmp;
+  qsort_cmp2 cmp;
   void *first_cmp_arg;
   element_count dupl_count= 0;
   uchar *src;
@@ -1878,9 +1882,9 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
     cmp= param->get_compare_function();
     first_cmp_arg= param->get_compare_argument(&sort_length);
   }
-  if (unlikely(init_queue(&queue, (uint) (Tb-Fb)+1,
-                         offsetof(Merge_chunk,m_current_key), 0,
-                          (queue_compare) cmp, first_cmp_arg, 0, 0)))
+  if (unlikely(init_queue(&queue, (uint) (Tb - Fb) + 1,
+                          offsetof(Merge_chunk, m_current_key), 0, cmp,
+                          first_cmp_arg, 0, 0)))
     DBUG_RETURN(1);                                /* purecov: inspected */
   const size_t chunk_sz = (sort_buffer.size()/((uint) (Tb-Fb) +1));
   for (buffpek= Fb ; buffpek <= Tb ; buffpek++)
@@ -2800,9 +2804,9 @@ void SORT_FIELD_ATTR::set_length_and_original_length(THD *thd, uint length_arg)
   Compare function used for packing sort keys
 */
 
-qsort2_cmp get_packed_keys_compare_ptr()
+qsort_cmp2 get_packed_keys_compare_ptr()
 {
-  return (qsort2_cmp) compare_packed_sort_keys;
+  return compare_packed_sort_keys;
 }
 
 
@@ -2816,8 +2820,8 @@ qsort2_cmp get_packed_keys_compare_ptr()
   suffix_bytes are used only for binary columns.
 */
 
-int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
-                                               uchar *b, size_t *b_len)
+int SORT_FIELD_ATTR::compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                               const uchar *b, size_t *b_len)
 {
   int retval;
   size_t a_length, b_length;
@@ -2876,8 +2880,8 @@ int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
   packed-value format.
 */
 
-int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
-                                                    uchar *b, size_t *b_len)
+int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                                    const uchar *b, size_t *b_len)
 {
   if (maybe_null)
   {
@@ -2922,15 +2926,15 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
 
 */
 
-int compare_packed_sort_keys(void *sort_param,
-                             unsigned char **a_ptr, unsigned char **b_ptr)
+int compare_packed_sort_keys(void *sort_param, const void *a_ptr,
+                             const void *b_ptr)
 {
   int retval= 0;
   size_t a_len, b_len;
-  Sort_param *param= (Sort_param*)sort_param;
+  Sort_param *param= static_cast<Sort_param *>(sort_param);
   Sort_keys *sort_keys= param->sort_keys;
-  uchar *a= *a_ptr;
-  uchar *b= *b_ptr;
+  auto a= *(static_cast<const uchar *const *>(a_ptr));
+  auto b= *(static_cast<const uchar *const *>(b_ptr));
 
   a+= Sort_keys::size_of_length_field;
   b+= Sort_keys::size_of_length_field;

@@ -26,6 +26,7 @@ drop table if exists t1, t2, t3, t11, t21;
 #
 # FLUSH QUERY CACHE
 #
+--disable_cursor_protocol
 create table t1 (a int not null);
 insert into t1 values (1),(2),(3);
 create table t2 (a int not null);
@@ -85,6 +86,7 @@ flush query cache;
 show status like "Qcache_total_blocks";
 show status like "Qcache_free_blocks";
 drop table t1, t2, t3, t11, t21;
+--enable_cursor_protocol
 
 #
 # do not use QC if tables locked (Bug#12385)
@@ -114,6 +116,7 @@ disconnect root2;
 # improved to also test Bug#3583 and Bug#12990
 #
 --disable_ps2_protocol
+--disable_cursor_protocol
 flush query cache;
 reset query cache;
 flush status;
@@ -186,6 +189,7 @@ call f1();
 call f3();
 call f3();
 call f1();
+--enable_cursor_protocol
 
 drop procedure f1;
 drop procedure f2;
@@ -248,6 +252,7 @@ SET @@global.log_bin_trust_function_creators = @old_log_bin_trust_function_creat
 #
 # Bug #30269 Query cache eats memory
 #
+--disable_cursor_protocol
 --disable_warnings
 DROP DATABASE IF EXISTS bug30269;
 --enable_warnings
@@ -269,6 +274,7 @@ SELECT id FROM test1 WHERE id>2;
 show status like 'Qcache_queries_in_cache';
 SELECT id FROM view1 WHERE id>2;
 show status like 'Qcache_queries_in_cache';
+--enable_cursor_protocol
 
 connection default;
 USE test;

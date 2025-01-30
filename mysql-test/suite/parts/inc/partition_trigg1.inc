@@ -24,7 +24,9 @@ if ($no_debug)
 {
   --disable_query_log
 }
+--disable_cursor_protocol
 eval SELECT INSTR('$statement','DELETE') = 0 INTO @aux;
+--enable_cursor_protocol
 let $run1= `SELECT @aux`;
 --enable_query_log
 if ($run1)
@@ -72,7 +74,9 @@ if ($no_debug)
 {
   --disable_query_log
 }
+--disable_cursor_protocol
 eval SELECT INSTR('$statement','INSERT') = 0 INTO @aux;
+--enable_cursor_protocol
 let $run1= `SELECT @aux`;
 --enable_query_log
 if ($run1)

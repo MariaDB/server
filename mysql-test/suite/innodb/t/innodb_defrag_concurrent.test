@@ -124,7 +124,7 @@ disconnect con3;
 disconnect con4;
 
 optimize table t1;
-check table t1 extended;
+check table t1;
 
 select count(*) from t1;
 select count(*) from t1 force index (second);
@@ -136,6 +136,7 @@ select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like
 select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
 
 drop table t1;
+delete from mysql.innodb_index_stats where table_name='t1';
 
 # reset system
 SET GLOBAL innodb_defragment_n_pages = @n_pages;

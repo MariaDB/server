@@ -1,0 +1,65 @@
+#
+# MDEV-34634 Types mismatch when cloning items causes debug assertion
+#
+CREATE TABLE t1 (a DATETIME);
+SET optimizer_switch='derived_merge=off';
+SELECT * FROM (SELECT * FROM t1) AS t1 WHERE a='';
+a
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+DROP TABLE t1;
+CREATE TABLE t1 (c YEAR);
+CREATE TABLE t2 (c INT);
+SELECT * FROM t1 JOIN t2 ON t1.c=t2.c WHERE t1.c<=>5;
+c	c
+DROP TABLE t1, t2;
+SET optimizer_switch=default;
+#
+# MDEV-34683 Types mismatch when cloning items causes debug assertion
+#
+CREATE TABLE t1 (a date);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+SELECT a FROM v1 WHERE a IN ('a', 'b', 'c');
+a
+CREATE VIEW v2 AS SELECT '' as a;
+SELECT * FROM v2 WHERE a='' AND CASE '' WHEN '' THEN '' ELSE a END='';
+a
+
+DROP TABLE t1;
+DROP VIEW v1, v2;
+#
+# MDEV-34771: Types mismatch when cloning items causes debug assertion
+#
+CREATE VIEW t AS SELECT 1 AS a;
+SELECT * FROM t WHERE a=b'';
+a
+drop view t;
+#
+# MDEV-34776: Assertion failure in Item_string::do_build_clone
+#
+CREATE VIEW v AS SELECT version() AS f;
+SELECT * FROM v WHERE f = '10.5.20';
+f
+drop view v;
+#
+# MDEV-34785: Assertion failure in Item_func_or_sum::do_build_clone
+# (Item_func_not_all)
+#
+CREATE VIEW t AS SELECT 0 AS a;
+SELECT * FROM t WHERE a=ALL (SELECT 0);
+a
+0
+DROP VIEW t;
+#
+# MDEV-34833: Assertion failure in Item_float::do_build_clone
+# (Item_static_float_func)
+#
+CREATE VIEW v1 (f,f2) AS SELECT connection_id(),pi();
+CREATE TABLE t1 AS SELECT 1;
+SELECT * FROM v1 JOIN t1 ON f=f2;
+f	f2	1
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

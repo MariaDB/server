@@ -722,7 +722,7 @@ public:
   {
     return m_usec ?
       my_snprintf(to, nbytes, "%s%llu.%06lu",
-                  m_neg ? "-" : "", m_sec, (uint) m_usec) :
+                  m_neg ? "-" : "", m_sec, m_usec) :
       my_snprintf(to, nbytes, "%s%llu", m_neg ? "-" : "", m_sec);
   }
   void make_truncated_warning(THD *thd, const char *type_str) const;
@@ -1964,6 +1964,11 @@ public:
   {
     return neg ? -to_seconds_abs() : to_seconds_abs();
   }
+  bool to_bool() const
+  {
+    return is_valid_time() &&
+           (TIME_to_ulonglong_time(this) != 0 || second_part != 0);
+  }
   longlong to_longlong() const
   {
     if (!is_valid_time())
@@ -2324,6 +2329,10 @@ public:
     DBUG_ASSERT(is_valid_date_slow());
     return Temporal::to_packed();
   }
+  bool to_bool() const
+  {
+    return to_longlong() != 0;
+  }
   longlong to_longlong() const
   {
     return is_valid_date() ? (longlong) TIME_to_ulonglong_date(this) : 0LL;
@@ -2629,6 +2638,11 @@ public:
     ltime->time_type= type;
     return false;
   }
+  bool to_bool() const
+  {
+    return is_valid_datetime() &&
+           (TIME_to_ulonglong_datetime(this) != 0 || second_part != 0);
+  }
   longlong to_longlong() const
   {
     return is_valid_datetime() ?
@@ -2856,6 +2870,10 @@ public:
     if (is_zero_datetime())
       return Datetime::zero();
     return Timestamp::to_datetime(thd);
+  }
+  bool to_bool() const
+  {
+    return !m_is_zero_datetime;
   }
   bool is_zero_datetime() const { return m_is_zero_datetime; }
   void trunc(uint decimals)
@@ -3378,6 +3396,7 @@ public:
   Type_all_attributes(const Type_all_attributes &) = default;
   virtual ~Type_all_attributes() = default;
   virtual void set_type_maybe_null(bool maybe_null_arg)= 0;
+  virtual uint32 character_octet_length() const { return max_length; }
   // Returns total number of decimal digits
   virtual decimal_digits_t decimal_precision() const= 0;
   virtual const TYPELIB *get_typelib() const= 0;
@@ -5839,6 +5858,9 @@ public:
   const Type_handler *type_handler_signed() const override;
   void Item_update_null_value(Item *item) const override;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions)
+                         const override;
 };
 
 

@@ -49,5 +49,5 @@ COUNT(@@GLOBAL.innodb_doublewrite)
 1
 1 Expected
 SELECT innodb_doublewrite = @@SESSION.innodb_doublewrite;
-ERROR 42S22: Unknown column 'innodb_doublewrite' in 'field list'
+ERROR 42S22: Unknown column 'innodb_doublewrite' in 'SELECT'
 Expected error 'Readonly variable'

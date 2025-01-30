@@ -130,16 +130,19 @@ s3_block_size	X
 s3_bucket	X
 s3_debug	X
 s3_host_name	X
+s3_no_content_type	X
 s3_pagecache_age_threshold	X
 s3_pagecache_buffer_size	X
 s3_pagecache_division_limit	X
 s3_pagecache_file_hash_size	X
 s3_port	X
 s3_protocol_version	X
+s3_provider	X
 s3_region	X
 s3_replicate_alter_as_create_select	X
 s3_secret_key	X
 s3_slave_ignore_updates	X
+s3_ssl_no_verify	X
 s3_use_http	X
 show variables like "s3_slave%";
 Variable_name	Value

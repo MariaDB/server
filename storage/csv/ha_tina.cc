@@ -96,8 +96,10 @@ static handler *tina_create_handler(handlerton *hton,
 /*
   Used for sorting chains with qsort().
 */
-int sort_set (tina_set *a, tina_set *b)
+int sort_set (const void *a_, const void *b_)
 {
+  const tina_set *a= static_cast<const tina_set*>(a_);
+  const tina_set *b= static_cast<const tina_set*>(b_);
   /*
     We assume that intervals do not intersect. So, it is enought to compare
     any two points. Here we take start of intervals for comparison.
@@ -105,11 +107,11 @@ int sort_set (tina_set *a, tina_set *b)
   return ( a->begin > b->begin ? 1 : ( a->begin < b->begin ? -1 : 0 ) );
 }
 
-static uchar* tina_get_key(TINA_SHARE *share, size_t *length,
-                          my_bool not_used __attribute__((unused)))
+static const uchar *tina_get_key(const void *share_, size_t *length, my_bool)
 {
+  const TINA_SHARE *share= static_cast<const TINA_SHARE *>(share_);
   *length=share->table_name_length;
-  return (uchar*) share->table_name;
+  return reinterpret_cast<const uchar *>(share->table_name);
 }
 
 static PSI_memory_key csv_key_memory_tina_share;
@@ -181,12 +183,11 @@ static int tina_init_func(void *p)
   init_tina_psi_keys();
 #endif
 
-  tina_hton= (handlerton *)p;
+  tina_hton= static_cast<handlerton *>(p);
   mysql_mutex_init(csv_key_mutex_tina, &tina_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(csv_key_memory_tina_share, &tina_open_tables,
-                      Lex_ident_table::charset_info(),
-                      32, 0, 0, (my_hash_get_key)
-                      tina_get_key, 0, 0);
+                      Lex_ident_table::charset_info(), 32, 0, 0, tina_get_key,
+                      0, 0);
   tina_hton->db_type= DB_TYPE_CSV_DB;
   tina_hton->create= tina_create_handler;
   tina_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES | 
@@ -333,7 +334,7 @@ static int read_meta_file(File meta_file, ha_rows *rows)
   /* check crashed bit and magic number */
   if ((meta_buffer[0] != (uchar)TINA_CHECK_HEADER) ||
       ((bool)(*ptr)== TRUE))
-    DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED_ON_USAGE);
 
   mysql_file_sync(meta_file, MYF(MY_WME));
 
@@ -974,7 +975,7 @@ int ha_tina::open(const char *name, int mode, uint open_options)
   if (share->crashed && !(open_options & HA_OPEN_FOR_REPAIR))
   {
     free_share(share);
-    DBUG_RETURN(my_errno ? my_errno : HA_ERR_CRASHED_ON_USAGE);
+    DBUG_RETURN(my_errno);
   }
 
   local_data_file_version= share->data_file_version;

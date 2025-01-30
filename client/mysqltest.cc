@@ -164,6 +164,7 @@ static struct property prop_list[] = {
   { &ps_protocol_enabled, 0, 0, 0, "$ENABLED_PS_PROTOCOL" },
   { &ps2_protocol_enabled, 0, 0, 0, "$ENABLED_PS2_PROTOCOL" },
   { &view_protocol_enabled, 0, 0, 0, "$ENABLED_VIEW_PROTOCOL"},
+  { &cursor_protocol_enabled, 0, 0, 0, "$ENABLED_CURSOR_PROTOCOL"},
   { &service_connection_enabled, 0, 1, 0, "$ENABLED_SERVICE_CONNECTION"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
@@ -181,6 +182,7 @@ enum enum_prop {
   P_PS,
   P_PS2,
   P_VIEW,
+  P_CURSOR,
   P_CONN,
   P_QUERY,
   P_RESULT,
@@ -273,6 +275,7 @@ static regex_t ps_re;     /* the query can be run using PS protocol */
 static regex_t ps2_re;    /* the query can be run using PS protocol with second execution*/
 static regex_t sp_re;     /* the query can be run as a SP */
 static regex_t view_re;   /* the query can be run as a view*/
+static regex_t cursor_re;    /* the query can be run with cursor protocol*/
 
 static void init_re(void);
 static int match_re(regex_t *, char *);
@@ -391,6 +394,7 @@ enum enum_commands {
   Q_CHARACTER_SET, Q_DISABLE_PS_PROTOCOL, Q_ENABLE_PS_PROTOCOL,
   Q_DISABLE_PS2_PROTOCOL, Q_ENABLE_PS2_PROTOCOL,
   Q_DISABLE_VIEW_PROTOCOL, Q_ENABLE_VIEW_PROTOCOL,
+  Q_DISABLE_CURSOR_PROTOCOL, Q_ENABLE_CURSOR_PROTOCOL,
   Q_DISABLE_SERVICE_CONNECTION, Q_ENABLE_SERVICE_CONNECTION,
   Q_ENABLE_NON_BLOCKING_API, Q_DISABLE_NON_BLOCKING_API,
   Q_DISABLE_RECONNECT, Q_ENABLE_RECONNECT,
@@ -487,6 +491,8 @@ const char *command_names[]=
   "enable_ps2_protocol",
   "disable_view_protocol",
   "enable_view_protocol",
+  "disable_cursor_protocol",
+  "enable_cursor_protocol",
   "disable_service_connection",
   "enable_service_connection",
   "enable_non_blocking_api",
@@ -865,8 +871,7 @@ LogFile progress_file;
 void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len);
 void replace_dynstr_append(DYNAMIC_STRING *ds, const char *val);
 void replace_dynstr_append_uint(DYNAMIC_STRING *ds, uint val);
-void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING* ds_input,
-                          bool keep_header);
+void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING* ds_input);
 
 static int match_expected_error(struct st_command *command,
                                 unsigned int err_errno,
@@ -984,7 +989,6 @@ end_thread:
   cn->mysql= 0;
   cn->query_done= 1;
   mysql_thread_end();
-  pthread_exit(0);
   DBUG_RETURN(0);
 }
 
@@ -2394,13 +2398,12 @@ static void strip_parentheses(struct st_command *command)
 
 C_MODE_START
 
-static uchar *get_var_key(const uchar* var, size_t *len,
-                          my_bool __attribute__((unused)) t)
+static const uchar *get_var_key(const void *var, size_t *len, my_bool)
 {
   char* key;
-  key = ((VAR*)var)->name;
-  *len = ((VAR*)var)->name_len;
-  return (uchar*)key;
+  key= (static_cast<const VAR *>(var))->name;
+  *len= (static_cast<const VAR *>(var))->name_len;
+  return reinterpret_cast<const uchar *>(key);
 }
 
 
@@ -3429,7 +3432,7 @@ void do_exec(struct st_command *command)
 
   if (display_result_sorted)
   {
-    dynstr_append_sorted(&ds_res, &ds_sorted, 0);
+    dynstr_append_sorted(&ds_res, &ds_sorted);
     dynstr_free(&ds_sorted);
   }
 
@@ -3877,9 +3880,9 @@ void do_move_file(struct st_command *command)
         is_sub_path(ds_to_file.str, to_plen, vardir)) || 
         (is_sub_path(ds_from_file.str, from_plen, tmpdir) && 
         is_sub_path(ds_to_file.str, to_plen, tmpdir)))) {
-        report_or_die("Paths '%s' and '%s' are not both under MYSQLTEST_VARDIR '%s'"
-                "or both under MYSQL_TMP_DIR '%s'",
-                ds_from_file, ds_to_file, vardir, tmpdir);
+        report_or_die("Paths '%s' and '%s' are not both under "
+                      "MYSQLTEST_VARDIR '%s' or both under MYSQL_TMP_DIR '%s'",
+                      ds_from_file.str, ds_to_file.str, vardir, tmpdir);
         DBUG_VOID_RETURN;
   }
   
@@ -7715,16 +7718,29 @@ void append_result(DYNAMIC_STRING *ds, MYSQL_RES *res)
   uint num_fields= mysql_num_fields(res);
   MYSQL_FIELD *fields= mysql_fetch_fields(res);
   ulong *lengths;
+  DYNAMIC_STRING rs_unsorted, *rs= ds;
+
+  if (display_result_sorted)
+  {
+    init_dynamic_string(&rs_unsorted, "", 1024, 1024);
+    rs= &rs_unsorted;
+  }
 
   while ((row = mysql_fetch_row(res)))
   {
     uint i;
     lengths = mysql_fetch_lengths(res);
     for (i = 0; i < num_fields; i++)
-      append_field(ds, i, &fields[i],
+      append_field(rs, i, &fields[i],
                    row[i], lengths[i], !row[i]);
     if (!display_result_vertically)
-      dynstr_append_mem(ds, "\n", 1);
+      dynstr_append_mem(rs, "\n", 1);
+  }
+
+  if (display_result_sorted)
+  {
+    dynstr_append_sorted(ds, &rs_unsorted);
+    dynstr_free(&rs_unsorted);
   }
 }
 
@@ -7742,6 +7758,13 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   ulong *length;
   uint i;
   int error;
+  DYNAMIC_STRING rs_unsorted, *rs= ds;
+
+  if (display_result_sorted)
+  {
+    init_dynamic_string(&rs_unsorted, "", 1024, 1024);
+    rs= &rs_unsorted;
+  }
 
   /* Allocate array with bind structs, lengths and NULL flags */
   my_bind= (MYSQL_BIND*) my_malloc(PSI_NOT_INSTRUMENTED, num_fields * sizeof(MYSQL_BIND),
@@ -7773,10 +7796,10 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   while ((error=mysql_stmt_fetch(stmt)) == 0)
   {
     for (i= 0; i < num_fields; i++)
-      append_field(ds, i, &fields[i], (char*)my_bind[i].buffer,
+      append_field(rs, i, &fields[i], (char*)my_bind[i].buffer,
                    *my_bind[i].length, *my_bind[i].is_null);
     if (!display_result_vertically)
-      dynstr_append_mem(ds, "\n", 1);
+      dynstr_append_mem(rs, "\n", 1);
   }
 
   if (error != MYSQL_NO_DATA)
@@ -7795,6 +7818,12 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   my_free(my_bind);
   my_free(length);
   my_free(is_null);
+
+  if (display_result_sorted)
+  {
+    dynstr_append_sorted(ds, &rs_unsorted);
+    dynstr_free(&rs_unsorted);
+  }
 }
 
 
@@ -7905,6 +7934,20 @@ static const char *trking_info_desc[SESSION_TRACK_END + 1]=
 /**
   @brief Append state change information (received through Ok packet) to the output.
 
+  @details The appended string is lines prefixed with "-- ". Only
+  tracking types with info sent from the server are displayed. For
+  each tracking type, the first line is the type name e.g.
+  "-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES".
+
+  The subsequent lines are the actual tracking info. When type is
+  SESSION_TRACK_SYSTEM_VARIABLES, the actual tracking info is a list
+  of name-value pairs of lines, sorted by name, e.g. if the info
+  received from the server is "autocommit=ON;time_zone=SYSTEM", the
+  corresponding string is
+
+  -- autocommit: ON
+  -- time_zone: SYSTEM
+
   @param [in,out] ds         Dynamic string to hold the content to be printed.
   @param [in] mysql          Connection handle.
 */
@@ -7912,11 +7955,16 @@ static const char *trking_info_desc[SESSION_TRACK_END + 1]=
 static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
 {
 #ifndef EMBEDDED_LIBRARY
+  DYNAMIC_STRING ds_sort, *ds_type= NULL;
   for (unsigned int type= SESSION_TRACK_BEGIN; type <= SESSION_TRACK_END; type++)
   {
     const char *data;
     size_t data_length;
 
+    /*
+      Append the tracking type line, if any corresponding tracking
+      info is received.
+    */
     if (!mysql_session_track_get_first(mysql,
                                        (enum_session_state_type) type,
                                        &data, &data_length))
@@ -7932,26 +7980,56 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
         DBUG_ASSERT(0);
         dynstr_append_mem(ds, STRING_WITH_LEN("Tracker???\n"));
       }
-
-      dynstr_append_mem(ds, STRING_WITH_LEN("-- "));
-      dynstr_append_mem(ds, data, data_length);
     }
     else
       continue;
+
+    /*
+      The remaining of this function: format and append the actual
+      tracking info.
+    */
+    if (type == SESSION_TRACK_SYSTEM_VARIABLES)
+    {
+      /* Prepare a string to be sorted before being appended. */
+      if (init_dynamic_string(&ds_sort, "", 1024, 1024))
+        die("Out of memory");
+      ds_type= &ds_sort;
+    }
+    else
+      ds_type= ds;
+    /* Append the first piece of info */
+    dynstr_append_mem(ds_type, STRING_WITH_LEN("-- "));
+    dynstr_append_mem(ds_type, data, data_length);
+    /* Whether we are appending the value of a variable */
+    bool appending_value= type == SESSION_TRACK_SYSTEM_VARIABLES;
+    /* Append remaining pieces */
     while (!mysql_session_track_get_next(mysql,
                                         (enum_session_state_type) type,
                                         &data, &data_length))
     {
-      dynstr_append_mem(ds, STRING_WITH_LEN("\n-- "));
+      if (appending_value)
+        dynstr_append_mem(ds_type, STRING_WITH_LEN(": "));
+      else
+        dynstr_append_mem(ds_type, STRING_WITH_LEN("\n-- "));
+      appending_value= !appending_value && type == SESSION_TRACK_SYSTEM_VARIABLES;
       if (data == NULL)
       {
         DBUG_ASSERT(data_length == 0);
-        dynstr_append_mem(ds, STRING_WITH_LEN("<NULL>"));
+        dynstr_append_mem(ds_type, STRING_WITH_LEN("<NULL>"));
       }
       else
-        dynstr_append_mem(ds, data, data_length);
+        dynstr_append_mem(ds_type, data, data_length);
     }
-    dynstr_append_mem(ds, STRING_WITH_LEN("\n\n"));
+    DBUG_ASSERT(!appending_value);
+    if (type == SESSION_TRACK_SYSTEM_VARIABLES)
+    {
+      dynstr_append_mem(ds_type, STRING_WITH_LEN("\n"));
+      dynstr_append_sorted(ds, ds_type);
+      dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
+      dynstr_free(&ds_sort);
+    }
+    else
+      dynstr_append_mem(ds, STRING_WITH_LEN("\n\n"));
   }
 #endif /* EMBEDDED_LIBRARY */
 }
@@ -7988,7 +8066,6 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
 {
   uint count;
   MYSQL_RES *warn_res;
-  DYNAMIC_STRING res;
   DBUG_ENTER("append_warnings");
 
   if (!(count= mysql_warning_count(mysql)))
@@ -8009,18 +8086,8 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
     die("Warning count is %u but didn't get any warnings",
 	count);
 
-  init_dynamic_string(&res, "", 1024, 1024);
-
-  append_result(&res, warn_res);
+  append_result(ds, warn_res);
   mysql_free_result(warn_res);
-
-  DBUG_PRINT("warnings", ("%s", res.str));
-
-  if (display_result_sorted)
-    dynstr_append_sorted(ds, &res, 0);
-  else
-    dynstr_append_mem(ds, res.str, res.length);
-  dynstr_free(&res);
   DBUG_RETURN(count);
 }
 
@@ -8535,8 +8602,6 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   DYNAMIC_STRING ds_prepare_warnings;
   DYNAMIC_STRING ds_execute_warnings;
   DYNAMIC_STRING ds_res_1st_execution;
-  DYNAMIC_STRING ds_res_2_execution_unsorted;
-  DYNAMIC_STRING *ds_res_2_output;
   my_bool ds_res_1st_execution_init = FALSE;
   my_bool compare_2nd_execution = TRUE;
   int query_match_ps2_re;
@@ -8598,18 +8663,25 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     parameter markers.
   */
 
-#if MYSQL_VERSION_ID >= 50000
   if (cursor_protocol_enabled)
   {
+    ps2_protocol_enabled = 0;
+
     /*
-      Use cursor when retrieving result
+      Use cursor for queries matching the filter,
+      else reset cursor type
     */
-    ulong type= CURSOR_TYPE_READ_ONLY;
-    if (mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*) &type))
-      die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
-          mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    if (match_re(&cursor_re, query))
+    {
+      /*
+      Use cursor when retrieving result
+      */
+      ulong type= CURSOR_TYPE_READ_ONLY;
+      if (mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*) &type))
+        die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
+             mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    }
   }
-#endif
 
   query_match_ps2_re = match_re(&ps2_re, query);
 
@@ -8669,34 +8741,15 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   {
     /*
       When running in cursor_protocol get the warnings from execute here
-      and keep them in a separate string for later.
+      and keep them in a separate string for later. Cursor_protocol is used
+      only for queries matching the filter "cursor_re".
     */
-    if (cursor_protocol_enabled && !disable_warnings)
+    if (cursor_protocol_enabled && match_re(&cursor_re, query) &&
+        !disable_warnings)
       append_warnings(&ds_execute_warnings, mysql);
 
-    if (!disable_result_log &&
-        compare_2nd_execution &&
-        ps2_protocol_enabled &&
-        query_match_ps2_re &&
-        display_result_sorted)
-    {
-      init_dynamic_string(&ds_res_2_execution_unsorted, "",
-                          RESULT_STRING_INIT_MEM,
-                          RESULT_STRING_INCREMENT_MEM);
-      ds_res_2_output= &ds_res_2_execution_unsorted;
-    }
-    else
-      ds_res_2_output= ds;
-
-    if (read_stmt_results(stmt, ds_res_2_output, command))
-    {
-       if (ds_res_2_output != ds)
-       {
-         dynstr_append_mem(ds, ds_res_2_output->str, ds_res_2_output->length);
-         dynstr_free(ds_res_2_output);
-       }
+    if (read_stmt_results(stmt, ds, command))
        goto end;
-    }
 
     if (!disable_result_log)
     {
@@ -8706,35 +8759,12 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       */
       if (compare_2nd_execution && ps2_protocol_enabled && query_match_ps2_re)
       {
-        DYNAMIC_STRING *ds_res_1_execution_compare;
-        DYNAMIC_STRING ds_res_1_execution_sorted;
-        if (display_result_sorted)
-        {
-          init_dynamic_string(&ds_res_1_execution_sorted, "",
-                              RESULT_STRING_INIT_MEM,
-                              RESULT_STRING_INCREMENT_MEM);
-          dynstr_append_sorted(&ds_res_1_execution_sorted,
-                               &ds_res_1st_execution, 1);
-          dynstr_append_sorted(ds, &ds_res_2_execution_unsorted, 1);
-          ds_res_1_execution_compare= &ds_res_1_execution_sorted;
-        }
-        else
-        {
-          ds_res_1_execution_compare= &ds_res_1st_execution;
-        }
-        if (ds->length != ds_res_1_execution_compare->length ||
-           !(memcmp(ds_res_1_execution_compare->str, ds->str, ds->length) == 0))
+        if (ds->length != ds_res_1st_execution.length ||
+           !(memcmp(ds_res_1st_execution.str, ds->str, ds->length) == 0))
         {
           die("The result of the 1st execution does not match with \n"
               "the result of the 2nd execution of ps-protocol:\n 1st:\n"
-              "%s\n 2nd:\n %s",
-              ds_res_1_execution_compare->str,
-              ds->str);
-        }
-        if (display_result_sorted)
-        {
-          dynstr_free(&ds_res_1_execution_sorted);
-          dynstr_free(&ds_res_2_execution_unsorted);
+              "%s\n 2nd:\n %s", ds_res_1st_execution.str, ds->str);
         }
       }
 
@@ -8817,6 +8847,16 @@ end:
   */
 
   var_set_errno(mysql_stmt_errno(stmt));
+
+  #if MYSQL_VERSION_ID >= 50000
+    if (cursor_protocol_enabled)
+    {
+      ulong type= CURSOR_TYPE_NO_CURSOR;
+      if (mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*) &type))
+        die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
+            mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    }
+  #endif
 
   revert_properties();
 
@@ -9317,10 +9357,6 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   DYNAMIC_STRING *rs_output; /* where to put results */
   DYNAMIC_STRING rs_cmp_result; /* here we put results to compare with
                                    pre-recrded file */
-  DYNAMIC_STRING rs_unsorted; /* if we need sorted results, here we store
-                                 results before sorting them */
-  DYNAMIC_STRING *rs_sorted_save= NULL; /* here we store where to put sorted
-                                           result if needed */
   DYNAMIC_STRING rs_warnings;
   char *query;
   size_t query_len;
@@ -9491,18 +9527,6 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     dynstr_free(&query_str);
   }
 
-  if (display_result_sorted)
-  {
-    /*
-       Collect the query output in a separate string
-       that can be sorted before it's added to the
-       global result string
-    */
-    init_dynamic_string(&rs_unsorted, "", 1024, 1024);
-    rs_sorted_save= rs_output; /* Remember original ds */
-    rs_output= &rs_unsorted;
-  }
-
   /*
     Find out how to run this query
 
@@ -9528,14 +9552,6 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
 
   dynstr_free(&rs_warnings);
   ds_warn= 0;
-
-  if (display_result_sorted)
-  {
-    /* Sort the result set and append it to result */
-    dynstr_append_sorted(rs_sorted_save, &rs_unsorted, 1);
-    rs_output= rs_sorted_save;
-    dynstr_free(&rs_unsorted);
-  }
 
   if (sp_created)
   {
@@ -9627,7 +9643,7 @@ void init_re(void)
     //"[[:space:]]*CALL[[:space:]]|" // XXX run_query_stmt doesn't read multiple result sets
     "[[:space:]]*CHANGE[[:space:]]|"
     "[[:space:]]*CHECKSUM[[:space:]]|"
-    "[[:space:]]*COMMIT[[:space:]]|"
+    "[[:space:]]*COMMIT[[:space:]]*|"
     "[[:space:]]*COMPOUND[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+DATABASE[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+INDEX[[:space:]]|"
@@ -9684,10 +9700,19 @@ void init_re(void)
     "^("
     "[[:space:]]*SELECT[[:space:]])";
 
+  /*
+    Filter for queries that can be run with
+    cursor protocol
+  */
+  const char *cursor_re_str =
+    "^("
+    "[[:space:]]*SELECT[[:space:]])";
+
   init_re_comp(&ps_re, ps_re_str);
   init_re_comp(&ps2_re, ps2_re_str);
   init_re_comp(&sp_re, sp_re_str);
   init_re_comp(&view_re, view_re_str);
+  init_re_comp(&cursor_re, cursor_re_str);
 }
 
 
@@ -9725,6 +9750,7 @@ void free_re(void)
   regfree(&ps2_re);
   regfree(&sp_re);
   regfree(&view_re);
+  regfree(&cursor_re);
 }
 
 /****************************************************************************/
@@ -10517,6 +10543,17 @@ int main(int argc, char **argv)
         break;
       case Q_ENABLE_VIEW_PROTOCOL:
         set_property(command, P_VIEW, view_protocol);
+        break;
+      case Q_DISABLE_CURSOR_PROTOCOL:
+        set_property(command, P_CURSOR, 0);
+        if (cursor_protocol)
+          set_property(command, P_PS, 0);
+        /* Close any open statements */
+        close_statements();
+        break;
+      case Q_ENABLE_CURSOR_PROTOCOL:
+        set_property(command, P_CURSOR, cursor_protocol);
+        set_property(command, P_PS, ps_protocol);
         break;
       case Q_DISABLE_SERVICE_CONNECTION:
         set_property(command, P_CONN, 0);
@@ -12067,22 +12104,23 @@ void replace_dynstr_append_uint(DYNAMIC_STRING *ds, uint val)
 /*
   Build a list of pointer to each line in ds_input, sort
   the list and use the sorted list to append the strings
-  sorted to the output ds
+  sorted to the output ds. The string ds_input needs to
+  end with a newline.
 
   SYNOPSIS
   dynstr_append_sorted()
   ds           string where the sorted output will be appended
   ds_input     string to be sorted
-  keep_header  If header should not be sorted
 */
 
-static int comp_lines(const char **a, const char **b)
+static int comp_lines(const void *a_, const void *b_)
 {
+  auto a= static_cast<const char *const *>(a_);
+  auto b= static_cast<const char *const *>(b_);
   return (strcmp(*a,*b));
 }
 
-void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
-                          bool keep_header)
+void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input)
 {
   unsigned i;
   char *start= ds_input->str;
@@ -12093,15 +12131,6 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
     DBUG_VOID_RETURN;  /* No input */
 
   my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &lines, sizeof(const char*), 32, 32, MYF(0));
-
-  if (keep_header)
-  {
-    /* First line is result header, skip past it */
-    while (*start && *start != '\n')
-      start++;
-    start++; /* Skip past \n */
-    dynstr_append_mem(ds, ds_input->str, start - ds_input->str);
-  }
 
   /* Insert line(s) in array */
   while (*start)

@@ -6392,7 +6392,7 @@ my_bool translog_write_record(LSN *lsn,
   struct st_translog_parts parts;
   LEX_CUSTRING *part;
   int rc;
-  uint short_trid= trn->short_id;
+  SHORT_TRANSACTION_ID short_trid= trn->short_id;
   DBUG_ENTER("translog_write_record");
   DBUG_PRINT("enter", ("type: %u (%s)  ShortTrID: %u  rec_len: %lu",
                        (uint) type, log_record_type_descriptor[type].name,
@@ -8705,7 +8705,7 @@ my_bool translog_purge(TRANSLOG_ADDRESS low)
                     log_descriptor.open_files.elements);
         DBUG_ASSERT(log_descriptor.min_file == i);
         file= *((TRANSLOG_FILE **)pop_dynamic(&log_descriptor.open_files));
-        DBUG_PRINT("info", ("Files : %d", log_descriptor.open_files.elements));
+        DBUG_PRINT("info", ("Files : %zu", log_descriptor.open_files.elements));
         DBUG_ASSERT(i == file->number);
         log_descriptor.min_file++;
         DBUG_ASSERT(log_descriptor.max_file - log_descriptor.min_file + 1 ==

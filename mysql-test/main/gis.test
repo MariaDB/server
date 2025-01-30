@@ -403,9 +403,12 @@ select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440)))) as e
 
 --enable_metadata
 --disable_view_protocol
+#check after fix MDEV-31540
+--disable_cursor_protocol
 create table t1 (g GEOMETRY);
 select * from t1;
 select asbinary(g) from t1;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 drop table t1;
@@ -3245,6 +3248,8 @@ CREATE TABLE t1 (
   g    GEOMETRY
 ) CHARACTER SET utf8;
 
+#check after fix MDEV-31540
+--disable_cursor_protocol
 --disable_view_protocol
 --enable_metadata
 SELECT * FROM t1;
@@ -3350,6 +3355,7 @@ FROM t1;
 
 --disable_metadata
 --enable_view_protocol
+--enable_cursor_protocol
 DROP TABLE t1;
 
 --echo #
@@ -3439,5 +3445,41 @@ SELECT AsText(g) FROM t1;
 DROP TABLE t1;
 
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-16699 heap-use-after-free in group_concat with compressed or GIS columns
 --echo #
+create table t1 (c polygon);
+insert into t1 values
+  (PolygonFromText('POLYGON((1 2,1 2))')),
+  (PolygonFromText('POLYGON((0 0,1 1,0 0))'));
+select length(group_concat(c, c order by 1,2)) from t1;
+create table t2 as select group_concat(c, c order by 1,2), concat(c), c from t1;
+show create table t2;
+drop table t1, t2;
+
+
+--echo #
+--echo # MDEV-33987 Server crashes at Item_func_as_wkt::val_str_ascii
+--echo #
+
+SELECT ST_ASTEXT(BOUNDARY(INET6_ATON('255.255.255.255'))) AS c1;
+
+--echo #
+--echo # Server crash in DTCollation::set_repertoire_from_charset
+--echo #
+
+CREATE TABLE t (f POINT, KEY(f));
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+DELETE FROM t WHERE f NOT IN (NULL,'x');
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-31219 Assertion `fixed' failed in Item_func_hybrid_field_type / Frame_positional_cursor
+--echo #
+
+CREATE TABLE t (a INT, b POINT);
+INSERT INTO t VALUES (1,POINT(0,0)),(2,POINT(0,0));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT NTH_VALUE(a,b) OVER () FROM t;
+DROP TABLE t;
+
+--echo # End of 10.5 tests

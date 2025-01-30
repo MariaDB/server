@@ -908,10 +908,10 @@ static bool insert_bulk_params(Prepared_statement *stmt,
         param->set_null();
         break;
       case STMT_INDICATOR_DEFAULT:
-        param->set_default();
+        param->set_default(false);
         break;
       case STMT_INDICATOR_IGNORE:
-        param->set_ignore();
+        param->set_ignore(false);
         break;
       default:
         DBUG_ASSERT(0);
@@ -1488,8 +1488,8 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->register_want_access(want_privilege);
 #endif
   thd->lex->first_select_lex()->no_wrap_view_item= TRUE;
-  res= setup_fields(thd, Ref_ptr_array(),
-                    select->item_list, MARK_COLUMNS_READ, 0, NULL, 0);
+  res= setup_fields(thd, Ref_ptr_array(), select->item_list, MARK_COLUMNS_READ,
+                    0, NULL, 0, THD_WHERE::SET_LIST);
   thd->lex->first_select_lex()->no_wrap_view_item= FALSE;
   if (res)
     goto error;
@@ -1500,8 +1500,8 @@ static int mysql_test_update(Prepared_statement *stmt,
     (SELECT_ACL & ~table_list->table->grant.privilege);
   table_list->register_want_access(SELECT_ACL);
 #endif
-  if (setup_fields(thd, Ref_ptr_array(),
-                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0) ||
+  if (setup_fields(thd, Ref_ptr_array(), stmt->lex->value_list, COLUMNS_READ,
+                   0, NULL, 0, THD_WHERE::SET_LIST) ||
       check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
@@ -1676,8 +1676,8 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_INIT | DT_PREPARE))
     DBUG_RETURN(TRUE);
-  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, COLUMNS_READ, 0, NULL, 0));
+  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(), *values, COLUMNS_READ, 0,
+                           NULL, 0, THD_WHERE::DO_STATEMENT));
 }
 
 
@@ -1709,6 +1709,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
                                      DT_INIT | DT_PREPARE))
     goto error;
 
+  thd->where= THD_WHERE::SET_LIST;
   while ((var= it++))
   {
     if (var->light_check(thd))
@@ -2474,6 +2475,16 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 #ifdef WITH_WSREP
     if (wsrep_sync_wait(thd, sql_command))
       goto error;
+    if (!stmt->is_sql_prepare())
+    {
+      wsrep_after_command_before_result(thd);
+      if (wsrep_current_error(thd))
+      {
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        goto error;
+      }
+    }
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -3080,8 +3091,8 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
     DBUG_VOID_RETURN;                           // out of memory
 
   // See comments on thd->free_list in mysql_sql_stmt_execute()
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL;
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_immediate()
     with an empty THD::change_list. It can be non empty as the above
@@ -3104,8 +3115,6 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_immediate(query.str, (uint) query.length);
   change_list_savepoint.rollback(thd);
-  thd->free_items();
-  thd->free_list= free_list_backup;
 
   /*
     stmt->execute_immediately() sets thd->query_string with the executed
@@ -3281,7 +3290,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 
   if (lex->result)
   {
-    lex->result->cleanup();
+    lex->result->reset_for_next_ps_execution();
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func.clear_all();
@@ -3670,8 +3679,13 @@ void mysql_sql_stmt_execute(THD *thd)
     so they don't get freed in case of re-prepare.
     See MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
   */
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+  /*
+    Hide and restore at scope exit the "external" (e.g. "SET STATEMENT") Item list.
+    It will be freed normaly in THD::cleanup_after_query().
+  */
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  // Free items created by execute_loop() at scope exit
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_loop() with an empty
     THD::change_list. It can be non-empty because the above
@@ -3695,12 +3709,6 @@ void mysql_sql_stmt_execute(THD *thd)
 
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
   change_list_savepoint.rollback(thd);
-  thd->free_items();    // Free items created by execute_loop()
-  /*
-    Now restore the "external" (e.g. "SET STATEMENT") Item list.
-    It will be freed normaly in THD::cleanup_after_query().
-  */
-  thd->free_list= free_list_backup;
 
   stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
@@ -6289,7 +6297,7 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   {
     THD *thd_orig= current_thd;
     set_current_thd(p->thd);
-    p->thd->thread_stack= (char*) &result;
+    p->thd->thread_stack= (void*) &result;      // Big stack
     p->thd->set_time();
     result= execute_server_code(p->thd, (const char *)arg, arg_length);
     p->thd->cleanup_after_query();
@@ -6469,7 +6477,6 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
 
     new_thd= new THD(0);
     local_connection_thread_count++;
-    new_thd->thread_stack= (char*) &thd_orig;
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;

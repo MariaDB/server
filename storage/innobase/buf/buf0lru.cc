@@ -39,9 +39,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "my_cpu.h"
 
-/** Flush this many pages in buf_LRU_get_free_block() */
-size_t innodb_lru_flush_size;
-
 /** The number of blocks from the LRU_old pointer onward, including
 the block pointed to, must be buf_pool.LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV
 of the whole LRU list length, except that the tolerance defined below
@@ -369,17 +366,13 @@ block to read in a page. Note that we only ever get a block from
 the free list. Even when we flush a page or find a page in LRU scan
 we put it to free list to be used.
 * iteration 0:
-  * get a block from the buf_pool.free list, success:done
+  * get a block from the buf_pool.free list
   * if buf_pool.try_LRU_scan is set
     * scan LRU up to 100 pages to free a clean block
     * success:retry the free list
-  * flush up to innodb_lru_flush_size LRU blocks to data files
-    (until UT_LIST_GET_GEN(buf_pool.free) < innodb_lru_scan_depth)
-    * on buf_page_write_complete() the blocks will put on buf_pool.free list
-    * success: retry the free list
+  * invoke buf_pool.page_cleaner_wakeup(true) and wait its completion
 * subsequent iterations: same as iteration 0 except:
-  * scan whole LRU list
-  * scan LRU list even if buf_pool.try_LRU_scan is not set
+  * scan the entire LRU list
 
 @param have_mutex  whether buf_pool.mutex is already being held
 @return the free control block, in state BUF_BLOCK_MEMORY */
@@ -402,7 +395,7 @@ retry:
 got_block:
     const ulint LRU_size= UT_LIST_GET_LEN(buf_pool.LRU);
     const ulint available= UT_LIST_GET_LEN(buf_pool.free);
-    const ulint scan_depth= srv_LRU_scan_depth / 2;
+    const ulint scan_depth= buf_pool.LRU_scan_depth / 2;
     ut_ad(LRU_size <= BUF_LRU_MIN_LEN ||
           available >= scan_depth || buf_pool.need_LRU_eviction());
 
@@ -807,7 +800,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 		break;
 	case 1:
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
-		if (const lsn_t om = bpage->oldest_modification()) {
+		if (ut_d(const lsn_t om =) bpage->oldest_modification()) {
 			ut_ad(om == 1);
 			buf_pool.delete_from_flush_list(bpage);
 		}
@@ -1031,7 +1024,7 @@ buf_LRU_block_free_non_file_page(
 }
 
 /** Release a memory block to the buffer pool. */
-ATTRIBUTE_COLD void buf_pool_t::free_block(buf_block_t *block)
+ATTRIBUTE_COLD void buf_pool_t::free_block(buf_block_t *block) noexcept
 {
   ut_ad(this == &buf_pool);
   mysql_mutex_lock(&mutex);
@@ -1182,13 +1175,12 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 @param bpage    x-latched page that was found corrupted
 @param state    expected current state of the page */
 ATTRIBUTE_COLD
-void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
+void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state) noexcept
 {
   const page_id_t id{bpage->id()};
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
 
-  recv_sys.free_corrupted_page(id);
   mysql_mutex_lock(&mutex);
   hash_lock.lock();
 

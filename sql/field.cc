@@ -1348,7 +1348,8 @@ int Field::store_hex_hybrid(const char *str, size_t length)
     goto warn;
   }
   nr= (ulonglong) longlong_from_hex_hybrid(str, length);
-  if ((length == 8) && !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
+  if ((length == 8) && cmp_type()== INT_RESULT &&
+      !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
   {
     nr= LONGLONG_MAX;
     goto warn;
@@ -8966,6 +8967,24 @@ int Field_blob::key_cmp(const uchar *a,const uchar *b) const
 }
 
 
+#ifndef DBUG_OFF
+/* helper to assert that new_table->blob_storage is NULL */
+static struct blob_storage_check
+{
+  union { bool b; intptr p; } val;
+  blob_storage_check() { val.p= -1; val.b= false; }
+} blob_storage_check;
+#endif
+Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
+{
+  DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
+  if (newt->group_concat)
+    return new (root) Field_blob(field_length, maybe_null(), &field_name,
+                                 charset());
+  return Field::make_new_field(root, newt, keep_type);
+}
+
+
 Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
                                  uchar *new_ptr, uint32 length,
                                  uchar *new_null_ptr, uint new_null_bit)
@@ -9554,8 +9573,7 @@ String *Field_set::val_str(String *val_buffer,
   ulonglong tmp=(ulonglong) Field_enum::val_int();
   uint bitnr=0;
 
-  val_buffer->set_charset(field_charset());
-  val_buffer->length(0);
+  val_buffer->copy("", 0, field_charset());
 
   while (tmp && bitnr < (uint) typelib->count)
   {

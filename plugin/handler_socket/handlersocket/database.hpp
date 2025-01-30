@@ -21,10 +21,10 @@
 namespace dena {
 
 struct database_i;
-typedef std::auto_ptr<volatile database_i> database_ptr;
+typedef std::unique_ptr<volatile database_i> database_ptr;
 
 struct dbcontext_i;
-typedef std::auto_ptr<dbcontext_i> dbcontext_ptr;
+typedef std::unique_ptr<dbcontext_i> dbcontext_ptr;
 
 struct database_i {
   virtual ~database_i() = default;

@@ -272,8 +272,8 @@ static char provider_vendor[256]= { 0, };
  * Wsrep status variables. LOCK_status must be locked When modifying
  * these variables,
  */
+std::atomic<bool> wsrep_ready(false);
 my_bool     wsrep_connected         = FALSE;
-my_bool     wsrep_ready             = FALSE;
 const char* wsrep_cluster_state_uuid= cluster_uuid_str;
 long long   wsrep_cluster_conf_id   = WSREP_SEQNO_UNDEFINED;
 const char* wsrep_cluster_status    = "Disconnected";
@@ -568,10 +568,7 @@ void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid,
  */
 my_bool wsrep_ready_get (void)
 {
-  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  my_bool ret= wsrep_ready;
-  mysql_mutex_unlock (&LOCK_wsrep_ready);
-  return ret;
+  return wsrep_ready;
 }
 
 int wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
@@ -833,9 +830,8 @@ void wsrep_init_globals()
   else
   {
     if (wsrep_gtid_mode && wsrep_gtid_server.server_id != global_system_variables.server_id)
-    {
-      WSREP_WARN("Ignoring server id for non bootstrap node.");
-    }
+      WSREP_INFO("Ignoring server id %ld for non bootstrap node, using %ld.",
+                 global_system_variables.server_id, wsrep_gtid_server.server_id);
   }
   wsrep_init_schema();
   if (WSREP_ON)
@@ -1220,7 +1216,8 @@ enum wsrep_warning_type {
   WSREP_DISABLED = 0,
   WSREP_REQUIRE_PRIMARY_KEY= 1,
   WSREP_REQUIRE_INNODB= 2,
-  WSREP_REQUIRE_MAX=3,
+  WSREP_EXPERIMENTAL= 3,
+  WSREP_REQUIRE_MAX=4,
 };
 
 static ulonglong wsrep_warning_start_time=0;
@@ -1257,6 +1254,9 @@ static const char* wsrep_warning_name(const enum wsrep_warning_type type)
     return "WSREP_REQUIRE_PRIMARY_KEY"; break;
   case WSREP_REQUIRE_INNODB:
     return "WSREP_REQUIRE_INNODB"; break;
+  case WSREP_EXPERIMENTAL:
+    return "WSREP_EXPERIMENTAL"; break;
+
   default: assert(0); return " "; break; // for compiler
   }
 }
@@ -1390,7 +1390,22 @@ static void wsrep_push_warning(THD *thd,
                  ha_resolve_storage_engine_name(hton),
                  tables->db.str, tables->table_name.str);
     break;
-
+  case WSREP_EXPERIMENTAL:
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_ERROR_DURING_COMMIT,
+                        "WSREP: Replication of non-transactional engines is experimental. "
+                        "Storage engine %s for table '%s'.'%s' is "
+                        "not supported in Galera",
+                        ha_resolve_storage_engine_name(hton),
+                        tables->db.str, tables->table_name.str);
+    if (global_system_variables.log_warnings > 1 &&
+	!wsrep_protect_against_warning_flood(type))
+      WSREP_WARN("Replication of non-transactional engines is experimental. "
+                 "Storage engine %s for table '%s'.'%s' is "
+                 "not supported in Galera",
+                 ha_resolve_storage_engine_name(hton),
+                 tables->db.str, tables->table_name.str);
+    break;
   default: assert(0); break;
   }
 }
@@ -1400,15 +1415,8 @@ bool wsrep_check_mode_after_open_table (THD *thd,
 	TABLE_LIST *tables)
 {
   enum_sql_command sql_command= thd->lex->sql_command;
-  bool is_dml_stmt= thd->get_command() != COM_STMT_PREPARE &&
-                    (sql_command == SQLCOM_INSERT ||
-                     sql_command == SQLCOM_INSERT_SELECT ||
-                     sql_command == SQLCOM_REPLACE ||
-                     sql_command == SQLCOM_REPLACE_SELECT ||
-                     sql_command == SQLCOM_UPDATE ||
-                     sql_command == SQLCOM_UPDATE_MULTI ||
-                     sql_command == SQLCOM_LOAD ||
-                     sql_command == SQLCOM_DELETE);
+  bool is_dml_stmt= (thd->get_command() != COM_STMT_PREPARE &&
+                     (sql_command_flags[sql_command] & CF_WSREP_BASIC_DML));
 
   if (!is_dml_stmt)
     return true;
@@ -1435,9 +1443,24 @@ bool wsrep_check_mode_after_open_table (THD *thd,
         wsrep_push_warning(thd, WSREP_REQUIRE_PRIMARY_KEY, hton, tables);
       }
 
+      // Check are we inside a transaction
+      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true);
+      bool changes= wsrep_has_changes(thd);
+
+      // Roll back current stmt if exists
       wsrep_before_rollback(thd, true);
       wsrep_after_rollback(thd, true);
       wsrep_after_statement(thd);
+
+      // If there is updates, they would be lost above rollback
+      if (rw_ha_count > 0 && changes)
+      {
+	my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
+                     "by involved engine(s)", MYF(0));
+        wsrep_push_warning(thd, WSREP_EXPERIMENTAL, hton, tables);
+	return false;
+      }
+
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (tables));
     }
   } else if (db_type != DB_TYPE_UNKNOWN &&
@@ -1559,35 +1582,7 @@ bool wsrep_sync_wait (THD* thd, uint mask)
       This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
       TODO: modify to check if thd has locked any rows.
     */
-    if (thd->wsrep_cs().sync_wait(-1))
-    {
-      const char* msg;
-      int err;
-
-      /*
-        Possibly relevant error codes:
-        ER_CHECKREAD, ER_ERROR_ON_READ, ER_INVALID_DEFAULT, ER_EMPTY_QUERY,
-        ER_FUNCTION_NOT_DEFINED, ER_NOT_ALLOWED_COMMAND, ER_NOT_SUPPORTED_YET,
-        ER_FEATURE_DISABLED, ER_QUERY_INTERRUPTED
-      */
-
-      switch (thd->wsrep_cs().current_error())
-      {
-      case wsrep::e_not_supported_error:
-        msg= "synchronous reads by wsrep backend. "
-          "Please unset wsrep_causal_reads variable.";
-        err= ER_NOT_SUPPORTED_YET;
-        break;
-      default:
-        msg= "Synchronous wait failed.";
-        err= ER_LOCK_WAIT_TIMEOUT; // NOTE: the above msg won't be displayed
-                                   //       with ER_LOCK_WAIT_TIMEOUT
-      }
-
-      my_error(err, MYF(0), msg);
-
-      return true;
-    }
+    return thd->wsrep_cs().sync_wait(-1);
   }
 
   return false;
@@ -1698,6 +1693,42 @@ static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
     key_arr->keys_len= 0;
 }
 
+class Unknown_storage_engine_handler : public Internal_error_handler
+{
+public:
+  Unknown_storage_engine_handler()
+    : m_handled_errors(0), m_unhandled_errors(0)
+  {}
+
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl) override
+  {
+    *cond_hdl= NULL;
+    if (sql_errno == ER_UNKNOWN_STORAGE_ENGINE)
+    {
+      m_handled_errors++;
+    }
+    else if (*level == Sql_condition::WARN_LEVEL_ERROR)
+    {
+      m_unhandled_errors++;
+    }
+    return FALSE;
+  }
+
+  bool safely_trapped_errors()
+  {
+    return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
+  }
+
+private:
+  int m_handled_errors;
+  int m_unhandled_errors;
+};
+
 /*!
  * @param thd    thread
  * @param tables list of tables
@@ -1705,84 +1736,116 @@ static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
 
  * @return 0 if parent table append was successful, non-zero otherwise.
 */
-bool
-wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
+bool wsrep_append_fk_parent_table(THD *thd, TABLE_LIST *tables,
+                                  wsrep::key_array *keys)
 {
-    bool fail= false;
-    TABLE_LIST *table;
+  assert(wsrep_thd_is_local(thd));
 
-    for (table= tables; table; table= table->next_local)
+  bool fail= false;
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL);
+
+  for (TABLE_LIST *table= tables; table; table= table->next_local)
+  {
+    if (!table->table)
     {
-      if (is_temporary_table(table))
+      TABLE_LIST *save_next_global= table->next_global;
+      TABLE_LIST::enum_open_strategy save_open_strategy= table->open_strategy;
+      table->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+
+      Unknown_storage_engine_handler no_storage_engine;
+      thd->push_internal_handler(&no_storage_engine);
+
+      if (open_table(thd, table, &ot_ctx))
       {
-        WSREP_DEBUG("Temporary table %s.%s already opened query=%s", table->db.str,
-                    table->table_name.str, wsrep_thd_query(thd));
-	return false;
-      }
-    }
-
-    thd->release_transactional_locks();
-    uint counter;
-    MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
-
-    if (open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
-    {
-      WSREP_DEBUG("Unable to open table for FK checks for %s", wsrep_thd_query(thd));
-      fail= true;
-      goto exit;
-    }
-
-    for (table= tables; table; table= table->next_local)
-    {
-      if (!is_temporary_table(table) && table->table)
-      {
-        FOREIGN_KEY_INFO *f_key_info;
-        List<FOREIGN_KEY_INFO> f_key_list;
-
-        table->table->file->get_foreign_key_list(thd, &f_key_list);
-        List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-        while ((f_key_info=it++))
+        if (no_storage_engine.safely_trapped_errors())
         {
-          WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
-          keys->push_back(wsrep_prepare_key_for_toi(f_key_info->referenced_db->str,
-                                                    f_key_info->referenced_table->str,
-                                                    wsrep::key::shared));
+          Diagnostics_area *da= thd->get_stmt_da();
+          da->reset_diagnostics_area();
+          da->clear_warning_info(thd->query_id);
+        }
+        else
+        {
+          fail= true;
         }
       }
+
+      thd->pop_internal_handler();
+
+      table->next_global= save_next_global;
+      table->open_strategy= save_open_strategy;
+
+      if (fail)
+      {
+        WSREP_DEBUG("Unable to open table for FK checks for %s",
+                    wsrep_thd_query(thd));
+        goto exit;
+      }
     }
+
+    if (table->table && !is_temporary_table(table))
+    {
+      FOREIGN_KEY_INFO *f_key_info;
+      List<FOREIGN_KEY_INFO> f_key_list;
+
+      table->table->file->get_foreign_key_list(thd, &f_key_list);
+      List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+      while ((f_key_info= it++))
+      {
+        WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
+        keys->push_back(wsrep_prepare_key_for_toi(
+            f_key_info->referenced_db->str, f_key_info->referenced_table->str,
+            wsrep::key::shared));
+      }
+    }
+  }
 
 exit:
-    DEBUG_SYNC(thd, "wsrep_append_fk_toi_keys_before_close_tables");
+  DEBUG_SYNC(thd, "wsrep_append_fk_toi_keys_before_close_tables");
 
-    /* close the table and release MDL locks */
-    close_thread_tables(thd);
-    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
-    for (table= tables; table; table= table->next_local)
+  /* close the table and release MDL locks */
+  close_thread_tables(thd);
+  thd->mdl_context.rollback_to_savepoint(ot_ctx.start_of_statement_svp());
+  for (TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    table->table= NULL;
+    table->mdl_request.ticket= NULL;
+  }
+
+  /*
+    Reopen temporary tables if necessary.
+    DROP TABLE pre-opens temporary tables, but the corresponding
+    command does not have the CF_PREOPEN_TMP_TABLES flag set.
+  */
+  const bool preopen_tmp_tables=
+      thd->lex->sql_command == SQLCOM_DROP_TABLE ||
+      (sql_command_flags[thd->lex->sql_command] & CF_PREOPEN_TMP_TABLES);
+
+  if (preopen_tmp_tables && thd->open_temporary_tables(tables))
+  {
+    WSREP_INFO("Unable to reopen temporary tables after FK checks");
+    fail= true;
+  }
+
+  /*
+    MDEV-32938: Check if DDL operation has been killed before.
+
+    It may be that during collecting foreign keys this operation gets
+    BF-aborted by another already-running TOI operation because it got MDL
+    locks on the same table for checking foreign keys. After
+    `close_thread_tables()` has been called it's safe to assume that no-one can
+    BF-abort this operation as it's not holding any MDL locks any more.
+  */
+  if (!fail)
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
+    if (thd->killed)
     {
-      table->table= NULL;
-      table->next_global= NULL;
-      table->mdl_request.ticket= NULL;
+      fail= true;
     }
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  }
 
-    /*
-      MDEV-32938: Check if DDL operation has been killed before.
-
-      It may be that during collecting foreign keys this operation gets BF-aborted
-      by another already-running TOI operation because it got MDL locks on the same
-      table for checking foreign keys.
-      After `close_thread_tables()` has been called it's safe to assume that no-one
-      can BF-abort this operation as it's not holding any MDL locks any more.
-    */
-    if (!fail)
-    {
-      mysql_mutex_lock(&thd->LOCK_thd_kill);
-      if (thd->killed)
-      {
-        fail= true;
-      }
-      mysql_mutex_unlock(&thd->LOCK_thd_kill);
-    }
-    return fail;
+  return fail;
 }
 
 bool wsrep_reload_ssl()
@@ -2164,11 +2227,18 @@ int wsrep_to_buf_helper(
       domain_id= wsrep_gtid_server.domain_id;
       server_id= wsrep_gtid_server.server_id;
     }
-    Gtid_log_event gtid_event(thd, seqno, domain_id, true,
-                              LOG_EVENT_SUPPRESS_USE_F, true, 0);
-    gtid_event.server_id= server_id;
-    if (!gtid_event.is_valid()) ret= 0;
-    ret= writer.write(&gtid_event);
+    /*
+    * Ignore if both thd->variables.gtid_seq_no and
+    * thd->variables.wsrep_gtid_seq_no are not set.
+    */
+    if (seqno)
+    {
+      Gtid_log_event gtid_event(thd, seqno, domain_id, true,
+                                LOG_EVENT_SUPPRESS_USE_F, true, 0);
+      gtid_event.server_id= server_id;
+      if (!gtid_event.is_valid()) ret= 0;
+      ret= writer.write(&gtid_event);
+    }
   }
   /*
     It's local DDL so in case of possible gtid seqno (SET gtid_seq_no=X)
@@ -2459,7 +2529,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
       If mariadb master has replicated a CTAS, we should not replicate the create table
       part separately as TOI, but to replicate both create table and following inserts
       as one write set.
-      Howver, if CTAS creates empty table, we should replicate the create table alone
+      However, if CTAS creates empty table, we should replicate the create table alone
       as TOI. We have to do relay log event lookup to see if row events follow the
       create table event.
     */
@@ -2472,6 +2542,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
       switch (ev_type)
       {
       case QUERY_EVENT:
+      case XID_EVENT:
         /* CTAS with empty table, we replicate create table as TOI */
         break;
 
@@ -2723,6 +2794,8 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
 
   thd_proc_info(thd, "acquiring total order isolation");
 
+  DEBUG_SYNC(thd, "wsrep_before_toi_begin");
+
   wsrep::client_state& cs(thd->wsrep_cs());
 
   int ret= cs.enter_toi_local(key_array,
@@ -2771,8 +2844,11 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
 
       if (!thd->is_error())
       {
-        my_error(ER_LOCK_DEADLOCK, MYF(0), "WSREP replication failed. Check "
-                 "your wsrep connection state and retry the query.");
+        push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_ERROR,
+                            ER_LOCK_DEADLOCK,
+                            "WSREP replication failed. Check "
+                            "your wsrep connection state and retry the query.");
+        my_error(ER_LOCK_DEADLOCK, MYF(0));
       }
     }
     rc= -1;
@@ -2829,7 +2905,10 @@ static void wsrep_TOI_end(THD *thd) {
 
     if (thd->is_error() && !wsrep_must_ignore_error(thd))
     {
-      wsrep_store_error(thd, err);
+      /* use only error code, for the message can be inconsistent
+       * between the nodes due to differing lc_message settings
+       * in client session and server applier thread */
+      wsrep_store_error(thd, err, false);
     }
 
     int const ret= client_state.leave_toi_local(err);
@@ -3048,7 +3127,6 @@ void wsrep_to_isolation_end(THD *thd)
   }
   else if (wsrep_thd_is_in_rsu(thd))
   {
-    thd->variables.lock_wait_timeout= thd->variables.saved_lock_wait_timeout;
     DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_RSU);
     wsrep_RSU_end(thd);
   }
@@ -3131,8 +3209,13 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
 
-    if (wsrep_thd_is_toi(granted_thd) ||
-        wsrep_thd_is_applying(granted_thd))
+    if (granted_thd->wsrep_aborter != 0)
+    {
+      DBUG_ASSERT(granted_thd->wsrep_aborter == request_thd->thread_id);
+      WSREP_DEBUG("BF thread waiting for a victim to release locks");
+    }
+    else if (wsrep_thd_is_toi(granted_thd) ||
+             wsrep_thd_is_applying(granted_thd))
     {
       if (wsrep_thd_is_aborting(granted_thd))
       {
@@ -3208,6 +3291,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     }
     mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
     mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
+    DEBUG_SYNC(request_thd, "after_wsrep_thd_abort");
   }
   else
   {
@@ -3252,8 +3336,6 @@ static inline bool is_committing_connection(THD *thd)
 
 static my_bool have_client_connections(THD *thd, void*)
 {
-  DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
-                     (longlong) thd->thread_id));
   if (is_client_connection(thd))
   {
     if (thd->killed == KILL_CONNECTION ||
@@ -3305,13 +3387,18 @@ static my_bool kill_all_threads(THD *thd, THD *caller_thd)
   /* We skip slave threads & scheduler on this first loop through. */
   if (is_client_connection(thd) && thd != caller_thd)
   {
-    if (thd->get_stmt_da()->is_eof())
+    /* the connection executing SHUTDOWN, should do clean exit,
+       not aborting here */
+    if (thd->get_command() == COM_SHUTDOWN)
     {
+      WSREP_DEBUG("leaving SHUTDOWN executing connection alive, thread: %lld",
+                 (longlong) thd->thread_id);
       return 0;
     }
-
+    /* replaying connection is killed by signal */
     if (is_replaying_connection(thd))
     {
+      WSREP_DEBUG("closing connection is replaying %lld", (longlong) thd->thread_id);
       thd->set_killed(KILL_CONNECTION_HARD);
       return 0;
     }
@@ -3320,7 +3407,7 @@ static my_bool kill_all_threads(THD *thd, THD *caller_thd)
     {
       /* replicated transactions must be skipped */
       WSREP_DEBUG("closing connection %lld", (longlong) thd->thread_id);
-      /* instead of wsrep_close_thread() we do now  soft kill by THD::awake */
+      /* instead of wsrep_close_thread() we do now hard kill by THD::awake */
       thd->awake(KILL_CONNECTION_HARD);
       return 0;
     }
@@ -3361,8 +3448,10 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
   */
   server_threads.iterate(kill_remaining_threads, except_caller_thd);
 
-  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)", THD_count::value()));
-  WSREP_DEBUG("waiting for client connections to close: %u", THD_count::value());
+  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
+                      THD_count::value()));
+  WSREP_DEBUG("waiting for client connections to close: %u",
+              THD_count::value());
 
   while (wait_to_end && server_threads.iterate(have_client_connections))
   {
@@ -3666,7 +3755,6 @@ void* start_wsrep_THD(void *arg)
                        (long long)thd->thread_id));
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 
-  thd->thread_stack= (char*) &thd;
   wsrep_assign_from_threadvars(thd);
   wsrep_store_threadvars(thd);
 
@@ -3792,11 +3880,16 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
 
 bool THD::wsrep_parallel_slave_wait_for_prior_commit()
 {
-  if (rgi_slave && rgi_slave->is_parallel_exec && wait_for_prior_commit())
+  if (rgi_slave && rgi_slave->is_parallel_exec)
   {
-    return 1;
+    wait_for_pending_deadlock_kill(this, rgi_slave);
+    if (rgi_slave->killed_for_retry) {
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      return true;
+    }
+    return wait_for_prior_commit();
   }
-  return 0;
+  return false;
 }
 
 /***** callbacks for wsrep service ************/
@@ -3814,6 +3907,10 @@ bool wsrep_consistency_check(THD *thd)
 // Wait until wsrep has reached ready state
 void wsrep_wait_ready(THD *thd)
 {
+  // First check not locking the mutex.
+  if (wsrep_ready)
+    return;
+
   mysql_mutex_lock(&LOCK_wsrep_ready);
   while(!wsrep_ready)
   {
@@ -3910,4 +4007,16 @@ void wsrep_commit_empty(THD* thd, bool all)
                   wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
   DBUG_VOID_RETURN;
+}
+
+bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables)
+{
+  for (TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    if (!is_temporary_table(table))
+    {
+      return true;
+    }
+  }
+  return false;
 }

@@ -27,6 +27,7 @@ Created 2/17/1996 Heikki Tuuri
 #include "btr0sea.h"
 #ifdef BTR_CUR_HASH_ADAPT
 #include "buf0buf.h"
+#include "buf0lru.h"
 #include "page0page.h"
 #include "page0cur.h"
 #include "btr0cur.h"
@@ -543,9 +544,7 @@ static void ha_delete_hash_node(hash_table_t *table, mem_heap_t *heap,
   ut_a(del_node->block->n_pointers-- < MAX_N_POINTERS);
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
-  const ulint fold= del_node->fold;
-
-  HASH_DELETE(ha_node_t, next, table, fold, del_node);
+  table->cell_get(del_node->fold)->remove(*del_node, &ha_node_t::next);
 
   ha_node_t *top= static_cast<ha_node_t*>(mem_heap_get_top(heap, sizeof *top));
 
@@ -564,8 +563,7 @@ static void ha_delete_hash_node(hash_table_t *table, mem_heap_t *heap,
       /* We have to look for the predecessor */
       ha_node_t *node= static_cast<ha_node_t*>(cell->node);
 
-      while (top != HASH_GET_NEXT(next, node))
-        node= static_cast<ha_node_t*>(HASH_GET_NEXT(next, node));
+      while (top != node->next) node= node->next;
 
       /* Now we have the predecessor node */
       node->next= del_node;
@@ -687,7 +685,7 @@ btr_search_update_hash_ref(
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
 
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
-	ut_ad(page_align(btr_cur_get_rec(cursor)) == block->page.frame);
+	ut_ad(btr_cur_get_page(cursor) == block->page.frame);
 	ut_ad(page_is_leaf(block->page.frame));
 	assert_block_ahi_valid(block);
 
@@ -940,7 +938,7 @@ btr_search_failure(btr_search_t* info, btr_cur_t* cursor)
 }
 
 /** Clear the adaptive hash index on all pages in the buffer pool. */
-inline void buf_pool_t::clear_hash_index()
+inline void buf_pool_t::clear_hash_index() noexcept
 {
   ut_ad(!resizing);
   ut_ad(!btr_search_enabled);
@@ -992,7 +990,7 @@ inline void buf_pool_t::clear_hash_index()
 This function does not return if the block is not identified.
 @param ptr  pointer to within a page frame
 @return pointer to block, never NULL */
-inline buf_block_t* buf_pool_t::block_from_ahi(const byte *ptr) const
+inline buf_block_t* buf_pool_t::block_from_ahi(const byte *ptr) const noexcept
 {
   chunk_t::map *chunk_map = chunk_t::map_ref;
   ut_ad(chunk_t::map_ref == chunk_t::map_reg);
@@ -1281,21 +1279,30 @@ retry:
 	/* Calculate and cache fold values into an array for fast deletion
 	from the hash index */
 
-	rec = page_get_infimum_rec(page);
-	rec = page_rec_get_next_low(rec, page_is_comp(page));
-
+	const auto comp = page_is_comp(page);
 	ulint* folds;
 	ulint n_cached = 0;
 	ulint prev_fold = 0;
 
-	if (rec && rec_is_metadata(rec, *index)) {
-		rec = page_rec_get_next_low(rec, page_is_comp(page));
-		if (!--n_recs) {
-			/* The page only contains the hidden metadata record
-			for instant ALTER TABLE that the adaptive hash index
-			never points to. */
-			folds = nullptr;
-			goto all_deleted;
+	if (UNIV_LIKELY(comp != 0)) {
+		rec = page_rec_next_get<true>(page, page + PAGE_NEW_INFIMUM);
+		if (rec && rec_is_metadata(rec, TRUE)) {
+			rec = page_rec_next_get<true>(page, rec);
+skipped_metadata:
+			if (!--n_recs) {
+				/* The page only contains the hidden
+				metadata record for instant ALTER
+				TABLE that the adaptive hash index
+				never points to. */
+				folds = nullptr;
+				goto all_deleted;
+			}
+		}
+	} else {
+		rec = page_rec_next_get<false>(page, page + PAGE_OLD_INFIMUM);
+		if (rec && rec_is_metadata(rec, FALSE)) {
+			rec = page_rec_next_get<false>(page, rec);
+			goto skipped_metadata;
 		}
 	}
 
@@ -1326,9 +1333,16 @@ retry:
 		folds[n_cached++] = fold;
 
 next_rec:
-		rec = page_rec_get_next_low(rec, page_rec_is_comp(rec));
-		if (!rec || page_rec_is_supremum(rec)) {
-			break;
+		if (comp) {
+			rec = page_rec_next_get<true>(page, rec);
+			if (!rec || rec == page + PAGE_NEW_SUPREMUM) {
+				break;
+			}
+		} else {
+			rec = page_rec_next_get<false>(page, rec);
+			if (!rec || rec == page + PAGE_OLD_SUPREMUM) {
+				break;
+			}
 		}
 		prev_fold = fold;
 	}

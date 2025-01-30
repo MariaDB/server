@@ -147,7 +147,6 @@ extern const char *wsrep_SR_store_types[];
 
 // MySQL status variables
 extern my_bool     wsrep_connected;
-extern my_bool     wsrep_ready;
 extern const char* wsrep_cluster_state_uuid;
 extern long long   wsrep_cluster_conf_id;
 extern const char* wsrep_cluster_status;
@@ -593,6 +592,13 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 
 void wsrep_wait_ready(THD *thd);
 void wsrep_ready_set(bool ready_value);
+
+/**
+ * Returns true if the given list of tables contains at least one
+ * non-temporary table.
+ */
+bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
+
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support

@@ -242,6 +242,12 @@ public:
   const Type_handler *fixed_type_handler() const override
   { return &type_handler_bool; }
   CHARSET_INFO *compare_collation() const override { return NULL; }
+  longlong val_int() override final
+  {
+    DBUG_ASSERT(!is_cond());
+    return val_bool();
+  }
+  bool val_bool() override= 0;
   bool fix_length_and_dec() override { decimals=0; max_length=1; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
   bool need_parentheses_in_default() override { return true; }
@@ -257,7 +263,6 @@ class Item_func_truth : public Item_bool_func
 {
 public:
   bool val_bool() override;
-  longlong val_int() override;
   bool fix_length_and_dec() override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
@@ -295,7 +300,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("istrue") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_istrue>(thd, this); }
 };
 
@@ -316,7 +321,7 @@ public:
     return name;
   }
   bool find_not_null_fields(table_map allowed) override { return false; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnottrue>(thd, this); }
   bool eval_not_null_tables(void *) override
   { not_null_tables_cache= 0; return false; }
@@ -337,7 +342,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("isfalse") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isfalse>(thd, this); }
 };
 
@@ -358,7 +363,7 @@ public:
     return name;
   }
   bool find_not_null_fields(table_map allowed) override { return false; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnotfalse>(thd, this); }
   bool eval_not_null_tables(void *) override
   { not_null_tables_cache= 0; return false; }
@@ -407,7 +412,7 @@ public:
   bool fix_left(THD *thd);
   table_map not_null_tables() const override { return 0; }
   bool is_null() override;
-  longlong val_int() override;
+  bool val_bool() override;
   void cleanup() override;
   enum Functype functype() const override { return IN_OPTIMIZER_FUNC; }
   LEX_CSTRING func_name_cstring() const override
@@ -435,7 +440,7 @@ public:
   void restore_first_argument();
   Item* get_wrapped_in_subselect_item()
   { return args[1]; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_in_optimizer>(thd, this); }
   enum precedence precedence() const override { return args[1]->precedence(); }
 };
@@ -608,10 +613,10 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, false);
   }
-  Item *build_clone(THD *thd) override
+  Item *do_build_clone(THD *thd) const override
   {
     Item_bool_rowready_func2 *clone=
-      (Item_bool_rowready_func2 *) Item_func::build_clone(thd);
+      (Item_bool_rowready_func2 *) Item_func::do_build_clone(thd);
     if (clone)
     {
       clone->cmp.comparators= 0;
@@ -638,7 +643,7 @@ public:
   enum precedence precedence() const override { return XOR_PRECEDENCE; }
   void print(String *str, enum_query_type query_type) override
   { Item_func::print_op(str, query_type); }
-  longlong val_int() override;
+  bool val_bool() override;
   bool find_not_null_fields(table_map allowed) override { return false; }
   Item *neg_transformer(THD *thd) override;
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond) override
@@ -646,7 +651,7 @@ public:
     Item_args::propagate_equal_fields(thd, Context_boolean(), cond);
     return this;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_xor>(thd, this); }
 };
 
@@ -658,7 +663,7 @@ public:
     Item_bool_func(thd, a), abort_on_null(FALSE) {}
   void top_level_item() override { abort_on_null= 1; }
   bool is_top_level_item() const override { return abort_on_null; }
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return NOT_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -670,7 +675,7 @@ public:
   Item *neg_transformer(THD *thd) override;
   bool fix_fields(THD *, Item **) override;
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_not>(thd, this); }
 };
 
@@ -711,7 +716,7 @@ class Item_func_trig_cond: public Item_bool_func
 public:
   Item_func_trig_cond(THD *thd, Item *a, bool *f): Item_bool_func(thd, a)
   { trig_var= f; }
-  longlong val_int() override { return *trig_var ? args[0]->val_int() : 1; }
+  bool val_bool() override { return *trig_var ? args[0]->val_bool() : true; }
   enum Functype functype() const override { return TRIG_COND_FUNC; };
   LEX_CSTRING func_name_cstring() const override
   {
@@ -723,7 +728,7 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_trig_cond>(thd, this); }
 };
 
@@ -740,7 +745,7 @@ public:
     Item_func_not(thd, a), test_sum_item(0), test_sub_item(0), show(0)
     {}
   table_map not_null_tables() const override { return 0; }
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return NOT_ALL_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -756,6 +761,8 @@ public:
   void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; test_sum_item= 0;};
   bool empty_underlying_subquery();
   Item *neg_transformer(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_not_all>(thd, this); }
 };
 
 
@@ -764,14 +771,14 @@ class Item_func_nop_all :public Item_func_not_all
 public:
 
   Item_func_nop_all(THD *thd, Item *a): Item_func_not_all(thd, a) {}
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("<nop>") };
     return name;
   }
   Item *neg_transformer(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_nop_all>(thd, this); }
 };
 
@@ -784,7 +791,7 @@ public:
     Item_bool_rowready_func2(thd, a, b),
     abort_on_null(false), in_equality_no(UINT_MAX)
   {}
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return EQ_FUNC; }
   enum Functype rev_functype() const override { return EQ_FUNC; }
   cond_result eq_cmp_result() const override { return COND_TRUE; }
@@ -816,8 +823,9 @@ public:
   uint in_equality_no;
   uint exists2in_reserved_items() override { return 1; };
   friend class  Arg_comparator;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_eq>(thd, this); }
+  Item *do_build_clone(THD *thd) const override;
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -825,13 +833,14 @@ class Item_func_equal final :public Item_bool_rowready_func2
 public:
   Item_func_equal(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}
-  longlong val_int() override;
+  bool val_bool() override;
   bool fix_length_and_dec() override;
   table_map not_null_tables() const override { return 0; }
   bool find_not_null_fields(table_map allowed) override { return false; }
   enum Functype functype() const override { return EQUAL_FUNC; }
   enum Functype rev_functype() const override { return EQUAL_FUNC; }
   cond_result eq_cmp_result() const override { return COND_TRUE; }
+  bool is_null() override { return false; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("<=>") };
@@ -845,7 +854,7 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, true);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_equal>(thd, this); }
 };
 
@@ -855,7 +864,7 @@ class Item_func_ge :public Item_bool_rowready_func2
 public:
   Item_func_ge(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {};
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return GE_FUNC; }
   enum Functype rev_functype() const override { return LE_FUNC; }
   cond_result eq_cmp_result() const override { return COND_TRUE; }
@@ -865,7 +874,7 @@ public:
     return name;
   }
   Item *negated_item(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_ge>(thd, this); }
 };
 
@@ -875,7 +884,7 @@ class Item_func_gt :public Item_bool_rowready_func2
 public:
   Item_func_gt(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {};
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return GT_FUNC; }
   enum Functype rev_functype() const override { return LT_FUNC; }
   cond_result eq_cmp_result() const override { return COND_FALSE; }
@@ -885,7 +894,7 @@ public:
     return name;
   }
   Item *negated_item(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_gt>(thd, this); }
 };
 
@@ -895,7 +904,7 @@ class Item_func_le :public Item_bool_rowready_func2
 public:
   Item_func_le(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {};
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return LE_FUNC; }
   enum Functype rev_functype() const override { return GE_FUNC; }
   cond_result eq_cmp_result() const override { return COND_TRUE; }
@@ -905,7 +914,7 @@ public:
     return name;
   }
   Item *negated_item(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_le>(thd, this); }
 };
 
@@ -915,7 +924,7 @@ class Item_func_lt :public Item_bool_rowready_func2
 public:
   Item_func_lt(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return LT_FUNC; }
   enum Functype rev_functype() const override { return GT_FUNC; }
   cond_result eq_cmp_result() const override { return COND_FALSE; }
@@ -925,7 +934,7 @@ public:
     return name;
   }
   Item *negated_item(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_lt>(thd, this); }
 };
 
@@ -938,7 +947,7 @@ protected:
 public:
   Item_func_ne(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return NE_FUNC; }
   enum Functype rev_functype() const override { return NE_FUNC; }
   cond_result eq_cmp_result() const override { return COND_FALSE; }
@@ -950,7 +959,7 @@ public:
   Item *negated_item(THD *thd) override;
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_ne>(thd, this); }
 };
 
@@ -1012,7 +1021,7 @@ public:
   String value0,value1,value2;
   Item_func_between(THD *thd, Item *a, Item *b, Item *c):
     Item_func_opt_neg(thd, a, b, c) { }
-  longlong val_int() override
+  bool val_bool() override
   {
     DBUG_ASSERT(fixed());
     return m_comparator.type_handler()->Item_func_between_val_int(this);
@@ -1051,7 +1060,7 @@ public:
                                       cond);
     return this;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_between>(thd, this); }
 
   longlong val_int_cmp_string();
@@ -1087,7 +1096,7 @@ public:
     fix_char_length(2); // returns "1" or "0" or "-1"
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_strcmp>(thd, this); }
 };
 
@@ -1112,7 +1121,6 @@ public:
   Item_func_interval(THD *thd, Item_row *a):
     Item_long_func(thd, a), row(a), intervals(0)
   { }
-  bool fix_fields(THD *, Item **) override;
   longlong val_int() override;
   bool fix_length_and_dec() override;
   LEX_CSTRING func_name_cstring() const override
@@ -1126,7 +1134,7 @@ public:
     str->append(func_name_cstring());
     print_args(str, 0, query_type);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_interval>(thd, this); }
 };
 
@@ -1158,7 +1166,7 @@ public:
     return name;
   }
   table_map not_null_tables() const override { return 0; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_coalesce>(thd, this); }
 };
 
@@ -1253,7 +1261,7 @@ public:
   }
 
   table_map not_null_tables() const override { return 0; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_ifnull>(thd, this); }
 };
 
@@ -1332,7 +1340,7 @@ public:
   bool eval_not_null_tables(void *opt_arg) override;
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge)
     override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_if>(thd, this); }
 private:
   void cache_type_info(Item *source);
@@ -1358,7 +1366,7 @@ public:
   {
     return fix_length_and_dec2_eliminate_null(args + 1);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_nvl2>(thd, this); }
 };
 
@@ -1452,7 +1460,7 @@ public:
                                                            cond, &args[2]);
     return this;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_nullif>(thd, this); }
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg) override
   { reset_first_arg_if_needed(); return this; }
@@ -1477,12 +1485,12 @@ class in_vector :public Sql_alloc
 public:
   char *base;
   uint size;
-  qsort2_cmp compare;
+  qsort_cmp2 compare;
   CHARSET_INFO *collation;
   uint count;
   uint used_count;
   in_vector() = default;
-  in_vector(THD *thd, uint elements, uint element_length, qsort2_cmp cmp_func,
+  in_vector(THD *thd, uint elements, uint element_length, qsort_cmp2 cmp_func,
   	    CHARSET_INFO *cmp_coll)
     :base((char*) thd_calloc(thd, elements * element_length)),
      size(element_length), compare(cmp_func), collation(cmp_coll),
@@ -1526,7 +1534,8 @@ public:
   /* Compare values number pos1 and pos2 for equality */
   bool compare_elems(uint pos1, uint pos2)
   {
-    return MY_TEST(compare(collation, base + pos1 * size, base + pos2 * size));
+    return MY_TEST(compare(const_cast<charset_info_st *>(collation),
+                           base + pos1 * size, base + pos2 * size));
   }
   virtual const Type_handler *type_handler() const= 0;
 };
@@ -1548,7 +1557,7 @@ class in_string :public in_vector
     }
   };
 public:
-  in_string(THD *thd, uint elements, qsort2_cmp cmp_func, CHARSET_INFO *cs);
+  in_string(THD *thd, uint elements, qsort_cmp2 cmp_func, CHARSET_INFO *cs);
   ~in_string();
   bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;
@@ -1590,7 +1599,7 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_slonglong; }
 
-  friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
+  friend int cmp_longlong(void *cmp_arg, const void *a, const void *b);
 };
 
 
@@ -1625,7 +1634,7 @@ public:
     Item_datetime *dt= static_cast<Item_datetime*>(item);
     dt->set(val->val, type_handler()->mysql_timestamp_type());
   }
-  friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
+  friend int cmp_longlong(void *cmp_arg, const void *a, const void *b);
 };
 
 
@@ -1709,7 +1718,7 @@ public:
   virtual int cmp(Item *item)= 0;
   virtual int cmp_not_null(const Value *value)= 0;
   // for optimized IN with row
-  virtual int compare(cmp_item *item)= 0;
+  virtual int compare(const cmp_item *item) const= 0;
   virtual cmp_item *make_same(THD *thd)= 0;
   /*
     Store a scalar or a ROW value into "this".
@@ -1787,7 +1796,7 @@ public:
     else
       return TRUE;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
@@ -1821,7 +1830,7 @@ public:
     const bool rc= value != arg->val_int();
     return (m_null_value || arg->null_value) ? UNKNOWN : rc;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
     cmp_item_int *l_cmp= (cmp_item_int *)ci;
     return (value < l_cmp->value) ? -1 : ((value == l_cmp->value) ? 0 : 1);
@@ -1838,7 +1847,7 @@ protected:
   longlong value;
 public:
   cmp_item_temporal() = default;
-  int compare(cmp_item *ci) override;
+  int compare(const cmp_item *ci) const override;
 };
 
 
@@ -1884,7 +1893,7 @@ public:
   void store_value(Item *item) override;
   int cmp_not_null(const Value *val) override;
   int cmp(Item *arg) override;
-  int compare(cmp_item *ci) override;
+  int compare(const cmp_item *ci) const override;
   cmp_item *make_same(THD *thd) override;
 };
 
@@ -1910,7 +1919,7 @@ public:
     const bool rc= value != arg->val_real();
     return (m_null_value || arg->null_value) ? UNKNOWN : rc;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
     cmp_item_real *l_cmp= (cmp_item_real *) ci;
     return (value < l_cmp->value)? -1 : ((value == l_cmp->value) ? 0 : 1);
@@ -1927,7 +1936,7 @@ public:
   void store_value(Item *item) override;
   int cmp(Item *arg) override;
   int cmp_not_null(const Value *val) override;
-  int compare(cmp_item *c) override;
+  int compare(const cmp_item *c) const override;
   cmp_item *make_same(THD *thd) override;
 };
 
@@ -1960,7 +1969,7 @@ public:
     DBUG_ASSERT(false);
     return TRUE;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
@@ -2402,7 +2411,7 @@ public:
     return this;
   }
   Item *find_item() override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_case_searched>(thd, this); }
 };
 
@@ -2452,16 +2461,16 @@ public:
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
     override;
   Item *find_item() override;
-  Item *build_clone(THD *thd) override
+  Item *do_build_clone(THD *thd) const override
   {
     Item_func_case_simple *clone= (Item_func_case_simple *)
-                                  Item_func_case::build_clone(thd);
+                                  Item_func_case::do_build_clone(thd);
     uint ncases= when_count();
     if (clone && clone->Predicant_to_list_comparator::init_clone(thd, ncases))
       return NULL;
     return clone;
   } 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_case_simple>(thd, this); }
 };
 
@@ -2481,7 +2490,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
   bool fix_length_and_dec() override;
   Item *find_item() override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_decode_oracle>(thd, this); }
 };
 
@@ -2567,7 +2576,7 @@ public:
     array(0), have_null(0),
     arg_types_compatible(FALSE), emb_on_expr_nest(0)
   { }
-  longlong val_int() override;
+  bool val_bool() override;
   bool fix_fields(THD *, Item **) override;
   bool fix_length_and_dec() override;
   bool compatible_types_scalar_bisection_possible()
@@ -2653,11 +2662,11 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge)
     override;
   bool count_sargable_conds(void *arg) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_in>(thd, this); }
-  Item *build_clone(THD *thd) override
+  Item *do_build_clone(THD *thd) const override
   {
-    Item_func_in *clone= (Item_func_in *) Item_func::build_clone(thd);
+    Item_func_in *clone= (Item_func_in *) Item_func::do_build_clone(thd);
     if (clone)
     {
       clone->array= 0;
@@ -2697,7 +2706,7 @@ public:
     DBUG_ASSERT(false);
     return TRUE;
   }
-  int compare(cmp_item *arg) override;
+  int compare(const cmp_item *arg) const override;
   cmp_item *make_same(THD *thd) override;
   bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *) override;
   friend class Item_func_in;
@@ -2761,7 +2770,7 @@ class Item_func_isnull :public Item_func_null_predicate
 {
 public:
   Item_func_isnull(THD *thd, Item *a): Item_func_null_predicate(thd, a) {}
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return ISNULL_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -2805,7 +2814,7 @@ public:
   table_map not_null_tables() const override { return 0; }
   bool find_not_null_fields(table_map allowed) override;
   Item *neg_transformer(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnull>(thd, this); }
 };
 
@@ -2825,7 +2834,7 @@ public:
     Item_func_isnull(thd, a), owner(ow)
   {}
   enum Functype functype() const override { return ISNOTNULLTEST_FUNC; }
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("<is_not_null_test>") };
@@ -2848,7 +2857,7 @@ public:
   Item_func_isnotnull(THD *thd, Item *a):
     Item_func_null_predicate(thd, a), abort_on_null(0)
   { }
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return ISNOTNULL_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -2861,7 +2870,7 @@ public:
   Item *neg_transformer(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   void top_level_item() override { abort_on_null=1; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnotnull>(thd, this); }
 };
 
@@ -2913,7 +2922,7 @@ public:
   bool get_negated() const { return negated; } // Used by ColumnStore
 
   Sql_mode_dependency value_depends_on_sql_mode() const override;
-  longlong val_int() override;
+  bool val_bool() override;
   enum Functype functype() const override { return LIKE_FUNC; }
   void print(String *str, enum_query_type query_type) override;
   CHARSET_INFO *compare_collation() const override
@@ -3024,7 +3033,7 @@ public:
 
   bool find_selective_predicates_list_processor(void *arg) override;
   
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_like>(thd, this); }
 };
 
@@ -3113,7 +3122,7 @@ public:
     re.cleanup();
     DBUG_VOID_RETURN;
   }
-  longlong val_int() override;
+  bool val_bool() override;
   bool fix_length_and_dec() override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -3121,7 +3130,7 @@ public:
     return name;
   }
   enum precedence precedence() const override { return IN_PRECEDENCE; }
-  Item *get_copy(THD *) override { return 0; }
+  Item *do_get_copy(THD *thd) const override { return 0; }
   void print(String *str, enum_query_type query_type) override
   {
     print_op(str, query_type);
@@ -3165,7 +3174,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("regexp_instr") };
     return name;
   }
-  Item *get_copy(THD *thd) override { return 0; }
+  Item *do_get_copy(THD *thd) const override { return 0; }
 };
 
 
@@ -3264,7 +3273,7 @@ public:
   }
   bool eval_not_null_tables(void *opt_arg) override;
   bool find_not_null_fields(table_map allowed) override;
-  Item *build_clone(THD *thd) override;
+  Item *do_build_clone(THD *thd) const override;
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;
 
@@ -3421,7 +3430,7 @@ public:
                       bool only_intersected);
   void update_const(THD *thd);
   enum Functype functype() const override { return MULT_EQUAL_FUNC; }
-  longlong val_int() override; 
+  bool val_bool() override; 
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("multiple equal") };
@@ -3453,7 +3462,7 @@ public:
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
-  Item* get_copy(THD *thd) override { return 0; }
+  Item* do_get_copy(THD *thd) const override { return 0; }
   /*
     This does not comply with the specification of the virtual method,
     but Item_equal items are processed distinguishly anyway
@@ -3602,7 +3611,7 @@ public:
   Item_cond_and(THD *thd, Item_cond_and *item): Item_cond(thd, item) {}
   Item_cond_and(THD *thd, List<Item> &list_arg): Item_cond(thd, list_arg) {}
   enum Functype functype() const override { return COND_AND_FUNC; }
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("and") };
@@ -3624,7 +3633,7 @@ public:
                       table_map usable_tables, SARGABLE_PARAM **sargables)
     override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cond_and>(thd, this); }
 };
 
@@ -3642,7 +3651,7 @@ public:
   Item_cond_or(THD *thd, Item_cond_or *item): Item_cond(thd, item) {}
   Item_cond_or(THD *thd, List<Item> &list_arg): Item_cond(thd, list_arg) {}
   enum Functype functype() const override { return COND_OR_FUNC; }
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("or") };
@@ -3652,7 +3661,7 @@ public:
   table_map not_null_tables() const override { return and_tables_cache; }
   Item *copy_andor_structure(THD *thd) override;
   Item *neg_transformer(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cond_or>(thd, this); }
 };
 
@@ -3660,14 +3669,14 @@ class Item_func_dyncol_check :public Item_bool_func
 {
 public:
   Item_func_dyncol_check(THD *thd, Item *str): Item_bool_func(thd, str) {}
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("column_check") };
     return name;
   }
   bool need_parentheses_in_default() override { return false; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_dyncol_check>(thd, this); }
 };
 
@@ -3676,14 +3685,14 @@ class Item_func_dyncol_exists :public Item_bool_func
 public:
   Item_func_dyncol_exists(THD *thd, Item *str, Item *num):
     Item_bool_func(thd, str, num) {}
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("column_exists") };
     return name;
   }
   bool need_parentheses_in_default() override { return false; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_dyncol_exists>(thd, this); }
 };
 
@@ -3715,8 +3724,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("%ISOPEN") };
     return name;
   }
-  longlong val_int() override;
-  Item *get_copy(THD *thd) override
+  bool val_bool() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_isopen>(thd, this); }
 };
 
@@ -3734,8 +3743,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("%FOUND") };
     return name;
   }
-  longlong val_int() override;
-  Item *get_copy(THD *thd) override
+  bool val_bool() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_found>(thd, this); }
 };
 
@@ -3753,8 +3762,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("%NOTFOUND") };
     return name;
   }
-  longlong val_int() override;
-  Item *get_copy(THD *thd) override
+  bool val_bool() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_notfound>(thd, this); }
 };
 

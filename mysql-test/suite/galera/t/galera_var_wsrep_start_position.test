@@ -4,7 +4,7 @@
 --echo # wsrep_start_position
 --echo #
 
-CALL mtr.add_suppression("WSREP: SST failed for position .*");
+CALL mtr.add_suppression("WSREP: SST failed for position ");
 
 SET @wsrep_start_position_global_saved = @@global.wsrep_start_position;
 --echo # default

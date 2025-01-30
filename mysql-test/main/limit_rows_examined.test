@@ -23,6 +23,8 @@ insert into t2i values ('bb'), ('cc'), ('dd'), ('ff');
 --echo Simple joins
 --echo =========================================================================
 
+#Check after fix MDEV-31522
+--disable_cursor_protocol
 --echo Simple nested loops join without blocking
 set @@join_cache_level=0;
 explain
@@ -457,6 +459,7 @@ SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 15;
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 16;
+--enable_cursor_protocol
 
 drop table t1,t2,t3;
 
@@ -489,6 +492,7 @@ WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 )
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 120;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 FLUSH STATUS;
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
@@ -508,6 +512,7 @@ LIMIT ROWS EXAMINED 124;
 SHOW STATUS LIKE 'Handler_read%';
 SHOW STATUS LIKE 'Handler_tmp%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 drop table t1, t2;
 
@@ -612,3 +617,44 @@ select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 2;
 drop table t1,t2;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-35571: Connection hangs after query on a partitioned table with UNION and LIMIT ROWS EXAMINED
+--echo #
+
+--source include/have_partition.inc
+--source include/have_sequence.inc
+
+# Simplified test
+create table t1 (a int);
+insert into t1 values (1), (2);
+select * from t1 UNION ALL select * from t1 LIMIT ROWS EXAMINED 1;
+# UNION DISTINCT produces the same result here. Note that this is not
+# affected by the MDEV-35571 patch
+select * from t1 UNION DISTINCT select * from t1 LIMIT ROWS EXAMINED 1;
+DROP TABLE t1;
+
+# Simplified test with order by
+create table t1 (a int);
+insert into t1 values (1), (2);
+(select a from t1 UNION ALL select a from t1) order by a desc LIMIT ROWS EXAMINED 2;
+# UNION DISTINCT produces the same result with order by desc. Note
+# that this is not affected by the MDEV-35571 patch
+(select a from t1 UNION DISTINCT select a from t1) order by a desc LIMIT ROWS EXAMINED 2;
+DROP TABLE t1;
+
+# Original test
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SELECT seq%25 FROM seq_1_to_100;
+
+CREATE TABLE t2 (b INT, c INT, KEY(b)) PARTITION BY HASH(c) PARTITIONS 12;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_10;
+
+SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) UNION ALL SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) LIMIT ROWS EXAMINED 100;
+# UNION DISTINCT produces the same result here. Note that this is not
+# affected by the MDEV-35571 patch
+SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) UNION DISTINCT SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) LIMIT ROWS EXAMINED 100;
+
+DROP TABLE t1, t2;
+
+--echo # End of 10.5 tests

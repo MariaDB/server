@@ -460,7 +460,7 @@ lock_rec_unlock(
 /*============*/
 	trx_t*			trx,	/*!< in/out: transaction that has
 					set a record lock */
-	const page_id_t		id,	/*!< in: page containing rec */
+	const buf_block_t&	block,	/*!< in: page containing rec */
 	const rec_t*		rec,	/*!< in: record */
 	lock_mode		lock_mode);/*!< in: LOCK_S or LOCK_X */
 
@@ -717,13 +717,10 @@ public:
 #endif
 
   private:
-    /** @return the hash value before any ELEMENTS_PER_LATCH padding */
-    static ulint hash(ulint fold, ulint n) { return ut_hash_ulint(fold, n); }
-
     /** @return the index of an array element */
-    static ulint calc_hash(ulint fold, ulint n_cells)
+    static ulint calc_hash(ulint fold, ulint n_cells) noexcept
     {
-      return pad(hash(fold, n_cells));
+      return pad(fold % n_cells);
     }
   };
 
@@ -788,28 +785,28 @@ public:
   ATTRIBUTE_NOINLINE void rd_unlock();
 #else
   /** Acquire exclusive lock_sys.latch */
-  void wr_lock()
+  void wr_lock() noexcept
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
     latch.wr_lock();
   }
   /** Release exclusive lock_sys.latch */
-  void wr_unlock() { latch.wr_unlock(); }
+  void wr_unlock() noexcept { latch.wr_unlock(); }
   /** Acquire shared lock_sys.latch */
-  void rd_lock()
+  void rd_lock() noexcept
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
     latch.rd_lock();
   }
   /** Release shared lock_sys.latch */
-  void rd_unlock() { latch.rd_unlock(); }
+  void rd_unlock() noexcept { latch.rd_unlock(); }
 #endif
   /** Try to acquire exclusive lock_sys.latch
   @return whether the latch was acquired */
-  bool wr_lock_try() { return latch.wr_lock_try(); }
+  bool wr_lock_try() noexcept { return latch.wr_lock_try(); }
   /** Try to acquire shared lock_sys.latch
   @return whether the latch was acquired */
-  bool rd_lock_try() { return latch.rd_lock_try(); }
+  bool rd_lock_try() noexcept { return latch.rd_lock_try(); }
 
   /** Assert that wr_lock() has been invoked by this thread */
   void assert_locked() const { ut_ad(latch.have_wr()); }
@@ -820,6 +817,15 @@ public:
   bool is_writer() const { return latch.have_wr(); }
   /** @return whether the current thread is holding lock_sys.latch */
   bool is_holder() const { return latch.have_any(); }
+  /** Returns whether a cell of hash table where the lock is stored is latched.
+  @param lock the lock which cell is checked
+  @return whether the lock's cell is latched */
+  bool is_cell_locked(const lock_t &lock) {
+    return hash_table::latch(
+               hash_get(lock.type_mode)
+                   .cell_get(lock.un_member.rec_lock.page_id.fold()))
+        ->is_locked();
+  }
   /** Assert that a lock shard is exclusively latched (by some thread) */
   void assert_locked(const lock_t &lock) const;
   /** Assert that a table lock shard is exclusively latched by this thread */
@@ -863,7 +869,7 @@ public:
   @retval DB_DEADLOCK   if trx->lock.was_chosen_as_deadlock_victim was set
   @retval DB_LOCK_WAIT  if the lock was canceled */
   template<bool check_victim>
-  static dberr_t cancel(trx_t *trx, lock_t *lock);
+  dberr_t cancel(trx_t *trx, lock_t *lock) noexcept;
 
   /** Note that a record lock wait started */
   inline void wait_start();
@@ -918,7 +924,7 @@ public:
   void prdt_page_free_from_discard(const page_id_t id, bool all= false);
 
   /** Cancel possible lock waiting for a transaction */
-  static void cancel_lock_wait_for_trx(trx_t *trx);
+  inline void cancel_lock_wait_for_trx(trx_t *trx) noexcept;
 #ifdef WITH_WSREP
   /** Cancel lock waiting for a wsrep BF abort. */
   static void cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx);
@@ -1165,9 +1171,9 @@ lock_rec_create(
 					trx mutex */
 
 /** Remove a record lock request, waiting or granted, on a discarded page
-@param hash     hash table
-@param in_lock  lock object */
-void lock_rec_discard(lock_sys_t::hash_table &lock_hash, lock_t *in_lock);
+@param in_lock  lock object
+@param cell     hash table cell containing in_lock */
+void lock_rec_discard(lock_t *in_lock, hash_cell_t &cell) noexcept;
 
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.

@@ -65,6 +65,7 @@
 #include "transaction.h"
 #include "opt_trace.h"
 #include "my_cpu.h"
+#include "scope.h"
 
 
 #include "lex_symbol.h"
@@ -626,14 +627,13 @@ ignore_db_dirs_init()
   @return                 a pointer to the key
 */
 
-static uchar *
-db_dirs_hash_get_key(const uchar *data, size_t *len_ret,
-                     my_bool __attribute__((unused)))
+static const uchar *db_dirs_hash_get_key(const void *data, size_t *len_ret,
+                                         my_bool)
 {
-  LEX_CSTRING *e= (LEX_CSTRING *) data;
+  auto e= static_cast<const LEX_CSTRING *>(data);
 
   *len_ret= e->length;
-  return (uchar *) e->str;
+  return reinterpret_cast<const uchar *>(e->str);
 }
 
 
@@ -1306,7 +1306,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 {
   Protocol *protocol= thd->protocol;
   char buff[2048];
-  String buffer(buff, sizeof(buff), system_charset_info);
+  String buffer(buff, sizeof(buff), &my_charset_utf8mb4_general_ci);
   List<Item> field_list;
   bool error= TRUE;
   DBUG_ENTER("mysqld_show_create");
@@ -1730,7 +1730,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   def_value->length(0);
   if (has_default)
   {
-    StringBuffer<MAX_FIELD_WIDTH> str(field->charset());
+    StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
     if (field->default_value)
     {
       field->default_value->print(&str);
@@ -1859,7 +1859,7 @@ static void add_table_options(THD *thd, TABLE *table,
     hton= table->part_info->default_engine_type;
   else
 #endif
-    hton= table->file->ht;
+    hton= table->file->storage_ht();
 
   bzero((char*) &create_info, sizeof(create_info));
   /* Allow update_create_info to update row type, page checksums and options */
@@ -2257,11 +2257,11 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       {
         packet->append(STRING_WITH_LEN(" INVISIBLE"));
       }
-      def_value.set(def_value_buf, sizeof(def_value_buf), system_charset_info);
+      def_value.set(def_value_buf, sizeof(def_value_buf), &my_charset_utf8mb4_general_ci);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));
-        packet->append(def_value.ptr(), def_value.length(), system_charset_info);
+        packet->append(def_value.ptr(), def_value.length(), &my_charset_utf8mb4_general_ci);
       }
 
       if (field->vers_update_unversioned())
@@ -3832,7 +3832,7 @@ static bool show_status_array(THD *thd, const char *wild,
       if ((wild_checked ||
            !(wild && wild[0] && wild_case_compare(system_charset_info,
                                                   name_buffer, wild))) &&
-          (!cond || cond->val_int()))
+          (!cond || cond->val_bool()))
       {
         const char *pos;                  // We assign a lot of const's
         size_t length;
@@ -4564,6 +4564,19 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
 }
 
 
+/*
+  Hide error for a non-existing table.
+  For example, this error can occur when we use a where condition
+  with a db name and table, but the table does not exist or
+  there is a view with the same name.
+*/
+static bool hide_object_error(uint err)
+{
+  return err == ER_NO_SUCH_TABLE || err == ER_WRONG_OBJECT ||
+         err == ER_NOT_SEQUENCE;
+}
+
+
 /**
   Fill I_S table with data obtained by performing full-blown table open.
 
@@ -4692,16 +4705,8 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
     of backward compatibility.
   */
   if (!is_show_fields_or_keys && result && thd->is_error() &&
-      (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-       thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
-       thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE))
+      hide_object_error(thd->get_stmt_da()->sql_errno()))
   {
-    /*
-      Hide error for a non-existing table.
-      For example, this error can occur when we use a where condition
-      with a db name and table, but the table does not exist or
-      there is a view with the same name.
-    */
     result= false;
     thd->clear_error();
   }
@@ -4792,8 +4797,8 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     else
       table->field[3]->store(STRING_WITH_LEN("ERROR"), cs);
 
-    if (unlikely(thd->is_error() &&
-                 thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE))
+    if (unlikely(thd->is_error()) &&
+        hide_object_error(thd->get_stmt_da()->sql_errno()))
     {
       thd->clear_error();
       return 0;
@@ -5033,9 +5038,7 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
   share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
-    if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
-        thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE)
+    if (hide_object_error(thd->get_stmt_da()->sql_errno()))
     {
       res= 0;
     }
@@ -5076,16 +5079,25 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
     goto end_share;
   }
 
-  if (!open_table_from_share(thd, share, table_name, 0,
-                             (EXTRA_RECORD | OPEN_FRM_FILE_ONLY),
-                             thd->open_options, &tbl, FALSE))
+  res= open_table_from_share(thd, share, table_name, 0,
+                             EXTRA_RECORD | OPEN_FRM_FILE_ONLY,
+                             thd->open_options, &tbl, FALSE);
+  if (res && hide_object_error(thd->get_stmt_da()->sql_errno()))
+    res= 0;
+  else
   {
+    char buf[NAME_CHAR_LEN + 1];
+    if (unlikely(res))
+      get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
+
     tbl.s= share;
     table_list.table= &tbl;
     table_list.view= (LEX*) share->is_view;
-    res= schema_table->process_table(thd, &table_list, table,
-                                     res, db_name, table_name);
-    closefrm(&tbl);
+    bool res2= schema_table->process_table(thd, &table_list, table, res,
+                                           db_name, table_name);
+    if (res == 0)
+      closefrm(&tbl);
+    res= res2;
   }
 
 
@@ -5175,7 +5187,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_ENTER("get_all_tables");
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
-  TABLE_LIST table_acl_check;
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   IS_table_read_plan *plan= tables->is_table_read_plan;
@@ -5265,8 +5276,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
-  bzero((char*) &table_acl_check, sizeof(table_acl_check));
-
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
 
@@ -5279,9 +5288,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (!(check_access(thd, SELECT_ACL, db_name->str,
-                       &thd->col_access, NULL, 0, 1) ||
-          (!thd->col_access && check_grant_db(thd, db_name->str))) ||
+    if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0))
 #endif
@@ -5302,6 +5309,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))
         {
+          TABLE_LIST table_acl_check;
+          table_acl_check.reset();
           table_acl_check.db= *db_name;
           table_acl_check.table_name= *table_name;
           table_acl_check.grant.privilege= thd->col_access;
@@ -5315,7 +5324,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         table->field[schema_table->idx_field2]->
           store(table_name->str, table_name->length, system_charset_info);
 
-        if (!partial_cond || partial_cond->val_int())
+        if (!partial_cond || partial_cond->val_bool())
         {
           /*
             If table is I_S.tables and open_table_method is 0 (eg SKIP_OPEN)
@@ -6470,8 +6479,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   {
     Field *field;
     LEX_CSTRING tmp_string;
-    Sql_mode_save sql_mode_backup(thd);
-    thd->variables.sql_mode= sql_mode;
+    SCOPE_VALUE(thd->variables.sql_mode, sql_mode);
 
     if (sph->type() == SP_TYPE_FUNCTION)
     {
@@ -8148,7 +8156,7 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   COND *partial_cond= make_cond_for_info_schema(thd, cond, tables);
   // Evaluate and cache const subqueries now, before the mutex.
   if (partial_cond)
-    partial_cond->val_int();
+    partial_cond->val_bool();
 
   tmp.local_memory_used= 0; // meaning tmp was not populated yet
 
@@ -9416,7 +9424,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("NON_UNIQUE",    SLonglong(1),NOT_NULL, "Non_unique",  OPEN_FRM_ONLY),
   Column("INDEX_SCHEMA",  Name(),      NOT_NULL,                OPEN_FRM_ONLY),
   Column("INDEX_NAME",    Name(),      NOT_NULL, "Key_name",    OPEN_FRM_ONLY),
-  Column("SEQ_IN_INDEX",  SLonglong(2),NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
+  Column("SEQ_IN_INDEX",  ULong(2),    NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
   Column("COLUMN_NAME",   Name(),      NOT_NULL, "Column_name", OPEN_FRM_ONLY),
   Column("COLLATION",     Varchar(1),  NULLABLE, "Collation",   OPEN_FULL_TABLE),
   Column("CARDINALITY",   SLonglong(), NULLABLE, "Cardinality", OPEN_FULL_TABLE),
@@ -9964,8 +9972,9 @@ ST_SCHEMA_TABLE schema_tables[]=
 };
 
 
-int initialize_schema_table(st_plugin_int *plugin)
+int initialize_schema_table(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   ST_SCHEMA_TABLE *schema_table;
   int err;
   DBUG_ENTER("initialize_schema_table");
@@ -10010,9 +10019,10 @@ int initialize_schema_table(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
-int finalize_schema_table(st_plugin_int *plugin)
+int finalize_schema_table(void *plugin_)
 {
-  ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  ST_SCHEMA_TABLE *schema_table= static_cast<ST_SCHEMA_TABLE *>(plugin->data);
   DBUG_ENTER("finalize_schema_table");
 
   if (schema_table)

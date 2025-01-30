@@ -170,8 +170,10 @@ DROP TABLE t1;
 --echo # MDEV-4269: crash when grouping by values()
 --echo #
 
+--disable_cursor_protocol
 SELECT @@default_storage_engine INTO @old_engine;
 set default_storage_engine=innodb;
+--enable_cursor_protocol
 
 create table y select 1 b;
 select 1 from y group by b;

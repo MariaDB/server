@@ -85,6 +85,15 @@ cleanup:
   return default_name;
 }
 
+static void release_service_name()
+{
+  if (service_name != GSS_C_NO_NAME)
+  {
+    OM_uint32 minor;
+    gss_release_name(&minor, &service_name);
+    service_name=  GSS_C_NO_NAME;
+  }
+}
 
 int plugin_init()
 {
@@ -127,6 +136,7 @@ int plugin_init()
   if (GSS_ERROR(major))
   {
     log_error(major, minor, "gss_acquire_cred failed");
+    release_service_name();
     return -1;
   }
   gss_release_cred(&minor, &cred);
@@ -136,11 +146,7 @@ int plugin_init()
 
 int plugin_deinit()
 {
-  if (service_name != GSS_C_NO_NAME)
-  {
-    OM_uint32 minor;
-    gss_release_name(&minor, &service_name);
-  }
+  release_service_name();
   return 0;
 }
 

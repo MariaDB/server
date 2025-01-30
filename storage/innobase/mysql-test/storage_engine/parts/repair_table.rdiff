@@ -1,5 +1,5 @@
---- suite/storage_engine/parts/repair_table.result	2013-07-18 22:55:38.000000000 +0400
-+++ suite/storage_engine/parts/repair_table.reject	2013-08-05 19:54:09.000000000 +0400
+--- suite/storage_engine/parts/repair_table.result
++++ suite/storage_engine/parts/repair_table.reject
 @@ -25,7 +25,7 @@
  INSERT INTO t1 (a,b) VALUES (10,'j');
  ALTER TABLE t1 REPAIR PARTITION p1 QUICK USE_FRM;

@@ -15,7 +15,6 @@
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
-#include "spd_environ.h"
 #include "mysql.h"
 #include "spd_udf.h"
 
@@ -23,8 +22,8 @@ extern "C" {
 long long spider_direct_sql(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   return spider_direct_sql_body(initid, args, is_null, error, FALSE);
 }
@@ -47,8 +46,8 @@ void spider_direct_sql_deinit(
 long long spider_bg_direct_sql(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   return spider_direct_sql_bg_end(initid);
 }
@@ -69,8 +68,8 @@ void spider_bg_direct_sql_deinit(
 
 void spider_bg_direct_sql_clear(
   UDF_INIT *initid,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   spider_direct_sql_bg_start(initid);
 }
@@ -78,8 +77,8 @@ void spider_bg_direct_sql_clear(
 void spider_bg_direct_sql_add(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   spider_direct_sql_body(initid, args, is_null, error, TRUE);
 }
@@ -88,8 +87,8 @@ void spider_bg_direct_sql_add(
 long long spider_ping_table(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   return spider_ping_table_body(initid, args, is_null, error);
 }
@@ -111,8 +110,8 @@ void spider_ping_table_deinit(
 long long spider_flush_table_mon_cache(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   return spider_flush_table_mon_cache_body();
 }
@@ -133,8 +132,8 @@ void spider_flush_table_mon_cache_deinit(
 long long spider_copy_tables(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   return spider_copy_tables_body(initid, args, is_null, error);
 }

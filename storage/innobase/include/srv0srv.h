@@ -287,10 +287,6 @@ extern ulint		srv_buf_pool_size;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 extern ulong		srv_buf_pool_chunk_unit;
-/** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
-extern ulong	srv_LRU_scan_depth;
-/** Whether or not to flush neighbors of a block */
-extern ulong	srv_flush_neighbors;
 /** Previously requested size */
 extern ulint	srv_buf_pool_old_size;
 /** Current size as scaling factor for the other components */
@@ -466,6 +462,7 @@ extern ulong srv_buf_dump_status_frequency;
 
 # ifdef UNIV_PFS_THREAD
 extern mysql_pfs_key_t	page_cleaner_thread_key;
+extern mysql_pfs_key_t	page_encrypt_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 extern mysql_pfs_key_t	thread_pool_thread_key;
 
@@ -623,6 +620,15 @@ void srv_master_callback(void*);
 Complete the shutdown tasks such as background DROP TABLE,
 and optionally change buffer merge (on innodb_fast_shutdown=0). */
 void srv_shutdown(bool ibuf_merge);
+
+/**
+ Fetches and executes tasks from the purge work queue,
+ until this queue is empty.
+ This is main part of purge worker task, but also
+ executed in coordinator.
+ @note needs current_thd to be set beforehand.
+*/
+void srv_purge_worker_task_low();
 
 } /* extern "C" */
 

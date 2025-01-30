@@ -70,26 +70,14 @@ inline ulint ut_rnd_interval(ulint n)
   return n > 1 ? static_cast<ulint>(ut_rnd_gen() % n) : 0;
 }
 
-/*******************************************************//**
-The following function generates a hash value for a ulint integer
-to a hash table of size table_size, which should be a prime or some
-random number to work reliably.
-@return hash value */
-UNIV_INLINE
-ulint
-ut_hash_ulint(
-/*==========*/
-	ulint	 key,		/*!< in: value to be hashed */
-	ulint	 table_size);	/*!< in: hash table size */
-/*************************************************************//**
-Folds a 64-bit integer.
-@return folded value */
-UNIV_INLINE
-ulint
-ut_fold_ull(
-/*========*/
-	ib_uint64_t	d)	/*!< in: 64-bit integer */
-	MY_ATTRIBUTE((const));
+# if SIZEOF_SIZE_T < 8
+inline size_t ut_fold_ull(uint64_t d) noexcept
+{
+  return size_t(d) * 31 + size_t(d >> (SIZEOF_SIZE_T * CHAR_BIT));
+}
+# else
+#  define ut_fold_ull(d) d
+# endif
 /***********************************************************//**
 Looks for a prime number slightly greater than the given argument.
 The prime is chosen so that it is not near any power of 2.

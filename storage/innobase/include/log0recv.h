@@ -93,9 +93,9 @@ void recv_sys_justify_left_parsing_buf();
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-extern void (*log_file_op)(ulint space_id, int type,
-			   const byte* name, ulint len,
-			   const byte* new_name, ulint new_len);
+extern void (*log_file_op)(uint32_t space_id, int type,
+			   const byte* name, size_t len,
+			   const byte* new_name, size_t new_len);
 
 /** Report an operation which does undo log tablespace truncation
 during backup
@@ -104,7 +104,7 @@ extern void (*undo_space_trunc)(uint32_t space_id);
 
 /** Report an operation which does INIT_PAGE for page0 during backup.
 @param	space_id	tablespace identifier */
-extern void (*first_page_init)(ulint space_id);
+extern void (*first_page_init)(uint32_t space_id);
 
 /** Stored redo log record */
 struct log_rec_t
@@ -127,32 +127,38 @@ struct recv_dblwr_t
 
   /** Validate the page.
   @param page_id  page identifier
-  @param page     page contents
+  @param max_lsn  the maximum allowed LSN
   @param space    the tablespace of the page (not available for page 0)
+  @param page     page contents
   @param tmp_buf  2*srv_page_size for decrypting and decompressing any
   page_compressed or encrypted pages
   @return whether the page is valid */
-  bool validate_page(const page_id_t page_id, const byte *page,
-                     const fil_space_t *space, byte *tmp_buf);
+  bool validate_page(const page_id_t page_id, lsn_t max_lsn,
+                     const fil_space_t *space,
+                     const byte *page, byte *tmp_buf) const noexcept;
 
-  /** Find a doublewrite copy of a page.
+  /** Find a doublewrite copy of a page with the smallest FIL_PAGE_LSN
+  that is large enough for recovery.
   @param page_id  page identifier
-  @param space    tablespace (not available for page_id.page_no()==0)
+  @param max_lsn  the maximum allowed LSN
+  @param space    tablespace (nullptr for page_id.page_no()==0)
   @param tmp_buf  2*srv_page_size for decrypting and decompressing any
   page_compressed or encrypted pages
   @return page frame
-  @retval NULL if no valid page for page_id was found */
-  byte* find_page(const page_id_t page_id, const fil_space_t *space= NULL,
-                  byte *tmp_buf= NULL);
+  @retval nullptr if no valid page for page_id was found */
+  const byte *find_page(const page_id_t page_id, lsn_t max_lsn,
+                        const fil_space_t *space= nullptr,
+                        byte *tmp_buf= nullptr) const noexcept;
 
-  /** Restore the first page of the given tablespace from
-  doublewrite buffer.
-  @param space_id  tablespace identifier
-  @param name      tablespace filepath
-  @param file      tablespace file handle
-  @return whether the operation failed */
-  bool restore_first_page(
-         ulint space_id, const char *name, pfs_os_file_t file);
+  /** Find the doublewrite copy of an encrypted page with the
+  smallest FIL_PAGE_LSN that is large enough for recovery.
+  @param space    tablespace object
+  @param page_no  page number to find
+  @param buf      buffer for unencrypted page
+  @return buf
+  @retval nullptr if the page was not found in doublewrite buffer */
+  byte *find_encrypted_page(const fil_node_t &space, uint32_t page_no,
+                            byte *buf) noexcept;
 
   /** Restore the first page of the given tablespace from
   doublewrite buffer.
@@ -261,8 +267,9 @@ private:
   during log scan or apply */
   bool found_corrupt_fs;
 public:
-  /** whether we are applying redo log records during crash recovery */
-  bool recovery_on;
+  /** whether we are applying redo log records during crash recovery.
+  This is protected by recv_sys.mutex */
+  Atomic_relaxed<bool> recovery_on= false;
   /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/
   bool apply_log_recs;
@@ -456,19 +463,27 @@ public:
   inline void free(const void *data);
 
   /** Remove records for a corrupted page.
-  This function should only be called when innodb_force_recovery is set.
-  @param page_id  corrupted page identifier */
-  ATTRIBUTE_COLD void free_corrupted_page(page_id_t page_id);
+  @param page_id  corrupted page identifier
+  @param node     file for which an error is to be reported
+  @return whether an error message was reported */
+  ATTRIBUTE_COLD bool free_corrupted_page(page_id_t page_id,
+                                          const fil_node_t &node) noexcept;
 
   /** Flag data file corruption during recovery. */
-  ATTRIBUTE_COLD void set_corrupt_fs();
+  ATTRIBUTE_COLD void set_corrupt_fs() noexcept;
   /** Flag log file corruption during recovery. */
-  ATTRIBUTE_COLD void set_corrupt_log();
+  ATTRIBUTE_COLD void set_corrupt_log() noexcept;
 
   /** @return whether data file corruption was found */
   bool is_corrupt_fs() const { return UNIV_UNLIKELY(found_corrupt_fs); }
   /** @return whether log file corruption was found */
   bool is_corrupt_log() const { return UNIV_UNLIKELY(found_corrupt_log); }
+
+  /** Check if recovery reached a consistent log sequence number.
+  @param start_lsn  the checkpoint LSN
+  @param end_lsn    the end LSN of the FILE_CHECKPOINT mini-transaction
+  @return whether the recovery failed to process enough log */
+  inline bool validate_checkpoint(lsn_t start_lsn, lsn_t end_lsn) const;
 
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
@@ -511,11 +526,6 @@ extern bool		recv_needed_recovery;
 Protected by log_sys.mutex. */
 extern bool		recv_no_log_write;
 #endif /* UNIV_DEBUG */
-
-/** TRUE if buf_page_is_corrupted() should check if the log sequence
-number (FIL_PAGE_LSN) is in the future.  Initially FALSE, and set by
-recv_recovery_from_checkpoint_start(). */
-extern bool		recv_lsn_checks_on;
 
 /** Size of the parsing buffer; it must accommodate RECV_SCAN_SIZE many
 times! */

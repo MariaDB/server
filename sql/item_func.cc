@@ -1309,9 +1309,10 @@ longlong Item_func_minus::int_op()
   {
     if (args[1]->unsigned_flag)
     {
-      if ((ulonglong) val0 < (ulonglong) val1)
+      if ((ulonglong) val0 >= (ulonglong) val1)
+        res_unsigned= TRUE;
+      else if ((ulonglong)val1 - (ulonglong)val0 > (ulonglong)LONGLONG_MAX)
         goto err;
-      res_unsigned= TRUE;
     }
     else
     {
@@ -2987,13 +2988,15 @@ String *Item_func_min_max::val_str_native(String *str)
       res=args[i]->val_str(str);
     else
     {
-      String *res2;
-      res2= args[i]->val_str(res == str ? &tmp_value : str);
+      String *res2= args[i]->val_str(&tmp_value);
       if (res2)
       {
         int cmp= sortcmp(res,res2,collation.collation);
         if ((cmp_sign < 0 ? cmp : -cmp) < 0)
-          res=res2;
+        {
+          str->copy(*res2);
+          res= str;
+        }
       }
     }
     if ((null_value= args[i]->null_value))
@@ -3042,6 +3045,27 @@ longlong Item_func_min_max::val_int_native()
       return 0;
   }
   return value;
+}
+
+
+longlong Item_func_min_max::val_uint_native()
+{
+  DBUG_ASSERT(fixed());
+  ulonglong value= 0;
+  for (uint i=0; i < arg_count ; i++)
+  {
+    if (i == 0)
+      value= (ulonglong) args[i]->val_int();
+    else
+    {
+      ulonglong tmp= (ulonglong) args[i]->val_int();
+      if (!args[i]->null_value && (tmp < value ? cmp_sign : -cmp_sign) > 0)
+	value= tmp;
+    }
+    if ((null_value= args[i]->null_value))
+      return 0;
+  }
+  return (longlong) value;
 }
 
 
@@ -3137,11 +3161,27 @@ longlong Item_func_char_length::val_int()
 }
 
 
+bool Item_func_coercibility::fix_length_and_dec()
+{
+  max_length=10;
+  base_flags&= ~item_base_t::MAYBE_NULL;
+  /*
+    Since this is a const item which doesn't use tables (see used_tables()),
+    we don't want to access the function arguments during execution.
+    That's why we store the derivation here during the preparation phase
+    and only return it later at the execution phase
+  */
+  DBUG_ASSERT(args[0]->fixed());
+  m_cached_collation_derivation= (longlong) args[0]->collation.derivation;
+  return false;
+}
+
+
 longlong Item_func_coercibility::val_int()
 {
   DBUG_ASSERT(fixed());
   null_value= 0;
-  return (longlong) args[0]->collation.derivation;
+  return m_cached_collation_derivation;
 }
 
 
@@ -4096,13 +4136,12 @@ public:
 
 /** Extract a hash key from User_level_lock. */
 
-uchar *ull_get_key(const uchar *ptr, size_t *length,
-                   my_bool not_used __attribute__((unused)))
+const uchar *ull_get_key(const void *ptr, size_t *length, my_bool)
 {
   User_level_lock *ull = (User_level_lock*) ptr;
   MDL_key *key = ull->lock->get_key();
   *length= key->length();
-  return (uchar*) key->ptr();
+  return key->ptr();
 }
 
 
@@ -7015,7 +7054,7 @@ sp_cursor *Cursor_ref::get_open_cursor_or_error()
 }
 
 
-longlong Item_func_cursor_isopen::val_int()
+bool Item_func_cursor_isopen::val_bool()
 {
   sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
   DBUG_ASSERT(c != NULL);
@@ -7023,14 +7062,14 @@ longlong Item_func_cursor_isopen::val_int()
 }
 
 
-longlong Item_func_cursor_found::val_int()
+bool Item_func_cursor_found::val_bool()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
-longlong Item_func_cursor_notfound::val_int()
+bool Item_func_cursor_notfound::val_bool()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();

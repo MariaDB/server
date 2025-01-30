@@ -227,11 +227,7 @@ int spider_end_trx(
   SPIDER_CONN *conn
 );
 
-int spider_check_trx_and_get_conn(
-  THD *thd,
-  ha_spider *spider,
-  bool use_conn_kind
-);
+int spider_check_trx_and_get_conn(THD *thd, ha_spider *spider);
 
 THD *spider_create_tmp_thd();
 
@@ -266,9 +262,3 @@ int spider_trx_check_link_idx_failed(
   ha_spider *spider
 );
 
-#ifdef HA_CAN_BULK_ACCESS
-void spider_trx_add_bulk_access_conn(
-  SPIDER_TRX *trx,
-  SPIDER_CONN *conn
-);
-#endif

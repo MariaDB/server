@@ -172,7 +172,7 @@ row_mysql_handle_errors(
 				during the function entry */
 	trx_t*		trx,	/*!< in: transaction */
 	que_thr_t*	thr,	/*!< in: query thread, or NULL */
-	trx_savept_t*	savept)	/*!< in: savepoint, or NULL */
+	const undo_no_t*savept)	/*!< in: pointer to savepoint, or nullptr */
 	MY_ATTRIBUTE((nonnull(1,2)));
 /********************************************************************//**
 Create a prebuilt struct for a MySQL table handle.
@@ -370,6 +370,15 @@ row_import_tablespace_for_mysql(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL */
         MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+enum rename_fk {
+  /** ignore FOREIGN KEY constraints */
+  RENAME_IGNORE_FK= 0,
+  /** Rename a table as part of a native table-rebuilding DDL operation */
+  RENAME_REBUILD,
+  /** Rename as part of ALTER TABLE...ALGORITHM=COPY */
+  RENAME_ALTER_COPY
+};
+
 /*********************************************************************//**
 Renames a table for MySQL.
 @return error code or DB_SUCCESS */
@@ -379,7 +388,7 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		use_fk)		/*!< in: whether to parse and enforce
+	rename_fk	fk)		/*!< in: how to handle
 					FOREIGN KEY constraints */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 

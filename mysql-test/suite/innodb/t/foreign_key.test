@@ -2,6 +2,11 @@
 --source include/count_sessions.inc
 --source include/default_charset.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+call mtr.add_suppression("Invalid \\(old\\?\\) table or database name '#mysql50#d-b'");
+--enable_query_log
+
 SET GLOBAL innodb_stats_persistent = 0;
 
 --echo #
@@ -137,9 +142,6 @@ INSERT INTO child SET a=1;
 --error ER_ROW_IS_REFERENCED_2
 DELETE FROM parent;
 ALTER TABLE child ADD INDEX(a);
---error ER_ROW_IS_REFERENCED_2
-DELETE FROM parent;
-ALTER TABLE child FORCE;
 DELETE FROM parent;
 DROP TABLE child,parent;
 
@@ -1063,6 +1065,21 @@ alter table t2 add foreign key(a) references t1;
 show create table t2;
 drop tables t2, t1;
 
+
+--echo #
+--echo # MDEV-29182 Assertion fld->field_no < table->n_v_def failed on cascade
+--echo #
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(3), c INT AS (LENGTH(b)) VIRTUAL,
+                INDEX(c)) ENGINE=InnoDB;
+CREATE TABLE t2(a INT REFERENCES t1(a) ON UPDATE CASCADE,
+                b INT GENERATED ALWAYS AS(a) VIRTUAL, INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1,b='fu';
+INSERT INTO t2 SET a=1;
+UPDATE t1 SET a=2,b='bar';
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2,t1;
+
 --echo # End of 10.5 tests
 
 --echo #
@@ -1183,6 +1200,50 @@ CHECK TABLE binaries, collections EXTENDED;
 
 # Cleanup
 DROP TABLE binaries, collections;
+
+CREATE SCHEMA `#mysql50##mysql50#d-b`;
+CREATE TABLE `#mysql50##mysql50#d-b`.t1 (a INT PRIMARY KEY, b INT UNIQUE) engine=InnoDB;
+USE `#mysql50##mysql50#d-b`;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT UNIQUE REFERENCES t1(b)) ENGINE=InnoDB;
+SET STATEMENT foreign_key_checks=0 FOR
+ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1(a);
+SHOW CREATE TABLE t2;
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET a=1;
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM t1;
+DELETE FROM t2;
+DELETE FROM t1;
+DROP DATABASE `#mysql50##mysql50#d-b`;
+USE test;
+
+--echo #
+--echo # MDEV-35962 CREATE INDEX fails to heal a FOREIGN KEY constraint
+--echo #
+
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
+SET STATEMENT foreign_key_checks=0 FOR
+CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SET STATEMENT foreign_key_checks=0 FOR
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO t2 VALUES (1);
+ALTER TABLE t1 ADD KEY(a), ALGORITHM=NOCOPY;
+INSERT INTO t2 VALUES (1);
+--error ER_DROP_INDEX_FK
+DROP INDEX b ON t2;
+SET STATEMENT foreign_key_checks=0 FOR
+DROP INDEX b ON t2;
+DELETE FROM t2;
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM t1;
+ALTER TABLE t2 ADD KEY(b), ALGORITHM=NOCOPY;
+DELETE FROM t1;
+DROP TABLE t2, t1;
 
 --echo # End of 10.6 tests
 

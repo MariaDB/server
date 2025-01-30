@@ -1,5 +1,5 @@
---- handler.result	2013-01-22 22:05:05.246633000 +0400
-+++ handler.reject	2013-01-23 02:50:29.411882697 +0400
+--- handler.result
++++ handler.reject
 @@ -2,76 +2,19 @@
  CREATE TABLE t1 (a <CHAR_COLUMN>, b <INT_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  INSERT INTO t1 (a,b) VALUES ('foobar',1000),('a',1),('bar',200),('foo',100);

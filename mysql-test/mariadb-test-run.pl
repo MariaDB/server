@@ -248,7 +248,7 @@ my @opt_skip_test_list;
 our $opt_ssl_supported;
 our $opt_ps_protocol;
 my $opt_sp_protocol;
-my $opt_cursor_protocol;
+our $opt_cursor_protocol;
 my $opt_view_protocol;
 my $opt_non_blocking_api;
 
@@ -4526,7 +4526,7 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: liburing disabled|,
      qr/InnoDB: Failed to set O_DIRECT on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
-     qr|feedback plugin: failed to retrieve the MAC address|,
+     qr|failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
      qr|'log-bin-use-v1-row-events' is MySQL .* compatible option|,
@@ -5583,11 +5583,12 @@ sub start_check_testcase ($$$) {
   }
   my $errfile= "$opt_vardir/tmp/$name.err";
 
-  My::Debugger::setup_client_args(\$args, \$exe_mysqltest);
+  my $exe= $exe_mysqltest;
+  My::Debugger::setup_client_args(\$args, \$exe);
   my $proc= My::SafeProcess->new
     (
      name          => $name,
-     path          => $exe_mysqltest,
+     path          => $exe,
      error         => $errfile,
      output        => $errfile,
      args          => \$args,

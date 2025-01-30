@@ -139,12 +139,13 @@ show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA unix_socket OR mysql_native_password USING '*BFE3F4604CFD21E6595080A261D92EF0183B5971'
 set password for mysqltest1 = password('foobar');
+ERROR HY000: SET PASSWORD is not applicable for users authenticating via unix_socket plugin
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA unix_socket OR mysql_native_password USING '*9B500343BC52E2911172EB52AE5CF4847604C6E5'
 alter user mysqltest1 identified via unix_socket;
 set password for mysqltest1 = password('bla');
-ERROR HY000: SET PASSWORD is ignored for users authenticating via unix_socket plugin
+ERROR HY000: SET PASSWORD is not applicable for users authenticating via unix_socket plugin
 alter user mysqltest1 identified via mysql_native_password as password("some") or unix_socket;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%

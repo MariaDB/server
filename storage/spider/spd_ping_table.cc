@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -105,9 +104,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   SPIDER_TABLE_MON_LIST *table_mon_list;
   MEM_ROOT mem_root;
   ulonglong mon_table_cache_version;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value;
-#endif
   DBUG_ENTER("spider_get_ping_table_mon_list");
   /* Reset the cache if the version does not match the requirement */
   if (spider_mon_table_cache_version != spider_mon_table_cache_version_req)
@@ -129,27 +126,17 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
     spider_param_udf_table_mon_mutex_count());
   DBUG_PRINT("info",("spider hash key=%s", str->c_ptr()));
   DBUG_PRINT("info",("spider hash key length=%u", str->length()));
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   hash_value = my_calc_hash(
     &spider_udf_table_mon_list_hash[mutex_hash],
     (uchar*) str->c_ptr(), str->length());
-#endif
   pthread_mutex_lock(&spider_udf_table_mon_mutexes[mutex_hash]);
   mon_table_cache_version = (ulonglong) spider_mon_table_cache_version;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(table_mon_list = (SPIDER_TABLE_MON_LIST *)
     my_hash_search_using_hash_value(
       &spider_udf_table_mon_list_hash[mutex_hash], hash_value,
       (uchar*) str->c_ptr(), str->length())) ||
       table_mon_list->mon_table_cache_version != mon_table_cache_version
   )
-#else
-  if (!(table_mon_list = (SPIDER_TABLE_MON_LIST *) my_hash_search(
-    &spider_udf_table_mon_list_hash[mutex_hash],
-    (uchar*) str->c_ptr(), str->length())) ||
-    table_mon_list->mon_table_cache_version != mon_table_cache_version
-  )
-#endif
   {
     /* If table_mon_list is found but the cache version does not
     match, remove it from the hash and free it. */
@@ -171,17 +158,9 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
     table_mon_list->mon_table_cache_version = mon_table_cache_version;
     uint old_elements =
       spider_udf_table_mon_list_hash[mutex_hash].array.max_element;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     table_mon_list->key_hash_value = hash_value;
-#endif
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    if (my_hash_insert_with_hash_value(
-      &spider_udf_table_mon_list_hash[mutex_hash],
-      hash_value, (uchar*) table_mon_list))
-#else
     if (my_hash_insert(&spider_udf_table_mon_list_hash[mutex_hash],
       (uchar*) table_mon_list))
-#endif
     {
       spider_ping_table_free_mon_list(table_mon_list);
       *error_num = HA_ERR_OUT_OF_MEM;
@@ -230,13 +209,8 @@ void spider_release_ping_table_mon_list_loop(
   SPIDER_TABLE_MON_LIST *table_mon_list
 ) {
   DBUG_ENTER("spider_release_ping_table_mon_list_loop");
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-  my_hash_delete_with_hash_value(&spider_udf_table_mon_list_hash[mutex_hash],
-    table_mon_list->key_hash_value, (uchar*) table_mon_list);
-#else
   my_hash_delete(&spider_udf_table_mon_list_hash[mutex_hash],
     (uchar*) table_mon_list);
-#endif
   while (TRUE)
   {
     if (table_mon_list->use_count)
@@ -280,22 +254,14 @@ int spider_release_ping_table_mon_list(
 
   mutex_hash = spider_udf_calc_hash(conv_name_str.c_ptr_safe(),
     spider_param_udf_table_mon_mutex_count());
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(
     &spider_udf_table_mon_list_hash[mutex_hash],
     (uchar*) conv_name_str.c_ptr(), conv_name_str.length());
-#endif
   pthread_mutex_lock(&spider_udf_table_mon_mutexes[mutex_hash]);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((table_mon_list = (SPIDER_TABLE_MON_LIST *)
     my_hash_search_using_hash_value(
       &spider_udf_table_mon_list_hash[mutex_hash], hash_value,
       (uchar*) conv_name_str.c_ptr(), conv_name_str.length())))
-#else
-  if ((table_mon_list = (SPIDER_TABLE_MON_LIST *) my_hash_search(
-    &spider_udf_table_mon_list_hash[mutex_hash],
-    (uchar*) conv_name_str.c_ptr(), conv_name_str.length())))
-#endif
     spider_release_ping_table_mon_list_loop(mutex_hash, table_mon_list);
   pthread_mutex_unlock(&spider_udf_table_mon_mutexes[mutex_hash]);
   my_afree(buf);
@@ -682,11 +648,9 @@ SPIDER_CONN *spider_get_ping_table_tgt_conn(
 ) {
   SPIDER_CONN *conn;
   DBUG_ENTER("spider_get_ping_table_tgt_conn");
-  if (
-    !(conn = spider_get_conn(
-      share, 0, share->conn_keys[0], trx, NULL, FALSE, FALSE,
-      SPIDER_CONN_KIND_MYSQL, error_num))
-  ) {
+  if (!(conn= spider_get_conn(share, 0, share->conn_keys[0], trx, NULL, FALSE,
+                              FALSE, error_num)))
+  {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0),
       share->server_names[0]);
     *error_num = ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
@@ -1105,8 +1069,8 @@ int spider_ping_table_cache_compare(
 long long spider_ping_table_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   int error_num = 0, link_idx, flags, full_mon_count, current_mon_count,
     success_count, fault_count, tmp_error_num = 0;

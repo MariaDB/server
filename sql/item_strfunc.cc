@@ -61,14 +61,21 @@ size_t username_char_length= USERNAME_CHAR_LENGTH;
   Calculate max length of string from length argument to LEFT and RIGHT
 */
 
-static uint32 max_length_for_string(Item *item)
+static uint32 max_length_for_string(Item *item, bool *neg)
 {
+  *neg= false;
   ulonglong length= item->val_int();
-  /* Note that if value is NULL, val_int() returned 0 */
+  if (item->null_value)
+    return 0;
+  if (length > (ulonglong) LONGLONG_MAX && !item->unsigned_flag)
+  {
+    *neg= true;
+    return 0; // Negative
+  }
   if (length > (ulonglong) INT_MAX32)
   {
     /* Limit string length to maxium string length in MariaDB (2G) */
-    length= item->unsigned_flag ? (ulonglong) INT_MAX32 : 0;
+    length= (ulonglong) INT_MAX32;
   }
   return (uint32) length;
 }
@@ -150,6 +157,7 @@ double Item_str_func::val_real()
 
 longlong Item_str_func::val_int()
 {
+  DBUG_ASSERT(!is_cond());
   DBUG_ASSERT(fixed());
   StringBuffer<22> tmp;
   String *res= val_str(&tmp);
@@ -659,7 +667,7 @@ String *Item_func_concat_operator_oracle::val_str(String *str)
     goto null;
 
   if (res != str)
-    str->copy(res->ptr(), res->length(), res->charset());
+    str->copy_or_move(res->ptr(), res->length(), res->charset());
 
   for (i++ ; i < arg_count ; i++)
   {
@@ -1558,8 +1566,12 @@ bool Item_func_insert::fix_length_and_dec()
   // Handle character set for args[0] and args[3].
   if (agg_arg_charsets_for_string_result(collation, args, 2, 3))
     return TRUE;
-  char_length= ((ulonglong) args[0]->max_char_length() +
-                (ulonglong) args[3]->max_char_length());
+  if (collation.collation == &my_charset_bin)
+    char_length= (ulonglong) args[0]->max_length +
+                 (ulonglong) args[3]->max_length;
+  else
+    char_length= ((ulonglong) args[0]->max_char_length() +
+                  (ulonglong) args[3]->max_char_length());
   fix_char_length_ulonglong(char_length);
   return FALSE;
 }
@@ -1656,7 +1668,8 @@ void Item_str_func::left_right_max_length()
   uint32 char_length= args[0]->max_char_length();
   if (args[1]->can_eval_in_optimize())
   {
-    uint32 length= max_length_for_string(args[1]);
+    bool neg;
+    uint32 length= max_length_for_string(args[1], &neg);
     set_if_smaller(char_length, length);
   }
   fix_char_length(char_length);
@@ -1775,11 +1788,11 @@ bool Item_func_substr::fix_length_and_dec()
   }
   if (arg_count == 3 && args[2]->const_item())
   {
-    int32 length= (int32) args[2]->val_int();
-    if (args[2]->null_value || length <= 0)
+    longlong length= args[2]->val_int();
+    if (args[2]->null_value || (length <= 0 && !args[2]->unsigned_flag))
       max_length=0; /* purecov: inspected */
-    else
-      set_if_smaller(max_length,(uint) length);
+    else if (length < UINT32_MAX)
+      set_if_smaller(max_length, (uint32) length);
   }
   max_length*= collation.collation->mbmaxlen;
   return FALSE;
@@ -2243,7 +2256,7 @@ String *Item_func_password::val_str_ascii(String *str)
     if (args[0]->null_value || res->length() == 0)
       return make_empty_result(str);
     my_make_scrambled_password(tmp_value, res->ptr(), res->length());
-    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
+    str->copy(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
     break;
   case OLD:
     if ((null_value=args[0]->null_value))
@@ -2251,7 +2264,7 @@ String *Item_func_password::val_str_ascii(String *str)
     if (res->length() == 0)
       return make_empty_result(str);
     my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
-    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
+    str->copy(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
     break;
   default:
     DBUG_ASSERT(0);
@@ -3070,7 +3083,8 @@ bool Item_func_repeat::fix_length_and_dec()
   DBUG_ASSERT(collation.collation != NULL);
   if (args[1]->can_eval_in_optimize())
   {
-    uint32 length= max_length_for_string(args[1]);
+    bool neg;
+    uint32 length= max_length_for_string(args[1], &neg);
     ulonglong char_length= (ulonglong) args[0]->max_char_length() * length;
     fix_char_length_ulonglong(char_length);
     return false;
@@ -3144,7 +3158,8 @@ bool Item_func_space::fix_length_and_dec()
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   if (args[0]->can_eval_in_optimize())
   {
-    fix_char_length_ulonglong(max_length_for_string(args[0]));
+    bool neg;
+    fix_char_length_ulonglong(max_length_for_string(args[0], &neg));
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
@@ -3270,7 +3285,10 @@ bool Item_func_pad::fix_length_and_dec()
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
   if (args[1]->can_eval_in_optimize())
   {
-    fix_char_length_ulonglong(max_length_for_string(args[1]));
+    bool neg;
+    fix_char_length_ulonglong(max_length_for_string(args[1], &neg));
+    if (neg)
+      set_maybe_null();
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
@@ -3502,7 +3520,7 @@ String *Item_func_conv::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   String *res= args[0]->val_str(str);
-  char *endptr,ans[65],*ptr;
+  char *endptr,ans[66],*ptr;
   longlong dec;
   int from_base= (int) args[1]->val_int();
   int to_base= (int) args[2]->val_int();
@@ -3653,9 +3671,8 @@ String *Item_func_charset::val_str(String *str)
   DBUG_ASSERT(fixed());
   uint dummy_errors;
 
-  CHARSET_INFO *cs= args[0]->charset_for_protocol(); 
   null_value= 0;
-  str->copy(cs->cs_name.str, cs->cs_name.length,
+  str->copy(m_cached_charset_info.str, m_cached_charset_info.length,
 	    &my_charset_latin1, collation.collation, &dummy_errors);
   return str;
 }
@@ -4262,9 +4279,9 @@ longlong Item_func_uncompressed_length::val_int()
   if (res->length() <= 4)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_ZLIB_Z_DATA_ERROR,
-                        ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_ZLIB_Z_DATA_ERROR,
+                 ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
     null_value= 1;
     return 0;
   }
@@ -4381,7 +4398,7 @@ String *Item_func_uncompress::val_str(String *str)
   if (res->length() <= 4)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_ZLIB_Z_DATA_ERROR,
 			ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
     goto err;
@@ -5363,7 +5380,7 @@ String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {
   if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, MYF(0), WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
     null_value= TRUE;
     return 0;
   }
@@ -5388,7 +5405,7 @@ String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
   if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, MYF(0), WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
     null_value= TRUE;
     return 0;
   }
@@ -5433,7 +5450,7 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
   if (!(gtid_list= gtid_parse_string_to_list(gtid_str->ptr(), gtid_str->length(),
                                              &count)))
   {
-    my_error(ER_INCORRECT_GTID_STATE, MYF(0), func_name());
+    my_error(ER_INCORRECT_GTID_STATE, MYF(0));
     null_value= TRUE;
     return 0;
   }
@@ -5445,12 +5462,12 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
       wait_gtid_ret= wsrep_gtid_server.wait_gtid_upto(gtid_list[0].seq_no, timeout);
       if ((wait_gtid_ret == ETIMEDOUT) || (wait_gtid_ret == ETIME))
       {
-        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), func_name());
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
         ret= 0;
       }
       else if (wait_gtid_ret == ENOMEM)
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), func_name());
+        my_error(ER_OUTOFMEMORY, MYF(0), sizeof(std::pair<uint64, mysql_cond_t*>));
         ret= 0;
       }
     }

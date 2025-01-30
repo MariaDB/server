@@ -38,32 +38,40 @@
 #define MAX_TREEMEM	  8192
 #define MAX_TREE_ELEMENTS 256
 
-int sortcmp2(void* cmp_arg __attribute__((unused)),
-	     const String *a,const String *b)
+int sortcmp2(void *, const void *a_, const void *b_)
 {
+  const String *a= static_cast<const String*>(a_);
+  const String *b= static_cast<const String*>(b_);
   return sortcmp(a,b,a->charset());
 }
 
-int compare_double2(void* cmp_arg __attribute__((unused)),
-		    const double *s, const double *t)
+int compare_double2(void *, const void *s_, const void *t_)
 {
+  const double *s= static_cast<const double*>(s_);
+  const double *t= static_cast<const double*>(t_);
+
   return compare_double(s,t);
 }
 
-int compare_longlong2(void* cmp_arg __attribute__((unused)),
-		      const longlong *s, const longlong *t)
+int compare_longlong2(void *, const void *s_, const void *t_)
 {
+  const longlong *s= static_cast<const longlong*>(s_);
+  const longlong *t= static_cast<const longlong*>(t_);
   return compare_longlong(s,t);
 }
 
-int compare_ulonglong2(void* cmp_arg __attribute__((unused)),
-		       const ulonglong *s, const ulonglong *t)
+int compare_ulonglong2(void *, const void *s_, const void *t_)
 {
+  const ulonglong *s= static_cast<const ulonglong*>(s_);
+  const ulonglong *t= static_cast<const ulonglong*>(t_);
   return compare_ulonglong(s,t);
 }
 
-int compare_decimal2(int* len, const char *s, const char *t)
+int compare_decimal2(void *_len, const void *s_, const void *t_)
 {
+  int *len= static_cast<int *>(_len);
+  const char *s= static_cast<const char *>(s_);
+  const char *t= static_cast<const char *>(t_);
   return memcmp(s, t, *len);
 }
 
@@ -258,7 +266,9 @@ bool test_if_number(NUM_INFO *info, const char *str, uint str_len)
       info->decimals++;
     if (str == end)
     {
-      info->dval = my_atof(begin);
+      int error;
+      const char *end2= end;
+      info->dval= my_strtod(begin, (char **) &end2, &error);
       DBUG_RETURN(1);
     }
   }
@@ -1073,10 +1083,10 @@ String *field_decimal::std(String *s, ha_rows rows)
 }
 
 
-int collect_string(String *element,
-		   element_count count __attribute__((unused)),
-		   TREE_INFO *info)
+int collect_string(void *element_, element_count, void *info_)
 {
+  String *element= static_cast<String*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   if (info->found)
     info->str->append(',');
   else
@@ -1089,9 +1099,10 @@ int collect_string(String *element,
 } // collect_string
 
 
-int collect_real(double *element, element_count count __attribute__((unused)),
-		 TREE_INFO *info)
+int collect_real(void *element_, element_count, void *info_)
 {
+  double *element= static_cast<double*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),current_thd->charset());
 
@@ -1107,9 +1118,10 @@ int collect_real(double *element, element_count count __attribute__((unused)),
 } // collect_real
 
 
-int collect_decimal(uchar *element, element_count count,
-                    TREE_INFO *info)
+int collect_decimal(void *element_, element_count count, void *info_)
 {
+  uchar *element= static_cast<uchar*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[DECIMAL_MAX_STR_LENGTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1126,10 +1138,10 @@ int collect_decimal(uchar *element, element_count count,
 }
 
 
-int collect_longlong(longlong *element,
-		     element_count count __attribute__((unused)),
-		     TREE_INFO *info)
+int collect_longlong(void *element_, element_count, void *info_)
 {
+  longlong *element= static_cast<longlong*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1145,10 +1157,10 @@ int collect_longlong(longlong *element,
 } // collect_longlong
 
 
-int collect_ulonglong(ulonglong *element,
-		      element_count count __attribute__((unused)),
-		      TREE_INFO *info)
+int collect_ulonglong(void *element_, element_count, void *info_)
 {
+  ulonglong *element= static_cast<ulonglong*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1212,7 +1224,7 @@ uint check_ulonglong(const char *str, uint length)
   const char *long_str = "2147483647", *ulonglong_str = "18446744073709551615";
   const uint long_len = 10, ulonglong_len = 20;
 
-  while (*str == '0' && length)
+  while (length && *str == '0')
   {
     str++; length--;
   }

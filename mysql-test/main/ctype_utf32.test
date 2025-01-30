@@ -795,6 +795,8 @@ CREATE TABLE t1 (
   s3 MEDIUMTEXT CHARACTER SET utf32,
   s4 LONGTEXT CHARACTER SET utf32
 );
+#check after fix MDEV-31540
+--disable_cursor_protocol
 --disable_view_protocol
 --enable_metadata
 SET NAMES utf8mb4, @@character_set_results=NULL;
@@ -805,6 +807,7 @@ SET NAMES utf8mb4;
 SELECT *, HEX(s1) FROM t1;
 --disable_metadata
 --enable_view_protocol
+--enable_cursor_protocol
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
@@ -1131,8 +1134,11 @@ SELECT HEX(DATE_FORMAT(TIME'-01:01:01','%h'));
 --echo # utf8 format, utf32 result
 SELECT DATE_FORMAT('2004-02-02',_utf8'%W');
 SELECT HEX(DATE_FORMAT('2004-02-02',_utf8'%W'));
+#enable after fix MDEV-34215
+--disable_cursor_protocol
 SELECT DATE_FORMAT(TIME'-01:01:01',_utf8'%h');
 SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_utf8'%h'));
+--enable_cursor_protocol
 
 --echo # utf32 format, utf8 result
 SET NAMES utf8;
@@ -1156,3 +1162,21 @@ SELECT HEX(DATE_FORMAT(TIME'11:22:33',@format));
 --echo #
 
 --enable_service_connection
+
+
+--echo #
+--echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+--echo #
+
+SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
+
+--echo #
+--echo # MDEV-29968 Functions in default values in tables with some character sets break SHOW CREATE (and mysqldump)
+--echo #
+
+SET NAMES utf8mb4;
+--let $table_charset=CHARACTER SET utf32
+--source include/ctype_supplementary_chars.inc
+DROP TABLE t1, t2, t3, t4, t5;
+
+--echo # End of 10.5 tests

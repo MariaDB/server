@@ -31,7 +31,7 @@ ENDIF()
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0074 CMP0075 CMP0069 CMP0135)
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135)
   IF(POLICY ${p})
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
@@ -192,11 +192,7 @@ ELSE()
 ENDIF()
 
 
-IF("${MYSQL_NO_DASH_VERSION}" VERSION_LESS 11.2)
-  SET(MEMPROTECT_DEFAULT ON)
-ELSE()
-  SET(MEMPROTECT_DEFAULT OFF)
-ENDIF()
+SET(MEMPROTECT_DEFAULT ON)
 
 OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build"
 ${MEMPROTECT_DEFAULT})
@@ -250,6 +246,19 @@ ENDIF()
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
 IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+  IF(NOT (have_C__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE
+          AND have_CXX__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE))
+    MESSAGE(FATAL_ERROR "Compiler doesn't support -fsanitize=memory flags")
+  ENDIF()
+  MY_CHECK_CXX_COMPILER_FLAG("-stdlib=libc++")
+  IF(NOT have_CXX__stdlib_libc__)
+    MESSAGE(FATAL_ERROR "C++ Compiler requires support for -stdlib=libc++")
+  ENDIF()
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  MY_CHECK_AND_SET_LINKER_FLAG("-fsanitize=memory" DEBUG RELWITHDEBINFO)
+  IF(NOT HAVE_LINK_FLAG__fsanitize_memory)
+    MESSAGE(FATAL_ERROR "Linker doesn't support -fsanitize=memory flags")
+  ENDIF()
 ENDIF()
 
 OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
@@ -263,7 +272,7 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
-IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF AND NOT WITH_MSAN)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
   MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
@@ -494,7 +503,9 @@ IF(UNIX)
   ADD_SUBDIRECTORY(man)
 ENDIF()
 
-INCLUDE(cmake/abi_check.cmake)
+IF (NOT WITHOUT_ABI_CHECK)
+    INCLUDE(cmake/abi_check.cmake)
+ENDIF()
 INCLUDE(cmake/tags.cmake)
 INCLUDE(for_clients)
 ADD_SUBDIRECTORY(scripts)

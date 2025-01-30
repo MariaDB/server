@@ -660,3 +660,15 @@ Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten c
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-35864 UBSAN: "applying zero offset to null pointer" when using a Field_set with empty values
+#
+SET sql_mode='';
+CREATE OR REPLACE TABLE t (c SET('','','') KEY,c2 DECIMAL UNSIGNED ZEROFILL,c3 CHAR(1) BINARY) ENGINE=MyISAM;
+Warnings:
+Note	1291	Column 'c' has duplicated value '' in SET
+Note	1291	Column 'c' has duplicated value '' in SET
+INSERT INTO t VALUES ('',CURRENT_TIME,'');
+UPDATE t SET c2=c2+5 WHERE c BETWEEN '' AND '';
+DROP TABLE t;
+SET sql_mode=DEFAULT;

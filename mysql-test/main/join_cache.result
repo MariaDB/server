@@ -6187,7 +6187,7 @@ explain format=json
 select *
 from t1 a, t3 b
 where
-b.kp1=a.a and
+b.kp1+1=a.a+1 and
 b.kp1 <= 10 and
 b.kp2 <= 10 and
 b.col1 +1 < 33333;
@@ -6197,14 +6197,12 @@ EXPLAIN
     "select_id": 1,
     "table": {
       "table_name": "a",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY"],
+      "access_type": "index",
       "key": "PRIMARY",
       "key_length": "4",
       "used_key_parts": ["a"],
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "a.a <= 10",
       "using_index": true
     },
     "block-nl-join": {
@@ -6216,14 +6214,14 @@ EXPLAIN
         "key_length": "10",
         "used_key_parts": ["kp1", "kp2"],
         "rows": 836,
-        "filtered": 76.43428802,
-        "index_condition": "b.kp2 <= 10",
-        "attached_condition": "b.kp2 <= 10 and b.col1 + 1 < 33333"
+        "filtered": 100,
+        "index_condition": "b.kp1 <= 10 and b.kp2 <= 10",
+        "attached_condition": "b.kp1 <= 10 and b.kp2 <= 10 and b.col1 + 1 < 33333"
       },
       "buffer_type": "flat",
       "buffer_size": "54",
       "join_type": "BNL",
-      "attached_condition": "b.kp1 = a.a"
+      "attached_condition": "b.kp1 + 1 = a.a + 1"
     }
   }
 }
@@ -6419,4 +6417,24 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 DROP TABLE t1,t2,t3;
 #
 # End of 10.4 tests
+#
+#
+# MDEV-34580: Assertion `(key_part->key_part_flag & 4) == 0' failed key_hashnr
+#
+SET join_cache_level=3;
+CREATE TABLE t1 ( a TIMESTAMP , b varchar(100), c varchar(10) ) ;
+INSERT INTO t1 (b,c) VALUES ('GHOBS','EMLCG'),('t','p');
+CREATE TABLE t2 (a varchar(100), b varchar(100), c varchar(10) , KEY b (b(66))) ;
+insert into t2 select seq, seq, seq from seq_1_to_20;
+explain
+SELECT t1.a FROM t1  JOIN t2 ON t1.b = t2.b ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	hash_ALL	b	#hash#b	69	test.t1.b	20	Using where; Using join buffer (flat, BNLH join)
+SELECT t1.a FROM t1  JOIN t2 ON t1.b = t2.b ;
+a
+set join_cache_level=default;
+DROP TABLE t1, t2;
+#
+# End of 10.5 tests
 #

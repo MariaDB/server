@@ -1,6 +1,7 @@
 source include/have_rocksdb.inc;
 create table t1 (a int primary key) engine=rocksdb;
 
+--disable_cursor_protocol
 -- echo Verify rocksdb_rows_inserted
 select variable_value into @old_rows_inserted from information_schema.global_status where variable_name = 'rocksdb_rows_inserted';
 insert into t1 values(1);
@@ -51,6 +52,7 @@ select variable_value into @old_system_rows_deleted from information_schema.glob
 delete from t1;
 select variable_value into @new_system_rows_deleted from information_schema.global_status where variable_name = 'rocksdb_system_rows_deleted';
 select @new_system_rows_deleted - @old_system_rows_deleted;
+--enable_cursor_protocol
 
 drop table t1;
 use test;

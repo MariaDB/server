@@ -1,0 +1,8 @@
+RESET MASTER;
+SET
+@@global.gtid_binlog_state='1-1-101,2-1-2002',
+@@global.slave_parallel_mode=x;
+ERROR 42000: Variable 'slave_parallel_mode' can't be set to the value of 'x'
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+

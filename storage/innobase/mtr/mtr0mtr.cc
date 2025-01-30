@@ -259,7 +259,7 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 }
 
 /** Set create_lsn. */
-inline void fil_space_t::set_create_lsn(lsn_t lsn)
+inline void fil_space_t::set_create_lsn(lsn_t lsn) noexcept
 {
   ut_ad(latch.have_wr());
   /* Concurrent log_checkpoint_low() must be impossible. */
@@ -488,8 +488,7 @@ mtr_t::x_lock_space(ulint space_id)
 	} else {
 		space = fil_space_get(space_id);
 		ut_ad(m_log_mode != MTR_LOG_NO_REDO
-		      || space->purpose == FIL_TYPE_TEMPORARY
-		      || space->purpose == FIL_TYPE_IMPORT);
+		      || space->is_temporary() || space->is_being_imported());
 	}
 
 	ut_ad(space);
@@ -502,9 +501,6 @@ mtr_t::x_lock_space(ulint space_id)
 @param space  tablespace */
 void mtr_t::x_lock_space(fil_space_t *space)
 {
-  ut_ad(space->purpose == FIL_TYPE_TEMPORARY ||
-        space->purpose == FIL_TYPE_IMPORT ||
-        space->purpose == FIL_TYPE_TABLESPACE);
   if (!memo_contains(*space))
   {
     memo_push(space, MTR_MEMO_SPACE_X_LOCK);
@@ -1272,14 +1268,14 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
     m_log.close(log_write<FREE_PAGE>(id, nullptr));
 }
 
-void small_vector_base::grow_by_1(void *small, size_t element_size)
+void small_vector_base::grow_by_1(void *small, size_t element_size) noexcept
 {
   const size_t cap= Capacity*= 2, s= cap * element_size;
   void *new_begin;
   if (BeginX == small)
   {
     new_begin= my_malloc(PSI_NOT_INSTRUMENTED, s, MYF(0));
-    memcpy(new_begin, BeginX, size() * element_size);
+    memcpy(new_begin, BeginX, s / 2);
     TRASH_FREE(small, size() * element_size);
   }
   else

@@ -13,7 +13,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 class spider_group_by_handler: public group_by_handler
 {
   Query query;
@@ -24,12 +23,20 @@ class spider_group_by_handler: public group_by_handler
   bool first;
   longlong offset_limit;
   int store_error;
+  /*
+    Bitmap marking constant items among the select items. They are
+    SELECTed in the query executed at the data node, but not stored in
+    SPIDER_DB_ROW, because the temp table do not contain the
+    corresponding fields.
+  */
+  MY_BITMAP skips;
 
 public:
   spider_group_by_handler(
     THD *thd_arg,
     Query *query_arg,
-    spider_fields *fields_arg
+    spider_fields *fields_arg,
+    const MY_BITMAP &skips1
   );
   ~spider_group_by_handler();
   int init_scan() override;
@@ -41,4 +48,3 @@ group_by_handler *spider_create_group_by_handler(
   THD *thd,
   Query *query
 );
-#endif

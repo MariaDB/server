@@ -39,7 +39,7 @@ CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 #
 # mysqldump of system tables with --system=all
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -166,7 +166,7 @@ UNLOCK TABLES;
 #
 # mysqldump of system tables with --system=all --replace
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -316,7 +316,7 @@ UNLOCK TABLES;
 #
 # mysqldump of system tables with --system=all --insert-ignore
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -453,7 +453,7 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3895294076
 mysql.plugin	1587119305
-mysql.servers	2079085450
+mysql.servers	2180549486
 mysql.func	3241572444
 mysql.innodb_table_stats	347867921
 mysql.table_stats	664320059
@@ -488,7 +488,7 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3895294076
 mysql.plugin	1587119305
-mysql.servers	2079085450
+mysql.servers	2180549486
 mysql.func	3241572444
 mysql.innodb_table_stats	347867921
 mysql.table_stats	664320059

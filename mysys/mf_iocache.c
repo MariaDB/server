@@ -1735,7 +1735,7 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
       info->write_pos= info->write_buffer;
       ++info->disk_writes;
       UNLOCK_APPEND_BUFFER;
-      DBUG_RETURN(info->error);
+      DBUG_RETURN(0);
     }
   }
   UNLOCK_APPEND_BUFFER;

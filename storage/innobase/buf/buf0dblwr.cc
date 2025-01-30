@@ -33,6 +33,7 @@ Created 2011/12/19
 #include "trx0sys.h"
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
+#include "log.h"
 
 using st_::span;
 
@@ -40,13 +41,13 @@ using st_::span;
 buf_dblwr_t buf_dblwr;
 
 /** @return the TRX_SYS page */
-inline buf_block_t *buf_dblwr_trx_sys_get(mtr_t *mtr)
+inline buf_block_t *buf_dblwr_trx_sys_get(mtr_t *mtr) noexcept
 {
   return buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
                       0, RW_X_LATCH, mtr);
 }
 
-void buf_dblwr_t::init()
+void buf_dblwr_t::init() noexcept
 {
   if (!active_slot)
   {
@@ -58,7 +59,7 @@ void buf_dblwr_t::init()
 
 /** Initialise the persistent storage of the doublewrite buffer.
 @param header   doublewrite page header in the TRX_SYS page */
-inline void buf_dblwr_t::init(const byte *header)
+inline void buf_dblwr_t::init(const byte *header) noexcept
 {
   ut_ad(!active_slot->first_free);
   ut_ad(!active_slot->reserved);
@@ -80,7 +81,7 @@ inline void buf_dblwr_t::init(const byte *header)
 
 /** Create or restore the doublewrite buffer in the TRX_SYS page.
 @return whether the operation succeeded */
-bool buf_dblwr_t::create()
+bool buf_dblwr_t::create() noexcept
 {
   if (is_created())
     return true;
@@ -112,9 +113,9 @@ start_again:
 
   if (UT_LIST_GET_FIRST(fil_system.sys_space->chain)->size < 3 * size)
   {
-    ib::error() << "Cannot create doublewrite buffer: "
-                   "the first file in innodb_data_file_path must be at least "
-                << (3 * (size >> (20U - srv_page_size_shift))) << "M.";
+    sql_print_error("InnoDB: Cannot create doublewrite buffer: "
+                    "the first file in innodb_data_file_path must be at least "
+                    "%zuM.", 3 * (size >> (20U - srv_page_size_shift)));
 fail:
     mtr.commit();
     return false;
@@ -126,11 +127,13 @@ fail:
                                 &mtr, &err, false, trx_sys_block);
     if (!b)
     {
-      ib::error() << "Cannot create doublewrite buffer: " << err;
+      sql_print_error("InnoDB: Cannot create doublewrite buffer: %s",
+                      ut_strerr(err));
       goto fail;
     }
 
-    ib::info() << "Doublewrite buffer not found: creating new";
+    sql_print_information("InnoDB: Doublewrite buffer not found:"
+                          " creating new");
 
     /* FIXME: After this point, the doublewrite buffer creation
     is not atomic. The doublewrite buffer should not exist in
@@ -149,9 +152,9 @@ fail:
                                    false, &mtr, &mtr, &err);
     if (!new_block)
     {
-      ib::error() << "Cannot create doublewrite buffer: "
+      sql_print_error("InnoDB: Cannot create doublewrite buffer: "
                      " you must increase your tablespace size."
-                     " Cannot continue operation.";
+                     " Cannot continue operation.");
       /* This may essentially corrupt the doublewrite
       buffer. However, usually the doublewrite buffer
       is created at database initialization, and it
@@ -238,7 +241,7 @@ fail:
   /* Remove doublewrite pages from LRU */
   buf_pool_invalidate();
 
-  ib::info() << "Doublewrite buffer created";
+  sql_print_information("InnoDB: Doublewrite buffer created");
   goto start_again;
 }
 
@@ -251,6 +254,7 @@ loads the pages from double write buffer into memory.
 @param path Path name of file
 @return DB_SUCCESS or error code */
 dberr_t buf_dblwr_t::init_or_load_pages(pfs_os_file_t file, const char *path)
+  noexcept
 {
   ut_ad(this == &buf_dblwr);
   const uint32_t size= block_size();
@@ -265,7 +269,8 @@ dberr_t buf_dblwr_t::init_or_load_pages(pfs_os_file_t file, const char *path)
 
   if (err != DB_SUCCESS)
   {
-    ib::error() << "Failed to read the system tablespace header page";
+    sql_print_error("InnoDB: Failed to read the system tablespace"
+                    " header page");
 func_exit:
     aligned_free(read_buf);
     return err;
@@ -297,7 +302,8 @@ func_exit:
 
   if (err != DB_SUCCESS)
   {
-    ib::error() << "Failed to read the first double write buffer extent";
+    sql_print_error("InnoDB: Failed to read"
+                    " the first double write buffer extent");
     goto func_exit;
   }
 
@@ -307,7 +313,8 @@ func_exit:
                     size << srv_page_size_shift, nullptr);
   if (err != DB_SUCCESS)
   {
-    ib::error() << "Failed to read the second double write buffer extent";
+    sql_print_error("InnoDB: Failed to read"
+                    " the second double write buffer extent");
     goto func_exit;
   }
 
@@ -315,7 +322,8 @@ func_exit:
 
   if (UNIV_UNLIKELY(upgrade_to_innodb_file_per_table))
   {
-    ib::info() << "Resetting space id's in the doublewrite buffer";
+    sql_print_information("InnoDB: Resetting space id's in "
+                          "the doublewrite buffer");
 
     for (ulint i= 0; i < size * 2; i++, page += srv_page_size)
     {
@@ -331,7 +339,7 @@ func_exit:
                          source_page_no << srv_page_size_shift, srv_page_size);
       if (err != DB_SUCCESS)
       {
-        ib::error() << "Failed to upgrade the double write buffer";
+        sql_print_error("InnoDB: Failed to upgrade the double write buffer");
         goto func_exit;
       }
     }
@@ -351,54 +359,64 @@ func_exit:
 }
 
 /** Process and remove the double write buffer pages for all tablespaces. */
-void buf_dblwr_t::recover()
+void buf_dblwr_t::recover() noexcept
 {
   ut_ad(recv_sys.parse_start_lsn);
   if (!is_created())
     return;
+  const lsn_t max_lsn{log_sys.get_lsn()};
+  /* The recv_sys.scanned_lsn may include some "padding" after the
+  last log record, depending on the value of
+  innodb_log_write_ahead_size. After MDEV-14425 eliminated
+  OS_FILE_LOG_BLOCK_SIZE, these two LSN must be equal. */
+  ut_ad(recv_sys.scanned_lsn >= max_lsn);
+  ut_ad(recv_sys.scanned_lsn < max_lsn + RECV_PARSING_BUF_SIZE);
 
   uint32_t page_no_dblwr= 0;
   byte *read_buf= static_cast<byte*>(aligned_malloc(3 * srv_page_size,
                                                     srv_page_size));
   byte *const buf= read_buf + srv_page_size;
 
+  std::deque<byte*> encrypted_pages;
   for (recv_dblwr_t::list::iterator i= recv_sys.dblwr.pages.begin();
        i != recv_sys.dblwr.pages.end(); ++i, ++page_no_dblwr)
   {
-    byte *page= *i;
+    const page_t *const page= *i;
     const uint32_t page_no= page_get_page_no(page);
-    if (!page_no) /* recovered via recv_dblwr_t::restore_first_page() */
-      continue;
-
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
-    if (recv_sys.parse_start_lsn > lsn)
-      /* Pages written before the checkpoint are not useful for recovery. */
+    if (recv_sys.parse_start_lsn > lsn || lsn > recv_sys.scanned_lsn)
+      /* Pages written before or after the recovery range are not usable. */
       continue;
-    const ulint space_id= page_get_space_id(page);
+    const uint32_t space_id= page_get_space_id(page);
     const page_id_t page_id(space_id, page_no);
-
-    if (recv_sys.scanned_lsn < lsn)
-    {
-      ib::info() << "Ignoring a doublewrite copy of page " << page_id
-                 << " with future log sequence number " << lsn;
-      continue;
-    }
 
     fil_space_t *space= fil_space_t::get(space_id);
 
     if (!space)
-      /* The tablespace that this page once belonged to does not exist */
+    {
+      /* These pages does not appear to belong to any tablespace.
+      There is a possibility that this page could be
+      encrypted using full_crc32 format. If innodb encounters
+      any corrupted encrypted page during recovery then
+      InnoDB should use this page to find the valid page.
+      See find_encrypted_page() */
+      encrypted_pages.push_back(*i);
       continue;
+    }
 
     if (UNIV_UNLIKELY(page_no >= space->get_size()))
     {
       /* Do not report the warning for undo tablespaces, because they
       can be truncated in place. */
       if (!srv_is_undo_tablespace(space_id))
-        ib::warn() << "A copy of page " << page_no
-                   << " in the doublewrite buffer slot " << page_no_dblwr
-                   << " is beyond the end of " << space->chain.start->name
-                   << " (" << space->size << " pages)";
+        sql_print_warning("InnoDB: A copy of page "
+                          "[page id: space=" UINT32PF
+                          ", page number=" UINT32PF "]"
+                         " in the doublewrite buffer slot " UINT32PF
+                          " is beyond the end of %s (" UINT32PF " pages)",
+                          page_id.space(), page_id.page_no(),
+                          page_no_dblwr, space->chain.start->name,
+                          space->size);
 next_page:
       space->release();
       continue;
@@ -417,51 +435,60 @@ next_page:
                             physical_size, read_buf);
 
     if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
-    {
-       ib::warn() << "Double write buffer recovery: " << page_id
-                  << " ('" << space->chain.start->name
-                  << "') read failed with error: " << fio.err;
-       continue;
-    }
-
-    if (buf_is_zeroes(span<const byte>(read_buf, physical_size)))
+      sql_print_warning("InnoDB: Double write buffer recovery: "
+                        "[page id: space=" UINT32PF
+                        ", page number=" UINT32PF "]"
+                        " ('%s') read failed with error: %s",
+                        page_id.space(), page_id.page_no(), fio.node->name,
+                        ut_strerr(fio.err));
+    else if (buf_is_zeroes(span<const byte>(read_buf, physical_size)))
     {
       /* We will check if the copy in the doublewrite buffer is
       valid. If not, we will ignore this page (there should be redo
       log records to initialize it). */
     }
-    else if (recv_sys.dblwr.validate_page(page_id, read_buf, space, buf))
+    else if (recv_sys.dblwr.validate_page(page_id, max_lsn, space,
+                                          read_buf, buf))
       goto next_page;
     else
       /* We intentionally skip this message for all-zero pages. */
-      ib::info() << "Trying to recover page " << page_id
-                 << " from the doublewrite buffer.";
+      sql_print_information("InnoDB: Trying to recover page "
+                            "[page id: space=" UINT32PF
+                            ", page number=" UINT32PF "]"
+                            " from the doublewrite buffer.",
+                            page_id.space(), page_id.page_no());
 
-    page= recv_sys.dblwr.find_page(page_id, space, buf);
+    if (const byte *page=
+        recv_sys.dblwr.find_page(page_id, max_lsn, space, buf))
+    {
+      /* Write the good page from the doublewrite buffer to the intended
+      position. */
+      space->reacquire();
+      fio= space->io(IORequestWrite,
+                     os_offset_t{page_id.page_no()} * physical_size,
+                     physical_size, const_cast<byte*>(page));
 
-    if (!page)
-      goto next_page;
+      if (fio.err == DB_SUCCESS)
+        sql_print_information("InnoDB: Recovered page "
+                              "[page id: space=" UINT32PF
+                              ", page number=" UINT32PF "]"
+                              " to '%s' from the doublewrite buffer.",
+                              page_id.space(), page_id.page_no(),
+                              fio.node->name);
+    }
 
-    /* Write the good page from the doublewrite buffer to the intended
-    position. */
-    space->reacquire();
-    fio= space->io(IORequestWrite,
-                   os_offset_t{page_id.page_no()} * physical_size,
-                   physical_size, page);
-
-    if (fio.err == DB_SUCCESS)
-      ib::info() << "Recovered page " << page_id << " to '" << fio.node->name
-                 << "' from the doublewrite buffer.";
     goto next_page;
   }
 
   recv_sys.dblwr.pages.clear();
+  for (byte *page : encrypted_pages)
+    recv_sys.dblwr.pages.push_back(page);
   fil_flush_file_spaces();
   aligned_free(read_buf);
 }
 
 /** Free the doublewrite buffer. */
-void buf_dblwr_t::close()
+void buf_dblwr_t::close() noexcept
 {
   if (!active_slot)
     return;
@@ -482,7 +509,7 @@ void buf_dblwr_t::close()
 }
 
 /** Update the doublewrite buffer on write completion. */
-void buf_dblwr_t::write_completed()
+void buf_dblwr_t::write_completed() noexcept
 {
   ut_ad(this == &buf_dblwr);
   ut_ad(!srv_read_only_mode);
@@ -517,6 +544,7 @@ void buf_dblwr_t::write_completed()
 @param[in] page  page to check
 @param[in] s     tablespace */
 static void buf_dblwr_check_page_lsn(const page_t* page, const fil_space_t& s)
+  noexcept
 {
   /* Ignore page_compressed or encrypted pages */
   if (s.is_compressed() || buf_page_get_key_version(page, s.flags))
@@ -532,6 +560,7 @@ static void buf_dblwr_check_page_lsn(const page_t* page, const fil_space_t& s)
 }
 
 static void buf_dblwr_check_page_lsn(const buf_page_t &b, const byte *page)
+  noexcept
 {
   if (fil_space_t *space= fil_space_t::get_for_write(b.id().space()))
   {
@@ -541,7 +570,7 @@ static void buf_dblwr_check_page_lsn(const buf_page_t &b, const byte *page)
 }
 
 /** Check the LSN values on the page with which this block is associated. */
-static void buf_dblwr_check_block(const buf_page_t *bpage)
+static void buf_dblwr_check_block(const buf_page_t *bpage) noexcept
 {
   ut_ad(bpage->in_file());
   const page_t *page= bpage->frame;
@@ -573,7 +602,7 @@ static void buf_dblwr_check_block(const buf_page_t *bpage)
 }
 #endif /* UNIV_DEBUG */
 
-bool buf_dblwr_t::flush_buffered_writes(const ulint size)
+bool buf_dblwr_t::flush_buffered_writes(const ulint size) noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   ut_ad(size == block_size());
@@ -638,7 +667,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   return true;
 }
 
-static void *get_frame(const IORequest &request)
+static void *get_frame(const IORequest &request) noexcept
 {
   if (request.slot)
     return request.slot->out_buf;
@@ -647,6 +676,7 @@ static void *get_frame(const IORequest &request)
 }
 
 void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
+  noexcept
 {
   ut_ad(this == &buf_dblwr);
   ut_ad(srv_use_doublewrite_buf);
@@ -714,7 +744,7 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
 It is very important to call this function after a batch of writes has been
 posted, and also when we may have to wait for a page latch!
 Otherwise a deadlock of threads can occur. */
-void buf_dblwr_t::flush_buffered_writes()
+void buf_dblwr_t::flush_buffered_writes() noexcept
 {
   if (!is_created() || !srv_use_doublewrite_buf)
   {
@@ -734,14 +764,15 @@ void buf_dblwr_t::flush_buffered_writes()
 flush_buffered_writes() will be invoked to make space.
 @param request    asynchronous write request
 @param size       payload size in bytes */
-void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
+void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size) noexcept
 {
   ut_ad(request.is_async());
   ut_ad(request.is_write());
   ut_ad(request.bpage);
   ut_ad(request.bpage->in_file());
   ut_ad(request.node);
-  ut_ad(request.node->space->purpose == FIL_TYPE_TABLESPACE);
+  ut_ad(!request.node->space->is_temporary());
+  ut_ad(!request.node->space->is_being_imported());
   ut_ad(request.node->space->id == request.bpage->id().space());
   ut_ad(request.node->space->referenced());
   ut_ad(!srv_read_only_mode);

@@ -1,5 +1,5 @@
---- cache_index.result	2013-01-22 22:05:05.246633000 +0400
-+++ cache_index.reject	2013-01-23 02:50:13.468083137 +0400
+--- cache_index.result
++++ cache_index.reject
 @@ -12,31 +12,31 @@
  SET GLOBAL <CACHE_NAME>.key_buffer_size=128*1024;
  CACHE INDEX t1 INDEX (a), t2 IN <CACHE_NAME>;

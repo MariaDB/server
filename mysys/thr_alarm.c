@@ -77,10 +77,11 @@ static void *alarm_handler(void *arg);
 static sig_handler thread_alarm(int sig __attribute__((unused)));
 
 static int compare_ulong(void *not_used __attribute__((unused)),
-			 uchar *a_ptr,uchar* b_ptr)
+                        const void *a_ptr, const void *b_ptr)
 {
-  ulong a=*((ulong*) a_ptr),b= *((ulong*) b_ptr);
-  return (a < b) ? -1  : (a == b) ? 0 : 1;
+  const ulong *ap= a_ptr;
+  const ulong *bp= b_ptr;
+  return (*ap < *bp) ? -1  : (*ap == *bp) ? 0 : 1;
 }
 
 void init_thr_alarm(uint max_alarms)
@@ -565,8 +566,7 @@ static void *alarm_handler(void *arg __attribute__((unused)))
   alarm_thread_running= 0;
   mysql_cond_signal(&COND_alarm);
   mysql_mutex_unlock(&LOCK_alarm);
-  pthread_exit(0);
-  return 0;					/* Impossible */
+  return 0;
 }
 #endif /* USE_ALARM_THREAD */
 #endif

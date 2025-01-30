@@ -1,0 +1,25 @@
+
+--source include/not_embedded.inc
+
+if (!$AUTH_0X0100_SO) {
+  skip No auth_0x0100 plugin;
+}
+
+--echo #
+--echo # MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+--echo #
+
+install soname 'auth_0x0100';
+CREATE USER foo@localhost IDENTIFIED VIA auth_0x0100;
+uninstall plugin auth_0x0100;
+
+create table t as select Priv from mysql.global_priv where User = "foo" and host="localhost";
+--error ER_PLUGIN_IS_NOT_LOADED
+SET PASSWORD FOR foo@localhost = "1111";
+select global_priv.Priv = t.Priv as "Nothing changed" from mysql.global_priv join t where User = "foo" and host="localhost";
+
+drop table t;
+
+DROP USER foo@localhost;
+
+--echo # End of 10.5 tests

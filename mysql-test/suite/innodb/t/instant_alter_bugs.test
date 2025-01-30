@@ -129,9 +129,11 @@ INSERT INTO t1 (f1,f2,f3,f4,f5,f6,f7,f8) VALUES
 INSERT INTO t1 (f1,f2,f3,f4,f5,f6,f7,f8) VALUES ('impact', 'b', 'h', 185, 'fj', 7, 7, 3);
 
 ALTER TABLE t1 ADD COLUMN filler VARCHAR(255) DEFAULT '';
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 UPDATE IGNORE t1 SET pk = 0;
 LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1;
 HANDLER t1 OPEN AS h;
@@ -556,6 +558,27 @@ DROP TABLE t1;
 
 --echo # End of 10.4 tests
 
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+--echo #
+--echo #  MDEV-29010  Table cannot be loaded after instant ALTER
+--echo #
+CREATE TABLE t1 (a CHAR(255), b INT,
+		 c INT as (b) VIRTUAL)ENGINE=InnoDB CHARACTER SET utf32;
+ALTER TABLE t1 DROP COLUMN a;
+ALTER TABLE t1 DROP COLUMN c;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-35122  Incorrect NULL value handling for instantly
+--echo #                 dropped BLOB columns
+--echo #
+CREATE TABLE t1 (c1 INT, c2 BLOB, c3 BLOB NOT NULL) ROW_FORMAT=REDUNDANT,ENGINE=InnoDB;
+ALTER TABLE t1 DROP c2;
+ALTER TABLE t1 DROP c3;
+INSERT INTO t1 VALUES(1);
+DROP TABLE t1;
+
+--echo # End of 10.5 tests
 
 --echo # End of 10.6 tests
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
