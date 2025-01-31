@@ -3555,7 +3555,7 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
   Split out so that it can run with rli->data_lock held in non-parallel
   replication, but without the mutex held in the parallel case.
 */
-static int
+int
 apply_event_and_update_pos_setup(Log_event* ev, THD* thd, rpl_group_info *rgi)
 {
   DBUG_ENTER("apply_event_and_update_pos_setup");
@@ -4119,6 +4119,43 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                         DBUG_RETURN(0);
                       };);
     }
+
+//    if (typ == PARTIAL_ROW_DATA_EVENT)
+//    {
+//      static Rows_log_event_assembler *assembler= NULL;
+//      Partial_rows_log_event *partial_ev= (Partial_rows_log_event*) ev;
+//
+//      fprintf(stderr, "\n\t SQL thread found partial row data event %u / %u\n",
+//              partial_ev->seq_no, partial_ev->total_fragments);
+//
+//      if (!assembler)
+//        assembler= new Rows_log_event_assembler(partial_ev->total_fragments);
+//
+//      assembler->append(partial_ev);
+//
+//      delete ev;
+//
+//      if (assembler->all_fragments_assembled())
+//      {
+//        ev= assembler->create_rows_event(
+//            rli->relay_log.description_event_for_exec, true, true);
+//        typ= ev->get_type_code();
+//        delete assembler;
+//        assembler= NULL;
+//        if (!ev)
+//        {
+//          fprintf(stderr, "\n\tERROR Could not assemble event\n");
+//          goto oops;
+//        }
+//      }
+//      else
+//      {
+//oops:
+//        mysql_mutex_unlock(&rli->data_lock);
+//        rli->event_relay_log_pos= rli->future_event_relay_log_pos;
+//        DBUG_RETURN(0);
+//      }
+//    }
 
     update_state_of_relay_log(rli, ev);
 

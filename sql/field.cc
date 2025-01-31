@@ -2133,6 +2133,7 @@ Field::pack(uchar *to, const uchar *from, uint max_length)
 {
   uint32 length= pack_length();
   set_if_smaller(length, max_length);
+  fprintf(stderr, "\n\tField::pack() Real pack length: %u\n", length);
   memcpy(to, from, length);
   return to+length;
 }
@@ -9317,9 +9318,21 @@ const uchar *Field_blob::unpack(uchar *to, const uchar *from,
   uint const master_packlength=
     param_data > 0 ? param_data & 0xFF : packlength;
   if (from + master_packlength > from_end)
-    DBUG_RETURN(0);                             // Error in data
+  {
+    fprintf(stderr,
+            "blob::unpack() from %p (%llu) master_packlenth: %u; "
+            "from_end %p (%llu)\n",
+            from, (unsigned long long) from, master_packlength,
+            from_end, (unsigned long long) from_end);
+    DBUG_RETURN(0); // Error in data
+  }
   uint32 const length= get_length(from, master_packlength);
   DBUG_DUMP("packed", from, length + master_packlength);
+  fprintf(stderr,
+          "blob::unpack() from %p (%llu) master_packlenth: %u length %u ; "
+          "from_end %p (%llu)\n",
+          from, (unsigned long long) from, master_packlength, length, from_end,
+          (unsigned long long) from_end);
   if (from + master_packlength + length > from_end)
     DBUG_RETURN(0);
   set_ptr(length, const_cast<uchar*> (from) + master_packlength);

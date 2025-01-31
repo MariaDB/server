@@ -772,7 +772,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
   {
     uchar save=pos[FLAGS_OFFSET];
     pos[FLAGS_OFFSET]&= ~LOG_EVENT_BINLOG_IN_USE_F;
-    crc= my_checksum(0, pos, len);
+    crc= my_checksum(crc, pos, len);
     pos[FLAGS_OFFSET]= save;
   }
 
@@ -816,17 +816,31 @@ int Log_event_writer::write_footer()
     uchar checksum_buf[BINLOG_CHECKSUM_LEN];
     int4store(checksum_buf, crc);
     if ((this->*encrypt_or_write)(checksum_buf, BINLOG_CHECKSUM_LEN))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
   }
   if (ctx)
   {
     uint dstlen;
     uchar dst[MY_AES_BLOCK_SIZE*2];
     if (encryption_ctx_finish(ctx, dst, &dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(1);
+    }
     if (maybe_write_event_len(dst, dstlen) || write_internal(dst, dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
   }
+
+  /*
+    TODO write a comment about the lifecycle of crc
+  */
+  crc= 0;
   DBUG_RETURN(0);
 }
 
@@ -879,6 +893,11 @@ bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
 
   now= get_time();                               // Query start time
 
+  fprintf(stderr,
+          "\n\t Writing header ev_type: %d data_written: %zu event_data_len: (%zu) pos: "
+          "(%llu)\n", get_type_code(),
+          data_written, event_data_length, log_pos);
+
   /*
     Header will be of size LOG_EVENT_HEADER_LEN for all events, except for
     FORMAT_DESCRIPTION_EVENT and ROTATE_EVENT, where it will be
@@ -892,6 +911,17 @@ bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
   int4store(header+ EVENT_LEN_OFFSET, data_written);
   int4store(header+ LOG_POS_OFFSET, log_pos);
   int2store(header + FLAGS_OFFSET, flags);
+
+  fprintf(stderr,"\n\tLog_event::header (%zu) |", sizeof(header));
+  for (size_t i= 0; i < sizeof(header); i++)
+  {
+   fprintf(stderr, "%X", header[i]);
+   if (i == 3 || i == 4 || i == 8 || i == 12 || i == 16 || i == 18)
+   {
+    fprintf(stderr, "|");
+   }
+  }
+  fprintf(stderr, "|\n");
 
   bool ret= writer->write_header(header, sizeof(header));
   DBUG_RETURN(ret);
@@ -4765,12 +4795,16 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     if (cur_size > UINT_MAX32 || length > remaining_space ||
         ((length + block_size) > remaining_space))
     {
-      sql_print_error("The row data is greater than 4GB, which is too big to "
+      //sql_print_error("The row data is greater than 4GB, which is too big to "
+      //                "write to the binary log.");
+      //DBUG_RETURN(ER_BINLOG_ROW_LOGGING_FAILED);
+      fprintf(stderr,"The row data is greater than 4GB, which is too big to "
                       "write to the binary log.");
-      DBUG_RETURN(ER_BINLOG_ROW_LOGGING_FAILED);
     }
     size_t const new_alloc= 
         block_size * ((cur_size + length + block_size - 1) / block_size);
+    
+    fprintf(stderr, "\n\tCreated new_alloc: %zu cur_size: %zu, length %zu, block_size: %zu\n", new_alloc, cur_size, length, block_size);
 
     uchar* const new_buf= (uchar*)my_realloc(PSI_INSTRUMENT_ME, m_rows_buf,
                                     new_alloc, MYF(MY_ALLOW_ZERO_PTR|MY_WME));
@@ -4789,6 +4823,11 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
        the allocated memory.
     */
     m_rows_end= m_rows_buf + new_alloc;
+    fprintf(
+        stderr,
+        "\n\tdo_add_row_data: m_rows_end %p (%llu), m_rows_buf: %p (%llu),\n",
+        m_rows_end, (unsigned long long) m_rows_end, m_rows_buf,
+        (unsigned long long) m_rows_buf);
   }
 
   DBUG_ASSERT(m_rows_cur + length <= m_rows_end);
@@ -4826,6 +4865,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   int error= 0;
   LEX *lex= thd->lex;
   uint8 new_trg_event_map= get_trg_event_map();
+  enum_sql_command old_command= thd->lex->sql_command;
   /*
     If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
@@ -5214,7 +5254,23 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     {
       DBUG_ASSERT(table->in_use);
 
+      fprintf(stderr,
+              "\n\tdo_apply_event() Starting new row\n\tstart %p "
+              "(%llu)\n\tcurr %p (%llu)\n\tend %p (%llu)\n\tm_curr_row %p "
+              "(%llu)\n",
+              m_rows_buf, (unsigned long long) m_rows_buf, m_rows_cur,
+              (unsigned long long) m_rows_cur, m_rows_end,
+              (unsigned long long) m_rows_end, m_curr_row,
+              (unsigned long long) m_curr_row);
+
       error= do_exec_row(rgi);
+
+      fprintf(stderr,
+              "\n\tdo_apply_event() Did row\n\tstart %p "
+              "(%llu)\n\tcurr %p (%llu)\n\tend %p (%llu)\n",
+              m_rows_buf, (unsigned long long) m_rows_buf, m_rows_cur,
+              (unsigned long long) m_rows_cur, m_rows_end,
+              (unsigned long long) m_rows_end);
 
       if (unlikely(error))
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
@@ -5263,6 +5319,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         error= unpack_current_row(rgi);
 
       m_curr_row= m_curr_row_end;
+
+      fprintf(stderr, "\n\tdo_apply_event() End m_curr_row %p (%llu)\n", m_curr_row, (unsigned long long) m_curr_row);
  
       if (likely(error == 0) && !transactional_table)
         thd->transaction->all.modified_non_trans_table=
@@ -5351,6 +5409,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   }
 
+  thd->lex->sql_command= old_command;
   thd->reset_query_timer();
   DBUG_RETURN(error);
 
@@ -5360,6 +5419,7 @@ err:
     restore_empty_query_table_list(thd->lex);
     rgi->slave_close_thread_tables(thd);
   }
+  thd->lex->sql_command= old_command;
   thd->reset_query_timer();
   DBUG_RETURN(error);
 }
@@ -5524,31 +5584,58 @@ bool Rows_log_event::write_data_header(Log_event_writer *writer)
                   });
   int6store(buf + RW_MAPID_OFFSET, m_table_id);
   int2store(buf + RW_FLAGS_OFFSET, m_flags);
+  fprintf(stderr, "\n\tRows_log_event::data_header (%d) %.*s\n", ROWS_HEADER_LEN_V1, ROWS_HEADER_LEN_V1, buf);
+  for (int i= 0; i < ROWS_HEADER_LEN_V1; i++)
+  {
+   fprintf(stderr, "%X", buf[i]);
+  }
+  fprintf(stderr, "\n");
   return write_data(writer, buf, ROWS_HEADER_LEN_V1);
 }
 
-bool Rows_log_event::write_data_body(Log_event_writer *writer)
+bool Rows_log_event::write_data_body_metadata(Log_event_writer *writer, uint64_t *len_written)
 {
+  fprintf(stderr, "\t\tWriting metadata\n");
   /*
      Note that this should be the number of *bits*, not the number of
      bytes.
   */
   uchar sbuf[MAX_INT_WIDTH];
-  my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
   bool res= false;
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
   uint bitmap_size= no_bytes_in_export_map(&m_cols);
   uchar *bitmap;
+  uint64_t mlen_written= 0;
   DBUG_ASSERT(static_cast<size_t>(sbuf_end - sbuf) <= sizeof(sbuf));
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
+  fprintf(stderr, "\n\tRows_log_event::data_body_metadata (%zu) ",
+          (size_t) (sbuf_end - sbuf));
+  for (size_t i= 0; i < (size_t) (sbuf_end - sbuf); i++)
+  {
+   fprintf(stderr, "%X", sbuf[i]);
+  }
   res= res || write_data(writer, sbuf, (size_t) (sbuf_end - sbuf));
+
+  /*
+    TODO Len_written isn't used any more, get rid of it
+  */
+  if (!res && len_written)
+    *len_written+= (size_t) (sbuf_end - sbuf);
+  mlen_written+= (size_t) (sbuf_end - sbuf);
 
   bitmap= (uchar*) my_alloca(bitmap_size);
   bitmap_export(bitmap, &m_cols);
 
   DBUG_DUMP("m_cols", bitmap, bitmap_size);
+  for (size_t i= 0; i < bitmap_size; i++)
+  {
+   fprintf(stderr, "%X", bitmap[i]);
+  }
   res= res || write_data(writer, bitmap, bitmap_size);
+  if (!res && len_written)
+    *len_written+= bitmap_size;
+  mlen_written+= bitmap_size;
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
@@ -5558,11 +5645,283 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
     bitmap_export(bitmap, &m_cols_ai);
 
     DBUG_DUMP("m_cols_ai", bitmap, bitmap_size);
+    for (size_t i= 0; i < bitmap_size; i++)
+    {
+     fprintf(stderr, "%X", bitmap[i]);
+    }
+
     res= res || write_data(writer, bitmap, bitmap_size);
+    if (!res && len_written)
+      *len_written+= bitmap_size;
+    mlen_written+= bitmap_size;
   }
-  DBUG_DUMP("rows", m_rows_buf, data_size);
-  res= res || write_data(writer, m_rows_buf, (size_t) data_size);
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "\n\tRLE::Write_data_body_metadata wrote %" PRIu64 "\n", mlen_written);
   my_afree(bitmap);
+
+  return res;
+}
+
+bool Rows_log_event::write_data_body_rows(Log_event_writer *writer,
+                                          uint64_t from_offset,
+                                          uint64_t len_to_write)
+{
+  fprintf(stderr, "\n\tWriting from offset %" PRIu64 " of len %" PRIu64 "\n", from_offset, len_to_write);
+  /*
+     Note that this should be the number of *bits*, not the number of
+     bytes.
+  */
+  uchar *from_ptr= m_rows_buf + from_offset;
+  my_ptrdiff_t const data_size= len_to_write ? len_to_write : m_rows_cur - m_rows_buf;
+  DBUG_DUMP("rows", from_ptr, data_size);
+  //fprintf(stderr, "\t\tWriting %" PRIu64 " row data: %.*s\n",
+  //        (uint64_t) data_size, (int) data_size, from_ptr);
+  return write_data(writer, from_ptr, (size_t) data_size);
+}
+
+bool Rows_log_event::write_data_body(Log_event_writer *writer)
+{
+  bool res= write_data_body_metadata(writer);
+  res= res || write_data_body_rows(writer);
+  return res;
+}
+
+/*
+  TODO Relocate this to make more sense
+*/
+int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
+{
+  Rows_log_event_assembler *assembler;
+  fprintf(stderr, "\n\t SQL thread found partial row data event %u / %u\n",
+          seq_no, total_fragments);
+
+  DBUG_ASSERT(rgi);
+  DBUG_ASSERT(rgi->thd);
+  if (!rgi->assembler)
+  {
+    rgi->assembler= new Rows_log_event_assembler(total_fragments);
+  }
+  assembler= rgi->assembler;
+
+  /*
+    TODO: Needs stage
+  */
+  if (assembler->append(this))
+  {
+    /*
+      TODO error handling
+    */
+    return 1;
+  }
+
+  if (assembler->all_fragments_assembled())
+  {
+    PSI_stage_info org_stage;
+    /*
+      TODO: Needs stage
+    */
+    Log_event *ev= assembler->create_rows_event(
+        rgi->rli->relay_log.description_event_for_exec, true, true);
+    delete rgi->assembler;
+    rgi->assembler= NULL;
+    if (!ev)
+    {
+      fprintf(stderr, "\n\tERROR Could not assemble event\n");
+      return 1;
+    }
+
+    fprintf(stderr, "\n\tAssembled ev type: %s\n", ev->get_type_str());
+    if (ev->get_type_code() == DELETE_ROWS_EVENT_V1)
+    {
+      fprintf(stderr, "\n\tAssembled delete rows!\n");
+    }
+    apply_event_and_update_pos_setup(ev, thd, rgi);
+    rgi->thd->backup_stage(&org_stage);
+    ev->apply_event(rgi);
+    THD_STAGE_INFO(rgi->thd, org_stage);
+    delete ev;
+  }
+
+  return 0;
+}
+
+bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
+{
+  uint64_t cur_offset= start_offset;
+  /*
+     Note that this should be the number of *bits*, not the number of
+     bytes.
+  */
+  uint64_t row_data_len_to_write= end_offset - start_offset;
+
+  fprintf(stderr, "\n\tWriting Fragment %" PRIu32 " / %" PRIu32 "\n", seq_no,
+          total_fragments);
+  /*
+    Write the width and cols bitmap for the first event. This shouldn't ever
+    extend beyond one fragment, so don't add checks to split these.
+  */
+  my_bool first_fragment= !cur_offset;
+  if (first_fragment)
+  {
+    /*
+      TODO Error handling
+
+      How large can metadata size be?
+    */
+    uint64_t metadata_size= 0;
+    /*
+      Write 0 for data_len in header, as the event is being fragmented and it
+      will be calculated dynamically on the slave
+    */
+    // TODO
+    rows_event->write_header(writer, rows_event->get_data_size());
+    rows_event->write_data_header(writer);
+    rows_event->write_data_body_metadata(writer, &metadata_size);
+    metadata_size+= LOG_EVENT_HEADER_LEN;
+    metadata_size+= ROWS_HEADER_LEN_V1;
+
+    /*
+      TODO metadata size should already be accounted for in our end/start
+           offset
+      TODO Make an assertion for it
+    */
+    //DBUG_ASSERT(metadata_size < row_data_len_to_write);
+    //row_data_len_to_write-= metadata_size;
+  }
+
+  return rows_event->write_data_body_rows(writer, start_offset,
+                                          row_data_len_to_write);
+}
+
+bool Partial_rows_log_event::write_data_header(Log_event_writer *writer)
+{
+  /*
+    TODO: Need to write rows_event->write_data_header() in after metadata
+  */
+  uchar buf[PARTIAL_ROWS_HEADER_LEN];        // No need to init the buffer
+  int4store(buf + PRW_TOTAL_SEQS_OFFSET, this->total_fragments);
+  int4store(buf + PRW_SELF_SEQ_OFFSET, this->seq_no);
+  buf[PRW_FLAGS_OFFSET]= this->flags2;
+  return write_data(writer, buf, PARTIAL_ROWS_HEADER_LEN);
+}
+
+bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
+{
+  if (partial_ev->total_fragments != this->total_fragments)
+  {
+    /*
+      TODO Error handling
+    */
+    fprintf(stderr,
+            "\n\tRows_log_event_assembler::append ERROR ev->total_frags (%u) "
+            "!= this->total_frags (%u) \n",
+            partial_ev->total_fragments, this->total_fragments);
+    return 1;
+  }
+  if (partial_ev->seq_no != this->last_fragment_seen + 1)
+  {
+    /*
+      TODO Error handling
+    */
+    fprintf(stderr,
+            "\n\tRows_log_event_assembler::append ERROR ev->seq_no (%u) != "
+            "last_fragment_seen+1 (%u) \n",
+            partial_ev->seq_no, this->last_fragment_seen);
+    return 1;
+  }
+
+  if (this->last_fragment_seen == 0)
+  {
+    /*
+      Alloc the size of the string (overestimating the size, as the last
+      fragment likely won't use the full length)
+
+      TODO Error handling if fail to alloc
+
+      TODO Bad casting, fix from C to c++
+    */
+    //bool err= rows_ev_buf_builder.alloc(total_fragments * partial_ev->rows_chunk_len);
+    fprintf(stderr, "\n\tAllocating memory size %zu\n",
+            (size_t) total_fragments * (size_t) partial_ev->get_rows_size());
+    rows_ev_buf_builder_ptr= (char *) my_malloc(
+        PSI_INSTRUMENT_ME,
+        ((size_t) total_fragments * (size_t) partial_ev->get_rows_size()),
+        MYF(MY_WME));
+    ev_len= 0;
+  }
+  if (!rows_ev_buf_builder_ptr)
+  {
+    fprintf(stderr,
+            "\n\tFailed to allocate memory for assembling row event (needed "
+            "%zu bytes)\n",
+            total_fragments * (size_t) partial_ev->get_rows_size());
+    return 1;
+  }
+
+  fprintf(stderr,
+          "\n\tRows_log_event_assembler::append adding in fragment %u / %u\n",
+          partial_ev->seq_no, partial_ev->total_fragments);
+
+  fprintf(stderr, "\n\tWriting to %p from %p of len %zu\n",
+          rows_ev_buf_builder_ptr + ev_len,
+          partial_ev->ev_buffer_base + partial_ev->start_offset,
+          partial_ev->get_rows_size());
+
+  memcpy(rows_ev_buf_builder_ptr + ev_len,
+         partial_ev->ev_buffer_base + partial_ev->start_offset,
+         partial_ev->get_rows_size());
+  ev_len+= partial_ev->get_rows_size();
+  fprintf(stderr, "\n\tnew ev_len is %lu, ptr at %p\n", ev_len,
+          rows_ev_buf_builder_ptr + ev_len);
+
+
+  //rows_ev_buf_builder.append(
+  //    ((const char *) (partial_ev->temp_buf +
+  //                     partial_ev->rows_offset_in_temp_buf)),
+  //    partial_ev->rows_chunk_len);
+  last_fragment_seen= partial_ev->seq_no;
+  //if (this->last_fragment_seen == this->total_fragments)
+  //{
+  //  rows_ev_buf_builder_ptr[ev_len]= '\0';
+  //}
+
+  return 0;
+}
+
+Log_event *Rows_log_event_assembler::create_rows_event(
+    const Format_description_log_event *fdle, my_bool crc_check,
+    my_bool print_errors
+
+)
+{
+  const char *error= 0;
+  Log_event *res= 0;
+
+  /*
+    TODO the buffer ptr should just be a uchar* from the get go
+  */
+  if ((res= Log_event::read_log_event_no_checksum(
+           (uchar *) rows_ev_buf_builder_ptr, ev_len, &error, fdle)))
+  {
+    fprintf(stderr, "\n\tAssembler says ev buf is %zu long\n", ev_len);
+    res->register_temp_buf((uchar *) rows_ev_buf_builder_ptr, true);
+#ifndef DBUG_OFF
+    {
+      Log_event_type typ= res->get_type_code();
+      DBUG_ASSERT((typ == WRITE_ROWS_EVENT_V1 || typ == UPDATE_ROWS_EVENT_V1 ||
+                   typ == DELETE_ROWS_EVENT_V1) ||
+                  (typ == WRITE_ROWS_COMPRESSED_EVENT_V1 ||
+                   typ == UPDATE_ROWS_COMPRESSED_EVENT_V1 ||
+                   typ == DELETE_ROWS_COMPRESSED_EVENT_V1));
+      fprintf(stderr, "\n\tAssembled event of type %d(%s)\n", typ, res->get_type_str());
+    }
+#endif
+  }
+  else
+  {
+    fprintf(stderr, "Error assembling event: %s", error);
+  }
 
   return res;
 }

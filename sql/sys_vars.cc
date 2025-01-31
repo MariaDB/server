@@ -1780,7 +1780,6 @@ static bool check_max_allowed_packet(sys_var *self, THD *thd,  set_var *var)
   return false;
 }
 
-
 static Sys_var_ulong Sys_max_allowed_packet(
        "max_allowed_packet",
        "Max packet length to send to or receive from the server",

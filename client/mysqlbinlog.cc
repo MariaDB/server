@@ -1052,6 +1052,9 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     DBUG_PRINT("debug", ("event_type: %s", ev->get_type_str()));
 
     switch (ev_type) {
+    //case PARTIAL_ROW_DATA_EVENT:
+    //  fprintf(stderr, "\n\tFound event type PARTIAL_ROW_DATA_EVENT\n");
+    //  break;
     case QUERY_EVENT:
     case QUERY_COMPRESSED_EVENT:
     {
@@ -1174,11 +1177,22 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     case TABLE_MAP_EVENT:
     {
       Table_map_log_event *map= ((Table_map_log_event *)ev);
+      /*
+        TODO Write why we don't destroy table maps..
+
+        TODO Clean up table maps..
+      */
+      if (print_event_info->table_map_event)
+      {
+        delete print_event_info->table_map_event;
+        print_event_info->table_map_event= NULL;
+      }
+      destroy_evt= FALSE;
+      print_event_info->table_map_event= map;
       if (shall_skip_database(map->get_db_name()) ||
           shall_skip_table(map->get_table_name()))
       {
         print_event_info->m_table_map_ignored.set_table(map->get_table_id(), map);
-        destroy_evt= FALSE;
         goto end;
       }
 #ifdef WHEN_FLASHBACK_REVIEW_READY
@@ -2429,9 +2443,13 @@ static Exit_status dump_log_entries(const char* logname)
   print_event_info.short_form= short_form;
   print_event_info.print_row_count= print_row_count;
   print_event_info.file= result_file;
+  print_event_info.table_map_event= NULL;
   fflush(result_file);
   rc= (remote_opt ? dump_remote_log_entries(&print_event_info, logname) :
        dump_local_log_entries(&print_event_info, logname));
+
+  if (print_event_info.table_map_event)
+    delete print_event_info.table_map_event;
 
   if (rc == ERROR_STOP)
     return rc;

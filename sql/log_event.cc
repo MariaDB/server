@@ -974,7 +974,7 @@ err:
   constructors.
 */
 
-Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
+Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
                                      const char **error,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check,
@@ -1093,154 +1093,8 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
          alg != BINLOG_CHECKSUM_ALG_OFF))
       event_len= event_len - BINLOG_CHECKSUM_LEN;
 
-    /*
-      Create an object of Ignorable_log_event for unrecognized sub-class.
-      So that SLAVE SQL THREAD will only update the position and continue.
-      We should look for this flag first instead of judging by event_type
-      Any event can be Ignorable_log_event if it has this flag on.
-      look into @note of Ignorable_log_event
-    */
-    if (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F)
-    {
-      ev= new Ignorable_log_event(buf, fdle,
-                                  get_type_str((Log_event_type) event_type));
-      goto exit;
-    }
-    switch(event_type) {
-    case QUERY_EVENT:
-      ev= new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
-      break;
-    case QUERY_COMPRESSED_EVENT:
-      ev= new Query_compressed_log_event(buf, event_len, fdle,
-                                         QUERY_COMPRESSED_EVENT);
-      break;
-    case ROTATE_EVENT:
-      ev= new Rotate_log_event(buf, event_len, fdle);
-      break;
-    case BINLOG_CHECKPOINT_EVENT:
-      ev= new Binlog_checkpoint_log_event(buf, event_len, fdle);
-      break;
-    case GTID_EVENT:
-      ev= new Gtid_log_event(buf, event_len, fdle);
-      break;
-    case GTID_LIST_EVENT:
-      ev= new Gtid_list_log_event(buf, event_len, fdle);
-      break;
-    case APPEND_BLOCK_EVENT:
-      ev= new Append_block_log_event(buf, event_len, fdle);
-      break;
-    case DELETE_FILE_EVENT:
-      ev= new Delete_file_log_event(buf, event_len, fdle);
-      break;
-    case STOP_EVENT:
-      ev= new Stop_log_event(buf, fdle);
-      break;
-    case INTVAR_EVENT:
-      ev= new Intvar_log_event(buf, fdle);
-      break;
-    case XID_EVENT:
-      ev= new Xid_log_event(buf, fdle);
-      break;
-    case XA_PREPARE_LOG_EVENT:
-      ev= new XA_prepare_log_event(buf, fdle);
-      break;
-    case RAND_EVENT:
-      ev= new Rand_log_event(buf, fdle);
-      break;
-    case USER_VAR_EVENT:
-      ev= new User_var_log_event(buf, event_len, fdle);
-      break;
-    case FORMAT_DESCRIPTION_EVENT:
-      ev= new Format_description_log_event(buf, event_len, fdle);
-      break;
-#if defined(HAVE_REPLICATION) 
-    case WRITE_ROWS_EVENT_V1:
-    case WRITE_ROWS_EVENT:
-      ev= new Write_rows_log_event(buf, event_len, fdle);
-      break;
-    case UPDATE_ROWS_EVENT_V1:
-    case UPDATE_ROWS_EVENT:
-      ev= new Update_rows_log_event(buf, event_len, fdle);
-      break;
-    case DELETE_ROWS_EVENT_V1:
-    case DELETE_ROWS_EVENT:
-      ev= new Delete_rows_log_event(buf, event_len, fdle);
-      break;
-
-    case WRITE_ROWS_COMPRESSED_EVENT:
-    case WRITE_ROWS_COMPRESSED_EVENT_V1:
-      ev= new Write_rows_compressed_log_event(buf, event_len, fdle);
-      break;
-    case UPDATE_ROWS_COMPRESSED_EVENT:
-    case UPDATE_ROWS_COMPRESSED_EVENT_V1:
-      ev= new Update_rows_compressed_log_event(buf, event_len, fdle);
-      break;
-    case DELETE_ROWS_COMPRESSED_EVENT:
-    case DELETE_ROWS_COMPRESSED_EVENT_V1:
-      ev= new Delete_rows_compressed_log_event(buf, event_len, fdle);
-      break;
-
-      /* MySQL GTID events are ignored */
-    case GTID_LOG_EVENT:
-    case ANONYMOUS_GTID_LOG_EVENT:
-    case PREVIOUS_GTIDS_LOG_EVENT:
-    case TRANSACTION_CONTEXT_EVENT:
-    case HEARTBEAT_LOG_EVENT_V2:                // MySQL 8.0
-    case VIEW_CHANGE_EVENT:
-      ev= new Ignorable_log_event(buf, fdle,
-                                  get_type_str((Log_event_type) event_type));
-      break;
-
-    case TABLE_MAP_EVENT:
-      ev= new Table_map_log_event(buf, event_len, fdle);
-      break;
-#endif
-    case BEGIN_LOAD_QUERY_EVENT:
-      ev= new Begin_load_query_log_event(buf, event_len, fdle);
-      break;
-    case EXECUTE_LOAD_QUERY_EVENT:
-      ev= new Execute_load_query_log_event(buf, event_len, fdle);
-      break;
-    case INCIDENT_EVENT:
-      ev= new Incident_log_event(buf, event_len, fdle);
-      break;
-    case ANNOTATE_ROWS_EVENT:
-      ev= new Annotate_rows_log_event(buf, event_len, fdle);
-      break;
-    case START_ENCRYPTION_EVENT:
-      ev= new Start_encryption_log_event(buf, event_len, fdle);
-      break;
-    case TRANSACTION_PAYLOAD_EVENT:             // MySQL 8.0
-      *error=
-        "Found incompatible MySQL 8.0 TRANSACTION_PAYLOAD_EVENT event. "
-        "You can avoid this event by specifying "
-        "'binlog_transaction_compression=0' in the MySQL server";
-      ev= NULL;
-      break;
-    case PARTIAL_UPDATE_ROWS_EVENT:             // MySQL 8.0
-      *error=
-        "Found incompatible MySQL 8.0 PARTIAL_UPDATE_ROWS_EVENT event. "
-        "You can avoid this event by specifying "
-        "'binlog-row-value-options=\"\"' in the MySQL server";
-      ev= NULL;
-      break;
-
-    case PRE_GA_WRITE_ROWS_EVENT:
-    case PRE_GA_UPDATE_ROWS_EVENT:
-    case PRE_GA_DELETE_ROWS_EVENT:
-    case START_EVENT_V3: /* this is sent only by MySQL <=4.x */
-    case CREATE_FILE_EVENT:
-    case EXEC_LOAD_EVENT:
-    case LOAD_EVENT:
-    case NEW_LOAD_EVENT:
-    default:
-      DBUG_PRINT("error",("Unknown event code: %d",
-                          (uchar) buf[EVENT_TYPE_OFFSET]));
-      ev= NULL;
-      break;
-    }
+    ev= Log_event::read_log_event_no_checksum(buf, event_len, error, fdle);
   }
-exit:
 
   if (ev)
   {
@@ -1251,7 +1105,204 @@ exit:
 #endif
   }
 
-  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %u)",
+  DBUG_RETURN(ev);
+}
+
+Log_event *Log_event::read_log_event_no_checksum(
+    const uchar *buf, size_t event_len, const char **error,
+    const Format_description_log_event *fdle)
+{
+  Log_event* ev;
+  DBUG_ENTER("Log_event::read_log_event_no_checksum(char*,...)");
+  DBUG_ASSERT(fdle != 0);
+  DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
+  DBUG_DUMP_EVENT_BUF(buf, event_len);
+
+  *error= 0;
+  /*
+    Check the integrity; This is needed because handle_slave_io() doesn't
+    check if packet is of proper length.
+ */
+  if (event_len < EVENT_LEN_OFFSET)
+  {
+    *error="Sanity check failed";		// Needed to free buffer
+    DBUG_RETURN(NULL); // general sanity check - will fail on a partial read
+  }
+
+  uint event_type= buf[EVENT_TYPE_OFFSET];
+
+  /*
+    In some previuos versions (see comment in
+    Format_description_log_event::Format_description_log_event(char*,...)),
+    event types were assigned different id numbers than in the
+    present version. In order to replicate from such versions to the
+    present version, we must map those event type id's to our event
+    type id's.  The mapping is done with the event_type_permutation
+    array, which was set up when the Format_description_log_event
+    was read.
+  */
+  if (fdle->event_type_permutation)
+  {
+    int new_event_type= fdle->event_type_permutation[event_type];
+    DBUG_PRINT("info", ("converting event type %d to %d (%s)",
+                 event_type, new_event_type,
+                 get_type_str((Log_event_type)new_event_type)));
+    event_type= new_event_type;
+  }
+
+
+  /*
+    Create an object of Ignorable_log_event for unrecognized sub-class.
+    So that SLAVE SQL THREAD will only update the position and continue.
+    We should look for this flag first instead of judging by event_type
+    Any event can be Ignorable_log_event if it has this flag on.
+    look into @note of Ignorable_log_event
+  */
+  if (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F)
+  {
+    ev= new Ignorable_log_event(buf, fdle,
+                                get_type_str((Log_event_type) event_type));
+    goto exit;
+  }
+  switch(event_type) {
+  case QUERY_EVENT:
+    ev= new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
+    break;
+  case QUERY_COMPRESSED_EVENT:
+    ev= new Query_compressed_log_event(buf, event_len, fdle,
+                                       QUERY_COMPRESSED_EVENT);
+    break;
+  case ROTATE_EVENT:
+    ev= new Rotate_log_event(buf, event_len, fdle);
+    break;
+  case BINLOG_CHECKPOINT_EVENT:
+    ev= new Binlog_checkpoint_log_event(buf, event_len, fdle);
+    break;
+  case GTID_EVENT:
+    ev= new Gtid_log_event(buf, event_len, fdle);
+    break;
+  case GTID_LIST_EVENT:
+    ev= new Gtid_list_log_event(buf, event_len, fdle);
+    break;
+  case APPEND_BLOCK_EVENT:
+    ev= new Append_block_log_event(buf, event_len, fdle);
+    break;
+  case DELETE_FILE_EVENT:
+    ev= new Delete_file_log_event(buf, event_len, fdle);
+    break;
+  case STOP_EVENT:
+    ev= new Stop_log_event(buf, fdle);
+    break;
+  case INTVAR_EVENT:
+    ev= new Intvar_log_event(buf, fdle);
+    break;
+  case XID_EVENT:
+    ev= new Xid_log_event(buf, fdle);
+    break;
+  case XA_PREPARE_LOG_EVENT:
+    ev= new XA_prepare_log_event(buf, fdle);
+    break;
+  case RAND_EVENT:
+    ev= new Rand_log_event(buf, fdle);
+    break;
+  case USER_VAR_EVENT:
+    ev= new User_var_log_event(buf, event_len, fdle);
+    break;
+  case FORMAT_DESCRIPTION_EVENT:
+    ev= new Format_description_log_event(buf, event_len, fdle);
+    break;
+#if defined(HAVE_REPLICATION)
+  case WRITE_ROWS_EVENT_V1:
+  case WRITE_ROWS_EVENT:
+    ev= new Write_rows_log_event(buf, event_len, fdle);
+    break;
+  case UPDATE_ROWS_EVENT_V1:
+  case UPDATE_ROWS_EVENT:
+    ev= new Update_rows_log_event(buf, event_len, fdle);
+    break;
+  case DELETE_ROWS_EVENT_V1:
+  case DELETE_ROWS_EVENT:
+    ev= new Delete_rows_log_event(buf, event_len, fdle);
+    break;
+
+  case WRITE_ROWS_COMPRESSED_EVENT:
+  case WRITE_ROWS_COMPRESSED_EVENT_V1:
+    ev= new Write_rows_compressed_log_event(buf, event_len, fdle);
+    break;
+  case UPDATE_ROWS_COMPRESSED_EVENT:
+  case UPDATE_ROWS_COMPRESSED_EVENT_V1:
+    ev= new Update_rows_compressed_log_event(buf, event_len, fdle);
+    break;
+  case DELETE_ROWS_COMPRESSED_EVENT:
+  case DELETE_ROWS_COMPRESSED_EVENT_V1:
+    ev= new Delete_rows_compressed_log_event(buf, event_len, fdle);
+    break;
+
+    /* MySQL GTID events are ignored */
+  case GTID_LOG_EVENT:
+  case ANONYMOUS_GTID_LOG_EVENT:
+  case PREVIOUS_GTIDS_LOG_EVENT:
+  case TRANSACTION_CONTEXT_EVENT:
+  case HEARTBEAT_LOG_EVENT_V2:                // MySQL 8.0
+  case VIEW_CHANGE_EVENT:
+    ev= new Ignorable_log_event(buf, fdle,
+                                get_type_str((Log_event_type) event_type));
+    break;
+
+  case TABLE_MAP_EVENT:
+    ev= new Table_map_log_event(buf, event_len, fdle);
+    break;
+#endif
+  case PARTIAL_ROW_DATA_EVENT:
+    ev= new Partial_rows_log_event(buf, event_len, fdle);
+    break;
+  case BEGIN_LOAD_QUERY_EVENT:
+    ev= new Begin_load_query_log_event(buf, event_len, fdle);
+    break;
+  case EXECUTE_LOAD_QUERY_EVENT:
+    ev= new Execute_load_query_log_event(buf, event_len, fdle);
+    break;
+  case INCIDENT_EVENT:
+    ev= new Incident_log_event(buf, event_len, fdle);
+    break;
+  case ANNOTATE_ROWS_EVENT:
+    ev= new Annotate_rows_log_event(buf, event_len, fdle);
+    break;
+  case START_ENCRYPTION_EVENT:
+    ev= new Start_encryption_log_event(buf, event_len, fdle);
+    break;
+  case TRANSACTION_PAYLOAD_EVENT:             // MySQL 8.0
+    *error=
+      "Found incompatible MySQL 8.0 TRANSACTION_PAYLOAD_EVENT event. "
+      "You can avoid this event by specifying "
+      "'binlog_transaction_compression=0' in the MySQL server";
+    ev= NULL;
+    break;
+  case PARTIAL_UPDATE_ROWS_EVENT:             // MySQL 8.0
+    *error=
+      "Found incompatible MySQL 8.0 PARTIAL_UPDATE_ROWS_EVENT event. "
+      "You can avoid this event by specifying "
+      "'binlog-row-value-options=\"\"' in the MySQL server";
+    ev= NULL;
+    break;
+
+  case PRE_GA_WRITE_ROWS_EVENT:
+  case PRE_GA_UPDATE_ROWS_EVENT:
+  case PRE_GA_DELETE_ROWS_EVENT:
+  case START_EVENT_V3: /* this is sent only by MySQL <=4.x */
+  case CREATE_FILE_EVENT:
+  case EXEC_LOAD_EVENT:
+  case LOAD_EVENT:
+  case NEW_LOAD_EVENT:
+  default:
+    DBUG_PRINT("error",("Unknown event code: %d",
+                        (uchar) buf[EVENT_TYPE_OFFSET]));
+    ev= NULL;
+    break;
+  }
+exit:
+
+  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %zu)",
                             ev ? ev->get_type_str() : "<unknown>",
                             (uchar)buf[EVENT_TYPE_OFFSET],
                             event_len));
@@ -2132,6 +2183,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver,
       post_header_len[WRITE_ROWS_COMPRESSED_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
       post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
+      post_header_len[PARTIAL_ROW_DATA_EVENT-1]=  PARTIAL_ROWS_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -3070,7 +3122,7 @@ const uchar *sql_ex_info::init(const uchar *buf, const uchar *buf_end,
 **************************************************************************/
 
 
-Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
+Rows_log_event::Rows_log_event(const uchar *buf, size_t event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event),
@@ -3097,7 +3149,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   if (event_len < (uint)(common_header_len + post_header_len))
     DBUG_VOID_RETURN;
 
-  DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
+  DBUG_PRINT("enter",("event_len: %zu  common_header_len: %d  "
 		      "post_header_len: %d",
 		      event_len, common_header_len,
 		      post_header_len));
@@ -3808,18 +3860,17 @@ Optional_metadata_fields(unsigned char* optional_metadata,
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Write_rows_log_event::Write_rows_log_event(const uchar *buf, uint event_len,
-                                           const Format_description_log_event
-                                           *description_event)
-: Rows_log_event(buf, event_len, description_event)
+Write_rows_log_event::Write_rows_log_event(
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Rows_log_event(buf, event_len, description_event)
 {
 }
 
 Write_rows_compressed_log_event::Write_rows_compressed_log_event(
-                                           const uchar *buf, uint event_len,
-                                           const Format_description_log_event
-                                           *description_event)
-: Write_rows_log_event(buf, event_len, description_event)
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Write_rows_log_event(buf, event_len, description_event)
 {
   uncompress_buf();
 }
@@ -3834,18 +3885,17 @@ Write_rows_compressed_log_event::Write_rows_compressed_log_event(
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, uint event_len,
-                                             const Format_description_log_event
-                                             *description_event)
-  : Rows_log_event(buf, event_len, description_event)
+Delete_rows_log_event::Delete_rows_log_event(
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Rows_log_event(buf, event_len, description_event)
 {
 }
 
 Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
-                                           const uchar *buf, uint event_len,
-                                           const Format_description_log_event
-                                           *description_event)
-  : Delete_rows_log_event(buf, event_len, description_event)
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Delete_rows_log_event(buf, event_len, description_event)
 {
   uncompress_buf();
 }
@@ -3865,19 +3915,17 @@ Update_rows_log_event::~Update_rows_log_event()
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Update_rows_log_event::Update_rows_log_event(const uchar *buf, uint event_len,
-                                             const
-                                             Format_description_log_event
-                                             *description_event)
-  : Rows_log_event(buf, event_len, description_event)
+Update_rows_log_event::Update_rows_log_event(
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Rows_log_event(buf, event_len, description_event)
 {
 }
 
 Update_rows_compressed_log_event::Update_rows_compressed_log_event(
-                                             const uchar *buf, uint event_len,
-                                             const Format_description_log_event
-                                             *description_event)
-  : Update_rows_log_event(buf, event_len, description_event)
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Update_rows_log_event(buf, event_len, description_event)
 {
   uncompress_buf();
 }
@@ -3930,6 +3978,57 @@ Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
   DBUG_PRINT("info", ("m_incident: %d", m_incident));
   DBUG_VOID_RETURN;
 }
+
+
+#ifdef HAVE_REPLICATION
+Partial_rows_log_event::Partial_rows_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event)
+    : Log_event(buf, description_event), flags2(0), seq_no(0),
+      total_fragments(0)
+{
+  DBUG_ENTER("Partial_rows_log_event::Partial_rows_log_even(const uchar*,uint,...)");
+
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[PARTIAL_ROW_DATA_EVENT-1];
+  DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
+                     event_len, common_header_len, post_header_len));
+  DBUG_ASSERT(post_header_len == PARTIAL_ROWS_HEADER_LEN);
+
+  /*
+    Don't print debug messages when running valgrind since they can
+    trigger false warnings.
+   */
+#ifndef HAVE_valgrind
+  DBUG_DUMP("event buffer", (uchar*) buf, event_len);
+#endif
+
+	if (event_len < (uint)(common_header_len + post_header_len))
+		DBUG_VOID_RETURN;
+
+  /* Read the post-header */
+  const uchar *post_start= buf + common_header_len;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  total_fragments= uint4korr(post_start);
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  seq_no= uint4korr((post_start));
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+  DBUG_ASSERT(seq_no <= total_fragments);
+
+  flags2= *(post_start++);
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  ev_buffer_base= buf;
+  start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
+  end_offset= event_len;
+
+  DBUG_VOID_RETURN;
+}
+#endif
 
 
 Incident_log_event::~Incident_log_event()

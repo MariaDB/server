@@ -7461,6 +7461,8 @@ int THD::binlog_write_row(TABLE* table, Event_log *bin_log,
 
   size_t const len= pack_row(table, table->rpl_write_set, row_data, record);
 
+  fprintf(stderr, "\n\tbinlog_write_row len %zu\n", len);
+
   auto creator= binlog_should_compress(len) ?
                 Rows_event_factory::get<Write_rows_compressed_log_event>() :
                 Rows_event_factory::get<Write_rows_log_event>();

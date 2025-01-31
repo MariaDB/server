@@ -866,6 +866,7 @@ struct rpl_group_info
   inuse_relaylog *relay_log;
   uint64 retry_start_offset;
   uint64 retry_event_count;
+
   /*
     If `speculation' is != SPECULATE_NO, then we are optimistically running
     this transaction in parallel, even though it might not be safe (there may
@@ -911,6 +912,11 @@ struct rpl_group_info
   Query_log_event *start_alter_ev;
   bool direct_commit_alter;
   start_alter_info *sa_info;
+
+  /*
+    TODO write
+  */
+  Rows_log_event_assembler *assembler;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
