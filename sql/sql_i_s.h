@@ -142,8 +142,10 @@ class Varchar: public Type
 public:
   Varchar(uint length) :Type(&type_handler_varchar, length, false)
   {
+    // utf8mb3 Varchars longer than MAX_FIELD_VARCHARLENGTH/3 become Longtexts
     DBUG_ASSERT(length * 3 <= MAX_FIELD_VARCHARLENGTH);
   }
+  Varchar(): Type(&type_handler_varchar, MAX_FIELD_VARCHARLENGTH/3, false) {}
 };
 
 
@@ -242,6 +244,13 @@ class ULong: public Type
 public:
   ULong(uint length) :Type(&type_handler_ulong, length, true) { }
   ULong() :ULong(MY_INT32_NUM_DECIMAL_DIGITS) { }
+};
+
+
+class UShort: public Type
+{
+public:
+  UShort(uint length): Type(&type_handler_ushort, length, true) {}
 };
 
 
