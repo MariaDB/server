@@ -159,35 +159,36 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
     If t1 has an INDEX(col1, ... colN) then the number of different
     combinations of {col1, ..., colN} can be obtained from index statistics.
 
-    It is possible to cover the GROUP BY list with several indexes and use a
-    product of n_distinct statistics. For example, for
+    It is possible to cover the GROUP BY list with several indexes (without
+    overlaps) and use a product of n_distinct statistics. For example, for
 
-      GROUP BY key1part1,key1part2,   key2part1,key2part2,key2part3
+      GROUP BY key1part1, key1part2,   key2part1, key2part2, key2part3
 
     the estimate would be:
 
       n_groups= n_distinct(key1, parts=2) * n_distinct(key2, parts=3)
 
     There can be multiple ways one can cover GROUP BY list with different
-    indexes. We try to use indexes that cover more columns, first. This may
-    cause us to fail, for example:
+    indexes. We try to use indexes that cover more GROUP BY columns, first.
+    This may cause us to fail later. For example, for
 
      GROUP BY a, b, c, d
 
     and indexes
-      INDEX i1(a,b,c)
-      INDEX i2(a,b)
-      INDEX i3(c,d)
+      INDEX idx1(a,b,c)
+      INDEX idx2(a,b)
+      INDEX idx3(c,d)
 
-    Here, we will attempt to use i1 and then will be unable to get any estimate
-    for column d. We could have used i2 and i3, instead. We ignore such cases.
+    We will use idx1 and then will be unable to get any estimate for column d.
+    We could have used idx2 and idx3, instead, and could have covered all
+    columns. We ignore such cases.
 
-    Note that when we use index statistics, we ignore the WHERE condition
+    Note that when using index statistics, we ignore the WHERE condition
     selectivity. That's because we cannot tell how the WHERE affects index
     stats. Does it
-     A. reduce the number of GROUP BY groups
-     B. make each GROUP BY group smaller
-    We conservatively assume B.
+     A. reduce the number of GROUP BY groups, or
+     B. make each GROUP BY group smaller ?
+    We conservatively assume that B holds.
 
     == 3 Use per-column EITS statistics ==
     If we fail to cover GROUP BY with indexes, we try to use column statistics
@@ -208,7 +209,7 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
   TABLE *table= NULL;
   key_map possible_keys;
   Dynamic_array<int> columns(join->thd->mem_root);
-  double card=1.0;
+  double card= 1.0;
   double table_records_after_where= DBL_MAX; // Safety
 
   table_map table_bit= (**group_list)->used_tables();
@@ -236,7 +237,7 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
   bool found_complex_item= false;
 
   /*
-    Walk through the group list and collect fields.
+    Walk through the group list and collect references to fields.
     If there are other kinds of items, return table's cardinality.
   */
   Item **p;
@@ -268,20 +269,15 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
   while (!possible_keys.is_clear_all())
   {
     /* Find the index which has the longest prefix covered by columns. */
-    const KEY *longest_key= NULL;
+    uint longest_key= UINT_MAX;
     int longest_len= 0;
     key_map::Iterator key_it(possible_keys);
     uint key;
     while ((key= key_it++) != key_map::Iterator::BITMAP_END)
     {
       const KEY *keyinfo= table->key_info + key;
-      if (!keyinfo->actual_rec_per_key(0))
-      {
-        // No statistics => we can't use this index.
-        possible_keys.clear_bit(key);
-        continue;
-      }
 
+      /* Find the length of index prefix covered by GROUP BY columns */
       int part;
       for (part= 0; part < (int)keyinfo->usable_key_parts; part++)
       {
@@ -290,53 +286,68 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
           break;
       }
 
-      if (part > 0)
+      if (part > 0) // At least one column is covered
       {
+        /* Make sure the index has statistics available */
+        if (!keyinfo->actual_rec_per_key(part - 1))
+        {
+          possible_keys.clear_bit(key);
+          continue;
+        }
         if (part > longest_len)
         {
           longest_len= part;
-          longest_key= keyinfo;
+          longest_key= key;
         }
       }
       else
-        possible_keys.clear_bit(key);
-    }
-
-    if (longest_key)
-    {
-      // Multiply cardinality, remove the handled columns.
-      const KEY *keyinfo= longest_key;
-      //TODO: stats availability???
-      double index_card= (rows2double(table->stat_records()) /
-               keyinfo->actual_rec_per_key(longest_len-1));
-
-      set_if_bigger(index_card, 1.0);
-
-      Json_writer_object trace_idx(join->thd);
-      trace_idx.add("index_name", keyinfo->name)
-               .add("card", index_card);
-      card *= index_card;
-      if (card > table_records_after_where)
-        goto whole_table;
-
-      for (int part= 0; part < longest_len; part++)
       {
-        uint field_index= keyinfo->key_part[part].field->field_index;
-        size_t idx= columns.find_first(field_index);
-        if (idx != columns.NOT_FOUND)
-          columns.del(idx);
-        else
-          DBUG_ASSERT(0);
+        /*
+          The index can't cover even one-column prefix. Remove it from
+          consideration.
+        */
+        possible_keys.clear_bit(key);
       }
-
-      if (!columns.size())
-        break;
     }
-    else
-      break; // Couldn't use any indexes
+
+    if (longest_key == UINT_MAX)
+      break; // No indexes are usable, stop.
+
+    possible_keys.clear_bit(longest_key);
+    /* Multiply cardinality by index prefix's cardinality */
+    const KEY *keyinfo= table->key_info + longest_key;
+    double index_card= (rows2double(table->stat_records()) /
+             keyinfo->actual_rec_per_key(longest_len-1));
+
+    /* Safety in case of inconsistent statistics: */
+    set_if_bigger(index_card, 1.0);
+
+    Json_writer_object trace_idx(join->thd);
+    trace_idx.add("index_name", keyinfo->name)
+             .add("cardinality", index_card);
+    card *= index_card;
+    if (card > table_records_after_where)
+      goto whole_table;
+
+    /* Remove the columns we've handled from consideration */
+    for (int part= 0; part < longest_len; part++)
+    {
+      uint field_index= keyinfo->key_part[part].field->field_index;
+      size_t idx= columns.find_first(field_index);
+      if (idx != columns.NOT_FOUND)
+        columns.del(idx);
+      else
+        DBUG_ASSERT(0); // Can't happen, we've found it above.
+    }
+
+    if (!columns.size())
+      break; // If we've covered all columns, stop.
   }
 
-  /* Get cardinality from histogram data */
+  /*
+    If there are some columns left for which we couldn't get cardinality
+    from index statistics, try getting it from columns' histograms
+  */
   for (size_t i=0; i < columns.size(); i++)
   {
     double freq;
@@ -347,7 +358,7 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
     double column_card= rows2double(table->stat_records()) / freq;
     Json_writer_object trace_col(join->thd);
     trace_col.add("column", field->field_name)
-             .add("card", column_card);
+             .add("cardinality", column_card);
     card *= column_card;
     if (card > table_records_after_where)
       goto whole_table;
@@ -355,7 +366,7 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
 
 normal_exit:
   trace_steps.end();
-  trace_obj.add("card", card);
+  trace_obj.add("cardinality", card);
   return card;
 
 whole_table:

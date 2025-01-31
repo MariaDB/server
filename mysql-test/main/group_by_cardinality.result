@@ -44,10 +44,10 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 [
                     {
                         "index_name": "groups_20",
-                        "card": 20.99999895
+                        "cardinality": 20.99999895
                     }
                 ],
-                "card": 20.99999895
+                "cardinality": 20.99999895
             }
         ],
         "post_group_cardinality": 20.99999895
@@ -82,10 +82,10 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 [
                     {
                         "column": "groups_20_2",
-                        "card": 20.99999895
+                        "cardinality": 20.99999895
                     }
                 ],
-                "card": 20.99999895
+                "cardinality": 20.99999895
             }
         ],
         "post_group_cardinality": 20.99999895
@@ -121,10 +121,10 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 [
                     {
                         "index_name": "groups_20",
-                        "card": 20.99999895
+                        "cardinality": 20.99999895
                     }
                 ],
-                "card": 20.99999895
+                "cardinality": 20.99999895
             }
         ],
         "post_group_cardinality": 20.99999895
@@ -158,16 +158,16 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 [
                     {
                         "index_name": "groups_20",
-                        "card": 20.99999895
+                        "cardinality": 20.99999895
                     }
                 ],
-                "card": 20.99999895
+                "cardinality": 20.99999895
             },
             {
                 "table": "t3",
                 "steps": 
                 [],
-                "card": 10
+                "cardinality": 10
             }
         ],
         "post_group_cardinality": 209.9999895
@@ -200,10 +200,10 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 [
                     {
                         "column": "groups_20",
-                        "card": 20.99999895
+                        "cardinality": 20.99999895
                     }
                 ],
-                "card": 20.99999895
+                "cardinality": 20.99999895
             }
         ],
         "post_group_cardinality": 20.99999895
