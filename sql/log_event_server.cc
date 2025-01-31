@@ -4755,11 +4755,12 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     DBUG_EXECUTE_IF("simulate_too_big_row_case4",
                      cur_size= UINT_MAX32 - (block_size * 10);
                      length= (block_size * 10) - block_size + 1;);
-    size_t remaining_space= UINT_MAX32 - cur_size;
+    //size_t remaining_space= UINT_MAX32 - cur_size;
+    size_t remaining_space= UINT64_MAX - cur_size;
     /* Check that the new data fits within remaining space and we can add
        block_size without wrapping.
      */
-    if (cur_size > UINT_MAX32 || length > remaining_space ||
+    if (cur_size > UINT64_MAX || length > remaining_space ||
         ((length + block_size) > remaining_space))
     {
       sql_print_error("The row data is greater than 4GB, which is too big to "

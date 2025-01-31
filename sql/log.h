@@ -300,7 +300,8 @@ enum enum_log_state { LOG_OPENED, LOG_CLOSED, LOG_TO_BE_OPENED };
   Use larger buffers when reading from and to binary log
   We make it one step smaller than 64K to account for malloc overhead.
 */
-#define LOG_BIN_IO_SIZE MY_ALIGN_DOWN(65536-1, IO_SIZE)
+//#define LOG_BIN_IO_SIZE MY_ALIGN_DOWN(65536-1, IO_SIZE)
+#define LOG_BIN_IO_SIZE MY_ALIGN_DOWN(UINT32_MAX*4, IO_SIZE)
 
 /*
   TODO use mmap instead of IO_CACHE for binlog

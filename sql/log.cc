@@ -6336,10 +6336,12 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
                                                    MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, binlog_cache_dir,
-                       LOG_PREFIX, (size_t) binlog_stmt_cache_size,
+                       LOG_PREFIX, (size_t) UINT32_MAX*4,
+                       //LOG_PREFIX, (size_t) binlog_stmt_cache_size,
                        MYF(MY_WME | MY_TRACK_WITH_LIMIT)) ||
       open_cached_file(&cache_mngr->trx_cache.cache_log, binlog_cache_dir,
-                       LOG_PREFIX, (size_t) binlog_cache_size,
+                       LOG_PREFIX, (size_t) UINT32_MAX*4,
+                       //LOG_PREFIX, (size_t) binlog_cache_size,
                        MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
   {
     my_free(cache_mngr);
