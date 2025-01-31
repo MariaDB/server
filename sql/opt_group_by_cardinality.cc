@@ -36,6 +36,14 @@ inline bool has_one_bit_set(table_map val)
   return val && !(val & (val-1));
 }
 
+
+/*
+  @brief
+    Sort the Items that refer to one table (so have only one bit in
+    used_tables()). Used to get the items that refer to the same table
+    to be next to each other.
+*/
+
 int cmp_items_by_used_tables(const void *a_val, const void *b_val)
 {
   table_map v1= (*((Item**)a_val))->used_tables();
@@ -67,7 +75,7 @@ int cmp_items_by_used_tables(const void *a_val, const void *b_val)
     * Split the GROUP BY clause into per-table lists.
       (if there are GROUP BY items that refer to multiple tables, refuse
       to work and return join_output_card).
-    * Compute n_groups estimate for each table and its GROUP BY list.
+    * Compute n_groups estimate for each table and its GROUP BY sub-list.
     * Compute a product of these estimates, n_groups_prod.
     * Return MIN(join_ouput_card, n_groups_prod).
 
@@ -85,11 +93,13 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
 
   Json_writer_object wrapper(join->thd);
   Json_writer_object trace(join->thd, "materialized_output_cardinality");
-  trace.add("join_output_card", join_output_card);
+  trace.add("join_output_cardinality", join_output_card);
 
   /*
-    Walk the GROUP BY list and put items into group_cols.
-    Also check that each item depends on just one table (if not, bail out)
+    Walk the GROUP BY list and put items into group_cols array. Array is
+    easier to work with: we will sort it and then produce estimates for
+    sub-arrays that refer to just one table.
+    Also check that each item depends on just one table (if not, bail out).
   */
   for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
   {
@@ -100,17 +110,13 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
       /* Can't estimate */
       return join_output_card;
     }
-    else
-      group_cols.append(item);
+    group_cols.append(item);
   }
-
-  if (!group_cols.size())
-    return join_output_card;
+  DBUG_ASSERT(group_cols.size());
 
   group_cols.sort(cmp_items_by_used_tables);
 
   double new_card= 1.0;
-
   Item **pos= group_cols.front();
   Json_writer_array trace_steps(join->thd, "estimation");
 
@@ -123,9 +129,10 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
   }
 
   trace_steps.end();
-  trace.add("post_group_card", new_card);
+  trace.add("post_group_cardinality", new_card);
   return new_card;
 }
+
 
 /*
   @brief
@@ -202,7 +209,7 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
   key_map possible_keys;
   Dynamic_array<int> columns(join->thd->mem_root);
   double card=1.0;
-  double table_records_after_where;
+  double table_records_after_where= DBL_MAX; // Safety
 
   table_map table_bit= (**group_list)->used_tables();
   /*
@@ -219,6 +226,7 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
       break;
     }
   }
+  DBUG_ASSERT(table);
 
   Json_writer_object trace_obj(join->thd);
   trace_obj.add_table_name(table);
@@ -296,11 +304,13 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
 
     if (longest_key)
     {
-      const KEY *keyinfo= longest_key;
-
       // Multiply cardinality, remove the handled columns.
+      const KEY *keyinfo= longest_key;
+      //TODO: stats availability???
       double index_card= (rows2double(table->stat_records()) /
                keyinfo->actual_rec_per_key(longest_len-1));
+
+      set_if_bigger(index_card, 1.0);
 
       Json_writer_object trace_idx(join->thd);
       trace_idx.add("index_name", keyinfo->name)
@@ -332,7 +342,7 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
     double freq;
     Field *field= table->field[columns.at(i)];
     if (!field->read_stats ||
-        0.0 == (freq= field->read_stats->get_avg_frequency()))
+        (freq= field->read_stats->get_avg_frequency()) == 0.0)
       goto whole_table;
     double column_card= rows2double(table->stat_records()) / freq;
     Json_writer_object trace_col(join->thd);

@@ -35,7 +35,7 @@ information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
 [
     {
-        "join_output_card": 20000,
+        "join_output_cardinality": 20000,
         "estimation": 
         [
             {
@@ -50,7 +50,7 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 "card": 20.99999895
             }
         ],
-        "post_group_card": 20.99999895
+        "post_group_cardinality": 20.99999895
     }
 ]
 # Case 2: one non- indexed column
@@ -73,7 +73,7 @@ information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
 [
     {
-        "join_output_card": 20000,
+        "join_output_cardinality": 20000,
         "estimation": 
         [
             {
@@ -88,7 +88,7 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 "card": 20.99999895
             }
         ],
-        "post_group_card": 20.99999895
+        "post_group_cardinality": 20.99999895
     }
 ]
 # Case 4: one indexed column, multiple tables
@@ -112,7 +112,7 @@ information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
 [
     {
-        "join_output_card": 200000,
+        "join_output_cardinality": 200000,
         "estimation": 
         [
             {
@@ -127,7 +127,7 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 "card": 20.99999895
             }
         ],
-        "post_group_card": 20.99999895
+        "post_group_cardinality": 20.99999895
     }
 ]
 # Case 5: group by two tables
@@ -149,7 +149,7 @@ information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
 [
     {
-        "join_output_card": 200000,
+        "join_output_cardinality": 200000,
         "estimation": 
         [
             {
@@ -170,7 +170,7 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 "card": 10
             }
         ],
-        "post_group_card": 209.9999895
+        "post_group_cardinality": 209.9999895
     }
 ]
 # Now, without an index
@@ -191,7 +191,7 @@ information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
 [
     {
-        "join_output_card": 200000,
+        "join_output_cardinality": 200000,
         "estimation": 
         [
             {
@@ -206,7 +206,7 @@ json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
                 "card": 20.99999895
             }
         ],
-        "post_group_card": 20.99999895
+        "post_group_cardinality": 20.99999895
     }
 ]
 set optimizer_trace=default;
