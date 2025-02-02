@@ -3097,7 +3097,6 @@ ha_innobase::ha_innobase(
                           | HA_CAN_ONLINE_BACKUPS
 			  | HA_CONCURRENT_OPTIMIZE
 			  | HA_CAN_SKIP_LOCKED
-			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
 		  ),
 	m_start_of_scan(),
         m_mysql_has_locked()
@@ -5061,6 +5060,13 @@ ha_innobase::table_flags() const
 {
 	THD*			thd = ha_thd();
 	handler::Table_flags	flags = m_int_table_flags;
+
+	/* enforce primary key when a table is created, but not when
+	an existing (hlindex?) table is auto-discovered */
+	if (srv_force_primary_key &&
+	    thd_sql_command(thd) == SQLCOM_CREATE_TABLE) {
+		flags|= HA_REQUIRE_PRIMARY_KEY;
+	}
 
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */

@@ -266,10 +266,12 @@ drop table t;
 
 create table t (v vector (1) not null,vector index (v)) engine=innodb;
 set global innodb_force_primary_key=1;
---error ER_SQL_DISCOVER_ERROR
 insert into t values (0x31313131);
---error ER_SQL_DISCOVER_ERROR
 insert into t values (0x32323232);
-set global innodb_force_primary_key=0;
 drop table t;
+
+# vector index table has no PK, so cannot be created:
+--error ER_REQUIRES_PRIMARY_KEY
+create table t (v vector (1) not null,vector index (v)) engine=innodb;
+set global innodb_force_primary_key=0;
 --echo # End of 11.7 tests
