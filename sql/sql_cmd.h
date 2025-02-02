@@ -141,6 +141,7 @@ public:
                                          handlerton **ha,
                                          bool tmp_table);
   bool is_set() { return m_storage_engine_name.str != NULL; }
+  const LEX_CSTRING *name() const { return &m_storage_engine_name; }
 };
 
 

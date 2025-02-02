@@ -32,6 +32,8 @@ SHOW WARNINGS;
 Level	Code	Message
 Error	4165	Galera replication not supported
 Warning	1031	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM not supported.
+Error	4165	Galera replication not supported
+Warning	1031	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM not supported.
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
