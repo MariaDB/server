@@ -50,6 +50,7 @@
 #include <mysql/psi/mysql_table.h>
 #include <mysql_com_server.h>
 #include "session_tracker.h"
+#include "sql_path.h"
 #include "backup.h"
 #include "xa.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
@@ -922,6 +923,7 @@ typedef struct system_variables
   my_bool binlog_alter_two_phase;
 
   Charset_collation_map_st character_set_collations;
+  Sql_path path;
 } SV;
 
 /**
@@ -5097,7 +5099,7 @@ public:
   /** Set the current database, without copying */
   void reset_db(const LEX_CSTRING *new_db);
 
-  bool check_if_current_db_is_set_with_error() const
+  bool check_if_current_db_is_set_with_error(bool raise_err= true) const
   {
     if (db.str == NULL)
     {
@@ -5109,8 +5111,10 @@ public:
         to resolve all CTE names as we don't need this message to be thrown
         for any CTE references.
       */
-      if (!lex->with_cte_resolution)
+
+      if (likely(raise_err) && !lex->with_cte_resolution)
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+
       return TRUE;
     }
     return false;
@@ -5142,9 +5146,9 @@ public:
     For other lower_case_table_names values the name is already in
     its normalized case, so it's copied as is.
   */
-  Lex_ident_db_normalized copy_db_normalized()
+  Lex_ident_db_normalized copy_db_normalized(bool raise_err= true)
   {
-    if (check_if_current_db_is_set_with_error())
+    if (check_if_current_db_is_set_with_error(raise_err))
       return Lex_ident_db_normalized();
     LEX_CSTRING ident= make_ident_opt_casedn(db, lower_case_table_names == 2);
     /*
@@ -7952,10 +7956,11 @@ inline Item *and_conds(THD *thd, Item *a, Item *b)
 }
 
 /* inline handler methods that need to know TABLE and THD structures */
-inline void handler::increment_statistics(ulong SSV::*offset) const
+inline void handler::increment_statistics(ulong SSV::*offset, bool update) const
 {
   status_var_increment(table->in_use->status_var.*offset);
-  table->in_use->check_limit_rows_examined();
+  if (update)
+    table->in_use->check_limit_rows_examined();
 }
 
 inline void handler::fast_increment_statistics(ulong SSV::*offset) const

@@ -3853,7 +3853,8 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
 
 int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
                                           key_part_map keypart_map,
-                                          enum ha_rkey_function find_flag)
+                                          enum ha_rkey_function find_flag,
+                                          bool update)
 {
   int result;
   DBUG_ASSERT(inited==NONE);
@@ -3862,7 +3863,7 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
   DBUG_ASSERT(end_range == NULL);
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, index, result,
     { result= index_read_idx_map(buf, index, key, keypart_map, find_flag); })
-  increment_statistics(&SSV::ha_read_key_count);
+  increment_statistics(&SSV::ha_read_key_count, update);
   if (!result)
   {
     rows_stats.key_read_hit++;

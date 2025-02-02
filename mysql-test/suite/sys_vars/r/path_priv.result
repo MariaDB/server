@@ -1,0 +1,18 @@
+#
+# MDEV-34391: Check privilige for setting global path
+#
+CREATE USER priv_test;
+connect  conn1,localhost,priv_test,,;
+connection conn1;
+SET @@global.path= 'sys';
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SET @@path= 'sys';
+connection default;
+disconnect conn1;
+GRANT SUPER ON *.* TO priv_test;
+connect  conn1,localhost,priv_test,,;
+connection conn1;
+SET @@global.path= 'sys';
+connection default;
+DROP USER priv_test;
+SET @@global.path= DEFAULT;

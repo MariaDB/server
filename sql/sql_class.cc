@@ -776,7 +776,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_wfc()
 #endif /*WITH_WSREP */
 {
-  bzero(&variables, sizeof(variables));
+  bzero((void *)&variables, sizeof(variables));
 
   /*
     We set THR_THD to temporally point to this THD to register all the
@@ -1862,6 +1862,7 @@ THD::~THD()
 #if defined(ENABLED_DEBUG_SYNC)
   debug_sync_end_thread(this);
 #endif
+  variables.path.free();
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
 
