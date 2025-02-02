@@ -19,8 +19,8 @@ CREATE TABLE t1(a int) engine=Aria;
 ERROR HY000: Galera replication not supported
 SHOW WARNINGS;
 Level	Code	Message
-Error	4165	Galera replication not supported
-Warning	1031	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria not supported.
+Error	4165	DDL-statement is forbidden as table storage engine does not support Galera replication
+Warning	1031	WSREP: wsrep_strict_dll enabled. Storage engine Aria not supported.
 connection node_2;
 SHOW CREATE TABLE t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -30,8 +30,10 @@ ALTER TABLE t2 engine=MyISAM;
 ERROR HY000: Galera replication not supported
 SHOW WARNINGS;
 Level	Code	Message
-Error	4165	Galera replication not supported
-Warning	1031	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM not supported.
+Error	4165	DDL-statement is forbidden as table storage engine does not support Galera replication
+Warning	1031	WSREP: wsrep_strict_dll enabled. Storage engine MyISAM not supported.
+Error	4165	DDL-statement is forbidden as table storage engine does not support Galera replication
+Warning	1031	WSREP: wsrep_strict_dll enabled. Storage engine MyISAM not supported.
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
