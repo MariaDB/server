@@ -3699,6 +3699,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (tabledef_version.str)
     tmp_lex.create_info.tabledef_version= tabledef_version;
 
+  tmp_lex.sql_command= old_lex->sql_command;
   tmp_lex.alter_info.db= db;
   tmp_lex.alter_info.table_name= table_name;
   promote_first_timestamp_column(&tmp_lex.alter_info.create_list);
