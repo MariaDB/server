@@ -9795,6 +9795,8 @@ int TABLE::hlindex_open(uint nr)
       if (share->init_from_sql_statement_string(in_use, false,
                         sql.str, sql.length))
       {
+        if (share->db_plugin == s->db_plugin)
+          share->db_plugin= NULL;
         free_table_share(share);
         return 1;
       }

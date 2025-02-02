@@ -253,4 +253,22 @@ insert into t values (1,0x31313131),(2,0x32323232); # optional, fails either way
 select distinct vec_distance_euclidean(v, 0x30303030) as d from t order by pk;
 drop table t;
 
+--echo #
+--echo # MDEV-36005 Server crashes when checking/updating a table having vector key after enabling innodb_force_primary_key
+--echo #
+create table t (v vector (3) not null,vector index (v)) engine=innodb;
+set global innodb_force_primary_key=1;
+check table t extended;
+check table t extended;
+set global innodb_force_primary_key=0;
+drop table t;
+
+create table t (v vector (1) not null,vector index (v)) engine=innodb;
+set global innodb_force_primary_key=1;
+--error ER_SQL_DISCOVER_ERROR
+insert into t values (0x31313131);
+--error ER_SQL_DISCOVER_ERROR
+insert into t values (0x32323232);
+set global innodb_force_primary_key=0;
+drop table t;
 --echo # End of 11.7 tests
