@@ -1,68 +1,70 @@
 #
 # mysqldump
 #
-create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null);
 insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
-(Vec_Fromtext('[0.687,0.789,0.496,0.574,0.917]')),
-(Vec_Fromtext('[0.333,0.962,0.467,0.448,0.475]')),
-(Vec_Fromtext('[0.822,0.185,0.683,0.211,0.554]')),
-(Vec_Fromtext('[0.437,0.167,0.077,0.428,0.241]')),
-(Vec_Fromtext('[0.769,0.926,0.803,0.015,0.589]')),
-(Vec_Fromtext('[0.493,0.641,0.761,0.942,0.425]')),
-(Vec_Fromtext('[0.924,0.275,0.054,0.073,0.136]')),
 (Vec_Fromtext('[0.186,0.696,0.035,0.668,0.847]')),
 (Vec_Fromtext('[0.415,0.609,0.426,0.988,0.475]'));
 select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
 id
-8
-5
-4
+1
+3
+2
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `v` vector(5) NOT NULL,
-  PRIMARY KEY (`id`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES
 (1,0x1904D63EA01A4F3F21B0523F8716193F022B073D),
-(2,0x3BDF2F3FE7FB493FB6F3FD3EAAF1123F83C06A3F),
-(3,0xFA7EAA3EA245763FA01AEF3E4260E53E3333F33E),
-(4,0x986E523FA4703D3E17D92E3F6210583EF2D20D3F),
-(5,0x77BEDF3E0C022B3E2DB29D3DD122DB3EB4C8763E),
-(6,0x2FDD443F560E6D3F68914D3F8FC2753CB4C8163F),
-(7,0x7F6AFC3E9318243FE5D0423FE926713F9A99D93E),
-(8,0x448B6C3FCDCC8C3E1B2F5D3D0681953D96430B3E),
-(9,0xC9763E3E0E2D323F295C0F3D0C022B3FFED4583F),
-(10,0xE17AD43E6DE71B3FAC1CDA3E91ED7C3F3333F33E);
+(2,0xC9763E3E0E2D323F295C0F3D0C022B3FFED4583F),
+(3,0xE17AD43E6DE71B3FAC1CDA3E91ED7C3F3333F33E);
+<?xml version="1.0"?>
+<mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<database name="test">
+	<table_structure name="t1">
+		<field Field="id" Type="int(11)" Null="NO" Key="PRI" Extra="auto_increment" Comment="" />
+		<field Field="v" Type="vector(5)" Null="NO" Key="" Extra="" Comment="" />
+		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="id" Collation="A" Cardinality="3" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
+		<options Name="t1" Engine="MyISAM" Version="10" Row_format="Dynamic" Rows="3" Avg_row_length="32" Data_length="96" Max_data_length="281474976710655" Index_length="2048" Data_free="0" Auto_increment="4" Create_time="YYYY-MM-DD hh:mm:ss" Update_time="YYYY-MM-DD hh:mm:ss" Collation="utf8mb4_uca1400_ai_ci" Create_options="" Comment="" Max_index_length="288230376151710720" Temporary="N" />
+	</table_structure>
+	<table_data name="t1">
+	<row>
+		<field name="id">1</field>
+		<field name="v" xsi:type="xs:hexBinary">1904D63EA01A4F3F21B0523F8716193F022B073D</field>
+	</row>
+	<row>
+		<field name="id">2</field>
+		<field name="v" xsi:type="xs:hexBinary">C9763E3E0E2D323F295C0F3D0C022B3FFED4583F</field>
+	</row>
+	<row>
+		<field name="id">3</field>
+		<field name="v" xsi:type="xs:hexBinary">E17AD43E6DE71B3FAC1CDA3E91ED7C3F3333F33E</field>
+	</row>
+	</table_data>
+</database>
+</mysqldump>
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `v` vector(5) NOT NULL,
-  PRIMARY KEY (`id`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select id, Vec_ToText(v) from t1;
 id	Vec_ToText(v)
 1	[0.418,0.809,0.823,0.598,0.033]
-2	[0.687,0.789,0.496,0.574,0.917]
-3	[0.333,0.962,0.467,0.448,0.475]
-4	[0.822,0.185,0.683,0.211,0.554]
-5	[0.437,0.167,0.077,0.428,0.241]
-6	[0.769,0.926,0.803,0.015,0.589]
-7	[0.493,0.641,0.761,0.942,0.425]
-8	[0.924,0.275,0.054,0.073,0.136]
-9	[0.186,0.696,0.035,0.668,0.847]
-10	[0.415,0.609,0.426,0.988,0.475]
+2	[0.186,0.696,0.035,0.668,0.847]
+3	[0.415,0.609,0.426,0.988,0.475]
 select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
 id
-8
-5
-4
+1
+3
+2
 drop table t1;
 #
 # MDEV-35044 ALTER on a table with vector index attempts to bypass unsupported locking limitation, server crashes in THD::free_tmp_table_share

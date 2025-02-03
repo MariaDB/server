@@ -103,6 +103,9 @@
 #define DUMP_TABLE_TABLE 0
 #define DUMP_TABLE_SEQUENCE 1
 
+/* until MDEV-35831 is implemented, we'll have to detect VECTOR by name */
+#define MYSQL_TYPE_VECTOR "V"
+
 static my_bool ignore_table_data(const uchar *hash_key, size_t len);
 static void add_load_option(DYNAMIC_STRING *str, const char *option,
                              const char *option_value);
@@ -147,7 +150,7 @@ static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static double opt_max_statement_time= 0.0;
 static MYSQL *mysql=0;
-static DYNAMIC_STRING insert_pat, select_field_names,
+static DYNAMIC_STRING insert_pat, select_field_names, field_flags,
                       select_field_names_for_header, insert_field_names;
 static char  *opt_password=0,*current_user=0,
              *current_host=0,*path=0,*fields_terminated=0,
@@ -2009,6 +2012,7 @@ static void free_resources()
   dynstr_free(&dynamic_where);
   dynstr_free(&insert_pat);
   dynstr_free(&select_field_names);
+  dynstr_free(&field_flags);
   dynstr_free(&select_field_names_for_header);
   dynstr_free(&insert_field_names);
   if (defaults_argv)
@@ -3181,6 +3185,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   {
     select_field_names_inited= 1;
     init_dynamic_string_checked(&select_field_names, "", 1024, 1024);
+    init_dynamic_string_checked(&field_flags, "", 1024, 1024);
     init_dynamic_string_checked(&insert_field_names, "", 1024, 1024);
     if (opt_header)
       init_dynamic_string_checked(&select_field_names_for_header, "", 1024, 1024);
@@ -3188,6 +3193,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   else
   {
     dynstr_set_checked(&select_field_names, "");
+    dynstr_set_checked(&field_flags, "");
     dynstr_set_checked(&insert_field_names, "");
     if (opt_header)
       dynstr_set_checked(&select_field_names_for_header, "");
@@ -3489,6 +3495,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
                               quote_for_equal(row[0], name_buff));
+      /* VECTOR doesn't have a type code yet, must be detected by name */
+      if (row[3] && strcmp(row[3], "vector") == 0)
+        dynstr_append_checked(&field_flags, MYSQL_TYPE_VECTOR);
+      else
+        dynstr_append_checked(&field_flags, " ");
     }
 
     if (vers_hidden)
@@ -3502,6 +3513,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                             "row_end" :
                             "row_end");
       dynstr_append_checked(&insert_field_names, ", row_start, row_end");
+      dynstr_append_checked(&field_flags, "  ");
     }
 
     /*
@@ -3608,6 +3620,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     while ((row= mysql_fetch_row(result)))
     {
       ulong *lengths= mysql_fetch_lengths(result);
+      /* VECTOR doesn't have a type code yet, must be detected by name */
+      if (strncmp(row[SHOW_TYPE], STRING_WITH_LEN("vector(")) == 0)
+        dynstr_append_checked(&field_flags, MYSQL_TYPE_VECTOR);
+      else
+        dynstr_append_checked(&field_flags, " ");
       if (init)
       {
         if (!opt_xml && !opt_no_create_info)
@@ -4491,21 +4508,23 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
                       "Not enough fields from table %s! Aborting.\n",
                       result_table);
 
+        DBUG_ASSERT(field_flags.length > i);
         /*
            63 is my_charset_bin. If charsetnr is not 63,
            we have not a BLOB but a TEXT column.
            we'll dump in hex only BLOB columns.
         */
-        is_blob= (opt_hex_blob && field->charsetnr == 63 &&
-                  (field->type == MYSQL_TYPE_BIT ||
-                   field->type == MYSQL_TYPE_STRING ||
-                   field->type == MYSQL_TYPE_VAR_STRING ||
-                   field->type == MYSQL_TYPE_VARCHAR ||
-                   field->type == MYSQL_TYPE_BLOB ||
-                   field->type == MYSQL_TYPE_LONG_BLOB ||
-                   field->type == MYSQL_TYPE_MEDIUM_BLOB ||
-                   field->type == MYSQL_TYPE_TINY_BLOB ||
-                   field->type == MYSQL_TYPE_GEOMETRY)) ? 1 : 0;
+        is_blob= field->type == MYSQL_TYPE_GEOMETRY ||
+                 field->type == MYSQL_TYPE_BIT ||
+                 field_flags.str[i] == MYSQL_TYPE_VECTOR[0] ||
+                 (opt_hex_blob && field->charsetnr == 63 &&
+                   (field->type == MYSQL_TYPE_STRING ||
+                    field->type == MYSQL_TYPE_VAR_STRING ||
+                    field->type == MYSQL_TYPE_VARCHAR ||
+                    field->type == MYSQL_TYPE_BLOB ||
+                    field->type == MYSQL_TYPE_LONG_BLOB ||
+                    field->type == MYSQL_TYPE_MEDIUM_BLOB ||
+                    field->type == MYSQL_TYPE_TINY_BLOB));
         if (extended_insert && !opt_xml)
         {
           if (i == 0)
@@ -4528,7 +4547,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
                   Also we need to reserve 1 byte for terminating '\0'.
                 */
                 dynstr_realloc_checked(&extended_row,length * 2 + 2 + 1);
-                if (opt_hex_blob && is_blob)
+                if (is_blob)
                 {
                   dynstr_append_checked(&extended_row, "0x");
                   extended_row.length+= mysql_hex_string(extended_row.str +
@@ -4589,7 +4608,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
             {
               if (opt_xml)
               {
-                if (opt_hex_blob && is_blob && length)
+                if (is_blob && length)
                 {
                   /* Define xsi:type="xs:hexBinary" for hex encoded data */
                   print_xml_tag(md_result_file, "\t\t", "", "field", "name=",
@@ -4604,7 +4623,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
                 }
                 fputs("</field>\n", md_result_file);
               }
-              else if (opt_hex_blob && is_blob && length)
+              else if (is_blob && length)
               {
                 fputs("0x", md_result_file);
                 print_blob_as_hex(md_result_file, row[i], length);
