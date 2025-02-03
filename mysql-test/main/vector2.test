@@ -289,4 +289,13 @@ flush tables;
 update t set v = 1;
 drop table t;
 
+--echo #
+--echo # MDEV-35792 Adding a regular index on a vector column leads to invalid table structure
+--echo #
+--error ER_TOO_LONG_KEY
+create table t (v vector(800), key(v));
+create table t (v vector(8), key(v));
+show create table t;
+drop table t;
+
 --echo # End of 11.7 tests

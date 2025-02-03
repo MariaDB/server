@@ -3012,7 +3012,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
   }
   if (key_part_length > max_key_part_length)
   {
-    if (key.type == Key::MULTIPLE)
+    if (key.type == Key::MULTIPLE && type_handler->type_can_have_key_part())
     {
       key_part_length= max_key_part_length;
       /* not a critical problem */
