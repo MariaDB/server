@@ -45,6 +45,7 @@ bool compare_record(const TABLE *table);
 class Sql_cmd_update final : public Sql_cmd_dml
 {
 public:
+  ha_rows found{0}, updated{0};
   Sql_cmd_update(bool multitable_arg)
     : orig_multitable(multitable_arg), multitable(multitable_arg)
   {}
@@ -64,6 +65,13 @@ public:
   bool is_multitable() const { return multitable; }
 
   void set_as_multitable() { multitable= true; }
+
+  void get_dml_stat (ha_rows &found, ha_rows &changed) override
+  {
+
+     found= this->found;
+     changed= this->updated;
+  }
 
 protected:
   /**

@@ -336,7 +336,6 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   SQL_SELECT *select= 0;
   SORT_INFO *file_sort= 0;
   READ_RECORD info;
-  ha_rows deleted= 0;
   bool reverse= FALSE;
   bool binlog_is_row;
   killed_state killed_status= NOT_KILLED;
@@ -2103,6 +2102,9 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
 
   if (result)
   {
+    /* In single table case, this->deleted set by delete_from_single_table */
+    if (res && multitable)
+      deleted= ((multi_delete*)get_result())->num_deleted();
     res= false;
     delete result;
   }

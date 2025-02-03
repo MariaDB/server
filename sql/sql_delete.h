@@ -43,6 +43,7 @@ template <typename T> class SQL_I_List;
 class Sql_cmd_delete final : public Sql_cmd_dml
 {
 public:
+  ha_rows deleted{0};
   Sql_cmd_delete(bool multitable_arg)
     : orig_multitable(multitable_arg), multitable(multitable_arg),
       save_protocol(NULL)
@@ -65,6 +66,12 @@ public:
   void set_as_multitable() { multitable= true; }
 
   void remove_order_by_without_limit(THD *thd);
+
+  void get_dml_stat (ha_rows &found, ha_rows &changed) override
+  {
+     found= 0;
+     changed= deleted;
+  }
 
 protected:
   /**
