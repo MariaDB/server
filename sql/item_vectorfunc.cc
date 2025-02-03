@@ -142,6 +142,7 @@ String *Item_func_vec_fromtext::val_str(String *buf)
     return nullptr;
 
   buf->length(0);
+  buf->set_charset(&my_charset_bin);
   CHARSET_INFO *cs= value->charset();
   const uchar *start= reinterpret_cast<const uchar *>(value->ptr());
   const uchar *end= start + value->length();
