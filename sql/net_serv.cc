@@ -1065,6 +1065,9 @@ retry:
           net->last_errno= (vio_was_timeout(net->vio) ?
                                    ER_NET_READ_INTERRUPTED :
                                    ER_NET_READ_ERROR);
+#ifdef MYSQL_SERVER
+          strmake_buf(net->last_error, ER(net->last_errno));
+#endif /* MYSQL_SERVER */
           MYSQL_SERVER_my_error(net->last_errno, MYF(0));
 	  goto end;
 	}
