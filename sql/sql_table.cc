@@ -3592,7 +3592,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       if (key_part_length > file->max_key_part_length() &&
           key->type != Key::FULLTEXT && key->type != Key::VECTOR)
       {
-        if (key->type == Key::MULTIPLE)
+        if (key->type == Key::MULTIPLE && field_type->type_can_have_key_part())
         {
           key_part_length= file->max_key_part_length();
           /* not a critical problem */

@@ -395,4 +395,17 @@ flush tables;
 update t set v = 1;
 ERROR HY000: Cannot cast 'int' as 'vector' in assignment of `test`.`t`.`v`
 drop table t;
+#
+# MDEV-35792 Adding a regular index on a vector column leads to invalid table structure
+#
+create table t (v vector(800), key(v));
+ERROR 42000: Specified key was too long; max key length is 1000 bytes
+create table t (v vector(8), key(v));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `v` vector(8) DEFAULT NULL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;
 # End of 11.7 tests
