@@ -53,6 +53,7 @@ public:
   {
     bzero(&m_hton, sizeof(m_hton));
     m_hton.tablefile_extensions= hton_no_exts;
+    m_hton.db_type = DB_TYPE_JSON;
     m_hton.slot= HA_SLOT_UNDEF;
   }
 };

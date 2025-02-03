@@ -2457,14 +2457,12 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
   if (!wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
     return true;
 
-  if (!hton)
-    return true;
-
   DBUG_ASSERT(hton != nullptr);
 
   switch (hton->db_type)
   {
     case DB_TYPE_INNODB:
+    case DB_TYPE_JSON:
       return true;
       break;
     case DB_TYPE_MYISAM:

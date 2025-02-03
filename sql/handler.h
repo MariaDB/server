@@ -553,6 +553,7 @@ enum legacy_db_type
   DB_TYPE_BINLOG=21,
   DB_TYPE_PBXT=23,
   DB_TYPE_PERFORMANCE_SCHEMA=28,
+  DB_TYPE_JSON=40,
   DB_TYPE_S3=41,
   DB_TYPE_ARIA=42,
   DB_TYPE_TOKUDB=43, /* disabled in MariaDB Server 10.5, removed in 10.6 */
