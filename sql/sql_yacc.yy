@@ -718,6 +718,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> WHERE                         /* SQL-2003-R */
 %token  <kwd> WHILE_SYM
 %token  <kwd> WITH                          /* SQL-2003-R */
+%token  <kwd> WRITE_TO_BINLOG_ENABLE
 %token  <kwd> XOR
 %token  <kwd> YEAR_MONTH_SYM
 %token  <kwd> ZEROFILL
@@ -1468,6 +1469,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         transaction_access_mode_types
         opt_natural_language_mode opt_query_expansion
         opt_ev_status opt_ev_on_completion ev_on_completion opt_ev_comment
+        opt_ev_write_to_binlog_enable
         ev_alter_on_schedule_completion opt_ev_rename_to opt_ev_sql_stmt
         optional_flush_tables_arguments
         opt_time_precision kill_type kill_option int_num
@@ -3070,6 +3072,7 @@ event_tail:
           opt_ev_on_completion
           opt_ev_status
           opt_ev_comment
+          opt_ev_write_to_binlog_enable
           DO_SYM ev_sql_stmt
           {
             /*
@@ -3158,6 +3161,15 @@ opt_ev_comment:
         | COMMENT_SYM TEXT_STRING_sys
           {
             Lex->comment= Lex->event_parse_data->comment= $2;
+            $$= 1;
+          }
+        ;
+
+opt_ev_write_to_binlog_enable:
+          /* empty */ { $$= 0; }
+        | WRITE_TO_BINLOG_ENABLE
+          {
+            Lex->event_parse_data->write_to_binlog_enable= true;
             $$= 1;
           }
         ;
@@ -7522,9 +7534,10 @@ alter:
           opt_ev_rename_to
           opt_ev_status
           opt_ev_comment
+          opt_ev_write_to_binlog_enable
           opt_ev_sql_stmt
           {
-            if (unlikely(!($7 || $8 || $9 || $10 || $11)))
+            if (unlikely(!($7 || $8 || $9 || $10 || $11 || $12)))
             {
               thd->parse_error();
               MYSQL_YYABORT;

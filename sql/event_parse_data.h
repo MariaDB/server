@@ -40,7 +40,7 @@ public:
   {
     ENABLED = 1,
     DISABLED,
-    SLAVESIDE_DISABLED  
+    SLAVESIDE_DISABLED
   };
 
   enum enum_on_completion
@@ -65,6 +65,8 @@ public:
   bool do_not_create;
 
   bool body_changed;
+
+  bool write_to_binlog_enable;
 
   LEX_CSTRING dbname;
   LEX_CSTRING name;
