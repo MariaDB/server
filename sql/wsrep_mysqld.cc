@@ -1582,7 +1582,12 @@ bool wsrep_sync_wait (THD* thd, uint mask)
       This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
       TODO: modify to check if thd has locked any rows.
     */
-    return thd->wsrep_cs().sync_wait(-1);
+    if (thd->wsrep_cs().sync_wait(-1))
+    {
+      wsrep_override_error(thd, thd->wsrep_cs().current_error(),
+                           thd->wsrep_cs().current_error_status());
+      return true;
+    }
   }
 
   return false;

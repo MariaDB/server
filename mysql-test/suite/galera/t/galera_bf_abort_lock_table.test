@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/force_restart.inc
 
 #
 # Test that a local LOCK TABLE will NOT be broken by an incoming remote transaction against that table
@@ -16,13 +17,16 @@ LOCK TABLE t1 WRITE;
 INSERT INTO t1 VALUES (2);
 
 --connection node_2
+SET SESSION wsrep_sync_wait = 0;
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock'
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug_and_kill.inc
 
 UNLOCK TABLES;
 
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock'
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug_and_kill.inc
 
 COMMIT;
 SELECT COUNT(*) = 1 FROM t1;
