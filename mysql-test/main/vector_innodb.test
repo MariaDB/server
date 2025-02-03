@@ -273,4 +273,15 @@ drop table t;
 --error ER_REQUIRES_PRIMARY_KEY
 create table t (v vector (1) not null,vector index (v)) engine=innodb;
 set global innodb_force_primary_key=0;
+
+--echo #
+--echo # MDEV-35922 Server crashes in mhnsw_read_first upon using vector key with views
+--echo #
+create table t (pk int primary key, v vector(1) not null, vector(v)) engine=innodb;
+insert into t values (1,0x31313131),(2,0x32323232);
+create view v as select * from t;
+select pk from v order by vec_distance_euclidean(v, 0x30303030) limit 2;
+drop view v;
+drop table t;
+
 --echo # End of 11.7 tests
