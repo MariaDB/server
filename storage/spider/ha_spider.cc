@@ -65,6 +65,7 @@ void ha_spider::init_fields()
   append_tblnm_alias = NULL;
   use_index_merge = FALSE;
   is_clone = FALSE;
+  pushed_pos = NULL;
   pt_clone_source_handler = NULL;
   pt_clone_last_searcher = NULL;
   ft_handler = NULL;
@@ -6783,6 +6784,11 @@ int ha_spider::create(
     sql_command == SQLCOM_DROP_INDEX
   )
     DBUG_RETURN(0);
+  if (form->s->hlindexes() > 0)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "SPIDER", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
   if (!is_supported_parser_charset(info->default_table_charset))
   {
     String charset_option;
