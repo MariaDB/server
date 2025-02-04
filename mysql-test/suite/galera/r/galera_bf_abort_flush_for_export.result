@@ -8,6 +8,11 @@ connection node_1;
 INSERT INTO t1 VALUES (2);
 connection node_2;
 SET SESSION wsrep_sync_wait = 0;
+Timeout in wait_condition.inc for SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock%' OR STATE = 'Waiting to execute in isolation%'
+Id	User	Host	db	Command	Time	State	Info	Progress
+2	system user		NULL	Sleep	36	wsrep aborter idle	NULL	0.000
+1	system user		NULL	Sleep	31	Waiting for table metadata lock	INSERT INTO t1 VALUES (2)	0.000
+11	root	localhost:55420	test	Query	0	starting	show full processlist	0.000
 UNLOCK TABLES;
 COMMIT;
 SET AUTOCOMMIT=ON;
