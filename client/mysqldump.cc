@@ -104,7 +104,9 @@
 #define DUMP_TABLE_SEQUENCE 1
 
 /* until MDEV-35831 is implemented, we'll have to detect VECTOR by name */
-#define MYSQL_TYPE_VECTOR "V"
+#define MYSQL_TYPE_VECTOR 1
+#define MYSQL_TYPE_VERS_COL 2
+#define MYSQL_TYPE_GENERATED 4
 
 static my_bool ignore_table_data(const uchar *hash_key, size_t len);
 static void add_load_option(DYNAMIC_STRING *str, const char *option,
@@ -3168,6 +3170,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                                 char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
+  my_bool    is_generated=0, is_vector=0;
   my_ulonglong num_fields;
   char       *result_table, *opt_quoted_table;
   const char *insert_option;
@@ -3486,8 +3489,17 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
     while ((row= mysql_fetch_row(result)))
     {
-      if (strstr(row[1],"INVISIBLE"))
-        complete_insert= 1;
+      is_generated= 0;
+      if (row[1])
+      {
+        if (strstr(row[1], "GENERATED") &&
+            !(row[2] && (strcmp(row[2], "ROW START") == 0 ||
+                         strcmp(row[2], "ROW END") == 0)))
+          is_generated= 1;
+        if (strstr(row[1], "INVISIBLE"))
+          complete_insert= 1;
+      }
+
       if (vers_hidden && row[2] && strcmp(row[2], "ROW START") == 0)
       {
         vers_hidden= 0;
@@ -3498,6 +3510,21 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           *versioned= 0;
         }
       }
+
+      /* Skip generated columns only if complete_insert is already enabled */
+      if (is_generated && complete_insert && !path && !opt_dir && !opt_dump_history)
+        continue;
+
+      dynstr_append_mem_checked(&field_flags, "", 1);
+      if (row[3] && strcmp(row[3], "vector") == 0)
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VECTOR;
+      /* Mark system versioning columns */
+      if (row[2] && (strcmp(row[2], "ROW START") == 0 || strcmp(row[2], "ROW END") == 0))
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VERS_COL;
+      /* Mark generated columns */
+      if (is_generated)
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_GENERATED;
+
       if (init)
       {
         dynstr_append_checked(&select_field_names, ", ");
@@ -3526,11 +3553,6 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
                               quote_for_equal(row[0], name_buff));
-      /* VECTOR doesn't have a type code yet, must be detected by name */
-      if (row[3] && strcmp(row[3], "vector") == 0)
-        dynstr_append_checked(&field_flags, MYSQL_TYPE_VECTOR);
-      else
-        dynstr_append_checked(&field_flags, " ");
     }
 
     if (vers_hidden)
@@ -3544,7 +3566,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                             "row_end" :
                             "row_end");
       dynstr_append_checked(&insert_field_names, ", row_start, row_end");
-      dynstr_append_checked(&field_flags, "  ");
+      /* Mark both row_start and row_end as versioning columns */
+      dynstr_append_mem_checked(&field_flags, "", 1);
+      field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VERS_COL;
+      dynstr_append_mem_checked(&field_flags, "", 1);
+      field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VERS_COL;
     }
 
     /*
@@ -3563,9 +3589,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       dynstr_append_checked(&insert_pat, "INTO ");
       dynstr_append_checked(&insert_pat, opt_quoted_table);
       if (complete_insert)
-      {
         dynstr_append_checked(&insert_pat, " (");
-      }
       else
       {
         if (extended_insert)
@@ -3577,7 +3601,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
     if (complete_insert)
       dynstr_append_checked(&insert_pat, insert_field_names.str);
-    num_fields= mysql_num_rows(result) + (vers_hidden ? 2 : 0);
+    num_fields= field_flags.length;
     mysql_free_result(result);
   }
   else
@@ -3629,6 +3653,85 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       check_io(sql_file);
     }
 
+    while ((row= mysql_fetch_row(result)))
+    {
+      ulong *lengths= mysql_fetch_lengths(result);
+      is_generated= 0;
+      is_vector= 0;
+
+      /* VECTOR doesn't have a type code yet, must be detected by name */
+      if (strncmp(row[SHOW_TYPE], STRING_WITH_LEN("vector(")) == 0)
+        is_vector= 1;
+      else if (row[SHOW_EXTRA])
+      {
+        if (strstr(row[SHOW_EXTRA], "GENERATED") &&
+            !strstr(row[SHOW_EXTRA], "ROW START") &&
+            !strstr(row[SHOW_EXTRA], "ROW END"))
+          is_generated= 1;
+      }
+      if (row[SHOW_EXTRA] && strstr(row[SHOW_EXTRA], "INVISIBLE"))
+        complete_insert= 1;
+
+      /* Skip generated columns only if complete_insert is already enabled */
+      if (is_generated && complete_insert && !path && !opt_dir && !opt_dump_history)
+        continue;
+
+      dynstr_append_mem_checked(&field_flags, "", 1);
+      if (is_vector)
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VECTOR;
+      /* Mark system versioning columns */
+      if (row[SHOW_EXTRA] && (strstr(row[SHOW_EXTRA], "ROW START") ||
+                              strstr(row[SHOW_EXTRA], "ROW END")))
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VERS_COL;
+      /* Mark generated columns */
+      if (is_generated)
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_GENERATED;
+
+      if (init)
+      {
+        if (!opt_xml && !opt_no_create_info)
+        {
+          fputs(",\n",sql_file);
+          check_io(sql_file);
+        }
+        dynstr_append_checked(&select_field_names, ", ");
+        if (opt_header)
+          dynstr_append_checked(&select_field_names_for_header, ", ");
+      }
+      dynstr_append_checked(&select_field_names,
+                            quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+      if (opt_header)
+        dynstr_append_checked(&select_field_names_for_header,
+                              quote_for_equal(row[SHOW_FIELDNAME], name_buff));
+      init=1;
+
+      if (!opt_no_create_info)
+      {
+        if (opt_xml)
+        {
+          print_xml_row(sql_file, "field", result, &row, NullS);
+          continue;
+        }
+
+        if (opt_keywords)
+          fprintf(sql_file, "  %s.%s %s", result_table,
+                  quote_name(row[SHOW_FIELDNAME],name_buff, 0), row[SHOW_TYPE]);
+        else
+          fprintf(sql_file, "  %s %s",
+                  quote_name(row[SHOW_FIELDNAME], name_buff, 0), row[SHOW_TYPE]);
+        if (row[SHOW_DEFAULT])
+        {
+          fputs(" DEFAULT ", sql_file);
+          unescape(sql_file, row[SHOW_DEFAULT], lengths[SHOW_DEFAULT]);
+        }
+        if (!row[SHOW_NULL][0])
+          fputs(" NOT NULL", sql_file);
+        if (row[SHOW_EXTRA][0])
+          fprintf(sql_file, " %s",row[SHOW_EXTRA]);
+        check_io(sql_file);
+      }
+    }
+
     if (write_data)
     {
       if (opt_replace_into)
@@ -3648,60 +3751,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       }
     }
 
-    while ((row= mysql_fetch_row(result)))
-    {
-      ulong *lengths= mysql_fetch_lengths(result);
-      /* VECTOR doesn't have a type code yet, must be detected by name */
-      if (strncmp(row[SHOW_TYPE], STRING_WITH_LEN("vector(")) == 0)
-        dynstr_append_checked(&field_flags, MYSQL_TYPE_VECTOR);
-      else
-        dynstr_append_checked(&field_flags, " ");
-      if (init)
-      {
-        if (!opt_xml && !opt_no_create_info)
-        {
-          fputs(",\n",sql_file);
-          check_io(sql_file);
-        }
-        dynstr_append_checked(&select_field_names, ", ");
-        if (opt_header)
-          dynstr_append_checked(&select_field_names_for_header, ", ");
-      }
-      dynstr_append_checked(&select_field_names,
-              quote_name(row[SHOW_FIELDNAME], name_buff, 0));
-      if (opt_header)
-        dynstr_append_checked(&select_field_names_for_header,
-                              quote_for_equal(row[SHOW_FIELDNAME], name_buff));
-      init=1;
-      if (!opt_no_create_info)
-      {
-        if (opt_xml)
-        {
-          print_xml_row(sql_file, "field", result, &row, NullS);
-          continue;
-        }
-
-        if (opt_keywords)
-          fprintf(sql_file, "  %s.%s %s", result_table,
-                  quote_name(row[SHOW_FIELDNAME],name_buff, 0), row[SHOW_TYPE]);
-        else
-          fprintf(sql_file, "  %s %s",
-                quote_name(row[SHOW_FIELDNAME], name_buff, 0), row[SHOW_TYPE]);
-        if (row[SHOW_DEFAULT])
-        {
-          fputs(" DEFAULT ", sql_file);
-          unescape(sql_file, row[SHOW_DEFAULT], lengths[SHOW_DEFAULT]);
-        }
-        if (!row[SHOW_NULL][0])
-          fputs(" NOT NULL", sql_file);
-        if (row[SHOW_EXTRA][0])
-          fprintf(sql_file, " %s",row[SHOW_EXTRA]);
-        check_io(sql_file);
-      }
-    }
     if (complete_insert)
       dynstr_append_checked(&insert_pat, select_field_names.str);
-    num_fields= mysql_num_rows(result);
+    num_fields= field_flags.length;
     mysql_free_result(result);
     if (!opt_no_create_info)
     {
@@ -4240,7 +4292,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   uint num_fields;
   size_t total_length, init_length;
   my_bool versioned= 0;
-
   MYSQL_RES     *res= NULL;
   MYSQL_FIELD   *field;
   MYSQL_ROW     row;
@@ -4251,7 +4302,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     --no-data flag below. Otherwise, the create table info won't be printed.
   */
   num_fields= get_table_structure(table, db, table_type, &ignore_flag, &versioned);
-
   /*
     The "table" could be a view.  If so, we don't do anything here.
   */
@@ -4544,8 +4594,9 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
         */
         is_blob= field->type == MYSQL_TYPE_GEOMETRY ||
                  field->type == MYSQL_TYPE_BIT ||
-                 field_flags.str[i] == MYSQL_TYPE_VECTOR[0] ||
+                 field_flags.str[i] & MYSQL_TYPE_VECTOR ||
                  (opt_hex_blob && field->charsetnr == 63 &&
+                  !(field_flags.str[i] & MYSQL_TYPE_VERS_COL) &&
                    (field->type == MYSQL_TYPE_STRING ||
                     field->type == MYSQL_TYPE_VAR_STRING ||
                     field->type == MYSQL_TYPE_VARCHAR ||
@@ -4560,7 +4611,10 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
           else
             dynstr_append_checked(&extended_row,",");
 
-          if (row[i])
+          /* For generated columns, output DEFAULT instead of the actual value */
+          if (field_flags.str[i] & MYSQL_TYPE_GENERATED)
+            dynstr_append_checked(&extended_row, "DEFAULT");
+          else if (row[i])
           {
             if (length)
             {
@@ -4630,7 +4684,13 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
             fputc(',', md_result_file);
             check_io(md_result_file);
           }
-          if (row[i])
+          /* For generated columns, output DEFAULT instead of the actual value */
+          if (field_flags.str[i] & MYSQL_TYPE_GENERATED)
+          {
+            fputs("DEFAULT", md_result_file);
+            check_io(md_result_file);
+          }
+          else if (row[i])
           {
             if (!(field->flags & NUM_FLAG))
             {
