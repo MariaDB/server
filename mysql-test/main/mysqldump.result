@@ -26,6 +26,150 @@ INSERT INTO t1 VALUES (1), (2);
 </mysqldump>
 DROP TABLE t1;
 #
+# MDEV-32362 Remove generated columns from INSERT statements in dump
+# Generated columns are omitted entirely from INSERT statements
+#
+CREATE DATABASE dump_generated;
+USE dump_generated;
+# Table with virtual generated columns at the end
+CREATE TABLE t1 (pk INTEGER, a INTEGER, b INTEGER, c VARCHAR(16),
+sum INTEGER GENERATED ALWAYS AS (a+b) VIRTUAL,
+sub VARCHAR(4) GENERATED ALWAYS AS (SUBSTRING(c, 1, 4)) VIRTUAL,
+key k1(sum),
+key k2(sub)
+) engine=innodb;
+INSERT INTO t1(pk, a, b, c) VALUES (1, 11, 12, 'oneone'), (2, 21, 22, 'twotwo');
+SELECT * FROM t1;
+pk	a	b	c	sum	sub
+1	11	12	oneone	23	oneo
+2	21	22	twotwo	43	twot
+# Default (extended insert) - generated columns use DEFAULT
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t1` VALUES
+(1,11,12,'oneone',DEFAULT,DEFAULT),
+(2,21,22,'twotwo',DEFAULT,DEFAULT);
+# Without extended insert - generated columns use DEFAULT
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t1` VALUES (1,11,12,'oneone',DEFAULT,DEFAULT);
+INSERT INTO `t1` VALUES (2,21,22,'twotwo',DEFAULT,DEFAULT);
+# With --complete-insert - generated columns are omitted
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t1` (`pk`, `a`, `b`, `c`) VALUES (1,11,12,'oneone'),
+(2,21,22,'twotwo');
+# With --xml
+<?xml version="1.0"?>
+<mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<database name="dump_generated">
+	<table_data name="t1">
+	<row>
+		<field name="pk">1</field>
+		<field name="a">11</field>
+		<field name="b">12</field>
+		<field name="c">oneone</field>
+		<field name="sum">DEFAULT</field>
+		<field name="sub">DEFAULT</field>
+	</row>
+	<row>
+		<field name="pk">2</field>
+		<field name="a">21</field>
+		<field name="b">22</field>
+		<field name="c">twotwo</field>
+		<field name="sum">DEFAULT</field>
+		<field name="sub">DEFAULT</field>
+	</row>
+	</table_data>
+</database>
+</mysqldump>
+# Dump/reload roundtrip
+DELETE FROM t1;
+SELECT * FROM t1;
+pk	a	b	c	sum	sub
+1	11	12	oneone	23	oneo
+2	21	22	twotwo	43	twot
+# With --tab
+DELETE FROM t1;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' INTO TABLE t1;
+SELECT * FROM t1;
+pk	a	b	c	sum	sub
+1	11	12	oneone	23	oneo
+2	21	22	twotwo	43	twot
+DROP TABLE t1;
+# Table with stored generated columns in the middle
+CREATE TABLE t2 (pk INTEGER, a INTEGER, b INTEGER,
+sum INTEGER GENERATED ALWAYS AS (a+b) STORED,
+c VARCHAR(16),
+key k1(sum)
+) engine=innodb;
+INSERT INTO t2(pk, a, b, c) VALUES (1, 11, 12, 'oneone'), (2, 21, 22, 'twotwo');
+SELECT * FROM t2;
+pk	a	b	sum	c
+1	11	12	23	oneone
+2	21	22	43	twotwo
+# Default (extended insert) - generated columns use DEFAULT
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t2` VALUES
+(1,11,12,DEFAULT,'oneone'),
+(2,21,22,DEFAULT,'twotwo');
+# Without extended insert - generated columns use DEFAULT
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t2` VALUES (1,11,12,DEFAULT,'oneone');
+INSERT INTO `t2` VALUES (2,21,22,DEFAULT,'twotwo');
+# With --xml
+<?xml version="1.0"?>
+<mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<database name="dump_generated">
+	<table_data name="t2">
+	<row>
+		<field name="pk">1</field>
+		<field name="a">11</field>
+		<field name="b">12</field>
+		<field name="sum">DEFAULT</field>
+		<field name="c">oneone</field>
+	</row>
+	<row>
+		<field name="pk">2</field>
+		<field name="a">21</field>
+		<field name="b">22</field>
+		<field name="sum">DEFAULT</field>
+		<field name="c">twotwo</field>
+	</row>
+	</table_data>
+</database>
+</mysqldump>
+# Dump/reload roundtrip
+DELETE FROM t2;
+SELECT * FROM t2;
+pk	a	b	sum	c
+1	11	12	23	oneone
+2	21	22	43	twotwo
+DROP TABLE t2;
+# Table with invisible generated column
+CREATE TABLE t3 (pk INTEGER, a INTEGER, b INTEGER,
+sum INTEGER GENERATED ALWAYS AS (a+b) INVISIBLE
+) engine=innodb;
+INSERT INTO t3(pk, a, b) VALUES (1, 11, 12), (2, 21, 22);
+SELECT pk, a, b, sum FROM t3;
+pk	a	b	sum
+1	11	12	23
+2	21	22	43
+# Default (extended insert) - invisible forces complete_insert, generated columns omitted
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t3` (`pk`, `a`, `b`) VALUES (1,11,12),
+(2,21,22);
+# Without extended insert
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t3` (`pk`, `a`, `b`) VALUES (1,11,12);
+INSERT INTO `t3` (`pk`, `a`, `b`) VALUES (2,21,22);
+# Dump/reload roundtrip
+DELETE FROM t3;
+SELECT pk, a, b, sum FROM t3;
+pk	a	b	sum
+1	11	12	23
+2	21	22	43
+DROP TABLE t3;
+DROP DATABASE dump_generated;
+USE test;
+#
 # Bug#2005 Long decimal comparison bug.
 #
 CREATE TABLE t1 (a decimal(64, 20));
