@@ -551,6 +551,7 @@ mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
 mysql_pfs_key_t	tpool_cache_mutex_key;
 mysql_pfs_key_t fsp_active_binlog_mutex_key;
+mysql_pfs_key_t fsp_purge_binlog_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -4095,6 +4096,7 @@ static int innodb_init(void* p)
         innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
         innobase_hton->binlog_flush= innodb_binlog_flush;
         innobase_hton->reset_binlogs= innodb_reset_binlogs;
+        innobase_hton->binlog_purge= innodb_binlog_purge;
 
 	innodb_remember_check_sysvar_funcs();
 
