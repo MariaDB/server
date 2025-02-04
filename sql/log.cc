@@ -5344,8 +5344,8 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *reclaimed_space,
     }
     else
     {
-      if (unlikely((error= find_log_pos(&check_log_info,
-                                        log_info.log_file_name, need_mutex))))
+      if (likely((error= find_log_pos(&check_log_info,
+                                      log_info.log_file_name, need_mutex))))
       {
         if (error != LOG_INFO_EOF)
         {
@@ -5618,6 +5618,40 @@ err:
   DBUG_RETURN(error);
 }
 
+
+void
+MYSQL_BIN_LOG::engine_purge_logs_by_size(ulonglong max_total_size)
+{
+  DBUG_ASSERT(opt_binlog_engine_hton);
+  if (!is_open())
+    return;
+
+  handler_binlog_purge_info purge_info;
+  auto p= engine_binlog_in_use();
+  purge_info.limit_file_no= p.first;
+  uint num_dump_threads= p.second;
+  if (num_dump_threads < slave_connections_needed_for_purge)
+  {
+    purge_info.limit_file_no= 0;
+    purge_info.nonpurge_reason= "less than "
+      "'slave_connections_needed_for_purge' slaves have processed it";
+  }
+  else
+    purge_info.nonpurge_reason= nullptr;
+  purge_info.nonpurge_filename[0]= '\0';
+  purge_info.purge_by_date= false;
+  purge_info.limit_date= my_time(0);
+  purge_info.purge_by_size= true;
+  purge_info.limit_size= max_total_size;
+  purge_info.purge_by_name= false;
+  purge_info.limit_name= nullptr;
+  int res= (*opt_binlog_engine_hton->binlog_purge)(&purge_info);
+  if (res && purge_info.nonpurge_reason)
+    give_purge_note(purge_info.nonpurge_reason,
+                    purge_info.nonpurge_filename, true);
+}
+
+
 /*
   @param  log_file_name_arg  Name of log file to check
   @param  interactive        True if called by a PURGE BINLOG command.
@@ -5648,6 +5682,7 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
   int res;
   const char *reason;
 
+  DBUG_ASSERT(is_relay_log || !opt_binlog_engine_hton);
   if (is_active(log_file_name_arg) ||
       (!is_relay_log && waiting_for_slave_to_change_binlog &&
        purge_sending_new_binlog_file == sending_new_binlog_file &&
@@ -5711,21 +5746,37 @@ error:
 
     /* purge_warning_given is reset after next sucessful purge */
     purge_warning_given= 1;
-    if (interactive)
-    {
-      my_printf_error(ER_BINLOG_PURGE_PROHIBITED,
-                      "Binary log '%s' is not purged because %s",
-                      MYF(ME_NOTE), log_file_name_arg, reason);
-    }
-    else
-    {
-      sql_print_information("Binary log '%s' is not purged because %s",
-                            log_file_name_arg, reason);
-    }
+    give_purge_note(reason, log_file_name_arg, interactive);
   }
   return 0;
 }
 #endif /* HAVE_REPLICATION */
+
+
+void
+give_purge_note(const char *reason, const char *file_name, bool interactive)
+{
+  if (interactive)
+  {
+    if (file_name && file_name[0])
+      my_printf_error(ER_BINLOG_PURGE_PROHIBITED,
+                      "Binary log '%s' is not purged because %s",
+                      MYF(ME_NOTE), file_name, reason);
+    else
+      my_printf_error(ER_BINLOG_PURGE_PROHIBITED,
+                      "Binary log purge is prevented because %s",
+                      MYF(ME_NOTE), reason);
+  }
+  else
+  {
+    if (file_name && file_name[0])
+      sql_print_information("Binary log '%s' is not purged because %s",
+                            file_name, reason);
+    else
+      sql_print_information("Binary log purge is prevented because %s",
+                            reason);
+  }
+}
 
 
 /**
@@ -5745,6 +5796,7 @@ int MYSQL_BIN_LOG::count_binlog_space()
   LOG_INFO log_info;
   DBUG_ENTER("count_binlog_space");
 
+  DBUG_ASSERT(!opt_binlog_engine_hton);
   binlog_space_total = 0;
   if ((error= find_log_pos(&log_info, NullS, false /*need_lock_index=false*/)))
     goto done;
