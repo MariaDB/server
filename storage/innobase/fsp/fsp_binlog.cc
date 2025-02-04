@@ -265,13 +265,13 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
 @param[in]  file_no	 Index of the binlog tablespace
 @param[out] new_space	 The newly created tablespace
 @return DB_SUCCESS or error code */
-dberr_t fsp_binlog_tablespace_create(uint64_t file_no, fil_space_t **new_space)
+dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages,
+                                     fil_space_t **new_space)
 {
 	pfs_os_file_t	fh;
 	bool		ret;
 
         *new_space= nullptr;
-	uint32_t size= innodb_binlog_size_in_pages;
 	if(srv_read_only_mode)
 		return DB_ERROR;
 
@@ -296,7 +296,8 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, fil_space_t **new_space)
 
 	/* We created the binlog file and now write it full of zeros */
 	if (!os_file_set_size(name, fh,
-			      os_offset_t{size} << srv_page_size_shift)) {
+			      os_offset_t{size_in_pages} << srv_page_size_shift)
+            ) {
 		sql_print_error("Unable to allocate file %s", name);
 		os_file_close(fh);
 		os_file_delete(innodb_data_file_key, name);
@@ -317,7 +318,8 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, fil_space_t **new_space)
 		return DB_ERROR;
 	}
 
-	fil_node_t* node = (*new_space)->add(name, fh, size, false, true);
+	fil_node_t* node = (*new_space)->add(name, fh, size_in_pages,
+                                             false, true);
 	node->find_metadata();
 	mysql_mutex_unlock(&fil_system.mutex);
 
@@ -575,6 +577,8 @@ fsp_binlog_flush()
   chunk_data_flush dummy_data;
   mtr_t mtr;
 
+  mysql_mutex_lock(&purge_binlog_mutex);
+
   mtr.start();
   mtr.x_lock_space(space);
   /*
@@ -588,6 +592,12 @@ fsp_binlog_flush()
   {
     mtr.trim_pages(page_id_t(space_id, page_no + 1));
     mtr.commit_shrink(*space, page_no + 1);
+
+    size_t reclaimed= (space->size - (page_no + 1)) << srv_page_size_shift;
+    if (UNIV_LIKELY(total_binlog_used_size >= reclaimed))
+      total_binlog_used_size-= reclaimed;
+    else
+      ut_ad(0);
   }
   else
     mtr.commit();
@@ -595,6 +605,8 @@ fsp_binlog_flush()
   /* Flush out all pages in the (now filled-up) tablespace. */
   while (buf_flush_list_space(space))
     ;
+
+  mysql_mutex_unlock(&purge_binlog_mutex);
 
   /*
     Now get a new GTID state record written to the next binlog tablespace.

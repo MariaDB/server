@@ -189,6 +189,10 @@ public:
   /* Release any buffer pool page latch. */
   void release(bool release_file_page= false);
   bool data_available();
+  uint64_t current_file_no() { return s.file_no; }
+  uint64_t current_pos() {
+    return (s.page_no << srv_page_size_shift) + s.in_page_offset;
+  }
 };
 
 
@@ -210,6 +214,7 @@ extern fil_space_t *fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
                                     uint64_t file_no, size_t file_size,
                                     bool open_empty);
 extern dberr_t fsp_binlog_tablespace_create(uint64_t file_no,
+                                            uint32_t size_in_pages,
                                             fil_space_t **new_space);
 extern std::pair<uint64_t, uint64_t> fsp_binlog_write_rec(
   struct chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type);

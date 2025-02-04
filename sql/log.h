@@ -28,6 +28,8 @@ class Gtid_log_event;
 
 bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream);
 void setup_log_handling();
+void give_purge_note(const char *reason, const char *file_name,
+                     bool interactive);
 bool trans_has_updated_trans_table(const THD* thd);
 bool stmt_has_updated_trans_table(const THD *thd);
 bool use_trans_cache(const THD* thd, bool is_transactional);
@@ -266,12 +268,14 @@ class Relay_log_info;
  */
 typedef struct st_log_info
 {
+  /* file_no only used when --binlog-storage-engine set. */
+  std::atomic<uint64_t> file_no;
+  /* log_file_name and *_offset only used when --binlog-storage-engine unset. */
   char log_file_name[FN_REFLEN];
   my_off_t index_file_offset, index_file_start_offset;
   my_off_t pos;
-  bool fatal; // if the purge happens to give us a negative offset
-  st_log_info() : index_file_offset(0), index_file_start_offset(0),
-      pos(0), fatal(0)
+  st_log_info() : file_no(~(uint64_t)0), index_file_offset(0),
+                  index_file_start_offset(0), pos(0)
   {
     DBUG_ENTER("LOG_INFO");
     log_file_name[0] = '\0';
@@ -1084,6 +1088,7 @@ public:
       return 0;
     return real_purge_logs_by_size(binlog_pos);
   }
+  void engine_purge_logs_by_size(ulonglong max_total_size);
   int set_purge_index_file_name(const char *base_file_name);
   int open_purge_index_file(bool destroy);
   bool truncate_and_remove_binlogs(const char *truncate_file,
