@@ -35,6 +35,7 @@ struct rpl_binlog_state_base;
 struct rpl_gtid;
 struct handler_binlog_event_group_info;
 class handler_binlog_reader;
+struct handler_binlog_purge_info;
 
 
 /*
@@ -72,6 +73,8 @@ extern uint32_t binlog_cur_page_no;
 extern uint32_t binlog_cur_page_offset;
 extern ulonglong innodb_binlog_state_interval;
 extern rpl_binlog_state_base binlog_diff_state;
+extern mysql_mutex_t purge_binlog_mutex;
+extern size_t total_binlog_used_size;
 
 
 static inline void
@@ -80,6 +83,13 @@ binlog_name_make(char name_buf[OS_FILE_MAX_PATH], uint64_t file_no)
   snprintf(name_buf, OS_FILE_MAX_PATH,
            "%s/" BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT,
            innodb_binlog_directory, file_no);
+}
+
+
+static inline void
+binlog_name_make_short(char *name_buf, uint64_t file_no)
+{
+  sprintf(name_buf, BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT, file_no);
 }
 
 
@@ -99,5 +109,6 @@ extern bool innobase_binlog_write_direct
    const rpl_gtid *gtid);
 extern bool innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last);
 extern bool innodb_reset_binlogs();
+extern int innodb_binlog_purge(handler_binlog_purge_info *purge_info);
 
 #endif /* innodb_binlog_h */

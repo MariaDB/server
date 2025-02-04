@@ -482,6 +482,7 @@ extern mysql_pfs_key_t trx_pool_manager_mutex_key;
 extern mysql_pfs_key_t lock_wait_mutex_key;
 extern mysql_pfs_key_t srv_threads_mutex_key;
 extern mysql_pfs_key_t fsp_active_binlog_mutex_key;
+extern mysql_pfs_key_t fsp_purge_binlog_mutex_key;
 # endif /* UNIV_PFS_MUTEX */
 
 # ifdef UNIV_PFS_RWLOCK
