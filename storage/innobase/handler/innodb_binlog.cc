@@ -57,6 +57,32 @@ rpl_binlog_state_base binlog_diff_state;
 static std::thread binlog_prealloc_thr_obj;
 static bool prealloc_thread_end= false;
 
+/*
+  Mutex around purge operations, including earliest_binlog_file_no and
+  total_binlog_used_size.
+*/
+mysql_mutex_t purge_binlog_mutex;
+
+/* The earliest binlog tablespace file. Used in binlog purge. */
+static uint64_t earliest_binlog_file_no;
+
+/*
+  The total space in use by binlog tablespace files. Maintained in-memory to
+  not have to stat(2) every file for every new binlog tablespace allocated in
+  case of --max-binlog-total-size.
+
+  Initialized at server startup (and in RESET MASTER), and updated as binlog
+  files are pre-allocated and purged.
+*/
+size_t total_binlog_used_size;
+
+static bool purge_warning_given= false;
+
+
+#ifdef UNIV_PFS_THREAD
+mysql_pfs_key_t binlog_prealloc_thread_key;
+#endif
+
 
 /* Structure holding context for out-of-band chunks of binlogged event group. */
 struct binlog_oob_context {
@@ -375,8 +401,8 @@ private:
 
 
 struct found_binlogs {
-  uint64_t last_file_no, prev_file_no;
-  size_t last_size, prev_size;
+  uint64_t last_file_no, prev_file_no, earliest_file_no;
+  size_t last_size, prev_size, total_size;
   int found_binlogs;
 };
 
@@ -384,6 +410,7 @@ struct found_binlogs {
 static void innodb_binlog_prealloc_thread();
 static int innodb_binlog_discover();
 static bool binlog_state_recover();
+static void innodb_binlog_autopurge(uint64_t first_open_file_no);
 
 
 /*
@@ -420,6 +447,7 @@ void
 innodb_binlog_startup_init()
 {
   fsp_binlog_init();
+  mysql_mutex_init(fsp_purge_binlog_mutex_key, &purge_binlog_mutex, nullptr);
   binlog_diff_state.init();
   innodb_binlog_inited= 1;
 }
@@ -432,6 +460,8 @@ innodb_binlog_init_state()
   binlog_cur_end_offset[0].store(~(uint64_t)0, std::memory_order_relaxed);
   binlog_cur_end_offset[1].store(~(uint64_t)0, std::memory_order_relaxed);
   last_created_binlog_file_no= ~(uint64_t)0;
+  earliest_binlog_file_no= ~(uint64_t)0;
+  total_binlog_used_size= 0;
   active_binlog_file_no.store(~(uint64_t)0, std::memory_order_release);
   active_binlog_space= nullptr;
   binlog_cur_page_no= 0;
@@ -530,6 +560,18 @@ process_binlog_name(found_binlogs *bls, uint64_t idx, size_t size)
     bls->found_binlogs= 2;
     bls->prev_file_no= idx;
     bls->prev_size= size;
+  }
+
+  if (bls->found_binlogs == 0)
+  {
+    bls->earliest_file_no= idx;
+    bls->total_size= size;
+  }
+  else
+  {
+    if (idx < bls->earliest_file_no)
+      bls->earliest_file_no= idx;
+    bls->total_size+= size;
   }
 }
 
@@ -702,6 +744,9 @@ innodb_binlog_discover()
   if (!page_buf)
     return -1;
   if (binlog_files.found_binlogs >= 1) {
+    earliest_binlog_file_no= binlog_files.earliest_file_no;
+    total_binlog_used_size= binlog_files.total_size;
+
     int res= find_pos_in_binlog(binlog_files.last_file_no,
                                 binlog_files.last_size,
                                 page_buf.get(),
@@ -771,6 +816,8 @@ innodb_binlog_discover()
 
   /* No binlog files found, start from scratch. */
   file_no= 0;
+  earliest_binlog_file_no= 0;
+  total_binlog_used_size= 0;
   ib::info() << "Starting a new binlog from file number " << file_no << ".";
   return 0;
 }
@@ -802,6 +849,7 @@ void innodb_binlog_close(bool shutdown)
   if (shutdown && innodb_binlog_inited >= 1)
   {
     binlog_diff_state.free();
+    mysql_mutex_destroy(&purge_binlog_mutex);
     fsp_binlog_shutdown();
   }
 }
@@ -813,6 +861,10 @@ void innodb_binlog_close(bool shutdown)
 static void
 innodb_binlog_prealloc_thread()
 {
+  my_thread_init();
+#ifdef UNIV_PFS_THREAD
+  pfs_register_thread(binlog_prealloc_thread_key);
+#endif
 
   mysql_mutex_lock(&active_binlog_mutex);
   while (1)
@@ -832,7 +884,18 @@ innodb_binlog_prealloc_thread()
       */
       ++last_created;
       mysql_mutex_unlock(&active_binlog_mutex);
-      dberr_t res2= fsp_binlog_tablespace_create(last_created, &new_space);
+
+      mysql_mutex_lock(&purge_binlog_mutex);
+      uint32_t size_in_pages=  innodb_binlog_size_in_pages;
+      dberr_t res2= fsp_binlog_tablespace_create(last_created, size_in_pages,
+                                                 &new_space);
+      if (earliest_binlog_file_no == ~(uint64_t)0)
+        earliest_binlog_file_no= last_created;
+      total_binlog_used_size+= (size_in_pages << srv_page_size_shift);
+
+      innodb_binlog_autopurge(first_open);
+      mysql_mutex_unlock(&purge_binlog_mutex);
+
       mysql_mutex_lock(&active_binlog_mutex);
       ut_a(res2 == DB_SUCCESS /* ToDo: Error handling. */);
       ut_a(new_space);
@@ -874,6 +937,12 @@ innodb_binlog_prealloc_thread()
 
   }
   mysql_mutex_unlock(&active_binlog_mutex);
+
+  my_thread_end();
+
+#ifdef UNIV_PFS_THREAD
+  pfs_delete_thread();
+#endif
 }
 
 
@@ -1650,6 +1719,8 @@ int ha_innodb_binlog_reader::read_binlog_data(uchar *buf, uint32_t len)
 {
   int res= read_data(buf, len);
   chunk_rd.release(res == 0);
+  cur_file_no= chunk_rd.current_file_no();
+  cur_file_pos= chunk_rd.current_pos();
   return res;
 }
 
@@ -2074,6 +2145,8 @@ ha_innodb_binlog_reader::init_gtid_pos(slave_connection_state *pos,
   {
     chunk_rd.seek(file_no, offset);
     chunk_rd.skip_partial(true);
+    cur_file_no= chunk_rd.current_file_no();
+    cur_file_pos= chunk_rd.current_pos();
   }
   return res;
 }
@@ -2121,43 +2194,17 @@ innobase_binlog_write_direct(IO_CACHE *cache,
 bool
 innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
 {
-  MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(0));
-  if (!dir)
+  mysql_mutex_lock(&active_binlog_mutex);
+  *out_last= last_created_binlog_file_no;
+  mysql_mutex_unlock(&active_binlog_mutex);
+  mysql_mutex_lock(&purge_binlog_mutex);
+  *out_first= earliest_binlog_file_no;
+  mysql_mutex_unlock(&purge_binlog_mutex);
+  if (*out_first == ~(uint64_t)0 || *out_last == ~(uint64_t)0)
   {
-    sql_print_error("Could not read the binlog directory '%s', error code %d",
-                    innodb_binlog_directory, my_errno);
+    ut_ad(0 /* Impossible, we wait at startup for binlog to be created. */);
     return true;
   }
-
-  size_t num_entries= dir->number_of_files;
-  fileinfo *entries= dir->dir_entry;
-  uint64_t first_file_no, last_file_no;
-  uint64_t num_file_no= 0;
-  for (size_t i= 0; i < num_entries; ++i) {
-    const char *name= entries[i].name;
-    uint64_t file_no;
-    if (!is_binlog_name(name, &file_no))
-      continue;
-    if (num_file_no == 0 || file_no < first_file_no)
-      first_file_no= file_no;
-    if (num_file_no == 0 || file_no > last_file_no)
-      last_file_no= file_no;
-    ++num_file_no;
-  }
-  my_dirend(dir);
-
-  if (num_file_no == 0)
-  {
-    sql_print_error("No binlog files found (deleted externally?)");
-    return true;
-  }
-  if (num_file_no != last_file_no - first_file_no + 1)
-  {
-    sql_print_error("Missing binlog files (deleted externally?)");
-    return true;
-  }
-  *out_first= first_file_no;
-  *out_last= last_file_no;
   return false;
 }
 
@@ -2206,4 +2253,233 @@ innodb_reset_binlogs()
   start_binlog_prealloc_thread();
 
   return err;
+}
+
+
+/*
+  The low-level function handling binlog purge.
+
+  How much to purge is determined by:
+
+  1. Lowest file_no that should not be purged. This is determined as the
+  minimum of:
+    1a. active_binlog_file_no
+    1b. first_open_binlog_file_no
+    1c. Any file_no in use by an active dump thread
+    1d. Any file_no containing oob data referenced by file_no from (1c)
+    1e. User specified file_no (from PURGE BINARY LOGS TO, if any).
+    1f. (ToDo): Any file_no that was still active at the last checkpoint.
+
+  2. Unix timestamp specifying the minimal value that should not be purged,
+  optional (used by PURGE BINARY LOGS BEFORE and --binlog-expire-log-seconds).
+
+  3. Maximum total size of binlogs, optional (from --max-binlog-total-size).
+
+  Sets out_file_no to the earliest binlog file not purged.
+  Additionally returns:
+
+     0  Purged all files as requested.
+     1  Some files were not purged due to being currently in-use (by binlog
+        writing or active dump threads).
+*/
+static int
+innodb_binlog_purge_low(uint64_t limit_file_no,
+                        bool by_date, time_t limit_date,
+                        bool by_size, ulonglong limit_size,
+                        bool by_name, uint64_t limit_name_file_no,
+                        uint64_t *out_file_no)
+{
+  ut_ad(by_date || by_size || by_name);
+  ut_a(limit_file_no <= active_binlog_file_no.load(std::memory_order_relaxed));
+  ut_a(limit_file_no <= first_open_binlog_file_no);
+
+  mysql_mutex_assert_owner(&purge_binlog_mutex);
+  size_t loc_total_size= total_binlog_used_size;
+  uint64_t file_no;
+  bool want_purge;
+
+  for (file_no= earliest_binlog_file_no; ; ++file_no)
+  {
+    want_purge= false;
+
+    char filename[OS_FILE_MAX_PATH];
+    binlog_name_make(filename, file_no);
+    MY_STAT stat_buf;
+    if (!my_stat(filename, &stat_buf, MYF(0)))
+    {
+      if (my_errno == ENOENT)
+        sql_print_information("InnoDB: File already gone when purging binlog "
+                              "file '%s'", filename);
+      else
+        sql_print_warning("InnoDB: Failed to stat() when trying to purge "
+                          "binlog file '%' (errno: %d)", filename, my_errno);
+      continue;
+    }
+
+    if (by_date && stat_buf.st_mtime < limit_date)
+      want_purge= true;
+    if (by_size && loc_total_size > limit_size)
+      want_purge= true;
+    if (by_name && file_no < limit_name_file_no)
+      want_purge= true;
+    if (file_no >= limit_file_no || !want_purge)
+      break;
+    earliest_binlog_file_no= file_no + 1;
+    if (loc_total_size < (size_t)stat_buf.st_size)
+    {
+      /*
+        Somehow we miscounted size, files changed from outside server or
+        possibly bug. We will handle not underflowing the total. If this
+        assertion becomes a problem for testing, it can just be removed.
+      */
+      ut_ad(0);
+    }
+    else
+      loc_total_size-= stat_buf.st_size;
+    if (my_delete(filename, MYF(0)))
+    {
+      if (my_errno == ENOENT)
+      {
+        /*
+          File already gone, just ignore the error.
+          (This should be somewhat unusual to happen as stat() succeeded).
+        */
+      }
+      else
+      {
+        sql_print_warning("InnoDB: Delete failed while trying to purge binlog "
+                          "file '%s' (errno: %d)", filename, my_error);
+        continue;
+      }
+    }
+  }
+  total_binlog_used_size= loc_total_size;
+  *out_file_no= file_no;
+  return (want_purge ? 1 : 0);
+}
+
+
+static void
+innodb_binlog_autopurge(uint64_t first_open_file_no)
+{
+  handler_binlog_purge_info UNINIT_VAR(purge_info);
+#ifdef HAVE_REPLICATION
+  extern bool ha_binlog_purge_info(handler_binlog_purge_info *out_info);
+  bool can_purge= ha_binlog_purge_info(&purge_info);
+#else
+  bool can_purge= false;
+#endif
+  if (!can_purge ||
+      !(purge_info.purge_by_size || purge_info.purge_by_date))
+    return;
+
+  /*
+    ToDo: Here, we need to move back the purge_info.limit_file_no to the
+    earliest file containing any oob data referenced from the supplied
+    purge_info.limit_file_no.
+  */
+
+  /* Don't purge any actively open tablespace files. */
+  uint64_t limit_file_no= purge_info.limit_file_no;
+  if (limit_file_no == ~(uint64_t)0 || limit_file_no > first_open_file_no)
+    limit_file_no= first_open_file_no;
+  uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+  if (limit_file_no > active)
+    limit_file_no= active;
+
+  uint64_t file_no;
+  int res=
+    innodb_binlog_purge_low(limit_file_no,
+                            purge_info.purge_by_date, purge_info.limit_date,
+                            purge_info.purge_by_size, purge_info.limit_size,
+                            false, 0,
+                            &file_no);
+  if (res)
+  {
+    if (!purge_warning_given)
+    {
+      char filename[BINLOG_NAME_MAX_LEN];
+      binlog_name_make_short(filename, file_no);
+      if (purge_info.nonpurge_reason)
+        sql_print_information("InnoDB: Binlog file %s could not be purged "
+                              "because %s",
+                              filename, purge_info.nonpurge_reason);
+      else if (purge_info.limit_file_no == file_no)
+        sql_print_information("InnoDB: Binlog file %s could not be purged "
+                              "because it is in use by a binlog dump thread "
+                              "(connected slave)", filename);
+      else if (limit_file_no == file_no)
+        sql_print_information("InnoDB: Binlog file %s could not be purged "
+                              "because it is in active use", filename);
+      else
+        sql_print_information("InnoDB: Binlog file %s could not be purged "
+                              "because it might still be needed", filename);
+      purge_warning_given= true;
+    }
+  }
+  else
+    purge_warning_given= false;
+}
+
+
+int
+innodb_binlog_purge(handler_binlog_purge_info *purge_info)
+{
+  /*
+    Let us check that we do not get an attempt to purge by file, date, and/or
+    size at the same time.
+    (If we do, it is not necesarily a problem, but this cannot happen in
+    current server code).
+  */
+  ut_ad(1 == (!!purge_info->purge_by_name +
+              !!purge_info->purge_by_date +
+              !!purge_info->purge_by_size));
+
+  if (!purge_info->purge_by_name && !purge_info->purge_by_date &&
+      !purge_info->purge_by_size)
+    return 0;
+
+  mysql_mutex_lock(&active_binlog_mutex);
+  uint64_t limit_file_no=
+    std::min(active_binlog_file_no.load(std::memory_order_relaxed),
+             first_open_binlog_file_no);
+  uint64_t last_created= last_created_binlog_file_no;
+  mysql_mutex_unlock(&active_binlog_mutex);
+
+  uint64_t to_file_no= ~(uint64_t)0;
+  if (purge_info->purge_by_name)
+  {
+    if (!is_binlog_name(purge_info->limit_name, &to_file_no) ||
+        to_file_no > last_created)
+      return LOG_INFO_EOF;
+  }
+
+  mysql_mutex_lock(&purge_binlog_mutex);
+  uint64_t file_no;
+  int res= innodb_binlog_purge_low(
+        std::min(purge_info->limit_file_no, limit_file_no),
+        purge_info->purge_by_date, purge_info->limit_date,
+        purge_info->purge_by_size, purge_info->limit_size,
+                                   purge_info->purge_by_name, to_file_no,
+        &file_no);
+  mysql_mutex_unlock(&purge_binlog_mutex);
+  if (res == 1)
+  {
+    static_assert(sizeof(purge_info->nonpurge_filename) >= BINLOG_NAME_MAX_LEN,
+                  "No room to return filename");
+    binlog_name_make_short(purge_info->nonpurge_filename, file_no);
+    if (!purge_info->nonpurge_reason)
+    {
+      if (limit_file_no == file_no)
+        purge_info->nonpurge_reason= "the binlog file is in active use";
+      else if (purge_info->limit_file_no == file_no)
+        purge_info->nonpurge_reason= "it is in use by a binlog dump thread "
+          "(connected slave)";
+    }
+    res= LOG_INFO_IN_USE;
+  }
+  else
+    purge_warning_given= false;
+
+  return res;
 }

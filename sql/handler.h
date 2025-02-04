@@ -64,6 +64,7 @@ struct rpl_gtid;
 struct slave_connection_state;
 struct rpl_binlog_state_base;
 struct handler_binlog_event_group_info;
+struct handler_binlog_purge_info;
 
 // the following is for checking tables
 
@@ -1573,6 +1574,13 @@ struct handlerton
   bool (*binlog_flush)();
   /* Engine implementation of RESET MASTER. */
   bool (*reset_binlogs)();
+  /*
+    Engine implementation of PURGE BINARY LOGS.
+    Return 0 for ok or one of LOG_INFO_* errors.
+
+    See also ha_binlog_purge_info() for auto-purge.
+  */
+  int (*binlog_purge)(handler_binlog_purge_info *purge_info);
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
@@ -5875,6 +5883,16 @@ struct handler_binlog_event_group_info {
   Class for reading a binlog implemented in an engine.
 */
 class handler_binlog_reader {
+public:
+  /*
+    Approximate current position (from which next call to read_binlog_data()
+    will need to read). Updated by the engine. Used to know which binlog files
+    the active dump threads are currently reading from, to avoid purging
+    actively used binlogs.
+  */
+  uint64_t cur_file_no;
+  uint64_t cur_file_pos;
+
 private:
   /* Position and length of any remaining data in buf[]. */
   uint32_t buf_data_pos;
@@ -5885,7 +5903,8 @@ private:
 
 public:
   handler_binlog_reader()
-    : buf_data_pos(0), buf_data_remain(0)
+    : cur_file_no(~(uint64_t)0), cur_file_pos(~(uint64_t)0),
+      buf_data_pos(0), buf_data_remain(0)
   {
     buf= (uchar *)my_malloc(PSI_INSTRUMENT_ME, BUF_SIZE, MYF(0));
   }
@@ -5894,10 +5913,53 @@ public:
   };
   virtual int read_binlog_data(uchar *buf, uint32_t len) = 0;
   virtual bool data_available()= 0;
+  /*
+    This initializes the current read position to the point of the slave GTID
+    position passed in as POS. It is permissible to start at a position a bit
+    earlier in the binlog, only cost is the extra read cost of reading not
+    needed event data.
+
+    If position is found, must return the corresponding binlog state in the
+    STATE output parameter and initialize cur_file_no and cur_file_pos members.
+
+    Returns:
+     -1  Error
+      0  The requested GTID position not found, needed binlogs have been purged
+      1  Ok, position found and returned.
+  */
   virtual int init_gtid_pos(slave_connection_state *pos,
                             rpl_binlog_state_base *state) = 0;
 
   int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
+};
+
+
+/* Structure returned by ha_binlog_purge_info(). */
+struct handler_binlog_purge_info {
+  /* The earliest binlog file that is in use by a dump thread. */
+  uint64_t limit_file_no;
+  /*
+    Set by engine to give a reason why a requested purge could not be done.
+    If set, then nonpurge_filename should be set to the filename.
+
+    Also set by ha_binlog_purge_info() when it returns false, to the reason
+    why no purge is possible. In this case, the nonpurge_filename is set
+    to the empty string.
+  */
+  const char *nonpurge_reason;
+  /* The user-configured maximum total size of the binlog. */
+  ulonglong limit_size;
+  /* Binlog name, for PURGE BINARY LOGS TO. */
+  const char *limit_name;
+  /* The earliest file date (unix timestamp) that should not be purged. */
+  time_t limit_date;
+  /* Whether purge by date and/or by size and/or name is requested. */
+  bool purge_by_date, purge_by_size, purge_by_name;
+  /*
+    The name of the file that could not be purged, when nonpurge_reason
+    is given.
+  */
+  char nonpurge_filename[FN_REFLEN];
 };
 
 #endif /* HANDLER_INCLUDED */

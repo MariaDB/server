@@ -1281,14 +1281,22 @@ static bool update_binlog_space_limit(sys_var *, THD *,
 
   if (opt_bin_log)
   {
-    if (binlog_space_limit)
-      mysql_bin_log.count_binlog_space();
-    /* Inform can_purge_log() that it should do a recheck of log_in_use() */
-    sending_new_binlog_file++;
-    mysql_bin_log.unlock_index();
-    mysql_bin_log.purge(1);
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    return 0;
+    if (opt_binlog_engine_hton)
+    {
+      if (loc_binlog_space_limit)
+        mysql_bin_log.engine_purge_logs_by_size(loc_binlog_space_limit);
+    }
+    else
+    {
+      if (loc_binlog_space_limit)
+        mysql_bin_log.count_binlog_space();
+      /* Inform can_purge_log() that it should do a recheck of log_in_use() */
+      sending_new_binlog_file++;
+      mysql_bin_log.unlock_index();
+      mysql_bin_log.purge(1);
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      return 0;
+    }
   }
   mysql_bin_log.unlock_index();
   mysql_mutex_lock(&LOCK_global_system_variables);
