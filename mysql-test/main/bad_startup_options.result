@@ -1,3 +1,6 @@
 FOUND 1 /\[ERROR\] SSL error: Unable to get certificate/ in errorlog.err
 FOUND 1 /\[ERROR\] SSL error: Failed to set ciphers to use/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Unable to get private key/ in errorlog.err
+FOUND 1 /Error reading from passphrase command 'BadCommand' output/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Unable to get private key/ in errorlog.err
 # restart

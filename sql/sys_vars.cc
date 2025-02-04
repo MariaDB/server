@@ -4126,6 +4126,12 @@ static Sys_var_charptr_fscs Sys_ssl_crlpath(
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        DEFAULT(0));
 
+static Sys_var_charptr Sys_ssl_passphrase_command(
+       "ssl_passphrase_command",
+       "SSL certificate key passphrase command",
+        READ_ONLY GLOBAL_VAR(opt_ssl_passphrase_command), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
 static const char *tls_version_names[]=
 {
   "TLSv1.0",

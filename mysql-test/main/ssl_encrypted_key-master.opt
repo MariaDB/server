@@ -1,0 +1,2 @@
+--loose-ssl_key=$MYSQL_TEST_DIR/std_data/encrypted-server-key.pem
+--loose-ssl_passphrase_command="echo MySecretPass"

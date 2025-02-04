@@ -16,6 +16,9 @@
 
 #include "vio_priv.h"
 #include <ssl_compat.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 #ifdef HAVE_OPENSSL
 #include <openssl/dh.h>
@@ -304,6 +307,74 @@ static long vio_tls_protocol_options(ulonglong tls_version)
   return (disabled_tls_protocols | disabled_ssl_protocols);
 }
 
+/**
+  Passphrase callback for SSL_CTX_set_default_passwd_cb
+
+  Executes command stored in userdata(as string) and reads the first line
+  of the output into the buffer. The buffer is expected to be large enough
+  to hold the passphrase.
+
+  @param buf buffer to store the passphrase
+  @param size size of the buffer
+  @param rw not used
+  @param userdata command to execute
+
+  @retval length of the passphrase
+*/
+
+static int ssl_external_passwd_cb(char *buf, int size, int rw, void *userdata)
+{
+  FILE *fp;
+  int rc;
+  size_t len;
+  const char *cmd= (const char *) userdata;
+
+  (void) rw;
+  DBUG_ASSERT(buf);
+  DBUG_ASSERT(size > 0);
+  DBUG_ASSERT(userdata);
+
+  fp= my_popen(cmd, "r");
+  if (!fp)
+  {
+    fprintf(stderr, "Error executing passphrase command '%s' (%d)\n",
+            cmd, errno);
+    return 0;
+  }
+
+  if (!fgets(buf, size, fp))
+  {
+    fprintf(stderr, "Error reading from passphrase command '%s' output (%d)\n",
+            cmd, errno);
+    my_pclose(fp);
+    return 0;
+  }
+
+  rc= my_pclose(fp);
+  if (rc == -1)
+  {
+    fprintf(stderr, "Error closing passphrase command '%s' (%d)\n",
+            cmd,errno);
+    return 0;
+  }
+  else if (rc)
+  {
+    fprintf(stderr, "Error returned from passphrase command '%s', status (%d)\n",
+            cmd, rc);
+    return 0;
+  }
+
+  // Trim trailing newline and carriage return
+  len= strlen(buf);
+  while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+  {
+    buf[--len]= 0;
+  }
+
+  return (int) len;
+}
+
+
 /*
   If some optional parameters indicate empty strings, then
   for compatibility with SSL libraries, replace them with NULL,
@@ -318,7 +389,7 @@ static struct st_VioSSLFd *
 new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
              const char *ca_path, const char *cipher, my_bool is_client_method,
              enum enum_ssl_init_error *error, const char *crl_file,
-             const char *crl_path, ulonglong tls_version)
+             const char *crl_path, ulonglong tls_version, char *passphrase)
 {
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options;
@@ -350,6 +421,12 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
     *error= SSL_INITERR_MEMFAIL;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
     goto err1;
+  }
+
+  if (passphrase)
+  {
+    SSL_CTX_set_default_passwd_cb_userdata(ssl_fd->ssl_context, passphrase);
+    SSL_CTX_set_default_passwd_cb(ssl_fd->ssl_context, ssl_external_passwd_cb);
   }
 
   ssl_ctx_options= vio_tls_protocol_options(tls_version);
@@ -494,7 +571,7 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
 
   /* Init the VioSSLFd as a "connector" ie. the client side */
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
-                             TRUE, error, crl_file, crl_path, 0)))
+                             TRUE, error, crl_file, crl_path, 0, NULL)))
   {
     return 0;
   }
@@ -510,14 +587,14 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 		     const char *ca_file, const char *ca_path,
 		     const char *cipher, enum enum_ssl_init_error* error,
                      const char *crl_file, const char *crl_path,
-                     ulonglong tls_version)
+                     ulonglong tls_version, char *passphrase)
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE;
 
   /* Init the the VioSSLFd as a "acceptor" ie. the server side */
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
-                             FALSE, error, crl_file, crl_path, tls_version)))
+                             FALSE, error, crl_file, crl_path, tls_version, passphrase)))
   {
     return 0;
   }
