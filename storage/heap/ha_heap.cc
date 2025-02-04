@@ -58,7 +58,7 @@ static void heap_update_optimizer_costs(OPTIMIZER_COSTS *costs)
   costs->key_copy_cost= 0;          // Set in keyread_time()
   costs->row_copy_cost= 2.334e-06;  // This is small as its just a memcpy
   costs->row_lookup_cost= 0;        // Direct pointer
-  costs->row_next_find_cost= 0;
+  costs->row_next_find_cost= HEAP_ROW_NEXT_FIND_COST;
   costs->key_lookup_cost= 0;
   costs->key_next_find_cost= 0;
   costs->index_block_copy_cost= 0;
@@ -272,7 +272,9 @@ IO_AND_CPU_COST ha_heap::keyread_time(uint index, ulong ranges, ha_rows rows,
 
 IO_AND_CPU_COST ha_heap::scan_time()
 {
-  return {0, (double) (stats.records+stats.deleted) * HEAP_ROW_NEXT_FIND_COST };
+  /* The caller ha_scan_time() handles stats.records */
+
+  return {0, (double) stats.deleted * HEAP_ROW_NEXT_FIND_COST };
 }
 
 

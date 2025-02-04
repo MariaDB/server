@@ -9031,7 +9031,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.012588104,
+    "cost": 0.010268108,
     "nested_loop": [
       {
         "table": {
@@ -9039,7 +9039,7 @@ EXPLAIN
           "access_type": "ALL",
           "loops": 1,
           "rows": 6,
-          "cost": 0.012588104,
+          "cost": 0.010268108,
           "filtered": 100,
           "attached_condition": "dt.minB = <cache>(localB@1) and dt.a = <cache>(localA@0 + localB@1)",
           "materialized": {
@@ -9073,7 +9073,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.012588104,
+    "cost": 0.010268108,
     "nested_loop": [
       {
         "table": {
@@ -9081,7 +9081,7 @@ EXPLAIN
           "access_type": "ALL",
           "loops": 1,
           "rows": 6,
-          "cost": 0.012588104,
+          "cost": 0.010268108,
           "filtered": 100,
           "attached_condition": "dt.minB = <cache>(localB@1) and dt.a = <cache>(localA@0 + localB@1)",
           "materialized": {

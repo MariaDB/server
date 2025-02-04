@@ -16567,24 +16567,62 @@ void JOIN_TAB::estimate_scan_time()
   }
   else
   {
+    bool using_heap= 0;
+    TABLE_SHARE *share= table->s;
+    handler *tmp_file= file;
+    records= table->stat_records();
+
+    if (share->db_type() == heap_hton)
+    {
+      /* Check that the rows will fit into the heap table */
+      ha_rows max_rows;
+      max_rows= (ha_rows) (MY_MIN(thd->variables.tmp_memory_table_size,
+                                  thd->variables.max_heap_table_size) /
+                           MY_ALIGN(share->reclength, sizeof(char*)));
+      if (records <= max_rows)
+      {
+        /* The rows will fit into the heap table */
+        using_heap= 1;
+      }
+      else if (likely((tmp_file= get_new_handler(share, &table->mem_root,
+                                                 TMP_ENGINE_HTON))))
+      {
+        tmp_file->costs= &tmp_table_optimizer_costs;
+      }
+      else
+        tmp_file= file;                         // Fallback for OOM
+    }
+
     /*
       The following is same as calling
       TABLE_SHARE::update_optimizer_costs, but without locks
     */
-    if (table->s->db_type() == heap_hton)
-      memcpy(&table->s->optimizer_costs, &heap_optimizer_costs,
+    if (using_heap)
+      memcpy(&share->optimizer_costs, &heap_optimizer_costs,
              sizeof(heap_optimizer_costs));
     else
-      memcpy(&table->s->optimizer_costs, &tmp_table_optimizer_costs,
+    {
+      memcpy(&share->optimizer_costs, &tmp_table_optimizer_costs,
              sizeof(tmp_table_optimizer_costs));
-    file->set_optimizer_costs(thd);
-    table->s->optimizer_costs_inited=1;
+      /* Set data_file_length in case of Aria tmp table */
+      tmp_file->stats.data_file_length= share->reclength * records;
+    }
 
-    records= table->stat_records();
+    table->s->optimizer_costs_inited=1;
+    /* Add current WHERE and SCAN SETUP cost to tmp file */
+    tmp_file->set_optimizer_costs(thd);
+
     DBUG_ASSERT(table->opt_range_condition_rows == records);
-    cost->row_cost= table->file->ha_scan_time(MY_MAX(records, 1000));
-    read_time= file->cost(cost->row_cost);
+    cost->row_cost= tmp_file->ha_scan_time(records);
+    tmp_file->stats.data_file_length= 0;
+    read_time= tmp_file->cost(cost->row_cost);
     row_copy_cost= table->s->optimizer_costs.row_copy_cost;
+
+    if (file != tmp_file)
+    {
+      delete tmp_file;
+      file->set_optimizer_costs(thd);
+    }
   }
 
   found_records= records;

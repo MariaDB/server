@@ -3634,42 +3634,42 @@ set statement optimizer_switch='condition_pushdown_for_derived=off' for select *
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	2	3	207	207
-6	20	315	279.3333	6	20	315	279.3333	1	21	909	12
-6	20	315	279.3333	6	20	315	279.3333	7	13	312	406
-6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
-6	20	315	279.3333	6	20	315	279.3333	1	19	203	107
-6	20	315	279.3333	6	20	315	279.3333	3	12	231	190
-6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	2	3	207	207
+6	20	315	279.3333	6	20	315	279.3333	1	21	909	12
 8	33	404	213.6667	8	33	404	213.6667	1	21	909	12
+6	20	315	279.3333	6	20	315	279.3333	7	13	312	406
 8	33	404	213.6667	8	33	404	213.6667	7	13	312	406
+6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
 8	33	404	213.6667	8	33	404	213.6667	6	20	315	279
+6	20	315	279.3333	6	20	315	279.3333	1	19	203	107
 8	33	404	213.6667	8	33	404	213.6667	1	19	203	107
+6	20	315	279.3333	6	20	315	279.3333	3	12	231	190
 8	33	404	213.6667	8	33	404	213.6667	3	12	231	190
+6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	6	23	303	909
 select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	2	3	207	207
-6	20	315	279.3333	6	20	315	279.3333	1	21	909	12
-6	20	315	279.3333	6	20	315	279.3333	7	13	312	406
-6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
-6	20	315	279.3333	6	20	315	279.3333	1	19	203	107
-6	20	315	279.3333	6	20	315	279.3333	3	12	231	190
-6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	2	3	207	207
+6	20	315	279.3333	6	20	315	279.3333	1	21	909	12
 8	33	404	213.6667	8	33	404	213.6667	1	21	909	12
+6	20	315	279.3333	6	20	315	279.3333	7	13	312	406
 8	33	404	213.6667	8	33	404	213.6667	7	13	312	406
+6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
 8	33	404	213.6667	8	33	404	213.6667	6	20	315	279
+6	20	315	279.3333	6	20	315	279.3333	1	19	203	107
 8	33	404	213.6667	8	33	404	213.6667	1	19	203	107
+6	20	315	279.3333	6	20	315	279.3333	3	12	231	190
 8	33	404	213.6667	8	33	404	213.6667	3	12	231	190
+6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	6	23	303	909
 explain select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
@@ -3682,28 +3682,12 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 20,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t2.b < 50"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 20,
-            "cost": "COST_REPLACED",
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "238",
-          "join_type": "BNL",
           "attached_condition": "v1.b is not null",
           "materialized": {
             "query_block": {
@@ -3740,11 +3724,10 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 180,
+          "loops": 20,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "v2.a = v1.a or v1.a = t2.a",
           "materialized": {
             "query_block": {
               "select_id": 3,
@@ -3770,6 +3753,23 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 40,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t2.b < 50"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL",
+          "attached_condition": "v2.a = v1.a or t2.a = v1.a"
         }
       }
     ]
@@ -4158,9 +4158,9 @@ select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
@@ -4172,29 +4172,13 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 20,
           "cost": "COST_REPLACED",
-          "filtered": 100
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 20,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.a = 1 and v1.b > 10"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "238",
-          "join_type": "BNL",
-          "attached_condition": "v1.b is not null",
+          "filtered": 100,
+          "attached_condition": "v1.a = 1 and v1.b > 10 and v1.b is not null",
           "materialized": {
             "query_block": {
               "select_id": 2,
@@ -4231,7 +4215,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 180,
+          "loops": 20,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -4260,6 +4244,21 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 40,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL"
         }
       }
     ]
@@ -4737,10 +4736,10 @@ where t1.a<8 group by a,b) v3,
 t2 where (v1.a=v2.a) and (v1.b=v3.b) and ((v3.avg_c>170) or (v3.a<5))
 and ((v1.avg_c<400) or (v1.a>1)) and (v2.min_c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	5	v1.a	2	Using where
 1	PRIMARY	<derived4>	ref	key0	key0	5	v1.b	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -4761,28 +4760,12 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 20,
           "cost": "COST_REPLACED",
-          "filtered": 100
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 20,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.avg_c < 400 or v1.a > 1"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "238",
-          "join_type": "BNL",
+          "filtered": 100,
           "attached_condition": "(v1.avg_c < 400 or v1.a > 1) and v1.a is not null and v1.b is not null",
           "materialized": {
             "query_block": {
@@ -4820,7 +4803,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["v1.a"],
-          "loops": 180,
+          "loops": 20,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -4861,7 +4844,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 360,
+          "loops": 40,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -4891,6 +4874,21 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 80,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "4Kb",
+          "join_type": "BNL"
         }
       }
     ]
@@ -7796,104 +7794,104 @@ set statement optimizer_switch='condition_pushdown_for_derived=off' for select *
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
 a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	1	21	500	234.6000	2	3	207	207
-1	19	107	1	21	500	234.6000	1	21	909	12
-1	19	107	1	21	500	234.6000	7	13	312	406
-1	19	107	1	21	500	234.6000	8	64	248	107
-1	19	107	1	21	500	234.6000	6	20	315	279
-1	19	107	1	21	500	234.6000	1	19	203	107
-1	19	107	1	21	500	234.6000	8	80	800	314
-1	19	107	1	21	500	234.6000	3	12	231	190
-1	19	107	1	21	500	234.6000	6	23	303	909
 5	16	207	5	16	207	207.0000	2	3	207	207
-5	16	207	5	16	207	207.0000	1	21	909	12
-5	16	207	5	16	207	207.0000	7	13	312	406
-5	16	207	5	16	207	207.0000	8	64	248	107
-5	16	207	5	16	207	207.0000	6	20	315	279
-5	16	207	5	16	207	207.0000	1	19	203	107
-5	16	207	5	16	207	207.0000	8	80	800	314
-5	16	207	5	16	207	207.0000	3	12	231	190
-5	16	207	5	16	207	207.0000	6	23	303	909
 5	27	132	5	16	207	207.0000	2	3	207	207
-5	27	132	5	16	207	207.0000	1	21	909	12
-5	27	132	5	16	207	207.0000	7	13	312	406
-5	27	132	5	16	207	207.0000	8	64	248	107
-5	27	132	5	16	207	207.0000	6	20	315	279
-5	27	132	5	16	207	207.0000	1	19	203	107
-5	27	132	5	16	207	207.0000	8	80	800	314
-5	27	132	5	16	207	207.0000	3	12	231	190
-5	27	132	5	16	207	207.0000	6	23	303	909
 6	20	315	6	20	315	279.3333	2	3	207	207
-6	20	315	6	20	315	279.3333	1	21	909	12
-6	20	315	6	20	315	279.3333	7	13	312	406
-6	20	315	6	20	315	279.3333	8	64	248	107
-6	20	315	6	20	315	279.3333	6	20	315	279
-6	20	315	6	20	315	279.3333	1	19	203	107
-6	20	315	6	20	315	279.3333	8	80	800	314
-6	20	315	6	20	315	279.3333	3	12	231	190
-6	20	315	6	20	315	279.3333	6	23	303	909
 8	33	404	8	33	404	213.6667	2	3	207	207
+1	19	107	1	21	500	234.6000	1	21	909	12
+5	16	207	5	16	207	207.0000	1	21	909	12
+5	27	132	5	16	207	207.0000	1	21	909	12
+6	20	315	6	20	315	279.3333	1	21	909	12
 8	33	404	8	33	404	213.6667	1	21	909	12
+1	19	107	1	21	500	234.6000	7	13	312	406
+5	16	207	5	16	207	207.0000	7	13	312	406
+5	27	132	5	16	207	207.0000	7	13	312	406
+6	20	315	6	20	315	279.3333	7	13	312	406
 8	33	404	8	33	404	213.6667	7	13	312	406
+1	19	107	1	21	500	234.6000	8	64	248	107
+5	16	207	5	16	207	207.0000	8	64	248	107
+5	27	132	5	16	207	207.0000	8	64	248	107
+6	20	315	6	20	315	279.3333	8	64	248	107
 8	33	404	8	33	404	213.6667	8	64	248	107
+1	19	107	1	21	500	234.6000	6	20	315	279
+5	16	207	5	16	207	207.0000	6	20	315	279
+5	27	132	5	16	207	207.0000	6	20	315	279
+6	20	315	6	20	315	279.3333	6	20	315	279
 8	33	404	8	33	404	213.6667	6	20	315	279
+1	19	107	1	21	500	234.6000	1	19	203	107
+5	16	207	5	16	207	207.0000	1	19	203	107
+5	27	132	5	16	207	207.0000	1	19	203	107
+6	20	315	6	20	315	279.3333	1	19	203	107
 8	33	404	8	33	404	213.6667	1	19	203	107
+1	19	107	1	21	500	234.6000	8	80	800	314
+5	16	207	5	16	207	207.0000	8	80	800	314
+5	27	132	5	16	207	207.0000	8	80	800	314
+6	20	315	6	20	315	279.3333	8	80	800	314
 8	33	404	8	33	404	213.6667	8	80	800	314
+1	19	107	1	21	500	234.6000	3	12	231	190
+5	16	207	5	16	207	207.0000	3	12	231	190
+5	27	132	5	16	207	207.0000	3	12	231	190
+6	20	315	6	20	315	279.3333	3	12	231	190
 8	33	404	8	33	404	213.6667	3	12	231	190
+1	19	107	1	21	500	234.6000	6	23	303	909
+5	16	207	5	16	207	207.0000	6	23	303	909
+5	27	132	5	16	207	207.0000	6	23	303	909
+6	20	315	6	20	315	279.3333	6	23	303	909
 8	33	404	8	33	404	213.6667	6	23	303	909
 select * from v4,v1,t2 where
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
 a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	1	21	500	234.6000	2	3	207	207
-1	19	107	1	21	500	234.6000	1	21	909	12
-1	19	107	1	21	500	234.6000	7	13	312	406
-1	19	107	1	21	500	234.6000	8	64	248	107
-1	19	107	1	21	500	234.6000	6	20	315	279
-1	19	107	1	21	500	234.6000	1	19	203	107
-1	19	107	1	21	500	234.6000	8	80	800	314
-1	19	107	1	21	500	234.6000	3	12	231	190
-1	19	107	1	21	500	234.6000	6	23	303	909
 5	16	207	5	16	207	207.0000	2	3	207	207
-5	16	207	5	16	207	207.0000	1	21	909	12
-5	16	207	5	16	207	207.0000	7	13	312	406
-5	16	207	5	16	207	207.0000	8	64	248	107
-5	16	207	5	16	207	207.0000	6	20	315	279
-5	16	207	5	16	207	207.0000	1	19	203	107
-5	16	207	5	16	207	207.0000	8	80	800	314
-5	16	207	5	16	207	207.0000	3	12	231	190
-5	16	207	5	16	207	207.0000	6	23	303	909
 5	27	132	5	16	207	207.0000	2	3	207	207
-5	27	132	5	16	207	207.0000	1	21	909	12
-5	27	132	5	16	207	207.0000	7	13	312	406
-5	27	132	5	16	207	207.0000	8	64	248	107
-5	27	132	5	16	207	207.0000	6	20	315	279
-5	27	132	5	16	207	207.0000	1	19	203	107
-5	27	132	5	16	207	207.0000	8	80	800	314
-5	27	132	5	16	207	207.0000	3	12	231	190
-5	27	132	5	16	207	207.0000	6	23	303	909
 6	20	315	6	20	315	279.3333	2	3	207	207
-6	20	315	6	20	315	279.3333	1	21	909	12
-6	20	315	6	20	315	279.3333	7	13	312	406
-6	20	315	6	20	315	279.3333	8	64	248	107
-6	20	315	6	20	315	279.3333	6	20	315	279
-6	20	315	6	20	315	279.3333	1	19	203	107
-6	20	315	6	20	315	279.3333	8	80	800	314
-6	20	315	6	20	315	279.3333	3	12	231	190
-6	20	315	6	20	315	279.3333	6	23	303	909
 8	33	404	8	33	404	213.6667	2	3	207	207
+1	19	107	1	21	500	234.6000	1	21	909	12
+5	16	207	5	16	207	207.0000	1	21	909	12
+5	27	132	5	16	207	207.0000	1	21	909	12
+6	20	315	6	20	315	279.3333	1	21	909	12
 8	33	404	8	33	404	213.6667	1	21	909	12
+1	19	107	1	21	500	234.6000	7	13	312	406
+5	16	207	5	16	207	207.0000	7	13	312	406
+5	27	132	5	16	207	207.0000	7	13	312	406
+6	20	315	6	20	315	279.3333	7	13	312	406
 8	33	404	8	33	404	213.6667	7	13	312	406
+1	19	107	1	21	500	234.6000	8	64	248	107
+5	16	207	5	16	207	207.0000	8	64	248	107
+5	27	132	5	16	207	207.0000	8	64	248	107
+6	20	315	6	20	315	279.3333	8	64	248	107
 8	33	404	8	33	404	213.6667	8	64	248	107
+1	19	107	1	21	500	234.6000	6	20	315	279
+5	16	207	5	16	207	207.0000	6	20	315	279
+5	27	132	5	16	207	207.0000	6	20	315	279
+6	20	315	6	20	315	279.3333	6	20	315	279
 8	33	404	8	33	404	213.6667	6	20	315	279
+1	19	107	1	21	500	234.6000	1	19	203	107
+5	16	207	5	16	207	207.0000	1	19	203	107
+5	27	132	5	16	207	207.0000	1	19	203	107
+6	20	315	6	20	315	279.3333	1	19	203	107
 8	33	404	8	33	404	213.6667	1	19	203	107
+1	19	107	1	21	500	234.6000	8	80	800	314
+5	16	207	5	16	207	207.0000	8	80	800	314
+5	27	132	5	16	207	207.0000	8	80	800	314
+6	20	315	6	20	315	279.3333	8	80	800	314
 8	33	404	8	33	404	213.6667	8	80	800	314
+1	19	107	1	21	500	234.6000	3	12	231	190
+5	16	207	5	16	207	207.0000	3	12	231	190
+5	27	132	5	16	207	207.0000	3	12	231	190
+6	20	315	6	20	315	279.3333	3	12	231	190
 8	33	404	8	33	404	213.6667	3	12	231	190
+1	19	107	1	21	500	234.6000	6	23	303	909
+5	16	207	5	16	207	207.0000	6	23	303	909
+5	27	132	5	16	207	207.0000	6	23	303	909
+6	20	315	6	20	315	279.3333	6	23	303	909
 8	33	404	8	33	404	213.6667	6	23	303	909
 explain select * from v4,v1,t2 where
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
 1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -7907,28 +7905,12 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 20,
           "cost": "COST_REPLACED",
-          "filtered": 100
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 20,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v4.b > 10 and v4.a > 1 or v4.b < 20"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "238",
-          "join_type": "BNL",
+          "filtered": 100,
           "attached_condition": "(v4.b > 10 and v4.a > 1 or v4.b < 20) and v4.a is not null",
           "materialized": {
             "query_block": {
@@ -7990,7 +7972,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["v4.a"],
-          "loops": 180,
+          "loops": 20,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -8019,6 +8001,21 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 40,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL"
         }
       }
     ]
@@ -22667,7 +22664,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.012461052,
+    "cost": 0.010134054,
     "nested_loop": [
       {
         "table": {
@@ -22675,7 +22672,7 @@ EXPLAIN
           "access_type": "ALL",
           "loops": 1,
           "rows": 3,
-          "cost": 0.012461052,
+          "cost": 0.010134054,
           "filtered": 100,
           "attached_condition": "v1.r < 'x'",
           "materialized": {
