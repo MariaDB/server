@@ -31731,6 +31731,8 @@ enum explainable_cmd_type get_explainable_cmd_type(THD *thd)
     return SELECT_CMD;
   case SQLCOM_INSERT:
   case SQLCOM_INSERT_SELECT:
+  case SQLCOM_INSERT_ON_DUPLICATE_KEY_IGNORE:
+  case SQLCOM_INSERT_ON_DUPLICATE_KEY_REPLACE:
     return INSERT_CMD;
   case SQLCOM_REPLACE:
   case SQLCOM_REPLACE_SELECT:
@@ -31920,7 +31922,9 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     str->append(' ');
 
     if (thd->lex->sql_command == SQLCOM_INSERT ||
-        thd->lex->sql_command == SQLCOM_REPLACE)
+        thd->lex->sql_command == SQLCOM_REPLACE ||
+        thd->lex->sql_command == SQLCOM_INSERT_ON_DUPLICATE_KEY_IGNORE||
+        thd->lex->sql_command == SQLCOM_INSERT_ON_DUPLICATE_KEY_REPLACE)
     {
       str->append(STRING_WITH_LEN("values "));
       bool is_first_elem= true;

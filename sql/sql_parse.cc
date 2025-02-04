@@ -4434,6 +4434,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if ((res= generate_incident_event(thd)))
       break;
     /* fall through */
+  case SQLCOM_INSERT_ON_DUPLICATE_KEY_IGNORE:
+  case SQLCOM_INSERT_ON_DUPLICATE_KEY_REPLACE:
   case SQLCOM_INSERT:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);

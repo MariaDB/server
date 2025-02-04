@@ -1760,7 +1760,7 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
     {
       case SQLCOM_INSERT_SELECT:
       case SQLCOM_INSERT:
-        if (thd->lex->duplicates != DUP_UPDATE)
+        if (thd->lex->duplicates == DUP_ERROR)
           return false;
         break;
       case SQLCOM_LOAD:

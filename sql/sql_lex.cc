@@ -4499,6 +4499,9 @@ void LEX::set_trg_event_type_for_tables()
   case DUP_REPLACE:
     new_trg_event_map|= trg2bit(TRG_EVENT_DELETE);
     break;
+  case DUP_IGNORE:
+    new_trg_event_map|= trg2bit(TRG_EVENT_INSERT);
+    break;  
   case DUP_ERROR:
   default:
     break;

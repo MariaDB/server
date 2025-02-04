@@ -13443,8 +13443,12 @@ opt_temporary:
 insert:
           INSERT
           {
-            Lex->sql_command= SQLCOM_INSERT;
-            Lex->duplicates= DUP_ERROR;
+            if($3)
+              Lex->sql_command= SQLCOM_INSERT_ON_DUPLICATE_KEY_IGNORE;
+              Lex->duplicates= DUP_IGNORE;              
+            else
+              Lex->sql_command= SQLCOM_INSERT;
+              Lex->duplicates= DUP_ERROR;
             thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
             thd->get_stmt_da()->reset_current_row_for_warning(1);
           }
