@@ -1355,12 +1355,18 @@ int multi_delete::send_data(List<Item> &values)
 
     if (secure_counter < 0)
     {
+      bool trg_skip_row= false;
+
       /* We are scanning the current table */
       DBUG_ASSERT(del_table == table_being_deleted);
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_BEFORE, false))
+                                            TRG_ACTION_BEFORE, false,
+                                            &trg_skip_row))
         DBUG_RETURN(1);
+
+      if (trg_skip_row)
+        continue;
 
       table->status|= STATUS_DELETED;
 
@@ -1372,7 +1378,8 @@ int multi_delete::send_data(List<Item> &values)
           thd->transaction->stmt.modified_non_trans_table= TRUE;
         if (table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                              TRG_ACTION_AFTER, false))
+                                              TRG_ACTION_AFTER, false,
+                                              nullptr))
           DBUG_RETURN(1);
       }
       else if (!ignore)
@@ -1584,14 +1591,21 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
       continue;
     }
 
+    bool trg_skip_row= false;
+
     if (table->triggers &&
         unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                   TRG_ACTION_BEFORE, FALSE)))
+                                                   TRG_ACTION_BEFORE, FALSE,
+                                                   &trg_skip_row)))
     {
       err_table= table;
       local_error= 1;
       break;
     }
+
+    if (trg_skip_row)
+      continue;
+
     local_error= table->delete_row();
     if (unlikely(local_error) && !ignore)
     {
@@ -1609,7 +1623,8 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
       deleted++;
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_AFTER, FALSE))
+                                            TRG_ACTION_AFTER, FALSE,
+                                            nullptr))
       {
         err_table= table;
         local_error= 1;

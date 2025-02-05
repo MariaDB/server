@@ -14,7 +14,7 @@ $
 # invoked from the trigger
 INSERT INTO t1 VALUES (1), (2), (3);
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
 # Expected output is the rows (2), (3)
 SELECT * FROM t1;
@@ -32,9 +32,9 @@ INSERT INTO t2 VALUES (1), (2), (1), (3), (5);
 # invoked from the trigger
 INSERT INTO t1 SELECT * FROM t2;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
 # Expected output is the rows (2), (3), (5)
 SELECT * FROM t1;
@@ -66,9 +66,9 @@ SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t2' FROM t2;
 # invoked from the trigger
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t2' INTO TABLE t1;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
 # Querying of the table `t1` should return three rows: (2), (3), (5)
 SELECT * FROM t1;
@@ -89,9 +89,9 @@ TRUNCATE TABLE t1;
 # invoked from the trigger
 LOAD XML INFILE 'MYSQLTEST_VARDIR/tmp/loadxml-dump.xml' INTO TABLE t1 ROWS IDENTIFIED BY '<row>';
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
 SELECT * FROM t1;
 a
@@ -118,9 +118,9 @@ $
 # invoked from the trigger
 DELETE FROM t1 WHERE a = 1;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
 # Show that the rows satisfying the condition a = 1 are retained
 # in the table. Expected output is the rows (1), (2), (3), (1)
@@ -143,9 +143,9 @@ a
 # account the fact that some of rows should be skipped.
 DELETE FROM t1;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
 # Expected output is the rows (1), (1) since they are explicilty
 # skipped by the trigger logic
@@ -175,7 +175,7 @@ END
 $
 INSERT INTO t1 VALUES (1), (2), (3);
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bi
 SELECT * FROM t1;
 a
@@ -205,7 +205,7 @@ END
 $
 DELETE FROM t1;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bd
 # The row (1) is skipped by implementation of the trigger t1_bd,
 # therefore the row (1) isn't inserted into the table t2 since
@@ -241,7 +241,7 @@ $
 # for this row and the row (1, 11) not inserted into the table t2
 UPDATE t1 SET a = a + 10;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bu
 # Expected output of the following statement SELECT is (1), (12), (13)
 SELECT * FROM t1;
@@ -270,9 +270,9 @@ $
 # Check for update with condition
 UPDATE t1 SET a = 1000 WHERE a = 1;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bd
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bd
 # Expected result is the rows (1), (2), (1), (3), (5)
 SELECT * FROM t1;
@@ -285,9 +285,9 @@ a
 # Check for unconditional update
 UPDATE t1 SET a = a + 100;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bd
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bd
 # Expected result is the rows (1), (102), (1), (103), (105)
 SELECT * FROM t1;
@@ -307,9 +307,9 @@ INSERT INTO t2 VALUES (1), (3);
 # the second table (without a trigger) is still updated
 UPDATE t1, t2 SET t1.a = t1.a + 300, t2.a = t2.a + 300 WHERE t1.a = t2.a;
 Warnings:
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bd
-Error	4207	The row is skipped by a trigger implementation
+Error	4208	The row is skipped by a trigger implementation
 Note	4094	At line 4 in test.t1_bd
 # Expected results is the rows (1), (2), (1), (303), (5)
 SELECT * FROM t1;
