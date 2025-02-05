@@ -260,4 +260,9 @@ x
 2222
 drop view v;
 drop table t;
+#
+# MDEV-35919 Server crashes in Item_func_vec_distance::fix_length_and_dec upon reading from I_S table
+#
+select vec_distance(value(key_cache_name), 0x30303030) from information_schema.key_caches;
+ERROR HY000: Cannot determine distance type for VEC_DISTANCE, index is not found
 # End of 11.8 tests
