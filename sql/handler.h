@@ -2357,7 +2357,8 @@ struct Table_scope_and_contents_source_st:
   parts are handled on the SQL level and are not needed on the handler level.
 */
 struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
-                       public Schema_specification_st
+                       public Schema_specification_st,
+                       public DDL_options_st
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
@@ -2366,6 +2367,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
+    DDL_options_st::init();
     alter_info= NULL;
   }
   ulong table_options_with_row_type()
@@ -2386,8 +2388,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
   This struct is passed to mysql_create_table() and similar creation functions,
   as well as to show_create_table().
 */
-struct Table_specification_st: public HA_CREATE_INFO,
-                               public DDL_options_st
+struct Table_specification_st: public HA_CREATE_INFO
 {
   Lex_table_charset_collation_attrs_st default_charset_collation;
   Lex_table_charset_collation_attrs_st convert_charset_collation;

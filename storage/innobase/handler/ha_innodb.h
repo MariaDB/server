@@ -733,6 +733,7 @@ public:
 
 	THD* thd() const { return(m_thd); }
 
+	bool		first_part;
 private:
 	/** Parses the table name into normal name and either temp path or
 	remote path if needed.*/
@@ -742,6 +743,14 @@ private:
 
 	/** Create the internal innodb table definition. */
 	int create_table_def();
+
+        /**
+          With partitioning duplicate foreign id check requires prefix matching.
+          The original check when duplicate error was originated from rename_constraint_ids
+          now incapable of extended prefix check so additional fk_check_dup() is now done
+          before foreign keys has been added to SYS_FOREIGN table.
+        */
+        dberr_t fk_check_dup(const dict_foreign_t *fk);
 
         /** Adds the given set of foreign key objects to the dictionary tables
         in the database. This function does not modify the dictionary cache. The
@@ -806,6 +815,8 @@ private:
 	size_t		part_suffix_len;
 	/** True if the name is temporary (is_temporary_name()) */
 	bool		tmp_name;
+        /** Original (non-temporary) name of table */
+	char		orig_name[MAX_FOREIGN_ID_LEN];
 };
 
 /**

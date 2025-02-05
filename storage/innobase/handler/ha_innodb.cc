@@ -53,6 +53,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
+#include "sql_funcs.h"
+
 
 extern my_bool opt_readonly;
 
@@ -3513,16 +3515,14 @@ innobase_convert_identifier(
 {
 	const char*	s	= id;
 // That was wrong buffer size assumption as id is full identifier of format:
-	/* db/table_name#P#part_name#SP#subpart_name */
-	static const size_t ID_LEN= MAX_TABLE_NAME_LEN * 3 + 1 + 3 + 4 + 1;
-	char nz[ID_LEN];
-	char nz2[ID_LEN];
+	char nz[MAX_FOREIGN_ID_LEN];
+	char nz2[MAX_FOREIGN_ID_LEN];
 
 	/* Decode the table name.  The MySQL function expects
 	a NUL-terminated string.  The input and output strings
 	buffers must not be shared. */
         /* ut_a(db/table_name#P#part_name#SP#subpart_name) */
-	ut_a(idlen < ID_LEN);
+	ut_a(idlen < MAX_FOREIGN_ID_LEN);
 	memcpy(nz, id, idlen);
 	nz[idlen] = 0;
 
@@ -5288,7 +5288,8 @@ create_table_info_t::create_table_info_t(
 	HA_CREATE_INFO*	create_info,
 	bool		file_per_table,
 	trx_t*		trx)
-	: m_thd(thd),
+	  : first_part(false),
+	  m_thd(thd),
 	  m_trx(trx),
 	  m_form(form),
 	  m_default_row_format(innodb_default_row_format),
@@ -12393,6 +12394,7 @@ create_table_info_t::create_foreign_keys()
 		char* bufend = innobase_convert_name(
 			create_name, sizeof create_name, n, strlen(n), m_thd);
 		*bufend = '\0';
+		strcpy(orig_name, n);
 		mem_heap_free(heap);
 		operation = "Alter ";
 		/* Alter does not mean temporary name. F.ex. ADD PARTITION adds
@@ -12404,6 +12406,7 @@ create_table_info_t::create_foreign_keys()
 						     LEX_STRING_WITH_LEN(name),
 						     m_thd);
 		*bufend = '\0';
+		strcpy(orig_name, name.str);
 	}
 
 	if ((part_suffix= is_partition(name.str))) {
@@ -12498,6 +12501,138 @@ create_table_info_t::create_foreign_keys()
 	return (error);
 }
 
+/*
+   Excludes FOR_NAME == orig_name from check as REMOVE PARTITIONING creates
+   new table with foreign keys but old foreign keys for partitioned table still
+   exist.
+*/
+struct fk_check_dup_arg
+{
+  static constexpr auto suffix_len= sizeof(table_name_t::part_suffix) - 1;
+  ib_uint32_t match;
+  const char *orig_name;
+  size_t orig_name_len;
+  char orig_name_wc[MAX_FULL_NAME_LEN + suffix_len + 1];
+  fk_check_dup_arg(const char *orig_name) : match{0}, orig_name{orig_name}
+  {
+    orig_name_len= strlen(orig_name);
+    ut_ad(orig_name_len <= MAX_FULL_NAME_LEN);
+    memcpy(orig_name_wc, orig_name, orig_name_len);
+    memcpy(orig_name_wc + orig_name_len, table_name_t::part_suffix,
+           sizeof(table_name_t::part_suffix));
+    orig_name_wc[orig_name_len + sizeof(table_name_t::part_suffix)]= 0;
+  }
+
+  bool name_matches(const byte *name, ulint len)
+  {
+    if (len == orig_name_len &&
+        0 == memcmp(orig_name, name, orig_name_len))
+      return true;
+    if (len > orig_name_len + suffix_len &&
+        0 == memcmp(orig_name, name, orig_name_len) &&
+        0 == memcmp(name + orig_name_len, table_name_t::part_suffix, suffix_len))
+      return true;
+    return false;
+  }
+};
+
+/*
+  While fk_check_id_sql can do basic selection by FOREIGN_ID it cannot check
+  FOR_NAME as well. This callback function does it via name_matches().
+*/
+static ibool fk_check_dup_rec(void *node_void, void *user_arg)
+{
+  fk_check_dup_arg *arg= (fk_check_dup_arg *) user_arg;
+  sel_node_t* node= (sel_node_t*) node_void;
+  dfield_t* dfield;
+  dtype_t* type;
+  ulint len;
+  const byte* data;
+  // First column is ID
+  que_common_t* cnode = static_cast<que_common_t*>(node->select_list);
+#ifndef DBUG_OFF
+  dfield= que_node_get_val(cnode);
+  type= dfield_get_type(dfield);
+  len= dfield_get_len(dfield);
+  ut_a(dtype_get_mtype(type) == DATA_VARCHAR);
+  data= static_cast<const byte*>(dfield_get_data(dfield));
+#endif
+  // Next column is FOR_NAME
+  cnode= static_cast<que_common_t*>(que_node_get_next(cnode));
+  dfield= que_node_get_val(cnode);
+  type= dfield_get_type(dfield);
+  len= dfield_get_len(dfield);
+  ut_a(dtype_get_mtype(type) == DATA_VARCHAR);
+  data= static_cast<const byte*>(dfield_get_data(dfield));
+  if (!arg->name_matches(data, len))
+    arg->match= 1;
+  return 0;
+}
+
+/**
+  With partitioning duplicate foreign id check requires prefix matching.
+  The original check when duplicate error was originated from rename_constraint_ids
+  now incapable of extended prefix check so additional fk_check_dup() is now done
+  before foreign keys has been added to SYS_FOREIGN table.
+*/
+dberr_t
+create_table_info_t::fk_check_dup(const dict_foreign_t *fk)
+{
+  pars_info_t *info;
+  fk_check_dup_arg arg(orig_name);
+  dberr_t err;
+  size_t id_len= strlen(fk->id);
+  static const char nullbyte= '\0';
+  static const char xff= '\xFF';
+  char wc[MAX_FOREIGN_ID_LEN];
+  char for_id[MAX_FOREIGN_ID_LEN];
+
+  if (part_suffix)
+  {
+    ut_ad(id_len > part_suffix_len + 1);
+    ut_ad(0 == memcmp(part_suffix, fk->id + id_len - part_suffix_len,
+                      part_suffix_len));
+    ut_ad(fk->id[id_len - part_suffix_len - 1] == xff);
+    id_len-= part_suffix_len + 1;
+  }
+  char *tmpchar= (char *) memchr((void *)fk->id, xff, id_len);
+  const size_t id_size= id_len + sizeof(nullbyte) - (tmpchar ? 1 : 0);
+
+  if (tmpchar)
+  {
+    id_len--;
+    const size_t s0= tmpchar - fk->id;
+    const size_t s1= id_len - s0;
+    ut_ad(s0 + s1 == id_size - sizeof(nullbyte));
+    memcpy(wc, fk->id, s0);
+    memcpy(wc + s0, tmpchar + 1, s1);
+  }
+  else
+    memcpy(wc, fk->id, id_len);
+
+  wc[id_len]= xff;
+  wc[id_len + 1]= nullbyte;
+  memcpy(for_id, wc, id_len);
+  for_id[id_len]= nullbyte;
+
+  info= pars_info_create();
+  if (!info)
+    return DB_OUT_OF_MEMORY;
+
+  pars_info_bind_function(info, "get_match", fk_check_dup_rec, &arg);
+  pars_info_add_str_literal(info, "foreign_wc", wc);
+  pars_info_add_int4_literal(info, "len_wc", (ulint) id_len + 1);
+  pars_info_add_str_literal(info, "foreign", for_id);
+  pars_info_bind_int4_literal(info, "match", &arg.match);
+
+  ut_ad(dict_sys.locked());
+  err= que_eval_sql(info, fk_check_id_sql, m_trx);
+  if (err != DB_SUCCESS)
+    return err;
+
+  return arg.match ? DB_FOREIGN_DUPLICATE_KEY : DB_SUCCESS;
+}
+
 /** Adds the given set of foreign key objects to the dictionary tables
 in the database. This function does not modify the dictionary cache. The
 caller must ensure that all foreign key objects contain a valid constraint
@@ -12518,14 +12653,20 @@ create_table_info_t::add_foreigns_to_dictionary(
     return DB_ERROR;
   }
 
+  const bool check_dup= !part_suffix || first_part;
   const bool strict_mode = thd_is_strict_mode(m_trx->mysql_thd);
   for (auto fk : local_fk_set)
+  {
+    dberr_t error;
+    if (check_dup && (error= fk_check_dup(fk)))
+      return error;
     if (strict_mode && m_trx->check_foreigns &&
         !fk->check_fk_constraint_valid())
       return DB_CANNOT_ADD_CONSTRAINT;
     else if (dberr_t error= dict_create_add_foreign_to_dictionary
              (m_table->name.m_name, fk, m_trx))
       return error;
+  }
 
   return DB_SUCCESS;
 }
@@ -13402,6 +13543,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   DBUG_ASSERT(form->s == table_share);
   DBUG_ASSERT(table_share->table_type == TABLE_TYPE_SEQUENCE ||
               table_share->table_type == TABLE_TYPE_NORMAL);
+  DBUG_ASSERT(!create_fk || !create_info->like());
 
   create_table_info_t info(ha_thd(), form, create_info, file_per_table, trx);
 
@@ -13440,6 +13582,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
         keys for current partition. */
         create_fk= form->is_vers_current_partition(this);
       }
+      info.first_part= form->is_first_partition(this);
     }
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
     /* We can't possibly have foreign key information when creating a
@@ -13450,6 +13593,15 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
 
   if (own_trx || (info.flags2() & DICT_TF2_TEMPORARY))
   {
+    /*
+      This was started by create_foreign_keys(). Now create_foreign_keys()
+      may be not called for such commands as CREATE LIKE.
+    */
+    if (!trx->dict_operation)
+    {
+      trx_start_if_not_started_xa(trx, true);
+      trx->dict_operation = true;
+    }
     if (error)
       trx_rollback_for_mysql(trx);
     else
@@ -13499,7 +13651,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
 int ha_innobase::create(const char *name, TABLE *form,
                         HA_CREATE_INFO *create_info)
 {
-  return create(name, form, create_info, srv_file_per_table);
+  return create(name, form, create_info, srv_file_per_table, nullptr, !create_info->like());
 }
 
 /*****************************************************************//**

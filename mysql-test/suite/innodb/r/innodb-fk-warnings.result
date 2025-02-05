@@ -13,12 +13,11 @@ c int not null,
 CONSTRAINT mytest FOREIGN KEY (c) REFERENCES t1(id),
 CONSTRAINT test FOREIGN KEY (b) REFERENCES t2 (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
+ERROR HY000: Can't create table `test`.`t2` (errno: 163 "Upholding foreign key constraints would lead to a duplicate key error in some other table")
 show warnings;
 Level	Code	Message
-Warning	121	CREATE or ALTER TABLE `test`.`t2` failed: duplicate name, CONSTRAINT `test` FOREIGN KEY (`b`) REFERENCES `t2` (`id`)
-Error	1005	Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
-Warning	1022	Can't write; duplicate key in table 't2'
+Error	1005	Can't create table `test`.`t2` (errno: 163 "Upholding foreign key constraints would lead to a duplicate key error in some other table")
+Error	4209	Duplicate constraint name
 drop table t1;
 create table t1(a int) engine=innodb;
 create table t2(a int, constraint a foreign key a (a) references t1(a)) engine=innodb;

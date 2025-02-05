@@ -4775,6 +4775,11 @@ void handler::print_error(int error, myf errflag)
   }
   case HA_ERR_FOREIGN_DUPLICATE_KEY:
   {
+    if (!table)
+    {
+      my_error(ER_DUP_CONSTRAINT_NAME_2, MYF(0));
+      DBUG_VOID_RETURN;
+    }
     char rec_buf[MAX_KEY_LENGTH];
     String rec(rec_buf, sizeof(rec_buf), system_charset_info);
     /* Table is opened and defined at this point */

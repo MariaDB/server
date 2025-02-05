@@ -1,5 +1,6 @@
 --source include/have_partition.inc
 --source include/have_innodb.inc
+--source include/lcase_names.inc
 
 --echo #
 --echo # MDEV-19191 Partial support of foreign keys in partitioned tables
@@ -58,6 +59,7 @@ create or replace table t2 (
 with system versioning engine innodb
 partition by system_time partitions 2;
 
+# test/t2_ibfk_1
 create or replace table t2 (
   fk int,
   foreign key(fk) references t1(id)
@@ -163,15 +165,10 @@ show create table t2;
 show create table t3;
 
 --echo # Same constraint id in non-partitioned
-# Same name is allowed. Uniqueness per-db is rather implementation restriction
-# that real user requirements.
+--error ER_CANT_CREATE_TABLE
 create table t4 (fk int, foreign key fk02 (fk) references t1(id)) engine innodb;
-# For non-partitioned the restriction still holds. It is not a feature so
-# we may loosen this restriction at least partly for MDEV-19191.
-# MDEV-16417 removes it compeletely.
 --error ER_CANT_CREATE_TABLE
 create table t5 (fk int, foreign key fk02 (fk) references t1(id)) engine innodb;
-drop table t4;
 
 --error ER_NO_REFERENCED_ROW_2
 insert into t3 values (10);
@@ -207,6 +204,37 @@ delete from t1 where id = 10;
 --replace_result #p# #P# #sp# #SP#
 select * from information_schema.innodb_sys_foreign where for_name like 'test/t4%';
 alter table t4 rename to t3;
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+
+create table tT like t2;
+--echo # CREATE LIKE does not copy foreign keys
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+alter table tT add constraint fk03 foreign key (fk) references t1(id);
+if (!$MTR_COMBINATION_LCASE1)
+{
+  select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+  --error ER_TABLE_EXISTS_ERROR
+  alter table tT rename to t2;
+  alter table tT rename to T2;
+  select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+  rename table T2 to t4;
+}
+if ($MTR_COMBINATION_LCASE1)
+{
+  --replace_result tt tT
+  select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+  --replace_result T2 t2
+  --error ER_TABLE_EXISTS_ERROR
+  alter table tT rename to T2;
+  --replace_result T5 T2
+  alter table tT rename to T5;
+  --replace_result t5 T2
+  select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+  --replace_result T5 T2
+  rename table T5 to t4;
+}
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+drop table t4;
 
 --error ER_NO_REFERENCED_ROW_2
 insert into t3 values (11);
@@ -291,6 +319,9 @@ partition by range columns (fk) (
 
 insert t3 values (2), (300);
 alter table t3 convert partition p0 to table tp0;
+# This is the violation of foreign_id uniqueness per DB,
+# since this limitation should be lifted it should be rather left as is.
+# Otherwise we have to implement drop of foreign keys in tp0 in rename_constraint_ids.
 --replace_result #p# #P# #sp# #SP#
 select * from information_schema.innodb_sys_foreign;
 show create table tp0;
@@ -360,7 +391,14 @@ insert tp0 values (0);
 --error ER_TABLES_DIFFERENT_METADATA
 alter table t3 convert table tp0 to partition p0 values in (0, 1);
 alter table tp0 drop foreign key fk02;
-alter table tp0 add foreign key fk03(fk) references t1(id);
+# The only way now to convert table to partition with foreign keys is to
+# match foreign key id which is possible with foreign_key_checks= off.
+# The problem is mysql_compare_tables() compares keys, not foreign keys
+# so loosen that would loose restriction for keys as well as
+# foreign key id cannot be different from key name.
+set session foreign_key_checks= off;
+alter table tp0 add foreign key fk03 (fk) references t1(id);
+set session foreign_key_checks= on;
 show create table t3;
 show create table tp0;
 alter table t3 convert table tp0 to partition p0 values in (0, 1, 2);
@@ -369,12 +407,12 @@ delete from t1 where id = 0;
 
 show create table t3;
 --replace_result #p# #P# #sp# #SP#
-select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+select * from information_schema.innodb_sys_foreign;
 
 --echo # COALESCE
 create or replace table t3 (
   fk int,
-  foreign key fk01 (fk) references t1(id))
+  foreign key fk02 (fk) references t1(id))
 engine innodb
 partition by hash (fk) partitions 4;
 
