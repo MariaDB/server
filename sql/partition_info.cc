@@ -422,7 +422,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
     if (likely(part_elem != 0 &&
                (!partitions.push_back(part_elem))))
     {
-      part_elem->engine_type= default_engine_type;
+      part_elem->engine_type= main_engine_ht;
       part_elem->partition_name= Lex_cstring_strlen(default_name);
       part_elem->id= i;
       default_name+=MAX_PART_NAME_SIZE;
@@ -499,7 +499,7 @@ bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
                                                 part_elem->partition_name.str);
         if (!ptr)
           goto end;
-        subpart_elem->engine_type= default_engine_type;
+        subpart_elem->engine_type= main_engine_ht;
         subpart_elem->partition_name= Lex_cstring_strlen(ptr);
       }
       else
@@ -1253,14 +1253,14 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
                                           handler *file, HA_CREATE_INFO *info,
                                           partition_info *add_or_reorg_part)
 {
-  handlerton *table_engine= default_engine_type;
+  handlerton *table_engine= main_engine_ht;
   uint i, tot_partitions;
   bool result= TRUE, table_engine_set;
   const char *same_name;
   uint32 hist_parts= 0;
   uint32 now_parts= 0;
   DBUG_ENTER("partition_info::check_partition_info");
-  DBUG_ASSERT(default_engine_type != partition_hton);
+  DBUG_ASSERT(main_engine_ht != partition_hton);
 
   DBUG_PRINT("info", ("default table_engine = %s",
                       ha_resolve_storage_engine_name(table_engine)));
@@ -1324,7 +1324,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
       If Create, always use create_info->db_type
       else, use previous tables db_type 
       either ALL or NONE partition should be set to
-      default_engine_type when not table_engine_set
+      main_engine_ht when not table_engine_set
       Note: after a table is created its storage engines for
       the table and all partitions/subpartitions are set.
       So when ALTER it is already set on table level
@@ -1390,7 +1390,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
         if (part_elem->engine_type == NULL)
         {
           num_parts_not_set++;
-          part_elem->engine_type= default_engine_type;
+          part_elem->engine_type= main_engine_ht;
         }
         if (Lex_ident_table::check_name(part_elem->partition_name, false))
         {
@@ -1421,7 +1421,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
               sub_elem->engine_type= part_elem->engine_type;
             else
             {
-              sub_elem->engine_type= default_engine_type;
+              sub_elem->engine_type= main_engine_ht;
               num_subparts_not_set++;
             }
           }
@@ -1450,7 +1450,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
           else
           {
             num_parts_not_set++;
-            part_elem->engine_type= default_engine_type;
+            part_elem->engine_type= main_engine_ht;
           }
         }
       }
@@ -1467,6 +1467,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
         }
       }
     } while (++i < num_parts);
+    /*MDEV-22168
     if (!table_engine_set &&
         num_parts_not_set != 0 &&
         num_parts_not_set != num_parts)
@@ -1476,12 +1477,15 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
       my_error(ER_MIX_HANDLER_ERROR, MYF(0));
       goto end;
     }
+    */
   }
+  /*MDEV-22168
   if (unlikely(check_engine_mix(table_engine, table_engine_set)))
   {
     my_error(ER_MIX_HANDLER_ERROR, MYF(0));
     goto end;
   }
+  */
 
   if (hist_parts > 1)
   {
@@ -1502,7 +1506,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
 
   DBUG_ASSERT(table_engine != partition_hton &&
-              default_engine_type == table_engine);
+              main_engine_ht == table_engine);
   if (eng_type)
     *eng_type= table_engine;
 

@@ -1,0 +1,20 @@
+#
+# Various tests for tables partitioned over different engines
+#
+--source include/have_partition.inc
+--source include/have_innodb.inc
+
+create table t1(id int, name varchar(64)) engine=myisam
+  partition by range (id)
+  partitions 2
+  (
+    partition p1 values less than (3),
+    partition p2 values less than (100) engine=heap
+  );
+show create table t1;
+insert into t1 values (1, 'one');
+insert into t1 values (2, 'two');
+select * from t1;
+insert into t1 values (10, 'ten');
+select * from t1;
+drop table t1;

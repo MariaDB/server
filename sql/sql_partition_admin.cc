@@ -159,7 +159,7 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
     DBUG_RETURN(TRUE);
   }
 
-  if (unlikely(table->file->ht != part_table->part_info->default_engine_type))
+  if (unlikely(table->file->ht != part_table->part_info->main_engine_ht))
   {
     my_error(ER_MIX_HANDLER_ERROR, MYF(0));
     DBUG_RETURN(TRUE);
@@ -219,7 +219,7 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
     DBUG_RETURN(TRUE);
   }
   /* db_type is not set in prepare_alter_table */
-  part_create_info.db_type= part_table->part_info->default_engine_type;
+  part_create_info.db_type= part_table->part_info->main_engine_ht;
   ((ha_partition*)(part_table->file))->update_part_create_info(&part_create_info, part_id);
   /*
     Since we exchange the partition with the table, allow exchanging
