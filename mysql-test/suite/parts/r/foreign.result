@@ -212,9 +212,9 @@ SUBPARTITIONS 2
  PARTITION `p1` VALUES LESS THAN (1000) ENGINE = InnoDB)
 # Same constraint id in non-partitioned
 create table t4 (fk int, foreign key fk02 (fk) references t1(id)) engine innodb;
+ERROR HY000: Can't create table `test`.`t4` (errno: 163 "Upholding foreign key constraints would lead to a duplicate key error in some other table")
 create table t5 (fk int, foreign key fk02 (fk) references t1(id)) engine innodb;
-ERROR HY000: Can't create table `test`.`t5` (errno: 121 "Duplicate key on write or update")
-drop table t4;
+ERROR HY000: Can't create table `test`.`t5` (errno: 163 "Upholding foreign key constraints would lead to a duplicate key error in some other table")
 insert into t3 values (10);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t3` /* Partition `p0`, Subpartition `p0sp0` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 insert into t1 values (10);
@@ -271,6 +271,60 @@ test/fk02:p0sp1	test/t4#P#p0#SP#p0sp1	test/t1	1	0
 test/fk02:p1sp0	test/t4#P#p1#SP#p1sp0	test/t1	1	0
 test/fk02:p1sp1	test/t4#P#p1#SP#p1sp1	test/t1	1	0
 alter table t4 rename to t3;
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk01:p0	test/t2#P#p0	test/t1	1	0
+test/fk01:p1	test/t2#P#p1	test/t1	1	0
+test/fk02:p0sp0	test/t3#P#p0#SP#p0sp0	test/t1	1	0
+test/fk02:p0sp1	test/t3#P#p0#SP#p0sp1	test/t1	1	0
+test/fk02:p1sp0	test/t3#P#p1#SP#p1sp0	test/t1	1	0
+test/fk02:p1sp1	test/t3#P#p1#SP#p1sp1	test/t1	1	0
+create table tT like t2;
+# CREATE LIKE does not copy foreign keys
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk01:p0	test/t2#P#p0	test/t1	1	0
+test/fk01:p1	test/t2#P#p1	test/t1	1	0
+test/fk02:p0sp0	test/t3#P#p0#SP#p0sp0	test/t1	1	0
+test/fk02:p0sp1	test/t3#P#p0#SP#p0sp1	test/t1	1	0
+test/fk02:p1sp0	test/t3#P#p1#SP#p1sp0	test/t1	1	0
+test/fk02:p1sp1	test/t3#P#p1#SP#p1sp1	test/t1	1	0
+alter table tT add constraint fk03 foreign key (fk) references t1(id);
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk01:p0	test/t2#P#p0	test/t1	1	0
+test/fk01:p1	test/t2#P#p1	test/t1	1	0
+test/fk02:p0sp0	test/t3#P#p0#SP#p0sp0	test/t1	1	0
+test/fk02:p0sp1	test/t3#P#p0#SP#p0sp1	test/t1	1	0
+test/fk02:p1sp0	test/t3#P#p1#SP#p1sp0	test/t1	1	0
+test/fk02:p1sp1	test/t3#P#p1#SP#p1sp1	test/t1	1	0
+test/fk03:p0	test/tT#P#p0	test/t1	1	0
+test/fk03:p1	test/tT#P#p1	test/t1	1	0
+alter table tT rename to t2;
+ERROR 42S01: Table 't2' already exists
+alter table tT rename to T2;
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk01:p0	test/t2#P#p0	test/t1	1	0
+test/fk01:p1	test/t2#P#p1	test/t1	1	0
+test/fk02:p0sp0	test/t3#P#p0#SP#p0sp0	test/t1	1	0
+test/fk02:p0sp1	test/t3#P#p0#SP#p0sp1	test/t1	1	0
+test/fk02:p1sp0	test/t3#P#p1#SP#p1sp0	test/t1	1	0
+test/fk02:p1sp1	test/t3#P#p1#SP#p1sp1	test/t1	1	0
+test/fk03:p0	test/T2#P#p0	test/t1	1	0
+test/fk03:p1	test/T2#P#p1	test/t1	1	0
+rename table T2 to t4;
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk01:p0	test/t2#P#p0	test/t1	1	0
+test/fk01:p1	test/t2#P#p1	test/t1	1	0
+test/fk02:p0sp0	test/t3#P#p0#SP#p0sp0	test/t1	1	0
+test/fk02:p0sp1	test/t3#P#p0#SP#p0sp1	test/t1	1	0
+test/fk02:p1sp0	test/t3#P#p1#SP#p1sp0	test/t1	1	0
+test/fk02:p1sp1	test/t3#P#p1#SP#p1sp1	test/t1	1	0
+test/fk03:p0	test/t4#P#p0	test/t1	1	0
+test/fk03:p1	test/t4#P#p1	test/t1	1	0
+drop table t4;
 insert into t3 values (11);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t3` /* Partition `p0`, Subpartition `p0sp1` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 delete from t1 where id = 10;
@@ -530,7 +584,9 @@ insert tp0 values (0);
 alter table t3 convert table tp0 to partition p0 values in (0, 1);
 ERROR HY000: Tables have different definitions
 alter table tp0 drop foreign key fk02;
-alter table tp0 add foreign key fk03(fk) references t1(id);
+set session foreign_key_checks= off;
+alter table tp0 add foreign key fk03 (fk) references t1(id);
+set session foreign_key_checks= on;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -560,62 +616,63 @@ t3	CREATE TABLE `t3` (
  PARTITION BY LIST (`fk`)
 (PARTITION `p1` VALUES IN (4,5,6,7) ENGINE = InnoDB,
  PARTITION `p0` VALUES IN (0,1,2) ENGINE = InnoDB)
-select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk01	test/t2	test/t1	1	0
 test/fk03:p0	test/t3#P#p0	test/t1	1	0
 test/fk03:p1	test/t3#P#p1	test/t1	1	0
 # COALESCE
 create or replace table t3 (
 fk int,
-foreign key fk01 (fk) references t1(id))
+foreign key fk02 (fk) references t1(id))
 engine innodb
 partition by hash (fk) partitions 4;
 delete from t1;
 insert into t1 values (0), (1), (2), (3);
 insert into t3 values (0), (1), (2), (3);
 delete from t1 where id = 0;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p0` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p0` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 delete from t1 where id = 1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p1` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p1` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 delete from t1 where id = 2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p2` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p2` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 delete from t1 where id = 3;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p3` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p3` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `fk` int(11) DEFAULT NULL,
-  KEY `fk01` (`fk`),
-  CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`)
+  KEY `fk02` (`fk`),
+  CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`fk`)
 PARTITIONS 4
 select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
-test/fk01:p0	test/t3#P#p0	test/t1	1	0
-test/fk01:p1	test/t3#P#p1	test/t1	1	0
-test/fk01:p2	test/t3#P#p2	test/t1	1	0
-test/fk01:p3	test/t3#P#p3	test/t1	1	0
+test/fk02:p0	test/t3#P#p0	test/t1	1	0
+test/fk02:p1	test/t3#P#p1	test/t1	1	0
+test/fk02:p2	test/t3#P#p2	test/t1	1	0
+test/fk02:p3	test/t3#P#p3	test/t1	1	0
 alter table t3 coalesce partition 2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `fk` int(11) DEFAULT NULL,
-  KEY `fk01` (`fk`),
-  CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`)
+  KEY `fk02` (`fk`),
+  CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`fk`)
 PARTITIONS 2
 select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
-test/fk01:p0	test/t3#P#p0	test/t1	1	0
-test/fk01:p1	test/t3#P#p1	test/t1	1	0
+test/fk02:p0	test/t3#P#p0	test/t1	1	0
+test/fk02:p1	test/t3#P#p1	test/t1	1	0
 delete from t1 where id = 0;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p0` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p0` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 delete from t1 where id = 1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p1` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p1` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 delete from t1 where id = 2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p0` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p0` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 delete from t1 where id = 3;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p1` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3` /* Partition `p1` */, CONSTRAINT `fk02` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
 drop tables t3, t2, t1;

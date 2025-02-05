@@ -733,6 +733,7 @@ public:
 
 	THD* thd() const { return(m_thd); }
 
+	bool		first_part;
 private:
 	/** Parses the table name into normal name and either temp path or
 	remote path if needed.*/
@@ -742,6 +743,8 @@ private:
 
 	/** Create the internal innodb table definition. */
 	int create_table_def();
+
+        dberr_t fk_check_dup(const dict_foreign_t *fk);
 
         /** Adds the given set of foreign key objects to the dictionary tables
         in the database. This function does not modify the dictionary cache. The
@@ -801,8 +804,9 @@ private:
 	char		part_suffix_buf[FN_REFLEN];
 	const char *	part_suffix;
 	size_t		part_suffix_len;
-	bool tmp_name;
-	dict_table_t* alter_table;
+	bool		tmp_name;
+	dict_table_t*	alter_table;
+	char		orig_name[MAX_FOREIGN_ID_LEN];
 };
 
 /**
