@@ -1006,7 +1006,7 @@ struct buf_block_t{
     noexcept;
 
   /** Calculate the page frame address */
-  inline byte *frame_address() const noexcept;
+  IF_DBUG(,inline) byte *frame_address() const noexcept;
 };
 
 /** A "Hazard Pointer" class used to iterate over buf_pool.LRU or

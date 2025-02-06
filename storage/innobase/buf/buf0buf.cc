@@ -930,7 +930,7 @@ void buf_page_print(const byte *read_buf, ulint zip_size) noexcept
 #endif
 }
 
-inline byte *buf_block_t::frame_address() const noexcept
+IF_DBUG(,inline) byte *buf_block_t::frame_address() const noexcept
 {
   static_assert(ut_is_2pow(innodb_buffer_pool_extent_size), "");
 
@@ -1404,6 +1404,15 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   ut_ad(this == &buf_pool);
   mysql_mutex_assert_owner(&LOCK_global_system_variables);
   ut_ad(size <= size_in_bytes_max);
+#ifdef _WIN32
+  extern my_bool my_use_large_pages;
+  if (my_use_large_pages)
+  {
+    my_error(ER_VARIABLE_IS_READONLY, MYF(0), "innodb_buffer_pool_size",
+             "large_pages=0");
+    return;
+  }
+#endif
 
   size_t n_blocks_alloc_new= get_n_blocks(size);
 

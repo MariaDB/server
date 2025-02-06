@@ -318,6 +318,8 @@ void buf_page_t::write_complete(bool persistent, bool error, uint32_t state)
 {
   ut_ad(!persistent == fsp_is_system_temporary(id().space()));
   ut_ad(state >= WRITE_FIX);
+  ut_ad(!frame ||
+        frame == reinterpret_cast<buf_block_t*>(this)->frame_address());
 
   if (UNIV_LIKELY(!error))
   {
