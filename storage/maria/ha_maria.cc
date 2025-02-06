@@ -3396,7 +3396,7 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   if (ha_create_info->tmp_table())
   {
     create_flags|= HA_CREATE_TMP_TABLE | HA_CREATE_DELAY_KEY_WRITE;
-    if (ha_create_info->options & HA_LEX_CREATE_GLOBAL_TMP_TABLE)
+    if (ha_create_info->options & HA_LEX_CREATE_SHARED_ACCESS_TMP_TABLE)
       create_flags|= HA_CREATE_GLOBAL_TMP_TABLE;
     create_info.transactional= 0;
   }
