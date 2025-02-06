@@ -1139,7 +1139,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       ev= new Intvar_log_event(buf, fdle);
       break;
     case XID_EVENT:
-      ev= new Xid_log_event(buf, fdle);
+      ev= new Xid_log_event(buf, event_len, fdle);
       break;
     case XA_PREPARE_LOG_EVENT:
       ev= new XA_prepare_log_event(buf, fdle);
@@ -2747,6 +2747,7 @@ Rand_log_event::Rand_log_event(const uchar *buf,
 
 Xid_log_event::
 Xid_log_event(const uchar *buf,
+              uint event_len,
               const Format_description_log_event *description_event)
   :Xid_apply_log_event(buf, description_event)
 {
@@ -2754,6 +2755,46 @@ Xid_log_event(const uchar *buf,
   buf+= description_event->common_header_len +
     description_event->post_header_len[XID_EVENT-1];
   memcpy((char*) &xid, buf, sizeof(xid));
+
+  /*
+    Check if the event length is sufficient to read the wsrep
+    sequence number and uuid. Also check if the origin of the event is
+    MariaDB.
+  */
+  const uint event_len_with_seqno_and_uuid=
+      description_event->common_header_len +
+      description_event->post_header_len[XID_EVENT - 1] + sizeof(xid) +
+      8 + 16;
+  /*
+    If the event is too short to contain wsrep seqno and UUID or the
+    event was not created by MariaDB server, do not try to read wsrep
+    fields.
+  */
+  if (event_len < event_len_with_seqno_and_uuid ||
+      description_event->server_version_split.kind !=
+      Format_description_log_event::master_version_split::KIND_MARIADB)
+  {
+    wsrep_seqno= wsrep_seqno_undefined;
+    memset(wsrep_uuid, 0, sizeof(wsrep_uuid));
+    return;
+  }
+
+  /*
+    Read the sequence number. If the sequence number belongs to range reserved
+    by wsrep, read the uuid as well.
+  */
+  buf += sizeof(xid);
+  wsrep_seqno= sint8korr(buf);
+
+  if (wsrep_seqno >= wsrep_seqno_undefined)
+  {
+    buf+= 8;
+    memcpy(wsrep_uuid, buf, sizeof(wsrep_uuid));
+  }
+  else
+  {
+    memset(wsrep_uuid, 0, sizeof(wsrep_uuid));
+  }
 }
 
 /**************************************************************************
