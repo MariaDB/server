@@ -5968,7 +5968,7 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
   mark_trx_read_write();
   if ((info_arg->options & HA_LEX_CREATE_TMP_TABLE) &&
       current_thd->slave_thread)
-    info_arg->options|= HA_LEX_CREATE_GLOBAL_TMP_TABLE;
+    info_arg->options|= HA_LEX_CREATE_SHARED_ACCESS_TMP_TABLE;
   int error= create(name, form, info_arg);
   if (!error &&
       !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
