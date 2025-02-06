@@ -513,7 +513,7 @@ enum chf_create_flags {
   threads. This flag ensure that memory is not allocated with THREAD_SPECIFIC,
   as we do for other temporary tables.
 */
-#define HA_LEX_CREATE_GLOBAL_TMP_TABLE 128U
+#define HA_LEX_CREATE_SHARED_ACCESS_TMP_TABLE 128U
 
 #define HA_MAX_REC_LENGTH	65535
 
