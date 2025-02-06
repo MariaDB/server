@@ -1399,13 +1399,16 @@ ATTRIBUTE_COLD int buf_pool_t::LRU_shrink(buf_page_t *bpage) noexcept
   return 1;
 }
 
+#ifdef _WIN32
+extern "C" my_bool my_use_large_pages;
+#endif
+
 ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 {
   ut_ad(this == &buf_pool);
   mysql_mutex_assert_owner(&LOCK_global_system_variables);
   ut_ad(size <= size_in_bytes_max);
 #ifdef _WIN32
-  extern "C" my_bool my_use_large_pages;
   if (my_use_large_pages)
   {
     my_error(ER_VARIABLE_IS_READONLY, MYF(0), "innodb_buffer_pool_size",
