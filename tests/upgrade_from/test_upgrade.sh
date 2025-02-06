@@ -77,7 +77,7 @@ if [[ -z "$target_version" ]]; then
         echo "Using default RPM directory"
         rpm_dir="rpm/"
     fi
-    if [ ! -d $rpm_dir ]; then
+    if [ ! -d "$rpm_dir" ]; then
         echo "Error: directory $rpm_dir not found"
         usage
         exit 1
@@ -96,17 +96,18 @@ function wait_for_socket {
     SOCK="$1"
     LIMIT="${2:-10}"
     log "Waiting $LIMIT seconds for Unix socket to be created at $SOCK ..."
-    for ii in $(seq $LIMIT); do
-        [ -S $SOCK ] && break || sleep 1
+    for ii in $(seq "$LIMIT"); do
+        [ -S "$SOCK" ] && break
+        sleep 1
     done
-    if [ $ii == $LIMIT ]; then
+    if [ "$ii" == "$LIMIT" ]; then
         log "Unix socket was not created within $LIMIT seconds"
         false
     fi
 }
 
 # Install dependencies
-log Installing dependencies
+log "Installing dependencies"
 dnf install -y wget libxcrypt-compat libaio ncurses-compat-libs numactl-libs
 
 install_mariadb_from_archive() {
@@ -116,19 +117,20 @@ install_mariadb_from_archive() {
     # Certain required libraries are missing in the latest version of the distribuiton this test is being run on (currently Fedora).
     # The missing libraries depned on the latest distribution version, so that is found by scanning the MariaDB archive directory.
 
-    log Finding MariaDB RPM repository for version $version
-    latest_distro=$(curl -s https://archive.mariadb.org/mariadb-$version/yum/fedora/ | (grep -Eo '^<a href="[0-9]+/">' || true) | 
-    sort -V | tail -n 1 | sed -n 's/^<a href="\([0-9]*\)\/">/\1/p')
-    if [ -z $latest_distro ]; then
-        log Could not find repository. Exiting.
+    log "Finding MariaDB RPM repository for version $version"
+    latest_distro=$(curl -s https://archive.mariadb.org/mariadb-"$version"/yum/fedora/ | 
+                   (grep -Eo '^<a href="[0-9]+/">' || true) | 
+                    sort -V | tail -n 1 | sed -n 's/^<a href="\([0-9]*\)\/">/\1/p')
+    if [ -z "$latest_distro" ]; then
+        log "Could not find repository. Exiting."
         exit 1
     fi
     rpm_repository=https://archive.mariadb.org/mariadb-$version/yum/fedora/$latest_distro/$(uname -m)/
-    log RPM repository: $rpm_repository
+    log "RPM repository: $rpm_repository"
     # log Fedora distribution: $latest_distro # Currently only supports tests on Fedora
 
     # Use custom repository
-    log Using custom MariaDB repository
+    log "Using custom MariaDB repository"
     cat <<EOF >/etc/yum.repos.d/MariaDB.repo
 [mariadb]
 name=MariaDB
@@ -141,12 +143,12 @@ EOF
 
     # Get version of MariaDB server. This is necessary to check which additional dependencies must be installed.
     # Full version has been defined
-    major_version=$(echo $version | cut -d '.' -f1-2)
-    minor_version=$(echo $version | cut -d '.' -f3)
+    major_version=$(echo "$version" | cut -d '.' -f1-2)
+    minor_version=$(echo "$version" | cut -d '.' -f3)
     # Only major version has been defined, get minor version from RPM
-    if [ -z $minor_version ]; then
+    if [ -z "$minor_version" ]; then
         rpm_version=$(dnf list MariaDB-server | grep -oP 'MariaDB-server.x86_64\s+\K[0-9]+\.[0-9]+\.[0-9]+(?=-)')
-        minor_version=$(echo $rpm_version | cut -d '.' -f3)
+        minor_version=$(echo "$rpm_version" | cut -d '.' -f3)
     fi
     # Install missing dependencies that are version/distro specific
     log "Installing missing libraries"
@@ -162,19 +164,22 @@ EOF
         (dnf install -y boost-program-options-1.81.0 ||
         dnf install -y https://rpmfind.net/linux/fedora/linux/releases/39/Everything/x86_64/os/Packages/b/boost-program-options-1.81.0-8.fc39.x86_64.rpm)
     if [[ $major_version == "10.4" ]] && [[ $minor_version -ge 24 ]]; then
-        log RPMs not available for version 10.4.24+ from this repository. You may try testing by installing from the .tar.gz binaries.
+        log "RPMs not available for version 10.4.24+ from this repository. You may try testing by installing from the .tar.gz binaries."
         exit 1
     fi
 
-    log Begin installation of MariaDB version $version
+    log "Begin installation of MariaDB version $version"
     dnf install -y MariaDB-server
 }
 
-install_mariadb_from_archive $source_version
+install_mariadb_from_archive "$source_version"
 
 # Set variables and binaries
 MYSQLD=$([ -f /usr/sbin/mariadbd ] && echo "/usr/sbin/mariadbd" || echo "/usr/sbin/mysqld")
-MYSQL_BIN=/usr/bin
+MYSQL_CLIENT=$(command -v mariadb || command -v mysql)
+MYSQL_INSTALL_DB=$(command -v mariadb-install-db || command -v mysql_install_db || 
+                   find /usr/bin /usr/sbin /usr/local/bin -name 'mariadb-install-db' -o -name 'mysql_install_db' 2>/dev/null | 
+                   head -n 1)
 TMP_DATA_DIR=/tmp/var/lib/mysql
 rm -rf $TMP_DATA_DIR test_upgrade.log # clean up from old tests
 SOCK=/var/lib/mysql/mysql.sock
@@ -182,90 +187,99 @@ SOCK=/var/lib/mysql/mysql.sock
 start_mariadb_server() {
     $MYSQLD --version # check version
 
-    log Creating system tables with mysql_install_db
-    $MYSQL_BIN/mysql_install_db --user=mysql --datadir=$TMP_DATA_DIR
+    if [ -z "$MYSQL_INSTALL_DB" ]; then
+        log "Error: mysql_install_db or mariadb-install-db not found"
+        exit 1
+    fi
+
+    log "Creating system tables"
+    $MYSQL_INSTALL_DB --user=mysql --datadir=$TMP_DATA_DIR
     chown -R mysql $TMP_DATA_DIR
 
     # Start server
-    log Starting mariadb daemon
-    sudo -u mysql $MYSQLD --datadir=$TMP_DATA_DIR &
-    wait_for_socket $SOCK 10
-    $MYSQL_BIN/mysql --skip-column-names -e "SELECT @@version, @@version_comment" # Show version
+    log "Starting mariadb daemon"
+    sudo -u mysql "$MYSQLD" --datadir=$TMP_DATA_DIR &
+    wait_for_socket "$SOCK" 10
+    $MYSQL_CLIENT --skip-column-names -e "SELECT @@version, @@version_comment" # Show version
 }
 
 shutdown_and_wait() {
-    while $MYSQL_BIN/mysql -e 'SELECT 1' 2>&1 >/dev/null; do
-        $MYSQL_BIN/mysql -e 'SHUTDOWN'
+    while $MYSQL_CLIENT -e 'SELECT 1' >/dev/null 2>&1; do
+        $MYSQL_CLIENT -e 'SHUTDOWN'
         sleep 1
-        [ ! -S $SOCK ] && break
+        [ ! -S "$SOCK" ] && break
     done
 }
 
-log Start server with source version
+log "Start server with source version"
 start_mariadb_server
 
-log Dump database contents in installed state
-$MYSQL_BIN/mysqldump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert >old-installed-database.sql
-log Check if tables need upgrade
-$MYSQL_BIN/mysqlcheck --all-databases --check-upgrade | tee -a test_upgrade.log
+MYSQL_DUMP=$(command -v mariadb-dump || command -v mysqldump)
+MYSQL_CHECK=$(command -v mariadb-check || command -v mysqlcheck)
+MYSQL_UPGRADE=$(command -v mariadb-upgrade || command -v mysql_upgrade)
+
+log "Dump database contents in installed state"
+$MYSQL_DUMP --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert >old-installed-database.sql
+log "Check if tables need upgrade"
+$MYSQL_CHECK --all-databases --check-upgrade | tee -a test_upgrade.log
 
 # Generate user tables filled with random data
-$MYSQL_BIN/mysql -e "CREATE DATABASE random_data;" || true
-$MYSQL_BIN/mysql -e "USE random_data;"
+$MYSQL_CLIENT -e "CREATE DATABASE random_data;" || true
+$MYSQL_CLIENT -e "USE random_data;"
 # Varchars
-$MYSQL_BIN/mysql -D random_data -e "CREATE TABLE random_strings (string VARCHAR(255) NOT NULL);" || true
-for i in {1..10}; do
-    $MYSQL_BIN/mysql -D random_data -e "INSERT INTO random_strings ( string ) VALUES ( MD5(RAND()) );"
+$MYSQL_CLIENT -D random_data -e "CREATE TABLE random_strings (string VARCHAR(255) NOT NULL);" || true
+for _ in {1..10}; do
+    $MYSQL_CLIENT -D random_data -e "INSERT INTO random_strings ( string ) VALUES ( MD5(RAND()) );"
 done
-$MYSQL_BIN/mysql -D random_data -e "SELECT count(*) FROM random_strings;"
+$MYSQL_CLIENT -D random_data -e "SELECT count(*) FROM random_strings;"
 # Integers
-$MYSQL_BIN/mysql -D random_data -e "CREATE TABLE random_numbers (number INT NOT NULL);" || true
-for i in {1..10}; do
-    $MYSQL_BIN/mysql -D random_data -e "INSERT INTO random_numbers ( number ) VALUES ( RAND() );"
+$MYSQL_CLIENT -D random_data -e "CREATE TABLE random_numbers (number INT NOT NULL);" || true
+for _ in {1..10}; do
+    $MYSQL_CLIENT -D random_data -e "INSERT INTO random_numbers ( number ) VALUES ( RAND() );"
 done
-$MYSQL_BIN/mysql -D random_data -e "SELECT count(*) FROM random_numbers;"
+$MYSQL_CLIENT -D random_data -e "SELECT count(*) FROM random_numbers;"
 
 # Run mysql_upgrade which should have no effect
-log Do upgrade
-$MYSQL_BIN/mysql_upgrade -u root -v | tee -a test_upgrade.log
-log Dump database contents in upgraded state
-$MYSQL_BIN/mysqldump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert >old-upgraded-database.sql
-$MYSQL_BIN/mysql --skip-column-names -e "SELECT @@version, @@version_comment" # Show version
-log Shutdown
+log "Do upgrade"
+$MYSQL_UPGRADE -u root -v | tee -a test_upgrade.log
+log "Dump database contents in upgraded state"
+$MYSQL_DUMP --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert >old-upgraded-database.sql
+$MYSQL_CLIENT --skip-column-names -e "SELECT @@version, @@version_comment" # Show version
+log "Shutdown"
 shutdown_and_wait
 
-log Uninstall source version
+log "Uninstall source version"
 dnf remove -y MariaDB-server
 
-log ------------------------------------------------
+log "------------------------------------------------"
 if [[ -n "$target_version" ]]; then
-    install_mariadb_from_archive $target_version
+    install_mariadb_from_archive "$target_version"
 elif [[ -n "$rpm_dir" ]]; then
-    log Begin installation of MariaDB from local RPMs
+    log "Begin installation of MariaDB from local RPMs"
     log "rpm_dir: $rpm_dir"
-    dnf install -y $rpm_dir/*.rpm # from previous job
+    dnf install -y "$rpm_dir"/*.rpm # from previous job
 fi
 
 start_mariadb_server
 
-log Dump database contents in installed state
-$MYSQL_BIN/mysqldump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert >new-installed-database.sql || true
+log "Dump database contents in installed state"
+$MYSQL_DUMP --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert >new-installed-database.sql || true
 # The step above fails on: mariadb-dump: Couldn't execute 'show events': Cannot proceed, because event scheduler is disabled (1577)
 
-log Run check for upgrade
-$MYSQL_BIN/mysqlcheck --all-databases --check-upgrade --check --extended | tee -a test_upgrade.log
+log "Run check for upgrade"
+$MYSQL_CHECK --all-databases --check-upgrade --check --extended | tee -a test_upgrade.log
 
-log Run upgrade
-$MYSQL_BIN/mysql_upgrade -u root | tee -a test_upgrade.log # minor version is the same, so no upgrade done
+log "Run upgrade"
+$MYSQL_UPGRADE -u root | tee -a test_upgrade.log # minor version is the same, so no upgrade done
 
-log Force upgrade
-$MYSQL_BIN/mysql_upgrade -u root --force | tee -a test_upgrade.log
+log "Force upgrade"
+$MYSQL_UPGRADE -u root --force | tee -a test_upgrade.log
 
-log Dump database contents in upgraded state
-$MYSQL_BIN/mysqldump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert >new-upgraded-database.sql
-$MYSQL_BIN/mysql --skip-column-names -e "SELECT @@version, @@version_comment" # Show version
+log "Dump database contents in upgraded state"
+$MYSQL_DUMP --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert >new-upgraded-database.sql
+$MYSQL_CLIENT --skip-column-names -e "SELECT @@version, @@version_comment" # Show version
 
-log Shutdown
+log "Shutdown"
 shutdown_and_wait
 echo
 
