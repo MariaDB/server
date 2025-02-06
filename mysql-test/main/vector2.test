@@ -22,9 +22,9 @@ insert t1 values (1, 1.1);
 insert t1 values (1, 1e1);
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert t1 values (1, now());
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+--error ER_TRUNCATED_WRONG_VALUE
 insert t1 values (1, repeat(x'56', 10));
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+--error ER_TRUNCATED_WRONG_VALUE
 insert t1 values (1, repeat(x'66', 40));
 insert t1 values (1, repeat(x'56', 40));
 select * from t1;
@@ -155,7 +155,7 @@ drop table t1;
 --echo #
 create table t1 (a blob);
 insert t1 values (1);
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 modify a vector(2);
 update t1 set a=x'5555555555555555';
 alter table t1 modify a vector(2);
@@ -297,5 +297,16 @@ create table t (v vector(800), key(v));
 create table t (v vector(8), key(v));
 show create table t;
 drop table t;
+
+
+--echo #
+--echo # MDEV-35146 Vector-related error messages worth improving when possible
+--echo #
+--error ER_INVALID_DEFAULT
+create table t (a vector(64) not null default '');
+show warnings;
+--error ER_INVALID_DEFAULT
+create table t (a inet6 not null default '');
+show warnings;
 
 --echo # End of 11.7 tests

@@ -231,7 +231,7 @@ create table t (v vector(2) not null);
 insert ignore into t values (1);
 Warnings:
 Warning	4078	Cannot cast 'int' as 'vector' in assignment of `test`.`t`.`v`
-Warning	1366	Incorrect vector value: '1' for column `test`.`t`.`v` at row 1
+Warning	1292	Incorrect vector value: '1' for column `test`.`t`.`v` at row 1
 select hex(v) from t;
 hex(v)
 0000000000000000
@@ -408,4 +408,19 @@ t	CREATE TABLE `t` (
   KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
+#
+# MDEV-35146 Vector-related error messages worth improving when possible
+#
+create table t (a vector(64) not null default '');
+ERROR 42000: Invalid default value for 'a'
+show warnings;
+Level	Code	Message
+Warning	1292	Incorrect vector value: '' for column ``.``.`a` at row 0
+Error	1067	Invalid default value for 'a'
+create table t (a inet6 not null default '');
+ERROR 42000: Invalid default value for 'a'
+show warnings;
+Level	Code	Message
+Warning	1292	Incorrect inet6 value: '' for column ``.``.`a` at row 0
+Error	1067	Invalid default value for 'a'
 # End of 11.7 tests
