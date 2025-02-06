@@ -1405,7 +1405,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   mysql_mutex_assert_owner(&LOCK_global_system_variables);
   ut_ad(size <= size_in_bytes_max);
 #ifdef _WIN32
-  extern my_bool my_use_large_pages;
+  extern "C" my_bool my_use_large_pages;
   if (my_use_large_pages)
   {
     my_error(ER_VARIABLE_IS_READONLY, MYF(0), "innodb_buffer_pool_size",
