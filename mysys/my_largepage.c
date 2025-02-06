@@ -43,7 +43,7 @@ static size_t my_large_page_size;
 #endif
 
 #ifdef HAVE_LARGE_PAGES
-static my_bool my_use_large_pages= 0;
+IF_WIN(,static) my_bool my_use_large_pages;
 #else
 #define my_use_large_pages 0
 #endif
@@ -426,6 +426,89 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   DBUG_RETURN(ptr);
 }
 
+#if defined _WIN32 || defined HAVE_MMAP
+/**
+  Special large pages allocator, with possibility to commit to allocating
+  more memory later.
+  Every implementation returns a zero filled buffer here.
+*/
+uchar *my_large_virtual_alloc(size_t *size)
+{
+  uchar *ptr;
+  DBUG_ENTER("my_large_virtual_alloc");
+
+# ifdef _WIN32
+  if (my_use_large_pages)
+  {
+    size_t s= *size;
+    s= MY_ALIGN(s, (size_t) my_large_page_size);
+    ptr= VirtualAlloc(NULL, s, MEM_COMMIT | MEM_RESERVE | MEM_LARGE_PAGES,
+                      PAGE_READWRITE);
+    if (ptr)
+    {
+      *size= s;
+      DBUG_RETURN(ptr);
+    }
+  }
+
+  DBUG_RETURN(VirtualAlloc(NULL, *size, MEM_RESERVE, PAGE_READWRITE));
+# else
+  if (my_use_large_pages)
+  {
+    size_t large_page_size;
+    int page_i= 0;
+
+    while ((large_page_size= my_next_large_page_size(*size, &page_i)) != 0)
+    {
+      int mapflag= MAP_PRIVATE |
+#  if defined MAP_HUGETLB /* linux 2.6.32 */
+        MAP_HUGETLB |
+#  if defined MAP_HUGE_SHIFT /* Linux-3.8+ */
+        my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT |
+#  else
+#    warning "No explicit large page (HUGETLB pages) support in Linux < 3.8"
+#  endif
+#  elif defined MAP_ALIGNED
+        MAP_ALIGNED(my_bit_log2_size_t(large_page_size)) |
+#   if defined(MAP_ALIGNED_SUPER)
+        MAP_ALIGNED_SUPER |
+#   endif
+#  endif
+        OS_MAP_ANON;
+
+      size_t aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
+      ptr= mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
+      if (ptr == (void*) -1)
+      {
+        ptr= NULL;
+        /* try next smaller memory size */
+        if (errno == ENOMEM)
+          continue;
+
+        /* other errors are more serious */
+        break;
+      }
+      else /* success */
+      {
+        /*
+          we do need to record the adjustment so that munmap gets called with
+          the right size. This is only the case for HUGETLB pages.
+        */
+        *size= aligned_size;
+        DBUG_RETURN(ptr);
+      }
+    }
+  }
+
+  ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE, MAP_PRIVATE | OS_MAP_ANON,
+            -1, 0);
+  if (ptr == (void*) -1)
+    ptr= NULL;
+
+  DBUG_RETURN(ptr);
+# endif
+}
+#endif
 
 /**
   General large pages deallocator.
