@@ -2089,14 +2089,15 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
 {
   if (!wsrep_strict_ddl)
     return true;
-  
-  if (!hton)
-    return true;
 
   DBUG_ASSERT(hton != nullptr);
 
   switch (hton->db_type)
   {
+    case DB_TYPE_UNKNOWN:
+      /* Special pseudo-handlertons (such as 10.6+ JSON tables). */
+      return true;
+      break;
     case DB_TYPE_INNODB:
       return true;
       break;
@@ -2123,7 +2124,7 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
   my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_ILLEGAL_HA,
-                      "WSREP: wsrep_strict_dll enabled. "
+                      "WSREP: wsrep_strict_ddl enabled. "
                       "Storage engine %s not supported.",
                       ha_resolve_storage_engine_name(hton));
   return false;

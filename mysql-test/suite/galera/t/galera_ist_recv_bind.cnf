@@ -5,4 +5,3 @@ wsrep_provider_options='base_port=@mysqld.1.#galera_port;ist.recv_bind=127.0.0.1
 
 [mysqld.2]
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;ist.recv_bind=127.0.0.1'
-

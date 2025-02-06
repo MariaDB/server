@@ -5,8 +5,3 @@ wsrep_log_conflicts=ON
 
 [mysqld.2]
 wsrep_log_conflicts=ON
-
-
-
-
-

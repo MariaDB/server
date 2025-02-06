@@ -23,5 +23,3 @@ SELECT COUNT(*) AS EXPECT_12 FROM t1;
 DROP TABLE t1;
 SET GLOBAL wsrep_load_data_splitting=OFF;
 SET GLOBAL wsrep_replicate_myisam=OFF;
-
-

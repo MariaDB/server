@@ -67,4 +67,3 @@ DROP TABLE t1;
 # Restore original auto_increment_offset values.
 --let $node_2=node_2a
 --source include/auto_increment_offset_restore.inc
-

@@ -50,4 +50,3 @@ DROP TABLE t1;
 --source ../galera/include/auto_increment_offset_restore.inc
 
 --source include/galera_end.inc
-

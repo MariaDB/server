@@ -26,7 +26,7 @@ connection node_3;
 SELECT f1 = 111 FROM t1;
 f1 = 111
 1
-SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%committed%';
+SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE '%committed%' OR STATE LIKE 'Waiting for certification');
 COUNT(*) IN (1, 2)
 1
 SET GLOBAL wsrep_slave_threads = DEFAULT;

@@ -55,4 +55,3 @@ SELECT node_incoming_address LIKE '127.0.0.1:%' from mysql.wsrep_cluster_members
 SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster_members;
 
 --source ../galera/include/auto_increment_offset_restore.inc
-

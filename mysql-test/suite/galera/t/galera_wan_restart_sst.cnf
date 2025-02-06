@@ -14,4 +14,3 @@ wsrep_provider_options='base_port=@mysqld.3.#galera_port;gmcast.segment=2'
 
 [mysqld.4]
 wsrep_provider_options='base_port=@mysqld.4.#galera_port;gmcast.segment=2'
-
