@@ -1,0 +1,59 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/have_file_key_management.inc
+
+SET GLOBAL innodb_undo_log_truncate = 0;
+
+#
+# Perform DML action using multiple clients and multiple undo tablespace.
+#
+
+create table t1 (keyc int primary key default 0, c char(6)) engine=innodb;
+create table t2 (keyc int primary key default 0, c char(6)) engine=innodb;
+
+DELIMITER $$;
+CREATE PROCEDURE p(t VARCHAR(64))
+BEGIN
+  DECLARE i TEXT DEFAULT 'insert into t1 select seq,repeat(chr(48),6)
+    from seq_1_to_20000';
+  DECLARE u1 TEXT DEFAULT 'update t1 set c=repeat(chr(32),6)';
+  DECLARE u2 TEXT DEFAULT 'update t1 set c=repeat(chr(64),6)';
+  EXECUTE IMMEDIATE REPLACE(i,'t1', t);
+  EXECUTE IMMEDIATE REPLACE(u1,'t1', t);
+  EXECUTE IMMEDIATE REPLACE(u2,'t1', t);
+END;
+$$
+DELIMITER ;$$
+
+connect (con1,localhost,root,,);
+begin;
+send call p('t1');
+
+connection default;
+call p('t2');
+
+connection con1;
+reap;
+commit;
+disconnect con1;
+connection default;
+DROP PROCEDURE p;
+
+SET GLOBAL innodb_undo_log_truncate = 1;
+SET GLOBAL innodb_max_undo_log_size=DEFAULT;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$targetdir --throttle=1000;
+--echo # Prepare full backup
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+--enable_result_log
+
+source include/restart_and_restore.inc;
+select count(*) from t1;
+select count(*) from t2;
+# Cleanup
+rmdir $targetdir;
+DROP TABLE t1,t2;

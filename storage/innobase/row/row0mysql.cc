@@ -210,6 +210,14 @@ row_mysql_read_blob_ref(
 
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
 
+	if (!*len) {
+		/* Field_blob::store() if (!length) would encode both
+		the length and the pointer in the same area. An empty
+		string must be a valid (nonnull) pointer in the
+		collation functions that cmp_data() may invoke. */
+		return ref;
+	}
+
 	memcpy(&data, ref + col_len - 8, sizeof data);
 
 	return(data);
@@ -2525,7 +2533,7 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		use_fk)		/*!< in: whether to parse and enforce
+	rename_fk	fk)		/*!< in: how to handle
 					FOREIGN KEY constraints */
 {
 	dict_table_t*	table			= NULL;
@@ -2549,6 +2557,8 @@ row_rename_table_for_mysql(
 
 	old_is_tmp = dict_table_t::is_temporary_name(old_name);
 	new_is_tmp = dict_table_t::is_temporary_name(new_name);
+
+	ut_ad(fk != RENAME_IGNORE_FK || !new_is_tmp);
 
 	table = dict_table_open_on_name(old_name, true,
 					DICT_ERR_IGNORE_FK_NOKEY);
@@ -2608,10 +2618,9 @@ row_rename_table_for_mysql(
 			<< TROUBLESHOOTING_MSG;
 
 		goto funct_exit;
-
-	} else if (use_fk && !old_is_tmp && new_is_tmp) {
-		/* MySQL is doing an ALTER TABLE command and it renames the
-		original table to a temporary table name. We want to preserve
+	} else if (fk == RENAME_ALTER_COPY && !old_is_tmp && new_is_tmp) {
+		/* Non-native ALTER TABLE is renaming the
+		original table to a temporary name. We want to preserve
 		the original foreign key constraint definitions despite the
 		name change. An exception is those constraints for which
 		the ALTER TABLE contained DROP FOREIGN KEY <foreign key id>.*/
@@ -2655,7 +2664,7 @@ row_rename_table_for_mysql(
 		goto rollback_and_exit;
 	}
 
-	if (!new_is_tmp) {
+	if (/* fk == RENAME_IGNORE_FK || */ !new_is_tmp) {
 		/* Rename all constraints. */
 		char	new_table_name[MAX_TABLE_NAME_LEN + 1];
 		char	old_table_utf8[MAX_TABLE_NAME_LEN + 1];
@@ -2829,7 +2838,7 @@ row_rename_table_for_mysql(
 		err = dict_load_foreigns(
 			new_name, nullptr, trx->id,
 			!old_is_tmp || trx->check_foreigns,
-			use_fk
+			fk == RENAME_ALTER_COPY
 			? DICT_ERR_IGNORE_NONE
 			: DICT_ERR_IGNORE_FK_NOKEY,
 			fk_tables);

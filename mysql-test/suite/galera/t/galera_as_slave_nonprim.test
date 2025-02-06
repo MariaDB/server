@@ -15,7 +15,6 @@
 # we open the node_4 connection here
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
 
-
 --connection node_2
 --disable_query_log
 --eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_4, MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_USER='root';

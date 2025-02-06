@@ -1,2 +1,17 @@
-91a92
-> ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 1982. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+--- a/mysql-test/suite/innodb/r/row_size_error_log_warnings_3.result
++++ b/mysql-test/suite/innodb/r/row_size_error_log_warnings_3.result
+@@ -81,7 +81,7 @@ f25(10), f26(10), f27(10), f28(10),
+ f29(10), f30(10), f31(10), f32(10),
+ f33(10)))
+ ENGINE=InnoDB;
+-ERROR 42000: Too many key parts specified; max 32 parts allowed
++ERROR 42000: Specified key was too long; max key length is 1173 bytes
+ #
+ # MDEV-31161 Assertion failures upon adding a too long key
+ #             to table with COMPRESSED row format
+@@ -89,4 +89,5 @@ ERROR 42000: Too many key parts specified; max 32 parts allowed
+ CREATE TABLE t1(pk INT PRIMARY KEY, f1 INT, f2 TEXT)ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ INSERT INTO t1 (pk) VALUES (1);
+ ALTER TABLE t1 ADD KEY (f1), ADD KEY (f2(1000));
++ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 1982. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+ DROP TABLE t1;

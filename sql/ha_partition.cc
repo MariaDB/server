@@ -3226,6 +3226,24 @@ err1:
   DBUG_RETURN(2);
 }
 
+Compare_keys ha_partition::compare_key_parts(
+  const Field &old_field,
+  const Column_definition &new_field,
+  const KEY_PART_INFO &old_part,
+  const KEY_PART_INFO &new_part) const
+{
+  Compare_keys res= m_file[0]->compare_key_parts(old_field, new_field,
+                                                 old_part, new_part);
+  /*
+    Partitions have the same storage engine (until MDEV-22168) so the
+    calls should all return the same value for now.
+  */
+  for (uint i= 1; i < m_tot_parts; i++)
+    if (res != m_file[i]->compare_key_parts(old_field, new_field,
+                                            old_part, new_part))
+      return Compare_keys::NotEqual;
+  return res;
+}
 
 /**
   Setup m_engine_array

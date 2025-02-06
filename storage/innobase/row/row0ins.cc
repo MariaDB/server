@@ -483,7 +483,9 @@ row_ins_cascade_calc_update_vec(
 			const upd_field_t*	parent_ufield
 				= &parent_update->fields[j];
 
-			if (parent_ufield->field_no == parent_field_no) {
+			if (parent_ufield->field_no == parent_field_no
+			    && !(parent_ufield->new_val.type.prtype
+				 & DATA_VIRTUAL)) {
 
 				ulint			min_size;
 				const dict_col_t*	col;
@@ -722,7 +724,7 @@ row_ins_foreign_trx_print(
 	ut_print_timestamp(dict_foreign_err_file);
 	fputs(" Transaction:\n", dict_foreign_err_file);
 
-	trx_print_low(dict_foreign_err_file, trx, 600,
+	trx_print_low(dict_foreign_err_file, trx,
 		      n_rec_locks, n_trx_locks, heap_size);
 
 	mysql_mutex_assert_owner(&dict_foreign_err_mutex);
@@ -2809,7 +2811,7 @@ avoid_bulk:
 			trx_start_if_not_started(trx, true);
 			trx->bulk_insert = true;
 			auto m = trx->mod_tables.emplace(index->table, 0);
-			m.first->second.start_bulk_insert(index->table);
+			m.first->second.start_bulk_insert(index->table, true);
 			err = m.first->second.bulk_insert_buffered(
 					*entry, *index, trx);
 			goto err_exit;
@@ -3406,7 +3408,12 @@ row_ins_index_entry(
 			return(DB_LOCK_WAIT);});
 
 	if (index->is_btree()) {
-		if (auto t= trx->check_bulk_buffer(index->table)) {
+		/* If the InnoDB skips the sorting of primary
+		index for bulk insert operation then InnoDB
+		should have called load_one_row() for the
+		first insert statement and shouldn't use
+		buffer for consecutive insert statement */
+		if (auto t= trx->use_bulk_buffer(index)) {
 			/* MDEV-25036 FIXME:
 			row_ins_check_foreign_constraint() check
 			should be done before buffering the insert

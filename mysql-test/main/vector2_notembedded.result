@@ -19,7 +19,7 @@ id
 4
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `v` vector(5) NOT NULL,

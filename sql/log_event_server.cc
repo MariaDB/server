@@ -1865,8 +1865,11 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     DBUG_PRINT("query",("%s", thd->query()));
 
 #ifdef WITH_WSREP
-    WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
-		thd_get_thread_id(thd), wsrep_thd_query(thd));
+    if (WSREP(thd))
+    {
+      WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
+		  thd_get_thread_id(thd), wsrep_thd_query(thd));
+    }
 #endif
 
     if (unlikely(!(expected_error= !is_rb_alter ? error_code : 0)) ||

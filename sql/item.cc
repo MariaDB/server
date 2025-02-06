@@ -839,6 +839,30 @@ bool Item_field::rename_fields_processor(void *arg)
   return 0;
 }
 
+/**
+   Rename table and clean field for EXCHANGE comparison
+*/
+
+bool Item_field::rename_table_processor(void *arg)
+{
+  Item::func_processor_rename_table *p= (Item::func_processor_rename_table*) arg;
+
+  /* If (db_name, table_name) matches (p->old_db, p->old_table)
+     rename to (p->new_db, p->new_table) */
+  if (((!db_name.str && !p->old_db.str) ||
+       db_name.streq(p->old_db)) &&
+      ((!table_name.str && !p->old_table.str) ||
+       table_name.streq(p->old_table)))
+  {
+    db_name= p->new_db;
+    table_name= p->new_table;
+  }
+
+  /* Item_field equality is done by field pointer if it is set, we need to avoid that */
+  field= NULL;
+  return 0;
+}
+
 
 /**
   Check if an Item_field references some field from a list of fields.
@@ -4008,7 +4032,7 @@ void Item_string::print(String *str, enum_query_type query_type)
     }
     else
     {
-      str_value.print(str, system_charset_info);
+      str_value.print(str, &my_charset_utf8mb4_general_ci);
     }
   }
   else
@@ -4275,6 +4299,7 @@ void Item_param::set_null(const DTCollation &c)
   decimals= 0;
   collation= c;
   state= NULL_VALUE;
+  value.set_handler(&type_handler_null);
   DBUG_VOID_RETURN;
 }
 
@@ -5104,7 +5129,10 @@ void Item_param::set_default(bool set_type_handler_null)
   */
   null_value= true;
   if (set_type_handler_null)
+  {
+    value.set_handler(&type_handler_null);
     set_handler(&type_handler_null);
+  }
 }
 
 void Item_param::set_ignore(bool set_type_handler_null)
@@ -5113,7 +5141,10 @@ void Item_param::set_ignore(bool set_type_handler_null)
   state= IGNORE_VALUE;
   null_value= true;
   if (set_type_handler_null)
+  {
+    value.set_handler(&type_handler_null);
     set_handler(&type_handler_null);
+  }
 }
 
 /**

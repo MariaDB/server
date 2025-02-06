@@ -1,0 +1,4 @@
+[clear]
+--innodb-encrypt-log=OFF
+[crypt]
+--innodb-encrypt-log=ON

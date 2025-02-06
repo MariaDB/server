@@ -134,6 +134,9 @@ if(MSVC)
   if(CMAKE_C_COMPILER_ID MATCHES Clang)
     target_compile_options(wolfssl PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-function-pointer-types>)
   endif()
+  remove_definitions(-DHAVE_CONFIG_H)
+  target_compile_definitions(wolfssl PRIVATE
+    WOLFSSL_HAVE_MIN WOLFSSL_HAVE_MAX)
 endif()
 
 set_property(TARGET wolfssl PROPERTY POSITION_INDEPENDENT_CODE ON)

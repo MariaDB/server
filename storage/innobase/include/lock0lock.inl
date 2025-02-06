@@ -51,28 +51,3 @@ lock_get_min_heap_no(
 						   FALSE)));
 	}
 }
-
-/*********************************************************************//**
-Creates a new record lock and inserts it to the lock queue. Does NOT check
-for deadlocks or lock compatibility!
-@return created lock */
-UNIV_INLINE
-lock_t*
-lock_rec_create(
-/*============*/
-	lock_t*			c_lock,	/*!< conflicting lock */
-	unsigned		type_mode,/*!< in: lock mode and wait flag */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	dict_index_t*		index,	/*!< in: index of record */
-	trx_t*			trx,	/*!< in,out: transaction */
-	bool			caller_owns_trx_mutex)
-					/*!< in: TRUE if caller owns
-					trx mutex */
-{
-	return lock_rec_create_low(
-		c_lock,
-		type_mode, block->page.id(), block->page.frame, heap_no,
-		index, trx, caller_owns_trx_mutex);
-}

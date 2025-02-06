@@ -4,14 +4,15 @@
 # https://wiki.debian.org/Hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-# Disable LTO on Ubuntu, see LP: #1970634 and https://jira.mariadb.org/browse/MDEV-25633
-ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
-    export DEB_BUILD_MAINT_OPTIONS += optimize=-lto
-endif
+# LTO is generally enabled. Only ColumnStore doesn't support it (MCOL-5819)
+# and disables it in storage/columnstore/CMakeLists.txt
 
 DPKG_EXPORT_BUILDFLAGS = 1
 # Include all defaults, including buildflags.mk
 include /usr/share/dpkg/default.mk
+# Include package notes in built executables
+include /usr/share/debhelper/dh_package_notes/package-notes.mk
+
 # CPPFLAGS are nor read by CMake, so copy them to CXXFLAGS
 # See why at https://cmake.org/Bug/view.php?id=12928
 # This is needed for e.g. all automatic Debian hardening flags to apply on all cmake builds.

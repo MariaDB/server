@@ -693,7 +693,6 @@ Sql_condition *Warning_info::push_warning(THD *thd,
                                           ulong current_row_number)
 {
   Sql_condition *cond= NULL;
-  DBUG_ASSERT(msg[strlen(msg)-1] != '\n');
 
   if (! m_read_only)
   {
@@ -753,6 +752,7 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
   if (level == Sql_condition::WARN_LEVEL_ERROR)
     level= Sql_condition::WARN_LEVEL_WARN;
 
+  DBUG_ASSERT(msg[strlen(msg)-1] != '\n');
   (void) thd->raise_condition(code, "\0\0\0\0\0", level, msg);
 
   /* Make sure we also count warnings pushed after calling set_ok_status(). */

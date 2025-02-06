@@ -1059,8 +1059,8 @@ int spider_ping_table_cache_compare(
 long long spider_ping_table_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   int error_num = 0, link_idx, flags, full_mon_count, current_mon_count,
     success_count, fault_count, tmp_error_num = 0;

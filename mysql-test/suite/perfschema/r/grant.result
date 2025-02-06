@@ -5,3 +5,19 @@ VARIABLE_NAME	VARIABLE_VALUE
 connection default;
 disconnect a;
 drop user a@localhost;
+#
+# MDEV-35384 Table performance_schema.session_status and other two tables are not shown in information_schema.tables for normal users
+#
+create user foo@localhost;
+connect foo,localhost,foo;
+select table_schema,engine from information_schema.tables where table_name='session_status';
+table_schema	engine
+information_schema	MEMORY
+performance_schema	PERFORMANCE_SCHEMA
+select count(*) > 0 as 'table is readable' from performance_schema.session_status;
+table is readable
+1
+connection default;
+disconnect foo;
+drop user foo@localhost;
+# End of 10.6 tests

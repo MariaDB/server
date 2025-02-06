@@ -59,7 +59,7 @@ create or replace server srv foreign data wrapper Foo options
 (host "somewhere.else", port 54321, wait_what "it's all good", foo 'bar');
 show create server srv;
 
-alter server srv options (socket "sock", port 123, foo "", bar ")\"{");
+alter server srv options (socket "sock", port 123, foo "", bar ')"{');
 show create server srv;
 
 alter server srv options (socket "sock", port 123, bar "quux");

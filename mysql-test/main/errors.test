@@ -284,3 +284,23 @@ show warnings;
 drop procedure P1;
 
 -- echo # End of 10.4 tests
+
+
+--echo #
+--echo # MDEV-35828: Assertion fails in alloc_root() when memory causes it to call itself
+--echo #
+CREATE TEMPORARY TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+
+SET
+  @tmp=@@max_session_mem_used,
+  max_session_mem_used=8192;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+SELECT * FROM (t1 AS t2 LEFT JOIN t1 AS t3 USING (a)),t1;
+
+DROP TABLE t1;
+SET max_session_mem_used=@tmp;
+
+
+--echo # End of 10.6 tests

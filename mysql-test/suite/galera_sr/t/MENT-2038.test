@@ -1,0 +1,12 @@
+#
+# MENT-2038: Assertion `(thd && (WSREP_PROVIDER_EXISTS_ && thd->variables.wsrep_on))'
+# failed in void wsrep_restore_kill_after_commit(THD*)
+#
+
+--source include/galera_cluster.inc
+
+SET SESSION wsrep_on=OFF;
+BEGIN;
+BEGIN; # If bug is present, assertion triggers during implicit commit
+COMMIT;
+SET SESSION wsrep_on=ON;
