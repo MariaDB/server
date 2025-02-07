@@ -8430,6 +8430,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (!(used_fields & HA_CREATE_USED_SEQUENCE))
     create_info->sequence= table->s->table_type == TABLE_TYPE_SEQUENCE;
 
+  create_info->on_commit_delete= table->s->on_commit_delete;
+
   column_rename_param.db_name=       table->s->db;
   column_rename_param.table_name=    table->s->table_name;
   if (column_rename_param.fields.copy(&alter_info->create_list, root))

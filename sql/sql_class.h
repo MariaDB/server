@@ -5730,7 +5730,7 @@ private:
                      share->table_cache_key.length - 4);
   }
 
-  inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
+  static inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
   {
     DBUG_ASSERT(table->s->tmp_table);
     return static_cast<TMP_TABLE_SHARE *>(table->s);

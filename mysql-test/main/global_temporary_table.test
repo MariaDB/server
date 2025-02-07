@@ -1,0 +1,28 @@
+create global temporary table t1 (x int, t text);
+
+show create table t1;
+
+flush tables;
+
+show create table t1;
+
+let $show = query_get_value('show create table t1', 'Create Table', 1);
+
+--error ER_BAD_TABLE_ERROR
+drop temporary table t1;
+
+
+drop table t1;
+
+eval $show;
+
+show create table t1;
+
+drop table t1;
+
+--error ER_NO_SUCH_TABLE
+show create table t1;
+
+create global temporary table t1 (x int, t text) on commit preserve rows;
+show create table t1;
+drop table t1;

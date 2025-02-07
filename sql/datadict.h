@@ -27,7 +27,8 @@ enum Table_type
   TABLE_TYPE_UNKNOWN,
   TABLE_TYPE_NORMAL,                            /* Normal table */
   TABLE_TYPE_SEQUENCE,
-  TABLE_TYPE_VIEW
+  TABLE_TYPE_VIEW,
+  TABLE_TYPE_GLOBAL_TEMPORARY,
 };
 
 /*
