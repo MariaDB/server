@@ -2066,6 +2066,8 @@ public:
     for this share.
   */
   All_share_tables_list all_tmp_tables;
+  TABLE_SHARE *from_share;
+  MDL_request mdl_request;
 };
 
 /**
@@ -2086,7 +2088,15 @@ struct All_tmp_table_shares
 };
 
 /* Also used in rpl_rli.h. */
-typedef I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares> All_tmp_tables_list;
+struct All_tmp_tables_list: I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares>
+{
+  ulonglong global_temporary_tables_count= 0;
+  inline void empty()
+  {
+    I_P_List::empty();
+    global_temporary_tables_count= 0;
+  }
+};
 
 /**
   Class that holds information about tables which were opened and locked
@@ -5857,6 +5867,9 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
+  bool use_real_global_temporary_share() const;
+
+  bool open_temporary_table_impl(TABLE_LIST *tl, TABLE **table);
   bool open_temporary_table(TABLE_LIST *tl);
   bool check_and_open_tmp_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
@@ -5864,6 +5877,8 @@ public:
   bool close_temporary_tables();
   bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
                               const LEX_CSTRING *table_name);
+  bool drop_tmp_table_share(TABLE *table, TMP_TABLE_SHARE *share,
+                            bool delete_table);
   bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
   bool rm_temporary_table(handlerton *hton, const char *path);
   void mark_tmp_tables_as_free_for_reuse();
@@ -5872,6 +5887,13 @@ public:
   TMP_TABLE_SHARE* save_tmp_table_share(TABLE *table);
   void restore_tmp_table_share(TMP_TABLE_SHARE *share);
   void close_unused_temporary_table_instances(const TABLE_LIST *tl);
+  int commit_global_tmp_tables();
+  void use_global_tmp_table_tp();
+  inline bool has_open_global_temporary_tables() const
+  {
+    return !rgi_slave && temporary_tables &&
+           temporary_tables->global_temporary_tables_count;
+  }
 
 private:
   /* Whether a lock has been acquired? */
@@ -5902,7 +5924,7 @@ private:
                      share->table_cache_key.length - 4);
   }
 
-  inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
+  static inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
   {
     DBUG_ASSERT(table->s->tmp_table);
     return static_cast<TMP_TABLE_SHARE *>(table->s);
@@ -7870,9 +7892,9 @@ public:
 */
 #define CF_DB_CHANGE (1U << 23)
 /**
-  Statement that deletes existing rows (DELETE, DELETE_MULTI)
+  ALTER TABLE, CREATE/DROP INDEX, etc
 */
-#define CF_DELETES_DATA (1U << 24)
+#define CF_ALTER_TABLE (1U << 24)
 
 #ifdef WITH_WSREP
 /**
@@ -7884,6 +7906,12 @@ public:
 */
 #define CF_WSREP_BASIC_DML (1u << 26)
 #endif /* WITH_WSREP */
+
+/**
+  Statement that deletes existing rows (DELETE, DELETE_MULTI)
+*/
+#define CF_DELETES_DATA (1U << 27)
+
 
 /* Bits in server_command_flags */
 /**

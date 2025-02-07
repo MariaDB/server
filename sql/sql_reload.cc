@@ -260,6 +260,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
               !thd->mdl_context.has_locks() ||
               thd->handler_tables_hash.records ||
               thd->ull_hash.records ||
+              thd->has_open_global_temporary_tables() ||
               thd->global_read_lock.is_acquired() ||
               thd->mdl_backup_lock ||
               thd->current_backup_stage != BACKUP_FINISHED

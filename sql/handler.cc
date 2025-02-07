@@ -7122,6 +7122,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
       case TABLE_TYPE_SEQUENCE:
         *is_sequence= true;
         /* fall through */
+      case TABLE_TYPE_GLOBAL_TEMPORARY:
       case TABLE_TYPE_NORMAL:
         {
           plugin_ref p=  plugin_lock_by_name(thd, &engine,

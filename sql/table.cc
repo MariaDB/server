@@ -1965,10 +1965,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (legacy_db_type > DB_TYPE_UNKNOWN && 
       legacy_db_type < DB_TYPE_FIRST_DYNAMIC)
     se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type));
-  share->db_create_options= db_create_options= uint2korr(frm_image+30);
-  share->db_options_in_use= share->db_create_options;
   share->mysql_version= uint4korr(frm_image+51);
-  share->table_type= TABLE_TYPE_NORMAL;
+  db_create_options= uint2korr(frm_image+30);
+  if (share->mysql_version >= 110400)
+    db_create_options|= uint2korr(frm_image+59) << 16;
+  share->db_options_in_use= share->db_create_options= db_create_options;
+  share->table_type= db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE
+                     ? TABLE_TYPE_GLOBAL_TEMPORARY
+                     : TABLE_TYPE_NORMAL;
   share->null_field_first= 0;
   if (!frm_image[32])				// New frm file in 3.23
   {
@@ -4390,6 +4394,9 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->db_stat= db_stat;
   outparam->status= STATUS_NO_RECORD;
 
+  if (prgflag & OPEN_NO_CACHE)
+    outparam->internal_set_needs_reopen(true);
+
   if (share->incompatible_version &&
       !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR |
                          HA_OPEN_FOR_FLUSH)))
@@ -5275,6 +5282,10 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   int4store(fileinfo+55, create_info->extra_size);
   /*
     59-60 is unused since 10.2.4
+    High table_options word since 11.4
+  */
+  int2store(fileinfo+59, create_info->table_options >> 16);
+  /*
     61 for default_part_db_type
   */
   int2store(fileinfo+62, create_info->key_block_size);
@@ -10380,6 +10391,16 @@ bool TABLE_LIST::is_with_table()
 
 bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
 {
+  if (s->tmp_table != NO_TMP_TABLE && s->global_tmp_table())
+  {
+    /*
+      For Global temporary tables, let's compare the global share,
+      from which this local share is built
+    */
+    s= ((TMP_TABLE_SHARE*)s)->from_share;
+    DBUG_ASSERT(s);
+  }
+
   enum enum_table_ref_type tp= s->get_table_ref_type();
   if (m_table_ref_type == tp)
   {
