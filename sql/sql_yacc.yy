@@ -1477,7 +1477,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <num>
         order_dir lock_option
         udf_type opt_local opt_no_write_to_binlog
-        opt_temporary all_or_any opt_distinct opt_glimit_clause
+        opt_global_or_temporary opt_temporary
+        all_or_any opt_distinct opt_glimit_clause
         opt_ignore_leaves fulltext_options union_option
         opt_not
         transaction_access_mode_types
@@ -2559,7 +2560,7 @@ for_channel:
 /* create a table */
 
 create:
-          create_or_replace opt_temporary TABLE_SYM opt_if_not_exists
+          create_or_replace opt_global_or_temporary TABLE_SYM opt_if_not_exists
           {
             LEX *lex= thd->lex;
             if (!(lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_create_table()))
@@ -5963,6 +5964,22 @@ create_table_option:
             Lex->create_info.sequence= ($3 == HA_CHOICE_YES);
           }
         | versioning_option
+        | ON
+          {
+            if (unlikely(!(Lex->create_info.options
+                           & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE)))
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+          }
+          COMMIT_SYM create_on_commit_action
+        ;
+
+create_on_commit_action:
+          DELETE_SYM ROWS_SYM
+        | PRESERVE_SYM ROWS_SYM
+          { Lex->create_info.table_options&= ~HA_OPTION_ON_COMMIT_DELETE_ROWS; }
         ;
 
 engine_defined_option:
@@ -13765,6 +13782,13 @@ opt_if_exists:
           $$.set(DDL_options_st::OPT_IF_EXISTS);
         }
         ;
+
+opt_global_or_temporary:
+        GLOBAL_SYM TEMPORARY
+        {
+          $$= HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE;
+        }
+      | opt_temporary;
 
 opt_temporary:
           /* empty */ { $$= 0; }
