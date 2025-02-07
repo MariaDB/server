@@ -6465,12 +6465,19 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
     TABLE_SHARE index_share;
     char file_name[FN_REFLEN+1];
+    char index_file_name[FN_REFLEN+1], *index_file_name_end;
     Alter_info index_ainfo;
     HA_CREATE_INFO index_cinfo;
     char *path_end= strmov(file_name, path);
 
     bzero((char*) &index_cinfo, sizeof(index_cinfo));
     index_cinfo.alter_info= &index_ainfo;
+    if (create_info->index_file_name)
+    {
+      index_file_name_end= strmov(index_file_name, create_info->index_file_name);
+      index_cinfo.index_file_name= index_file_name;
+      index_cinfo.data_file_name= index_file_name;
+    }
 
     if ((error= share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN))
       goto err;
@@ -6478,6 +6485,8 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     for (uint i= share.keys; i < share.total_keys; i++)
     {
       my_snprintf(path_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+      if (create_info->index_file_name)
+        my_snprintf(index_file_name_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
       init_tmp_table_share(thd, &index_share, db, 0, table_name, file_name, 1);
       index_share.db_plugin= share.db_plugin;
       LEX_CSTRING sql= mhnsw_hlindex_table_def(thd, ref_length);
