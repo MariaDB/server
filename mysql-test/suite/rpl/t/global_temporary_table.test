@@ -1,0 +1,37 @@
+-- source include/master-slave.inc
+
+#Safety
+set @old_timeout= @@global.lock_wait_timeout;
+set lock_wait_timeout= 5;
+set global lock_wait_timeout= 5;
+
+create table t(x int, txt text);
+create global temporary table gtt(x int) on commit preserve rows;
+
+insert t values (1, 'one'), (2,'two'), (3, 'three'), (4, 'four');
+insert gtt values (2),(3),(5);
+
+--connect (con1,localhost,root,,)
+insert gtt values (4),(6);
+--connection master
+
+update t, gtt set t.txt= CONCAT(t.txt, ' tables') where t.x = gtt.x;
+
+--connection con1
+update t, gtt set t.txt= CONCAT(t.txt, ' databases') where t.x = gtt.x;
+truncate gtt;
+--connection master
+select * from t;
+
+sync_slave_with_master;
+select * from t;
+connection master;
+
+--connection master
+truncate gtt;
+drop table t;
+drop table gtt;
+set global lock_wait_timeout= @old_timeout;
+
+--disconnect con1
+--source include/rpl_end.inc

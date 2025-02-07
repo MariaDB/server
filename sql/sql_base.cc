@@ -1474,7 +1474,8 @@ void update_non_unique_table_error(TABLE_LIST *update,
 */
 
 bool wait_while_table_is_used(THD *thd, TABLE *table,
-                              enum ha_extra_function function)
+                              enum ha_extra_function function,
+                              ulonglong lock_wait_timeout)
 {
   DBUG_ENTER("wait_while_table_is_used");
   DBUG_ASSERT(!table->s->tmp_table);
@@ -1484,7 +1485,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
 
   if (thd->mdl_context.upgrade_shared_lock(
              table->mdl_ticket, MDL_EXCLUSIVE,
-             thd->variables.lock_wait_timeout))
+             (double)lock_wait_timeout))
     DBUG_RETURN(TRUE);
 
   table->s->tdc->flush(thd, true);
@@ -2087,6 +2088,10 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     }
     if (best_table)
     {
+      if (best_table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY &&
+          !thd->use_real_global_temporary_share())
+        goto get_new_table;
+
       table= best_table;
       table->query_id= thd->query_id;
       table->init(thd, table_list);
@@ -2124,6 +2129,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     DBUG_RETURN(TRUE);
   }
 
+get_new_table:
   /*
     Non pre-locked/LOCK TABLES mode, and the table is not temporary.
     This is the normal use case.
@@ -2298,6 +2304,7 @@ retry_share:
   if (table)
   {
     DBUG_ASSERT(table->file != NULL);
+    DBUG_ASSERT(share->table_type != TABLE_TYPE_GLOBAL_TEMPORARY);
     if (table->file->discover_check_version())
     {
       tc_release_table(table);
@@ -2312,6 +2319,23 @@ retry_share:
   }
   else
   {
+    uint open_flags= EXTRA_RECORD;
+
+    if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+    {
+      if (!thd->use_real_global_temporary_share())
+      {
+        my_bool err= open_global_temporary_table(thd, share, table_list,
+                                                 mdl_ticket);
+        if (unlikely(err))
+          goto err_lock;
+        DBUG_RETURN(FALSE);
+      }
+
+      // ALTER and DROP open a real table handle. Don't reuse it.
+      open_flags|= OPEN_NO_CACHE;
+    }
+
     enum open_frm_error error;
     /* make a new table */
     if (!(table=(TABLE*) my_malloc(key_memory_TABLE, sizeof(*table),
@@ -2320,7 +2344,7 @@ retry_share:
 
     error= open_table_from_share(thd, share, &table_list->alias,
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
-                                 EXTRA_RECORD,
+                                 open_flags,
                                  thd->open_options, table, FALSE,
                                  IF_PARTITIONING(table_list->partition_names,0));
 
@@ -5514,7 +5538,8 @@ static bool check_lock_and_start_stmt(THD *thd,
     lock_type= table_list->lock_type;
 
   if ((int) lock_type >= (int) TL_FIRST_WRITE &&
-      (int) table_list->table->reginfo.lock_type < (int) TL_FIRST_WRITE)
+      (int) table_list->table->reginfo.lock_type < (int) TL_FIRST_WRITE &&
+      table_list->table->s->tmp_table == NO_TMP_TABLE)
   {
     my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
              table_list->table->alias.c_ptr());

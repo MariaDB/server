@@ -163,6 +163,7 @@ enum enum_binlog_row_image {
   BINLOG_ROW_IMAGE_FULL_NODUP= 3
 };
 
+enum class Tmp_table_kind { TMP, GLOBAL, ANY };
 
 /* Bits for different SQL modes modes (including ANSI mode) */
 #define MODE_REAL_AS_FLOAT              (1ULL << 0)
@@ -2071,6 +2072,7 @@ public:
     for this share.
   */
   All_share_tables_list all_tmp_tables;
+  MDL_request mdl_request;
 };
 
 /**
@@ -2091,7 +2093,17 @@ struct All_tmp_table_shares
 };
 
 /* Also used in rpl_rli.h. */
-typedef I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares> All_tmp_tables_list;
+struct All_tmp_tables_list: I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares>
+{
+  bool committed;
+  ulonglong global_temporary_tables_count= 0;
+  inline void empty()
+  {
+    I_P_List::empty();
+    committed= false;
+    global_temporary_tables_count= 0;
+  }
+};
 
 /**
   Class that holds information about tables which were opened and locked
@@ -5930,17 +5942,27 @@ public:
 
   TABLE *find_temporary_table(const Lex_ident_db &db,
                               const Lex_ident_table &table_name,
-                              Temporary_table_state state= TMP_TABLE_IN_USE);
+                              Temporary_table_state state= TMP_TABLE_IN_USE,
+                              Tmp_table_kind find_kind= Tmp_table_kind::ANY);
   TABLE *find_temporary_table(const TABLE_LIST *tl,
-                              Temporary_table_state state= TMP_TABLE_IN_USE);
+                              Temporary_table_state state= TMP_TABLE_IN_USE,
+                              Tmp_table_kind find_kind= Tmp_table_kind::ANY);
 
   TMP_TABLE_SHARE *find_tmp_table_share_w_base_key(const char *key,
                                                    uint key_length);
   TMP_TABLE_SHARE *find_tmp_table_share(const Lex_ident_db &db,
-                                        const Lex_ident_table &table_name);
-  TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
-  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
+                                        const Lex_ident_table &table_name,
+                                        Tmp_table_kind find_kind);
+  TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl,
+                                        Tmp_table_kind find_kind);
+  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length,
+                                        Tmp_table_kind find_kind);
 
+  void global_tmp_tables_set_explicit_lock_duration();
+  bool use_real_global_temporary_share() const;
+
+  bool open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
+                                 Tmp_table_kind find_kind);
   bool open_temporary_table(TABLE_LIST *tl);
   bool check_and_open_tmp_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
@@ -5948,6 +5970,8 @@ public:
   bool close_temporary_tables();
   bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
                               const LEX_CSTRING *table_name);
+  bool drop_tmp_table_share(TABLE *table, TMP_TABLE_SHARE *share,
+                            bool delete_table);
   bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
   bool rm_temporary_table(handlerton *hton, const char *path);
   void mark_tmp_tables_as_free_for_reuse();
@@ -5956,6 +5980,13 @@ public:
   TMP_TABLE_SHARE* save_tmp_table_share(TABLE *table);
   void restore_tmp_table_share(TMP_TABLE_SHARE *share);
   void close_unused_temporary_table_instances(const TABLE_LIST *tl);
+  int commit_global_tmp_tables();
+  void use_global_tmp_table_tp();
+  inline bool has_open_global_temporary_tables() const
+  {
+    return !rgi_slave && temporary_tables &&
+           temporary_tables->global_temporary_tables_count;
+  }
 
 private:
   /* Whether a lock has been acquired? */
@@ -5968,10 +5999,12 @@ private:
                                           const Lex_ident_db &db,
                                           const Lex_ident_table &table_name);
   TABLE *find_temporary_table(const char *key, uint key_length,
-                              Temporary_table_state state);
+                              Temporary_table_state state,
+                              Tmp_table_kind find_kind= Tmp_table_kind::ANY);
   TABLE *open_temporary_table(TMP_TABLE_SHARE *share,
                               const Lex_ident_table &alias);
-  bool find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table);
+  bool find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table,
+                              Tmp_table_kind find_kind= Tmp_table_kind::ANY);
   bool use_temporary_table(TABLE *table, TABLE **out_table);
   void close_temporary_table(TABLE *table);
   bool log_events_and_free_tmp_shares();
@@ -5979,6 +6012,7 @@ private:
   void free_temporary_table(TABLE *table);
   bool lock_temporary_tables();
   void unlock_temporary_tables();
+  int drop_on_commit_delete_tables();
 
   inline uint tmpkeyval(TMP_TABLE_SHARE *share)
   {
@@ -5986,7 +6020,7 @@ private:
                      share->table_cache_key.length - 4);
   }
 
-  inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
+  static inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
   {
     DBUG_ASSERT(table->s->tmp_table);
     return static_cast<TMP_TABLE_SHARE *>(table->s);
@@ -7955,9 +7989,9 @@ public:
 */
 #define CF_DB_CHANGE (1U << 23)
 /**
-  Statement that deletes existing rows (DELETE, DELETE_MULTI)
+  ALTER TABLE, CREATE/DROP INDEX, etc
 */
-#define CF_DELETES_DATA (1U << 24)
+#define CF_ALTER_TABLE (1U << 24)
 
 #ifdef WITH_WSREP
 /**
@@ -7969,6 +8003,12 @@ public:
 */
 #define CF_WSREP_BASIC_DML (1u << 26)
 #endif /* WITH_WSREP */
+
+/**
+  Statement that deletes existing rows (DELETE, DELETE_MULTI)
+*/
+#define CF_DELETES_DATA (1U << 27)
+
 
 /* Bits in server_command_flags */
 /**

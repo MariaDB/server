@@ -5038,6 +5038,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       if (open_table(thd, table_list, &ot_ctx))
       {
         recover_rm_table();
+        if (create_info->pos_in_locked_tables &&
+            create_info->global_tmp_table())
+          recover_rm_table(); // rm once more for the parent GTT table;
       }
       /* Restore */
       table_list->open_strategy= save_open_strategy;
@@ -5464,7 +5467,7 @@ bool select_create::send_eof()
   }
   debug_crash_here("ddl_log_create_after_prepare_eof");
 
-  if (table->s->tmp_table)
+  if (table->s->tmp_table && !table->s->global_tmp_table())
   {
     /*
       Now is good time to add the new table to THD temporary tables list.
@@ -5472,7 +5475,8 @@ bool select_create::send_eof()
       statement.
     */
     if (thd->find_tmp_table_share(table->s->table_cache_key.str,
-                                  table->s->table_cache_key.length))
+                                  table->s->table_cache_key.length,
+                                  Tmp_table_kind::TMP))
     {
       my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table->alias.c_ptr());
       abort_result_set();
@@ -5484,17 +5488,20 @@ bool select_create::send_eof()
       thd->restore_tmp_table_share(saved_tmp_table_share);
     }
   }
-
-  /*
-    Do an implicit commit at end of statement for non-temporary
-    tables.  This can fail, but we should unlock the table
-    nevertheless.
-  */
-  if (!table->s->tmp_table)
+  else
   {
+    /*
+      Do an implicit commit at end of statement for non-temporary
+      tables.  This can fail, but we should unlock the table
+      nevertheless.
+    */
+
+    if (table->s->tmp_table && table->s->on_commit_delete())
+      table= NULL; // It will be deleted on commit
+
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
-        table->file->ht->db_type == DB_TYPE_INNODB)
+        table && table->file->ht->db_type == DB_TYPE_INNODB)
     {
       if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
       {
@@ -5663,7 +5670,7 @@ void select_create::abort_result_set()
   bool drop_table_was_logged= false;
   if (table)
   {
-    bool tmp_table= table->s->tmp_table;
+    bool tmp_table= table->s->tmp_table && !table->s->global_tmp_table();
     bool table_creation_was_logged= (!tmp_table ||
                                      table->s->table_creation_was_logged ||
                                      create_info->table_was_deleted);

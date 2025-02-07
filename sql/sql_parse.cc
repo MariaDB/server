@@ -407,7 +407,8 @@ static bool some_non_temp_table_to_be_updated(THD *thd, TABLE_LIST *tables)
   for (TABLE_LIST *table= tables; table; table= table->next_global)
   {
     DBUG_ASSERT(table->db.str && table->table_name.str);
-    if (table->updating && !thd->find_tmp_table_share(table))
+    if (table->updating && !thd->find_tmp_table_share(table,
+                                                      Tmp_table_kind::ANY))
       return 1;
   }
   return 0;
@@ -536,10 +537,12 @@ void init_update_queries(void)
                                             CF_AUTO_COMMIT_TRANS |
                                             CF_SCHEMA_CHANGE);
   sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
-                                            CF_ADMIN_COMMAND | CF_REPORT_PROGRESS;
+                                            CF_ADMIN_COMMAND | CF_REPORT_PROGRESS |
+                                            CF_ALTER_TABLE;
   sql_command_flags[SQLCOM_ALTER_TABLE]=    CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
-                                            CF_INSERTS_DATA | CF_ADMIN_COMMAND;
+                                            CF_INSERTS_DATA | CF_ADMIN_COMMAND |
+                                            CF_ALTER_TABLE;
   sql_command_flags[SQLCOM_ALTER_SEQUENCE]= CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS | CF_SCHEMA_CHANGE |
                                             CF_ADMIN_COMMAND;
@@ -560,7 +563,8 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_DB]=       CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_DB_CHANGE;
   sql_command_flags[SQLCOM_RENAME_TABLE]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_ADMIN_COMMAND;
   sql_command_flags[SQLCOM_DROP_INDEX]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
-                                            CF_REPORT_PROGRESS | CF_ADMIN_COMMAND;
+                                            CF_REPORT_PROGRESS | CF_ADMIN_COMMAND |
+                                            CF_ALTER_TABLE;
   sql_command_flags[SQLCOM_CREATE_VIEW]=    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_VIEW]=      CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
@@ -6371,6 +6375,13 @@ check_rename_table(THD *thd, TABLE_LIST *first_table,
         check_grant(thd, INSERT_ACL | CREATE_ACL, &new_list, FALSE, 1,
                     FALSE)))
       return 1;
+
+    if (table->table &&
+        table->table->s->global_tmp_table())
+    {
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      return 1;
+    }
   }
 
   return 0;
@@ -9851,7 +9862,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 
   if (lex->tmp_table())
     want_priv= CREATE_TMP_ACL;
-  else if (select_lex->item_list.elements || select_lex->tvc)
+  else if (select_lex->is_select_or_tvc())
     want_priv|= INSERT_ACL;
 
   /* CREATE OR REPLACE on not temporary tables require DROP_ACL */

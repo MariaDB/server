@@ -239,7 +239,14 @@ bool setup_tables_and_check_access(THD *thd,
                                    privilege_t want_access,
                                    bool full_table_list);
 bool wait_while_table_is_used(THD *thd, TABLE *table,
-                              enum ha_extra_function function);
+                              enum ha_extra_function function,
+                              ulonglong lock_wait_timeout);
+inline bool wait_while_table_is_used(THD *thd, TABLE *table,
+                                     enum ha_extra_function function)
+{
+  return wait_while_table_is_used(thd, table, function,
+                                  thd->variables.lock_wait_timeout);
+}
 
 void drop_open_table(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
                      const LEX_CSTRING *table_name);
