@@ -417,6 +417,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     extra2_size+= 1 + extra2_str_size(create_fields.elements);
   }
 
+
   /*
     To store the ignorability flag for each key.
     Here 1 bytes is reserved to store the extra index flags for keys.
@@ -540,6 +541,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (has_extra2_field_flags_)
     pos= extra2_write_field_properties(pos, create_fields);
+
 
 
   if (keys)

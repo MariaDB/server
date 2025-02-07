@@ -1,0 +1,458 @@
+# Safety
+set lock_wait_timeout= 5;
+create table t1 (x int, t text) on commit preserve rows;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'on commit preserve rows' at line 1
+create global temporary table t1 (x int, t text) on commit preserve rows;
+select TABLE_TYPE from information_schema.tables where table_name = 't1';
+TABLE_TYPE
+GLOBAL TEMPORARY
+drop temporary table t1;
+ERROR 42S02: Unknown table 'test.t1'
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+flush tables;
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+insert into t1 values(1, 'one');
+select TABLE_TYPE from information_schema.tables where table_name = 't1';
+TABLE_TYPE
+GLOBAL TEMPORARY
+show table status where temporary='Y';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+truncate t1;
+insert into t1 values(1, 'one');
+select * from t1;
+x	t
+1	one
+connect  con1,localhost,root,,;
+select * from t1 join t1 as t2;
+x	t	x	t
+insert into t1 values(2, 'two');
+select * from t1;
+x	t
+2	two
+select * from t1 join t1 as t2;
+x	t	x	t
+2	two	2	two
+connection default;
+select * from t1;
+x	t
+1	one
+select * from t1 join t1 as t2;
+x	t	x	t
+1	one	1	one
+alter table t1 add y int;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+drop table t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+set debug_sync= 'thread_end signal closed';
+disconnect con1;
+connection default;
+set debug_sync= 'now wait_for closed';
+drop temporary table t1;
+ERROR 42S02: Unknown table 't1'
+select * from t1;
+x	t
+1	one
+alter table t1 add j int;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+drop table t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate table t1;
+alter table t1 add j int;
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL,
+  `j` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+drop table t1;
+CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS;
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+drop table t1;
+show create table t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+create global temporary table t1 (x int, t text) on commit preserve rows;
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+drop table t1;
+create global temporary table t (x int) on commit delete rows;
+insert into t values (1);
+select * from t;
+x
+begin;
+insert into t values (1);
+select * from t;
+x
+1
+commit;
+select * from t;
+x
+connect  con1,localhost,root,,;
+select * from t;
+x
+insert into t values (1);
+select * from t;
+x
+begin;
+insert into t values (1);
+select * from t;
+x
+1
+commit;
+select * from t;
+x
+set debug_sync= 'thread_end signal closed';
+disconnect con1;
+connection default;
+set debug_sync= 'now wait_for closed';
+drop table t;
+create global temporary table t (x int) on commit PRESERVE rows;
+insert into t values (1);
+select * from t;
+x
+1
+begin;
+insert into t values (1);
+select * from t;
+x
+1
+1
+commit;
+select * from t;
+x
+1
+1
+connect  con1,localhost,root,,;
+select * from t;
+x
+insert into t values (1);
+select * from t;
+x
+1
+begin;
+insert into t values (1);
+select * from t;
+x
+1
+1
+commit;
+select * from t;
+x
+1
+1
+set debug_sync= 'thread_end signal closed';
+disconnect con1;
+connection default;
+set debug_sync= 'now wait_for closed';
+drop table t;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t;
+drop table t;
+create global temporary table t (x int) on commit PRESERVE rows;
+connect  con1,localhost,root,,;
+insert t values(1);
+connection default;
+alter table t add j int;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set statement lock_wait_timeout=0 for drop table t;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+set debug_sync= 'thread_end signal closed';
+disconnect con1;
+connection default;
+set debug_sync= 'now wait_for closed';
+drop table t;
+create global temporary table t (x int) partition by hash(x);
+ERROR HY000: Partitioned tables do not support CREATE GLOBAL TEMPORARY TABLE
+create global temporary table t (x int) with system versioning;
+ERROR HY000: System-versioned tables do not support CREATE GLOBAL TEMPORARY TABLE
+create global temporary table t (x int, y int, foreign key (x) references t(y));
+ERROR HY000: Cannot add foreign key constraint for `GLOBAL TEMPORARY TABLE`
+create global temporary table t (x int);
+alter table t force, lock=none, algorithm=copy;
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=EXCLUSIVE
+alter table t rename column x to y, lock=none, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+drop table t;
+### VIEWS
+create global temporary table t (x int);
+connect  con1,localhost,root,,;
+begin;
+insert into t values(1);
+connection default;
+create view v as select * from t;
+begin;
+insert into t values(2);
+select * from v;
+x
+2
+connection con1;
+select * from v;
+x
+1
+commit;
+# Now table was truncated
+select * from v;
+x
+connection default;
+commit;
+drop view v;
+drop table t;
+### AS SELECT
+create global temporary table t1(x int) on commit preserve rows
+as select 1 as 'x';
+select * from t1;
+x
+1
+create global temporary table t2 on commit preserve rows
+as values(5),(6),(7);
+select * from t2;
+5
+5
+6
+7
+connection con1;
+select * from t1;
+x
+select `5` as 'empty' from t2;
+empty
+truncate t1;
+truncate t2;
+connection default;
+truncate t1;
+truncate t2;
+drop table t1;
+drop table t2;
+create global temporary table t(x int) on commit delete rows
+as select 1 as 'x';
+# Implicit commit deletes data
+select * from t;
+x
+drop table t;
+create global temporary table t2(`5` int primary key) as values(5),(5),(5);
+ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+select `5` as col from t2;
+col
+drop table t2;
+### CREATE TABLE ... LIKE
+create table t1(x int primary key);
+create global temporary table t2 like t1;
+show create table t2;
+Table	Create Table
+t2	CREATE GLOBAL TEMPORARY TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+drop table t1;
+create table t1 like t2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create global temporary table t3 like t2;
+show create table t3;
+Table	Create Table
+t3	CREATE GLOBAL TEMPORARY TABLE `t3` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+drop table t2;
+drop table t3;
+create global temporary table t2(x int primary key) on commit preserve rows;
+create table t1 like t2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create global temporary table t3 like t2;
+show create table t3;
+Table	Create Table
+t3	CREATE GLOBAL TEMPORARY TABLE `t3` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+create temporary table t4 like t2;
+show create table t4;
+Table	Create Table
+t4	CREATE TEMPORARY TABLE `t4` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+truncate t2;
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+### RENAME
+create global temporary table t2(x int primary key) on commit preserve rows;
+connection con1;
+insert t2 values (1);
+connection default;
+rename table t2 NOWAIT to tx;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+truncate t2;
+connection default;
+select * from t2;
+x
+rename table t2 to tx;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t2;
+rename table t2 to tx;
+show create table t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+show create table tx;
+Table	Create Table
+tx	CREATE GLOBAL TEMPORARY TABLE `tx` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+drop table tx;
+### FLUSH, LOCK
+create global temporary table t(x int primary key) on commit preserve rows;
+flush table t;
+insert t values (1);
+flush table t;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+select * from t;
+x
+1
+truncate t;
+flush table t;
+lock table t write;
+ERROR 42S02: Unknown table 't'
+drop table t;
+# Multi-table DML
+create table t(x int, txt text);
+create global temporary table gtt(x int) on commit preserve rows;
+insert t values (1, 'one'), (2,'two'), (3, 'three'), (4, 'four');
+insert gtt values (2),(3),(5);
+connection con1;
+insert gtt values (4),(6);
+connection default;
+update t, gtt set t.txt= CONCAT(t.txt, ' tables') where t.x = gtt.x;
+connection con1;
+update t, gtt set t.txt= CONCAT(t.txt, ' databases') where t.x = gtt.x;
+truncate gtt;
+connection default;
+select * from t;
+x	txt
+1	one
+2	two tables
+3	three tables
+4	four databases
+truncate gtt;
+drop table t;
+drop table gtt;
+create table t(x int);
+lock table t write;
+create or replace table t(x int);
+create or replace global temporary table t(t text);
+ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not system error)")
+unlock table;
+drop table t;
+### PS Second execution
+create global temporary table t(x int) on commit preserve rows;
+insert into t values (1),(2),(3);
+prepare stmt from 'update t set x = x + 1 where x > 2';
+prepare ins_stmt from 'insert into t values (1),(2),(3)';
+execute stmt;
+execute stmt;
+select * from t;
+x
+1
+2
+5
+truncate table t;
+insert into t values (1),(2),(3);
+execute ins_stmt;
+execute ins_stmt;
+select * from t;
+x
+1
+2
+3
+1
+2
+3
+1
+2
+3
+deallocate prepare stmt;
+connection con1;
+select * from t;
+x
+truncate t;
+connection default;
+truncate t;
+drop table t;
+create global temporary table t(x int) on commit preserve rows;
+execute ins_stmt;
+select * from t;
+x
+1
+2
+3
+deallocate prepare ins_stmt;
+prepare stmt from 'update t set x = x + 1 where x > 2';
+prepare ins_stmt from 'insert into t values (1),(2),(3)';
+insert into t values (1),(2),(3);
+execute stmt;
+execute stmt;
+select * from t;
+x
+1
+2
+5
+1
+2
+5
+truncate table t;
+execute ins_stmt;
+execute ins_stmt;
+select * from t;
+x
+1
+2
+3
+1
+2
+3
+connection con1;
+select * from t;
+x
+truncate t;
+connection default;
+deallocate prepare stmt;
+deallocate prepare ins_stmt;
+truncate t;
+drop table t;
+disconnect con1;

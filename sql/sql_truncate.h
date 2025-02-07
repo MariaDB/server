@@ -55,7 +55,7 @@ protected:
   };
 
   /** Handle locking a base table for truncate. */
-  bool lock_table(THD *, TABLE_LIST *, bool *);
+  bool lock_table(THD *, TABLE_LIST *, bool *, bool *);
 
   /** Truncate table via the handler method. */
   enum truncate_result handler_truncate(THD *, TABLE_LIST *, bool);

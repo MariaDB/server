@@ -314,6 +314,26 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd,
   DBUG_RETURN(argument.open_list);
 }
 
+/**
+  Check if any global temporary tables are still opened in this session.
+*/
+static int flush_check_for_global_temporary_tables(THD *thd, TABLE_LIST *tl)
+{
+  if (thd->rgi_slave || !thd->has_open_global_temporary_tables())
+    return 0;
+
+  for (;tl; tl= tl->next_global)
+  {
+    TABLE_SHARE *share= thd->find_tmp_table_share(tl);
+    if (share && share->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+    {
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      return 1;
+    }
+  }
+  return 0;
+}
+
 
 /**
    Close all tables that are not in use in table definition cache
@@ -436,6 +456,9 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
 
     /* close open HANDLER for this thread to allow table to be closed */
     mysql_ha_flush_tables(thd, tables);
+
+    if (flush_check_for_global_temporary_tables(thd, tables))
+      DBUG_RETURN(true);
 
     for (TABLE_LIST *table= tables; table; table= table->next_local)
     {
@@ -1471,7 +1494,8 @@ void update_non_unique_table_error(TABLE_LIST *update,
 */
 
 bool wait_while_table_is_used(THD *thd, TABLE *table,
-                              enum ha_extra_function function)
+                              enum ha_extra_function function,
+                              ulonglong lock_wait_timeout)
 {
   DBUG_ENTER("wait_while_table_is_used");
   DBUG_ASSERT(!table->s->tmp_table);
@@ -1481,7 +1505,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
 
   if (thd->mdl_context.upgrade_shared_lock(
              table->mdl_ticket, MDL_EXCLUSIVE,
-             thd->variables.lock_wait_timeout))
+             (double)lock_wait_timeout))
     DBUG_RETURN(TRUE);
 
   table->s->tdc->flush(thd, true);
@@ -2288,6 +2312,7 @@ retry_share:
   if (table)
   {
     DBUG_ASSERT(table->file != NULL);
+    DBUG_ASSERT(share->table_type != TABLE_TYPE_GLOBAL_TEMPORARY);
     if (table->file->discover_check_version())
     {
       tc_release_table(table);
@@ -2302,6 +2327,23 @@ retry_share:
   }
   else
   {
+    uint open_flags= EXTRA_RECORD;
+
+    if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+    {
+      if (!thd->use_real_global_temporary_share())
+      {
+        my_bool err= open_global_temporary_table(thd, share, table_list,
+                                                 mdl_ticket);
+        if (unlikely(err))
+          goto err_lock;
+        DBUG_RETURN(FALSE);
+      }
+
+      // ALTER and DROP open a real table handle. Don't reuse it.
+      open_flags|= OPEN_NO_CACHE;
+    }
+
     enum open_frm_error error;
     /* make a new table */
     if (!(table=(TABLE*) my_malloc(key_memory_TABLE, sizeof(*table),
@@ -2310,7 +2352,7 @@ retry_share:
 
     error= open_table_from_share(thd, share, &table_list->alias,
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
-                                 EXTRA_RECORD,
+                                 open_flags,
                                  thd->open_options, table, FALSE,
                                  IF_PARTITIONING(table_list->partition_names,0));
 
