@@ -35,17 +35,13 @@ extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
 #endif /* __sun__ ... */
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
-#if defined(_WIN32)
+#ifdef _WIN32
 static size_t my_large_page_size;
-#define HAVE_LARGE_PAGES
-#elif defined(HAVE_MMAP)
-#define HAVE_LARGE_PAGES
-#endif
-
-#ifdef HAVE_LARGE_PAGES
-static my_bool my_use_large_pages= 0;
+my_bool my_use_large_pages;
+#elif defined HAVE_MMAP
+static my_bool my_use_large_pages;
 #else
-#define my_use_large_pages 0
+# define my_use_large_pages 0
 #endif
 
 #if defined(HAVE_GETPAGESIZES) || defined(__linux__)
@@ -207,7 +203,7 @@ int my_init_large_pages(my_bool super_large_pages)
   my_use_large_pages= 1;
   my_get_large_page_sizes(my_large_page_sizes);
 
-#ifndef HAVE_LARGE_PAGES
+#ifdef my_use_large_pages
   my_printf_error(EE_OUTOFMEMORY, "No large page support on this platform",
                   MYF(MY_WME));
 #endif
@@ -441,11 +437,11 @@ uchar *my_large_virtual_alloc(size_t *size)
       int mapflag= MAP_PRIVATE |
 #  if defined MAP_HUGETLB /* linux 2.6.32 */
         MAP_HUGETLB |
-#  if defined MAP_HUGE_SHIFT /* Linux-3.8+ */
+#   if defined MAP_HUGE_SHIFT /* Linux-3.8+ */
         my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT |
-#  else
+#   else
 #    warning "No explicit large page (HUGETLB pages) support in Linux < 3.8"
-#  endif
+#   endif
 #  elif defined MAP_ALIGNED
         MAP_ALIGNED(my_bit_log2_size_t(large_page_size)) |
 #   if defined(MAP_ALIGNED_SUPER)
@@ -543,7 +539,7 @@ void my_large_free(void *ptr, size_t size)
 #endif /* memory_sanitizer */
 #else
   my_free_lock(ptr);
-#endif /* HAVE_MMMAP */
+#endif /* HAVE_MMAP */
 
   DBUG_VOID_RETURN;
 }
