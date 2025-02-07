@@ -2142,6 +2142,15 @@ end_options:
                         hton->table_options);
   append_directory(thd, packet, &DATA_clex_str,  create_info.data_file_name);
   append_directory(thd, packet, &INDEX_clex_str, create_info.index_file_name);
+
+  if (table->s->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+  {
+    LEX_CSTRING on_commit= table->s->on_commit_delete()
+                     ? LEX_CSTRING{STRING_WITH_LEN(" ON COMMIT DELETE ROWS")}
+                     : LEX_CSTRING{STRING_WITH_LEN(" ON COMMIT PRESERVE ROWS")};
+
+    packet->append(on_commit);
+  }
 }
 
 static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
@@ -2244,8 +2253,12 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
         !create_info_arg->or_replace_slave_generated()) ||
        create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
-  if (share->tmp_table)
+
+  if (share->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+    packet->append(STRING_WITH_LEN("GLOBAL TEMPORARY "));
+  else if (share->tmp_table)
     packet->append(STRING_WITH_LEN("TEMPORARY "));
+
   packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg && create_info_arg->if_not_exists())
     packet->append(STRING_WITH_LEN("IF NOT EXISTS "));
@@ -5558,6 +5571,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
           continue;
       }
 
+      // We should skip it to hide the local table, with Temporary='Y'
+      if (share_temp->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+        continue;
+
       TABLE *tmp_tbl= share_temp->all_tmp_tables.front();
       if (schema_table_idx == SCH_TABLE_NAMES)
       {
@@ -5906,6 +5923,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       table->field[3]->store(STRING_WITH_LEN("TEMPORARY SEQUENCE"), cs);
     else if (share->table_type == TABLE_TYPE_SEQUENCE)
       table->field[3]->store(STRING_WITH_LEN("SEQUENCE"), cs);
+    else if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+      table->field[3]->store(STRING_WITH_LEN("GLOBAL TEMPORARY"), cs);
     else if (share->tmp_table)
       table->field[3]->store(STRING_WITH_LEN("TEMPORARY"), cs);
     else

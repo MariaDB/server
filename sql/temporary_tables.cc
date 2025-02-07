@@ -29,8 +29,23 @@
 #include "sql_table.h"                          // generated_by_server
 #include "rpl_rli.h"                            /* rpl_group_info */
 
-#define IS_USER_TABLE(A) ((A->tmp_table == TRANSACTIONAL_TMP_TABLE) || \
-                          (A->tmp_table == NON_TRANSACTIONAL_TMP_TABLE))
+
+bool is_user_tmp_table(TMP_TABLE_SHARE *share)
+{
+  if (share->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+  {
+    /*
+      This is either a global temporary table (GTT) definition table or
+      local GTT table created from the GTT definition.
+      If (share->tmp_table != NO_TMP_TABLE) then this is local GTT table.
+      In this case share->from_share is also set and points to the global
+      GTT definition.
+    */
+    return false;
+  }
+  /* Return true of the table is non GTT temporary table */
+  return share->tmp_table != NO_TMP_TABLE;
+}
 
 /**
   Check whether temporary tables exist. The decision is made based on the
@@ -342,6 +357,83 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length)
   DBUG_RETURN(result);
 }
 
+bool THD::use_real_global_temporary_share() const
+{
+  return (sql_command_flags() & (CF_ALTER_TABLE
+                               | CF_SCHEMA_CHANGE
+                               | CF_STATUS_COMMAND)
+        && lex->sql_command != SQLCOM_CREATE_TABLE)
+      || lex->sql_command == SQLCOM_CREATE_VIEW
+      || stmt_arena->is_stmt_prepare();
+}
+
+/**
+  Find a temporary table specified by TABLE_LIST instance in the open table
+  list, and open a TABLE handle, without initializing it.
+
+  @param tl [IN]                      TABLE_LIST
+  @param table [out]                  TABLE handle found/opened
+*/
+bool THD::open_temporary_table_impl(TABLE_LIST *tl, TABLE **table)
+{
+  DBUG_ENTER("THD::internal_open_temporary_table");
+  /*
+    Temporary tables are not safe for parallel replication. They were
+    designed to be visible to one thread only, so have no table locking.
+    Thus, there is no protection against two conflicting transactions
+    committing in parallel and things like that.
+
+    So for now, anything that uses temporary tables will be serialised
+    with anything before it, when using parallel replication.
+  */
+
+  if (rgi_slave &&
+      rgi_slave->is_parallel_exec &&
+      find_temporary_table(tl) &&
+      wait_for_prior_commit())
+    DBUG_RETURN(true);
+
+  /*
+    First check if there is a reusable open table available in the
+    open table list.
+  */
+  if (find_and_use_tmp_table(tl, table))
+  {
+    DBUG_RETURN(true);                          /* Error */
+  }
+
+  /*
+    No reusable table was found. We will have to open a new instance.
+  */
+  TMP_TABLE_SHARE *tmp_share;
+  if (!*table && (tmp_share= find_tmp_table_share(tl)))
+  {
+    if (tmp_share->from_share && use_real_global_temporary_share())
+    {
+      // We want to use real global temporary table when ALTER/DROP is executed.
+      DBUG_RETURN(false);
+    }
+
+    *table= open_temporary_table(tmp_share, tl->get_table_name());
+    /*
+       Temporary tables are not safe for parallel replication. They were
+       designed to be visible to one thread only, so have no table locking.
+       Thus, there is no protection against two conflicting transactions
+       committing in parallel and things like that.
+
+       So for now, anything that uses temporary tables will be serialised
+       with anything before it, when using parallel replication.
+    */
+    if (*table && rgi_slave &&
+        rgi_slave->is_parallel_exec &&
+        wait_for_prior_commit())
+      DBUG_RETURN(true);
+
+    if (!*table && is_error())
+      DBUG_RETURN(true);                        // Error when opening table
+  }
+  DBUG_RETURN(false);
+}
 
 /**
   Find a temporary table specified by TABLE_LIST instance in the open table
@@ -374,7 +466,6 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   DBUG_ENTER("THD::open_temporary_table");
   DBUG_PRINT("enter", ("table: '%s'.'%s'", tl->db.str, tl->table_name.str));
 
-  TMP_TABLE_SHARE *share;
   TABLE *table= NULL;
 
   /*
@@ -407,54 +498,8 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     DBUG_RETURN(false);
   }
 
-  /*
-    Temporary tables are not safe for parallel replication. They were
-    designed to be visible to one thread only, so have no table locking.
-    Thus there is no protection against two conflicting transactions
-    committing in parallel and things like that.
-
-    So for now, anything that uses temporary tables will be serialised
-    with anything before it, when using parallel replication.
-  */
-
-  if (rgi_slave &&
-      rgi_slave->is_parallel_exec &&
-      find_temporary_table(tl) &&
-      wait_for_prior_commit())
+  if (unlikely(open_temporary_table_impl(tl, &table)))
     DBUG_RETURN(true);
-
-  /*
-    First check if there is a reusable open table available in the
-    open table list.
-  */
-  if (find_and_use_tmp_table(tl, &table))
-  {
-    DBUG_RETURN(true);                          /* Error */
-  }
-
-  /*
-    No reusable table was found. We will have to open a new instance.
-  */
-  if (!table && (share= find_tmp_table_share(tl)))
-  {
-    table= open_temporary_table(share, tl->get_table_name());
-    /*
-       Temporary tables are not safe for parallel replication. They were
-       designed to be visible to one thread only, so have no table locking.
-       Thus there is no protection against two conflicting transactions
-       committing in parallel and things like that.
-
-       So for now, anything that uses temporary tables will be serialised
-       with anything before it, when using parallel replication.
-    */
-    if (table && rgi_slave &&
-        rgi_slave->is_parallel_exec &&
-        wait_for_prior_commit())
-      DBUG_RETURN(true);
-
-    if (!table && is_error())
-      DBUG_RETURN(true);                        // Error when opening table
-  }
 
   if (!table)
   {
@@ -670,9 +715,6 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   DBUG_ENTER("THD::drop_temporary_table");
 
   TMP_TABLE_SHARE *share;
-  TABLE *tab;
-  bool result= false;
-  bool locked;
 
   DBUG_ASSERT(table);
   DBUG_PRINT("tmptable", ("Dropping table: '%s'.'%s'",
@@ -680,26 +722,38 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
 
   // close all handlers in case it is statement abort and some can be left
   table->file->ha_reset();
-
-  locked= lock_temporary_tables();
+  if (is_trans)
+    *is_trans= table->file->has_transactions();
 
   share= tmp_table_share(table);
+  DBUG_RETURN(drop_tmp_table_share(table, share, delete_table));
+}
 
-  /* Table might be in use by some outer statement. */
-  All_share_tables_list::Iterator it(share->all_tmp_tables);
-  while ((tab= it++))
+bool THD::drop_tmp_table_share(TABLE *table, TMP_TABLE_SHARE *share,
+                               bool delete_table)
+{
+  DBUG_ENTER("THD::drop_tmp_table_share");
+  TABLE *tab;
+  bool result= false;
+
+  bool locked= lock_temporary_tables();
+
+  if (table)
   {
-    if (tab != table && tab->query_id != 0)
+    /* Table might be in use by some outer statement. */
+    All_share_tables_list::Iterator it(share->all_tmp_tables);
+    while ((tab= it++))
     {
-      /* Found a table instance in use. This table cannot be be dropped. */
-      my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
-      result= true;
-      goto end;
+      if (tab != table && tab->query_id != 0)
+      {
+        /* Found a table instance in use. This table cannot be dropped. */
+        my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
+        result= true;
+        goto end;
+      }
     }
   }
 
-  if (is_trans)
-    *is_trans= table->file->has_transactions();
 
   /*
     Iterate over the list of open tables and close them.
@@ -1078,6 +1132,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
 
   /* Initialize the all_tmp_tables list. */
   share->all_tmp_tables.empty();
+  share->from_share= NULL;
 
   /*
     We need to alloc & initialize temporary_tables if this happens
@@ -1140,6 +1195,12 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
         !(memcmp(share->table_cache_key.str, key, key_length)))
     {
       /* A matching TMP_TABLE_SHARE is found. */
+
+      if (share->from_share && use_real_global_temporary_share())
+        break; /* We want to use real global temporary table
+                  when ALTER/DROP is executed.
+                */
+
       All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
 
       bool found= false;
@@ -1307,6 +1368,8 @@ bool THD::use_temporary_table(TABLE *table, TABLE **out_table)
     parallel replication
   */
   table->in_use= this;
+  if (tmp_table_share(table)->from_share)
+    use_global_tmp_table_tp();
 
   DBUG_RETURN(false);
 }
@@ -1344,6 +1407,25 @@ void THD::close_temporary_table(TABLE *table)
 static const char drop_table_stub[]= "DROP TEMPORARY TABLE IF EXISTS ";
 static const char rename_table_stub[]= "RENAME TABLE ";
 
+int THD::commit_global_tmp_tables()
+{
+  DBUG_ASSERT(!rgi_slave);
+  if (!has_open_global_temporary_tables())
+    return 0;
+
+  int error= 0;
+  All_tmp_tables_list::Iterator it(*temporary_tables);
+  while (TMP_TABLE_SHARE *share= it++)
+  {
+    if (share->on_commit_delete())
+      if (int local_error= drop_tmp_table_share(NULL, share, true))
+        error= local_error;
+  }
+  return error;
+}
+
+
+
 /**
   Write query log events with "DROP TEMPORARY TABLES .." for each pseudo
   thread to the binary log.
@@ -1379,7 +1461,7 @@ bool THD::log_events_and_free_tmp_shares()
   uint sorted_count= 0;
   while((share= it_unsorted++))
   {
-    if (IS_USER_TABLE(share))
+    if (is_user_tmp_table(share))
     {
       prev_sorted= NULL;
 
@@ -1389,7 +1471,7 @@ bool THD::log_events_and_free_tmp_shares()
       {
         sorted= it_sorted ++;
 
-        if (!IS_USER_TABLE(sorted) ||
+        if (!is_user_tmp_table(sorted) ||
             (tmpkeyval(sorted) > tmpkeyval(share)))
         {
           /*
@@ -1431,7 +1513,7 @@ bool THD::log_events_and_free_tmp_shares()
   share= temporary_tables->pop_front();
   while (share)
   {
-    if (IS_USER_TABLE(share))
+    if (is_user_tmp_table(share))
     {
       used_t save_thread_specific_used= used & THREAD_SPECIFIC_USED;
       my_thread_id save_pseudo_thread_id= variables.pseudo_thread_id;
@@ -1456,7 +1538,7 @@ bool THD::log_events_and_free_tmp_shares()
         DROP query.
       */
       for (at_least_one_create_logged= false;
-           share && IS_USER_TABLE(share) &&
+           share && is_user_tmp_table(share) &&
            tmpkeyval(share) == variables.pseudo_thread_id &&
            share->db.length == db.length() &&
            memcmp(share->db.str, db.ptr(), db.length()) == 0;
@@ -1612,6 +1694,14 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
       DBUG_ASSERT(share->hlindexes() == 1);
       rm_temporary_table(share->hlindex->db_type(), share->hlindex->path.str);
     }
+
+    if (share->from_share)
+    {
+      mdl_context.release_lock(share->mdl_request.ticket);
+      tdc_release_share(share->from_share);
+      --temporary_tables->global_temporary_tables_count;
+      share->from_share= NULL;
+    }
   }
   free_table_share(share);
   my_free(share);
@@ -1735,3 +1825,62 @@ void THD::close_unused_temporary_table_instances(const TABLE_LIST *tl)
      }
   }
 }
+
+static int commit_global_tmp_table(THD *thd, bool all)
+{
+  if (ending_trans(thd, all))
+    return thd->commit_global_tmp_tables();
+  return 0;
+}
+
+static transaction_participant global_temporary_tp=
+{
+  0, 0,  HTON_NO_ROLLBACK,
+  [](THD *) { return 0; },
+  NULL, NULL, NULL, NULL,
+  commit_global_tmp_table,       // commit
+  commit_global_tmp_table,       // rollback
+  NULL,                          // prepare
+  NULL, // recover
+  NULL, // xa_commit
+  NULL, // xa_rollback
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
+void THD::use_global_tmp_table_tp()
+{
+  if (!(sql_command_flags() & CF_STATUS_COMMAND))
+  {
+    trans_register_ha(this, false, &global_temporary_tp, 0);
+    if (in_multi_stmt_transaction_mode())
+      trans_register_ha(this, true, &global_temporary_tp, 0);
+  }
+}
+
+static int init_global_tmp_table(void *p)
+{
+  st_plugin_int *plugin= (st_plugin_int *)p;
+  plugin->data= &global_temporary_tp;
+  return setup_transaction_participant(plugin);
+}
+
+struct st_mysql_daemon global_temporary_tables_plugin=
+{ MYSQL_DAEMON_INTERFACE_VERSION  };
+
+maria_declare_plugin(global_temporary_tables)
+{
+  MYSQL_DAEMON_PLUGIN,
+  &global_temporary_tables_plugin,
+  "global_temporary_tables",
+  "MariaDB Corp.",
+  "This is a plugin to represent the global temporary tables in a transaction",
+  PLUGIN_LICENSE_GPL,
+  init_global_tmp_table, // Plugin Init
+  NULL,   // Plugin Deinit
+  0x0200, // 2.0
+  NULL,   // no status vars
+  NULL,   // no sysvars
+  "2.0",
+  MariaDB_PLUGIN_MATURITY_BETA
+}
+maria_declare_plugin_end;

@@ -1146,6 +1146,16 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
   {
     if (check_if_log_table(table, TRUE, "DROP"))
       DBUG_RETURN(true);
+
+    TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table);
+    if (share && share->from_share)
+    {
+      if (drop_temporary)
+        my_error(ER_BAD_TABLE_ERROR, MYF(0), table->alias.str);
+      else
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      DBUG_RETURN(true);
+    }
   }
 
   if (!drop_temporary)
@@ -4087,6 +4097,24 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
                           *key_info_buffer, *key_count);
   );
 
+  if (create_info->table_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+  {
+    const char *error= NULL;
+    if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
+      error= "FOREIGN KEY";
+    else if (thd->lex->part_info)
+      error= "PARTITION";
+    else if (alter_info->flags & (ALTER_ADD_SYSTEM_VERSIONING))
+      error= "SYSTEM VERSIONING";
+
+    if (error)
+    {
+      my_error(ER_CANT_USE_WITH_GLOBAL_TEMPORARY_TABLE, MYF(0), error);
+      DBUG_RETURN(TRUE);
+    }
+  }
+
+
   DBUG_RETURN(FALSE);
 }
 
@@ -5262,6 +5290,13 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
       create_info->or_replace())
   {
     DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
+    if (create_info->table_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+    {
+      my_error(ER_CANT_CREATE_TABLE, MYF(0), alter_info->db.str,
+               alter_info->table_name.str, 0);
+      result= 1;
+      goto err;
+    }
     /*
       Add back the deleted table and re-created table as a locked table
       This should always work as we have a meta lock on the table.
@@ -5795,6 +5830,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   /* Replace type of source table with one specified in the statement. */
   local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
   local_create_info.options|= create_info->options;
+  local_create_info.table_options&= ~HA_OPTIONS_TO_RESET_CREATE_LIKE;
+  local_create_info.table_options|= create_info->table_options;
   /* Reset auto-increment counter for the new table. */
   local_create_info.auto_increment_value= 0;
   /*
@@ -6078,6 +6115,118 @@ err:
   ddl_log_complete(&ddl_log_state_rm);
   ddl_log_complete(&ddl_log_state_create);
   DBUG_RETURN(res != 0);
+}
+
+static void open_gtt_on_error(TABLE *table)
+{
+  closefrm(table);
+}
+
+my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
+                                    TABLE_LIST *out_table,
+                                    MDL_ticket *mdl_ticket)
+{
+  DBUG_ASSERT(!thd->rgi_slave); // slave won't use global temporary tables
+
+  if (thd->lex->sql_command == SQLCOM_LOCK_TABLES)
+  {
+    my_error(ER_BAD_TABLE_ERROR, MYF(0), source->table_name.str);
+    return TRUE;
+  }
+
+  /*
+    First, lookup in tmp tables list for cases like "t join t"
+    This also could happen if tl->open_type is OT_BASE_ONLY
+  */
+  TABLE *table= NULL;
+  if (thd->has_open_global_temporary_tables())
+  {
+    if (thd->open_temporary_table_impl(out_table, &table))
+      return TRUE;
+
+    if (table)
+    {
+      DBUG_ASSERT(((TMP_TABLE_SHARE*)table->s)->from_share == source);
+      tdc_release_share(source);
+      table->query_id= thd->query_id;
+    }
+  }
+
+  if (!table)
+  {
+    /* User had not an open copy of the global temporary table */
+    TABLE global_table;
+    if (open_table_from_share(thd, source, &empty_clex_str,
+                              HA_OPEN_KEYFILE, READ_ALL, 0,
+                              &global_table, true))
+      return TRUE;
+
+    DBUG_ASSERT(!global_table.versioned());
+
+    if (global_table.file->discover_check_version())
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
+
+    Alter_info alter_info;
+    Alter_table_ctx alter_ctx;
+    Table_specification_st create_info;
+    create_info.init();
+    create_info.db_type= source->db_type();
+    create_info.row_type= source->row_type;
+    create_info.alter_info= &alter_info;
+
+    if (mysql_prepare_alter_table(thd, &global_table, &create_info,
+                                  &alter_info, &alter_ctx))
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    thd->work_part_info= 0;
+#endif
+    create_info.options|= HA_LEX_CREATE_TMP_TABLE;
+    int res= mysql_create_table_no_lock(thd,
+                                        NULL, NULL,
+                                        &create_info, &alter_info,
+                                        NULL, C_ORDINARY_CREATE,
+                                        out_table);
+    if (res > 0)
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
+
+    ++thd->temporary_tables->global_temporary_tables_count;
+    table= create_info.table;
+
+    TMP_TABLE_SHARE *share= (TMP_TABLE_SHARE*)table->s;
+    share->from_share= source;
+    share->table_type= TABLE_TYPE_NORMAL;
+
+    MDL_REQUEST_INIT_BY_KEY(&share->mdl_request, &out_table->mdl_request.key,
+                            MDL_SHARED, MDL_EXPLICIT);
+    share->mdl_request.ticket= mdl_ticket; // It'll be cloned.
+    if (thd->mdl_context.clone_ticket(&share->mdl_request))
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
+    table->reginfo.lock_type= TL_IGNORE;
+    share->table_creation_was_logged= 0;
+    closefrm(&global_table);
+  }
+
+  thd->used|= Sql_used::THREAD_SPECIFIC_USED;
+
+  out_table->updatable= true;
+  out_table->table= table;
+  table->init(thd, out_table);
+
+  thd->use_global_tmp_table_tp();
+  return FALSE;
 }
 
 
@@ -7500,6 +7649,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     else
       ha_alter_info->key_count= table->s->keys;
   }
+
+  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+    ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
 
   DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
   DBUG_RETURN(false);
@@ -10602,6 +10754,10 @@ const char *online_alter_check_supported(THD *thd,
   if (!*online)
     return "CHANGE COLUMN ... AUTO_INCREMENT";
 
+  *online= table->s->table_type != TABLE_TYPE_GLOBAL_TEMPORARY;
+  if (!*online)
+    return "GLOBAL TEMPORARY TABLE";
+
   return NULL;
 }
 
@@ -10699,6 +10855,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool online= false;
 #endif
   TRIGGER_RENAME_PARAM trigger_param;
+  uint lock_wait_timeout= thd->variables.lock_wait_timeout;
 
   /*
     Callback function that an engine can request to be called after executing
@@ -11715,16 +11872,41 @@ alter_copy:
   if (fk_prepare_copy_alter_table(thd, table, alter_info, &alter_ctx))
     goto err_new_table_cleanup;
 
+  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+  {
+    if (thd->find_tmp_table_share(table_list))
+    {
+      // The table is opened in the same connection.
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      goto err_new_table_cleanup;
+    }
+    if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_DEFAULT)
+      alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
+
+    if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+    {
+      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
+               alter_info->lock(), "LOCK=EXCLUSIVE");
+      goto err_new_table_cleanup;
+    }
+
+    lock_wait_timeout= 0; // Oracle compatibility
+  }
+
   if (!table->s->tmp_table)
   {
     // If EXCLUSIVE lock is requested, upgrade already.
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
-        wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+        wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN,
+                                 lock_wait_timeout))
       goto err_new_table_cleanup;
 
     /*
       Otherwise upgrade to SHARED_NO_WRITE.
       Note that under LOCK TABLES, we will already have SHARED_NO_READ_WRITE.
+
+      No need to use local lock_wait_timeout variable here: it's only important
+      for GLOBAL TEMPORARY tables, which should take exclusive lock
     */
     if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
         thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_SHARED_NO_WRITE,
@@ -13501,7 +13683,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   }
 #endif /* WITH_WSREP */
 
-  if (select_lex->item_list.elements || select_lex->tvc) // With select or TVC
+  if (select_lex->is_select_or_tvc()) // With select or TVC
   {
     select_result *result;
 

@@ -12328,3 +12328,5 @@ ER_WARN_MALFORMED_HINT
         eng "Hint %s is ignored as malformed"
 ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT
         eng "Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported"
+ER_CANT_USE_WITH_GLOBAL_TEMPORARY_TABLE
+        eng "Clause %s can't be used with GLOBAL TEMPORARY TABLE"
