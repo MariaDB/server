@@ -5374,7 +5374,8 @@ bool select_create::send_eof()
   }
   debug_crash_here("ddl_log_create_after_prepare_eof");
 
-  if (table->s->tmp_table)
+  if (table->s->tmp_table &&
+      (table->s->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE) == 0)
   {
     /*
       Now is good time to add the new table to THD temporary tables list.
@@ -5394,17 +5395,22 @@ bool select_create::send_eof()
       thd->restore_tmp_table_share(saved_tmp_table_share);
     }
   }
-
-  /*
-    Do an implicit commit at end of statement for non-temporary
-    tables.  This can fail, but we should unlock the table
-    nevertheless.
-  */
-  if (!table->s->tmp_table)
+  else
   {
+    /*
+      Do an implicit commit at end of statement for non-temporary
+      tables.  This can fail, but we should unlock the table
+      nevertheless.
+    */
+
+    if (table->s->tmp_table &&
+        table->s->db_create_options &
+         (HA_OPTION_GLOBAL_TEMPORARY_TABLE|HA_OPTION_ON_COMMIT_DELETE_ROWS))
+      table= NULL; // It will be deleted on commit
+
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
-        table->file->ht->db_type == DB_TYPE_INNODB)
+        table && table->file->ht->db_type == DB_TYPE_INNODB)
     {
       if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
       {
@@ -5573,7 +5579,8 @@ void select_create::abort_result_set()
   bool drop_table_was_logged= false;
   if (table)
   {
-    bool tmp_table= table->s->tmp_table;
+    bool tmp_table= table->s->tmp_table &&
+         (table->s->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE) == 0;
     bool table_creation_was_logged= (!tmp_table ||
                                      table->s->table_creation_was_logged ||
                                      create_info->table_was_deleted);

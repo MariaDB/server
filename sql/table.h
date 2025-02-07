@@ -1250,6 +1250,8 @@ struct TABLE_SHARE
   {
     return table_creation_was_logged == 1;
   }
+  bool on_commit_delete() const
+  { return db_create_options & HA_OPTION_ON_COMMIT_DELETE_ROWS; }
 };
 
 /* not NULL, but cannot be dereferenced */
