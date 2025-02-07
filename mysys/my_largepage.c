@@ -187,7 +187,7 @@ static size_t my_next_large_page_size(size_t sz, int *start)
 #endif /* defined(MMAP) || !defined(_WIN32) */
 
 
-int my_init_large_pages(my_bool super_large_pages)
+int my_init_large_pages(void)
 {
 #ifdef _WIN32
   if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
@@ -209,6 +209,7 @@ int my_init_large_pages(my_bool super_large_pages)
 #endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
+  extern my_bool opt_super_large_pages;
   /*
     tell the kernel that we want to use 4/256MB page for heap storage
     and also for the stack. We use 4 MByte as default and if the
@@ -218,9 +219,15 @@ int my_init_large_pages(my_bool super_large_pages)
     measured in a number of GBytes.
     We use as big pages as possible which isn't bigger than the above
     desired page sizes.
+
+    Note: This refers to some implementations of the SPARC ISA,
+    where the supported page sizes are
+    8KiB, 64KiB, 512KiB, 4MiB, 32MiB, 256MiB, 2GiB, and 16GiB.
+    On implementations of the AMD64 ISA, the available page sizes
+    should be 4KiB, 2MiB, and 1GiB.
   */
   int nelem= 0;
-  size_t max_desired_page_size= (super_large_pages ? 256 : 4) * 1024 * 1024;
+  size_t max_desired_page_size= opt_super_large_pages ? 256 << 20 : 4 << 20;
   size_t max_page_size= my_next_large_page_size(max_desired_page_size, &nelem);
 
   if (max_page_size > 0)

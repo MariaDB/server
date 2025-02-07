@@ -173,7 +173,7 @@ extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf My
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
-int my_init_large_pages(my_bool super_large_pages);
+int my_init_large_pages(void);
 uchar *my_large_malloc(size_t *size, myf my_flags);
 #if defined _WIN32 || defined HAVE_MMAP
 uchar *my_large_virtual_alloc(size_t *size);
