@@ -359,6 +359,7 @@ select @s1 > 2.00 and @s1 < 10.00 as "should be true";
 # select @s1;
 disconnect con2;
 connection default;
+drop procedure p1;
 
 #
 # Cleanup

@@ -311,6 +311,7 @@ should be true
 1
 disconnect con2;
 connection default;
+drop procedure p1;
 disconnect con1;
 connection default;
 SET GLOBAL long_query_time = @save_long_query_time;
