@@ -273,8 +273,7 @@ static void buf_LRU_check_size_of_non_data_objects()
 
   const size_t curr_size{buf_pool.curr_size()};
 
-  auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU) +
-    curr_size - buf_pool.get_n_pages();
+  auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
 
   if (s < curr_size / 20)
     ib::fatal()
@@ -358,13 +357,11 @@ got_block:
     const ulint available= UT_LIST_GET_LEN(buf_pool.free);
     const size_t scan_depth{buf_pool.LRU_scan_depth / 2};
     ut_ad(LRU_size <= BUF_LRU_MIN_LEN || available >= scan_depth ||
-          buf_pool.lazy_allocate_size() || buf_pool.is_shrinking() ||
-          buf_pool.need_LRU_eviction());
+          buf_pool.is_shrinking() || buf_pool.need_LRU_eviction());
 
     ut_d(bool signalled = false);
 
-    if (UNIV_UNLIKELY(available < scan_depth) && LRU_size > BUF_LRU_MIN_LEN &&
-        !buf_pool.lazy_allocate_size())
+    if (UNIV_UNLIKELY(available < scan_depth) && LRU_size > BUF_LRU_MIN_LEN)
     {
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       if (!buf_pool.page_cleaner_active())

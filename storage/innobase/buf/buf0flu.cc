@@ -931,7 +931,7 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
          : space.physical_size() == 1024 ? 3 : 0));
   /* When flushed, dirty blocks are searched in neighborhoods of this
   size, and flushed along with the original page. */
-  const ulint s= buf_pool.get_n_pages() / 16;
+  const ulint s= buf_pool.curr_size() / 16;
   const uint32_t read_ahead= buf_pool.read_ahead_area;
   const uint32_t buf_flush_area= read_ahead > s
     ? static_cast<uint32_t>(s) : read_ahead;
@@ -1166,8 +1166,7 @@ static ulint buf_free_from_unzip_LRU_list_batch() noexcept
 	buf_block_t*	block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 
 	while (block
-	       && UT_LIST_GET_LEN(buf_pool.free)
-	       + buf_pool.lazy_allocate_size() < buf_pool.LRU_scan_depth
+	       && UT_LIST_GET_LEN(buf_pool.free) < buf_pool.LRU_scan_depth
 	       && UT_LIST_GET_LEN(buf_pool.unzip_LRU)
 	       > UT_LIST_GET_LEN(buf_pool.LRU) / 10) {
 
@@ -1258,18 +1257,8 @@ and move clean blocks to buf_pool.free.
 static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
                                      size_t shrinking) noexcept
 {
-  size_t scanned{buf_pool.lazy_allocate_size()};
+  size_t scanned= 0;
   size_t free_limit{buf_pool.LRU_scan_depth + shrinking};
-
-  if (scanned < free_limit)
-    free_limit-= scanned;
-  else if (UNIV_LIKELY(!shrinking))
-    return;
-  else
-    free_limit= shrinking;
-
-  scanned= 0;
-
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
     ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
@@ -2331,8 +2320,8 @@ func_exit:
 TPOOL_SUPPRESS_TSAN
 bool buf_pool_t::running_out() const noexcept
 {
-  return !recv_recovery_is_on() && n_blocks == n_blocks_alloc &&
-    UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) < n_blocks_alloc / 4;
+  return !recv_recovery_is_on() &&
+    UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) < n_blocks / 4;
 }
 
 TPOOL_SUPPRESS_TSAN
@@ -2341,10 +2330,8 @@ bool buf_pool_t::need_LRU_eviction() const noexcept
   /* try_LRU_scan==false means that buf_LRU_get_free_block() is waiting
   for buf_flush_page_cleaner() to evict some blocks */
   return UNIV_UNLIKELY(!try_LRU_scan ||
-                       (n_blocks >= n_blocks_alloc_usable &&
-                        UT_LIST_GET_LEN(LRU) > BUF_LRU_MIN_LEN &&
-                        UT_LIST_GET_LEN(free) + lazy_allocate_size() <
-                        LRU_scan_depth / 2));
+                       (UT_LIST_GET_LEN(LRU) > BUF_LRU_MIN_LEN &&
+                        UT_LIST_GET_LEN(free) < LRU_scan_depth / 2));
 }
 
 /** page_cleaner thread tasked with flushing dirty pages from the buffer

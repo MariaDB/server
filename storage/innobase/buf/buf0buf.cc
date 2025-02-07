@@ -979,32 +979,6 @@ buf_block_t *buf_pool_t::get_nth_page(size_t pos) const noexcept
     (memory + block_descriptors_in_bytes(pos));
 }
 
-/** Lazily initialize a block if one is available.
-@return freshly initialized buffer block
-@retval if all of the buffer pool has been initialized */
-buf_block_t *buf_pool_t::lazy_allocate() noexcept
-{
-  mysql_mutex_assert_owner(&buf_pool.mutex);
-
-  if (n_blocks < n_blocks_alloc_usable)
-  {
-    const size_t n= n_blocks++;
-    buf_block_t *block= get_nth_page(n);
-#ifdef __SANITIZE_ADDRESS__
-    MEM_MAKE_ADDRESSABLE(block, sizeof *block);
-#endif
-    MEM_MAKE_DEFINED(block, sizeof *block);
-    ut_ad(!memcmp(block, field_ref_zero, sizeof *block));
-    block->page.lock.init();
-    block->page.frame= block->frame_address();
-    MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
-    block->page.set_state(buf_page_t::MEMORY);
-    return block;
-  }
-
-  return nullptr;
-}
-
 buf_block_t *buf_pool_t::allocate() noexcept
 {
   mysql_mutex_assert_owner(&mutex);
@@ -1028,7 +1002,7 @@ buf_block_t *buf_pool_t::allocate() noexcept
     }
   }
 
-  return lazy_allocate();
+  return nullptr;
 }
 
 /** Create the hash table.
@@ -1189,44 +1163,39 @@ bool buf_pool_t::create() noexcept
   }
 #endif /* HAVE_LIBNUMA */
 
-  n_blocks= 1;
-  n_blocks_alloc= get_n_blocks(actual_size);
-  n_blocks_alloc_usable= n_blocks_alloc;
+  n_blocks= get_n_blocks(actual_size);
   n_blocks_to_withdraw= 0;
+  UT_LIST_INIT(free, &buf_page_t::list);
 
-  buf_block_t *block= reinterpret_cast<buf_block_t*>(memory);
-  MEM_MAKE_DEFINED(block, sizeof *block);
-  ut_ad(!memcmp(block, field_ref_zero, sizeof *block));
-  MEM_NOACCESS(block + 1, size - sizeof(*block));
-  block->page.frame= block->frame_address();
-  MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
-
-  /* The remaining blocks beyond the first one will be lazily
-  initialized in buf_pool_t::lazy_allocate(). */
-
-  MEM_MAKE_DEFINED(block, sizeof *block);
-
-  block->page.lock.init();
+  for (size_t n= 0; n < n_blocks; n++)
+  {
+    // FIXME: nested loop, to optimize the block address calculation
+    buf_block_t *block=
+      reinterpret_cast<buf_block_t*>(memory + block_descriptors_in_bytes(n));
+    MEM_MAKE_DEFINED(block, sizeof *block);
+    ut_ad(!memcmp(block, field_ref_zero, sizeof *block));
+    block->page.frame= block->frame_address();
+    block->page.lock.init();
+    UT_LIST_ADD_LAST(free, &block->page);
+    ut_d(block->page.in_free_list= true);
+  }
 
   mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
 
   UT_LIST_INIT(withdrawn, &buf_page_t::list);
-  UT_LIST_INIT(free, &buf_page_t::list);
-  UT_LIST_ADD_LAST(free, &block->page);
-  ut_d(block->page.in_free_list= true);
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
   UT_LIST_INIT(flush_list, &buf_page_t::list);
   UT_LIST_INIT(unzip_LRU, &buf_block_t::unzip_LRU);
 
   for (size_t i= 0; i < UT_ARR_SIZE(zip_free); ++i)
     UT_LIST_INIT(zip_free[i], &buf_buddy_free_t::list);
-  ulint s= n_blocks_alloc;
+  ulint s= n_blocks;
   s/= BUF_READ_AHEAD_PORTION;
   read_ahead_area= s >= READ_AHEAD_PAGES
     ? READ_AHEAD_PAGES
     : my_round_up_to_next_power(static_cast<uint32_t>(s));
 
-  page_hash.create(2 * n_blocks_alloc);
+  page_hash.create(2 * n_blocks);
   last_printout_time= time(nullptr);
 
   mysql_mutex_init(flush_list_mutex_key, &flush_list_mutex,
@@ -1296,7 +1265,7 @@ void buf_pool_t::close() noexcept
 #endif
 
     for (byte *extent= memory,
-           *end= memory + block_descriptors_in_bytes(n_blocks_alloc);
+           *end= memory + block_descriptors_in_bytes(n_blocks);
          extent < end; extent += innodb_buffer_pool_extent_size)
       for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
              *extent_end= block +
@@ -1417,10 +1386,9 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   }
 #endif
 
-  size_t n_blocks_alloc_new= get_n_blocks(size);
+  size_t n_blocks_new= get_n_blocks(size);
 
   mysql_mutex_lock(&mutex);
-  ut_ad(n_blocks <= n_blocks_alloc);
 
   const size_t old_size= size_in_bytes;
   if (old_size != size_in_bytes_requested)
@@ -1434,7 +1402,6 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
   ut_ad(UT_LIST_GET_LEN(withdrawn) == 0);
   ut_ad(n_blocks_to_withdraw == 0);
-  ut_ad(n_blocks_alloc_usable == n_blocks_alloc);
   ut_ad(!first_to_withdraw);
 
   if (size == old_size)
@@ -1448,9 +1415,8 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 #endif
 
   const bool significant_change=
-    n_blocks_alloc_new > n_blocks_alloc * 2 ||
-    n_blocks_alloc > n_blocks_alloc_new * 2;
-  ssize_t n_blocks_removed= n_blocks - n_blocks_alloc_new;
+    n_blocks_new > n_blocks * 2 || n_blocks > n_blocks_new * 2;
+  const ssize_t n_blocks_removed= n_blocks - n_blocks_new;
 
   if (n_blocks_removed <= 0)
   {
@@ -1465,15 +1431,28 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     }
 #endif
     size_in_bytes_requested= size;
+    size_in_bytes= size;
+
+    for (size_t n= n_blocks; n < n_blocks_new; n++)
+    {
+      // FIXME: nested loop, to optimize the block address calculation
+      buf_block_t *block=
+        reinterpret_cast<buf_block_t*>(memory + block_descriptors_in_bytes(n));
+      memset((void*) block, 0, sizeof *block);
+      block->page.frame= block->frame_address();
+      block->page.lock.init();
+      UT_LIST_ADD_LAST(free, &block->page);
+      ut_d(block->page.in_free_list= true);
+    }
+
   resized:
-    const size_t old_blocks= n_blocks_alloc;
     ut_ad(UT_LIST_GET_LEN(withdrawn) == 0);
     ut_ad(n_blocks_to_withdraw == 0);
     ut_ad(!first_to_withdraw);
-    ut_ad(n_blocks <= old_blocks);
-    ut_ad(n_blocks <= n_blocks_alloc_new);
+    const size_t old_blocks{n_blocks};
+    n_blocks= n_blocks_new;
 
-    size_t s= n_blocks_alloc_new / BUF_READ_AHEAD_PORTION;
+    size_t s= n_blocks_new / BUF_READ_AHEAD_PORTION;
     read_ahead_area= s >= READ_AHEAD_PAGES
       ? READ_AHEAD_PAGES
       : my_round_up_to_next_power(uint32(s));
@@ -1504,16 +1483,12 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       }
     }
 
-    size_in_bytes= size;
-    size_in_bytes_requested= size;
-    n_blocks_alloc= n_blocks_alloc_new;
-    n_blocks_alloc_usable= n_blocks_alloc_new;
     mysql_mutex_unlock(&mutex);
 
     if (significant_change)
     {
       sql_print_information("InnoDB: Resizing hash tables");
-      srv_lock_table_size= 5 * n_blocks_alloc_new;
+      srv_lock_table_size= 5 * n_blocks_new;
       lock_sys.resize(srv_lock_table_size);
       dict_sys.resize();
     }
@@ -1523,17 +1498,30 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     if (ahi_disabled)
       btr_search_enable(true);
 #endif
-    sql_print_information("InnoDB: innodb_buffer_pool_size=%zum (%zu pages)"
-                          " resized from %zum (%zu pages)",
-                          size >> 20, n_blocks_alloc_new,
-                          old_size >> 20, old_blocks);
+    bool resized= n_blocks_removed < 0;
+    if (n_blocks_removed > 0)
+    {
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      mysql_mutex_lock(&mutex);
+      resized= size_in_bytes == old_size;
+      if (resized)
+      {
+        size_in_bytes_requested= size;
+        size_in_bytes= size;
+      }
+      mysql_mutex_unlock(&mutex);
+    }
+
+    if (resized)
+      sql_print_information("InnoDB: innodb_buffer_pool_size=%zum (%zu pages)"
+                            " resized from %zum (%zu pages)",
+                            size >> 20, n_blocks_new, old_size >> 20,
+                            old_blocks);
   }
   else
   {
-    const buf_page_t * const end= &get_nth_page(n_blocks_alloc_new)->page;
-    n_blocks_alloc_usable= n_blocks_alloc_new;
     n_blocks_to_withdraw= size_t(n_blocks_removed);
-    first_to_withdraw= end;
+    first_to_withdraw= &get_nth_page(n_blocks_new)->page;
     size_in_bytes_requested= size;
     mysql_mutex_unlock(&LOCK_global_system_variables);
 
@@ -1558,15 +1546,13 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
         sql_print_information("InnoDB: Trying to shrink"
                               " innodb_buffer_pool_size=%zum (%zu pages)"
                               " from %zum (%zu pages, to withdraw %zu)",
-                              size >> 20, n_blocks_alloc_new,
-                              old_size >> 20, n_blocks_alloc,
+                              size >> 20, n_blocks_new,
+                              old_size >> 20, n_blocks,
                               n_blocks_to_withdraw);
       }
     }
 
     buf_load_abort();
-
-    ut_ad(n_blocks <= n_blocks_alloc);
 
     if (!n_blocks_to_withdraw)
     {
@@ -1578,11 +1564,6 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
         ut_d(memset((void*) b, 0, sizeof(buf_block_t)));
       }
       first_to_withdraw= nullptr;
-      mysql_mutex_unlock(&mutex);
-      mysql_mutex_lock(&LOCK_global_system_variables);
-      mysql_mutex_lock(&mutex);
-      if (n_blocks > n_blocks_alloc_new)
-        n_blocks= n_blocks_alloc_new;
       goto resized;
     }
 
@@ -1598,7 +1579,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
       next= UT_LIST_GET_NEXT(list, b);
 
-      if (b >= end)
+      if (b >= first_to_withdraw)
       {
         UT_LIST_REMOVE(free, b);
         b->lock.free();
@@ -1678,7 +1659,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
             goto next;
         }
 
-        if (!b->frame || b < end)
+        if (!b->frame || b < first_to_withdraw)
           goto next;
 
         ut_ad(is_uncompressed_current(b));
@@ -1774,9 +1755,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       goto withdraw_retry;
 
   withdraw_abort:
-    ut_ad(n_blocks_alloc > n_blocks_alloc_usable);
     ut_ad(size_in_bytes > size_in_bytes_requested);
-    n_blocks_alloc_usable= n_blocks_alloc;
     n_blocks_to_withdraw= 0;
     first_to_withdraw= nullptr;
     size_in_bytes_requested= size_in_bytes;
@@ -3915,7 +3894,7 @@ void buf_pool_t::print() noexcept
 	mysql_mutex_lock(&flush_list_mutex);
 
 	ib::info()
-		<< "[buffer pool: size=" << n_blocks_alloc
+		<< "[buffer pool: size=" << n_blocks
 		<< ", database pages=" << UT_LIST_GET_LEN(LRU)
 		<< ", free pages=" << UT_LIST_GET_LEN(free)
 		<< ", modified database pages="
@@ -4006,7 +3985,7 @@ void buf_pool_t::get_info(buf_pool_info_t *pool_info) noexcept
   pool_info->pool_size= curr_size();
   pool_info->lru_len= UT_LIST_GET_LEN(LRU);
   pool_info->old_lru_len= LRU_old_len;
-  pool_info->free_list_len= UT_LIST_GET_LEN(free) + lazy_allocate_size();
+  pool_info->free_list_len= UT_LIST_GET_LEN(free);
 
   mysql_mutex_lock(&flush_list_mutex);
   pool_info->flush_list_len= UT_LIST_GET_LEN(flush_list);

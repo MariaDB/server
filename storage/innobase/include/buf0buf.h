@@ -1190,11 +1190,6 @@ class buf_pool_t
 #endif
   /** initialized number of block descriptors */
   size_t n_blocks;
-  /** allocated number of block descriptors */
-  size_t n_blocks_alloc;
-  /** number of block descriptors available for new allocations;
-  in resize() this can be smaller than n_block_alloc */
-  size_t n_blocks_alloc_usable;
   /** number of blocks that need to be freed in resize() */
   size_t n_blocks_to_withdraw;
   /** first block to withdraw in resize() */
@@ -1213,14 +1208,11 @@ public:
   /** @return the current size of the buffer pool, in bytes */
   size_t curr_pool_size() const noexcept { return size_in_bytes; }
 
-  /** @return the current initialized number of block descriptors */
-  size_t get_n_pages() const noexcept { return n_blocks; }
   /** @return the current size of the buffer pool, in pages */
-  TPOOL_SUPPRESS_TSAN
-  size_t curr_size() const noexcept { return n_blocks_alloc; }
+  TPOOL_SUPPRESS_TSAN size_t curr_size() const noexcept { return n_blocks; }
   /** @return the maximum usable size of the buffer pool, in pages */
   TPOOL_SUPPRESS_TSAN size_t usable_size() const noexcept
-  { return n_blocks_alloc - n_blocks_to_withdraw; }
+  { return n_blocks - n_blocks_to_withdraw; }
 
   /** Determine the used size of the buffer pool in bytes.
   @param n_blocks   size of the buffer pool in blocks
@@ -1257,15 +1249,6 @@ public:
   /** Create the buffer pool.
   @return whether the creation failed */
   bool create() noexcept;
-
-  /** @return number of blocks available to lazy_allocate() */
-  size_t lazy_allocate_size() const noexcept
-  { return n_blocks_alloc - n_blocks; };
-
-  /** Lazily initialize a block after create().
-  @return freshly initialized buffer block
-  @retval if all of the buffer pool has been initialized */
-  buf_block_t *lazy_allocate() noexcept;
 
   /** Clean up after successful create() */
   void close() noexcept;

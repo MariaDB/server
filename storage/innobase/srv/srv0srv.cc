@@ -994,7 +994,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_pages_total = buf_pool.curr_size();
 
 	export_vars.innodb_buffer_pool_pages_misc =
-		buf_pool.get_n_pages()
+		export_vars.innodb_buffer_pool_pages_total
 		- UT_LIST_GET_LEN(buf_pool.LRU)
 		- UT_LIST_GET_LEN(buf_pool.free);
 	mysql_mutex_unlock(&buf_pool.mutex);
