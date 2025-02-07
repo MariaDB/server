@@ -1,0 +1,365 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo # Safety
+set lock_wait_timeout= 5;
+
+--error ER_PARSE_ERROR
+create table t1 (x int, t text) on commit preserve rows;
+
+create global temporary table t1 (x int, t text) on commit preserve rows;
+
+select TABLE_TYPE from information_schema.tables where table_name = 't1';
+
+--error ER_BAD_TABLE_ERROR
+drop temporary table t1;
+
+show create table t1;
+flush tables;
+show create table t1;
+
+insert into t1 values(1, 'one');
+
+select TABLE_TYPE from information_schema.tables where table_name = 't1';
+show table status where temporary='Y';
+
+let $show = query_get_value('show create table t1', 'Create Table', 1);
+truncate t1;
+let $show1 = query_get_value('show create table t1', 'Create Table', 1);
+
+--if($show != $show1) {
+--die SHOW CREATE output mismatch
+--}
+
+insert into t1 values(1, 'one');
+
+
+select * from t1;
+--connect (con1,localhost,root,,)
+select * from t1 join t1 as t2;
+insert into t1 values(2, 'two');
+select * from t1;
+select * from t1 join t1 as t2;
+--connection default
+select * from t1;
+select * from t1 join t1 as t2;
+
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t1 add y int;
+--error ER_LOCK_WAIT_TIMEOUT
+drop table t1;
+
+--connection con1
+set debug_sync= 'thread_end signal closed';
+--disconnect con1
+--connection default
+set debug_sync= 'now wait_for closed';
+
+--error ER_BAD_TABLE_ERROR
+drop temporary table t1;
+select * from t1;
+
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t1 add j int;
+--error ER_LOCK_WAIT_TIMEOUT
+drop table t1;
+
+truncate table t1;
+alter table t1 add j int;
+show create table t1;
+drop table t1;
+
+eval $show;
+
+show create table t1;
+
+drop table t1;
+
+--error ER_NO_SUCH_TABLE
+show create table t1;
+
+create global temporary table t1 (x int, t text) on commit preserve rows;
+show create table t1;
+drop table t1;
+
+
+create global temporary table t (x int) on commit delete rows;
+
+insert into t values (1);
+select * from t;
+begin;
+insert into t values (1);
+select * from t;
+commit;
+select * from t;
+
+--connect (con1,localhost,root,,)
+select * from t;
+insert into t values (1);
+select * from t;
+begin;
+insert into t values (1);
+select * from t;
+commit;
+select * from t;
+
+set debug_sync= 'thread_end signal closed';
+--disconnect con1
+--connection default
+set debug_sync= 'now wait_for closed';
+
+drop table t;
+
+create global temporary table t (x int) on commit PRESERVE rows;
+insert into t values (1);
+select * from t;
+begin;
+insert into t values (1);
+select * from t;
+commit;
+select * from t;
+
+--connect (con1,localhost,root,,)
+select * from t;
+insert into t values (1);
+select * from t;
+begin;
+insert into t values (1);
+select * from t;
+commit;
+select * from t;
+
+set debug_sync= 'thread_end signal closed';
+--disconnect con1
+--connection default
+set debug_sync= 'now wait_for closed';
+
+--error ER_LOCK_WAIT_TIMEOUT
+drop table t;
+truncate t;
+drop table t;
+
+create global temporary table t (x int) on commit PRESERVE rows;
+--connect (con1,localhost,root,,)
+insert t values(1);
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t add j int;
+--error ER_LOCK_WAIT_TIMEOUT
+set statement lock_wait_timeout=0 for drop table t;
+
+--connection con1
+set debug_sync= 'thread_end signal closed';
+--disconnect con1
+--connection default
+set debug_sync= 'now wait_for closed';
+drop table t;
+
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+create global temporary table t (x int) partition by hash(x);
+--error ER_VERS_NOT_SUPPORTED
+create global temporary table t (x int) with system versioning;
+--error ER_CANNOT_ADD_FOREIGN
+create global temporary table t (x int, y int, foreign key (x) references t(y));
+create global temporary table t (x int);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t force, lock=none, algorithm=copy;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t rename column x to y, lock=none, algorithm=inplace;
+drop table t;
+
+
+--echo ### VIEWS
+create global temporary table t (x int);
+
+--connect (con1,localhost,root,,)
+begin;
+insert into t values(1);
+--connection default
+create view v as select * from t;
+begin;
+insert into t values(2);
+select * from v;
+--connection con1
+select * from v;
+commit;
+--echo # Now table was truncated
+select * from v;
+--connection default
+commit;
+
+drop view v;
+drop table t;
+
+--echo ### AS SELECT
+create global temporary table t1(x int) on commit preserve rows
+                                        as select 1 as 'x';
+select * from t1;
+create global temporary table t2 on commit preserve rows
+                                 as values(5),(6),(7);
+select * from t2;
+--connection con1
+select * from t1;
+select `5` as 'empty' from t2;
+truncate t1;
+truncate t2;
+--connection default
+truncate t1;
+truncate t2;
+drop table t1;
+drop table t2;
+
+create global temporary table t(x int) on commit delete rows
+                                       as select 1 as 'x';
+--echo # Implicit commit deletes data
+select * from t;
+drop table t;
+
+--error ER_DUP_ENTRY
+create global temporary table t2(`5` int primary key) as values(5),(5),(5);
+select `5` as col from t2;
+drop table t2;
+
+--echo ### CREATE TABLE ... LIKE
+create table t1(x int primary key);
+create global temporary table t2 like t1;
+show create table t2;
+drop table t1;
+create table t1 like t2;
+show create table t1;
+drop table t1;
+create global temporary table t3 like t2;
+show create table t3;
+drop table t2;
+drop table t3;
+
+create global temporary table t2(x int primary key) on commit preserve rows;
+create table t1 like t2;
+show create table t1;
+create global temporary table t3 like t2;
+show create table t3;
+create temporary table t4 like t2;
+show create table t4;
+
+truncate t2; # Unfortunately, we should do this
+
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+
+--echo ### RENAME
+create global temporary table t2(x int primary key) on commit preserve rows;
+--connection con1
+insert t2 values (1);
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+rename table t2 NOWAIT to tx;
+--connection con1
+truncate t2;
+--connection default
+select * from t2;
+--error ER_LOCK_WAIT_TIMEOUT
+rename table t2 to tx;
+
+truncate t2;
+rename table t2 to tx;
+--error ER_NO_SUCH_TABLE
+show create table t2;
+show create table tx;
+
+drop table tx;
+
+--echo ### FLUSH, LOCK
+create global temporary table t(x int primary key) on commit preserve rows;
+flush table t;
+insert t values (1);
+--error ER_LOCK_WAIT_TIMEOUT
+flush table t;
+select * from t;
+truncate t;
+flush table t;
+
+--error ER_BAD_TABLE_ERROR
+lock table t write;
+drop table t;
+
+--echo # Multi-table DML
+create table t(x int, txt text);
+create global temporary table gtt(x int) on commit preserve rows;
+
+insert t values (1, 'one'), (2,'two'), (3, 'three'), (4, 'four');
+insert gtt values (2),(3),(5);
+--connection con1
+insert gtt values (4),(6);
+--connection default
+
+update t, gtt set t.txt= CONCAT(t.txt, ' tables') where t.x = gtt.x;
+
+--connection con1
+update t, gtt set t.txt= CONCAT(t.txt, ' databases') where t.x = gtt.x;
+truncate gtt;
+--connection default
+select * from t;
+truncate gtt;
+
+drop table t;
+drop table gtt;
+
+create table t(x int);
+lock table t write;
+create or replace table t(x int);
+--error ER_CANT_CREATE_TABLE
+create or replace global temporary table t(t text);
+unlock table;
+drop table t;
+
+--echo ### PS Second execution
+create global temporary table t(x int) on commit preserve rows;
+insert into t values (1),(2),(3);
+prepare stmt from 'update t set x = x + 1 where x > 2';
+prepare ins_stmt from 'insert into t values (1),(2),(3)';
+execute stmt;
+execute stmt;
+select * from t;
+truncate table t;
+insert into t values (1),(2),(3);
+execute ins_stmt;
+execute ins_stmt;
+select * from t;
+deallocate prepare stmt;
+--connection con1
+select * from t;
+truncate t;
+--connection default
+truncate t;
+drop table t;
+
+create global temporary table t(x int) on commit preserve rows;
+execute ins_stmt;
+select * from t;
+deallocate prepare ins_stmt;
+
+prepare stmt from 'update t set x = x + 1 where x > 2';
+prepare ins_stmt from 'insert into t values (1),(2),(3)';
+insert into t values (1),(2),(3);
+execute stmt;
+execute stmt;
+select * from t;
+truncate table t;
+execute ins_stmt;
+execute ins_stmt;
+select * from t;
+--connection con1
+select * from t;
+truncate t;
+--connection default
+
+deallocate prepare stmt;
+deallocate prepare ins_stmt;
+truncate t;
+drop table t;
+
+--disconnect con1

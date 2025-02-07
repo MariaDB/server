@@ -1279,7 +1279,7 @@ public:
   index_clause_map current_index_hint_clause;
 
   /* it is for correct printing SELECT options */
-  thr_lock_type lock_type;  
+  thr_lock_type lock_type;
 
   /** System Versioning */
   int vers_setup_conds(THD *thd, TABLE_LIST *tables);
@@ -1581,12 +1581,13 @@ public:
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
   bool is_sj_conversion_prohibited(THD *thd);
+  bool is_select_or_tvc() const { return item_list.elements || tvc; }
 
   TABLE_LIST *find_table(THD *thd,
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
   void set_optimizer_hints(Optimizer_hint_parser_output *hl)
-  { 
+  {
     parsed_optimizer_hints= hl;
   }
   uint subquery_strategies_allowed(THD *thd) const;
@@ -3226,7 +3227,7 @@ public:
   LEX_USER *grant_user;
   XID *xid;
   THD *thd;
-  
+
   /* Optimizer hints */
   Opt_hints_global *opt_hints_global;
 
@@ -4634,6 +4635,14 @@ public:
   {
     set_command(command, options);
     create_info.options|= scope; // HA_LEX_CREATE_TMP_TABLE or 0
+
+    if (scope & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE)
+    {
+      create_info.table_options|= HA_OPTION_GLOBAL_TEMPORARY_TABLE;
+
+      // default (implicit) value
+      create_info.table_options|= HA_OPTION_ON_COMMIT_DELETE_ROWS;
+    }
   }
   bool check_create_options(DDL_options_st options)
   {
