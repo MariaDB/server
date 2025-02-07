@@ -297,7 +297,8 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 */
 
 bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
-                                        bool *hton_can_recreate)
+                                        bool *hton_can_recreate,
+                                        bool *global_tmp_table)
 {
   const handlerton *hton;
   bool versioned;
@@ -344,6 +345,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
       DBUG_RETURN(TRUE);
 #endif
 
+    *global_tmp_table= table->s->global_tmp_table();
     table_ref->mdl_request.ticket= table->mdl_ticket;
   }
   else
@@ -384,6 +386,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
       }
     }
 #endif
+    *global_tmp_table= share->global_tmp_table();
 
     if (!versioned)
       tdc_remove_referenced_share(thd, share);
@@ -475,6 +478,12 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       might not exist on the slave.
     */
   }
+  else if (TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table_ref))
+  {
+    error= thd->drop_tmp_table_share(NULL, share, true);
+    thd->reset_sp_cache= true;
+    binlog_stmt= false; // Don't log Global temporary table's truncate
+  }
   else /* It's not a temporary table. */
   {
     bool hton_can_recreate;
@@ -500,7 +509,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     }
 #endif /* WITH_WSREP */
 
-    if (lock_table(thd, table_ref, &hton_can_recreate))
+    bool global_tmp_table;
+
+    if (lock_table(thd, table_ref, &hton_can_recreate, &global_tmp_table))
       DBUG_RETURN(TRUE);
 
     /*
@@ -556,6 +567,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       else
         binlog_stmt= false;
     }
+
+    binlog_stmt&= !global_tmp_table;
 
     /*
       If we tried to open a MERGE table and failed due to problems with the
