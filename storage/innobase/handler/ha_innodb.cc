@@ -13249,6 +13249,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   DBUG_ENTER("ha_innobase::create");
   DBUG_ASSERT(form->s == table_share);
   DBUG_ASSERT(table_share->table_type == TABLE_TYPE_SEQUENCE ||
+              table_share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY ||
               table_share->table_type == TABLE_TYPE_NORMAL);
 
   create_table_info_t info(ha_thd(), form, create_info, file_per_table, trx);
