@@ -1,0 +1,162 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/have_sequence.inc
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+create table t10 (a int, b int, c int, key(a,b));
+insert into t10 select a,a,a from one_k;
+
+select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a desc, b desc;
+--disable_ps_protocol
+explain select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a desc, b desc;
+flush status;
+select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a desc, b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a asc, b asc;
+--disable_ps_protocol
+explain select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a asc, b asc;
+flush status;
+select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a asc, b asc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b desc;
+--disable_ps_protocol
+explain select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b desc;
+flush status;
+select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b asc;
+--disable_ps_protocol
+explain select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b asc;
+flush status;
+select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b asc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b desc;
+--disable_ps_protocol
+explain select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b desc;
+flush status;
+select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b asc;
+--disable_ps_protocol
+explain select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b asc;
+flush status;
+select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b asc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+
+create table t1 (a int, b int, c int, key(a,b));
+insert into t1 (a, b, c) values (1,10,100),(2,20,200),(3,30,300),(4,40,400),(5,50,500),(6,60,600),(7,70,700),(8,80,800),(9,90,900),(10,100,1000);
+
+select * from t1 where a >= 3 and a <= 3 order by a desc, b desc;
+--disable_ps_protocol
+explain select * from t1 where a >= 3 and a <= 3 order by a desc, b desc;
+flush status;
+select * from t1 where a >= 3 and a <= 3 order by a desc, b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t1 where a >= 3 and a <= 3 order by a asc, b asc;
+--disable_ps_protocol
+explain select * from t1 where a >= 3 and a <= 3 order by a asc, b asc;
+flush status;
+select * from t1 where a >= 3 and a <= 3 order by a asc, b asc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+drop table t1;
+
+
+create table t1 (a int, b int, c int, key(a,b));
+insert into t1 (a, b, c) values (1,10,100),(2,20,200),(3,30,300);
+
+select * from t1 where a >= 2 and a <= 2 order by a desc, b desc;
+--disable_ps_protocol
+explain select * from t1 where a >= 2 and a <= 2 order by a desc, b desc;
+flush status;
+select * from t1 where a >= 2 and a <= 2 order by a desc, b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t1 where a >= 2 and a <= 2 order by a asc, b asc;
+--disable_ps_protocol
+explain select * from t1 where a >= 2 and a <= 2 order by a asc, b asc;
+flush status;
+select * from t1 where a >= 2 and a <= 2 order by a asc, b asc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+drop table ten, one_k, t10, t1;
+
+
+create table t1 (
+  a int not null,
+  b int not null,
+  c int not null,
+  key (a,b)
+) partition by range ((a)) (
+  partition p0 values less than (5),
+  partition p1 values less than (10),
+  partition p2 values less than (15),
+  partition p3 values less than (20)
+);
+insert into t1 (a,b,c) values (1,1,1),(2,2,2),(3,3,3),
+  (4,4,4),(5,5,5),(6,6,6),(7,7,7),(8,8,8),(9,9,9),(10,10,10),
+  (11,11,11),(12,12,12),(13,13,13),(14,14,14),(15,15,15),
+  (16,16,16),(17,17,17),(18,18,18),(19,19,19);
+
+select * from t1 where a >= 3 and a <= 7 order by a desc;
+--disable_ps_protocol
+explain select * from t1 where a >= 3 and a <= 7 order by a desc;
+flush status;
+select * from t1 where a >= 3 and a <= 7 order by a desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t1 where a >= 3 and a <= 7 order by a desc, b desc;
+--disable_ps_protocol
+explain select * from t1 where a >= 3 and a <= 7 order by a desc, b desc;
+flush status;
+select * from t1 where a >= 3 and a <= 7 order by a desc, b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+drop table t1;
+
+
+create table t1 (
+  pk int primary key,
+  kp1 int, kp2 int,
+  col1 int,
+  index (kp1,kp2)
+) partition by hash (pk) partitions 10;
+insert into t1 select seq, seq, seq, seq from seq_1_to_1000;
+
+select * from t1 where kp1 between 950 and 960 and kp2+1 >33333 order by kp1 asc, kp2 asc;
+--disable_ps_protocol
+flush status;
+select * from t1 where kp1 between 950 and 960 and kp2+1 >33333 order by kp1 asc, kp2 asc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+select * from t1 where kp1 between 950 and 960 and kp2+1 >33333 order by kp1 desc, kp2 desc;
+--disable_ps_protocol
+flush status;
+select * from t1 where kp1 between 950 and 960 and kp2+1 >33333 order by kp1 desc, kp2 desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+drop table t1;
