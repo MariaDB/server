@@ -2387,6 +2387,10 @@ ERROR HY000: Table storage engine 'FEDERATEDX' does not support the create optio
 drop table t1;
 drop server s;
 # End of 11.8 tests
+# MDEV-38449 Assertion `sp && savepoint_next && *sp && *sp <= savepoint_level' failed and memory corruption on RELEASE SAVEPOINT
+create global temporary table t3 (c int) engine=federated connection='s/t1';
+ERROR HY000: Table storage engine 'FEDERATED' does not support the create option 'GLOBAL TEMPORARY'
+# End of 12.3 tests
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

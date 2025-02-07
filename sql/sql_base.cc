@@ -1472,7 +1472,8 @@ void update_non_unique_table_error(TABLE_LIST *update,
 */
 
 bool wait_while_table_is_used(THD *thd, TABLE *table,
-                              enum ha_extra_function function)
+                              enum ha_extra_function function,
+                              ulonglong lock_wait_timeout)
 {
   DBUG_ENTER("wait_while_table_is_used");
   DBUG_ASSERT(!table->s->tmp_table);
@@ -1482,7 +1483,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
 
   if (thd->mdl_context.upgrade_shared_lock(
              table->mdl_ticket, MDL_EXCLUSIVE,
-             thd->variables.lock_wait_timeout))
+             (double)lock_wait_timeout))
     DBUG_RETURN(TRUE);
 
   table->s->tdc->flush(thd, true);
@@ -1972,6 +1973,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   uint flags= ot_ctx->get_flags();
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
+  uint open_flags;
   uint gts_flags;
   bool from_share= false;
   bool is_write_lock_request= table_list->mdl_request.is_write_lock_request();
@@ -2088,6 +2090,13 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
           && table->vers_switch_partition(thd, table_list, ot_ctx))
         DBUG_RETURN(true);
 #endif
+      if (best_table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY &&
+          !thd->use_real_global_temporary_share(table_list))
+      {
+        share= table->s;
+        mdl_ticket= table->mdl_ticket;
+        goto open_gtt;
+      }
       goto reset;
     }
 
@@ -2289,6 +2298,7 @@ retry_share:
   if (table)
   {
     DBUG_ASSERT(table->file != NULL);
+    DBUG_ASSERT(share->table_type != TABLE_TYPE_GLOBAL_TEMPORARY);
     if (table->file->discover_check_version())
     {
       tc_release_table(table);
@@ -2303,6 +2313,29 @@ retry_share:
   }
   else
   {
+    open_flags= EXTRA_RECORD;
+
+    if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+    {
+      if (!thd->use_real_global_temporary_share(table_list))
+      {
+      open_gtt: // Label for Locked tables mode.
+        my_bool err= open_global_temporary_table(thd, share, table_list,
+                                                 mdl_ticket, ot_ctx);
+        if (unlikely(err))
+        {
+          if (thd->locked_tables_mode && !(flags & MYSQL_OPEN_GET_NEW_TABLE))
+            DBUG_RETURN(true);
+          goto err_lock;
+        }
+        table= table_list->table;
+        goto finalize;
+      }
+
+      // ALTER and DROP open a real table handle. Don't reuse it.
+      open_flags|= OPEN_NO_CACHE;
+    }
+
     enum open_frm_error error;
     /* make a new table */
     if (!(table=(TABLE*) my_malloc(key_memory_TABLE, sizeof(*table),
@@ -2311,7 +2344,7 @@ retry_share:
 
     error= open_table_from_share(thd, share, &table_list->alias,
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
-                                 EXTRA_RECORD,
+                                 open_flags,
                                  thd->open_options, table, FALSE,
                                  IF_PARTITIONING(table_list->partition_names,0));
 
@@ -2467,6 +2500,7 @@ retry_share:
     DBUG_RETURN(true);
   }
 #endif
+finalize:
   if (table_list->sequence && table->s->table_type != TABLE_TYPE_SEQUENCE)
   {
     my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db.str, table_list->alias.str);
@@ -2635,6 +2669,7 @@ Locked_tables_list::init_locked_tables(THD *thd)
     memcpy((char*) alias.str,      table->alias.c_ptr(), alias.length + 1);
     dst_table_list->init_one_table(&db, &table_name,
                                    &alias, table->reginfo.lock_type);
+    dst_table_list->open_strategy= TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST;
     dst_table_list->table= table;
     dst_table_list->mdl_request.ticket= src_table_list->mdl_request.ticket;
 
@@ -4765,7 +4800,7 @@ restart:
             goto error;
 
           /* Re-open temporary tables after close_tables_for_reopen(). */
-          if (thd->open_temporary_tables(*start))
+          if (thd->open_temporary_tables(*start, Tmp_table_kind::TMP))
             goto error;
 
           error= FALSE;
@@ -4830,7 +4865,7 @@ restart:
               goto error;
 
             /* Re-open temporary tables after close_tables_for_reopen(). */
-            if (thd->open_temporary_tables(*start))
+            if (thd->open_temporary_tables(*start, Tmp_table_kind::TMP))
               goto error;
 
             error= FALSE;
@@ -5487,7 +5522,8 @@ static bool check_lock_and_start_stmt(THD *thd,
     lock_type= table_list->lock_type;
 
   if ((int) lock_type >= (int) TL_FIRST_WRITE &&
-      (int) table_list->table->reginfo.lock_type < (int) TL_FIRST_WRITE)
+      (int) table_list->table->reginfo.lock_type < (int) TL_FIRST_WRITE &&
+      table_list->table->s->tmp_table == NO_TMP_TABLE)
   {
     my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
              table_list->table->alias.c_ptr());
@@ -5861,9 +5897,12 @@ bool open_tables_for_query(THD *thd, TABLE_LIST *tables,
                   thd->stmt_arena->is_stmt_prepare() ? MYSQL_OPEN_FORCE_SHARED_MDL : 0,
                   prelocking_strategy))
   {
-    close_thread_tables(thd);
-    /* Don't keep locks for a failed statement. */
-    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    if (thd->in_sub_stmt)
+    {
+      close_thread_tables(thd);
+      /* Don't keep locks for a failed statement. */
+      thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    }
     return true;
   }
 

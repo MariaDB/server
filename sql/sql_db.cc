@@ -1134,6 +1134,8 @@ mysql_rm_db_internal(THD *thd, const Lex_ident_db &db, bool if_exists,
   if (tables)
     mysql_ha_rm_tables(thd, tables);
 
+  thd->global_tmp_drop_database(db);
+
   for (table= tables; table; table= table->next_local)
     deleted_tables++;
 

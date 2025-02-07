@@ -6565,6 +6565,8 @@ void THD::leave_locked_tables_mode()
       mysql_ha_set_explicit_lock_duration(this);
     if (ull_hash.records)
       mysql_ull_set_explicit_lock_duration(this);
+    if (has_open_global_temporary_tables())
+      global_tmp_tables_set_explicit_lock_duration();
   }
   locked_tables_mode= LTM_NONE;
 }
@@ -6693,8 +6695,7 @@ start_new_trans::start_new_trans(THD *thd)
   thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
                          SERVER_STATUS_IN_TRANS_READONLY);
   thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
-  org_rgi_slave= thd->rgi_slave;
-  thd->rgi_slave= NULL;
+  hide_rgi_slave(thd->rgi_slave);
 }
 
 
@@ -6711,7 +6712,7 @@ void start_new_trans::restore_old_transaction()
     MYSQL_COMMIT_TRANSACTION(org_thd->m_transaction_psi);
   org_thd->m_transaction_psi= m_transaction_psi;
   org_thd->variables.wsrep_on= wsrep_on;
-  org_thd->rgi_slave= org_rgi_slave;
+  unhide_rgi_slave(org_thd->rgi_slave);
   org_thd= 0;
 }
 

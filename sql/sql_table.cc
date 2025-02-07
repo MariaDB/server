@@ -1173,6 +1173,17 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
   {
     if (check_if_log_table(table, TRUE, "DROP"))
       DBUG_RETURN(true);
+
+    if (is_temporary_table(table) && table->table->s->global_tmp_table())
+    {
+      if (drop_temporary)
+        my_error(ER_BAD_TABLE_ERROR, MYF(0), table->alias.str);
+      else
+        my_error(ER_TABLE_IN_USE, MYF(0), table->db.str, table->alias.str);
+      DBUG_RETURN(true);
+    }
+    DBUG_ASSERT(is_temporary_table(table) ||
+                !thd->find_tmp_table_share(table, Tmp_table_kind::GLOBAL));
   }
 
   if (!drop_temporary)
@@ -4125,6 +4136,26 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
                           *key_info_buffer, *key_count);
   );
 
+  if (create_info->global_tmp_table())
+  {
+    if (alter_info->partition_flags || IF_PARTITIONING(thd->work_part_info, 0))
+    {
+      my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
+               "CREATE GLOBAL TEMPORARY TABLE");
+      DBUG_RETURN(TRUE);
+    }
+    if (alter_info->has_foreign_keys())
+    {
+      my_error(ER_CANNOT_ADD_FOREIGN, MYF(0), "GLOBAL TEMPORARY TABLE");
+      DBUG_RETURN(TRUE);
+    }
+    if (create_info->versioned())
+    {
+      my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE GLOBAL TEMPORARY TABLE");
+      DBUG_RETURN(TRUE);
+    }
+  }
+
   DBUG_RETURN(FALSE);
 }
 
@@ -4579,19 +4610,11 @@ handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
     If storage engine handles partitioning natively (like NDB)
     foreign keys support is possible, so we let the engine decide.
   */
-  if (create_info->db_type == partition_hton)
+  if (create_info->db_type == partition_hton && alter_info->has_foreign_keys())
   {
-    List_iterator_fast<Key> key_iterator(alter_info->key_list);
-    Key *key;
-    while ((key= key_iterator++))
-    {
-      if (key->type == Key::FOREIGN_KEY)
-      {
-        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
-                 "FOREIGN KEY");
-        goto err;
-      }
-    }
+    my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
+             "FOREIGN KEY");
+    goto err;
   }
 #endif
 
@@ -4611,6 +4634,29 @@ handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
 err:
   delete file;
   DBUG_RETURN(NULL);
+}
+
+static
+my_bool
+check_global_temporary_tables_for_create(THD *thd,
+                                         const
+                                         Table_specification_st *create_info,
+                                         const Lex_ident_db &db,
+                                         const Lex_ident_table &table_name)
+{
+  if (!create_info->or_replace())
+    return FALSE;
+
+  const TABLE *table= create_info->table;
+  if ((table && table->s->tmp_table && table->s->global_tmp_table()) ||
+      thd->find_temporary_table(db, table_name, THD::TMP_TABLE_ANY,
+                                Tmp_table_kind::GLOBAL))
+  {
+    my_error(ER_TABLE_IN_USE, MYF(0), db.str, table_name.str);
+    return TRUE;
+  }
+
+  return FALSE;
 }
 
 
@@ -4658,7 +4704,7 @@ int create_table_impl(THD *thd,
                       DDL_LOG_STATE *ddl_log_state_rm,
                       const Lex_ident_db &orig_db,
                       const Lex_ident_table &orig_table_name,
-                      const LEX_CSTRING &db, const LEX_CSTRING &table_name,
+                      const Lex_ident_db &db, const Lex_ident_table &table_name,
                       const LEX_CSTRING &path, const DDL_options_st options,
                       HA_CREATE_INFO *create_info, Alter_info *alter_info,
                       int create_table_mode, bool *is_trans, KEY **key_info,
@@ -4720,8 +4766,8 @@ int create_table_impl(THD *thd,
       in-use in THD::all_temp_tables list of TABLE_SHAREs.
     */
     TABLE *tmp_table= internal_tmp_table ? NULL :
-      thd->find_temporary_table(Lex_ident_db(db), Lex_ident_table(table_name),
-                                THD::TMP_TABLE_ANY);
+                  thd->find_temporary_table(db, table_name, THD::TMP_TABLE_ANY,
+                                            Tmp_table_kind::TMP);
 
     if (tmp_table)
     {
@@ -5278,7 +5324,11 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     pos_in_locked_tables= create_info->table->pos_in_locked_tables;
     mdl_ticket= create_table->table->mdl_ticket;
   }
-  
+
+  if (check_global_temporary_tables_for_create(thd, create_info,
+                                               create_table->db,
+                                               create_table->table_name))
+    DBUG_RETURN(true);
   /* Got lock. */
   DEBUG_SYNC(thd, "locked_table_name");
 
@@ -5793,6 +5843,13 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     }
   }
 
+  if (check_global_temporary_tables_for_create(thd, create_info,
+                                               table->db, table->alias))
+  {
+    res= 1;
+    goto err;
+  }
+
   src_table->table->use_all_columns();
 
   DEBUG_SYNC(thd, "create_table_like_after_open");
@@ -5842,6 +5899,15 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   /* Replace type of source table with one specified in the statement. */
   local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
   local_create_info.options|= create_info->options;
+  local_create_info.table_options&= ~HA_OPTIONS_TO_RESET_CREATE_LIKE;
+  /*
+    Do not inherit the ON COMMIT behavior,
+    if the new table is not global temporary.
+  */
+  if (!create_info->global_tmp_table())
+    create_info->table_options&= ~HA_OPTION_ON_COMMIT_DELETE_ROWS;
+
+  local_create_info.table_options|= create_info->table_options;
   /* Reset auto-increment counter for the new table. */
   local_create_info.auto_increment_value= 0;
   /*
@@ -5966,7 +6032,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     if (!(create_info->tmp_table()) || force_generated_create)
     {
       // Case 2 & 5
-      if (src_table->table->s->tmp_table || force_generated_create)
+      if (src_table->table->s->local_tmp_table() || force_generated_create)
       {
         char buf[2048];
         String query(buf, sizeof(buf), system_charset_info);
@@ -6057,13 +6123,16 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
           if (new_table)
           {
-            DBUG_ASSERT(thd->open_tables == table->table);
+            // Global temporary tables reopen a child table, which is tmp.
+            bool is_tmp_table= table->table->s->tmp_table != NO_TMP_TABLE;
+            DBUG_ASSERT(thd->open_tables == table->table || is_tmp_table);
             /*
               When opening the table, we ignored the locked tables
               (MYSQL_OPEN_GET_NEW_TABLE). Now we can close the table
               without risking to close some locked table.
             */
-            close_thread_table(thd, &thd->open_tables);
+            if (!is_tmp_table)
+              close_thread_table(thd, &thd->open_tables);
           }
         }
       }
@@ -6144,6 +6213,137 @@ err:
   DBUG_RETURN(res != 0);
 }
 
+static void open_gtt_on_error(TABLE *table)
+{
+  closefrm(table);
+}
+
+my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
+                                    TABLE_LIST *out_table,
+                                    MDL_ticket *mdl_ticket,
+                                    Open_table_context *ot_ctx)
+{
+  // Replica shouldn't use global temporary tables.
+  if (thd->rgi_slave)
+  {
+    // If we're here, replica was fed with an incorrect log.
+    my_error(ER_GTID_OPEN_TABLE_FAILED, MYF(0),
+             source->table_name.str, source->db.str);
+    return TRUE;
+  }
+
+  if (thd->variables.pseudo_slave_mode)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_GTID_OPEN_TABLE_FAILED,
+                 "Can't open global temporary table under "
+                 "slave applier execution mode");
+    my_error(ER_GTID_OPEN_TABLE_FAILED, MYF(0),
+             source->table_name.str, source->db.str);
+    return TRUE;
+  }
+
+  /*
+    First, lookup in tmp tables list for cases like "t join t"
+    This also could happen if tl->open_type is OT_BASE_ONLY
+  */
+  TABLE *table= NULL;
+  if (thd->has_open_global_temporary_tables())
+  {
+    if (thd->open_temporary_table_impl(out_table, &table,
+                                       Tmp_table_kind::GLOBAL))
+      return TRUE;
+
+    if (table)
+      table->query_id= thd->query_id;
+  }
+
+  if (!table)
+  {
+    /* User had not an open copy of the global temporary table */
+    TABLE global_table;
+    if (open_table_from_share(thd, source, &empty_clex_str,
+                              HA_OPEN_KEYFILE, READ_ALL, 0,
+                              &global_table, true))
+      return TRUE;
+
+    DBUG_ASSERT(!global_table.versioned());
+
+    if (global_table.file->discover_check_version())
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
+
+    Alter_info alter_info;
+    Alter_table_ctx alter_ctx;
+    Table_specification_st create_info;
+    create_info.init();
+    create_info.db_type= source->db_type();
+    create_info.row_type= source->row_type;
+    create_info.alter_info= &alter_info;
+
+    if (mysql_prepare_alter_table(thd, &global_table, &create_info,
+                                  &alter_info, &alter_ctx))
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
+
+    create_info.tabledef_version= source->tabledef_version;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    thd->work_part_info= 0;
+#endif
+    create_info.options|= HA_LEX_CREATE_TMP_TABLE;
+    plugin_ref enf_plugin= thd->variables.enforced_table_plugin;
+    thd->variables.enforced_table_plugin= NULL;
+
+    int res= mysql_create_table_no_lock(thd,
+                                        NULL, NULL,
+                                        &create_info, &alter_info,
+                                        NULL, C_ORDINARY_CREATE|C_ALTER_TABLE,
+                                        out_table);
+
+    thd->variables.enforced_table_plugin= enf_plugin;
+    if (res > 0)
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
+
+    ++thd->temporary_tables->global_temporary_tables_count;
+    table= create_info.table;
+
+    TMP_TABLE_SHARE *share= (TMP_TABLE_SHARE*)table->s;
+
+    share->table_type= TABLE_TYPE_NORMAL;
+
+    MDL_REQUEST_INIT_BY_KEY(&share->mdl_request, &out_table->mdl_request.key,
+                            MDL_SHARED, MDL_EXPLICIT);
+    share->mdl_request.ticket= mdl_ticket; // It'll be cloned.
+    if (thd->mdl_context.clone_ticket(&share->mdl_request))
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
+    share->table_creation_was_logged= 0;
+    closefrm(&global_table);
+  }
+
+  thd->used|= Sql_used::THREAD_SPECIFIC_USED;
+
+  out_table->updatable= true;
+  out_table->table= table;
+  table->init(thd, out_table);
+
+  if (table->s->on_commit_delete())
+    thd->use_global_tmp_table_tp();
+  if (!thd->locked_tables_mode ||
+      ot_ctx->get_flags() & MYSQL_OPEN_GET_NEW_TABLE)
+    tdc_release_share(source);
+  return FALSE;
+}
+
 
 /* table_list should contain just one table */
 int mysql_discard_or_import_tablespace(THD *thd,
@@ -6182,6 +6382,13 @@ int mysql_discard_or_import_tablespace(THD *thd,
   if (open_and_lock_tables(thd, table_list, FALSE, 0,
                            &alter_prelocking_strategy))
   {
+    thd->tablespace_op=FALSE;
+    DBUG_RETURN(-1);
+  }
+
+  if (table_list->table->s->global_tmp_table())
+  {
+    my_error(ER_CANNOT_DISCARD_TEMPORARY_TABLE, MYF(0));
     thd->tablespace_op=FALSE;
     DBUG_RETURN(-1);
   }
@@ -7584,6 +7791,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
       ha_alter_info->key_count= table->s->keys;
   }
 
+  if (table->s->global_tmp_table())
+    ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+
   DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
   DBUG_RETURN(false);
 }
@@ -8711,9 +8921,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
-  if ((create_info->fields_option_struct= 
+  if ((create_info->fields_option_struct=
          thd->calloc<ha_field_option_struct*>(table->s->fields)) == NULL ||
-      (create_info->indexes_option_struct= 
+      (create_info->indexes_option_struct=
          thd->calloc<ha_index_option_struct*>(table->s->total_keys)) == NULL)
     DBUG_RETURN(1);
 
@@ -10198,7 +10408,8 @@ static bool
 simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                               Alter_info::enum_enable_or_disable keys_onoff,
                               TRIGGER_RENAME_PARAM *trigger_param,
-                              Alter_table_ctx *alter_ctx)
+                              Alter_table_ctx *alter_ctx,
+                              ulonglong wait_timeout)
 {
   TABLE *table= table_list->table;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
@@ -10229,7 +10440,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
 
   if (keys_onoff != Alter_info::LEAVE_AS_IS)
   {
-    if (wait_while_table_is_used(thd, table, extra_func))
+    if (wait_while_table_is_used(thd, table, extra_func, wait_timeout))
       DBUG_RETURN(true);
 
     // It's now safe to take the table level lock.
@@ -10688,6 +10899,10 @@ const char *online_alter_check_supported(THD *thd,
   if (!*online)
     return "CHANGE COLUMN ... AUTO_INCREMENT";
 
+  *online= !table->s->global_tmp_table();
+  if (!*online)
+    return "GLOBAL TEMPORARY TABLE";
+
   return NULL;
 }
 
@@ -10785,6 +11000,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool online= false;
 #endif
   TRIGGER_RENAME_PARAM trigger_param;
+  uint lock_wait_timeout= thd->variables.lock_wait_timeout;
 
   /*
     Callback function that an engine can request to be called after executing
@@ -10959,6 +11175,29 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     }
   }
 
+  if (table->s->global_tmp_table())
+  {
+    if (thd->find_tmp_table_share(table_list, Tmp_table_kind::GLOBAL))
+    {
+      // The table is opened in the same connection.
+      my_error(ER_TABLE_IN_USE, MYF(0), table_list->db.str,
+                                        table_list->alias.str);
+      DBUG_RETURN(true);
+    }
+
+    if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_DEFAULT)
+      alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
+
+    if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+    {
+      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
+               alter_info->lock(), "LOCK=EXCLUSIVE");
+      DBUG_RETURN(true);
+    }
+
+    lock_wait_timeout= 0; // Oracle compatibility
+  }
+
   DEBUG_SYNC(thd, "alter_opened_table");
 
 #if defined WITH_WSREP && defined ENABLED_DEBUG_SYNC
@@ -11031,7 +11270,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         If such table exists, there must be a corresponding TABLE_SHARE in
         THD::all_temp_tables list.
       */
-      if (thd->find_tmp_table_share(alter_ctx.new_db, alter_ctx.new_name))
+      if (thd->find_tmp_table_share(alter_ctx.new_db, alter_ctx.new_name,
+                                    Tmp_table_kind::TMP))
       {
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias.str);
         DBUG_RETURN(true);
@@ -11308,7 +11548,8 @@ do_continue:;
       res= simple_rename_or_index_change(thd, table_list,
                                          alter_info->keys_onoff,
                                          &trigger_param,
-                                         &alter_ctx);
+                                         &alter_ctx,
+                                         lock_wait_timeout);
     }
     else
     {
@@ -11798,12 +12039,16 @@ alter_copy:
   {
     // If EXCLUSIVE lock is requested, upgrade already.
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
-        wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+        wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN,
+                                 lock_wait_timeout))
       goto err_new_table_cleanup;
 
     /*
       Otherwise upgrade to SHARED_NO_WRITE.
       Note that under LOCK TABLES, we will already have SHARED_NO_READ_WRITE.
+
+      No need to use local lock_wait_timeout variable here: it's only important
+      for GLOBAL TEMPORARY tables, which should take exclusive lock
     */
     if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
         thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_SHARED_NO_WRITE,
@@ -13268,7 +13513,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
     /* Allow to open real tables only. */
     table->required_type= TABLE_TYPE_NORMAL;
 
-    if (thd->open_temporary_tables(table) ||
+    if (thd->open_temporary_tables(table, Tmp_table_kind::TMP) ||
         open_and_lock_tables(thd, table, FALSE, 0))
     {
       t= NULL;
@@ -13429,11 +13674,12 @@ bool check_engine(THD *thd, const char *db_name,
                         ha_resolve_storage_engine_name(*new_engine),
                         table_name);
   }
-  if (create_info->tmp_table() &&
+  if ((create_info->tmp_table() || create_info->global_tmp_table()) &&
       ha_check_storage_engine_flag(*new_engine, HTON_TEMPORARY_NOT_SUPPORTED))
   {
     my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
-             hton_name(*new_engine)->str, "TEMPORARY");
+             hton_name(*new_engine)->str,
+             create_info->tmp_table() ? "TEMPORARY" : "GLOBAL TEMPORARY");
     *new_engine= 0;
     DBUG_RETURN(true);
   }
@@ -13596,7 +13842,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   }
 #endif /* WITH_WSREP */
 
-  if (select_lex->item_list.elements || select_lex->tvc) // With select or TVC
+  if (select_lex->is_select_or_tvc()) // With select or TVC
   {
     select_result *result;
 
@@ -13673,6 +13919,12 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         my_ok(thd);                           // CREATE ... IF NOT EXISTS
       goto end_with_restore_list;
     }
+
+
+    if (check_global_temporary_tables_for_create(thd, &create_info,
+                                                 create_table->db,
+                                                 create_table->table_name))
+      goto end_with_restore_list;
 
     /* Ensure we don't try to create something from which we select from */
     if (create_info.or_replace() && !create_info.tmp_table())

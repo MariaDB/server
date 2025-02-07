@@ -36,6 +36,7 @@ struct TABLE;
 struct handlerton;
 class handler;
 class String;
+class MDL_ticket;
 typedef struct st_ha_check_opt HA_CHECK_OPT;
 struct HA_CREATE_INFO;
 struct Table_specification_st;
@@ -136,6 +137,8 @@ bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
 #define C_ALTER_TABLE            -2
 #define C_ALTER_TABLE_FRM_ONLY   -3
 
+class Open_table_context;
+
 int mysql_create_table_no_lock(THD *thd,
                                DDL_LOG_STATE *ddl_log_state,
                                DDL_LOG_STATE *ddl_log_state_rm,
@@ -176,6 +179,10 @@ bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
                         const LEX_CSTRING *new_name, const LEX_CUSTRING *id,
                         uint flags);
+my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
+                                    TABLE_LIST *out_table,
+                                    MDL_ticket *mdl_ticket,
+                                    Open_table_context *ot_ctx);
 bool mysql_backup_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 

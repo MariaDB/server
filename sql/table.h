@@ -1100,6 +1100,8 @@ struct TABLE_SHARE
   {
     if (is_view)
       return TABLE_REF_VIEW;
+    if (global_tmp_table())
+      return TABLE_REF_BASE_TABLE;
     switch (tmp_table) {
     case NO_TMP_TABLE:
       return TABLE_REF_BASE_TABLE;
@@ -1255,6 +1257,12 @@ struct TABLE_SHARE
   {
     return table_creation_was_logged == 1;
   }
+  bool on_commit_delete() const
+  { return db_create_options & HA_OPTION_ON_COMMIT_DELETE_ROWS; }
+  bool global_tmp_table() const
+  { return db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE; }
+  bool local_tmp_table() const
+  { return tmp_table && !global_tmp_table(); }
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -2908,7 +2916,9 @@ struct TABLE_LIST
     /* Associate a table share only if the the table exists. */
     OPEN_IF_EXISTS,
     /* Don't associate a table share. */
-    OPEN_STUB
+    OPEN_STUB,
+    /* Table to be opened will be used in locked tables list. */
+    OPEN_FOR_LOCKED_TABLES_LIST,
   } open_strategy;
   /** TRUE if an alias for this table was specified in the SQL. */
   bool          is_alias;

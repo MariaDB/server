@@ -6710,7 +6710,8 @@ bool THD::binlog_write_table_maps()
         if (table->file->prepare_for_row_logging())
           restore= 1;
       }
-      if (table->file->row_logging)
+      if (table->file->row_logging &&
+          !table->s->global_tmp_table()) // Never write table maps for GTT
       {
         if (mysql_bin_log.write_table_map(this, table, with_annotate))
           DBUG_RETURN(1);

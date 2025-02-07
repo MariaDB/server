@@ -218,7 +218,6 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
     close_thread_table(thd, &table);
     if (current_table_list)
       mysql_ha_close_childs(thd, current_table_list, &next_global);
-    thd->mdl_context.release_lock(handler->mdl_request.ticket);
   }
   else
   {
@@ -227,7 +226,11 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
     if (current_table_list)
       mysql_ha_close_childs(thd, current_table_list, &next_global);
     thd->mark_tmp_table_as_free_for_reuse(table);
+    if (table->s->global_tmp_table())
+      table->mdl_ticket= NULL;
   }
+  if (handler->mdl_request.ticket)
+    thd->mdl_context.release_lock(handler->mdl_request.ticket);
   my_free(handler->lock);
   handler->init();
   DBUG_VOID_RETURN;
@@ -472,14 +475,20 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
 
 err:
   /*
-    No need to rollback statement transaction, it's not started.
+    No need to rollback statement transaction (unless global temporary table
+    has been opened) -- it's not started.
     If called with reopen flag, no need to rollback either,
     it will be done at statement end.
+    Also, no need to close the tables. All this is done at the statement end.
+    However, we may consider closing them early in sub-statement for a better
+    granularity of a complex statement's mdl locks.
   */
-  DBUG_ASSERT(thd->transaction->stmt.is_empty());
-  close_thread_tables(thd);
-  thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
-  thd->set_open_tables(backup_open_tables);
+  if (thd->in_sub_stmt)
+  {
+    close_thread_tables(thd);
+    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    thd->set_open_tables(backup_open_tables);
+  }
   if (sql_handler)
   {
     if (!reopen)
@@ -1246,8 +1255,8 @@ void mysql_ha_set_explicit_lock_duration(THD *thd)
   for (uint i= 0; i < thd->handler_tables_hash.records; i++)
   {
     hash_tables= (SQL_HANDLER*) my_hash_element(&thd->handler_tables_hash, i);
-    if (hash_tables->table && hash_tables->table->mdl_ticket)
-      thd->mdl_context.set_lock_duration(hash_tables->table->mdl_ticket,
+    if (hash_tables->mdl_request.ticket)
+      thd->mdl_context.set_lock_duration(hash_tables->mdl_request.ticket,
                                          MDL_EXPLICIT);
   }
   DBUG_VOID_RETURN;

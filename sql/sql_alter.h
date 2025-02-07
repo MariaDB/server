@@ -336,6 +336,8 @@ public:
     return create_list.elements - select_field_count;
   }
 
+  bool has_foreign_keys() const;
+
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
   Alter_info(const Alter_info &rhs);            // not implemented
@@ -427,7 +429,7 @@ public:
   Lex_ident_db new_db;
   Lex_ident_table new_name;
   LEX_CSTRING  new_alias;
-  LEX_CSTRING  tmp_name;
+  Lex_ident_table tmp_name;
   LEX_CSTRING  tmp_storage_engine_name;
   LEX_CUSTRING tmp_id, id;
   char         tmp_buff[80];

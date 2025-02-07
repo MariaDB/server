@@ -461,7 +461,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     view->mdl_request.set_type(MDL_EXCLUSIVE);
   }
 
-  if (thd->open_temporary_tables(lex->query_tables) ||
+  if (thd->open_temporary_tables(lex->query_tables, Tmp_table_kind::TMP) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
     res= TRUE;

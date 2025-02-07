@@ -2601,6 +2601,8 @@ public:
     thd.query_id= 0;
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
+    lex_start(&thd);
+    thd.reset_for_next_command();
     thd.set_command(COM_DELAYED_INSERT);
     thd.lex->current_select= lex->current_select;
     thd.lex->sql_command= lex->sql_command;        // For innodb::store_lock()
@@ -3339,7 +3341,8 @@ bool Delayed_prelocking_strategy::handle_table(THD *thd,
 {
   DBUG_ASSERT(table_list->lock_type == TL_WRITE_DELAYED);
 
-  if (!(table_list->table->file->ha_table_flags() & HA_CAN_INSERT_DELAYED))
+  if (!(table_list->table->file->ha_table_flags() & HA_CAN_INSERT_DELAYED) ||
+      table_list->table->s->tmp_table)
   {
     my_error(ER_DELAYED_NOT_SUPPORTED, MYF(0), table_list->table_name.str);
     return TRUE;
@@ -4576,7 +4579,8 @@ bool select_insert::prepare_eof(bool in_create_table)
   if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
       (table->s->using_binlog() ||
        ((in_create_table &&
-         (!table->s->tmp_table || thd->binlog_create_tmp_table())))) &&
+         (!table->s->tmp_table || thd->binlog_create_tmp_table()) &&
+         !table->s->global_tmp_table()))) &&
        (likely(!error) ||
         (!in_create_table &&
          (thd->transaction->stmt.modified_non_trans_table ||
@@ -4939,6 +4943,31 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       /* Force the newly created table to be opened */
       save_open_strategy= table_list->open_strategy;
       table_list->open_strategy= TABLE_LIST::OPEN_NORMAL;
+      if (!table_list->mdl_request.ticket)
+        table_list->mdl_request.ticket= create_info->mdl_ticket;
+      DBUG_ASSERT(table_list->mdl_request.ticket);
+
+      if (create_info->pos_in_locked_tables && create_info->global_tmp_table())
+      {
+        /*
+          Also pre-open a parent GTT handle to replace a
+          locked_tables_list item later in select_create::send_eof()
+        */
+        TABLE_LIST *parent_gtt= thd->alloc<TABLE_LIST>(1);
+        new(parent_gtt) TABLE_LIST(&table_list->db, &table_list->table_name,
+                                   &table_list->alias, table_list->lock_type);
+        // Will open the parent table
+        parent_gtt->open_strategy= TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST;
+        parent_gtt->prev_global= &table_list;
+        // Tables from SELECT are stored in select_create::select_tables
+        DBUG_ASSERT(table_list->next_global == NULL);
+        table_list->next_global= parent_gtt;
+        if (open_table(thd, parent_gtt, &ot_ctx))
+          recover_rm_table();
+        else // Success
+          parent_global_tmp_table= parent_gtt->table;
+      }
+
       /*
         Here we open the destination table, on which we already have
         an exclusive metadata lock.
@@ -4946,6 +4975,10 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       if (open_table(thd, table_list, &ot_ctx))
       {
         recover_rm_table();
+        if (parent_global_tmp_table)
+          drop_open_table(thd, parent_global_tmp_table,
+                          &table_list->db,
+                          &table_list->table_name);
       }
       /* Restore */
       table_list->open_strategy= save_open_strategy;
@@ -4997,7 +5030,19 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     since it won't wait for the table lock (we have exclusive metadata lock on
     the table) and thus can't get aborted.
   */
-  if (unlikely(!((*lock)= mysql_lock_tables(thd, &table, 1, 0)) ||
+  TABLE *tables_to_lock[2]
+  {
+    table,
+    /*
+      For GTT, also lock the parent table to issue
+      lock->start_trans -- important for Aria state consistency.
+    */
+    table_list->next_global ? table_list->next_global->table : NULL,
+  };
+  uint lock_count = 1 + MY_TEST(tables_to_lock[1]);
+
+  if (unlikely(!((*lock)= mysql_lock_tables(thd, tables_to_lock,
+                                            lock_count, 0)) ||
                postlock(thd, &table)))
   {
     /* purecov: begin tested */
@@ -5072,8 +5117,8 @@ int select_create::postlock(THD *thd, TABLE **tables)
     return error;
 
   TABLE const *const table = *tables;
-  if (thd->is_current_stmt_binlog_format_row() &&
-      !table->s->tmp_table)
+  if ((thd->is_current_stmt_binlog_format_row() &&
+      !table->s->tmp_table) || table->s->global_tmp_table())
     return binlog_show_create_table(thd, *tables, create_info);
   return 0;
 }
@@ -5216,7 +5261,8 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
     schema that will do a close_thread_tables(), destroying the
     statement transaction cache.
   */
-  DBUG_ASSERT(thd->is_current_stmt_binlog_format_row());
+  DBUG_ASSERT(thd->is_current_stmt_binlog_format_row() ||
+              table->s->global_tmp_table());
   StringBuffer<2048> query(system_charset_info);
   int result;
   TABLE_LIST tmp_table_list;
@@ -5381,7 +5427,7 @@ bool select_create::send_eof()
   }
   debug_crash_here("ddl_log_create_after_prepare_eof");
 
-  if (table->s->tmp_table)
+  if (table->s->tmp_table && !table->s->global_tmp_table())
   {
     /*
       Now is good time to add the new table to THD temporary tables list.
@@ -5389,7 +5435,8 @@ bool select_create::send_eof()
       statement.
     */
     if (thd->find_tmp_table_share(table->s->table_cache_key.str,
-                                  table->s->table_cache_key.length))
+                                  table->s->table_cache_key.length,
+                                  Tmp_table_kind::TMP))
     {
       my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table->alias.c_ptr());
       abort_result_set();
@@ -5401,17 +5448,20 @@ bool select_create::send_eof()
       thd->restore_tmp_table_share(saved_tmp_table_share);
     }
   }
-
-  /*
-    Do an implicit commit at end of statement for non-temporary
-    tables.  This can fail, but we should unlock the table
-    nevertheless.
-  */
-  if (!table->s->tmp_table)
+  else
   {
+    /*
+      Do an implicit commit at end of statement for non-temporary
+      tables.  This can fail, but we should unlock the table
+      nevertheless.
+    */
+
+    if (table->s->tmp_table && table->s->on_commit_delete())
+      table= NULL; // It will be deleted on commit
+
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
-        table->file->ht->db_type == DB_TYPE_INNODB)
+        table && table->file->ht->db_type == DB_TYPE_INNODB)
     {
       if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
       {
@@ -5516,17 +5566,23 @@ bool select_create::send_eof()
     if (create_info->pos_in_locked_tables)
     {
       /*
+        For global temporary tables, restore a parent table handle, pre-opened
+        in select_create::create_table_from_items.
+      */
+      TABLE *table_to_store= create_info->global_tmp_table() ?
+                             parent_global_tmp_table : table;
+      /*
         If we are under lock tables, we have created a table that was
         originally locked. We should add back the lock to ensure that
         all tables in the thd->open_list are locked!
       */
-      table->mdl_ticket= create_info->mdl_ticket;
+      table_to_store->mdl_ticket= create_info->mdl_ticket;
 
       /* The following should never fail, except if out of memory */
       if (!thd->locked_tables_list.restore_lock(thd,
                                                 create_info->
                                                 pos_in_locked_tables,
-                                                table, lock))
+                                                table_to_store, lock))
         DBUG_RETURN(false);                     // ok
       /* Fail. Continue without locking the table */
     }
@@ -5580,7 +5636,7 @@ void select_create::abort_result_set()
   bool drop_table_was_logged= false;
   if (table)
   {
-    bool tmp_table= table->s->tmp_table;
+    bool tmp_table= table->s->tmp_table && !table->s->global_tmp_table();
     bool table_creation_was_logged= (!tmp_table ||
                                      table->s->table_creation_was_logged ||
                                      create_info->table_was_deleted);
@@ -5606,6 +5662,16 @@ void select_create::abort_result_set()
       m_plock= NULL;
     }
 
+    if (table->s->global_tmp_table() && table->s->tmp_table &&
+        parent_global_tmp_table)
+    {
+      // Parent GTT is opened only in LTM.
+      DBUG_ASSERT(thd->locked_tables_mode);
+      // For GTT we may need the two drops. First, drop the child table.
+      drop_open_table(thd, table, &table_list->db, &table_list->table_name);
+      // Then, drop the parent
+      table= parent_global_tmp_table;
+    }
     drop_open_table(thd, table, &table_list->db, &table_list->table_name);
     table=0;                                    // Safety
     if (thd->log_current_statement())

@@ -297,7 +297,8 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 */
 
 bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
-                                        bool *hton_can_recreate)
+                                        bool *hton_can_recreate,
+                                        bool *global_tmp_table)
 {
   const handlerton *hton;
   bool versioned;
@@ -344,6 +345,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
       DBUG_RETURN(TRUE);
 #endif
 
+    *global_tmp_table= table->s->global_tmp_table();
     table_ref->mdl_request.ticket= table->mdl_ticket;
   }
   else
@@ -384,6 +386,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
       }
     }
 #endif
+    *global_tmp_table= share->global_tmp_table();
 
     if (!versioned)
       tdc_remove_referenced_share(thd, share);
@@ -398,7 +401,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     }
   }
 
-  *hton_can_recreate= (!sequence &&
+  *hton_can_recreate= (!sequence && !*global_tmp_table &&
                        ha_check_storage_engine_flag(hton, HTON_CAN_RECREATE));
 
   if (versioned)
@@ -454,8 +457,16 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   /* Initialize, or reinitialize in case of reexecution (SP). */
   m_ticket_downgrade= NULL;
 
+  if (table_ref->table && table_ref->table->s->global_tmp_table())
+  {
+    TABLE_SHARE *s= table_ref->table->s;
+    DBUG_ASSERT(s->tmp_table);
+    error= thd->drop_tmp_table_share(NULL, (TMP_TABLE_SHARE *)s, true);
+    thd->reset_sp_cache= true;
+    binlog_stmt= false; // Don't log Global temporary table's truncate
+  }
   /* If it is a temporary table, no need to take locks. */
-  if (is_temporary_table(table_ref))
+  else if (is_temporary_table(table_ref))
   {
     /*
       In RBR, the statement is not binlogged if the table is temporary or
@@ -500,7 +511,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     }
 #endif /* WITH_WSREP */
 
-    if (lock_table(thd, table_ref, &hton_can_recreate))
+    bool global_tmp_table;
+
+    if (lock_table(thd, table_ref, &hton_can_recreate, &global_tmp_table))
       DBUG_RETURN(TRUE);
 
     /*
@@ -557,6 +570,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
         binlog_stmt= false;
     }
 
+    binlog_stmt&= !global_tmp_table;
+
     /*
       If we tried to open a MERGE table and failed due to problems with the
       children tables, the table will have been closed and table_ref->table
@@ -565,7 +580,10 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     */
     table_ref->table= NULL;
     query_cache_invalidate3(thd, table_ref, FALSE);
+
+    DBUG_ASSERT(!thd->find_tmp_table_share(table_ref, Tmp_table_kind::GLOBAL));
   }
+
 
   /* DDL is logged in statement format, regardless of binlog format. */
   if (binlog_stmt)

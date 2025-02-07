@@ -1974,4 +1974,10 @@ DROP TABLE t1;
 
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;
 
+--echo #
+--echo # MDEV-38443 RocksDB GTT: table creation succeeds, INSERT fails with ER_ILLEGAL_HA_CREATE_OPTION, TRUNCATE asserts
+--echo #
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE GLOBAL TEMPORARY TABLE t (c INT) ENGINE=RocksDB;
+
 --source include/test_db_charset_restore.inc
