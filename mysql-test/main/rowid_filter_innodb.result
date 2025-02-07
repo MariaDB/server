@@ -3795,6 +3795,96 @@ ANALYZE
     ]
   }
 }
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='rowid_filter=off';
+analyze format=json select * from t1
+where
+a =30100 and b in (30100,30101,30102)
+and
+(a+pk)>30100+8439
+order by pk desc;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a", "b"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 250,
+          "r_rows": 250,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 4.799086094,
+          "r_total_filtered": 0.8,
+          "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102) and 30100 + t1.pk > 38539",
+          "r_filtered": 0.8
+        }
+      }
+    ]
+  }
+}
+set optimizer_switch='rowid_filter=on';
+analyze format=json select * from t1
+where
+a =30100 and b in (30100,30101,30102)
+and
+(a+pk)>30100+8439
+order by pk desc;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a", "b"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 250,
+          "r_rows": 250,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 4.799086094,
+          "r_total_filtered": 0.8,
+          "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102) and 30100 + t1.pk > 38539",
+          "r_filtered": 0.8
+        }
+      }
+    ]
+  }
+}
+set optimizer_switch=@save_optimizer_switch;
 drop table t1;
 # End of 10.6 tests
 set global innodb_stats_persistent= @stats.save;

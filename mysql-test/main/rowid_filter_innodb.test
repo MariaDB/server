@@ -818,6 +818,25 @@ where
 order by
   pk desc;
 
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='rowid_filter=off';
+--source include/analyze-format.inc
+analyze format=json select * from t1
+where
+  a =30100 and b in (30100,30101,30102)
+and
+  (a+pk)>30100+8439
+order by pk desc;
+set optimizer_switch='rowid_filter=on';
+--source include/analyze-format.inc
+analyze format=json select * from t1
+where
+  a =30100 and b in (30100,30101,30102)
+and
+  (a+pk)>30100+8439
+order by pk desc;
+set optimizer_switch=@save_optimizer_switch;
+
 drop table t1;
 
 --echo # End of 10.6 tests
