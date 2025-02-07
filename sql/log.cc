@@ -8932,8 +8932,6 @@ MYSQL_BIN_LOG::binlog_trigger_immediate_group_commit()
 void
 binlog_report_wait_for(THD *thd1, THD *thd2)
 {
-  if (opt_binlog_commit_wait_count == 0)
-    return;
   mysql_mutex_lock(&LOCK_prepare_ordered);
   thd2->has_waiter= true;
   if (thd2->waiting_on_group_commit)

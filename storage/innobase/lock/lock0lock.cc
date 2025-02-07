@@ -72,7 +72,6 @@ constexpr bool innodb_enable_xap_unlock_unmodified_for_primary_debug= false;
 
 #ifdef HAVE_REPLICATION
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
-extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
 extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
 extern "C" bool thd_is_slave(const MYSQL_THD thd);
@@ -2089,7 +2088,7 @@ dberr_t lock_wait(que_thr_t *thr)
   is not being used. We want to be allow the user to skip
   lock_wait_rpl_report(). */
   const bool rpl= trx->mysql_thd && innodb_deadlock_detect &&
-    thd_need_wait_reports(trx->mysql_thd);
+    trx->need_wait_report;
 #endif
   const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
   timespec abstime;

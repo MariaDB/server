@@ -1188,8 +1188,6 @@ values_loop_end:
 
     if (thd->transaction->stmt.modified_non_trans_table)
       thd->transaction->all.modified_non_trans_table= TRUE;
-    thd->transaction->all.m_unsafe_rollback_flags|=
-      (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
     if (error <= 0 ||
         thd->transaction->stmt.modified_non_trans_table ||
@@ -4310,8 +4308,6 @@ bool select_insert::prepare_eof()
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;
-  thd->transaction->all.m_unsafe_rollback_flags|=
-    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   DBUG_ASSERT(trans_table || !changed || 
               thd->transaction->stmt.modified_non_trans_table);
