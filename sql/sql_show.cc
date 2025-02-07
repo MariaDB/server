@@ -2130,6 +2130,15 @@ end_options:
                         hton->table_options);
   append_directory(thd, packet, &DATA_clex_str,  create_info.data_file_name);
   append_directory(thd, packet, &INDEX_clex_str, create_info.index_file_name);
+
+  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+  {
+    LEX_CSTRING on_commit= table->s->on_commit_delete
+                     ? LEX_CSTRING{STRING_WITH_LEN(" ON COMMIT DELETE ROWS")}
+                     : LEX_CSTRING{STRING_WITH_LEN(" ON COMMIT PRESERVE ROWS")};
+
+    packet->append(on_commit);
+  }
 }
 
 static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
@@ -2234,6 +2243,8 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
     packet->append(STRING_WITH_LEN("OR REPLACE "));
   if (share->tmp_table)
     packet->append(STRING_WITH_LEN("TEMPORARY "));
+  else if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+    packet->append(STRING_WITH_LEN("GLOBAL TEMPORARY "));
   packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg && create_info_arg->if_not_exists())
     packet->append(STRING_WITH_LEN("IF NOT EXISTS "));

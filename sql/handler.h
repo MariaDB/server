@@ -515,6 +515,9 @@ enum chf_create_flags {
 */
 #define HA_LEX_CREATE_SHARED_ACCESS_TMP_TABLE 128U
 
+/** GLOBAL TEMPORARY TABLE */
+#define HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE 256U
+
 #define HA_MAX_REC_LENGTH	65535
 
 /* Table caching type */
@@ -2284,6 +2287,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
     as the original.
   */
   bool recreate_identical_table;
+  bool on_commit_delete;
 
   List<Virtual_column_info> *check_constraint_list;
 

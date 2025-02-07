@@ -547,7 +547,7 @@ enum enum_table_category
     The server implementation perform writes.
     Performance tables are cached in the table cache.
   */
-  TABLE_CATEGORY_PERFORMANCE=8
+  TABLE_CATEGORY_PERFORMANCE=8,
 };
 
 typedef enum enum_table_category TABLE_CATEGORY;
@@ -879,6 +879,7 @@ struct TABLE_SHARE
   uint open_errno;                      /* error from open_table_def() */
   uint column_bitmap_size;
   uchar frm_version;
+  bool on_commit_delete;
 
   enum enum_v_keys { NOT_INITIALIZED=0, NO_V_KEYS, V_KEYS };
   enum_v_keys check_set_initialized;

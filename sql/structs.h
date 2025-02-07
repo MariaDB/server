@@ -21,6 +21,8 @@
 
 /* The old structures from unireg */
 
+#include <mysqld.h>
+
 #include "sql_plugin.h"                         /* plugin_ref */
 #include "sql_const.h"                          /* MAX_REFLENGTH */
 #include "my_time.h"                   /* enum_mysql_timestamp_type */

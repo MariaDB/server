@@ -85,6 +85,7 @@ struct extra2_fields
   LEX_CUSTRING field_data_type_info;
   LEX_CUSTRING without_overlaps;
   LEX_CUSTRING index_flags;
+  LEX_CUSTRING global_tmp_table;
   void reset()
   { bzero((void*)this, sizeof(*this)); }
 };
@@ -1664,6 +1665,9 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
         case EXTRA2_INDEX_FLAGS:
           fail= read_extra2_section_once(extra2, length, &fields->index_flags);
           break;
+        case EXTRA2_GLOBAL_TEMPORARY:
+          fail= read_extra2_section_once(extra2, length, &fields->global_tmp_table);
+          break;
         default:
           /* abort frm parsing if it's an unknown but important extra2 value */
           if (type >= EXTRA2_ENGINE_IMPORTANT)
@@ -2473,6 +2477,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       field_data_type_info_array.parse(old_root, share->fields,
                                        extra2.field_data_type_info))
     goto err;
+
+  if (extra2.global_tmp_table.str)
+  {
+    share->table_type = TABLE_TYPE_GLOBAL_TEMPORARY;
+    share->on_commit_delete= *extra2.global_tmp_table.str;
+  }
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {

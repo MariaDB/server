@@ -1,0 +1,38 @@
+create global temporary table t1 (x int, t text);
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+flush tables;
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+drop temporary table t1;
+ERROR 42S02: Unknown table 'test.t1'
+drop table t1;
+CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS;
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+drop table t1;
+show create table t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+create global temporary table t1 (x int, t text) on commit preserve rows;
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+drop table t1;
