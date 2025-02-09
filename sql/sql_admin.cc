@@ -711,8 +711,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             protocol->store(&table_name, system_charset_info);
             protocol->store(operator_name, system_charset_info);
             protocol->store(&error_clex_str, system_charset_info);
-            length= my_snprintf(buff, sizeof(buff),
-                                ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
+            length= strmake(buff, ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST),
+                            sizeof(buff)-1) - buff;
             protocol->store(buff, length, system_charset_info);
             if(protocol->write())
               goto err;

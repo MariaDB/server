@@ -543,8 +543,7 @@ list_tables(MYSQL *mysql,const char *db,const char *table)
                 opt_table_type ? " full" : "", rows);
   }
   else
-    my_snprintf(query, sizeof(query), "show%s tables",
-                opt_table_type ? " full" : "");
+    strcpy(query, opt_table_type ? "show full tables" : "show tables");
   if (mysql_query(mysql, query) || !(result= mysql_store_result(mysql)))
   {
     fprintf(stderr,"%s: Cannot list tables in %s: %s\n",my_progname,db,

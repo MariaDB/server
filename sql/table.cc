@@ -4099,14 +4099,13 @@ end:
 #ifndef DBUG_OFF
 static void print_long_unique_table(TABLE *table)
 {
-  char buff[256];
+  char buff[256]= "Printing Table state, It will print table fields, "
+                  "fields->offset,field->null_bit, field->null_pos and key_info ... \n\n"
+                  "Printing  Table  keyinfo\n";
   String str;
   KEY *key_info_table, *key_info_share;
   KEY_PART_INFO *key_part;
   Field *field;
-  my_snprintf(buff, sizeof(buff), "Printing Table state, It will print table fields,"
-          " fields->offset,field->null_bit, field->null_pos and key_info ... \n"
-          "\nPrinting  Table  keyinfo\n");
   str.append(buff, strlen(buff));
   my_snprintf(buff, sizeof(buff), "\ntable->s->reclength %lu\n"
           "table->s->fields %u\n",
@@ -4159,7 +4158,7 @@ static void print_long_unique_table(TABLE *table)
       str.append(buff, strlen(buff));
     }
   }
-  my_snprintf(buff, sizeof(buff), "\nPrinting table->fields\n");
+  strcpy(buff, "\nPrinting table->fields\n");
   str.append(buff, strlen(buff));
   for(uint i= 0; i < table->s->fields; i++)
   {
