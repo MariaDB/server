@@ -3107,6 +3107,7 @@ ha_innobase::ha_innobase(
 			  | HA_CONCURRENT_OPTIMIZE
 			  | HA_CAN_SKIP_LOCKED
 			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
+			  | HA_CAN_TABLE_CONDITION_PUSHDOWN
 		  ),
 	m_start_of_scan(),
         m_mysql_has_locked()
@@ -20563,6 +20564,12 @@ ha_innobase::idx_cond_push(
 	DBUG_RETURN(NULL);
 }
 
+const COND*
+ha_innobase::cond_push(const COND *cond)
+{
+  m_prebuilt->full_table_scan|= !cond;
+  return NULL;
+}
 
 /** Push a primary key filter.
 @param[in]	pk_filter	filter against which primary keys
