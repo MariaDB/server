@@ -55,10 +55,6 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 @return true if found and freed */
 bool buf_LRU_scan_and_free_block(ulint limit= ULINT_UNDEFINED);
 
-/** @return a buffer block from the buf_pool.free list
-@retval	NULL	if the free list is empty */
-buf_block_t* buf_LRU_get_free_only();
-
 /** How to acquire a block */
 enum buf_LRU_get {
   /** The caller is not holding buf_pool.mutex */

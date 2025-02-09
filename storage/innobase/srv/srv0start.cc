@@ -1368,30 +1368,9 @@ dberr_t srv_start(bool create_new_db)
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
-	ib::info() << "Initializing buffer pool, total size = "
-		<< ib::bytes_iec{srv_buf_pool_size}
-		<< ", chunk size = " << ib::bytes_iec{srv_buf_pool_chunk_unit};
-
 	if (buf_pool.create()) {
-		ib::error() << "Cannot allocate memory for the buffer pool";
-
 		return(srv_init_abort(DB_ERROR));
 	}
-
-	ib::info() << "Completed initialization of buffer pool";
-
-#ifdef UNIV_DEBUG
-	/* We have observed deadlocks with a 5MB buffer pool but
-	the actual lower limit could very well be a little higher. */
-
-	if (srv_buf_pool_size <= 5 * 1024 * 1024) {
-
-		ib::info() << "Small buffer pool size ("
-			<< ib::bytes_iec{srv_buf_pool_size}
-			<< "), the flst_validate() debug function can cause a"
-			<< " deadlock if the buffer pool fills up.";
-	}
-#endif /* UNIV_DEBUG */
 
 	log_sys.create();
 	recv_sys.create();

@@ -37,6 +37,9 @@ extern mysql_pfs_key_t btr_search_latch_key;
 # define btr_search_sys_create() btr_search.create()
 # define btr_search_sys_free() btr_search.free()
 
+/** Lazily free detached metadata when removing the last reference. */
+ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index) noexcept;
+
 /** Tries to guess the right search position based on the hash search info
 of the index. Note that if mode is PAGE_CUR_LE, which is used in inserts,
 and the function returns TRUE, then cursor->up_match and cursor->low_match

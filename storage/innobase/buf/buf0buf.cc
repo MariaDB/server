@@ -46,8 +46,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0dblwr.h"
 #include "lock0lock.h"
 #include "btr0sea.h"
-#include "trx0undo.h"
-#include "trx0purge.h"
 #include "log0log.h"
 #include "dict0stats_bg.h"
 #include "srv0srv.h"
@@ -276,6 +274,95 @@ the read requests for the whole area.
 */
 
 #ifndef UNIV_INNOCHECKSUM
+/** Recursively compute the number of frames needed for buf_block_t, per extent
+@param extent  extent size, in pages
+@param ps      innodb_page_size
+@param b       upper bound for the return value
+@return number of buf_block_t frames per extent */
+static constexpr size_t compute_overhead(size_t extent, size_t ps, size_t b)
+{
+  return ((ps * b - (extent - b) * sizeof(buf_block_t)) > ps)
+    ? compute_overhead(extent, ps, b - 1)
+    : b;
+}
+
+/** Saturating conversion */
+static constexpr uint16_t scast16(size_t x)
+{
+  return uint16_t(((-int16_t(x >> 16)) | (x << 16)) >> 16);
+}
+
+/** Saturating conversion */
+static constexpr uint8_t scast8(uint16_t x)
+{
+  return uint8_t(((-int8_t(x >> 8)) | (x << 8)) >> 8);
+}
+/** Saturating conversion */
+static constexpr uint8_t scast8(size_t x) { return scast8(scast16(x)); }
+
+/** Compute the number of page frames needed for buf_block_t,
+per innodb_buffer_pool_extent_size.
+@param ps      innodb_page_size
+@return number of buf_block_t frames per extent */
+static constexpr uint8_t first_page(size_t ps)
+{
+  return scast8(compute_overhead(innodb_buffer_pool_extent_size / ps, ps,
+                                 (innodb_buffer_pool_extent_size / ps *
+                                  sizeof(buf_block_t) + (ps - 1)) / ps));
+}
+
+/** Compute the number of bytes needed for buf_block_t,
+per innodb_buffer_pool_extent_size.
+@param ps      innodb_page_size
+@return number of buf_block_t frames per extent */
+static constexpr size_t first_frame(size_t ps)
+{
+  return first_page(ps) * ps;
+}
+
+/** Compute the number of pages per innodb_buffer_pool_extent_size.
+@param ps      innodb_page_size
+@return number of buf_block_t frames per extent */
+static constexpr uint16_t pages(size_t ps)
+{
+  return scast16(innodb_buffer_pool_extent_size / ps - first_page(ps));
+}
+
+/** The byte offset of the first page frame in a buffer pool extent
+of innodb_buffer_pool_extent_size bytes */
+static constexpr size_t first_frame_in_extent[]=
+{
+  first_frame(4096), first_frame(8192), first_frame(16384),
+  first_frame(32768), first_frame(65536)
+};
+
+/** The position offset of the first page frame in a buffer pool extent
+of innodb_buffer_pool_extent_size bytes */
+static constexpr uint8_t first_page_in_extent[]=
+{
+  first_page(4096), first_page(8192), first_page(16384),
+  first_page(32768), first_page(65536)
+};
+
+static_assert(first_page_in_extent[0] < 255, "");
+static_assert(first_page_in_extent[1] < 255, "");
+static_assert(first_page_in_extent[2] < 255, "");
+static_assert(first_page_in_extent[3] < 255, "");
+static_assert(first_page_in_extent[4] < 255, "");
+
+/** Number of pages per buffer pool extent
+of innodb_buffer_pool_extent_size bytes */
+static constexpr size_t pages_in_extent[]=
+{
+  pages(4096), pages(8192), pages(16384), pages(32768), pages(65536)
+};
+
+static_assert(pages_in_extent[0] < 65535, "");
+static_assert(pages_in_extent[1] < 65535, "");
+static_assert(pages_in_extent[2] < 65535, "");
+static_assert(pages_in_extent[3] < 65535, "");
+static_assert(pages_in_extent[4] < 65535, "");
+
 # ifdef SUX_LOCK_GENERIC
 void page_hash_latch::read_lock_wait()
 {
@@ -325,8 +412,6 @@ const byte *field_ref_zero;
 
 /** The InnoDB buffer pool */
 buf_pool_t buf_pool;
-buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_reg;
-buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_ref;
 
 #ifdef UNIV_DEBUG
 /** This is used to insert validation operations in execution
@@ -861,8 +946,8 @@ public:
 
   static void pressure_routine(mem_pressure *m);
 
-#ifdef UNIV_DEBUG
-  void trigger_collection()
+#ifndef DBUG_OFF
+  void trigger_collection() noexcept
   {
     uint64_t u= 1;
     if (m_event_fd < 0 || write(m_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
@@ -940,7 +1025,7 @@ void mem_pressure::pressure_routine(mem_pressure *m)
         }
       }
 
-#ifdef UNIV_DEBUG
+#ifndef DBUG_OFF
       if (p.revents & POLLIN)
       {
         uint64_t u;
@@ -957,1163 +1042,17 @@ void mem_pressure::pressure_routine(mem_pressure *m)
 }
 
 /** Initialize mem pressure. */
-ATTRIBUTE_COLD void buf_mem_pressure_detect_init()
+ATTRIBUTE_COLD static void buf_mem_pressure_detect_init() noexcept
 {
   mem_pressure_obj.setup();
 }
 
-ATTRIBUTE_COLD void buf_mem_pressure_shutdown()
+ATTRIBUTE_COLD void buf_mem_pressure_shutdown() noexcept
 {
   mem_pressure_obj.join();
 }
-#endif /* __linux__ */
 
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
-/** Enable buffers to be dumped to core files
-
-A convience function, not called anyhwere directly however
-it is left available for gdb or any debugger to call
-in the event that you want all of the memory to be dumped
-to a core file.
-
-Returns number of errors found in madvise calls. */
-MY_ATTRIBUTE((used))
-int
-buf_madvise_do_dump()
-{
-	int ret= 0;
-
-	/* mirrors allocation in log_t::create() */
-	if (log_sys.buf) {
-		ret += madvise(log_sys.buf, log_sys.buf_size, MADV_DODUMP);
-		ret += madvise(log_sys.flush_buf, log_sys.buf_size,
-			       MADV_DODUMP);
-	}
-
-	mysql_mutex_lock(&buf_pool.mutex);
-	auto chunk = buf_pool.chunks;
-
-	for (ulint n = buf_pool.n_chunks; n--; chunk++) {
-		ret+= madvise(chunk->mem, chunk->mem_size(), MADV_DODUMP);
-	}
-
-	mysql_mutex_unlock(&buf_pool.mutex);
-	return ret;
-}
-#endif
-
-#ifndef UNIV_DEBUG
-static inline byte hex_to_ascii(byte hex_digit)
-{
-  const int offset= hex_digit <= 9 ? '0' : 'a' - 10;
-  return byte(hex_digit + offset);
-}
-#endif
-
-/** Dump a page to stderr.
-@param[in]	read_buf	database page
-@param[in]	zip_size	compressed page size, or 0 */
-ATTRIBUTE_COLD
-void buf_page_print(const byte *read_buf, ulint zip_size)
-{
-#ifndef UNIV_DEBUG
-  const size_t size = zip_size ? zip_size : srv_page_size;
-  const byte * const end= read_buf + size;
-  sql_print_information("InnoDB: Page dump (%zu bytes):", size);
-
-  do
-  {
-    byte row[64];
-
-    for (byte *r= row; r != &row[64]; r+= 2, read_buf++)
-    {
-      r[0]= hex_to_ascii(byte(*read_buf >> 4));
-      r[1]= hex_to_ascii(*read_buf & 15);
-    }
-
-    sql_print_information("InnoDB: %.*s", 64, row);
-  }
-  while (read_buf != end);
-
-  sql_print_information("InnoDB: End of page dump");
-#endif
-}
-
-#ifdef BTR_CUR_HASH_ADAPT
-
-/** Ensure that some adaptive hash index fields are initialized */
-static void buf_block_init_low(buf_block_t *block) noexcept
-{
-  /* No adaptive hash index entries may point to a previously unused
-  (and now freshly allocated) block. */
-  MEM_MAKE_DEFINED(&block->index, sizeof block->index);
-  MEM_MAKE_DEFINED(&block->n_pointers, sizeof block->n_pointers);
-  MEM_MAKE_DEFINED(&block->n_hash_helps, sizeof block->n_hash_helps);
-# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-  ut_a(!block->index);
-  ut_a(!block->n_pointers);
-  ut_a(!block->n_hash_helps);
-# endif
-}
-#else /* BTR_CUR_HASH_ADAPT */
-inline void buf_block_init_low(buf_block_t*) {}
-#endif /* BTR_CUR_HASH_ADAPT */
-
-/** Initialize a buffer page descriptor.
-@param[in,out]	block	buffer page descriptor
-@param[in]	frame	buffer page frame */
-static
-void
-buf_block_init(buf_block_t* block, byte* frame)
-{
-	/* This function should only be executed at database startup or by
-	buf_pool.resize(). Either way, adaptive hash index must not exist. */
-	buf_block_init_low(block);
-	block->page.frame = frame;
-
-	MEM_MAKE_DEFINED(&block->modify_clock, sizeof block->modify_clock);
-	ut_ad(!block->modify_clock);
-	MEM_MAKE_DEFINED(&block->page.lock, sizeof block->page.lock);
-	block->page.lock.init();
-	block->page.init(buf_page_t::NOT_USED, page_id_t(~0ULL));
-	ut_d(block->in_unzip_LRU_list = false);
-	ut_d(block->in_withdraw_list = false);
-
-	page_zip_des_init(&block->page.zip);
-
-	MEM_MAKE_DEFINED(&block->page.hash, sizeof block->page.hash);
-	ut_ad(!block->page.hash);
-}
-
-/** Allocate a chunk of buffer frames.
-@param bytes    requested size
-@return whether the allocation succeeded */
-inline bool buf_pool_t::chunk_t::create(size_t bytes)
-{
-  DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return false;);
-  /* Round down to a multiple of page size, although it already should be. */
-  bytes= ut_2pow_round<size_t>(bytes, srv_page_size);
-
-  mem= buf_pool.allocator.allocate_large_dontdump(bytes, &mem_pfx);
-
-  if (UNIV_UNLIKELY(!mem))
-    return false;
-
-  MEM_UNDEFINED(mem, mem_size());
-
-#ifdef HAVE_LIBNUMA
-  if (srv_numa_interleave)
-  {
-    struct bitmask *numa_mems_allowed= numa_get_mems_allowed();
-    MEM_MAKE_DEFINED(numa_mems_allowed, sizeof *numa_mems_allowed);
-    if (mbind(mem, mem_size(), MPOL_INTERLEAVE,
-              numa_mems_allowed->maskp, numa_mems_allowed->size,
-              MPOL_MF_MOVE))
-    {
-      ib::warn() << "Failed to set NUMA memory policy of"
-              " buffer pool page frames to MPOL_INTERLEAVE"
-              " (error: " << strerror(errno) << ").";
-    }
-    numa_bitmask_free(numa_mems_allowed);
-  }
-#endif /* HAVE_LIBNUMA */
-
-
-  /* Allocate the block descriptors from
-  the start of the memory block. */
-  blocks= reinterpret_cast<buf_block_t*>(mem);
-
-  /* Align a pointer to the first frame.  Note that when
-  opt_large_page_size is smaller than srv_page_size,
-  (with max srv_page_size at 64k don't think any hardware
-  makes this true),
-  we may allocate one fewer block than requested.  When
-  it is bigger, we may allocate more blocks than requested. */
-  static_assert(sizeof(byte*) == sizeof(ulint), "pointer size");
-
-  byte *frame= reinterpret_cast<byte*>((reinterpret_cast<ulint>(mem) +
-                                        srv_page_size - 1) &
-                                       ~ulint{srv_page_size - 1});
-  size= (mem_pfx.m_size >> srv_page_size_shift) - (frame != mem);
-
-  /* Subtract the space needed for block descriptors. */
-  {
-    ulint s= size;
-
-    while (frame < reinterpret_cast<const byte*>(blocks + s))
-    {
-      frame+= srv_page_size;
-      s--;
-    }
-
-    size= s;
-  }
-
-  /* Init block structs and assign frames for them. Then we assign the
-  frames to the first blocks (we already mapped the memory above). */
-
-  buf_block_t *block= blocks;
-
-  for (auto i= size; i--; ) {
-    buf_block_init(block, frame);
-    MEM_UNDEFINED(block->page.frame, srv_page_size);
-    /* Add the block to the free list */
-    UT_LIST_ADD_LAST(buf_pool.free, &block->page);
-
-    ut_d(block->page.in_free_list = TRUE);
-    block++;
-    frame+= srv_page_size;
-  }
-
-  reg();
-
-  return true;
-}
-
-#ifdef UNIV_DEBUG
-/** Check that all file pages in the buffer chunk are in a replaceable state.
-@return address of a non-free block
-@retval nullptr if all freed */
-inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
-{
-  buf_block_t *block= blocks;
-  for (auto i= size; i--; block++)
-  {
-    if (block->page.in_file())
-    {
-      /* The uncompressed buffer pool should never
-      contain ROW_FORMAT=COMPRESSED block descriptors. */
-      ut_ad(block->page.frame);
-      const lsn_t lsn= block->page.oldest_modification();
-
-      if (srv_read_only_mode)
-      {
-        /* The page cleaner is disabled in read-only mode.  No pages
-        can be dirtied, so all of them must be clean. */
-        ut_ad(lsn == 0 || lsn == recv_sys.lsn ||
-              srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
-        break;
-      }
-
-      if (fsp_is_system_temporary(block->page.id().space()))
-      {
-        ut_ad(lsn == 0 || lsn == 2);
-        break;
-      }
-
-      if (lsn > 1 || !block->page.can_relocate())
-        return block;
-
-      break;
-    }
-  }
-
-  return nullptr;
-}
-#endif /* UNIV_DEBUG */
-
-/** Create the hash table.
-@param n  the lower bound of n_cells */
-void buf_pool_t::page_hash_table::create(ulint n)
-{
-  n_cells= ut_find_prime(n);
-  const size_t size= MY_ALIGN(pad(n_cells) * sizeof *array,
-                              CPU_LEVEL1_DCACHE_LINESIZE);
-  void *v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(v, 0, size);
-  array= static_cast<hash_chain*>(v);
-}
-
-/** Create the buffer pool.
-@return whether the creation failed */
-bool buf_pool_t::create()
-{
-  ut_ad(this == &buf_pool);
-  ut_ad(srv_buf_pool_size % srv_buf_pool_chunk_unit == 0);
-  ut_ad(!is_initialised());
-  ut_ad(srv_buf_pool_size > 0);
-  ut_ad(!resizing);
-  ut_ad(!chunks_old);
-  /* mariabackup loads tablespaces, and it requires field_ref_zero to be
-  allocated before innodb initialization */
-  ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
-
-  NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
-
-  if (!field_ref_zero) {
-    if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
-      field_ref_zero= static_cast<const byte*>
-        (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
-    else
-      return true;
-  }
-
-  chunk_t::map_reg= UT_NEW_NOKEY(chunk_t::map());
-
-  new(&allocator) ut_allocator<unsigned char>(mem_key_buf_buf_pool);
-
-  n_chunks= srv_buf_pool_size / srv_buf_pool_chunk_unit;
-  const size_t chunk_size= srv_buf_pool_chunk_unit;
-
-  chunks= static_cast<chunk_t*>(ut_zalloc_nokey(n_chunks * sizeof *chunks));
-  UT_LIST_INIT(free, &buf_page_t::list);
-  curr_size= 0;
-  auto chunk= chunks;
-
-  do
-  {
-    if (!chunk->create(chunk_size))
-    {
-      while (--chunk >= chunks)
-      {
-        buf_block_t* block= chunk->blocks;
-
-        for (auto i= chunk->size; i--; block++)
-          block->page.lock.free();
-
-        allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
-      }
-      ut_free(chunks);
-      chunks= nullptr;
-      UT_DELETE(chunk_t::map_reg);
-      chunk_t::map_reg= nullptr;
-      aligned_free(const_cast<byte*>(field_ref_zero));
-      field_ref_zero= nullptr;
-      ut_ad(!is_initialised());
-      return true;
-    }
-
-    curr_size+= chunk->size;
-  }
-  while (++chunk < chunks + n_chunks);
-
-  ut_ad(is_initialised());
-#if defined(__aarch64__)
-  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
-#else
-  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
-#endif
-
-  UT_LIST_INIT(LRU, &buf_page_t::LRU);
-  UT_LIST_INIT(withdraw, &buf_page_t::list);
-  withdraw_target= 0;
-  UT_LIST_INIT(flush_list, &buf_page_t::list);
-  UT_LIST_INIT(unzip_LRU, &buf_block_t::unzip_LRU);
-
-  for (size_t i= 0; i < UT_ARR_SIZE(zip_free); ++i)
-    UT_LIST_INIT(zip_free[i], &buf_buddy_free_t::list);
-  ulint s= curr_size;
-  s/= BUF_READ_AHEAD_PORTION;
-  read_ahead_area= s >= READ_AHEAD_PAGES
-    ? READ_AHEAD_PAGES
-    : my_round_up_to_next_power(static_cast<uint32_t>(s));
-  curr_pool_size= srv_buf_pool_size;
-
-  n_chunks_new= n_chunks;
-
-  page_hash.create(2 * curr_size);
-  zip_hash.create(2 * curr_size);
-  last_printout_time= time(NULL);
-
-  mysql_mutex_init(flush_list_mutex_key, &flush_list_mutex,
-                   MY_MUTEX_INIT_FAST);
-
-  pthread_cond_init(&done_flush_LRU, nullptr);
-  pthread_cond_init(&done_flush_list, nullptr);
-  pthread_cond_init(&do_flush_list, nullptr);
-  pthread_cond_init(&done_free, nullptr);
-
-  try_LRU_scan= true;
-
-  ut_d(flush_hp.m_mutex= &flush_list_mutex;);
-  ut_d(lru_hp.m_mutex= &mutex);
-  ut_d(lru_scan_itr.m_mutex= &mutex);
-
-  io_buf.create((srv_n_read_io_threads + srv_n_write_io_threads) *
-                OS_AIO_N_PENDING_IOS_PER_THREAD);
-
-  /* FIXME: remove some of these variables */
-  srv_buf_pool_curr_size= curr_pool_size;
-  srv_buf_pool_old_size= srv_buf_pool_size;
-  srv_buf_pool_base_size= srv_buf_pool_size;
-
-  last_activity_count= srv_get_activity_count();
-
-  chunk_t::map_ref= chunk_t::map_reg;
-  buf_LRU_old_ratio_update(100 * 3 / 8, false);
-  btr_search_sys_create();
-
-#ifdef __linux__
-  if (srv_operation == SRV_OPERATION_NORMAL)
-    buf_mem_pressure_detect_init();
-#endif
-  ut_ad(is_initialised());
-  return false;
-}
-
-/** Clean up after successful create() */
-void buf_pool_t::close()
-{
-  ut_ad(this == &buf_pool);
-  if (!is_initialised())
-    return;
-
-  mysql_mutex_destroy(&mutex);
-  mysql_mutex_destroy(&flush_list_mutex);
-
-  for (buf_page_t *bpage= UT_LIST_GET_LAST(LRU), *prev_bpage= nullptr; bpage;
-       bpage= prev_bpage)
-  {
-    prev_bpage= UT_LIST_GET_PREV(LRU, bpage);
-    ut_ad(bpage->in_file());
-    ut_ad(bpage->in_LRU_list);
-    /* The buffer pool must be clean during normal shutdown.
-    Only on aborted startup (with recovery) or with innodb_fast_shutdown=2
-    we may discard changes. */
-    ut_d(const lsn_t oldest= bpage->oldest_modification();)
-    ut_ad(fsp_is_system_temporary(bpage->id().space())
-          ? (oldest == 0 || oldest == 2)
-          : oldest <= 1 || srv_is_being_started || srv_fast_shutdown == 2);
-
-    if (UNIV_UNLIKELY(!bpage->frame))
-    {
-      bpage->lock.free();
-      ut_free(bpage);
-    }
-  }
-
-  for (auto chunk= chunks + n_chunks; --chunk >= chunks; )
-  {
-    buf_block_t *block= chunk->blocks;
-
-    for (auto i= chunk->size; i--; block++)
-      block->page.lock.free();
-
-    allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
-  }
-
-  pthread_cond_destroy(&done_flush_LRU);
-  pthread_cond_destroy(&done_flush_list);
-  pthread_cond_destroy(&do_flush_list);
-  pthread_cond_destroy(&done_free);
-
-  ut_free(chunks);
-  chunks= nullptr;
-  page_hash.free();
-  zip_hash.free();
-
-  io_buf.close();
-  UT_DELETE(chunk_t::map_reg);
-  chunk_t::map_reg= chunk_t::map_ref= nullptr;
-  aligned_free(const_cast<byte*>(field_ref_zero));
-  field_ref_zero= nullptr;
-}
-
-/** Try to reallocate a control block.
-@param block  control block to reallocate
-@return whether the reallocation succeeded */
-inline bool buf_pool_t::realloc(buf_block_t *block)
-{
-	buf_block_t*	new_block;
-
-	mysql_mutex_assert_owner(&mutex);
-	ut_ad(block->page.in_file());
-	ut_ad(block->page.frame);
-
-	new_block = buf_LRU_get_free_only();
-
-	if (new_block == NULL) {
-		mysql_mutex_lock(&buf_pool.flush_list_mutex);
-		page_cleaner_wakeup();
-		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-		return(false); /* free list was not enough */
-	}
-
-	const page_id_t id{block->page.id()};
-	hash_chain& chain = page_hash.cell_get(id.fold());
-	page_hash_latch& hash_lock = page_hash.lock_get(chain);
-	/* It does not make sense to use transactional_lock_guard
-	here, because copying innodb_page_size (4096 to 65536) bytes
-	as well as other changes would likely make the memory
-	transaction too large. */
-	hash_lock.lock();
-
-	if (block->page.can_relocate()) {
-		memcpy_aligned<UNIV_PAGE_SIZE_MIN>(
-			new_block->page.frame, block->page.frame,
-			srv_page_size);
-		mysql_mutex_lock(&buf_pool.flush_list_mutex);
-		const auto frame = new_block->page.frame;
-		new_block->page.lock.free();
-		new (&new_block->page) buf_page_t(block->page);
-		new_block->page.frame = frame;
-
-		/* relocate LRU list */
-		if (buf_page_t*	prev_b = buf_pool.LRU_remove(&block->page)) {
-			UT_LIST_INSERT_AFTER(LRU, prev_b, &new_block->page);
-		} else {
-			UT_LIST_ADD_FIRST(LRU, &new_block->page);
-		}
-
-		if (LRU_old == &block->page) {
-			LRU_old = &new_block->page;
-		}
-
-		ut_ad(new_block->page.in_LRU_list);
-
-		/* relocate unzip_LRU list */
-		if (block->page.zip.data != NULL) {
-			ut_ad(block->in_unzip_LRU_list);
-			ut_d(new_block->in_unzip_LRU_list = true);
-
-			buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
-			UT_LIST_REMOVE(unzip_LRU, block);
-
-			ut_d(block->in_unzip_LRU_list = false);
-			block->page.zip.data = NULL;
-			page_zip_set_size(&block->page.zip, 0);
-
-			if (prev_block != NULL) {
-				UT_LIST_INSERT_AFTER(unzip_LRU, prev_block, new_block);
-			} else {
-				UT_LIST_ADD_FIRST(unzip_LRU, new_block);
-			}
-		} else {
-			ut_ad(!block->in_unzip_LRU_list);
-			ut_d(new_block->in_unzip_LRU_list = false);
-		}
-
-		/* relocate page_hash */
-		hash_chain& chain = page_hash.cell_get(id.fold());
-		ut_ad(&block->page == page_hash.get(id, chain));
-		buf_pool.page_hash.replace(chain, &block->page,
-					   &new_block->page);
-		buf_block_modify_clock_inc(block);
-		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
-		memset_aligned<4>(block->page.frame
-				  + FIL_PAGE_OFFSET, 0xff, 4);
-		static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
-			      "not perfect alignment");
-		memset_aligned<2>(block->page.frame
-				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-		MEM_UNDEFINED(block->page.frame, srv_page_size);
-		block->page.set_state(buf_page_t::REMOVE_HASH);
-		if (!fsp_is_system_temporary(id.space())) {
-			buf_flush_relocate_on_flush_list(&block->page,
-							 &new_block->page);
-		}
-		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-		block->page.set_corrupt_id();
-
-		buf_block_init_low(new_block);
-		ut_d(block->page.set_state(buf_page_t::MEMORY));
-		/* free block */
-		new_block = block;
-	}
-
-	hash_lock.unlock();
-	buf_LRU_block_free_non_file_page(new_block);
-	return(true); /* free_list was enough */
-}
-
-void buf_pool_t::io_buf_t::create(ulint n_slots)
-{
-  this->n_slots= n_slots;
-  slots= static_cast<buf_tmp_buffer_t*>
-    (ut_malloc_nokey(n_slots * sizeof *slots));
-  memset((void*) slots, 0, n_slots * sizeof *slots);
-}
-
-void buf_pool_t::io_buf_t::close()
-{
-  for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-  {
-    aligned_free(s->crypt_buf);
-    aligned_free(s->comp_buf);
-  }
-  ut_free(slots);
-  slots= nullptr;
-  n_slots= 0;
-}
-
-buf_tmp_buffer_t *buf_pool_t::io_buf_t::reserve(bool wait_for_reads)
-{
-  for (;;)
-  {
-    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-      if (s->acquire())
-        return s;
-    buf_dblwr.flush_buffered_writes();
-    os_aio_wait_until_no_pending_writes(true);
-    if (!wait_for_reads)
-      continue;
-    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-      if (s->acquire())
-        return s;
-    os_aio_wait_until_no_pending_reads(true);
-  }
-}
-
-/** Sets the global variable that feeds MySQL's innodb_buffer_pool_resize_status
-to the specified string. The format and the following parameters are the
-same as the ones used for printf(3).
-@param[in]	fmt	format
-@param[in]	...	extra parameters according to fmt */
-static
-void
-buf_resize_status(
-	const char*	fmt,
-	...)
-{
-	va_list	ap;
-
-	va_start(ap, fmt);
-
-	vsnprintf(
-		export_vars.innodb_buffer_pool_resize_status,
-		sizeof(export_vars.innodb_buffer_pool_resize_status),
-		fmt, ap);
-
-	va_end(ap);
-
-	ib::info() << export_vars.innodb_buffer_pool_resize_status;
-}
-
-/** Withdraw blocks from the buffer pool until meeting withdraw_target.
-@return whether retry is needed */
-inline bool buf_pool_t::withdraw_blocks()
-{
-	buf_block_t*	block;
-	ulint		loop_count = 0;
-
-	ib::info() << "Start to withdraw the last "
-		<< withdraw_target << " blocks.";
-
-	while (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-
-		/* try to withdraw from free_list */
-		ulint	count1 = 0;
-
-		mysql_mutex_lock(&mutex);
-		buf_buddy_condense_free();
-		block = reinterpret_cast<buf_block_t*>(
-			UT_LIST_GET_FIRST(free));
-		while (block != NULL
-		       && UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			ut_ad(block->page.in_free_list);
-			ut_ad(!block->page.oldest_modification());
-			ut_ad(!block->page.in_LRU_list);
-			ut_a(!block->page.in_file());
-
-			buf_block_t*	next_block;
-			next_block = reinterpret_cast<buf_block_t*>(
-				UT_LIST_GET_NEXT(
-					list, &block->page));
-
-			if (will_be_withdrawn(block->page)) {
-				/* This should be withdrawn */
-				UT_LIST_REMOVE(free, &block->page);
-				UT_LIST_ADD_LAST(withdraw, &block->page);
-				ut_d(block->in_withdraw_list = true);
-				count1++;
-			}
-
-			block = next_block;
-		}
-
-		/* reserve free_list length */
-		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			try_LRU_scan = false;
-			mysql_mutex_unlock(&mutex);
-			mysql_mutex_lock(&flush_list_mutex);
-			page_cleaner_wakeup(true);
-			my_cond_wait(&done_flush_list,
-				     &flush_list_mutex.m_mutex);
-			mysql_mutex_unlock(&flush_list_mutex);
-			mysql_mutex_lock(&mutex);
-		}
-
-		/* relocate blocks/buddies in withdrawn area */
-		ulint	count2 = 0;
-
-		buf_pool_mutex_exit_forbid();
-		for (buf_page_t* bpage = UT_LIST_GET_FIRST(LRU), *next_bpage;
-		     bpage; bpage = next_bpage) {
-			ut_ad(bpage->in_file());
-			next_bpage = UT_LIST_GET_NEXT(LRU, bpage);
-			if (UNIV_LIKELY_NULL(bpage->zip.data)
-			    && will_be_withdrawn(bpage->zip.data)
-			    && bpage->can_relocate()) {
-				if (!buf_buddy_realloc(
-					    bpage->zip.data,
-					    page_zip_get_size(&bpage->zip))) {
-					/* failed to allocate block */
-					break;
-				}
-				count2++;
-				if (bpage->frame) {
-					goto realloc_frame;
-				}
-			}
-
-			if (bpage->frame && will_be_withdrawn(*bpage)
-			    && bpage->can_relocate()) {
-realloc_frame:
-				if (!realloc(reinterpret_cast<buf_block_t*>(
-						     bpage))) {
-					/* failed to allocate block */
-					break;
-				}
-				count2++;
-			}
-		}
-		buf_pool_mutex_exit_allow();
-		mysql_mutex_unlock(&mutex);
-
-		buf_resize_status(
-			"Withdrawing blocks. (" ULINTPF "/" ULINTPF ").",
-			UT_LIST_GET_LEN(withdraw),
-			withdraw_target);
-
-		ib::info() << "Withdrew "
-			<< count1 << " blocks from free list."
-			<< " Tried to relocate " << count2 << " blocks ("
-			<< UT_LIST_GET_LEN(withdraw) << "/"
-			<< withdraw_target << ").";
-
-		if (++loop_count >= 10) {
-			/* give up for now.
-			retried after user threads paused. */
-
-			ib::info() << "will retry to withdraw later";
-
-			/* need retry later */
-			return(true);
-		}
-	}
-
-	/* confirm withdrawn enough */
-	for (const chunk_t* chunk = chunks + n_chunks_new,
-	     * const echunk = chunks + n_chunks; chunk != echunk; chunk++) {
-		block = chunk->blocks;
-		for (ulint j = chunk->size; j--; block++) {
-			ut_a(block->page.state() == buf_page_t::NOT_USED);
-			ut_ad(block->in_withdraw_list);
-		}
-	}
-
-	ib::info() << "Withdrawn target: " << UT_LIST_GET_LEN(withdraw)
-		   << " blocks.";
-
-	return(false);
-}
-
-
-
-inline void buf_pool_t::page_hash_table::write_lock_all()
-{
-  for (auto n= pad(n_cells) & ~ELEMENTS_PER_LATCH;; n-= ELEMENTS_PER_LATCH + 1)
-  {
-    reinterpret_cast<page_hash_latch&>(array[n]).lock();
-    if (!n)
-      break;
-  }
-}
-
-
-inline void buf_pool_t::page_hash_table::write_unlock_all()
-{
-  for (auto n= pad(n_cells) & ~ELEMENTS_PER_LATCH;; n-= ELEMENTS_PER_LATCH + 1)
-  {
-    reinterpret_cast<page_hash_latch&>(array[n]).unlock();
-    if (!n)
-      break;
-  }
-}
-
-
-namespace
-{
-
-struct find_interesting_trx
-{
-  void operator()(const trx_t &trx)
-  {
-    if (!trx.is_started())
-      return;
-    if (trx.mysql_thd == nullptr)
-      return;
-    if (withdraw_started <= trx.start_time_micro)
-      return;
-
-    if (!found)
-    {
-      sql_print_warning("InnoDB: The following trx might hold "
-                    "the blocks in buffer pool to "
-                    "be withdrawn. Buffer pool "
-                    "resizing can complete only "
-                    "after all the transactions "
-                    "below release the blocks.");
-      found= true;
-    }
-
-    lock_trx_print_wait_and_mvcc_state(stderr, &trx, current_time);
-  }
-
-  bool &found;
-  /** microsecond_interval_timer() */
-  const ulonglong withdraw_started;
-  const my_hrtime_t current_time;
-};
-
-} // namespace
-
-/** Resize from srv_buf_pool_old_size to srv_buf_pool_size. */
-inline void buf_pool_t::resize()
-{
-  ut_ad(this == &buf_pool);
-  ut_ad(srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
-
-	bool		warning = false;
-
-	NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
-
-	ut_ad(!resize_in_progress());
-	ut_ad(srv_buf_pool_chunk_unit > 0);
-
-	ulint new_instance_size = srv_buf_pool_size >> srv_page_size_shift;
-	std::ostringstream str_old_size, str_new_size, str_chunk_size;
-	str_old_size << ib::bytes_iec{srv_buf_pool_old_size};
-	str_new_size << ib::bytes_iec{srv_buf_pool_size};
-	str_chunk_size << ib::bytes_iec{srv_buf_pool_chunk_unit};
-
-	buf_resize_status("Resizing buffer pool from %s to %s (unit = %s).",
-			  str_old_size.str().c_str(),
-			  str_new_size.str().c_str(),
-			  str_chunk_size.str().c_str());
-
-#ifdef BTR_CUR_HASH_ADAPT
-	/* disable AHI if needed */
-	buf_resize_status("Disabling adaptive hash index.");
-
-	const bool btr_search_disabled = btr_search.enabled;
-
-	btr_search.disable();
-
-	if (btr_search_disabled) {
-		ib::info() << "disabled adaptive hash index.";
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
-
-	mysql_mutex_lock(&mutex);
-	ut_ad(n_chunks_new == n_chunks);
-	ut_ad(UT_LIST_GET_LEN(withdraw) == 0);
-
-	n_chunks_new = (new_instance_size << srv_page_size_shift)
-		/ srv_buf_pool_chunk_unit;
-	curr_size = n_chunks_new * chunks->size;
-	mysql_mutex_unlock(&mutex);
-
-	if (is_shrinking()) {
-		/* set withdraw target */
-		size_t w = 0;
-
-		for (const chunk_t* chunk = chunks + n_chunks_new,
-		     * const echunk = chunks + n_chunks;
-		     chunk != echunk; chunk++)
-			w += chunk->size;
-
-		ut_ad(withdraw_target == 0);
-		withdraw_target = w;
-	}
-
-	buf_resize_status("Withdrawing blocks to be shrunken.");
-
-	ulonglong	withdraw_started = microsecond_interval_timer();
-	ulonglong	message_interval = 60ULL * 1000 * 1000;
-	ulint		retry_interval = 1;
-
-withdraw_retry:
-	/* wait for the number of blocks fit to the new size (if needed)*/
-	bool	should_retry_withdraw = is_shrinking()
-		&& withdraw_blocks();
-
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
-		/* abort to resize for shutdown. */
-		return;
-	}
-
-	/* abort buffer pool load */
-	buf_load_abort();
-
-	const ulonglong current_time = microsecond_interval_timer();
-
-	if (should_retry_withdraw
-	    && current_time - withdraw_started >= message_interval) {
-
-		if (message_interval > 900000000) {
-			message_interval = 1800000000;
-		} else {
-			message_interval *= 2;
-		}
-
-		bool found= false;
-		find_interesting_trx f
-			{found, withdraw_started, my_hrtime_coarse()};
-		withdraw_started = current_time;
-
-		/* This is going to exceed the maximum size of a
-		memory transaction. */
-		LockMutexGuard g{SRW_LOCK_CALL};
-		trx_sys.trx_list.for_each(f);
-	}
-
-	if (should_retry_withdraw) {
-		ib::info() << "Will retry to withdraw " << retry_interval
-			<< " seconds later.";
-		std::this_thread::sleep_for(
-			std::chrono::seconds(retry_interval));
-
-		if (retry_interval > 5) {
-			retry_interval = 10;
-		} else {
-			retry_interval *= 2;
-		}
-
-		goto withdraw_retry;
-	}
-
-	buf_resize_status("Latching entire buffer pool.");
-
-#ifndef DBUG_OFF
-	{
-		bool	should_wait = true;
-
-		while (should_wait) {
-			should_wait = false;
-			DBUG_EXECUTE_IF(
-				"ib_buf_pool_resize_wait_before_resize",
-				should_wait = true;
-				std::this_thread::sleep_for(
-					std::chrono::milliseconds(10)););
-		}
-	}
-#endif /* !DBUG_OFF */
-
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
-		return;
-	}
-
-	/* Indicate critical path */
-	resizing.store(true, std::memory_order_relaxed);
-
-	mysql_mutex_lock(&mutex);
-	page_hash.write_lock_all();
-
-	chunk_t::map_reg = UT_NEW_NOKEY(chunk_t::map());
-
-	/* add/delete chunks */
-
-	buf_resize_status("Resizing buffer pool from "
-			  ULINTPF " chunks to " ULINTPF " chunks.",
-			  n_chunks, n_chunks_new);
-
-	if (is_shrinking()) {
-		/* delete chunks */
-		chunk_t* chunk = chunks + n_chunks_new;
-		const chunk_t* const echunk = chunks + n_chunks;
-
-		ulint	sum_freed = 0;
-
-		while (chunk < echunk) {
-			/* buf_LRU_block_free_non_file_page() invokes
-			MEM_NOACCESS() on any buf_pool.free blocks.
-			We must cancel the effect of that. In
-			MemorySanitizer, MEM_NOACCESS() is no-op, so
-			we must not do anything special for it here. */
-#ifdef HAVE_valgrind
-# if !__has_feature(memory_sanitizer)
-			MEM_MAKE_DEFINED(chunk->mem, chunk->mem_size());
-# endif
-#else
-			MEM_MAKE_ADDRESSABLE(chunk->mem, chunk->size);
-#endif
-
-			buf_block_t*	block = chunk->blocks;
-
-			for (ulint j = chunk->size; j--; block++) {
-				block->page.lock.free();
-			}
-
-			allocator.deallocate_large_dodump(
-				chunk->mem, &chunk->mem_pfx);
-			sum_freed += chunk->size;
-			++chunk;
-		}
-
-		/* discard withdraw list */
-		UT_LIST_INIT(withdraw, &buf_page_t::list);
-		withdraw_target = 0;
-
-		ib::info() << n_chunks - n_chunks_new
-			   << " Chunks (" << sum_freed
-			   << " blocks) were freed.";
-
-		n_chunks = n_chunks_new;
-	}
-
-	{
-		/* reallocate chunks */
-		const size_t	new_chunks_size
-			= n_chunks_new * sizeof(chunk_t);
-
-		chunk_t*	new_chunks = static_cast<chunk_t*>(
-			ut_zalloc_nokey_nofatal(new_chunks_size));
-
-		DBUG_EXECUTE_IF("buf_pool_resize_chunk_null",
-				ut_free(new_chunks); new_chunks= nullptr; );
-
-		if (!new_chunks) {
-			ib::error() << "failed to allocate"
-				" the chunk array.";
-			n_chunks_new = n_chunks;
-			warning = true;
-			chunks_old = NULL;
-			goto calc_buf_pool_size;
-		}
-
-		ulint	n_chunks_copy = ut_min(n_chunks_new, n_chunks);
-
-		memcpy(new_chunks, chunks,
-		       n_chunks_copy * sizeof *new_chunks);
-
-		for (ulint j = 0; j < n_chunks_copy; j++) {
-			new_chunks[j].reg();
-		}
-
-		chunks_old = chunks;
-		chunks = new_chunks;
-	}
-
-	if (n_chunks_new > n_chunks) {
-		/* add chunks */
-		ulint	sum_added = 0;
-		ulint	n = n_chunks;
-		const size_t unit = srv_buf_pool_chunk_unit;
-
-		for (chunk_t* chunk = chunks + n_chunks,
-		     * const echunk = chunks + n_chunks_new;
-		     chunk != echunk; chunk++) {
-			if (!chunk->create(unit)) {
-				ib::error() << "failed to allocate"
-					" memory for buffer pool chunk";
-
-				warning = true;
-				n_chunks_new = n_chunks;
-				break;
-			}
-
-			sum_added += chunk->size;
-			++n;
-		}
-
-		ib::info() << n_chunks_new - n_chunks
-			   << " chunks (" << sum_added
-			   << " blocks) were added.";
-
-		n_chunks = n;
-	}
-calc_buf_pool_size:
-	/* recalc curr_size */
-	ulint	new_size = 0;
-
-	{
-		chunk_t* chunk = chunks;
-		const chunk_t* const echunk = chunk + n_chunks;
-		do {
-			new_size += chunk->size;
-		} while (++chunk != echunk);
-	}
-
-	curr_size = new_size;
-	n_chunks_new = n_chunks;
-
-	if (chunks_old) {
-		ut_free(chunks_old);
-		chunks_old = NULL;
-	}
-
-	chunk_t::map* chunk_map_old = chunk_t::map_ref;
-	chunk_t::map_ref = chunk_t::map_reg;
-
-	/* set size */
-	ut_ad(UT_LIST_GET_LEN(withdraw) == 0);
-  ulint s= curr_size;
-  s/= BUF_READ_AHEAD_PORTION;
-  read_ahead_area= s >= READ_AHEAD_PAGES
-    ? READ_AHEAD_PAGES
-    : my_round_up_to_next_power(static_cast<uint32_t>(s));
-  curr_pool_size= n_chunks * srv_buf_pool_chunk_unit;
-  srv_buf_pool_curr_size= curr_pool_size;/* FIXME: remove*/
-  extern ulonglong innobase_buffer_pool_size;
-  innobase_buffer_pool_size= buf_pool_size_align(srv_buf_pool_curr_size);
-
-	const bool	new_size_too_diff
-		= srv_buf_pool_base_size > srv_buf_pool_size * 2
-			|| srv_buf_pool_base_size * 2 < srv_buf_pool_size;
-
-  mysql_mutex_unlock(&mutex);
-  page_hash.write_unlock_all();
-
-	UT_DELETE(chunk_map_old);
-
-	resizing.store(false, std::memory_order_relaxed);
-
-	/* Normalize other components, if the new size is too different */
-	if (!warning && new_size_too_diff) {
-		srv_buf_pool_base_size = srv_buf_pool_size;
-
-		buf_resize_status("Resizing other hash tables.");
-
-		srv_lock_table_size = 5
-			* (srv_buf_pool_size >> srv_page_size_shift);
-		lock_sys.resize(srv_lock_table_size);
-		dict_sys.resize();
-
-		ib::info() << "Resized hash tables: lock_sys,"
-#ifdef BTR_CUR_HASH_ADAPT
-			" adaptive hash index,"
-#endif /* BTR_CUR_HASH_ADAPT */
-			" and dictionary.";
-	}
-
-	if (srv_buf_pool_old_size != srv_buf_pool_size) {
-		std::ostringstream sout;
-		sout << "Completed resizing buffer pool from "
-		     << srv_buf_pool_old_size << " to "
-		     << srv_buf_pool_size <<" bytes.";
-		srv_buf_pool_old_size = srv_buf_pool_size;
-		buf_resize_status(sout.str().c_str());
-	}
-
-#ifdef BTR_CUR_HASH_ADAPT
-	/* enable AHI if needed */
-	if (btr_search_disabled) {
-		btr_search.enable(true);
-		ib::info() << "Re-enabled adaptive hash index.";
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
-
-	if (warning)
-		buf_resize_status("Resizing buffer pool failed");
-
-	ut_d(validate());
-
-	return;
-}
-
-#ifdef __linux__
-inline void buf_pool_t::garbage_collect()
+inline void buf_pool_t::garbage_collect() noexcept
 {
   mysql_mutex_lock(&mutex);
   size_t freed= 0;
@@ -2206,65 +1145,979 @@ rescan:
 }
 #endif /* __linux__ */
 
-/** Thread pool task invoked by innodb_buffer_pool_size changes. */
-static void buf_resize_callback(void *)
-{
-  DBUG_ENTER("buf_resize_callback");
-  ut_ad(srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
-  mysql_mutex_lock(&buf_pool.mutex);
-  const auto size= srv_buf_pool_size;
-  const bool work= srv_buf_pool_old_size != size;
-  mysql_mutex_unlock(&buf_pool.mutex);
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
+/** Enable buffers to be dumped to core files.
 
-  if (work)
-    buf_pool.resize();
+A convenience function, not called anyhwere directly however
+it is left available for gdb or any debugger to call
+in the event that you want all of the memory to be dumped
+to a core file.
+
+@return number of errors found in madvise() calls */
+MY_ATTRIBUTE((used))
+int buf_pool_t::madvise_do_dump() noexcept
+{
+	int ret= 0;
+
+	/* mirrors allocation in log_t::create() */
+	if (log_sys.buf) {
+		ret += madvise(log_sys.buf, log_sys.buf_size, MADV_DODUMP);
+		ret += madvise(log_sys.flush_buf, log_sys.buf_size,
+			       MADV_DODUMP);
+	}
+
+	ret+= madvise(buf_pool.memory, buf_pool.size_in_bytes, MADV_DODUMP);
+	return ret;
+}
+#endif
+
+#ifndef UNIV_DEBUG
+static inline byte hex_to_ascii(byte hex_digit) noexcept
+{
+  const int offset= hex_digit <= 9 ? '0' : 'a' - 10;
+  return byte(hex_digit + offset);
+}
+#endif
+
+/** Dump a page to stderr.
+@param[in]	read_buf	database page
+@param[in]	zip_size	compressed page size, or 0 */
+ATTRIBUTE_COLD
+void buf_page_print(const byte *read_buf, ulint zip_size)
+{
+#ifndef UNIV_DEBUG
+  const size_t size = zip_size ? zip_size : srv_page_size;
+  const byte * const end= read_buf + size;
+  sql_print_information("InnoDB: Page dump (%zu bytes):", size);
+
+  do
+  {
+    byte row[64];
+
+    for (byte *r= row; r != &row[64]; r+= 2, read_buf++)
+    {
+      r[0]= hex_to_ascii(byte(*read_buf >> 4));
+      r[1]= hex_to_ascii(*read_buf & 15);
+    }
+
+    sql_print_information("InnoDB: %.*s", 64, row);
+  }
+  while (read_buf != end);
+
+  sql_print_information("InnoDB: End of page dump");
+#endif
+}
+
+#ifdef BTR_CUR_HASH_ADAPT
+
+/** Ensure that some adaptive hash index fields are initialized */
+static void buf_block_init_low(buf_block_t *block) noexcept
+{
+  /* No adaptive hash index entries may point to a previously unused
+  (and now freshly allocated) block. */
+  MEM_MAKE_DEFINED(&block->index, sizeof block->index);
+  MEM_MAKE_DEFINED(&block->n_pointers, sizeof block->n_pointers);
+  MEM_MAKE_DEFINED(&block->n_hash_helps, sizeof block->n_hash_helps);
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+  ut_a(!block->index);
+  ut_a(!block->n_pointers);
+  ut_a(!block->n_hash_helps);
+# endif
+}
+#else /* BTR_CUR_HASH_ADAPT */
+inline void buf_block_init_low(buf_block_t*) {}
+#endif /* BTR_CUR_HASH_ADAPT */
+
+IF_DBUG(,inline) byte *buf_block_t::frame_address() const noexcept
+{
+  static_assert(ut_is_2pow(innodb_buffer_pool_extent_size), "");
+
+  byte *frame_= reinterpret_cast<byte*>
+    ((reinterpret_cast<size_t>(this) & ~(innodb_buffer_pool_extent_size - 1)) |
+     first_frame_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN]);
+  ut_ad(reinterpret_cast<const byte*>(this) + sizeof(*this) <= frame_);
+  frame_+=
+    (((reinterpret_cast<size_t>(this) & (innodb_buffer_pool_extent_size - 1)) /
+      sizeof(*this)) << srv_page_size_shift);
+  return frame_;
+}
+
+buf_block_t *buf_pool_t::block_from(const void *ptr) noexcept
+{
+  static_assert(ut_is_2pow(innodb_buffer_pool_extent_size), "");
+  ut_ad(static_cast<const byte*>(ptr) >= buf_pool.memory);
+
+  byte *first_block= reinterpret_cast<byte*>
+    (reinterpret_cast<size_t>(ptr) & ~(innodb_buffer_pool_extent_size - 1));
+  const size_t first_frame=
+    first_frame_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
+
+  ut_ad(static_cast<const byte*>(ptr) >= first_block + first_frame);
+  return reinterpret_cast<buf_block_t*>(first_block) +
+    (((size_t(ptr) & (innodb_buffer_pool_extent_size - 1)) - first_frame) >>
+     srv_page_size_shift);
+}
+
+/** Determine the address of the first invalid block descriptor
+@param n_blocks   buf_pool.n_blocks
+@return offset of the first invalid buf_block_t, relative to buf_pool.memory */
+static size_t block_descriptors_in_bytes(size_t n_blocks) noexcept
+{
+  const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
+  const size_t extent_size= pages_in_extent[ssize];
+  return n_blocks / extent_size * innodb_buffer_pool_extent_size +
+    (n_blocks % extent_size) * sizeof(buf_block_t);
+}
+
+buf_block_t *buf_pool_t::get_nth_page(size_t pos) const noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
+  ut_ad(pos < n_blocks);
+  return reinterpret_cast<buf_block_t*>
+    (memory + block_descriptors_in_bytes(pos));
+}
+
+/** Lazily initialize a block if one is available.
+@return freshly initialized buffer block
+@retval if all of the buffer pool has been initialized */
+buf_block_t *buf_pool_t::lazy_allocate() noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+
+  if (n_blocks < n_blocks_alloc_usable)
+  {
+    const size_t n= n_blocks++;
+    buf_block_t *block= get_nth_page(n);
+#ifdef __SANITIZE_ADDRESS__
+    MEM_MAKE_ADDRESSABLE(block, sizeof *block);
+#endif
+    MEM_MAKE_DEFINED(block, sizeof *block);
+    ut_ad(!memcmp(block, field_ref_zero, sizeof *block));
+    block->page.lock.init();
+    block->page.frame= block->frame_address();
+    MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
+    block->page.set_state(buf_page_t::MEMORY);
+    return block;
+  }
+
+  return nullptr;
+}
+
+buf_block_t *buf_pool_t::allocate() noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
+
+  while (buf_page_t *b= UT_LIST_GET_FIRST(free))
+  {
+    ut_ad(b->in_free_list);
+    ut_d(b->in_free_list = FALSE);
+    ut_ad(!b->oldest_modification());
+    ut_ad(!b->in_LRU_list);
+    ut_a(!b->in_file());
+    UT_LIST_REMOVE(free, b);
+
+    if (UNIV_LIKELY(!n_blocks_to_withdraw) || !withdraw(*b))
+    {
+      /* No adaptive hash index entries may point to a free block. */
+#ifdef BTR_CUR_HASH_ADAPT
+      ut_ad(!reinterpret_cast<buf_block_t*>(b)->n_pointers);
+      ut_ad(!reinterpret_cast<buf_block_t*>(b)->index);
+#endif
+      b->set_state(buf_page_t::MEMORY);
+      b->set_os_used();
+      MEM_MAKE_ADDRESSABLE(b->frame, srv_page_size);
+      return reinterpret_cast<buf_block_t*>(b);
+    }
+  }
+
+  return lazy_allocate();
+}
+
+/** Create the hash table.
+@param n  the lower bound of n_cells */
+void buf_pool_t::page_hash_table::create(ulint n)
+{
+  n_cells= ut_find_prime(n);
+  const size_t size= MY_ALIGN(pad(n_cells) * sizeof *array,
+                              CPU_LEVEL1_DCACHE_LINESIZE);
+  void *v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
+  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(v, 0, size);
+  array= static_cast<hash_chain*>(v);
+}
+
+size_t buf_pool_t::get_n_blocks(size_t size_in_bytes) noexcept
+{
+  const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
+  size_t n_blocks_alloc= size_in_bytes / innodb_buffer_pool_extent_size *
+    pages_in_extent[ssize];
+
+  if (const size_t incomplete_extent_pages=
+      (size_in_bytes & (innodb_buffer_pool_extent_size - 1)) >>
+      srv_page_size_shift)
+  {
+    ssize_t d= incomplete_extent_pages - first_page_in_extent[ssize];
+    ut_ad(d > 0);
+    n_blocks_alloc+= d;
+  }
+
+  return n_blocks_alloc;
+}
+
+size_t buf_pool_t::blocks_in_bytes(size_t n_blocks) noexcept
+{
+  const size_t shift{srv_page_size_shift};
+  const size_t ssize{shift - UNIV_PAGE_SIZE_SHIFT_MIN};
+  const size_t extent_size= pages_in_extent[ssize];
+  size_t size_in_bytes= n_blocks / extent_size *
+    innodb_buffer_pool_extent_size;
+  if (size_t remainder= n_blocks % extent_size)
+    size_in_bytes+= (remainder + first_page_in_extent[ssize]) << shift;
+  ut_ad(get_n_blocks(size_in_bytes) == n_blocks);
+  return size_in_bytes;
+}
+
+/** Create the buffer pool.
+@return whether the creation failed */
+bool buf_pool_t::create() noexcept
+{
+  ut_ad(this == &buf_pool);
+  ut_ad(!is_initialised());
+  ut_ad(size_in_bytes_requested > 0);
+  ut_ad(!(size_in_bytes_max & (innodb_buffer_pool_extent_size - 1)));
+  ut_ad(!(size_in_bytes_requested & ((1U << 20) - 1)));
+  ut_ad(size_in_bytes_requested <= size_in_bytes_max);
+  /* mariabackup loads tablespaces, and it requires field_ref_zero to be
+  allocated before innodb initialization */
+  ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
+
+  if (!field_ref_zero)
+  {
+    if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
+    {
+      field_ref_zero= static_cast<const byte*>
+        (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
+      goto init;
+    }
+
+  oom:
+    ut_ad(!is_initialised());
+    sql_print_error("InnoDB: Cannot map innodb_buffer_pool_size_max=%zum",
+                    size_in_bytes_max >> 20);
+    return true;
+  }
+
+ init:
+  DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", goto oom;);
+  size_t size= size_in_bytes_max;
+  sql_print_information("InnoDB: innodb_buffer_pool_size_max=%zum,"
+                        " innodb_buffer_pool_size=%zum",
+                        size >> 20, size_in_bytes_requested >> 20);
+
+ retry:
+  {
+    NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
+    memory_unaligned= my_large_virtual_alloc(&size);
+  }
+
+  if (!memory_unaligned)
+    goto oom;
+
+  const size_t alignment_waste=
+    (~size_t(memory_unaligned) & (innodb_buffer_pool_extent_size - 1)) + 1;
+
+  if (size < size_in_bytes_max + alignment_waste)
+  {
+#ifdef _WIN32
+    if (!VirtualFree(memory_unaligned, 0, MEM_RELEASE));
+#else
+    if (munmap(memory_unaligned, size));
+#endif
+    else
+    {
+      size+= 1 +
+        (~size_t(memory_unaligned) & (innodb_buffer_pool_extent_size - 1));
+      goto retry;
+    }
+
+    memory_unaligned= nullptr;
+    goto oom;
+  }
+
+  MEM_UNDEFINED(memory_unaligned, size);
+  MEM_NOACCESS(memory_unaligned, alignment_waste);
+  ut_dontdump(memory_unaligned, size, true);
+  memory= memory_unaligned + alignment_waste;
+  size_unaligned= size;
+  size-= alignment_waste;
+  size&= ~(innodb_buffer_pool_extent_size - 1);
+
+  const size_t actual_size= size_in_bytes_requested;
+  ut_ad(actual_size <= size);
+
+  size_in_bytes= actual_size;
+  os_total_large_mem_allocated+= actual_size;
+
+#ifdef UNIV_PFS_MEMORY
+  PSI_MEMORY_CALL(memory_alloc)(mem_key_buf_buf_pool, actual_size, &owner);
+#endif
+
+#ifdef _WIN32
+  if (!VirtualAlloc(memory, actual_size, MEM_COMMIT, PAGE_READWRITE))
+  {
+    VirtualFree(memory_unaligned, 0, MEM_RELEASE);
+    memory= nullptr;
+    memory_unaligned= nullptr;
+    goto oom;
+  }
+#elif defined MADV_FREE
+  if (alignment_waste)
+    madvise(memory_unaligned, alignment_waste, MADV_FREE);
+  if (size_t reserve= size - actual_size)
+    madvise(memory + actual_size, reserve, MADV_FREE);
+#endif
+
+#ifdef HAVE_LIBNUMA
+  if (srv_numa_interleave)
+  {
+    struct bitmask *numa_mems_allowed= numa_get_mems_allowed();
+    MEM_MAKE_DEFINED(numa_mems_allowed, sizeof *numa_mems_allowed);
+    if (mbind(memory_unaligned, size_unaligned, MPOL_INTERLEAVE,
+              numa_mems_allowed->maskp, numa_mems_allowed->size,
+              MPOL_MF_MOVE))
+      sql_print_warning("InnoDB: Failed to set NUMA memory policy of"
+                        " buffer pool page frames to MPOL_INTERLEAVE"
+                        " (error: %s).", strerror(errno));
+    numa_bitmask_free(numa_mems_allowed);
+  }
+#endif /* HAVE_LIBNUMA */
+
+  n_blocks= 1;
+  n_blocks_alloc= get_n_blocks(actual_size);
+  n_blocks_alloc_usable= n_blocks_alloc;
+  n_blocks_to_withdraw= 0;
+
+  buf_block_t *block= reinterpret_cast<buf_block_t*>(memory);
+  MEM_MAKE_DEFINED(block, sizeof *block);
+  ut_ad(!memcmp(block, field_ref_zero, sizeof *block));
+  MEM_NOACCESS(block + 1, size - sizeof(*block));
+  block->page.frame= block->frame_address();
+  MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
+
+  /* The remaining blocks beyond the first one will be lazily
+  initialized in buf_pool_t::lazy_allocate(). */
+
+  MEM_MAKE_DEFINED(block, sizeof *block);
+
+  block->page.lock.init();
+
+  ut_ad(is_initialised());
+#if defined(__aarch64__)
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+#else
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
+#endif
+
+  UT_LIST_INIT(withdrawn, &buf_page_t::list);
+  UT_LIST_INIT(free, &buf_page_t::list);
+  UT_LIST_ADD_LAST(free, &block->page);
+  ut_d(block->page.in_free_list= true);
+  UT_LIST_INIT(LRU, &buf_page_t::LRU);
+  UT_LIST_INIT(flush_list, &buf_page_t::list);
+  UT_LIST_INIT(unzip_LRU, &buf_block_t::unzip_LRU);
+
+  for (size_t i= 0; i < UT_ARR_SIZE(zip_free); ++i)
+    UT_LIST_INIT(zip_free[i], &buf_buddy_free_t::list);
+  ulint s= n_blocks_alloc;
+  s/= BUF_READ_AHEAD_PORTION;
+  read_ahead_area= s >= READ_AHEAD_PAGES
+    ? READ_AHEAD_PAGES
+    : my_round_up_to_next_power(static_cast<uint32_t>(s));
+
+  page_hash.create(2 * n_blocks_alloc);
+  last_printout_time= time(nullptr);
+
+  mysql_mutex_init(flush_list_mutex_key, &flush_list_mutex,
+                   MY_MUTEX_INIT_FAST);
+
+  pthread_cond_init(&done_flush_LRU, nullptr);
+  pthread_cond_init(&done_flush_list, nullptr);
+  pthread_cond_init(&do_flush_list, nullptr);
+  pthread_cond_init(&done_free, nullptr);
+
+  try_LRU_scan= true;
+
+  ut_d(flush_hp.m_mutex= &flush_list_mutex;);
+  ut_d(lru_hp.m_mutex= &mutex);
+  ut_d(lru_scan_itr.m_mutex= &mutex);
+
+  io_buf.create((srv_n_read_io_threads + srv_n_write_io_threads) *
+                OS_AIO_N_PENDING_IOS_PER_THREAD);
+
+  last_activity_count= srv_get_activity_count();
+
+  buf_LRU_old_ratio_update(100 * 3 / 8, false);
+  btr_search_sys_create();
+
+#ifdef __linux__
+  if (srv_operation == SRV_OPERATION_NORMAL)
+    buf_mem_pressure_detect_init();
+#endif
+  ut_ad(is_initialised());
+  sql_print_information("InnoDB: Completed initialization of buffer pool");
+  return false;
+}
+
+/** Clean up after successful create() */
+void buf_pool_t::close()
+{
+  ut_ad(this == &buf_pool);
+  if (!is_initialised())
+    return;
+
+  mysql_mutex_destroy(&mutex);
+  mysql_mutex_destroy(&flush_list_mutex);
+
+  for (buf_page_t *bpage= UT_LIST_GET_LAST(LRU), *prev_bpage= nullptr; bpage;
+       bpage= prev_bpage)
+  {
+    prev_bpage= UT_LIST_GET_PREV(LRU, bpage);
+    ut_ad(bpage->in_file());
+    ut_ad(bpage->in_LRU_list);
+    /* The buffer pool must be clean during normal shutdown.
+    Only on aborted startup (with recovery) or with innodb_fast_shutdown=2
+    we may discard changes. */
+    ut_d(const lsn_t oldest= bpage->oldest_modification();)
+    ut_ad(fsp_is_system_temporary(bpage->id().space())
+          ? (oldest == 0 || oldest == 2)
+          : oldest <= 1 || srv_is_being_started || srv_fast_shutdown == 2);
+
+    if (UNIV_UNLIKELY(!bpage->frame))
+    {
+      bpage->lock.free();
+      ut_free(bpage);
+    }
+  }
+
+  {
+    const size_t size{size_in_bytes};
+
+#ifdef __SANITIZE_ADDRESS__
+    MEM_MAKE_ADDRESSABLE(memory, size_in_bytes);
+#else
+    MEM_MAKE_DEFINED(memory, size_in_bytes);
+#endif
+
+    for (byte *extent= memory,
+           *end= memory + block_descriptors_in_bytes(n_blocks_alloc);
+         extent < end; extent += innodb_buffer_pool_extent_size)
+      for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
+             *extent_end= block +
+             pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
+           block < extent_end && reinterpret_cast<byte*>(block) < end; block++)
+        block->page.lock.free();
+
+    ut_dodump(memory_unaligned, size_unaligned);
+#ifdef UNIV_PFS_MEMORY
+    PSI_MEMORY_CALL(memory_free)(mem_key_buf_buf_pool, size, owner);
+    owner= nullptr;
+#endif
+    os_total_large_mem_allocated-= size;
+    MEM_MAKE_ADDRESSABLE(memory_unaligned, size_unaligned);
+#ifdef _WIN32
+    VirtualFree(memory_unaligned, 0, MEM_RELEASE);
+#elif defined HAVE_MMAP
+    munmap(memory_unaligned, size_unaligned);
+#else
+# error "virtual memory is needed"
+#endif
+    memory= nullptr;
+    memory_unaligned= nullptr;
+  }
+
+  pthread_cond_destroy(&done_flush_LRU);
+  pthread_cond_destroy(&done_flush_list);
+  pthread_cond_destroy(&do_flush_list);
+  pthread_cond_destroy(&done_free);
+
+  page_hash.free();
+
+  io_buf.close();
+  aligned_free(const_cast<byte*>(field_ref_zero));
+  field_ref_zero= nullptr;
+}
+
+void buf_pool_t::io_buf_t::create(ulint n_slots) noexcept
+{
+  this->n_slots= n_slots;
+  slots= static_cast<buf_tmp_buffer_t*>
+    (ut_malloc_nokey(n_slots * sizeof *slots));
+  memset((void*) slots, 0, n_slots * sizeof *slots);
+}
+
+void buf_pool_t::io_buf_t::close() noexcept
+{
+  for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+  {
+    aligned_free(s->crypt_buf);
+    aligned_free(s->comp_buf);
+  }
+  ut_free(slots);
+  slots= nullptr;
+  n_slots= 0;
+}
+
+buf_tmp_buffer_t *buf_pool_t::io_buf_t::reserve(bool wait_for_reads) noexcept
+{
+  for (;;)
+  {
+    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+      if (s->acquire())
+        return s;
+    buf_dblwr.flush_buffered_writes();
+    os_aio_wait_until_no_pending_writes(true);
+    if (!wait_for_reads)
+      continue;
+    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+      if (s->acquire())
+        return s;
+    os_aio_wait_until_no_pending_reads(true);
+  }
+}
+
+ATTRIBUTE_COLD bool buf_pool_t::withdraw(buf_page_t &bpage) noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
+  ut_ad(n_blocks_to_withdraw);
+  ut_ad(first_to_withdraw);
+  ut_ad(!bpage.zip.data);
+  if (&bpage < first_to_withdraw)
+    return false;
+  n_blocks_to_withdraw--;
+  bpage.lock.free();
+  UT_LIST_ADD_LAST(withdrawn, &bpage);
+  return true;
+}
+
+ATTRIBUTE_COLD int buf_pool_t::LRU_shrink(buf_page_t *bpage) noexcept
+{
+  if (UNIV_UNLIKELY(!is_shrinking()))
+    return 0;
+  if (bpage >= first_to_withdraw &&
+      reinterpret_cast<byte*>(bpage) <= memory + size_in_bytes_max);
+  else if (bpage->zip.data &&
+           will_be_withdrawn(bpage->zip.data, size_in_bytes_requested));
+  else
+    return -1;
+  return 1;
+}
+
+ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
+{
+  ut_ad(this == &buf_pool);
+  ut_ad(srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
+  mysql_mutex_assert_owner(&LOCK_global_system_variables);
+  ut_ad(size <= size_in_bytes_max);
+#ifdef __linux__
+  DBUG_EXECUTE_IF("trigger_garbage_collection",
+                  mem_pressure_obj.trigger_collection(););
+#endif
+#ifdef _WIN32
+  extern my_bool my_use_large_pages;
+  if (my_use_large_pages)
+  {
+    my_error(ER_VARIABLE_IS_READONLY, MYF(0), "innodb_buffer_pool_size",
+             "large_pages=0");
+    return;
+  }
+#endif
+
+  size_t n_blocks_alloc_new= get_n_blocks(size);
+
+  mysql_mutex_lock(&mutex);
+  ut_ad(n_blocks <= n_blocks_alloc);
+
+  const size_t old_size= size_in_bytes;
+  if (old_size != size_in_bytes_requested)
+  {
+    mysql_mutex_unlock(&mutex);
+    my_printf_error(ER_WRONG_USAGE,
+                    "innodb_buffer_pool_size changes is already in progress",
+                    MYF(0));
+    return;
+  }
+
+  ut_ad(UT_LIST_GET_LEN(withdrawn) == 0);
+  ut_ad(n_blocks_to_withdraw == 0);
+  ut_ad(n_blocks_alloc_usable == n_blocks_alloc);
+  ut_ad(!first_to_withdraw);
+
+  if (size == old_size)
+  {
+    mysql_mutex_unlock(&mutex);
+    return;
+  }
+
+#ifdef BTR_CUR_HASH_ADAPT
+  const bool ahi_disabled{btr_search.enabled};
+#endif
+
+  const bool significant_change=
+    n_blocks_alloc_new > n_blocks_alloc * 2 ||
+    n_blocks_alloc > n_blocks_alloc_new * 2;
+  ssize_t n_blocks_removed= n_blocks - n_blocks_alloc_new;
+
+  if (n_blocks_removed <= 0)
+  {
+#ifdef _WIN32
+    if (!VirtualAlloc(memory, size, MEM_COMMIT, PAGE_READWRITE))
+    {
+      mysql_mutex_unlock(&mutex);
+      sql_print_error("InnoDB: Cannot commit innodb_buffer_pool_size=%zum",
+                      size >> 20);
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return;
+    }
+#endif
+    size_in_bytes_requested= size;
+  resized:
+    const size_t old_blocks= n_blocks_alloc;
+    ut_ad(UT_LIST_GET_LEN(withdrawn) == 0);
+    ut_ad(n_blocks_to_withdraw == 0);
+    ut_ad(!first_to_withdraw);
+    ut_ad(n_blocks <= old_blocks);
+    ut_ad(n_blocks <= n_blocks_alloc_new);
+
+    size_t s= n_blocks_alloc_new / BUF_READ_AHEAD_PORTION;
+    read_ahead_area= s >= READ_AHEAD_PAGES
+      ? READ_AHEAD_PAGES
+      : my_round_up_to_next_power(uint32(s));
+
+    if (ssize_t d= size - old_size)
+    {
+      os_total_large_mem_allocated+= d;
+      if (d > 0)
+      {
+#ifdef _WIN32
+        VirtualAlloc(memory + old_size, size_t(d), MEM_COMMIT, PAGE_READWRITE);
+#endif
+#ifdef UNIV_PFS_MEMORY
+        PSI_MEMORY_CALL(memory_alloc)(mem_key_buf_buf_pool, d, &owner);
+#endif
+      }
+      else
+      {
+        MEM_NOACCESS(memory + size, size_t(-d));
+#ifdef _WIN32
+        VirtualFree(memory + size, size_t(-d), MEM_DECOMMIT);
+#elif defined MADV_FREE
+        madvise(memory + size, size_t(-d), MADV_FREE);
+#endif
+#ifdef UNIV_PFS_MEMORY
+        PSI_MEMORY_CALL(memory_free)(mem_key_buf_buf_pool, size_t(-d), owner);
+#endif
+      }
+    }
+
+    size_in_bytes= size;
+    size_in_bytes_requested= size;
+    n_blocks_alloc= n_blocks_alloc_new;
+    n_blocks_alloc_usable= n_blocks_alloc_new;
+    mysql_mutex_unlock(&mutex);
+
+    if (significant_change)
+    {
+      sql_print_information("InnoDB: Resizing hash tables");
+      srv_lock_table_size= 5 * n_blocks_alloc_new;
+      lock_sys.resize(srv_lock_table_size);
+      dict_sys.resize();
+    }
+
+#ifdef BTR_CUR_HASH_ADAPT
+    if (ahi_disabled)
+      btr_search.enable(true);
+#endif
+    sql_print_information("InnoDB: innodb_buffer_pool_size=%zum (%zu pages)"
+                          " resized from %zum (%zu pages)",
+                          size >> 20, n_blocks_alloc_new,
+                          old_size >> 20, old_blocks);
+  }
   else
   {
-    std::ostringstream sout;
-    sout << "Size did not change: old size = new size = " << size;
-    buf_resize_status(sout.str().c_str());
+    const buf_page_t * const end= &get_nth_page(n_blocks_alloc_new)->page;
+    n_blocks_alloc_usable= n_blocks_alloc_new;
+    n_blocks_to_withdraw= size_t(n_blocks_removed);
+    first_to_withdraw= end;
+    size_in_bytes_requested= size;
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
+    mysql_mutex_unlock(&mutex);
+    mysql_mutex_lock(&flush_list_mutex);
+    page_cleaner_wakeup(true);
+    my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+    mysql_mutex_unlock(&flush_list_mutex);
+#ifdef BTR_CUR_HASH_ADAPT
+    btr_search.disable();
+#endif /* BTR_CUR_HASH_ADAPT */
+    mysql_mutex_lock(&mutex);
+
+    time_t last_message= 0;
+
+  withdraw_retry:
+    {
+      time_t now= time(nullptr);
+      if (now - last_message > 15)
+      {
+        last_message= now;
+        sql_print_information("InnoDB: Trying to shrink"
+                              " innodb_buffer_pool_size=%zum (%zu pages)"
+                              " from %zum (%zu pages, to withdraw %zu)",
+                              size >> 20, n_blocks_alloc_new,
+                              old_size >> 20, n_blocks_alloc,
+                              n_blocks_to_withdraw);
+      }
+    }
+
+    buf_load_abort();
+
+    ut_ad(n_blocks <= n_blocks_alloc);
+
+    if (!n_blocks_to_withdraw)
+    {
+    withdraw_done:
+      while (buf_page_t *b= UT_LIST_GET_FIRST(withdrawn))
+      {
+        UT_LIST_REMOVE(withdrawn, b);
+        /* satisfy the check in lazy_allocate() */
+        ut_d(memset((void*) b, 0, sizeof(buf_block_t)));
+      }
+      first_to_withdraw= nullptr;
+      mysql_mutex_unlock(&mutex);
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      mysql_mutex_lock(&mutex);
+      if (n_blocks > n_blocks_alloc_new)
+        n_blocks= n_blocks_alloc_new;
+      goto resized;
+    }
+
+    buf_buddy_condense_free(size);
+
+    for (buf_page_t *b= UT_LIST_GET_FIRST(free), *next; b; b= next)
+    {
+      ut_ad(b->in_free_list);
+      ut_ad(!b->in_LRU_list);
+      ut_ad(!b->zip.data);
+      ut_ad(!b->oldest_modification());
+      ut_a(b->state() == buf_page_t::NOT_USED);
+
+      next= UT_LIST_GET_NEXT(list, b);
+
+      if (b >= end)
+      {
+        UT_LIST_REMOVE(free, b);
+        b->lock.free();
+        UT_LIST_ADD_LAST(withdrawn, b);
+        if (!--n_blocks_to_withdraw)
+          goto withdraw_done;
+      }
+    }
+
+    buf_block_t *block= allocate();
+
+    for (buf_page_t *b= UT_LIST_GET_FIRST(LRU), *next; block && b; b= next)
+    {
+      ut_ad(b->in_LRU_list);
+      ut_a(b->in_file());
+
+      next= UT_LIST_GET_NEXT(LRU, b);
+
+      if (!b->can_relocate())
+        continue;
+
+      const page_id_t id{b->id()};
+      hash_chain &chain= page_hash.cell_get(id.fold());
+      page_hash_latch &hash_lock= page_hash.lock_get(chain);
+      hash_lock.lock();
+
+      {
+        /* relocate flush_list and b->page.zip */
+        bool have_flush_list_mutex= false;
+
+        switch (b->oldest_modification()) {
+        case 2:
+          ut_ad(fsp_is_system_temporary(id.space()));
+          /* fall through */
+        case 0:
+          break;
+        default:
+          mysql_mutex_lock(&flush_list_mutex);
+          switch (ut_d(lsn_t om=) b->oldest_modification()) {
+          case 1:
+            delete_from_flush_list(b);
+            /* fall through */
+          case 0:
+            mysql_mutex_unlock(&flush_list_mutex);
+            break;
+          default:
+            ut_ad(om != 2);
+            have_flush_list_mutex= true;
+          }
+        }
+
+        if (!b->can_relocate())
+        {
+        next:
+          if (have_flush_list_mutex)
+            mysql_mutex_unlock(&flush_list_mutex);
+          hash_lock.unlock();
+          continue;
+        }
+
+        if (UNIV_LIKELY_NULL(b->zip.data) &&
+            will_be_withdrawn(b->zip.data, size))
+        {
+          block= buf_buddy_shrink(b, block);
+          ut_ad(mach_read_from_4(b->zip.data + FIL_PAGE_OFFSET) ==
+                id.page_no());
+          if (UNIV_UNLIKELY(!n_blocks_to_withdraw))
+          {
+            if (have_flush_list_mutex)
+              mysql_mutex_unlock(&flush_list_mutex);
+            hash_lock.unlock();
+            if (block)
+              buf_LRU_block_free_non_file_page(block);
+            goto withdraw_done;
+          }
+          if (!block && !(block= allocate()))
+            goto next;
+        }
+
+        if (!b->frame || b < end)
+          goto next;
+
+        ut_ad(is_uncompressed_current(b));
+
+        byte *const frame= block->page.frame;
+        memcpy_aligned<4096>(frame, b->frame, srv_page_size);
+        b->lock.free();
+        block->page.lock.free();
+        new(&block->page) buf_page_t(*b);
+        block->page.frame= frame;
+
+        if (have_flush_list_mutex)
+        {
+          buf_flush_relocate_on_flush_list(b, &block->page);
+          mysql_mutex_unlock(&flush_list_mutex);
+        }
+      }
+
+      /* relocate LRU list */
+      if (buf_page_t *prev_b= LRU_remove(b))
+        UT_LIST_INSERT_AFTER(LRU, prev_b, &block->page);
+      else
+        UT_LIST_ADD_FIRST(LRU, &block->page);
+
+      if (LRU_old == b)
+        LRU_old= &block->page;
+
+      ut_ad(block->page.in_LRU_list);
+
+      /* relocate page_hash */
+      ut_ad(b == page_hash.get(id, chain));
+      page_hash.replace(chain, b, &block->page);
+
+      if (b->zip.data)
+      {
+        ut_ad(mach_read_from_4(b->zip.data + FIL_PAGE_OFFSET) == id.page_no());
+        b->zip.data= nullptr;
+        /* relocate unzip_LRU list */
+        buf_block_t *old_block= reinterpret_cast<buf_block_t*>(b);
+        ut_ad(old_block->in_unzip_LRU_list);
+        ut_d(old_block->in_unzip_LRU_list= false);
+        ut_d(block->in_unzip_LRU_list= true);
+
+        buf_block_t *prev= UT_LIST_GET_PREV(unzip_LRU, old_block);
+        UT_LIST_REMOVE(unzip_LRU, old_block);
+
+        if (prev)
+          UT_LIST_INSERT_AFTER(unzip_LRU, prev, block);
+        else
+          UT_LIST_ADD_FIRST(unzip_LRU, block);
+      }
+
+      buf_block_modify_clock_inc(block);
+
+      buf_block_init_low(block);
+      hash_lock.unlock();
+
+      ut_d(b->in_LRU_list= false);
+
+      b->set_state(buf_page_t::NOT_USED);
+      UT_LIST_ADD_LAST(withdrawn, b);
+      if (!--n_blocks_to_withdraw)
+        goto withdraw_done;
+
+      block= allocate();
+    }
+
+    mysql_mutex_lock(&flush_list_mutex);
+
+    if (LRU_warned && !UT_LIST_GET_FIRST(free))
+    {
+      mysql_mutex_unlock(&flush_list_mutex);
+      goto withdraw_abort;
+    }
+
+    try_LRU_scan= false;
+    mysql_mutex_unlock(&mutex);
+    page_cleaner_wakeup(true);
+    my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+    mysql_mutex_unlock(&flush_list_mutex);
+    mysql_mutex_lock(&mutex);
+
+    if (!n_blocks_to_withdraw)
+      goto withdraw_done;
+
+    if (!thd_kill_level(thd))
+      goto withdraw_retry;
+
+  withdraw_abort:
+    ut_ad(n_blocks_alloc > n_blocks_alloc_usable);
+    ut_ad(size_in_bytes > size_in_bytes_requested);
+    n_blocks_alloc_usable= n_blocks_alloc;
+    n_blocks_to_withdraw= 0;
+    first_to_withdraw= nullptr;
+    size_in_bytes_requested= size_in_bytes;
+
+    while (buf_page_t *b= UT_LIST_GET_FIRST(withdrawn))
+    {
+      UT_LIST_REMOVE(withdrawn, b);
+      UT_LIST_ADD_LAST(free, b);
+      ut_d(b->in_free_list= true);
+      ut_ad(b->state() == buf_page_t::NOT_USED);
+      b->lock.init();
+    }
+
+    mysql_mutex_unlock(&mutex);
+    my_printf_error(ER_WRONG_USAGE, "innodb_buffer_pool_size change aborted",
+                    MYF(ME_ERROR_LOG));
+    mysql_mutex_lock(&LOCK_global_system_variables);
   }
-  DBUG_VOID_RETURN;
+
+  ut_d(validate());
 }
-
-/* Ensure that task does not run in parallel, by setting max_concurrency to 1 for the thread group */
-static tpool::task_group single_threaded_group(1);
-static tpool::waitable_task buf_resize_task(buf_resize_callback,
-	nullptr, &single_threaded_group);
-
-void buf_resize_start()
-{
-#if !defined(DBUG_OFF) && defined(__linux__)
-  DBUG_EXECUTE_IF("trigger_garbage_collection",
-  {
-    mem_pressure_obj.trigger_collection();
-  }
-  );
-#endif
-
-  srv_thread_pool->submit_task(&buf_resize_task);
-}
-
-void buf_resize_shutdown()
-{
-#ifdef __linux__
-  buf_mem_pressure_shutdown();
-#endif
-  buf_resize_task.wait();
-}
-
 
 /** Relocate a ROW_FORMAT=COMPRESSED block in the LRU list and
 buf_pool.page_hash.
 The caller must relocate bpage->list.
 @param bpage   ROW_FORMAT=COMPRESSED only block
 @param dpage   destination control block */
-static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
+static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage) noexcept
 {
   const page_id_t id{bpage->id()};
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
   ut_ad(!bpage->frame);
   mysql_mutex_assert_owner(&buf_pool.mutex);
+  ut_ad(mach_read_from_4(bpage->zip.data + FIL_PAGE_OFFSET) == id.page_no());
   ut_ad(buf_pool.page_hash.lock_get(chain).is_write_locked());
   ut_ad(bpage == buf_pool.page_hash.get(id, chain));
   ut_d(const auto state= bpage->state());
@@ -2272,6 +2125,7 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
   ut_ad(state <= buf_page_t::READ_FIX);
   ut_ad(bpage->lock.is_write_locked());
   const auto frame= dpage->frame;
+  ut_ad(frame == reinterpret_cast<buf_block_t*>(dpage)->frame_address());
 
   dpage->lock.free();
   new (dpage) buf_page_t(*bpage);
@@ -2480,6 +2334,8 @@ buf_zip_decompress(
 
 	ut_ad(block->zip_size());
 	ut_a(block->page.id().space() != 0);
+	ut_ad(mach_read_from_4(frame + FIL_PAGE_OFFSET)
+              == block->page.id().page_no());
 
 	if (UNIV_UNLIKELY(check && !page_zip_verify_checksum(frame, size))) {
 
@@ -2644,7 +2500,6 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
     if (b)
     {
       uint32_t state= b->fix() + 1;
-      ut_ad(!b->in_zip_hash);
       hash_lock.unlock_shared();
 
       if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED))
@@ -2672,7 +2527,8 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
           return reinterpret_cast<buf_block_t*>(-1);
         }
 
-        if (UNIV_LIKELY(b->frame != nullptr));
+        if (UNIV_LIKELY(b->frame != nullptr))
+          ut_ad(b->frame==reinterpret_cast<buf_block_t*>(b)->frame_address());
         else if (state < buf_page_t::READ_FIX)
           goto unzip;
         else
@@ -2802,9 +2658,7 @@ loop:
 
 	if (block) {
 		transactional_shared_lock_guard<page_hash_latch> g{hash_lock};
-		if (buf_pool.is_uncompressed(block)
-		    && page_id == block->page.id()) {
-			ut_ad(!block->page.in_zip_hash);
+		if (page_id == block->page.id()) {
 			state = block->page.state();
 			/* Ignore guesses that point to read-fixed blocks.
 			We can only avoid a race condition by
@@ -2815,6 +2669,7 @@ loop:
 				state = block->page.fix();
 				goto got_block;
 			}
+			ut_ad(block->page.frame);
 		}
 	}
 
@@ -2873,7 +2728,6 @@ loop:
 	goto loop;
 
 got_block:
-	ut_ad(!block->page.in_zip_hash);
 	state++;
 	ut_ad(state > buf_page_t::FREED);
 
@@ -3005,6 +2859,7 @@ wait_for_unzip:
 	}
 
 	ut_ad(state < buf_page_t::READ_FIX || state > buf_page_t::WRITE_FIX);
+	ut_ad(block->page.frame == block->frame_address());
 	ut_ad(page_id_t(page_get_space_id(block->page.frame),
 			page_get_page_no(block->page.frame)) == page_id);
 
@@ -3012,25 +2867,30 @@ wait_for_unzip:
 }
 
 TRANSACTIONAL_TARGET
-buf_block_t *buf_page_optimistic_fix(buf_block_t *block, page_id_t id)
+buf_block_t *buf_page_optimistic_fix(buf_block_t *block, page_id_t id) noexcept
 {
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
   transactional_shared_lock_guard<page_hash_latch> g
     {buf_pool.page_hash.lock_get(chain)};
-  if (UNIV_UNLIKELY(!buf_pool.is_uncompressed(block) ||
-                    id != block->page.id() || !block->page.frame))
+  if (UNIV_UNLIKELY(id != block->page.id() || !block->page.frame))
     return nullptr;
-  const auto state= block->page.state();
+  auto state= block->page.state();
   if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED ||
                     state >= buf_page_t::READ_FIX))
     return nullptr;
-  block->page.fix();
-  return block;
+  state= block->page.fix();
+  ut_ad(state >= buf_page_t::FREED);
+  ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
+  if (UNIV_LIKELY(state >= buf_page_t::UNFIXED))
+    return block;
+  block->page.unfix();
+  return nullptr;
 }
 
 buf_block_t *buf_page_optimistic_get(buf_block_t *block,
                                      rw_lock_type_t rw_latch,
                                      uint64_t modify_clock, mtr_t *mtr)
+  noexcept
 {
   ut_ad(mtr->is_active());
   ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
@@ -3130,10 +2990,12 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
 @param zip_size ROW_FORMAT=COMPRESSED page size, or 0
 @param fix      initial buf_fix_count() */
 void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
-                             uint32_t fix)
+                             uint32_t fix) noexcept
 {
   ut_ad(!page.in_file());
+  ut_ad(page.frame == frame_address());
   buf_block_init_low(this);
+  page.lock.init();
   page.init(fix, page_id);
   page.set_os_used();
   page_zip_set_size(&page.zip, zip_size);
@@ -3217,6 +3079,7 @@ retry:
       {
         mysql_mutex_unlock(&buf_pool.mutex);
         buf_block_t *block= reinterpret_cast<buf_block_t*>(bpage);
+        ut_ad(bpage->frame == block->frame_address());
         mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
 #ifdef BTR_CUR_HASH_ADAPT
         drop_hash_entry= block->index;
@@ -3252,7 +3115,8 @@ retry:
     else
     {
       mysql_mutex_unlock(&buf_pool.mutex);
-      ut_ad(bpage->frame);
+      ut_ad(bpage->frame ==
+            reinterpret_cast<buf_block_t*>(bpage)->frame_address());
 #ifdef BTR_CUR_HASH_ADAPT
       ut_ad(!reinterpret_cast<buf_block_t*>(bpage)->index);
 #endif
@@ -3663,6 +3527,60 @@ success_page:
   return DB_SUCCESS;
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+/** Clear the adaptive hash index on all pages in the buffer pool. */
+ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
+{
+  std::set<dict_index_t*> garbage;
+
+  mysql_mutex_lock(&mutex);
+  ut_ad(!btr_search.enabled);
+
+  for (byte *extent= memory,
+         *end= memory + block_descriptors_in_bytes(n_blocks);
+       extent < end; extent += innodb_buffer_pool_extent_size)
+    for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
+           *extent_end= block +
+           pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
+         block < extent_end && reinterpret_cast<byte*>(block) < end; block++)
+    {
+      dict_index_t *index= block->index;
+
+      /* We can clear block->index and block->n_pointers when
+      holding all AHI latches exclusively; see the comments in buf0buf.h */
+
+      if (!index)
+      {
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+        ut_a(!block->n_pointers);
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+        continue;
+      }
+
+      ut_d(const auto s= block->page.state());
+      /* Another thread may have set the state to
+      REMOVE_HASH in buf_LRU_block_remove_hashed().
+
+      The state change in buf_pool_t::resize() is not observable
+      here, because in that case we would have !block->index.
+
+      In the end, the entire adaptive hash index will be removed. */
+      ut_ad(s >= buf_page_t::UNFIXED || s == buf_page_t::REMOVE_HASH);
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+      block->n_pointers= 0;
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+      block->index= nullptr;
+      if (index->freed())
+        garbage.insert(index);
+    }
+
+  mysql_mutex_unlock(&mutex);
+
+  for (dict_index_t *index : garbage)
+    btr_search_lazy_free(index);
+}
+#endif /* BTR_CUR_HASH_ADAPT */
+
 #ifdef UNIV_DEBUG
 /** Check that all blocks are in a replaceable state.
 @return address of a non-free block
@@ -3670,10 +3588,44 @@ success_page:
 void buf_pool_t::assert_all_freed()
 {
   mysql_mutex_lock(&mutex);
-  const chunk_t *chunk= chunks;
-  for (auto i= n_chunks; i--; chunk++)
-    if (const buf_block_t* block= chunk->not_freed())
-      ib::fatal() << "Page " << block->page.id() << " still fixed or dirty";
+
+    for (byte *extent= memory,
+           *end= memory + block_descriptors_in_bytes(n_blocks);
+         extent < end; extent += innodb_buffer_pool_extent_size)
+      for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
+             *extent_end= block +
+             pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
+           block < extent_end && reinterpret_cast<byte*>(block) < end; block++)
+    {
+      if (!block->page.in_file())
+        continue;
+      switch (const lsn_t lsn= block->page.oldest_modification()) {
+      case 0:
+      case 1:
+        break;
+
+      case 2:
+        ut_ad(fsp_is_system_temporary(block->page.id().space()));
+        break;
+
+      default:
+        if (srv_read_only_mode)
+        {
+          /* The page cleaner is disabled in read-only mode.  No pages
+          can be dirtied, so all of them must be clean. */
+          ut_ad(lsn == recv_sys.lsn ||
+                srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
+          break;
+        }
+
+        goto fixed_or_dirty;
+      }
+
+      if (!block->page.can_relocate())
+      fixed_or_dirty:
+        ib::fatal() << "Page " << block->page.id() << " still fixed or dirty";
+    }
+
   mysql_mutex_unlock(&mutex);
 }
 #endif /* UNIV_DEBUG */
@@ -3723,40 +3675,34 @@ void buf_pool_t::validate()
 
 	mysql_mutex_lock(&mutex);
 
-	chunk_t* chunk = chunks;
-
 	/* Check the uncompressed blocks. */
 
-	for (auto i = n_chunks; i--; chunk++) {
-		buf_block_t*	block = chunk->blocks;
+	for (ulint i = 0; i < n_blocks; i++) {
+		const buf_block_t* block = get_nth_page(i);
 
-		for (auto j = chunk->size; j--; block++) {
-			ut_ad(block->page.frame);
-			switch (const auto f = block->page.state()) {
-			case buf_page_t::NOT_USED:
-				n_free++;
+		switch (const auto f = block->page.state()) {
+		case buf_page_t::NOT_USED:
+			ut_ad(!block->page.in_LRU_list);
+			n_free++;
+			break;
+		case buf_page_t::MEMORY:
+		case buf_page_t::REMOVE_HASH:
+			/* do nothing */
+			break;
+		default:
+			if (f >= buf_page_t::READ_FIX
+			    && f < buf_page_t::WRITE_FIX) {
+				/* A read-fixed block is not
+				necessarily in the page_hash yet. */
 				break;
-
-			case buf_page_t::MEMORY:
-			case buf_page_t::REMOVE_HASH:
-				/* do nothing */
-				break;
-
-			default:
-				if (f >= buf_page_t::READ_FIX
-				    && f < buf_page_t::WRITE_FIX) {
-					/* A read-fixed block is not
-					necessarily in the page_hash yet. */
-					break;
-				}
-				ut_ad(f >= buf_page_t::FREED);
-				const page_id_t id{block->page.id()};
-				ut_ad(page_hash.get(
-					      id,
-					      page_hash.cell_get(id.fold()))
-				      == &block->page);
-				n_lru++;
 			}
+			ut_ad(f >= buf_page_t::FREED);
+			const page_id_t id{block->page.id()};
+			ut_ad(page_hash.get(
+				      id,
+				      page_hash.cell_get(id.fold()))
+			      == &block->page);
+			n_lru++;
 		}
 	}
 
@@ -3781,24 +3727,11 @@ void buf_pool_t::validate()
 	ut_ad(UT_LIST_GET_LEN(flush_list) == n_flushing);
 
 	mysql_mutex_unlock(&flush_list_mutex);
-
-	if (n_chunks_new == n_chunks
-	    && n_lru + n_free > curr_size + n_zip) {
-
-		ib::fatal() << "n_LRU " << n_lru << ", n_free " << n_free
-			<< ", pool " << curr_size
-			<< " zip " << n_zip << ". Aborting...";
-	}
-
+	ut_ad(n_lru + n_free <= n_blocks + n_zip);
 	ut_ad(UT_LIST_GET_LEN(LRU) >= n_lru);
-
-	if (n_chunks_new == n_chunks
-	    && UT_LIST_GET_LEN(free) != n_free) {
-
-		ib::fatal() << "Free list len "
-			<< UT_LIST_GET_LEN(free)
-			<< ", free blocks " << n_free << ". Aborting...";
-	}
+	ut_ad(UT_LIST_GET_LEN(free) <= n_free);
+	ut_ad(size_in_bytes != size_in_bytes_requested
+	      || UT_LIST_GET_LEN(free) == n_free);
 
 	mysql_mutex_unlock(&mutex);
 
@@ -3813,26 +3746,23 @@ void buf_pool_t::print()
 {
 	index_id_t*	index_ids;
 	ulint*		counts;
-	ulint		size;
 	ulint		i;
-	ulint		j;
 	index_id_t	id;
 	ulint		n_found;
-	chunk_t*	chunk;
 	dict_index_t*	index;
 
-	size = curr_size;
+	mysql_mutex_lock(&mutex);
 
 	index_ids = static_cast<index_id_t*>(
-		ut_malloc_nokey(size * sizeof *index_ids));
+		ut_malloc_nokey(n_blocks * sizeof *index_ids));
 
-	counts = static_cast<ulint*>(ut_malloc_nokey(sizeof(ulint) * size));
+	counts = static_cast<ulint*>(
+		ut_malloc_nokey(sizeof(ulint) * n_blocks));
 
-	mysql_mutex_lock(&mutex);
 	mysql_mutex_lock(&flush_list_mutex);
 
 	ib::info()
-		<< "[buffer pool: size=" << curr_size
+		<< "[buffer pool: size=" << n_blocks_alloc
 		<< ", database pages=" << UT_LIST_GET_LEN(LRU)
 		<< ", free pages=" << UT_LIST_GET_LEN(free)
 		<< ", modified database pages="
@@ -3852,38 +3782,27 @@ void buf_pool_t::print()
 
 	n_found = 0;
 
-	chunk = chunks;
+	for (size_t i = 0; i < n_blocks; i++) {
+		buf_block_t* block = get_nth_page(i);
+		const buf_frame_t* frame = block->page.frame;
 
-	for (i = n_chunks; i--; chunk++) {
-		buf_block_t*	block		= chunk->blocks;
-		ulint		n_blocks	= chunk->size;
+		if (fil_page_index_page_check(frame)) {
 
-		for (; n_blocks--; block++) {
-			const buf_frame_t* frame = block->page.frame;
+			id = btr_page_get_index_id(frame);
 
-			if (fil_page_index_page_check(frame)) {
-
-				id = btr_page_get_index_id(frame);
-
-				/* Look for the id in the index_ids array */
-				j = 0;
-
-				while (j < n_found) {
-
-					if (index_ids[j] == id) {
-						counts[j]++;
-
-						break;
-					}
-					j++;
-				}
-
-				if (j == n_found) {
-					n_found++;
-					index_ids[j] = id;
-					counts[j] = 1;
+			/* Look for the id in the index_ids array */
+			for (ulint j = 0; j < n_found; j++) {
+				if (index_ids[j] == id) {
+					counts[j]++;
+					goto found;
 				}
 			}
+
+			index_ids[n_found] = id;
+			counts[n_found] = 1;
+			n_found++;
+found:
+			continue;
 		}
 	}
 
@@ -3917,138 +3836,78 @@ ulint buf_get_latched_pages_number()
 {
   ulint fixed_pages_number= 0;
 
-  mysql_mutex_lock(&buf_pool.mutex);
+  mysql_mutex_assert_owner(&buf_pool.mutex);
 
   for (buf_page_t *b= UT_LIST_GET_FIRST(buf_pool.LRU); b;
        b= UT_LIST_GET_NEXT(LRU, b))
     if (b->state() > buf_page_t::UNFIXED)
       fixed_pages_number++;
 
-  mysql_mutex_unlock(&buf_pool.mutex);
-
   return fixed_pages_number;
 }
 #endif /* UNIV_DEBUG */
 
-/** Collect buffer pool metadata.
-@param[out]	pool_info	buffer pool metadata */
-void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
+void buf_pool_t::get_info(buf_pool_info_t *pool_info) noexcept
 {
-	time_t			current_time;
-	double			time_elapsed;
+  mysql_mutex_lock(&mutex);
+  pool_info->pool_size= curr_size();
+  pool_info->lru_len= UT_LIST_GET_LEN(LRU);
+  pool_info->old_lru_len= LRU_old_len;
+  pool_info->free_list_len= UT_LIST_GET_LEN(free) + lazy_allocate_size();
 
-	mysql_mutex_lock(&buf_pool.mutex);
+  mysql_mutex_lock(&flush_list_mutex);
+  pool_info->flush_list_len= UT_LIST_GET_LEN(flush_list);
+  pool_info->n_pend_unzip= UT_LIST_GET_LEN(unzip_LRU);
+  pool_info->n_pend_reads= os_aio_pending_reads_approx();
+  pool_info->n_pending_flush_lru= n_flush();
+  pool_info->n_pending_flush_list= os_aio_pending_writes();
+  mysql_mutex_unlock(&flush_list_mutex);
 
-	pool_info->pool_size = buf_pool.curr_size;
+  double elapsed= 0.001 + difftime(time(nullptr), last_printout_time);
 
-	pool_info->lru_len = UT_LIST_GET_LEN(buf_pool.LRU);
-
-	pool_info->old_lru_len = buf_pool.LRU_old_len;
-
-	pool_info->free_list_len = UT_LIST_GET_LEN(buf_pool.free);
-
-	mysql_mutex_lock(&buf_pool.flush_list_mutex);
-	pool_info->flush_list_len = UT_LIST_GET_LEN(buf_pool.flush_list);
-
-	pool_info->n_pend_unzip = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
-
-	pool_info->n_pend_reads = os_aio_pending_reads_approx();
-
-	pool_info->n_pending_flush_lru = buf_pool.n_flush();
-
-	pool_info->n_pending_flush_list = os_aio_pending_writes();
-	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-
-	current_time = time(NULL);
-	time_elapsed = 0.001 + difftime(current_time,
-					buf_pool.last_printout_time);
-
-	pool_info->n_pages_made_young = buf_pool.stat.n_pages_made_young;
-
-	pool_info->n_pages_not_made_young =
-		buf_pool.stat.n_pages_not_made_young;
-
-	pool_info->n_pages_read = buf_pool.stat.n_pages_read;
-
-	pool_info->n_pages_created = buf_pool.stat.n_pages_created;
-
-	pool_info->n_pages_written = buf_pool.stat.n_pages_written;
-
-	pool_info->n_page_gets = buf_pool.stat.n_page_gets;
-
-	pool_info->n_ra_pages_read_rnd = buf_pool.stat.n_ra_pages_read_rnd;
-	pool_info->n_ra_pages_read = buf_pool.stat.n_ra_pages_read;
-
-	pool_info->n_ra_pages_evicted = buf_pool.stat.n_ra_pages_evicted;
-
-	pool_info->page_made_young_rate =
-	static_cast<double>(buf_pool.stat.n_pages_made_young
-			    - buf_pool.old_stat.n_pages_made_young)
-	/ time_elapsed;
-
-	pool_info->page_not_made_young_rate =
-	static_cast<double>(buf_pool.stat.n_pages_not_made_young
-			    - buf_pool.old_stat.n_pages_not_made_young)
-	/ time_elapsed;
-
-	pool_info->pages_read_rate =
-	static_cast<double>(buf_pool.stat.n_pages_read
-			    - buf_pool.old_stat.n_pages_read)
-	/ time_elapsed;
-
-	pool_info->pages_created_rate =
-	static_cast<double>(buf_pool.stat.n_pages_created
-			    - buf_pool.old_stat.n_pages_created)
-	/ time_elapsed;
-
-	pool_info->pages_written_rate =
-	static_cast<double>(buf_pool.stat.n_pages_written
-			    - buf_pool.old_stat.n_pages_written)
-	/ time_elapsed;
-
-	pool_info->n_page_get_delta = buf_pool.stat.n_page_gets
-				      - buf_pool.old_stat.n_page_gets;
-
-	if (pool_info->n_page_get_delta) {
-		pool_info->page_read_delta = buf_pool.stat.n_pages_read
-					     - buf_pool.old_stat.n_pages_read;
-
-		pool_info->young_making_delta =
-			buf_pool.stat.n_pages_made_young
-			- buf_pool.old_stat.n_pages_made_young;
-
-		pool_info->not_young_making_delta =
-			buf_pool.stat.n_pages_not_made_young
-			- buf_pool.old_stat.n_pages_not_made_young;
-	}
-	pool_info->pages_readahead_rnd_rate =
-	static_cast<double>(buf_pool.stat.n_ra_pages_read_rnd
-			    - buf_pool.old_stat.n_ra_pages_read_rnd)
-	/ time_elapsed;
-
-
-	pool_info->pages_readahead_rate =
-	static_cast<double>(buf_pool.stat.n_ra_pages_read
-			    - buf_pool.old_stat.n_ra_pages_read)
-	/ time_elapsed;
-
-	pool_info->pages_evicted_rate =
-	static_cast<double>(buf_pool.stat.n_ra_pages_evicted
-			    - buf_pool.old_stat.n_ra_pages_evicted)
-	/ time_elapsed;
-
-	pool_info->unzip_lru_len = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
-
-	pool_info->io_sum = buf_LRU_stat_sum.io;
-
-	pool_info->io_cur = buf_LRU_stat_cur.io;
-
-	pool_info->unzip_sum = buf_LRU_stat_sum.unzip;
-
-	pool_info->unzip_cur = buf_LRU_stat_cur.unzip;
-
-	buf_refresh_io_stats();
-	mysql_mutex_unlock(&buf_pool.mutex);
+  pool_info->n_pages_made_young= stat.n_pages_made_young;
+  pool_info->page_made_young_rate=
+    double(stat.n_pages_made_young - old_stat.n_pages_made_young) /
+    elapsed;
+  pool_info->n_pages_not_made_young= stat.n_pages_not_made_young;
+  pool_info->page_not_made_young_rate=
+    double(stat.n_pages_not_made_young - old_stat.n_pages_not_made_young) /
+    elapsed;
+  pool_info->n_pages_read= stat.n_pages_read;
+  pool_info->pages_read_rate=
+    double(stat.n_pages_read - old_stat.n_pages_read) / elapsed;
+  pool_info->n_pages_created= stat.n_pages_created;
+  pool_info->pages_created_rate=
+    double(stat.n_pages_created - old_stat.n_pages_created) / elapsed;
+  pool_info->n_pages_written= stat.n_pages_written;
+  pool_info->pages_written_rate=
+    double(stat.n_pages_written - old_stat.n_pages_written) / elapsed;
+  pool_info->n_page_gets= stat.n_page_gets;
+  pool_info->n_page_get_delta= stat.n_page_gets - old_stat.n_page_gets;
+  if (pool_info->n_page_get_delta)
+  {
+    pool_info->page_read_delta= stat.n_pages_read - old_stat.n_pages_read;
+    pool_info->young_making_delta=
+      stat.n_pages_made_young - old_stat.n_pages_made_young;
+    pool_info->not_young_making_delta=
+      stat.n_pages_not_made_young - old_stat.n_pages_not_made_young;
+  }
+  pool_info->n_ra_pages_read_rnd= stat.n_ra_pages_read_rnd;
+  pool_info->pages_readahead_rnd_rate=
+    double(stat.n_ra_pages_read_rnd - old_stat.n_ra_pages_read_rnd) / elapsed;
+  pool_info->n_ra_pages_read= stat.n_ra_pages_read;
+  pool_info->pages_readahead_rate=
+    double(stat.n_ra_pages_read - old_stat.n_ra_pages_read) / elapsed;
+  pool_info->n_ra_pages_evicted= stat.n_ra_pages_evicted;
+  pool_info->pages_evicted_rate=
+    double(stat.n_ra_pages_evicted - old_stat.n_ra_pages_evicted) / elapsed;
+  pool_info->unzip_lru_len= UT_LIST_GET_LEN(unzip_LRU);
+  pool_info->io_sum= buf_LRU_stat_sum.io;
+  pool_info->io_cur= buf_LRU_stat_cur.io;
+  pool_info->unzip_sum= buf_LRU_stat_sum.unzip;
+  pool_info->unzip_cur= buf_LRU_stat_cur.unzip;
+  buf_refresh_io_stats();
+  mysql_mutex_unlock(&mutex);
 }
 
 /*********************************************************************//**
@@ -4156,7 +4015,7 @@ buf_print_io(
 {
 	buf_pool_info_t	pool_info;
 
-	buf_stats_get_pool_info(&pool_info);
+	buf_pool.get_info(&pool_info);
 	buf_print_io_instance(&pool_info, file);
 }
 

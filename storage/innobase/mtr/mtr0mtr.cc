@@ -168,7 +168,7 @@ inline void buf_pool_t::insert_into_flush_list(buf_page_t *prev,
   else
     flush_list_bytes+= block->physical_size();
 
-  ut_ad(flush_list_bytes <= curr_pool_size);
+  ut_ad(flush_list_bytes <= size_in_bytes);
 
   if (prev)
     UT_LIST_INSERT_AFTER(flush_list, prev, &block->page);
