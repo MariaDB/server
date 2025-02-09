@@ -22,7 +22,7 @@ INCLUDE (CheckFunctionExists)
 INCLUDE (CheckCCompilerFlag)
 INCLUDE (CheckCSourceRuns)
 INCLUDE (CheckSymbolExists)
-
+INCLUDE (CheckIPOSupported)
 
 # WITH_PIC options.Not of much use, PIC is taken care of on platforms
 # where it makes sense anyway.
@@ -41,7 +41,12 @@ IF(UNIX)
   ENDIF()
 ENDIF()
 
-
+# With INTERPROCEDURAL OPTMIZATION
+CHECK_IPO_SUPPORTED(RESULT IPO_SUPPORTED LANGUAGES C CXX)
+IF(IPO_SUPPORTED)
+  SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+ENDIF()
+ADD_FEATURE_INFO(INTERPROCEDURAL_OPTIMIZATION IPO_SUPPORTED "Support Interprocedural Optmization (LTO)")
 
 # System type affects version_compile_os variable 
 IF(NOT SYSTEM_TYPE)

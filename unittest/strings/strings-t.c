@@ -1545,6 +1545,9 @@ test_strnncollsp_char()
   return failed;
 }
 
+static void my_init() {};
+static int my_end(int infoflag) { return 0; };
+static const char *my_progname= NULL;
 
 int main(int ac, char **av)
 {

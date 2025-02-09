@@ -413,6 +413,8 @@ IF(NOT TARGET connect)
   RETURN()
 ENDIF()
 
+SET_TARGET_PROPERTIES(connect PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+
 IF(MSVC AND (CMAKE_CXX_FLAGS MATCHES "/MP"))
   # domdoc.cpp uses compiler directive #import which is not compatible
   # with the /MP option, resulting in  compiler error C2813.
