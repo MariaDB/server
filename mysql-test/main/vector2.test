@@ -309,4 +309,12 @@ show warnings;
 create table t (a inet6 not null default '');
 show warnings;
 
+--echo #
+--echo # MDEV-35186 IGNORED attribute has no effect on vector keys
+--echo #
+create table t (a vector(1) not null, vector(a) ignored);
+show index in t;
+insert into t values (0x00000000),(0x00000000);
+explain select vec_totext(a) from t order by vec_distance_euclidean(a,0x00000000) limit 1;
+drop table t;
 --echo # End of 11.7 tests

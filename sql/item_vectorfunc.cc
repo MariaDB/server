@@ -32,7 +32,8 @@ key_map Item_func_vec_distance_common::part_of_sortkey() const
     Field *f= item->field;
     KEY *keyinfo= f->table->s->key_info;
     for (uint i= f->table->s->keys; i < f->table->s->total_keys; i++)
-      if (keyinfo[i].algorithm == HA_KEY_ALG_VECTOR && f->key_start.is_set(i)
+      if (!keyinfo[i].is_ignored && keyinfo[i].algorithm == HA_KEY_ALG_VECTOR
+          && f->key_start.is_set(i)
           && mhnsw_uses_distance(f->table, keyinfo + i, this))
         map.set_bit(i);
   }

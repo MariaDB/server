@@ -2214,7 +2214,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (extra2.index_flags.str)
     extra_index_flags_present= TRUE;
 
-  for (uint i= 0; i < share->keys; i++, keyinfo++)
+  for (uint i= 0; i < share->total_keys; i++, keyinfo++)
   {
     if (extra_index_flags_present)
     {
