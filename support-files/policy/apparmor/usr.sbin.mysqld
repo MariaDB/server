@@ -137,15 +137,17 @@
     /usr/bin/du rix,
     /usr/bin/find rix,
     /usr/bin/lsof rix,
+    /usr/bin/mariadb rix,
+    /usr/bin/mariadb-backup rix,
     /usr/bin/my_print_defaults rix,
-    /usr/bin/mysqldump rix,
+    /usr/bin/mariadb-dump rix,
     /usr/bin/pv rix,
     /usr/bin/rsync rix,
     /usr/bin/socat rix,
     /usr/bin/tail rix,
     /usr/bin/timeout rix,
     /usr/bin/xargs rix,
-    /usr/bin/xbstream rix,
+    /usr/bin/mbstream rix,
   }
   # Site-specific additions and overrides. See local/README for details.
   #include <local/usr.sbin.mariadbd>
