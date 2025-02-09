@@ -1847,9 +1847,8 @@ Sys_max_binlog_stmt_cache_size(
 
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
 {
-  ulong saved= max_binlog_size;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_bin_log.set_max_size(saved);
+  mysql_bin_log.set_max_size(max_binlog_size);
   mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
