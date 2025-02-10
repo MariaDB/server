@@ -1166,18 +1166,26 @@ bool buf_pool_t::create() noexcept
   n_blocks= get_n_blocks(actual_size);
   n_blocks_to_withdraw= 0;
   UT_LIST_INIT(free, &buf_page_t::list);
+  const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
 
-  for (size_t n= 0; n < n_blocks; n++)
+  for (byte *extent= memory,
+         *end= memory + block_descriptors_in_bytes(n_blocks);
+       extent < end; extent+= innodb_buffer_pool_extent_size)
   {
-    // FIXME: nested loop, to optimize the block address calculation
-    buf_block_t *block=
-      reinterpret_cast<buf_block_t*>(memory + block_descriptors_in_bytes(n));
-    MEM_MAKE_DEFINED(block, sizeof *block);
-    ut_ad(!memcmp(block, field_ref_zero, sizeof *block));
-    block->page.frame= block->frame_address();
-    block->page.lock.init();
-    UT_LIST_ADD_LAST(free, &block->page);
-    ut_d(block->page.in_free_list= true);
+    buf_block_t *block= reinterpret_cast<buf_block_t*>(extent);
+    const buf_block_t *extent_end= block + pages_in_extent[ssize];
+    if (reinterpret_cast<const byte*>(extent_end) > end)
+      extent_end= reinterpret_cast<buf_block_t*>(end);
+    MEM_MAKE_DEFINED(block, (extent_end - block) * sizeof *block);
+    for (byte *frame= extent + first_frame_in_extent[ssize];
+         block < extent_end; block++, frame+= srv_page_size)
+    {
+      ut_ad(!memcmp(block, field_ref_zero, sizeof *block));
+      block->page.frame= frame;
+      block->page.lock.init();
+      UT_LIST_ADD_LAST(free, &block->page);
+      ut_d(block->page.in_free_list= true);
+    }
   }
 
   mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
@@ -1266,7 +1274,7 @@ void buf_pool_t::close() noexcept
 
     for (byte *extent= memory,
            *end= memory + block_descriptors_in_bytes(n_blocks);
-         extent < end; extent += innodb_buffer_pool_extent_size)
+         extent < end; extent+= innodb_buffer_pool_extent_size)
       for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
              *extent_end= block +
              pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
@@ -1433,16 +1441,52 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     size_in_bytes_requested= size;
     size_in_bytes= size;
 
-    for (size_t n= n_blocks; n < n_blocks_new; n++)
     {
-      // FIXME: nested loop, to optimize the block address calculation
-      buf_block_t *block=
-        reinterpret_cast<buf_block_t*>(memory + block_descriptors_in_bytes(n));
-      memset((void*) block, 0, sizeof *block);
-      block->page.frame= block->frame_address();
-      block->page.lock.init();
-      UT_LIST_ADD_LAST(free, &block->page);
-      ut_d(block->page.in_free_list= true);
+      const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
+
+      byte *extent= memory + n_blocks / pages_in_extent[ssize] *
+        innodb_buffer_pool_extent_size;
+
+      buf_block_t *block= reinterpret_cast<buf_block_t*>(extent);
+      if (const size_t first_blocks= n_blocks % pages_in_extent[ssize])
+      {
+        /* Extend the last (partial) extent until its end */
+        const buf_block_t *extent_end= block + pages_in_extent[ssize];
+        block+= first_blocks;
+        memset((void*) block, 0, (extent_end - block) * sizeof *block);
+
+        for (byte *frame= extent + first_frame_in_extent[ssize] +
+               (first_blocks << srv_page_size_shift); block < extent_end;
+             block++, frame+= srv_page_size)
+        {
+          block->page.frame= frame;
+          block->page.lock.init();
+          UT_LIST_ADD_LAST(free, &block->page);
+          ut_d(block->page.in_free_list= true);
+        }
+        extent+= innodb_buffer_pool_extent_size;
+      }
+
+      /* Fill in further extents; @see buf_pool_t::create() */
+      for (const byte *const end_new= memory +
+             block_descriptors_in_bytes(n_blocks_new);
+           extent < end_new; extent+= innodb_buffer_pool_extent_size)
+      {
+        block= reinterpret_cast<buf_block_t*>(extent);
+        const buf_block_t *extent_end= block + pages_in_extent[ssize];
+        if (reinterpret_cast<const byte*>(extent_end) > end_new)
+          extent_end= reinterpret_cast<const buf_block_t*>(end_new);
+
+        memset((void*) block, 0, (extent_end - block) * sizeof *block);
+        for (byte *frame= extent + first_frame_in_extent[ssize];
+             block < extent_end; block++, frame+= srv_page_size)
+        {
+          block->page.frame= frame;
+          block->page.lock.init();
+          UT_LIST_ADD_LAST(free, &block->page);
+          ut_d(block->page.in_free_list= true);
+        }
+      }
     }
 
   resized:
@@ -3669,7 +3713,7 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
 
   for (byte *extent= memory,
          *end= memory + block_descriptors_in_bytes(n_blocks);
-       extent < end; extent += innodb_buffer_pool_extent_size)
+       extent < end; extent+= innodb_buffer_pool_extent_size)
     for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
            *extent_end= block +
            pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
@@ -3723,7 +3767,7 @@ void buf_pool_t::assert_all_freed() noexcept
 
     for (byte *extent= memory,
            *end= memory + block_descriptors_in_bytes(n_blocks);
-         extent < end; extent += innodb_buffer_pool_extent_size)
+         extent < end; extent+= innodb_buffer_pool_extent_size)
       for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
              *extent_end= block +
              pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
