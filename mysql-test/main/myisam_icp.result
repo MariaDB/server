@@ -165,7 +165,7 @@ WHERE ts BETWEEN '0000-00-00' AND '2010-00-01 00:00:00'
 ORDER BY ts DESC
 LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	4	Using where
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	4	Using index condition
 
 DROP TABLE t1;
 #
@@ -1016,12 +1016,12 @@ set optimizer_switch='mrr=off';
 # Must not use ICP:
 explain select * from t1 where a between 5 and 8 order by a desc, col desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	40	Using where
+1	SIMPLE	t1	range	a	a	5	NULL	40	Using index condition
 set optimizer_switch= @tmp_10000051;
 # Must not use ICP:
 explain select * from t1 where a=3 and col > 500 order by a desc, col desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	10	NULL	10	Using where
+1	SIMPLE	t1	range	a	a	10	NULL	10	Using index condition
 drop table t0, t1;
 #
 # MDEV-13628: ORed condition in pushed index condition is not removed from the WHERE
