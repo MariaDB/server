@@ -1438,6 +1438,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       return;
     }
 #endif
+    MEM_MAKE_ADDRESSABLE(memory + old_size, size - old_size);
     size_in_bytes_requested= size;
     size_in_bytes= size;
 
