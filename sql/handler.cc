@@ -7132,7 +7132,7 @@ int handler::read_range_first(const key_range *start_key,
   DBUG_ENTER("handler::read_range_first");
 
   eq_range= eq_range_arg;
-  set_end_range(end_key);
+  set_end_range(end_key, RANGE_SCAN_ASC);
   range_key_part= table->key_info[active_index].key_part;
 
   if (!start_key)			// Read first record
@@ -7208,9 +7208,11 @@ int handler::read_range_next()
 }
 
 
-void handler::set_end_range(const key_range *end_key)
+void handler::set_end_range(const key_range *end_key,
+                            enum_range_scan_direction direction)
 {
   end_range= 0;
+  range_scan_direction= direction;
   if (end_key)
   {
     end_range= &save_end_range;
@@ -7218,6 +7220,7 @@ void handler::set_end_range(const key_range *end_key)
     key_compare_result_on_equal=
       ((end_key->flag == HA_READ_BEFORE_KEY) ? 1 :
        (end_key->flag == HA_READ_AFTER_KEY) ? -1 : 0);
+    range_key_part= table->key_info[active_index].key_part;
   }
 }
 
@@ -7262,6 +7265,8 @@ int handler::compare_key2(key_range *range) const
   cmp= key_cmp(range_key_part, range->key, range->length);
   if (!cmp)
     cmp= key_compare_result_on_equal;
+  if (range_scan_direction == RANGE_SCAN_DESC)
+    cmp= -cmp;
   return cmp;
 }
 

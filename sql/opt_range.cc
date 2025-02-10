@@ -13744,6 +13744,23 @@ int QUICK_SELECT_DESC::get_next()
       DBUG_RETURN(result);
     }
 
+    // Case where we can avoid descending scan, see comment above
+    const bool eqrange_all_keyparts= (last_range->flag & EQ_RANGE) &&
+                          (used_key_parts <= head->key_info[index].user_defined_key_parts);
+    /*
+      If we have pushed an index condition (ICP) and this quick select
+      will use ha_index_prev() to read data, we need to let the
+      handler know where to end the scan in order to avoid that the
+      ICP implemention continues to read past the range boundary.
+    */
+    if (file->pushed_idx_cond && !eqrange_all_keyparts)
+    {
+      key_range min_range;
+      last_range->make_min_endpoint(&min_range);
+      if (min_range.length > 0)
+        file->set_end_range(&min_range, handler::RANGE_SCAN_DESC);
+    }
+
     if (last_range->flag & NO_MAX_RANGE)        // Read last record
     {
       int local_error;
@@ -13755,10 +13772,10 @@ int QUICK_SELECT_DESC::get_next()
       continue;
     }
 
-    if (last_range->flag & EQ_RANGE &&
-        used_key_parts <= head->key_info[index].user_defined_key_parts)
+    if (eqrange_all_keyparts)
 
     {
+      file->set_end_range(NULL, handler::RANGE_SCAN_ASC);
       result= file->ha_index_read_map(record, last_range->max_key,
                                       last_range->max_keypart_map,
                                       HA_READ_KEY_EXACT);
