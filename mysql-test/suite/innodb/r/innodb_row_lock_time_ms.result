@@ -1,10 +1,18 @@
 CREATE TABLE `t`(`id` INT, PRIMARY KEY(`id`)) ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t VALUES (1);
-SET GLOBAL innodb_monitor_reset = "module_innodb";
+SET GLOBAL innodb_monitor_disable="lock_row_lock_time";
+SET GLOBAL innodb_monitor_disable="lock_row_lock_time_max";
+SET GLOBAL innodb_monitor_reset_all='lock_row_lock_time';
+SET GLOBAL innodb_monitor_reset_all='lock_row_lock_time_max';
+SET GLOBAL innodb_monitor_enable="lock_row_lock_time";
+SET GLOBAL innodb_monitor_enable="lock_row_lock_time_max";
 BEGIN;
 SELECT * FROM t FOR UPDATE;
 id
 1
+SELECT @innodb_row_lock_time_before := variable_value
+FROM information_schema.global_status
+WHERE LOWER(variable_name) = 'innodb_row_lock_time';
 connect con1,localhost,root,,;
 SET innodb_lock_wait_timeout = 1;
 SELECT * FROM t FOR UPDATE;
@@ -12,29 +20,27 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 connection default;
 COMMIT;
-SELECT variable_value > 100 FROM information_schema.global_status
+SELECT variable_value - @innodb_row_lock_time_before > 100
+FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_row_lock_time';
-variable_value > 100
+variable_value - @innodb_row_lock_time_before > 100
 1
-SELECT variable_value > 100 FROM information_schema.global_status
+SELECT  variable_value > 100
+FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_row_lock_time_max';
 variable_value > 100
 1
-SELECT variable_value > 100 FROM information_schema.global_status
-WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg';
-variable_value > 100
-1
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
-WHERE NAME="lock_row_lock_time";
+SELECT count_reset > 100
+FROM INFORMATION_SCHEMA.INNODB_METRICS
+WHERE NAME='lock_row_lock_time';
 count_reset > 100
 1
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
-WHERE NAME="lock_row_lock_time_max";
-count_reset > 100
-1
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
-WHERE NAME="lock_row_lock_time_avg";
+SELECT count_reset > 100
+FROM INFORMATION_SCHEMA.INNODB_METRICS
+WHERE NAME='lock_row_lock_time_max';
 count_reset > 100
 1
 DROP TABLE t;
-SET GLOBAL innodb_monitor_reset=default;
+SET GLOBAL innodb_monitor_enable=default;
+SET GLOBAL innodb_monitor_disable=default;
+SET GLOBAL innodb_monitor_reset_all=default;
