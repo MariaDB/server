@@ -1047,9 +1047,9 @@ static void buf_block_init_low(buf_block_t *block) noexcept
   /* No adaptive hash index entries may point to a previously unused
   (and now freshly allocated) block. */
   MEM_MAKE_DEFINED(&block->index, sizeof block->index);
-  MEM_MAKE_DEFINED(&block->n_pointers, sizeof block->n_pointers);
   MEM_MAKE_DEFINED(&block->n_hash_helps, sizeof block->n_hash_helps);
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+  MEM_MAKE_DEFINED(&block->n_pointers, sizeof block->n_pointers);
   ut_a(!block->index);
   ut_a(!block->n_pointers);
   ut_a(!block->n_hash_helps);
