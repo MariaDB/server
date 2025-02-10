@@ -2116,4 +2116,16 @@ Warnings:
 Note	1051	Unknown table 'test.tmp'
 DROP PROCEDURE sp1;
 DROP TABLE t;
+#
+# MDEV-36057: Assertion failure or unexpected outcome upon 2nd execution
+#             of parameterized PS (continues the above)
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+PREPARE stmt FROM 'UPDATE t SET a = 3 WHERE a IN (SELECT "" UNION SELECT ?)';
+EXECUTE stmt USING 4;
+ERROR 22007: Truncated incorrect DECIMAL value: ''
+EXECUTE stmt USING 4;
+ERROR 22007: Truncated incorrect DECIMAL value: ''
+DROP TABLE t;
 # End of 11.7 Test

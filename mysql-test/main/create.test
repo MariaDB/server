@@ -1987,4 +1987,18 @@ call sp1();
 DROP PROCEDURE sp1;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-36057: Assertion failure or unexpected outcome upon 2nd execution
+--echo #             of parameterized PS (continues the above)
+--echo #
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+
+PREPARE stmt FROM 'UPDATE t SET a = 3 WHERE a IN (SELECT "" UNION SELECT ?)';
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt USING 4;
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt USING 4;
+DROP TABLE t;
+
 --echo # End of 11.7 Test
