@@ -4459,6 +4459,7 @@ Prepared_statement::execute_loop(String *expanded_query,
   Reprepare_observer reprepare_observer;
   bool error;
   iterations= FALSE;
+  bool params_are_set= false;
 
   /*
     - In mysql_sql_stmt_execute() we hide all "external" Items
@@ -4484,8 +4485,10 @@ Prepared_statement::execute_loop(String *expanded_query,
     return TRUE;
   }
 
-  if (set_parameters(expanded_query, packet, packet_end))
+reexecute:
+  if (!params_are_set && set_parameters(expanded_query, packet, packet_end))
     return TRUE;
+  params_are_set= true;
 #ifdef WITH_WSREP
   if (thd->wsrep_delayed_BF_abort)
   {
@@ -4493,7 +4496,7 @@ Prepared_statement::execute_loop(String *expanded_query,
     return TRUE;
   }
 #endif /* WITH_WSREP */
-reexecute:
+
   // Make sure that reprepare() did not create any new Items.
   DBUG_ASSERT(thd->free_list == NULL);
 
