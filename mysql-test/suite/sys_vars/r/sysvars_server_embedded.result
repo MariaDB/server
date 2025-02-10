@@ -2325,11 +2325,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_ADJUST_SECONDARY_KEY_COSTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	A bit field with the following values: adjust_secondary_key_cost = Update secondary key costs for ranges to be at least 5x of clustered primary key costs. disable_max_seek = Disable 'max_seek optimization' for secondary keys and slight adjustment of filter cost. disable_forced_index_in_group_by = Disable automatic forced index in GROUP BY. fix_innodb_cardinality = Disable doubling of the Cardinality for InnoDB secondary keys. fix_reuse_range_for_ref = Do a better job at reusing range access estimates when estimating ref access. fix_card_multiplier = Fix the computation in selectivity_for_indexes. selectivity_multiplier. This variable will be deleted in MariaDB 11.0 as it is not needed with the new 11.0 optimizer.
+VARIABLE_COMMENT	A bit field with the following values: adjust_secondary_key_cost = Update secondary key costs for ranges to be at least 5x of clustered primary key costs. disable_max_seek = Disable 'max_seek optimization' for secondary keys and slight adjustment of filter cost. disable_forced_index_in_group_by = Disable automatic forced index in GROUP BY. fix_innodb_cardinality = Disable doubling of the Cardinality for InnoDB secondary keys. fix_reuse_range_for_ref = Do a better job at reusing range access estimates when estimating ref access. fix_card_multiplier = Fix the computation in selectivity_for_indexes. fix_derived_table_read_cost = Fix the cost of reading materialized derived table. This variable will be deleted in MariaDB 11.0 as it is not needed with the new 11.0 optimizer.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by,fix_innodb_cardinality,fix_reuse_range_for_ref,fix_card_multiplier
+ENUM_VALUE_LIST	adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by,fix_innodb_cardinality,fix_reuse_range_for_ref,fix_card_multiplier,fix_derived_table_read_cost
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_EXTRA_PRUNING_DEPTH

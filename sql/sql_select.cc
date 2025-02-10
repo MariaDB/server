@@ -6001,7 +6001,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         s->table->opt_range_condition_rows=s->records;
       }
       else
+      {
+        /* Update s->records and s->read_time */
         s->scan_time();
+      }
 
       if (s->table->is_splittable())
         s->add_keyuses_for_splitting();
@@ -15468,6 +15471,7 @@ void JOIN_TAB::cleanup()
 double JOIN_TAB::scan_time()
 {
   double res;
+  THD *thd= join->thd;
   if (table->is_created())
   {
     if (table->is_filled_at_execution())
@@ -15488,10 +15492,53 @@ double JOIN_TAB::scan_time()
     }
     res= read_time;
   }
+  else if (!(thd->variables.optimizer_adjust_secondary_key_costs &
+             OPTIMIZER_ADJ_FIX_DERIVED_TABLE_READ_COST))
+  {
+    /*
+      Old code, do not merge into 11.0+:
+    */
+    found_records= records=table->stat_records();
+    read_time= found_records ? (double)found_records: 10.0;
+    res= read_time;
+  }
   else
   {
-    found_records= records=table->stat_records();
-    read_time= found_records ? (double)found_records: 10.0;// TODO:fix this stub
+    bool using_heap= 0;
+    TABLE_SHARE *share= table->s;
+    found_records= records= table->stat_records();
+
+    if (share->db_type() == heap_hton)
+    {
+      /* Check that the rows will fit into the heap table */
+      ha_rows max_rows;
+      max_rows= (ha_rows) ((MY_MIN(thd->variables.tmp_memory_table_size,
+                                   thd->variables.max_heap_table_size)) /
+                           MY_ALIGN(share->reclength, sizeof(char*)));
+      if (records <= max_rows)
+      {
+        /* The rows will fit into the heap table */
+        using_heap= 1;
+      }
+    }
+
+    /*
+      Code for the following is taken from the heap and aria storage engine.
+      In 11.# this is done without explict engine code
+    */
+    if (using_heap)
+      read_time= (records / 20.0) + 1;
+    else
+    {
+      handler *file= table->file;
+      file->stats.data_file_length= share->reclength * records;
+      /*
+        Call the default scan_time() method as this is the cost for the
+        scan when heap is converted to Aria
+      */
+      read_time= file->handler::scan_time();
+      file->stats.data_file_length= 0;
+    }
     res= read_time;
   }
   return res;
