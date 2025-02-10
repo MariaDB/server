@@ -19,7 +19,7 @@ a	b	c
 10	10	10
 explain select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t10	range	a	a	5	NULL	11	Using where
+1	SIMPLE	t10	range	a	a	5	NULL	11	Using index condition
 flush status;
 select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a desc, b desc;
 a	b	c
@@ -36,8 +36,8 @@ a	b	c
 10	10	10
 SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
 VARIABLE_NAME	VARIABLE_VALUE
-HANDLER_ICP_ATTEMPTS	0
-HANDLER_ICP_MATCH	0
+HANDLER_ICP_ATTEMPTS	11
+HANDLER_ICP_MATCH	11
 select * from t10 force index(a) where a between 10 and 20 and b+1 <3333 order by a asc, b asc;
 a	b	c
 10	10	10
@@ -77,15 +77,15 @@ a	b	c
 10	10	10
 explain select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t10	ref	a	a	5	const	1	Using where
+1	SIMPLE	t10	ref	a	a	5	const	1	Using index condition; Using where
 flush status;
 select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b desc;
 a	b	c
 10	10	10
 SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
 VARIABLE_NAME	VARIABLE_VALUE
-HANDLER_ICP_ATTEMPTS	0
-HANDLER_ICP_MATCH	0
+HANDLER_ICP_ATTEMPTS	1
+HANDLER_ICP_MATCH	1
 select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b asc;
 a	b	c
 10	10	10
@@ -105,15 +105,15 @@ a	b	c
 10	10	10
 explain select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t10	ref	a	a	5	const	1	Using where
+1	SIMPLE	t10	ref	a	a	5	const	1	Using index condition; Using where
 flush status;
 select * from t10 force index(a) where a=10 and b+1 <3333 order by a asc, b desc;
 a	b	c
 10	10	10
 SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
 VARIABLE_NAME	VARIABLE_VALUE
-HANDLER_ICP_ATTEMPTS	0
-HANDLER_ICP_MATCH	0
+HANDLER_ICP_ATTEMPTS	1
+HANDLER_ICP_MATCH	1
 select * from t10 force index(a) where a=10 and b+1 <3333 order by a desc, b asc;
 a	b	c
 10	10	10
@@ -135,15 +135,15 @@ a	b	c
 3	30	300
 explain select * from t1 where a >= 3 and a <= 3 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	1	Using where
+1	SIMPLE	t1	range	a	a	5	NULL	1	Using index condition
 flush status;
 select * from t1 where a >= 3 and a <= 3 order by a desc, b desc;
 a	b	c
 3	30	300
 SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
 VARIABLE_NAME	VARIABLE_VALUE
-HANDLER_ICP_ATTEMPTS	0
-HANDLER_ICP_MATCH	0
+HANDLER_ICP_ATTEMPTS	1
+HANDLER_ICP_MATCH	1
 select * from t1 where a >= 3 and a <= 3 order by a asc, b asc;
 a	b	c
 3	30	300
@@ -166,15 +166,15 @@ a	b	c
 2	20	200
 explain select * from t1 where a >= 2 and a <= 2 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	1	Using where
+1	SIMPLE	t1	range	a	a	5	NULL	1	Using index condition
 flush status;
 select * from t1 where a >= 2 and a <= 2 order by a desc, b desc;
 a	b	c
 2	20	200
 SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
 VARIABLE_NAME	VARIABLE_VALUE
-HANDLER_ICP_ATTEMPTS	0
-HANDLER_ICP_MATCH	0
+HANDLER_ICP_ATTEMPTS	1
+HANDLER_ICP_MATCH	1
 select * from t1 where a >= 2 and a <= 2 order by a asc, b asc;
 a	b	c
 2	20	200
@@ -214,7 +214,7 @@ a	b	c
 3	3	3
 explain select * from t1 where a >= 3 and a <= 7 order by a desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using where
+1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
 flush status;
 select * from t1 where a >= 3 and a <= 7 order by a desc;
 a	b	c
@@ -225,8 +225,8 @@ a	b	c
 3	3	3
 SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
 VARIABLE_NAME	VARIABLE_VALUE
-HANDLER_ICP_ATTEMPTS	0
-HANDLER_ICP_MATCH	0
+HANDLER_ICP_ATTEMPTS	6
+HANDLER_ICP_MATCH	6
 select * from t1 where a >= 3 and a <= 7 order by a desc, b desc;
 a	b	c
 7	7	7
@@ -236,7 +236,7 @@ a	b	c
 3	3	3
 explain select * from t1 where a >= 3 and a <= 7 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using where
+1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
 flush status;
 select * from t1 where a >= 3 and a <= 7 order by a desc, b desc;
 a	b	c
@@ -247,8 +247,8 @@ a	b	c
 3	3	3
 SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
 VARIABLE_NAME	VARIABLE_VALUE
-HANDLER_ICP_ATTEMPTS	0
-HANDLER_ICP_MATCH	0
+HANDLER_ICP_ATTEMPTS	6
+HANDLER_ICP_MATCH	6
 drop table t1;
 create table t1 (
 pk int primary key,
@@ -273,6 +273,6 @@ select * from t1 where kp1 between 950 and 960 and kp2+1 >33333 order by kp1 des
 pk	kp1	kp2	col1
 SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
 VARIABLE_NAME	VARIABLE_VALUE
-HANDLER_ICP_ATTEMPTS	0
+HANDLER_ICP_ATTEMPTS	11
 HANDLER_ICP_MATCH	0
 drop table t1;

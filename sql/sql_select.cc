@@ -25016,6 +25016,20 @@ join_read_last_key(JOIN_TAB *tab)
     report_error(table,error);
     return -1;
   }
+
+  /*
+    Tell the storage engine what the range endpoint is so that it can stop
+    scanning once it has hit that point.
+   */
+  key_range range_endpoint
+  {
+    tab->ref.key_buff,
+    tab->ref.key_length,
+    make_prev_keypart_map(tab->ref.key_parts),
+    HA_READ_PREFIX_LAST
+  };
+  table->file->set_end_range(&range_endpoint, handler::RANGE_SCAN_DESC);
+
   if (unlikely((error=
                 table->file->ha_index_read_map(table->record[0],
                                                tab->ref.key_buff,
@@ -27042,9 +27056,9 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
   @detail
     - Disable "Range checked for each record" (Is this strictly necessary
       here?)
-    - Disable Index Condition Pushdown and Rowid Filtering.
+    - Disable Rowid Filtering.
 
-  IndexConditionPushdownAndReverseScans, RowidFilteringAndReverseScans:
+  RowidFilteringAndReverseScans:
   Suppose we're computing
 
     select * from t1
@@ -27076,10 +27090,10 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
     }
 
   Note that the check whether we've walked beyond the key=10 endpoint is
-  made at the SQL layer. The storage engine has no information about the left
+  made at the SQL layer.  The storage engine has no information about the left
   endpoint of the interval we're scanning.  If all rows before that endpoint
-  do not satisfy ICP condition or do not pass the Rowid Filter, the storage
-  engine will enumerate the records until the table start.
+  do not pass the Rowid Filter, the storage engine will enumerate the records
+  until the table start.
 
   In MySQL, the API is extended with set_end_range() call so that the storage
   engine "knows" when to stop scanning.
@@ -27094,16 +27108,7 @@ static void prepare_for_reverse_ordered_access(JOIN_TAB *tab)
     tab->read_first_record= join_init_read_record;
   }
   /*
-    Cancel Pushed Index Condition, as it doesn't work for reverse scans.
-  */
-  if (tab->select && tab->select->pre_idx_push_select_cond)
-  {
-    tab->set_cond(tab->select->pre_idx_push_select_cond);
-     tab->table->file->cancel_pushed_idx_cond();
-  }
-  /*
-    The same with Rowid Filter: it doesn't work with reverse scans so cancel
-    it, too.
+    Rowid filtering does not work with reverse scans so cancel it.
   */
   {
     /*

@@ -3244,6 +3244,17 @@ class handler :public Sql_alloc
 {
 public:
   typedef ulonglong Table_flags;
+
+  /*
+    The direction of the current range or index scan. This is used by
+    the ICP implementation to determine if it has reached the end
+    of the current range.
+  */
+  enum enum_range_scan_direction {
+    RANGE_SCAN_ASC,
+    RANGE_SCAN_DESC
+  };
+
 protected:
   TABLE_SHARE *table_share;   /* The table definition */
   TABLE *table;               /* The current open table */
@@ -3259,6 +3270,7 @@ protected:
   */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
+
 public:
   handlerton *ht;               /* storage engine of this handler */
   OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
@@ -3285,7 +3297,11 @@ public:
 
   KEY_MULTI_RANGE mrr_cur_range;
 
-  /** The following are for read_range() */
+private:
+  /* Used by Index Condition Pushdown, handler_index_cond_check()/compare_key2() */
+  enum_range_scan_direction range_scan_direction{RANGE_SCAN_ASC};
+public:
+  /** The following are for read_range_first/next() and ICP */
   key_range save_end_range, *end_range;
   KEY_PART_INFO *range_key_part;
   int key_compare_result_on_equal;
@@ -3535,7 +3551,8 @@ public:
     DBUG_ASSERT(inited==INDEX);
     inited=       NONE;
     active_index= MAX_KEY;
-    end_range=    NULL;
+    end_range= NULL;
+    range_scan_direction= RANGE_SCAN_ASC;
     DBUG_RETURN(index_end());
   }
   /* This is called after index_init() if we need to do a index scan */
@@ -4335,7 +4352,8 @@ public:
                                const key_range *end_key,
                                bool eq_range, bool sorted);
   virtual int read_range_next();
-  void set_end_range(const key_range *end_key);
+  virtual void set_end_range(const key_range *end_key,
+                             enum_range_scan_direction direction = RANGE_SCAN_ASC);
   int compare_key(key_range *range);
   int compare_key2(key_range *range) const;
   virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }
