@@ -3191,11 +3191,9 @@ void wsrep_to_isolation_end(THD *thd)
 
   @param  requestor_ctx        The MDL context of the requestor
   @param  ticket               MDL ticket for the requested lock
+  @param  key                  The key of the object (data) being protected
 
-  @retval TRUE   Lock request can be granted
-  @retval FALSE  Lock request cannot be granted
 */
-
 void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_ticket *ticket,
                                const MDL_key *key)
@@ -3268,13 +3266,20 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
             (granted_thd->system_thread != NON_SYSTEM_THREAD &&
              granted_thd->mdl_context.has_explicit_locks()))
     {
-      WSREP_DEBUG("BF thread waiting for FLUSH");
+      WSREP_DEBUG("BF thread waiting for %s",
+                  granted_thd->lex->sql_command == SQLCOM_FLUSH ? "FLUSH" : "BACKUP");
       ticket->wsrep_report(wsrep_debug);
+
       if (granted_thd->current_backup_stage != BACKUP_FINISHED &&
 	  wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
       {
 	wsrep_abort_thd(request_thd, granted_thd, 1);
       }
+    }
+    else if (granted_thd->lex->sql_command == SQLCOM_LOCK_TABLES)
+    {
+      WSREP_DEBUG("BF thread waiting for LOCK TABLES");
+      ticket->wsrep_report(wsrep_debug);
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
