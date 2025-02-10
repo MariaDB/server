@@ -6367,7 +6367,7 @@ int ha_partition::read_range_first(const key_range *start_key,
 
   m_ordered= sorted;
   eq_range= eq_range_arg;
-  set_end_range(end_key);
+  set_end_range(end_key, RANGE_SCAN_ASC);
 
   range_key_part= m_curr_key_info[0]->key_part;
   if (start_key)

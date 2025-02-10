@@ -477,6 +477,12 @@ bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields)
   @param key_part		Key part handler
   @param key			Key to compare to value in table->record[0]
   @param key_length		length of 'key'
+  @param null_reason            If the key_part allows null and the value in
+                                the field is not null then this will be zero.
+                                If the key_part allows null and the value in
+                                the field is null, then this will be one.
+                                Whatever value is passed in will otherwise
+                                not be overwritten.
 
   @return
     The return value is SIGN(key_in_row - range_key):
@@ -485,7 +491,8 @@ bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields)
     -   1		Key is larger than range
 */
 
-int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
+int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length,
+            int *null_reason)
 {
   uint store_length;
 
@@ -503,13 +510,21 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
       if (*key)                                 // If range key is null
       {
 	/* the range is expecting a null value */
-	if (!field_is_null)
+        if (!field_is_null)
+        {
+          if (null_reason)
+            *null_reason= 0;                         // Because field not null
 	  return sort_order;                         // Found key is > range
+        }
         /* null -- exact match, go to next key part */
 	continue;
       }
       else if (field_is_null)
+      {
+        if (null_reason)
+          *null_reason= 1;                      // Because field is null
 	return -sort_order;                     // NULL is less than any value
+      }
       key++;					// Skip null byte
       store_length--;
     }

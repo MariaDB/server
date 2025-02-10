@@ -34,7 +34,8 @@ void key_unpack(String *to, TABLE *table, KEY *key);
 void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
                   bool prefix_key);
 bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields);
-int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length);
+int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length,
+            int *null_reason = nullptr);
 ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key);
 bool key_buf_cmp(KEY *key_info, uint used_key_parts,
                  const uchar *key1, const uchar *key2);

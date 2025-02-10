@@ -3295,6 +3295,16 @@ public:
   /** TRUE <=> we're currently traversing a range in mrr_cur_range. */
   bool mrr_have_range;
   bool eq_range;
+  /*
+    The direction of the current range or index scan. This is used by
+    the ICP implementation to determine if it has reached the end
+    of the current range.
+  */
+  enum enum_range_scan_direction {
+    RANGE_SCAN_ASC,
+    RANGE_SCAN_DESC
+  };
+  enum_range_scan_direction range_scan_direction{RANGE_SCAN_ASC};
   bool internal_tmp_table;                 /* If internal tmp table */
   bool implicit_emptied;                   /* Can be !=0 only if HEAP */
   bool mark_trx_read_write_done;           /* mark_trx_read_write was called */
@@ -4335,7 +4345,8 @@ public:
                                const key_range *end_key,
                                bool eq_range, bool sorted);
   virtual int read_range_next();
-  void set_end_range(const key_range *end_key);
+  void set_end_range(const key_range *end_key,
+                     enum_range_scan_direction direction = RANGE_SCAN_ASC);
   int compare_key(key_range *range);
   int compare_key2(key_range *range) const;
   virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }

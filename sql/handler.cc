@@ -7132,8 +7132,9 @@ int handler::read_range_first(const key_range *start_key,
   DBUG_ENTER("handler::read_range_first");
 
   eq_range= eq_range_arg;
-  set_end_range(end_key);
+  set_end_range(end_key, RANGE_SCAN_ASC);
   range_key_part= table->key_info[active_index].key_part;
+  range_scan_direction= RANGE_SCAN_ASC;
 
   if (!start_key)			// Read first record
     result= ha_index_first(table->record[0]);
@@ -7208,7 +7209,8 @@ int handler::read_range_next()
 }
 
 
-void handler::set_end_range(const key_range *end_key)
+void handler::set_end_range(const key_range *end_key,
+                            enum_range_scan_direction direction)
 {
   end_range= 0;
   if (end_key)
@@ -7218,6 +7220,8 @@ void handler::set_end_range(const key_range *end_key)
     key_compare_result_on_equal=
       ((end_key->flag == HA_READ_BEFORE_KEY) ? 1 :
        (end_key->flag == HA_READ_AFTER_KEY) ? -1 : 0);
+    range_scan_direction= direction;
+    range_key_part= table->key_info[active_index].key_part;
   }
 }
 
@@ -7259,9 +7263,19 @@ int handler::compare_key2(key_range *range) const
   int cmp;
   if (!range)
     return 0;					// no max range
-  cmp= key_cmp(range_key_part, range->key, range->length);
+  int null_reason= -1;
+  cmp= key_cmp(range_key_part, range->key, range->length, &null_reason);
   if (!cmp)
     cmp= key_compare_result_on_equal;
+  /*
+    If the call to key_cmp sets null_reason to 1, then keycmp already
+    flipped the sort order to accomodate nulls.  However, if we're
+    scanning in the reverse direction already, then don't flip the
+    flipped sort order back to the original as that will have the net
+    effect of incorrectly scanning in the ascending direction.
+  */
+  if (range_scan_direction == RANGE_SCAN_DESC && null_reason != 1)
+    cmp= -cmp;
   return cmp;
 }
 
