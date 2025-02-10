@@ -169,8 +169,6 @@ static const long AUTOINC_OLD_STYLE_LOCKING = 0;
 static const long AUTOINC_NEW_STYLE_LOCKING = 1;
 static const long AUTOINC_NO_LOCKING = 2;
 
-static constexpr size_t buf_pool_chunk_min_size= 1U << 20;
-
 static ulong innobase_open_files;
 static long innobase_autoinc_lock_mode;
 
