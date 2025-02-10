@@ -2781,11 +2781,9 @@ void wsrep_to_isolation_end(THD *thd)
 
   @param  requestor_ctx        The MDL context of the requestor
   @param  ticket               MDL ticket for the requested lock
+  @param  key                  The key of the object (data) being protected
 
-  @retval TRUE   Lock request can be granted
-  @retval FALSE  Lock request cannot be granted
 */
-
 void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_ticket *ticket,
                                const MDL_key *key)
@@ -2857,6 +2855,13 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
              granted_thd->mdl_context.has_explicit_locks())
     {
       WSREP_DEBUG("BF thread waiting for FLUSH");
+      ticket->wsrep_report(wsrep_debug);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
+    }
+    else if (granted_thd->lex->sql_command == SQLCOM_LOCK_TABLES)
+    {
+      WSREP_DEBUG("BF thread waiting for LOCK TABLES");
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
