@@ -1,0 +1,38 @@
+# Embedded server doesn't support external clients
+--source include/not_embedded.inc
+
+--echo # Start of 10.5 tests
+
+--echo #
+--echo # MDEV-29968 Functions in default values in tables with some character sets break SHOW CREATE (and mysqldump)
+--echo #
+
+SET NAMES utf8mb4;
+--let $table_charset=CHARACTER SET utf32
+--source include/ctype_supplementary_chars.inc
+
+--echo # Running dump
+--let $mysqldumpfile = $MYSQLTEST_VARDIR/tmp/ctype_utf32_not_embedded_dump.sql
+--exec $MYSQL_DUMP test > $mysqldumpfile
+
+DROP TABLE t1, t2, t3, t4, t5;
+
+--echo # Running restore
+--exec $MYSQL test < $mysqldumpfile
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+SHOW CREATE TABLE t3;
+SELECT * FROM t3;
+SHOW CREATE TABLE t4;
+SELECT * FROM t4;
+SHOW CREATE TABLE t5;
+SELECT * FROM t5;
+
+DROP TABLE t1, t2, t3, t4, t5;
+
+--error 0,1
+--remove_file $mysqldumpfile
+
+--echo # End of 10.5 tests

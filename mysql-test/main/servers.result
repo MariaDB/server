@@ -62,7 +62,7 @@ create or replace server srv foreign data wrapper Foo options
 show create server srv;
 Server	Create Server
 srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', port '54321', wait_what 'it''s all good', foo 'bar');
-alter server srv options (socket "sock", port 123, foo "", bar ")\"{");
+alter server srv options (socket "sock", port 123, foo "", bar ')"{');
 show create server srv;
 Server	Create Server
 srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', socket 'sock', port '123', foo '', bar ')"{');
@@ -83,3 +83,12 @@ create or replace server srv foreign data wrapper mysql options
 show create server nonexist;
 ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  nonexist
 drop server srv;
+#
+# MDEV-35557 SIGSEGV in get_server_from_table_to_cache | servers_load, UBSAN null pointer passed as argument 1, which is declared to never be null
+#
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
+ALTER TABLE mysql.servers ENGINE=InnoDB;
+FLUSH PRIVILEGES;
+ALTER TABLE mysql.servers ENGINE=Aria;
+FLUSH PRIVILEGES;
+drop server s1;

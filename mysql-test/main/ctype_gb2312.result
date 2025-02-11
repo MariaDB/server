@@ -5323,5 +5323,14 @@ EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
 ERROR HY000: Invalid gb2312 character string: '\xA2\xA1'
 SET sql_mode=DEFAULT;
 #
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_gb2312'' collate gb2312_chinese_nopad_ci, _gb2312 0x0001050001) as c1;
+c1
+-1
+select strcmp(_gb2312'' collate gb2312_nopad_bin, _gb2312 0x0001050001) as c1;
+c1
+-1
+#
 # End of 10.5 tests
 #

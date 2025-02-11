@@ -1379,7 +1379,9 @@ Master_info_index::get_master_info(const LEX_CSTRING *connection_name,
               connection_name->str));
 
   /* Make name lower case for comparison */
-  IdentBufferCasedn<MAX_CONNECTION_NAME> buff(*connection_name);
+  IdentBufferCasedn<MAX_CONNECTION_NAME> buff(connection_name->str ?
+                                              *connection_name :
+                                              empty_clex_str);
   mi= (Master_info*) my_hash_search(&master_info_hash,
                                     (const uchar*) buff.ptr(), buff.length());
   if (!mi && warning != Sql_condition::WARN_LEVEL_NOTE)

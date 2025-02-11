@@ -474,3 +474,18 @@ drop table t1;
 set in_predicate_conversion_threshold=default;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-32575 MSAN / Valgrind errors in test_if_cheaper_ordering
+--echo #            upon reaching in_predicate_conversion_threshold
+--echo #
+
+create table t1 (a int, b int, c int, primary key (a, b));
+insert into t1 (a, b) values (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8);
+
+set in_predicate_conversion_threshold = 2;
+select * from t1 where a in (1, 2) and b = 2 order by a, b;
+
+drop table t1;
+
+--echo # End of 11.4 tests

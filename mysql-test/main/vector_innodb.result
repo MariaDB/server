@@ -227,3 +227,97 @@ connection con1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 drop table t;
 disconnect con1;
+connection default;
+#
+# MDEV-35338 - Non-copying ALTER does not pad VECTOR column,
+#              vector search further does not work
+#
+create or replace table t (a int, v vector(1) not null, primary key (a)) engine=InnoDB;
+insert into t values (1,0x38383838),(2,0x37373737),(3,0x31313131);
+alter table t modify v vector(2) not null;
+select hex(v) from t order by a;
+hex(v)
+3838383800000000
+3737373700000000
+3131313100000000
+drop table t;
+#
+# MDEV-35793: Server crashes in
+# Item_func_vec_distance_common::get_const_arg
+#
+create table t (pk int primary key, v vector(1) not null, vector(v)) engine=innodb;
+insert into t values (1,0x31313131),(2,0x32323232);
+select distinct vec_distance_euclidean(v, 0x30303030) as d from t order by pk;
+d
+0.00000
+0.00000
+drop table t;
+#
+# MDEV-36005 Server crashes when checking/updating a table having vector key after enabling innodb_force_primary_key
+#
+create table t (v vector (3) not null,vector index (v)) engine=innodb;
+set global innodb_force_primary_key=1;
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+set global innodb_force_primary_key=0;
+drop table t;
+create table t (v vector (1) not null,vector index (v)) engine=innodb;
+set global innodb_force_primary_key=1;
+insert into t values (0x31313131);
+insert into t values (0x32323232);
+drop table t;
+create table t (v vector (1) not null,vector index (v)) engine=innodb;
+ERROR 42000: This table type requires a primary key
+set global innodb_force_primary_key=0;
+#
+# MDEV-35922 Server crashes in mhnsw_read_first upon using vector key with views
+#
+create table t (pk int primary key, v vector(1) not null, vector(v)) engine=innodb;
+insert into t values (1,0x31313131),(2,0x32323232);
+create view v as select * from t;
+select pk from v order by vec_distance_euclidean(v, 0x30303030) limit 2;
+pk
+1
+2
+drop view v;
+drop table t;
+#
+# MDEV-35069 - IMPORT TABLESPACE does not work for tables with vector,
+#              although allowed
+#
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v) m=5) engine=InnoDB;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+create table t2 like t1;
+alter table t2 discard tablespace;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t2 order by d limit 3;
+ERROR HY000: Tablespace has been discarded for table `t2`
+flush table t1 for export;
+db.opt
+t1#i#01.cfg
+t1#i#01.ibd
+t1.cfg
+t1.frm
+t1.ibd
+t2.frm
+unlock tables;
+alter table t2 import tablespace;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t2 order by d limit 3;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+drop table t1, t2;
+# End of 11.7 tests

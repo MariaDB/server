@@ -1279,6 +1279,8 @@ public:
     return mark_unsupported_function(fully_qualified_func_name().str, arg,
                                      VCOL_SESSION_FUNC);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_current_user>(thd, this); }
 };
 
 class Item_func_session_user :public Item_func_user

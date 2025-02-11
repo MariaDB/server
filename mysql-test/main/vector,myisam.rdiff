@@ -509,3 +509,10 @@
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  drop table t1;
+@@ -877,5 +877,5 @@
+ t	CREATE TABLE `t` (
+   `v` vector(1) NOT NULL,
+   VECTOR KEY `v` (`v`) `distance`=cosine
+-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ drop table t;

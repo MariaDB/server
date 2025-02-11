@@ -497,14 +497,11 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 	return(bit);
 }
 
-/*********************************************************************//**
-Gets the first or next record lock on a page.
+/** Gets the first or next record lock on a page.
+@param lock a record lock
 @return next lock, NULL if none exists */
 UNIV_INLINE
-lock_t*
-lock_rec_get_next_on_page(
-/*======================*/
-	lock_t*		lock);		/*!< in: a record lock */
+lock_t *lock_rec_get_next_on_page(const lock_t *lock);
 
 /*********************************************************************//**
 Gets the next explicit lock request on a record.

@@ -9732,8 +9732,7 @@ String *Field_set::val_str(String *val_buffer,
   ulonglong tmp=(ulonglong) Field_enum::val_int();
   uint bitnr=0;
 
-  val_buffer->set_charset(field_charset());
-  val_buffer->length(0);
+  val_buffer->copy("", 0, field_charset());
 
   while (tmp && bitnr < (uint) m_typelib->count)
   {

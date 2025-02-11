@@ -420,12 +420,7 @@ public:
   @tparam storing   whether to store the records
   @param  if_exists storing=YES: whether to check if the tablespace exists */
   template<store storing>
-  static parse_mtr_result parse_mmap(bool if_exists) noexcept
-#ifdef HAVE_INNODB_MMAP
-    ;
-#else
-  { return parse_mtr<storing>(if_exists); }
-#endif
+  static parse_mtr_result parse_mmap(bool if_exists) noexcept;
 
   /** Erase log records for a page. */
   void erase(map::iterator p);

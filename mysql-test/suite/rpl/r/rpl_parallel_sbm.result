@@ -68,6 +68,7 @@ connection server_2;
 UNLOCK TABLES;
 include/sync_with_master_gtid.inc
 # MDEV-33856: New definition for Seconds_Behind_Master
+# Waiting for slave timing statistics to update ..
 # Ensuring Slave_last_event_time is now up-to-date once event is executed
 # ..done
 #

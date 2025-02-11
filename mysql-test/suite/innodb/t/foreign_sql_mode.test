@@ -1,0 +1,129 @@
+--source include/have_innodb.inc
+--source alter_sql_mode.inc
+call mtr.add_suppression("InnoDB: In ALTER TABLE .* has or is referenced in foreign key constraints which are not compatible with the new table definition.");
+
+let $combination=`select regexp_replace('$MTR_COMBINATIONS', 'innodb,\|,innodb', '')`;
+
+let $copy_algo=`select ((strcmp(substring_index('$combination', ",", 1), "COPY") = 0) or (strcmp(substring_index('$combination', ",", -1), "COPY") = 0))`;
+
+let $inplace_algo=`select ((strcmp(substring_index('$combination', ",", 1), "INPLACE") = 0) or (strcmp(substring_index('$combination', ",", -1), "INPLACE") = 0))`;
+
+let $algorithm=COPY;
+if ($inplace_algo)
+{
+  let $algorithm=INPLACE;
+}
+let $sql_mode = `SELECT @@SQL_MODE`;
+let $error_code = 0;
+if ($sql_mode == "STRICT_TRANS_TABLES") {
+ let $error_code = ER_FK_COLUMN_NOT_NULL;
+}
+
+--echo # modify child column NOT NULL on UPDATE CASCADE..parent column NULL
+CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT, FOREIGN KEY(f1) REFERENCES t1(f2) ON UPDATE CASCADE)ENGINE=InnoDB;
+replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '';
+--error $error_code
+eval ALTER TABLE t2 MODIFY COLUMN f1 INT NOT NULL,ALGORITHM=$algorithm;
+INSERT INTO t1 VALUES(1, 1);
+INSERT INTO t2 VALUES(1);
+
+let $dml_error_code = ER_ROW_IS_REFERENCED_2;
+if ($sql_mode == "STRICT_TRANS_TABLES")
+{
+  let $dml_error_code = 0;
+}
+
+--error $dml_error_code
+UPDATE t1 SET f2= NULL;
+DELETE FROM t2;
+SELECT * FROM t1;
+UPDATE t1 SET f2 = NULL;
+SELECT * FROM t1;
+DROP TABLE t2, t1;
+
+let $error_code= ER_ERROR_ON_RENAME;
+if ($algorithm == "INPLACE")
+{
+  let $error_code= ER_FK_COLUMN_NOT_NULL;
+}
+
+if ($sql_mode == "STRICT_TRANS_TABLES")
+{
+  let $error_code = ER_FK_COLUMN_NOT_NULL;
+}
+
+# Modifying referenced column from NULL to NOT NULL fails when foreign
+# clause is ON UPDATE SET NULL or ON DELETE SET NULL irrespective
+# of SQL_MODE variable. This is the behaviour even before MDEV-34392
+
+--echo # modify child column NOT NULL ON UPDATE SET NULL
+CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT, f2 INT, FOREIGN KEY(f1) REFERENCES t1(f1) ON UPDATE SET NULL)ENGINE=InnoDB;
+replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '';
+--replace_regex  /Error on rename of '.*' to '.*'/Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME'/
+--error $error_code
+eval ALTER TABLE t2 MODIFY COLUMN f1 INT NOT NULL,ALGORITHM=$algorithm;
+INSERT INTO t1 VALUES(1, 1);
+INSERT INTO t2 VALUES(1, 1);
+UPDATE t1 SET f1= 2;
+SELECT * FROM t2;
+DROP TABLE t2, t1;
+
+--echo # modify child column NOT NULL ON DELETE SET NULL
+CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT, f2 INT, FOREIGN KEY (f2) REFERENCES t1(f2) ON DELETE SET NULL)ENGINE=InnoDB;
+replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '';
+--replace_regex  /Error on rename of '.*' to '.*'/Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME'/
+--error $error_code
+eval ALTER TABLE t2 MODIFY COLUMN f2 INT NOT NULL,ALGORITHM=$algorithm;
+DROP TABLE t2, t1;
+
+if ($sql_mode == "STRICT_TRANS_TABLES")
+{
+  let $dml_error_code = ER_BAD_NULL_ERROR;
+}
+
+let $error_code= 0;
+if ($sql_mode == "STRICT_TRANS_TABLES")
+{
+  let $error_code = ER_FK_COLUMN_CANNOT_CHANGE_CHILD;
+}
+
+--echo # modify parent column NULL ON UPDATE CASCADE child column NOT NULL
+CREATE TABLE `t#1`(f1 INT, f2 INT NOT NULL, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
+CREATE TABLE `t#2`(f1 INT NOT NULL,
+                   FOREIGN KEY(f1) REFERENCES `t#1`(f2)
+                   ON UPDATE CASCADE)ENGINE=InnoDB;
+replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '';
+--error $error_code
+eval ALTER TABLE `t#1` MODIFY COLUMN f2 INT,ALGORITHM=$algorithm;
+INSERT INTO `t#1` VALUES(1, 1);
+INSERT INTO `t#2` VALUES(1);
+--error $dml_error_code
+UPDATE `t#1` SET f2= NULL;
+DELETE FROM `t#2`;
+SELECT * FROM `t#1`;
+DROP TABLE `t#2`, `t#1`;
+
+let $error_code= 0;
+if ($sql_mode == "STRICT_TRANS_TABLES")
+{
+  let $error_code = ER_CANT_CREATE_TABLE;
+}
+
+CREATE TABLE t1(f1 INT NOT NULL AUTO_INCREMENT,
+                f2 INT DEFAULT NULL,
+		PRIMARY KEY(f1),
+		FOREIGN KEY(f2) REFERENCES t1(f1))ENGINE=InnoDB;
+--error $error_code
+CREATE TABLE t2 (f1 INT NOT NULL,
+		 f2 INT NOT NULL,
+		 f3 INT DEFAULT NULL,
+		 PRIMARY KEY(f1, f2),
+		 FOREIGN KEY(f2, f3) REFERENCES t1(f2, f1)
+		 ON UPDATE CASCADE)ENGINE=InnoDB;
+--disable_warnings
+DROP TABLE IF EXISTS t2;
+--enable_warnings
+DROP TABLE IF EXISTS t1;

@@ -287,7 +287,7 @@ end:
 
 static bool servers_load(THD *thd, TABLE_LIST *tables)
 {
-  TABLE *table;
+  TABLE *table= tables[0].table;
   READ_RECORD read_record_info;
   bool return_val= TRUE;
   DBUG_ENTER("servers_load");
@@ -296,7 +296,8 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
   free_root(&mem, MYF(0));
   init_sql_alloc(key_memory_servers, &mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
-  if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
+  table->use_all_columns();
+  if (init_read_record(&read_record_info,thd,table, NULL, NULL,
                        1,0, FALSE))
     DBUG_RETURN(1);
   while (!(read_record_info.read_record()))
@@ -373,6 +374,45 @@ end:
   DBUG_RETURN(return_val);
 }
 
+static bool parse_server_options_json(FOREIGN_SERVER *server, char *ptr)
+{
+  enum json_types vt;
+  const char *keyname, *keyname_end, *v;
+  int v_len, nkey= 0;
+  engine_option_value *option_list_last;
+  DBUG_ENTER("parse_server_options_json");
+  while ((vt= json_get_object_nkey(ptr, ptr+strlen(ptr), nkey++,
+                    &keyname, &keyname_end, &v, &v_len)) != JSV_NOTHING)
+  {
+    if (vt != JSV_STRING)
+      DBUG_RETURN(TRUE);
+    /*
+      We have to make copies here to create "clean" strings and
+      avoid mutating ptr.
+    */
+    Lex_cstring name= {keyname, keyname_end}, value= {v, v + v_len},
+      name_copy= safe_lexcstrdup_root(&mem, name),
+      value_copy= safe_lexcstrdup_root(&mem, value);
+    engine_option_value *option= new (&mem) engine_option_value(
+      engine_option_value::Name(name_copy),
+      engine_option_value::Value(value_copy), true);
+    option->link(&server->option_list, &option_list_last);
+    if (option->value.length)
+    {
+      LEX_CSTRING *optval= &option->value;
+      char *unescaped= (char *) alloca(optval->length);
+      int len= json_unescape_json(optval->str, optval->str + optval->length,
+                                  unescaped, unescaped + optval->length);
+      if (len < 0)
+        DBUG_RETURN(TRUE);
+      DBUG_ASSERT(len <= (int) optval->length);
+      if (len < (int) optval->length)
+        strncpy((char *) optval->str, unescaped, len);
+      optval->length= len;
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
 
 /*
   Initialize structures responsible for servers used in federated
@@ -409,7 +449,6 @@ get_server_from_table_to_cache(TABLE *table)
   FOREIGN_SERVER *server= (FOREIGN_SERVER *)alloc_root(&mem,
                                                        sizeof(FOREIGN_SERVER));
   DBUG_ENTER("get_server_from_table_to_cache");
-  table->use_all_columns();
 
   /* get each field into the server struct ptr */
   ptr= get_field(&mem, table->field[0]);
@@ -435,41 +474,9 @@ get_server_from_table_to_cache(TABLE *table)
   ptr= get_field(&mem, table->field[8]);
   server->owner= ptr ? ptr : blank;
   ptr= get_field(&mem, table->field[9]);
-  enum json_types vt;
-  const char *keyname, *keyname_end, *v;
-  int v_len, nkey= 0;
-  engine_option_value *option_list_last;
   server->option_list= NULL;
-  while ((vt= json_get_object_nkey(ptr, ptr+strlen(ptr), nkey++,
-                    &keyname, &keyname_end, &v, &v_len)) != JSV_NOTHING)
-  {
-    if (vt != JSV_STRING)
-      DBUG_RETURN(TRUE);
-    /*
-      We have to make copies here to create "clean" strings and
-      avoid mutating ptr.
-    */
-    Lex_cstring name= {keyname, keyname_end}, value= {v, v + v_len},
-      name_copy= safe_lexcstrdup_root(&mem, name),
-      value_copy= safe_lexcstrdup_root(&mem, value);
-    engine_option_value *option= new (&mem) engine_option_value(
-      engine_option_value::Name(name_copy),
-      engine_option_value::Value(value_copy), true);
-    option->link(&server->option_list, &option_list_last);
-    if (option->value.length)
-    {
-      LEX_CSTRING *optval= &option->value;
-      char *unescaped= (char *) alloca(optval->length);
-      int len= json_unescape_json(optval->str, optval->str + optval->length,
-                                  unescaped, unescaped + optval->length);
-      if (len < 0)
-        DBUG_RETURN(TRUE);
-      DBUG_ASSERT(len <= (int) optval->length);
-      if (len < (int) optval->length)
-        strncpy((char *) optval->str, unescaped, len);
-      optval->length= len;
-    }
-  }
+  if (ptr && parse_server_options_json(server, ptr))
+    DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("server->server_name %s", server->server_name));
   DBUG_PRINT("info", ("server->host %s", server->host));
   DBUG_PRINT("info", ("server->db %s", server->db));

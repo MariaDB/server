@@ -3350,9 +3350,12 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
                        MyFlags));
 
   DBUG_ASSERT(str != NULL);
+  DBUG_ASSERT(*str != '\0');
   DBUG_ASSERT(error != 0);
   DBUG_ASSERT((MyFlags & ~(ME_BELL | ME_ERROR_LOG | ME_ERROR_LOG_ONLY |
                            ME_NOTE | ME_WARNING | ME_FATAL)) == 0);
+
+  DBUG_ASSERT(str[strlen(str)-1] != '\n');
 
   if (MyFlags & ME_NOTE)
   {
@@ -3752,22 +3755,14 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         LOCK_thd_kill here (the limit will be enforced on the next allocation).
       */
       if (!mysql_mutex_trylock(&thd->LOCK_thd_kill)) {
-        char buf[50], *buf2;
+        char buf[50], buf2[256];
         thd->set_killed_no_mutex(KILL_QUERY);
         my_snprintf(buf, sizeof(buf), "--max-session-mem-used=%llu",
                     thd->variables.max_mem_used);
-        if ((buf2= thd->alloc(256)))
-        {
-          my_snprintf(buf2, 256,
-                      ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
-          thd->set_killed_no_mutex(KILL_QUERY,
-                                   ER_OPTION_PREVENTS_STATEMENT, buf2);
-        }
-        else
-        {
-          thd->set_killed_no_mutex(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT,
-                          "--max-session-mem-used");
-        }
+        my_snprintf(buf2, 256,
+                    ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
+        thd->set_killed_no_mutex(KILL_QUERY,
+                                 ER_OPTION_PREVENTS_STATEMENT, buf2);
         mysql_mutex_unlock(&thd->LOCK_thd_kill);
       }
     }
@@ -7468,7 +7463,7 @@ static int show_max_memory_used(THD *thd, SHOW_VAR *var, void *buff,
 }
 
 
-static int show_binlog_space_total(THD *thd, SHOW_VAR *var, char *buff,
+static int show_binlog_space_total(THD *thd, SHOW_VAR *var, void *buff,
                                    struct system_status_var *status_var,
                                    enum enum_var_type scope)
 {
@@ -7556,8 +7551,8 @@ static int show_threadpool_threads(THD *, SHOW_VAR *var, void *buff,
 #endif
 
 
-static int show_cached_thread_count(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_cached_thread_count(THD *thd, SHOW_VAR *var, void *buff,
+                                    system_status_var *, enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -10064,7 +10059,7 @@ void init_server_psi_keys(void)
 
 */
 
-static my_thread_id thread_id_max= UINT_MAX32;
+static my_thread_id thread_id_max= MY_THREAD_ID_MAX;
 
 #include <vector>
 #include <algorithm>

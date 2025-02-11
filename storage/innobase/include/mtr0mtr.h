@@ -684,7 +684,7 @@ private:
 
   /** Write a FILE_MODIFY record when a non-predefined persistent
   tablespace was modified for the first time since fil_names_clear(). */
-  ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write();
+  ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write() noexcept;
 
   /** Encrypt the log */
   ATTRIBUTE_NOINLINE void encrypt();

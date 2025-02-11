@@ -646,8 +646,8 @@ void add_compiled_extra_collation(struct charset_info_st *cs)
   corresponding utf8mb4_1400 collation
 */
 
-my_bool add_alias_for_collation(LEX_CSTRING *collation_name, LEX_CSTRING *alias,
-                                uint alias_id)
+my_bool add_alias_for_collation(LEX_CSTRING *collation_name, uint org_id,
+                                LEX_CSTRING *alias, uint alias_id)
 {
   char *coll_name, *comment;
   struct charset_info_st *new_ci;
@@ -655,12 +655,17 @@ my_bool add_alias_for_collation(LEX_CSTRING *collation_name, LEX_CSTRING *alias,
   MY_CHARSET_LOADER loader;
   char comment_buff[64+15];
   size_t comment_length;
-  uint org_id= get_collation_number_internal(collation_name->str);
-  DBUG_ASSERT(org_id);
   DBUG_ASSERT(all_charsets[org_id]);
 
   if (!(org= all_charsets[org_id]))
     return 1;
+
+  DBUG_ASSERT(!strcmp(org->coll_name.str, collation_name->str));
+#ifdef DEBUG_PRINT_ALIAS
+  fprintf(stderr, "alias: %s collation: %s org_id: %u\n",
+          alias->str, collation_name->str, org_id);
+#endif
+
   /*
     We have to init the character set to ensure it is not changed after we copy
     it.

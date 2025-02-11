@@ -101,14 +101,11 @@ lock_rec_set_nth_bit(
 	lock->trx->lock.set_nth_bit_calls++;
 }
 
-/*********************************************************************//**
-Gets the first or next record lock on a page.
+/** Gets the first or next record lock on a page.
+@param lock a record lock
 @return	next lock, NULL if none exists */
 UNIV_INLINE
-lock_t*
-lock_rec_get_next_on_page(
-/*======================*/
-	lock_t*	lock)	/*!< in: a record lock */
+lock_t *lock_rec_get_next_on_page(const lock_t *lock)
 {
   return const_cast<lock_t*>(lock_rec_get_next_on_page_const(lock));
 }
@@ -167,14 +164,11 @@ lock_rec_get_nth_bit(
 	return(1 & *b >> (i % 8));
 }
 
-/*********************************************************************//**
-Gets the first or next record lock on a page.
+/** Gets the first or next record lock on a page.
+@param lock a record lock
 @return next lock, NULL if none exists */
 UNIV_INLINE
-const lock_t*
-lock_rec_get_next_on_page_const(
-/*============================*/
-	const lock_t*	lock)	/*!< in: a record lock */
+const lock_t *lock_rec_get_next_on_page_const(const lock_t *lock)
 {
   ut_ad(!lock->is_table());
 
