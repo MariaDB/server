@@ -967,7 +967,7 @@ buf_LRU_block_free_non_file_page(
 		page_zip_set_size(&block->page.zip, 0);
 	}
 
-	if (buf_pool.is_shrinking() && buf_pool.withdraw(block->page)) {
+	if (buf_pool.to_withdraw() && buf_pool.withdraw(block->page)) {
 	} else {
 		UT_LIST_ADD_FIRST(buf_pool.free, &block->page);
 		ut_d(block->page.in_free_list = true);

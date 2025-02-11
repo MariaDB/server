@@ -1463,12 +1463,19 @@ public:
   size_t is_shrinking() const noexcept
   {
     mysql_mutex_assert_owner(&mutex);
+    return n_blocks_to_withdraw + UT_LIST_GET_LEN(withdrawn);
+  }
+
+  /** @return number of blocks in resize() waiting to be withdrawn */
+  size_t to_withdraw() const noexcept
+  {
+    mysql_mutex_assert_owner(&mutex);
     return n_blocks_to_withdraw;
   }
 
   /** @return the shrinking size of the buffer pool, in bytes
   @retval 0 if resize() is not shrinking the buffer pool */
-  size_t shrinking_size() const
+  size_t shrinking_size() const noexcept
   { return is_shrinking() ? size_in_bytes_requested : 0; }
 
 #ifdef UNIV_DEBUG
