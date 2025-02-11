@@ -373,6 +373,7 @@ struct chunk_data_cache : public chunk_data_base {
 
 
 class gtid_search {
+public:
   /*
     Note that this enum is set up to be compatible with int results -1/0/1 for
     error/not found/fount from read_gtid_state_from_page().
@@ -383,7 +384,6 @@ class gtid_search {
     READ_NOT_FOUND= 0,
     READ_FOUND= 1
   };
-public:
   gtid_search();
   ~gtid_search();
   enum Read_Result read_gtid_state_file_no(rpl_binlog_state_base *state,
@@ -2208,6 +2208,25 @@ innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
   return false;
 }
 
+
+bool
+innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
+{
+  gtid_search search_obj;
+  uint64_t dummy_file_end, dummy_diff_state_interval;
+  bool err= false;
+
+  mysql_mutex_lock(&purge_binlog_mutex);
+  uint64_t file_no= earliest_binlog_file_no;
+  enum gtid_search::Read_Result res=
+    search_obj.read_gtid_state_file_no(out_state, file_no, 0, &dummy_file_end,
+                                       &dummy_diff_state_interval);
+  mysql_mutex_unlock(&purge_binlog_mutex);
+  if (res != gtid_search::READ_FOUND)
+    err= true;
+  return err;
+
+}
 
 bool
 innodb_reset_binlogs()

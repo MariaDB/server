@@ -108,6 +108,7 @@ extern bool innobase_binlog_write_direct
   (IO_CACHE *cache, handler_binlog_event_group_info *binlog_info,
    const rpl_gtid *gtid);
 extern bool innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last);
+extern bool innodb_binlog_get_init_state(rpl_binlog_state_base *out_state);
 extern bool innodb_reset_binlogs();
 extern int innodb_binlog_purge(handler_binlog_purge_info *purge_info);
 

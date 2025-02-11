@@ -8337,6 +8337,7 @@ static int do_delete_gtid_domain(DYNAMIC_ARRAY *domain_drop_lex)
   IO_CACHE cache;
   const char* errmsg= NULL;
   char errbuf[MYSQL_ERRMSG_SIZE]= {0};
+  rpl_binlog_state_base init_state;
 
   if (!domain_drop_lex)
     return 0; // still "effective" having empty domain sequence to delete
@@ -8357,8 +8358,16 @@ static int do_delete_gtid_domain(DYNAMIC_ARRAY *domain_drop_lex)
                   errmsg= "injected error";);
   if (errmsg)
     goto end;
+
+  init_state.init();
+  if (init_state.load_nolock(glev->list, glev->count))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    rc= -1;
+    goto err;
+  }
   errmsg= rpl_global_gtid_binlog_state.drop_domain(domain_drop_lex,
-                                                   glev, errbuf);
+                                                   &init_state, errbuf);
 
 end:
   if (errmsg)
@@ -8373,6 +8382,7 @@ end:
       rc= 1;
     }
   }
+err:
   delete glev;
 
   return rc;
@@ -8433,6 +8443,67 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
 }
 
 
+/**
+  Remove a list of domains from the in-memory global binlog state, after
+  checking that deletion is safe. "Safe" in this context means that there
+  are no GTID present with the domain in any of the existing binlog files
+  (ie. the binlog files where that domain was used have all been purged).
+  This is checked by comparing the binlog state at the beginning of the
+  earliest current binlog file with the current binlog state.
+
+  @param  domain_drop_lex  gtid domain id sequence from lex.
+                           Passed as a pointer to dynamic array must be not empty
+                           unless pointer value NULL.
+  @retval zero             on success
+  @retval > 0              ineffective call none from the *non* empty
+                           gtid domain sequence is deleted
+  @retval < 0              on error
+*/
+static int
+binlog_engine_delete_gtid_domain(DYNAMIC_ARRAY *domain_drop_lex)
+{
+  int rc= 0;
+  const char* errmsg= NULL;
+  char errbuf[MYSQL_ERRMSG_SIZE]= {0};
+  rpl_binlog_state_base init_state;
+
+  if (!domain_drop_lex)
+    return 0; // still "effective" having empty domain sequence to delete
+
+  DBUG_ASSERT(domain_drop_lex->elements > 0);
+  DBUG_ASSERT(opt_binlog_engine_hton);
+  mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
+
+  if (!opt_binlog_engine_hton->binlog_get_init_state)
+  {
+    my_error(ER_ENGINE_BINLOG_NO_DELETE_DOMAIN, MYF(0));
+    return -1;
+  }
+
+  init_state.init();
+  if ((*opt_binlog_engine_hton->binlog_get_init_state)(&init_state))
+  {
+    my_error(ER_BINLOG_CANNOT_READ_STATE, MYF(0));
+    return -1;
+  }
+  errmsg= rpl_global_gtid_binlog_state.drop_domain(domain_drop_lex,
+                                                   &init_state, errbuf);
+  if (errmsg)
+  {
+    if (strlen(errmsg) > 0)
+    {
+      my_error(ER_BINLOG_CANT_DELETE_GTID_DOMAIN, MYF(0), errmsg);
+      rc= -1;
+    }
+    else
+    {
+      rc= 1;
+    }
+  }
+  return rc;
+}
+
+
 /* Implementation of FLUSH BINARY LOGS for binlog implemented in engine. */
 int
 MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
@@ -8442,7 +8513,9 @@ MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
 
   mysql_mutex_lock(&LOCK_log);
 
-  // ToDo: Implement DELETE_DOMAIN_ID option. Ask the engine to load the oldest GTID state in the binlog, check that it matches the current GTID state in the to-be-deleted domains, then update the GTID state so the engine can write the state with domains deleted after it does the FLUSH. See also do_delete_gtid_domain().
+  if ((error= binlog_engine_delete_gtid_domain(domain_drop_lex)) &&
+      error < 0)
+    error= 1;
 
   if ((*opt_binlog_engine_hton->binlog_flush)())
     error= 1;
@@ -8452,11 +8525,6 @@ MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
   mysql_mutex_lock(&LOCK_commit_ordered);
   mysql_mutex_unlock(&LOCK_after_binlog_sync);
   mysql_mutex_unlock(&LOCK_commit_ordered);
-
-  if (!error)
-  {
-    /* ToDo: Do purge, once implemented. */
-  }
 
   DBUG_RETURN(error);
 }
