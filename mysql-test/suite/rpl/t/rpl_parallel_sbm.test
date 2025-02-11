@@ -154,6 +154,15 @@ UNLOCK TABLES;
 --source include/sync_with_master_gtid.inc
 
 --echo # MDEV-33856: New definition for Seconds_Behind_Master
+
+# The update of slave timing statistics (Seconds_Behind_Master,
+# Slave_last_event_time, etc) lags slightly behind the update of
+# gtid_slave_pos (we just called sync_with_master_gtid), so wait for SBM==0 to
+# indicate the statistics have been updated
+--echo # Waiting for slave timing statistics to update ..
+--let $wait_condition= SELECT count(*) FROM information_schema.slave_status WHERE Seconds_Behind_Master=0
+--source include/wait_condition.inc
+
 --echo # Ensuring Slave_last_event_time is now up-to-date once event is executed
 --let $slave_time_trx1_commit= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
 --let $slave_time_trx1_commit_unix= `SELECT truncate(unix_timestamp("$slave_time_trx1_commit"),0)`

@@ -784,6 +784,22 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   }
 }
 
+static inline bool check_field_pointers(const TABLE *table)
+{
+  for (Field **pf= table->field; *pf; pf++)
+  {
+    Field *f= *pf;
+    if (f->ptr < table->record[0] || f->ptr > table->record[0]
+                                              + table->s->reclength)
+      return false;
+    if (f->null_ptr &&
+        (f->null_ptr < table->record[0] || f->null_ptr > table->record[0]
+                                                       + table->s->reclength))
+      return false;
+  }
+  return true;
+}
+
 
 int close_thread_tables_for_query(THD *thd)
 {
@@ -846,6 +862,8 @@ int close_thread_tables(THD *thd)
     /* Table might be in use by some outer statement. */
     DBUG_PRINT("tcache", ("table: '%s'  query_id: %lu",
                           table->s->table_name.str, (ulong) table->query_id));
+
+    DBUG_SLOW_ASSERT(check_field_pointers(table));
 
     if (thd->locked_tables_mode)
     {
@@ -8241,7 +8259,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
                                    0);
   SELECT_LEX *select_lex= select_insert ? thd->lex->first_select_lex() :
                                           thd->lex->current_select;
-  if (select_lex->first_cond_optimization || !select_lex->leaf_tables_saved)
+  if (select_lex->first_cond_optimization)
   {
     leaves.empty();
     if (select_lex->prep_leaf_list_state != SELECT_LEX::SAVED)
@@ -8305,6 +8323,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   }
   else
   { 
+    DBUG_ASSERT(select_lex->leaf_tables_saved);
     List_iterator_fast <TABLE_LIST> ti(select_lex->leaf_tables_exec);
     select_lex->leaf_tables.empty();
     while ((table_list= ti++))
@@ -8926,6 +8945,23 @@ static bool vers_update_or_validate_fields(TABLE *table)
 }
 
 
+static void unwind_stored_field_offsets(const List<Item> &fields, Field *end)
+{
+  for (Item &item_field: fields)
+  {
+    Field *f= item_field.field_for_view_update()->field;
+    if (f == end)
+      break;
+
+    if (f->stored_in_db())
+    {
+      TABLE *table= f->table;
+      f->move_field_offset((my_ptrdiff_t) (table->record[0] -
+                                           table->record[1]));
+    }
+  }
+}
+
 /******************************************************************************
 ** Fill a record with data (for INSERT or UPDATE)
 ** Returns : 1 if some field has wrong type
@@ -8981,7 +9017,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (!(field= fld->field_for_view_update()))
     {
       my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name.str);
-      goto err;
+      goto err_unwind_fields;
     }
     value=v++;
     DBUG_ASSERT(value);
@@ -9013,7 +9049,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         if (value->save_in_field(rfield, 0) < 0 && !ignore_errors)
         {
           my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
-          goto err;
+          goto err_unwind_fields;
         }
         rfield->set_has_explicit_value();
       }
@@ -9029,20 +9065,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   }
 
   if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
-  {
-    // restore fields pointers on record[0]
-    f.rewind();
-    while ((fld= f++))
-    {
-      rfield= fld->field_for_view_update()->field;
-      if (rfield->stored_in_db())
-      {
-        table= rfield->table;
-        rfield->move_field_offset((my_ptrdiff_t) (table->record[0] -
-                                                  table->record[1]));
-      }
-    }
-  }
+    unwind_stored_field_offsets(fields, NULL);
 
   if (update)
     table_arg->evaluate_update_default_function();
@@ -9061,6 +9084,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   DBUG_RETURN(thd->is_error());
+err_unwind_fields:
+  if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
+    unwind_stored_field_offsets(fields, rfield);
 err:
   DBUG_PRINT("error",("got error"));
   thd->abort_on_warning= save_abort_on_warning;
@@ -9089,7 +9115,6 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
 
     while ((item= it++))
       item->walk(&Item::switch_to_nullable_fields_processor, 1, field);
-    table->triggers->reset_extra_null_bitmap();
   }
 }
 
@@ -9143,8 +9168,14 @@ static bool not_null_fields_have_null_values(TABLE *table)
         swap_variables(uint32, of->flags, ff->flags);
         if (ff->is_real_null())
         {
+          uint err= ER_BAD_NULL_ERROR;
+          if (ff->flags & NO_DEFAULT_VALUE_FLAG && !ff->has_explicit_value())
+          {
+            err= ER_NO_DEFAULT_FOR_FIELD;
+            table->in_use->count_cuted_fields= CHECK_FIELD_WARN;
+          }
           ff->set_notnull(); // for next row WHERE condition in UPDATE
-          if (convert_null_to_field_value_or_error(of) || thd->is_error())
+          if (convert_null_to_field_value_or_error(of, err) || thd->is_error())
             return true;
         }
       }
@@ -9461,8 +9492,9 @@ my_bool mysql_rm_tmp_tables(void)
           memcpy(path_copy, path, path_len - ext_len);
           path_copy[path_len - ext_len]= 0;
           init_tmp_table_share(thd, &share, "", 0, "", path_copy, true);
+          handlerton *ht= share.db_type();
           if (!open_table_def(thd, &share))
-            share.db_type()->drop_table(share.db_type(), path_copy);
+            ht->drop_table(share.db_type(), path_copy);
           free_table_share(&share);
         }
         /*
@@ -9832,6 +9864,8 @@ int TABLE::hlindex_open(uint nr)
       if (share->init_from_sql_statement_string(in_use, false,
                         sql.str, sql.length))
       {
+        if (share->db_plugin == s->db_plugin)
+          share->db_plugin= NULL;
         free_table_share(share);
         return 1;
       }
@@ -9867,7 +9901,6 @@ int TABLE::hlindex_lock(uint nr)
   DBUG_ASSERT(hlindex);
   if (hlindex->in_use == in_use)
     return 0;
-  hlindex->in_use= in_use;      // mark in use for this query
   hlindex->use_all_columns();
 
   THR_LOCK_DATA *lock_data;
@@ -9876,6 +9909,8 @@ int TABLE::hlindex_lock(uint nr)
 
   int res= hlindex->file->ha_external_lock(in_use,
              reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
+  if (res == 0)
+    hlindex->in_use= in_use;      // mark in use for this query
   if (hlindex->file->lock_count() > 0)
   {
     /*
@@ -9898,7 +9933,7 @@ int TABLE::open_hlindexes_for_write()
   return 0;
 }
 
-int TABLE::reset_hlindexes()
+int TABLE::unlock_hlindexes()
 {
   if (hlindex && hlindex->in_use)
   {

@@ -1159,9 +1159,7 @@ SELECT DATE_FORMAT(TIME'11:22:33',@format);
 SELECT HEX(DATE_FORMAT(TIME'11:22:33',@format));
 --enable_view_protocol
 
---echo #
 --echo # End of 10.4 tests
---echo #
 
 --echo #
 --echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
@@ -1170,12 +1168,21 @@ SELECT HEX(DATE_FORMAT(TIME'11:22:33',@format));
 SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
 
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-29968 Functions in default values in tables with some character sets break SHOW CREATE (and mysqldump)
 --echo #
 
+SET NAMES utf8mb4;
+--let $table_charset=CHARACTER SET utf32
+--source include/ctype_supplementary_chars.inc
+DROP TABLE t1, t2, t3, t4, t5;
+
 --echo #
---echo # Start of 10.11 tests
+--echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
 --echo #
+
+SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
+
+--echo # End of 10.5 tests
 
 --echo #
 --echo # MDEV-10865 COLLATE keyword doesn't work in PREPARE query
@@ -1245,26 +1252,9 @@ DROP TABLE t1;
 
 SET NAMES utf8mb4;
 
---echo #
 --echo # End of 10.11 tests
---echo #
 
 --enable_service_connection
-
-
---echo #
---echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
---echo #
-
-SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
-
---echo #
---echo # End of 10.5 tests
---echo #
-
---echo #
---echo # Start of 11.4 tests
---echo #
 
 --echo #
 --echo # MDEV-33729 UBSAN negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoll_mb2_or_mb4
@@ -1273,6 +1263,4 @@ SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
 SET NAMES utf8mb3, character_set_connection=utf32;
 SELECT CONV('-AzL8n0Y58m8', -62, -10);
 
---echo #
 --echo # End of 11.4 tests
---echo #

@@ -21,7 +21,8 @@
 int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
 {
   HP_KEYDEF *keydef, *end, *p_lastinx;
-  uchar *pos;
+  uchar *pos, *recovery_ptr;
+  struct st_hp_hash_info *recovery_hash_ptr;
   my_bool auto_key_changed= 0, key_changed= 0;
   HP_SHARE *share= info->s;
   DBUG_ENTER("heap_update");
@@ -33,6 +34,10 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
     DBUG_RETURN(my_errno);				/* Record changed */
   if (--(share->records) < share->blength >> 1) share->blength>>= 1;
   share->changed=1;
+
+  // Save the cursor position to recover if insert fails.
+  recovery_ptr= info->current_ptr;
+  recovery_hash_ptr= info->current_hash_ptr;
 
   p_lastinx= share->keydef + info->lastinx;
   for (keydef= share->keydef, end= keydef + share->keys; keydef < end; keydef++)
@@ -84,6 +89,8 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
       }
       keydef--;
     }
+    info->current_ptr= recovery_ptr;
+    info->current_hash_ptr= recovery_hash_ptr;
   }
   if (++(share->records) == share->blength)
     share->blength+= share->blength;

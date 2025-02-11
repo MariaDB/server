@@ -20,6 +20,15 @@ show create table tempty;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.tempty` FORCE" or dump/reload to fix it!
 select * from tempty;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.tempty` FORCE" or dump/reload to fix it!
+select table_name, table_comment from information_schema.tables where table_schema='test' and table_comment!='VIEW';
+table_name	table_comment
+mysql_json_test	Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+mysql_json_test_big	Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test_big` FORCE" or dump/reload to fix it!
+tempty	Table rebuild required. Please do "ALTER TABLE `test.tempty` FORCE" or dump/reload to fix it!
+Warnings:
+Warning	1707	Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test_big` FORCE" or dump/reload to fix it!
+Warning	1707	Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+Warning	1707	Table rebuild required. Please do "ALTER TABLE `test.tempty` FORCE" or dump/reload to fix it!
 alter table tempty force;
 show create table tempty;
 Table	Create Table

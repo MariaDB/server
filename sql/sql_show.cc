@@ -70,8 +70,8 @@
 #include "opt_trace.h"
 #include "my_cpu.h"
 #include "key.h"
+#include "scope.h"
 #include "vector_mhnsw.h"
-
 #include "lex_symbol.h"
 #include "mysql/plugin_function.h"
 
@@ -1352,7 +1352,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 {
   Protocol *protocol= thd->protocol;
   char buff[2048];
-  String buffer(buff, sizeof(buff), system_charset_info);
+  String buffer(buff, sizeof(buff), &my_charset_utf8mb4_general_ci);
   List<Item> field_list;
   bool error= TRUE;
   DBUG_ENTER("mysqld_show_create");
@@ -1840,7 +1840,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   def_value->length(0);
   if (has_default)
   {
-    StringBuffer<MAX_FIELD_WIDTH> str(field->charset());
+    StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
     if (field->default_value)
     {
       field->default_value->print(&str);
@@ -2368,11 +2368,11 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
         packet->append(STRING_WITH_LEN(" NULL"));
       }
 
-      def_value.set(def_value_buf, sizeof(def_value_buf), system_charset_info);
+      def_value.set(def_value_buf, sizeof(def_value_buf), &my_charset_utf8mb4_general_ci);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));
-        packet->append(def_value.ptr(), def_value.length(), system_charset_info);
+        packet->append(def_value.ptr(), def_value.length(), &my_charset_utf8mb4_general_ci);
       }
 
       if (field->vers_update_unversioned())
@@ -4744,6 +4744,19 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
 }
 
 
+/*
+  Hide error for a non-existing table.
+  For example, this error can occur when we use a where condition
+  with a db name and table, but the table does not exist or
+  there is a view with the same name.
+*/
+static bool hide_object_error(uint err)
+{
+  return err == ER_NO_SUCH_TABLE || err == ER_WRONG_OBJECT ||
+         err == ER_NOT_SEQUENCE;
+}
+
+
 /**
   Fill I_S table with data obtained by performing full-blown table open.
 
@@ -4879,17 +4892,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   {
     if (!is_show_fields_or_keys)
     {
-      /*
-        Hide error for a non-existing table and skip processing.
-        For example, this error can occur when we use a where condition
-        with a db name and table, but the table does not exist or
-        there is a view with the same name.
-        Some errors, like ER_UNKNOWN_STORAGE_ENGINE, can still allow table
-        processing, if the information schema table supports that.
-      */
-      run= run && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE
-               && thd->get_stmt_da()->sql_errno() != ER_WRONG_OBJECT
-               && thd->get_stmt_da()->sql_errno() != ER_NOT_SEQUENCE;
+      run= run && !hide_object_error(thd->get_stmt_da()->sql_errno());
       if (!run)
       {
         thd->clear_error();
@@ -4989,8 +4992,8 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     else
       table->field[3]->store(STRING_WITH_LEN("ERROR"), cs);
 
-    if (unlikely(thd->is_error() &&
-                 thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE))
+    if (unlikely(thd->is_error()) &&
+        hide_object_error(thd->get_stmt_da()->sql_errno()))
     {
       thd->clear_error();
       return 0;
@@ -5229,9 +5232,7 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
   share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
-    if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
-        thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE)
+    if (hide_object_error(thd->get_stmt_da()->sql_errno()))
     {
       res= 0;
     }
@@ -5277,16 +5278,25 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
     goto end_share;
   }
 
-  if (!open_table_from_share(thd, share, table_name, 0,
-                             (EXTRA_RECORD | OPEN_FRM_FILE_ONLY),
-                             thd->open_options, &tbl, FALSE))
+  res= open_table_from_share(thd, share, table_name, 0,
+                             EXTRA_RECORD | OPEN_FRM_FILE_ONLY,
+                             thd->open_options, &tbl, FALSE);
+  if (res && hide_object_error(thd->get_stmt_da()->sql_errno()))
+    res= 0;
+  else
   {
+    char buf[NAME_CHAR_LEN + 1];
+    if (unlikely(res))
+      get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
+
     tbl.s= share;
     table_list.table= &tbl;
     table_list.view= (LEX*) share->is_view;
-    res= schema_table->process_table(thd, &table_list, table,
-                                     res, db_name, table_name);
-    closefrm(&tbl);
+    bool res2= schema_table->process_table(thd, &table_list, table, res,
+                                           db_name, table_name);
+    if (res == 0)
+      closefrm(&tbl);
+    res= res2;
   }
 
 
@@ -5414,7 +5424,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_ENTER("get_all_tables");
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
-  TABLE_LIST table_acl_check;
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   IS_table_read_plan *plan= tables->is_table_read_plan;
@@ -5557,8 +5566,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     }
   }
 
-  bzero((char*) &table_acl_check, sizeof(table_acl_check));
-
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
 
@@ -5567,9 +5574,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (!(check_access(thd, SELECT_ACL, db_name->str,
-                       &thd->col_access, NULL, 0, 1) ||
-          (!thd->col_access && check_grant_db(thd, db_name->str))) ||
+    if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get_all3(sctx, db_name->str, 0))
 #endif
@@ -5591,6 +5596,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))
         {
+          TABLE_LIST table_acl_check;
+          table_acl_check.reset();
           table_acl_check.db= Lex_ident_db(*db_name);
           table_acl_check.table_name= Lex_ident_table(*table_name);
           table_acl_check.grant.privilege= thd->col_access;
@@ -6995,8 +7002,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   if (sp)
   {
     LEX_CSTRING tmp_string;
-    Sql_mode_save sql_mode_backup(thd);
-    thd->variables.sql_mode= sql_mode;
+    SCOPE_VALUE(thd->variables.sql_mode, sql_mode);
 
     if (sph->type() == SP_TYPE_FUNCTION)
     {
@@ -10643,6 +10649,7 @@ ST_FIELD_INFO check_constraints_fields_info[]=
 };
 
 
+#ifdef HAVE_REPLICATION
 ST_FIELD_INFO slave_status_info[]=
 {
   Column("Connection_name", Name(), NOT_NULL),
@@ -10650,72 +10657,70 @@ ST_FIELD_INFO slave_status_info[]=
   Column("Slave_IO_State", Varchar(64), NULLABLE),
   Column("Master_Host", Varchar(HOSTNAME_LENGTH), NULLABLE),
   Column("Master_User", Varchar(USERNAME_LENGTH), NULLABLE),
-  Column("Master_Port", ULong(7), NOT_NULL),
-  Column("Connect_Retry", SLong(10), NOT_NULL),
+  Column("Master_Port", UShort(5), NOT_NULL),
+  Column("Connect_Retry", ULong(10), NOT_NULL),
   Column("Master_Log_File", Varchar(FN_REFLEN), NOT_NULL),
-  Column("Read_Master_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Read_Master_Log_Pos", ULonglong(20), NOT_NULL),
   Column("Relay_Log_File", Varchar(FN_REFLEN), NOT_NULL),
-  Column("Relay_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Relay_Log_Pos", ULonglong(20), NOT_NULL),
   Column("Relay_Master_Log_File", Varchar(FN_REFLEN), NOT_NULL),
   Column("Slave_IO_Running", Varchar(10), NOT_NULL),
   Column("Slave_SQL_Running", Varchar(3), NOT_NULL),
-  Column("Replicate_Do_DB", Name(), NOT_NULL),
-  Column("Replicate_Ignore_DB", Name(), NOT_NULL),
-  Column("Replicate_Do_Table", Name(), NOT_NULL),
-  Column("Replicate_Ignore_Table", Name(), NOT_NULL),
-  Column("Replicate_Wild_Do_Table", Name(), NOT_NULL),
-  Column("Replicate_Wild_Ignore_Table", Name(), NOT_NULL),
-  Column("Last_Errno", SLong(4), NOT_NULL),
-  Column("Last_Error", Varchar(20), NULLABLE),
+  Column("Replicate_Do_DB", Varchar(), NOT_NULL),
+  Column("Replicate_Ignore_DB", Varchar(), NOT_NULL),
+  Column("Replicate_Do_Table", Varchar(), NOT_NULL),
+  Column("Replicate_Ignore_Table", Varchar(), NOT_NULL),
+  Column("Replicate_Wild_Do_Table", Varchar(), NOT_NULL),
+  Column("Replicate_Wild_Ignore_Table", Varchar(), NOT_NULL),
+  Column("Last_Errno", UShort(4), NOT_NULL),
+  Column("Last_Error", Varchar(MAX_SLAVE_ERRMSG), NULLABLE),
   Column("Skip_Counter", ULong(10), NOT_NULL),
-  Column("Exec_Master_Log_Pos", ULonglong(10), NOT_NULL),
-  Column("Relay_Log_Space", ULonglong(10), NOT_NULL),
+  Column("Exec_Master_Log_Pos", ULonglong(20), NOT_NULL),
+  Column("Relay_Log_Space", ULonglong(20), NOT_NULL),
   Column("Until_Condition", Varchar(6), NOT_NULL),
   Column("Until_Log_File", Varchar(FN_REFLEN), NULLABLE),
-  Column("Until_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Until_Log_Pos", ULonglong(20), NOT_NULL),
   Column("Master_SSL_Allowed", Varchar(7), NULLABLE),
   Column("Master_SSL_CA_File", Varchar(FN_REFLEN), NULLABLE),
   Column("Master_SSL_CA_Path", Varchar(FN_REFLEN), NULLABLE),
   Column("Master_SSL_Cert", Varchar(FN_REFLEN), NULLABLE),
   Column("Master_SSL_Cipher", Varchar(FN_REFLEN), NULLABLE),
   Column("Master_SSL_Key", Varchar(FN_REFLEN), NULLABLE),
-  Column("Seconds_Behind_Master", SLonglong(10), NULLABLE),
+  Column("Seconds_Behind_Master", ULonglong(20), NULLABLE),
   Column("Master_SSL_Verify_Server_Cert", Varchar(3), NOT_NULL),
-  Column("Last_IO_Errno", SLong(4), NOT_NULL),
-  Column("Last_IO_Error", Varchar(MYSQL_ERRMSG_SIZE), NULLABLE),
-  Column("Last_SQL_Errno", SLong(4), NOT_NULL),
-  Column("Last_SQL_Error", Varchar(MYSQL_ERRMSG_SIZE), NULLABLE),
-  Column("Replicate_Ignore_Server_Ids", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Last_IO_Errno", UShort(4), NOT_NULL),
+  Column("Last_IO_Error", Varchar(MAX_SLAVE_ERRMSG), NULLABLE),
+  Column("Last_SQL_Errno", UShort(4), NOT_NULL),
+  Column("Last_SQL_Error", Varchar(MAX_SLAVE_ERRMSG), NULLABLE),
+  Column("Replicate_Ignore_Server_Ids", Varchar(), NOT_NULL),
   Column("Master_Server_Id", ULong(10), NOT_NULL),
   Column("Master_SSL_Crl", Varchar(FN_REFLEN), NULLABLE),
   Column("Master_SSL_Crlpath", Varchar(FN_REFLEN), NULLABLE),
-  Column("Using_Gtid", Varchar(15), NULLABLE),
-  Column("Gtid_IO_Pos", Varchar(1024), NOT_NULL),
-  Column("Replicate_Do_Domain_Ids", Varchar(FN_REFLEN), NOT_NULL),
-  Column("Replicate_Ignore_Domain_Ids", Varchar(FN_REFLEN), NOT_NULL),
-  Column("Parallel_Mode", Varchar(15), NOT_NULL),
+  Column("Using_Gtid", Varchar(11), NULLABLE),
+  Column("Gtid_IO_Pos", Varchar(), NOT_NULL),
+  Column("Replicate_Do_Domain_Ids", Varchar(), NOT_NULL),
+  Column("Replicate_Ignore_Domain_Ids", Varchar(), NOT_NULL),
+  Column("Parallel_Mode", Varchar(12), NOT_NULL),
   Column("SQL_Delay", ULong(10), NOT_NULL),
   Column("SQL_Remaining_Delay", ULong(10), NULLABLE),
-  Column("Slave_SQL_Running_State", Varchar(64), NULLABLE),
+  Column("Slave_SQL_Running_State", Varchar(), NULLABLE),
   Column("Slave_DDL_Groups", ULonglong(20), NOT_NULL),
   Column("Slave_Non_Transactional_Groups", ULonglong(20), NOT_NULL),
   Column("Slave_Transactional_Groups", ULonglong(20), NOT_NULL),
-  Column("Replicate_Rewrite_DB",Varchar(1024), NOT_NULL),
+  Column("Replicate_Rewrite_DB", Varchar(), NOT_NULL),
   Column("Retried_transactions", ULong(10), NOT_NULL),
-  Column("Max_relay_log_size", ULonglong(10), NOT_NULL),
+  Column("Max_relay_log_size", ULong(10), NOT_NULL),
   Column("Executed_log_entries", ULong(10), NOT_NULL),
   Column("Slave_received_heartbeats", ULong(10), NOT_NULL),
   Column("Slave_heartbeat_period", Float(703), NOT_NULL), // 3 decimals
-  Column("Gtid_Slave_Pos", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Gtid_Slave_Pos", Varchar(), NOT_NULL),
   Column("Master_last_event_time", Datetime(0), NULLABLE),
   Column("Slave_last_event_time", Datetime(0), NULLABLE),
-  Column("Master_Slave_time_diff", SLonglong(10), NULLABLE),
+  Column("Master_Slave_time_diff", ULong(10), NULLABLE),
   CEnd()
 };
+#endif
 
-}; // namespace Show
-
-namespace Show {
 
 /** For creating fields of information_schema.OPTIMIZER_TRACE */
 extern ST_FIELD_INFO optimizer_trace_info[];

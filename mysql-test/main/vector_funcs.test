@@ -72,6 +72,11 @@ select vec_fromtext(0x00000000);
 --echo #
 select vec_totext(`null`) from (values (null),(0x00000000)) x;
 
+--echo #
+--echo # MDEV-36011 Server crashes in Charset::mbminlen / Item_func_vec_fromtext::val_str upon mixing vector type with string
+--echo #
+select 0x31313131 in ('1111', vec_fromtext('[1]'));
+
 --echo # End of 11.7 tests
 
 --echo #

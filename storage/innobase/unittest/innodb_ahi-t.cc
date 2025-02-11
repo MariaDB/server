@@ -26,7 +26,7 @@ ibool dtuple_check_typed(const dtuple_t*) { return true; }
 bool btr_cur_t::check_mismatch(const dtuple_t&,bool,ulint) noexcept
 { return false; }
 buf_block_t *buf_page_get_gen(const page_id_t, ulint, rw_lock_type_t,
-                              buf_block_t*,ulint,mtr_t*,dberr_t*)
+                              buf_block_t*,ulint,mtr_t*,dberr_t*) noexcept
 { return nullptr; }
 bool buf_page_make_young_if_needed(buf_page_t*) { return false; }
 
@@ -35,7 +35,7 @@ mtr_t::~mtr_t()= default;
 void mtr_t::start() {}
 void mtr_t::commit() {}
 void mtr_t::rollback_to_savepoint(ulint, ulint) {}
-void small_vector_base::grow_by_1(void *, size_t) {}
+void small_vector_base::grow_by_1(void *, size_t) noexcept {}
 
 void sql_print_error(const char*, ...) {}
 ulint ut_find_prime(ulint n) { return n; }
@@ -50,7 +50,7 @@ void srw_lock_debug::rd_unlock() noexcept {}
 void srw_lock_debug::rd_lock(SRW_LOCK_ARGS(const char*,unsigned)) noexcept {}
 #endif
 
-void page_hash_latch::read_lock_wait() {}
+void page_hash_latch::read_lock_wait() noexcept {}
 # ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
 template<> void pthread_mutex_wrapper<true>::wr_wait() noexcept {}
 # endif

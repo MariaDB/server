@@ -65,6 +65,7 @@ void ha_spider::init_fields()
   append_tblnm_alias = NULL;
   use_index_merge = FALSE;
   is_clone = FALSE;
+  pushed_pos = NULL;
   pt_clone_source_handler = NULL;
   pt_clone_last_searcher = NULL;
   ft_handler = NULL;
@@ -931,9 +932,6 @@ int ha_spider::reset()
   THD *thd = ha_thd();
   SPIDER_TRX *tmp_trx, *trx_bak;
   SPIDER_CONDITION *tmp_cond;
-/*
-  char first_byte, first_byte_bak;
-*/
   backup_error_status();
   DBUG_ENTER("ha_spider::reset");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -6786,6 +6784,11 @@ int ha_spider::create(
     sql_command == SQLCOM_DROP_INDEX
   )
     DBUG_RETURN(0);
+  if (form->s->hlindexes() > 0)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "SPIDER", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
   if (!is_supported_parser_charset(info->default_table_charset))
   {
     String charset_option;
@@ -10142,7 +10145,7 @@ int ha_spider::append_lock_tables_list()
 
   if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
     DBUG_RETURN(error_num);
-  if ((error_num= spider_check_trx_and_get_conn(wide_handler->trx->thd, this)))
+  if ((error_num = spider_check_trx_and_get_conn(wide_handler->trx->thd, this)))
   {
     DBUG_RETURN(error_num);
   }

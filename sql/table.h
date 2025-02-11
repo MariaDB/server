@@ -1769,6 +1769,7 @@ public:
   bool is_filled_at_execution();
 
   bool update_const_key_parts(COND *conds);
+  void update_keypart_vcol_info();
 
   inline void initialize_opt_range_structures();
 
@@ -1805,7 +1806,7 @@ public:
   int hlindexes_on_update();
   int hlindexes_on_delete(const uchar *buf);
   int hlindexes_on_delete_all(bool truncate);
-  int reset_hlindexes();
+  int unlock_hlindexes();
 
   void prepare_triggers_for_insert_stmt_or_event();
   bool prepare_triggers_for_delete_stmt_or_event();

@@ -54,6 +54,7 @@
 #include "sql_array.h"
 #include "sql_hset.h"
 #include "password.h"
+#include "scope.h"
 
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
@@ -2646,10 +2647,9 @@ static LEX_STRING make_and_check_db_name(MEM_ROOT *mem_root,
 static bool acl_load(THD *thd, const Grant_tables& tables)
 {
   READ_RECORD read_record_info;
-  Sql_mode_save old_mode_save(thd);
   DBUG_ENTER("acl_load");
 
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  SCOPE_CLEAR(thd->variables.sql_mode, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   grant_version++; /* Privileges updated */
 
@@ -3467,7 +3467,7 @@ end:
   switch (result)
   {
     case ER_INVALID_CURRENT_USER:
-      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename.str);
+      my_error(ER_INVALID_CURRENT_USER, MYF(0));
       break;
     case ER_INVALID_ROLE:
       /* Role doesn't exist at all */
@@ -8529,7 +8529,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     if (access)
     {
-      switch(access->check(orig_want_access, &t_ref->grant.privilege))
+      switch(access->check(orig_want_access, &t_ref->grant.privilege,
+                           any_combination_will_do))
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
         t_ref->grant.privilege|= orig_want_access;

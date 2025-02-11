@@ -439,7 +439,6 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask)
   case SQLCOM_DROP_TABLE:
   case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_CREATE_TABLE:
-  case SQLCOM_CREATE_SEQUENCE:
     /*
       If CREATE TABLE of non-temporary table and the table is not part
       if a BEGIN GTID ... COMMIT group, do a implicit commit.
@@ -4778,17 +4777,18 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && !lex->tmp_table() && wsrep_thd_is_local(thd) &&
+        (!thd->is_current_stmt_binlog_format_row() ||
+         wsrep_table_list_has_non_temp_tables(thd, all_tables)))
     {
-      for (TABLE_LIST *table= all_tables; table; table= table->next_global)
+      wsrep::key_array keys;
+      if (wsrep_append_fk_parent_table(thd, all_tables, &keys))
       {
-        if (!lex->tmp_table() &&
-           (!thd->is_current_stmt_binlog_format_row() ||
-	    !is_temporary_table(table)))
-        {
-          WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
-          break;
-        }
+        goto wsrep_error_label;
+      }
+      if (wsrep_to_isolation_begin(thd, NULL, NULL, all_tables, NULL, &keys))
+      {
+        goto wsrep_error_label;
       }
     }
 #endif /* WITH_WSREP */

@@ -143,7 +143,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `v` vector(10) NOT NULL,
-  VECTOR KEY `v` (`v`) `m`=10 `distance`='cosine'
+  VECTOR KEY `v` (`v`) `distance`='cosine'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
 set mhnsw_default_distance= default;
@@ -231,7 +231,7 @@ create table t (v vector(2) not null);
 insert ignore into t values (1);
 Warnings:
 Warning	4078	Cannot cast 'int' as 'vector' in assignment of `test`.`t`.`v`
-Warning	1366	Incorrect vector value: '1' for column `test`.`t`.`v` at row 1
+Warning	1292	Incorrect vector value: '1' for column `test`.`t`.`v` at row 1
 select hex(v) from t;
 hex(v)
 0000000000000000
@@ -369,3 +369,70 @@ vec_totext(v)
 [7]
 [6]
 drop table t;
+#
+# MDEV-35768 Vector key is not used upon selecting from views / subqueries
+#
+create table t (b vector(1) not null, vector(b));
+insert into t values (0x31313131),(0x32323232);
+create view v as select * from t;
+explain select * from t order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+explain select * from v order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+explain select * from (select * from t) sq order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+drop view v;
+drop table t;
+#
+# MDEV-35769 ER_SQL_DISCOVER_ERROR upon updating vector key column using incorrect value
+#
+create table t (v vector(1) not null, vector(v));
+insert into t values (0x31313131);
+flush tables;
+update t set v = 1;
+ERROR HY000: Cannot cast 'int' as 'vector' in assignment of `test`.`t`.`v`
+drop table t;
+#
+# MDEV-35792 Adding a regular index on a vector column leads to invalid table structure
+#
+create table t (v vector(800), key(v));
+ERROR 42000: Specified key was too long; max key length is 1000 bytes
+create table t (v vector(8), key(v));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `v` vector(8) DEFAULT NULL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;
+#
+# MDEV-35146 Vector-related error messages worth improving when possible
+#
+create table t (a vector(64) not null default '');
+ERROR 42000: Invalid default value for 'a'
+show warnings;
+Level	Code	Message
+Warning	1292	Incorrect vector value: '' for column ``.``.`a` at row 0
+Error	1067	Invalid default value for 'a'
+create table t (a inet6 not null default '');
+ERROR 42000: Invalid default value for 'a'
+show warnings;
+Level	Code	Message
+Warning	1292	Incorrect inet6 value: '' for column ``.``.`a` at row 0
+Error	1067	Invalid default value for 'a'
+#
+# MDEV-35186 IGNORED attribute has no effect on vector keys
+#
+create table t (a vector(1) not null, vector(a) ignored);
+show index in t;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t	1	a	1	a	A	NULL	NULL	NULL		VECTOR			YES
+insert into t values (0x00000000),(0x00000000);
+explain select vec_totext(a) from t order by vec_distance_euclidean(a,0x00000000) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+drop table t;
+# End of 11.7 tests
