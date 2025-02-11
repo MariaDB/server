@@ -5,14 +5,14 @@ wsrep_sst_method=rsync
 bind-address=::
 
 [mysqld.1]
-wsrep_provider_options='base_port=@mysqld.1.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.1.#galera_port;ist.recv_addr=[::1]:@mysqld.1.#ist_port;gcache.size=1;pc.ignore_sb=true'
+wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.1.#galera_port;ist.recv_addr=[::1]:@mysqld.1.#ist_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
 wsrep_node_incoming_address='[::1]:@mysqld.1.port'
 wsrep_node_address=::1
 wsrep_sst_receive_address='[::1]:@mysqld.1.#sst_port'
 
 [mysqld.2]
-wsrep_cluster_address='gcomm://[::1]:@mysqld.1.#galera_port'
-wsrep_provider_options='base_port=@mysqld.2.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.2.#galera_port;ist.recv_addr=[::1]:@mysqld.2.#ist_port;gcache.size=1;pc.ignore_sb=true'
-wsrep_node_address=::1
+wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.2.#galera_port;ist.recv_addr=[::1]:@mysqld.2.#ist_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
 wsrep_node_incoming_address='[::1]:@mysqld.2.port'
+wsrep_cluster_address='gcomm://[::1]:@mysqld.1.#galera_port'
+wsrep_node_address=::1
 wsrep_sst_receive_address=AUTO
