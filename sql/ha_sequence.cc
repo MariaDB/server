@@ -366,6 +366,21 @@ int ha_sequence::external_lock(THD *thd, int lock_type)
   return error;
 }
 
+int ha_sequence::discard_or_import_tablespace(my_bool discard)
+{
+  int error= file->discard_or_import_tablespace(discard);
+  if (!error && !discard)
+  {
+    /* Doing import table space. Read the imported values */
+    if (!(error= table->s->sequence->read_stored_values(table)))
+    {
+      table->s->sequence->initialized= SEQUENCE::SEQ_READY_TO_USE;
+      memcpy(table->record[1], table->s->default_values, table->s->reclength);
+    }
+  }
+  return error;
+}
+
 /*
   Squence engine error deal method
 */

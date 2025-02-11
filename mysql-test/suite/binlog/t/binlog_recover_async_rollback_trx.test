@@ -1,0 +1,117 @@
+################################################################################
+# Async rollback prepared transactions during binlog crash recovery
+#
+# It verifies that binlog recovery just set the prepared transactions to
+# active and the background recovery rollback thread will rollback the
+# transactions asynchronously.
+################################################################################
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (id int primary key, data int) ENGINE = InnoDB;
+INSERT INTO t1 VALUES (0, 1);
+
+--echo #
+--echo # 1. Check DML in prepared state can rollback correctly.
+--echo #
+
+--connect(con1, localhost, root,,)
+SET debug_sync = "ha_commit_trans_after_prepare SIGNAL prepared1 WAIT_FOR continue";
+--send INSERT INTO t1 VALUES(1, 1);
+
+--connect(con2, localhost, root,,)
+SET debug_sync = "now WAIT_FOR prepared1";
+SET debug_sync = "ha_commit_trans_after_prepare SIGNAL prepared2 WAIT_FOR continue";
+--send UPDATE t1 SET data = data + 1 WHERE id = 0
+
+--connection default
+SET debug_sync = "now WAIT_FOR prepared2";
+--source include/kill_mysqld.inc
+
+--disconnect con1
+--disconnect con2
+
+# With the debug option, recovery rollback thread just rolls back the
+# first prepared transaction and then goes to sleep.
+--source include/start_mysqld.inc
+--let $wait_condition= SELECT count(*) = 0 FROM information_schema.innodb_trx
+--source include/wait_condition.inc
+
+--echo # Expect (0, 1)
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t1;
+
+# The previous INSERT is rolled back, so this INSERT will succeed.
+INSERT INTO t1 VALUES(1, 1);
+
+# The previous UPDATE is rolled back, so this UPDATE will succeed.
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+
+--echo # Expect (0, 2), (1, 1)
+SELECT * FROM t1;
+
+--echo #
+--echo # 2. Test that innodb shutdown as expected if any error happens before
+--echo #    normal rollback task is started. In the situation, rollback task
+--echo #    should be started at preshutdown accordingly to rollback or
+--echo #    deregister all recovered active transactions.
+--echo #
+# Generate an large active transaction
+INSERT INTO t1 SELECT seq + 2, 1 FROM seq_1_to_1024;
+
+BEGIN;
+UPDATE t1 SET data = 10;
+
+# Make sure above update is persisted.
+SET GLOBAL innodb_log_checkpoint_now = 1;
+--source include/kill_mysqld.inc
+
+# tc-heuristic-recover triggers an error before innodb rollback task start
+# Rollback task will not be started at preshutdown of read only mode. Active
+# transactions are not expected to rollback.
+--error 1
+--exec $MYSQLD_LAST_CMD --tc-heuristic-recover=ROLLBACK --innodb-read-only --log-error=$MYSQLTEST_VARDIR/tmp/log.err
+
+# Rollback task will not be started at preshutdown if recovery mode is greater
+# to 2.  Active transactions are not expected to rollback.
+--error 1
+--exec $MYSQLD_LAST_CMD --tc-heuristic-recover=ROLLBACK --innodb-force-recovery=3 --log-error=$MYSQLTEST_VARDIR/tmp/log.err
+
+# Rollback task will be started at preshutdown of fast shutdown if force
+# recovery is 2. But the transaction is deregistered instead of rollback.
+--error 1
+--exec $MYSQLD_LAST_CMD --tc-heuristic-recover=ROLLBACK --innodb-fast-shutdown=1 --innodb-force-recovery=2  --log-error=$MYSQLTEST_VARDIR/tmp/log.err
+
+--let $restart_parameters= --innodb-read-only
+--source include/start_mysqld.inc
+
+# Verify that the transaction is still there.
+SELECT count(*) FROM information_schema.innodb_trx;
+
+--source include/kill_mysqld.inc
+
+# Rollback task will be started at preshutdown of fast shutdown. The
+# active transaction is rolled back.
+--error 1
+--exec $MYSQLD_LAST_CMD --tc-heuristic-recover=ROLLBACK --innodb-fast-shutdown=1 --log-error=$MYSQLTEST_VARDIR/tmp/log.err
+
+--let $restart_parameters= --innodb-read-only
+--source include/start_mysqld.inc
+# Verify that the transaction is still there.
+SELECT count(*) FROM information_schema.innodb_trx;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/log.err
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+# There should be no any transaction
+--let $wait_condition= SELECT count(*) = 0 FROM information_schema.innodb_trx
+--source include/wait_condition.inc
+
+# Cleanup.
+DROP TABLE t1;
+

@@ -17,11 +17,6 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
-
 #include "mysqld.h"
 #include "lex_string.h"
 #include "sql_type_timeofday.h"
@@ -723,7 +718,7 @@ public:
   {
     return m_usec ?
       my_snprintf(to, nbytes, "%s%llu.%06lu",
-                  m_neg ? "-" : "", m_sec, (uint) m_usec) :
+                  m_neg ? "-" : "", m_sec, m_usec) :
       my_snprintf(to, nbytes, "%s%llu", m_neg ? "-" : "", m_sec);
   }
   void make_truncated_warning(THD *thd, const char *type_str) const;
@@ -1340,7 +1335,7 @@ public:
   {
     return is_valid_temporal() ? TIME_to_double(this) : 0;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_temporal() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -1965,6 +1960,11 @@ public:
   {
     return neg ? -to_seconds_abs() : to_seconds_abs();
   }
+  bool to_bool() const
+  {
+    return is_valid_time() &&
+           (TIME_to_ulonglong_time(this) != 0 || second_part != 0);
+  }
   longlong to_longlong() const
   {
     if (!is_valid_time())
@@ -1987,7 +1987,7 @@ public:
       str->length(my_time_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_time() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -2325,6 +2325,10 @@ public:
     DBUG_ASSERT(is_valid_date_slow());
     return Temporal::to_packed();
   }
+  bool to_bool() const
+  {
+    return to_longlong() != 0;
+  }
   longlong to_longlong() const
   {
     return is_valid_date() ? (longlong) TIME_to_ulonglong_date(this) : 0LL;
@@ -2342,7 +2346,7 @@ public:
       str->length(my_date_to_str(this, const_cast<char*>(str->ptr())));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_date() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -2644,6 +2648,11 @@ public:
     ltime->time_type= type;
     return false;
   }
+  bool to_bool() const
+  {
+    return is_valid_datetime() &&
+           (TIME_to_ulonglong_datetime(this) != 0 || second_part != 0);
+  }
   longlong to_longlong() const
   {
     return is_valid_datetime() ?
@@ -2663,7 +2672,7 @@ public:
       str->length(my_datetime_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_datetime() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -2882,6 +2891,10 @@ public:
       return Datetime::zero();
     return Timestamp::to_datetime(thd);
   }
+  bool to_bool() const
+  {
+    return !m_is_zero_datetime;
+  }
   bool is_zero_datetime() const { return m_is_zero_datetime; }
   void trunc(uint decimals)
   {
@@ -3018,7 +3031,7 @@ static inline my_repertoire_t &operator|=(my_repertoire_t &a,
 
 enum Derivation
 {
-  DERIVATION_IGNORABLE= 7, // Explicit NULL
+  DERIVATION_IGNORABLE= 8, // Explicit NULL
 
   /*
     Explicit or implicit conversion from numeric/temporal data to string:
@@ -3026,17 +3039,20 @@ enum Derivation
     - Numeric user variables
     - CAST(numeric_or_temporal_expr AS CHAR)
   */
-  DERIVATION_NUMERIC= 6,
+  DERIVATION_NUMERIC= 7,
 
   /*
     - String literals
+  */
+  DERIVATION_COERCIBLE= 6,
+
+  /*
     - String user variables
   */
-  DERIVATION_COERCIBLE= 5,
+  DERIVATION_USERVAR= 5,
 
   /*
     String cast and conversion functions:
-    - BINARY(expr)
     - CAST(string_expr AS CHAR)
     - CONVERT(expr USING cs)
   */
@@ -3162,6 +3178,7 @@ public:
       case DERIVATION_NUMERIC:   return "NUMERIC";
       case DERIVATION_IGNORABLE: return "IGNORABLE";
       case DERIVATION_COERCIBLE: return "COERCIBLE";
+      case DERIVATION_USERVAR:   return "USERVAR";
       case DERIVATION_CAST:      return "CAST";
       case DERIVATION_IMPLICIT:  return "IMPLICIT";
       case DERIVATION_SYSCONST:  return "SYSCONST";
@@ -4244,6 +4261,11 @@ public:
                                           const handler *file) const;
   virtual bool Key_part_spec_init_spatial(Key_part_spec *part,
                                           const Column_definition &def) const;
+  virtual bool Key_part_spec_init_vector(Key_part_spec *part,
+                                         const Column_definition &def) const
+  {
+    return true; // Error
+  }
   virtual bool Key_part_spec_init_ft(Key_part_spec *part,
                                      const Column_definition &def) const
   {
@@ -4436,6 +4458,18 @@ public:
   {
     return NULL;
   }
+
+  /**
+     normalize_cond() replaces
+     `WHERE table_column` to
+     `WHERE table_column IS TRUE`
+     This method creates a literal Item corresponding to FALSE.
+     For example:
+      - for numeric data types it returns Item_int(0)
+      - for INET6 it returns Item_literal_fbt('::')
+  */
+  virtual Item_literal *create_boolean_false_item(THD *thd) const;
+
   /**
     A builder for literals with data type name prefix, e.g.:
       TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
@@ -6035,6 +6069,9 @@ public:
   const Type_handler *type_handler_signed() const override;
   void Item_update_null_value(Item *item) const override;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions)
+                         const override;
 };
 
 

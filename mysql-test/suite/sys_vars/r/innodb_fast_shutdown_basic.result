@@ -15,7 +15,7 @@ SELECT @@innodb_fast_shutdown;
 @@innodb_fast_shutdown
 1
 SELECT global.innodb_fast_shutdown;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SET global innodb_fast_shutdown = 1;
 SELECT @@global.innodb_fast_shutdown;
 @@global.innodb_fast_shutdown

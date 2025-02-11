@@ -28,8 +28,10 @@ SELECT CONCAT(CAST((f_int1 + 999) AS CHAR),'-02-10'), CAST(f_char1 AS CHAR)
 FROM t0_template
 WHERE f_int1 + 999 BETWEEN 1000 AND 9999;
 # 3.   Calculate the number of inserted records.
+--disable_cursor_protocol
 SELECT IF(9999 - 1000 + 1 > @max_row, @max_row , 9999 - 1000 + 1)
        INTO @exp_row_count;
+--enable_cursor_protocol
 # DEBUG SELECT @exp_row_count;
 # 4.   Print the layout, check Readability
 --source suite/parts/inc/partition_layout.inc

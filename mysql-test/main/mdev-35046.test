@@ -1,0 +1,19 @@
+#
+# MDEV-35046 SIGSEGV in list_delete in optimized builds when using pseudo_slave_mode
+# https://jira.mariadb.org/browse/MDEV-35046
+#
+--source include/have_innodb.inc
+SET pseudo_slave_mode=1;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=MEMORY;
+XA START 'a';
+INSERT INTO t1 VALUES (0);
+CREATE TEMPORARY TABLE t1t (c INT) ENGINE=InnoDB;
+INSERT INTO t1t VALUES (0);
+XA END 'a';
+XA PREPARE 'a';
+OPTIMIZE TABLE t1t;
+LOCK TABLE t2 READ;
+XA COMMIT 'a';
+--source include/restart_mysqld.inc
+DROP TABLE t1, t2;

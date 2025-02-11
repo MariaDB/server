@@ -193,7 +193,6 @@ SET(INNOBASE_SOURCES
 	include/btr0pcur.h
 	include/btr0pcur.inl
 	include/btr0sea.h
-	include/btr0sea.inl
 	include/btr0types.h
 	include/buf0buddy.h
 	include/buf0buf.h
@@ -259,8 +258,6 @@ SET(INNOBASE_SOURCES
 	include/gis0rtree.inl
 	include/gis0type.h
 	include/ha_prototypes.h
-	include/ha0ha.h
-	include/ha0ha.inl
 	include/ha0storage.h
 	include/ha0storage.inl
 	include/handler0alter.h
@@ -361,11 +358,9 @@ SET(INNOBASE_SOURCES
 	include/ut0pool.h
 	include/ut0rbt.h
 	include/ut0rnd.h
-	include/ut0rnd.inl
 	include/ut0sort.h
 	include/ut0stage.h
 	include/ut0ut.h
-	include/ut0ut.inl
 	include/ut0vec.h
 	include/ut0vec.inl
 	include/ut0wqueue.h
@@ -490,6 +485,14 @@ IF(MSVC)
   # silence "switch statement contains 'default' but no 'case' label
   # on generated file.
   TARGET_COMPILE_OPTIONS(innobase PRIVATE "/wd4065")
+ENDIF()
+
+OPTION(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY "Enable innodb_enable_xap_unlock_unmodified_for_primary_debug system variable even for release build" OFF)
+IF(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+  ADD_COMPILE_FLAGS(
+     lock/lock0lock.cc
+     handler/ha_innodb.cc
+     COMPILE_FLAGS "-DINNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY")
 ENDIF()
 
 IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))

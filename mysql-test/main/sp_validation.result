@@ -359,7 +359,7 @@ a	b
 1	2
 ALTER TABLE t1 DROP COLUMN b;
 CALL p1();
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -375,7 +375,7 @@ a	b
 1	2
 ALTER TABLE t1 DROP COLUMN b;
 CALL p1();
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TEMPORARY TABLE t1;
@@ -389,7 +389,7 @@ a	b
 1	2
 ALTER VIEW v1 AS SELECT 1 AS a;
 CALL p1();
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP VIEW v1;
@@ -831,7 +831,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -860,7 +860,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -893,7 +893,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -926,7 +926,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -956,7 +956,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -1192,7 +1192,7 @@ ALTER TABLE t1 DROP COLUMN a;
 CALL p1(3);
 x
 3
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SET'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -1239,7 +1239,7 @@ ALTER TABLE t1 DROP COLUMN a;
 CALL p1(3);
 x
 3
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SET'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;

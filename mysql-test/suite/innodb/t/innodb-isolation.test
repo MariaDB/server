@@ -45,6 +45,7 @@ INSERT INTO t2 (SELECT * FROM t1);
 --echo #
 --echo # Do some DML in the default connection and leave the transaction pending.
 --echo #
+SET innodb_snapshot_isolation=OFF;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 --enable_info
@@ -59,6 +60,7 @@ DELETE FROM t1 WHERE c1 = 6;
 --echo # Connection 1 REPEATABLE READ
 --echo #
 connect (con1,localhost,root,,);
+SET innodb_snapshot_isolation=OFF;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 --source suite/innodb/include/innodb_isolation_selects.inc

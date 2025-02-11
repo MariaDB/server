@@ -15,7 +15,7 @@ SELECT @@slave_compressed_protocol;
 @@slave_compressed_protocol
 0
 SELECT global.slave_compressed_protocol;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SET global slave_compressed_protocol = 1;
 SELECT @@global.slave_compressed_protocol;
 @@global.slave_compressed_protocol

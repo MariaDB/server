@@ -60,7 +60,7 @@ wait and check if an already running write is covering the request.
 @param durable  whether the write needs to be durable
 @param callback log write completion callback */
 void log_write_up_to(lsn_t lsn, bool durable,
-                     const completion_callback *callback= nullptr);
+                     const completion_callback *callback= nullptr) noexcept;
 
 /** Write to the log file up to the last log entry.
 @param durable  whether to wait for a durable write to complete */
@@ -118,15 +118,14 @@ public:
   @return file size in bytes
   @retval 0 if not readable */
   os_offset_t open(bool read_only) noexcept;
+
+  /** @return whether a handle to the log is open */
   bool is_opened() const noexcept { return m_file != OS_FILE_CLOSED; }
 
   dberr_t close() noexcept;
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept;
   void write(os_offset_t offset, span<const byte> buf) noexcept;
   bool flush() const noexcept { return os_file_flush(m_file); }
-#ifdef HAVE_PMEM
-  byte *mmap(bool read_only, const struct stat &st) noexcept;
-#endif
 };
 
 /** Redo log buffer */
@@ -189,7 +188,7 @@ private:
 public:
   /** number of append_prepare_wait(); protected by lock_lsn() or lsn_lock */
   size_t waits;
-  /** innodb_log_buffer_size (size of buf,flush_buf if !is_pmem(), in bytes) */
+  /** innodb_log_buffer_size (size of buf,flush_buf if !is_mmap(), in bytes) */
   unsigned buf_size;
   /** log file size in bytes, including the header */
   lsn_t file_size;
@@ -224,16 +223,17 @@ public:
   /** exclusive latch for checkpoint, shared for mtr_t::commit() to buf */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock latch;
 
-  /** number of std::swap(buf, flush_buf) and writes from buf to log;
+  /** number of writes from buf or flush_buf to log;
   protected by latch.wr_lock() */
   ulint write_to_log;
 
   /** Last written LSN */
   lsn_t write_lsn;
 
-  /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
-  In write_buf(), buf and flush_buf are swapped */
+  /** Buffer for writing data to ib_logfile0, or nullptr if is_mmap().
+  In write_buf(), buf and flush_buf may be swapped */
   byte *flush_buf;
+
   /** set when there may be need to initiate a log checkpoint.
   This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
   std::atomic<bool> need_checkpoint;
@@ -249,6 +249,8 @@ public:
 
   /** latest completed checkpoint (protected by latch.wr_lock()) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
+  /** The log writer (protected by latch.wr_lock()) */
+  lsn_t (*writer)() noexcept;
   /** next checkpoint LSN (protected by latch.wr_lock()) */
   lsn_t next_checkpoint_lsn;
 
@@ -270,7 +272,8 @@ private:
   @return the value of buf_free */
   size_t lock_lsn() noexcept;
 
-  /** log sequence number when log resizing was initiated, or 0 */
+  /** log sequence number when log resizing was initiated;
+  0 if the log is not being resized, 1 if resize_start() is in progress */
   std::atomic<lsn_t> resize_lsn;
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
@@ -279,6 +282,19 @@ public:
   uint write_size;
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
+#ifdef HAVE_INNODB_MMAP
+  /** whether the memory-mapped interface is enabled for the log */
+  my_bool log_mmap;
+  /** the default value of log_mmap */
+  static constexpr bool log_mmap_default=
+# if defined __linux__ /* MAP_POPULATE would enable read-ahead */
+    true ||
+# elif defined __FreeBSD__ /* MAP_PREFAULT_READ would enable read-ahead */
+    true ||
+# else /* an unnecessary read-ahead of a large ib_logfile0 is a risk */
+# endif
+    false;
+#endif
 #if defined __linux__ || defined _WIN32
   /** whether file system caching is enabled for the log */
   my_bool log_buffered;
@@ -323,7 +339,7 @@ public:
   /** whether there is capacity in the log buffer */
   bool buf_free_ok() const noexcept
   {
-    ut_ad(!is_pmem());
+    ut_ad(!is_mmap());
     return (buf_free.load(std::memory_order_relaxed) & ~buf_free_LOCK) <
       max_buf_free;
   }
@@ -333,19 +349,22 @@ public:
   void set_buf_free(size_t f) noexcept
   { ut_ad(f < buf_free_LOCK); buf_free.store(f, std::memory_order_relaxed); }
 
-#ifdef HAVE_PMEM
-  bool is_pmem() const noexcept { return !flush_buf; }
+#ifdef HAVE_INNODB_MMAP
+  bool is_mmap() const noexcept { return !flush_buf; }
 #else
-  static constexpr bool is_pmem() { return false; }
+  static constexpr bool is_mmap() { return false; }
 #endif
 
+  /** @return whether a handle to the log is open;
+  is_mmap() && !is_opened() holds for PMEM */
   bool is_opened() const noexcept { return log.is_opened(); }
 
   /** @return target write LSN to react on !buf_free_ok() */
   inline lsn_t get_write_target() const;
 
   /** @return LSN at which log resizing was started and is still in progress
-      @retval 0 if no log resizing is in progress */
+      @retval 0 if no log resizing is in progress
+      @retval 1 if resize_start() is in progress */
   lsn_t resize_in_progress() const noexcept
   { return resize_lsn.load(std::memory_order_relaxed); }
 
@@ -372,50 +391,43 @@ public:
 
 private:
   /** Write resize_buf to resize_log.
-  @param length  the used length of resize_buf */
-  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
-  void resize_write_buf(size_t length) noexcept;
+  @param b       resize_buf or resize_flush_buf
+  @param length  the used length of b */
+  void resize_write_buf(const byte *b, size_t length) noexcept;
 public:
 
   /** Rename a log file after resizing.
   @return whether an error occurred */
   static bool resize_rename() noexcept;
 
-#ifdef HAVE_PMEM
   /** @return pointer for writing to resize_buf
-  @retval nullptr if no PMEM based resizing is active */
+  @retval nullptr if no is_mmap() based resizing is active */
   inline byte *resize_buf_begin(lsn_t lsn) const noexcept;
   /** @return end of resize_buf */
   inline const byte *resize_buf_end() const noexcept
   { return resize_buf + resize_target; }
 
   /** Initialise the redo log subsystem. */
-  void create_low();
-  /** Initialise the redo log subsystem.
-  @return whether the initialisation succeeded */
-  bool create() { create_low(); return true; }
+  void create();
 
   /** Attach a log file.
   @return whether the memory allocation succeeded */
   bool attach(log_file_t file, os_offset_t size);
-#else
-  /** Initialise the redo log subsystem.
-  @return whether the initialisation succeeded */
-  bool create();
-  /** Attach a log file. */
-  void attach_low(log_file_t file, os_offset_t size);
-  bool attach(log_file_t file, os_offset_t size)
-  { attach_low(file, size); return true; }
-#endif
 
+#ifdef HAVE_INNODB_MMAP
+  /** Disable memory-mapped access (update log_mmap) */
+  void clear_mmap();
+  void close_file(bool really_close= true);
+#else
+  static void clear_mmap() {}
+  void close_file();
+#endif
 #if defined __linux__ || defined _WIN32
   /** Try to enable or disable file system caching (update log_buffered) */
   void set_buffered(bool buffered);
 #endif
   /** Try to enable or disable durable writes (update log_write_through) */
   void set_write_through(bool write_through);
-
-  void close_file();
 
   /** Calculate the checkpoint safety margins. */
   static void set_capacity();
@@ -454,8 +466,9 @@ public:
 
 #ifdef HAVE_PMEM
   /** Persist the log.
-  @param lsn    desired new value of flushed_to_disk_lsn */
-  inline void persist(lsn_t lsn) noexcept;
+  @param lsn            desired new value of flushed_to_disk_lsn
+  @param holding_latch  whether the caller is holding exclusive latch */
+  void persist(lsn_t lsn, bool holding_latch) noexcept;
 #endif
 
   bool check_for_checkpoint() const
@@ -483,6 +496,9 @@ public:
 #endif
 
 private:
+  /** Update writer and mtr_t::finisher */
+  void writer_update() noexcept;
+
   /** Wait in append_prepare() for buffer to become available
   @tparam spin  whether to use the spin-only lock_lsn()
   @param b      the value of buf_free
@@ -495,24 +511,18 @@ private:
 public:
   /** Reserve space in the log buffer for appending data.
   @tparam spin  whether to use the spin-only lock_lsn()
-  @tparam pmem  log_sys.is_pmem()
+  @tparam mmap  log_sys.is_mmap()
   @param size   total length of the data to append(), in bytes
   @param ex     whether log_sys.latch is exclusively locked
   @return the start LSN and the buffer position for append() */
-  template<bool spin,bool pmem>
+  template<bool spin,bool mmap>
   std::pair<lsn_t,byte*> append_prepare(size_t size, bool ex) noexcept;
 
   /** Append a string of bytes to the redo log.
   @param d     destination
   @param s     string of bytes
   @param size  length of str, in bytes */
-  void append(byte *&d, const void *s, size_t size) noexcept
-  {
-    ut_ad(latch_have_any());
-    ut_ad(d + size <= buf + (is_pmem() ? file_size : buf_size));
-    memcpy(d, s, size);
-    d+= size;
-  }
+  static inline void append(byte *&d, const void *s, size_t size) noexcept;
 
   /** Set the log file format. */
   void set_latest_format(bool encrypted) noexcept
@@ -551,10 +561,20 @@ public:
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
   inline void write_checkpoint(lsn_t end_lsn) noexcept;
 
-  /** Write buf to ib_logfile0.
-  @tparam release_latch whether to invoke latch.wr_unlock()
+  /** Variations of write_buf() */
+  enum resizing_and_latch {
+    /** skip latch.wr_unlock(); log resizing may or may not be in progress */
+    RETAIN_LATCH,
+    /** invoke latch.wr_unlock(); !(resize_in_progress() > 1) */
+    NOT_RESIZING,
+    /** invoke latch.wr_unlock(); resize_in_progress() > 1 */
+    RESIZING
+  };
+
+  /** Write buf to ib_logfile0 and possibly ib_logfile101.
+  @tparam resizing whether to release latch and whether resize_in_progress()>1
   @return the current log sequence number */
-  template<bool release_latch> inline lsn_t write_buf() noexcept;
+  template<resizing_and_latch resizing> inline lsn_t write_buf() noexcept;
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;

@@ -385,9 +385,9 @@ DROP TABLE t1;
 CREATE TABLE t1 (g GEOMETRY NOT NULL, SPATIAL gi(g));
 INSERT INTO t1 VALUES (POINT(0,0));
 HANDLER t1 OPEN AS h;
---error ER_KEY_DOESNT_SUPPORT
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
 HANDLER h READ `gi`= (10);
---error ER_KEY_DOESNT_SUPPORT
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
 HANDLER h READ `gi`> (10);
 HANDLER h CLOSE;
 DROP TABLE t1;
@@ -401,3 +401,14 @@ HANDLER h READ `fk`= (10);
 HANDLER h READ `fk`> (10);
 HANDLER h CLOSE;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35082 HANDLER with FULLTEXT keys is not always rejected
+--echo #
+create table t (a int primary key, v text not null, fulltext(v));
+handler t open;
+--error ER_KEY_DOESNT_SUPPORT
+handler t read v next;
+drop table t;
+
+--echo # End of 10.5 tests

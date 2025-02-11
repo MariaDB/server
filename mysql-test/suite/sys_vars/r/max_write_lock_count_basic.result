@@ -97,11 +97,11 @@ SELECT @@max_write_lock_count;
 @@max_write_lock_count
 102
 SELECT local.max_write_lock_count;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.max_write_lock_count;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT max_write_lock_count = @@global.max_write_lock_count;
-ERROR 42S22: Unknown column 'max_write_lock_count' in 'field list'
+ERROR 42S22: Unknown column 'max_write_lock_count' in 'SELECT'
 SET @@global.max_write_lock_count = @start_global_value;
 SELECT @@global.max_write_lock_count;
 @@global.max_write_lock_count

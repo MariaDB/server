@@ -23,11 +23,11 @@ SELECT @@innodb_table_locks;
 @@innodb_table_locks
 1
 SELECT session.innodb_table_locks;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT local.innodb_table_locks;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.innodb_table_locks;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SET session innodb_table_locks = 0;
 SELECT @@session.innodb_table_locks;
 @@session.innodb_table_locks

@@ -206,6 +206,7 @@ execute full_info ;
 --error 1064
 prepare stmt1 from "select ? := c1 from t9 where c1= 1" ;
 
+--disable_cursor_protocol
 --disable_query_log
 select '------ select column, .. into @parm,.. ------' as test_sequence ;
 --enable_query_log
@@ -243,6 +244,7 @@ into @arg01, @arg02, @arg03, @arg04, @arg05, @arg06, @arg07, @arg08,
      @arg17, @arg18, @arg19, @arg20, @arg21, @arg22, @arg23, @arg24,
      @arg25, @arg26, @arg27, @arg28, @arg29, @arg30, @arg31, @arg32
 from t9 where c1= ?" ;
+--enable_cursor_protocol
 set @my_key= 1 ;
 execute stmt1 using @my_key ;
 # get as much information about the parameters as possible

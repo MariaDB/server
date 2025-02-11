@@ -7,7 +7,7 @@ select 1;
 1
 1
 select foobar;
-ERROR 42S22: Unknown column 'foobar' in 'field list'
+ERROR 42S22: Unknown column 'foobar' in 'SELECT'
 show status like 'audit_null%';
 Variable_name	Value
 Audit_null_called	9

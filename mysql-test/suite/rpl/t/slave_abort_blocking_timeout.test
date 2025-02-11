@@ -1,0 +1,85 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo *** Testcase to show how a long-running SELECT can block replication from proceeding
+--echo *** past a DDL. Intention to implement a timeout after which such SELECT can be
+--echo *** killed.
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, 100+seq FROM seq_1_to_20;
+
+--sync_slave_with_master
+
+--source include/stop_slave.inc
+SELECT @@GLOBAL.slave_abort_blocking_timeout;
+SET @old_abort_timeout= @@slave_abort_blocking_timeout;
+SET GLOBAL slave_abort_blocking_timeout= -1;
+SELECT @@GLOBAL.slave_abort_blocking_timeout;
+SET GLOBAL slave_abort_blocking_timeout= 1.0;
+SELECT @@GLOBAL.slave_abort_blocking_timeout;
+--connection server_2
+# Start a SELECT that will run for long.
+send SELECT X.a, SLEEP(IF((X.b MOD 2)=0, 0.4, 0.6)) FROM t1 X CROSS JOIN t1 Y;
+
+--connection slave
+# Wait for the SELECT to have started so it will block the coming DDL
+# from replicating.
+--let $wait_condition= SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE state = 'User sleep'
+--source include/wait_condition.inc
+
+--connection master
+UPDATE t1 SET b=b+1000 WHERE a=1;
+ALTER TABLE t1 ADD INDEX b_idx(b);
+UPDATE t1 SET b=b+1000 WHERE a=20;
+
+--save_master_pos
+--connection slave
+--source include/start_slave.inc
+--sync_with_master
+
+--connection server_2
+--error ER_QUERY_INTERRUPTED
+reap;
+
+--connection slave
+query_vertical SHOW CREATE TABLE t1;
+
+# Do it again to test that a timeout of 0 also works to abort user queries.
+--source include/stop_slave.inc
+SET GLOBAL slave_abort_blocking_timeout= 0;
+SELECT @@GLOBAL.slave_abort_blocking_timeout;
+--connection server_2
+send SELECT X.a, SLEEP(IF((X.b MOD 2)=0, 0.4, 0.6)) FROM t1 X CROSS JOIN t1 Y;
+
+--connection slave
+--let $wait_condition= SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE state = 'User sleep'
+--source include/wait_condition.inc
+
+--connection master
+UPDATE t1 SET b=b+1000 WHERE a=1;
+ALTER TABLE t1 DROP INDEX b_idx;
+UPDATE t1 SET b=b+1000 WHERE a=20;
+
+--save_master_pos
+--connection slave
+--source include/start_slave.inc
+--sync_with_master
+
+--connection server_2
+--error ER_QUERY_INTERRUPTED
+reap;
+
+--connection slave
+query_vertical SHOW CREATE TABLE t1;
+
+
+--source include/stop_slave.inc
+SET GLOBAL slave_abort_blocking_timeout= @old_abort_timeout;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

@@ -1,0 +1,265 @@
+--echo #
+--echo # MDEV-34720: Poor plan choice for large JOIN with ORDER BY and small LIMIT
+--echo #
+
+--source include/have_sequence.inc
+
+# We need optimizer trace
+--source include/not_embedded.inc
+
+create table t1 (
+  a int,
+  b int,
+  c int,
+  col1 int,
+  col2 int,
+  index(a),
+  index(b),
+  index(col1)
+);
+
+insert into t1 select
+ mod(seq, 100),
+ mod(seq, 95),
+ seq,
+ seq,
+ seq
+from
+  seq_1_to_10000;
+
+
+create table t10 (
+ a int,
+ a_value char(10),
+ key(a)
+);
+insert into t10 select seq, seq from seq_1_to_100;
+
+create table t11 (
+ b int,
+ b_value char(10),
+ key(b)
+);
+insert into t11 select seq, seq from seq_1_to_150;
+
+set @tmp_os=@@optimizer_trace;
+set optimizer_trace=1;
+
+--echo #
+--echo # Query 1 - basic example.
+--echo #
+let $query= explain
+select
+  *
+from
+  t1
+  join t10 on t1.a=t10.a
+  join t11 on t1.b=t11.b
+order by
+  t1.col1
+limit 10;
+
+--echo # Table t1 is not the first, have to use temporary+filesort:
+eval $query;
+
+set optimizer_join_limit_pref_ratio=10;
+
+--echo # t1 is first, key=col1 produces ordering, no filesort or temporary:
+eval $query;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
+select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
+
+--echo #
+--echo # Query 2 - same as above but without a suitable index.
+--echo #
+let $query=
+explain
+select
+  *
+from
+  t1
+  join t10 on t1.a=t10.a
+  join t11 on t1.b=t11.b
+order by
+  t1.col2
+limit 10;
+
+--echo # Table t1 is not the first, have to use temporary+filesort:
+set optimizer_join_limit_pref_ratio=0;
+eval $query;
+
+--echo # t1 is first but there's no suitable index,
+--echo #   so we use filesort but using temporary:
+set optimizer_join_limit_pref_ratio=10;
+eval $query;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
+select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
+
+--echo #
+--echo # Query 3: Counter example with large limit
+--echo #
+let $query= explain
+select
+  *
+from
+  t1
+  join t10 on t1.a=t10.a
+  join t11 on t1.b=t11.b
+order by
+  t1.col1
+limit 5000;
+
+--echo # Table t1 is not the first, have to use temporary+filesort:
+set optimizer_join_limit_pref_ratio=0;
+eval $query;
+
+--echo # Same plan as above:
+--echo # Table t1 is not the first, have to use temporary+filesort:
+set optimizer_join_limit_pref_ratio=10;
+eval $query;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
+select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
+
+--echo #
+--echo # Query 4: LEFT JOIN makes it impossible to put ORDER-BY-table first,
+--echo #          however the optimizer still puts it as sort_by_table.
+--echo #
+set optimizer_join_limit_pref_ratio=10;
+explain
+select
+  *
+from
+  t10 left join (t1 join t11 on t1.b=t11.b ) on t1.a=t10.a
+order by
+  t1.col2
+limit 10;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+--echo # This will show nothing as limit shortcut code figures that
+--echo #   it's not possible to use t1 to construct shortcuts:
+--source include/optimizer_trace_no_costs.inc
+select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
+
+--echo #
+--echo # Query 5: Same as Q1 but also with a semi-join
+--echo #
+set optimizer_join_limit_pref_ratio=default;
+let $query= explain
+select
+  *
+from
+  t1
+  join t10 on t1.a=t10.a
+  join t11 on t1.b=t11.b
+where
+  t1.a in (select a from t10) and
+  t1.b in (select b from t11)
+order by
+  t1.col1
+limit 10;
+
+--echo # Table t1 is not the first, have to use temporary+filesort:
+eval $query;
+
+set optimizer_join_limit_pref_ratio=10;
+
+--echo # t1 is first, key=col1 produces ordering, no filesort or temporary:
+eval $query;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
+select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
+
+--echo #
+--echo # Query 6: same as Query 1 but let's limit the search depth
+--echo #
+set @tmp_osd=@@optimizer_search_depth;
+set optimizer_search_depth=1;
+let $query= explain
+select
+  *
+from
+  t1
+  join t10 on t1.a=t10.a
+  join t11 on t1.b=t11.b
+order by
+  t1.col1
+limit 10;
+
+set optimizer_join_limit_pref_ratio=default;
+--echo # Table t1 is not the first, have to use temporary+filesort:
+eval $query;
+
+set optimizer_join_limit_pref_ratio=10;
+
+--echo # t1 is first, key=col1 produces ordering, no filesort or temporary:
+eval $query;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
+select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
+
+set optimizer_search_depth=@tmp_osd;
+set optimizer_trace=@tmp_os;
+
+--echo # An extra testcase for MDEV-35164 (its main testcase is below).
+alter table t1 add unique key(col2);
+insert into t10 select * from t10;
+insert into t10 select * from t10;
+analyze table t10;
+
+--echo # This will not crash and also show that sorting is not done when
+--echo #   ORDER BY only refers to const table columns:
+explain
+select
+  *
+from
+  t1
+  join t10 on t1.a=t10.a
+  join t11 on t1.b=t11.b
+where
+ t1.col2=3
+order by
+  t1.col1
+limit 10;
+drop table t1, t10, t11;
+set optimizer_join_limit_pref_ratio=default;
+
+--echo #
+--echo # MDEV-35072: Assertion failure with optimizer_join_limit_pref_ratio and 1-table select
+--echo #
+SET optimizer_join_limit_pref_ratio=1;
+CREATE TABLE t1 (c1 INT, INDEX(c1));
+INSERT INTO t1  VALUES (1),(2);
+SELECT * FROM t1  ORDER BY c1 LIMIT 1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35164: optimizer_join_limit_pref_ratio: assertion when the ORDER BY table becomes constant
+--echo # Original testcase:
+--echo #
+SET optimizer_join_limit_pref_ratio=1;
+CREATE TABLE t1 (a INT KEY,b INT, KEY(b)) ;
+INSERT INTO t1 VALUES (2,NULL);
+INSERT INTO t1 VALUES (5,NULL);
+SELECT * FROM t1 NATURAL JOIN t1 AS t2 WHERE t1.b=NULL ORDER BY t1.a LIMIT 1;
+DROP TABLE t1;
+
+set optimizer_join_limit_pref_ratio=default;
+
+--echo #
+--echo # MDEV-35072: Assertion failure with optimizer_join_limit_pref_ratio and 1-table select
+--echo #
+SET optimizer_join_limit_pref_ratio=1;
+CREATE TABLE t1 (c1 INT, INDEX(c1));
+INSERT INTO t1  VALUES (1),(2);
+SELECT * FROM t1  ORDER BY c1 LIMIT 1;
+DROP TABLE t1;
+
+set optimizer_join_limit_pref_ratio=default;

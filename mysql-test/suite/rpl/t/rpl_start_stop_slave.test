@@ -19,7 +19,17 @@
 --source include/master-slave.inc
 
 connection slave;
---let $connection_id=`SELECT id FROM information_schema.processlist where state LIKE 'Waiting for master to send event'`
+--let $i= 100
+while ($i > 0) {
+  dec $i;
+  --let $connection_id=`SELECT id FROM information_schema.processlist where state LIKE 'Waiting for master to send event'`
+  if ($connection_id) {
+    let $i= 0;
+  }
+  if ($i > 0) {
+    --sleep 0.1
+  }
+}
 
 if(!$connection_id)
 {

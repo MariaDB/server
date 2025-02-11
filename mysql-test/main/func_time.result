@@ -48,7 +48,7 @@ now()-curdate()*1000000-curtime()
 select strcmp(current_timestamp(),concat(current_date()," ",current_time())) as exp;
 exp
 0
-select strcmp(localtime(),concat(current_date()," ",current_time())) as exp;
+select strcmp(localtime(),current_time()) as exp;
 exp
 0
 select strcmp(localtimestamp(),concat(current_date()," ",current_time())) as exp;
@@ -583,7 +583,9 @@ from_unixtime(2147483647)
 2038-01-19 06:14:07
 select from_unixtime(0);
 from_unixtime(0)
-1970-01-01 03:00:00
+NULL
+Warnings:
+Warning	1292	Truncated incorrect unixtime value: '0.0'
 select unix_timestamp(from_unixtime(2147483647));
 unix_timestamp(from_unixtime(2147483647))
 2147483647
@@ -616,7 +618,7 @@ LOWER(MONTHNAME(19700101))
 january
 SELECT COERCIBILITY(MONTHNAME('1970-01-01')),COERCIBILITY(DAYNAME('1970-01-01'));
 COERCIBILITY(MONTHNAME('1970-01-01'))	COERCIBILITY(DAYNAME('1970-01-01'))
-5	5
+6	6
 CREATE TABLE t1 (datetime datetime, timestamp timestamp, date date, time time);
 INSERT INTO t1 values ("2001-01-02 03:04:05", "2002-01-02 03:04:05", "2003-01-02", "06:07:08");
 SELECT * from t1;
@@ -6323,10 +6325,12 @@ TIME('- 01:00:00')	TIME('- 1 01:00:00')
 SET time_zone='+00:00';
 SELECT NULLIF(FROM_UNIXTIME('foo'), '2012-12-12 21:10:14');
 NULLIF(FROM_UNIXTIME('foo'), '2012-12-12 21:10:14')
-1970-01-01 00:00:00
+NULL
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'foo'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
 Warning	1292	Truncated incorrect DECIMAL value: 'foo'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
 SET time_zone=DEFAULT;
 #
 # MDEV-18402 Assertion `sec.sec() <= 59' failed in Item_func_maketime::get_date
@@ -6395,5 +6399,162 @@ Warning	1292	Truncated incorrect time value: '8390000'
 Warning	1292	Truncated incorrect time value: '8390000'
 SET @@timestamp= DEFAULT;
 #
+# MDEV-31302 Assertion `mon > 0 && mon < 13' failed in my_time_t sec_since_epoch(int, int, int, int, int, int)
+#
+CREATE TABLE t1 (a DATE);
+SET @@time_zone='+1:00';
+INSERT INTO t1 VALUES ('2024-00-01');
+SELECT UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+a
+NULL
+SET @@time_zone=DEFAULT;
+DROP TABLE t1;
+#
 # End of 10.5 tests
+#
+#
+# Start of 11.6 tests
+#
+#
+# MDEV-34829 LOCALTIME returns a wrong data type
+#
+SET timestamp=UNIX_TIMESTAMP('2024-08-28 14:47:00');
+SELECT LOCALTIME;
+LOCALTIME
+14:47:00
+EXPLAIN EXTENDED SELECT LOCALTIME;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select curtime() AS `LOCALTIME`
+CREATE TABLE t1 AS SELECT LOCALTIME;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `LOCALTIME` time NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t1;
+LOCALTIME
+14:47:00
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+# End of 11.6 tests
+#
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-15751 CURRENT_TIMESTAMP should return a TIMESTAMP [WITH TIME ZONE?]
+#
+CREATE TABLE t1 (localtimestamp TIMESTAMP);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'localtimestamp TIMESTAMP)' at line 1
+CREATE TABLE t1 (current_timestamp TIMESTAMP);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_timestamp TIMESTAMP)' at line 1
+CREATE TABLE t1 AS
+SELECT
+localtimestamp,
+localtimestamp(),
+localtimestamp(0),
+localtimestamp(1),
+localtimestamp(2),
+localtimestamp(3),
+localtimestamp(4),
+localtimestamp(5),
+localtimestamp(6);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `localtimestamp` datetime NOT NULL,
+  `localtimestamp()` datetime NOT NULL,
+  `localtimestamp(0)` datetime NOT NULL,
+  `localtimestamp(1)` datetime(1) NOT NULL,
+  `localtimestamp(2)` datetime(2) NOT NULL,
+  `localtimestamp(3)` datetime(3) NOT NULL,
+  `localtimestamp(4)` datetime(4) NOT NULL,
+  `localtimestamp(5)` datetime(5) NOT NULL,
+  `localtimestamp(6)` datetime(6) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS
+SELECT
+current_timestamp(),
+current_timestamp(0),
+current_timestamp(1),
+current_timestamp(2),
+current_timestamp(3),
+current_timestamp(4),
+current_timestamp(5),
+current_timestamp(6);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `current_timestamp()` timestamp NOT NULL,
+  `current_timestamp(0)` timestamp NOT NULL,
+  `current_timestamp(1)` timestamp(1) NOT NULL,
+  `current_timestamp(2)` timestamp(2) NOT NULL,
+  `current_timestamp(3)` timestamp(3) NOT NULL,
+  `current_timestamp(4)` timestamp(4) NOT NULL,
+  `current_timestamp(5)` timestamp(5) NOT NULL,
+  `current_timestamp(6)` timestamp(6) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS
+SELECT
+sysdate(),
+sysdate(0),
+sysdate(1),
+sysdate(2),
+sysdate(3),
+sysdate(4),
+sysdate(5),
+sysdate(6);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `sysdate()` timestamp NOT NULL,
+  `sysdate(0)` timestamp NOT NULL,
+  `sysdate(1)` timestamp(1) NOT NULL,
+  `sysdate(2)` timestamp(2) NOT NULL,
+  `sysdate(3)` timestamp(3) NOT NULL,
+  `sysdate(4)` timestamp(4) NOT NULL,
+  `sysdate(5)` timestamp(5) NOT NULL,
+  `sysdate(6)` timestamp(6) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS
+SELECT
+from_unixtime(1000000e0),
+from_unixtime(1000000),
+from_unixtime(1000000.1),
+from_unixtime(1000000.12),
+from_unixtime(1000000.123),
+from_unixtime(1000000.1234),
+from_unixtime(1000000.12345),
+from_unixtime(1000000.123456),
+from_unixtime(1000000.1234567),
+from_unixtime(1000000.12345678),
+from_unixtime(1000000.123456789),
+from_unixtime(1000000.1234567891),
+from_unixtime(1000000.12345678912);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `from_unixtime(1000000e0)` timestamp(6) NULL DEFAULT NULL,
+  `from_unixtime(1000000)` timestamp NULL DEFAULT NULL,
+  `from_unixtime(1000000.1)` timestamp(1) NULL DEFAULT NULL,
+  `from_unixtime(1000000.12)` timestamp(2) NULL DEFAULT NULL,
+  `from_unixtime(1000000.123)` timestamp(3) NULL DEFAULT NULL,
+  `from_unixtime(1000000.1234)` timestamp(4) NULL DEFAULT NULL,
+  `from_unixtime(1000000.12345)` timestamp(5) NULL DEFAULT NULL,
+  `from_unixtime(1000000.123456)` timestamp(6) NULL DEFAULT NULL,
+  `from_unixtime(1000000.1234567)` timestamp(6) NULL DEFAULT NULL,
+  `from_unixtime(1000000.12345678)` timestamp(6) NULL DEFAULT NULL,
+  `from_unixtime(1000000.123456789)` timestamp(6) NULL DEFAULT NULL,
+  `from_unixtime(1000000.1234567891)` timestamp(6) NULL DEFAULT NULL,
+  `from_unixtime(1000000.12345678912)` timestamp(6) NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+#
+# End of 11.7 tests
 #

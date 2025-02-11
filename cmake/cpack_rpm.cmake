@@ -5,7 +5,6 @@ MESSAGE(STATUS "CPackRPM building with RPM configuration: ${RPM}")
 SET(CPACK_GENERATOR "RPM")
 SET(CPACK_RPM_PACKAGE_DEBUG 1)
 SET(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
 
 SET(CPACK_RPM_COMPONENT_INSTALL ON)
 
@@ -249,7 +248,8 @@ IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
     "galera-4" "rsync" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
-  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "pv")
+  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat" "pv")
+  SETA(CPACK_RPM_test_PACKAGE_REQUIRES "socat")
 ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)

@@ -30,6 +30,7 @@ ANALYZE TABLE t1;
 SET STATEMENT use_stat_tables=never FOR
 ANALYZE TABLE wp;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 
 #
@@ -549,6 +550,7 @@ SHOW STATUS LIKE 'Handler_read%';
 DROP TABLE wp, t1;
 
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 # Tests for FT hints.
 

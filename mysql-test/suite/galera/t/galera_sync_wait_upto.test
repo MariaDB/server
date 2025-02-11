@@ -3,6 +3,7 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
@@ -72,4 +73,4 @@ INSERT INTO t1 VALUES (2);
 DROP TABLE t1;
 
 --connection node_2
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");

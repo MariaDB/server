@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -246,6 +245,7 @@ int spider_udf_get_copy_tgt_tables(
   char table_key[MAX_KEY_LENGTH];
   SPIDER_COPY_TABLE_CONN *table_conn = NULL, *src_table_conn_prev = NULL,
     *dst_table_conn_prev = NULL;
+  /* This share has only one link. */
   SPIDER_SHARE *tmp_share;
   char **tmp_connect_info;
   uint *tmp_connect_info_length;

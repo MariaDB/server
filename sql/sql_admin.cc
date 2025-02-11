@@ -982,7 +982,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       {
         TABLE *tab= table->table;
         Field **field_ptr= tab->field;
-        USED_MEM *memroot_block;
+        MEM_ROOT_SAVEPOINT memroot_sv;
 
         if (!lex->column_list)
         {
@@ -1084,7 +1084,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         }
         /* Ensure that number of records are updated */
         tab->file->info(HA_STATUS_VARIABLE);
-        memroot_block= get_last_memroot_block(thd->mem_root);
+        root_make_savepoint(thd->mem_root, &memroot_sv);
         if (!(compl_result_code=
               alloc_statistics_for_table(thd, tab,
                                          &tab->has_value_set)) &&
@@ -1092,7 +1092,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
               collect_statistics_for_table(thd, tab)))
           compl_result_code= update_statistics_for_table(thd, tab);
         free_statistics_for_table(tab);
-        free_all_new_blocks(thd->mem_root, memroot_block);
+        root_free_to_savepoint(&memroot_sv);
       }
       else
         compl_result_code= HA_ADMIN_FAILED;

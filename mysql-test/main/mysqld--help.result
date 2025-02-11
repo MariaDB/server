@@ -109,6 +109,16 @@ The following specify which files/extra groups are read (specified before remain
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log
+ --binlog-large-commit-threshold=# 
+ Increases transaction concurrency for large transactions
+ (i.e. those with sizes larger than this value) by using
+ the large transaction's cache file as a new binary log,
+ and rotating the active binary log to the large
+ transaction's cache file at commit time. This avoids the
+ default commit logic that copies the transaction cache
+ data to the end of the active binary log file while
+ holding a lock that prevents other transactions from
+ binlogging
  --binlog-legacy-event-pos 
  Fill in the end_log_pos field of _all_ events in the
  binlog, even when doing so costs performance. Can be used
@@ -122,7 +132,9 @@ The following specify which files/extra groups are read (specified before remain
  thread, which can be slower at very high concurrency.
  This option is mostly for testing one algorithm versus
  the other, and it should not normally be necessary to
- change it
+ change it. This variable is deprecated and will be
+ removed in a future release. Deprecated, will be removed
+ in a future release.
  (Defaults to on; use --skip-binlog-optimize-thread-scheduling to disable.)
  --binlog-row-event-max-size=# 
  The maximum size of a row-based binary log event in
@@ -533,6 +545,14 @@ The following specify which files/extra groups are read (specified before remain
  Deprecated, will be removed in a future release. Please
  use --log-slow-filter instead.
  (Defaults to on; use --skip-log-slow-admin-statements to disable.)
+ --log-slow-always-query-time=# 
+ Queries slower than log_slow_always_query_time are not
+ affected by log_slow_rate_limit or
+ log_slow_min_examined_row_limit. Query will be logged if
+ execution time of the query is longer than
+ log_slow_query_time and log_slow_always_query_time. The
+ argument will be treated as a decimal value with
+ microsecond precision
  --log-slow-disabled-statements=name 
  Don't log certain types of statements to slow log. Any
  combination of: admin, call, slave, sp, or ALL to set all
@@ -564,7 +584,8 @@ The following specify which files/extra groups are read (specified before remain
  Log all queries that have taken more than
  log_slow_query_time seconds to execute to the slow query
  log file. The argument will be treated as a decimal value
- with microsecond precision
+ with microsecond precision. Affected by
+ log_slow_rate_limit and log_slow_min_examined_row_limit
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
  everything. Increase it to reduce the size of the slow or
@@ -586,10 +607,7 @@ The following specify which files/extra groups are read (specified before remain
  Log some non-critical warnings to the error log. Value
  can be between 0 and 11. Higher values mean more
  verbosity
- --long-query-time=# Alias for log_slow_query_time. Log all queries that have
- taken more than long_query_time seconds to execute to the
- slow query log file. The argument will be treated as a
- decimal value with microsecond precision
+ --long-query-time=# Alias for log_slow_query_time
  --low-priority-updates 
  INSERT/DELETE/UPDATE has lower priority than selects
  --lower-case-table-names[=#] 
@@ -612,7 +630,9 @@ The following specify which files/extra groups are read (specified before remain
  --max-binlog-cache-size=# 
  Sets the total size of the transactional cache
  --max-binlog-size=# Binary log will be rotated automatically when the size
- exceeds this value
+ exceeds this value, unless
+ `binlog_large_commit_threshold` causes rotation
+ prematurely
  --max-binlog-stmt-cache-size=# 
  Sets the total size of the statement cache
  --max-binlog-total-size=# 
@@ -688,6 +708,19 @@ The following specify which files/extra groups are read (specified before remain
  Unused. Deprecated, will be removed in a future release.
  --metadata-locks-hash-instances=# 
  Unused. Deprecated, will be removed in a future release.
+ --mhnsw-default-distance=name 
+ Distance function to build the vector index for. One of: 
+ euclidean, cosine
+ --mhnsw-default-m=# Larger values mean slower SELECTs and INSERTs, larger
+ index size and higher memory consumption but more
+ accurate results
+ --mhnsw-ef-search=# Larger values mean slower SELECTs but more accurate
+ results. Defines the minimal number of result candidates
+ to look for in the vector index for ORDER BY ... LIMIT N
+ queries. The search will never search for less rows than
+ that, even if LIMIT is smaller
+ --mhnsw-max-cache-size=# 
+ Upper limit for one MHNSW vector index cache
  --min-examined-row-limit=# 
  Alias for log_slow_min_examined_row_limit. Don't write
  queries to slow log that examine fewer rows than that
@@ -747,7 +780,8 @@ The following specify which files/extra groups are read (specified before remain
  ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
  IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
  NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY, 
- OLD_FLUSH_STATUS, or ALL to set all combinations
+ OLD_FLUSH_STATUS, SESSION_USER_IS_USER, or ALL to set all
+ combinations
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 
@@ -779,6 +813,15 @@ The following specify which files/extra groups are read (specified before remain
  --optimizer-index-block-copy-cost=# 
  Cost of copying a key block from the cache to internal
  storage as part of an index scan
+ --optimizer-join-limit-pref-ratio=# 
+ For queries with JOIN and ORDER BY LIMIT : make the
+ optimizer consider a join order that allows to short-cut
+ execution after producing #LIMIT matches if that promises
+ N times speedup. (A conservative setting here would be is
+ a high value, like 100 so the short-cutting plan is used
+ if it promises a speedup of 100x or more). Short-cutting
+ plans are inherently risky so the default is 0 which
+ means do not consider this optimization
  --optimizer-key-compare-cost=# 
  Cost of checking a key against the end key condition
  --optimizer-key-copy-cost=# 
@@ -1299,6 +1342,11 @@ The following specify which files/extra groups are read (specified before remain
  --skip-show-database 
  Don't allow 'SHOW DATABASE' commands
  --skip-slave-start  If set, slave is not autostarted
+ --slave-abort-blocking-timeout=# 
+ Maximum time a slave DDL will wait for a blocking SELECT
+ or other user query until that query will be aborted. The
+ argument will be treated as a decimal value with
+ nanosecond precision
  --slave-compressed-protocol 
  Use compression on master/slave protocol
  --slave-connections-needed-for-purge=# 
@@ -1562,9 +1610,12 @@ The following specify which files/extra groups are read (specified before remain
  temporary table exceeds this size, MariaDB will
  automatically convert it to an on-disk MyISAM or Aria
  table
- -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
- separated by a colon (:), in this case they are used in a
- round-robin fashion
+ -t, --tmpdir=name   Path for temporary files. Files that are created in
+ background for binlogging by user threads are placed in a
+ separate location (see `binlog_large_commit_threshold`
+ option). Several paths may be specified, separated by a
+ colon (:), in this case they are used in a round-robin
+ fashion
  --transaction-alloc-block-size=# 
  Allocation block size for transactions to be stored in
  binary log
@@ -1623,6 +1674,7 @@ binlog-format MIXED
 binlog-gtid-index TRUE
 binlog-gtid-index-page-size 4096
 binlog-gtid-index-span-min 65536
+binlog-large-commit-threshold 134217728
 binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
@@ -1735,6 +1787,7 @@ log-queries-not-using-indexes FALSE
 log-short-format FALSE
 log-slave-updates FALSE
 log-slow-admin-statements TRUE
+log-slow-always-query-time 31536000
 log-slow-disabled-statements sp
 log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-max-warnings 10
@@ -1781,6 +1834,10 @@ max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
+mhnsw-default-distance euclidean
+mhnsw-default-m 6
+mhnsw-ef-search 20
+mhnsw-max-cache-size 16777216
 min-examined-row-limit 0
 mrr-buffer-size 262144
 myisam-block-size 1024
@@ -1807,6 +1864,7 @@ optimizer-disk-read-cost 10.24
 optimizer-disk-read-ratio 0.02
 optimizer-extra-pruning-depth 8
 optimizer-index-block-copy-cost 0.0356
+optimizer-join-limit-pref-ratio 0
 optimizer-key-compare-cost 0.011361
 optimizer-key-copy-cost 0.015685
 optimizer-key-lookup-cost 0.435777
@@ -1822,7 +1880,7 @@ optimizer-rowid-copy-cost 0.002653
 optimizer-scan-setup-cost 10
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=off,sargable_casefold=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on
 optimizer-trace 
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
@@ -1874,7 +1932,7 @@ performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-sql-text-length 1024
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 222
+performance-schema-max-statement-classes 223
 performance-schema-max-statement-stack 10
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
@@ -1892,14 +1950,14 @@ profiling-history-size 15
 progress-report-time 5
 protocol-version 10
 proxy-protocol-networks 
-query-alloc-block-size 16384
+query-alloc-block-size 32768
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
 query-cache-size 1048576
 query-cache-strip-comments FALSE
 query-cache-type OFF
 query-cache-wlock-invalidate FALSE
-query-prealloc-size 24576
+query-prealloc-size 32768
 range-alloc-block-size 4096
 read-binlog-speed-limit 0
 read-buffer-size 131072
@@ -1946,6 +2004,7 @@ skip-name-resolve FALSE
 skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
+slave-abort-blocking-timeout 31536000
 slave-compressed-protocol FALSE
 slave-connections-needed-for-purge 1
 slave-ddl-exec-mode IDEMPOTENT

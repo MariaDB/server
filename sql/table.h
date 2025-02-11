@@ -36,6 +36,7 @@
 #include "sql_i_s.h"
 #include "sql_type.h"               /* vers_kind_t */
 #include "privilege.h"              /* privilege_t */
+#include "my_bit.h"
 
 /*
   Buffer for unix timestamp in microseconds:
@@ -98,6 +99,9 @@ typedef ulonglong nested_join_map;
 #define tmp_file_prefix_length 4
 #define TMP_TABLE_KEY_EXTRA 8
 #define ROCKSDB_DIRECTORY_NAME "#rocksdb"
+
+#define HLINDEX_TEMPLATE "#i#%02u"
+#define HLINDEX_BUF_LEN  16 /* with extension .ibd/.MYI/etc and safety margin */
 
 /**
   Enumerate possible types of a table from re-execution
@@ -725,6 +729,9 @@ struct TABLE_SHARE
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
   mysql_mutex_t LOCK_statistics;        /* To protect against concurrent load */
 
+  void lock_share() { if (!tmp_table) mysql_mutex_lock(&LOCK_share); }
+  void unlock_share() { if (!tmp_table) mysql_mutex_unlock(&LOCK_share); }
+
   TDC_element *tdc;
 
   LEX_CUSTRING tabledef_version;
@@ -738,7 +745,12 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
-  LEX_CUSTRING vcol_defs;              /* definitions of generated columns */
+  LEX_CUSTRING vcol_defs;               /* definitions of generated columns */
+
+  union {
+    void *hlindex_data;                 /* for hlindex tables */
+    TABLE_SHARE *hlindex;               /* for normal tables  */
+  };
 
   /*
     EITS statistics data from the last time the table was opened or ANALYZE
@@ -834,7 +846,12 @@ struct TABLE_SHARE
   uint table_check_constraints, field_check_constraints;
 
   uint rec_buff_length;                 /* Size of table->record[] buffer */
-  uint keys, key_parts;
+  uint keys;                            /* Number of KEY's for the engine */
+  uint total_keys;                      /* total number of KEY's, including
+                                           high level indexes             */
+  uint hlindexes() { return total_keys - keys; }
+
+  uint key_parts;
   uint ext_key_parts;       /* Total number of key parts in extended keys */
   uint max_key_length, max_unique_length;
 
@@ -1357,12 +1374,16 @@ public:
   /* Tables used in DEFAULT and CHECK CONSTRAINT (normally sequence tables) */
   TABLE_LIST *internal_tables;
 
+  TABLE *hlindex;
   /*
     Not-null for temporary tables only. Non-null values means this table is
     used to compute GROUP BY, it has a unique of GROUP BY columns.
     (set by create_tmp_table)
   */
-  ORDER		*group;
+  union {
+    ORDER       *group;                   /* only for temporary tables */
+    void        *context;                 /* only for hlindexes */
+  };
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
   MY_BITMAP     def_read_set, def_write_set, tmp_set;
@@ -1551,7 +1572,6 @@ public:
     Used only in the MODE_NO_AUTO_VALUE_ON_ZERO mode.
   */
   bool auto_increment_field_not_null;
-  bool insert_or_update;             /* Can be used by the handler */
   /*
      NOTE: alias_name_used is only a hint! It works only in need_correct_ident()
      condition. On other cases it is FALSE even if table_name is alias.
@@ -1572,12 +1592,11 @@ public:
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
-  /**
-     Initialized in Item_func_group_concat::setup for appropriate
-     temporary table if GROUP_CONCAT is used with ORDER BY | DISTINCT
-     and BLOB field count > 0.
-   */
-  Blob_mem_storage *blob_storage;
+  /* this is for temporary tables created inside Item_func_group_concat */
+  union {
+    bool group_concat;                  /* used during create_tmp_table() */
+    Blob_mem_storage *blob_storage;     /* used after create_tmp_table()  */
+  };
   GRANT_INFO grant;
   /*
     The arena which the items for expressions from the table definition
@@ -1775,6 +1794,19 @@ public:
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
+  int hlindex_open(uint nr);
+  int hlindex_lock(uint nr);
+  int hlindex_read_first(uint nr, Item *item, ulonglong limit);
+  int hlindex_read_next();
+  int hlindex_read_end();
+
+  int open_hlindexes_for_write();
+  int hlindexes_on_insert();
+  int hlindexes_on_update();
+  int hlindexes_on_delete(const uchar *buf);
+  int hlindexes_on_delete_all(bool truncate);
+  int reset_hlindexes();
+
   void prepare_triggers_for_insert_stmt_or_event();
   bool prepare_triggers_for_delete_stmt_or_event();
   bool prepare_triggers_for_update_stmt_or_event();
@@ -1936,6 +1968,7 @@ public:
   bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
                              Open_table_context *ot_ctx);
 #endif
+  bool vers_implicit() const;
 
   int update_generated_fields();
   void period_prepare_autoinc();
@@ -2012,6 +2045,77 @@ typedef struct st_foreign_key_info
   LEX_CSTRING *referenced_key_name;
   List<LEX_CSTRING> foreign_fields;
   List<LEX_CSTRING> referenced_fields;
+private:
+  unsigned char *fields_nullable= nullptr;
+
+  /**
+    Get the number of fields exist in foreign key relationship
+  */
+  unsigned get_n_fields() const noexcept
+  {
+    unsigned n_fields= foreign_fields.elements;
+    if (n_fields == 0)
+      n_fields= referenced_fields.elements;
+    return n_fields;
+  }
+
+  /**
+    Assign nullable field for referenced and foreign fields
+    based on number of fields. This nullable fields
+    should be allocated by engine for passing the
+    foreign key information
+    @param thd thread to allocate the memory
+    @param num_fields number of fields
+  */
+  void assign_nullable(THD *thd, unsigned num_fields) noexcept
+  {
+    fields_nullable=
+      (unsigned char *)thd_calloc(thd,
+                                  my_bits_in_bytes(2 * num_fields));
+  }
+
+public:
+  /**
+    Set nullable bit for the field in the given field
+    @param referenced set null bit for referenced column
+    @param field field number
+    @param n_fields number of fields
+  */
+  void set_nullable(THD *thd, bool referenced,
+                    unsigned field, unsigned n_fields) noexcept
+  {
+    if (!fields_nullable)
+      assign_nullable(thd, n_fields);
+    DBUG_ASSERT(fields_nullable);
+    DBUG_ASSERT(field < n_fields);
+    size_t bit= size_t{field} + referenced * n_fields;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion"
+#endif
+    fields_nullable[bit / 8]|= static_cast<unsigned char>(1 << (bit % 8));
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
+  }
+
+  /**
+    Check whether the given field_no in foreign key field or
+    referenced key field
+    @param referenced check referenced field nullable value
+    @param field  field number
+    @return true if the field is nullable or false if it is not
+  */
+  bool is_nullable(bool referenced, unsigned field) const noexcept
+  {
+    if (!fields_nullable)
+      return false;
+    unsigned n_field= get_n_fields();
+    DBUG_ASSERT(field < n_field);
+    size_t bit= size_t{field} + referenced * n_field;
+    return fields_nullable[bit / 8] & (1U << (bit % 8));
+  }
+
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
@@ -2299,6 +2403,7 @@ struct vers_select_conds_t
 
 struct LEX;
 class Index_hint;
+class Lex_ident_sys;
 
 /*
   @struct TABLE_CHAIN
@@ -2565,9 +2670,18 @@ struct TABLE_LIST
      @note Inside views, a subquery in the @c FROM clause is not allowed.
      @note Do not use this field to separate views/base tables/anonymous
      derived tables. Use TABLE_LIST::is_anonymous_derived_table().
+     @note _column_names_ below are associated with these derived tables
+       SELECT * FROM (SELECT a FROM t1) b (list of column names)
+     @note _original_names_ below are used to save *item_list.name in the
+       select_lex for multiple executions
   */
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
   With_element *with;          /* With element defining this table (if any) */
+  List<Lex_ident_sys>   *column_names;  /* list of correlation column names */
+  List<Lex_ident_sys>   *original_names;/* list of original column names    */
+  st_select_lex         *original_names_source;
+  bool save_original_names(st_select_lex *derived);
+
   /* Bitmap of the defining with element */
   table_map with_internal_reference_map;
   TABLE_LIST * next_with_rec_ref;
@@ -3413,8 +3527,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
-                          uint key_length,
-                          const char *table_name, const char *path);
+                          uint key_length, const char *table_name,
+                          const char *path, bool thread_specific);
 void free_table_share(TABLE_SHARE *share);
 enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
                                    uint flags = GTS_TABLE);

@@ -83,9 +83,9 @@ SELECT @@relay_log_purge = @@global.relay_log_purge;
 SET relay_log_purge = 1;
 ERROR HY000: Variable 'relay_log_purge' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT global.relay_log_purge;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT relay_log_purge = @@session.relay_log_purge;
-ERROR 42S22: Unknown column 'relay_log_purge' in 'field list'
+ERROR 42S22: Unknown column 'relay_log_purge' in 'SELECT'
 SET @@global.relay_log_purge = @start_value;
 SELECT @@global.relay_log_purge;
 @@global.relay_log_purge

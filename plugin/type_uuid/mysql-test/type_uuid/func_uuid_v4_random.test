@@ -1,0 +1,12 @@
+source include/have_sequence.inc;
+
+--echo #
+--echo # MDEV-11339 Support UUID v4 generation
+--echo #
+
+CREATE TABLE t1 (a int primary key not null, u UUID DEFAULT UUID_v4(), unique key(u));
+insert into t1(a) select seq from seq_1_to_100;
+select count(distinct u) AS distinct_uuid_count from t1;
+drop table t1;
+
+--echo # End of 11.7 tests

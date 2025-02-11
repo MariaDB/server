@@ -86,10 +86,6 @@
   They stay with the open table until its final close.
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "sql_priv.h"
@@ -169,18 +165,6 @@ extern "C" void myrg_print_wrong_table(const char *table_name)
     handler::print_error() call.
   */
   my_error(ER_ADMIN_WRONG_MRG_TABLE, MYF(0), buf);
-}
-
-
-const char *ha_myisammrg::index_type(uint key_number)
-{
-  return ((table->key_info[key_number].flags & HA_FULLTEXT) ? 
-	  "FULLTEXT" :
-	  (table->key_info[key_number].flags & HA_SPATIAL) ?
-	  "SPATIAL" :
-	  (table->key_info[key_number].algorithm == HA_KEY_ALG_RTREE) ?
-	  "RTREE" :
-	  "BTREE");
 }
 
 
@@ -478,7 +462,7 @@ int ha_myisammrg::add_children_list(void)
     LEX_CSTRING db;
     LEX_CSTRING table_name;
 
-    child_l= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST));
+    child_l= thd->alloc<TABLE_LIST>(1);
     db.str= (char*) thd->memdup(mrg_child_def->db.str, mrg_child_def->db.length+1);
     db.length= mrg_child_def->db.length;
     table_name.str= (char*) thd->memdup(mrg_child_def->name.str,
@@ -929,7 +913,7 @@ int ha_myisammrg::attach_children(void)
         break;
     }
   }
-#if !defined(BIG_TABLES) || SIZEOF_OFF_T == 4
+#if SIZEOF_OFF_T == 4
   /* Merge table has more than 2G rows */
   if (table->s->crashed)
   {
@@ -1256,7 +1240,7 @@ int ha_myisammrg::info(uint flag)
   */
   stats.records = (ha_rows) mrg_info.records;
   stats.deleted = (ha_rows) mrg_info.deleted;
-#if !defined(BIG_TABLES) || SIZEOF_OFF_T == 4
+#if SIZEOF_OFF_T == 4
   if ((mrg_info.records >= (ulonglong) 1 << 32) ||
       (mrg_info.deleted >= (ulonglong) 1 << 32))
     table->s->crashed= 1;
@@ -1472,7 +1456,7 @@ void ha_myisammrg::update_create_info(HA_CREATE_INFO *create_info)
       {
         TABLE_LIST *ptr;
 
-        if (!(ptr= (TABLE_LIST *) thd->calloc(sizeof(TABLE_LIST))))
+        if (!(ptr= thd->calloc<TABLE_LIST>(1)))
           DBUG_VOID_RETURN;
 
         if (!(ptr->table_name.str= thd->strmake(child_table->table_name.str,
@@ -1517,7 +1501,7 @@ int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
     ntables++;
 
   /* Allocate a table_names array in thread mem_root. */
-  if (!(pos= table_names= (const char**) thd->alloc((ntables + 1) * sizeof(char*))))
+  if (!(pos= table_names= thd->alloc<const char*>(ntables + 1)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
 
   /* Create child path names. */
@@ -1571,6 +1555,11 @@ int ha_myisammrg::create(const char *name, TABLE *form,
 {
   char buff[FN_REFLEN];
   DBUG_ENTER("ha_myisammrg::create");
+  if (form->s->total_keys > form->s->keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "MERGE", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
   fn_format(buff, name, "", MYRG_NAME_EXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
   int res= create_mrg(buff, create_info);
   DBUG_RETURN(res);

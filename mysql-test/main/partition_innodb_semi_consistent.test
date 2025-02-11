@@ -29,6 +29,7 @@ set autocommit=0;
 select * from t1 where a=3 lock in share mode;
 connection b;
 set binlog_format=mixed;
+set innodb_snapshot_isolation=OFF;
 set session transaction isolation level repeatable read;
 set autocommit=0;
 -- error ER_LOCK_WAIT_TIMEOUT

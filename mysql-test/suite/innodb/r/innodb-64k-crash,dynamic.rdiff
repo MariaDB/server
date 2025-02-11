@@ -1,0 +1,8 @@
+--- innodb-64k-crash.result	2024-11-28 10:37:26.491384671 +0530
++++ innodb-64k-crash.reject	2024-11-28 11:05:46.461405444 +0530
+@@ -334,5 +334,4 @@
+ REPEAT('s', 1024), REPEAT('t', 1024),
+ REPEAT('u', 1024), REPEAT('v', 1024),
+ REPEAT('w', 1024), REPEAT('x', 1024));
+-ERROR 42000: Row size too large (> 16383). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ DROP TABLE t1;

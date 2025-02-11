@@ -413,10 +413,10 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
 
 
 static
-size_t get_sort_length(THD *thd, Item_field *item)
+size_t get_sort_length(THD *thd, Item *item)
 {
   SORT_FIELD_ATTR sort_attr;
-  sort_attr.type= ((item->field)->is_packable() ?
+  sort_attr.type= (item->type_handler()->is_packable() ?
                    SORT_FIELD_ATTR::VARIABLE_SIZE :
                    SORT_FIELD_ATTR::FIXED_SIZE);
   item->type_handler()->sort_length(thd, item, &sort_attr);
@@ -452,8 +452,7 @@ double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
 
   for (ORDER *ptr= order_by; ptr ; ptr= ptr->next)
   {
-    Item_field *field= (Item_field*) (*ptr->item)->real_item();
-    size_t length= get_sort_length(thd, field);
+    size_t length= get_sort_length(thd, *ptr->item);
     set_if_smaller(length, thd->variables.max_sort_length);
     sort_len+= (uint) length;
   }

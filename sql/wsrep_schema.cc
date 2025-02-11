@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2022 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2023 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,6 +34,18 @@
 
 #include <string>
 #include <sstream>
+
+#define WSREP_SCHEMA          "mysql"
+#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
+#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
+#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+#define WSREP_ALLOWLIST_TABLE "wsrep_allowlist"
+
+LEX_CSTRING WSREP_LEX_SCHEMA= {STRING_WITH_LEN(WSREP_SCHEMA)};
+LEX_CSTRING WSREP_LEX_STREAMING= {STRING_WITH_LEN(WSREP_STREAMING_TABLE)};
+LEX_CSTRING WSREP_LEX_CLUSTER= {STRING_WITH_LEN(WSREP_CLUSTER_TABLE)};
+LEX_CSTRING WSREP_LEX_MEMBERS= {STRING_WITH_LEN(WSREP_MEMBERS_TABLE)};
+LEX_CSTRING WSREP_LEX_ALLOWLIST= {STRING_WITH_LEN(WSREP_ALLOWLIST_TABLE)};
 
 const char* wsrep_sr_table_name_full= WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 
@@ -179,6 +191,25 @@ public:
 private:
   THD* m_thd;
   my_bool m_wsrep_ignore_table;
+};
+
+class wsrep_skip_locking
+{
+public:
+  wsrep_skip_locking(THD *thd)
+      : m_thd(thd)
+      , m_wsrep_skip_locking(thd->wsrep_skip_locking)
+  {
+    thd->wsrep_skip_locking= true;
+  }
+  ~wsrep_skip_locking()
+  {
+    m_thd->wsrep_skip_locking= m_wsrep_skip_locking;
+  }
+
+private:
+  THD *m_thd;
+  my_bool m_wsrep_skip_locking;
 };
 
 class thd_server_status
@@ -717,7 +748,6 @@ int Wsrep_schema::init()
     WSREP_ERROR("Unable to get thd");
     DBUG_RETURN(1);
   }
-  thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
 
   if (Wsrep_schema_impl::execute_SQL(thd, create_cluster_table_str.c_str(),
@@ -1247,6 +1277,7 @@ int Wsrep_schema::remove_fragments(THD* thd,
   Wsrep_schema_impl::wsrep_ignore_table wsrep_ignore_table(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
+  Wsrep_schema_impl::wsrep_skip_locking skip_locking(thd);
 
   Query_tables_list query_tables_list_backup;
   Open_tables_backup open_tables_backup;

@@ -14,9 +14,11 @@ WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
 --source include/wait_condition.inc
 
 SET GLOBAL innodb_max_dirty_pages_pct=90.0;
+--disable_cursor_protocol
 select variable_value into @innodb_async_writes_total_count_before
  from information_schema.global_status
  where variable_name='innodb_async_writes_total_count';
+--enable_cursor_protocol
 
 CREATE TABLE t ENGINE=InnoDB SELECT * FROM seq_1_to_10000;
 

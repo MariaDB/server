@@ -68,11 +68,13 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 eval LOAD DATA LOCAL INFILE '$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' INTO TABLE patch;
 # remove original t1.TRG file so SELECT INTO OUTFILE won't fail
 --remove_file $MYSQLD_DATADIR/mysqltest_db1/t1.TRG
+--disable_cursor_protocol
 --disable_ps2_protocol
 eval SELECT SUBSTRING_INDEX(a,'definers=',1) INTO OUTFILE
  '$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' 
 FROM patch;
 --enable_ps2_protocol
+--enable_cursor_protocol
 DROP TABLE patch;
 --connection wl2818_definer_con
 --enable_query_log

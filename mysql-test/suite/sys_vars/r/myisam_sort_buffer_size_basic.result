@@ -168,9 +168,9 @@ SELECT @@myisam_sort_buffer_size  ;
 @@myisam_sort_buffer_size
 4096
 SELECT local.myisam_sort_buffer_size  ;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.myisam_sort_buffer_size  ;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT myisam_sort_buffer_size   = @@session.myisam_sort_buffer_size  ;
-ERROR 42S22: Unknown column 'myisam_sort_buffer_size' in 'field list'
+ERROR 42S22: Unknown column 'myisam_sort_buffer_size' in 'SELECT'
 SET @@global.myisam_sort_buffer_size   = @start_global_value;

@@ -281,17 +281,17 @@ Charset	Description	Default collation	Maxlen
 latin1	cp1252 West European	latin1_swedish_ci	1
 select * from information_schema.COLLATIONS
 where COLLATION_NAME like 'latin1%';
-COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN
-latin1_german1_ci	latin1	5		#	1
-latin1_swedish_ci	latin1	8	Yes	#	1
-latin1_danish_ci	latin1	15		#	1
-latin1_german2_ci	latin1	31		#	2
-latin1_bin	latin1	47		#	1
-latin1_general_ci	latin1	48		#	1
-latin1_general_cs	latin1	49		#	1
-latin1_spanish_ci	latin1	94		#	1
-latin1_swedish_nopad_ci	latin1	1032		#	1
-latin1_nopad_bin	latin1	1071		#	1
+COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	COMMENT
+latin1_german1_ci	latin1	5		#	1	cp1252 West European
+latin1_swedish_ci	latin1	8	Yes	#	1	cp1252 West European
+latin1_danish_ci	latin1	15		#	1	cp1252 West European
+latin1_german2_ci	latin1	31		#	2	cp1252 West European
+latin1_bin	latin1	47		#	1	cp1252 West European
+latin1_general_ci	latin1	48		#	1	cp1252 West European
+latin1_general_cs	latin1	49		#	1	cp1252 West European
+latin1_spanish_ci	latin1	94		#	1	cp1252 West European
+latin1_swedish_nopad_ci	latin1	1032		#	1	
+latin1_nopad_bin	latin1	1071		#	1	
 SHOW COLLATION LIKE 'latin1%';
 Collation	Charset	Id	Default	Compiled	Sortlen
 latin1_german1_ci	latin1	5		#	1
@@ -914,6 +914,7 @@ sys	processlist	current_statement
 sys	processlist	last_statement
 sys	schema_auto_increment_columns	column_type
 sys	schema_table_lock_waits	waiting_query
+mysql	servers	Options
 sys	session	current_statement
 sys	session	last_statement
 sys	statement_analysis	query
@@ -1659,7 +1660,7 @@ SELECT *
 FROM tables ta
 JOIN collations co ON ( co.collation_name = ta.table_catalog )
 JOIN character_sets cs ON ( cs.character_set_name = ta.table_catalog );
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY	COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY	COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	COMMENT	CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
 DROP TABLE test.t1;
 SET max_heap_table_size = DEFAULT;
 USE test;
@@ -2326,6 +2327,9 @@ LOGFILE_GROUP_NAME, FILE_NAME, ENGINE
 ORDER BY 
 LOGFILE_GROUP_NAME;
 LOGFILE_GROUP_NAME	FILE_NAME	TOTAL_EXTENTS	INITIAL_SIZE	ENGINE	EXTRA
+Warnings:
+Warning	1287	'information_schema.FILES' is deprecated and will be removed in a future release
+Warning	1287	'information_schema.FILES' is deprecated and will be removed in a future release
 # This must have Opened_tables=3, not 6.
 show status like 'Opened_tables';
 Variable_name	Value
@@ -2396,7 +2400,7 @@ drop database dummy;
 USE test;
 CREATE VIEW v AS SELECT table_schema  AS object_schema, table_name  AS object_name, table_type AS object_type FROM information_schema.tables ORDER BY object_schema;
 SELECT * FROM v LIMIT ROWS EXAMINED 9;
-ERROR HY000: Sort aborted: 
+ERROR HY000: Sort aborted: LIMIT ROWS EXAMINED
 DROP VIEW v;
 #
 # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
@@ -2437,6 +2441,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2449,6 +2454,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2460,6 +2466,7 @@ NATURAL join information_schema.CHECK_CONSTRAINTS cc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2471,6 +2478,7 @@ NATURAL join information_schema.TABLE_CONSTRAINTS tc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2485,6 +2493,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
 mysql	global_priv	Priv	json_valid(`Priv`)	def	mysql
+mysql	servers	Options	json_valid(`Options`)	def	mysql
 test	t	a	`i` > 0	def	test
 drop table t;
 #

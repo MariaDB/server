@@ -15,7 +15,7 @@ SELECT @@innodb_autoinc_lock_mode;
 @@innodb_autoinc_lock_mode
 1
 SELECT local.innodb_autoinc_lock_mode;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT @@global.innodb_autoinc_lock_mode;
 @@global.innodb_autoinc_lock_mode
 1

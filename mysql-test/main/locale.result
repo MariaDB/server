@@ -305,7 +305,7 @@ date_format('2001-09-01', '%c %b %M', 'de_CH')
 #
 SET lc_messages=ZH_CN;
 SELECT x;
-ERROR 42S22: 未知列'x'在'field list'
+ERROR 42S22: 未知列'x'在'SELECT'
 SET lc_messages=DEFAULT;
 #
 # End of 10.4 tests
@@ -315,14 +315,14 @@ SET lc_messages=DEFAULT;
 #
 SET lc_messages=ka_GE;
 SELECT x;
-ERROR 42S22: უცნობი სვეტი 'x' 'field list'-ში
+ERROR 42S22: უცნობი სვეტი 'x' 'SELECT'-ში
 SET lc_messages=DEFAULT;
 #
 # Add Swahili error messages and locale
 #
 SET lc_messages=sw_KE;
 SELECT x;
-ERROR 42S22: Safu wima isiyojulikana 'x' katika 'field list'
+ERROR 42S22: Safu wima isiyojulikana 'x' katika 'SELECT'
 SET lc_messages=DEFAULT;
 #
 # MDEV-30997 SIGSEGV in __strlen_avx2 | make_date_time | Item_func_date_format::val_str

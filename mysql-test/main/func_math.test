@@ -4,10 +4,6 @@
 
 --source include/default_charset.inc
 
---disable_warnings                                                              
-drop table if exists t1;                                                        
---enable_warnings                                                               
-
 select floor(5.5),floor(-5.5);
 explain extended select floor(5.5),floor(-5.5);
 select ceiling(5.5),ceiling(-5.5);
@@ -567,11 +563,14 @@ select (1.175494351E-37 div 1.7976931348623157E+308);
 
 select round(999999999, -9);
 select round(999999999.0, -9);
+#enable after fix MDEV-31555
+--disable_cursor_protocol
 #enable after fix MDEV-29526
 --disable_view_protocol
 select round(999999999999999999, -18);
 select round(999999999999999999.0, -18);
 --enable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # Bug#12537160 ASSERTION FAILED:
@@ -1989,7 +1988,13 @@ SELECT (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) AS c1;
 SELECT (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) * (LAST_DAY('1-03-30 1:29:12') MOD 1 + COS(-1)) AS c1;
 SELECT(ASIN(-1)+ LN(-1)) % (ATAN(-1) MOD FLOOR(1)) * (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) * (LAST_DAY('1-03-30 1:29:12') MOD 1 + COS(-1)) AS c1;
 
+--echo #
+--echo # MDEV-35651 NO_UNSIGNED_SUBTRACTION does not work for multiple unsigned integers
+--echo #
+set sql_mode=no_unsigned_subtraction;
+select cast(0 as unsigned) - 1;
+select 2-cast(3 as unsigned);
+select cast(1 as unsigned) - cast(2 as unsigned);
+set sql_mode=default;
 
---echo #
 --echo # End of 10.5 tests
---echo #

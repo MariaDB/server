@@ -80,13 +80,7 @@ unsigned int binlog_checksum_type_length[]= {
   0
 };
 
-TYPELIB binlog_checksum_typelib=
-{
-  array_elements(binlog_checksum_type_names) - 1, "",
-  binlog_checksum_type_names,
-  binlog_checksum_type_length
-};
-
+TYPELIB binlog_checksum_typelib= CREATE_TYPELIB_FOR(binlog_checksum_type_names);
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -693,6 +687,9 @@ const char* Log_event::get_type_str(Log_event_type type)
   case TRANSACTION_CONTEXT_EVENT: return "Transaction_context";
   case VIEW_CHANGE_EVENT: return "View_change";
   case XA_PREPARE_LOG_EVENT: return "XA_prepare";
+  case PARTIAL_UPDATE_ROWS_EVENT: return "MySQL Update_rows_partial";
+  case TRANSACTION_PAYLOAD_EVENT: return "MySQL Transaction_payload";
+  case HEARTBEAT_LOG_EVENT_V2: return "MySQL Heartbeat";
   case QUERY_COMPRESSED_EVENT: return "Query_compressed";
   case WRITE_ROWS_COMPRESSED_EVENT: return "Write_rows_compressed";
   case UPDATE_ROWS_COMPRESSED_EVENT: return "Update_rows_compressed";
@@ -981,6 +978,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
   DBUG_DUMP_EVENT_BUF(buf, event_len);
 
+  *error= 0;
   /*
     Check the integrity; This is needed because handle_slave_io() doesn't
     check if packet is of proper length.
@@ -1178,6 +1176,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     case ANONYMOUS_GTID_LOG_EVENT:
     case PREVIOUS_GTIDS_LOG_EVENT:
     case TRANSACTION_CONTEXT_EVENT:
+    case HEARTBEAT_LOG_EVENT_V2:                // MySQL 8.0
     case VIEW_CHANGE_EVENT:
       ev= new Ignorable_log_event(buf, fdle,
                                   get_type_str((Log_event_type) event_type));
@@ -1202,6 +1201,21 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     case START_ENCRYPTION_EVENT:
       ev= new Start_encryption_log_event(buf, event_len, fdle);
       break;
+    case TRANSACTION_PAYLOAD_EVENT:             // MySQL 8.0
+      *error=
+        "Found incompatible MySQL 8.0 TRANSACTION_PAYLOAD_EVENT event. "
+        "You can avoid this event by specifying "
+        "'binlog_transaction_compression=0' in the MySQL server";
+      ev= NULL;
+      break;
+    case PARTIAL_UPDATE_ROWS_EVENT:             // MySQL 8.0
+      *error=
+        "Found incompatible MySQL 8.0 PARTIAL_UPDATE_ROWS_EVENT event. "
+        "You can avoid this event by specifying "
+        "'binlog-row-value-options=\"\"' in the MySQL server";
+      ev= NULL;
+      break;
+
     case PRE_GA_WRITE_ROWS_EVENT:
     case PRE_GA_UPDATE_ROWS_EVENT:
     case PRE_GA_DELETE_ROWS_EVENT:
@@ -1251,12 +1265,14 @@ exit:
 #ifdef MYSQL_CLIENT
     if (!force_opt) /* then mysqlbinlog dies */
     {
-      *error= "Found invalid event in binary log";
+      if (!*error)
+        *error= "Found invalid event in binary log";
       DBUG_RETURN(0);
     }
     ev= new Unknown_log_event(buf, fdle);
 #else
-    *error= "Found invalid event in binary log";
+    if (!*error)
+      *error= "Found invalid event in binary log";
     DBUG_RETURN(0);
 #endif
   }
@@ -1643,7 +1659,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
     sql_parse.cc
     */
 
-#if !defined(MYSQL_CLIENT) && defined(HAVE_QUERY_CACHE)
+#if !defined(MYSQL_CLIENT)
   if (!(start= data_buf= (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
                                                        catalog_len + 1
                                                     +  time_zone_len + 1
@@ -1738,7 +1754,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
     Append the db length at the end of the buffer. This will be used by
     Query_cache::send_result_to_client() in case the query cache is On.
    */
-#if !defined(MYSQL_CLIENT) && defined(HAVE_QUERY_CACHE)
+#if !defined(MYSQL_CLIENT)
   size_t db_length= (size_t)db_len;
   memcpy(start + data_len + 1, &db_length, sizeof(size_t));
 #endif
@@ -2080,6 +2096,9 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver,
       post_header_len[TRANSACTION_CONTEXT_EVENT-1]= 0;
       post_header_len[VIEW_CHANGE_EVENT-1]= 0;
       post_header_len[XA_PREPARE_LOG_EVENT-1]= 0;
+      post_header_len[PARTIAL_UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
+      post_header_len[TRANSACTION_PAYLOAD_EVENT-1]= ROWS_HEADER_LEN_V2;
+      post_header_len[HEARTBEAT_LOG_EVENT_V2-1]= ROWS_HEADER_LEN_V2;
       post_header_len[WRITE_ROWS_EVENT-1]=  ROWS_HEADER_LEN_V2;
       post_header_len[UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
       post_header_len[DELETE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
@@ -3524,8 +3543,7 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
 #ifdef MYSQL_SERVER
   if (!m_table)
     DBUG_VOID_RETURN;
-  binlog_type_info_array= (Binlog_type_info *)thd->alloc(m_table->s->fields *
-                                                         sizeof(Binlog_type_info));
+  binlog_type_info_array= thd->alloc<Binlog_type_info>(m_table->s->fields);
   for (uint i= 0; i <  m_table->s->fields; i++)
     binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
 #endif

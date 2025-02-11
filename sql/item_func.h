@@ -19,10 +19,6 @@
 
 /* Function items used by mysql */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #ifdef HAVE_IEEEFP_H
 extern "C"				/* Bug in BSDI include file */
 {
@@ -35,6 +31,8 @@ extern "C"				/* Bug in BSDI include file */
 #include <cmath>
 
 
+extern int st_append_json(String *s,
+             CHARSET_INFO *json_cs, const uchar *js, uint js_len);
 class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
@@ -108,7 +106,7 @@ public:
                   JSON_EXTRACT_FUNC, JSON_VALID_FUNC, ROWNUM_FUNC,
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
                   CASE_SIMPLE_FUNC,   // Used by ColumnStore/spider,
-                  DATE_FUNC, YEAR_FUNC
+                  DATE_FUNC, YEAR_FUNC, SUBSTR_FUNC, LEFT_FUNC
                 };
 
   /*
@@ -130,6 +128,8 @@ public:
     BITMAP_BETWEEN=    1ULL << BETWEEN,
     BITMAP_IN=         1ULL << IN_FUNC,
     BITMAP_MULT_EQUAL= 1ULL << MULT_EQUAL_FUNC,
+    BITMAP_ISNULL=     1ULL << ISNULL_FUNC,
+    BITMAP_ISNOTNULL=  1ULL << ISNOTNULL_FUNC,
     BITMAP_OTHER=      1ULL << 63,
     BITMAP_ALL=        0xFFFFFFFFFFFFFFFFULL,
     BITMAP_ANY_EQUALITY= BITMAP_EQ | BITMAP_EQUAL | BITMAP_MULT_EQUAL,
@@ -459,7 +459,7 @@ public:
   void convert_const_compared_to_int_field(THD *thd);
   Item_func *get_item_func() override { return this; }
   bool is_simplified_cond_processor(void *) override
-  { return const_item() && !val_int(); }
+  { return const_item() && !val_bool(); }
 };
 
 
@@ -980,6 +980,7 @@ public:
   }
   longlong val_int() override
   {
+    DBUG_ASSERT(!is_cond());
     DBUG_ASSERT(fixed());
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_val_int(this);
@@ -2368,6 +2369,7 @@ public:
   String *val_str_native(String *str);
   double val_real_native();
   longlong val_int_native();
+  longlong val_uint_native();
   my_decimal *val_decimal_native(my_decimal *);
   bool get_date_native(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool get_time_native(THD *thd, MYSQL_TIME *res);
@@ -3979,6 +3981,50 @@ public:
   LEX_CSTRING func_name_cstring() const override;
 
   const Type_handler *type_handler() const override;
+
+  uint cols() const override
+  {
+    return sp_result_field->cols();
+  }
+
+  Item* element_index(uint i) override
+  {
+    DBUG_ASSERT(sp_result_field_items.argument_count() || !i);
+    return sp_result_field_items.argument_count() ?
+           sp_result_field_items.arguments()[i] :
+           this;
+  }
+  Item** addr(uint i) override
+  {
+    DBUG_ASSERT(sp_result_field_items.argument_count() || !i);
+    return sp_result_field_items.argument_count() ?
+           &sp_result_field_items.arguments()[i] :
+           nullptr;
+  }
+
+  bool check_cols(uint c) override
+  {
+    if (cmp_type() != ROW_RESULT)
+      return Item_func::check_cols(c);
+    /*
+      We don't support ROWs with a single member yet, e.g. ROW(a INT).
+      Neither in stored function RETURNS, nor in SP variables.
+      There must be at least two members.
+      So raise an error in case of c==1, like Item_splocal does.
+      See comments in Item_splocal::check_cols() for more details.
+    */
+    if (cols() != c || c == 1)
+    {
+      my_error(ER_OPERAND_COLUMNS, MYF(0), c);
+      return true;
+    }
+    return false;
+  }
+
+  void bring_value() override
+  {
+    execute();
+  }
 
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;

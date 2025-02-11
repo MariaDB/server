@@ -1,0 +1,2 @@
+--plugin-load-add=ha_spider
+--spider-table-sts-thread-count=5

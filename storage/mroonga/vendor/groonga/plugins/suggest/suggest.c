@@ -653,7 +653,7 @@ learner_init(grn_ctx *ctx, grn_suggest_learner *learner,
 static void
 learner_init_columns(grn_ctx *ctx, grn_suggest_learner *learner)
 {
-  grn_id events_id, event_types_id;
+  grn_id events_id;
   grn_obj *seqs, *events, *post_item, *items, *pairs;
 
   learner->seqs = seqs = grn_ctx_at(ctx, GRN_OBJ_GET_DOMAIN(learner->seq));
@@ -665,7 +665,7 @@ learner_init_columns(grn_ctx *ctx, grn_suggest_learner *learner)
   learner->events_type = grn_obj_column(ctx, events, CONST_STR_LEN("type"));
   learner->events_time = grn_obj_column(ctx, events, CONST_STR_LEN("time"));
 
-  event_types_id = grn_obj_get_range(ctx, learner->events_type);
+  grn_obj_get_range(ctx, learner->events_type);
   learner->event_types = grn_obj_column(ctx, events, CONST_STR_LEN("time"));
 
   post_item = learner->post_item;

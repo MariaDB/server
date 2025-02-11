@@ -32,10 +32,6 @@
   /sql/handler.h and /storage/example/ha_example.cc
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "my_global.h"                   /* ulonglong */
 #include "thr_lock.h"                    /* THR_LOCK, THR_LOCK_DATA */
 #include "handler.h"                     /* handler */
@@ -69,12 +65,6 @@ class ha_example: public handler
 public:
   ha_example(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_example() = default;
-
-  /** @brief
-    The name of the index type that will be used for display.
-    Don't implement this method unless you really have indexes.
-   */
-  const char *index_type(uint inx) override { return "HASH"; }
 
   /** @brief
     This is a list of flags that indicate what functionality the storage engine

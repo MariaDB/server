@@ -111,8 +111,7 @@ static const char *command_names[]= {
   NullS
 };
 
-static TYPELIB command_typelib=
-{ array_elements(command_names)-1,"commands", command_names, NULL};
+static TYPELIB command_typelib= CREATE_TYPELIB_FOR(command_names);
 
 static struct my_option my_long_options[] =
 {
@@ -146,8 +145,9 @@ static struct my_option my_long_options[] =
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host. Defaults in the following order: "
+  "$MARIADB_HOST, and then localhost",
+   &host, &host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"local", 'l', "Local command, don't write to binlog.",
    &opt_local, &opt_local, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
@@ -328,6 +328,9 @@ int main(int argc,char *argv[])
   int error= 0, temp_argc;
   MYSQL mysql;
   char **commands, **save_argv, **temp_argv;
+
+  if (host == NULL)
+    host= getenv("MARIADB_HOST");
 
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */

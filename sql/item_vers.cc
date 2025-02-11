@@ -179,8 +179,8 @@ Item_func_trt_trx_sees::Item_func_trt_trx_sees(THD *thd, Item* a, Item* b) :
   DBUG_ASSERT(arg_count == 2 && args[0] && args[1]);
 }
 
-longlong
-Item_func_trt_trx_sees::val_int()
+bool
+Item_func_trt_trx_sees::val_bool()
 {
   THD *thd= current_thd;
   DBUG_ASSERT(thd);

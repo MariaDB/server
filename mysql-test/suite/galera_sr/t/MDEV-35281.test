@@ -1,0 +1,37 @@
+#
+# MDEV-35281 - SR transaction crashes with innodb_snapshot_isolation
+#
+# Test outline: a simple SR transaction fails to remove
+# its fragments from streaming_log table, with error
+# HA_ERR_RECORD_CHANGED.
+# This happens with the following sequence of events:
+# 1. Start a streaming replication transaction
+# 2. The transaction creates a read view in InnoDB
+#    (this must happen before a fragment is replicated)
+# 3. The transaction replicates a fragment.
+#    Internally, a new transaction is created to INSERT
+#    a row representing the fragment into the streaming_log
+#    table and is committed immediately.
+# 4. The streaming replication transaction COMMITs.
+#    Before committing, the transaction replicates
+#    a commit fragment and DELETEs its fragments that
+#    were created in the streaming_log table.
+#    If bug is present, fragment removal from the
+#    streaming_log table violates snapshot isolation,
+#    thus the operation fails with HA_ERR_RECORD_CHANGED.
+#    (One or more records from the streaming_log table
+#    are removed, while these were not visible to
+#    the transaction).
+
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+SET SESSION wsrep_trx_fragment_size=1;
+SET SESSION innodb_snapshot_isolation=ON;
+
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+INSERT INTO t1 VALUES (1);
+COMMIT;
+
+DROP TABLE t1;

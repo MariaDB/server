@@ -113,7 +113,9 @@ while (`SELECT $i <= $slave_last`)
 --echo # allowed timeout, the primary should delay killing the Ack_thread
 --echo # until an ACK is received.
 --echo #
+--let server_2_sync_slave_reply=1
 --let server_2_dbug= "+d,simulate_delay_semisync_slave_reply"
+--let server_3_sync_slave_reply=1
 --let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
 --let semisync_timeout= 1600
 --let server_2_expect_row_count= 1
@@ -125,7 +127,9 @@ while (`SELECT $i <= $slave_last`)
 --echo # the primary should delay killing the Ack_thread until the
 --echo # timeout is reached.
 --echo #
+--let server_2_sync_slave_reply=0
 --let server_2_dbug= "+d,corrupt_queue_event,delay_semisync_kill_connection_for_mdev_28141"
+--let server_3_sync_slave_reply=0
 --let server_3_dbug= "+d,corrupt_queue_event,delay_semisync_kill_connection_for_mdev_28141"
 --let semisync_timeout= 500
 --let server_2_expect_row_count= 0
@@ -138,7 +142,9 @@ while (`SELECT $i <= $slave_last`)
 --echo # primary should delay killing the Ack_thread until it receives an
 --echo # ACK from the delayed slave.
 --echo #
+--let server_2_sync_slave_reply=0
 --let server_2_dbug= "+d,corrupt_queue_event,delay_semisync_kill_connection_for_mdev_28141"
+--let server_3_sync_slave_reply=1
 --let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
 --let semisync_timeout= 1600
 --let server_2_expect_row_count= 0
@@ -156,7 +162,9 @@ while (`SELECT $i <= $slave_last`)
 --echo # sent to kill an active connection. This test case validates that the
 --echo # slave does not send a `QUIT` in this case.
 --echo #
+--let server_2_sync_slave_reply=0
 --let server_2_dbug= "+d,corrupt_queue_event,delay_semisync_kill_connection_for_mdev_28141"
+--let server_3_sync_slave_reply=1
 --let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
 --let semisync_timeout= 1600
 --let server_2_expect_row_count= 0
@@ -208,6 +216,9 @@ SET GLOBAL debug_dbug="+d,simulate_delay_semisync_slave_reply";
 --source include/wait_condition.inc
 --echo # ..done
 
+--connection server_2
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+
 --disconnect con1
 
 --connection default
@@ -217,12 +228,14 @@ EOF
 
 --connection con2
 SHUTDOWN WAIT FOR ALL SLAVES;
---source include/wait_until_disconnected.inc
 
---echo # Ensure the primary waited for the ACK of the killed thread
---let $SEARCH_PATTERN= Delaying shutdown to await semi-sync ACK
---let $SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
---source include/search_pattern_in_file.inc
+--echo # Waitng for shutdown to be delayed..
+--connection server_2
+--inc $n_logged_delayed_shutdown_notes
+let SEARCH_FILE= $log_error_file;
+let SEARCH_PATTERN=Delaying shutdown to await semi-sync ACK;
+let SEARCH_WAIT=FOUND $n_logged_delayed_shutdown_notes;
+source include/search_pattern_in_file.inc;
 
 --connection default
 --source include/wait_until_disconnected.inc
@@ -230,7 +243,11 @@ SHUTDOWN WAIT FOR ALL SLAVES;
 --connection server_1
 --source include/wait_until_disconnected.inc
 
+--connection con2
+--source include/wait_until_disconnected.inc
+
 --connection server_2
+set debug_sync= "now signal io_thd_do_reply";
 --let $rpl_allow_error= 1
 source include/stop_slave.inc;
 --connection server_3

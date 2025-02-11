@@ -22,10 +22,6 @@
 #ifndef HA_MROONGA_HPP_
 #define HA_MROONGA_HPP_
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -86,11 +82,7 @@ extern "C" {
 #  define MRN_HANDLER_HAVE_SET_HA_SHARE_REF
 #endif
 
-#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
-#  define MRN_BIG_TABLES
-#elif defined(BIG_TABLES)
-#  define MRN_BIG_TABLES
-#endif
+#define MRN_BIG_TABLES
 
 #ifdef MRN_BIG_TABLES
 #  define MRN_HA_ROWS_FORMAT "llu"
@@ -618,9 +610,9 @@ protected:
   char *get_tablespace_name(THD *thd, char *name, uint name_len);
 #endif
   bool can_switch_engines() mrn_override;
-  int get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
-  int get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
-  uint referenced_by_foreign_key() mrn_override;
+  int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
+  int get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
+  bool referenced_by_foreign_key() const noexcept mrn_override;
   void init_table_handle_for_HANDLER() mrn_override;
   void free_foreign_key_create_info(char* str) mrn_override;
 #ifdef MRN_HAVE_HA_REBIND_PSI
@@ -1270,12 +1262,12 @@ private:
 #endif
   bool wrapper_can_switch_engines();
   bool storage_can_switch_engines();
-  int wrapper_get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int storage_get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int wrapper_get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int storage_get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  uint wrapper_referenced_by_foreign_key();
-  uint storage_referenced_by_foreign_key();
+  int wrapper_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int storage_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int wrapper_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int storage_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  bool wrapper_referenced_by_foreign_key() const noexcept;
+  bool storage_referenced_by_foreign_key() const noexcept;
   void wrapper_init_table_handle_for_HANDLER();
   void storage_init_table_handle_for_HANDLER();
   void wrapper_free_foreign_key_create_info(char* str);

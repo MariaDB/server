@@ -562,7 +562,7 @@ int HCData::curl_run (const char *url, std::string *response,
     else if (is_error)
     {
       my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                      "Hashicorp server error: %d, response: %s",
+                      "Hashicorp server error: %ld, response: %s",
                       ME_ERROR_LOG_ONLY | ME_WARNING, http_code, res);
     }
   }

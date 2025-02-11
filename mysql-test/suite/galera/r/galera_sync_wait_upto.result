@@ -24,4 +24,4 @@ WSREP_SYNC_WAIT_UPTO
 connection node_1;
 DROP TABLE t1;
 connection node_2;
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");

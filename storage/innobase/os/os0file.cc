@@ -48,9 +48,6 @@ Created 10/21/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "fil0fil.h"
 #include "fsp0fsp.h"
-#ifdef HAVE_LINUX_UNISTD_H
-#include "unistd.h"
-#endif
 #include "buf0dblwr.h"
 
 #include <tpool_structs.h>
@@ -68,9 +65,11 @@ Created 10/21/1995 Heikki Tuuri
 # include <winioctl.h>
 #elif !defined O_DSYNC
 # define O_DSYNC O_SYNC
+#else
+# include <unistd.h>
 #endif
 
-// my_test_if_atomic_write() , my_win_secattr()
+// my_test_if_atomic_write(), my_win_file_secattr()
 #include <my_sys.h>
 
 #include <thread>
@@ -173,18 +172,6 @@ void innodb_io_slots_stats(tpool::aio_opcode op, innodb_async_io_stats_t *stats)
 
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
-
-/* This specifies the file permissions InnoDB uses when it creates files in
-Unix; the value of os_innodb_umask is initialized in ha_innodb.cc to
-my_umask */
-
-#ifndef _WIN32
-/** Umask for creating files */
-static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-#else
-/** Umask for creating files */
-static ulint	os_innodb_umask	= 0;
-#endif /* _WIN32 */
 
 Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
@@ -1034,7 +1021,7 @@ os_file_create_simple_func(
 #endif
 
 	for (;;) {
-		file = open(name, create_flag | direct_flag, os_innodb_umask);
+		file = open(name, create_flag | direct_flag, my_umask);
 
 		if (file == -1) {
 #ifdef O_DIRECT
@@ -1107,13 +1094,11 @@ static ATTRIBUTE_COLD void os_file_log_buffered()
   log_sys.log_maybe_unbuffered= false;
   log_sys.log_buffered= true;
 }
-# endif
 
 /** @return whether the log file may work with unbuffered I/O. */
 static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
 {
   MSAN_STAT_WORKAROUND(&st);
-# ifdef __linux__
   char b[20 + sizeof "/sys/dev/block/" ":" "/../queue/physical_block_size"];
   if (snprintf(b, sizeof b, "/sys/dev/block/%u:%u/queue/physical_block_size",
                major(st.st_dev), minor(st.st_dev)) >=
@@ -1145,13 +1130,11 @@ static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
   if (s > 4096 || s < 64 || !ut_is_2pow(s))
     return false;
   log_sys.set_block_size(uint32_t(s));
-# else
-  constexpr unsigned long s= 4096;
-# endif
 
   return !(st.st_size & (s - 1));
 }
-#endif
+# endif /* __linux__ */
+#endif /* O_DIRECT */
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -1159,12 +1142,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use async
-				I/O or unbuffered I/O: look in the function
-				source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	read_only	true, if read only checks should be enforcedm
 @param[in]	success		true if succeeded
@@ -1174,7 +1151,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -1203,10 +1179,10 @@ os_file_create_func(
 		create_flag = O_RDWR | O_CLOEXEC;
 	}
 
-	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
-
 #ifdef O_DIRECT
+# ifdef __linux__
 	struct stat st;
+# endif
 	ut_a(type == OS_LOG_FILE
 	     || type == OS_DATA_FILE || type == OS_DATA_FILE_NO_O_DIRECT);
 	int direct_flag = 0;
@@ -1250,7 +1226,7 @@ skip_o_direct:
 	os_file_t	file;
 
 	for (;;) {
-		file = open(name, create_flag | direct_flag, os_innodb_umask);
+		file = open(name, create_flag | direct_flag, my_umask);
 
 		if (file == -1) {
 #ifdef O_DIRECT
@@ -1293,7 +1269,7 @@ not_found:
 			os_file_log_buffered();
 		} else {
 			close(file);
-			return os_file_create_func(name, OS_FILE_OPEN, purpose,
+			return os_file_create_func(name, OS_FILE_OPEN,
 						   type, false, success);
 		}
 	}
@@ -1370,7 +1346,7 @@ os_file_create_simple_no_error_handling_func(
 		}
 	}
 
-	file = open(name, create_flag, os_innodb_umask);
+	file = open(name, create_flag, my_umask);
 
 	*success = (file != -1);
 
@@ -1494,16 +1470,9 @@ bool os_file_close_func(os_file_t file)
   return false;
 }
 
-/** Gets a file size.
-@param[in]	file		handle to an open file
-@return file size, or (os_offset_t) -1 on failure */
-os_offset_t
-os_file_get_size(os_file_t file)
+os_offset_t os_file_get_size(os_file_t file) noexcept
 {
-  struct stat statbuf;
-  if (fstat(file, &statbuf)) return os_offset_t(-1);
-  MSAN_STAT_WORKAROUND(&statbuf);
-  return statbuf.st_size;
+  return lseek(file, 0, SEEK_END);
 }
 
 /** Gets a file size.
@@ -1640,6 +1609,110 @@ os_file_set_eof(
 	FILE*		file)	/*!< in: file to be truncated */
 {
 	return(!ftruncate(fileno(file), ftell(file)));
+}
+
+bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
+                      bool is_sparse) noexcept
+{
+	ut_ad(!(size & 4095));
+
+	if (is_sparse) {
+		bool success = !ftruncate(file, size);
+		if (!success) {
+			sql_print_error("InnoDB: ftruncate of file %s"
+					" to %llu bytes failed with error %d",
+					name, size, errno);
+		}
+		return success;
+	}
+
+# ifdef HAVE_POSIX_FALLOCATE
+	int err;
+	os_offset_t current_size;
+	do {
+		current_size = os_file_get_size(file);
+		if (current_size == os_offset_t(-1)) {
+			err = errno;
+		} else {
+			if (current_size >= size) {
+				return true;
+			}
+			current_size &= ~4095ULL;
+#  ifdef __linux__
+			if (!fallocate(file, 0, current_size,
+				       size - current_size)) {
+				err = 0;
+				break;
+			}
+
+			err = errno;
+#  else
+			err = posix_fallocate(file, current_size,
+					      size - current_size);
+#  endif
+		}
+	} while (err == EINTR
+		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
+
+	switch (err) {
+	case 0:
+		return true;
+	default:
+		sql_print_error("InnoDB: preallocating %llu"
+				" bytes for file %s failed with error %d",
+				size, name, err);
+		/* fall through */
+	case EINTR:
+		errno = err;
+		return false;
+	case EINVAL:
+	case EOPNOTSUPP:
+		/* fall back to the code below */
+		break;
+	}
+# else /* HAVE_POSIX_ALLOCATE */
+	os_offset_t current_size = os_file_get_size(file);
+# endif /* HAVE_POSIX_ALLOCATE */
+
+	current_size &= ~4095ULL;
+
+	if (current_size >= size) {
+		return true;
+	}
+
+	/* Write up to 1 megabyte at a time. */
+	ulint	buf_size = std::min<ulint>(64,
+					   ulint(size >> srv_page_size_shift))
+		<< srv_page_size_shift;
+
+	/* Align the buffer for possible raw i/o */
+	byte*	buf = static_cast<byte*>(aligned_malloc(buf_size,
+							srv_page_size));
+	/* Write buffer full of zeros */
+	memset(buf, 0, buf_size);
+
+	while (current_size < size
+	       && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
+		ulint	n_bytes;
+
+		if (size - current_size < (os_offset_t) buf_size) {
+			n_bytes = (ulint) (size - current_size);
+		} else {
+			n_bytes = buf_size;
+		}
+
+		if (os_file_write(IORequestWrite, name,
+				  file, buf, current_size, n_bytes) !=
+		    DB_SUCCESS) {
+			break;
+		}
+
+		current_size += n_bytes;
+	}
+
+	aligned_free(buf);
+
+	return current_size >= size && os_file_flush(file);
 }
 
 #else /* !_WIN32 */
@@ -1993,12 +2066,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use async
-				I/O or unbuffered I/O: look in the function
-				source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	success		true if succeeded
 @return handle to the file, not defined if error, error number
@@ -2007,7 +2074,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -2049,8 +2115,7 @@ os_file_create_func(
 		break;
 	}
 
-	DWORD attributes = (purpose == OS_FILE_AIO && srv_use_native_aio)
-		? FILE_FLAG_OVERLAPPED : 0;
+	DWORD attributes= FILE_FLAG_OVERLAPPED;
 
 	if (type == OS_LOG_FILE) {
 		if (!log_sys.is_opened() && !log_sys.log_buffered) {
@@ -2338,10 +2403,7 @@ bool os_file_close_func(os_file_t file)
   return true;
 }
 
-/** Gets a file size.
-@param[in]	file		Handle to a file
-@return file size, or (os_offset_t) -1 on failure */
-os_offset_t os_file_get_size(os_file_t file)
+os_offset_t os_file_get_size(os_file_t file) noexcept
 {
   LARGE_INTEGER li;
   if (GetFileSizeEx(file, &li))
@@ -2488,24 +2550,8 @@ bool os_file_set_sparse_win32(os_file_t file, bool is_sparse)
 		FSCTL_SET_SPARSE, &sparse_buffer, sizeof(sparse_buffer), 0, 0,&temp);
 }
 
-
-/**
-Change file size on Windows.
-
-If file is extended, the bytes between old and new EOF
-are zeros.
-
-If file is sparse, "virtual" block is added at the end of
-allocated area.
-
-If file is normal, file system allocates storage.
-
-@param[in]	pathname	file path
-@param[in]	file		file handle
-@param[in]	size		size to preserve in bytes
-@return true if success */
 bool
-os_file_change_size_win32(
+os_file_set_size(
 	const char*	pathname,
 	os_file_t	file,
 	os_offset_t	size)
@@ -2595,7 +2641,7 @@ os_file_io(
 
 		if (type.type != IORequest::READ_MAYBE_PARTIAL) {
 			sql_print_warning("InnoDB: %zu bytes should have been"
-					  " %s at %llu from %s,"
+					  " %s at %" PRIu64 " from %s,"
 					  " but got only %zd."
 					  " Retrying.",
 					  n, type.is_read()
@@ -2769,7 +2815,7 @@ os_file_read_func(
 
   os_file_handle_error_no_exit(type.node ? type.node->name : nullptr, "read",
                                false);
-  sql_print_error("InnoDB: Tried to read %zu bytes at offset %llu"
+  sql_print_error("InnoDB: Tried to read %zu bytes at offset %" PRIu64
                   " of file %s, but was only able to read %zd",
                   n, offset, type.node ? type.node->name : "(unknown)",
                   n_bytes);
@@ -2892,163 +2938,6 @@ static bool os_is_sparse_file_supported(os_file_t fh)
 #endif /* _WIN32 */
 }
 
-/** Extend a file.
-
-On Windows, extending a file allocates blocks for the file,
-unless the file is sparse.
-
-On Unix, we will extend the file with ftruncate(), if
-file needs to be sparse. Otherwise posix_fallocate() is used
-when available, and if not, binary zeroes are added to the end
-of file.
-
-@param[in]	name	file name
-@param[in]	file	file handle
-@param[in]	size	desired file size
-@param[in]	sparse	whether to create a sparse file (no preallocating)
-@return	whether the operation succeeded */
-bool
-os_file_set_size(
-	const char*	name,
-	os_file_t	file,
-	os_offset_t	size,
-	bool	is_sparse)
-{
-	ut_ad(!(size & 4095));
-
-#ifdef _WIN32
-	/* On Windows, changing file size works well and as expected for both
-	sparse and normal files.
-
-	However, 10.2 up until 10.2.9 made every file sparse in innodb,
-	causing NTFS fragmentation issues(MDEV-13941). We try to undo
-	the damage, and unsparse the file.*/
-
-	if (!is_sparse && os_is_sparse_file_supported(file)) {
-		if (!os_file_set_sparse_win32(file, false))
-			/* Unsparsing file failed. Fallback to writing binary
-			zeros, to avoid even higher fragmentation.*/
-			goto fallback;
-	}
-
-	return os_file_change_size_win32(name, file, size);
-
-fallback:
-#else
-	struct stat statbuf;
-
-	if (is_sparse) {
-		bool success = !ftruncate(file, size);
-		if (!success) {
-			ib::error() << "ftruncate of file " << name << " to "
-				    << size << " bytes failed with error "
-				    << errno;
-		}
-		return(success);
-	}
-
-# ifdef HAVE_POSIX_FALLOCATE
-	int err;
-	do {
-		if (fstat(file, &statbuf)) {
-			err = errno;
-		} else {
-			MSAN_STAT_WORKAROUND(&statbuf);
-			os_offset_t current_size = statbuf.st_size;
-			if (current_size >= size) {
-				return true;
-			}
-			current_size &= ~4095ULL;
-#  ifdef __linux__
-			if (!fallocate(file, 0, current_size,
-				       size - current_size)) {
-				err = 0;
-				break;
-			}
-
-			err = errno;
-#  else
-			err = posix_fallocate(file, current_size,
-					      size - current_size);
-#  endif
-		}
-	} while (err == EINTR
-		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
-
-	switch (err) {
-	case 0:
-		return true;
-	default:
-		ib::error() << "preallocating "
-			    << size << " bytes for file " << name
-			    << " failed with error " << err;
-		/* fall through */
-	case EINTR:
-		errno = err;
-		return false;
-	case EINVAL:
-	case EOPNOTSUPP:
-		/* fall back to the code below */
-		break;
-	}
-# endif /* HAVE_POSIX_ALLOCATE */
-#endif /* _WIN32*/
-
-#ifdef _WIN32
-	os_offset_t	current_size = os_file_get_size(file);
-	FILE_STORAGE_INFO info;
-	if (GetFileInformationByHandleEx(file, FileStorageInfo, &info,
-					 sizeof info)) {
-		if (info.LogicalBytesPerSector) {
-			current_size &= ~os_offset_t(info.LogicalBytesPerSector
-						     - 1);
-		}
-	}
-#else
-	if (fstat(file, &statbuf)) {
-		return false;
-	}
-	os_offset_t current_size = statbuf.st_size & ~4095ULL;
-#endif
-	if (current_size >= size) {
-		return true;
-	}
-
-	/* Write up to 1 megabyte at a time. */
-	ulint	buf_size = ut_min(ulint(64),
-				  ulint(size >> srv_page_size_shift))
-		<< srv_page_size_shift;
-
-	/* Align the buffer for possible raw i/o */
-	byte*	buf = static_cast<byte*>(aligned_malloc(buf_size,
-							srv_page_size));
-	/* Write buffer full of zeros */
-	memset(buf, 0, buf_size);
-
-	while (current_size < size
-	       && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
-		ulint	n_bytes;
-
-		if (size - current_size < (os_offset_t) buf_size) {
-			n_bytes = (ulint) (size - current_size);
-		} else {
-			n_bytes = buf_size;
-		}
-
-		if (os_file_write(IORequestWrite, name,
-				  file, buf, current_size, n_bytes) !=
-		    DB_SUCCESS) {
-			break;
-		}
-
-		current_size += n_bytes;
-	}
-
-	aligned_free(buf);
-
-	return(current_size >= size && os_file_flush(file));
-}
-
 /** Truncate a file to a specified size in bytes.
 @param[in]	pathname	file path
 @param[in]	file		file to be truncated
@@ -3073,7 +2962,7 @@ os_file_truncate(
 	}
 
 #ifdef _WIN32
-	return(os_file_change_size_win32(pathname, file, size));
+	return os_file_set_size(pathname, file, size);
 #else /* _WIN32 */
 	return(os_file_truncate_posix(pathname, file, size));
 #endif /* _WIN32 */
@@ -3728,16 +3617,6 @@ os_aio_refresh_stats()
 	os_last_printout = time(NULL);
 }
 
-
-/**
-Set the file create umask
-@param[in]	umask		The umask to use for file creation. */
-void
-os_file_set_umask(ulint umask)
-{
-	os_innodb_umask = umask;
-}
-
 #ifdef _WIN32
 
 /* Checks whether physical drive is on SSD.*/
@@ -3891,17 +3770,10 @@ static bool is_file_on_ssd(HANDLE handle, char *file_path)
 
 #endif
 
-void fil_node_t::find_metadata(os_file_t file
-#ifndef _WIN32
-                               , bool create, struct stat *statbuf
-#endif
-                               )
+void fil_node_t::find_metadata(IF_WIN(,bool create)) noexcept
 {
-  if (!is_open())
-  {
-    handle= file;
-    ut_ad(is_open());
-  }
+  ut_ad(is_open());
+  os_file_t file= handle;
 
   if (!space->is_compressed())
     punch_hole= 0;
@@ -3909,7 +3781,21 @@ void fil_node_t::find_metadata(os_file_t file
     punch_hole= 2;
   else
     punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
-
+  /* For temporary tablespace or during IMPORT TABLESPACE, we
+  disable neighbour flushing and do not care about atomicity. */
+  if (space->is_temporary())
+  {
+    on_ssd= true;
+    atomic_write= true;
+    return;
+  }
+  if (space->is_being_imported())
+  {
+    on_ssd= true;
+    atomic_write= true;
+    if (!space->is_compressed())
+      return;
+  }
 #ifdef _WIN32
   on_ssd= is_file_on_ssd(file, name);
   FILE_STORAGE_INFO info;
@@ -3918,50 +3804,34 @@ void fil_node_t::find_metadata(os_file_t file
   else
     block_size= 512;
 #else
-  struct stat sbuf;
-  if (!statbuf && !fstat(file, &sbuf))
+  struct stat statbuf;
+  if (!fstat(file, &statbuf))
   {
-    MSAN_STAT_WORKAROUND(&sbuf);
-    statbuf= &sbuf;
-  }
-  if (statbuf)
-    block_size= statbuf->st_blksize;
+    MSAN_STAT_WORKAROUND(&statbuf);
+    block_size= statbuf.st_blksize;
 # ifdef __linux__
-  on_ssd= statbuf && fil_system.is_ssd(statbuf->st_dev);
+    on_ssd= fil_system.is_ssd(statbuf.st_dev);
 # endif
+  }
 #endif
 
-  if (space->purpose != FIL_TYPE_TABLESPACE)
-  {
-    /* For temporary tablespace or during IMPORT TABLESPACE, we
-    disable neighbour flushing and do not care about atomicity. */
-    on_ssd= true;
-    atomic_write= true;
-  }
-  else
-    /* On Windows, all single sector writes are atomic, as per
-    WriteFile() documentation on MSDN. */
-    atomic_write= srv_use_atomic_writes &&
-      IF_WIN(srv_page_size == block_size,
-	     my_test_if_atomic_write(file, space->physical_size()));
+  /* On Windows, all single sector writes are atomic, as per
+  WriteFile() documentation on MSDN. */
+  atomic_write= srv_use_atomic_writes &&
+    IF_WIN(srv_page_size == block_size,
+           my_test_if_atomic_write(file, space->physical_size()));
 }
 
 /** Read the first page of a data file.
 @return	whether the page was found valid */
-bool fil_node_t::read_page0()
+bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
+  ut_ad(!dpage || no_lsn);
   const unsigned psize= space->physical_size();
-#ifndef _WIN32
-  struct stat statbuf;
-  if (fstat(handle, &statbuf))
-    return false;
-  MSAN_STAT_WORKAROUND(&statbuf);
-  os_offset_t size_bytes= statbuf.st_size;
-#else
   os_offset_t size_bytes= os_file_get_size(handle);
-  ut_a(size_bytes != (os_offset_t) -1);
-#endif
+  if (size_bytes == os_offset_t(-1))
+    return false;
   const uint32_t min_size= FIL_IBD_FILE_INITIAL_SIZE * psize;
 
   if (size_bytes < min_size)
@@ -3974,15 +3844,18 @@ bool fil_node_t::read_page0()
 
   if (!deferred)
   {
-    page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
-    if (os_file_read(IORequestRead, handle, page, 0, psize, nullptr)
-        != DB_SUCCESS)
+    page_t *apage= static_cast<byte*>(aligned_malloc(psize, psize));
+    if (os_file_read(IORequestRead, handle, apage, 0, psize, nullptr) !=
+        DB_SUCCESS)
     {
       sql_print_error("InnoDB: Unable to read first page of file %s", name);
-      aligned_free(page);
+   err_exit:
+      aligned_free(apage);
       return false;
     }
 
+    const page_t *page= apage;
+  retry:
     const ulint space_id= memcmp_aligned<2>
       (FIL_PAGE_SPACE_ID + page,
        FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
@@ -3990,8 +3863,16 @@ bool fil_node_t::read_page0()
       : mach_read_from_4(FIL_PAGE_SPACE_ID + page);
     uint32_t flags= fsp_header_get_flags(page);
     const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
+    if (!space_id && !flags && !size && dpage)
+    {
+    retry_dpage:
+      page= dpage;
+      dpage= nullptr;
+      goto retry;
+    }
     const uint32_t free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
     const uint32_t free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
+
     if (!fil_space_t::is_valid_flags(flags, space->id))
     {
       uint32_t cflags= fsp_flags_convert_from_101(flags);
@@ -4008,7 +3889,6 @@ bool fil_node_t::read_page0()
         }
       }
 
-      aligned_free(page);
       goto invalid;
     }
 
@@ -4017,28 +3897,41 @@ bool fil_node_t::read_page0()
         !fil_space_t::is_flags_equal((space->flags & ~FSP_FLAGS_MEM_MASK),
                                      (flags & ~FSP_FLAGS_MEM_MASK)))
     {
-invalid:
-      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+    invalid:
+      if (dpage)
+        goto retry_dpage;
+      sql_print_error("InnoDB: Expected tablespace flags 0x%" PRIx32
+                      " but found 0x%" PRIx32
                       " in the file %s", space->flags, flags, name);
-      return false;
+      goto err_exit;
     }
 
   flags_ok:
     ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
+    if (buf_page_is_corrupted(!no_lsn, page, flags) != NOT_CORRUPTED)
+    {
+      if (dpage)
+        goto retry_dpage;
+      sql_print_error("InnoDB: The first page of file %s is corrupted", name);
+      goto err_exit;
+    }
+
+    if (UNIV_UNLIKELY(space_id != space->id))
+    {
+      if (dpage)
+        goto retry_dpage;
+      sql_print_error("InnoDB: Expected tablespace id %zu but found %zu"
+                      " in the file %s", ulint{space->id}, ulint{space_id},
+                      name);
+      goto err_exit;
+    }
+
     /* Try to read crypt_data from page 0 if it is not yet read. */
     if (!space->crypt_data)
       space->crypt_data= fil_space_read_crypt_data(
         fil_space_t::zip_size(flags), page);
-    aligned_free(page);
-
-    if (UNIV_UNLIKELY(space_id != space->id))
-    {
-      ib::error() << "Expected tablespace id " << space->id
-        << " but found " << space_id
-        << " in the file " << name;
-      return false;
-    }
+    aligned_free(apage);
 
     space->flags= (space->flags & FSP_FLAGS_MEM_MASK) | flags;
     ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
@@ -4048,7 +3941,7 @@ invalid:
     space->free_len= free_len;
   }
 
-  IF_WIN(find_metadata(), find_metadata(handle, false, &statbuf));
+  find_metadata();
   /* Truncate the size to a multiple of extent size. */
   ulint	mask= psize * FSP_EXTENT_SIZE - 1;
 

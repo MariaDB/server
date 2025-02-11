@@ -11,7 +11,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `abc` int(11) NOT NULL,
-  `xyz` int(11) INVISIBLE DEFAULT NULL,
+  `xyz` int(11) DEFAULT NULL INVISIBLE,
   PRIMARY KEY (`abc`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,EXTRA from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA='test' and TABLE_NAME='t1';
@@ -147,7 +147,7 @@ a	int(11)	YES		NULL
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `abc` int(11) NOT NULL INVISIBLE AUTO_INCREMENT,
+  `abc` int(11) NOT NULL AUTO_INCREMENT INVISIBLE,
   `a` int(11) DEFAULT NULL,
   PRIMARY KEY (`abc`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -234,7 +234,7 @@ a	d	e	f
 1	d blob	3	1
 1	d blob	41	1
 select a,b,c,d,e,f from t2;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 drop table t2;
 #now this will copy invisible fields
 create table t2 as select a,b,c,d,e,f from t1;
@@ -310,7 +310,7 @@ a	d	e	f
 1	d blob	41	1
 #v does not have invisible column;
 select a,b,c,d,e,f from v;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 insert into v values(1,21,32,4);
 select * from v;
 a	d	e	f
@@ -321,7 +321,7 @@ a	d	e	f
 1	d blob	41	1
 1	21	32	4
 insert into v(a,b,c,d,e,f) values(1,12,3,4,5,6);
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'INSERT INTO'
 drop view v;
 create view v as select a,b,c,d,e,f from t1;
 desc v;
@@ -419,8 +419,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
-  `b` int(11) INVISIBLE DEFAULT NULL,
-  `c` int(11) INVISIBLE DEFAULT NULL,
+  `b` int(11) DEFAULT NULL INVISIBLE,
+  `c` int(11) DEFAULT NULL INVISIBLE,
   PRIMARY KEY (`a`),
   UNIQUE KEY `c` (`c`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -444,7 +444,7 @@ d	int(11)	YES	UNI	NULL
 drop table t1;
 SHOW STATUS LIKE 'Feature_invisible_columns';
 Variable_name	Value
-Feature_invisible_columns	52
+Feature_invisible_columns	54
 #invisible is non reserved
 create table t1(a int unique , invisible int invisible, c int );
 desc t1;

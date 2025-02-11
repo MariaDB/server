@@ -1,6 +1,6 @@
 --- a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
 +++ b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
-@@ -4649,99 +4649,9 @@
+@@ -4709,99 +4709,9 @@ VARIABLE_COMMENT	Define threads usage for handling queries
  NUMERIC_MIN_VALUE	NULL
  NUMERIC_MAX_VALUE	NULL
  NUMERIC_BLOCK_SIZE	NULL
@@ -31,7 +31,7 @@
 -VARIABLE_NAME	THREAD_POOL_IDLE_TIMEOUT
 -VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	INT UNSIGNED
--VARIABLE_COMMENT	Timeout in seconds for an idle thread in the thread pool.Worker thread will be shut down after timeout
+-VARIABLE_COMMENT	Timeout in seconds for an idle thread in the thread pool. Worker thread will be shut down after timeout
 -NUMERIC_MIN_VALUE	1
 -NUMERIC_MAX_VALUE	4294967295
 -NUMERIC_BLOCK_SIZE	1
@@ -61,7 +61,7 @@
 -VARIABLE_NAME	THREAD_POOL_PRIORITY
 -VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	ENUM
--VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority.If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction
+-VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority. If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction
 -NUMERIC_MIN_VALUE	NULL
 -NUMERIC_MAX_VALUE	NULL
 -NUMERIC_BLOCK_SIZE	NULL
@@ -91,7 +91,7 @@
 -VARIABLE_NAME	THREAD_POOL_STALL_LIMIT
 -VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	INT UNSIGNED
--VARIABLE_COMMENT	Maximum query execution time in milliseconds,before an executing non-yielding thread is considered stalled.If a worker thread is stalled, additional worker thread may be created to handle remaining clients
+-VARIABLE_COMMENT	Maximum query execution time in milliseconds, before an executing non-yielding thread is considered stalled. If a worker thread is stalled, additional worker thread may be created to handle remaining clients
 -NUMERIC_MIN_VALUE	1
 -NUMERIC_MAX_VALUE	4294967295
 -NUMERIC_BLOCK_SIZE	1

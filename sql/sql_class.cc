@@ -24,10 +24,6 @@
 **
 *****************************************************************************/
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"
@@ -87,15 +83,17 @@ char empty_c_string[1]= {0};    /* used for not defined db */
 ** User variables
 ****************************************************************************/
 
-extern "C" uchar *get_var_key(user_var_entry *entry, size_t *length,
-                              my_bool not_used __attribute__((unused)))
+extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
+                                    my_bool)
 {
+  auto entry= static_cast<const user_var_entry *>(entry_);
   *length= entry->name.length;
-  return (uchar*) entry->name.str;
+  return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
-extern "C" void free_user_var(user_var_entry *entry)
+extern "C" void free_user_var(void *entry_)
 {
+  user_var_entry *entry= static_cast<user_var_entry *>(entry_);
   char *pos= (char*) entry+ALIGN_SIZE(sizeof(*entry));
   if (entry->value && entry->value != pos)
     my_free(entry->value);
@@ -104,18 +102,17 @@ extern "C" void free_user_var(user_var_entry *entry)
 
 /* Functions for last-value-from-sequence hash */
 
-extern "C" uchar *get_sequence_last_key(SEQUENCE_LAST_VALUE *entry,
-                                        size_t *length,
-                                        my_bool not_used
-                                        __attribute__((unused)))
+extern "C" const uchar *get_sequence_last_key(const void *entry_,
+                                              size_t *length, my_bool)
 {
+  auto *entry= static_cast<const SEQUENCE_LAST_VALUE *>(entry_);
   *length= entry->length;
-  return (uchar*) entry->key;
+  return entry->key;
 }
 
-extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
+extern "C" void free_sequence_last(void *entry)
 {
-  delete entry;
+  delete static_cast<SEQUENCE_LAST_VALUE *>(entry);
 }
 
 
@@ -445,7 +442,7 @@ void thd_storage_lock_wait(THD *thd, long long value)
   Provide a handler data getter to simplify coding
 */
 extern "C"
-void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
+void *thd_get_ha_data(const THD *thd, const struct transaction_participant *hton)
 {
   DBUG_ASSERT(thd == current_thd ||  mysql_mutex_is_owner(&thd->LOCK_thd_data));
   return thd->ha_data[hton->slot].ha_ptr;
@@ -457,7 +454,7 @@ void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
   @see thd_set_ha_data() definition in plugin.h
 */
 extern "C"
-void thd_set_ha_data(THD *thd, const struct handlerton *hton,
+void thd_set_ha_data(THD *thd, const struct transaction_participant *hton,
                      const void *ha_data)
 {
   plugin_ref *lock= &thd->ha_data[hton->slot].lock;
@@ -618,8 +615,9 @@ handle_condition(THD *thd,
    timeouts at end of query (and thus before THD is destroyed)
 */
 
-extern "C" void thd_kill_timeout(THD* thd)
+extern "C" void thd_kill_timeout(void *thd_)
 {
+  THD *thd= static_cast<THD *>(thd_);
   thd->status_var.max_statement_time_exceeded++;
   /* Kill queries that can't cause data corruptions */
   thd->awake(KILL_TIMEOUT);
@@ -629,51 +627,47 @@ const char *thd_where(THD *thd)
 {
     switch(thd->where) {
     case THD_WHERE::CHECKING_TRANSFORMED_SUBQUERY:
-        return "checking transformed subquery";
-        break;
     case THD_WHERE::IN_ALL_ANY_SUBQUERY:
-        return "IN/ALL/ANY subquery";
-        break;
+        return "IN/ALL/ANY";
     case THD_WHERE::JSON_TABLE_ARGUMENT:
-        return "JSON_TABLE argument";
-        break;
-    case THD_WHERE::DEFAULT_WHERE:  // same as FIELD_LIST
+        return "JSON_TABLE";
+    case THD_WHERE::DEFAULT_WHERE:
+        return "SELECT";
     case THD_WHERE::FIELD_LIST:
-        return "field list";
-        break;
     case THD_WHERE::PARTITION_FUNCTION:
-        return "partition function";
-        break;
+        return "PARTITION BY";
     case THD_WHERE::FROM_CLAUSE:
-        return "from clause";
-        break;
+        return "FROM";
     case THD_WHERE::ON_CLAUSE:
-        return "on clause";
-        break;
+        return "ON";
     case THD_WHERE::WHERE_CLAUSE:
-        return "where clause";
-        break;
-    case THD_WHERE::CONVERT_CHARSET_CONST:
-        return "convert character set partition constant";
-        break;
+        return "WHERE";
+    case THD_WHERE::SET_LIST:
+        return "SET";
+    case THD_WHERE::INSERT_LIST:
+        return "INSERT INTO";
+    case THD_WHERE::RETURNING:
+        return "RETURNING";
+    case THD_WHERE::UPDATE_CLAUSE:
+        return "UPDATE";
+    case THD_WHERE::VALUES_CLAUSE:
+        return "VALUES";
     case THD_WHERE::FOR_SYSTEM_TIME:
         return "FOR SYSTEM_TIME";
-        break;
     case THD_WHERE::ORDER_CLAUSE:
-        return "order clause";
-        break;
+        return "ORDER BY";
     case THD_WHERE::HAVING_CLAUSE:
-        return "having clause";
-        break;
+        return "HAVING";
     case THD_WHERE::GROUP_STATEMENT:
-        return "group statement";
-        break;
+        return "GROUP BY";
     case THD_WHERE::PROCEDURE_LIST:
-        return "procedure list";
-        break;
+        return "PROCEDURE";
     case THD_WHERE::CHECK_OPTION:
-        return "check option";
-        break;
+        return "CHECK OPTION";
+    case THD_WHERE::DO_STATEMENT:
+        return "DO";
+    case THD_WHERE::HANDLER_STATEMENT:
+        return "HANDLER ... READ";
     case THD_WHERE::USE_WHERE_STRING:
         return thd->where_str;
     default:
@@ -804,9 +798,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
     Pass nominal parameters to init_alloc_root only to ensure that
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
+    The base one will mainly be use to allocate memory during authentication.
   */
   init_sql_alloc(key_memory_thd_main_mem_root,
-                 &main_mem_root, 64, 0, MYF(MY_THREAD_SPECIFIC));
+                 &main_mem_root, DEFAULT_ROOT_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   /*
     Allocation of user variables for binary logging is always done with main
@@ -851,6 +847,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   query_id= 0;
   query_name_consts= 0;
   semisync_info= 0;
+
+#ifndef DBUG_OFF
+  expected_semi_sync_offs= 0;
+#endif
+
   db_charset= global_system_variables.collation_database;
   bzero((void*) ha_data, sizeof(ha_data));
   mysys_var=0;
@@ -911,12 +912,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   user_connect=(USER_CONN *)0;
   my_hash_init(key_memory_user_var_entry, &user_vars,
                Lex_ident_user_var::charset_info(),
-               USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
-               SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
-               get_sequence_last_key, (my_hash_free_key) free_sequence_last,
+               USER_VARS_HASH_SIZE, 0, 0, get_var_key, free_user_var,
                HASH_THREAD_SPECIFIC);
+  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
+               SEQUENCES_HASH_SIZE, 0, 0, get_sequence_last_key,
+               free_sequence_last, HASH_THREAD_SPECIFIC);
 
   /* For user vars replication*/
   if (opt_bin_log)
@@ -1386,6 +1386,7 @@ void THD::init()
   first_successful_insert_id_in_cur_stmt= 0;
   current_backup_stage= BACKUP_FINISHED;
   backup_commit_lock= 0;
+  num_of_strings_sorted_on_truncated_length= 0;
 #ifdef WITH_WSREP
   wsrep_last_query_id= 0;
   wsrep_xid.null();
@@ -1473,7 +1474,10 @@ void THD::update_stats(void)
 void THD::update_all_stats()
 {
   ulonglong end_cpu_time, end_utime;
-  double busy_time, cpu_time;
+  ulonglong busy_time, cpu_time;
+
+  status_var_add(status_var.query_time,
+                 (utime_after_query - utime_after_lock));
 
   /* This is set at start of query if opt_userstat_running was set */
   if (!userstat_running)
@@ -1481,10 +1485,10 @@ void THD::update_all_stats()
 
   end_cpu_time= my_getcputime();
   end_utime=    microsecond_interval_timer();
-  busy_time= (end_utime - start_utime) / 1000000.0;
-  cpu_time=  (end_cpu_time - start_cpu_time) / 10000000.0;
+  busy_time= end_utime - start_utime;
+  cpu_time=  end_cpu_time - start_cpu_time;
   /* In case there are bad values, 2629743 is the #seconds in a month. */
-  if (cpu_time > 2629743.0)
+  if (cpu_time > 2629743000000ULL)
     cpu_time= 0;
   status_var_add(status_var.cpu_time, cpu_time);
   status_var_add(status_var.busy_time, busy_time);
@@ -1551,12 +1555,11 @@ void THD::change_user(void)
   stmt_map.reset();
   my_hash_init(key_memory_user_var_entry, &user_vars,
                Lex_ident_user_var::charset_info(),
-               USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
+               USER_VARS_HASH_SIZE, 0, 0, get_var_key, free_user_var,
+               HASH_THREAD_SPECIFIC);
   my_hash_init(key_memory_user_var_entry, &sequences,
-               Lex_ident_fs::charset_info(),
-               SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
-               get_sequence_last_key, (my_hash_free_key) free_sequence_last,
+               Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
+               get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
   opt_trace.delete_traces();
@@ -1927,6 +1930,7 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->table_open_cache_hits+= from_var->table_open_cache_hits;
   to_var->table_open_cache_misses+= from_var->table_open_cache_misses;
   to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows;
+  to_var->query_time+=          from_var->query_time;
 
   /*
     Update global_memory_used. We have to do this with atomic_add as the
@@ -1990,6 +1994,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                                     dec_var->table_open_cache_misses;
   to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows -
                                        dec_var->table_open_cache_overflows;
+  to_var->query_time+=            from_var->query_time - dec_var->query_time;
 
   /*
     We don't need to accumulate memory_used as these are not reset or used by
@@ -2158,21 +2163,28 @@ void THD::disconnect()
 
 
 bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
-                             bool needs_thr_lock_abort)
+                             bool needs_thr_lock_abort,
+                             bool needs_non_slave_abort)
 {
   THD *in_use= ctx_in_use->get_thd();
   bool signalled= FALSE;
   DBUG_ENTER("THD::notify_shared_lock");
   DBUG_PRINT("enter",("needs_thr_lock_abort: %d", needs_thr_lock_abort));
 
-  if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
-      !in_use->killed)
+  enum killed_state kill_signal;
+  if (in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT)
+    kill_signal= KILL_CONNECTION;
+  else if (needs_non_slave_abort && !in_use->slave_thread)
+    kill_signal= KILL_QUERY;
+  else
+    kill_signal= NOT_KILLED;
+  if (kill_signal != NOT_KILLED && !in_use->killed)
   {
     /* This code is similar to kill_delayed_threads() */
     DBUG_PRINT("info", ("kill delayed thread"));
     mysql_mutex_lock(&in_use->LOCK_thd_kill);
-    if (in_use->killed < KILL_CONNECTION)
-      in_use->set_killed_no_mutex(KILL_CONNECTION);
+    if (in_use->killed < kill_signal)
+      in_use->set_killed_no_mutex(kill_signal);
     in_use->abort_current_cond_wait(true);
     mysql_mutex_unlock(&in_use->LOCK_thd_kill);
     signalled= TRUE;
@@ -2308,12 +2320,6 @@ void THD::reset_killed()
 
 void THD::store_globals()
 {
-  /*
-    Assert that thread_stack is initialized: it's necessary to be able
-    to track stack overrun.
-  */
-  DBUG_ASSERT(thread_stack);
-
   set_current_thd(this);
   /*
     mysys_var is concurrently readable by a killer thread.
@@ -2345,8 +2351,11 @@ void THD::store_globals()
   os_thread_id= 0;
 #endif
   real_id= pthread_self();                      // For debugging
-  mysys_var->stack_ends_here= thread_stack +    // for consistency, see libevent_thread_proc
-                              STACK_DIRECTION * (long)my_thread_stack_size;
+
+  /* Set stack start and stack end */
+  my_get_stack_bounds(&thread_stack, &mysys_var->stack_ends_here,
+                      thread_stack, my_thread_stack_size);
+
   if (net.vio)
   {
     net.thd= this;
@@ -2357,6 +2366,7 @@ void THD::store_globals()
   */
   thr_lock_info_init(&lock_info, mysys_var);
 }
+
 
 /**
    Untie THD from current thread
@@ -2539,7 +2549,7 @@ bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
   {
     size_t zeros= cs->mbminlen - incomplete;
     size_t aligned_length= zeros + length;
-    char *dst= (char*) alloc(aligned_length + 1);
+    char *dst= alloc(aligned_length + 1);
     if (!dst)
     {
       to->str= NULL; // Safety
@@ -4253,13 +4263,12 @@ Statement::~Statement() = default;
 
 C_MODE_START
 
-static uchar *
-get_statement_id_as_hash_key(const uchar *record, size_t *key_length,
-                             my_bool not_used __attribute__((unused)))
+static const uchar *get_statement_id_as_hash_key(const void *record,
+                                                 size_t *key_length, my_bool)
 {
-  const Statement *statement= (const Statement *) record; 
+  auto statement= static_cast<const Statement *>(record);
   *key_length= sizeof(statement->id);
-  return (uchar *) &((const Statement *) statement)->id;
+  return reinterpret_cast<const uchar *>(&(statement)->id);
 }
 
 static void delete_statement_as_hash_key(void *key)
@@ -4267,11 +4276,12 @@ static void delete_statement_as_hash_key(void *key)
   delete (Statement *) key;
 }
 
-static uchar *get_stmt_name_hash_key(Statement *entry, size_t *length,
-                                    my_bool not_used __attribute__((unused)))
+static const uchar *get_stmt_name_hash_key(const void *entry_, size_t *length,
+                                           my_bool)
 {
+  auto entry= static_cast<const Statement *>(entry_);
   *length= entry->name.length;
-  return (uchar*) entry->name.str;
+  return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
 C_MODE_END
@@ -4288,10 +4298,8 @@ Statement_map::Statement_map() :
                START_STMT_HASH_SIZE, 0, 0, get_statement_id_as_hash_key,
                delete_statement_as_hash_key, MYF(0));
   my_hash_init(key_memory_prepared_statement_map, &names_hash,
-               Lex_ident_ps::charset_info(),
-               START_NAME_HASH_SIZE, 0, 0,
-               (my_hash_get_key) get_stmt_name_hash_key,
-               NULL, MYF(0));
+               Lex_ident_ps::charset_info(), START_NAME_HASH_SIZE, 0, 0,
+               get_stmt_name_hash_key, NULL, MYF(0));
 }
 
 
@@ -4513,8 +4521,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
                                  !create_table, keep_row_order)))
     return TRUE;
 
-  col_stat= (Column_statistics*) table->in_use->alloc(table->s->fields *
-                                                      sizeof(Column_statistics));
+  col_stat= table->in_use->alloc<Column_statistics>(table->s->fields);
   if (!col_stat)
     return TRUE;
 
@@ -5132,7 +5139,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 
   /* Purge already hold the MDL for the table */
   Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK);
-  TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
+  TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
 
@@ -5183,7 +5190,6 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 MYSQL_THD create_thd()
 {
   THD *thd= new THD(next_thread_id());
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
@@ -5262,7 +5268,6 @@ void *thd_attach_thd(MYSQL_THD thd)
 
   auto save_mysysvar= my_thread_var;
   set_mysys_var(thd->mysys_var);
-  thd->thread_stack= (char *) &thd;
   thd->store_globals();
   return save_mysysvar;
 }
@@ -5357,10 +5362,11 @@ extern "C" MYSQL_THD thd_increment_pending_ops(MYSQL_THD thd)
   end of async operation (such as end of group commit
   write flush)
 
-  @param thd THD
+  @param thd_ THD
 */
-extern "C" void thd_decrement_pending_ops(MYSQL_THD thd)
+extern "C" void thd_decrement_pending_ops(void *thd_)
 {
+  THD *thd= static_cast<THD*>(thd_);
   DBUG_ASSERT(thd);
   DBUG_ASSERT(thd->system_thread == NON_SYSTEM_THREAD);
 
@@ -5759,6 +5765,10 @@ thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
   return 0;
 }
 
+/* Returns whether the thd is slave worker thread */
+extern "C" bool thd_is_slave(const MYSQL_THD thd) {
+  return thd->rgi_slave;
+}
 
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
@@ -5918,6 +5928,20 @@ extern "C" void *thd_mdl_context(MYSQL_THD thd)
 {
   return &thd->mdl_context;
 }
+
+
+/**
+  log_warnings accessor
+  @param thd   the current session
+
+  @return log warning level
+*/
+
+extern "C" int thd_log_warnings(const MYSQL_THD thd)
+{
+  return thd->variables.log_warnings;
+}
+
 
 /**
   Send check/repair message to the user
@@ -6154,6 +6178,8 @@ void THD::reset_slow_query_state(Sub_statement_state *backup)
   }
   if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
     handler_stats.reset();
+  else
+    handler_stats.active= 0;
 }
 
 /*
@@ -6184,7 +6210,7 @@ void THD::add_slow_query_state(Sub_statement_state *backup)
     examined_row_count_for_statement+= backup->examined_row_count_for_statement;
     sent_row_count_for_statement+=     backup->sent_row_count_for_statement;
   }
-  if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
+  if (handler_stats.active && backup->handler_stats.active)
     handler_stats.add(&backup->handler_stats);
 }
 
@@ -8623,6 +8649,32 @@ error:
   return FALSE;
 
 }
+
+
+/*
+  Push post-execution warnings, which may be some kinds of aggregate messages
+  like number of times max_sort_length was reached during sorting/grouping
+*/
+void THD::push_final_warnings()
+{
+  if (num_of_strings_sorted_on_truncated_length)
+  {
+    /*
+      WARN_SORTING_ON_TRUNCATED_LENGTH is not considered important enough to be
+      elevated to the ERROR level, so reset abort_on_warning flag before pushing
+    */
+    bool saved_abort_on_warning= abort_on_warning;
+    abort_on_warning= false;
+    push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_SORTING_ON_TRUNCATED_LENGTH,
+                        ER_THD(this, WARN_SORTING_ON_TRUNCATED_LENGTH),
+                        num_of_strings_sorted_on_truncated_length,
+                        variables.max_sort_length);
+    num_of_strings_sorted_on_truncated_length= 0;
+    abort_on_warning= saved_abort_on_warning;
+  }
+}
+
 
 void AUTHID::copy(MEM_ROOT *mem_root, const LEX_CSTRING *user_name,
                                       const LEX_CSTRING *host_name)

@@ -20,7 +20,9 @@ create table t2 ( t2id int unsigned, id int unsigned, primary key(t2id, id), for
 --disable_view_protocol
 insert into t1 values (1);
 insert into t2 values (1,1);
+--disable_cursor_protocol
 select * from t2;
+--enable_cursor_protocol
 show status like "Qcache_queries_in_cache";
 
 delete from t1;
@@ -41,7 +43,9 @@ create table `t2$ї` ( t2id int unsigned, id int unsigned, primary key(t2id, id)
 
 insert into `t1$ї` values (1);
 insert into  `t2$ї`values (1,1);
+--disable_cursor_protocol
 select * from `t2$ї`;
+--enable_cursor_protocol
 show status like "Qcache_queries_in_cache";
 
 delete from `t1$ї`;
@@ -63,7 +67,9 @@ create table `#mysql50#t-2` ( t2id int unsigned, id int unsigned, primary key(t2
 
 insert into `#mysql50#t-1` values (1);
 insert into  `#mysql50#t-2`values (1,1);
+--disable_cursor_protocol
 select * from `#mysql50#t-2`;
+--enable_cursor_protocol
 show status like "Qcache_queries_in_cache";
 
 delete from `#mysql50#t-1`;

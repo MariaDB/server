@@ -1,20 +1,17 @@
 connection node_2;
 connection node_1;
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_1;
 connection node_2;
 connection node_3;
 connection node_2;
-SET wsrep_on=OFF;
+SET SESSION wsrep_on=OFF;
 DROP SCHEMA test;
 connection node_3;
-SET wsrep_on=OFF;
+SET SESSION wsrep_on=OFF;
 CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
 connection node_1;
 CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-VARIABLE_VALUE
-1
+INSERT INTO test.t1 values (1);
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
 wsrep_cluster_status	Primary

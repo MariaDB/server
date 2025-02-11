@@ -80,6 +80,7 @@ COUNT(*)
 #
 # Do some DML in the default connection and leave the transaction pending.
 #
+SET innodb_snapshot_isolation=OFF;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 UPDATE t1 SET c2 = c2 * 3 WHERE c1 = 1;
@@ -140,6 +141,7 @@ COUNT(*)
 # Connection 1 REPEATABLE READ
 #
 connect  con1,localhost,root,,;
+SET innodb_snapshot_isolation=OFF;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 ########## innodb_isolation_selects.inc ##########

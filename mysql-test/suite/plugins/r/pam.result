@@ -107,7 +107,7 @@ select user(), current_user(), database();
 user()	current_user()	database()
 pam_test@localhost	pam_test@%	test
 set password='foo';
-ERROR HY000: SET PASSWORD is ignored for users authenticating via pam plugin
+ERROR HY000: SET PASSWORD is not applicable for users authenticating via pam plugin
 show create user;
 CREATE USER for pam_test@%
 CREATE USER `pam_test`@`%` IDENTIFIED VIA pam USING 'mariadb_mtr'

@@ -1,5 +1,5 @@
---- suite/storage_engine/alter_tablespace.result	2012-07-12 19:53:40.775419511 +0400
-+++ suite/storage_engine/alter_tablespace.reject	2012-07-15 16:21:14.910435703 +0400
+--- suite/storage_engine/alter_tablespace.result
++++ suite/storage_engine/alter_tablespace.reject
 @@ -1,21 +1,14 @@
  DROP TABLE IF EXISTS t1, t2;
  CREATE TABLE t1 (a <INT_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;

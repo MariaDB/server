@@ -79,11 +79,11 @@ SELECT @@default_master_connection;
 @@default_master_connection
 foo
 SELECT local.default_master_connection;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.default_master_connection;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT default_master_connection = @@session.default_master_connection;
-ERROR 42S22: Unknown column 'default_master_connection' in 'field list'
+ERROR 42S22: Unknown column 'default_master_connection' in 'SELECT'
 SET @@session.default_master_connection = @start_session_value;
 SELECT @@session.default_master_connection;
 @@session.default_master_connection

@@ -1098,15 +1098,6 @@ col0 INTEGER NOT NULL,
 col1 POINT,
 col2 POINT
 );
-CREATE SPATIAL INDEX idx0 ON t2 (col1, col2);
-ERROR HY000: Incorrect arguments to SPATIAL INDEX
-CREATE TABLE t3 (
-col0 INTEGER NOT NULL,
-col1 POINT,
-col2 LINESTRING,
-SPATIAL INDEX i1 (col1, col2)
-);
-ERROR HY000: Incorrect arguments to SPATIAL INDEX
 DROP TABLE t0, t1, t2;
 #
 # BUG#12414917 - ISCLOSED() CRASHES ON 64-BIT BUILDS
@@ -4885,7 +4876,7 @@ UNCOMPRESSED_LENGTH(POINT(1,1))
 0
 SELECT COERCIBILITY(POINT(1,1));
 COERCIBILITY(POINT(1,1))
-5
+6
 SELECT ASCII(POINT(1,1));
 ASCII(POINT(1,1))
 0
@@ -5435,8 +5426,46 @@ AsText(g)
 POINT(1 1)
 DROP TABLE t1;
 #
-# End of 10.5 tests
+# MDEV-16699 heap-use-after-free in group_concat with compressed or GIS columns
 #
+create table t1 (c polygon);
+insert into t1 values
+(PolygonFromText('POLYGON((1 2,1 2))')),
+(PolygonFromText('POLYGON((0 0,1 1,0 0))'));
+select length(group_concat(c, c order by 1,2)) from t1;
+length(group_concat(c, c order by 1,2))
+229
+create table t2 as select group_concat(c, c order by 1,2), concat(c), c from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `group_concat(c, c order by 1,2)` mediumblob DEFAULT NULL,
+  `concat(c)` longblob DEFAULT NULL,
+  `c` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2;
+#
+# MDEV-33987 Server crashes at Item_func_as_wkt::val_str_ascii
+#
+SELECT ST_ASTEXT(BOUNDARY(INET6_ATON('255.255.255.255'))) AS c1;
+c1
+NULL
+#
+# Server crash in DTCollation::set_repertoire_from_charset
+#
+CREATE TABLE t (f POINT, KEY(f));
+DELETE FROM t WHERE f NOT IN (NULL,'x');
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+DROP TABLE t;
+#
+# MDEV-31219 Assertion `fixed' failed in Item_func_hybrid_field_type / Frame_positional_cursor
+#
+CREATE TABLE t (a INT, b POINT);
+INSERT INTO t VALUES (1,POINT(0,0)),(2,POINT(0,0));
+SELECT NTH_VALUE(a,b) OVER () FROM t;
+ERROR HY000: Illegal parameter data types point and bigint for operation '-'
+DROP TABLE t;
+# End of 10.5 tests
 #
 # Start of 11.5 tests
 #
@@ -5507,6 +5536,4 @@ CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
 ERROR HY000: Cannot cast 'int' as 'point' in assignment of `test`.`t1`.`b`
 CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
 ERROR HY000: Cannot cast 'point' as 'int' in assignment of `test`.`t1`.`b`
-#
 # End of 11.5 tests
-#

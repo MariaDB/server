@@ -3893,7 +3893,7 @@ SELECT count(*) into cnt from t2;
 set @count = cnt;
 SELECT @count;
 END//
-ERROR 42S22: Unknown column 'cnt' in 'field list'
+ERROR 42S22: Unknown column 'cnt' in 'SET'
 CALL sp1( 10 );
 DROP PROCEDURE sp1;
 CREATE PROCEDURE sp1( cnt int(20) )
@@ -15599,7 +15599,7 @@ END;
 END loop label1;
 END//
 CALL sp4();
-ERROR 42S22: Unknown column 'idummy2' in 'field list'
+ERROR 42S22: Unknown column 'idummy2' in 'SELECT'
 DROP PROCEDURE sp4;
 
 Testcase 4.3.5:

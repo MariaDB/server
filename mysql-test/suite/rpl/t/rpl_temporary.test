@@ -346,7 +346,9 @@ GRANT PROCESS ON *.* TO user43748@127.0.0.1;
 connect (cont43748,127.0.0.1,user43748,meow,"*NO-ONE*",$SLAVE_MYPORT,);
 connection cont43748;
 
+--disable_cursor_protocol
 SELECT id INTO @id FROM information_schema.processlist WHERE user='system user' LIMIT 1;
+--enable_cursor_protocol
 
 --error ER_KILL_DENIED_ERROR,ER_NO_SUCH_THREAD
 KILL @id;

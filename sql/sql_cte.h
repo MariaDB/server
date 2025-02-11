@@ -550,4 +550,7 @@ void st_select_lex::set_with_clause(With_clause *with_clause)
     with_clause->set_owner(master_unit());
 }
 
+void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list,
+                              bool bracketed= false);
+
 #endif /* SQL_CTE_INCLUDED */

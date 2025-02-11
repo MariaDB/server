@@ -28,3 +28,18 @@ ORDER BY PLUGIN_NAME;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo # Start of 10.11 tests
+
+--echo #
+--echo # MDEV-34981 Functions missing from INFORMATION_SCHEMA.SQL_FUNCTIONS
+--echo #
+
+SELECT FUNCTION FROM INFORMATION_SCHEMA.SQL_FUNCTIONS
+WHERE FUNCTION IN (
+'SYS_GUID',
+'UUID'
+)
+ORDER BY FUNCTION;
+
+--echo # End of 10.11 tests

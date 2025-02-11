@@ -545,6 +545,8 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 
   if (my_uca1400_collation_definitions_add())
     return TRUE;
-  
+  if (mysql_utf8mb4_0900_collation_definitions_add())
+    return TRUE;
+
   return FALSE;
 }

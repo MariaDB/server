@@ -15,10 +15,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include "heapdef.h"
 #include "sql_priv.h"
@@ -58,7 +54,7 @@ static void heap_update_optimizer_costs(OPTIMIZER_COSTS *costs)
   costs->key_copy_cost= 0;          // Set in keyread_time()
   costs->row_copy_cost= 2.334e-06;  // This is small as its just a memcpy
   costs->row_lookup_cost= 0;        // Direct pointer
-  costs->row_next_find_cost= 0;
+  costs->row_next_find_cost= HEAP_ROW_NEXT_FIND_COST;
   costs->key_lookup_cost= 0;
   costs->key_next_find_cost= 0;
   costs->index_block_copy_cost= 0;
@@ -272,7 +268,9 @@ IO_AND_CPU_COST ha_heap::keyread_time(uint index, ulong ranges, ha_rows rows,
 
 IO_AND_CPU_COST ha_heap::scan_time()
 {
-  return {0, (double) (stats.records+stats.deleted) * HEAP_ROW_NEXT_FIND_COST };
+  /* The caller ha_scan_time() handles stats.records */
+
+  return {0, (double) stats.deleted * HEAP_ROW_NEXT_FIND_COST };
 }
 
 
@@ -655,6 +653,12 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
 
   bzero(hp_create_info, sizeof(*hp_create_info));
 
+  if (share->total_keys > keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "MEMORY", "VECTOR");
+    return HA_ERR_UNSUPPORTED;
+  }
+
   for (key= parts= 0; key < keys; key++)
     parts+= table_arg->key_info[key].user_defined_key_parts;
 
@@ -678,7 +682,7 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
     case HA_KEY_ALG_UNDEF:
     case HA_KEY_ALG_HASH:
       keydef[key].algorithm= HA_KEY_ALG_HASH;
-      mem_per_row+= sizeof(char*) * 2; // = sizeof(HASH_INFO)
+      mem_per_row+= sizeof(HASH_INFO);
       break;
     case HA_KEY_ALG_BTREE:
       keydef[key].algorithm= HA_KEY_ALG_BTREE;
@@ -747,7 +751,6 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       }
     }
   }
-  mem_per_row+= MY_ALIGN(MY_MAX(share->reclength, sizeof(char*)) + 1, sizeof(char*));
   if (table_arg->found_next_number_field)
   {
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;
@@ -755,11 +758,18 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   }
   hp_create_info->auto_key= auto_key;
   hp_create_info->auto_key_type= auto_key_type;
-  hp_create_info->max_table_size=current_thd->variables.max_heap_table_size;
+  hp_create_info->max_table_size= MY_MAX(current_thd->variables.max_heap_table_size, sizeof(HP_PTRS));
   hp_create_info->with_auto_increment= found_real_auto_increment;
   hp_create_info->internal_table= internal_table;
 
-  max_rows= (ha_rows) (hp_create_info->max_table_size / mem_per_row);
+  max_rows= hp_rows_in_memory(share->reclength, mem_per_row,
+                              hp_create_info->max_table_size);
+#ifdef GIVE_ERROR_IF_NOT_MEMORY_TO_INSERT_ONE_ROW
+  /* We do not give the error now but instead give an error on first insert */
+  if (!max_rows)
+    return HA_WRONG_CREATE_OPTION;
+#endif
+
   if (share->max_rows && share->max_rows < max_rows)
     max_rows= share->max_rows;
 

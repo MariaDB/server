@@ -8,6 +8,7 @@ create table t1(a blob unique) engine= InnoDB;
 insert into t1 values('RUC');
 --error ER_DUP_ENTRY
 insert into t1 values ('RUC');
+show keys from t1;
 drop table t1;
 
 create table t1 (a blob unique , c int unique) engine=innodb;

@@ -211,8 +211,7 @@ inline bool mtr_t::write(const buf_block_t &block, void *ptr, V val)
     p--;
   }
   ::memcpy(ptr, buf, l);
-  memcpy_low(block, static_cast<uint16_t>
-             (ut_align_offset(p, srv_page_size)), p, end - p);
+  memcpy_low(block, uint16_t(p - block.page.frame), p, end - p);
   return true;
 }
 
@@ -491,12 +490,12 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
                           ulint len)
 {
   ut_ad(ut_align_down(dest, srv_page_size) == b.page.frame);
-  char *d= static_cast<char*>(dest);
+  byte *d= static_cast<byte*>(dest);
   const char *s= static_cast<const char*>(str);
   if (w != FORCED && is_logged())
   {
     ut_ad(len);
-    const char *const end= d + len;
+    const byte *const end= d + len;
     while (*d++ == *s++)
     {
       if (d == end)
@@ -510,7 +509,7 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
     len= static_cast<ulint>(end - d);
   }
   ::memcpy(d, s, len);
-  memcpy(b, ut_align_offset(d, srv_page_size), len);
+  memcpy(b, d - b.page.frame, len);
 }
 
 /** Write an EXTENDED log record.

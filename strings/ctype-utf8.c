@@ -168,10 +168,12 @@ my_char_eq_utf8mbx_general_as_ci(CHARSET_INFO *cs, my_wc_t wc1, my_wc_t wc2)
   @return Result length
 */
 
-size_t
+my_strnxfrm_pad_ret_t
 my_strxfrm_pad_nweights_unicode_be2(uchar *str, uchar *strend, size_t nweights)
 {
   uchar *str0;
+  uint warnings= (size_t) (strend - str) >= nweights * 2 ? 0 :
+                 MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
   DBUG_ASSERT(str && str <= strend); 
   for (str0= str; str < strend && nweights; nweights--)
   {
@@ -179,14 +181,16 @@ my_strxfrm_pad_nweights_unicode_be2(uchar *str, uchar *strend, size_t nweights)
     if (str < strend)
       *str++= 0x20;
   }
-  return str - str0;
+  return my_strnxfrm_pad_ret_construct(str - str0, warnings);
 }
 
 
-size_t
+my_strnxfrm_pad_ret_t
 my_strxfrm_pad_nweights_unicode_be3(uchar *str, uchar *strend, size_t nweights)
 {
   uchar *str0;
+  uint warnings= (size_t) (strend - str) >= nweights * 3 ? 0 :
+                 MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
   DBUG_ASSERT(str && str <= strend);
   for (str0= str; str < strend && nweights; nweights--)
   {
@@ -196,7 +200,7 @@ my_strxfrm_pad_nweights_unicode_be3(uchar *str, uchar *strend, size_t nweights)
     if (str < strend)
       *str++= 0x20;
   }
-  return str - str0;
+  return my_strnxfrm_pad_ret_construct(str - str0, warnings);
 }
 
 
@@ -256,22 +260,27 @@ my_strnxfrmlen_unicode(CHARSET_INFO *cs, size_t len)
   return ((len + cs->mbmaxlen - 1) / cs->mbmaxlen) * 2;
 }
 
-size_t
+
+my_strnxfrm_ret_t
 my_strnxfrm_unicode_full_bin_internal(CHARSET_INFO *cs,
                                       uchar *dst, uchar *de, uint *nweights,
                                       const uchar *src, const uchar *se)
 {
   my_wc_t UNINIT_VAR(wc);
+  const uchar *src0= src;
   uchar *dst0= dst;
 
   DBUG_ASSERT(src || !se);
   DBUG_ASSERT(cs->state & MY_CS_BINSORT);
 
-  for (; dst < de && *nweights; (*nweights)--)
+  for (; dst < de ; (*nweights)--)
   {
     int res;
     if ((res= my_ci_mb_wc(cs, &wc, src, se)) <= 0)
       break;
+    if (!*nweights)
+      return my_strnxfrm_ret_construct(dst - dst0, src - src0,
+                  MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR);
     src+= res;
     *dst++= (uchar) (wc >> 16);
     if (dst < de)
@@ -281,7 +290,8 @@ my_strnxfrm_unicode_full_bin_internal(CHARSET_INFO *cs,
         *dst++= (uchar) (wc & 0xFF);
     }
   }
-  return dst - dst0;
+  return my_strnxfrm_ret_construct(dst - dst0, src - src0,
+              src < se ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0);
 }
 
 
@@ -289,20 +299,24 @@ my_strnxfrm_unicode_full_bin_internal(CHARSET_INFO *cs,
   Store sorting weights using 3 bytes per character.
   This function is shared between utf8mb4_bin, utf16_bin, utf32_bin.
 */
-size_t
+my_strnxfrm_ret_t
 my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
                              uchar *dst, size_t dstlen, uint nweights,
                              const uchar *src, size_t srclen, uint flags)
 {
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
-
-  dst+= my_strnxfrm_unicode_full_bin_internal(cs, dst, de, &nweights,
-                                                  src, src + srclen);
+  my_strnxfrm_ret_t rc= my_strnxfrm_unicode_full_bin_internal(cs, dst, de,
+                                                              &nweights,
+                                                              src,
+                                                              src + srclen);
+  dst+= rc.m_result_length;
   DBUG_ASSERT(dst <= de); /* Safety */
 
   if (flags & MY_STRXFRM_PAD_WITH_SPACE)
   {
+    if ((uint)(de - dst) < nweights * 3)
+      rc.m_warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
     for ( ; dst < de && nweights; nweights--)
     {
       *dst++= 0x00;
@@ -330,25 +344,30 @@ my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
       }
     }
   }
-  return dst - dst0;
+  rc.m_result_length= dst - dst0;
+  return rc;
 }
 
 
-size_t
+my_strnxfrm_ret_t
 my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *cs,
                                    uchar *dst, size_t dstlen, uint nweights,
                                    const uchar *src, size_t srclen, uint flags)
 {
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
-
-  dst+= my_strnxfrm_unicode_full_bin_internal(cs, dst, de, &nweights,
-                                                  src, src + srclen);
+  my_strnxfrm_ret_t rc= my_strnxfrm_unicode_full_bin_internal(cs, dst, de,
+                                                              &nweights,
+                                                              src,
+                                                              src + srclen);
+  dst+= rc.m_result_length;
   DBUG_ASSERT(dst <= de); /* Safety */
 
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
   {
     size_t len= de - dst;
+    if (len < nweights * 3)
+      rc.m_warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
     set_if_smaller(len, nweights * 3);
     memset(dst, 0x00, len);
     dst+= len;
@@ -361,7 +380,8 @@ my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *cs,
     memset(dst, 0x00, de - dst);
     dst= de;
   }
-  return dst - dst0;
+  rc.m_result_length= dst - dst0;
+  return rc;
 }
 
 

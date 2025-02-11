@@ -3400,17 +3400,16 @@ page_zip_validate_low(
 				goto func_exit;
 			}
 
-			rec = page_rec_get_next_low(rec, TRUE);
-			trec = page_rec_get_next_low(trec, TRUE);
+			rec = page_rec_next_get<true>(page, rec);
+			trec = page_rec_next_get<true>(temp_page, trec);
 		}
 
 		/* Compare the records. */
 		heap = NULL;
 		offsets = NULL;
-		rec = page_rec_get_next_low(
-			page + PAGE_NEW_INFIMUM, TRUE);
-		trec = page_rec_get_next_low(
-			temp_page + PAGE_NEW_INFIMUM, TRUE);
+		rec = page_rec_next_get<true>(page, page + PAGE_NEW_INFIMUM);
+		trec = page_rec_next_get<true>(temp_page,
+					       temp_page + PAGE_NEW_INFIMUM);
 		const ulint n_core = (index && page_is_leaf(page))
 			? index->n_fields : 0;
 
@@ -3442,8 +3441,8 @@ page_zip_validate_low(
 				}
 			}
 
-			rec = page_rec_get_next_low(rec, TRUE);
-			trec = page_rec_get_next_low(trec, TRUE);
+			rec = page_rec_next_get<true>(page, rec);
+			trec = page_rec_next_get<true>(temp_page, trec);
 		} while (rec || trec);
 
 		if (heap) {
@@ -4397,7 +4396,7 @@ page_zip_reorganize(
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
 	temp_block = buf_block_alloc();
-	btr_search_drop_page_hash_index(block, false);
+	btr_search_drop_page_hash_index(block, nullptr);
 	temp_page = temp_block->page.frame;
 
 	/* Copy the old page to temporary space */

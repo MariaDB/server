@@ -440,12 +440,16 @@ uint my_instr_mb(CHARSET_INFO *cs,
   characters having multibyte weights *equal* to their codes:
   cp932, euckr, gb2312, sjis, eucjpms, ujis.
 */
-size_t my_strnxfrm_mb_internal(CHARSET_INFO *cs, uchar *dst, uchar *de,
-                               uint *nweights, const uchar *src, size_t srclen)
+my_strnxfrm_ret_t my_strnxfrm_mb_internal(CHARSET_INFO *cs,
+                                          uchar *dst, uchar *de,
+                                          uint *nweights,
+                                          const uchar *src, size_t srclen)
 {
   uchar *d0= dst;
+  const uchar *src0= src;
   const uchar *se= src + srclen;
   const uchar *sort_order= cs->sort_order;
+  uint warnings= 0;
 
   DBUG_ASSERT(cs->mbmaxlen <= 4);
 
@@ -478,7 +482,7 @@ size_t my_strnxfrm_mb_internal(CHARSET_INFO *cs, uchar *dst, uchar *de,
           my_strnxfrm_mb_non_ascii_char(cs, dst, src, se);
       }
     }
-    goto end;
+    return my_strnxfrm_ret_construct(dst - d0, src - src0, 0);
   }
 
   /*
@@ -498,39 +502,52 @@ size_t my_strnxfrm_mb_internal(CHARSET_INFO *cs, uchar *dst, uchar *de,
     {
       /* Multi-byte character */
       size_t len= (dst + chlen <= de) ? chlen : de - dst;
+      if (dst + chlen > de)
+        warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR;
       memcpy(dst, src, len);
       dst+= len;
-      src+= len;
+      src+= chlen;
     }
   }
 
-end:
-  return dst - d0;
+  return my_strnxfrm_ret_construct(dst - d0, src - src0,
+           warnings |
+           (src < se ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0));
 }
 
 
-size_t
+my_strnxfrm_ret_t
 my_strnxfrm_mb(CHARSET_INFO *cs,
                uchar *dst, size_t dstlen, uint nweights,
                const uchar *src, size_t srclen, uint flags)
 {
   uchar *de= dst + dstlen;
-  uchar *d0= dst;
-  dst= d0 + my_strnxfrm_mb_internal(cs, dst, de, &nweights, src, srclen);
-  return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
+  my_strnxfrm_ret_t rc= my_strnxfrm_mb_internal(cs, dst, de, &nweights,
+                                                src, srclen);
+  my_strnxfrm_ret_t rcpad= my_strxfrm_pad_desc_and_reverse(cs, dst,
+                                                      dst + rc.m_result_length,
+                                                      de, nweights, flags, 0);
+
+  return my_strnxfrm_ret_construct(rcpad.m_result_length,
+                                   rc.m_source_length_used,
+                                   rc.m_warnings | rcpad.m_warnings);
 }
 
 
-size_t
+my_strnxfrm_ret_t
 my_strnxfrm_mb_nopad(CHARSET_INFO *cs,
                      uchar *dst, size_t dstlen, uint nweights,
                      const uchar *src, size_t srclen, uint flags)
 {
   uchar *de= dst + dstlen;
-  uchar *d0= dst;
-  dst= d0 + my_strnxfrm_mb_internal(cs, dst, de, &nweights, src, srclen);
-  return my_strxfrm_pad_desc_and_reverse_nopad(cs, d0, dst, de, nweights,
-                                               flags, 0);
+  my_strnxfrm_ret_t rc= my_strnxfrm_mb_internal(cs, dst, de, &nweights,
+                                                src, srclen);
+  my_strnxfrm_ret_t rcpad= my_strxfrm_pad_desc_and_reverse_nopad(cs, dst,
+                                                     dst + rc.m_result_length,
+                                                     de, nweights, flags, 0);
+  return my_strnxfrm_ret_construct(rcpad.m_result_length,
+                                   rc.m_source_length_used,
+                                   rc.m_warnings | rcpad.m_warnings);;
 }
 
 

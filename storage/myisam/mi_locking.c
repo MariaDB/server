@@ -333,12 +333,10 @@ void mi_update_status(void* param)
 			    (long) info->s->state.state.key_file_length,
 			    (long) info->s->state.state.data_file_length));
     info->s->state.state= *info->state;
-#ifdef HAVE_QUERY_CACHE
     DBUG_PRINT("info", ("invalidator... '%s' (status update)",
                         info->filename));
     DBUG_ASSERT(info->s->chst_invalidator != NULL);
     (*info->s->chst_invalidator)((const char *)info->filename);
-#endif
   }
 
   info->state= &info->s->state.state;
@@ -452,8 +450,10 @@ my_bool mi_check_status(void *param)
           structure.
 */
 
-void mi_fix_status(MI_INFO *org_table, MI_INFO *new_table)
+void mi_fix_status(void *ord_table_, void *new_table_)
 {
+  MI_INFO *org_table= ord_table_;
+  MI_INFO *new_table= new_table_;
   DBUG_ENTER("mi_fix_status");
   if (!new_table)
   {

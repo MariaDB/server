@@ -35,9 +35,11 @@ SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
 --echo ## 
 --echo ## 2PC + durability + single thread
 --echo ## 
+--disable_cursor_protocol
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+--enable_cursor_protocol
 --exec $MYSQL_SLAP --silent --concurrency=1 --number-of-queries=1000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
 select IF(variable_value - @b1 = 1000, 'OK', variable_value - @b1) as Binlog_commits
 from information_schema.global_status where variable_name='Binlog_commits';
@@ -63,9 +65,11 @@ set debug_dbug='-d,rocksdb_enable_delay_commits';
 --echo ## 
 --echo ## 2PC + durability + group commit
 --echo ## 
+--disable_cursor_protocol
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+--enable_cursor_protocol
 
 --exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=10000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
 
@@ -90,9 +94,11 @@ set debug_dbug='-d,rocksdb_disable_delay_commits';
 SET GLOBAL rocksdb_enable_2pc=1;
 SET GLOBAL rocksdb_flush_log_at_trx_commit=0;
 
+--disable_cursor_protocol
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+--enable_cursor_protocol
 --exec $MYSQL_SLAP --silent --concurrency=1 --number-of-queries=1000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
 
 select IF(variable_value - @b1 = 1000, 'OK', variable_value - @b1) as Binlog_commits
@@ -106,9 +112,11 @@ from information_schema.global_status where variable_name='Rocksdb_wal_synced';
 --echo # 2PC enabled, MyRocks durability disabled, concurrent workload
 --echo ## 
 
+--disable_cursor_protocol
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+--enable_cursor_protocol
 
 --exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=10000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
 
@@ -132,9 +140,11 @@ from information_schema.global_status where variable_name='Rocksdb_wal_synced';
 SET GLOBAL rocksdb_enable_2pc=0;
 SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
 
+--disable_cursor_protocol
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+--enable_cursor_protocol
 
 --exec $MYSQL_SLAP --silent --concurrency=1 --number-of-queries=1000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
 
@@ -148,9 +158,11 @@ from information_schema.global_status where variable_name='Rocksdb_wal_synced';
 --echo ##
 --echo # 2PC disabled, MyRocks durability enabled, concurrent workload
 --echo ##
+--disable_cursor_protocol
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+--enable_cursor_protocol
 --exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=10000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
 
 select variable_value - @b1 as Binlog_commits 

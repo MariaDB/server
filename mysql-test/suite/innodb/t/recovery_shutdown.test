@@ -6,6 +6,7 @@
 # Flush any open myisam tables from previous tests
 FLUSH TABLES;
 call mtr.add_suppression("Found 1 prepared XA transactions");
+call mtr.add_suppression("InnoDB: Cannot free the unused segments in system tablespace because a previous shutdown was not with innodb_fast_shutdown=0 or XA PREPARE transactions exist");
 
 --echo #
 --echo # MDEV-13797 InnoDB may hang if shutdown is initiated soon after startup

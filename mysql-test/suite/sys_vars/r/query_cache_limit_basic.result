@@ -114,11 +114,11 @@ SELECT @@query_cache_limit;
 @@query_cache_limit
 1
 SELECT local.query_cache_limit;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.query_cache_limit;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT query_cache_limit = @@session.query_cache_limit;
-ERROR 42S22: Unknown column 'query_cache_limit' in 'field list'
+ERROR 42S22: Unknown column 'query_cache_limit' in 'SELECT'
 SET @@global.query_cache_limit = @start_value;
 SELECT @@global.query_cache_limit;
 @@global.query_cache_limit

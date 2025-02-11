@@ -1048,14 +1048,14 @@ drop table t1;
 --echo # MDEV-16473: query with CTE when no database is set
 --echo #
 
-# Enable view protocol after fix MDEV-27944
---disable_view_protocol
 create database db_mdev_16473;
 use db_mdev_16473;
 drop database db_mdev_16473;
 
+--disable_service_connection
 --echo # Now no default database is set
 select database();
+--enable_service_connection
 
 with cte as (select 1 as a) select * from cte;
 
@@ -1073,7 +1073,6 @@ select * from cte, db_mdev_16473.t1 as t where cte.a=t.a;
 drop database db_mdev_16473;
 
 use test;
---enable_view_protocol
 
 --echo #
 --echo # MDEV-17154: using parameter markers for PS within CTEs more than once
@@ -1220,8 +1219,6 @@ DROP TABLE test.t;
 --echo # MDEV-22781: create view with CTE without default database
 --echo #
 
-# Enable view protocol after fix MDEV-27944
---disable_view_protocol
 create database db;
 use db;
 drop database db;
@@ -1231,7 +1228,9 @@ insert into db1.t1 values (3),(7),(1);
 
 create view db1.v1 as with t as (select * from db1.t1) select * from t;
 show create view db1.v1;
+--disable_service_connection
 select * from db1.v1;
+--enable_service_connection
 drop view db1.v1;
 
 prepare stmt from "
@@ -1240,14 +1239,15 @@ create view db1.v1 as with t as (select * from db1.t1) select * from t;
 execute stmt;
 deallocate prepare stmt;
 show create view db1.v1;
+--disable_service_connection
 select * from db1.v1;
+--enable_service_connection
 drop view db1.v1;
 
 drop table db1.t1;
 drop database db1;
 
 use test;
---enable_view_protocol
 
 --echo #
 --echo # MDEV-24597: CTE with union used multiple times in query

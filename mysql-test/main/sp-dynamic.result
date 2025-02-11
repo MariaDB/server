@@ -228,9 +228,9 @@ prepare stmt from "select 'dynamic sql:', @a, a";
 execute stmt;
 end|
 call p1()|
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 call p1()|
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 set sql_mode= DEFAULT|
 drop procedure p1|
 create procedure p1()

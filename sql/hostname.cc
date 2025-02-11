@@ -151,7 +151,7 @@ bool hostname_cache_init()
 
   if (!(hostname_cache= new Hash_filo<Host_entry>(key_memory_host_cache_hostname,
                              host_cache_size, key_offset, HOST_ENTRY_KEY_SIZE,
-                             NULL, (my_hash_free_key) my_free, &my_charset_bin)))
+                             NULL, my_free, &my_charset_bin)))
     return 1;
 
   hostname_cache->clear();

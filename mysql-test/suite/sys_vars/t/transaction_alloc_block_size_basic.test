@@ -218,11 +218,9 @@ SELECT transaction_alloc_block_size = @@session.transaction_alloc_block_size;
 
 SET @@global.transaction_alloc_block_size = @start_global_value;
 SELECT @@global.transaction_alloc_block_size;
-SET @@session.tmp_table_size = @start_session_value;
 SELECT @@session.transaction_alloc_block_size;
 
 
 #############################################################
 #             END OF transaction_alloc_block_size TESTS     #
 #############################################################
-

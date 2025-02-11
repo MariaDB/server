@@ -162,6 +162,7 @@ set password for mysqltest1 = password('foobar');
 show create user mysqltest1;
 alter user mysqltest1 identified via unix_socket OR mysql_native_password as password("some");
 show create user mysqltest1;
+--error ER_SET_PASSWORD_AUTH_PLUGIN
 set password for mysqltest1 = password('foobar');
 show create user mysqltest1;
 alter user mysqltest1 identified via unix_socket;

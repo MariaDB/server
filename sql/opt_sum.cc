@@ -827,7 +827,7 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
 
   if (org_key_part_used != *key_part_used ||
       (is_field_part && 
-       (between || eq_type || max_fl == less_fl) && !cond->val_int()))
+       (between || eq_type || max_fl == less_fl) && !cond->val_bool()))
   {
     /*
       It's the first predicate for this part or a predicate of the
@@ -877,7 +877,7 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
   }
   else if (eq_type)
   {
-    if ((!is_null && !cond->val_int()) ||
+    if ((!is_null && !cond->val_bool()) ||
         (is_null && !MY_TEST(part->field->is_null())))
      DBUG_RETURN(FALSE);                       // Impossible test
   }
@@ -1084,7 +1084,7 @@ static int maxmin_in_range(bool max_fl, Field* field, COND *cond)
   bool less_fl= 0;
   switch (((Item_func*) cond)->functype()) {
   case Item_func::BETWEEN:
-    return cond->val_int() == 0;                // Return 1 if WHERE is false
+    return cond->val_bool() == false;           // Return 1 if WHERE is false
   case Item_func::LT_FUNC:
   case Item_func::LE_FUNC:
     less_fl= 1;
@@ -1103,7 +1103,7 @@ static int maxmin_in_range(bool max_fl, Field* field, COND *cond)
       SELECT MAX(b) FROM t1 WHERE a=const AND b<const
     */
     if (max_fl != less_fl)
-      return cond->val_int() == 0;               // Return 1 if WHERE is false
+      return cond->val_bool() == false;         // Return 1 if WHERE is false
     return 0;
   }
   default:

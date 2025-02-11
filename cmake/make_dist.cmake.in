@@ -147,6 +147,9 @@ IF(NOT EXISTS ${PACKAGE_DIR}/Docs/INFO_SRC)
   CREATE_INFO_SRC(${PACKAGE_DIR}/Docs)
 ENDIF()
 
+INCLUDE(${CMAKE_SOURCE_DIR}/cmake/generate_submodule_info.cmake)
+GENERATE_SUBMODULE_INFO(${PACKAGE_DIR}/cmake/submodule_info.cmake)
+
 # In case we used CPack, it could have copied some
 # extra files that are not usable on different machines.
 FILE(REMOVE ${PACKAGE_DIR}/CMakeCache.txt)

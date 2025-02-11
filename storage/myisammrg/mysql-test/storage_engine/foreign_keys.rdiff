@@ -1,5 +1,5 @@
---- foreign_keys.result	2013-01-22 22:05:05.246633000 +0400
-+++ foreign_keys.reject	2013-01-23 02:50:28.187898084 +0400
+--- foreign_keys.result
++++ foreign_keys.reject
 @@ -12,29 +12,57 @@
  t2	CREATE TABLE `t2` (
    `a` int(11) DEFAULT NULL,

@@ -2687,8 +2687,10 @@ CREATE TABLE t3 (i3 INT, KEY(i3)) engine=myisam;
 INSERT INTO t3 VALUES
 (0),(8),(1),(8),(9),(24),(6),(1),(6),(2),(4),(2),(1);
 
+--disable_cursor_protocol
 select @@max_heap_table_size into @tmp_max_heap_table_size;
 select @@join_buffer_size into @tmp_join_buffer_size;
+--enable_cursor_protocol
 set max_heap_table_size=16*1024;
 
 --disable_query_log

@@ -1,0 +1,29 @@
+include/master-slave.inc
+[connection master]
+*** MDEV-13831: Assertion on event group missing XID/COMMIT event
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO Master_use_gtid= No;
+include/start_slave.inc
+connection master;
+SET @old_legacy= @@GLOBAL.binlog_legacy_event_pos;
+SET GLOBAL binlog_legacy_event_pos= 1;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection master1;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug = '+d,fail_binlog_write_1';
+UPDATE t1 SET a = 2;
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+SET debug_dbug= @old_dbug;
+DROP TEMPORARY TABLE t1;
+ERROR 42S02: Unknown table 'test.t1'
+connection master;
+CREATE TEMPORARY TABLE t1 (i INT) ENGINE=InnoDB;
+connection slave;
+connection master;
+SET GLOBAL binlog_legacy_event_pos= @old_legacy;
+CALL mtr.add_suppression("Error writing file.*No space left on device");
+DROP TEMPORARY TABLE t1;
+DROP TABLE t1;
+include/rpl_end.inc

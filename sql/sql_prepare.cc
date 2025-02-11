@@ -921,10 +921,10 @@ static bool insert_bulk_params(Prepared_statement *stmt,
         param->set_null();
         break;
       case STMT_INDICATOR_DEFAULT:
-        param->set_default();
+        param->set_default(false);
         break;
       case STMT_INDICATOR_IGNORE:
-        param->set_ignore();
+        param->set_ignore(false);
         break;
       default:
         DBUG_ASSERT(0);
@@ -1536,8 +1536,8 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_INIT | DT_PREPARE))
     DBUG_RETURN(TRUE);
-  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, COLUMNS_READ, 0, NULL, 0));
+  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(), *values, COLUMNS_READ, 0,
+                           NULL, 0, THD_WHERE::DO_STATEMENT));
 }
 
 
@@ -1569,6 +1569,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
                                      DT_INIT | DT_PREPARE))
     goto error;
 
+  thd->where= THD_WHERE::SET_LIST;
   while ((var= it++))
   {
     if (var->light_check(thd))
@@ -2242,6 +2243,16 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 #ifdef WITH_WSREP
     if (wsrep_sync_wait(thd, sql_command))
       goto error;
+    if (!stmt->is_sql_prepare())
+    {
+      wsrep_after_command_before_result(thd);
+      if (wsrep_current_error(thd))
+      {
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        goto error;
+      }
+    }
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -5097,7 +5108,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
 
     E.g., lets consider the following statements
       SET slow_query_log= 1;
-      SET @@long_query_time=0.01;
+      SET @@log_slow_query_time=0.01;
       PREPARE stmt FROM 'set statement slow_query_log=0 for select sleep(0.1)';
       EXECUTE stmt;
 
@@ -6076,7 +6087,7 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   {
     THD *thd_orig= current_thd;
     set_current_thd(p->thd);
-    p->thd->thread_stack= (char*) &result;
+    p->thd->thread_stack= (void*) &result;      // Big stack
     p->thd->set_time();
     result= execute_server_code(p->thd, (const char *)arg, arg_length);
     p->thd->cleanup_after_query();
@@ -6256,7 +6267,6 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
 
     new_thd= new THD(0);
     local_connection_thread_count++;
-    new_thd->thread_stack= (char*) &thd_orig;
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;

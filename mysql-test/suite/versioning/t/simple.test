@@ -18,6 +18,7 @@ create or replace table emp (
 ) 
 with system versioning;
 
+--disable_cursor_protocol
 select now() into @ts_0;
 
 insert into dept (dept_id, name) values (10, "accounting");
@@ -29,13 +30,16 @@ insert into emp (emp_id, name, salary, dept_id) values (1, "bill", 1000, 10);
 commit;
 
 select row_start into @ts_2 from emp where name="bill";
+--enable_cursor_protocol
 
 select * from emp;
 
 update emp set salary=2000 where name="bill";
 commit;
 
+--disable_cursor_protocol
 select row_start into @ts_3 from emp where name="bill";
+--enable_cursor_protocol
 
 select * from emp;
 select * from emp for system_time as of timestamp @ts_2;

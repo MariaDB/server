@@ -18,8 +18,10 @@ CREATE TABLE t1 (id INT, value int, PRIMARY KEY (id), INDEX (value)) ENGINE=Rock
 INSERT INTO t1 VALUES (1,1);
 
 # Read-only, long-running transaction. SingleDelete/Put shouldn't increase much.
+--disable_cursor_protocol
 select variable_value into @p from information_schema.global_status where variable_name='rocksdb_number_sst_entry_put';
 select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+--enable_cursor_protocol
 #-- replace_result $uuid uuid
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 

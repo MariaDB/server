@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-FIND-ROWS\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-FIND-ROWS\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,15 +11,15 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql_find_rows
+.\" mariadb-find-rows
 .SH "NAME"
-mariadb-find-rows \- extract SQL statements from files (mysql_find_rows is now a symlink to mariadb-find-rows)
+mariadb-find-rows \- extract SQL statements from files (mariadb-find-rows is now a symlink to mariadb-find-rows)
 .SH "SYNOPSIS"
-.HP \w'\fBmysql_find_rows\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIfile_name\fR\fR\fB\ \&.\&.\&.]\fR\ 'u
-\fBmysql_find_rows [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIfile_name\fR\fR\fB \&.\&.\&.]\fR
+.HP \w'\fBmariadb-find-rows\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIfile_name\fR\fR\fB\ \&.\&.\&.]\fR\ 'u
+\fBmariadb-find-rows [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIfile_name\fR\fR\fB \&.\&.\&.]\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysql_find_rows\fR
+\fBmariadb-find-rows\fR
 reads files containing SQL statements and extracts statements that match a given regular expression or that contain
 USE \fIdb_name\fR
 or
@@ -27,14 +27,14 @@ SET
 statements\&. The utility was written for use with update log files (as used prior to MySQL 5\&.0) and as such expects statements to be terminated with semicolon (;) characters\&. It may be useful with other files that contain SQL statements as long as statements are terminated with semicolons\&.
 .PP
 Invoke
-\fBmysql_find_rows\fR
+\fBmariadb-find-rows\fR
 like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql_find_rows [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIfile_name\fR\fR\fB \&.\&.\&.]\fR
+shell> \fBmariadb-find-rows [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIfile_name\fR\fR\fB \&.\&.\&.]\fR
 .fi
 .if n \{\
 .RE
@@ -43,7 +43,7 @@ shell> \fBmysql_find_rows [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIfile_name\fR\fR\
 Each
 \fIfile_name\fR
 argument should be the name of file containing SQL statements\&. If no file names are given,
-\fBmysql_find_rows\fR
+\fBmariadb-find-rows\fR
 reads the standard input\&.
 .PP
 Examples:
@@ -52,14 +52,14 @@ Examples:
 .RS 4
 .\}
 .nf
-mysql_find_rows \-\-regexp=problem_table \-\-rows=20 < update\&.log
-mysql_find_rows \-\-regexp=problem_table  update\-log\&.1 update\-log\&.2
+mariadb-find-rows \-\-regexp=problem_table \-\-rows=20 < update\&.log
+mariadb-find-rows \-\-regexp=problem_table  update\-log\&.1 update\-log\&.2
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysql_find_rows\fR
+\fBmariadb-find-rows\fR
 supports the following options:
 .sp
 .RS 4
@@ -70,8 +70,8 @@ supports the following options:
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_find_rows: help option
-.\" help option: mysql_find_rows
+.\" mariadb-find-rows: help option
+.\" help option: mariadb-find-rows
 \fB\-\-help\fR,
 \fB\-\-Information\fR
 .sp
@@ -86,8 +86,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_find_rows: regexp option
-.\" regexp option: mysql_find_rows
+.\" mariadb-find-rows: regexp option
+.\" regexp option: mariadb-find-rows
 \fB\-\-regexp=\fR\fB\fIpattern\fR\fR
 .sp
 Display queries that match the pattern\&.
@@ -101,8 +101,8 @@ Display queries that match the pattern\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_find_rows: rows option
-.\" rows option: mysql_find_rows
+.\" mariadb-find-rows: rows option
+.\" rows option: mariadb-find-rows
 \fB\-\-rows=\fR\fB\fIN\fR\fR
 .sp
 Quit after displaying
@@ -118,8 +118,8 @@ queries\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_find_rows: skip-use-db option
-.\" skip-use-db option: mysql_find_rows
+.\" mariadb-find-rows: skip-use-db option
+.\" skip-use-db option: mariadb-find-rows
 \fB\-\-skip\-use\-db\fR
 .sp
 Do not include
@@ -135,8 +135,8 @@ statements in the output\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_find_rows: start_row option
-.\" start_row option: mysql_find_rows
+.\" mariadb-find-rows: start_row option
+.\" start_row option: mariadb-find-rows
 \fB\-\-start_row=\fR\fB\fIN\fR\fR
 .sp
 Start output from this row\&.
@@ -144,7 +144,7 @@ Start output from this row\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

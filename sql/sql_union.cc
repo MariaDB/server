@@ -1023,7 +1023,8 @@ bool select_union_direct::send_eof()
   // Reset for each SELECT_LEX, so accumulate here
   limit_found_rows+= thd->limit_found_rows;
 
-  if (unit->thd->lex->current_select == last_select_lex)
+  if (unit->thd->lex->current_select == last_select_lex ||
+      thd->killed == ABORT_QUERY)
   {
     thd->limit_found_rows= limit_found_rows;
 
@@ -1055,7 +1056,7 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
                                                   bool first_execution) 
 {
   thd_arg->lex->current_select= fake_select_lex;
-  fake_select_lex->table_list.link_in_list(&result_table_list,
+  fake_select_lex->table_list.insert(&result_table_list,
                                            &result_table_list.next_local);
   fake_select_lex->context.table_list= 
     fake_select_lex->context.first_name_resolution_table= 
@@ -1365,6 +1366,35 @@ static select_handler *find_unit_handler(THD *thd,
       return uh;
   }
   return nullptr;
+}
+
+
+inline bool st_select_lex_unit::rename_item_list(TABLE_LIST *derived_arg)
+{
+  if (derived_arg->save_original_names(first_select()))
+    return true;
+  if (first_select()->set_item_list_names(derived_arg->column_names))
+    return true;
+  return false;
+}
+
+
+inline bool st_select_lex_unit::rename_types_list(List<Lex_ident_sys> *newnames)
+{
+  if (item_list.elements != newnames->elements)
+  {
+    my_error(ER_INCORRECT_COLUMN_NAME_COUNT, MYF(0));
+    return true;
+  }
+
+  List_iterator<Lex_ident_sys> it(*newnames);
+  List_iterator_fast<Item> li(types);
+  Item *item;
+
+  while ((item= li++))
+    lex_string_set( &item->name, (it++)->str);
+
+  return false;
 }
 
 
@@ -1748,6 +1778,14 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     }      
   }
 
+  /*
+    We need to rename tvc BEFORE Item_holder pushed into result table
+    below in join_union_item_types().
+  */
+  if (first_select()->tvc && derived_arg && derived_arg->column_names)
+    if (rename_item_list(derived_arg))
+      goto err;
+
   // In case of a non-recursive UNION, join data types for all UNION parts.
   if (!is_recursive && join_union_item_types(thd, types, union_part_count))
     goto err;
@@ -1940,6 +1978,14 @@ cont:
                 global_parameters()->order_list.first,    // order
                 false, NULL, NULL, NULL, fake_select_lex, this);
     }
+    /*
+      Rename types used in result table for union.
+    */
+    if (derived_arg && derived_arg->column_names)
+    {
+      if (rename_types_list(derived_arg->column_names))
+        goto err;
+    }
 
     if (!thd->lex->is_view_context_analysis())
       pushdown_unit= find_unit_handler(thd, this);
@@ -1948,6 +1994,12 @@ cont:
       if (prepare_pushdown(use_direct_union_result, sel_result))
         goto err;
     }
+  }
+
+  if (derived_arg && derived_arg->column_names)
+  {
+    if (rename_item_list(derived_arg))
+      goto err;
   }
 
   thd->lex->current_select= lex_select_save;

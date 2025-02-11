@@ -240,7 +240,7 @@ ALTER IGNORE TABLE t1 MODIFY a VARBINARY(255) DEFAULT 'a11';
 CALL show_table;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varbinary(255) DEFAULT 'a11',
+  `a` varbinary(255) DEFAULT x'613131',
   `b` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 VERSION
@@ -251,7 +251,7 @@ ALTER IGNORE TABLE t1 MODIFY a VARBINARY(255) DEFAULT 'a12';
 CALL show_table;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varbinary(255) DEFAULT 'a12',
+  `a` varbinary(255) DEFAULT x'613132',
   `b` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 VERSION

@@ -20,12 +20,6 @@
 
 /* This file defines all spatial functions */
 
-#ifdef HAVE_SPATIAL
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_type_geom.h"
 #include "item.h"
 #include "gstream.h"
@@ -792,7 +786,7 @@ public:
   Item_func_spatial_mbr_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_func_spatial_rel(thd, a, b, sp_rel)
   { }
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_mbr_rel>(thd, this); }
@@ -808,7 +802,7 @@ public:
   Item_func_spatial_precise_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_func_spatial_rel(thd, a, b, sp_rel), collector()
   { }
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_precise_rel>(thd, this); }
@@ -830,7 +824,7 @@ public:
   Item_func_spatial_relate(THD *thd, Item *a, Item *b, Item *matrix):
     Item_bool_func_args_geometry_geometry(thd, a, b, matrix)
   { }
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("st_relate") };
@@ -945,7 +939,7 @@ class Item_func_isempty: public Item_bool_func_args_geometry
 public:
   Item_func_isempty(THD *thd, Item *a)
    :Item_bool_func_args_geometry(thd, a) {}
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("st_isempty") };
@@ -1279,10 +1273,4 @@ class Item_func_gis_debug: public Item_long_func
 #define GEOM_NEW(thd, obj_constructor) new (thd->mem_root) obj_constructor
 #define GEOM_TYPE(x) (x)
 
-#else /*HAVE_SPATIAL*/
-
-#define GEOM_NEW(thd, obj_constructor) NULL
-#define GEOM_TYPE(x) NULL
-
-#endif /*HAVE_SPATIAL*/
 #endif /* ITEM_GEOFUNC_INCLUDED */

@@ -1,0 +1,13 @@
+# Use default setting for mysqld processes
+!include include/default_mysqld.cnf
+
+[mysqld.1]
+wsrep-on=ON
+binlog-format=ROW
+innodb-flush-log-at-trx-commit=1
+wsrep-cluster-address=gcomm://
+wsrep-provider=@ENV.WSREP_PROVIDER
+innodb-autoinc-lock-mode=2
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port

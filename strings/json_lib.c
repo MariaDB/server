@@ -2021,7 +2021,43 @@ enum json_types json_get_object_nkey(const char *js __attribute__((unused)),
                                      const char **value __attribute__((unused)),
                                      int *value_len __attribute__((unused)))
 {
-  return JSV_NOTHING;
+  json_engine_t je;
+  int keys_found= 0;
+
+  json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
+                  (const uchar *) js_end);
+
+  if (json_read_value(&je) ||
+      je.value_type != JSON_VALUE_OBJECT)
+    goto err_return;
+
+  while (!json_scan_next(&je))
+  {
+    switch (je.state)
+    {
+    case JST_KEY:
+      if (nkey == keys_found)
+      {
+        *keyname= (char *) je.s.c_str;
+        while (json_read_keyname_chr(&je) == 0)
+          *keyname_end= (char *) je.s.c_str;
+
+        return smart_read_value(&je, value, value_len);
+      }
+
+      keys_found++;
+      if (json_skip_key(&je))
+        goto err_return;
+
+      break;
+
+    case JST_OBJ_END:
+      return JSV_NOTHING;
+    }
+  }
+
+err_return:
+  return JSV_BAD_JSON;
 }
 
 

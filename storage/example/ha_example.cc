@@ -90,10 +90,6 @@
     -Brian
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
-
 #include <my_global.h>
 #include <mysql/plugin.h>
 #include "ha_example.h"
@@ -1000,11 +996,7 @@ const char *enum_var_names[]=
   "e1", "e2", NullS
 };
 
-TYPELIB enum_var_typelib=
-{
-  array_elements(enum_var_names) - 1, "enum_var_typelib",
-  enum_var_names, NULL
-};
+TYPELIB enum_var_typelib= CREATE_TYPELIB_FOR(enum_var_names);
 
 static MYSQL_SYSVAR_ENUM(
   enum_var,                       // name

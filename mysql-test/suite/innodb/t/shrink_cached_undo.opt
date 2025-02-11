@@ -1,0 +1,2 @@
+--innodb_undo_tablespaces=0
+--innodb_sys_tablespaces

@@ -104,10 +104,6 @@
            subject and may omit some details.
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "key.h"        // is_key_used, key_copy, key_cmp, key_restore
@@ -1302,7 +1298,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   record= head->record[0];
 
   my_init_dynamic_array2(PSI_INSTRUMENT_ME, &ranges, sizeof(QUICK_RANGE*),
-                         thd->alloc(sizeof(QUICK_RANGE*) * 16), 16, 16,
+                         thd->alloc<QUICK_RANGE>(16), 16, 16,
                          MYF(MY_THREAD_SPECIFIC));
 
   /* Allocate a bitmap for used columns */
@@ -1753,11 +1749,13 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
 
 C_MODE_START
 
-static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, uchar *val1, uchar *val2)
+static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, const void *val1_,
+                                            const void *val2_)
 {
-  QUICK_ROR_UNION_SELECT *self= (QUICK_ROR_UNION_SELECT*)arg;
-  return self->head->file->cmp_ref(((QUICK_SELECT_I*)val1)->last_rowid,
-                                   ((QUICK_SELECT_I*)val2)->last_rowid);
+  auto self= static_cast<QUICK_ROR_UNION_SELECT *>(arg);
+  auto val1= static_cast<const QUICK_SELECT_I *>(val1_);
+  auto val2= static_cast<const QUICK_SELECT_I *>(val2_);
+  return self->head->file->cmp_ref(val1->last_rowid, val2->last_rowid);
 }
 
 C_MODE_END
@@ -2663,9 +2661,7 @@ static int fill_used_fields_bitmap(PARAM *param)
 
     In the table struct the following information is updated:
       quick_keys           - Which keys can be used
-      quick_rows           - How many rows the key matches
-      opt_range_condition_rows - E(# rows that will satisfy the table
-                                 condition)
+      opt_range_condition_rows - E(# rows that will satisfy the table condition)
 
   IMPLEMENTATION
     opt_range_condition_rows value is obtained as follows:
@@ -2858,7 +2854,7 @@ SQL_SELECT::test_quick_select(THD *thd,
             add("cause", "not applicable");
         continue;
       }
-      if (key_info->flags & HA_FULLTEXT)
+      if (key_info->algorithm == HA_KEY_ALG_FULLTEXT)
       {
         trace_idx_details.add("usable", false).add("cause", "fulltext");
         continue;    // ToDo: ft-keys in non-ft ranges, if possible   SerG
@@ -2878,8 +2874,7 @@ SQL_SELECT::test_quick_select(THD *thd,
         cur_key_len += key_part_info->store_length;
 	key_parts->field=	 key_part_info->field;
 	key_parts->null_bit=	 key_part_info->null_bit;
-        key_parts->image_type =
-          (key_info->flags & HA_SPATIAL) ? Field::itMBR : Field::itRAW;
+        key_parts->image_type =  Field::image_type(key_info->algorithm);
         /* Only HA_PART_KEY_SEG is used */
         key_parts->flag=         (uint8) key_part_info->key_part_flag;
         trace_keypart.add(key_parts->field->field_name);
@@ -3106,7 +3101,7 @@ SQL_SELECT::test_quick_select(THD *thd,
         group_by_optimization_used= 1;
         param.table->set_opt_range_condition_rows(group_trp->records);
         DBUG_PRINT("info", ("table_rows: %llu  opt_range_condition_rows: %llu  "
-                            "group_trp->records: %ull",
+                            "group_trp->records: %llu",
                             table_records,
                             param.table->opt_range_condition_rows,
                             group_trp->records));
@@ -3449,13 +3444,13 @@ double records_in_column_ranges(PARAM *param, uint idx,
   use histograms for columns b and c
 */
 
-static
-int cmp_quick_ranges(TABLE::OPT_RANGE **a, TABLE::OPT_RANGE **b)
+static int cmp_quick_ranges(const void *a_, const void *b_)
 {
-  int tmp=CMP_NUM((*a)->rows, (*b)->rows);
-  if (tmp)
+  const auto a= *static_cast<const TABLE::OPT_RANGE*const*>(a_);
+  const auto b= *static_cast<const TABLE::OPT_RANGE*const*>(b_);
+  if (int tmp= CMP_NUM(a->rows, b->rows))
     return tmp;
-  return -CMP_NUM((*a)->key_parts, (*b)->key_parts);
+  return -CMP_NUM(a->key_parts, b->key_parts);
 }
 
 
@@ -3556,9 +3551,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     if (table->opt_range_keys.is_set(keynr))
       optimal_key_order[ranges++]= table->opt_range + keynr;
 
-  my_qsort(optimal_key_order, ranges,
-           sizeof(optimal_key_order[0]),
-           (qsort_cmp) cmp_quick_ranges);
+  my_qsort(optimal_key_order, ranges, sizeof *optimal_key_order,
+           cmp_quick_ranges);
 
   for (range_index= 0 ; range_index < ranges ; range_index++)
   {
@@ -5927,8 +5921,10 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
 /* Compare two indexes scans for sort before search for the best intersection */
 
 static
-int cmp_intersect_index_scan(INDEX_SCAN_INFO **a, INDEX_SCAN_INFO **b)
+int cmp_intersect_index_scan(const void *a_, const void *b_)
 {
+  auto a= static_cast<const INDEX_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const INDEX_SCAN_INFO *const *>(b_);
   return CMP_NUM((*a)->records, (*b)->records);
 }
 
@@ -6179,7 +6175,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     return TRUE;
 
   my_qsort(selected_index_scans, n_search_scans, sizeof(INDEX_SCAN_INFO *),
-           (qsort_cmp) cmp_intersect_index_scan);
+           cmp_intersect_index_scan);
 
   Json_writer_array selected_idx_scans(thd, "selected_index_scans");
   if (cpk_scan)
@@ -6930,8 +6926,10 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     1 a > b
 */
 
-static int cmp_ror_scan_info(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
+static int cmp_ror_scan_info(const void *a_, const void *b_)
 {
+  auto a= static_cast<const ROR_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const ROR_SCAN_INFO *const *>(b_);
   double val1= rows2double((*a)->records) * (*a)->key_rec_length;
   double val2= rows2double((*b)->records) * (*b)->key_rec_length;
   return (val1 < val2)? -1: (val1 == val2)? 0 : 1;
@@ -6954,8 +6952,10 @@ static int cmp_ror_scan_info(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
     1 a > b
 */
 
-static int cmp_ror_scan_info_covering(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
+static int cmp_ror_scan_info_covering(const void *a_, const void *b_)
 {
+  auto a= static_cast<const ROR_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const ROR_SCAN_INFO *const *>(b_);
   if ((*a)->used_fields_covered > (*b)->used_fields_covered)
     return -1;
   if ((*a)->used_fields_covered < (*b)->used_fields_covered)
@@ -7450,7 +7450,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     Step 2: Get best ROR-intersection using an approximate algorithm.
   */
   my_qsort(tree->ror_scans, tree->n_ror_scans, sizeof(ROR_SCAN_INFO*),
-           (qsort_cmp)cmp_ror_scan_info);
+           cmp_ror_scan_info);
   DBUG_EXECUTE("info",print_ror_scans_arr(param->table, "ordered",
                                           tree->ror_scans,
                                           tree->ror_scans_end););
@@ -7718,7 +7718,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
     }
 
     my_qsort(ror_scan_mark, ror_scans_end-ror_scan_mark, sizeof(ROR_SCAN_INFO*),
-             (qsort_cmp)cmp_ror_scan_info_covering);
+             cmp_ror_scan_info_covering);
 
     DBUG_EXECUTE("info", print_ror_scans_arr(param->table,
                                              "remaining scans",
@@ -8150,6 +8150,46 @@ SEL_TREE *Item_func_ne::get_func_mm_tree(RANGE_OPT_PARAM *param,
 }
 
 
+SEL_TREE *Item_func_istrue::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                             Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_istrue::get_func_mm_tree");
+  // See comments in Item_func_ne::get_func_mm_tree()
+  if (param->using_real_indexes && is_field_an_unique_index(field))
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
+}
+
+
+SEL_TREE *Item_func_isnotfalse::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                 Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_notfalse::get_func_mm_tree");
+  // See comments in Item_func_ne::get_func_mm_tree()
+  if (param->using_real_indexes && is_field_an_unique_index(field))
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
+}
+
+
+SEL_TREE *Item_func_isfalse::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                              Field *field,
+                                              Item *value)
+{
+  DBUG_ENTER("Item_bool_isfalse::get_func_mm_tree");
+  DBUG_RETURN(get_mm_parts(param, field, EQ_FUNC, value));
+}
+
+
+SEL_TREE *Item_func_isnottrue::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                Field *field,
+                                                Item *value)
+{
+  DBUG_ENTER("Item_func_isnottrue::get_func_mm_tree");
+  DBUG_RETURN(get_mm_parts(param, field, EQ_FUNC, value));
+}
+
+
 SEL_TREE *Item_func_between::get_func_mm_tree(RANGE_OPT_PARAM *param,
                                               Field *field, Item *value)
 {
@@ -8268,7 +8308,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         if (!tree)
           break;
         i++;
-      } while (i < array->count && tree->type == SEL_TREE::IMPOSSIBLE);
+      } while (i < array->used_count && tree->type == SEL_TREE::IMPOSSIBLE);
 
       if (!tree || tree->type == SEL_TREE::IMPOSSIBLE)
       {
@@ -8820,7 +8860,7 @@ SEL_TREE *Item::get_mm_tree_for_const(RANGE_OPT_PARAM *param)
   param->thd->mem_root= param->old_root;
   SEL_TREE *tree;
 
-  const SEL_TREE::Type type= val_int()? SEL_TREE::ALWAYS: SEL_TREE::IMPOSSIBLE;
+  const SEL_TREE::Type type= val_bool()? SEL_TREE::ALWAYS: SEL_TREE::IMPOSSIBLE;
   param->thd->mem_root= tmp_root;
 
   tree= new (tmp_root) SEL_TREE(type, tmp_root, param->keys);
@@ -8926,6 +8966,38 @@ SEL_TREE *Item_func_in::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 } 
 
 
+SEL_TREE *Item_func_truth::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func_truth::get_mm_tree");
+  DBUG_ASSERT(arg_count == 1);
+  MEM_ROOT *old_root= param->thd->mem_root;
+  param->thd->mem_root= param->old_root;
+  Item *tmp= args[0]->type_handler()->create_boolean_false_item(param->thd);
+  param->thd->mem_root= old_root;
+
+  SEL_TREE *ftree= get_full_func_mm_tree_for_args(param, args[0], tmp);
+  if (!ftree)
+    goto err;
+  if (!affirmative) // x IS NOT {TRUE|FALSE}
+  {
+    /*
+      A non-affirmative boolean test works as follows:
+        - NULL IS NOT FALSE returns TRUE
+        - NULL IS NOT TRUE  returns TRUE
+      Let's add the "x IS NULL" tree:
+    */
+    SEL_TREE *ftree2= get_full_func_mm_tree_for_args(param, args[0], NULL);
+    if (!ftree2)
+      goto err;
+    ftree= tree_or(param, ftree, ftree2);
+  }
+err:
+  if (!ftree)
+    ftree= Item_func::get_mm_tree(param, cond_ptr);
+  DBUG_RETURN(ftree);
+}
+
+
 SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   DBUG_ENTER("Item_equal::get_mm_tree");
@@ -8983,6 +9055,205 @@ static bool is_field_an_unique_index(Field *field)
 }
 
 
+/*
+  @brief
+    Given a string, escape the LIKE pattern characters (%, _, \) with the '\'.
+
+  @detail
+    Currently we fail if the escaped string didn't fit into MAX_FIELD_WIDTH
+    bytes but this is not necessary.
+*/
+
+static bool escape_like_characters(String *res)
+{
+  CHARSET_INFO *cs= res->charset();
+  StringBuffer<MAX_FIELD_WIDTH> tmp2(cs);
+  tmp2.copy(*res);
+  int ret;
+  uchar *src= (uchar *) tmp2.ptr(), *src_end= (uchar *) tmp2.end(),
+    *dst= (uchar *) res->ptr(), *dst_end= dst + MAX_FIELD_WIDTH;
+  my_wc_t wc;
+  while (src < src_end)
+  {
+    /* Advance to the next character */
+    if ((ret= my_ci_mb_wc(cs, &wc, src, src_end)) <= 0)
+    {
+      if (ret == MY_CS_ILSEQ) /* Bad sequence */
+        return true;       /* Cannot LIKE optimize */
+      break;                  /* End of the string */
+    }
+    src+= ret;
+
+    /* If the next char is escape-able in actual LIKE, escape it */
+    if (wc == (my_wc_t) '%' || wc == (my_wc_t) '_' || wc == (my_wc_t) '\\')
+    {
+      if ((ret= my_ci_wc_mb(cs, (my_wc_t) '\\', dst, dst_end)) <= 0)
+        return true; /* No space - no LIKE optimize */
+      dst+= ret;
+    }
+    if ((ret= my_ci_wc_mb(cs, wc, dst, dst_end)) <= 0)
+      return true; /* No space - no LIKE optimize */
+    dst+= ret;
+  }
+  res->length((char *) dst - res->ptr());
+  return false; /* Ok */
+}
+
+
+/*
+  @brief
+    Produce SEL_ARG interval for LIKE and prefix match functions.
+
+  @detail
+    This is used for conditions in forms:
+
+     - key_col LIKE 'sargable_pattern'
+     - SUBSTR(key_col, 1, ...) = 'value', or equivalent conditions involving
+       LEFT() instead of SUBSTR() - see with_sargable_substr() for details.
+
+  @param
+     item The comparison item (Item_func_like or Item_func_eq)
+*/
+
+static SEL_ARG *
+get_mm_leaf_for_LIKE(Item_bool_func *item, RANGE_OPT_PARAM *param,
+                     Field *field, KEY_PART *key_part,
+                     Item_func::Functype type, Item *value)
+{
+  DBUG_ENTER("get_mm_leaf_for_sargable");
+  DBUG_ASSERT(value);
+
+  if (key_part->image_type != Field::itRAW)
+    DBUG_RETURN(0);
+
+  uint keynr= param->real_keynr[key_part->key];
+  if (param->using_real_indexes &&
+      !field->optimize_range(keynr, key_part->part))
+    DBUG_RETURN(0);
+
+  if (field->result_type() == STRING_RESULT &&
+      field->charset() != item->compare_collation())
+  {
+    /*
+      For equalities where one side is LEFT or SUBSTR
+      param->note_unusable_keys is BITMAP_EXCEPT_ANY_EQUALITY and the
+      following if condition is satisfied. But it will not result in
+      duplicate warnings because the ref optimizer does not cover this
+      case.
+    */
+    if (param->note_unusable_keys & Item_func::BITMAP_LIKE)
+      field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
+                                            item->func_name_cstring(),
+                                            item->compare_collation(),
+                                            value,
+                                            Data_type_compatibility::
+                                            INCOMPATIBLE_COLLATION);
+    DBUG_RETURN(0);
+  }
+
+  StringBuffer<MAX_FIELD_WIDTH> tmp(value->collation.collation);
+  String *res;
+
+  if (!(res= value->val_str(&tmp)))
+    DBUG_RETURN(&null_element);
+
+  if (field->cmp_type() != STRING_RESULT ||
+      field->type_handler() == &type_handler_enum ||
+      field->type_handler() == &type_handler_set)
+  {
+    if (param->note_unusable_keys & Item_func::BITMAP_LIKE)
+      field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
+                                            item->func_name_cstring(),
+                                            item->compare_collation(),
+                                            value,
+                                            Data_type_compatibility::
+                                            INCOMPATIBLE_DATA_TYPE);
+    DBUG_RETURN(0);
+  }
+
+  /*
+    TODO:
+    Check if this was a function. This should have be optimized away
+    in the sql_select.cc
+  */
+  if (res != &tmp)
+  {
+    tmp.copy(*res);				// Get own copy
+    res= &tmp;
+  }
+
+  /*
+    If we're handling a predicate in one of these forms:
+     - LEFT(key_col, N) ='string_const'
+     - SUBSTRING(key_col, 1, N)='string_const'
+
+    then we need to:
+    - escape the LIKE pattern characters in the string_const,
+    - make the search pattern to be 'string_const%':
+  */
+  if (type != Item_func::LIKE_FUNC)
+  {
+    DBUG_ASSERT(type == Item_func::EQ_FUNC);
+    if (escape_like_characters(res))
+      DBUG_RETURN(0); /* Error, no optimization */
+    res->append("%", 1);
+  }
+
+  uint maybe_null= (uint) field->real_maybe_null();
+  size_t field_length= field->pack_length() + maybe_null;
+  size_t offset= maybe_null;
+  size_t length= key_part->store_length;
+
+  if (length != key_part->length + maybe_null)
+  {
+    /* key packed with length prefix */
+    offset+= HA_KEY_BLOB_LENGTH;
+    field_length= length - HA_KEY_BLOB_LENGTH;
+  }
+  else
+  {
+    if (unlikely(length < field_length))
+    {
+      /*
+        This can only happen in a table created with UNIREG where one key
+        overlaps many fields
+      */
+      length= field_length;
+    }
+    else
+      field_length= length;
+  }
+  length+= offset;
+  uchar *min_str,*max_str;
+  if (!(min_str= (uchar*) alloc_root(param->mem_root, length*2)))
+    DBUG_RETURN(0);
+  max_str= min_str + length;
+  if (maybe_null)
+    max_str[0]= min_str[0]=0;
+
+  size_t min_length, max_length;
+  field_length-= maybe_null;
+  /* If the item is a LIKE, use its escape, otherwise use backslash */
+  int escape= type == Item_func::LIKE_FUNC ?
+    ((Item_func_like *) item)->escape : '\\';
+  if (field->charset()->like_range(res->ptr(), res->length(),
+                                   escape, wild_one, wild_many,
+                                   field_length,
+                                   (char*) min_str + offset,
+                                   (char*) max_str + offset,
+                                   &min_length, &max_length))
+    DBUG_RETURN(0);              // Can't optimize with LIKE
+
+  if (offset != maybe_null)			// BLOB or VARCHAR
+  {
+    int2store(min_str + maybe_null, min_length);
+    int2store(max_str + maybe_null, max_length);
+  }
+  SEL_ARG *tree= new (param->mem_root) SEL_ARG(field, min_str, max_str);
+  DBUG_RETURN(tree);
+}
+
+
 SEL_TREE *
 Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
 	                     Item_func::Functype type, Item *value)
@@ -8995,6 +9266,9 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
   KEY_PART *end = param->key_parts_end;
   SEL_TREE *tree=0;
   table_map value_used_tables= 0;
+  bool know_sargable_substr= false;
+  bool sargable_substr; // protected by know_sargable_substr
+
   if (value &&
       (value_used_tables= value->used_tables()) &
       ~(param->prev_tables | param->read_tables))
@@ -9019,7 +9293,18 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
         */
         MEM_ROOT *tmp_root= param->mem_root;
         param->thd->mem_root= param->old_root;
-        sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
+        if (!know_sargable_substr)
+        {
+          sargable_substr= with_sargable_substr();
+          know_sargable_substr= true;
+        }
+        if (sargable_substr)
+        {
+          sel_arg= get_mm_leaf_for_LIKE(this, param, key_part->field, key_part,
+                                        type, value);
+        }
+        else
+          sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
         param->thd->mem_root= tmp_root;
 
 	if (!sel_arg)
@@ -9082,114 +9367,34 @@ Item_func_null_predicate::get_mm_leaf(RANGE_OPT_PARAM *param,
 
 
 SEL_ARG *
+Item_func_truth::get_mm_leaf(RANGE_OPT_PARAM *param,
+                             Field *field, KEY_PART *key_part,
+                             Item_func::Functype type,
+                             Item *value)
+{
+  MEM_ROOT *alloc= param->mem_root;
+  DBUG_ENTER("Item_func_truth::get_mm_leaf");
+  if (value) // Affirmative: x IS {FALSE|TRUE}
+    DBUG_RETURN(Item_bool_func::get_mm_leaf(param, field, key_part,
+                                            type, value));
+  DBUG_ASSERT(!affirmative); // x IS NOT {FALSE|TRUE}
+  /*
+    No check for field->table->maybe_null.
+     See comments in Item_func_null_predicate::get_mm_leaf()
+  */
+  if (!field->real_maybe_null())
+    DBUG_RETURN(&null_element);
+  DBUG_RETURN(new (alloc) SEL_ARG(field, is_null_string, is_null_string));
+}
+
+
+SEL_ARG *
 Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
                             Field *field, KEY_PART *key_part,
                             Item_func::Functype type, Item *value)
 {
   DBUG_ENTER("Item_func_like::get_mm_leaf");
-  DBUG_ASSERT(value);
-
-  if (key_part->image_type != Field::itRAW)
-    DBUG_RETURN(0);
-
-  uint keynr= param->real_keynr[key_part->key];
-  if (param->using_real_indexes &&
-      !field->optimize_range(keynr, key_part->part))
-    DBUG_RETURN(0);
-
-  if (field->result_type() == STRING_RESULT &&
-      field->charset() != compare_collation())
-  {
-    if (param->note_unusable_keys & BITMAP_LIKE)
-      field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
-                                            func_name_cstring(),
-                                            compare_collation(),
-                                            value,
-                                            Data_type_compatibility::
-                                            INCOMPATIBLE_COLLATION);
-    DBUG_RETURN(0);
-  }
-
-  StringBuffer<MAX_FIELD_WIDTH> tmp(value->collation.collation);
-  String *res;
-
-  if (!(res= value->val_str(&tmp)))
-    DBUG_RETURN(&null_element);
-
-  if (field->cmp_type() != STRING_RESULT ||
-      field->type_handler() == &type_handler_enum ||
-      field->type_handler() == &type_handler_set)
-  {
-    if (param->note_unusable_keys & BITMAP_LIKE)
-      field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
-                                            func_name_cstring(),
-                                            compare_collation(),
-                                            value,
-                                            Data_type_compatibility::
-                                            INCOMPATIBLE_DATA_TYPE);
-    DBUG_RETURN(0);
-  }
-
-  /*
-    TODO:
-    Check if this was a function. This should have be optimized away
-    in the sql_select.cc
-  */
-  if (res != &tmp)
-  {
-    tmp.copy(*res);				// Get own copy
-    res= &tmp;
-  }
-
-  uint maybe_null= (uint) field->real_maybe_null();
-  size_t field_length= field->pack_length() + maybe_null;
-  size_t offset= maybe_null;
-  size_t length= key_part->store_length;
-
-  if (length != key_part->length + maybe_null)
-  {
-    /* key packed with length prefix */
-    offset+= HA_KEY_BLOB_LENGTH;
-    field_length= length - HA_KEY_BLOB_LENGTH;
-  }
-  else
-  {
-    if (unlikely(length < field_length))
-    {
-      /*
-        This can only happen in a table created with UNIREG where one key
-        overlaps many fields
-      */
-      length= field_length;
-    }
-    else
-      field_length= length;
-  }
-  length+= offset;
-  uchar *min_str,*max_str;
-  if (!(min_str= (uchar*) alloc_root(param->mem_root, length*2)))
-    DBUG_RETURN(0);
-  max_str= min_str + length;
-  if (maybe_null)
-    max_str[0]= min_str[0]=0;
-
-  size_t min_length, max_length;
-  field_length-= maybe_null;
-  if (field->charset()->like_range(res->ptr(), res->length(),
-                                   escape, wild_one, wild_many,
-                                   field_length,
-                                   (char*) min_str + offset,
-                                   (char*) max_str + offset,
-                                   &min_length, &max_length))
-    DBUG_RETURN(0);              // Can't optimize with LIKE
-
-  if (offset != maybe_null)			// BLOB or VARCHAR
-  {
-    int2store(min_str + maybe_null, min_length);
-    int2store(max_str + maybe_null, max_length);
-  }
-  SEL_ARG *tree= new (param->mem_root) SEL_ARG(field, min_str, max_str);
-  DBUG_RETURN(tree);
+  DBUG_RETURN(get_mm_leaf_for_LIKE(this, param, field, key_part, type, value));
 }
 
 
@@ -12292,7 +12497,7 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
   bool create_err= FALSE;
   DBUG_ENTER("get_quick_select");
 
-  if (param->table->key_info[param->real_keynr[idx]].flags & HA_SPATIAL)
+  if (param->table->key_info[param->real_keynr[idx]].algorithm == HA_KEY_ALG_RTREE)
     quick=new QUICK_RANGE_SELECT_GEOM(param->thd, param->table,
                                       param->real_keynr[idx],
                                       MY_TEST(parent_alloc),
@@ -14767,8 +14972,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   bool has_min_max_fld= false, has_other_fld= false;
   if (join->conds && min_max_arg_item &&
       !check_group_min_max_predicates(join->conds, min_max_arg_item,
-                                      (index_info->flags & HA_SPATIAL) ?
-                                      Field::itMBR : Field::itRAW,
+                                      Field::image_type(index_info->algorithm),
                                       &has_min_max_fld, &has_other_fld))
   {
     if (unlikely(trace_group.trace_started()))
@@ -16829,17 +17033,17 @@ const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
   }
 
   if (sel_arg->min_flag & NEAR_MIN)
-    lex_string_set3(&tmp, "<", 1);
+    tmp = { STRING_WITH_LEN("<") };
   else
-    lex_string_set3(&tmp, "<=", 2);
+    tmp = { STRING_WITH_LEN("<=") };
   out.append(&tmp);
 
   out.append(sel_arg->field->field_name);
 
   if (sel_arg->min_flag & NEAR_MAX)
-    lex_string_set3(&tmp, "<", 1);
+    tmp = { STRING_WITH_LEN("<") };
   else
-    lex_string_set3(&tmp, "<=", 2);
+    tmp = { STRING_WITH_LEN("<=") };
   out.append(&tmp);
 
   if (sel_arg->max_flag & NO_MAX_RANGE)

@@ -76,7 +76,7 @@ daemon_handlersocket_init(void *p)
   conf["readsize"] = to_stdstring(handlersocket_readsize);
   conf["accept_balance"] = to_stdstring(handlersocket_accept_balance);
   conf["wrlock_timeout"] = to_stdstring(handlersocket_wrlock_timeout);
-  std::auto_ptr<daemon_handlersocket_data> ap(new daemon_handlersocket_data);
+  std::unique_ptr<daemon_handlersocket_data> ap(new daemon_handlersocket_data);
   if (handlersocket_port != 0 && handlersocket_port_wr != handlersocket_port) {
     conf["port"] = handlersocket_port;
     if (handlersocket_plain_secret) {

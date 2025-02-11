@@ -1818,7 +1818,7 @@ void my_print_variables(const struct my_option *options)
 	printf("%s\n", buff);
 	break;
       case GET_DOUBLE:
-	printf("%g\n", *(double*) value);
+	printf("%.10g\n", *(double*) value);
 	break;
       case GET_NO_ARG:
 	printf("(No default value)\n");

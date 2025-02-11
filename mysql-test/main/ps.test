@@ -2003,7 +2003,10 @@ prepare stmt from "create view v1 as select * from `t1` `b`";
 
 prepare stmt from "select ?";
 set @arg= 123456789.987654321;
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 select @arg;
+--enable_cursor_protocol
 execute stmt using @arg;
 set @arg= "string";
 select @arg;
@@ -2012,7 +2015,10 @@ set @arg= 123456;
 select @arg;
 execute stmt using @arg;
 set @arg= cast(-12345.54321 as decimal(20, 10));
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 select @arg;
+--enable_cursor_protocol
 execute stmt using @arg;
 deallocate prepare stmt;
 
@@ -3334,6 +3340,8 @@ SELECT @x_str_1, @x_int_1, @x_int_2, @x_int_3;
 --echo
 --echo -- Testing decs...
 
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 --echo
 EXECUTE stmt_dec USING @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
@@ -3341,6 +3349,7 @@ SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 --echo
 EXECUTE stmt_dec USING @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
+--enable_cursor_protocol
 
 --echo
 DEALLOCATE PREPARE stmt_str;
@@ -3573,7 +3582,9 @@ execute st;
 show status like '%Handler_read%';
 flush status;
 --disable_ps2_protocol
+--disable_cursor_protocol
 select * from t1 use index() where a=3;
+--enable_cursor_protocol
 show status like '%Handler_read%';
 --enable_ps2_protocol
 flush status;
@@ -5438,6 +5449,32 @@ DROP VIEW t1;
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-25008 Delete query gets stuck on mariadb , same query works on MySQL 8.0.21
+--echo #
+
+create table t1 (a int, b int, primary key (a), key (b));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+CREATE TABLE t2 ( id INT(10) );
+insert into t2 values (1),(2);
+
+# calls select_lex->optimize_unflattened_subqueries(false) in the err label
+set @@optimizer_switch="index_merge=off";
+set sql_safe_updates=1;
+set @var1=1;
+set @var2=2;
+prepare stmt from 'update t1 set b=(SELECT 1 FROM t2 WHERE id = t1.a) where 1=? or b=2';
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+execute stmt using @var1;
+execute stmt using @var2;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+delete from t1 where a=1 or b=2;
+drop table t1, t2;
+
+--echo #
+--echo # End of 11.7 tests
 --echo #
 
 --source include/test_db_charset_restore.inc

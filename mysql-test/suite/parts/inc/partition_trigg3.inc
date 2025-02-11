@@ -46,7 +46,9 @@ delimiter ;|
 # Additional statements because of Bug(limitation)#17704
 SET @counter = 1;
 # Bug#18730 Partitions: crash on SELECT MIN(<unique column>)
+--disable_cursor_protocol
 SELECT MAX(f_int1), MIN(f_int2) INTO @my_max1,@my_min2 FROM t1;
+--enable_cursor_protocol
 # Additional statements end
 eval $statement;
 DROP TRIGGER trg_3;

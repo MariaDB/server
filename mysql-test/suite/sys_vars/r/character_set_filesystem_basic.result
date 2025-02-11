@@ -16,17 +16,17 @@ SELECT @session_start_value;
 binary
 '#--------------------FN_DYNVARS_008_01------------------#'
 SELECT character_set_filesystem;
-ERROR 42S22: Unknown column 'character_set_filesystem' in 'field list'
+ERROR 42S22: Unknown column 'character_set_filesystem' in 'SELECT'
 SET character_set_filesystem=utf8;
 SELECT @@session.character_set_filesystem;
 @@session.character_set_filesystem
 utf8mb3
 SET session character_set_filesystem=utf8;
 SELECT session character_set_filesystem;
-ERROR 42S22: Unknown column 'session' in 'field list'
+ERROR 42S22: Unknown column 'session' in 'SELECT'
 SET global character_set_filesystem=utf8;
 SELECT global character_set_filesystem;
-ERROR 42S22: Unknown column 'global' in 'field list'
+ERROR 42S22: Unknown column 'global' in 'SELECT'
 '#--------------------FN_DYNVARS_008_02-------------------------#'
 SET @@character_set_filesystem = latin5;
 SET @@character_set_filesystem = DEFAULT;
@@ -70,7 +70,7 @@ res
 1
 '#--------------------FN_DYNVARS_008_05-------------------------#'
 SET @@character_set_filesystem = utf8 + latin2;
-ERROR 42S22: Unknown column 'utf8' in 'field list'
+ERROR 42S22: Unknown column 'utf8' in 'SET'
 '#--------------------FN_DYNVARS_008_06-------------------------#'
 SET @@session.character_set_filesystem = big5;
 SELECT @@session.character_set_filesystem;

@@ -23,10 +23,6 @@
   @{
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "key.h"
 #include "sql_base.h"
@@ -2839,7 +2835,7 @@ int JOIN_CACHE_HASHED::init(bool for_explain)
   if (for_explain)
     DBUG_RETURN(0);
 
-  if (!(key_buff= (uchar*) join->thd->alloc(key_length)))
+  if (!(key_buff= join->thd->alloc<uchar>(key_length)))
     DBUG_RETURN(1);
 
   /* Take into account a reference to the next record in the key chain */
@@ -4573,7 +4569,7 @@ bool JOIN_CACHE_BKA::skip_index_tuple(range_id_t range_info)
 {
   DBUG_ENTER("JOIN_CACHE_BKA::skip_index_tuple");
   get_record_by_pos((uchar*)range_info);
-  DBUG_RETURN(!join_tab->cache_idx_cond->val_int());
+  DBUG_RETURN(!join_tab->cache_idx_cond->val_bool());
 }
 
 
@@ -4837,7 +4833,7 @@ bool JOIN_CACHE_BKAH::skip_index_tuple(range_id_t range_info)
     next_rec_ref_ptr= get_next_rec_ref(next_rec_ref_ptr);
     uchar *rec_ptr= next_rec_ref_ptr + rec_fields_offset;
     get_record_by_pos(rec_ptr);
-    if (join_tab->cache_idx_cond->val_int())
+    if (join_tab->cache_idx_cond->val_bool())
       DBUG_RETURN(FALSE);
   } while(next_rec_ref_ptr != last_rec_ref_ptr);
   DBUG_RETURN(TRUE);

@@ -87,8 +87,6 @@
 
 #define SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 
-#define SPIDER_Item_args_arg_count_IS_PROTECTED
-
 #define SPIDER_Item_func_conv_charset_conv_charset collation.collation
 
 #define SPIDER_WITHOUT_HA_STATISTIC_INCREMENT
@@ -163,12 +161,12 @@ typedef start_new_trans *SPIDER_Open_tables_backup;
 #define SPIDER_LINK_MON_DRAW_FEW_MON         1
 #define SPIDER_LINK_MON_DRAW                 2
 
-#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     23
+#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     24
 #define SPIDER_TMP_SHARE_UINT_COUNT         SPIDER_TMP_SHARE_CHAR_PTR_COUNT
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           314
+#define SPIDER_MEM_CALC_LIST_NUM           SPD_MID_LAST
 #define SPIDER_CONN_META_BUF_LEN           64
 
 /*
@@ -183,6 +181,10 @@ typedef start_new_trans *SPIDER_Open_tables_backup;
 */
 enum spider_malloc_id {
   SPD_MID_CHECK_HS_PK_UPDATE_1,
+  SPD_MID_CONN_INIT_1,
+  SPD_MID_CONN_INIT_2,
+  SPD_MID_CONN_QUEUE_AND_MERGE_LOOP_CHECK_1,
+  SPD_MID_CONN_QUEUE_LOOP_CHECK_1,
   SPD_MID_COPY_TABLES_BODY_1,
   SPD_MID_COPY_TABLES_BODY_2,
   SPD_MID_COPY_TABLES_BODY_3,
@@ -289,6 +291,9 @@ enum spider_malloc_id {
   SPD_MID_DB_STORE_RESULT_4,
   SPD_MID_DB_STORE_RESULT_5,
   SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_1,
+  SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_2,
+  SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_3,
+  SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_4,
   SPD_MID_DB_UDF_COPY_TABLES_1,
   SPD_MID_DB_UDF_PING_TABLE_1,
   SPD_MID_DB_UDF_PING_TABLE_2,
@@ -432,6 +437,7 @@ enum spider_malloc_id {
   SPD_MID_PING_TABLE_MON_FROM_TABLE_1,
   SPD_MID_RELEASE_PING_TABLE_MON_LIST_1,
   SPD_MID_TRX_ANOTHER_LOCK_TABLES_1,
+  SPD_MID_TRY_ODBC_CONNECTION_STRING_1,
   SPD_MID_UDF_COPY_TABLES_CREATE_TABLE_LIST_1,
   SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_1,
   SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_2,
@@ -440,7 +446,8 @@ enum spider_malloc_id {
   SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_KEY_1,
   SPD_MID_UDF_DIRECT_SQL_CREATE_TABLE_LIST_1,
   SPD_MID_UDF_DIRECT_SQL_CREATE_TABLE_LIST_2,
-  SPD_MID_UDF_GET_COPY_TGT_TABLES_1
+  SPD_MID_UDF_GET_COPY_TGT_TABLES_1,
+  SPD_MID_LAST
 };
 
 #define SPIDER_BACKUP_DASTATUS \
@@ -453,11 +460,6 @@ enum spider_malloc_id {
   if (thd && conn->error_mode) {SPIDER_RESTORE_DASTATUS; error_num = 0;}
 #define SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM \
   if (thd && conn->error_mode) {SPIDER_RESTORE_DASTATUS; tmp_error_num = 0;}
-
-#define SPIDER_SET_FILE_POS(A) \
-  {(A)->thd = current_thd; (A)->func_name = __func__; (A)->file_name = __FILE__; (A)->line_no = __LINE__;}
-#define SPIDER_CLEAR_FILE_POS(A) \
-  {DBUG_PRINT("info", ("spider thd=%p func_name=%s file_name=%s line_no=%lu", (A)->thd, (A)->func_name ? (A)->func_name : "NULL", (A)->file_name ? (A)->file_name : "NULL", (A)->line_no)); (A)->thd = NULL; (A)->func_name = NULL; (A)->file_name = NULL; (A)->line_no = 0;}
 
 class ha_spider;
 typedef struct st_spider_share SPIDER_SHARE;
@@ -479,14 +481,6 @@ typedef struct st_spider_thread
   volatile SPIDER_SHARE *queue_first;
   volatile SPIDER_SHARE *queue_last;
 } SPIDER_THREAD;
-
-typedef struct st_spider_file_pos
-{
-  THD                *thd;
-  const char         *func_name;
-  const char         *file_name;
-  ulong              line_no;
-} SPIDER_FILE_POS;
 
 typedef struct st_spider_link_for_hash
 {
@@ -616,7 +610,6 @@ typedef struct st_spider_conn
   pthread_mutex_t    mta_conn_mutex;
   volatile bool      mta_conn_mutex_lock_already;
   volatile bool      mta_conn_mutex_unlock_later;
-  SPIDER_FILE_POS    mta_conn_mutex_file_pos;
   uint               join_trx;
   int                trx_isolation;
   bool               semi_trx_isolation_chk;
@@ -678,6 +671,7 @@ typedef struct st_spider_conn
   char               *tgt_dsn;
   char               *tgt_filedsn;
   char               *tgt_driver;
+  char               *tgt_odbc_conn_str;
   long               tgt_port;
   long               tgt_ssl_vsc;
 
@@ -697,6 +691,7 @@ typedef struct st_spider_conn
   uint               tgt_dsn_length;
   uint               tgt_filedsn_length;
   uint               tgt_driver_length;
+  uint               tgt_odbc_conn_str_length;
   uint               dbton_id;
 
   volatile
@@ -1195,6 +1190,7 @@ typedef struct st_spider_share
   char               **tgt_dsns;
   char               **tgt_filedsns;
   char               **tgt_drivers;
+  char               **tgt_odbc_conn_strs;
   char               **static_link_ids;
   char               **tgt_pk_names;
   char               **tgt_sequence_names;
@@ -1237,6 +1233,7 @@ typedef struct st_spider_share
   uint               *tgt_dsns_lengths;
   uint               *tgt_filedsns_lengths;
   uint               *tgt_drivers_lengths;
+  uint               *tgt_odbc_conn_strs_lengths;
   uint               *static_link_ids_lengths;
   uint               *tgt_pk_names_lengths;
   uint               *tgt_sequence_names_lengths;
@@ -1285,6 +1282,7 @@ typedef struct st_spider_share
   uint               tgt_dsns_length;
   uint               tgt_filedsns_length;
   uint               tgt_drivers_length;
+  uint               tgt_odbc_conn_strs_length;
   uint               static_link_ids_length;
   uint               tgt_pk_names_length;
   uint               tgt_sequence_names_length;
@@ -1410,6 +1408,7 @@ typedef struct st_spider_direct_sql
   char                 *tgt_dsn;
   char                 *tgt_filedsn;
   char                 *tgt_driver;
+  char                 *tgt_odbc_conn_str;
   char                 *conn_key;
   long                 tgt_port;
   long                 tgt_ssl_vsc;
@@ -1431,6 +1430,7 @@ typedef struct st_spider_direct_sql
   uint                 tgt_dsn_length;
   uint                 tgt_filedsn_length;
   uint                 tgt_driver_length;
+  uint                 tgt_odbc_conn_str_length;
   uint                 conn_key_length;
   uint                 dbton_id;
   my_hash_value_type   conn_key_hash_value;
@@ -1461,6 +1461,7 @@ typedef struct st_spider_mon_table_result
 
 typedef struct st_spider_table_mon
 {
+  /* This share has only one link. */
   SPIDER_SHARE               *share;
   uint32                     server_id;
   st_spider_table_mon_list   *parent;
@@ -1487,6 +1488,7 @@ typedef struct st_spider_table_mon_list
   SPIDER_TABLE_MON           *current;
   volatile int               mon_status;
 
+  /* This share has only one link */
   SPIDER_SHARE               *share;
 
   pthread_mutex_t            caller_mutex;
@@ -1500,6 +1502,7 @@ typedef struct st_spider_table_mon_list
 
 typedef struct st_spider_copy_table_conn
 {
+  /* This share has only one link. */
   SPIDER_SHARE               *share;
   int                        link_idx;
   SPIDER_CONN                *conn;

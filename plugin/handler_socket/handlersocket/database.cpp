@@ -175,7 +175,7 @@ struct dbcontext : public dbcontext_i, private noncopyable {
   THD *thd;
   MYSQL_LOCK *lock;
   bool lock_failed;
-  std::auto_ptr<expr_user_lock> user_lock;
+  std::unique_ptr<expr_user_lock> user_lock;
   int user_level_lock_timeout;
   bool user_level_lock_locked;
   bool commit_error;

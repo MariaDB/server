@@ -8,6 +8,8 @@
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
+--disable_cursor_protocol
+
 FLUSH STATUS;
 CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(100), b INT,
 INDEX b(b)) ENGINE=rocksdb;
@@ -48,6 +50,8 @@ SHOW SESSION STATUS LIKE 'Handler_read%';
 FLUSH STATUS;
 SELECT * FROM t1 WHERE id < 8 ORDER BY id;
 SHOW SESSION STATUS LIKE 'Handler_read%';
+
+--enable_cursor_protocol
 
 # Cleanup
 DROP TABLE t1;

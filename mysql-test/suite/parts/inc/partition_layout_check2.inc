@@ -58,11 +58,13 @@ eval INSERT INTO t0_definition SET state = 'new',
      file_list      = @aux;
 
 # Print the old and new table layout, if they differ
+--disable_cursor_protocol
 SELECT COUNT(*) <> 1 INTO @aux
 FROM t0_definition tab1, t0_definition tab2
 WHERE tab1.state = 'old' AND tab2.state = 'new'
   AND tab1.create_command = tab2.create_command
   AND tab1.file_list = tab2.file_list;
+--enable_cursor_protocol
 let $run= `SELECT @aux`;
 if ($run)
 {

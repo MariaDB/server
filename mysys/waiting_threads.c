@@ -449,7 +449,7 @@ void wt_init()
                sizeof_WT_RESOURCE_ID, 0, 0);
   reshash.alloc.constructor= wt_resource_create;
   reshash.alloc.destructor= wt_resource_destroy;
-  reshash.initializer= (lf_hash_initializer) wt_resource_init;
+  reshash.initializer= wt_resource_init;
 
   bzero(wt_wait_stats, sizeof(wt_wait_stats));
   bzero(wt_cycle_stats, sizeof(wt_cycle_stats));
@@ -829,7 +829,7 @@ static int unlock_lock_and_free_resource(WT_THD *thd, WT_RESOURCE *rc)
 
   if (rc->owners.elements || rc->waiter_count)
   {
-    DBUG_PRINT("wt", ("nothing to do, %u owners, %u waiters",
+    DBUG_PRINT("wt", ("nothing to do, %zu owners, %u waiters",
                       rc->owners.elements, rc->waiter_count));
     rc_unlock(rc);
     DBUG_RETURN(0);
@@ -1142,4 +1142,3 @@ void wt_thd_release(WT_THD *thd, const WT_RESOURCE_ID *resid)
     reset_dynamic(&thd->my_resources);
   DBUG_VOID_RETURN;
 }
-

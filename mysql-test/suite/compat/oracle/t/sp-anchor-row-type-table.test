@@ -122,3 +122,112 @@ END;
 $$
 DELIMITER ;$$
 DROP TABLE t1;
+
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-12252 ROW data type for stored function return values
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1 RETURN step1.step2.step3%ROWTYPE AS
+BEGIN
+  RETURN ROW(1,2);
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN t1%ROWTYPE AS
+BEGIN
+  RETURN ROW(1,2);
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION f1;
+--error ER_NO_SUCH_TABLE
+SELECT f1();
+DROP FUNCTION f1;
+
+# "ROW TYPE OF t1" is not supported in sql_mode=ORACLE
+# Use test.t1%ROWTYPE instead
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1 RETURN ROW TYPE OF t1 AS
+BEGIN
+  RETURN ROW(1,2);
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN test.t1%ROWTYPE AS
+BEGIN
+  RETURN ROW(1,2);
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION f1;
+--error ER_NO_SUCH_TABLE
+SELECT f1();
+DROP FUNCTION f1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN test.t1%ROWTYPE AS
+BEGIN
+  RETURN (SELECT * FROM t1);
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION f1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  r t1%ROWTYPE := f1();
+BEGIN
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE PROCEDURE p1;
+
+# Testing with no rows
+CALL p1;
+--error ER_OPERAND_COLUMNS
+SELECT f1();
+SELECT f1()=ROW(1,'b1') AS c;
+SELECT f1()=ROW(NULL,NULL) AS c;
+
+# Testing with one row
+INSERT INTO t1 VALUES (1,'b1');
+CALL p1;
+--error ER_OPERAND_COLUMNS
+SELECT f1();
+SELECT f1()=ROW(1,'b1') AS c;
+SELECT f1()=ROW(1,'') AS c;
+SELECT f1()=ROW(2,'b1') AS c;
+SELECT f1()=ROW(1,NULL) AS c;
+SELECT f1()=ROW(NULL,'b1') AS c;
+
+# Testing with two rows
+INSERT INTO t1 VALUES (2,'b2');
+--error ER_SUBQUERY_NO_1_ROW
+CALL p1();
+--error ER_OPERAND_COLUMNS
+SELECT f1();
+--error ER_SUBQUERY_NO_1_ROW
+SELECT f1()=ROW(1,'b1') AS c;
+
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

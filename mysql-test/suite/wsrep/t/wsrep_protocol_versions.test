@@ -1,0 +1,9 @@
+--source include/have_wsrep.inc
+--source include/force_restart.inc
+--source include/have_innodb.inc
+
+--let $galera_version=26.4.21
+source include/check_galera_version.inc;
+
+--sorted_result
+show status like 'wsrep_protocol%';

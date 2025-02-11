@@ -32,7 +32,7 @@ CALL foo;
 ERROR 42000: PROCEDURE test.foo does not exist
 CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB;
 SELECT * FROM t7 JOIN t6 ON tc=t0.c;
-ERROR 42S22: Unknown column 'tc' in 'on clause'
+ERROR 42S22: Unknown column 'tc' in 'ON'
 SHOW TABLE STATUS;
 drop table ta, t8, t7, t6, t5, t3, t2, t1;
 drop table t7;

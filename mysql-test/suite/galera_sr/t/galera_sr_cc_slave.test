@@ -58,6 +58,7 @@ SET SESSION wsrep_sync_wait = default;
 
 # Continue generating events in the transaction 
 
+SET innodb_snapshot_isolation=OFF;
 INSERT INTO t1 VALUES (6);
 INSERT INTO t1 VALUES (7);
 INSERT INTO t1 VALUES (8);

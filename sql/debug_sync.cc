@@ -97,18 +97,17 @@ struct st_debug_sync_globals
 
   void clear_set()
   {
-    Hash_set<LEX_CSTRING>::Iterator it{ds_signal_set};
-    LEX_CSTRING *s;
-    while ((s= it++))
-      my_free(s);
+    for (LEX_CSTRING &s : ds_signal_set)
+      my_free(&s);
     ds_signal_set.clear();
   }
 
   /* Hash key function for ds_signal_set. */
-  static uchar *signal_key(const LEX_CSTRING *str, size_t *klen, my_bool)
+  static const uchar *signal_key(const void *str_, size_t *klen, my_bool)
   {
+    const LEX_CSTRING *str= static_cast<const LEX_CSTRING*>(str_);
     *klen= str->length;
-    return (uchar*) str->str;
+    return reinterpret_cast<const uchar*>(str->str);
   }
 
   /**

@@ -391,3 +391,16 @@ Warnings:
 Note	1003	select "test"."t1"."c1" AS "c1","test"."t1"."c2" AS "c2","test"."t1"."c1" like concat("test"."t1"."c2",'_') AS "c1 LIKE c2||'_'" from "test"."t1" order by "test"."t1"."ord"
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-31910 ASAN memcpy-param-overlap upon CONCAT in ORACLE mode
+#
+SET SQL_MODE= ORACLE;
+SELECT CONCAT(SUBSTR(123 FROM 2));
+CONCAT(SUBSTR(123 FROM 2))
+23
+#
+# End of 10.6 tests
+#

@@ -21,10 +21,6 @@
   This file defines all numerical functions
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "sql_plugin.h"
 #include "sql_priv.h"
 /*
@@ -97,7 +93,7 @@ bool Item_args::alloc_arguments(THD *thd, uint count)
     args= tmp_arg;
     return false;
   }
-  if ((args= (Item**) thd->alloc(sizeof(Item*) * count)) == NULL)
+  if ((args= thd->alloc<Item*>(count)) == NULL)
   {
     arg_count= 0;
     return true;
@@ -124,7 +120,7 @@ Item_args::Item_args(THD *thd, const Item_args *other)
   {
     args= tmp_arg;
   }
-  else if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count)))
+  else if (!(args= thd->alloc<Item*>(arg_count)))
   {
     arg_count= 0;
     return;
@@ -1309,9 +1305,10 @@ longlong Item_func_minus::int_op()
   {
     if (args[1]->unsigned_flag)
     {
-      if ((ulonglong) val0 < (ulonglong) val1)
+      if ((ulonglong) val0 >= (ulonglong) val1)
+        res_unsigned= TRUE;
+      else if ((ulonglong)val1 - (ulonglong)val0 > (ulonglong)LONGLONG_MAX)
         goto err;
-      res_unsigned= TRUE;
     }
     else
     {
@@ -2835,8 +2832,8 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
                     Query_arena::STMT_SP_QUERY_ARGUMENTS
                  )
                 ) || rand);
-    if (!rand && !(rand= (struct my_rnd_struct*)
-                   thd->active_stmt_arena_to_use()->alloc(sizeof(*rand))))
+    if (!rand &&
+        !(rand= thd->active_stmt_arena_to_use()->alloc<my_rnd_struct>(1)))
       return TRUE;
   }
   else
@@ -2987,13 +2984,15 @@ String *Item_func_min_max::val_str_native(String *str)
       res=args[i]->val_str(str);
     else
     {
-      String *res2;
-      res2= args[i]->val_str(res == str ? &tmp_value : str);
+      String *res2= args[i]->val_str(&tmp_value);
       if (res2)
       {
         int cmp= sortcmp(res,res2,collation.collation);
         if ((cmp_sign < 0 ? cmp : -cmp) < 0)
-          res=res2;
+        {
+          str->copy(*res2);
+          res= str;
+        }
       }
     }
     if ((null_value= args[i]->null_value))
@@ -3042,6 +3041,27 @@ longlong Item_func_min_max::val_int_native()
       return 0;
   }
   return value;
+}
+
+
+longlong Item_func_min_max::val_uint_native()
+{
+  DBUG_ASSERT(fixed());
+  ulonglong value= 0;
+  for (uint i=0; i < arg_count ; i++)
+  {
+    if (i == 0)
+      value= (ulonglong) args[i]->val_int();
+    else
+    {
+      ulonglong tmp= (ulonglong) args[i]->val_int();
+      if (!args[i]->null_value && (tmp < value ? cmp_sign : -cmp_sign) > 0)
+	value= tmp;
+    }
+    if ((null_value= args[i]->null_value))
+      return 0;
+  }
+  return (longlong) value;
 }
 
 
@@ -3525,8 +3545,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
   if ((f_args.arg_count=arg_count))
   {
-    if (!(f_args.arg_type= (Item_result*)
-	  thd->alloc(f_args.arg_count*sizeof(Item_result))))
+    if (!(f_args.arg_type= thd->alloc<Item_result>(f_args.arg_count)))
 
     {
     err_exit:
@@ -4114,13 +4133,12 @@ public:
 
 /** Extract a hash key from User_level_lock. */
 
-uchar *ull_get_key(const uchar *ptr, size_t *length,
-                   my_bool not_used __attribute__((unused)))
+const uchar *ull_get_key(const void *ptr, size_t *length, my_bool)
 {
   User_level_lock *ull = (User_level_lock*) ptr;
   MDL_key *key = ull->lock->get_key();
   *length= key->length();
-  return (uchar*) key->ptr();
+  return key->ptr();
 }
 
 
@@ -5694,7 +5712,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
         set_handler(&type_handler_slonglong);
       break;
     case STRING_RESULT:
-      collation.set(m_var_entry->charset(), DERIVATION_COERCIBLE);
+      collation.set(m_var_entry->charset(), DERIVATION_USERVAR);
       max_length= MAX_BLOB_WIDTH - 1;
       set_handler(&type_handler_long_blob);
       if (m_var_entry->type_handler()->field_type() == MYSQL_TYPE_GEOMETRY)
@@ -5714,7 +5732,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
   }
   else
   {
-    collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    collation.set(&my_charset_bin, DERIVATION_USERVAR);
     null_value= 1;
     set_handler(&type_handler_long_blob);
     max_length= MAX_BLOB_WIDTH;
@@ -6343,7 +6361,7 @@ bool Item_func_match::fix_index()
 
   for (keynr=0 ; keynr < table->s->keys ; keynr++)
   {
-    if ((table->key_info[keynr].flags & HA_FULLTEXT) &&
+    if (table->key_info[keynr].algorithm == HA_KEY_ALG_FULLTEXT &&
         (match_flags & FT_BOOL ?
          table->keys_in_use_for_query.is_set(keynr) :
          table->s->usable_indexes(table->in_use).is_set(keynr)))
@@ -7010,7 +7028,7 @@ sp_cursor *Cursor_ref::get_open_cursor_or_error()
 }
 
 
-longlong Item_func_cursor_isopen::val_int()
+bool Item_func_cursor_isopen::val_bool()
 {
   sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
   DBUG_ASSERT(c != NULL);
@@ -7018,14 +7036,14 @@ longlong Item_func_cursor_isopen::val_int()
 }
 
 
-longlong Item_func_cursor_found::val_int()
+bool Item_func_cursor_found::val_bool()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
-longlong Item_func_cursor_notfound::val_int()
+bool Item_func_cursor_notfound::val_bool()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();

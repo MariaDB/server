@@ -55,6 +55,7 @@ TRUNCATE TABLE mysql.general_log;
 SET NAMES utf8;
 --disable_ps_protocol
 SELECT `pkey`, LEFT(`txt_utf8`, 4) FROM `auto_test_local`.`tbl_a` ORDER BY LEFT(`txt_utf8`, 4) LIMIT 3;
+SELECT `pkey`, SUBSTR(`txt_utf8`, 1, 4) FROM `auto_test_local`.`tbl_a` ORDER BY SUBSTR(`txt_utf8`, 1, 4) LIMIT 3;
 --enable_ps_protocol
 
 --connection child2_1

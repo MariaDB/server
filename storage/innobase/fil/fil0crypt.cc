@@ -32,6 +32,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #else
 #include "buf0flu.h"
 #include "buf0dblwr.h"
+#include "btr0sea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "mtr0mtr.h"
@@ -1068,7 +1069,8 @@ default_encrypt_list only when
 default encrypt */
 static bool fil_crypt_must_remove(const fil_space_t &space)
 {
-  ut_ad(space.purpose == FIL_TYPE_TABLESPACE);
+  ut_ad(!space.is_temporary());
+  ut_ad(!space.is_being_imported());
   fil_space_crypt_t *crypt_data = space.crypt_data;
   mysql_mutex_assert_owner(&fil_system.mutex);
   const ulong encrypt_tables= srv_encrypt_tables;
@@ -1104,7 +1106,8 @@ fil_crypt_space_needs_rotation(
 	fil_space_t* space = &*state->space;
 
 	ut_ad(space->referenced());
-	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
+	ut_ad(!space->is_temporary());
+	ut_ad(!space->is_being_imported());
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
@@ -1456,7 +1459,7 @@ space_list_t::iterator fil_space_t::next(space_list_t::iterator space,
 
     for (; space != fil_system.space_list.end(); ++space)
     {
-      if (space->purpose != FIL_TYPE_TABLESPACE)
+      if (space->is_temporary() || space->is_being_imported())
         continue;
       const uint32_t n= space->acquire_low();
       if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
@@ -1672,6 +1675,8 @@ fil_crypt_get_page_throttle(
 					      BUF_PEEK_IF_IN_POOL, mtr);
 	if (block != NULL) {
 		/* page was in buffer pool */
+		btr_search_drop_page_hash_index(
+			block, reinterpret_cast<dict_index_t*>(-1));
 		state->crypt_stat.pages_read_from_cache++;
 		return block;
 	}
@@ -1755,6 +1760,8 @@ fil_crypt_rotate_page(
 	if (buf_block_t* block = fil_crypt_get_page_throttle(state,
 							     offset, &mtr,
 							     &sleeptime_ms)) {
+		btr_search_drop_page_hash_index(
+			block, reinterpret_cast<dict_index_t*>(-1));
 		bool modified = false;
 		byte* frame = buf_block_get_frame(block);
 		const lsn_t block_lsn = mach_read_from_8(FIL_PAGE_LSN + frame);
@@ -2138,9 +2145,9 @@ static void fil_crypt_default_encrypt_tables_fill()
 	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	for (fil_space_t& space : fil_system.space_list) {
-		if (space.purpose != FIL_TYPE_TABLESPACE
-		    || space.is_in_default_encrypt
+		if (space.is_in_default_encrypt
 		    || UT_LIST_GET_LEN(space.chain) == 0
+		    || space.is_temporary() || space.is_being_imported()
 		    || !space.acquire_if_not_stopped()) {
 			continue;
 		}

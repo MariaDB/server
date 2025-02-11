@@ -44,7 +44,7 @@ struct hstcpsvr_shared_v : public mutex {
 };
 
 struct hstcpsvr_i;
-typedef std::auto_ptr<hstcpsvr_i> hstcpsvr_ptr;
+typedef std::unique_ptr<hstcpsvr_i> hstcpsvr_ptr;
 
 struct hstcpsvr_i {
   virtual ~hstcpsvr_i() = default;

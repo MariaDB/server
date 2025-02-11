@@ -624,7 +624,7 @@ row_mysql_handle_errors(
 				function */
 	trx_t*		trx,	/*!< in: transaction */
 	que_thr_t*	thr,	/*!< in: query thread, or NULL */
-	trx_savept_t*	savept)	/*!< in: savepoint, or NULL */
+	const undo_no_t*savept)	/*!< in: pointer to savepoint, or nullptr */
 {
 	dberr_t	err;
 
@@ -680,8 +680,7 @@ handle_new_error:
 		}
 		/* MariaDB will roll back the entire transaction. */
 		trx->bulk_insert = false;
-		trx->last_sql_stat_start.least_undo_no = 0;
-		trx->savepoints_discard();
+		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:
 		err = lock_wait(thr);
@@ -699,7 +698,6 @@ handle_new_error:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
-
 		trx->rollback();
 		break;
 
@@ -1136,7 +1134,7 @@ row_lock_table_autoinc_for_mysql(
 
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
-		 && row_mysql_handle_errors(&err, trx, thr, NULL));
+		 && row_mysql_handle_errors(&err, trx, thr, nullptr));
 
 	trx->op_info = "";
 
@@ -1178,58 +1176,33 @@ row_lock_table(row_prebuilt_t* prebuilt)
 					 prebuilt->select_lock_type), thr);
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
-		 && row_mysql_handle_errors(&err, trx, thr, NULL));
+		 && row_mysql_handle_errors(&err, trx, thr, nullptr));
 
 	trx->op_info = "";
 
 	return(err);
 }
 
-/** Determine is tablespace encrypted but decryption failed, is table corrupted
-or is tablespace .ibd file missing.
-@param[in]	table		Table
-@param[in]	trx		Transaction
-@param[in]	push_warning	true if we should push warning to user
+/** Report an error for a failure to access a table.
+@param table   unreadable table
+@param trx     transaction
 @retval	DB_DECRYPTION_FAILED	table is encrypted but decryption failed
 @retval	DB_CORRUPTION		table is corrupted
 @retval	DB_TABLESPACE_NOT_FOUND	tablespace .ibd file not found */
-static
-dberr_t
-row_mysql_get_table_status(
-	const dict_table_t*	table,
-	trx_t*			trx,
-	bool 			push_warning = true)
+ATTRIBUTE_COLD
+static dberr_t row_mysql_get_table_error(trx_t *trx, dict_table_t *table)
 {
-	dberr_t err;
-	if (const fil_space_t* space = table->space) {
-		if (space->crypt_data && space->crypt_data->is_encrypted()) {
-			// maybe we cannot access the table due to failing
-			// to decrypt
-			if (push_warning) {
-				ib_push_warning(trx, DB_DECRYPTION_FAILED,
-					"Table %s is encrypted."
-					"However key management plugin or used key_id is not found or"
-					" used encryption algorithm or method does not match.",
-					table->name.m_name);
-			}
+  if (const fil_space_t *space= table->space)
+  {
+    if (space->crypt_data && space->crypt_data->is_encrypted())
+      return innodb_decryption_failed(trx->mysql_thd, table);
+    return DB_CORRUPTION;
+  }
 
-			err = DB_DECRYPTION_FAILED;
-		} else {
-			if (push_warning) {
-				ib_push_warning(trx, DB_CORRUPTION,
-					"Table %s in tablespace %lu corrupted.",
-					table->name.m_name, table->space);
-			}
-
-			err = DB_CORRUPTION;
-		}
-	} else {
-		ib::error() << ".ibd file is missing for table "
-			<< table->name;
-		err = DB_TABLESPACE_NOT_FOUND;
-	}
-
-	return(err);
+  const int dblen= int(table->name.dblen());
+  sql_print_error("InnoDB .ibd file is missing for table %`.*s.%`s",
+                  dblen, table->name.m_name, table->name.m_name + dblen + 1);
+  return DB_TABLESPACE_NOT_FOUND;
 }
 
 /** Does an insert for MySQL.
@@ -1242,7 +1215,6 @@ row_insert_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	ins_mode_t	ins_mode)
 {
-	trx_savept_t	savept;
 	que_thr_t*	thr;
 	dberr_t		err;
 	ibool		was_lock_wait;
@@ -1265,7 +1237,7 @@ row_insert_for_mysql(
 
 		return(DB_TABLESPACE_DELETED);
 	} else if (!table->is_readable()) {
-		return row_mysql_get_table_status(table, trx, true);
+		return row_mysql_get_table_error(trx, table);
 	} else if (high_level_read_only) {
 		return(DB_READ_ONLY);
 	} else if (UNIV_UNLIKELY(table->corrupted)
@@ -1296,7 +1268,7 @@ row_insert_for_mysql(
 	roll back to the start of the transaction. For correctness, it
 	would suffice to roll back to the start of the first insert
 	into this empty table, but we will keep it simple and efficient. */
-	savept.least_undo_no = trx->bulk_insert ? 0 : trx->undo_no;
+	const undo_no_t savept{trx->bulk_insert ? 0 : trx->undo_no};
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
 
@@ -1604,7 +1576,6 @@ init_fts_doc_id_for_ref(
 dberr_t
 row_update_for_mysql(row_prebuilt_t* prebuilt)
 {
-	trx_savept_t	savept;
 	dberr_t		err;
 	que_thr_t*	thr;
 	dict_index_t*	clust_index;
@@ -1622,7 +1593,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_ad(table->stat_initialized);
 
 	if (!table->is_readable()) {
-		return(row_mysql_get_table_status(table, trx, true));
+		return row_mysql_get_table_error(trx, table);
 	}
 
 	if (high_level_read_only) {
@@ -1661,7 +1632,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	generated for the table: MySQL does not know anything about
 	the row id used as the clustered index key */
 
-	savept.least_undo_no = trx->undo_no;
+	undo_no_t savept = trx->undo_no;
 
 	thr = que_fork_get_first_thr(prebuilt->upd_graph);
 
@@ -1817,7 +1788,7 @@ row_unlock_for_mysql(
 
 			lock_rec_unlock(
 				trx,
-				btr_pcur_get_block(pcur)->page.id(),
+				*btr_pcur_get_block(pcur),
 				rec,
 				static_cast<enum lock_mode>(
 					prebuilt->select_lock_type));
@@ -2200,7 +2171,7 @@ row_create_index_for_mysql(
 
 			err = dict_create_index_tree_in_mem(index, trx);
 #ifdef BTR_CUR_HASH_ADAPT
-			ut_ad(!index->search_info->ref_count);
+			ut_ad(!index->search_info.ref_count);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 			if (err != DB_SUCCESS) {
@@ -2323,6 +2294,9 @@ row_discard_tablespace(
 	trx_t*		trx,	/*!< in/out: transaction handle */
 	dict_table_t*	table)	/*!< in/out: table to be discarded */
 {
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(!table->is_temporary());
+
 	dberr_t err;
 
 	/* How do we prevent crashes caused by ongoing operations on
@@ -2375,8 +2349,14 @@ row_discard_tablespace(
 
 	/* All persistent operations successful, update the
 	data dictionary memory cache. */
+	ut_ad(dict_sys.locked());
 
-	dict_table_change_id_in_cache(table, new_id);
+	/* Remove the table from the hash table of id's */
+	dict_sys.table_id_hash.cell_get(ut_fold_ull(table->id))
+		->remove(*table, &dict_table_t::id_hash);
+	table->id = new_id;
+	dict_sys.table_id_hash.cell_get(ut_fold_ull(table->id))
+		->append(*table, &dict_table_t::id_hash);
 
 	dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 

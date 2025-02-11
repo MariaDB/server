@@ -6,6 +6,8 @@ connection node_1;
 connection node_2;
 connection node_3;
 connection node_4;
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'pc.weight=2';
 connection node_3;
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
 connection node_1;
@@ -44,7 +46,8 @@ COUNT(*) = 0
 1
 CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
-CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
+CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno ");
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
 connection node_2;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
 COUNT(*) = 1
@@ -54,7 +57,7 @@ COUNT(*) = 0
 1
 CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
-CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
+CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno ");
 connection node_3;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
 COUNT(*) = 1

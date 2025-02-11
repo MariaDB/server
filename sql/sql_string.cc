@@ -16,10 +16,6 @@
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include <m_string.h>
 #include <m_ctype.h>
@@ -214,7 +210,8 @@ bool Binary_string::set_fcvt(double num, uint decimals)
 }
 
 
-bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
+bool String::set_real_with_type(double num, uint decimals, CHARSET_INFO *cs,
+                                my_gcvt_arg_type type)
 {
   char buff[FLOATING_POINT_BUFFER];
   uint dummy_errors;
@@ -223,12 +220,11 @@ bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
   set_charset(cs);
   if (decimals >= FLOATING_POINT_DECIMALS)
   {
-    len= my_gcvt(num, MY_GCVT_ARG_DOUBLE, sizeof(buff) - 1, buff, NULL);
+    len= my_gcvt(num, type, sizeof(buff) - 1, buff, NULL);
     return copy(buff, (uint)len, &my_charset_latin1, cs, &dummy_errors);
   }
   len= my_fcvt(num, decimals, buff, NULL);
-  return copy(buff, (uint32) len, &my_charset_latin1, cs,
-              &dummy_errors);
+  return copy(buff, (uint32) len, &my_charset_latin1, cs, &dummy_errors);
 }
 
 

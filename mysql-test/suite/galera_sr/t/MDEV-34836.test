@@ -1,0 +1,56 @@
+#
+# MDEV-34836: TOI transaction on FK-referenced parent table must BF abort
+# SR transaction in progress on a child table.
+#
+# Applied SR transaction on the child table was not BF aborted by TOI running
+# on the parent table for several reasons:
+# Although SR correctly collected FK-referenced keys to parent, TOI in Galera
+# disregards common certification index and simply sets itself to depend on the
+# latest certified write set seqno.
+# Since this write set was the fragment of SR transaction, TOI was allowed to run in
+# parallel with SR presuming it would BF abort the latter.
+#
+# At the same time, DML transactions in the server don't grab MDL locks on FK-referenced
+# tables, thus parent table wasn't protected by an MDL lock from SR and it couldn't
+# provoke MDL lock conflict for TOI to BF abort SR transaction.
+# In InnoDB, DDL transactions grab shared MDL locks on child tables, which is not enough
+# to trigger MDL conflict in Galera.
+# InnoDB-level Wsrep patch didn't contain correct conflict resolution logic due to the
+# fact that it was believed MDL locking should always produce conflicts correctly.
+#
+# The fix brings conflict resolution rules similar to MDL-level checks to InnoDB, thus
+# accounting for the problematic case.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE parent (id INT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1, 1),(2, 2),(3, 3);
+
+CREATE TABLE child (id INT AUTO_INCREMENT PRIMARY KEY, parent_id INT, CONSTRAINT parent_fk
+    FOREIGN KEY (parent_id) REFERENCES parent (id)) ENGINE=InnoDB;
+
+--connection node_2
+# Start SR transaction and make it lock both parent and child tales.
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO child (parent_id) VALUES (1),(2),(3);
+
+--connection node_1
+# Sync wait for SR transaction to replicate and apply fragments, thus
+# locking parent table as well.
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) FROM child;
+# Now run TOI on the parent, which BF-aborts the SR-transaction in progress.
+ALTER TABLE parent AUTO_INCREMENT = 100;
+
+--connection node_2
+# Check that SR is BF-aborted.
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+# Cleanup
+DROP TABLE child, parent;
+--source include/galera_end.inc

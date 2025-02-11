@@ -96,11 +96,11 @@ SELECT @@delayed_insert_limit;
 @@delayed_insert_limit
 1
 SELECT local.delayed_insert_limit;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.delayed_insert_limit;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT delayed_insert_limit = @@session.delayed_insert_limit;
-ERROR 42S22: Unknown column 'delayed_insert_limit' in 'field list'
+ERROR 42S22: Unknown column 'delayed_insert_limit' in 'SELECT'
 SET @@global.delayed_insert_limit = @start_value;
 SELECT @@global.delayed_insert_limit;
 @@global.delayed_insert_limit

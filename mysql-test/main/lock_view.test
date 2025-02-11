@@ -25,7 +25,7 @@ create definer=definer@localhost view mysqltest3.v3ps as select user from perfor
 create definer=definer@localhost view mysqltest3.v3nt as select 1;
 create definer=definer@localhost sql security invoker view mysqltest3.v3i as select * from mysqltest1.t1;
 
-exec $MYSQL_DUMP --compact -B mysqltest1 mysqltest2 mysqltest3;
+exec $MYSQL_DUMP --no-autocommit=0 --compact -B mysqltest1 mysqltest2 mysqltest3;
 
 connect inv,localhost,invoker;
 error ER_DBACCESS_DENIED_ERROR;
@@ -91,7 +91,7 @@ create view v1 as select * from (select * from t1) dt;
 lock table v1 read;
 disconnect con1;
 connection default;
-exec $MYSQL_DUMP test v1 -uu1 --compact;
+exec $MYSQL_DUMP --no-autocommit=0 test v1 -uu1 --compact;
 drop view v1;
 drop table t1;
 drop user u1@localhost;

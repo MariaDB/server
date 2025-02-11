@@ -370,6 +370,8 @@ int ha_json_table::rnd_init(bool scan)
 
 static void store_json_in_field(Field *f, const json_engine_t *je)
 {
+  String res_tmp("", 0, je->s.cs);
+
   switch (je->value_type)
   {
   case JSON_VALUE_NULL:
@@ -390,7 +392,8 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
   default:
     break;
   };
-  f->store((const char *) je->value, (uint32) je->value_len, je->s.cs);
+  st_append_json(&res_tmp, je->s.cs, je->value, je->value_len);
+  f->store((const char *) res_tmp.ptr(), (uint32) res_tmp.length(), je->s.cs);
 }
 
 
@@ -1038,8 +1041,7 @@ int Json_table_column::On_response::respond(Json_table_column *jc, Field *f,
       return 1;
     case Json_table_column::RESPONSE_DEFAULT:
       f->set_notnull();
-      f->store(m_default.str,
-          m_default.length, jc->m_defaults_cs);
+      m_default->save_in_field(f, TRUE);
       break;
   }
   return 0;
@@ -1049,33 +1051,42 @@ int Json_table_column::On_response::respond(Json_table_column *jc, Field *f,
 int Json_table_column::On_response::print(const char *name, String *str) const
 {
   LEX_CSTRING resp;
-  const LEX_CSTRING *ds= NULL;
+
+  char valbuf[512];
+  String val(valbuf, sizeof(valbuf), str->charset());
+  String *ds= NULL;
+
   if (m_response == Json_table_column::RESPONSE_NOT_SPECIFIED)
     return 0;
 
   switch (m_response)
   {
     case Json_table_column::RESPONSE_NULL:
-      lex_string_set3(&resp, STRING_WITH_LEN("NULL"));
+      resp= { STRING_WITH_LEN("NULL") };
       break;
     case Json_table_column::RESPONSE_ERROR:
-      lex_string_set3(&resp, STRING_WITH_LEN("ERROR"));
+      resp= { STRING_WITH_LEN("ERROR") };
       break;
     case Json_table_column::RESPONSE_DEFAULT:
     {
-      lex_string_set3(&resp, STRING_WITH_LEN("DEFAULT"));
-      ds= &m_default;
+      resp= { STRING_WITH_LEN("DEFAULT") };
+      ds= m_default->val_str(&val);
       break;
     }
     default:
-      lex_string_set3(&resp, "", 0);
+      resp= { "", 0 };
       DBUG_ASSERT(FALSE); /* should never happen. */
   }
 
   return (str->append(' ') || str->append(resp)  ||
-          (ds && (str->append(STRING_WITH_LEN(" '")) ||
-                  str->append_for_single_quote(ds->str, ds->length) ||
-                  str->append('\''))) ||
+          (ds &&
+            (str->append(' ') ||
+             (m_default->result_type()==STRING_RESULT && str->append('\''))||
+
+             str->append_for_single_quote(ds) ||
+
+             (m_default->result_type()==STRING_RESULT && str->append('\''))))||
+
           str->append(STRING_WITH_LEN(" ON ")) ||
           str->append(name, strlen(name)));
 }
@@ -1466,5 +1477,3 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
 
   return res;
 }
-
-

@@ -24,15 +24,13 @@
   classes to use when handling where clause
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "procedure.h"
 #include "sql_array.h"                        /* Array */
 #include "records.h"                          /* READ_RECORD */
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
 #include "filesort.h"
+#include "sql_delete.h"
+#include "sql_update.h"
 
 #include "cset_narrowing.h"
 
@@ -1295,6 +1293,20 @@ public:
     passing 1st non-const table to filesort(). NULL means no such table exists.
   */
   TABLE    *sort_by_table;
+
+  /*
+    If true, there is ORDER BY x LIMIT n clause and for certain join orders, it
+    is possible to short-cut the join execution, i.e. stop it as soon as n
+    output rows were produced. See join_limit_shortcut_is_applicable().
+  */
+  bool    limit_shortcut_applicable;
+
+  /*
+    Used during join optimization: if true, we're building a join order that
+    will short-cut join execution as soon as #LIMIT rows are produced.
+  */
+  bool    limit_optimization_mode;
+
   /* 
     Number of tables in the join. 
     (In MySQL, it is named 'tables' and is also the number of elements in 
@@ -1428,6 +1440,7 @@ public:
 
   Pushdown_query *pushdown_query;
   JOIN_TAB *original_join_tab;
+  uint	   original_table_count;
   uint	   sort_space;
 
 /******* Join optimization state members start *******/
@@ -1611,7 +1624,7 @@ public:
 
     Then, ORDER/GROUP BY and Window Function code add columns that need to
     be saved to be available in the post-group-by context. These extra columns
-    are added to the front, because this->all_fields points to the suffix of
+    are added to the front, because this->fields_list points to the suffix of
     this list.
   */
   List<Item> all_fields;
@@ -1721,6 +1734,13 @@ public:
     the optimize_cond() call in JOIN::optimize_inner() method.
   */
   bool is_orig_degenerated;
+
+  /*
+    DELETE and UPDATE may have an imitation JOIN, which is not NULL,
+    but has NULL join_tab. In such cases we may want to access
+    sql_cmd_dml::scanned_rows to choose optimization strategies.
+  */
+  Sql_cmd_dml *sql_cmd_dml;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
@@ -2004,7 +2024,7 @@ int opt_sum_query(THD* thd,
                   List<TABLE_LIST> &tables, List<Item> &all_fields, COND *conds);
 
 /* from sql_delete.cc, used by opt_range.cc */
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b);
+extern "C" int refpos_order_cmp(void *arg, const void *a,const void *b);
 
 /** class to copying an field/item to a key struct */
 
@@ -2695,5 +2715,10 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               COND_EQUAL *inherited,
                               bool *is_simplifiable_cond);
 
+#define PREV_BITS(type, N_BITS) ((type)my_set_bits(N_BITS))
+
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
+
+#include "opt_vcol_substitution.h"
+
 #endif /* SQL_SELECT_INCLUDED */

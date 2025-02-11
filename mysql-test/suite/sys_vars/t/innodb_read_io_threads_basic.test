@@ -21,7 +21,9 @@ select * from information_schema.session_variables where variable_name='innodb_r
 #
 # show that it's not read-only
 #
+--disable_cursor_protocol
 select @@innodb_read_io_threads into @n;
+--enable_cursor_protocol
 --disable_warnings
 set global innodb_read_io_threads = 1;
 --enable_warnings

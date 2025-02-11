@@ -140,7 +140,7 @@ public:
   {
   public:
     Json_table_column::enum_on_response m_response;
-    LEX_CSTRING m_default;
+    Item *m_default;
     int respond(Json_table_column *jc, Field *f, uint error_num);
     int print(const char *name, String *str) const;
     bool specified() const { return m_response != RESPONSE_NOT_SPECIFIED; }
@@ -154,7 +154,6 @@ public:
   Create_field *m_field;
   Json_table_nested_path *m_nest;
   CHARSET_INFO *m_explicit_cs;
-  CHARSET_INFO *m_defaults_cs;
 
   void set(enum_type ctype)
   {
@@ -262,9 +261,6 @@ public:
 
   /* SQL Parser: current column in JSON_TABLE (...) syntax */
   Json_table_column *m_cur_json_table_column;
-
-  /* SQL Parser: charset of the current text literal */
-  CHARSET_INFO *m_text_literal_cs;
 
 private:
   /* Context to be used for resolving the first argument. */

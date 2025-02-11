@@ -24,6 +24,8 @@
 #define SPIDER_SIMPLE_RECORDS             3
 #define SPIDER_SIMPLE_CHECKSUM_TABLE      4
 
+struct TABLE;
+
 /*
   The SPIDER_CONN_LOOP_CHECK has been added to the loop_check queue to
   check for self-reference.
@@ -80,16 +82,16 @@ typedef struct st_spider_conn_loop_check
   LEX_CSTRING        merged_value;
 } SPIDER_CONN_LOOP_CHECK;
 
-uchar *spider_conn_get_key(
-  SPIDER_CONN *conn,
+const uchar *spider_conn_get_key(
+  const void *conn,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
-uchar *spider_ipport_conn_get_key(
-  SPIDER_IP_PORT_CONN *ip_port,
+const uchar *spider_ipport_conn_get_key(
+  const void *ip_port,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
 int spider_conn_init(
@@ -437,3 +439,11 @@ SPIDER_CONN* spider_get_conn_from_idle_connection
  int *error_num
  );
 void spider_free_ipport_conn(void *info);
+
+void spider_lock_before_query(SPIDER_CONN *conn, int *need_mon);
+
+int spider_unlock_after_query(SPIDER_CONN *conn, int ret);
+
+int spider_unlock_after_query_1(SPIDER_CONN *conn);
+
+int spider_unlock_after_query_2(SPIDER_CONN *conn, ha_spider *spider, int link_idx, TABLE *table);

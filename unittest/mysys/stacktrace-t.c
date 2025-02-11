@@ -30,7 +30,7 @@ void test_my_safe_print_str()
   memcpy(b_bss, "LEGAL", 6);
 
 #ifdef HAVE_STACKTRACE
-#ifndef __SANITIZE_ADDRESS__
+# if !defined __SANITIZE_ADDRESS__ && !__has_feature(memory_sanitizer)
   fprintf(stderr, "\n===== stack =====\n");
   my_safe_print_str(b_stack, 65535);
   fprintf(stderr, "\n===== heap =====\n");
@@ -40,15 +40,15 @@ void test_my_safe_print_str()
   fprintf(stderr, "\n===== data =====\n");
   my_safe_print_str("LEGAL", 65535);
   fprintf(stderr, "\n===== Above is a junk, but it is expected. =====\n");
-#endif /*__SANITIZE_ADDRESS__*/
+# endif
   fprintf(stderr, "\n===== Nornal length test =====\n");
   my_safe_print_str("LEGAL", 5);
   fprintf(stderr, "\n===== NULL =====\n");
   my_safe_print_str(0, 5);
-#ifndef __SANITIZE_ADDRESS__
+# ifndef __SANITIZE_ADDRESS__
   fprintf(stderr, "\n===== (const char*) 1 =====\n");
   my_safe_print_str((const char*)1, 5);
-#endif /*__SANITIZE_ADDRESS__*/
+# endif /*__SANITIZE_ADDRESS__*/
 #endif /*HAVE_STACKTRACE*/
 
   free(b_heap);

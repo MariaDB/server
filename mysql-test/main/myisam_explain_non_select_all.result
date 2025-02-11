@@ -928,7 +928,8 @@ Handler_delete	8
 Handler_read_key	19
 Handler_read_next	3
 Handler_read_rnd	5
-Handler_read_rnd_next	4
+Handler_read_rnd_deleted	1
+Handler_read_rnd_next	11
 
 DROP TABLE t1, t2, t3;
 #20
@@ -2698,16 +2699,16 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 DELETE FROM t1 USING t1 WHERE uknown_column = 12345;
-ERROR 42S22: Unknown column 'uknown_column' in 'where clause'
+ERROR 42S22: Unknown column 'uknown_column' in 'WHERE'
 EXPLAIN EXTENDED DELETE FROM t1 USING t1 WHERE uknown_column = 12345;
-ERROR 42S22: Unknown column 'uknown_column' in 'where clause'
+ERROR 42S22: Unknown column 'uknown_column' in 'WHERE'
 DROP TABLE t1;
 #57
 CREATE TABLE t1(f1 INT);
 EXPLAIN EXTENDED UPDATE t1 SET f2=1 ORDER BY f2;
-ERROR 42S22: Unknown column 'f2' in 'field list'
+ERROR 42S22: Unknown column 'f2' in 'SET'
 UPDATE t1 SET f2=1 ORDER BY f2;
-ERROR 42S22: Unknown column 'f2' in 'field list'
+ERROR 42S22: Unknown column 'f2' in 'SET'
 DROP TABLE t1;
 #62
 CREATE TABLE t1 (a INT);
@@ -2891,7 +2892,7 @@ Variable_name	Value
 Handler_delete	4
 Handler_read_key	10
 Handler_read_rnd	4
-Handler_read_rnd_next	5
+Handler_read_rnd_next	10
 
 DROP TABLE t1,t2;
 DROP VIEW v1;
@@ -2940,7 +2941,7 @@ Variable_name	Value
 Handler_delete	4
 Handler_read_key	10
 Handler_read_rnd	4
-Handler_read_rnd_next	5
+Handler_read_rnd_next	10
 
 DROP TABLE t1,t2;
 DROP VIEW v1;

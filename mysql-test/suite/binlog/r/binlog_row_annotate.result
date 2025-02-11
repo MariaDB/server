@@ -307,13 +307,13 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test2`.`t2`
 ### WHERE
-###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
 ### DELETE FROM `test2`.`t2`
 ### WHERE
-###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
@@ -688,13 +688,13 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test2`.`t2`
 ### WHERE
-###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
 ### DELETE FROM `test2`.`t2`
 ### WHERE
-###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
@@ -930,13 +930,13 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test2`.`t2`
 ### WHERE
-###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
 ### DELETE FROM `test2`.`t2`
 ### WHERE
-###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
@@ -1305,13 +1305,13 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test2`.`t2`
 ### WHERE
-###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
 ### DELETE FROM `test2`.`t2`
 ### WHERE
-###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>

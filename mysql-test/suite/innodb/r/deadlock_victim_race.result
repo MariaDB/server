@@ -10,6 +10,7 @@ SELECT * FROM t WHERE a = 20 FOR UPDATE;
 a	b
 20	20
 connect con_2,localhost,root,,;
+SET innodb_snapshot_isolation=OFF;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN;
 SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont EXECUTE 2';

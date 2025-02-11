@@ -205,6 +205,8 @@ lsn_t checkpoint_lsn_start;
 lsn_t checkpoint_no_start;
 /** whether log_copying_thread() is active; protected by recv_sys.mutex */
 static bool log_copying_running;
+/** for --backup, target LSN to copy the log to; protected by recv_sys.mutex */
+lsn_t metadata_to_lsn;
 
 uint xtrabackup_parallel;
 
@@ -235,7 +237,6 @@ my_bool opt_encrypted_backup;
 /* === metadata of backup === */
 char metadata_type[30] = ""; /*[full-backuped|log-applied|incremental]*/
 static lsn_t metadata_from_lsn;
-lsn_t metadata_to_lsn;
 static lsn_t metadata_last_lsn;
 
 static ds_file_t*	dst_log_file;
@@ -280,9 +281,6 @@ my_bool xtrabackup_incremental_force_scan = FALSE;
  * by "innobackupex" as a command line argument).
  */
 ulong xtrabackup_innodb_force_recovery = 0;
-
-/* The flushed lsn which is read from data files */
-lsn_t	flushed_lsn= 0;
 
 ulong xb_open_files_limit= 0;
 char *xb_plugin_dir;
@@ -387,8 +385,7 @@ static ulong innodb_flush_method;
 
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
 					   NullS};
-static TYPELIB binlog_info_typelib = {array_elements(binlog_info_values)-1, "",
-				      binlog_info_values, NULL};
+static TYPELIB binlog_info_typelib = CREATE_TYPELIB_FOR(binlog_info_values);
 ulong opt_binlog_info;
 
 char *opt_incremental_history_name;
@@ -404,8 +401,7 @@ char *opt_log_bin;
 
 const char *query_type_names[] = { "ALL", "UPDATE", "SELECT", NullS};
 
-TYPELIB query_type_typelib= {array_elements(query_type_names) - 1, "",
-	query_type_names, NULL};
+TYPELIB query_type_typelib= CREATE_TYPELIB_FOR(query_type_names);
 
 ulong opt_lock_wait_query_type;
 ulong opt_kill_long_query_type;
@@ -919,12 +915,14 @@ datafiles_iter_next(datafiles_iter_t *it)
 		fil_system.space_list.begin() :
 		std::next(it->space);
 
-	while (it->space != fil_system.space_list.end() &&
-	       (it->space->purpose != FIL_TYPE_TABLESPACE ||
-		UT_LIST_GET_LEN(it->space->chain) == 0))
+	while (it->space != fil_system.space_list.end()
+	       && UT_LIST_GET_LEN(it->space->chain) == 0)
 		++it->space;
 	if (it->space == fil_system.space_list.end())
 		goto end;
+
+	ut_ad(!it->space->is_temporary());
+	ut_ad(!it->space->is_being_imported());
 
 	it->node = UT_LIST_GET_FIRST(it->space->chain);
 
@@ -1117,7 +1115,8 @@ static void backup_file_op(uint32_t space_id, int type,
 		std::string space_name = filename_to_spacename(name, len);
 		ddl_tracker.id_to_name[space_id] = space_name;
 		ddl_tracker.delete_defer(space_id, space_name);
-		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
+		    space_id, int(len), name);
 	}
 	break;
 	case FILE_MODIFY:
@@ -1133,7 +1132,7 @@ static void backup_file_op(uint32_t space_id, int type,
 		ddl_tracker.id_to_name[space_id] = new_space_name;
 		ddl_tracker.rename_defer(space_id, old_space_name,
 					 new_space_name);
-		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
+		msg("DDL tracking : rename %" PRIu32 " \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
 	}
 	break;
@@ -1141,7 +1140,8 @@ static void backup_file_op(uint32_t space_id, int type,
 		ddl_tracker.drops.insert(space_id);
 		ddl_tracker.delete_defer(
 			space_id, filename_to_spacename(name, len));
-		msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
+			space_id, int(len), name);
 		break;
 	default:
 		ut_ad(0);
@@ -1189,27 +1189,27 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* new_name, ulint new_len)
 {
 	bool fail = false;
-	switch(type) {
+	const std::string spacename{filename_to_spacename(name, len)};
+	switch (type) {
 	case FILE_CREATE:
-		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str());
+		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
+			space_id, int(len), name);
+		fail = !check_if_skip_table(spacename.c_str());
 		break;
 	case FILE_MODIFY:
 		break;
 	case FILE_RENAME:
-		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
+		msg("DDL tracking : rename %" PRIu32 " \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str())
+		fail = !check_if_skip_table(spacename.c_str())
 		       || !check_if_skip_table(
 				filename_to_spacename(new_name, new_len).c_str());
 		break;
 	case FILE_DELETE:
-		fail = !check_if_skip_table(
-                                filename_to_spacename(name, len).c_str())
-                       && !check_if_fts_table(reinterpret_cast<const char*>(name));
-                msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
+		fail = !check_if_skip_table(spacename.c_str())
+			&& !check_if_fts_table(spacename.c_str());
+		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
+			space_id, int(len), name);
 		break;
 	default:
 		ut_ad(0);
@@ -1230,7 +1230,7 @@ static void backup_undo_trunc(uint32_t space_id)
 
 /* Function to store the space id of page0 INIT_PAGE
 @param	space_id	space id which has page0 init page */
-static void backup_first_page_op(space_id_t space_id)
+static void backup_first_page_op(uint32_t space_id)
 {
   first_page_init_ids.insert(space_id);
 }
@@ -1331,6 +1331,9 @@ enum options_xtrabackup
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_LOCK_WAIT_TIMEOUT,
   OPT_INNODB_LOG_BUFFER_SIZE,
+#ifdef HAVE_INNODB_MMAP
+  OPT_INNODB_LOG_FILE_MMAP,
+#endif
 #if defined __linux__ || defined _WIN32
   OPT_INNODB_LOG_FILE_BUFFERING,
 #endif
@@ -1842,8 +1845,8 @@ struct my_option xb_server_options[] =
 #ifdef BTR_CUR_HASH_ADAPT
   {"innodb_adaptive_hash_index", OPT_INNODB_ADAPTIVE_HASH_INDEX,
    "Enable InnoDB adaptive hash index (disabled by default).",
-   &btr_search_enabled,
-   &btr_search_enabled,
+   &btr_search.enabled,
+   &btr_search.enabled,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* BTR_CUR_HASH_ADAPT */
   {"innodb_autoextend_increment", OPT_INNODB_AUTOEXTEND_INCREMENT,
@@ -1894,6 +1897,13 @@ struct my_option xb_server_options[] =
    (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
    GET_UINT, REQUIRED_ARG, 2U << 20,
    2U << 20, log_sys.buf_size_max, 0, 4096, 0},
+#ifdef HAVE_INNODB_MMAP
+  {"innodb_log_file_mmap", OPT_INNODB_LOG_FILE_SIZE,
+   "Whether ib_logfile0 should be memory-mapped",
+   (G_PTR*) &log_sys.log_mmap,
+   (G_PTR*) &log_sys.log_mmap, 0, GET_BOOL, NO_ARG,
+   log_sys.log_mmap_default, 0, 0, 0, 0, 0},
+#endif
 #if defined __linux__ || defined _WIN32
   {"innodb_log_file_buffering", OPT_INNODB_LOG_FILE_BUFFERING,
    "Whether the file system cache for ib_logfile0 is enabled during --backup",
@@ -2114,7 +2124,7 @@ static int prepare_export()
       IF_WIN("\"","") "\"%s\" --mysqld \"%s\""
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
-      " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
+      " --innodb-buffer-pool-size=%llu"
       " --console --skip-log-error --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
@@ -2128,7 +2138,7 @@ static int prepare_export()
       IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
-      " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
+      " --innodb-buffer-pool-size=%llu"
       " --console --log-error= --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
@@ -2392,7 +2402,7 @@ static bool innodb_init_param()
 	srv_page_size = 0;
 	srv_page_size_shift = 0;
 #ifdef BTR_CUR_HASH_ADAPT
-	btr_ahi_parts = 1;
+	btr_search.n_parts = 1;
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	if (innobase_page_size != (1LL << 14)) {
@@ -2645,7 +2655,7 @@ static bool innodb_init()
   const std::string ib_logfile0{get_log_file_path()};
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
-                                      OS_FILE_CREATE, OS_FILE_NORMAL,
+                                      OS_FILE_CREATE,
 #if defined _WIN32 || defined O_DIRECT
                                       OS_DATA_FILE_NO_O_DIRECT,
 #else
@@ -2670,13 +2680,9 @@ static bool innodb_init()
   mach_write_to_4(b + 12, my_crc32c(0, b, 11));
   static_assert(12 + 4 == SIZE_OF_FILE_CHECKPOINT, "compatibility");
 
-#ifdef _WIN32
-  DWORD len;
-  ret= WriteFile(file, log_hdr_buf, sizeof log_hdr_buf,
-                 &len, nullptr) && len == sizeof log_hdr_buf;
-#else
-  ret= sizeof log_hdr_buf == write(file, log_hdr_buf, sizeof log_hdr_buf);
-#endif
+  ret = os_file_write_func(IORequestWrite, ib_logfile0.c_str(), file,
+                           log_hdr_buf, 0,
+                           sizeof(log_hdr_buf)) == DB_SUCCESS;
   if (!os_file_close_func(file) || !ret)
     goto invalid_log;
   return false;
@@ -2978,25 +2984,19 @@ my_bool regex_list_check_match(
 	return(FALSE);
 }
 
-static
-my_bool
-find_filter_in_hashtable(
-	const char* name,
-	hash_table_t* table,
-	xb_filter_entry_t** result
-)
+static bool find_filter_in_hashtable(const char *name, hash_table_t *table,
+                                     xb_filter_entry_t **result) noexcept
 {
-	xb_filter_entry_t* found = NULL;
-	const ulint fold = my_crc32c(0, name, strlen(name));
-	HASH_SEARCH(name_hash, table, fold,
-		    xb_filter_entry_t*,
-		    found, (void) 0,
-		    !strcmp(found->name, name));
-
-	if (found && result) {
-		*result = found;
-	}
-	return (found != NULL);
+  const ulint fold= my_crc32c(0, name, strlen(name));
+  if (auto found= table->cell_get(fold)->
+      find(&xb_filter_entry_t::name_hash,[name](xb_filter_entry_t *f)
+      { return !strcmp(f->name, name); }))
+    {
+      if (result)
+        *result= found;
+      return true;
+    }
+  return false;
 }
 
 /************************************************************************
@@ -3391,8 +3391,110 @@ skip:
 	return(FALSE);
 }
 
+#ifdef HAVE_INNODB_MMAP
+static int
+xtrabackup_copy_mmap_snippet(ds_file_t *ds, const byte *start, const byte *end)
+{
+  if (UNIV_UNLIKELY(start > end))
+  {
+    if (int r= ds_write(ds, start, log_sys.buf + log_sys.file_size - start))
+      return r;
+    start= log_sys.buf + log_sys.START_OFFSET;
+  }
+  return ds_write(ds, start, end - start);
+}
+
+/** Copy memory-mapped log until the end of the log is reached
+or the log_copying_stop signal is received
+@return whether the operation failed */
+static bool xtrabackup_copy_mmap_logfile()
+{
+  mysql_mutex_assert_owner(&recv_sys.mutex);
+  recv_sys.offset= size_t(log_sys.calc_lsn_offset(recv_sys.lsn));
+  recv_sys.len= size_t(log_sys.file_size);
+  const size_t seq_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
+  const char one{'\1'};
+
+  for (unsigned retry_count{0};;)
+  {
+    recv_sys_t::parse_mtr_result r;
+    const byte *start= &log_sys.buf[recv_sys.offset];
+
+    if (recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false) ==
+        recv_sys_t::OK)
+    {
+      const byte *end;
+
+      do
+      {
+        /* Set the sequence bit (the backed-up log will not wrap around) */
+        size_t seqo= recv_sys.offset - seq_offset;
+        if (seqo < log_sys.START_OFFSET)
+          seqo+= log_sys.file_size - log_sys.START_OFFSET;
+        const byte *seq= &log_sys.buf[seqo];
+        ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.lsn - seq_offset));
+        if (!*seq)
+        {
+          if (xtrabackup_copy_mmap_snippet(dst_log_file, start, seq) ||
+              ds_write(dst_log_file, &one, 1))
+            goto write_error;
+          start = seq + 1;
+        }
+      }
+      while ((r= recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false)) ==
+             recv_sys_t::OK);
+
+      end= &log_sys.buf[recv_sys.offset];
+
+      if (xtrabackup_copy_mmap_snippet(dst_log_file, start, end))
+      {
+      write_error:
+        msg("Error: write to ib_logfile0 failed");
+        return true;
+      }
+
+      start= end;
+
+      pthread_cond_broadcast(&scanned_lsn_cond);
+
+      if (r == recv_sys_t::GOT_EOF)
+        break;
+
+      retry_count= 0;
+    }
+    else
+    {
+      if (metadata_to_lsn)
+      {
+        if (metadata_to_lsn <= recv_sys.lsn)
+          return false;
+      }
+      else if (xtrabackup_throttle && io_ticket-- < 0)
+        mysql_cond_wait(&wait_throttle, &recv_sys.mutex);
+
+      if (!retry_count++)
+        msg("Retrying read of log at LSN=" LSN_PF, recv_sys.lsn);
+      else if (retry_count == 100)
+        break;
+      else
+      {
+        timespec abstime;
+        set_timespec_nsec(abstime, 1000000ULL /* 1 ms */);
+        if (!mysql_cond_timedwait(&log_copying_stop, &recv_sys.mutex,
+                                  &abstime))
+          return true;
+      }
+    }
+  }
+
+  if (verbose)
+    msg(">> log scanned up to (" LSN_PF ")", recv_sys.lsn);
+  return false;
+}
+#endif
+
 /** Copy redo log until the current end of the log is reached
-@return	whether the operation failed */
+@return whether the operation failed */
 static bool xtrabackup_copy_logfile()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
@@ -3400,16 +3502,17 @@ static bool xtrabackup_copy_logfile()
 
   ut_a(dst_log_file);
   ut_ad(recv_sys.is_initialised());
+
+#ifdef HAVE_INNODB_MMAP
+  if (log_sys.is_mmap())
+    return xtrabackup_copy_mmap_logfile();
+#endif
   const size_t sequence_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
   const size_t block_size_1{log_sys.write_size - 1};
 
-  ut_ad(!log_sys.is_pmem());
-
-  {
-    recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
-      block_size_1;
-    recv_sys.len= 0;
-  }
+  recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
+    block_size_1;
+  recv_sys.len= 0;
 
   for (unsigned retry_count{0};;)
   {
@@ -3444,7 +3547,8 @@ static bool xtrabackup_copy_logfile()
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (recv_sys.parse_mtr<false>(false) == recv_sys_t::OK)
+      if (recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false) ==
+          recv_sys_t::OK)
       {
         do
         {
@@ -3454,7 +3558,8 @@ static bool xtrabackup_copy_logfile()
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= recv_sys.parse_mtr<false>(false)) == recv_sys_t::OK);
+        while ((r= recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false)) ==
+               recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
@@ -3505,35 +3610,70 @@ static bool xtrabackup_copy_logfile()
   return false;
 }
 
-/**
-Wait until redo log copying thread processes given lsn
-*/
-void backup_wait_for_lsn(lsn_t lsn)
+static bool backup_wait_timeout(lsn_t lsn, lsn_t last_lsn)
 {
-  mysql_mutex_lock(&recv_sys.mutex);
-  for (lsn_t last_lsn{recv_sys.lsn}; last_lsn < lsn; )
+  if (last_lsn >= lsn)
+    return true;
+  msg("Was only able to copy log from " LSN_PF " to " LSN_PF
+      ", not " LSN_PF "; try increasing innodb_log_file_size",
+      log_sys.next_checkpoint_lsn, last_lsn, lsn);
+  return false;
+}
+
+/**
+Wait for enough log to be copied.
+@param lsn  log sequence number target
+@return the reached log sequence number (may be less or more than lsn)
+*/
+static lsn_t backup_wait_for_lsn_low(lsn_t lsn)
+{
+  mysql_mutex_assert_owner(&recv_sys.mutex);
+
+  lsn_t last_lsn{recv_sys.lsn};
+
+  if (last_lsn >= lsn)
+    return last_lsn;
+
+  msg("Waiting for log copy thread to read lsn " LSN_PF, lsn);
+
+  while (log_copying_running && last_lsn < lsn)
   {
     timespec abstime;
     set_timespec(abstime, 5);
     if (my_cond_timedwait(&scanned_lsn_cond, &recv_sys.mutex.m_mutex,
                           &abstime) &&
         last_lsn == recv_sys.lsn)
-      die("Was only able to copy log from " LSN_PF " to " LSN_PF
-          ", not " LSN_PF "; try increasing innodb_log_file_size",
-          log_sys.next_checkpoint_lsn, last_lsn, lsn);
+      break;
     last_lsn= recv_sys.lsn;
   }
-  mysql_mutex_unlock(&recv_sys.mutex);
+
+  return last_lsn;
 }
 
-extern lsn_t server_lsn_after_lock;
+/**
+Wait for enough log to be copied after BACKUP STAGE BLOCK_DDL.
+@param lsn  log sequence number target
+@return whether log_copying_thread() copied everything until the target lsn
+*/
+static bool backup_wait_for_lsn(lsn_t lsn)
+{
+  if (!lsn)
+    return true;
+  mysql_mutex_lock(&recv_sys.mutex);
+  ut_ad(!metadata_to_lsn);
+  ut_ad(!metadata_last_lsn);
+  lsn_t last_lsn{backup_wait_for_lsn_low(lsn)};
+  mysql_mutex_unlock(&recv_sys.mutex);
+  return backup_wait_timeout(lsn, last_lsn);
+}
+
 
 static void log_copying_thread()
 {
   my_thread_init();
   mysql_mutex_lock(&recv_sys.mutex);
   while (!xtrabackup_copy_logfile() &&
-         (!metadata_to_lsn || metadata_to_lsn > recv_sys.lsn))
+         (!metadata_last_lsn || metadata_last_lsn > recv_sys.lsn))
   {
     timespec abstime;
     set_timespec_nsec(abstime, 1000000ULL * xtrabackup_log_copy_interval);
@@ -3557,7 +3697,7 @@ static void io_watching_thread()
   mysql_mutex_lock(&recv_sys.mutex);
   ut_ad(have_io_watching_thread);
 
-  while (log_copying_running && !metadata_to_lsn)
+  while (log_copying_running && !metadata_last_lsn)
   {
     timespec abstime;
     set_timespec(abstime, 1);
@@ -3767,16 +3907,18 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	if (is_remote) {
 		RemoteDatafile* rf = new RemoteDatafile();
-		if (!rf->open_link_file(n)) {
-			die("Can't open datafile %s", name);
-		}
 		file = rf;
+		if (!rf->open_link_file(n)) {
+			goto cant_open;
+		}
 	} else {
 		file = new Datafile();
 		file->make_filepath(".", n, IBD);
 	}
 
 	if (file->open_read_only(true) != DB_SUCCESS) {
+	cant_open:
+		delete file;
 		// Ignore FTS tables, as they can be removed for intermediate tables,
 		// this code must be executed under stronger or equal to BLOCK_DDL lock,
 		// so there must not be errors for non-intermediate FTS tables.
@@ -3787,7 +3929,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	for (int i = 0; i < 10; i++) {
 		file->m_defer = false;
-		err = file->validate_first_page();
+		err = file->validate_first_page(file->get_first_page());
 
 		if (file->m_defer) {
 			if (defer_space_id) {
@@ -3819,8 +3961,8 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
 		mysql_mutex_lock(&fil_system.mutex);
 		space = fil_space_t::create(
-			file->space_id(), file->flags(),
-			FIL_TYPE_TABLESPACE, nullptr/* TODO: crypt_data */,
+			uint32_t(file->space_id()), file->flags(), false,
+			nullptr/* TODO: crypt_data */,
 			FIL_ENCRYPTION_DEFAULT,
 			file->handle() != OS_FILE_CLOSED);
 		ut_ad(space);
@@ -3829,7 +3971,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 			skip_node_page0 ? file->detach() : pfs_os_file_t(),
 			0, false, false);
 		node->deferred= defer;
-		if (!space->read_page0())
+		if (!space->read_page0(nullptr, true))
 			err = DB_CANNOT_OPEN_FILE;
 		mysql_mutex_unlock(&fil_system.mutex);
 
@@ -4037,6 +4179,7 @@ next_file:
 		return(-1);
 	}
 
+	MSAN_STAT_WORKAROUND(&statinfo);
 	info->size = statinfo.st_size;
 
 	if (S_ISDIR(statinfo.st_mode)) {
@@ -4336,14 +4479,13 @@ xb_add_filter(
 	const char*	name,	/*!< in: name of table/database */
 	hash_table_t*	hash)	/*!< in/out: hash to insert into */
 {
-	xb_filter_entry_t* entry = xb_new_filter_entry(name);
+  xb_filter_entry_t *entry= xb_new_filter_entry(name);
 
-	if (UNIV_UNLIKELY(!hash->array)) {
-		hash->create(1000);
-	}
-	const ulint fold = my_crc32c(0, entry->name, strlen(entry->name));
-	HASH_INSERT(xb_filter_entry_t, name_hash, hash, fold, entry);
-	return entry;
+  if (UNIV_UNLIKELY(!hash->array))
+    hash->create(1000);
+  hash->cell_get(my_crc32c(0, entry->name, strlen(entry->name)))->
+    append(*entry, &xb_filter_entry_t::name_hash);
+  return entry;
 }
 
 /***********************************************************************
@@ -4381,12 +4523,8 @@ xb_register_filter_entry(
 	hash_table_t* tables_hash
 	)
 {
-	const char*		p;
-	size_t			namelen;
-	xb_filter_entry_t*	db_entry = NULL;
-
-	namelen = strlen(name);
-	if ((p = strchr(name, '.')) != NULL) {
+	size_t namelen = strlen(name);
+	if (const char* p = strchr(name, '.')) {
 		char dbname[NAME_LEN + 1];
 
 		xb_validate_name(name, p - name);
@@ -4395,18 +4533,20 @@ xb_register_filter_entry(
 		strncpy(dbname, name, p - name);
 		dbname[p - name] = 0;
 
-		if (databases_hash && databases_hash->array) {
-			const ulint fold = my_crc32c(0, dbname, p - name);
-			HASH_SEARCH(name_hash, databases_hash,
-					fold,
-					xb_filter_entry_t*,
-					db_entry, (void) 0,
-					!strcmp(db_entry->name, dbname));
+		if (UNIV_UNLIKELY(!databases_hash->array)) {
+			databases_hash->create(1000);
 		}
-		if (!db_entry) {
-			db_entry = xb_add_filter(dbname, databases_hash);
+
+		xb_filter_entry_t **prev =
+			databases_hash->cell_get(my_crc32c(0, name, p - name))
+			->search(&xb_filter_entry_t::name_hash,
+				 [dbname](xb_filter_entry_t* f)
+				 { return f && !strcmp(f->name, dbname); });
+		if (!*prev) {
+			(*prev = xb_new_filter_entry(dbname))
+				->has_tables = TRUE;
 		}
-		db_entry->has_tables = TRUE;
+		ut_ad((*prev)->has_tables);
 		xb_add_filter(name, tables_hash);
 	} else {
 		xb_validate_name(name, namelen);
@@ -4589,33 +4729,17 @@ xb_filters_init()
 	}
 }
 
-static
-void
-xb_filter_hash_free(hash_table_t* hash)
+static void xb_filter_hash_free(hash_table_t* hash)
 {
-	ulint	i;
-
-	/* free the hash elements */
-	for (i = 0; i < hash->n_cells; i++) {
-		xb_filter_entry_t*	table;
-
-		table = static_cast<xb_filter_entry_t *>
-			(HASH_GET_FIRST(hash, i));
-
-		while (table) {
-			xb_filter_entry_t*	prev_table = table;
-
-			table = static_cast<xb_filter_entry_t *>
-				(HASH_GET_NEXT(name_hash, prev_table));
-			const ulint fold = my_crc32c(0, prev_table->name,
-						     strlen(prev_table->name));
-			HASH_DELETE(xb_filter_entry_t, name_hash, hash,
-				    fold, prev_table);
-			free(prev_table);
-		}
-	}
-
-	hash->free();
+  for (ulint i= 0; i < hash->n_cells; i++)
+    for (auto prev= static_cast<xb_filter_entry_t*>(hash->array[i].node);
+         prev; )
+    {
+      auto next= prev->name_hash;
+      free(prev);
+      prev= next;
+    }
+  hash->free();
 }
 
 static void xb_regex_list_free(regex_list_t* list)
@@ -4708,6 +4832,7 @@ end:
 
 static void stop_backup_threads()
 {
+  ut_ad(metadata_last_lsn);
   mysql_cond_broadcast(&log_copying_stop);
 
   if (log_copying_running || have_io_watching_thread)
@@ -4731,38 +4856,58 @@ static void stop_backup_threads()
   mysql_cond_destroy(&log_copying_stop);
 }
 
+/**
+Wait for enough log to be copied.
+@return whether log_copying_thread() copied everything until the target lsn
+*/
+static bool backup_wait_for_commit_lsn()
+{
+  lsn_t lsn= get_current_lsn(mysql_connection);
+  mysql_mutex_lock(&recv_sys.mutex);
+  ut_ad(!metadata_to_lsn);
+  ut_ad(!metadata_last_lsn);
+
+  lsn_t last_lsn= recv_sys.lsn;
+
+  /* read the latest checkpoint lsn */
+  if (recv_sys.find_checkpoint() == DB_SUCCESS && log_sys.is_latest())
+  {
+    if (log_sys.next_checkpoint_lsn > lsn)
+      lsn= log_sys.next_checkpoint_lsn;
+    metadata_to_lsn= log_sys.next_checkpoint_lsn;
+    msg("mariabackup: The latest check point (for incremental): '"
+        LSN_PF "'", metadata_to_lsn);
+  }
+  else
+  {
+    msg("Error: recv_sys.find_checkpoint() failed.");
+    metadata_last_lsn= 1;
+    stop_backup_threads();
+    mysql_mutex_unlock(&recv_sys.mutex);
+    return false;
+  }
+
+  recv_sys.lsn= last_lsn;
+  ut_ad(metadata_to_lsn);
+  metadata_last_lsn= lsn;
+
+  last_lsn= backup_wait_for_lsn_low(LSN_MAX);
+
+  metadata_last_lsn= last_lsn;
+  stop_backup_threads();
+  mysql_mutex_unlock(&recv_sys.mutex);
+  return backup_wait_timeout(lsn, last_lsn);
+}
+
 /** Implement the core of --backup
 @return	whether the operation succeeded */
 bool Backup_datasinks::backup_low()
 {
-	mysql_mutex_lock(&recv_sys.mutex);
-	ut_ad(!metadata_to_lsn);
-
-	/* read the latest checkpoint lsn */
-	{
-		const lsn_t lsn = recv_sys.lsn;
-		if (recv_sys.find_checkpoint() == DB_SUCCESS
-		    && log_sys.is_latest()) {
-			metadata_to_lsn = log_sys.next_checkpoint_lsn;
-			msg("mariabackup: The latest check point"
-			    " (for incremental): '" LSN_PF "'",
-			    metadata_to_lsn);
-		} else {
-			msg("Error: recv_sys.find_checkpoint() failed.");
-		}
-
-		recv_sys.lsn = lsn;
-		stop_backup_threads();
-	}
-
-	if (metadata_to_lsn && xtrabackup_copy_logfile()) {
-		mysql_mutex_unlock(&recv_sys.mutex);
-		ds_close(dst_log_file);
-		dst_log_file = NULL;
-		return false;
-	}
-
-	mysql_mutex_unlock(&recv_sys.mutex);
+	ut_d(mysql_mutex_lock(&recv_sys.mutex));
+	ut_ad(metadata_last_lsn);
+	ut_ad(metadata_to_lsn);
+	ut_ad(!log_copying_running);
+	ut_d(mysql_mutex_unlock(&recv_sys.mutex));
 
 	if (ds_close(dst_log_file) || !metadata_to_lsn) {
 		dst_log_file = NULL;
@@ -4779,7 +4924,7 @@ bool Backup_datasinks::backup_low()
 
 	for (uint32_t id : failed_ids) {
 		msg("mariabackup: Failed to read undo log "
-		    "tablespace space id %d and there is no undo "
+		    "tablespace space id " UINT32PF " and there is no undo "
 		    "tablespace truncation redo record.",
 		    id);
 	}
@@ -4866,17 +5011,17 @@ private:
 		// TODO: this came from the old code, where it was not thread-safe
 		// too, use separate mysql connection per thread here
 		DBUG_MARIABACKUP_EVENT("before_copy", node->space->name());
-                DBUG_EXECUTE_FOR_KEY("wait_innodb_redo_before_copy",
-                        node->space->name(),
-                        backup_wait_for_lsn(
-                                get_current_lsn(mysql_connection)););
+		DBUG_EXECUTE_FOR_KEY("wait_innodb_redo_before_copy",
+			node->space->name(),
+			backup_wait_for_lsn(
+				get_current_lsn(mysql_connection)););
 		/* copy the datafile */
 		if(xtrabackup_copy_datafile(m_backup_datasinks.m_data,
-		                            m_backup_datasinks.m_meta,
-		                            node, thread_num, NULL,
-                        xtrabackup_incremental
-                                ? wf_incremental : wf_write_through,
-                        m_corrupted_pages))
+					    m_backup_datasinks.m_meta,
+					    node, thread_num, NULL,
+			xtrabackup_incremental
+				? wf_incremental : wf_write_through,
+			m_corrupted_pages))
 			die("mariabackup: Error: failed to copy datafile.");
 		// TODO: this came from the old code, where it was not thread-safe
 		// too, use separate mysql connection per thread here
@@ -4884,8 +5029,8 @@ private:
 		m_tasks.finish_task(1);
 	}
 
-        Backup_datasinks &m_backup_datasinks;
-        CorruptedPages &m_corrupted_pages;
+	Backup_datasinks &m_backup_datasinks;
+	CorruptedPages &m_corrupted_pages;
 	TasksGroup m_tasks;
 };
 
@@ -5086,9 +5231,9 @@ class BackupStages {
 				return false;
 			}
 
-			msg("Waiting for log copy thread to read lsn %llu",
-				server_lsn_after_lock);
-			backup_wait_for_lsn(server_lsn_after_lock);
+			if (!backup_wait_for_lsn(server_lsn_after_lock)) {
+				return false;
+			}
 			corrupted_pages.backup_fix_ddl(backup_datasinks.m_data,
 			                               backup_datasinks.m_meta);
 
@@ -5124,8 +5269,25 @@ class BackupStages {
 			}
 
 			// Copy log tables tail
-			if (!m_common_backup.copy_log_tables(true)) {
+			if (!m_common_backup.copy_log_tables(true) ||
+			    !m_common_backup.close_log_tables()) {
 				msg("Error on copy log tables");
+				return false;
+			}
+
+			// Copy just enough log to cover the latest commit.
+			// Meanwhile, there could be some active transactions
+			// that are modifying the database and writing more
+			// log. Not copying log for them will save busy work
+			// and avoid some rollback of the incomplete
+			// transactions after the backup has been restored.
+			//
+			// We find the current InnoDB LSN by executing
+			// SHOW ENGINE INNODB STATUS, which in the case of
+			// general_log=1, log_output='TABLES'
+			// would be written to the table mysql.general_log
+			// that we just finished copying above.
+			if (!backup_wait_for_commit_lsn()) {
 				return false;
 			}
 
@@ -5143,11 +5305,6 @@ class BackupStages {
 
 			if (!m_common_backup.wait_for_finish()) {
 				msg("Error on finish common engines backup");
-				return false;
-			}
-
-			if (!m_common_backup.close_log_tables()) {
-				msg("Error on close log tables");
 				return false;
 			}
 
@@ -5292,13 +5449,14 @@ static bool xtrabackup_backup_func()
 	undo_space_trunc = backup_undo_trunc;
 	first_page_init = backup_first_page_op;
 	metadata_to_lsn = 0;
+	metadata_last_lsn = 0;
 
 	/* initialize components */
         if(innodb_init_param()) {
 fail:
 		if (log_copying_running) {
 			mysql_mutex_lock(&recv_sys.mutex);
-			metadata_to_lsn = 1;
+			metadata_last_lsn = 1;
 			stop_backup_threads();
 			mysql_mutex_unlock(&recv_sys.mutex);
 		}
@@ -5330,9 +5488,8 @@ fail:
 		goto fail;
 	}
 
-	if (!log_sys.create()) {
-		goto fail;
-	}
+	log_sys.create();
+
 	/* get current checkpoint_lsn */
 	{
 		log_sys.latch.wr_lock(SRW_LOCK_CALL);
@@ -5483,14 +5640,9 @@ fail:
 
 	xb_data_files_close();
 
-	/* Make sure that the latest checkpoint was included */
-	if (metadata_to_lsn > recv_sys.lsn) {
-		msg("Error: failed to copy enough redo log ("
-		    "LSN=" LSN_PF "; checkpoint LSN=" LSN_PF ").",
-		    recv_sys.lsn, metadata_to_lsn);
-		goto fail;
-	}
-
+	ut_ad(!log_copying_running);
+	ut_ad(metadata_to_lsn <= recv_sys.lsn);
+	ut_ad(metadata_last_lsn == recv_sys.lsn);
 	innodb_shutdown();
 	log_file_op = NULL;
 	undo_space_trunc = NULL;
@@ -5546,8 +5698,8 @@ void CorruptedPages::backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta)
 		iter != ddl_tracker.tables_in_backup.end();
 		iter++) {
 
-		const std::string name = iter->second;
 		uint32_t id = iter->first;
+		const std::string &name = iter->second;
 
 		if (ddl_tracker.drops.find(id) != ddl_tracker.drops.end()) {
 			dropped_tables.insert(name);
@@ -5574,7 +5726,7 @@ void CorruptedPages::backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta)
 		iter++) {
 
 		uint32_t id = iter->first;
-		std::string name = iter->second;
+		const std::string &name = iter->second;
 
 		if (ddl_tracker.tables_in_backup.find(id) != ddl_tracker.tables_in_backup.end()) {
 			/* already processed above */
@@ -5855,8 +6007,8 @@ exit:
 	table->name = ((char*)table) + sizeof(xb_filter_entry_t);
 	memcpy(table->name, dest_space_name, len + 1);
 	const ulint fold = my_crc32c(0, dest_space_name, len);
-	HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
-		    fold, table);
+	inc_dir_tables_hash.cell_get(fold)->append(
+		*table, &xb_filter_entry_t::name_hash);
 
 	mysql_mutex_lock(&fil_system.mutex);
 	fil_space = fil_space_get_by_name(dest_space_name);
@@ -5871,8 +6023,8 @@ exit:
 
 			char	tmpname[FN_REFLEN];
 
-			snprintf(tmpname, FN_REFLEN, "%s/xtrabackup_tmp_#%u",
-				 dbname, fil_space->id);
+			snprintf(tmpname, FN_REFLEN, "%s/xtrabackup_tmp_#%"
+				 PRIu32, dbname, fil_space->id);
 
 			msg("mariabackup: Renaming %s to %s.ibd",
 				fil_space->chain.start->name, tmpname);
@@ -5927,8 +6079,8 @@ exit:
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
 	mysql_mutex_lock(&fil_system.mutex);
-	fil_space_t* space = fil_space_t::create(info.space_id, flags,
-						 FIL_TYPE_TABLESPACE, 0,
+	fil_space_t* space = fil_space_t::create(uint32_t(info.space_id),
+						 flags, false, 0,
 						 FIL_ENCRYPTION_DEFAULT, true);
 	mysql_mutex_unlock(&fil_system.mutex);
 	if (space) {
@@ -6276,8 +6428,8 @@ static ibool prepare_handle_new_files(const char *data_home_dir,
 		strcpy(table->name, table_name.c_str());
 		const ulint fold = my_crc32c(0, table->name,
 					     table_name.size());
-		HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
-			    fold, table);
+		inc_dir_tables_hash.cell_get(fold)->append(
+			*table, &xb_filter_entry_t::name_hash);
 	}
 
 	return TRUE;
@@ -6293,29 +6445,15 @@ rm_if_not_found(
 	const char*	data_home_dir,		/*!<in: path to datadir */
 	const char*	db_name,		/*!<in: database name */
 	const char*	file_name,		/*!<in: file name with suffix */
-	void*		arg __attribute__((unused)))
+	void*)
 {
-	char			name[FN_REFLEN];
-	xb_filter_entry_t*	table;
-
-	snprintf(name, FN_REFLEN, "%s/%s", db_name, file_name);
-	/* Truncate ".ibd" */
-	const size_t len = strlen(name) - 4;
-	name[len] = '\0';
-	const ulint fold = my_crc32c(0, name, len);
-
-	HASH_SEARCH(name_hash, &inc_dir_tables_hash, fold,
-		    xb_filter_entry_t*,
-		    table, (void) 0,
-		    !strcmp(table->name, name));
-
-	if (!table) {
-		snprintf(name, FN_REFLEN, "%s/%s/%s", data_home_dir,
-						      db_name, file_name);
-		return os_file_delete(0, name);
-	}
-
-	return(TRUE);
+  char name[FN_REFLEN];
+  /* Truncate ".ibd" */
+  name[snprintf(name, FN_REFLEN, "%s/%s", db_name, file_name) - 4]= '\0';
+  if (find_filter_in_hashtable(name, &inc_dir_tables_hash, nullptr))
+    return true;
+  snprintf(name, FN_REFLEN, "%s/%s/%s", data_home_dir, db_name, file_name);
+  return os_file_delete(0, name);
 }
 
 /** Function enumerates files in datadir (provided by path) which are matched
@@ -6683,9 +6821,7 @@ error:
 		}
 
 		recv_sys.create();
-		if (!log_sys.create()) {
-			goto error;
-		}
+		log_sys.create();
 		recv_sys.recovery_on = true;
 
 		xb_fil_io_init();
@@ -6695,8 +6831,10 @@ error:
 			goto error;
 		}
 
-		ok = fil_system.sys_space->open(false)
-			&& xtrabackup_apply_deltas();
+		mysql_mutex_lock(&recv_sys.mutex);
+		ok = fil_system.sys_space->open(false);
+		mysql_mutex_unlock(&recv_sys.mutex);
+		if (ok) ok = xtrabackup_apply_deltas();
 
 		xb_data_files_close();
 
@@ -6735,7 +6873,8 @@ error:
 		srv_max_dirty_pages_pct_lwm = srv_max_buf_pool_modified_pct;
 	}
 
-        if (innodb_init()) {
+	recv_sys.recovery_on = false;
+	if (innodb_init()) {
 		goto error;
 	}
 
@@ -7379,7 +7518,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 }
 
 static int main_low(char** argv);
-static int get_exepath(char *buf, size_t size, const char *argv0);
 
 /* ================= main =================== */
 int main(int argc, char **argv)
@@ -7390,8 +7528,8 @@ int main(int argc, char **argv)
 
 	my_getopt_prefix_matching= 0;
 
-	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
-    strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
+	if (my_get_exepath(mariabackup_exe, FN_REFLEN, argv[0]))
+		strncpy(mariabackup_exe, argv[0], FN_REFLEN-1);
 
 
 	if (argc > 1 )
@@ -7683,32 +7821,6 @@ static int main_low(char** argv)
 	return(EXIT_SUCCESS);
 }
 
-
-static int get_exepath(char *buf, size_t size, const char *argv0)
-{
-#ifdef _WIN32
-  DWORD ret = GetModuleFileNameA(NULL, buf, (DWORD)size);
-  if (ret > 0)
-    return 0;
-#elif defined(__linux__)
-  ssize_t ret = readlink("/proc/self/exe", buf, size-1);
-  if(ret > 0)
-    return 0;
-#elif defined(__APPLE__)
-  size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
-  if (ret > 0) {
-    buf[ret] = 0;
-    return 0;
-  }
-#elif defined(__FreeBSD__)
-  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
-  if (sysctl(mib, 4, buf, &size, NULL, 0) == 0) {
-    return 0;
-  }
-#endif
-
-  return my_realpath(buf, argv0, 0);
-}
 
 
 #if defined (__SANITIZE_ADDRESS__) && defined (__linux__)

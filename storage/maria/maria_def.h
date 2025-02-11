@@ -413,7 +413,7 @@ typedef struct st_maria_sort_param
   my_bool calc_checksum;                /* calculate table checksum */
   size_t rec_buff_size;
 
-  int (*key_cmp)(struct st_maria_sort_param *, const void *, const void *);
+  int (*key_cmp)(void *, const void *, const void *);
   int (*key_read)(struct st_maria_sort_param *, uchar *);
   int (*key_write)(struct st_maria_sort_param *, const uchar *);
   void (*lock_in_memory)(HA_CHECK *);
@@ -1699,14 +1699,6 @@ MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);
 int maria_delete_table_files(const char *name, my_bool temporary,
                              myf flags)__attribute__((visibility("default"))) ;
-
-
-/*
-  This cannot be in my_base.h as it clashes with HA_SPATIAL.
-  But it was introduced for Aria engine, and is only used there.
-  So it can safely stay here, only visible to Aria
-*/
-#define HA_RTREE_INDEX	        16384	/* For RTREE search */
 
 #define MARIA_FLUSH_DATA  1
 #define MARIA_FLUSH_INDEX 2

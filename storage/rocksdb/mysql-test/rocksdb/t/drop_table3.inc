@@ -29,7 +29,9 @@ let $max = 50000;
 let $table = t1;
 --source drop_table3_repopulate_table.inc
 
+--disable_cursor_protocol
 select variable_value into @a from information_schema.global_status where variable_name='rocksdb_compact_read_bytes';
+--enable_cursor_protocol
 if ($truncate_table)
 {
   truncate table t1;

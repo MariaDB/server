@@ -1,0 +1,24 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-35160 RBR does not work with vector type, ER_SLAVE_CONVERSION_FAILED
+--echo #
+create table t (pk int primary key, a vector(1) not null);
+insert into t values (1, 0x00000000);
+
+--sync_slave_with_master
+select pk, vec_totext(a) from t;
+
+--connection master
+drop table t;
+
+--echo #
+--echo # MDEV-35204 mysqlbinlog --verbose fails on row events with vector type
+--echo #
+flush binary logs;
+--let $datadir= `select @@datadir`
+--replace_regex /#\d.*\n// /SET TIMESTAMP=\d+.*\n// /pseudo_thread_id=\d+/pseudo_thread_id=123/
+--exec $MYSQL_BINLOG --verbose --base64-output=never --skip-print-row-event-positions $datadir/master-bin.000001
+
+--source include/rpl_end.inc

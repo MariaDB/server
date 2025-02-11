@@ -160,11 +160,12 @@ def	mysql	roles_mapping	Role	3	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3
 def	mysql	roles_mapping	User	2	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(128)	PRI		select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	servers	Db	3	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	servers	Host	2	''	NO	varchar	2048	6144	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(2048)			select,insert,update,references		NEVER	NULL	NO	NO
+def	mysql	servers	Options	10	'{}'	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	servers	Owner	9	''	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	servers	Password	5	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	servers	Port	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	servers	Server_name	1	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)	PRI		select,insert,update,references		NEVER	NULL	NO	NO
-def	mysql	servers	Socket	7	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)			select,insert,update,references		NEVER	NULL	NO	NO
+def	mysql	servers	Socket	7	''	NO	char	108	324	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(108)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	servers	Username	4	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(128)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	servers	Wrapper	8	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	slow_log	db	7	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select,insert,update,references		NEVER	NULL	NO	NO
@@ -492,9 +493,10 @@ NULL	mysql	proxies_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	servers	Username	char	128	384	utf8mb3	utf8mb3_general_ci	char(128)
 3.0000	mysql	servers	Password	char	64	192	utf8mb3	utf8mb3_general_ci	char(64)
 NULL	mysql	servers	Port	int	NULL	NULL	NULL	NULL	int(4)
-3.0000	mysql	servers	Socket	char	64	192	utf8mb3	utf8mb3_general_ci	char(64)
+3.0000	mysql	servers	Socket	char	108	324	utf8mb3	utf8mb3_general_ci	char(108)
 3.0000	mysql	servers	Wrapper	char	64	192	utf8mb3	utf8mb3_general_ci	char(64)
 3.0000	mysql	servers	Owner	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+1.0000	mysql	servers	Options	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
 NULL	mysql	slow_log	start_time	timestamp	NULL	NULL	NULL	NULL	timestamp(6)
 1.0000	mysql	slow_log	user_host	mediumtext	16777215	16777215	utf8mb3	utf8mb3_general_ci	mediumtext
 NULL	mysql	slow_log	query_time	time	NULL	NULL	NULL	NULL	time(6)

@@ -7,8 +7,6 @@ set global default_storage_engine=aria;
 set session default_storage_engine=aria;
 set global aria_page_checksum=0;
 set global aria_log_file_size=4294959104;
-drop table if exists t1,t2;
-drop view if exists v1;
 SET SQL_WARNINGS=1;
 CREATE TABLE t1 (
 STRING_DATA char(255) default NULL,
@@ -612,7 +610,7 @@ t1c1	t2c1
 unlock tables;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (`a` int(11) NOT NULL default '0', `b` int(11) NOT NULL default '0', UNIQUE KEY `a` USING RTREE (`a`,`b`));
-Got one of the listed errors
+ERROR HY000: Incorrect arguments to RTREE INDEX
 create table t1 (a int, b varchar(200), c text not null) checksum=1;
 create table t2 (a int, b varchar(200), c text not null) checksum=0;
 insert t1 values (1, "aaa", "bbb"), (NULL, "", "ccccc"), (0, NULL, "");

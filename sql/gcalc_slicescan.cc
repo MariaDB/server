@@ -19,8 +19,6 @@
 #include <my_sys.h>
 #include <m_string.h>
 
-#ifdef HAVE_SPATIAL
-
 #include "gcalc_slicescan.h"
 
 
@@ -2010,6 +2008,3 @@ double Gcalc_scan_iterator::get_pure_double(const Gcalc_internal_coord *d,
     res*= -1.0;
   return res;
 }
-
-
-#endif /* HAVE_SPATIAL */

@@ -188,7 +188,7 @@ static dtuple_t *ibuf_entry_build(const rec_t *ibuf_rec, ulint not_redundant,
 	const byte*	data;
 	ulint		len;
 
-	tuple = dtuple_create(heap, n_fields);
+	tuple = dtuple_create(heap, uint16_t(n_fields));
 
 	index = dict_mem_index_create(
 		dict_table_t::create({C_STRING_WITH_LEN("")}, nullptr,
@@ -366,23 +366,34 @@ ibuf_insert_to_index_page(
 	ut_ad(!block->index);
 #endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(mtr->is_named_space(block->page.id().space()));
+        const auto comp = page_is_comp(page);
 
 	if (UNIV_UNLIKELY(index->table->not_redundant()
 			  != !!page_is_comp(page))) {
 		return DB_CORRUPTION;
 	}
 
-	rec = page_rec_get_next(page_get_infimum_rec(page));
-
-	if (!rec || page_rec_is_supremum(rec)) {
-		return DB_CORRUPTION;
+	if (comp) {
+		rec = const_cast<rec_t*>(
+			page_rec_next_get<true>(page,
+						page + PAGE_NEW_INFIMUM));
+		if (!rec || rec == page + PAGE_NEW_SUPREMUM) {
+			return DB_CORRUPTION;
+		}
+	} else {
+		rec = const_cast<rec_t*>(
+			page_rec_next_get<false>(page,
+						page + PAGE_OLD_INFIMUM));
+		if (!rec || rec == page + PAGE_OLD_SUPREMUM) {
+			return DB_CORRUPTION;
+		}
 	}
 
 	if (!rec_n_fields_is_sane(index, rec, entry)) {
 		return DB_CORRUPTION;
 	}
 
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 	page_cur.index = index;
 	page_cur.block = block;
 
@@ -506,7 +517,7 @@ ibuf_set_del_mark(
 	page_cur_t	page_cur;
 	page_cur.block = block;
 	page_cur.index = index;
-	ulint		up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	ut_ad(dtuple_check_typed(entry));
 
@@ -564,7 +575,7 @@ ibuf_delete(
 	page_cur_t	page_cur;
 	page_cur.block = block;
 	page_cur.index = index;
-	ulint		up_match = 0, low_match = 0;
+	uint16_t	up_match = 0, low_match = 0;
 
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(!index->is_spatial());
@@ -787,7 +798,8 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
       {
         page_header_reset_last_insert(block, mtr);
         page_update_max_trx_id(block, buf_block_get_page_zip(block),
-                               page_get_max_trx_id(page_align(rec)), mtr);
+                               page_get_max_trx_id(btr_cur_get_page(cur)),
+                               mtr);
         dict_index_t *index;
         mem_heap_t *heap = mem_heap_create(512);
         dtuple_t *entry= ibuf_entry_build(rec, not_redundant, n_fields,
@@ -888,9 +900,9 @@ ATTRIBUTE_COLD dberr_t ibuf_upgrade()
   sql_print_information("InnoDB: Upgrading the change buffer");
 
 #ifdef BTR_CUR_HASH_ADAPT
-  const bool ahi= btr_search_enabled;
+  const bool ahi= btr_search.enabled;
   if (ahi)
-    btr_search_disable();
+    btr_search.disable();
 #endif
 
   dict_table_t *ibuf_table= dict_table_t::create({C_STRING_WITH_LEN("ibuf")},
@@ -995,7 +1007,7 @@ ATTRIBUTE_COLD dberr_t ibuf_upgrade()
 
 #ifdef BTR_CUR_HASH_ADAPT
   if (ahi)
-    btr_search_enable();
+    btr_search.enable();
 #endif
 
   ibuf_index->lock.free();

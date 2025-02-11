@@ -28,7 +28,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "./extra/mariabackup/xtrabackup.cc",
+                  "uri": "./mysys/my_getexe.c",
                   "uriBaseId": "SRCROOT"
                 },
                 "region": {

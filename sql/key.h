@@ -38,7 +38,9 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length);
 ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key);
 bool key_buf_cmp(KEY *key_info, uint used_key_parts,
                  const uchar *key1, const uchar *key2);
-extern "C" int key_rec_cmp(void *key_info, uchar *a, uchar *b);
-int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2, uint tuple_length);
+extern "C" int key_rec_cmp(const KEY *const *key_info, const uchar *a,
+                           const uchar *b);
+int key_tuple_cmp(KEY_PART_INFO *part, const uchar *key1, const uchar *key2,
+                  uint tuple_length);
 
 #endif /* KEY_INCLUDED */

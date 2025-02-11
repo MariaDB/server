@@ -1482,8 +1482,11 @@ SELECT HEX(LPAD(_utf8 0xD18F, 3, 0x20));
 SELECT HEX(INSERT(_utf8 0xD18F, 2, 1, 0x20));
 #Enable view-protocol after fix MDEV-33942
 --disable_view_protocol
+#Enable after fix MDEV-31512
+--disable_cursor_protocol
 SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
 --enable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # Bug#11752408 - 43593: DUMP/BACKUP/RESTORE/UPGRADE TOOLS FAILS BECAUSE OF UTF8_GENERAL_CI
@@ -1562,12 +1565,15 @@ CREATE TABLE t1 (
 );
 --disable_view_protocol
 --enable_metadata
+#Check after fix MDEV-31512
+--disable_cursor_protocol
 SET NAMES utf8, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES utf8;
 SELECT *, HEX(s1) FROM t1;
+--enable_cursor_protocol
 --disable_metadata
 --enable_view_protocol
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
@@ -2502,7 +2508,7 @@ SELECT CAST(_utf8 'яяя' AS INT);
 --echo #
 
 SET NAMES utf8mb3 COLLATE utf8mb3_bin;
-SELECT COLLATION(CAST('a' AS CHAR COLLATE DEFAULT));
+SELECT COLLATION(CAST('a' AS CHAR COLLATE DEFAULT)) AS c1;
 CREATE TABLE t1 AS SELECT CAST('a' AS CHAR COLLATE DEFAULT) AS c1;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -2528,4 +2534,28 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.9 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-35041 Simple comparison causes "Illegal mix of collations" even with default server settings
+--echo #
+
+CREATE TABLE t1 (a INT);
+SET NAMES utf8mb3;
+--disable_cursor_protocol
+SELECT COLUMN_TYPE INTO @col_type FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_NAME='t1';
+--enable_cursor_protocol
+SELECT @col_type != 'binary(128)';
+SELECT COERCIBILITY(@col_type), COERCIBILITY('binary(128)');
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 11.6 tests
 --echo #

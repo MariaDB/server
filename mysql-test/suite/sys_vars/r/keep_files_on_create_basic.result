@@ -192,11 +192,11 @@ SELECT @@keep_files_on_create;
 @@keep_files_on_create
 1
 SELECT local.keep_files_on_create;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.keep_files_on_create;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT keep_files_on_create = @@session.keep_files_on_create;
-ERROR 42S22: Unknown column 'keep_files_on_create' in 'field list'
+ERROR 42S22: Unknown column 'keep_files_on_create' in 'SELECT'
 SET @@global.keep_files_on_create = @start_global_value;
 Warnings:
 Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release

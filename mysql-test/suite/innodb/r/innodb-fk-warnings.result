@@ -16,7 +16,7 @@ CONSTRAINT test FOREIGN KEY (b) REFERENCES t2 (id)
 ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
 show warnings;
 Level	Code	Message
-Warning	121	Create or Alter table `test`.`t2` with foreign key constraint failed. Foreign key constraint `test`.`test` already exists on data dictionary. Foreign key constraint names need to be unique in database. Error in foreign key definition: CONSTRAINT `test` FOREIGN KEY (`b`) REFERENCES `test`.`t2` (`id`).
+Warning	121	CREATE or ALTER TABLE `test`.`t2` failed: duplicate name, CONSTRAINT `test` FOREIGN KEY (`b`) REFERENCES `t2` (`id`)
 Error	1005	Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
 Warning	1022	Can't write; duplicate key in table 't2'
 drop table t1;

@@ -10,11 +10,11 @@ ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem
 
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;pc.ignore_sb=true'
-innodb-log-file-buffering
+loose-innodb-log-file-buffering
 
 [mysqld.2]
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;pc.ignore_sb=true'
-innodb-log-file-buffering
+loose-innodb-log-file-buffering
 
 [sst]
 ssl-mode=VERIFY_CA

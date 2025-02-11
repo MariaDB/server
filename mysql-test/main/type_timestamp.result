@@ -1275,9 +1275,8 @@ CREATE TABLE t1 (a TIMESTAMP(4), b TIMESTAMP DEFAULT 0) ENGINE=MyISAM;
 INSERT IGNORE INTO t1 VALUES ('2001-01-01','2002-01-01'),('2003-01-01','2004-01-01');
 SELECT * FROM t1 WHERE DEFAULT(b) - a;
 a	b
-Warnings:
-Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
-Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+2001-01-01 00:00:00.0000	2002-01-01 00:00:00
+2003-01-01 00:00:00.0000	2004-01-01 00:00:00
 SELECT LEFT('', DEFAULT(b)-a) FROM t1;
 LEFT('', DEFAULT(b)-a)
 
@@ -1290,9 +1289,8 @@ CREATE  TABLE t1 (a TIMESTAMP(4), b TIMESTAMP DEFAULT 0) ENGINE=MyISAM;
 INSERT IGNORE INTO t1 (a) VALUES ('2001-01-01'),('2003-01-01');
 SELECT * FROM t1 WHERE (SELECT MIN(b) FROM t1) - a;
 a	b
-Warnings:
-Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
-Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+2001-01-01 00:00:00.0000	0000-00-00 00:00:00
+2003-01-01 00:00:00.0000	0000-00-00 00:00:00
 SELECT (SELECT MIN(b) FROM t1) - a FROM t1;
 (SELECT MIN(b) FROM t1) - a
 -20010101000000.0000
@@ -1541,7 +1539,7 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 # Corner cases: DATETIME values inside the supported optimization range:
 # FROM_UNIXTIME(24*3600) .. FROM_UNIXTIME(0x7FFFFFFF-24*3600)
 #
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(24*3600);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(24*3600) AS DATETIME);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
@@ -1556,7 +1554,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-18 03:14:07'
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(0x7FFFFFFF-24*3600);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF-24*3600) AS DATETIME);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
@@ -1565,7 +1563,7 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 # Corner cases: DATETIME values after the supported optimization range
 # FROM_UNIXTIME(0x7FFFFFFF-24*3600+1) .. FROM_UNIXTIME(0x7FFFFFFF)
 #
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(0x7FFFFFFF-24*3600+1);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF-24*3600+1) AS DATETIME);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
@@ -1580,7 +1578,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-19 03:14:07'
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(0x7FFFFFFF);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF) AS DATETIME);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
@@ -2335,4 +2333,65 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 #
 # End of 11.3 tests
+#
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-35250 Assertion `dec <= 6' failed in my_timestamp_binary_length
+#
+SET time_zone='+00:00';
+SELECT FROM_UNIXTIME('1922-02-10') AS c1, BIT_AND(1) AS c2;
+c1	c2
+1970-01-01 00:32:02	1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1922-02-10'
+SELECT FROM_UNIXTIME('1922') AS c1, BIT_AND(1) AS c2;
+c1	c2
+1970-01-01 00:32:02	1
+SELECT FROM_UNIXTIME('1922.1') AS c1, BIT_AND(1) AS c2;
+c1	c2
+1970-01-01 00:32:02.100000	1
+SELECT FROM_UNIXTIME('1922.1') AS c1;
+c1
+1970-01-01 00:32:02.100000
+SELECT * FROM (SELECT FROM_UNIXTIME('1') AS c1, BIT_AND(1) AS c2) t;
+c1	c2
+1970-01-01 00:00:01.000000	1
+SELECT * FROM (SELECT FROM_UNIXTIME('1.1') AS c1, BIT_AND(1) AS c2) t;
+c1	c2
+1970-01-01 00:00:01.100000	1
+CREATE TABLE t1 (a TEXT, b TEXT);
+INSERT INTO t1 SELECT FROM_UNIXTIME('1') AS c1, BIT_AND(1) AS c2;
+INSERT INTO t1 SELECT FROM_UNIXTIME('1.1') AS c1, BIT_AND(1) AS c2;
+SELECT * FROM t1;
+a	b
+1970-01-01 00:00:01	1
+1970-01-01 00:00:01.100000	1
+DROP TABLE t1;
+SELECT 1 FROM (values(1),(2)) dt GROUP BY from_unixtime('a') WITH ROLLUP;
+1
+1
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 ORDER BY from_unixtime(a);
+a
+1
+2
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 11.7 tests
 #

@@ -29,7 +29,9 @@ while ($i <= 10000) {
 
 ## HA_READ_PREFIX_LAST_OR_PREV
 # BF len 21
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type`)  where id1 = 100 and link_type = 1 and time >= 0 and time <= 9223372036854775807 and visibility = 1 order by time desc;
 select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
@@ -47,7 +49,9 @@ explain
 select id1, id2, link_type, visibility, data, time, version from linktable
 FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 and time >= 0 and time <= 9223372036854775807 order by time desc;
 
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 # MariaDB: no support for optimizer_force_index_for_range:
 #set @tmp_force_index_for_range=@@optimizer_force_index_for_range;
 #set optimizer_force_index_for_range=on;
@@ -56,34 +60,46 @@ select case when variable_value-@c > 0 then 'true' else 'false' end from informa
 #set global optimizer_force_index_for_range=@tmp_force_index_for_range;
 
 # BF len 13
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type3`)  where id1 = 100 and time >= 0 and time <= 9223372036854775807 and visibility = 1 order by time desc;
 select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
 ## HA_READ_PREFIX_LAST_OR_PREV (no end range)
 # BF len 20
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type`)  where id1 = 100 and link_type = 1 and visibility = 1 and time >= 0 order by time desc;
 select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
 # BF len 19
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 and time >= 0 order by time desc;
 select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
 --echo ## HA_READ_PREFIX_LAST
 --echo # BF len 20
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type`)  where id1 = 100 and link_type = 1 and visibility = 1 order by time desc;
 select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
 --echo # BF len 19
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 order by time desc;
 select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
 --echo # BF len 12
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type3`)  where id1 = 100 and visibility = 1 order by time desc;
 select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
@@ -125,7 +141,9 @@ explain
 select * from t1 where kp0=1 and kp1=1 and kp2=0x12FFFFFFFFFF order by kp3 desc;
 show status like '%rocksdb_bloom_filter_prefix%';
 
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+--enable_cursor_protocol
 select * from t1 where kp0=1 and kp1=1 and kp2=0x12FFFFFFFFFF order by kp3 desc;
 show status like '%rocksdb_bloom_filter_prefix%';
 --echo # The following MUST show TRUE:

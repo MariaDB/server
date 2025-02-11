@@ -24,7 +24,7 @@ SELECT f1();
 connection con1;
 unlock tables;
 connection default;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 disconnect con1;
 drop function f1;
 drop table t1;

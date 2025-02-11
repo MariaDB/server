@@ -113,11 +113,11 @@ SELECT @@big_tables;
 @@big_tables
 1
 SELECT local.big_tables;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.big_tables;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 select big_tables;
-ERROR 42S22: Unknown column 'big_tables' in 'field list'
+ERROR 42S22: Unknown column 'big_tables' in 'SELECT'
 SET @@big_tables = @start_value;
 Warnings:
 Warning	1287	'@@big_tables' is deprecated and will be removed in a future release

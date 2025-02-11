@@ -109,6 +109,7 @@ void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list);
 bool mysqld_show_create_db(THD *thd, LEX_CSTRING *db_name,
                            LEX_CSTRING *orig_db_name,
                            const DDL_options_st &options);
+bool mysql_show_create_server(THD *thd, LEX_CSTRING *name);
 
 void mysqld_list_processes(THD *thd,const char *user,bool verbose);
 int mysqld_show_status(THD *thd);

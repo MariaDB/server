@@ -1,0 +1,63 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP:.*");
+SET @wsrep_provider_options_orig = @@GLOBAL.wsrep_provider_options;
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true;pc.weight=2';
+connection node_2;
+SET @wsrep_cluster_address_orig = @@GLOBAL.wsrep_cluster_address;
+SET GLOBAL WSREP_ON=0;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_allowlist;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2
+INSERT INTO mysql.wsrep_allowlist (ip) VALUES (0);
+SET GLOBAL wsrep_cluster_address = @wsrep_cluster_address_orig;
+SELECT 1;
+1
+1
+DELETE FROM mysql.wsrep_allowlist;
+connection node_2;
+Killing server ...
+connection node_1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster_members;
+EXPECT_1
+1
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=false;pc.weight=1';
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+EXPECT_2
+2

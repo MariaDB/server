@@ -690,7 +690,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 alter table table_24562 order by (select 12 from dual);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(select 12 from dual)' at line 1
 alter table table_24562 order by no_such_col;
-ERROR 42S22: Unknown column 'no_such_col' in 'order clause'
+ERROR 42S22: Unknown column 'no_such_col' in 'ORDER BY'
 drop table table_24562;
 create table t1 (mycol int(10) not null);
 alter table t1 alter column mycol set default 0;
@@ -832,8 +832,6 @@ CREATE TABLE t2 (a INT, KEY (a(20)));
 ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
 ALTER TABLE t1 ADD d INT;
 ALTER TABLE t1 ADD KEY (d(20));
-ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
-ALTER TABLE t1 ADD e GEOMETRY NOT NULL, ADD SPATIAL KEY (e(30));
 ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
 DROP TABLE t1;
 CREATE TABLE t1 (s CHAR(8) BINARY);

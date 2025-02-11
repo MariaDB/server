@@ -23,8 +23,6 @@
 #include "lex_symbol.h"
 
 SYM_GROUP sym_group_common= {"", ""};
-SYM_GROUP sym_group_geom= {"Spatial extensions", "HAVE_SPATIAL"};
-SYM_GROUP sym_group_rtree= {"RTree keys", "HAVE_RTREE_KEYS"};
 
 /* We don't want to include sql_yacc.h into gen_lex_hash */
 #ifdef NO_YACC_SYMBOLS
@@ -352,8 +350,8 @@ SYMBOL symbols[] = {
   { "LIST",             SYM(LIST_SYM)},
   { "LOAD",		SYM(LOAD)},
   { "LOCAL",		SYM(LOCAL_SYM)},
-  { "LOCALTIME",	SYM(NOW_SYM)},
-  { "LOCALTIMESTAMP",	SYM(NOW_SYM)},
+  { "LOCALTIME",	SYM(CURTIME)},
+  { "LOCALTIMESTAMP",	SYM(LOCALTIMESTAMP)},
   { "LOCK",		SYM(LOCK_SYM)},
   { "LOCKED",		SYM(LOCKED_SYM)},
   { "LOCKS",		SYM(LOCKS_SYM)},
@@ -432,6 +430,7 @@ SYMBOL symbols[] = {
   { "NEXT",		SYM(NEXT_SYM)},
   { "NEXTVAL",		SYM(NEXTVAL_SYM)},
   { "NO",		SYM(NO_SYM)},
+  { "NOCOPY",		SYM(NOCOPY_SYM)},
   { "NOMAXVALUE",	SYM(NOMAXVALUE_SYM)},
   { "NOMINVALUE",	SYM(NOMINVALUE_SYM)},
   { "NOCACHE",          SYM(NOCACHE_SYM)},
@@ -516,6 +515,7 @@ SYMBOL symbols[] = {
   { "READS",		SYM(READS_SYM)},
   { "REAL",		SYM(REAL)},
   { "REBUILD",		SYM(REBUILD_SYM)},
+  { "RECORD",           SYM(RECORD_SYM)},
   { "RECOVER",          SYM(RECOVER_SYM)},
   { "RECURSIVE",        SYM(RECURSIVE_SYM)},
   { "REDO_BUFFER_SIZE",	SYM(REDO_BUFFER_SIZE_SYM)},
@@ -726,6 +726,7 @@ SYMBOL symbols[] = {
   { "VIEW",		SYM(VIEW_SYM)},
   { "VIRTUAL",          SYM(VIRTUAL_SYM)},
   { "VISIBLE",          SYM(VISIBLE_SYM)},
+  { "VECTOR",           SYM(VECTOR_SYM)},
   { "VERSIONING",       SYM(VERSIONING_SYM)},
   { "WAIT",		SYM(WAIT_SYM)},
   { "WARNINGS",		SYM(WARNINGS)},
@@ -784,7 +785,7 @@ SYMBOL sql_functions[] = {
   { "PERCENTILE_CONT",  SYM(PERCENTILE_CONT_SYM)},
   { "PERCENTILE_DISC",  SYM(PERCENTILE_DISC_SYM)},
   { "RANK",             SYM(RANK_SYM)},
-  { "SESSION_USER",     SYM(USER_SYM)},
+  { "SESSION_USER",     SYM(SESSION_USER_SYM)},
   { "STD",		SYM(STD_SYM)},
   { "STDDEV",		SYM(STD_SYM)},
   { "STDDEV_POP",	SYM(STD_SYM)},

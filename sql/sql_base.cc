@@ -56,6 +56,7 @@
 #include "sql_table.h"                          // build_table_filename
 #include "datadict.h"   // dd_frm_is_view()
 #include "rpl_rli.h"   // rpl_group_info
+#include "vector_mhnsw.h"
 #ifdef  _WIN32
 #include <io.h>
 #endif
@@ -1015,9 +1016,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
 
   file->update_global_table_stats();
   file->update_global_index_stats();
-  if (unlikely(thd->variables.log_slow_verbosity &
-               LOG_SLOW_VERBOSITY_ENGINE) &&
-      likely(file->handler_stats))
+  if (unlikely(file->handler_stats) && file->handler_stats->active)
   {
     Exec_time_tracker *tracker;
     if ((tracker= file->get_time_tracker()))
@@ -1025,7 +1024,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     thd->handler_stats.add(file->handler_stats);
   }
   /*
-    This look is needed to allow THD::notify_shared_lock() to
+    This lock is needed to allow THD::notify_shared_lock() to
     traverse the thd->open_tables list without having to worry that
     some of the tables are removed from under it
   */
@@ -1460,7 +1459,7 @@ void drop_open_table(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
     table->s->tdc->flush(thd, true);
     close_thread_table(thd, &thd->open_tables);
     /* Remove the table from the storage engine and rm the .frm. */
-    quick_rm_table(thd, table_type, db_name, table_name, 0);
+    quick_rm_table(thd, table_type, db_name, table_name, QRMT_DEFAULT);
  }
   DBUG_VOID_RETURN;
 }
@@ -2400,6 +2399,10 @@ retry_share:
     my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db.str, table_list->alias.str);
     DBUG_RETURN(true);
   }
+  /* hlindexes don't support concurrent insert */
+  if (table->s->hlindexes() &&
+      table_list->lock_type == TL_WRITE_CONCURRENT_INSERT)
+    table_list->lock_type= TL_WRITE_DEFAULT;
 
   DBUG_ASSERT(thd->locked_tables_mode || table->file->row_logging == 0);
   DBUG_RETURN(false);
@@ -3391,7 +3394,7 @@ request_backoff_action(enum_open_table_action action_arg,
   {
     DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR ||
                 action_arg == OT_ADD_HISTORY_PARTITION);
-    m_failed_table= (TABLE_LIST*) m_thd->alloc(sizeof(TABLE_LIST));
+    m_failed_table= m_thd->alloc<TABLE_LIST>(1);
     if (m_failed_table == NULL)
       return TRUE;
     m_failed_table->init_one_table(&table->db, &table->table_name, &table->alias, TL_WRITE);
@@ -4292,7 +4295,7 @@ static bool upgrade_lock_if_not_exists(THD *thd,
     DEBUG_SYNC(thd,"create_table_before_check_if_exists");
     if (!create_info.or_replace() &&
         ha_table_exists(thd, &create_table->db, &create_table->table_name,
-                        NULL, NULL, &create_table->db_type))
+                        NULL, &create_table->db_type))
     {
       if (create_info.if_not_exists())
       {
@@ -4997,7 +5000,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
     }
 
-    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
     if (!tl)
       DBUG_RETURN(TRUE);
     tl->init_one_table_for_prelocking(&tables->db,
@@ -5069,18 +5072,13 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
       lock_type= TL_READ;
 
     if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          fk->foreign_db, fk->foreign_table,
-          lock_type))
+          fk->foreign_db, fk->foreign_table, lock_type))
       continue;
 
-    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-    tl->init_one_table_for_prelocking(fk->foreign_db,
-        fk->foreign_table,
-        NULL, lock_type,
-        TABLE_LIST::PRELOCK_FK,
-        table_list->belong_to_view, op,
-        &prelocking_ctx->query_tables_last,
-        table_list->for_insert_data);
+    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+    tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
+        NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
+        op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -5881,7 +5879,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     TABLE **start,**ptr;
     bool found_first_not_own= 0;
 
-    if (!(ptr=start=(TABLE**) thd->alloc(sizeof(TABLE*)*count)))
+    if (!(ptr= start= thd->alloc<TABLE*>(count)))
       DBUG_RETURN(TRUE);
 
     /*
@@ -8023,7 +8021,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &fields, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
-                  bool allow_sum_func)
+                  bool allow_sum_func, THD_WHERE where)
 {
   Item *item;
   LEX * const lex= thd->lex;
@@ -8049,7 +8047,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
               lex->current_select->nest_level);
   if (allow_sum_func)
     lex->allow_sum_func.set_bit(lex->current_select->nest_level);
-  thd->where= THD_WHERE::DEFAULT_WHERE;
+  thd->where= where;
   save_is_item_list_lookup= lex->current_select->is_item_list_lookup;
   lex->current_select->is_item_list_lookup= 0;
 
@@ -8129,40 +8127,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   lex->allow_sum_func= save_allow_sum_func;
   thd->column_usage= saved_column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
-  DBUG_RETURN(MY_TEST(thd->is_error()));
-}
-
-/*
-  make list of leaves for a single TABLE_LIST
-
-  SYNOPSIS
-    make_leaves_for_single_table()
-    thd             Thread handler
-    leaves          List of leaf tables to be filled
-    table           TABLE_LIST object to process
-    full_table_list Whether to include tables from mergeable derived table/view
-*/
-void make_leaves_for_single_table(THD *thd, List<TABLE_LIST> &leaves,
-                              TABLE_LIST *table, bool& full_table_list,
-                              TABLE_LIST *boundary)
-{
-  if (table == boundary)
-    full_table_list= !full_table_list;
-  if (full_table_list && table->is_merged_derived())
-  {
-    SELECT_LEX *select_lex= table->get_single_select();
-    /*
-      It's safe to use select_lex->leaf_tables because all derived
-      tables/views were already prepared and has their leaf_tables
-      set properly.
-    */
-    make_leaves_list(thd, leaves, select_lex->get_table_list(),
-                     full_table_list, boundary);
-  }
-  else
-  {
-    leaves.push_back(table, thd->mem_root);
-  }
+  DBUG_RETURN(thd->is_error());
 }
 
 
@@ -8182,7 +8147,7 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
   return setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
                     thd->lex->returning(), true)
       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                      MARK_COLUMNS_READ, NULL, NULL, false);
+                      MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
 }
 
 
@@ -8191,77 +8156,39 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
 
   SYNOPSIS
     make_leaves_list()
-    leaves          List of leaf tables to be filled
-    tables          Table list
-    full_table_list Whether to include tables from mergeable derived table/view.
-                    We need them for checks for INSERT/UPDATE statements only.
+    list    pointer to pointer on list first element
+    tables  table list
+    full_table_list whether to include tables from mergeable derived table/view.
+                    we need them for checks for INSERT/UPDATE statements only.
+
+  RETURN pointer on pointer to next_leaf of last element
 */
 
-void make_leaves_list(THD *thd, List<TABLE_LIST> &leaves, TABLE_LIST *tables,
+void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary)
  
 {
   for (TABLE_LIST *table= tables; table; table= table->next_local)
   {
-    make_leaves_for_single_table(thd, leaves, table, full_table_list,
-                                 boundary);
+    if (table == boundary)
+      full_table_list= !full_table_list;
+    if (full_table_list && table->is_merged_derived())
+    {
+      SELECT_LEX *select_lex= table->get_single_select();
+      /*
+        It's safe to use select_lex->leaf_tables because all derived
+        tables/views were already prepared and has their leaf_tables
+        set properly.
+      */
+      make_leaves_list(thd, list, select_lex->get_table_list(),
+      full_table_list, boundary);
+    }
+    else
+    {
+      list.push_back(table, thd->mem_root);
+    }
   }
 }
-
-
-/*
-  Setup the map and other attributes for a single TABLE_LIST object
-
-  SYNOPSIS
-    setup_table_attributes()
-    thd                 Thread handler
-    table_list          TABLE_LIST object to process
-    first_select_table  First table participating in SELECT for INSERT..SELECT
-                        statements, NULL for other cases
-    tablenr             Serial number of the table in the SQL statement
-
-  RETURN
-    false               Success
-    true                Failure
-*/
-bool setup_table_attributes(THD *thd, TABLE_LIST *table_list,
-                            TABLE_LIST *first_select_table,
-                            uint &tablenr)
-{
-  TABLE *table= table_list->table;
-  if (table && !table->pos_in_table_list)
-    table->pos_in_table_list= table_list;
-  if (first_select_table && table_list->top_table() == first_select_table)
-  {
-    /* new counting for SELECT of INSERT ... SELECT command */
-    first_select_table= 0;
-    thd->lex->first_select_lex()->insert_tables= tablenr;
-    tablenr= 0;
-  }
-  if (table_list->jtbm_subselect)
-  {
-    table_list->jtbm_table_no= tablenr;
-  }
-  else if (table)
-  {
-    setup_table_map(table, table_list, tablenr);
-
-    if (table_list->process_index_hints(table))
-      return true;
-  }
-  tablenr++;
-  /*
-    We test the max tables here as we setup_table_map() should not be called
-    with tablenr >= 64
-  */
-  if (tablenr > MAX_TABLES)
-  {
-    my_error(ER_TOO_MANY_TABLES, MYF(0), static_cast<int>(MAX_TABLES));
-    return true;
-  }
-  return false;
-}
-
 
 /*
   prepare tables
@@ -8314,19 +8241,12 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
                                    0);
   SELECT_LEX *select_lex= select_insert ? thd->lex->first_select_lex() :
                                           thd->lex->current_select;
-  if (select_lex->first_cond_optimization)
+  if (select_lex->first_cond_optimization || !select_lex->leaf_tables_saved)
   {
     leaves.empty();
     if (select_lex->prep_leaf_list_state != SELECT_LEX::SAVED)
     {
-      /*
-        For INSERT ... SELECT statements we must not include the first table
-        (where the data is being inserted into) in the list of leaves
-      */
-      TABLE_LIST *tables_for_leaves=
-          select_insert ? first_select_table : tables;
-      make_leaves_list(thd, leaves, tables_for_leaves, full_table_list,
-                       first_select_table);
+      make_leaves_list(thd, leaves, tables, full_table_list, first_select_table);
       select_lex->prep_leaf_list_state= SELECT_LEX::READY;
       select_lex->leaf_tables_exec.empty();
     }
@@ -8336,35 +8256,51 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       while ((table_list= ti++))
         leaves.push_back(table_list, thd->mem_root);
     }
-      
-    List_iterator<TABLE_LIST> ti(leaves);
+
+    bool is_insert_tables_num_set= false;
     while ((table_list= ti++))
     {
-      if (setup_table_attributes(thd, table_list, first_select_table, tablenr))
-        DBUG_RETURN(1);
-    }
-
-    if (select_insert)
-    {
-      /*
-        The table/view in which the data is inserted must not be included into
-        the leaf_tables list. But we need this table/view to setup attributes
-        for it. So build a temporary list of leaves and setup attributes for
-        the tables included
-      */
-      List<TABLE_LIST> leaves;
-      TABLE_LIST *table= tables;
-
-      make_leaves_for_single_table(thd, leaves, table, full_table_list,
-                                   first_select_table);
-
-      List_iterator<TABLE_LIST> ti(leaves);
-      while ((table_list= ti++))
+      TABLE *table= table_list->table;
+      if (table && !table->pos_in_table_list)
+        table->pos_in_table_list= table_list;
+      if (select_insert && !is_insert_tables_num_set &&
+          table_list->top_table() == first_select_table)
       {
-        if (setup_table_attributes(thd, table_list, first_select_table,
-                                   tablenr))
+        /* new counting for SELECT of INSERT ... SELECT command */
+        thd->lex->first_select_lex()->insert_tables= tablenr;
+        is_insert_tables_num_set= true;
+        tablenr= 0;
+      }
+      if(table_list->jtbm_subselect)
+      {
+        table_list->jtbm_table_no= tablenr;
+      }
+      else if (table)
+      {
+        setup_table_map(table, table_list, tablenr);
+
+        if (table_list->process_index_hints(table))
           DBUG_RETURN(1);
       }
+      tablenr++;
+      /*
+        Test MAX_TABLES overflow here inside the loop as setup_table_map()
+        called in each iteration is sensitive for this
+      */
+      if (tablenr > MAX_TABLES)
+      {
+        my_error(ER_TOO_MANY_TABLES, MYF(0), static_cast<int>(MAX_TABLES));
+        DBUG_RETURN(1);
+      }
+    }
+    if (select_insert && !is_insert_tables_num_set)
+    {
+      /*
+        This happens for statements like `INSERT INTO t1 SELECT 1`,
+        when there are no tables in the SELECT part.
+        In this case all leaf tables belong to the INSERT part
+      */
+      thd->lex->first_select_lex()->insert_tables= tablenr;
     }
   }
   else
@@ -8635,6 +8571,10 @@ insert_fields(THD *thd, Name_resolution_context *context,
     */
     field_iterator.set(tables);
 
+    List_iterator_fast<Lex_ident_sys> ni;
+    if (tables->column_names)
+      ni.init(*tables->column_names);
+
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
       /*
@@ -8649,6 +8589,9 @@ insert_fields(THD *thd, Name_resolution_context *context,
 
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
+
+      if (tables->column_names)
+        lex_string_set(&item->name, (ni++)->str);
 
       /* cache the table for the Item_fields inserted by expanding stars */
       if (item->type() == Item::FIELD_ITEM && tables->cacheable_table)
@@ -9211,6 +9154,32 @@ static bool not_null_fields_have_null_values(TABLE *table)
   return false;
 }
 
+
+/**
+  The auxiliary function to determine whether a row should be skipped
+  or handled after invocation of triggers.
+
+  @return true in case either there is no BEFORE INSERT triggers or
+               the statement SIGNAL SQLSTATE '02TRG' wasn't executed by
+               BEFORE INSERT triggers, else return false meaning that the row
+               mustn't be processed by the INSERT statement.
+*/
+
+static inline bool no_need_to_skip_a_row(bool *skip_row_indicator)
+{
+  /*
+    A row currently being processed mustn't be skipped in case the parameter
+    skip_row_indicator passed into fill_record_n_invoke_before_triggers()
+    is not null (that is true for BEFORE INSERT triggers) and a value stored by
+    this pointer has the value false, meaning that no SIGNAL statement with
+    the SQLSTATE = '02TRG' was raised on processing triggers.
+  */
+  return
+    !skip_row_indicator ||
+    !*skip_row_indicator;
+}
+
+
 /**
   Fill fields in list with values from the list of items and invoke
   before triggers.
@@ -9221,6 +9190,9 @@ static bool not_null_fields_have_null_values(TABLE *table)
   @param values        values to fill with
   @param ignore_errors TRUE if we should ignore errors
   @param event         event type for triggers to be invoked
+  @param [out] skip_row_indicator  the flag whose value tells whether to skip
+                                   the current record by INSERT/LOAD statements
+                                   or process it
 
   @detail
     This function assumes that fields which values will be set and triggers
@@ -9236,7 +9208,8 @@ bool
 fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                      List<Item> &fields,
                                      List<Item> &values, bool ignore_errors,
-                                     enum trg_event_type event)
+                                     enum trg_event_type event,
+                                     bool *skip_row_indicator)
 {
   int result;
   Table_triggers_list *triggers= table->triggers;
@@ -9246,28 +9219,20 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 
   if (!result && triggers)
   {
-    void *save_bulk_param= thd->bulk_param;
-    /*
-      Reset the sentinel thd->bulk_param in order not to consume the next
-      values of a bound array in case one of statement executed by
-      the trigger's body is INSERT statement.
-    */
-    thd->bulk_param= nullptr;
 
     if (triggers->process_triggers(thd, event, TRG_ACTION_BEFORE,
-                                    TRUE) ||
+                                   true, skip_row_indicator, &fields) ||
         not_null_fields_have_null_values(table))
     {
-      thd->bulk_param= save_bulk_param;
       return TRUE;
     }
-    thd->bulk_param= save_bulk_param;
 
     /*
       Re-calculate virtual fields to cater for cases when base columns are
       updated by the triggers.
     */
-    if (table->vfield && fields.elements)
+    if (table->vfield && fields.elements &&
+        no_need_to_skip_a_row(skip_row_indicator))
     {
       Item *fld= (Item_field*) fields.head();
       Item_field *item_field= fld->field_for_view_update();
@@ -9410,6 +9375,9 @@ err:
   @param values        values to fill with
   @param ignore_errors TRUE if we should ignore errors
   @param event         event type for triggers to be invoked
+  @param [out] skip_row_indicator  the flag whose value tells whether to skip
+                                   the current record by INSERT statement or
+                                   process it
 
   @detail
     This function assumes that fields which values will be set and triggers
@@ -9424,7 +9392,8 @@ err:
 bool
 fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
                                      List<Item> &values, bool ignore_errors,
-                                     enum trg_event_type event)
+                                     enum trg_event_type event,
+                                     bool *skip_row_indicator)
 {
   bool result;
   Table_triggers_list *triggers= table->triggers;
@@ -9432,13 +9401,15 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   result= fill_record(thd, table, ptr, values, ignore_errors, false, false);
 
   if (!result && triggers && *ptr)
-    result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||
+    result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, true,
+                                       skip_row_indicator) ||
             not_null_fields_have_null_values(table);
   /*
     Re-calculate virtual fields to cater for cases when base columns are
     updated by the triggers.
   */
-  if (!result && triggers && *ptr)
+  if (!result && triggers && *ptr &&
+      no_need_to_skip_a_row(skip_row_indicator))
   {
     DBUG_ASSERT(table == (*ptr)->table);
     if (table->vfield)
@@ -9451,17 +9422,17 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 
 my_bool mysql_rm_tmp_tables(void)
 {
+  THD *thd;
   size_t i, idx;
   char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
   TABLE_SHARE share;
-  THD *thd;
   DBUG_ENTER("mysql_rm_tmp_tables");
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);
-  thd->thread_stack= (char*) &thd;
+  thd->thread_stack= (void*) &thd;              // Big stack
   thd->store_globals();
 
   for (i=0; i<=mysql_tmpdir_list.max; i++)
@@ -9489,7 +9460,7 @@ my_bool mysql_rm_tmp_tables(void)
           /* We should cut file extention before deleting of table */
           memcpy(path_copy, path, path_len - ext_len);
           path_copy[path_len - ext_len]= 0;
-          init_tmp_table_share(thd, &share, "", 0, "", path_copy);
+          init_tmp_table_share(thd, &share, "", 0, "", path_copy, true);
           if (!open_table_def(thd, &share))
             share.db_type()->drop_table(share.db_type(), path_copy);
           free_table_share(&share);
@@ -9831,3 +9802,174 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
 /**
   @} (end of group Data_Dictionary)
 */
+
+int TABLE::hlindex_open(uint nr)
+{
+  DBUG_ASSERT(s->hlindexes() == 1);
+  DBUG_ASSERT(nr == s->keys);
+  if (!hlindex)
+  {
+    s->lock_share();
+    if (!s->hlindex)
+    {
+      s->unlock_share();
+      TABLE_SHARE *share;
+      char *path= NULL;
+      size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
+
+      share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof(*share));
+      path= (char*)alloc_root(&s->mem_root, path_len);
+      if (!share || !path)
+        return 1;
+
+      my_snprintf(path, path_len, "%s" HLINDEX_TEMPLATE,
+                  s->normalized_path.str, nr);
+      init_tmp_table_share(in_use, share, s->db.str, 0, s->table_name.str,
+                           path, false);
+      share->db_plugin= s->db_plugin;
+
+      LEX_CSTRING sql= mhnsw_hlindex_table_def(in_use, file->ref_length);
+      if (share->init_from_sql_statement_string(in_use, false,
+                        sql.str, sql.length))
+      {
+        free_table_share(share);
+        return 1;
+      }
+
+      s->lock_share();
+      if (!s->hlindex)
+      {
+        s->hlindex= share;
+        s->unlock_share();
+      }
+      else
+      {
+        s->unlock_share();
+        free_table_share(share);
+      }
+    }
+    else
+      s->unlock_share();
+    TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
+    if (!table || open_table_from_share(in_use, s->hlindex, &empty_clex_str,
+                    db_stat, EXTRA_RECORD, in_use->open_options, table, 0))
+      return 1;
+    hlindex= table;
+    hlindex->in_use= NULL;
+  }
+  return 0;
+}
+
+int TABLE::hlindex_lock(uint nr)
+{
+  DBUG_ASSERT(s->hlindexes() == 1);
+  DBUG_ASSERT(nr == s->keys);
+  DBUG_ASSERT(hlindex);
+  if (hlindex->in_use == in_use)
+    return 0;
+  hlindex->in_use= in_use;      // mark in use for this query
+  hlindex->use_all_columns();
+
+  THR_LOCK_DATA *lock_data;
+  DBUG_ASSERT(hlindex->file->lock_count() <= 1);
+  hlindex->file->store_lock(in_use, &lock_data, reginfo.lock_type);
+
+  int res= hlindex->file->ha_external_lock(in_use,
+             reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
+  if (hlindex->file->lock_count() > 0)
+  {
+    /*
+      This code is here mostly for Aria. It requires start_trans() call
+      to handle transaction logging.
+    */
+    if (res == 0 && !s->tmp_table && lock_data->lock->start_trans)
+      lock_data->lock->start_trans(lock_data->status_param);
+    lock_data->type= TL_UNLOCK;
+  }
+  return res;
+}
+
+int TABLE::open_hlindexes_for_write()
+{
+  DBUG_ASSERT(s->hlindexes() <= 1);
+  for (uint i= s->keys; i < s->total_keys; i++)
+    if (hlindex_open(i) || hlindex_lock(i))
+      return 1;
+  return 0;
+}
+
+int TABLE::reset_hlindexes()
+{
+  if (hlindex && hlindex->in_use)
+  {
+    hlindex->file->ha_external_unlock(in_use);
+    hlindex->in_use= 0;
+  }
+  return 0;
+}
+
+int TABLE::hlindexes_on_insert()
+{
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_insert(this, key_info + s->keys))
+      return err;
+  return 0;
+}
+
+int TABLE::hlindexes_on_update()
+{
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  if (hlindex && hlindex->in_use)
+  {
+    int err;
+    // mark deleted node invalid and insert node for new row
+    if ((err= mhnsw_invalidate(this, record[1], key_info + s->keys)) ||
+        (err= mhnsw_insert(this, key_info + s->keys)))
+      return err;
+  }
+
+  return 0;
+}
+
+int TABLE::hlindexes_on_delete(const uchar *buf)
+{
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  DBUG_ASSERT(buf == record[0] || buf == record[1]); // note: REPLACE
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_invalidate(this, buf, key_info + s->keys))
+      return err;
+  return 0;
+}
+
+int TABLE::hlindexes_on_delete_all(bool truncate)
+{
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_delete_all(this, key_info + s->keys, truncate))
+      return err;
+  return 0;
+}
+
+int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
+{
+  DBUG_ASSERT(s->hlindexes() == 1);
+  DBUG_ASSERT(nr == s->keys);
+
+  if (hlindex_open(nr) || hlindex_lock(nr))
+    return HA_ERR_CRASHED;
+
+  DBUG_ASSERT(hlindex->in_use == in_use);
+
+  return mhnsw_read_first(this, key_info + s->keys, item, limit);
+}
+
+int TABLE::hlindex_read_next()
+{
+  return mhnsw_read_next(this);
+}
+
+int TABLE::hlindex_read_end()
+{
+  return mhnsw_read_end(this);
+}

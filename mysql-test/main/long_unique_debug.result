@@ -90,13 +90,11 @@ table->field[0]->offset = 1
 table->field[0]->field_length = 10
 table->field[0]->null_pos wrt to record 0 = 0
 table->field[0]->null_bit_pos = 1
-
 table->field[1]->field_name DB_ROW_HASH_1
 table->field[1]->offset = 11
 table->field[1]->field_length = 8
 table->field[1]->null_pos wrt to record 0 = 0
 table->field[1]->null_bit_pos = 2
-
 SET debug_dbug="";
 drop table t1;
 SET debug_dbug="d,print_long_unique_internal_state";
@@ -182,37 +180,31 @@ table->field[0]->offset = 1
 table->field[0]->field_length = 10
 table->field[0]->null_pos wrt to record 0 = 0
 table->field[0]->null_bit_pos = 1
-
 table->field[1]->field_name b
 table->field[1]->offset = 11
 table->field[1]->field_length = 10
 table->field[1]->null_pos wrt to record 0 = 0
 table->field[1]->null_bit_pos = 2
-
 table->field[2]->field_name c
 table->field[2]->offset = 21
 table->field[2]->field_length = 10
 table->field[2]->null_pos wrt to record 0 = 0
 table->field[2]->null_bit_pos = 4
-
 table->field[3]->field_name DB_ROW_HASH_1
 table->field[3]->offset = 31
 table->field[3]->field_length = 8
 table->field[3]->null_pos wrt to record 0 = 0
 table->field[3]->null_bit_pos = 8
-
 table->field[4]->field_name DB_ROW_HASH_2
 table->field[4]->offset = 39
 table->field[4]->field_length = 8
 table->field[4]->null_pos wrt to record 0 = 0
 table->field[4]->null_bit_pos = 16
-
 table->field[5]->field_name DB_ROW_HASH_3
 table->field[5]->offset = 47
 table->field[5]->field_length = 8
 table->field[5]->null_pos wrt to record 0 = 0
 table->field[5]->null_bit_pos = 32
-
 SET debug_dbug="";
 drop table t1;
 SET debug_dbug="d,print_long_unique_internal_state";
@@ -290,37 +282,31 @@ table->field[0]->offset = 1
 table->field[0]->field_length = 10
 table->field[0]->null_pos wrt to record 0 = 0
 table->field[0]->null_bit_pos = 1
-
 table->field[1]->field_name b
 table->field[1]->offset = 11
 table->field[1]->field_length = 10
 table->field[1]->null_pos wrt to record 0 = 0
 table->field[1]->null_bit_pos = 2
-
 table->field[2]->field_name c
 table->field[2]->offset = 21
 table->field[2]->field_length = 10
 table->field[2]->null_pos wrt to record 0 = 0
 table->field[2]->null_bit_pos = 4
-
 table->field[3]->field_name d
 table->field[3]->offset = 31
 table->field[3]->field_length = 10
 table->field[3]->null_pos wrt to record 0 = 0
 table->field[3]->null_bit_pos = 8
-
 table->field[4]->field_name DB_ROW_HASH_1
 table->field[4]->offset = 41
 table->field[4]->field_length = 8
 table->field[4]->null_pos wrt to record 0 = 0
 table->field[4]->null_bit_pos = 16
-
 table->field[5]->field_name DB_ROW_HASH_2
 table->field[5]->offset = 49
 table->field[5]->field_length = 8
 table->field[5]->null_pos wrt to record 0 = 0
 table->field[5]->null_bit_pos = 32
-
 SET debug_dbug="";
 drop table t1;
 SET debug_dbug="d,print_long_unique_internal_state";
@@ -406,31 +392,26 @@ table->field[0]->offset = 1
 table->field[0]->field_length = 4
 table->field[0]->null_pos wrt to record 0 = -1
 table->field[0]->null_bit_pos = 0
-
 table->field[1]->field_name b
 table->field[1]->offset = 5
 table->field[1]->field_length = 10
 table->field[1]->null_pos wrt to record 0 = 0
 table->field[1]->null_bit_pos = 1
-
 table->field[2]->field_name c
 table->field[2]->offset = 15
 table->field[2]->field_length = 10
 table->field[2]->null_pos wrt to record 0 = -1
 table->field[2]->null_bit_pos = 0
-
 table->field[3]->field_name DB_ROW_HASH_1
 table->field[3]->offset = 25
 table->field[3]->field_length = 8
 table->field[3]->null_pos wrt to record 0 = 0
 table->field[3]->null_bit_pos = 2
-
 table->field[4]->field_name DB_ROW_HASH_2
 table->field[4]->offset = 33
 table->field[4]->field_length = 8
 table->field[4]->null_pos wrt to record 0 = -1
 table->field[4]->null_bit_pos = 0
-
 SET debug_dbug="";
 drop table t1;
 ##Using hash
@@ -487,25 +468,21 @@ table->field[0]->offset = 1
 table->field[0]->field_length = 4
 table->field[0]->null_pos wrt to record 0 = 0
 table->field[0]->null_bit_pos = 2
-
 table->field[1]->field_name b
 table->field[1]->offset = 5
 table->field[1]->field_length = 4
 table->field[1]->null_pos wrt to record 0 = 0
 table->field[1]->null_bit_pos = 4
-
 table->field[2]->field_name c
 table->field[2]->offset = 9
 table->field[2]->field_length = 4
 table->field[2]->null_pos wrt to record 0 = 0
 table->field[2]->null_bit_pos = 8
-
 table->field[3]->field_name DB_ROW_HASH_1
 table->field[3]->offset = 13
 table->field[3]->field_length = 8
 table->field[3]->null_pos wrt to record 0 = 0
 table->field[3]->null_bit_pos = 16
-
 SET debug_dbug="";
 drop table t1;
 ##Using hash but with memory engine so no long unique column
@@ -562,18 +539,15 @@ table->field[0]->offset = 1
 table->field[0]->field_length = 4
 table->field[0]->null_pos wrt to record 0 = 0
 table->field[0]->null_bit_pos = 2
-
 table->field[1]->field_name b
 table->field[1]->offset = 5
 table->field[1]->field_length = 4
 table->field[1]->null_pos wrt to record 0 = 0
 table->field[1]->null_bit_pos = 4
-
 table->field[2]->field_name c
 table->field[2]->offset = 9
 table->field[2]->field_length = 4
 table->field[2]->null_pos wrt to record 0 = 0
 table->field[2]->null_bit_pos = 8
-
 SET debug_dbug="";
 drop table t1;

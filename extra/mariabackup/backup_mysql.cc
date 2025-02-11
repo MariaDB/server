@@ -459,9 +459,12 @@ bool get_mysql_vars(MYSQL *connection)
 
   msg("Using server version %s", version_var);
 
-  if (!(ret= detect_mysql_capabilities_for_backup()))
+  if (opt_galera_info && !have_galera_enabled)
   {
-    goto out;
+    msg("--galera-info is specified on the command "
+        "line, but the server does not support Galera "
+        "replication. Ignoring the option.");
+    opt_galera_info= false;
   }
 
   /* make sure datadir value is the same in configuration file */
@@ -552,30 +555,6 @@ out:
   free_mysql_variables(mysql_vars);
 
   return (ret);
-}
-
-/*********************************************************************//**
-Query the server to find out what backup capabilities it supports.
-@return	true on success. */
-bool
-detect_mysql_capabilities_for_backup()
-{
-	/* do some sanity checks */
-	if (opt_galera_info && !have_galera_enabled) {
-		msg("--galera-info is specified on the command "
-		 	"line, but the server does not support Galera "
-		 	"replication. Ignoring the option.");
-		opt_galera_info = false;
-	}
-
-	if (opt_slave_info && have_multi_threaded_slave &&
-	    !have_gtid_slave) {
-	    	msg("The --slave-info option requires GTID enabled for a "
-			"multi-threaded slave.");
-		return(false);
-	}
-
-	return(true);
 }
 
 static

@@ -26,7 +26,6 @@ RESET MASTER;
 SET @@global.debug_dbug="d,error_unique_log_filename";
 FLUSH LOGS;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 # assert: must show one binlog
 show binary logs;
 Log_name	File_size
@@ -52,7 +51,6 @@ RESET MASTER;
 SET @@global.debug_dbug="d,error_unique_log_filename";
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/bug_46166.data' INTO TABLE t2;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 # assert: must show one entry
 SELECT count(*) FROM t2;
 count(*)
@@ -78,7 +76,6 @@ LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/bug_46166.data' INTO TABLE t2;
 INSERT INTO t2 VALUES ('muse');
 COMMIT;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 # assert: must show three entries
 SELECT count(*) FROM t2;
 count(*)
@@ -95,7 +92,6 @@ count(*)
 0
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/bug_46166.data' INTO TABLE t4;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 # assert: must show 1 entry
 SELECT count(*) FROM t4;
 count(*)
@@ -118,13 +114,10 @@ count(*)
 0
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/bug_46166.data' INTO TABLE t4;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/bug_46166.data' INTO TABLE t2;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 INSERT INTO t2 VALUES ('aaa'), ('bbb'), ('ccc');
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 # INFO: Count(*) Before Offending DELETEs
 # assert: must show 1 entry
 SELECT count(*) FROM t4;
@@ -136,10 +129,8 @@ count(*)
 4
 DELETE FROM t4;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 DELETE FROM t2;
 ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
-
 # INFO: Count(*) After Offending DELETEs
 # assert: must show zero entries
 SELECT count(*) FROM t4;

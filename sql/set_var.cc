@@ -48,11 +48,12 @@ static ulonglong system_variable_hash_version= 0;
   Return variable name and length for hashing of variables.
 */
 
-static uchar *get_sys_var_length(const sys_var *var, size_t *length,
-                                 my_bool first)
+static const uchar *get_sys_var_length(const void *var_, size_t *length,
+                                       my_bool)
 {
+  auto var= static_cast<const sys_var *>(var_);
   *length= var->name.length;
-  return (uchar*) var->name.str;
+  return reinterpret_cast<const uchar *>(var->name.str);
 }
 
 sys_var_chain all_sys_vars = { NULL, NULL };
@@ -66,7 +67,7 @@ int sys_var_init()
 
   if (my_hash_init(PSI_INSTRUMENT_ME, &system_variable_hash,
                    Lex_ident_sys_var::charset_info(), 700, 0,
-                   0, (my_hash_get_key) get_sys_var_length, 0, HASH_UNIQUE))
+                   0, get_sys_var_length, 0, HASH_UNIQUE))
     goto error;
 
   if (mysql_add_sys_var_chain(all_sys_vars.first))
@@ -618,8 +619,10 @@ int mysql_del_sys_var_chain(sys_var *first)
 }
 
 
-static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
+static int show_cmp(const void *a_, const void *b_)
 {
+  const SHOW_VAR *a= static_cast<const SHOW_VAR *>(a_);
+  const SHOW_VAR *b= static_cast<const SHOW_VAR *>(b_);
   return strcmp(a->name, b->name);
 }
 
@@ -650,8 +653,7 @@ ulong get_system_variable_hash_records(void)
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type scope)
 {
   int count= system_variable_hash.records, i;
-  int size= sizeof(SHOW_VAR) * (count + 1);
-  SHOW_VAR *result= (SHOW_VAR*) thd->alloc(size);
+  SHOW_VAR *result= thd->alloc<SHOW_VAR>(count + 1);
 
   if (result)
   {
@@ -795,6 +797,7 @@ int set_var::check(THD *thd)
   if (!value)
     return 0;
 
+  thd->where= THD_WHERE::SET_LIST;
   if (value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
   if (var->check_update_type(value))
@@ -901,6 +904,7 @@ int set_var_user::check(THD *thd)
     Item_func_set_user_var can't substitute something else on its place =>
     0 can be passed as last argument (reference on item)
   */
+  thd->where= THD_WHERE::SET_LIST;
   return (user_var_item->fix_fields(thd, (Item**) 0) ||
           user_var_item->check(0)) ? -1 : 0;
 }
@@ -1115,7 +1119,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     fields[0]->store(name_buffer.to_lex_cstring(), scs);
 
     if ((wild && wild_case_compare(scs, name_buffer.ptr(), wild))
-        || (cond && !cond->val_int()))
+        || (cond && !cond->val_bool()))
       continue;
 
     mysql_mutex_lock(&LOCK_global_system_variables);
@@ -1416,7 +1420,7 @@ resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
   }
 
   if (temp_copy)
-    res= (plugin_ref *)thd->calloc((count+1)*sizeof(*res));
+    res= thd->calloc<plugin_ref>(count+1);
   else
     res= (plugin_ref *)my_malloc(PSI_INSTRUMENT_ME, (count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
   if (!res)
@@ -1494,7 +1498,7 @@ temp_copy_engine_list(THD *thd, plugin_ref *list)
 
   for (p= list, count= 0; *p; ++p, ++count)
     ;
-  p= (plugin_ref *)thd->alloc((count+1)*sizeof(*p));
+  p= thd->alloc<plugin_ref>(count+1);
   if (!p)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));
@@ -1520,7 +1524,7 @@ pretty_print_engine_list(THD *thd, plugin_ref *list)
   size= 0;
   for (p= list; *p; ++p)
     size+= plugin_name(*p)->length + 1;
-  buf= static_cast<char *>(thd->alloc(size));
+  buf= thd->alloc(size);
   if (!buf)
     return NULL;
   pos= buf;

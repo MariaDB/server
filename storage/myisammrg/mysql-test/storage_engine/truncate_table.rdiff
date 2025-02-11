@@ -1,5 +1,5 @@
---- truncate_table.result	2013-01-22 22:05:05.246633000 +0400
-+++ truncate_table.reject	2013-01-23 02:51:07.507403770 +0400
+--- truncate_table.result
++++ truncate_table.reject
 @@ -9,19 +9,19 @@
  CREATE TABLE t1 (a <INT_COLUMN> KEY AUTO_INCREMENT, c <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  SHOW TABLE STATUS LIKE 't1';

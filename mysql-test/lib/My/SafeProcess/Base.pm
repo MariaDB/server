@@ -114,6 +114,10 @@ sub create_process {
 
     lock($win32_spawn_lock);
 
+    # STDOUT/STDERR are temporarily reassigned, avoid prevent
+    # output from another thread
+    lock($mtr_report::flush_lock);
+
     #printf STDERR "stdin %d, stdout %d, stderr %d\n",
     #    fileno STDIN, fileno STDOUT, fileno STDERR;
 

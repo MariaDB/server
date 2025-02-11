@@ -29,10 +29,6 @@
 #ifndef _log_event_h
 #define _log_event_h
 
-#if defined(USE_PRAGMA_INTERFACE) && defined(MYSQL_SERVER)
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include <my_bitmap.h>
 #include "rpl_constants.h"
 #include <vector>
@@ -691,6 +687,14 @@ enum Log_event_type
   VIEW_CHANGE_EVENT= 37,
   /* not ignored */
   XA_PREPARE_LOG_EVENT= 38,
+
+  /**
+    Extension of UPDATE_ROWS_EVENT, allowing partial values according
+    to binlog_row_value_options.
+  */
+  PARTIAL_UPDATE_ROWS_EVENT = 39,
+  TRANSACTION_PAYLOAD_EVENT = 40,
+  HEARTBEAT_LOG_EVENT_V2 = 41,
 
   /*
     Add new events here - right above this comment!
@@ -3340,6 +3344,14 @@ public:
   uint64 sa_seq_no;   // start alter identifier for CA/RA
 #ifdef MYSQL_SERVER
   event_xid_t xid;
+  /*
+    Pad the event to this size if it is not zero. It is only used for renaming
+    a binlog cache to binlog file. There is some reserved space for gtid event
+    and the events at the begin of the binlog file. There must be some space
+    left after the events are filled. Thus the left space is padded into the
+    gtid event with 0.
+  */
+  uint64 pad_to_size;
 #else
   event_mysql_xid_t xid;
 #endif
@@ -3404,6 +3416,11 @@ public:
   static const uchar FL_EXTRA_THREAD_ID= 16; // thread_id like in BEGIN Query
 
 #ifdef MYSQL_SERVER
+  static const uint max_data_length= GTID_HEADER_LEN + 2 + sizeof(XID)
+                                     + 1 /* flags_extra: */
+                                     + 4 /* Extra Engines */
+                                     + 4 /* FL_EXTRA_THREAD_ID */;
+
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
                  uint16 flags, bool is_transactional, uint64 commit_id,
                  bool has_xid= false, bool is_ro_1pc= false);
@@ -4770,7 +4787,7 @@ public:
   */
   bool is_valid() const override
   {
-    return m_rows_buf && m_cols.bitmap;
+    return m_cols.bitmap;
   }
 
   uint     m_row_count;         /* The number of rows added to the event */
@@ -4932,7 +4949,7 @@ protected:
                         &m_curr_row_end, &m_master_reclength, m_rows_end);
   }
   bool process_triggers(trg_event_type event, trg_action_time_type time_type,
-                        bool old_row_is_record1);
+                        bool old_row_is_record1, bool *skip_row_indicator);
 
   /**
     Helper function to check whether there is an auto increment

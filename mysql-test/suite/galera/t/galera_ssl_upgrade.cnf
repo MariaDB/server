@@ -1,5 +1,9 @@
 !include ../galera_2nodes.cnf
 
+[mysqld]
+loose-galera-ssl-upgrade=1
+wsrep-debug=1
+
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;socket.ssl=yes;socket.ssl_cert=@ENV.MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=@ENV.MYSQL_TEST_DIR/std_data/galera-key.pem'
 

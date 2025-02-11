@@ -461,7 +461,10 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2;
 --enable_metadata
 --disable_view_protocol
+#Check after fix MDEV-31540
+--disable_cursor_protocol
 SELECT COALESCE(val, 1) FROM t1;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 DROP TABLE t1;

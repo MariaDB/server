@@ -21,8 +21,10 @@ column_name="a";
 ANALYZE TABLE t0;
 --enable_result_log
 
+--disable_cursor_protocol
 SELECT table_rows into @N FROM information_schema.tables
 WHERE table_name = "t0";
+--enable_cursor_protocol
 SELECT FLOOR(@N/cardinality) FROM
 information_schema.statistics where table_name="t0" and column_name="id";
 SELECT FLOOR(@N/cardinality) FROM
@@ -35,8 +37,10 @@ SET GLOBAL rocksdb_force_flush_memtable_now = 1;
 ANALYZE TABLE t0;
 --enable_result_log
 
+--disable_cursor_protocol
 SELECT table_rows into @N FROM information_schema.tables
 WHERE table_name = "t0";
+--enable_cursor_protocol
 SELECT FLOOR(@N/cardinality) FROM
 information_schema.statistics where table_name="t0" and column_name="id";
 SELECT FLOOR(@N/cardinality) FROM
@@ -111,8 +115,10 @@ while ($i<100)
 # Cardinality of key c should be 1 for c, 10 for b, 100 for a and the other fields.
 SET GLOBAL rocksdb_force_flush_memtable_now = 1;
 ANALYZE TABLE t2;
+--disable_cursor_protocol
 --echo cardinality of the columns after 'a' must be equal to the cardinality of column 'a'
 SELECT CARDINALITY INTO @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND COLUMN_NAME='a';
+--enable_cursor_protocol
 SELECT COLUMN_NAME, CARDINALITY = @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND SEQ_IN_INDEX > 3;
 
 drop table t1, t2;

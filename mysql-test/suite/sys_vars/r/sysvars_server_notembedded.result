@@ -226,7 +226,7 @@ VARIABLE_NAME	ARIA_SORT_BUFFER_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE
-NUMERIC_MIN_VALUE	16376
+NUMERIC_MIN_VALUE	16352
 NUMERIC_MAX_VALUE	1152921504606846975
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
@@ -492,6 +492,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	BINLOG_LARGE_COMMIT_THRESHOLD
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Increases transaction concurrency for large transactions (i.e. those with sizes larger than this value) by using the large transaction's cache file as a new binary log, and rotating the active binary log to the large transaction's cache file at commit time. This avoids the default commit logic that copies the transaction cache data to the end of the active binary log file while holding a lock that prevents other transactions from binlogging
+NUMERIC_MIN_VALUE	10485760
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_LEGACY_EVENT_POS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
@@ -505,7 +515,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	BINLOG_OPTIMIZE_THREAD_SCHEDULING
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Run fast part of group commit in a single thread, to optimize kernel thread scheduling. On by default. Disable to run each transaction in group commit in its own thread, which can be slower at very high concurrency. This option is mostly for testing one algorithm versus the other, and it should not normally be necessary to change it
+VARIABLE_COMMENT	Run fast part of group commit in a single thread, to optimize kernel thread scheduling. On by default. Disable to run each transaction in group commit in its own thread, which can be slower at very high concurrency. This option is mostly for testing one algorithm versus the other, and it should not normally be necessary to change it. This variable is deprecated and will be removed in a future release
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1912,6 +1922,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	LOG_SLOW_ALWAYS_QUERY_TIME
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Queries slower than log_slow_always_query_time are not affected by log_slow_rate_limit or log_slow_min_examined_row_limit. Query will be logged if execution time of the query is longer than log_slow_query_time and log_slow_always_query_time. The argument will be treated as a decimal value with microsecond precision
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_DISABLED_STATEMENTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
@@ -1975,7 +1995,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_QUERY_TIME
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Log all queries that have taken more than log_slow_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision
+VARIABLE_COMMENT	Log all queries that have taken more than log_slow_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision. Affected by log_slow_rate_limit and log_slow_min_examined_row_limit
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	NULL
@@ -2025,7 +2045,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LONG_QUERY_TIME
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Alias for log_slow_query_time. Log all queries that have taken more than long_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision
+VARIABLE_COMMENT	Alias for log_slow_query_time
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	NULL
@@ -2095,7 +2115,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MAX_BINLOG_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value
+VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value, unless `binlog_large_commit_threshold` causes rotation prematurely
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	1073741824
 NUMERIC_BLOCK_SIZE	4096
@@ -2372,6 +2392,46 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MHNSW_DEFAULT_DISTANCE
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Distance function to build the vector index for
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	euclidean,cosine
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MHNSW_DEFAULT_M
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Larger values mean slower SELECTs and INSERTs, larger index size and higher memory consumption but more accurate results
+NUMERIC_MIN_VALUE	3
+NUMERIC_MAX_VALUE	200
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MHNSW_EF_SEARCH
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Larger values mean slower SELECTs but more accurate results. Defines the minimal number of result candidates to look for in the vector index for ORDER BY ... LIMIT N queries. The search will never search for less rows than that, even if LIMIT is smaller
+NUMERIC_MIN_VALUE	1
+NUMERIC_MAX_VALUE	10000
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MHNSW_MAX_CACHE_SIZE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Upper limit for one MHNSW vector index cache
+NUMERIC_MIN_VALUE	1048576
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MIN_EXAMINED_ROW_LIMIT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
@@ -2559,7 +2619,7 @@ VARIABLE_COMMENT	Used to emulate old behavior from earlier MariaDB or MySQL vers
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO,ZERO_DATE_TIME_CAST,UTF8_IS_UTF8MB3,IGNORE_INDEX_ONLY_FOR_JOIN,COMPAT_5_1_CHECKSUM,NO_NULL_COLLATION_IDS,LOCK_ALTER_TABLE_COPY,OLD_FLUSH_STATUS
+ENUM_VALUE_LIST	NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO,ZERO_DATE_TIME_CAST,UTF8_IS_UTF8MB3,IGNORE_INDEX_ONLY_FOR_JOIN,COMPAT_5_1_CHECKSUM,NO_NULL_COLLATION_IDS,LOCK_ALTER_TABLE_COPY,OLD_FLUSH_STATUS,SESSION_USER_IS_USER
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OLD_PASSWORDS
@@ -2629,6 +2689,16 @@ VARIABLE_COMMENT	Cost of copying a key block from the cache to internal storage 
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	1000
 NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_JOIN_LIMIT_PREF_RATIO
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	For queries with JOIN and ORDER BY LIMIT : make the optimizer consider a join order that allows to short-cut execution after producing #LIMIT matches if that promises N times speedup. (A conservative setting here would be is a high value, like 100 so the short-cutting plan is used if it promises a speedup of 100x or more). Short-cutting plans are inherently risky so the default is 0 which means do not consider this optimization
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -4012,6 +4082,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SLAVE_ABORT_BLOCKING_TIMEOUT
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Maximum time a slave DDL will wait for a blocking SELECT or other user query until that query will be aborted. The argument will be treated as a decimal value with nanosecond precision
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_COMPRESSED_PROTOCOL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
@@ -4805,7 +4885,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TMPDIR
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Path for temporary files. Several paths may be specified, separated by a colon (:), in this case they are used in a round-robin fashion
+VARIABLE_COMMENT	Path for temporary files. Files that are created in background for binlogging by user threads are placed in a separate location (see `binlog_large_commit_threshold` option). Several paths may be specified, separated by a colon (:), in this case they are used in a round-robin fashion
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4828,7 +4908,7 @@ VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
-NUMERIC_BLOCK_SIZE	1
+NUMERIC_BLOCK_SIZE	16384
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -4838,7 +4918,7 @@ VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
-NUMERIC_BLOCK_SIZE	1
+NUMERIC_BLOCK_SIZE	16384
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED

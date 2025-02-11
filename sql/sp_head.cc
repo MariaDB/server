@@ -30,10 +30,6 @@
 #include "sql_select.h"        // Virtual_tmp_table
 #include "opt_trace.h"
 #include "my_json_writer.h"
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
 #include "sp_instr.h"
 #include "sp_head.h"
 #include "sp.h"
@@ -97,7 +93,7 @@ void init_sp_psi_keys()
 #define MYSQL_RUN_SP(SP, CODE) do { CODE; } while(0)
 #endif
 
-extern "C" uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first);
+extern "C" const uchar *sp_table_key(const void *ptr, size_t *plen, my_bool);
 
 /**
   Helper function which operates on a THD object to set the query start_time to
@@ -510,7 +506,8 @@ Lex_ident_routine::check_name_with_error(const LEX_CSTRING &ident)
  */
  
 sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
-                         enum_sp_aggregate_type agg_type, MEM_ROOT *sp_mem_root)
+                         enum_sp_aggregate_type agg_type, sql_mode_t sql_mode,
+                         MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
   if (!sp_mem_root)
@@ -519,7 +516,8 @@ sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
                    MEM_ROOT_PREALLOC, MYF(0));
     sp_mem_root= &own_root;
   }
-  return new (sp_mem_root) sp_head(sp_mem_root, parent, handler, agg_type);
+  return new (sp_mem_root) sp_head(sp_mem_root, parent, handler,
+                                   agg_type, sql_mode);
 }
 
 
@@ -545,7 +543,8 @@ void sp_head::destroy(sp_head *sp)
  */
 
 sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
-                 const Sp_handler *sph, enum_sp_aggregate_type agg_type)
+                 const Sp_handler *sph, enum_sp_aggregate_type agg_type,
+                 sql_mode_t sql_mode)
   :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
    main_mem_root(*mem_root_arg),
 #ifdef PROTECT_STATEMENT_MEMROOT
@@ -555,6 +554,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_handler(sph),
    m_flags(0),
    m_tmp_query(NULL),
+   m_sql_mode(sql_mode),
    m_explicit_name(false),
    /*
      FIXME: the only use case when name is NULL is events, and it should
@@ -612,7 +612,8 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
 
 
 sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
-                               const Sp_handler *sph, MEM_ROOT *sp_mem_root)
+                               const Sp_handler *sph, sql_mode_t sql_mode,
+                               MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
   if (!sp_mem_root)
@@ -622,7 +623,8 @@ sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
     sp_mem_root= &own_root;
   }
   sp_package *sp;
-  if (!(sp= new (sp_mem_root) sp_package(sp_mem_root, top_level_lex, name, sph)))
+  if (!(sp= new (sp_mem_root) sp_package(sp_mem_root, top_level_lex,
+                                         name, sph, sql_mode)))
     free_root(sp_mem_root, MYF(0));
 
   return sp;
@@ -632,8 +634,9 @@ sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
 sp_package::sp_package(MEM_ROOT *mem_root_arg,
                        LEX *top_level_lex,
                        const sp_name *name,
-                       const Sp_handler *sph)
- :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE),
+                       const Sp_handler *sph,
+                       sql_mode_t sql_mode)
+ :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE, sql_mode),
   m_current_routine(NULL),
   m_top_level_lex(top_level_lex),
   m_rcontext(NULL),
@@ -936,7 +939,9 @@ void sp_package::LexList::cleanup()
 */
 
 Field *
-sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_name,
+sp_head::create_result_field(uint field_max_length,
+                             const LEX_CSTRING *field_name,
+                             const Column_definition &def,
                              TABLE *table) const
 {
   Field *field;
@@ -945,7 +950,7 @@ sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_nam
   DBUG_ENTER("sp_head::create_result_field");
 
   /*
-    m_return_field_def.length is always set to the field length calculated
+    def.length is always set to the field length calculated
     by the parser, according to the RETURNS clause. See prepare_create_field()
     in sql_table.cc. Value examples, depending on data type:
     - 11 for INT                          (character representation length)
@@ -981,22 +986,22 @@ sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_nam
     than the user specified length, e.g. a field of the INT(1) data type
     is translated to the item with max_length=11.
   */
-  DBUG_ASSERT(field_max_length <= m_return_field_def.length ||
-              m_return_field_def.type_handler()->cmp_type() == INT_RESULT ||
+  DBUG_ASSERT(field_max_length <= def.length ||
+              def.type_handler()->cmp_type() == INT_RESULT ||
               (current_thd->stmt_arena->is_stmt_execute() &&
-               m_return_field_def.length == 8 &&
-               (m_return_field_def.pack_flag &
+               def.length == 8 &&
+               (def.pack_flag &
                 (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
 
   if (field_name)
     name= *field_name;
   else
     name= m_name;
-  field= m_return_field_def.make_field(table->s, /* TABLE_SHARE ptr */
-                                       table->in_use->mem_root,
-                                       &name);
+  field= def.make_field(table->s, /* TABLE_SHARE ptr */
+                        table->in_use->mem_root,
+                        &name);
 
-  field->vcol_info= m_return_field_def.vcol_info;
+  field->vcol_info= def.vcol_info;
   if (field)
     field->init(table);
 
@@ -1889,6 +1894,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 {
   ulonglong UNINIT_VAR(binlog_save_options);
   bool need_binlog_call= FALSE;
+  uint params= m_pcont->context_var_count();
+  uint default_params= m_pcont->default_context_var_count();
   uint arg_no;
   sp_rcontext *octx = thd->spcont;
   char buf[STRING_BUFFER_USUAL_SIZE];
@@ -1907,7 +1914,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     If it is not, use my_error() to report an error, or it will not terminate
     the invoking query properly.
   */
-  if (argcount != m_pcont->context_var_count())
+  if (argcount < (params - default_params) ||
+      argcount > params)
   {
     /*
       Need to use my_error here, or it will not terminate the
@@ -1959,6 +1967,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     if (err_status)
       goto err_with_cleanup;
   }
+  (*func_ctx)->set_inited_param_count(arg_no);
 
   /*
     If row-based binlogging, we don't need to binlog the function's call, let
@@ -2137,6 +2146,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 {
   bool err_status= FALSE;
   uint params = m_pcont->context_var_count();
+  uint default_params= m_pcont->default_context_var_count();
   /* Query start time may be reset in a multi-stmt SP; keep this for later. */
   ulonglong utime_before_sp_exec= thd->utime_after_lock;
   sp_rcontext *save_spcont, *octx;
@@ -2150,7 +2160,8 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (m_parent && m_parent->instantiate_if_needed(thd))
     DBUG_RETURN(true);
 
-  if (args->elements != params)
+  if (args->elements < (params - default_params) ||
+      args->elements > params)
   {
     my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
              ErrConvDQName(this).ptr(), params, args->elements);
@@ -2218,6 +2229,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       if (err_status)
         break;
     }
+    nctx->set_inited_param_count(args->elements);
 
     /*
       Okay, got values for all arguments. Close tables that might be used by
@@ -2567,7 +2579,7 @@ int
 sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab,
                         List<bp_t> *list, backpatch_instr_type itype)
 {
-  bp_t *bp= (bp_t *) thd->alloc(sizeof(bp_t));
+  bp_t *bp= thd->alloc<bp_t>(1);
 
   if (!bp)
     return 1;
@@ -3154,7 +3166,7 @@ int sp_head::add_instr(sp_instr *instr)
     if (instr_trig_fld_list)
     {
       m_cur_instr_trig_field_items.save_and_clear(instr_trig_fld_list);
-      m_trg_table_fields.link_in_list(
+      m_trg_table_fields.insert(
         instr_trig_fld_list,
         &instr_trig_fld_list->first->next_trig_field_list);
     }
@@ -3475,11 +3487,11 @@ typedef struct st_sp_table
 } SP_TABLE;
 
 
-uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first)
+const uchar *sp_table_key(const void *ptr, size_t *plen, my_bool)
 {
-  SP_TABLE *tab= (SP_TABLE *)ptr;
+  auto tab= static_cast<const SP_TABLE *>(ptr);
   *plen= tab->qname.length;
-  return (uchar *)tab->qname.str;
+  return reinterpret_cast<const uchar *>(tab->qname.str);
 }
 
 
@@ -3571,7 +3583,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
       }
       else
       {
-        if (!(tab= (SP_TABLE *)thd->calloc(sizeof(SP_TABLE))))
+        if (!(tab= thd->calloc<SP_TABLE>(1)))
           return FALSE;
         if ((lex_for_tmp_check->sql_command == SQLCOM_CREATE_TABLE ||
              lex_for_tmp_check->sql_command == SQLCOM_CREATE_SEQUENCE) &&
@@ -3650,7 +3662,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
     if (stab->temp)
       continue;
 
-    if (!(tab_buff= (char *)thd->alloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
+    if (!(tab_buff= thd->alloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
                                         stab->lock_count)) ||
         !(key_buff= (char*)thd->memdup(stab->qname.str,
                                        stab->qname.length)))
@@ -3702,7 +3714,7 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
 {
   TABLE_LIST *table;
 
-  if (!(table= (TABLE_LIST *)thd->calloc(sizeof(TABLE_LIST))))
+  if (!(table= thd->calloc<TABLE_LIST>(1)))
     return NULL;
   if (!thd->make_lex_string(&table->db, db->str, db->length) ||
       !thd->make_lex_string(&table->table_name, name->str, name->length) ||
@@ -3924,6 +3936,38 @@ bool sp_head::spvar_fill_type_reference(THD *thd,
   if (!(ref= new (thd->mem_root) Qualified_column_ident(thd, &db, &table, &col)))
     return true;
   fill_spvar_using_type_reference(spvar, ref);
+  return false;
+}
+
+
+bool sp_head::spvar_def_fill_type_reference(THD *thd, Spvar_definition *def,
+                                 const LEX_CSTRING &table,
+                                 const LEX_CSTRING &column)
+{
+  Qualified_column_ident *ref;
+  if (!(ref= new (thd->mem_root) Qualified_column_ident(&table, &column)))
+    return true;
+  
+  def->set_column_type_ref(ref);
+  m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+
+  return false;
+}
+
+
+bool sp_head::spvar_def_fill_type_reference(THD *thd, Spvar_definition *def,
+                                const LEX_CSTRING &db,
+                                const LEX_CSTRING &table,
+                                const LEX_CSTRING &column)
+{
+  Qualified_column_ident *ref;
+  if (!(ref= new (thd->mem_root) Qualified_column_ident(thd, &db, &table,
+                                                        &column)))
+    return true;
+  
+  def->set_column_type_ref(ref);
+  m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+
   return false;
 }
 

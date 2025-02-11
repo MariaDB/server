@@ -1,0 +1,15 @@
+#
+# MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+#
+install soname 'auth_0x0100';
+CREATE USER foo@localhost IDENTIFIED VIA auth_0x0100;
+uninstall plugin auth_0x0100;
+create table t as select Priv from mysql.global_priv where User = "foo" and host="localhost";
+SET PASSWORD FOR foo@localhost = "1111";
+ERROR HY000: Plugin 'auth_0x0100' is not loaded
+select global_priv.Priv = t.Priv as "Nothing changed" from mysql.global_priv join t where User = "foo" and host="localhost";
+Nothing changed
+1
+drop table t;
+DROP USER foo@localhost;
+# End of 10.5 tests

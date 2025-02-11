@@ -596,17 +596,22 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 
 	/* Check the contents of the first page of the
 	first datafile. */
-	err = it->validate_first_page();
+	err = it->validate_first_page(it->m_first_page);
+	const page_t *first_page = it->m_first_page;
 
 	if (err != DB_SUCCESS) {
-		if (recv_sys.dblwr.restore_first_page(
-				it->m_space_id, it->m_filepath,
-				it->handle())) {
-			it->close();
-			return(err);
+		mysql_mutex_lock(&recv_sys.mutex);
+		first_page = recv_sys.dblwr.find_page(
+			page_id_t(space_id(), 0), LSN_MAX);
+		mysql_mutex_unlock(&recv_sys.mutex);
+		if (!first_page) {
+			err = DB_CORRUPTION;
+		} else {
+			err = it->read_first_page_flags(first_page);
+			if (err == DB_SUCCESS) {
+				err = it->validate_first_page(first_page);
+			}
 		}
-		err = it->read_first_page(
-			m_ignore_read_only && srv_read_only_mode);
 	}
 
 	/* Make sure the tablespace space ID matches the
@@ -629,7 +634,7 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 		log_sys.latch.wr_lock(SRW_LOCK_CALL);
 		/* Prepare for possible upgrade from 0-sized ib_logfile0. */
 		log_sys.next_checkpoint_lsn = mach_read_from_8(
-			it->m_first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
+			first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
 		if (log_sys.next_checkpoint_lsn < 8204) {
 			/* Before MDEV-14425, InnoDB had a minimum LSN
 			of 8192+12=8204. Likewise, mariadb-backup
@@ -961,8 +966,7 @@ SysTablespace::open_or_create(
 		} else if (is_temp) {
 			ut_ad(space_id() == SRV_TMP_SPACE_ID);
 			space = fil_space_t::create(
-				SRV_TMP_SPACE_ID, flags(),
-				FIL_TYPE_TEMPORARY, NULL);
+				SRV_TMP_SPACE_ID, flags(), false, nullptr);
 			ut_ad(space == fil_system.temp_space);
 			if (!space) {
 				err = DB_ERROR;
@@ -973,8 +977,7 @@ SysTablespace::open_or_create(
 		} else {
 			ut_ad(space_id() == TRX_SYS_SPACE);
 			space = fil_space_t::create(
-				TRX_SYS_SPACE, it->flags(),
-				FIL_TYPE_TABLESPACE, NULL);
+				TRX_SYS_SPACE, it->flags(), false, nullptr);
 			ut_ad(space == fil_system.sys_space);
 			if (!space) {
 				err = DB_ERROR;

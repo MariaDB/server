@@ -4,7 +4,7 @@ SELECT @global_start_value;
 + -><()~*:""&|
 '#--------------------FN_DYNVARS_033_01------------------#'
 SELECT ft_boolean_syntax;
-ERROR 42S22: Unknown column 'ft_boolean_syntax' in 'field list'
+ERROR 42S22: Unknown column 'ft_boolean_syntax' in 'SELECT'
 SELECT @@ft_boolean_syntax;
 @@ft_boolean_syntax
 + -><()~*:""&|
@@ -14,7 +14,7 @@ SELECT @@global.ft_boolean_syntax;
 + -><()~*:""&|
 SET global ft_boolean_syntax='$ -><()`*:""&|';
 SELECT global ft_boolean_syntax;
-ERROR 42S22: Unknown column 'global' in 'field list'
+ERROR 42S22: Unknown column 'global' in 'SELECT'
 '#--------------------FN_DYNVARS_033_02-------------------------#'
 SET @@global.ft_boolean_syntax = '# -><()!*:""&|';
 SET @@global.ft_boolean_syntax = DEFAULT;

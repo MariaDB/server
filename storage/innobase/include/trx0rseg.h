@@ -85,26 +85,12 @@ private:
   /** Set the SKIP bit */
   void ref_set_skip()
   {
-    static_assert(SKIP == 1U, "compatibility");
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    __asm__ __volatile__("lock btsl $0, %0" : "+m" (ref));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    _interlockedbittestandset(reinterpret_cast<volatile long*>(&ref), 0);
-#else
     ref.fetch_or(SKIP, std::memory_order_relaxed);
-#endif
   }
   /** Clear a bit in ref */
   void ref_reset_skip()
   {
-    static_assert(SKIP == 1U, "compatibility");
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    __asm__ __volatile__("lock btrl $0, %0" : "+m" (ref));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    _interlockedbittestandreset(reinterpret_cast<volatile long*>(&ref), 0);
-#else
     ref.fetch_and(~SKIP, std::memory_order_relaxed);
-#endif
   }
 
 public:

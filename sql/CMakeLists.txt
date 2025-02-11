@@ -103,20 +103,22 @@ SET (SQL_SOURCE
                filesort_utils.cc
                filesort.cc gstream.cc
                signal_handler.cc
-               handler.cc
+               handler.cc item_vectorfunc.cc
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc
                item_create.cc item_func.cc item_geofunc.cc item_row.cc
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc
-               key.cc log.cc lock.cc
+               key.cc log.cc log_cache.cc lock.cc
                log_event.cc log_event_server.cc
                rpl_record.cc rpl_reporting.cc
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
-               opt_range.cc
+               opt_range.cc vector_mhnsw.cc
                opt_rewrite_date_cmp.cc
                opt_rewrite_remove_casefold.cc
+               opt_sargable_left.cc
                opt_sum.cc
+               opt_vcol_substitution.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
@@ -173,7 +175,7 @@ SET (SQL_SOURCE
                lex_charset.cc charset_collations.cc
                sql_type.cc sql_mode.cc sql_type_json.cc
                sql_type_string.cc
-               sql_type_geom.cc
+               sql_type_geom.cc sql_type_vector.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc
@@ -187,6 +189,8 @@ SET (SQL_SOURCE
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
                socketpair.c socketpair.h
+               opt_vcol_substitution.h
+               opt_vcol_substitution.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}

@@ -1,4 +1,4 @@
-/* Copyright (c) 2019,2021, MariaDB Corporation
+/* Copyright (c) 2019,2024, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
 #define MYSQL_SERVER
 #include "mariadb.h"
 #include "sql_class.h"
-#include "sql_type_uuid.h"
 #include "item_uuidfunc.h"
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
@@ -144,12 +143,53 @@ protected:
   virtual ~Create_func_sys_guid() {}
 };
 
+class Create_func_uuid_v4 : public Create_func_arg0
+{
+public:
+  Item *create_builder(THD *thd) override
+  {
+    DBUG_ENTER("Create_func_uuid_v4::create");
+    thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
+    DBUG_RETURN(new (thd->mem_root) Item_func_uuid_v4(thd));
+  }
+  static Create_func_uuid_v4 s_singleton;
+
+protected:
+  Create_func_uuid_v4() {}
+  virtual ~Create_func_uuid_v4() {}
+};
+
+uint64 last_uuidv7_timestamp= 0;
+mysql_mutex_t LOCK_uuid_v7_generator;
+
+class Create_func_uuid_v7 : public Create_func_arg0
+{
+public:
+  Item *create_builder(THD *thd) override
+  {
+    DBUG_ENTER("Create_func_uuid_v7::create");
+    thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
+    DBUG_RETURN(new (thd->mem_root) Item_func_uuid_v7(thd));
+  }
+  static Create_func_uuid_v7 s_singleton;
+
+protected:
+  Create_func_uuid_v7() {}
+  virtual ~Create_func_uuid_v7() {}
+};
+
 Create_func_uuid Create_func_uuid::s_singleton;
 Create_func_sys_guid Create_func_sys_guid::s_singleton;
+Create_func_uuid_v4 Create_func_uuid_v4::s_singleton;
+Create_func_uuid_v7 Create_func_uuid_v7::s_singleton;
 
 static Plugin_function
   plugin_descriptor_function_uuid(&Create_func_uuid::s_singleton),
-  plugin_descriptor_function_sys_guid(&Create_func_sys_guid::s_singleton);
+  plugin_descriptor_function_sys_guid(&Create_func_sys_guid::s_singleton),
+  plugin_descriptor_function_uuid_v4(&Create_func_uuid_v4::s_singleton),
+  plugin_descriptor_function_uuid_v7(&Create_func_uuid_v7::s_singleton);
 
 static constexpr Name type_name={STRING_WITH_LEN("uuid")};
 
@@ -157,6 +197,30 @@ int uuid_init(void*)
 {
   Type_handler_uuid_new::singleton()->set_name(type_name);
   Type_handler_uuid_old::singleton()->set_name(type_name);
+  return 0;
+}
+
+int uuidv7_init(void*)
+{
+#ifdef HAVE_PSI_INTERFACE
+  static PSI_mutex_key key_LOCK_uuid_v7_generator;
+  static PSI_mutex_info psi_mutexes[]=
+  {
+    { &key_LOCK_uuid_v7_generator, "LOCK_uuid_v7_generator", PSI_FLAG_GLOBAL }
+  };
+  mysql_mutex_register("uuid_v7", psi_mutexes, 1);
+#else
+#define key_LOCK_uuid_v7_generator 0
+#endif
+
+  mysql_mutex_init(key_LOCK_uuid_v7_generator, &LOCK_uuid_v7_generator,
+                   MY_MUTEX_INIT_FAST);
+  return 0;
+}
+
+int uuidv7_terminate(void*)
+{
+  mysql_mutex_destroy(&LOCK_uuid_v7_generator);
   return 0;
 }
 
@@ -207,5 +271,35 @@ maria_declare_plugin(type_uuid)
   NULL,                         // System variables
   "1.0",                        // String version representation
   MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_uuid_v4, // pointer to type-specific plugin descriptor
+  "uuid_v4",                    // plugin name
+  "Stefano Petrilli",           // plugin author
+  "Function UUID_v4()",         // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL// Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_uuid_v7, // pointer to type-specific plugin descriptor
+  "uuid_v7",                    // plugin name
+  "Stefano Petrilli",           // plugin author
+  "Function UUID_v7()",         // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  uuidv7_init,                  // Pointer to plugin initialization function
+  uuidv7_terminate,             // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL// Maturity(see include/mysql/plugin.h)*/
 }
 maria_declare_plugin_end;

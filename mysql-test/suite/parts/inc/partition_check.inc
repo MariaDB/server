@@ -64,6 +64,7 @@ if ($no_debug)
 {
 --disable_query_log
 }
+--disable_cursor_protocol
 let $my_stmt= SELECT COUNT(*) <> 0 INTO @aux FROM t1
 WHERE f_int1 <> f_int2 OR f_char1 <> CAST(f_int1 AS CHAR) OR f_char1 <> f_char2
    OR f_charbig <> CONCAT('===',f_char1,'===')
@@ -148,6 +149,7 @@ if ($run)
    --echo #      Sorry, have to abort.
    exit;
 }
+--enable_cursor_protocol
 # Give a success message like in the other following tests
 --echo # check MIN/MAX(f_int2) success:    1
 
@@ -368,17 +370,21 @@ AND (MIN(f_int1) = 1) AND (MAX(f_int1) = @max_row) AS "" FROM t1;
 if ($any_unique)
 {
    # Calculate the number of records, where we will try INSERT ..... or REPLACE
+   --disable_cursor_protocol
    SELECT COUNT(*) INTO @try_count FROM t0_template
    WHERE MOD(f_int1,3) = 0
      AND f_int1 BETWEEN @max_row_div2 AND @max_row;
+   --enable_cursor_protocol
    #
    # Calculate the number of records, where we will get DUPLICATE KEY
    #           f_int1 is sufficient for calculating this, because 1.1
    #           checks, that f_int1 = f_int2 is valid for all rows.
+   --disable_cursor_protocol
    SELECT COUNT(*) INTO @clash_count
    FROM t1 INNER JOIN t0_template USING(f_int1)
    WHERE MOD(f_int1,3) = 0
      AND f_int1 BETWEEN @max_row_div2 AND @max_row;
+   --enable_cursor_protocol
    if ($debug)
    {
       SELECT @try_count, @clash_count;
@@ -390,7 +396,9 @@ if ($any_unique)
 # 4    Some operations with single records
 # 4.1  Insert one record with a value for f_int1 which is lower than in all
 #      existing records.
+--disable_cursor_protocol
 SELECT MIN(f_int1) - 1 INTO @cur_value FROM t1;
+--enable_cursor_protocol
 INSERT INTO t1
 SET f_int1 = @cur_value , f_int2 = @cur_value,
     f_char1 = CAST(@cur_value AS CHAR), f_char2 = CAST(@cur_value AS CHAR),
@@ -408,7 +416,9 @@ WHERE f_int1 = @cur_value AND f_int2 = @cur_value
 #
 # 4.2  Insert one record with a value for f_int1 which is higher than in all
 #      existing records.
+--disable_cursor_protocol
 SELECT MAX(f_int1) + 1 INTO @cur_value FROM t1;
+--enable_cursor_protocol
 INSERT INTO t1
 SET f_int1 = @cur_value , f_int2 = @cur_value,
     f_char1 = CAST(@cur_value AS CHAR), f_char2 = CAST(@cur_value AS CHAR),
@@ -428,8 +438,10 @@ WHERE f_int1 = @cur_value AND f_int2 = @cur_value
 #      the highest value of all existing records.
 #      If f_int1 is used for the partitioning expression a movement of the
 #      record to another partition/subpartition might appear.
+--disable_cursor_protocol
 SELECT MIN(f_int1) INTO @cur_value1 FROM t1;
 SELECT MAX(f_int1) + 1 INTO @cur_value2 FROM t1;
+--enable_cursor_protocol
 UPDATE t1 SET f_int1 = @cur_value2
 WHERE  f_int1 = @cur_value1 AND f_charbig = '#SINGLE#';
 #      Check of preceding statement via Select
@@ -447,7 +459,9 @@ WHERE f_int1 = @cur_value2 AND f_charbig = '#SINGLE#';
 #      record to another partition/subpartition might appear.
 #      f_int1 gets the delicate value '-1'.
 SET @cur_value1= -1;
+--disable_cursor_protocol
 SELECT MAX(f_int1) INTO @cur_value2 FROM t1;
+--enable_cursor_protocol
 # Bug#15968: Partitions: crash when INSERT with f_int1 = -1 into PARTITION BY HASH(f_int1)
 UPDATE t1 SET f_int1 = @cur_value1
 WHERE  f_int1 = @cur_value2 AND f_charbig = '#SINGLE#';
@@ -461,7 +475,9 @@ WHERE f_int1 = @cur_value1 AND f_charbig = '#SINGLE#';
 --enable_query_log
 #
 # 4.5  Delete the record with the highest value of f_int1.
+--disable_cursor_protocol
 SELECT MAX(f_int1) INTO @cur_value FROM t1;
+--enable_cursor_protocol
 DELETE FROM t1 WHERE f_int1 = @cur_value AND f_charbig = '#SINGLE#';
 #      Check of preceding statements via Select
 if ($no_debug)
@@ -751,8 +767,10 @@ if ($no_debug)
 {
    --disable_query_log
 }
+--disable_cursor_protocol
 SELECT COUNT(f_int1) INTO @start_count FROM t1
 WHERE f_int1 BETWEEN @max_row_div4 AND @max_row_div2 + @max_row_div4;
+--enable_cursor_protocol
 --enable_query_log
 let $run= `SELECT @start_count <> 0`;
 if ($run)
@@ -770,7 +788,9 @@ if ($no_debug)
 {
    --disable_query_log
 }
+--disable_cursor_protocol
 SELECT @max_row_div2 + @max_row_div4 - @max_row_div4 + 1 INTO @exp_inserted_rows;
+--enable_cursor_protocol
 --enable_query_log
 # 7.1  Successful INSERT + COMMIT
 INSERT INTO t1 (f_int1, f_int2, f_char1, f_char2, f_charbig)
@@ -839,8 +859,10 @@ if ($no_debug)
 {
    --disable_query_log
 }
+--disable_cursor_protocol
 SELECT COUNT(*) INTO @my_count
 FROM t1 WHERE f_int1 BETWEEN @max_row_div4 AND @max_row_div2 + @max_row_div4;
+--enable_cursor_protocol
 SELECT '# check transactions-6 success: ' AS "",
        @my_count IN (0,@exp_inserted_rows) AS "";
 let $run= `SELECT @my_count = 0`;
@@ -872,7 +894,9 @@ COMMIT WORK;
 # 7.3  Failing INSERT (in mid of statement processing) + COMMIT
 SET @@session.sql_mode = 'traditional';
 # Number of records where a INSERT has to be tried
+--disable_cursor_protocol
 SELECT @max_row_div2 + @max_row_div4 - @max_row_div4 + 1 INTO @exp_inserted_rows;
+--enable_cursor_protocol
 #
 --disable_abort_on_error
 INSERT INTO t1 (f_int1, f_int2, f_char1, f_char2, f_charbig)
@@ -890,8 +914,10 @@ if ($no_debug)
 {
    --disable_query_log
 }
+--disable_cursor_protocol
 SELECT COUNT(*) INTO @my_count
 FROM t1 WHERE f_int1 BETWEEN @max_row_div4 AND @max_row_div2 + @max_row_div4;
+--enable_cursor_protocol
 SELECT '# check transactions-8 success: ' AS "",
        @my_count IN (@max_row_div2 - 1 - @max_row_div4 + 1,0) AS "";
 let $run= `SELECT @my_count = @max_row_div2 - 1 - @max_row_div4 + 1`;

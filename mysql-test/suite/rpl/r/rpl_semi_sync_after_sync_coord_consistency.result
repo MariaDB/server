@@ -1,0 +1,88 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set @old_dbug= @@global.debug_dbug;
+set global rpl_semi_sync_slave_enabled= 1;
+connection master;
+set @old_enabled= @@global.rpl_semi_sync_master_enabled;
+set @old_timeout= @@global.rpl_semi_sync_master_timeout;
+set @old_wait_point= @@global.rpl_semi_sync_master_wait_point;
+set global rpl_semi_sync_master_enabled= 1;
+set global rpl_semi_sync_master_timeout= 2000;
+set global rpl_semi_sync_master_wait_point= AFTER_SYNC;
+connection slave;
+include/start_slave.inc
+# Ensure slave connection is semi-simulate_delay_semisync_slave_reply
+connection master;
+connection slave;
+#
+# Initialize test data
+connection master;
+create table t1 (a int) engine=innodb;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.debug_dbug="+d,simulate_delay_semisync_slave_reply";
+include/start_slave.inc
+# Ensure connection is semi-sync
+connection master;
+connection slave;
+connection master;
+set @old_bgc_count= @@global.binlog_commit_wait_count;
+set @old_bgc_usec= @@global.binlog_commit_wait_usec;
+set @@global.binlog_commit_wait_count=1;
+set @@global.binlog_commit_wait_usec=100000;
+connection server_1;
+set debug_sync= "commit_after_release_LOCK_log SIGNAL ddl_binlogged WAIT_FOR ddl_cont";
+# T1 (DDL)
+create table t2 (a int);
+connect server_1_sync, localhost, root,,;
+connection server_1_sync;
+set debug_sync= "now WAIT_FOR ddl_binlogged";
+include/save_master_gtid.inc
+connection server_2;
+set debug_sync= "now WAIT_FOR io_thd_at_slave_reply";
+connection master;
+set debug_sync= "commit_before_get_LOCK_after_binlog_sync SIGNAL mdl_binlogged WAIT_FOR mdl_cont";
+# T2 (DML)
+insert into t1 values (100);;
+connection server_1_sync;
+set debug_sync= "now WAIT_FOR mdl_binlogged";
+# Both transactions binlogged and released LOCK_log, and are just before
+#   wait_after_sync()
+set debug_sync= "now SIGNAL ddl_cont";
+set debug_sync= "now SIGNAL mdl_cont";
+connection server_2;
+# slave_reply for DDL
+set debug_sync= "now SIGNAL io_thd_do_reply";
+# slave_reply for MDL
+set debug_sync= "now WAIT_FOR io_thd_at_slave_reply";
+set debug_sync= "now SIGNAL io_thd_do_reply";
+# Reaping MDL..
+connection master;
+# ..done
+# Reaping DDL..
+connection server_1;
+# ..done
+#
+# Cleanup
+connection slave;
+include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @old_enabled;
+set @@global.debug_dbug= @old_dbug;
+include/start_slave.inc
+connection master;
+set @@global.binlog_commit_wait_count= @old_bgc_count;
+set @@global.binlog_commit_wait_usec= @old_bgc_usec;
+set @@global.rpl_semi_sync_master_enabled= @old_enabled;
+set @@global.rpl_semi_sync_master_timeout= @old_timeout;
+set @@global.rpl_semi_sync_master_wait_point= @old_wait_point;
+drop table t1, t2;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_semi_sync_after_sync_coord_consistency.test

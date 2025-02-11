@@ -61,6 +61,34 @@ ROLLBACK;
 SELECT * FROM t1 ORDER BY a;
 a
 1
+SET @old_mode= @@SESSION.binlog_format;
+SET SESSION binlog_format= row;
+SET SESSION gtid_domain_id= 200;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION gtid_domain_id= 0;
+BEGIN;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t1 SELECT * FROM t2;
+COMMIT;
+SET SESSION gtid_domain_id= 201;
+SET SESSION gtid_domain_id= 0;
+DELETE FROM t1 WHERE a=200;
+SET SESSION gtid_domain_id= 202;
+DROP TEMPORARY TABLE t2;
+SET SESSION binlog_format= mixed;
+SET SESSION gtid_domain_id= 0;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+SET SESSION gtid_domain_id= 0;
+SET SESSION gtid_domain_id= 204;
+ERROR HY000: Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction
+SET SESSION binlog_format=statement;
+INSERT INTO t2 VALUES (2);
+SET SESSION gtid_domain_id= 205;
+ERROR HY000: Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction
+DROP TEMPORARY TABLE t2;
+SET SESSION gtid_domain_id= @old_domain;
+SET SESSION binlog_format= @old_mode;
 *** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
 connection slave;
 include/stop_slave.inc
@@ -84,16 +112,16 @@ ERROR 25000: You are not allowed to execute this command in a transaction
 ROLLBACK;
 SET GLOBAL gtid_strict_mode= 1;
 SET GLOBAL gtid_slave_pos = "0-1-1";
-ERROR HY000: Specified GTID 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-12. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+ERROR HY000: Specified GTID 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-18. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 SET GLOBAL gtid_slave_pos = "";
-ERROR HY000: Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-12. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+ERROR HY000: Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-18. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 SET GLOBAL gtid_strict_mode= 0;
 SET GLOBAL gtid_slave_pos = "0-1-1";
 Warnings:
-Warning	1947	Specified GTID 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-12. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+Warning	1947	Specified GTID 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-18. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 SET GLOBAL gtid_slave_pos = "";
 Warnings:
-Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-12. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-18. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 RESET MASTER;
 SET GLOBAL gtid_slave_pos = "0-1-1";
 START SLAVE;

@@ -104,11 +104,9 @@ static void inline MYSQL_SERVER_my_error(...) {}
 */
 extern ulonglong test_flags;
 extern ulong bytes_sent, bytes_received, net_big_packet_count;
-#ifdef HAVE_QUERY_CACHE
 #define USE_QUERY_CACHE
 extern void query_cache_insert(void *thd, const char *packet, size_t length,
                                unsigned pkt_nr);
-#endif // HAVE_QUERY_CACHE
 #define update_statistics(A) A
 extern my_bool thd_net_is_killed(THD *thd);
 /* Additional instrumentation hooks for the server */
@@ -713,7 +711,6 @@ net_real_write(NET *net,const uchar *packet, size_t len)
       {
         sql_print_warning("Could not write packet: fd: %lld  state: %d  "
                           "errno: %d  vio_errno: %d  length: %ld",
-                          MYF(ME_ERROR_LOG | ME_WARNING),
                           (longlong) vio_fd(net->vio), (int) net->vio->state,
                           vio_errno(net->vio), net->last_errno,
                           (ulong) (end-pos));

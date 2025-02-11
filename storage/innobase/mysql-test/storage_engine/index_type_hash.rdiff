@@ -1,5 +1,5 @@
---- suite/storage_engine/index_type_hash.result	2012-07-15 01:10:17.919128889 +0400
-+++ suite/storage_engine/index_type_hash.reject	2012-07-15 17:49:26.135915989 +0400
+--- suite/storage_engine/index_type_hash.result
++++ suite/storage_engine/index_type_hash.reject
 @@ -4,7 +4,7 @@
  ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  SHOW KEYS IN t1;

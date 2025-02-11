@@ -1,0 +1,27 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+let MYSQLD_DATADIR= `SELECT @@datadir`;
+
+SET GLOBAL INNODB_FILE_PER_TABLE= 0;
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+DROP TABLE t1;
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/shutdown_mysqld.inc
+
+--echo # Run the innochecksum to display undo log pages
+let $resultlog=$MYSQLTEST_VARDIR/tmp/result.log;
+let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/result.log;
+let SEARCH_ABORT = NOT FOUND;
+exec $INNOCHECKSUM -S $MYSQLD_DATADIR/ibdata1 > $resultlog;
+# Expected > 0 cached undo log pages, but can't guarantee it because
+# the writes of freed pages may be optimized while flushing
+let SEARCH_PATTERN= Undo page state: 0 active, [0-9]+ cached, [0-9]+ to_purge, [0-9]+ prepared, [0-9]+ other;
+--source include/search_pattern_in_file.inc
+
+--echo # Run the innochecksum with --skip-freed-pages
+exec $INNOCHECKSUM -S -r $MYSQLD_DATADIR/ibdata1 > $resultlog;
+let SEARCH_PATTERN= Undo page state: 0 active, 0 cached, 0 to_purge, 0 prepared, 0 other;
+--source include/search_pattern_in_file.inc
+--remove_file $resultlog
+--source include/start_mysqld.inc

@@ -3,6 +3,7 @@ option	opt
 condition_pushdown_for_derived	on
 condition_pushdown_for_subquery	on
 condition_pushdown_from_having	on
+cset_narrowing	on
 derived_merge	on
 derived_with_keys	on
 exists_to_in	on
@@ -34,7 +35,6 @@ subquery_cache	on
 table_elimination	on
 call sys.optimizer_switch_off();
 option	opt
-cset_narrowing	off
 index_merge_sort_intersection	off
 mrr	off
 mrr_cost_based	off

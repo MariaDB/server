@@ -287,3 +287,17 @@ test	t1	a	8	1
 drop table t1;
 set global userstat=@save_userstat;
 # End of 11.5 tests
+#
+# MDEV-34782 SIGSEGV in handler::update_global_table_stats in
+# close_thread_table()
+#
+CREATE TABLE t1 (a CHAR(1));
+HANDLER t1 OPEN;
+INSERT INTO t1 VALUES (1);
+HANDLER t1 READ NEXT;
+a
+1
+SET GLOBAL userstat=1;
+HANDLER t1 close;
+drop table t1;
+SET GLOBAL userstat=@save_userstat;

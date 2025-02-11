@@ -2,6 +2,10 @@
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 # Purge can cause deadlock in the test, requesting page's RW_X_LATCH for trx
 # ids reseting, after trx 2 acqured RW_S_LATCH and suspended in debug sync point
 # lock_trx_handle_wait_enter, waiting for upd_cont signal, which must be
@@ -34,6 +38,7 @@ SELECT * FROM t WHERE a = 20 FOR UPDATE;
 
 --connect(con_2,localhost,root,,)
 # RC is necessary to do semi-consistent read
+SET innodb_snapshot_isolation=OFF;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN; # trx 2
 # The first time it will be hit on trying to lock (20,20), the second hit

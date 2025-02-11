@@ -1,5 +1,5 @@
---- suite/storage_engine/cache_index.result	2012-07-15 00:22:19.822493731 +0400
-+++ suite/storage_engine/cache_index.reject	2012-07-15 17:47:18.321522834 +0400
+--- suite/storage_engine/cache_index.result
++++ suite/storage_engine/cache_index.reject
 @@ -12,31 +12,31 @@
  SET GLOBAL <CACHE_NAME>.key_buffer_size=128*1024;
  CACHE INDEX t1 INDEX (a), t2 IN <CACHE_NAME>;

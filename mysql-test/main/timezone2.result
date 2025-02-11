@@ -680,10 +680,10 @@ INSERT INTO t1 VALUES ('2001-01-01 10:20:30'),('2001-01-01 10:20:31');
 # Optimized (more than 24 hours before the DST fall back)
 #
 SET timestamp=@first_second_after_dst_fall_back-24*3600-1;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 1288393199	2010-10-30 02:59:59
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
@@ -692,34 +692,34 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 # Not optimized (24 hours before the DST fall back)
 #
 SET timestamp=@first_second_after_dst_fall_back-24*3600;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 1288393200	2010-10-30 03:00:00
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(localtimestamp())
 #
 # Not optimized (less than 24 hours after the DST fall back)
 #
 SET timestamp=@first_second_after_dst_fall_back+24*3600-1;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 1288565999	2010-11-01 01:59:59
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(localtimestamp())
 #
 # Optimized (24 hours after the DST fall back)
 #
 SET timestamp=@first_second_after_dst_fall_back+24*3600;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 1288566000	2010-11-01 02:00:00
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
@@ -737,10 +737,10 @@ INSERT INTO t1 VALUES ('2001-01-01 10:20:30'),('2001-01-01 10:20:31');
 # Optimized (more than 24 hours before the DST sprint forward)
 #
 SET timestamp=@first_second_after_dst_spring_forward-24*3600-1;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 1301093999	2011-03-26 01:59:59
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
@@ -749,34 +749,34 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 # Not optimized (24 hours before the DST sprint forward)
 #
 SET timestamp=@first_second_after_dst_spring_forward-24*3600;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 1301094000	2011-03-26 02:00:00
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(localtimestamp())
 #
 # Not optimized (less than 24 hours after the DST sprint forward)
 #
 SET timestamp=@first_second_after_dst_spring_forward+24*3600-1;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 1301266799	2011-03-28 02:59:59
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(localtimestamp())
 #
 # Optimized (24 hours after the DST sprint forward)
 #
 SET timestamp=@first_second_after_dst_spring_forward+24*3600;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 1301266800	2011-03-28 03:00:00
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
@@ -805,10 +805,10 @@ INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
 # Optimized (more than 24 hours before the leap second)
 #
 SET timestamp=@leap_second-24*3600-1;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 362707208	1981-06-30 03:59:59
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
@@ -817,37 +817,79 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 # Not optimized (24 hours before the leap second)
 #
 SET timestamp=@leap_second-24*3600;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 362707209	1981-06-30 04:00:00
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(localtimestamp())
 #
 # Not optimized (less than 24 hours after the leap second)
 #
 SET timestamp=@leap_second+24*3600-1;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 362880008	1981-07-02 03:59:58
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(current_timestamp())
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(localtimestamp())
 #
 # Not optimized (24 hours after the leap second)
 #
 SET timestamp=@leap_second+24*3600;
-SELECT UNIX_TIMESTAMP(), NOW();
-UNIX_TIMESTAMP()	NOW()
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+UNIX_TIMESTAMP()	LOCALTIMESTAMP()
 362880009	1981-07-02 03:59:59
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=now();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'1981-07-02 03:59:59'
 DROP TABLE t1;
 SET time_zone=DEFAULT;
+#
+# End of 11.3 tests
+#
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-15751 CURRENT_TIMESTAMP should return a TIMESTAMP [WITH TIME ZONE?]
+#
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a TIMESTAMP);
+SET timestamp=1288477526 /*summer time*/;
+INSERT INTO t1 VALUES (CURRENT_TIMESTAMP()), (COALESCE(CURRENT_TIMESTAMP()));
+SET timestamp=1288477526+3600 /*winter time*/;
+INSERT INTO t1 VALUES (CURRENT_TIMESTAMP()), (COALESCE(CURRENT_TIMESTAMP()));
+# The two INSERTs produce equal "a" but different UNIX_TIMESTAMP(a)
+SELECT a, UNIX_TIMESTAMP(a) FROM t1;
+a	UNIX_TIMESTAMP(a)
+2010-10-31 02:25:26	1288477526
+2010-10-31 02:25:26	1288477526
+2010-10-31 02:25:26	1288481126
+2010-10-31 02:25:26	1288481126
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a TIMESTAMP);
+SET timestamp=1288477526 /*summer time*/;
+INSERT INTO t1 VALUES (LOCALTIMESTAMP()), (COALESCE(LOCALTIMESTAMP()));
+SET timestamp=1288477526+3600 /*winter time*/;
+INSERT INTO t1 VALUES (LOCALTIMESTAMP()), (COALESCE(LOCALTIMESTAMP()));
+# The two INSERTs produce equal "a" and equal (summer) UNIX_TIMESTAMP(a)
+SELECT a, UNIX_TIMESTAMP(a) FROM t1;
+a	UNIX_TIMESTAMP(a)
+2010-10-31 02:25:26	1288477526
+2010-10-31 02:25:26	1288477526
+2010-10-31 02:25:26	1288477526
+2010-10-31 02:25:26	1288477526
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 11.7 tests
+#

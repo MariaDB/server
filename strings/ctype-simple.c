@@ -73,53 +73,70 @@ size_t my_strnxfrmlen_simple(CHARSET_INFO *cs, size_t len)
 */
 
 
-size_t my_strnxfrm_simple_internal(CHARSET_INFO * cs,
-                                   uchar *dst, size_t dstlen, uint *nweights,
-                                   const uchar *src, size_t srclen)
+my_strnxfrm_ret_t
+my_strnxfrm_simple_internal(CHARSET_INFO * cs,
+                            uchar *dst, size_t dstlen, uint *nweights,
+                            const uchar *src, size_t srclen)
 {
   const uchar *map= cs->sort_order;
+  const uchar *src0= src;
   uchar *d0= dst;
   uint frmlen;
+  uint warnings= 0;
   if ((frmlen= (uint)MY_MIN(dstlen, *nweights)) > srclen)
     frmlen= (uint)srclen;
+  if (frmlen < srclen)
+    warnings= MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR;
+  *nweights-= frmlen;
   if (dst != src)
   {
     const uchar *end;
     for (end= src + frmlen; src < end;)
       *dst++= map[*src++];
+    return my_strnxfrm_ret_construct(dst - d0, src - src0, warnings);
   }
   else
   {
     const uchar *end;
     for (end= dst + frmlen; dst < end; dst++)
       *dst= map[(uchar) *dst];
+    return my_strnxfrm_ret_construct(dst - d0, dst - d0, warnings);
   }
-  *nweights-= frmlen;
-  return dst - d0;
+  return my_strnxfrm_ret_construct(0,0,0); /*Make compiler happy */
 }
 
 
-size_t my_strnxfrm_simple(CHARSET_INFO * cs,
-                          uchar *dst, size_t dstlen, uint nweights,
-                          const uchar *src, size_t srclen, uint flags)
+my_strnxfrm_ret_t my_strnxfrm_simple(CHARSET_INFO * cs,
+                                     uchar *dst, size_t dstlen, uint nweights,
+                                     const uchar *src, size_t srclen,
+                                     uint flags)
 {
-  uchar *d0= dst;
-  dst= d0 + my_strnxfrm_simple_internal(cs, dst, dstlen, &nweights,
-                                        src, srclen);
-  return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, d0 + dstlen,
-                                         nweights, flags, 0);
+  my_strnxfrm_ret_t rc= my_strnxfrm_simple_internal(cs, dst, dstlen, &nweights,
+                                                    src, srclen);
+  my_strnxfrm_ret_t rcpad= my_strxfrm_pad_desc_and_reverse(cs, dst,
+                                                    dst + rc.m_result_length,
+                                                    dst + dstlen,
+                                                    nweights, flags, 0);
+  return my_strnxfrm_ret_construct(rcpad.m_result_length,
+                                   rc.m_source_length_used,
+                                   rc.m_warnings | rcpad.m_warnings);
 }
 
 
-size_t my_strnxfrm_simple_nopad(CHARSET_INFO * cs,
-                                uchar *dst, size_t dstlen, uint nweights,
-                                const uchar *src, size_t srclen, uint flags)
+my_strnxfrm_ret_t
+my_strnxfrm_simple_nopad(CHARSET_INFO * cs,
+                         uchar *dst, size_t dstlen, uint nweights,
+                         const uchar *src, size_t srclen, uint flags)
 {
-  uchar *d0= dst;
-  dst= d0 + my_strnxfrm_simple_internal(cs, dst, dstlen, &nweights,
-                                        src, srclen);
-  return my_strxfrm_pad_desc_and_reverse_nopad(cs, d0, dst, d0 + dstlen,
-                                               nweights, flags, 0);
+  my_strnxfrm_ret_t rc= my_strnxfrm_simple_internal(cs, dst, dstlen, &nweights,
+                                                    src, srclen);
+  my_strnxfrm_ret_t rcpad= my_strxfrm_pad_desc_and_reverse_nopad(cs, dst,
+                                                    dst + rc.m_result_length,
+                                                    dst + dstlen,
+                                                    nweights, flags, 0);
+  return my_strnxfrm_ret_construct(rcpad.m_result_length,
+                                   rc.m_source_length_used,
+                                   rc.m_warnings | rcpad.m_warnings);
 }
 
 
@@ -777,7 +794,10 @@ ulonglong my_strntoull_8bit(CHARSET_INFO *cs,
     return (~(ulonglong) 0);
   }
 
-  return (negative ? -((longlong) i) : (longlong) i);
+  /* Avoid undefinite behavior - negation of LONGLONG_MIN */
+  return negative && (longlong) i != LONGLONG_MIN ?
+        -((longlong) i) :
+         (longlong) i;
 
 noconv:
   err[0]= EDOM;
@@ -2089,16 +2109,23 @@ my_strxfrm_desc_and_reverse(uchar *str, uchar *strend,
 }
 
 
-size_t
+my_strnxfrm_ret_t
 my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
                                 uchar *str, uchar *frmend, uchar *strend,
                                 uint nweights, uint flags, uint level)
 {
-  if (nweights && frmend < strend && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  uint warnings= 0;
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
   {
-    uint fill_length= MY_MIN((uint) (strend - frmend), nweights * cs->mbminlen);
-    my_ci_fill(cs, (char*) frmend, fill_length, cs->pad_char);
-    frmend+= fill_length;
+    uint fill_length_expected= nweights * cs->mbminlen; 
+    uint fill_length= MY_MIN((uint) (strend - frmend), fill_length_expected);
+    if (fill_length)
+    {
+      my_ci_fill(cs, (char*) frmend, fill_length, cs->pad_char);
+      frmend+= fill_length;
+    }
+    if (fill_length < fill_length_expected)
+      warnings= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
   }
   my_strxfrm_desc_and_reverse(str, frmend, flags, level);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && frmend < strend)
@@ -2107,20 +2134,27 @@ my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
     my_ci_fill(cs, (char*) frmend, fill_length, cs->pad_char);
     frmend= strend;
   }
-  return frmend - str;
+  return my_strnxfrm_ret_construct(frmend - str, 0, warnings);
 }
 
 
-size_t
+my_strnxfrm_ret_t
 my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
                                       uchar *str, uchar *frmend, uchar *strend,
                                       uint nweights, uint flags, uint level)
 {
-  if (nweights && frmend < strend && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  uint warnings= 0;
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
   {
-    uint fill_length= MY_MIN((uint) (strend - frmend), nweights * cs->mbminlen);
-    memset(frmend, 0x00, fill_length);
-    frmend+= fill_length;
+    uint fill_length_expected= nweights * cs->mbminlen;
+    uint fill_length= MY_MIN((uint) (strend - frmend), fill_length_expected);
+    if (fill_length)
+    {
+      memset(frmend, 0x00, fill_length);
+      frmend+= fill_length;
+    }
+    if (fill_length < fill_length_expected)
+      warnings= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
   }
   my_strxfrm_desc_and_reverse(str, frmend, flags, level);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && frmend < strend)
@@ -2129,7 +2163,7 @@ my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
     memset(frmend, 0x00, fill_length);
     frmend= strend;
   }
-  return frmend - str;
+  return my_strnxfrm_ret_construct(frmend - str, 0, warnings);
 }
 
 

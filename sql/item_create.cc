@@ -36,22 +36,20 @@
 #include "sp.h"
 #include "sql_time.h"
 #include "sql_type_geom.h"
+#include "item_vectorfunc.h"
 #include <mysql/plugin_function.h>
 
 
-extern "C" uchar*
-get_native_fct_hash_key(const uchar *buff, size_t *length,
-                        my_bool /* unused */)
+extern "C" const uchar *get_native_fct_hash_key(const void *buff,
+                                                size_t *length, my_bool)
 {
-  Native_func_registry *func= (Native_func_registry*) buff;
+  auto func= static_cast<const Native_func_registry *>(buff);
   *length= func->name.length;
-  return (uchar*) func->name.str;
+  return reinterpret_cast<const uchar *>(func->name.str);
 }
 
 
-#ifdef HAVE_SPATIAL
 extern Native_func_registry_array native_func_registry_array_geom;
-#endif
 
 
 /*
@@ -868,15 +866,26 @@ protected:
 class Create_func_format_pico_time : public Create_func_arg1
 {
 public:
-    Item *create_1_arg(THD *thd, Item *arg1) override;
+  virtual Item *create_1_arg(THD *thd, Item *arg1) override;
 
-    static Create_func_format_pico_time s_singleton;
+  static Create_func_format_pico_time s_singleton;
 
 protected:
-    Create_func_format_pico_time() = default;
-    virtual ~Create_func_format_pico_time() = default;
+  Create_func_format_pico_time() = default;
+  virtual ~Create_func_format_pico_time() = default;
 };
 
+class Create_func_format_bytes : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1) override;
+
+  static Create_func_format_bytes s_singleton;
+
+protected:
+  Create_func_format_bytes() = default;
+  virtual ~Create_func_format_bytes() = default;
+};
 
 class Create_func_format : public Create_native_func
 {
@@ -4003,6 +4012,15 @@ Create_func_format_pico_time::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_format_bytes Create_func_format_bytes::s_singleton;
+
+Item*
+Create_func_format_bytes::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_format_bytes(thd, arg1);
+}
+
+
 Create_func_format Create_func_format::s_singleton;
 
 Item*
@@ -6235,6 +6253,89 @@ Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
   return func;
 }
 
+
+class Create_func_vec_distance_euclidean: public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  { return new (thd->mem_root)
+      Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::EUCLIDEAN); }
+
+  static Create_func_vec_distance_euclidean s_singleton;
+
+protected:
+  Create_func_vec_distance_euclidean() = default;
+  virtual ~Create_func_vec_distance_euclidean() = default;
+};
+
+Create_func_vec_distance_euclidean Create_func_vec_distance_euclidean::s_singleton;
+
+
+class Create_func_vec_distance_cosine: public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  { return new (thd->mem_root)
+      Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::COSINE); }
+
+  static Create_func_vec_distance_cosine s_singleton;
+
+protected:
+  Create_func_vec_distance_cosine() = default;
+  virtual ~Create_func_vec_distance_cosine() = default;
+};
+
+Create_func_vec_distance_cosine Create_func_vec_distance_cosine::s_singleton;
+
+class Create_func_vec_distance: public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  { return new (thd->mem_root)
+      Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::AUTO); }
+
+  static Create_func_vec_distance s_singleton;
+
+protected:
+  Create_func_vec_distance() = default;
+  virtual ~Create_func_vec_distance() = default;
+};
+
+Create_func_vec_distance Create_func_vec_distance::s_singleton;
+
+class Create_func_vec_totext: public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  { return new (thd->mem_root) Item_func_vec_totext(thd, arg1); }
+
+  static Create_func_vec_totext s_singleton;
+
+protected:
+  Create_func_vec_totext() = default;
+  virtual ~Create_func_vec_totext() = default;
+};
+
+
+Create_func_vec_totext Create_func_vec_totext::s_singleton;
+
+
+class Create_func_vec_fromtext: public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  { return new (thd->mem_root) Item_func_vec_fromtext(thd, arg1); }
+
+  static Create_func_vec_fromtext s_singleton;
+
+protected:
+  Create_func_vec_fromtext() = default;
+  virtual ~Create_func_vec_fromtext() = default;
+};
+
+Create_func_vec_fromtext Create_func_vec_fromtext::s_singleton;
+
+
 #define BUILDER(F) & F::s_singleton
 
 /*
@@ -6310,6 +6411,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("FIND_IN_SET") }, BUILDER(Create_func_find_in_set)},
   { { STRING_WITH_LEN("FLOOR") }, BUILDER(Create_func_floor)},
   { { STRING_WITH_LEN("FORMAT_PICO_TIME") }, BUILDER(Create_func_format_pico_time)},
+  { { STRING_WITH_LEN("FORMAT_BYTES") }, BUILDER(Create_func_format_bytes)},
   { { STRING_WITH_LEN("FORMAT") }, BUILDER(Create_func_format)},
   { { STRING_WITH_LEN("FOUND_ROWS") }, BUILDER(Create_func_found_rows)},
   { { STRING_WITH_LEN("FROM_BASE64") }, BUILDER(Create_func_from_base64)},
@@ -6461,6 +6563,11 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("UPDATEXML") }, BUILDER(Create_func_xml_update)},
   { { STRING_WITH_LEN("UPPER") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UUID_SHORT") }, BUILDER(Create_func_uuid_short)},
+  { { STRING_WITH_LEN("VEC_DISTANCE_EUCLIDEAN") }, BUILDER(Create_func_vec_distance_euclidean)},
+  { { STRING_WITH_LEN("VEC_DISTANCE_COSINE") }, BUILDER(Create_func_vec_distance_cosine)},
+  { { STRING_WITH_LEN("VEC_DISTANCE") }, BUILDER(Create_func_vec_distance)},
+  { { STRING_WITH_LEN("VEC_FROMTEXT") }, BUILDER(Create_func_vec_fromtext)},
+  { { STRING_WITH_LEN("VEC_TOTEXT") }, BUILDER(Create_func_vec_totext)},
   { { STRING_WITH_LEN("VERSION") }, BUILDER(Create_func_version)},
   { { STRING_WITH_LEN("WEEK") }, BUILDER(Create_func_week)},
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},
@@ -6509,8 +6616,7 @@ bool Native_functions_hash::init(size_t count)
 
   if (my_hash_init(key_memory_native_functions, this,
                    Lex_ident_routine::charset_info(),
-                   (ulong) count, 0, 0, (my_hash_get_key)
-                   get_native_fct_hash_key, NULL, MYF(0)))
+                   (ulong) count, 0, 0, get_native_fct_hash_key, NULL, MYF(0)))
     DBUG_RETURN(true);
 
   DBUG_RETURN(false);
@@ -6611,20 +6717,16 @@ Native_functions_hash::find(THD *thd, const LEX_CSTRING &name) const
 int item_create_init()
 {
   size_t count= native_func_registry_array.count();
-#ifdef HAVE_SPATIAL
   count+= native_func_registry_array_geom.count();
-#endif
 
   if (native_functions_hash.init(count) ||
       native_functions_hash.append(native_func_registry_array.elements(),
                                    native_func_registry_array.count()))
     return true;
 
-#ifdef HAVE_SPATIAL
   if (native_functions_hash.append(native_func_registry_array_geom.elements(),
                                    native_func_registry_array_geom.count()))
     return true;
-#endif
 
   count+= oracle_func_registry_array.count();
 
@@ -6633,11 +6735,9 @@ int item_create_init()
                                           native_func_registry_array.count()))
     return true;
 
-#ifdef HAVE_SPATIAL
   if (native_functions_hash_oracle.append(native_func_registry_array_geom.elements(),
                                           native_func_registry_array_geom.count()))
     return true;
-#endif
 
   return 
     native_functions_hash_oracle.replace(oracle_func_registry_array.elements(),

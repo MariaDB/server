@@ -22,13 +22,13 @@ Warnings:
 Warning	1292	Truncated incorrect aria_sort_buffer_size value: '10'
 select @@global.aria_sort_buffer_size;
 @@global.aria_sort_buffer_size
-16376
+16352
 set session aria_sort_buffer_size=10;
 Warnings:
 Warning	1292	Truncated incorrect aria_sort_buffer_size value: '10'
 select @@session.aria_sort_buffer_size;
 @@session.aria_sort_buffer_size
-16376
+16352
 set global aria_sort_buffer_size=1.1;
 ERROR 42000: Incorrect argument type to variable 'aria_sort_buffer_size'
 set session aria_sort_buffer_size=1e1;
@@ -40,7 +40,7 @@ Warnings:
 Warning	1292	Truncated incorrect aria_sort_buffer_size value: '0'
 select @@global.aria_sort_buffer_size;
 @@global.aria_sort_buffer_size
-16376
+16352
 set session aria_sort_buffer_size=cast(-1 as unsigned int);
 select @@session.aria_sort_buffer_size;
 @@session.aria_sort_buffer_size

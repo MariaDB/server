@@ -983,6 +983,7 @@ EXPLAIN SELECT a, MAX(b) FROM t2 WHERE a IN (10,100) GROUP BY a;
 
 # view protocol will cause changed table counters
 --disable_view_protocol
+--disable_cursor_protocol
 --disable_ps2_protocol
 FLUSH status;
 SELECT a, MAX(b) FROM t1_part WHERE a IN (10, 100) GROUP BY a;
@@ -992,7 +993,7 @@ FLUSH status;
 SELECT a, MAX(b) FROM t2 WHERE a IN (10, 100) GROUP BY a;
 SHOW status LIKE 'handler_read%';
 --enable_ps2_protocol
-
+--enable_cursor_protocol
 --enable_view_protocol
 insert into t2 select 100,seq from seq_1_to_100;
 EXPLAIN SELECT a, MAX(b) FROM t2 WHERE a IN (10,100) GROUP BY a;

@@ -1,0 +1,12 @@
+--source include/have_big5.inc
+
+SET NAMES utf8mb4;
+
+--source strnxfrm_sp_create.inc
+
+CREATE TABLE t1 (str TEXT CHARACTER SET big5 COLLATE big5_chinese_ci);
+CALL populate_t1('big5');
+CALL test_strnxfrm(10,12);
+DROP TABLE t1;
+
+--source strnxfrm_sp_drop.inc

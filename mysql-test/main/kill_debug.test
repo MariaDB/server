@@ -313,7 +313,9 @@ connection default;
 set debug_sync='now WAIT_FOR go0';
 set debug_sync='found_killee SIGNAL go1 WAIT_FOR go2';
 evalp kill $id;
+--disable_cursor_protocol
 select variable_value into @threads_cached from information_schema.global_status where variable_name='threads_cached';
+--enable_cursor_protocol
 set debug_sync='now SIGNAL go3';
 if (`select @@thread_handling != 'pool-of-threads'`) {
   # cannot check that a thread was added to thread pool on windows, but the test works there w/o the wait

@@ -673,25 +673,40 @@ static int my_strnncollsp_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_latin1_de(CHARSET_INFO *cs,
                       uchar *dst, size_t dstlen, uint nweights,
                       const uchar* src, size_t srclen, uint flags)
 {
+  my_strnxfrm_ret_t rc;
   uchar *de= dst + dstlen;
+  const uchar *src0= src;
   const uchar *se= src + srclen;
   uchar *d0= dst;
+  uint warnings= 0;
   for ( ; src < se && dst < de && nweights; src++, nweights--)
   {
     uchar chr= combo1map[*src];
     *dst++= chr;
-    if ((chr= combo2map[*src]) && dst < de && nweights > 1)
+    if ((chr= combo2map[*src]))
     {
-      *dst++= chr;
-      nweights--;
+      if (nweights > 1)
+      {
+        if (dst < de)
+        {
+          *dst++= chr;
+          nweights--;
+        }
+        else
+          warnings= MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR;
+      }
     }
   }
-  return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
+  rc= my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de,
+                                      nweights, flags, 0);
+  return my_strnxfrm_ret_construct(rc.m_result_length, src - src0,
+           rc.m_warnings | warnings |
+           (src < se ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0));
 }
 
 

@@ -228,9 +228,6 @@ extern ulint		srv_buf_pool_size;
 /** Requested buffer pool chunk size */
 extern size_t		srv_buf_pool_chunk_unit;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
-extern ulong	srv_LRU_scan_depth;
-/** Whether or not to flush neighbors of a block */
-extern ulong	srv_flush_neighbors;
 /** Previously requested size */
 extern ulint	srv_buf_pool_old_size;
 /** Current size as scaling factor for the other components */
@@ -549,6 +546,15 @@ void srv_monitor_task(void*);
 /** The periodic master task controlling the server. */
 void srv_master_callback(void*);
 
+
+/**
+ Fetches and executes tasks from the purge work queue,
+ until this queue is empty.
+ This is main part of purge worker task, but also
+ executed in coordinator.
+ @note needs current_thd to be set beforehand.
+*/
+void srv_purge_worker_task_low();
 
 } /* extern "C" */
 

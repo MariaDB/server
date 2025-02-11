@@ -176,9 +176,11 @@ SELECT 1 AS my_col FROM information_schema.tables
 WHERE table_name = 't1_third';
 #
 # SELECT INTO USER VARIABLE
+--disable_cursor_protocol
 SELECT table_name,table_schema INTO @table_name,@table_schema
 FROM information_schema.tables
 WHERE table_schema = 'db_datadict' ORDER BY table_name LIMIT 1;
+--enable_cursor_protocol
 SELECT @table_name,@table_schema;
 #
 # SELECT INTO OUTFILE
@@ -186,6 +188,7 @@ let $OUTFILE = $MYSQLTEST_VARDIR/tmp/datadict.out;
 --error 0,1
 remove_file $OUTFILE;
 --replace_result $OUTFILE <OUTFILE>
+--disable_cursor_protocol
 --disable_ps2_protocol
 eval SELECT table_name,table_schema
 INTO OUTFILE '$OUTFILE'
@@ -194,6 +197,7 @@ LINES TERMINATED BY '\n'
 FROM information_schema.tables
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
 --enable_ps2_protocol
+--enable_cursor_protocol
 cat_file $OUTFILE;
 remove_file $OUTFILE;
 #

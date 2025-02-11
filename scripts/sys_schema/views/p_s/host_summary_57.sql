@@ -57,8 +57,8 @@ SELECT IF(accounts.host IS NULL, 'background', accounts.host) AS host,
        SUM(accounts.current_connections) AS current_connections,
        SUM(accounts.total_connections) AS total_connections,
        COUNT(DISTINCT user) AS unique_users,
-       sys.format_bytes(SUM(mem.current_allocated)) AS current_memory,
-       sys.format_bytes(SUM(mem.total_allocated)) AS total_memory_allocated
+       format_bytes(SUM(mem.current_allocated)) AS current_memory,
+       format_bytes(SUM(mem.total_allocated)) AS total_memory_allocated
   FROM performance_schema.accounts
   JOIN sys.x$host_summary_by_statement_latency AS stmt ON accounts.host = stmt.host
   JOIN sys.x$host_summary_by_file_io AS io ON accounts.host = io.host

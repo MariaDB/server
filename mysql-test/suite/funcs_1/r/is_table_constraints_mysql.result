@@ -30,6 +30,7 @@ def	mysql	PRIMARY	mysql	proc	PRIMARY KEY
 def	mysql	PRIMARY	mysql	procs_priv	PRIMARY KEY
 def	mysql	PRIMARY	mysql	proxies_priv	PRIMARY KEY
 def	mysql	Host	mysql	roles_mapping	UNIQUE
+def	mysql	Options	mysql	servers	CHECK
 def	mysql	PRIMARY	mysql	servers	PRIMARY KEY
 def	mysql	PRIMARY	mysql	tables_priv	PRIMARY KEY
 def	mysql	PRIMARY	mysql	table_stats	PRIMARY KEY

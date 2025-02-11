@@ -101,10 +101,6 @@
 	Author  Olivier Bertrand
 	*/
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
 #include <my_global.h>
@@ -305,11 +301,7 @@ const char *xtrace_names[] =
 	"QUERY", "STMT", "HANDLER", "BLOCK", "MONGO", NullS
 };
 
-TYPELIB xtrace_typelib =
-{
-	array_elements(xtrace_names) - 1, "xtrace_typelib",
-	xtrace_names, NULL
-};
+TYPELIB xtrace_typelib = CREATE_TYPELIB_FOR(xtrace_names);
 
 static MYSQL_THDVAR_SET(
 	xtrace,                    // name
@@ -343,11 +335,7 @@ const char *usetemp_names[]=
   "NO", "AUTO", "YES", "FORCE", "TEST", NullS
 };
 
-TYPELIB usetemp_typelib=
-{
-  array_elements(usetemp_names) - 1, "usetemp_typelib",
-  usetemp_names, NULL
-};
+TYPELIB usetemp_typelib= CREATE_TYPELIB_FOR(usetemp_names);
 
 static MYSQL_THDVAR_ENUM(
   use_tempfile,                    // name
@@ -390,11 +378,7 @@ const char *xconv_names[]=
   "NO", "YES", "FORCE", "SKIP", NullS
 };
 
-TYPELIB xconv_typelib=
-{
-  array_elements(xconv_names) - 1, "xconv_typelib",
-  xconv_names, NULL
-};
+TYPELIB xconv_typelib= CREATE_TYPELIB_FOR(xconv_names);
 
 static MYSQL_THDVAR_ENUM(
   type_conv,                       // name
@@ -469,11 +453,7 @@ const char *language_names[]=
   "default", "english", "french", NullS
 };
 
-TYPELIB language_typelib=
-{
-  array_elements(language_names) - 1, "language_typelib",
-  language_names, NULL
-};
+TYPELIB language_typelib= CREATE_TYPELIB_FOR(language_names);
 
 static MYSQL_THDVAR_ENUM(
   msg_lang,                        // name
@@ -6474,6 +6454,15 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
+
+  if (table_arg->versioned())
+  {
+    /* Due to microseconds not supported by CONNECT (MDEV-15967) system versioning
+       cannot work as expected (MDEV-15968, MDEV-28288) */
+    my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CONNECT storage engine");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
   /*
     This assignment fixes test failures if some
     "ALTER TABLE t1 ADD KEY(a)" query exits on ER_ACCESS_DENIED_ERROR

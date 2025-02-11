@@ -92,6 +92,25 @@ static void test_ssux_lock()
       ssux.wr_u_downgrade();
       ssux.u_unlock();
     }
+
+    for (auto j= M_ROUNDS; j--; )
+    {
+      ssux.rd_lock();
+      assert(!critical);
+      if (ssux.rd_u_upgrade_try())
+      {
+        assert(!critical);
+        ssux.rd_unlock();
+        ssux.u_wr_upgrade();
+        assert(!critical);
+        critical= true;
+        critical= false;
+        ssux.wr_u_downgrade();
+        ssux.u_rd_downgrade();
+      }
+      assert(!critical);
+      ssux.rd_unlock();
+    }
   }
 }
 
@@ -129,6 +148,14 @@ static void test_sux_lock()
       critical= false;
       sux.x_u_downgrade();
       sux.u_unlock();
+      sux.s_lock();
+      std::ignore= sux.s_x_upgrade();
+      assert(!critical);
+      sux.x_lock();
+      critical= true;
+      sux.x_unlock();
+      critical= false;
+      sux.x_unlock();
     }
   }
 }
@@ -182,4 +209,7 @@ int main(int argc __attribute__((unused)), char **argv)
 
   ok(true, "sux_lock");
   sux.free();
+
+  my_end(MY_CHECK_ERROR);
+  return exit_status();
 }

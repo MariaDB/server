@@ -23,10 +23,6 @@
   This file implements classes defined in field.h
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_select.h"
@@ -1062,8 +1058,8 @@ CPP_UNNAMED_NS_END
   @brief
     Create a fixed size sort key part
 
-  @param  buff           buffer where values are written
-  @param  length         fixed size of the sort column
+  @param  buff             buffer where values are written
+  @param  length           fixed size of the sort column
 */
 
 void Field::make_sort_key_part(uchar *buff,uint length)
@@ -1133,6 +1129,20 @@ Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
   StringBuffer<LONGLONG_BUFFER_SIZE+1> buf;
   val_str(&buf, &buf);
   return to + sort_field->pack_sort_string(to, &buf, field_charset());
+}
+
+
+bool Field_longstr::val_bool()
+{
+  DBUG_ASSERT(marked_for_read());
+  THD *thd= get_thd();
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> str;
+  val_str(&str, &str);
+  double res= Converter_strntod_with_warn(thd, Warn_filter(thd),
+                                          "BOOLEAN",
+                                          charset(),
+                                          str.ptr(), str.length()).result();
+  return res != 0.0;
 }
 
 
@@ -1411,7 +1421,8 @@ int Field::store_hex_hybrid(const char *str, size_t length)
     goto warn;
   }
   nr= (ulonglong) longlong_from_hex_hybrid(str, length);
-  if ((length == 8) && !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
+  if ((length == 8) && cmp_type()== INT_RESULT &&
+      !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
   {
     nr= LONGLONG_MAX;
     goto warn;
@@ -2717,9 +2728,9 @@ void Field_null::sql_type(String &res) const
 bool Field_null::is_equal(const Column_definition &new_field) const
 {
   DBUG_ASSERT(!compression_method());
-  return new_field.type_handler() == type_handler() &&
-         new_field.charset == field_charset() &&
-         new_field.length == max_display_length();
+  return (new_field.type_handler() == type_handler() &&
+          !compare_collations(new_field.charset, field_charset()) &&
+          new_field.length == max_display_length());
 }
 
 
@@ -2730,6 +2741,52 @@ bool Field_null::is_equal(const Column_definition &new_field) const
 Field_row::~Field_row()
 {
   delete m_table;
+}
+
+
+/*
+  Create a virtual table with Fields for a ROW members
+  from an explicit structure.
+*/
+bool Field_row::row_create_fields(THD *thd, List<Spvar_definition> *list)
+{
+  DBUG_ASSERT(!m_table);
+  return !(m_table= create_virtual_tmp_table(thd, *list));
+}
+
+
+/*
+  Create a virtual table with Fields for a ROW members
+  from an explicit or an anchored definition.
+  It covers the following scenarios:
+  - ROW(a INT, b VARCHAR(32)) - explicit
+  - ROW TYPE OF test.t2       - anchored table data type
+  Note, in case of a `ROW TYPE OF cursor` definition the
+  virtual table is not created (it's done later).
+*/
+bool Field_row::row_create_fields(THD *thd, const Spvar_definition &def)
+{
+  if (def.is_table_rowtype_ref()) // e.g. ROW TYPE OF test.t1
+  {
+    Row_definition_list defs;
+    return def.table_rowtype_ref()->resolve_table_rowtype_ref(thd, defs) ||
+           row_create_fields(thd, &defs);
+  }
+
+  if (def.is_cursor_rowtype_ref()) // e.g. ROW TYPE OF cursor
+  {
+    /*
+      The structure is resolved later,
+      in sp_instr_cursor_copy_struct::exec_core()
+    */
+    return false;
+  }
+
+  if (def.is_row()) // e.g. ROW(a INT, b VARCHAR(32))
+    return row_create_fields(thd, def.row_field_definitions());
+
+  DBUG_ASSERT(0); // Unknown ROW declaration style
+  return true;
 }
 
 
@@ -2768,6 +2825,38 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
 
   src->bring_value();
   DBUG_RETURN(m_table->sp_set_all_fields_from_item(thd, src));
+}
+
+
+uint Field_row::cols() const
+{
+  // The table with ROW members must be already instantiated
+  DBUG_ASSERT(m_table);
+  return m_table->s->fields;
+}
+
+
+void Field_row::sql_type(String &res) const
+{
+  res.set_ascii(STRING_WITH_LEN("row"));
+}
+
+
+void Field_row::sql_type_for_sp_returns(String &res) const
+{
+  res.set_ascii(STRING_WITH_LEN("row("));
+  for (uint i= 0; i < m_table->s->fields; i++)
+  {
+    if (i > 0)
+      res.append(',');
+    Field *field= m_table->field[i];
+    res.append(field->field_name);
+    res.append(' ');
+    StringBuffer<64> col;
+    field->sql_type_for_sp_returns(col);
+    res.append(col.to_lex_cstring());
+  }
+  res.append(')');
 }
 
 
@@ -4784,16 +4873,12 @@ int Field_float::store(longlong nr, bool unsigned_val)
 double Field_float::val_real(void)
 {
   DBUG_ASSERT(marked_for_read());
-  float j;
-  float4get(j,ptr);
-  return ((double) j);
+  return ((double) get_float(ptr));
 }
 
 longlong Field_float::val_int(void)
 {
-  float j;
-  float4get(j,ptr);
-  return Converter_double_to_longlong(j, false).result();
+  return Converter_double_to_longlong(get_float(ptr), false).result();
 }
 
 
@@ -7489,10 +7574,10 @@ int Field_str::store(double nr)
 bool Field_string::is_equal(const Column_definition &new_field) const
 {
   DBUG_ASSERT(!compression_method());
-  return new_field.type_handler() == type_handler() &&
-         new_field.char_length == char_length() &&
-         new_field.charset == field_charset() &&
-         new_field.length == max_display_length();
+  return (new_field.type_handler() == type_handler() &&
+          new_field.char_length == char_length() &&
+          !compare_collations(new_field.charset, field_charset()) &&
+          new_field.length == max_display_length());
 }
 
 
@@ -7513,11 +7598,11 @@ Data_type_compatibility
 Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
 {
-  return !cmp_is_done_using_type_handler_of_this(cond, item) ?
-         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
-         charset() != cond->compare_collation() ?
-         Data_type_compatibility::INCOMPATIBLE_COLLATION :
-         Data_type_compatibility::OK;
+  return (!cmp_is_done_using_type_handler_of_this(cond, item) ?
+          Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
+          compare_collations(charset(), cond->compare_collation()) ?
+          Data_type_compatibility::INCOMPATIBLE_COLLATION :
+          Data_type_compatibility::OK);
 }
 
 
@@ -7525,13 +7610,13 @@ Data_type_compatibility
 Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                                      const Item *item) const
 {
-  return !cmp_is_done_using_type_handler_of_this(cond, item) ?
-         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
-         (charset() != cond->compare_collation() &&
-          !(cond->compare_collation()->state & MY_CS_BINSORT) &&
-          !Utf8_narrow::should_do_narrowing(this, cond->compare_collation())) ?
-         Data_type_compatibility::INCOMPATIBLE_COLLATION :
-         Data_type_compatibility::OK;
+  return (!cmp_is_done_using_type_handler_of_this(cond, item) ?
+          Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
+          (compare_collations(charset(), cond->compare_collation()) &&
+           !(cond->compare_collation()->state & MY_CS_BINSORT) &&
+           !Utf8_narrow::should_do_narrowing(this, cond->compare_collation())) ?
+          Data_type_compatibility::INCOMPATIBLE_COLLATION :
+          Data_type_compatibility::OK);
 }
 
 
@@ -7611,8 +7696,23 @@ double Field_string::val_real(void)
   const LEX_CSTRING str= to_lex_cstring();
   return Converter_strntod_with_warn(thd,
                                      Warn_filter_string(thd, this),
+                                     "DOUBLE",
                                      Field_string::charset(),
                                      str.str, str.length).result();
+}
+
+
+bool Field_string::val_bool()
+{
+  DBUG_ASSERT(marked_for_read());
+  THD *thd= get_thd();
+  const LEX_CSTRING str= to_lex_cstring();
+  double res= Converter_strntod_with_warn(thd,
+                                          Warn_filter_string(thd, this),
+                                          "BOOLEAN",
+                                          Field_string::charset(),
+                                          str.str, str.length).result();
+  return res != 0.0;
 }
 
 
@@ -7736,15 +7836,21 @@ int Field_string::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
 
 void Field_string::sort_string(uchar *to,uint length)
 {
-#ifdef DBUG_ASSERT_EXISTS
-  size_t tmp=
-#endif
+  /*
+    Let's find the real value length to truncate trailing padding spaces.
+    This is needed to avoid redundant WARN_SORTING_ON_TRUNCATED_LENGTH
+    warnings.
+  */
+  const LEX_CSTRING str= to_lex_cstring();
+  my_strnxfrm_ret_t rc=
     field_charset()->strnxfrm(to, length,
                               char_length() * field_charset()->strxfrm_multiply,
-                              ptr, field_length,
+                              (const uchar *) str.str, str.length,
                               MY_STRXFRM_PAD_WITH_SPACE |
                               MY_STRXFRM_PAD_TO_MAXLEN);
-  DBUG_ASSERT(tmp == length);
+  DBUG_ASSERT(rc.m_result_length == length);
+  if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+    get_thd()->num_of_strings_sorted_on_truncated_length++;
 }
 
 
@@ -8013,7 +8119,7 @@ double Field_varstring::val_real(void)
 {
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
-  return Converter_strntod_with_warn(thd, Warn_filter(thd),
+  return Converter_strntod_with_warn(thd, Warn_filter(thd), "DOUBLE",
                                      Field_varstring::charset(),
                                      (const char *) get_data(),
                                      get_length()).result();
@@ -8192,15 +8298,15 @@ void Field_varstring::sort_string(uchar *to,uint length)
     length-= length_bytes;
   }
 
-#ifdef DBUG_ASSERT_EXISTS
-    size_t rc=
-#endif
-  field_charset()->strnxfrm(to, length,
-                            char_length() * field_charset()->strxfrm_multiply,
-                            (const uchar *) buf.ptr(), buf.length(),
-                            MY_STRXFRM_PAD_WITH_SPACE |
-                            MY_STRXFRM_PAD_TO_MAXLEN);
-  DBUG_ASSERT(rc == length);
+  my_strnxfrm_ret_t rc=
+    field_charset()->strnxfrm(to, length,
+                              char_length() * field_charset()->strxfrm_multiply,
+                              (const uchar *) buf.ptr(), buf.length(),
+                              MY_STRXFRM_PAD_WITH_SPACE |
+                              MY_STRXFRM_PAD_TO_MAXLEN);
+  DBUG_ASSERT(rc.m_result_length == length);
+  if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+    get_thd()->num_of_strings_sorted_on_truncated_length++;
 }
 
 
@@ -8442,11 +8548,11 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 bool Field_varstring::is_equal(const Column_definition &new_field) const
 {
-  return new_field.type_handler() == type_handler() &&
-         new_field.length == field_length &&
-         new_field.char_length == char_length() &&
-         !new_field.compression_method() == !compression_method() &&
-         new_field.charset == field_charset();
+  return (new_field.type_handler() == type_handler() &&
+          new_field.length == field_length &&
+          new_field.char_length == char_length() &&
+          !new_field.compression_method() == !compression_method() &&
+          !compare_collations(new_field.charset, field_charset()));
 }
 
 
@@ -8625,7 +8731,8 @@ double Field_varstring_compressed::val_real(void)
   THD *thd= get_thd();
   String buf;
   val_str(&buf, &buf);
-  return Converter_strntod_with_warn(thd, Warn_filter(thd), field_charset(),
+  return Converter_strntod_with_warn(thd, Warn_filter(thd), "DOUBLE",
+                                     field_charset(),
                                      buf.ptr(), buf.length()).result();
 }
 
@@ -8713,7 +8820,7 @@ uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg) const
 */
 int Field_blob::copy_value(Field_blob *from)
 {
-  DBUG_ASSERT(field_charset() == from->charset());
+  DBUG_ASSERT(!compare_collations(field_charset(), from->charset()));
   DBUG_ASSERT(!compression_method() == !from->compression_method());
   int rc= 0;
   uint32 length= from->get_length();
@@ -8849,7 +8956,7 @@ double Field_blob::val_real(void)
   if (!blob)
     return 0.0;
   THD *thd= get_thd();
-  return  Converter_strntod_with_warn(thd, Warn_filter(thd),
+  return  Converter_strntod_with_warn(thd, Warn_filter(thd), "DOUBLE",
                                       Field_blob::charset(),
                                       blob, get_length(ptr)).result();
 }
@@ -9018,6 +9125,24 @@ int Field_blob::key_cmp(const uchar *a,const uchar *b) const
 }
 
 
+#ifndef DBUG_OFF
+/* helper to assert that new_table->blob_storage is NULL */
+static struct blob_storage_check
+{
+  union { bool b; intptr p; } val;
+  blob_storage_check() { val.p= -1; val.b= false; }
+} blob_storage_check;
+#endif
+Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
+{
+  DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
+  if (newt->group_concat)
+    return new (root) Field_blob(field_length, maybe_null(), &field_name,
+                                 charset());
+  return Field::make_new_field(root, newt, keep_type);
+}
+
+
 Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
                                  uchar *new_ptr, uint32 length,
                                  uchar *new_null_ptr, uint new_null_bit)
@@ -9082,14 +9207,14 @@ void Field_blob::sort_string(uchar *to,uint length)
       store_bigendian(buf.length(), to + length, packlength);
     }
 
-#ifdef DBUG_ASSERT_EXISTS
-    size_t rc=
-#endif
-    field_charset()->strnxfrm(to, length, length,
-                              (const uchar *) buf.ptr(), buf.length(),
-                              MY_STRXFRM_PAD_WITH_SPACE |
-                              MY_STRXFRM_PAD_TO_MAXLEN);
-    DBUG_ASSERT(rc == length);
+    my_strnxfrm_ret_t rc=
+      field_charset()->strnxfrm(to, length, length,
+                                (const uchar *) buf.ptr(), buf.length(),
+                                MY_STRXFRM_PAD_WITH_SPACE |
+                                MY_STRXFRM_PAD_TO_MAXLEN);
+    DBUG_ASSERT(rc.m_result_length == length);
+    if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+      get_thd()->num_of_strings_sorted_on_truncated_length++;
   }
 }
 
@@ -9226,10 +9351,10 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 bool Field_blob::is_equal(const Column_definition &new_field) const
 {
-  return new_field.type_handler() == type_handler() &&
-         !new_field.compression_method() == !compression_method() &&
-         new_field.pack_length == pack_length() &&
-         new_field.charset == field_charset();
+  return (new_field.type_handler() == type_handler() &&
+          !new_field.compression_method() == !compression_method() &&
+          new_field.pack_length == pack_length() &&
+          !compare_collations(new_field.charset, field_charset()));
 }
 
 
@@ -9299,7 +9424,8 @@ double Field_blob_compressed::val_real(void)
   THD *thd= get_thd();
   String buf;
   val_str(&buf, &buf);
-  return Converter_strntod_with_warn(thd, Warn_filter(thd), field_charset(),
+  return Converter_strntod_with_warn(thd, Warn_filter(thd), "DOUBLE",
+                                     field_charset(),
                                      buf.ptr(), buf.length()).result();
 }
 
@@ -9726,7 +9852,7 @@ bool Field_enum::is_equal(const Column_definition &new_field) const
     type, charset and have the same underlying length.
   */
   if (new_field.type_handler() != type_handler() ||
-      new_field.charset != field_charset() ||
+      compare_collations(new_field.charset, field_charset()) ||
       new_field.pack_length != pack_length())
     return false;
 
@@ -9833,9 +9959,9 @@ Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
   case REAL_RESULT:
     return Data_type_compatibility::OK;
   case STRING_RESULT:
-    return charset() == cond->compare_collation() ?
-           Data_type_compatibility::OK :
-           Data_type_compatibility::INCOMPATIBLE_COLLATION;
+    return (!compare_collations(charset(), cond->compare_collation()) ?
+            Data_type_compatibility::OK :
+            Data_type_compatibility::INCOMPATIBLE_COLLATION);
   case ROW_RESULT:
     DBUG_ASSERT(0);
     break;

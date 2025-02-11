@@ -20,13 +20,13 @@
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
+#include <my_global.h>
+#include <cmath>
 
 #include "m_ctype.h"                            /* my_charset_bin */
 #include <my_sys.h>              /* alloc_root, my_free, my_realloc */
 #include "m_string.h"                           /* TRASH */
+#include "sql_const.h"
 #include "sql_list.h"
 
 class String;
@@ -897,7 +897,11 @@ public:
   bool set(ulong num, CHARSET_INFO *cs) { return set_int(num, true, cs); }
   bool set(longlong num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
   bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
-  bool set_real(double num,uint decimals, CHARSET_INFO *cs);
+  bool set_real_with_type(double num, uint decimals, CHARSET_INFO *cs, my_gcvt_arg_type);
+  bool set_real(double num,uint decimals, CHARSET_INFO *cs)
+  { return set_real_with_type(num,decimals,cs,MY_GCVT_ARG_DOUBLE); }
+  bool set_real(float num,uint decimals, CHARSET_INFO *cs)
+  { return set_real_with_type(num,decimals,cs,MY_GCVT_ARG_FLOAT); }
   bool set_fcvt(double num, uint decimals)
   {
     set_charset(&my_charset_latin1);
@@ -1011,6 +1015,7 @@ public:
   {
     return Binary_string::append(s);
   }
+
   inline bool append(char chr)
   {
     return Binary_string::append_char(chr);

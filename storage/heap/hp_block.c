@@ -75,9 +75,11 @@ int hp_get_new_block(HP_SHARE *info, HP_BLOCK *block, size_t *alloc_length)
     Next time we allocate data for X rows.
     When level 1 is full, we allocate data for HP_PTRS_IN_NOD at level 2 and 1
     + X rows at level 0.
-   */
+  */
   *alloc_length= (sizeof(HP_PTRS) * ((i == block->levels) ? i : i - 1) +
                   (ulonglong)block->records_in_block * block->recbuffer);
+  /* Alloc in blocks of powers of 2 */
+  *alloc_length= MY_MAX(*alloc_length, block->alloc_size);
   if (!(root=(HP_PTRS*) my_malloc(hp_key_memory_HP_PTRS, *alloc_length,
                                   MYF(MY_WME |
                                       (info->internal ?

@@ -31,37 +31,77 @@
 #include "sql_base.h"
 #include "sql_test.h"                           // TEST_filesort
 #include "opt_range.h"                          // SQL_SELECT
-#include "bounded_queue.h"
 #include "filesort_utils.h"
 #include "sql_select.h"
 #include "debug_sync.h"
+#include "sql_queue.h"
 
-	/* functions defined in this file */
+static uint make_sortkey(Sort_param *, uchar *, uchar *, bool);
 
-static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
-                                     uchar *buf);
-static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
-                             SORT_INFO *fs_info,
-                             IO_CACHE *buffer_file,
-                             IO_CACHE *tempfile,
-                             Bounded_queue<uchar, uchar> *pq,
-                             ha_rows *found_rows);
-static bool write_keys(Sort_param *param, SORT_INFO *fs_info,
-                      uint count, IO_CACHE *buffer_file, IO_CACHE *tempfile);
-static uint make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos,
-                         bool using_packed_sortkeys= false);
+class Bounded_queue
+{
+public:
+
+  int init(ha_rows max_elements, size_t cmplen, Sort_param *sort_param,
+           uchar **sort_keys);
+  void push(uchar *element);
+  size_t num_elements() const { return m_queue.elements(); }
+  bool is_initialized() const { return m_queue.is_inited(); }
+
+private:
+  uchar                     **m_sort_keys;
+  size_t                      m_compare_length;
+  Sort_param                 *m_sort_param;
+  Queue<uchar*, size_t> m_queue;
+};
+
+
+int Bounded_queue::init(ha_rows max_elements, size_t cmplen,
+                        Sort_param *sort_param, uchar **sort_keys)
+{
+  DBUG_ASSERT(sort_keys != NULL);
+
+  m_sort_keys=      sort_keys;
+  m_compare_length= cmplen;
+  m_sort_param=     sort_param;
+  // init_queue() takes an uint, and also does (max_elements + 1)
+  if (max_elements >= UINT_MAX - 1)
+    return 1;
+  // We allocate space for one extra element, for replace when queue is full.
+  return m_queue.init((uint)max_elements + 1, true,
+                      get_ptr_compare(cmplen), &m_compare_length);
+}
+
+
+void Bounded_queue::push(uchar *element)
+{
+  DBUG_ASSERT(is_initialized());
+  if (m_queue.is_full())
+  {
+    // Replace top element with new key, and re-order the queue.
+    uchar **pq_top= m_queue.top();
+    make_sortkey(m_sort_param, *pq_top, element, 0);
+    m_queue.propagate_top();
+  } else {
+    // Insert new key into the queue.
+    make_sortkey(m_sort_param, m_sort_keys[m_queue.elements()], element, 0);
+    m_queue.push(&m_sort_keys[m_queue.elements()]);
+  }
+}
+
+static uchar *read_buffpek_from_file(IO_CACHE *, uint, uchar *);
+static ha_rows find_all_keys(THD *, Sort_param *, SQL_SELECT *, SORT_INFO *,
+                             IO_CACHE *, IO_CACHE *, Bounded_queue *,
+                             ha_rows *);
+static bool write_keys(Sort_param *, SORT_INFO *, uint, IO_CACHE *, IO_CACHE *);
 static uint make_sortkey(Sort_param *param, uchar *to);
 static uint make_packed_sortkey(Sort_param *param, uchar *to);
 
 static void register_used_fields(Sort_param *param);
-static bool save_index(Sort_param *param, uint count,
-                       SORT_INFO *table_sort);
+static bool save_index(Sort_param *, uint, SORT_INFO *);
 static uint suffix_length(ulong string_length);
-static uint sortlength(THD *thd, Sort_keys *sortorder,
-                       bool *allow_packing_for_sortkeys);
-static Addon_fields *get_addon_fields(TABLE *table, uint sortlength,
-                                      uint *addon_length,
-                                      uint *m_packable_length);
+static uint sortlength(THD *, Sort_keys *, bool *);
+static Addon_fields *get_addon_fields(TABLE *, uint, uint *, uint *);
 
 static void store_key_part_length(uint32 num, uchar *to, uint bytes)
 {
@@ -219,7 +259,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   IO_CACHE tempfile, buffpek_pointers, *outfile; 
   Sort_param param;
   bool allow_packing_for_sortkeys;
-  Bounded_queue<uchar, uchar> pq;
+  Bounded_queue pq;
   SQL_SELECT *const select= filesort->select;
   Sort_costs costs;
   ha_rows limit_rows= filesort->limit;
@@ -337,11 +377,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
       point in doing lazy initialization).
     */
     sort->init_record_pointers();
-    if (pq.init(param.limit_rows,
-                true,                           // max_at_top
-                NULL,                           // compare_function
-                compare_length,
-                &make_sortkey, &param, sort->get_sort_keys()))
+    if (pq.init(param.limit_rows, compare_length, &param, sort->get_sort_keys()))
     {
       /*
        If we fail to init pq, we have to give up:
@@ -533,7 +569,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                     MYF(0),
                     ER_THD(thd, ER_FILSORT_ABORT),
                     kill_errno ? ER_THD(thd, kill_errno) :
-                    thd->killed == ABORT_QUERY ? "" :
+                    thd->killed == ABORT_QUERY ? "LIMIT ROWS EXAMINED" :
                     thd->get_stmt_da()->message());
 
     if ((thd->killed == ABORT_QUERY || kill_errno) &&
@@ -605,7 +641,7 @@ Filesort::make_sortorder(THD *thd, JOIN *join, table_map first_table_bit)
 
   DBUG_ASSERT(sort_keys == NULL);
 
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * count);
+  sortorder= thd->alloc<SORT_FIELD>(count);
   pos= sort= sortorder;
 
   if (!pos)
@@ -883,10 +919,8 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
 */
 
 static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
-                             SORT_INFO *fs_info,
-                             IO_CACHE *buffpek_pointers,
-                             IO_CACHE *tempfile,
-                             Bounded_queue<uchar, uchar> *pq,
+                             SORT_INFO *fs_info, IO_CACHE *buffpek_pointers,
+                             IO_CACHE *tempfile, Bounded_queue *pq,
                              ha_rows *found_rows)
 {
   int error, quick_select;
@@ -1205,15 +1239,15 @@ Type_handler_string_result::make_sort_key_part(uchar *to, Item *item,
 
   if (use_strnxfrm(cs))
   {
-#ifdef DBUG_ASSERT_EXISTS
-    size_t tmp_length=
-#endif
-    cs->strnxfrm(to, sort_field->length,
-                 item->max_char_length() * cs->strxfrm_multiply,
-                 (uchar*) res->ptr(), res->length(),
-                 MY_STRXFRM_PAD_WITH_SPACE |
-                 MY_STRXFRM_PAD_TO_MAXLEN);
-    DBUG_ASSERT(tmp_length == sort_field->length);
+    my_strnxfrm_ret_t rc=
+      cs->strnxfrm(to, sort_field->length,
+                   item->max_char_length() * cs->strxfrm_multiply,
+                   (uchar*) res->ptr(), res->length(),
+                   MY_STRXFRM_PAD_WITH_SPACE |
+                   MY_STRXFRM_PAD_TO_MAXLEN);
+    DBUG_ASSERT(rc.m_result_length == sort_field->length);
+    if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+      current_thd->num_of_strings_sorted_on_truncated_length++;
   }
   else
   {
@@ -1233,7 +1267,10 @@ Type_handler_string_result::make_sort_key_part(uchar *to, Item *item,
       store_length(to + sort_field_length, length, sort_field->suffix_length);
     }
     /* apply cs->sort_order for case-insensitive comparison if needed */
-    cs->strnxfrm((uchar*)to, length, (const uchar*) res->ptr(), length);
+    my_strnxfrm_ret_t rc= cs->strnxfrm((uchar*)to, length,
+                                     (const uchar*) res->ptr(), res->length());
+    if (rc.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+      current_thd->num_of_strings_sorted_on_truncated_length++;
     char fill_char= ((cs->state & MY_CS_BINSORT) ? (char) 0 : ' ');
     cs->fill((char *) to + length, diff, fill_char);
   }
@@ -1279,7 +1316,8 @@ Type_handler_timestamp_common::make_sort_key_part(uchar *to, Item *item,
                                              String *tmp_buffer) const
 {
   THD *thd= current_thd;
-  uint binlen= my_timestamp_binary_length(item->decimals);
+  decimal_digits_t dec= MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  uint binlen= my_timestamp_binary_length(dec);
   Timestamp_or_zero_datetime_native_null native(thd, item);
   if (native.is_null() || native.is_zero_datetime())
   {
@@ -1512,8 +1550,7 @@ static void register_used_fields(Sort_param *param)
 }
 
 
-static bool save_index(Sort_param *param, uint count,
-                       SORT_INFO *table_sort)
+static bool save_index(Sort_param *param, uint count, SORT_INFO *table_sort)
 {
   uint offset,res_length, length;
   uchar *to;
@@ -1749,7 +1786,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
   uchar *strpos;
   Merge_chunk *buffpek;
   QUEUE queue;
-  qsort2_cmp cmp;
+  qsort_cmp2 cmp;
   void *first_cmp_arg;
   element_count dupl_count= 0;
   uchar *src;
@@ -1793,9 +1830,9 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
     cmp= param->get_compare_function();
     first_cmp_arg= param->get_compare_argument(&sort_length);
   }
-  if (unlikely(init_queue(&queue, (uint) (Tb-Fb)+1,
-                          offsetof(Merge_chunk,m_current_key), 0,
-                          (queue_compare) cmp, first_cmp_arg, 0, 0)))
+  if (unlikely(init_queue(&queue, (uint) (Tb - Fb) + 1,
+                          offsetof(Merge_chunk, m_current_key), 0, cmp,
+                          first_cmp_arg, 0, 0)))
     DBUG_RETURN(1);                                /* purecov: inspected */
   const size_t chunk_sz= (sort_buffer.size()/((uint) (Tb-Fb) +1));
   for (buffpek= Fb; buffpek <= Tb; buffpek++)
@@ -2080,7 +2117,8 @@ Type_handler_timestamp_common::sort_length(THD *thd,
                                            const Type_std_attributes *item,
                                            SORT_FIELD_ATTR *sortorder) const
 {
-  sortorder->length= my_timestamp_binary_length(item->decimals);
+  decimal_digits_t dec= MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  sortorder->length= my_timestamp_binary_length(dec);
   sortorder->original_length= sortorder->length;
 }
 
@@ -2616,7 +2654,8 @@ Type_handler_timestamp_common::make_packed_sort_key_part(uchar *to, Item *item,
                                             String *tmp) const
 {
  THD *thd= current_thd;
-  uint binlen= my_timestamp_binary_length(item->decimals);
+  decimal_digits_t dec= MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  uint binlen= my_timestamp_binary_length(dec);
   Timestamp_or_zero_datetime_native_null native(thd, item);
   if (native.is_null() || native.is_zero_datetime())
   {
@@ -2715,9 +2754,9 @@ void SORT_FIELD_ATTR::set_length_and_original_length(THD *thd, uint length_arg)
   Compare function used for packing sort keys
 */
 
-qsort2_cmp get_packed_keys_compare_ptr()
+qsort_cmp2 get_packed_keys_compare_ptr()
 {
-  return (qsort2_cmp) compare_packed_sort_keys;
+  return compare_packed_sort_keys;
 }
 
 
@@ -2731,8 +2770,8 @@ qsort2_cmp get_packed_keys_compare_ptr()
   suffix_bytes are used only for binary columns.
 */
 
-int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
-                                               uchar *b, size_t *b_len)
+int SORT_FIELD_ATTR::compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                               const uchar *b, size_t *b_len)
 {
   int retval;
   size_t a_length, b_length;
@@ -2791,8 +2830,8 @@ int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
   packed-value format.
 */
 
-int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
-                                                    uchar *b, size_t *b_len)
+int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                                    const uchar *b, size_t *b_len)
 {
   if (maybe_null)
   {
@@ -2837,15 +2876,15 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
 
 */
 
-int compare_packed_sort_keys(void *sort_param,
-                             unsigned char **a_ptr, unsigned char **b_ptr)
+int compare_packed_sort_keys(void *sort_param, const void *a_ptr,
+                             const void *b_ptr)
 {
   int retval= 0;
   size_t a_len, b_len;
-  Sort_param *param= (Sort_param*)sort_param;
+  Sort_param *param= static_cast<Sort_param *>(sort_param);
   Sort_keys *sort_keys= param->sort_keys;
-  uchar *a= *a_ptr;
-  uchar *b= *b_ptr;
+  auto a= *(static_cast<const uchar *const *>(a_ptr));
+  auto b= *(static_cast<const uchar *const *>(b_ptr));
 
   a+= Sort_keys::size_of_length_field;
   b+= Sort_keys::size_of_length_field;
@@ -2903,9 +2942,14 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const Binary_string *str,
   length= (uint32) str->length();
 
   if (length + suffix_length <= original_length)
+  {
     data_length= length;
+  }
   else
+  {
     data_length= original_length - suffix_length;
+    current_thd->num_of_strings_sorted_on_truncated_length++;
+  }
 
   // length stored in lowendian form
   store_key_part_length(data_length + suffix_length, to, length_bytes);
@@ -2947,16 +2991,14 @@ static uint make_sortkey(Sort_param *param, uchar *to)
   {
     bool maybe_null=0;
     if ((field=sort_field->field))
-    {
-      // Field
+    { // Field
       field->make_sort_key_part(to, sort_field->length);
       if ((maybe_null= field->maybe_null()))
         to++;
     }
     else
-    {           // Item
-      sort_field->item->type_handler()->make_sort_key_part(to,
-                                                           sort_field->item,
+    { // Item
+      sort_field->item->type_handler()->make_sort_key_part(to, sort_field->item,
                                                            sort_field,
                                                            &param->tmp_buffer);
       if ((maybe_null= sort_field->item->maybe_null()))

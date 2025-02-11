@@ -14,9 +14,9 @@ SELECT @@sql_big_selects;
 @@sql_big_selects
 1
 SELECT session.sql_big_selects;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT local.sql_big_selects;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET session sql_big_selects = 0;
 SELECT @@session.sql_big_selects;
 @@session.sql_big_selects

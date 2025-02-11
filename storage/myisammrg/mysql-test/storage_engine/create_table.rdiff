@@ -1,5 +1,5 @@
---- create_table.result	2013-01-22 22:05:05.246633000 +0400
-+++ create_table.reject	2013-01-23 02:50:19.544006752 +0400
+--- create_table.result
++++ create_table.reject
 @@ -4,7 +4,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (

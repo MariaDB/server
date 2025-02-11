@@ -4,6 +4,8 @@
 # This test inserts 20,000 rows into t1, then selecting one by one from stored procedure.
 # If the select does not return any row, it is wrong.
 
+--disable_ps_protocol
+--disable_cursor_protocol
 CREATE TABLE t1 (
   `id1` int unsigned NOT NULL DEFAULT '0',
   `id2` int unsigned NOT NULL DEFAULT '0',
@@ -49,4 +51,5 @@ CALL select_test();
 
 DROP PROCEDURE select_test;
 drop table t1;
-
+--enable_cursor_protocol
+--enable_ps_protocol

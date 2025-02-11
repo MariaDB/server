@@ -563,6 +563,26 @@ create table s sequence=1 as select 1;
 --echo # End of 10.4 test
 --echo #
 
+--echo #
+--echo # Ensure that SHOW CREATE TABLE shows used table options
+--echo #
+
+SET @@innodb_compression_default=ON;
+CREATE TABLE seq (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) engine=innodb,sequence=1;
+show create sequence seq;
+show create table seq;
+drop sequence seq;
+SET @@innodb_compression_default=DEFAULT;
+
 --echo ######
 --echo # MDEV-28152 Features for sequence
 --echo ######
@@ -766,6 +786,4 @@ create sequence s13 as bigint unsigned;
 select * from information_schema.sequences order by sequence_name;
 drop sequence s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
 
---echo #
 --echo # End of 11.5 tests
---echo #

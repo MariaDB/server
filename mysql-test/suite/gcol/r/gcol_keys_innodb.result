@@ -354,20 +354,20 @@ f1	gc
 9	10
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	range	gc	gc	5	NULL	3	Using index condition
 SELECT * FROM t1 WHERE f1 + 1 = 7;
 f1	gc
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 = 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	const	gc	gc	5	const	1	
 SELECT * FROM t1 WHERE f1 + 1 IN (7,5);
 f1	gc
 4	5
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 IN(7,5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	range	gc	gc	5	NULL	2	Using index condition
 SELECT * FROM t1 WHERE f1 + 1 BETWEEN 5 AND 7;
 f1	gc
 4	5
@@ -375,7 +375,7 @@ f1	gc
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 BETWEEN 5 AND 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	range	gc	gc	5	NULL	3	Using index condition
 # Check that expression isn't transformed for a disabled key
 SELECT * FROM t1 IGNORE KEY (gc) WHERE f1 + 1 BETWEEN 5 AND 7;
 f1	gc
@@ -432,7 +432,7 @@ f1	gc
 9	10
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 7.0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	range	gc	gc	5	NULL	3	Using index condition
 DROP TABLE t1;
 # Pick index with proper type
 CREATE TABLE t1 (f1 int,
@@ -463,7 +463,7 @@ f1	gc_int	gc_date
 # INT column & index should be picked
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 070707;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	18	Using where
+1	SIMPLE	t1	range	gc_int_idx	gc_int_idx	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE f1 + 1 > CAST(070707 AS DATE);
 f1	gc_int	gc_date
 101010	101011	2010-10-11
@@ -473,7 +473,9 @@ f1	gc_int	gc_date
 # DATE column & index should be picked
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > CAST(070707 AS DATE);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	18	Using where
+1	SIMPLE	t1	ALL	gc_int_idx	NULL	NULL	NULL	18	Using where
+Warnings:
+Note	1105	Cannot use key `gc_int_idx` part[0] for lookup: `test`.`t1`.`gc_int` of type `int` > "cast(70707 as date)" of type `date`
 DROP TABLE t1;
 #
 # BUG#21229846: WL8170: SIGNAL 11 IN JOIN::MAKE_SUM_FUNC_LIST
@@ -764,14 +766,14 @@ a	b
 1	1
 EXPLAIN SELECT a, b FROM t WHERE (a XOR b) = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t	ref	gc_xor	gc_xor	5	const	2	
 SELECT a, b FROM t WHERE (a XOR b) = 1;
 a	b
 0	1
 1	0
 EXPLAIN SELECT a FROM t WHERE (NOT a) = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t	ref	gc_not	gc_not	5	const	2	
 SELECT a FROM t WHERE (NOT a) = 1;
 a
 0

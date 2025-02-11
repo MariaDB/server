@@ -19,11 +19,9 @@
 #include <my_global.h>
 #include "maria_def.h"
 
-#ifdef HAVE_SPATIAL
 #include "ma_sp_defs.h"
 
 #define MAX_REC_LENGTH 1024
-#define KEYALG HA_KEY_ALG_RTREE
 
 static void create_linestring(uchar *record,uint rownr);
 static void print_record(uchar * record,my_off_t offs,const char * tail);
@@ -90,8 +88,8 @@ int run_test(const char *filename)
 
   keyinfo[0].seg=keyseg;
   keyinfo[0].keysegs=1;
-  keyinfo[0].flag=HA_SPATIAL;
-  keyinfo[0].key_alg=KEYALG;
+  keyinfo[0].flag= 0;
+  keyinfo[0].key_alg=HA_KEY_ALG_RTREE;
 
   keyinfo[0].seg[0].type= HA_KEYTYPE_BINARY;
   keyinfo[0].seg[0].flag=0;
@@ -563,10 +561,3 @@ static void maria_rtree_PrintWKB(uchar *wkb, uint n_dims)
 }
 
 #include "ma_check_standalone.h"
-
-#else
-int main(int argc __attribute__((unused)),char *argv[] __attribute__((unused)))
-{
-  exit(0);
-}
-#endif /*HAVE_SPATIAL*/

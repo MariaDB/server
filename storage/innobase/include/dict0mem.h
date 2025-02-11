@@ -1051,8 +1051,59 @@ struct dict_index_t {
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 #ifdef BTR_CUR_ADAPT
-	btr_search_t*	search_info;
-				/*!< info used in optimistic searches */
+  /** The search info struct in an index */
+  struct ahi {
+    ahi()= default;
+    ahi(const ahi&)= default;
+    ~ahi()= default;
+    /** Dummy assignment operator for dict_index_t::clone(), which
+    will return a clone where these fields are reset to default values
+    (because no AHI entries exist yet for the clone) */
+    ahi &operator=(const ahi&) { new(this) ahi(); return *this; }
+    /** the root page when it was last time fetched, or nullptr */
+    buf_block_t *root_guess= nullptr;
+# ifdef BTR_CUR_HASH_ADAPT
+  private:
+    /** After change in n_fields or n_bytes, this many rounds are
+    waited before starting the hash analysis again: this is to save
+    CPU time when there is no hope in building a hash index. */
+    static constexpr uint8_t HASH_ANALYSIS= 16;
+    /** the number of calls to hash_analysis_useful() */
+    Atomic_relaxed<uint8_t> hash_analysis{0};
+  public:
+    bool hash_analysis_useful() noexcept
+    {
+      return hash_analysis > HASH_ANALYSIS ||
+        hash_analysis.fetch_add(1) >= HASH_ANALYSIS;
+    }
+    void hash_analysis_reset() noexcept { hash_analysis= 0; }
+
+    /** number of consecutive searches which would have succeeded, or
+    did succeed, using the hash index; the range is 0
+    .. BTR_SEARCH_BUILD_LIMIT */
+    Atomic_relaxed<uint8_t> n_hash_potential{0};
+
+    /** whether the last search would have succeeded, or
+    did succeed, using the hash index; NOTE that the value
+    here is not exact: it is not calculated for every
+    search, and the calculation itself is not always accurate! */
+    Atomic_relaxed<bool> last_hash_succ{false};
+
+    /** recommended parameters; @see buf_block_t::left_bytes_fields */
+    Atomic_relaxed<uint32_t> left_bytes_fields{buf_block_t::LEFT_SIDE | 1};
+    /** number of buf_block_t::index pointers to this index */
+    Atomic_counter<size_t> ref_count{0};
+
+#  ifdef UNIV_SEARCH_PERF_STAT
+    /** number of successful hash searches */
+    size_t n_hash_succ{0};
+    /** number of failed hash searches */
+    size_t n_hash_fail{0};
+    /** number of searches */
+    size_t n_searches{0};
+#  endif /* UNIV_SEARCH_PERF_STAT */
+# endif /* BTR_CUR_HASH_ADAPT */
+  } search_info;
 #endif /* BTR_CUR_ADAPT */
 	row_log_t*	online_log;
 				/*!< the log of modifications
@@ -1166,6 +1217,14 @@ public:
 	bool is_btree() const {
 		return UNIV_LIKELY(!(type & (DICT_SPATIAL
 					     | DICT_FTS | DICT_CORRUPT)));
+	}
+
+	/** @return whether this is a normal, non-virtual B-tree index
+	(not SPATIAL or FULLTEXT) */
+	bool is_normal_btree() const noexcept {
+		return UNIV_LIKELY(!(type & (DICT_SPATIAL
+					     | DICT_FTS | DICT_CORRUPT
+					     | DICT_VIRTUAL)));
 	}
 
 	/** @return whether the index includes virtual columns */
@@ -1311,8 +1370,8 @@ public:
   /** Clone this index for lazy dropping of the adaptive hash index.
   @return this or a clone */
   dict_index_t* clone_if_needed();
-  /** @return number of leaf pages pointed to by the adaptive hash index */
-  inline ulint n_ahi_pages() const;
+  /** @return whether any leaf pages may be in the adaptive hash index */
+  bool any_ahi_pages() const noexcept { return search_info.ref_count; }
   /** @return whether mark_freed() had been invoked */
   bool freed() const { return UNIV_UNLIKELY(page == 1); }
   /** Note that the index is waiting for btr_search_lazy_free() */
@@ -1461,59 +1520,160 @@ typedef std::set<dict_v_col_t*, std::less<dict_v_col_t*>,
 /** Data structure for a foreign key constraint; an example:
 FOREIGN KEY (A, B) REFERENCES TABLE2 (C, D).  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_foreign_create(). */
-struct dict_foreign_t{
-	mem_heap_t*	heap;		/*!< this object is allocated from
-					this memory heap */
-	char*		id;		/*!< id of the constraint as a
-					null-terminated string */
-	unsigned	n_fields:10;	/*!< number of indexes' first fields
-					for which the foreign key
-					constraint is defined: we allow the
-					indexes to contain more fields than
-					mentioned in the constraint, as long
-					as the first fields are as mentioned */
-	unsigned	type:6;		/*!< 0 or DICT_FOREIGN_ON_DELETE_CASCADE
-					or DICT_FOREIGN_ON_DELETE_SET_NULL */
-	char*		foreign_table_name;/*!< foreign table name */
-	char*		foreign_table_name_lookup;
-				/*!< foreign table name used for dict lookup */
-	dict_table_t*	foreign_table;	/*!< table where the foreign key is */
-	const char**	foreign_col_names;/*!< names of the columns in the
-					foreign key */
-	char*		referenced_table_name;/*!< referenced table name */
-	char*		referenced_table_name_lookup;
-				/*!< referenced table name for dict lookup*/
-	dict_table_t*	referenced_table;/*!< table where the referenced key
-					is */
-	const char**	referenced_col_names;/*!< names of the referenced
-					columns in the referenced table */
-	dict_index_t*	foreign_index;	/*!< foreign index; we require that
-					both tables contain explicitly defined
-					indexes for the constraint: InnoDB
-					does not generate new indexes
-					implicitly */
-	dict_index_t*	referenced_index;/*!< referenced index */
+struct dict_foreign_t
+{
+  /* Object is allocated from this memory heap */
+  mem_heap_t *heap;
+  /* id of the constraint as a null terminated string */
+  char       *id;
+  /* number of indexes first fields for which the foreign key
+  constraint is defined: We allow the indexes to contain more
+  fields than mentioned in the constraint, as long as the first
+  fields are as mentioned */
+  unsigned	n_fields:10;
+  /* 0 or DELETE_CASCADE OR DELETE_SET_NULL */
+  unsigned	type:6;
+  /* foreign table name */
+  char *foreign_table_name;
+  /* Foreign table name used for dict lookup */
+  char *foreign_table_name_lookup;
+  /* table where the foreign key is */
+  dict_table_t *foreign_table;
+  /* names of the columns in the foreign key */
+  const char  **foreign_col_names;
+  /* referenced table name */
+  char *referenced_table_name;
+  /* referenced table name for dict lookup */
+  char *referenced_table_name_lookup;
+  /* Table where the referenced key is */
+  dict_table_t *referenced_table;
+  /* Names of the referenced columns in the referenced table */
+  const char **referenced_col_names;
+  /* foreign index; we require that both tables contain explicitly
+  defined indexes for the constraint: InnoDB does not generate
+  new indexes implicitly */
+  dict_index_t *foreign_index;
+  /* referenced index */
+  dict_index_t *referenced_index;
+  /* set of virtual columns affected by foreign key constraint */
+  dict_vcol_set *v_cols;
+  /** Check whether the fulltext index gets affected by
+  foreign key constraint */
+  bool affects_fulltext() const;
+  /** Set the foreign_table_name_lookup pointer based on the value of
+  lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
+  will point to foreign_table_name.  If 2, then another string is
+  allocated from the heap and set to lower case. */
+  void foreign_table_name_lookup_set();
+  /** Set the referenced_table_name_lookup pointer based on the value of
+  lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
+  will point to referenced_table_name.  If 2, then another string is
+  allocated from the heap and set to lower case. */
+  void referenced_table_name_lookup_set();
 
-	dict_vcol_set*	v_cols;		/*!< set of virtual columns affected
-					by foreign key constraint. */
+  /** The flags for ON_UPDATE and ON_DELETE can be ORed;
+  the default is that a foreign key constraint is enforced,
+  therefore RESTRICT just means no flag */
+  static constexpr unsigned DELETE_CASCADE= 1U;
+  static constexpr unsigned DELETE_SET_NULL= 2U;
+  static constexpr unsigned UPDATE_CASCADE= 4U;
+  static constexpr unsigned UPDATE_SET_NULL= 8U;
+  static constexpr unsigned DELETE_NO_ACTION= 16U;
+  static constexpr unsigned UPDATE_NO_ACTION= 32U;
+private:
+  /** Check whether the name exists in given column names
+  @retval offset or UINT_MAX if name not found */
+  unsigned col_exists(const char *name, const char **names) const noexcept
+  {
+    for (unsigned i= 0; i < n_fields; i++)
+    {
+      if (!strcmp(names[i], name))
+        return i;
+    }
+    return UINT_MAX;
+  }
 
-	/** Check whether the fulltext index gets affected by
-	foreign key constraint */
-	bool affects_fulltext() const;
+public:
+  /** Check whether the name exists in the foreign key column names
+  @retval offset in case of success
+  @retval UINT_MAX in case of failure */
+  unsigned col_fk_exists(const char *name) const noexcept
+  {
+    return col_exists(name, foreign_col_names);
+  }
 
-	/**********************************************************************//**
-	Sets the foreign_table_name_lookup pointer based on the value of
-	lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
-	will point to foreign_table_name.  If 2, then another string is
-	allocated from the heap and set to lower case. */
-	void foreign_table_name_lookup_set();
+  /** Check whether the name exists in the referenced
+  key column names
+  @retval offset in case of success
+  @retval UINT_MAX in case of failure */
+  unsigned col_ref_exists(const char *name) const noexcept
+  {
+    return col_exists(name, referenced_col_names);
+  }
 
-	/**********************************************************************//**
-	Sets the referenced_table_name_lookup pointer based on the value of
-	lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
-	will point to referenced_table_name.  If 2, then another string is
-	allocated from the heap and set to lower case. */
-	void referenced_table_name_lookup_set();
+  /** Check whether the foreign key constraint depends on
+  the nullability of the referenced column to be modified
+  @param name column to be modified
+  @return true in case of no conflict or false */
+  bool on_update_cascade_not_null(const char *name) const noexcept
+  {
+    if (!foreign_index || type != UPDATE_CASCADE)
+      return false;
+    unsigned offset= col_ref_exists(name);
+    if (offset == UINT_MAX)
+      return false;
+
+    ut_ad(offset < n_fields);
+    return foreign_index->fields[offset].col->prtype & DATA_NOT_NULL;
+  }
+
+  /** Check whether the foreign key constraint depends on
+  the nullability of the foreign column to be modified
+  @param name column to be modified
+  @return true in case of no conflict or false */
+  bool on_update_cascade_null(const char *name) const noexcept
+  {
+    if (!referenced_index || type != UPDATE_CASCADE)
+      return false;
+    unsigned offset= col_fk_exists(name);
+    if (offset == UINT_MAX)
+      return false;
+
+    ut_ad(offset < n_fields);
+    return !(referenced_index->fields[offset].col->prtype & DATA_NOT_NULL);
+  }
+
+  /** This is called during CREATE TABLE statement
+  to check the foreign key nullability constraint
+  @return true if foreign key constraint is valid
+  or else false */
+  bool check_fk_constraint_valid()
+  {
+    if (!type || type & (DELETE_CASCADE | DELETE_NO_ACTION |
+                         UPDATE_NO_ACTION))
+      return true;
+
+    if (!referenced_index)
+      return true;
+
+    for (unsigned i= 0; i < n_fields; i++)
+    {
+      dict_col_t *col = foreign_index->fields[i].col;
+      if (col->prtype & DATA_NOT_NULL)
+      {
+        /* Foreign type is ON DELETE SET NULL
+        or ON UPDATE SET NULL */
+        if (type & (DELETE_SET_NULL | UPDATE_SET_NULL))
+          return false;
+
+        dict_col_t *ref_col= referenced_index->fields[i].col;
+        /* Referenced index respective fields shouldn't be NULL */
+        if (!(ref_col->prtype & DATA_NOT_NULL))
+          return false;
+      }
+    }
+    return true;
+  }
 };
 
 std::ostream&
@@ -1673,17 +1833,6 @@ struct dict_foreign_set_free {
 
 	const dict_foreign_set&	m_foreign_set;
 };
-
-/** The flags for ON_UPDATE and ON_DELETE can be ORed; the default is that
-a foreign key constraint is enforced, therefore RESTRICT just means no flag */
-/* @{ */
-#define DICT_FOREIGN_ON_DELETE_CASCADE	1U	/*!< ON DELETE CASCADE */
-#define DICT_FOREIGN_ON_DELETE_SET_NULL	2U	/*!< ON UPDATE SET NULL */
-#define DICT_FOREIGN_ON_UPDATE_CASCADE	4U	/*!< ON DELETE CASCADE */
-#define DICT_FOREIGN_ON_UPDATE_SET_NULL	8U	/*!< ON UPDATE SET NULL */
-#define DICT_FOREIGN_ON_DELETE_NO_ACTION 16U	/*!< ON DELETE NO ACTION */
-#define DICT_FOREIGN_ON_UPDATE_NO_ACTION 32U	/*!< ON UPDATE NO ACTION */
-/* @} */
 
 /** Display an identifier.
 @param[in,out]	s	output stream
@@ -2422,7 +2571,7 @@ public:
   bool is_stats_table() const;
 
   /** @return number of unique columns in FTS_DOC_ID index */
-  unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
+  uint16_t fts_n_uniq() const { return versioned() ? 2 : 1; }
 
   /** @return the index for that starts with a specific column */
   dict_index_t *get_index(const dict_col_t &col) const;

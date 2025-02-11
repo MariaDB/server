@@ -365,7 +365,6 @@ end:
 static THD *new_bg_THD()
 {
   THD *thd= new THD(next_thread_id());
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->system_thread = SYSTEM_THREAD_SLAVE_BACKGROUND;
   thd->security_ctx->skip_grants();
@@ -623,7 +622,6 @@ int init_slave()
   {
     int error;
     THD *thd= new THD(next_thread_id());
-    thd->thread_stack= (char*) &thd;
     thd->store_globals();
 
     error= start_slave_threads(0, /* No active thd */
@@ -1074,6 +1072,8 @@ terminate_slave_thread(THD *thd,
 
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+    DEBUG_SYNC(current_thd, "after_thd_awake_kill");
 
     struct timespec abstime;
     set_timespec(abstime,2);
@@ -3170,9 +3170,10 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
 
 /* Used to sort connections by name */
 
-int cmp_mi_by_name(const Master_info **arg1,
-                   const Master_info **arg2)
+int cmp_mi_by_name(const void *arg1_, const void *arg2_)
 {
+  auto arg1= static_cast<const Master_info *const *>(arg1_);
+  auto arg2= static_cast<const Master_info *const *>(arg2_);
   return Lex_ident_master_info::charset_info()->strnncoll(
                                                      (*arg1)->connection_name,
                                                      (*arg2)->connection_name);
@@ -3516,13 +3517,26 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
                         sql_delay, (long)ev->when,
                         rli->mi->clock_diff_with_master,
                         (long)now, (ulonglong)sql_delay_end, (long)nap_time));
-
-    if (sql_delay_end > now)
+    /* if using debug_sync for sql_delay, only delay once per event group */
+    if (DBUG_IF("sql_delay_by_debug_sync")
+        ? type == GTID_EVENT : sql_delay_end > now)
     {
       DBUG_PRINT("info", ("delaying replication event %lu secs",
                           nap_time));
       rli->start_sql_delay(sql_delay_end);
       mysql_mutex_unlock(&rli->data_lock);
+
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF("sql_delay_by_debug_sync", {
+        DBUG_ASSERT(!debug_sync_set_action(
+            thd, STRING_WITH_LEN(
+                     "now SIGNAL at_sql_delay WAIT_FOR continue_sql_thread")));
+
+        // Skip the actual sleep if using DEBUG_SYNC to coordinate SQL_DELAY
+        DBUG_RETURN(0);
+      };);
+#endif
+
       DBUG_RETURN(slave_sleep(thd, nap_time, sql_slave_killed, rgi));
     }
   }
@@ -4514,7 +4528,12 @@ pthread_handler_t handle_slave_io(void *arg)
   thd->set_psi(PSI_CALL_get_thread());
 
   pthread_detach_this_thread();
-  thd->thread_stack= (char*) &thd; // remember where our stack is
+  /*
+    Remember where our stack is. This is needed for this function as
+    there are a lot of stack variables. It will be fixed in store_globals()
+    called by init_slave_thread().
+  */
+  thd->thread_stack= (void*) &thd; // remember where our stack is
   mi->clear_error();
   if (init_slave_thread(thd, mi, SLAVE_THD_IO))
   {
@@ -4819,8 +4838,16 @@ Stopping slave I/O thread due to out-of-memory error from master");
           mi->semi_sync_reply_enabled &&
           (mi->semi_ack & SEMI_SYNC_NEED_ACK))
       {
-        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply",
-                        my_sleep(800000););
+#ifdef ENABLED_DEBUG_SYNC
+        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply", {
+          const char act[]= "now "
+                            "signal io_thd_at_slave_reply "
+                            "wait_for io_thd_do_reply";
+          DBUG_ASSERT(debug_sync_service);
+          DBUG_ASSERT(
+              !debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
+        };);
+#endif
         if (repl_semisync_slave.slave_reply(mi))
         {
           /*
@@ -5157,7 +5184,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi= new rpl_group_info(rli);
   thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
-  thd->thread_stack = (char*)&thd; // remember where our stack is
+  thd->thread_stack= (void*) &thd; // Big stack, remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
 
   DBUG_ASSERT(rli->inited);
@@ -6563,7 +6590,7 @@ dbug_gtid_accept:
                         "the last seen GTID is %u-%u-%llu",
                         Log_event::get_type_str((Log_event_type) (uchar)
                                                 buf[EVENT_TYPE_OFFSET]),
-                        mi->last_queued_gtid);
+                        PARAM_GTID(mi->last_queued_gtid));
         goto err;
       }
     }
@@ -7585,7 +7612,7 @@ end:
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
 {
-  enum Log_event_type ev_type;
+  enum Log_event_type ev_type= UNKNOWN_EVENT;
 
   mysql_mutex_lock(&rgi->rli->data_lock);
 
@@ -7596,6 +7623,11 @@ enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
   /* scan the log to read next event and we skip
      annotate events. */
   do {
+    /* We've reached the end of log, return the last found event, if any. */
+    if (future_pos >= rgi->rli->cur_log->end_of_file)
+    {
+      break;
+    }
     my_b_seek(rgi->rli->cur_log, future_pos);
     rgi->rli->event_relay_log_pos= future_pos;
     rgi->event_relay_log_pos= future_pos;

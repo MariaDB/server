@@ -404,32 +404,46 @@ int my_wildcmp_bin(CHARSET_INFO *cs,
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_8bit_bin(CHARSET_INFO *cs,
                      uchar * dst, size_t dstlen, uint nweights,
                      const uchar *src, size_t srclen, uint flags)
 {
+  my_strnxfrm_ret_t rcpad;
+  size_t srclen0= srclen;
   set_if_smaller(srclen, dstlen);
   set_if_smaller(srclen, nweights);
   if (srclen && dst != src)
     memcpy(dst, src, srclen);
-  return my_strxfrm_pad_desc_and_reverse(cs, dst, dst + srclen, dst + dstlen,
-                                         (uint)(nweights - srclen), flags, 0);
+  rcpad= my_strxfrm_pad_desc_and_reverse(cs, dst, dst + srclen,
+                                         dst + dstlen,
+                                         (uint)(nweights - srclen),
+                                         flags, 0);
+  return my_strnxfrm_ret_construct(rcpad.m_result_length, srclen,
+            (srclen < srclen0 ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0) |
+            rcpad.m_warnings);
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_8bit_nopad_bin(CHARSET_INFO *cs,
                            uchar * dst, size_t dstlen, uint nweights,
                            const uchar *src, size_t srclen, uint flags)
 {
+  my_strnxfrm_ret_t rcpad;
+  size_t srclen0= srclen;
   set_if_smaller(srclen, dstlen);
   set_if_smaller(srclen, nweights);
   if (dst != src)
     memcpy(dst, src, srclen);
-  return my_strxfrm_pad_desc_and_reverse_nopad(cs, dst, dst + srclen,
-                                               dst + dstlen,(uint)(nweights - srclen),
+  rcpad= my_strxfrm_pad_desc_and_reverse_nopad(cs,
+                                               dst, dst + srclen,
+                                               dst + dstlen,
+                                               (uint)(nweights - srclen),
                                                flags, 0);
+  return my_strnxfrm_ret_construct(rcpad.m_result_length, srclen,
+            (srclen < srclen0 ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0) |
+            rcpad.m_warnings);
 }
 
 

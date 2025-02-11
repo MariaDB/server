@@ -21,10 +21,6 @@
   variables must declare the size_of() member function.
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "mysqld.h"                             /* system_charset_info */
 #include "table.h"                              /* TABLE */
 #include "sql_string.h"                         /* String */
@@ -285,13 +281,16 @@ protected:
   // String-to-number converters with automatic warning generation
   class Converter_strntod_with_warn: public Converter_strntod
   {
+    const char *m_data_type;
   public:
     Converter_strntod_with_warn(THD *thd, Warn_filter filter,
+                                const char *data_type,
                                 CHARSET_INFO *cs,
                                 const char *str, size_t length)
-      :Converter_strntod(cs, str, length)
+      :Converter_strntod(cs, str, length),
+       m_data_type(data_type)
     {
-      check_edom_and_truncation(thd, filter, "DOUBLE", cs, str, length);
+      check_edom_and_truncation(thd, filter, m_data_type, cs, str, length);
     }
   };
 
@@ -358,7 +357,7 @@ protected:
   double double_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
                                        const char *end) const
   {
-    return Converter_strntod_with_warn(NULL, Warn_filter_all(),
+    return Converter_strntod_with_warn(NULL, Warn_filter_all(), "DOUBLE",
                                        cs, cptr, end - cptr).result();
   }
   my_decimal *decimal_from_string_with_check(my_decimal *decimal_value,
@@ -847,6 +846,8 @@ public:
     TMYSQL_COMPRESSED= 24,      // Compatibility with TMySQL
     };
   enum imagetype { itRAW, itMBR};
+  static enum imagetype image_type(enum ha_key_alg alg)
+  { return alg == HA_KEY_ALG_RTREE ? itMBR : itRAW; }
 
   utype	unireg_check;
   field_visibility_t invisible;
@@ -966,6 +967,10 @@ public:
   virtual int  store_binary(const char *to, size_t length)
   {
     return store(to, length, &my_charset_bin);
+  }
+  int store_binary(const uchar *to, size_t length)
+  {
+    return store_binary((const char*)(to), length);
   }
   virtual int  store_hex_hybrid(const char *str, size_t length);
   virtual int  store(double nr)=0;
@@ -1254,6 +1259,7 @@ public:
   virtual uint16 key_part_flag() const { return 0; }
   virtual uint16 key_part_length_bytes() const { return 0; }
   virtual uint32 key_length() const { return pack_length(); }
+  virtual uint cols() const { return 1; }
   virtual const Type_handler *type_handler() const = 0;
   virtual enum_field_types type() const
   {
@@ -1403,6 +1409,20 @@ public:
     in str and restore it with set() if needed
   */
   virtual void sql_type(String &str) const =0;
+  virtual void sql_type_for_sp_returns(String &str) const
+  {
+    sql_type(str);
+    if (has_charset())
+    {
+      str.append(STRING_WITH_LEN(" CHARSET "));
+      str.append(charset()->cs_name);
+      if (Charset(charset()).can_have_collate_clause())
+      {
+        str.append(STRING_WITH_LEN(" COLLATE "));
+        str.append(charset()->coll_name);
+      }
+    }
+  }
   virtual void sql_rpl_type(String *str) const { sql_type(*str); }
   virtual uint size_of() const =0;		// For new field
   inline bool is_null(my_ptrdiff_t row_offset= 0) const
@@ -2006,6 +2026,10 @@ public:
 
   virtual Compression_method *compression_method() const { return 0; }
 
+  virtual Virtual_tmp_table *virtual_tmp_table() const
+  {
+    return nullptr;
+  }
   virtual Virtual_tmp_table **virtual_tmp_table_addr()
   {
     return NULL;
@@ -2305,7 +2329,7 @@ public:
   uint32 max_data_length() const override;
   void make_send_field(Send_field *) override;
   bool send(Protocol *protocol) override;
-
+  bool val_bool() override;
   bool is_varchar_and_in_write_set() const override
   {
     DBUG_ASSERT(table && table->write_set);
@@ -3069,7 +3093,7 @@ public:
   int cmp(const uchar *a, const uchar *b) const override final { return 0;}
   void sort_string(uchar *buff, uint length) override final {}
   uint32 pack_length() const override final { return 0; }
-  void sql_type(String &str) const override final;
+  void sql_type(String &str) const override;
   uint size_of() const override final { return sizeof *this; }
   uint32 max_display_length() const override final { return 4; }
   void move_field_offset(my_ptrdiff_t ptr_diff) override final {}
@@ -3272,7 +3296,7 @@ public:
   bool zero_pack() const override { return false; }
   /*
     This method is used by storage/perfschema and
-    Item_func_now_local::save_in_field().
+    thd_get_query_start_data().
   */
   void store_TIME(my_time_t ts, ulong sec_part)
   {
@@ -4124,6 +4148,7 @@ public:
   using Field_str::store;
   double val_real() override;
   longlong val_int() override;
+  bool val_bool() override;
   String *val_str(String *, String *) override;
   my_decimal *val_decimal(my_decimal *) override;
   int cmp(const uchar *,const uchar *) const override;
@@ -4640,6 +4665,7 @@ public:
     return get_key_image_itRAW(ptr_arg, buff, length);
   }
   void set_key_image(const uchar *buff,uint length) override;
+  Field *make_new_field(MEM_ROOT *, TABLE *new_table, bool keep_type) override;
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
@@ -5201,6 +5227,13 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
+  uint cols() const override;
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_row;
+  }
+  void sql_type(String &str) const override;
+  void sql_type_for_sp_returns(String &str) const override;
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
     DBUG_ASSERT(0);
@@ -5213,7 +5246,13 @@ public:
     DBUG_ASSERT(0);
     return CONV_TYPE_IMPOSSIBLE;
   }
+  virtual Virtual_tmp_table *virtual_tmp_table() const override
+  {
+    return m_table;
+  }
   Virtual_tmp_table **virtual_tmp_table_addr() override { return &m_table; }
+  bool row_create_fields(THD *thd, List<Spvar_definition> *list);
+  bool row_create_fields(THD *thd, const Spvar_definition &def);
   bool sp_prepare_and_store_item(THD *thd, Item **value) override;
 };
 
@@ -5736,6 +5775,7 @@ public:
     m_row_field_definitions= list;
   }
 
+  class Item_field_row *make_item_field_row(THD *thd, Field_row *field);
 };
 
 
@@ -5826,9 +5866,14 @@ public:
 private:
   void normalize()
   {
-    /* limit number of decimals for float and double */
-    if (type_handler()->field_type() == MYSQL_TYPE_FLOAT ||
-        type_handler()->field_type() == MYSQL_TYPE_DOUBLE)
+    /*
+      limit number of decimals for float and double.
+      The test for cmp_type() is needed to avoid the field_type()
+      calls for the ROW data type.
+    */
+    if (type_handler()->cmp_type() == REAL_RESULT &&
+        (type_handler()->field_type() == MYSQL_TYPE_FLOAT ||
+         type_handler()->field_type() == MYSQL_TYPE_DOUBLE))
       set_if_smaller(decimals, FLOATING_POINT_DECIMALS);
   }
 public:
@@ -5993,6 +6038,12 @@ ulonglong TABLE::vers_start_id() const
 {
   DBUG_ASSERT(versioned(VERS_TRX_ID));
   return static_cast<ulonglong>(vers_start_field()->val_int());
+}
+
+inline
+bool TABLE::vers_implicit() const
+{
+  return vers_end_field()->invisible == INVISIBLE_SYSTEM;
 }
 
 double pos_in_interval_for_string(CHARSET_INFO *cset,

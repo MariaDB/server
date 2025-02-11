@@ -52,6 +52,8 @@ insert into t3 select * from t1;
 insert into t4 select * from t1;
 commit;
 
+set global innodb_log_checkpoint_now=on;
+
 --source ../../suite/innodb/include/no_checkpoint_start.inc
 
 #

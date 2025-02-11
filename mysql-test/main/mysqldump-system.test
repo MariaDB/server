@@ -70,7 +70,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 --echo #
 
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
---exec $MYSQL_DUMP --skip-comments --system=all
+--exec $MYSQL_DUMP --skip-comments --system=all --no-autocommit=0
 
 
 --echo #
@@ -78,18 +78,18 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 --echo #
 
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
---exec $MYSQL_DUMP --skip-comments --system=all --replace
+--exec $MYSQL_DUMP --skip-comments --system=all --replace --no-autocommit=0
 
 
 # save this for restore
---exec $MYSQL_DUMP --system=users,servers,stats,timezones,udfs --replace > $MYSQLTEST_VARDIR/tmp/dump1.sql
+--exec $MYSQL_DUMP --system=users,servers,stats,timezones,udfs --replace --no-autocommit=0 > $MYSQLTEST_VARDIR/tmp/dump1.sql
 
 --echo #
 --echo # mysqldump of system tables with --system=all --insert-ignore
 --echo #
 
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
---exec $MYSQL_DUMP --skip-comments --system=all --insert-ignore
+--exec $MYSQL_DUMP --skip-comments --system=all --insert-ignore --no-autocommit=0
 
 
 # global_priv checksum not restored because:

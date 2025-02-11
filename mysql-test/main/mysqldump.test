@@ -3046,7 +3046,9 @@ drop table t1;
 #
 # MDEV-32589 parallel-mysqldump - test "too many connections"
 #
+--disable_cursor_protocol
 select @@max_connections into @save_max_connections;
+--enable_cursor_protocol
 set global max_connections=10;
 --replace_result mariadb-dump.exe mariadb-dump
 --error 2

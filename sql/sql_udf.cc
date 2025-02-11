@@ -27,10 +27,6 @@
    dynamic functions, so this shouldn't be a real problem.
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
@@ -104,12 +100,11 @@ static const char *init_syms(udf_func *tmp, char *nm)
 }
 
 
-extern "C" uchar* get_hash_key(const uchar *buff, size_t *length,
-			      my_bool not_used __attribute__((unused)))
+extern "C" const uchar *get_hash_key(const void *buff, size_t *length, my_bool)
 {
-  udf_func *udf=(udf_func*) buff;
-  *length=(uint) udf->name.length;
-  return (uchar*) udf->name.str;
+  auto udf= static_cast<const udf_func *>(buff);
+  *length= udf->name.length;
+  return reinterpret_cast<const uchar *>(udf->name.str);
 }
 
 static PSI_memory_key key_memory_udf_mem;
@@ -180,7 +175,7 @@ void udf_init()
     DBUG_VOID_RETURN;
   }
   initialized = 1;
-  new_thd->thread_stack= (char*) &new_thd;
+  new_thd->thread_stack= (void*) &new_thd;      // Big stack
   new_thd->store_globals();
   new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:udf_init"),
                            default_charset_info);

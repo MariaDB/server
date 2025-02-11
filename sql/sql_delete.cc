@@ -41,6 +41,7 @@
 #include "filesort.h"
 #include "uniques.h"
 #include "sql_derived.h"                        // mysql_handle_derived
+#include "key.h"
                                                 // end_read_record
 #include "sql_insert.h"          // fix_rownum_pointers
 #include "sql_partition.h"       // make_used_partitions_str
@@ -276,7 +277,7 @@ int update_portion_of_time(THD *thd, TABLE *table,
 
   if (likely(!res) && table->triggers)
     res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
-                                           TRG_ACTION_AFTER, true);
+                                           TRG_ACTION_AFTER, true, nullptr);
   restore_record(table, record[1]);
   if (res)
     table->file->restore_auto_increment(prev_insert_id);
@@ -296,15 +297,22 @@ int TABLE::delete_row()
 
   store_record(this, record[1]);
   vers_update_end();
-  int err= file->ha_update_row(record[1], record[0]);
-  /*
-     MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
-     row with same trx_id which is the result of foreign key action, so we
-     don't need one more history row.
-  */
-  if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
-    return file->ha_delete_row(record[0]);
-  return err;
+  int err;
+  if ((err= file->extra(HA_EXTRA_REMEMBER_POS)))
+    return err;
+  if ((err= file->ha_update_row(record[1], record[0])))
+  {
+    /*
+      MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
+      history row with same trx_id which is the result of foreign key action,
+      so we don't need one more history row.
+    */
+    if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
+      file->ha_delete_row(record[0]);
+    else
+      return err;
+  }
+  return file->extra(HA_EXTRA_RESTORE_POS);
 }
 
 
@@ -352,6 +360,16 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   bool delete_record= false;
   bool delete_while_scanning= table_list->delete_while_scanning;
   bool portion_of_time_through_update;
+  /*
+    TRUE if we are after the call to
+    select_lex->optimize_unflattened_subqueries(true) and before the
+    call to select_lex->optimize_unflattened_subqueries(false), to
+    ensure a call to
+    select_lex->optimize_unflattened_subqueries(false) happens which
+    avoid 2nd ps mem leaks when e.g. the first execution produces
+    empty result and the second execution produces a non-empty set
+  */
+  bool optimize_subqueries= FALSE;
 
   DBUG_ENTER("Sql_cmd_delete::delete_single_table");
 
@@ -388,9 +406,18 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   thd->lex->promote_select_describe_flag_if_needed();
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
-  if (select_lex->optimize_unflattened_subqueries(false))
+  /*
+    Apply the IN=>EXISTS transformation to all constant subqueries
+    and optimize them.
+
+    It is too early to choose subquery optimization strategies without
+    an estimate of how many times the subquery will be executed so we
+    call optimize_unflattened_subqueries() with const_only= true, and
+    choose between materialization and in-to-exists later.
+  */
+  if (select_lex->optimize_unflattened_subqueries(true))
     DBUG_RETURN(TRUE);
+  optimize_subqueries= TRUE;
 
   const_cond= (!conds || conds->const_item());
   safe_update= (thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
@@ -402,10 +429,10 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-  const_cond_result= const_cond && (!conds || conds->val_int());
+  const_cond_result= const_cond && (!conds || conds->val_bool());
   if (unlikely(thd->is_error()))
   {
-    /* Error evaluating val_int(). */
+    /* Error evaluating val_bool(). */
     DBUG_RETURN(TRUE);
   }
 
@@ -441,6 +468,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     if (thd->lex->describe)
       goto produce_explain_and_leave;
 
+    table->file->prepare_for_modify(false, false);
     if (likely(!(error=table->file->ha_delete_all_rows())))
     {
       /*
@@ -488,9 +516,15 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
                                           (uchar *) 0);
   }
 
+  if (conds && substitute_indexed_vcols_for_table(table, conds))
+   DBUG_RETURN(1); // Fatal error
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (prune_partitions(thd, table, conds))
   {
+    if (optimize_subqueries && select_lex->optimize_unflattened_subqueries(false))
+      DBUG_RETURN(TRUE);
+    optimize_subqueries= FALSE;
     free_underlaid_joins(thd, select_lex);
 
     query_plan.set_no_partitions();
@@ -499,6 +533,13 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
     if (thd->binlog_for_noop_dml(transactional_table))
       DBUG_RETURN(1);
+
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
+    }
 
     my_ok(thd, 0);
     DBUG_RETURN(0);
@@ -523,6 +564,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       goto produce_explain_and_leave;
 
     delete select;
+    if (select_lex->optimize_unflattened_subqueries(false))
+      DBUG_RETURN(TRUE);
+    optimize_subqueries= FALSE;
     free_underlaid_joins(thd, select_lex);
     /* 
       Error was already created by quick select evaluation (check_quick()).
@@ -540,6 +584,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd, 0);
@@ -553,6 +598,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     if (safe_update && !using_limit)
     {
       delete select;
+      if (optimize_subqueries && select_lex->optimize_unflattened_subqueries(false))
+        DBUG_RETURN(TRUE);
+      optimize_subqueries= FALSE;
       free_underlaid_joins(thd, select_lex);
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
                  ER_THD(thd, ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
@@ -562,7 +610,18 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_QUICK);
 
-  query_plan.scanned_rows= select? select->records: table->file->stats.records;
+  /*
+    Estimate the number of scanned rows and have it accessible in
+    JOIN::choose_subquery_plan() from the outer join through
+    JOIN::sql_cmd_dml
+  */
+  scanned_rows= query_plan.scanned_rows= select ?
+    select->records : table->file->stats.records;
+  select_lex->join->sql_cmd_dml= this;
+  DBUG_ASSERT(optimize_subqueries);
+  if (select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
+  optimize_subqueries= FALSE;
   if (order)
   {
     table->update_const_key_parts(conds);
@@ -797,8 +856,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
           && !table->versioned()
           && table->file->has_transactions();
 
-  if (table->versioned(VERS_TIMESTAMP) || (table_list->has_period()))
-    table->file->prepare_for_insert(1);
+  table->file->prepare_for_modify(table->versioned(VERS_TIMESTAMP) ||
+                                  table_list->has_period(), true);
   DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);
@@ -814,17 +873,19 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
                                               delete_history);
     if (delete_record)
     {
-      void *save_bulk_param= thd->bulk_param;
-      thd->bulk_param= nullptr;
+      bool trg_skip_row= false;
+
       if (!delete_history && table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_BEFORE, FALSE))
+                                            TRG_ACTION_BEFORE, FALSE,
+                                            &trg_skip_row))
       {
         error= 1;
-        thd->bulk_param= save_bulk_param;
         break;
       }
-      thd->bulk_param= save_bulk_param;
+
+      if (trg_skip_row)
+        continue;
 
       // no LIMIT / OFFSET
       if (returning && result->send_data(returning->item_list) < 0)
@@ -855,21 +916,19 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       if (likely(!error))
       {
         deleted++;
-	thd->bulk_param= nullptr;
         if (!delete_history && table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                              TRG_ACTION_AFTER, FALSE))
+                                              TRG_ACTION_AFTER, false,
+                                              nullptr))
         {
           error= 1;
-          thd->bulk_param= save_bulk_param;
           break;
         }
-        thd->bulk_param= save_bulk_param;
-        if (!--limit && using_limit)
-        {
-          error= -1;
-          break;
-        }
+	if (!--limit && using_limit)
+	{
+	  error= -1;
+	  break;
+	}
       }
       else
       {
@@ -985,6 +1044,8 @@ cleanup:
     DBUG_PRINT("info",("%ld records deleted",(long) deleted));
   }
   delete file_sort;
+  if (optimize_subqueries && select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   if (table->file->pushed_cond)
     table->file->cond_pop();
@@ -1008,6 +1069,9 @@ send_nothing_and_leave:
 
   delete select;
   delete file_sort;
+  if (!thd->is_error() && optimize_subqueries &&
+      select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   if (table->file->pushed_cond)
     table->file->cond_pop();
@@ -1026,19 +1090,30 @@ got_error:
 ***************************************************************************/
 
 
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b)
+extern "C" int refpos_order_cmp(void *arg, const void *a, const void *b)
 {
-  handler *file= (handler*)arg;
-  return file->cmp_ref((const uchar*)a, (const uchar*)b);
+  auto file= static_cast<handler *>(arg);
+  return file->cmp_ref(static_cast<const uchar *>(a),
+                       static_cast<const uchar *>(b));
 }
 
 
-multi_delete::multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables_arg):
-    select_result_interceptor(thd_arg), delete_tables(dt), deleted(0), found(0),
-    num_of_tables(num_of_tables_arg), error(0),
-    do_delete(0), transactional_tables(0), normal_tables(0), error_handled(0)
+multi_delete::multi_delete(THD *thd_arg,
+                           TABLE_LIST *dt,
+                           uint num_of_tables_arg)
+  : select_result_interceptor(thd_arg),
+    delete_tables(dt),
+    deleted(0),
+    found(0),
+    table_count(num_of_tables_arg),
+    error(0),
+    do_delete(0),
+    transactional_tables(0),
+    normal_tables(0),
+    error_handled(0)
 {
-  tempfiles= (Unique **) thd_arg->calloc(sizeof(Unique *) * num_of_tables);
+  tmp_tables = thd->calloc<TABLE*>(table_count);
+  tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
 }
 
 
@@ -1051,6 +1126,59 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   THD_STAGE_INFO(thd, stage_deleting_from_main_table);
   DBUG_RETURN(0);
 }
+
+static TABLE *item_rowid_table(Item *item)
+{
+  if (item->type() != Item::FUNC_ITEM)
+    return NULL;
+  Item_func *func= (Item_func *)item;
+  if (func->functype() != Item_func::TEMPTABLE_ROWID)
+    return NULL;
+  Item_temptable_rowid *itr= (Item_temptable_rowid *)func;
+  return itr->table;
+}
+
+/*
+  multi_delete stores a rowid and new field values for every updated row in a
+  temporary table (one temporary table per updated table).  These rowids are
+  obtained via Item_temptable_rowid's by calling handler::position().  But if
+  the join is resolved via a temp table, rowids cannot be obtained from
+  handler::position() in the multi_update::send_data().  So, they're stored in
+  the join's temp table (JOIN::add_fields_for_current_rowid()) and here we
+  replace Item_temptable_rowid's (that would've done handler::position()) with
+  Item_field's (that will simply take the corresponding field value from the
+  temp table).
+*/
+int multi_delete::prepare2(JOIN *join)
+{
+  if (!join->need_tmp || !join->tmp_table_keep_current_rowid)
+    return 0;
+  delete_while_scanning= false;
+  JOIN_TAB *tmptab= join->join_tab + join->exec_join_tab_cnt();
+
+  for (Item **it= tmptab->tmp_table_param->items_to_copy; *it ; it++)
+  {
+    TABLE *tbl= item_rowid_table(*it);
+    if (!tbl)
+      continue;
+    for (uint i= 0; i < table_count; i++)
+    {
+      for (Item **it2= tmp_table_param[i].items_to_copy; *it2; it2++)
+      {
+        if (item_rowid_table(*it2) != tbl)
+          continue;
+        Item_field *fld= new (thd->mem_root)
+                             Item_field(thd, (*it)->get_tmp_table_field());
+        if (!fld)
+          return 1;
+        fld->result_field= (*it2)->get_tmp_table_field();
+        *it2= fld;
+      }
+    }
+  }
+  return 0;
+}
+
 
 void multi_delete::prepare_to_read_rows()
 {
@@ -1066,14 +1194,14 @@ bool
 multi_delete::initialize_tables(JOIN *join)
 {
   TABLE_LIST *walk;
-  Unique **tempfiles_ptr;
   DBUG_ENTER("initialize_tables");
 
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
                error_if_full_join(join)))
     DBUG_RETURN(1);
+  main_table=join->join_tab->table;
 
-  table_map tables_to_delete_from=0;
+  table_map tables_to_delete_from= 0;
   delete_while_scanning= true;
   for (walk= delete_tables; walk; walk= walk->next_local)
   {
@@ -1099,16 +1227,17 @@ multi_delete::initialize_tables(JOIN *join)
   }
 
   walk= delete_tables;
-
+  uint index= 0;
   for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS,
                                        WITH_CONST_TABLES);
-       tab; 
+       tab;
        tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
   {
     if (!tab->bush_children && tab->table->map & tables_to_delete_from)
     {
       /* We are going to delete from this table */
       TABLE *tbl=walk->table=tab->table;
+      TABLE_LIST *prior= walk;
       walk= walk->next_local;
       /* Don't use KEYREAD optimization on this table */
       tbl->no_keyread=1;
@@ -1121,9 +1250,38 @@ multi_delete::initialize_tables(JOIN *join)
 	normal_tables= 1;
       tbl->prepare_triggers_for_delete_stmt_or_event();
       tbl->prepare_for_position();
+      tbl->file->prepare_for_modify(tbl->versioned(VERS_TIMESTAMP), true);
 
-      if (tbl->versioned(VERS_TIMESTAMP))
-        tbl->file->prepare_for_insert(1);
+      List<Item> temp_fields;
+      tbl->prepare_for_position();
+      join->map2table[tbl->tablenr]->keep_current_rowid= true;
+      Item_temptable_rowid *item=
+        new (thd->mem_root) Item_temptable_rowid(tbl);
+      if (!item)
+         DBUG_RETURN(1);
+      item->fix_fields(thd, 0);
+      if (temp_fields.push_back(item, thd->mem_root))
+        DBUG_RETURN(1);
+      /* Make an unique key over the first field to avoid duplicated updates */
+      ORDER group;
+      bzero((char*) &group, sizeof(group));
+      group.direction= ORDER::ORDER_ASC;
+      group.item= (Item**) temp_fields.head_ref();
+      TMP_TABLE_PARAM *tmp_param;
+      prior->shared = index;
+      tmp_param= &tmp_table_param[prior->shared];
+      tmp_param->init();
+      tmp_param->tmp_name="update";
+      tmp_param->field_count= temp_fields.elements;
+      tmp_param->func_count= temp_fields.elements;
+      calc_group_buffer(tmp_param, &group);
+      tmp_tables[index]=create_tmp_table(thd, tmp_param, temp_fields,
+                                       (ORDER*) &group, 0, 0,
+                                       TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
+      if (!tmp_tables[index])
+        DBUG_RETURN(1);
+      tmp_tables[index]->file->extra(HA_EXTRA_WRITE_CACHE);
+      ++index;
     }
     else if ((tab->type != JT_SYSTEM && tab->type != JT_CONST) &&
              walk == delete_tables)
@@ -1136,44 +1294,37 @@ multi_delete::initialize_tables(JOIN *join)
       delete_while_scanning= false;
     }
   }
-  walk= delete_tables;
-  tempfiles_ptr= tempfiles;
   if (delete_while_scanning)
-  {
     table_being_deleted= delete_tables;
-    walk= walk->next_local;
-  }
-  for (;walk ;walk= walk->next_local)
-  {
-    TABLE *table=walk->table;
-    *tempfiles_ptr++= new (thd->mem_root) Unique (refpos_order_cmp, table->file,
-                                                  table->file->ref_length,
-                                                  MEM_STRIP_BUF_SIZE);
-  }
   if (init_ftfuncs(thd, thd->lex->current_select, 1))
     DBUG_RETURN(true);
 
+  join->tmp_table_keep_current_rowid= TRUE;
   DBUG_RETURN(thd->is_fatal_error);
 }
 
 
 multi_delete::~multi_delete()
 {
-  for (table_being_deleted= delete_tables;
-       table_being_deleted;
-       table_being_deleted= table_being_deleted->next_local)
+  for (TABLE_LIST *walk= delete_tables; walk; walk= walk->next_local)
   {
-    TABLE *table= table_being_deleted->table;
+    TABLE *table= walk->table;
     if (!table)
       continue;
     table->no_keyread=0;
     table->no_cache= 0;
   }
 
-  for (uint counter= 0; counter < num_of_tables; counter++)
+  if (tmp_tables)
   {
-    if (tempfiles[counter])
-      delete tempfiles[counter];
+    for (uint cnt = 0; cnt < table_count; cnt++)
+    {
+      if (tmp_tables[cnt])
+      {
+	free_tmp_table(thd, tmp_tables[cnt]);
+	tmp_table_param[cnt].cleanup();
+      }
+    }
   }
 }
 
@@ -1188,25 +1339,35 @@ int multi_delete::send_data(List<Item> &values)
 
   for (del_table= delete_tables;
        del_table;
-       del_table= del_table->next_local, secure_counter++)
+       del_table= del_table->next_local, ++secure_counter)
   {
     TABLE *table= del_table->table;
+    // DELETE and TRUNCATE don't affect SEQUENCE, so bail early
+    if (table->file->ht->db_type == DB_TYPE_SEQUENCE)
+      continue;
 
     /* Check if we are using outer join and we didn't find the row */
     if (table->status & (STATUS_NULL_ROW | STATUS_DELETED))
       continue;
 
     table->file->position(table->record[0]);
-    found++;
+    ++found;
 
     if (secure_counter < 0)
     {
+      bool trg_skip_row= false;
+
       /* We are scanning the current table */
       DBUG_ASSERT(del_table == table_being_deleted);
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_BEFORE, FALSE))
+                                            TRG_ACTION_BEFORE, false,
+                                            &trg_skip_row))
         DBUG_RETURN(1);
+
+      if (trg_skip_row)
+        continue;
+
       table->status|= STATUS_DELETED;
 
       error= table->delete_row();
@@ -1217,7 +1378,8 @@ int multi_delete::send_data(List<Item> &values)
           thd->transaction->stmt.modified_non_trans_table= TRUE;
         if (table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                              TRG_ACTION_AFTER, FALSE))
+                                              TRG_ACTION_AFTER, false,
+                                              nullptr))
           DBUG_RETURN(1);
       }
       else if (!ignore)
@@ -1232,11 +1394,30 @@ int multi_delete::send_data(List<Item> &values)
     }
     else
     {
-      error=tempfiles[secure_counter]->unique_add((char*) table->file->ref);
-      if (unlikely(error))
+      const uint offset= del_table->shared;
+      TABLE *tmp_table= tmp_tables[offset];
+      if (copy_funcs(tmp_table_param[offset].items_to_copy, thd))
+        DBUG_RETURN(1);
+      /* rowid field is NULL if join tmp table has null row from outer join */
+      if (tmp_table->field[0]->is_null())
+        continue;
+      error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
+      if (error)
       {
-	error= 1;                               // Fatal error
-	DBUG_RETURN(1);
+          --found;
+          if (error != HA_ERR_FOUND_DUPP_KEY &&
+              error != HA_ERR_FOUND_DUPP_UNIQUE)
+          {
+              if (create_internal_tmp_table_from_heap(thd, tmp_table,
+                                                      tmp_table_param[offset].start_recinfo,
+                                                      &tmp_table_param[offset].recinfo,
+                                                      error, 1, NULL))
+              {
+                  do_delete= 0;
+                  DBUG_RETURN(1);			// Not a table_is_full error
+              }
+              found++;
+          }
       }
     }
   }
@@ -1325,17 +1506,16 @@ int multi_delete::do_deletes()
 
   table_being_deleted= (delete_while_scanning ? delete_tables->next_local :
                         delete_tables);
- 
-  for (uint counter= 0; table_being_deleted;
-       table_being_deleted= table_being_deleted->next_local, counter++)
-  { 
-    TABLE *table = table_being_deleted->table;
-    int local_error; 
-    if (unlikely(tempfiles[counter]->get(table)))
-      DBUG_RETURN(1);
 
-    local_error= do_table_deletes(table, &tempfiles[counter]->sort,
-                                  thd->lex->ignore);
+  for (; table_being_deleted;
+       table_being_deleted= table_being_deleted->next_local)
+  {
+    TABLE *table = table_being_deleted->table;
+    // DELETE and TRUNCATE don't affect SEQUENCE, so bail early
+    if (table->file->ht->db_type == DB_TYPE_SEQUENCE)
+      continue;
+
+    int local_error= rowid_table_deletes(table, thd->lex->ignore);
 
     if (unlikely(thd->killed) && likely(!local_error))
       DBUG_RETURN(1);
@@ -1365,28 +1545,66 @@ int multi_delete::do_deletes()
    @retval  1 Triggers or handler reported error.
    @retval -1 End of file from handler.
 */
-int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
-                                   bool ignore)
+int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
 {
   int local_error= 0;
-  READ_RECORD info;
   ha_rows last_deleted= deleted;
-  DBUG_ENTER("do_deletes_for_table");
-
-  if (unlikely(init_read_record(&info, thd, table, NULL, sort_info, 0, 1,
-                                FALSE)))
-    DBUG_RETURN(1);
+  DBUG_ENTER("rowid_table_deletes");
+  TABLE *err_table= nullptr;
 
   bool will_batch= !table->file->start_bulk_delete();
-  while (likely(!(local_error= info.read_record())) && likely(!thd->killed))
+  TABLE *tmp_table= tmp_tables[table_being_deleted->shared];
+  tmp_table->file->extra(HA_EXTRA_CACHE);  // Change to read cache
+  if (unlikely((local_error= table->file->ha_rnd_init(0))))
   {
+    err_table= table;
+    goto err;
+  }
+  table->file->extra(HA_EXTRA_NO_CACHE);
+  if (unlikely((local_error= tmp_table->file->ha_rnd_init(1))))
+  {
+    err_table= tmp_table;
+    goto err;
+  }
+
+  while (!thd->killed)
+  {
+    if (unlikely((local_error=
+                  tmp_table->file->ha_rnd_next(tmp_table->record[0]))))
+    {
+      if (local_error == HA_ERR_END_OF_FILE)
+      {
+        local_error= 0;
+        break;
+      }
+      err_table= tmp_table;
+      goto err;
+    }
+
+    DBUG_ASSERT(!tmp_table->field[0]->is_null());
+    String rowid;
+    tmp_table->field[0]->val_str(&rowid);
+    if (unlikely((local_error= table->file->ha_rnd_pos(table->record[0],
+                                                       (uchar*)rowid.ptr()))))
+    {
+      // Table aliased to itself had key deleted already
+      continue;
+    }
+
+    bool trg_skip_row= false;
+
     if (table->triggers &&
         unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                   TRG_ACTION_BEFORE, FALSE)))
+                                                   TRG_ACTION_BEFORE, FALSE,
+                                                   &trg_skip_row)))
     {
+      err_table= table;
       local_error= 1;
       break;
     }
+
+    if (trg_skip_row)
+      continue;
 
     local_error= table->delete_row();
     if (unlikely(local_error) && !ignore)
@@ -1394,7 +1612,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       table->file->print_error(local_error, MYF(0));
       break;
     }
-      
+
     /*
       Increase the reported number of deleted rows only if no error occurred
       during ha_delete_row.
@@ -1405,8 +1623,10 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       deleted++;
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_AFTER, FALSE))
+                                            TRG_ACTION_AFTER, FALSE,
+                                            nullptr))
       {
+        err_table= table;
         local_error= 1;
         break;
       }
@@ -1423,11 +1643,12 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
   }
   if (last_deleted != deleted && !table->file->has_transactions_and_rollback())
     thd->transaction->stmt.modified_non_trans_table= TRUE;
-
-  end_read_record(&info);
-
+err:
+  if (err_table)
+    err_table->file->print_error(local_error,MYF(ME_FATAL));
   DBUG_RETURN(local_error);
 }
+
 
 /*
   Send ok to the client
@@ -1487,9 +1708,20 @@ bool multi_delete::send_eof()
     }
   }
   if (unlikely(local_error != 0))
+  {
     error_handled= TRUE; // to force early leave from ::abort_result_set()
+    if (thd->killed == NOT_KILLED && !thd->get_stmt_da()->is_set())
+    {
+      /*
+        No error message was sent and query was not killed (in which case
+        mysql_execute_command() will send the error mesage).
+      */
+      ::my_ok(thd, deleted);  // Ends the DELETE statement
+    }
+    return 1;
+  }
 
-  if (likely(!local_error && !thd->lex->analyze_stmt))
+  if (likely(!thd->lex->analyze_stmt))
   {
     ::my_ok(thd, deleted);
   }
@@ -1523,11 +1755,8 @@ void  Sql_cmd_delete::remove_order_by_without_limit(THD *thd)
 
 bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
 {
-  SELECT_LEX *const select_lex = thd->lex->first_select_lex();
   return
-    ((select_lex->order_list.elements &&
-      select_lex->limit_params.select_limit) ||
-     thd->lex->has_returning());
+    (thd->lex->has_returning());
 }
 
 
@@ -1637,6 +1866,19 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
 
   if (!multitable)
   {
+    if (select_lex->index_hints || table_list->index_hints)
+    {
+      if (!processing_as_multitable_delete_prohibited(thd))
+      {
+        multitable= true;
+      }
+      else
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            WARN_INDEX_HINTS_IGNORED,
+                            ER_THD(thd, WARN_INDEX_HINTS_IGNORED));
+      }
+    }
     if (table_list->vers_conditions.is_set() && table_list->is_view_or_derived())
     {
       my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);

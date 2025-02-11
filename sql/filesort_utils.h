@@ -342,7 +342,7 @@ double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
                         ha_rows limit_rows, enum sort_type *used_sort_type);
 
 double get_qsort_sort_cost(ha_rows num_rows, bool with_addon_fields);
-int compare_packed_sort_keys(void *sort_keys, unsigned char **a,
-                             unsigned char **b);
-qsort2_cmp get_packed_keys_compare_ptr();
+int compare_packed_sort_keys(void *sort_param, const void *a_ptr,
+                             const void *b_ptr);
+qsort_cmp2 get_packed_keys_compare_ptr();
 #endif  // FILESORT_UTILS_INCLUDED

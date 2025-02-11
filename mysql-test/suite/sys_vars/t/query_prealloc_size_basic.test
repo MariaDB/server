@@ -60,10 +60,10 @@ SELECT @@session.query_prealloc_size  ;
 ########################################################################
 
 SET @@global.query_prealloc_size   = DEFAULT;
-SELECT @@global.query_prealloc_size   = 24576;
+SELECT @@global.query_prealloc_size   = 32768;
 
 SET @@session.query_prealloc_size   = DEFAULT;
-SELECT @@session.query_prealloc_size   = 24576;
+SELECT @@session.query_prealloc_size   = 32768;
 
 
 --echo '#--------------------FN_DYNVARS_005_03-------------------------#'

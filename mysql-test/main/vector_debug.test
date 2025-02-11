@@ -1,0 +1,22 @@
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-35205 Server crash in online alter upon concurrent ALTER and DML on table with vector field
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY, v VECTOR(1), b BLOB DEFAULT '1');
+INSERT INTO t (pk, v) VALUES (1,0x30303030);
+--connect (con1,localhost,root,,)
+set debug_sync= 'alter_table_online_progress SIGNAL there WAIT_FOR go';
+--send
+  ALTER TABLE t MODIFY COLUMN b INT, ALGORITHM=COPY;
+--connection default
+set debug_sync= 'now WAIT_FOR there';
+INSERT INTO t (pk, v) VALUES (2,0x31313131);
+set debug_sync= 'now SIGNAL go';
+--connection con1
+--reap
+# Cleanup
+DROP TABLE t;
+--disconnect con1

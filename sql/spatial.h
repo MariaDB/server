@@ -15,14 +15,12 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifndef _spatial_h
-#define _spatial_h
+#ifndef SPATIAL_INCLUDED
+#define SPATIAL_INCLUDED
 
 #include "sql_string.h"                         /* String, LEX_STRING */
 #include <my_compiler.h>
 #include <json_lib.h>
-
-#ifdef HAVE_SPATIAL
 
 class Gis_read_stream;
 
@@ -651,5 +649,4 @@ public:
 struct Geometry_buffer : public
   my_aligned_storage<sizeof(Gis_point), MY_ALIGNOF(Gis_point)> {};
 
-#endif /*HAVE_SPATIAL*/
-#endif
+#endif /* SPATIAL_INCLUDED */

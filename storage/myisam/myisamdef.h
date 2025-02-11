@@ -731,7 +731,7 @@ void mi_update_status(void *param);
 void mi_restore_status(void *param);
 void mi_copy_status(void *to, void *from);
 my_bool mi_check_status(void *param);
-void mi_fix_status(MI_INFO *org_table, MI_INFO *new_table);
+void mi_fix_status(void *org_table, void *new_table);
 extern MI_INFO *test_if_reopen(char *filename);
 my_bool check_table_is_closed(const char *name, const char *where);
 int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share);

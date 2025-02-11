@@ -16,10 +16,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_alloc.h"
 #include <iterator>
 
@@ -65,7 +61,7 @@ public:
     next= &first;
   }
 
-  inline void link_in_list(T *element, T **next_ptr)
+  inline void insert(T *element, T **next_ptr)
   {
     elements++;
     (*next)= element;
@@ -128,8 +124,6 @@ struct list_node :public Sql_alloc
     next= this;
   }
 };
-
-typedef bool List_eq(void *a, void *b);
 
 extern MYSQL_PLUGIN_IMPORT list_node end_of_list;
 
@@ -212,9 +206,9 @@ public:
     }
     return 1;
   }
-  inline bool push_front(void *info)
+  inline bool push_front(const void *info)
   { return push_front_impl(new list_node(info, first)); }
-  inline bool push_front(void *info, MEM_ROOT *mem_root)
+  inline bool push_front(const void *info, MEM_ROOT *mem_root)
   { return push_front_impl(new (mem_root) list_node(info,first)); }
   void remove(list_node **prev)
   {
@@ -301,11 +295,12 @@ public:
   inline void **head_ref() { return first != &end_of_list ? &first->info : 0; }
   inline bool is_empty() { return first == &end_of_list ; }
   inline list_node *last_ref() { return &end_of_list; }
-  inline bool add_unique(void *info, List_eq *eq)
+  template <typename T= void>
+  inline bool add_unique(T *info, bool (*eq)(T *a, T *b))
   {
     list_node *node= first;
     for (;
-         node != &end_of_list && (!(*eq)(node->info, info));
+         node != &end_of_list && (!(*eq)(static_cast<T *>(node->info), info));
          node= node->next) ;
     if (node == &end_of_list)
       return push_back(info);
@@ -500,11 +495,11 @@ public:
   inline List() :base_list() {}
   inline List(const List<T> &tmp, MEM_ROOT *mem_root) :
     base_list(tmp, mem_root) {}
-  inline bool push_back(T *a) { return base_list::push_back(a); }
-  inline bool push_back(T *a, MEM_ROOT *mem_root)
+  inline bool push_back(const T *a) { return base_list::push_back((void *)a); }
+  inline bool push_back(const T *a, MEM_ROOT *mem_root)
   { return base_list::push_back((void*) a, mem_root); }
-  inline bool push_front(T *a) { return base_list::push_front(a); }
-  inline bool push_front(T *a, MEM_ROOT *mem_root)
+  inline bool push_front(const T *a) { return base_list::push_front(a); }
+  inline bool push_front(const T *a, MEM_ROOT *mem_root)
   { return base_list::push_front((void*) a, mem_root); }
   inline T* head() {return (T*) base_list::head(); }
   inline T** head_ref() {return (T**) base_list::head_ref(); }
@@ -513,7 +508,7 @@ public:
   inline void prepend(List<T> *list) { base_list::prepend(list); }
   inline void disjoin(List<T> *list) { base_list::disjoin(list); }
   inline bool add_unique(T *a, bool (*eq)(T *a, T *b))
-  { return base_list::add_unique(a, (List_eq *)eq); }
+  { return base_list::add_unique<T>(a, eq); }
   inline bool copy(const List<T> *list, MEM_ROOT *root)
   { return base_list::copy(list, root); }
   void delete_elements(void)

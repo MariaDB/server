@@ -19,9 +19,9 @@ SELECT @@sql_quote_show_create;
 @@sql_quote_show_create
 1
 SELECT session.sql_quote_show_create;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT local.sql_quote_show_create;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET session sql_quote_show_create = 0;
 SELECT @@session.sql_quote_show_create;
 @@session.sql_quote_show_create

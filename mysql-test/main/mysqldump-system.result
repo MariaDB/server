@@ -90,7 +90,7 @@ SET ROLE NONE;
 DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
 CREATE FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
-CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost', Port 3306);
+CREATE SERVER `s1` FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost');
 
 USE mysql;
 
@@ -710,7 +710,7 @@ DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
 /*!50701 DROP FUNCTION IF EXISTS metaphon */;
 CREATE /*M!100103 OR REPLACE */ FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
-CREATE /*M!100103 OR REPLACE */ SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost', Port 3306);
+CREATE /*M!100103 OR REPLACE */ SERVER `s1` FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost');
 
 USE mysql;
 
@@ -1307,7 +1307,7 @@ SET ROLE NONE;
 DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
 CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
-CREATE SERVER /*M!100103 IF NOT EXISTS */ s1 FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost', Port 3306);
+CREATE SERVER /*M!100103 IF NOT EXISTS */ `s1` FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost');
 
 USE mysql;
 
@@ -1865,7 +1865,7 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
-mysql.servers	2079085450
+mysql.servers	3232626815
 mysql.func	3241572444
 mysql.innodb_table_stats	1972297402
 mysql.table_stats	1911089388
@@ -1900,7 +1900,7 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
-mysql.servers	2079085450
+mysql.servers	3232626815
 mysql.func	3241572444
 mysql.innodb_table_stats	1972297402
 mysql.table_stats	1911089388

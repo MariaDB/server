@@ -1,0 +1,19 @@
+# Vector indexes do not support partitioned tables
+create table t1 (id int auto_increment primary key,
+v vector(5) not null, vector index (v))
+partition by key(id) partitions 2;
+ERROR HY000: Partitioned tables do not support VECTOR
+create table t1 (id int auto_increment primary key,
+v vector(5) not null)
+partition by key(id) partitions 2;
+alter table t1 add vector index(v);
+ERROR HY000: Partitioned tables do not support VECTOR
+create vector index i on t1(v);
+ERROR HY000: Partitioned tables do not support VECTOR
+drop table t1;
+create table t1 (id int auto_increment primary key,
+v vector(5) not null, vector index(v));
+alter table t1 partition by key(id) partitions 2;
+ERROR HY000: Partitioned tables do not support VECTOR
+drop table t1;
+db.opt

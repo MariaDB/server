@@ -15,10 +15,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation  // gcc: Class implementation
-#endif
-
 /* For use of 'PRIu64': */
 #define __STDC_FORMAT_MACROS
 
@@ -2266,7 +2262,8 @@ void Rdb_key_def::pack_with_varchar_encoding(
                                   : uint2korr(field->ptr);
   size_t xfrm_len = charset->strnxfrm(
       buf, fpi->m_max_image_len, field_var->char_length(),
-      field_var->ptr + field_var->length_bytes, value_length, 0);
+      field_var->ptr + field_var->length_bytes,
+      value_length, 0).m_result_length;
 
   /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
   if (fpi->m_use_legacy_varbinary_format) {
@@ -2381,7 +2378,8 @@ void Rdb_key_def::pack_with_varchar_space_pad(
       value_length);
   const size_t xfrm_len = charset->strnxfrm(
       buf, fpi->m_max_image_len, field_var->char_length(),
-      field_var->ptr + field_var->length_bytes, trimmed_len, 0);
+      field_var->ptr + field_var->length_bytes,
+      trimmed_len, 0).m_result_length;
 
   /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
   uchar *const buf_end = buf + xfrm_len;
@@ -3073,7 +3071,8 @@ static void rdb_get_mem_comparable_space(const CHARSET_INFO *const cs,
       std::array<uchar, 20> space;
 
       const size_t space_len = cs->strnxfrm(
-          space.data(), sizeof(space), 1, space_mb, space_mb_len, 0);
+          space.data(), sizeof(space), 1, space_mb,
+          space_mb_len, 0).m_result_length;
       Rdb_charset_space_info *const info = new Rdb_charset_space_info;
       info->space_xfrm_len = space_len;
       info->space_mb_len = space_mb_len;
@@ -3802,7 +3801,7 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
   char eng_type_buf[NAME_CHAR_LEN+1];
   LEX_CSTRING eng_type_str = {eng_type_buf, 0}; 
   enum Table_type type = dd_frm_type(nullptr, fullfilename.c_ptr(),
-                                     &eng_type_str, nullptr, nullptr);
+                                     &eng_type_str, nullptr);
   if (type == TABLE_TYPE_UNKNOWN) {
     // NO_LINT_DEBUG
     sql_print_warning("RocksDB: Failed to open/read .from file: %s",

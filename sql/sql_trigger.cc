@@ -574,7 +574,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   DBUG_ASSERT(tables->next_global == 0);
 
   build_table_filename(path, sizeof(path) - 1, tables->db.str, tables->alias.str, ".frm", 0);
-  tables->required_type= dd_frm_type(NULL, path, NULL, NULL, NULL);
+  tables->required_type= dd_frm_type(NULL, path, NULL, NULL);
 
   /* We do not allow creation of triggers on temporary tables or sequence. */
   if (tables->required_type == TABLE_TYPE_SEQUENCE ||
@@ -1220,6 +1220,52 @@ bool Trigger::add_to_file_list(void* param_arg)
 }
 
 
+/**
+  Check that there is a column in ON UPDATE trigger matching with some of
+  the table's column from UPDATE statement.
+
+  @param  fields to be updated by the UPDATE statement
+
+  @return true in case there is a column in the target table that matches one
+          of columns specified by a trigger definition or no columns were
+          specified for the trigger at all, else return false.
+
+*/
+
+bool Trigger::match_updatable_columns(List<Item> &fields)
+{
+  DBUG_ASSERT(event == TRG_EVENT_UPDATE);
+
+  /*
+    No table columns were specified in OF col1, col2 ... colN of
+    the statement CREATE TRIGGER BEFORE/AFTER UPDATE. It means that this
+    ON UPDATE trigger can't be fired on every UPDATE statement involving
+    the target table.
+  */
+  if (!updatable_columns || updatable_columns->is_empty())
+    return true;
+
+  List_iterator_fast<Item> fields_it(fields);
+  List_iterator_fast<LEX_CSTRING> columns_it(*updatable_columns);
+  LEX_CSTRING *column_name;
+  Item_field *field;
+
+  /*
+    Stop search on the first matching of a column taken from UPDATE statement
+    with any column listed in trigger column list.
+  */
+  while ((field= (Item_field*)fields_it++))
+  {
+    while ((column_name= columns_it++))
+    {
+      if (field->field_name.streq(*column_name))
+        return true;
+    }
+  }
+
+  return false;
+}
+
 
 /**
   Deletes the .TRG file for a table.
@@ -1383,10 +1429,9 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
     if (stmt_query)
     {
       /* This code is executed in case of DROP TRIGGER */
-      lex_string_set3(&query, thd->query(), thd->query_length());
+      query = { thd->query(), thd->query_length() };
     }
-    if (ddl_log_drop_trigger(ddl_log_state,
-                             &tables->db, &tables->table_name,
+    if (ddl_log_drop_trigger(ddl_log_state, &tables->db, &tables->table_name,
                              sp_name, &query))
       goto err;
   }
@@ -1535,6 +1580,64 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
     *trg_fld= 0;
   }
   return 0;
+}
+
+
+/**
+  Deep copy of on update columns list created on parsing a trigger definition.
+  The destination list and its elements are allocated on table's memory root.
+
+  @param table_mem_root  table mem_root from where a memory is allocated.
+  @param [out]  dst_col_names  destination list where to copy an original one
+  @param  src_col_names  source list that has to be copied
+
+  @return false on success, true on OOM error
+*/
+static bool
+copy_on_update_columns_list(MEM_ROOT *table_mem_root,
+                            List<LEX_CSTRING> **dst_col_names,
+                            List<LEX_CSTRING> *src_col_names)
+{
+  if (!src_col_names)
+  {
+    *dst_col_names= nullptr;
+    return false;
+  }
+
+  /*
+    In case the clause <OF column_list> is present in definition of a trigger,
+    the list lex.trg_chistics.on_update_col_names mustn't be empty.
+    For the case where this clause is missed, the pointer
+      lex.trg_chistics.on_update_col_names
+    itself has nullptr value. So, do assert check here that the list is not
+    empty.
+  */
+  DBUG_ASSERT(!src_col_names->is_empty());
+
+  List<LEX_CSTRING> *result= new (table_mem_root) List<LEX_CSTRING>();
+  if (!result)
+    return true; // OOM
+
+  List_iterator_fast<LEX_CSTRING> columns_it(*src_col_names);
+  LEX_CSTRING *column_name;
+
+  while ((column_name= columns_it++))
+  {
+    LEX_CSTRING *cname= (LEX_CSTRING*)alloc_root(table_mem_root,
+                                                 sizeof(LEX_CSTRING));
+
+    if (!cname)
+      return true; // OOM
+
+    *cname= safe_lexcstrdup_root(table_mem_root, *column_name);
+
+    if (!cname->str ||
+        result->push_back(cname, table_mem_root))
+      return true; // OOM
+  }
+
+  *dst_col_names= result;
+  return false;
 }
 
 
@@ -1732,6 +1835,11 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         trigger->client_cs_name= creation_ctx->get_client_cs()->cs_name;
         trigger->connection_cl_name= creation_ctx->get_connection_cl()->coll_name;
         trigger->db_cl_name= creation_ctx->get_db_cl()->coll_name;
+
+        if (copy_on_update_columns_list(&table->mem_root,
+                                        &trigger->updatable_columns,
+                                        lex.trg_chistics.on_update_col_names))
+          goto err_with_lex_cleanup;
 
         /* event can only be TRG_EVENT_MAX in case of fatal parse errors */
         if (lex.trg_chistics.event != TRG_EVENT_MAX)
@@ -2017,10 +2125,8 @@ static bool add_table_for_trigger_internal(THD *thd,
   {
     if (if_exists)
     {
-      push_warning_printf(thd,
-                          Sql_condition::WARN_LEVEL_NOTE,
-                          ER_TRG_DOES_NOT_EXIST,
-                          ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                   ER_TRG_DOES_NOT_EXIST, ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
 
       *table= NULL;
 
@@ -2463,6 +2569,41 @@ end:
 
 
 /**
+  Check that a BEFORE trigger has raised the signal to inform that
+  a current row being processed must be skipped.
+
+  @param      da                  Diagnostics area
+  @param[out] skip_row_indicator  where to store the fact about skipping
+                                  the row
+  @param      time_type           time when trigger is invoked (i.e. before or
+                                  after)
+
+  @return true in case the current row must be skipped, else false
+*/
+
+static inline bool do_skip_row_indicator(Diagnostics_area *da,
+                                         bool *skip_row_indicator,
+                                         trg_action_time_type time_type)
+{
+  if (!skip_row_indicator)
+    return false;
+
+  if (time_type == TRG_ACTION_BEFORE &&
+      /*
+        The '02' class signals a 'no data' condition, the subclass '02TRG'
+        means 'no data in trigger' and this condition shouldn't be treated
+        as an error.
+      */
+      strcmp(da->get_sqlstate(), "02TRG") == 0)
+  {
+    *skip_row_indicator= true;
+    return true;
+  }
+  return false;
+}
+
+
+/**
   Execute trigger for given (event, time) pair.
 
   The operation executes trigger for the specified event (insert, update,
@@ -2472,6 +2613,8 @@ end:
   @param event
   @param time_type
   @param old_row_is_record1
+  @param[out] skip_row_indicator  the flag to tell whether a row must be
+                                  skipped by the INSERT statement
 
   @return Error status.
     @retval FALSE on success.
@@ -2481,12 +2624,26 @@ end:
 bool Table_triggers_list::process_triggers(THD *thd,
                                            trg_event_type event,
                                            trg_action_time_type time_type,
-                                           bool old_row_is_record1)
+                                           bool old_row_is_record1,
+                                           bool *skip_row_indicator,
+                                           List<Item> *fields_in_update_stmt)
 {
   bool err_status;
   Sub_statement_state statement_state;
   Trigger *trigger;
   SELECT_LEX *save_current_select;
+
+  /*
+    skip_row_indicator != nullptr for BEFORE INSERT/UPDATE/DELETE triggers
+  */
+  DBUG_ASSERT((time_type == TRG_ACTION_BEFORE && skip_row_indicator) ||
+              (time_type == TRG_ACTION_AFTER && !skip_row_indicator));
+  /*
+    In case skip_indicator points to an out variable, its initial value
+    must be false
+  */
+  DBUG_ASSERT(!skip_row_indicator ||
+              (skip_row_indicator && *skip_row_indicator == false));
 
   if (check_for_broken_triggers())
     return TRUE;
@@ -2511,8 +2668,21 @@ bool Table_triggers_list::process_triggers(THD *thd,
   */
   DBUG_ASSERT(trigger_table->pos_in_table_list->trg_event_map & trg2bit(event));
 
-  thd->reset_sub_statement_state(&statement_state, SUB_STMT_TRIGGER);
-
+  if (time_type == TRG_ACTION_AFTER)
+    thd->reset_sub_statement_state(&statement_state, SUB_STMT_TRIGGER);
+  else
+    /*
+      For time type TRG_ACTION_BEFORE, set extra flag SUB_STMT_BEFORE_TRIGGER
+      at sub statement state in addition to SUB_STMT_TRIGGER in order to
+      be able to reset the m_sql_errno to the value
+        ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
+      in case signal is raised with SQLSTATE "02TRG" from within a
+      BEFORE trigger and don't modify m_sql_errno in case the signal is raised
+      from AFTER trigger.
+      @see Sql_state_errno_level::assign_defaults
+    */
+    thd->reset_sub_statement_state(&statement_state,
+                                   SUB_STMT_TRIGGER | SUB_STMT_BEFORE_TRIGGER);
   /*
     Reset current_select before call execute_trigger() and
     restore it after return from one. This way error is set
@@ -2520,15 +2690,50 @@ bool Table_triggers_list::process_triggers(THD *thd,
   */
   save_current_select= thd->lex->current_select;
 
+  /*
+    Reset the sentinel thd->bulk_param in order not to consume the next
+    values of a bound array in case one of statement executed by
+    the trigger's body is a DML statement.
+  */
+  void *save_bulk_param= thd->bulk_param;
+  thd->bulk_param= nullptr;
+
   do {
     thd->lex->current_select= NULL;
+
+    /*
+      For BEFORE UPDATE trigger check that table fields specified by
+      the UPDATE statement matches with column names defined in FOR UPDATE
+      trigger definition, if any.
+    */
+    if (event == TRG_EVENT_UPDATE &&
+        fields_in_update_stmt &&
+        !trigger->match_updatable_columns(*fields_in_update_stmt))
+    {
+      err_status= 0;
+      continue;
+    }
+
     err_status=
       trigger->body->execute_trigger(thd,
                                      &trigger_table->s->db,
                                      &trigger_table->s->table_name,
                                      &trigger->subject_table_grants);
+
+    if (err_status &&
+        do_skip_row_indicator(thd->get_stmt_da(), skip_row_indicator,
+                              time_type))
+    {
+      /* Reset DA that is set on handling the statement
+           SIGNAL SSQLSTATE "02TRG"
+         raised from within a trigger */
+      err_status= false;
+      thd->get_stmt_da()->reset_diagnostics_area();
+    }
+
     status_var_increment(thd->status_var.executed_triggers);
   } while (!err_status && (trigger= trigger->next));
+  thd->bulk_param= save_bulk_param;
   thd->lex->current_select= save_current_select;
 
   thd->restore_sub_statement_state(&statement_state);
@@ -2594,6 +2799,31 @@ add_tables_and_routines_for_triggers(THD *thd,
     }
   }
   return FALSE;
+}
+
+
+/**
+  Check whether there is an ON UPDATE trigger that modifies any of fields
+  supplied by the UPDATE statement.
+
+  @param fields  A list of table's fields being modified by
+                 the UPDATE statement
+
+  @return true in case there is a trigger that modifies any of the fields
+               passed in the UPDATE statement, else false
+ */
+bool Table_triggers_list::match_updatable_columns(List<Item> *fields)
+{
+  for (uint i= 0; i < (uint)TRG_ACTION_MAX; i++)
+  {
+    for (Trigger *trigger= get_trigger(TRG_EVENT_UPDATE, i) ;
+         trigger ;
+         trigger= trigger->next)
+      if (trigger->match_updatable_columns(*fields))
+        return true;
+  }
+
+  return false;
 }
 
 

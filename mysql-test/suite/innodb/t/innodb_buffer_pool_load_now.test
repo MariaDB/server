@@ -30,8 +30,10 @@ ENGINE=INNODB;
 SELECT PAGE_NUMBER FROM information_schema.innodb_buffer_page_lru
 WHERE table_name = '`test`.`ib_bp_test`';
 
+--disable_cursor_protocol
 SELECT SPACE INTO @space FROM information_schema.innodb_buffer_page_lru
 WHERE table_name = '`test`.`ib_bp_test`' AND PAGE_NUMBER=3;
+--enable_cursor_protocol
 
 let SPACE=`SELECT @space`;
 
@@ -88,10 +90,12 @@ WHERE table_name = '`test`.`ib_bp_test`';
 # Load the table so that entries in the I_S table do not appear as NULL
 select count(*) from ib_bp_test LIMIT 0;
 
+--disable_cursor_protocol
 # Check that async reads are executed during bufferpool load
 select variable_value into @innodb_async_reads_total_count_before
  from information_schema.global_status
  where variable_name='innodb_async_reads_total_count';
+--enable_cursor_protocol
 
 # Load
 SET GLOBAL innodb_buffer_pool_load_now = ON;

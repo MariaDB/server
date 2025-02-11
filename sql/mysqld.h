@@ -242,6 +242,7 @@ extern ulong max_binlog_size;
 extern ulong slave_max_allowed_packet;
 extern ulonglong slave_max_statement_time;
 extern double slave_max_statement_time_double;
+extern double slave_abort_blocking_timeout;
 extern ulong opt_binlog_rows_event_max_size;
 extern ulong binlog_row_metadata;
 extern my_bool opt_binlog_gtid_index;
@@ -906,7 +907,7 @@ extern "C" void unireg_clear(int exit_code);
 #define unireg_abort(exit_code) do { unireg_clear(exit_code); DBUG_RETURN(exit_code); } while(0)
 #endif
 
-extern void set_server_version(char *buf, size_t size);
+extern char *set_server_version(char *buf, size_t size);
 
 #define current_thd _current_thd()
 void set_current_thd(THD *thd);

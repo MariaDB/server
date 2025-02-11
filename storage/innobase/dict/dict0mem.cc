@@ -136,9 +136,6 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
                                    ulint n_cols, ulint n_v_cols, ulint flags,
                                    ulint flags2)
 {
-  ut_ad(!space || space->purpose == FIL_TYPE_TABLESPACE ||
-        space->purpose == FIL_TYPE_TEMPORARY ||
-        space->purpose == FIL_TYPE_IMPORT);
   ut_a(dict_tf2_is_valid(flags, flags2));
   ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
 
@@ -808,6 +805,22 @@ dict_mem_foreign_create(void)
 	DBUG_PRINT("dict_mem_foreign_create", ("heap: %p", heap));
 
 	DBUG_RETURN(foreign);
+}
+
+/** Duplicate a string to a memory heap, with lower-case conversion
+@param heap  memory heap where string is allocated
+@param cs    the character set of the string
+@param str   the source string
+@return own: a NUL-terminated lower-cased copy of str */
+static LEX_STRING mem_heap_alloc_casedn_z(mem_heap_t *heap,
+                                          CHARSET_INFO *cs,
+                                          const LEX_CSTRING &str) noexcept
+{
+  size_t nbytes= str.length * cs->casedn_multiply() + 1;
+  LEX_STRING res;
+  res.str= static_cast<char*>(mem_heap_alloc(heap, nbytes));
+  res.length= cs->casedn_z(str.str, str.length, res.str, nbytes);
+  return res;
 }
 
 /**********************************************************************//**

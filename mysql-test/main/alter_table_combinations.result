@@ -228,7 +228,7 @@ ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function
 UPDATE t2 SET f = f + 10;
 ERROR 42S22: Unknown column 'd' in 'NEW'
 CALL sp1();
-ERROR 42S22: Unknown column 'd' in 'field list'
+ERROR 42S22: Unknown column 'd' in 'INSERT INTO'
 DROP TRIGGER trg1;
 DROP PROCEDURE sp1;
 CREATE TABLE t_gen(a INT, b DOUBLE GENERATED ALWAYS AS (SQRT(a)));

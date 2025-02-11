@@ -49,5 +49,5 @@ COUNT(@@GLOBAL.ssl_cipher)
 0
 0 Expected
 SELECT ssl_cipher = @@SESSION.ssl_cipher;
-ERROR 42S22: Unknown column 'ssl_cipher' in 'field list'
+ERROR 42S22: Unknown column 'ssl_cipher' in 'SELECT'
 Expected error 'Readonly variable'

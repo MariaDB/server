@@ -144,9 +144,12 @@ typedef struct st_ft_info
   enum { UNINITIALIZED, READY, INDEX_SEARCH, INDEX_DONE } state;
 } FTB;
 
-static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
+static int FTB_WORD_cmp(void *v_, const void *a_, const void *b_)
 {
   int i;
+  const my_off_t *v= v_;
+  const FTB_WORD *a= a_;
+  const FTB_WORD *b= b_;
 
   /* if a==curdoc, take it as  a < b */
   if (v && a->docid[0] == *v)
@@ -159,11 +162,15 @@ static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
   return i;
 }
 
-static int FTB_WORD_cmp_list(CHARSET_INFO *cs, FTB_WORD **a, FTB_WORD **b)
+static int FTB_WORD_cmp_list(void *cs_, const void *a_, const void *b_)
 {
+  CHARSET_INFO *cs= cs_;
+  const FTB_WORD *const *a= a_;
+  const FTB_WORD *const *b= b_;
+
   /* ORDER BY word, ndepth */
-  int i= ha_compare_word(cs, (uchar*) (*a)->word + 1, (*a)->len - 1,
-                             (uchar*) (*b)->word + 1, (*b)->len - 1);
+  int i= ha_compare_word(cs, (*a)->word + 1, (*a)->len - 1, (*b)->word + 1,
+                         (*b)->len - 1);
   if (!i)
     i=CMP_NUM((*a)->ndepth, (*b)->ndepth);
   return i;
@@ -325,10 +332,12 @@ static int _ftb_parse_query(FTB *ftb, uchar *query, uint len,
 }
 
 
-static int _ftb_no_dupes_cmp(void* not_used __attribute__((unused)),
-                             const void *a,const void *b)
+static int _ftb_no_dupes_cmp(void *not_used __attribute__((unused)),
+                             const void *a_, const void *b_)
 {
-  return CMP_NUM((*((my_off_t*)a)), (*((my_off_t*)b)));
+  const my_off_t *a= a_;
+  const my_off_t *b= b_;
+  return CMP_NUM((*a), (*b));
 }
 
 
@@ -597,14 +606,14 @@ FT_INFO * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
                                               sizeof(void *))))
     goto err;
   reinit_queue(&ftb->queue, ftb->queue.max_elements, 0, 0,
-               (int (*)(void*, uchar*, uchar*))FTB_WORD_cmp, 0, 0, 0);
+               FTB_WORD_cmp, 0, 0, 0);
   for (ftbw= ftb->last_word; ftbw; ftbw= ftbw->prev)
     queue_insert(&ftb->queue, (uchar *)ftbw);
   ftb->list=(FTB_WORD **)alloc_root(&ftb->mem_root,
                                      sizeof(FTB_WORD *)*ftb->queue.elements);
   memcpy(ftb->list, ftb->queue.root+1, sizeof(FTB_WORD *)*ftb->queue.elements);
   my_qsort2(ftb->list, ftb->queue.elements, sizeof(FTB_WORD *),
-            (qsort2_cmp)FTB_WORD_cmp_list, (void*) ftb->charset);
+            FTB_WORD_cmp_list, (void*) ftb->charset);
   if (ftb->queue.elements<2) ftb->with_scan &= ~FTB_FLAG_TRUNC;
   ftb->state=READY;
   return ftb;

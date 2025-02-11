@@ -39,9 +39,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "my_cpu.h"
 
-/** Flush this many pages in buf_LRU_get_free_block() */
-size_t innodb_lru_flush_size;
-
 /** The number of blocks from the LRU_old pointer onward, including
 the block pointed to, must be buf_pool.LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV
 of the whole LRU list length, except that the tolerance defined below
@@ -276,6 +273,10 @@ buf_block_t* buf_LRU_get_free_only()
 	while (block != NULL) {
 		ut_ad(block->page.in_free_list);
 		ut_d(block->page.in_free_list = FALSE);
+#ifdef BTR_CUR_HASH_ADAPT
+		ut_ad(!block->n_pointers);
+		ut_ad(!block->index);
+#endif
 		ut_ad(!block->page.oldest_modification());
 		ut_ad(!block->page.in_LRU_list);
 		ut_a(!block->page.in_file());
@@ -285,10 +286,6 @@ buf_block_t* buf_LRU_get_free_only()
 		    || UT_LIST_GET_LEN(buf_pool.withdraw)
 			>= buf_pool.withdraw_target
 		    || !buf_pool.will_be_withdrawn(block->page)) {
-			/* No adaptive hash index entries may point to
-			a free block. */
-			assert_block_ahi_empty(block);
-
 			block->page.set_state(buf_page_t::MEMORY);
 			block->page.set_os_used();
 			break;
@@ -369,17 +366,13 @@ block to read in a page. Note that we only ever get a block from
 the free list. Even when we flush a page or find a page in LRU scan
 we put it to free list to be used.
 * iteration 0:
-  * get a block from the buf_pool.free list, success:done
+  * get a block from the buf_pool.free list
   * if buf_pool.try_LRU_scan is set
     * scan LRU up to 100 pages to free a clean block
     * success:retry the free list
-  * flush up to innodb_lru_flush_size LRU blocks to data files
-    (until UT_LIST_GET_GEN(buf_pool.free) < innodb_lru_scan_depth)
-    * on buf_page_write_complete() the blocks will put on buf_pool.free list
-    * success: retry the free list
+  * invoke buf_pool.page_cleaner_wakeup(true) and wait its completion
 * subsequent iterations: same as iteration 0 except:
-  * scan whole LRU list
-  * scan LRU list even if buf_pool.try_LRU_scan is not set
+  * scan the entire LRU list
 
 @param get  how to allocate the block
 @return the free control block, in state BUF_BLOCK_MEMORY
@@ -403,7 +396,7 @@ retry:
 got_block:
     const ulint LRU_size= UT_LIST_GET_LEN(buf_pool.LRU);
     const ulint available= UT_LIST_GET_LEN(buf_pool.free);
-    const ulint scan_depth= srv_LRU_scan_depth / 2;
+    const ulint scan_depth= buf_pool.LRU_scan_depth / 2;
     ut_ad(LRU_size <= BUF_LRU_MIN_LEN ||
           available >= scan_depth || buf_pool.need_LRU_eviction());
 
@@ -962,7 +955,7 @@ func_exit:
 		order to avoid bogus Valgrind or MSAN warnings.*/
 
 		MEM_MAKE_DEFINED(block->page.frame, srv_page_size);
-		btr_search_drop_page_hash_index(block, false);
+		btr_search_drop_page_hash_index(block, nullptr);
 		MEM_UNDEFINED(block->page.frame, srv_page_size);
 		mysql_mutex_lock(&buf_pool.mutex);
 	}
@@ -988,7 +981,10 @@ buf_LRU_block_free_non_file_page(
 	void*		data;
 
 	ut_ad(block->page.state() == buf_page_t::MEMORY);
+#ifdef BTR_CUR_HASH_ADAPT
 	assert_block_ahi_empty(block);
+	block->n_hash_helps = 0;
+#endif
 	ut_ad(!block->page.in_free_list);
 	ut_ad(!block->page.oldest_modification());
 	ut_ad(!block->page.in_LRU_list);
@@ -1030,7 +1026,7 @@ buf_LRU_block_free_non_file_page(
 }
 
 /** Release a memory block to the buffer pool. */
-ATTRIBUTE_COLD void buf_pool_t::free_block(buf_block_t *block)
+ATTRIBUTE_COLD void buf_pool_t::free_block(buf_block_t *block) noexcept
 {
   ut_ad(this == &buf_pool);
   mysql_mutex_lock(&mutex);
@@ -1181,13 +1177,12 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 @param bpage    x-latched page that was found corrupted
 @param state    expected current state of the page */
 ATTRIBUTE_COLD
-void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
+void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state) noexcept
 {
   const page_id_t id{bpage->id()};
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
 
-  recv_sys.free_corrupted_page(id);
   mysql_mutex_lock(&mutex);
   hash_lock.lock();
 

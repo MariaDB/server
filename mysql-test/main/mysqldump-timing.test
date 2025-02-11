@@ -16,7 +16,7 @@ SET @save_max_statement_time=@@max_statement_time;
 SET GLOBAL max_statement_time=0.1;
 --send UNLOCK TABLES;
 --echo This would be a race condition otherwise, but default max_statement_time=0 makes it succeed
---exec $MYSQL_DUMP --skip-lock-tables --skip-comments test1 t1
+--exec $MYSQL_DUMP --no-autocommit=0 --skip-lock-tables --skip-comments test1 t1
 --reap
 SET GLOBAL max_statement_time=@save_max_statement_time;
 DROP DATABASE test1;

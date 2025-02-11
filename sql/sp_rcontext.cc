@@ -16,10 +16,6 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
-
 #include "mysql.h"
 #include "sp_head.h"
 #include "sql_cursor.h"
@@ -76,7 +72,8 @@ sp_rcontext::sp_rcontext(sp_head *owner,
    m_return_value_set(false),
    m_in_sub_stmt(in_sub_stmt),
    m_handlers(PSI_INSTRUMENT_MEM), m_handler_call_stack(PSI_INSTRUMENT_MEM),
-   m_ccount(0)
+   m_ccount(0),
+   m_inited_params_count(0)
 {
 }
 
@@ -171,18 +168,12 @@ bool sp_rcontext::alloc_arrays(THD *thd)
 {
   {
     size_t n= m_root_parsing_ctx->max_cursor_index();
-    m_cstack.reset(
-      static_cast<sp_cursor **> (
-        thd->alloc(n * sizeof (sp_cursor*))),
-      n);
+    m_cstack.reset(thd->alloc<sp_cursor*>(n), n);
   }
 
   {
     size_t n= m_root_parsing_ctx->get_num_case_exprs();
-    m_case_expr_holders.reset(
-      static_cast<Item_cache **> (
-        thd->calloc(n * sizeof (Item_cache*))),
-      n);
+    m_case_expr_holders.reset(thd->calloc<Item_cache *>(n), n);
   }
 
   return !m_cstack.array() || !m_case_expr_holders.array();
@@ -346,7 +337,12 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
   Spvar_definition *def;
   while ((def= it++))
   {
-    if (def->is_column_type_ref() &&
+    if (def->is_row())
+    {
+      if (def->row_field_definitions()->resolve_type_refs(thd))
+        return true;
+    }
+    else if (def->is_column_type_ref() &&
         def->column_type_ref()->resolve_type_ref(thd, def))
       return true;
   }
@@ -354,15 +350,31 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
 };
 
 
+Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
+                                                      Field_row *field)
+{
+  Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
+  if (!item)
+    return nullptr;
+
+  if (field->row_create_fields(thd, *this))
+    return nullptr;
+
+  // field->virtual_tmp_table() returns nullptr in case of ROW TYPE OF cursor
+  if (field->virtual_tmp_table() &&
+      item->add_array_of_item_field(thd, *field->virtual_tmp_table()))
+    return nullptr;
+
+  return item;
+}
+
+
 bool sp_rcontext::init_var_items(THD *thd,
                                  List<Spvar_definition> &field_def_lst)
 {
   uint num_vars= m_root_parsing_ctx->max_var_index();
 
-  m_var_items.reset(
-    static_cast<Item_field **> (
-      thd->alloc(num_vars * sizeof (Item *))),
-    num_vars);
+  m_var_items.reset(thd->alloc<Item_field*>(num_vars), num_vars);
 
   if (!m_var_items.array())
     return true;
@@ -374,57 +386,10 @@ bool sp_rcontext::init_var_items(THD *thd,
   for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
     Field *field= m_var_table->field[idx];
-    if (def->is_table_rowtype_ref())
-    {
-      Row_definition_list defs;
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item) ||
-          def->table_rowtype_ref()->resolve_table_rowtype_ref(thd, defs) ||
-          item->row_create_items(thd, &defs))
-        return true;
-    }
-    else if (def->is_cursor_rowtype_ref())
-    {
-      Row_definition_list defs;
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item))
-        return true;
-    }
-    else if (def->is_row())
-    {
-      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-      if (!(m_var_items[idx]= item) ||
-          item->row_create_items(thd, def->row_field_definitions()))
-        return true;
-    }
-    else
-    {
-      if (!(m_var_items[idx]= new (thd->mem_root) Item_field(thd, field)))
-        return true;
-    }
-  }
-  return false;
-}
-
-
-bool Item_field_row::row_create_items(THD *thd, List<Spvar_definition> *list)
-{
-  DBUG_ASSERT(list);
-  DBUG_ASSERT(field);
-  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
-  DBUG_ASSERT(ptable);
-  if (!(ptable[0]= create_virtual_tmp_table(thd, *list)))
-    return true;
-
-  if (alloc_arguments(thd, list->elements))
-    return true;
-
-  List_iterator<Spvar_definition> it(*list);
-  Spvar_definition *def;
-  for (arg_count= 0; (def= it++); arg_count++)
-  {
-    if (!(args[arg_count]= new (thd->mem_root)
-                           Item_field(thd, ptable[0]->field[arg_count])))
+    Field_row *field_row= dynamic_cast<Field_row*>(field);
+    if (!(m_var_items[idx]= field_row ?
+                            def->make_item_field_row(thd, field_row) :
+                            new (thd->mem_root) Item_field(thd, field)))
       return true;
   }
   return false;
@@ -678,10 +643,8 @@ Virtual_tmp_table *sp_rcontext::virtual_tmp_table_for_row(uint var_idx)
   DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
   DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ROW_RESULT);
   Field *field= m_var_table->field[var_idx];
-  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
-  DBUG_ASSERT(ptable);
-  DBUG_ASSERT(ptable[0]);
-  return ptable[0];
+  DBUG_ASSERT(field->virtual_tmp_table());
+  return field->virtual_tmp_table();
 }
 
 

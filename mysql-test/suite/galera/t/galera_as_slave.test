@@ -55,7 +55,6 @@ INSERT INTO t1 VALUES (4,1);
 --connection node_3
 DROP TABLE t1;
 
-
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc

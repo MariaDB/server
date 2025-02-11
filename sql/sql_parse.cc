@@ -892,6 +892,18 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_TABLE]|=       CF_WSREP_MAY_IGNORE_ERRORS;
   sql_command_flags[SQLCOM_DROP_INDEX]|=       CF_WSREP_MAY_IGNORE_ERRORS;
   sql_command_flags[SQLCOM_ALTER_TABLE]|=      CF_WSREP_MAY_IGNORE_ERRORS;
+  /*
+    Basic DML-statements that create writeset.
+  */
+  sql_command_flags[SQLCOM_INSERT]|=           CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_INSERT_SELECT]|=    CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_REPLACE]|=          CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_REPLACE_SELECT]|=   CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_UPDATE]|=           CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_UPDATE_MULTI]|=     CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_LOAD]|=             CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_DELETE]|=           CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_DELETE_MULTI]|=     CF_WSREP_BASIC_DML;
 #endif /* WITH_WSREP */
 }
 
@@ -989,7 +1001,6 @@ int bootstrap(MYSQL_FILE *file)
 #endif
 
   /* The following must be called before DBUG_ENTER */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   thd->security_ctx->user= (char*) my_strdup(key_memory_MPVIO_EXT_auth_info,
@@ -2054,7 +2065,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     */
     table_list.select_lex= thd->lex->first_select_lex();
     thd->lex->
-      first_select_lex()->table_list.link_in_list(&table_list,
+      first_select_lex()->table_list.insert(&table_list,
                                                   &table_list.next_local);
     thd->lex->add_to_query_tables(&table_list);
 
@@ -2264,8 +2275,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     char buff[250];
     uint buff_len= sizeof(buff);
 
-    if (!(current_global_status_var= (STATUS_VAR*)
-          thd->alloc(sizeof(STATUS_VAR))))
+    if (!(current_global_status_var= thd->alloc<STATUS_VAR>(1)))
       break;
     general_log_print(thd, command, NullS);
     status_var_increment(thd->status_var.com_stat[SQLCOM_SHOW_STATUS]);
@@ -2385,13 +2395,27 @@ resume:
     {
       WSREP_DEBUG("THD is killed at dispatch_end");
     }
-    wsrep_after_command_before_result(thd);
-    if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
+    if (thd->lex->sql_command != SQLCOM_SET_OPTION)
     {
-      /* todo: Pass wsrep client state current error to override */
-      wsrep_override_error(thd, wsrep_current_error(thd),
-                           wsrep_current_error_status(thd));
-      WSREP_LOG_THD(thd, "leave");
+      DEBUG_SYNC(thd, "wsrep_at_dispatch_end_before_result");
+    }
+    if (thd->wsrep_cs().state() == wsrep::client_state::s_exec)
+    {
+      wsrep_after_command_before_result(thd);
+      if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
+      {
+        /* todo: Pass wsrep client state current error to override */
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        WSREP_LOG_THD(thd, "leave");
+      }
+    }
+    else
+    {
+      /* wsrep_after_command_before_result() already called elsewhere
+         or not necessary to call it */
+      assert(thd->wsrep_cs().state() == wsrep::client_state::s_none ||
+             thd->wsrep_cs().state() == wsrep::client_state::s_result);
     }
     if (WSREP(thd))
     {
@@ -2552,7 +2576,8 @@ void log_slow_statement(THD *thd)
   }
 
   if ((thd->server_status & SERVER_QUERY_WAS_SLOW) &&
-      thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
+      (thd->get_examined_row_count() >= thd->variables.min_examined_row_limit ||
+       thd->log_slow_always_query_time()))
   {
     thd->status_var.long_query_count++;
 
@@ -2572,6 +2597,7 @@ void log_slow_statement(THD *thd)
       this query to the log or not.
     */ 
     if (thd->variables.log_slow_rate_limit > 1 &&
+        !thd->log_slow_always_query_time() &&
         (global_query_id % thd->variables.log_slow_rate_limit) != 0)
       goto end;
 
@@ -4556,30 +4582,39 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
-
-        // For consistency check inserted table needs to be InnoDB
-        if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+        const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
+        // For InnoDB we don't need to worry about anything here:
+        if (db_type != DB_TYPE_INNODB)
         {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              HA_ERR_UNSUPPORTED,
-                              "Galera cluster does support consistency check only"
-                              " for InnoDB tables.");
-          thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
-        }
-
-        // For !InnoDB we start TOI if it is not yet started and hope for the best
-        if (!is_innodb && !wsrep_toi)
-        {
-          const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
-
-          /* Currently we support TOI for MyISAM only. */
-          if (db_type == DB_TYPE_MYISAM &&
-              wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM))
-            WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+          // For consistency check inserted table needs to be InnoDB
+          if (thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+          {
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                HA_ERR_UNSUPPORTED,
+                                "Galera cluster does support consistency check only"
+                                " for InnoDB tables.");
+            thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+          }
+          /* Only TOI allowed to !InnoDB tables */
+          if (wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
+          {
+            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+            break;
+          }
+          // For !InnoDB we start TOI if it is not yet started and hope for the best
+          if (!wsrep_toi)
+          {
+            /* Currently we support TOI for MyISAM only. */
+            if ((db_type == DB_TYPE_MYISAM && wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM)) ||
+                (db_type == DB_TYPE_ARIA   && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)))
+            {
+              WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+            }
+          }
         }
       }
 #endif /* WITH_WSREP */
+
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
@@ -5088,6 +5123,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     res= show_create_db(thd, lex);
     break;
+  case SQLCOM_SHOW_CREATE_SERVER:
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
+    res= mysql_show_create_server(thd, &lex->name);
+    break;
   case SQLCOM_CREATE_EVENT:
   case SQLCOM_ALTER_EVENT:
   #ifdef HAVE_EVENT_SCHEDULER
@@ -5285,9 +5324,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     REFRESH_GENERAL_LOG                     |
     REFRESH_ENGINE_LOG                      |
     REFRESH_ERROR_LOG                       |
-#ifdef HAVE_QUERY_CACHE
     REFRESH_QUERY_CACHE_FREE                |
-#endif /* HAVE_QUERY_CACHE */
     REFRESH_STATUS                          |
     REFRESH_SESSION_STATUS                  |
     REFRESH_GLOBAL_STATUS                   |
@@ -7297,7 +7334,9 @@ check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 #ifndef __SANITIZE_ADDRESS__
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
-  if ((stack_used= available_stack_size(thd->thread_stack, &stack_used)) >=
+  DBUG_ASSERT(thd->thread_stack);
+  if ((stack_used= available_stack_size(thd->thread_stack,
+                                        my_get_stack_pointer(&stack_used))) >=
       (long) (my_thread_stack_size - margin))
   {
     thd->is_fatal_error= 1;
@@ -7959,12 +7998,12 @@ add_proc_to_list(THD* thd, Item *item)
   ORDER *order;
   Item	**item_ptr;
 
-  if (unlikely(!(order = (ORDER *) thd->alloc(sizeof(ORDER)+sizeof(Item*)))))
+  if (unlikely(!(order= (ORDER *) thd->alloc(sizeof(ORDER)+sizeof(Item*)))))
     return 1;
   item_ptr = (Item**) (order+1);
   *item_ptr= item;
   order->item=item_ptr;
-  thd->lex->proc_list.link_in_list(order, &order->next);
+  thd->lex->proc_list.insert(order, &order->next);
   return 0;
 }
 
@@ -7977,7 +8016,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 {
   ORDER *order;
   DBUG_ENTER("add_to_list");
-  if (unlikely(!(order = (ORDER *) thd->alloc(sizeof(ORDER)))))
+  if (unlikely(!(order= thd->alloc<ORDER>(1))))
     DBUG_RETURN(1);
   order->item_ptr= item;
   order->item= &order->item_ptr;
@@ -7985,7 +8024,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->used=0;
   order->counter_used= 0;
   order->fast_field_copier_setup= 0; 
-  list.link_in_list(order, &order->next);
+  list.insert(order, &order->next);
   DBUG_RETURN(0);
 }
 
@@ -8163,7 +8202,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     and SELECT.
   */
   if (likely(!ptr->sequence))
-    table_list.link_in_list(ptr, &ptr->next_local);
+    table_list.insert(ptr, &ptr->next_local);
   ptr->next_name_resolution_table= NULL;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   ptr->partition_names= partition_names;
@@ -8903,7 +8942,11 @@ Item *normalize_cond(THD *thd, Item *cond)
     Item::Type type= cond->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
-      cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
+      item_base_t is_cond_flag= cond->base_flags & item_base_t::IS_COND;
+      cond->base_flags&= ~item_base_t::IS_COND;
+      cond= new (thd->mem_root) Item_func_istrue(thd, cond);
+      if (cond)
+        cond->base_flags|= is_cond_flag;
     }
     else
     {
@@ -8915,8 +8958,7 @@ Item *normalize_cond(THD *thd, Item *cond)
           Item *arg= func_item->arguments()[0];
           if (arg->type() == Item::FIELD_ITEM ||
               arg->type() == Item::REF_ITEM)
-            cond= new (thd->mem_root) Item_func_eq(thd, arg,
-                                          new (thd->mem_root) Item_int(thd, 0));
+            cond= new (thd->mem_root) Item_func_isfalse(thd, arg);
         }
       }
     }
@@ -9218,8 +9260,27 @@ static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
 #ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction->stmt.mark_trans_did_ddl();
+    }
+  }
+
   bool wsrep_high_priority= false;
-#endif
+#endif /* WITH_WSREP */
   uint error= kill_one_thread(thd, id, state, type
 #ifdef WITH_WSREP
                               , wsrep_high_priority
@@ -9251,6 +9312,26 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction->stmt.mark_trans_did_ddl();
+    }
+  }
+#endif /* WITH_WSREP */
   switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
   case 0:
@@ -9288,8 +9369,7 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
   /* Fix is using unix filename format on dos */
   strmov(buff,*filename_ptr);
   end=convert_dirname(buff, *filename_ptr, NullS);
-  if (unlikely(!(ptr= (char*) thd->alloc((size_t) (end-buff) +
-                                         table_name->length + 1))))
+  if (unlikely(!(ptr= thd->alloc((size_t)(end-buff) + table_name->length + 1))))
     return 1;					// End of memory
   *filename_ptr=ptr;
   strxmov(ptr,buff,table_name->str,NullS);
@@ -9937,7 +10017,7 @@ LEX_USER *create_default_definer(THD *thd, bool role)
 {
   LEX_USER *definer;
 
-  if (unlikely(! (definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+  if (unlikely(!(definer= thd->alloc<LEX_USER>(1))))
     return 0;
 
   thd->get_definer(definer, role);
@@ -9972,7 +10052,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
 
   /* Create and initialize. */
 
-  if (unlikely(!(definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+  if (unlikely(!(definer= thd->alloc<LEX_USER>(1))))
     return 0;
 
   definer->user= *user_name;

@@ -4,16 +4,14 @@
 
 --source include/default_charset.inc
 
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
-
 --disable_ps2_protocol
 # Backup the mysql.proc table
 --enable_prepare_warnings
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 eval SELECT * FROM mysql.proc INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/proc.txt';
 --disable_prepare_warnings
+--enable_cursor_protocol
 --enable_ps2_protocol
 # Make sure we don't have any procedures left.
 delete from mysql.proc;
@@ -23,11 +21,11 @@ delimiter |;
 # This should give three syntax errors (sometimes crashed; bug #643)
 # (Unfortunately, this is not a 100% test, on some platforms this
 #  passed despite the bug.)
---error 1064
+--error ER_PARSE_ERROR
 create procedure syntaxerror(t int)|
---error 1064
+--error ER_PARSE_ERROR
 create procedure syntaxerror(t int)|
---error 1064
+--error ER_PARSE_ERROR
 create procedure syntaxerror(t int)|
 
 # Check that we get the right error, i.e. UDF declaration parses correctly,
@@ -35,13 +33,10 @@ create procedure syntaxerror(t int)|
 #    This generates an error message containing a misleading errno which
 #    might vary between systems (it usually doesn't have anything to do with
 #    the actual failing dlopen()).
-#--error 1126
+#--error ER_CANT_OPEN_LIBRARY
 #create function foo returns real soname "foo.so"|
 
 
---disable_warnings
-drop table if exists t3|
---enable_warnings
 create table t3 ( x int )|
 insert into t3 values (2), (3)|
 
@@ -50,7 +45,7 @@ create procedure bad_into(out param int)
   select x from t3 into param|
 --disable_prepare_warnings
 
---error 1172
+--error ER_TOO_MANY_ROWS
 call bad_into(@x)|
 
 drop procedure bad_into|
@@ -64,18 +59,18 @@ create function func1() returns int
   return 42|
 
 # Can't create recursively
---error 1303
+--error ER_SP_NO_RECURSIVE_CREATE
 create procedure foo()
   create procedure bar() set @x=3|
---error 1303
+--error ER_SP_NO_RECURSIVE_CREATE
 create procedure foo()
   create function bar() returns double return 2.3|
 
 # Already exists
---error 1304
+--error ER_SP_ALREADY_EXISTS
 create procedure proc1()
   set @x = 42|
---error 1304
+--error ER_SP_ALREADY_EXISTS
 create function func1() returns int
   return 42|
 
@@ -83,41 +78,41 @@ drop procedure proc1|
 drop function func1|
 
 # Does not exist
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 alter procedure foo|
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 alter function foo|
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 drop procedure foo|
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 drop function foo|
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 call foo()|
 drop procedure if exists foo|
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 show create procedure foo|
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 show create function foo|
 
 # LEAVE/ITERATE with no match
---error 1308
+--error ER_SP_LILABEL_MISMATCH
 create procedure foo()
 foo: loop
   leave bar;
 end loop|
---error 1308
+--error ER_SP_LILABEL_MISMATCH
 create procedure foo()
 foo: loop
   iterate bar;
 end loop|
---error 1308
+--error ER_SP_LILABEL_MISMATCH
 create procedure foo()
 foo: begin
   iterate foo;
 end|
 
 # Redefining label
---error 1309
+--error ER_SP_LABEL_REDEFINE
 create procedure foo()
 foo: loop
   foo: loop
@@ -126,14 +121,14 @@ foo: loop
 end loop foo|
 
 # End label mismatch
---error 1310
+--error ER_SP_LABEL_MISMATCH
 create procedure foo()
 foo: loop
   set @x=2;
 end loop bar|
 
 # RETURN in FUNCTION only
---error 1313
+--error ER_SP_BADRETURN
 create procedure foo()
   return 42|
 
@@ -143,19 +138,19 @@ create procedure p(x int)
 create function f(x int) returns int
   return x+42|
 
---error 1318
+--error ER_SP_WRONG_NO_OF_ARGS
 call p()|
---error 1318
+--error ER_SP_WRONG_NO_OF_ARGS
 call p(1, 2)|
---error 1318
+--error ER_SP_WRONG_NO_OF_ARGS
 select f()|
---error 1318
+--error ER_SP_WRONG_NO_OF_ARGS
 select f(1, 2)|
 
 drop procedure p|
 drop function f|
 
---error 1319 
+--error ER_SP_COND_MISMATCH 
 create procedure p(val int, out res int)
 begin
   declare x int default 0;
@@ -169,7 +164,7 @@ begin
   end if;
 end|
 
---error 1319 
+--error ER_SP_COND_MISMATCH 
 create procedure p(val int, out res int)
 begin
   declare x int default 0;
@@ -184,7 +179,7 @@ begin
   end if;
 end|
 
---error 1320
+--error ER_SP_NORETURN
 create function f(val int) returns int
 begin
   declare x int;
@@ -202,7 +197,7 @@ begin
   end if;
 end|
 
---error 1321
+--error ER_SP_NORETURNEND
 select f(10)|
 
 drop function f|
@@ -216,7 +211,7 @@ begin
   close c;
 end|
 
---error 1323
+--error ER_SP_BAD_CURSOR_SELECT
 create procedure p()
 begin
   declare x int;
@@ -226,7 +221,7 @@ begin
   close c;
 end|
 
---error 1324
+--error ER_SP_CURSOR_MISMATCH
 create procedure p()
 begin
   declare c cursor for select * from test.t;
@@ -235,9 +230,6 @@ begin
   close c;
 end|
 
---disable_warnings
-drop table if exists t1|
---enable_warnings
 create table t1 (val int)|
 
 create procedure p()
@@ -248,7 +240,7 @@ begin
   open c;
   close c;
 end|
---error 1325
+--error ER_SP_CURSOR_ALREADY_OPEN
 call p()|
 drop procedure p|
 
@@ -260,22 +252,19 @@ begin
   close c;
   close c;
 end|
---error 1326
+--error ER_SP_CURSOR_NOT_OPEN
 call p()|
 drop procedure p|
 
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 alter procedure bar3 sql security invoker|
 
 drop table t1|
 
---disable_warnings
-drop table if exists t1|
---enable_warnings
 create table t1 (val int, x float)|
 insert into t1 values (42, 3.1), (19, 1.2)|
 
---error 1327
+--error ER_SP_UNDECLARED_VAR
 create procedure p()
 begin
   declare x int;
@@ -295,7 +284,7 @@ begin
   fetch c into x;
   close c;
 end|
---error 1328
+--error ER_SP_WRONG_NO_OF_FETCH_ARGS
 call p()|
 drop procedure p|
 
@@ -310,34 +299,34 @@ begin
   fetch c into x, y, z;
   close c;
 end|
---error 1328
+--error ER_SP_WRONG_NO_OF_FETCH_ARGS
 call p()|
 drop procedure p|
 
---error 1330
+--error ER_SP_DUP_PARAM
 create procedure p(in x int, x char(10))
 begin
 end|
---error 1330
+--error ER_SP_DUP_PARAM
 create function p(x int, x char(10))
 begin
 end|
 
---error 1331
+--error ER_SP_DUP_VAR
 create procedure p()
 begin
   declare x float;
   declare x int;
 end|
 
---error 1332
+--error ER_SP_DUP_COND
 create procedure p()
 begin
   declare c condition for 1064;
   declare c condition for 1065;
 end|
 
---error 1333
+--error ER_SP_DUP_CURS
 create procedure p()
 begin
   declare c cursor for select * from t1;
@@ -350,13 +339,13 @@ create procedure u()
   use sptmp|
 
 # Enforced standard order of declarations
---error 1337
+--error ER_SP_VARCOND_AFTER_CURSHNDLR
 create procedure p()
 begin
   declare c cursor for select * from t1;
   declare x int;
 end|
---error 1337
+--error ER_SP_VARCOND_AFTER_CURSHNDLR
 create procedure p()
 begin
   declare x int;
@@ -364,7 +353,7 @@ begin
   declare foo condition for sqlstate '42S99';
 end|
 
---error 1338
+--error ER_SP_CURSOR_AFTER_HANDLER
 create procedure p()
 begin
   declare x int;
@@ -373,9 +362,6 @@ begin
 end|
 
 # Check in and inout arguments.
---disable_warnings
-drop procedure if exists p|
---enable_warnings
 create procedure p(in x int, inout y int, out z int)
 begin
   set y = x+y;
@@ -425,9 +411,6 @@ unlock tables|
 # are used by statements which invoke these functions.
 #
 --disable_ps2_protocol
---disable_warnings
-drop function if exists f1|
---enable_warnings
 create function f1(i int) returns int
 begin
   insert into t1 (val) values (i);
@@ -460,28 +443,25 @@ begin
   close c;
 end|
 
---error 1054
+--error ER_BAD_FIELD_ERROR
 call bug1965()|
 drop procedure bug1965|
 
 #
 # BUG#1966
 #
---error 1327
+--error ER_SP_UNDECLARED_VAR
 select 1 into a|
 
 #
 # BUG#1653
 #
---disable_warnings
-drop table if exists t3|
---enable_warnings
 create table t3 (column_1_0 int)|
 
 create procedure bug1653()
   update t3 set column_1 = 0|
 
---error 1054
+--error ER_BAD_FIELD_ERROR
 call bug1653()|
 drop table t3|
 create table t3 (column_1 int)|
@@ -503,7 +483,7 @@ begin
   fetch c1 into v1;
 end|
 
---error 1326
+--error ER_SP_CURSOR_NOT_OPEN
 call bug2259()|
 drop procedure bug2259|
 
@@ -518,7 +498,7 @@ begin
 end|
 
 insert into t1 values (666, 51.3)|
---error 1054
+--error ER_BAD_FIELD_ERROR
 call bug2272()|
 truncate table t1|
 drop procedure bug2272|
@@ -540,9 +520,9 @@ begin
   replace t1 set v = 5;
 end|
 
---error 1054
+--error ER_BAD_FIELD_ERROR
 call bug2329_1()|
---error 1054
+--error ER_BAD_FIELD_ERROR
 call bug2329_2()|
 drop procedure bug2329_1|
 drop procedure bug2329_2|
@@ -559,7 +539,7 @@ begin
   end case;
   return 2;
 end|
---error 1339
+--error ER_SP_CASE_NOT_FOUND
 select bug3287()|
 drop function bug3287|
 
@@ -570,16 +550,13 @@ when 0 then
 when 1 then
   insert into test.t1 values (x, 1.1);
 end case|
---error 1339
+--error ER_SP_CASE_NOT_FOUND
 call bug3287(2)|
 drop procedure bug3287|
 
 #
 # BUG#3297
 #
---disable_warnings
-drop table if exists t3|
---enable_warnings
 create table t3 (s1 int, primary key (s1))|
 insert into t3 values (5),(6)|
 
@@ -607,7 +584,7 @@ drop table t3|
 #
 # BUG#3339
 #
---error 1049
+--error ER_BAD_DB_ERROR
 create procedure nodb.bug3339() begin end|
 
 #
@@ -632,17 +609,14 @@ end|
 #
 # BUG#4344
 #
---error 1357
+--error ER_SP_NO_DROP_SP
 create procedure bug4344() drop procedure bug4344|
---error 1357
+--error ER_SP_NO_DROP_SP
 create procedure bug4344() drop function bug4344|
 
 #
 # BUG#3294: Stored procedure crash if table dropped before use
 # (Actually, when an error occurs within an error handler.)
---disable_warnings
-drop procedure if exists bug3294|
---enable_warnings
 create procedure bug3294()
 begin
   declare continue handler for sqlexception drop table t5;
@@ -651,7 +625,7 @@ begin
 end|
 
 create table t5 (x int)|
---error 1051
+--error ER_BAD_TABLE_ERROR
 call bug3294()|
 drop procedure bug3294|
 
@@ -659,12 +633,6 @@ drop procedure bug3294|
 # BUG#876: Stored Procedures: Invalid SQLSTATE is allowed in 
 #          a DECLARE ? HANDLER FOR stmt.
 #
---disable_warnings
-drop procedure if exists bug8776_1|
-drop procedure if exists bug8776_2|
-drop procedure if exists bug8776_3|
-drop procedure if exists bug8776_4|
---enable_warnings
 --error ER_SP_BAD_SQLSTATE
 create procedure bug8776_1()
 begin
@@ -716,9 +684,6 @@ create procedure bug6600()
 # We should not think that mysql.proc table does not exist if we are unable
 # to open it under LOCK TABLE or in prelocked mode.
 #
---disable_warnings
-drop procedure if exists bug9566|
---enable_warnings
 create procedure bug9566()
 begin
   select * from t1;
@@ -737,9 +702,6 @@ drop procedure bug9566|
 #
 # BUG#7299: Stored procedures: exception handler catches not-found conditions
 #
---disable_warnings
-drop procedure if exists bug7299|
---enable_warnings
 create procedure bug7299()
 begin
   declare v int;
@@ -789,9 +751,6 @@ begin
 end|
 
 # This should still work.
---disable_warnings
-drop procedure if exists bug9073|
---enable_warnings
 create procedure bug9073()
 begin
   declare condname1 condition for sqlstate '42000';
@@ -846,11 +805,6 @@ begin
   return b;
 end|
 
---disable_warnings
-drop function if exists bug8408_f|
-drop procedure if exists bug8408_p|
---enable_warnings
-
 # Some things must be caught at invokation time
 create function bug8408_f() returns int
 begin
@@ -886,9 +840,6 @@ truncate table t1|
 # BUG#10537: Server crashes while loading data file into table through
 #            procedure.
 # Disable load until it's PS and SP safe
---disable_warnings
-drop procedure if exists bug10537|
---enable_warnings
 --error ER_SP_BADSTATEMENT
 create procedure bug10537()
   load data local infile '/tmp/somefile' into table t1|
@@ -897,9 +848,6 @@ create procedure bug10537()
 #
 # BUG#8409: Stored procedure crash if function contains FLUSH
 #
---disable_warnings
-drop function if exists bug8409|
---enable_warnings
 --error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
 create function bug8409()
   returns int
@@ -959,9 +907,6 @@ create procedure bug9529_9012345678901234567890123456789012345678901234567890123
 begin
 end|
 
---disable_warnings
-drop procedure if exists bug17015_0123456789012345678901234567890123456789012345678901234|
---enable_warnings
 # Check the upper limit, just to make sure.
 create procedure bug17015_0123456789012345678901234567890123456789012345678901234()
 begin
@@ -975,9 +920,6 @@ drop procedure bug17015_0123456789012345678901234567890123456789012345678901234|
 #
 # BUG#10969: Stored procedures: crash if default() function
 #
---disable_warnings
-drop procedure if exists bug10969|
---enable_warnings
 --error ER_WRONG_COLUMN_NAME
 create procedure bug10969()
 begin
@@ -1030,7 +972,7 @@ P1: BEGIN
   SELECT 'end of proc';
 END P1|
 delimiter ;|
---error 1326
+--error ER_SP_CURSOR_NOT_OPEN
 call SP001();
 drop procedure SP001;
 drop table t1, t2;
@@ -1040,12 +982,6 @@ drop table t1, t2;
 # We have to disable recursion since in many cases LEX and many
 # Item's can't be used in reentrant way nowdays.
 delimiter |;
---disable_warnings
-drop function if exists bug11394|
-drop function if exists bug11394_1|
-drop function if exists bug11394_2|
-drop procedure if exists bug11394|
---enable_warnings
 create function bug11394(i int) returns int
 begin
   if i <= 0 then
@@ -1056,7 +992,7 @@ begin
 end|
 # If we allow recursive functions without additional modifications
 # this will crash server since Item for "IN" is not reenterable.
---error 1424
+--error ER_SP_NO_RECURSION
 select bug11394(2)|
 drop function bug11394|
 create function bug11394_1(i int) returns int
@@ -1069,7 +1005,7 @@ begin
 end|
 # The following statement will crash because some LEX members responsible
 # for selects cannot be used in reentrant fashion.
---error 1424
+--error ER_SP_NO_RECURSION
 select bug11394_1(2)|
 drop function bug11394_1|
 # Note that the following should be allowed since it does not contains
@@ -1109,10 +1045,6 @@ DROP TABLE t_bug_12490;
 # crashes server". Also tests handling of prepared stmts which use
 # stored functions but does not require prelocking.
 #
---disable_warnings
-drop function if exists bug11834_1;
-drop function if exists bug11834_2;
---enable_warnings
 create function bug11834_1() returns int return 10;
 create function bug11834_2() returns int return bug11834_1();
 prepare stmt from "select bug11834_2()";
@@ -1135,9 +1067,6 @@ drop function bug11834_2;
 # Bug#12953 "Stored procedures: crash if OPTIMIZE TABLE in function"
 #
 delimiter |;
---disable_warnings
-DROP FUNCTION IF EXISTS bug12953|
---enable_warnings
 --error ER_SP_NO_RETSET
 CREATE FUNCTION bug12953() RETURNS INT
 BEGIN
@@ -1150,9 +1079,6 @@ delimiter ;|
 # Bug##12995 "Inside function "Table 't4' was not locked with LOCK TABLES"
 #
 delimiter |;
---disable_warnings
-DROP FUNCTION IF EXISTS bug12995|
---enable_warnings
 --error ER_SP_BADSTATEMENT
 CREATE FUNCTION bug12995() RETURNS INT
 BEGIN
@@ -1171,7 +1097,7 @@ BEGIN
   HANDLER t1 CLOSE;
   RETURN 1;
 END|
---error 1305
+--error ER_SP_DOES_NOT_EXIST
 SELECT bug12995()|
 delimiter ;|
 
@@ -1179,10 +1105,6 @@ delimiter ;|
 #
 # BUG#12712: SET AUTOCOMMIT should fail within SP/functions/triggers
 #
---disable_warnings
-drop procedure if exists bug12712;
-drop function if exists bug12712;
---enable_warnings
 # Can...
 create procedure bug12712()
   set session autocommit = 0;
@@ -1236,9 +1158,6 @@ create trigger bug12712
 # BUG#9367: Stored procedures: client hang after "show warnings"
 #
 --disable_parsing
---disable_warnings
-drop procedure if exists bug9367;
---enable_warnings
 create table t1 (s1 int);
 select s1 from t1;
 delimiter |;
@@ -1261,13 +1180,6 @@ drop table t1;
 # BUG#13510: Setting password local variable changes current password
 #
 delimiter |;
---disable_warnings
-drop procedure if exists bug13510_1|
-drop procedure if exists bug13510_2|
-drop procedure if exists bug13510_3|
-drop procedure if exists bug13510_4|
---enable_warnings
-
 --error ER_SP_BAD_VAR_SHADOW
 create procedure bug13510_1()
 begin
@@ -1319,10 +1231,6 @@ drop procedure bug13510_4|
 # containing such statement should produce error (includes test for
 # bug #13627).
 #
---disable_warnings
-drop function if exists bug_13627_f|
---enable_warnings
-
 CREATE TABLE t1 (a int)|
 -- error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN DROP TRIGGER test1; END |
@@ -1503,12 +1411,6 @@ use test;
 # BUG#13037: undefined variable in IF cause erroneous error-message
 #
 
---disable_warnings
-DROP PROCEDURE IF EXISTS bug13037_p1;
-DROP PROCEDURE IF EXISTS bug13037_p2;
-DROP PROCEDURE IF EXISTS bug13037_p3;
---enable_warnings
-
 delimiter |;
 
 --error ER_SP_UNDECLARED_VAR
@@ -1533,14 +1435,14 @@ delimiter ;|
 
 --echo
 
---error 1054
+--error ER_BAD_FIELD_ERROR
 CALL bug13037_p2();
---error 1054
+--error ER_BAD_FIELD_ERROR
 CALL bug13037_p3();
 
---error 1054
+--error ER_BAD_FIELD_ERROR
 CALL bug13037_p2();
---error 1054
+--error ER_BAD_FIELD_ERROR
 CALL bug13037_p3();
 
 DROP PROCEDURE bug13037_p2;
@@ -1566,9 +1468,6 @@ use test;
 # Bug#13012 "SP: REPAIR/BACKUP/RESTORE TABLE crashes the server"
 #
 delimiter |;
---disable_warnings
-DROP FUNCTION IF EXISTS bug13012|
---enable_warnings
 --error ER_SP_NO_RETSET
 CREATE FUNCTION bug13012() RETURNS INT
 BEGIN
@@ -1600,11 +1499,6 @@ delimiter ;|
 # dropped simultaneously with table (DROP TABLE with CASCADE clause).
 # So these tests probably should go away once we will implement standard
 # behavior.
---disable_warnings
-drop function if exists bug11555_1;
-drop function if exists bug11555_2;
-drop view if exists v1, v2, v3, v4;
---enable_warnings
 create function bug11555_1() returns int return (select max(i) from t1);
 create function bug11555_2() returns int return bug11555_1();
 # It is OK to report name of implicitly used table which is missing
@@ -1658,10 +1552,6 @@ drop view v1;
 #
 # BUG#15658: Server crashes after creating function as empty string
 #
---disable_warnings
-drop procedure if exists ` bug15658`;
---enable_warnings
-
 --error ER_SP_WRONG_NAME
 create procedure ``() select 1;
 --error ER_SP_WRONG_NAME
@@ -1684,11 +1574,6 @@ drop procedure ` bug15658`;
 #
 # BUG#14270: Stored procedures: crash if load index
 #
---disable_warnings
-drop function if exists bug14270;
-drop table if exists t1;
---enable_warnings
-
 create table t1 (s1 int primary key);
 
 delimiter |;
@@ -1714,10 +1599,6 @@ drop table t1;
 # BUG#15091: Sp Returns Unknown error in order clause....and 
 #            there is no order by clause
 #
---disable_warnings
-drop procedure if exists bug15091;
---enable_warnings
-
 delimiter |;
 --error ER_SP_UNDECLARED_VAR
 create procedure bug15091()
@@ -1736,9 +1617,6 @@ delimiter ;|
 #
 # BUG#16896: Stored function: unused AGGREGATE-clause in CREATE FUNCTION
 #
---disable_warnings
-drop function if exists bug16896;
---enable_warnings
 
 --error ER_INVALID_AGGREGATE_FUNCTION
 create aggregate function bug16896() returns int return 1;
@@ -1751,10 +1629,6 @@ create aggregate function bug16896() returns int return 1;
 # Misleading error message was given when IF NOT EXISTS was used in
 # CREATE PROCEDURE.
 #
---disable_warnings
-DROP PROCEDURE IF EXISTS bug14702;
---enable_warnings
-
 --error ER_PARSE_ERROR
 CREATE IF NOT EXISTS PROCEDURE bug14702()
 BEGIN
@@ -1771,10 +1645,6 @@ DROP PROCEDURE IF EXISTS bug14702;
 #
 # See test case for what syntax is forbidden in a view.
 #
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1 (i INT);
 
 # We do not have to drop this procedure and view because they won't be
@@ -1809,10 +1679,6 @@ DROP TABLE t1;
 #
 # BUG#24491 "using alias from source table in insert ... on duplicate key"
 #
---disable_warnings
-drop tables if exists t1;
-drop procedure if exists bug24491;
---enable_warnings
 create table t1 (id int primary key auto_increment, value varchar(10));
 insert into t1 (id, value) values (1, 'FIRST'), (2, 'SECOND'), (3, 'THIRD');
 # Let us create routine with INSERT ... SELECT ... ON DUPLICATE KEY UPDATE 
@@ -1846,14 +1712,6 @@ drop tables t1;
 # DROP TABLE IF EXISTS is also fixed to give correct error instead of
 # "Table doesn't exist". 
 #
---disable_warnings
-DROP FUNCTION IF EXISTS bug18914_f1;
-DROP FUNCTION IF EXISTS bug18914_f2;
-DROP PROCEDURE IF EXISTS bug18914_p1;
-DROP PROCEDURE IF EXISTS bug18914_p2;
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
-
 CREATE TABLE t1 (i INT);
 
 CREATE PROCEDURE bug18914_p1() CREATE TABLE t2 (i INT);
@@ -1897,12 +1755,6 @@ DROP TABLE t1;
 #
 # Bug#20713 (Functions will not not continue for SQLSTATE VALUE '42S02')
 #
-
---disable_warnings
-drop table if exists bogus_table_20713;
-drop function if exists func_20713_a;
-drop function if exists func_20713_b;
---enable_warnings
 
 create table bogus_table_20713( id int(10) not null primary key);
 insert into bogus_table_20713 values (1), (2), (3);
@@ -1962,14 +1814,6 @@ drop function if exists func_20713_b;
 # Bug#25345 (Cursors from Functions)
 #
 
---disable_warnings
-drop table if exists table_25345_a;
-drop table if exists table_25345_b;
-drop procedure if exists proc_25345;
-drop function if exists func_25345;
-drop function if exists func_25345_b;
---enable_warnings
-
 create table table_25345_a (a int);
 create table table_25345_b (b int);
 
@@ -2025,9 +1869,6 @@ drop function func_25345_b;
 # Bug#16164 "Easter egg": check that SHOW AUTHORS is disabled in
 # stored functions/triggers
 #
---disable_warnings
-drop function if exists bug16164;
---enable_warnings
 delimiter |;
 --error ER_SP_NO_RETSET
 create function bug16164() returns int
@@ -2041,9 +1882,6 @@ delimiter ;|
 #
 # BUG#20701: BINARY keyword should be forbidden in stored routines
 #
---disable_warnings
-drop function if exists bug20701;
---enable_warnings
 create function bug20701() returns varchar(25) binary return "test";
 drop function bug20701;
 create function bug20701() returns varchar(25) return "test";
@@ -2122,11 +1960,6 @@ delimiter ;//
 # Bug#28360 (RENAME DATABASE destroys routines)
 #
 
---disable_warnings
-drop procedure if exists proc_28360;
-drop function if exists func_28360;
---enable_warnings
-
 delimiter //;
 
 --error ER_SP_NO_DROP_SP
@@ -2149,9 +1982,6 @@ delimiter ;//
 # Bug#29223 declare cursor c for SHOW .....
 #
 
---disable_warnings
-DROP PROCEDURE IF EXISTS p1;
---enable_warnings
 --delimiter |
 --error ER_PARSE_ERROR
 CREATE PROCEDURE p1()
@@ -2170,9 +2000,6 @@ END|
 # Bug#29816 Syntactically wrong query fails with misleading error message
 #
 
---disable_warnings
-DROP DATABASE IF EXISTS mysqltest;
---enable_warnings
 CREATE DATABASE mysqltest;
 USE mysqltest;
 DROP DATABASE mysqltest;
@@ -2211,12 +2038,6 @@ delimiter ;|
 #
 # Bug#30882 Dropping a temporary table inside a stored function may cause a server crash
 #
-
---disable_warnings
-drop function if exists f1;
-drop function if exists f2;
-drop table if exists t1, t2;
---enable_warnings
 
 delimiter |;
 create function f1() returns int
@@ -2282,13 +2103,6 @@ drop table t2;
 # Bug#33983 (Stored Procedures: wrong end <label> syntax is accepted)
 #
 
---disable_warnings
-drop procedure if exists proc_33983_a;
-drop procedure if exists proc_33983_b;
-drop procedure if exists proc_33983_c;
-drop procedure if exists proc_33983_d;
---enable_warnings
-
 delimiter |;
 
 --error ER_SP_LABEL_MISMATCH
@@ -2350,12 +2164,23 @@ DROP TABLE t1|
 delimiter ;|
 
 #
-# Bug#8759 (Stored Procedures: SQLSTATE '00000' should be illegal)
+# Bug#21801: SQL exception handlers and warnings
 #
 
---disable_warnings
-drop procedure if exists proc_8759;
---enable_warnings
+delimiter |;
+create procedure p1()
+begin
+  create table t1 (a int) engine=MyISAM;
+  drop table t1;
+end|
+delimiter ;|
+call p1();
+call p1();
+drop procedure p1;
+
+#
+# Bug#8759 (Stored Procedures: SQLSTATE '00000' should be illegal)
+#
 
 delimiter $$;
 
@@ -2377,10 +2202,6 @@ delimiter ;$$
 #
 # Bug#36510 (Stored Procedures: mysql_error_code 0 should be illegal)
 #
-
---disable_warnings
-drop procedure if exists proc_36510;
---enable_warnings
 
 delimiter $$;
 
@@ -2415,9 +2236,6 @@ delimiter ;$$
 # Bug#15192: "fatal errors" are caught by handlers in stored procedures
 #
 
---disable_warnings
-drop procedure if exists p1;
---enable_warnings
 set @old_recursion_depth = @@max_sp_recursion_depth;
 set @@max_sp_recursion_depth = 255;
 delimiter |;
@@ -2436,10 +2254,6 @@ drop procedure p1;
 #
 # BUG#NNNN: New bug synopsis
 #
-#--disable_warnings
-#drop procedure if exists bugNNNN;
-#drop function if exists bugNNNN;
-#--enable_warnings
 #create procedure bugNNNN...
 #create function bugNNNN...
 
@@ -2480,9 +2294,9 @@ END|
 delimiter ;|
 
 # The bug caused the following INSERT statement to trigger
-# an assertion.   Error 1442 is the correct response
+# an assertion.   Error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG is the correct response
 #
---error 1442
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
 INSERT INTO t1 SELECT * FROM (SELECT 2 AS f1, 2 AS f2) AS A WHERE func_1() = 5;
 
 # Cleanup
@@ -2544,15 +2358,6 @@ CALL db_name.very_long_pr_name_1111111111111111111111111111111111111111111111111
 --echo
 --echo # - Case 1
 --echo
-
---disable_warnings
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
-DROP PROCEDURE IF EXISTS p3;
-DROP PROCEDURE IF EXISTS p4;
-DROP PROCEDURE IF EXISTS p5;
-DROP PROCEDURE IF EXISTS p6;
---enable_warnings
 
 delimiter |;
 
@@ -2640,10 +2445,6 @@ DROP PROCEDURE p6;
 --echo # - Case 3: check that "Exception trumps No Data".
 --echo
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 
@@ -2685,11 +2486,6 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#36185: Incorrect precedence for warning and exception handlers
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP PROCEDURE IF EXISTS p1;
---enable_warnings
 
 CREATE TABLE t1 (a INT, b INT NOT NULL);
 
@@ -2778,12 +2574,6 @@ SET sql_mode = @sql_mode_saved;
 --echo #
 --echo # Bug#55850: Trigger warnings not cleared.
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS t2;
-DROP PROCEDURE IF EXISTS p1;
---enable_warnings
 
 CREATE TABLE t1(x SMALLINT, y SMALLINT, z SMALLINT);
 CREATE TABLE t2(a SMALLINT, b SMALLINT, c SMALLINT,
@@ -3454,10 +3244,6 @@ DROP PROCEDURE p13;
 --echo
 
 --disable_ps2_protocol
---disable_warnings
-DROP FUNCTION IF EXISTS f1;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1(msg VARCHAR(255));
 
@@ -3508,16 +3294,6 @@ DROP TABLE t1;
 --echo
 --echo # Check that handled SQL-conditions are properly cleared from DA.
 --echo
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS t2;
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
-DROP PROCEDURE IF EXISTS p3;
-DROP PROCEDURE IF EXISTS p4;
-DROP PROCEDURE IF EXISTS p5;
---enable_warnings
 
 CREATE TABLE t1(a CHAR, b CHAR, c CHAR);
 CREATE TABLE t2(a SMALLINT, b SMALLINT, c SMALLINT);
@@ -3697,11 +3473,6 @@ DROP TABLE t2;
 --echo # are declared.
 --echo
 
---disable_warnings
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
---enable_warnings
-
 delimiter |;
 
 SET sql_mode = ''|
@@ -3736,11 +3507,6 @@ DROP PROCEDURE p2;
 --echo # Bug#13113222 RQG_SIGNAL_RESIGNAL FAILED WITH ASSERTION.
 --echo #
 
---disable_warnings
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
---enable_warnings
-
 delimiter |;
 CREATE PROCEDURE p1()
 BEGIN
@@ -3770,12 +3536,6 @@ DROP PROCEDURE p2;
 --echo # Bug#12652873: 61392: Continue handler for NOT FOUND being triggered
 --echo # from internal stored function.
 --echo
-
---disable_warnings
-DROP FUNCTION IF EXISTS f1;
-DROP FUNCTION IF EXISTS f2;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 --echo
 

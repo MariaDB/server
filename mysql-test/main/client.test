@@ -1,0 +1,46 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-34704: Quick mode produces the bug for mariadb client
+--echo #
+
+
+create table t1 (aaaaaaaaa char (5), aaaaa char (10), a char (127), b char(1));
+insert into t1 values ("X", "X", "X", "X");
+
+
+--echo # --table --quick
+--exec echo "select * from test.t1;" | $MYSQL --table --quick 2>&1
+
+
+--echo # --table --quick --quick-max-column-width=0
+--exec echo "select * from test.t1;" | $MYSQL --table --quick --quick-max-column-width=0  2>&1
+
+
+--echo # --table --quick --quick-max-column-width=10
+--exec echo "select * from test.t1;" | $MYSQL --table --quick --quick-max-column-width=10  2>&1
+
+
+--echo # --table --quick --quick-max-column-width=20
+--exec echo "select * from test.t1;" | $MYSQL --table --quick --quick-max-column-width=20  2>&1
+
+insert into t1 values ("01234", "0123456789", "01234567890123456789", "1");
+
+--echo # --table --quick
+--exec echo "select * from test.t1;" | $MYSQL --table --quick 2>&1
+
+
+--echo # --table --quick --quick-max-column-width=0
+--exec echo "select * from test.t1;" | $MYSQL --table --quick --quick-max-column-width=0  2>&1
+
+--echo # --table --quick --quick-max-column-width=10
+--exec echo "select * from test.t1;" | $MYSQL --table --quick --quick-max-column-width=10  2>&1
+
+--echo # --table --quick --quick-max-column-width=20
+--exec echo "select * from test.t1;" | $MYSQL --table --quick --quick-max-column-width=20  2>&1
+
+drop table t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

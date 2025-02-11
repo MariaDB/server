@@ -1,7 +1,7 @@
 #ifndef SQL_TYPE_UUID_INCLUDED
 #define SQL_TYPE_UUID_INCLUDED
 
-/* Copyright (c) 2019,2021 MariaDB Corporation
+/* Copyright (c) 2019,2024 MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,9 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_type_fixedbin_storage.h"
+
+static constexpr uchar UUID_VERSION_MASK() { return 0x0F; }
+static constexpr uchar UUID_VARIANT_MASK() { return 0x3F; }
 
 template <bool force_swap>
 class UUID: public FixedBinTypeStorage<MY_UUID_SIZE, MY_UUID_STRING_LENGTH>
@@ -329,23 +332,6 @@ public:
 #include "sql_type_fixedbin.h"
 typedef Type_handler_fbt<UUID<1>, Type_collection_uuid> Type_handler_uuid_old;
 typedef Type_handler_fbt<UUID<0>, Type_collection_uuid> Type_handler_uuid_new;
-
-
-class UUIDv1: public Type_handler_uuid_new::Fbt
-{
-public:
-  UUIDv1()
-  {
-    my_uuid((uchar*) m_buffer);
-  }
-  static bool construct_native(Native *to)
-  {
-    to->alloc(MY_UUID_SIZE);
-    to->length(MY_UUID_SIZE);
-    my_uuid((uchar*)to->ptr());
-    return 0;
-  }
-};
 
 
 #endif // SQL_TYPE_UUID_INCLUDED

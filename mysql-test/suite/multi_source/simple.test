@@ -84,6 +84,44 @@ query_vertical show all slaves status;
 # Ensure that start all slaves doesn't do anything as all slaves are stopped
 stop all slaves;
 
+--echo #
+--echo # MDEV-21858: START/STOP ALL SLAVES does not return access errors
+--echo #
+--connection slave
+SET SESSION sql_log_bin=0;
+CREATE USER 'unpriv'@'127.0.0.1';
+GRANT USAGE ON *.* TO 'unpriv'@'127.0.0.1';
+
+connect (con1,127.0.0.1,unpriv,,,$SERVER_MYPORT_3);
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+STOP SLAVE 'slave2';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+START SLAVE 'slave2';
+
+# Test that STOP/START ALL SLAVES checks privileges, even if there are no
+# slaves that need stopping or starting.
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+STOP ALL SLAVES;
+
+--connection slave
+START SLAVE 'slave2';
+set default_master_connection = 'slave2';
+--source include/wait_for_slave_to_start.inc
+
+--connection con1
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+START ALL SLAVES;
+--disconnect con1
+
+--connection slave
+STOP SLAVE 'slave2';
+set default_master_connection = 'slave2';
+--source include/wait_for_slave_to_stop.inc
+
+DROP USER 'unpriv'@'127.0.0.1';
+SET SESSION sql_log_bin=1;
+
 #
 # clean up
 #

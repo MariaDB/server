@@ -685,8 +685,8 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                                   SQL_I_List<Sroutine_hash_entry> *src,
                                   TABLE_LIST *belong_to_view);
 
-extern "C" uchar* sp_sroutine_key(const uchar *ptr, size_t *plen,
-                                  my_bool first);
+extern "C" const uchar *sp_sroutine_key(const void *ptr, size_t *plen,
+                                        my_bool);
 
 /*
   Routines which allow open/lock and close mysql.proc table even when
@@ -704,9 +704,5 @@ bool load_collation(THD *thd,MEM_ROOT *mem_root,
                     Field *field,
                     CHARSET_INFO *dflt_cl,
                     CHARSET_INFO **cl);
-
-void sp_returns_type(THD *thd,
-                     String &result,
-                     const sp_head *sp);
 
 #endif /* _SP_H_ */

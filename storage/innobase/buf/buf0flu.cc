@@ -31,6 +31,7 @@ Created 11/11/1995 Heikki Tuuri
 #include <sql_class.h>
 
 #include "buf0flu.h"
+#include "buf0lru.h"
 #include "buf0buf.h"
 #include "buf0checksum.h"
 #include "buf0dblwr.h"
@@ -600,7 +601,7 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
 
   fil_space_crypt_t *crypt_data= space->crypt_data;
   bool encrypted, page_compressed;
-  if (space->purpose == FIL_TYPE_TEMPORARY)
+  if (space->is_temporary())
   {
     ut_ad(!crypt_data);
     encrypted= innodb_encrypt_temporary_tables;
@@ -646,13 +647,13 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
   if (!page_compressed)
   {
 not_compressed:
-    d= space->purpose == FIL_TYPE_TEMPORARY
+    d= space->is_temporary()
       ? buf_tmp_page_encrypt(page_no, s, d)
       : fil_space_encrypt(space, page_no, s, d);
   }
   else
   {
-    ut_ad(space->purpose != FIL_TYPE_TEMPORARY);
+    ut_ad(!space->is_temporary());
     /* First we compress the page content */
     buf_tmp_reserve_compression_buf(*slot);
     byte *tmp= (*slot)->comp_buf;
@@ -729,8 +730,7 @@ bool buf_page_t::flush(fil_space_t *space)
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
   ut_ad(in_file());
   ut_ad(in_LRU_list);
-  ut_ad((space->purpose == FIL_TYPE_TEMPORARY) ==
-        (space == fil_system.temp_space));
+  ut_ad((space->is_temporary()) == (space == fil_system.temp_space));
   ut_ad(space->referenced());
 
   const auto s= state();
@@ -740,12 +740,12 @@ bool buf_page_t::flush(fil_space_t *space)
                      (FIL_PAGE_LSN + (zip.data ? zip.data : frame)));
   ut_ad(lsn
         ? lsn >= oldest_modification() || oldest_modification() == 2
-        : space->purpose != FIL_TYPE_TABLESPACE);
+        : (space->is_temporary() || space->is_being_imported()));
 
   if (s < UNFIXED)
   {
     ut_a(s >= FREED);
-    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
+    if (!space->is_temporary() && !space->is_being_imported())
     {
     freed:
       if (lsn > log_sys.get_flushed_lsn())
@@ -761,7 +761,8 @@ bool buf_page_t::flush(fil_space_t *space)
 
   if (UNIV_UNLIKELY(lsn < space->get_create_lsn()))
   {
-    ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
+    ut_ad(!space->is_temporary());
+    ut_ad(!space->is_being_imported());
     goto freed;
   }
 
@@ -845,7 +846,7 @@ bool buf_page_t::flush(fil_space_t *space)
 
   if ((s & LRU_MASK) == REINIT || !space->use_doublewrite())
   {
-    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE) &&
+    if (!space->is_temporary() && !space->is_being_imported() &&
         lsn > log_sys.get_flushed_lsn())
       log_write_up_to(lsn, true);
     space->io(IORequest{type, this, slot}, physical_offset(), size,
@@ -1118,7 +1119,7 @@ static ulint buf_free_from_unzip_LRU_list_batch()
 	buf_block_t*	block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 
 	while (block
-	       && UT_LIST_GET_LEN(buf_pool.free) < srv_LRU_scan_depth
+	       && UT_LIST_GET_LEN(buf_pool.free) < buf_pool.LRU_scan_depth
 	       && UT_LIST_GET_LEN(buf_pool.unzip_LRU)
 	       > UT_LIST_GET_LEN(buf_pool.LRU) / 10) {
 
@@ -1207,14 +1208,13 @@ and move clean blocks to buf_pool.free.
 static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
 {
   ulint scanned= 0;
-  ulint free_limit= srv_LRU_scan_depth;
-
   mysql_mutex_assert_owner(&buf_pool.mutex);
+  ulint free_limit{buf_pool.LRU_scan_depth};
   if (buf_pool.withdraw_target && buf_pool.is_shrinking())
     free_limit+= buf_pool.withdraw_target - UT_LIST_GET_LEN(buf_pool.withdraw);
 
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
-    ? 0 : srv_flush_neighbors;
+    ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
   uint32_t last_space_id= FIL_NULL;
   static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
@@ -1390,7 +1390,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
   mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
 
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
-    ? 0 : srv_flush_neighbors;
+    ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
   uint32_t last_space_id= FIL_NULL;
   static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
@@ -1594,7 +1594,7 @@ static ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED,
 bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed)
 {
   const auto space_id= space->id;
-  ut_ad(space_id <= SRV_SPACE_ID_UPPER_BOUND);
+  ut_ad(space_id < SRV_SPACE_ID_UPPER_BOUND);
 
   bool may_have_skipped= false;
   ulint max_n_flush= srv_io_capacity;
@@ -1695,7 +1695,7 @@ done:
   if (acquired)
     space->release();
 
-  if (space->purpose == FIL_TYPE_IMPORT)
+  if (space->is_being_imported())
     os_aio_wait_until_no_pending_writes(true);
   else
     buf_dblwr.flush_buffered_writes();
@@ -1764,7 +1764,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "efficiency");
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
   byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
-    (is_pmem() ? buf + offset : checkpoint_buf);
+    (is_mmap() ? buf + offset : checkpoint_buf);
   memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
   mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
   mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
@@ -1773,8 +1773,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   lsn_t resizing;
 
 #ifdef HAVE_PMEM
-  if (is_pmem())
+  if (is_mmap())
   {
+    ut_ad(!is_opened());
     resizing= resize_lsn.load(std::memory_order_relaxed);
 
     if (resizing > 1 && resizing <= next_checkpoint_lsn)
@@ -1788,12 +1789,12 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   else
 #endif
   {
+    ut_ad(!is_mmap());
     ut_ad(!checkpoint_pending);
     checkpoint_pending= true;
     latch.wr_unlock();
     log_write_and_flush_prepare();
     resizing= resize_lsn.load(std::memory_order_relaxed);
-    /* FIXME: issue an asynchronous write */
     ut_ad(ut_is_2pow(write_size));
     ut_ad(write_size >= 512);
     ut_ad(write_size <= 4096);
@@ -1836,9 +1837,10 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
   if (resizing > 1 && resizing <= checkpoint_lsn)
   {
-    ut_ad(is_pmem() == !resize_flush_buf);
+    ut_ad(is_mmap() == !resize_flush_buf);
+    ut_ad(is_mmap() == !resize_log.is_opened());
 
-    if (!is_pmem())
+    if (!is_mmap())
     {
       if (!log_write_through)
         ut_a(resize_log.flush());
@@ -1847,13 +1849,17 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
     if (resize_rename())
     {
-      /* Resizing failed. Discard the log_sys.resize_log. */
+      /* Resizing failed. Discard the ib_logfile101. */
 #ifdef HAVE_PMEM
-      if (is_pmem())
+      if (is_mmap())
+      {
+        ut_ad(!is_opened());
         my_munmap(resize_buf, resize_target);
+      }
       else
 #endif
       {
+        ut_ad(!is_mmap());
         ut_free_dodump(resize_buf, buf_size);
         ut_free_dodump(resize_flush_buf, buf_size);
 #ifdef _WIN32
@@ -1861,7 +1867,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
         bool success;
         log.m_file=
           os_file_create_func(get_log_file_path().c_str(), OS_FILE_OPEN,
-                              OS_FILE_NORMAL, OS_LOG_FILE, false, &success);
+                              OS_LOG_FILE, false, &success);
         ut_a(success);
         ut_a(log.is_opened());
 #endif
@@ -1871,8 +1877,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     {
       /* Adopt the resized log. */
 #ifdef HAVE_PMEM
-      if (is_pmem())
+      if (is_mmap())
       {
+        ut_ad(!is_opened());
         my_munmap(buf, file_size);
         buf= resize_buf;
         set_buf_free(START_OFFSET + (get_lsn() - resizing));
@@ -1880,6 +1887,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       else
 #endif
       {
+        ut_ad(!is_mmap());
         IF_WIN(,log.close());
         std::swap(log, resize_log);
         ut_free_dodump(buf, buf_size);
@@ -1896,6 +1904,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     resize_flush_buf= nullptr;
     resize_target= 0;
     resize_lsn.store(0, std::memory_order_relaxed);
+    writer_update();
   }
 
   log_resize_release();
@@ -2389,7 +2398,7 @@ bool buf_pool_t::need_LRU_eviction() const
   for buf_flush_page_cleaner() to evict some blocks */
   return UNIV_UNLIKELY(!try_LRU_scan ||
                        (UT_LIST_GET_LEN(LRU) > BUF_LRU_MIN_LEN &&
-                        UT_LIST_GET_LEN(free) < srv_LRU_scan_depth / 2));
+                        UT_LIST_GET_LEN(free) < LRU_scan_depth / 2));
 }
 
 #if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
@@ -2660,6 +2669,7 @@ static void buf_flush_page_cleaner()
 ATTRIBUTE_COLD void buf_pool_t::LRU_warn()
 {
   mysql_mutex_assert_owner(&mutex);
+  try_LRU_scan= false;
   if (!LRU_warned.test_and_set(std::memory_order_acquire))
     sql_print_warning("InnoDB: Could not free any blocks in the buffer pool!"
                       " %zu blocks are in use and %zu free."
@@ -2683,12 +2693,12 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
 /** Flush the buffer pool on shutdown. */
 ATTRIBUTE_COLD void buf_flush_buffer_pool()
 {
-  ut_ad(!os_aio_pending_reads());
   ut_ad(!buf_page_cleaner_is_active);
   ut_ad(!buf_flush_sync_lsn);
 
   service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                  "Waiting to flush the buffer pool");
+  os_aio_wait_until_no_pending_reads(false);
 
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
 

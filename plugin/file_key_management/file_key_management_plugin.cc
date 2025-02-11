@@ -32,12 +32,7 @@ static const char *encryption_algorithm_names[]=
   0
 };
 
-static TYPELIB encryption_algorithm_typelib=
-{
-  array_elements(encryption_algorithm_names)-1,"",
-  encryption_algorithm_names, NULL
-};
-
+static TYPELIB encryption_algorithm_typelib=CREATE_TYPELIB_FOR(encryption_algorithm_names);
 
 static MYSQL_SYSVAR_STR(filename, filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

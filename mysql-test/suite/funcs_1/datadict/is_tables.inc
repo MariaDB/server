@@ -337,9 +337,11 @@ WHERE table_name = 't1_my_tablex';
 ALTER TABLE db_datadict.t1_my_tablex CHECKSUM = 1;
 SELECT table_name, checksum IS NOT NULL FROM information_schema.tables
 WHERE table_name = 't1_my_tablex';
+--disable_cursor_protocol
 SELECT UPDATE_TIME, checksum INTO @UPDATE_TIME, @checksum
 FROM information_schema.tables
 WHERE table_name = 't1_my_tablex';
+--enable_cursor_protocol
 #   Enforce a time difference bigger than the smallest unit (1 second).
 --real_sleep 1.1
 INSERT INTO db_datadict.t1_my_tablex SET f1 = 3;
@@ -354,8 +356,10 @@ FROM information_schema.tables
 WHERE table_name = 't1_my_tablex';
 #
 # Information is used later
+--disable_cursor_protocol
 SELECT CREATE_TIME INTO @CREATE_TIME FROM information_schema.tables
 WHERE table_name = 't1_my_tablex';
+--enable_cursor_protocol
 #
 # Check impact of DROP TABLE
 SELECT table_name FROM information_schema.tables

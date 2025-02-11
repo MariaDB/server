@@ -1,0 +1,13 @@
+# If log_warnings is lower than 2 then the deprecation warnings will
+# not be logged
+if (`select @@log_warnings < 2`)
+{
+  skip Test requires log_warnings > 1;
+}
+--let $group= `select regexp_replace(@@tmpdir, '^.*/','')`
+let SEARCH_PATTERN= \[Warning\] .*spider-table-sts-thread-count is deprecated and will be removed in a future release;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/$group.err;
+--source include/search_pattern_in_file.inc
+select @@spider_table_sts_thread_count;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set spider_table_sts_thread_count=8;

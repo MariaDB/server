@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-SETPERMISSION\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-SETPERMISSION\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,17 +11,17 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql_setpermission
+.\" mariadb-setpermission
 .SH "NAME"
-mariadb-setpermission \- interactively set permissions in grant tables (mysql_setpermission is now a symlink to mariadb-setpermission)
+mariadb-setpermission \- interactively set permissions in grant tables (mariadb-setpermission is now a symlink to mariadb-setpermission)
 .SH "SYNOPSIS"
-.HP \w'\fBmysql_setpermission\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
-\fBmysql_setpermission [\fR\fB\fIoptions\fR\fR\fB]\fR
+.HP \w'\fBmariadb-setpermission\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb-setpermission [\fR\fB\fIoptions\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysql_setpermission\fR
+\fBmariadb-setpermission\fR
 is a Perl script that was originally written and contributed by Luuk de Boer\&. It interactively sets permissions in the MariaDB grant tables\&.
-\fBmysql_setpermission\fR
+\fBmariadb-setpermission\fR
 is written in Perl and requires that the
 DBI
 and
@@ -29,14 +29,14 @@ DBD::MariaDB
 Perl modules be installed\&.
 .PP
 Invoke
-\fBmysql_setpermission\fR
+\fBmariadb-setpermission\fR
 like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql_setpermission [\fR\fB\fIoptions\fR\fR\fB]\fR
+shell> \fBmariadb-setpermission [\fR\fB\fIoptions\fR\fR\fB]\fR
 .fi
 .if n \{\
 .RE
@@ -47,7 +47,7 @@ should be either
 \fB\-\-help\fR
 to display the help message, or options that indicate how to connect to the MariaDB server\&. The account used when you connect determines which permissions you have when attempting to modify existing permissions in the grant tables\&.
 .PP
-\fBmysql_setpermission\fR
+\fBmariadb-setpermission\fR
 also reads options from the
 [client]
 and
@@ -56,7 +56,7 @@ groups in the
 \&.my\&.cnf
 file in your home directory, if the file exists\&.
 .PP
-\fBmysql_setpermission\fR
+\fBmariadb-setpermission\fR
 supports the following options:
 .sp
 .RS 4
@@ -67,8 +67,8 @@ supports the following options:
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_setpermission: help option
-.\" help option: mysql_setpermission
+.\" mariadb-setpermission: help option
+.\" help option: mariadb-setpermission
 \fB\-\-help\fR
 .sp
 Display a help message and exit\&.
@@ -82,8 +82,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_setpermission: host option
-.\" host option: mysql_setpermission
+.\" mariadb-setpermission: host option
+.\" host option: mariadb-setpermission
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR
 .sp
 Connect to the MariaDB server on the given host\&.
@@ -97,8 +97,8 @@ Connect to the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_setpermission: password option
-.\" password option: mysql_setpermission
+.\" mariadb-setpermission: password option
+.\" password option: mariadb-setpermission
 \fB\-\-password=\fR\fB\fIpassword\fR\fR
 .sp
 The password to use when connecting to the server\&. Note that the password value is not optional for this option, unlike for other MariaDB programs\&.
@@ -114,8 +114,8 @@ Specifying a password on the command line should be considered insecure\&. You c
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_setpermission: port option
-.\" port option: mysql_setpermission
+.\" mariadb-setpermission: port option
+.\" port option: mariadb-setpermission
 \fB\-\-port=\fR\fB\fIport_num\fR\fR
 .sp
 The TCP/IP port number to use for the connection\&.
@@ -129,8 +129,8 @@ The TCP/IP port number to use for the connection\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_setpermission: socket option
-.\" socket option: mysql_setpermission
+.\" mariadb-setpermission: socket option
+.\" socket option: mariadb-setpermission
 \fB\-\-socket=\fR\fB\fIpath\fR\fR
 .sp
 For connections to
@@ -145,8 +145,8 @@ localhost, the Unix socket file to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_setpermission: user option
-.\" user option: mysql_setpermission
+.\" mariadb-setpermission: user option
+.\" user option: mariadb-setpermission
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR
 .sp
 The MariaDB user name to use when connecting to the server\&.
@@ -154,7 +154,7 @@ The MariaDB user name to use when connecting to the server\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

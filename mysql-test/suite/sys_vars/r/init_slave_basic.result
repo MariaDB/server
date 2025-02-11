@@ -4,7 +4,7 @@ INIT_VALUE
 
 '#--------------------FN_DYNVARS_037_01------------------#'
 SELECT init_slave;
-ERROR 42S22: Unknown column 'init_slave' in 'field list'
+ERROR 42S22: Unknown column 'init_slave' in 'SELECT'
 SELECT @@init_slave;
 @@init_slave
 
@@ -14,7 +14,7 @@ SELECT @@global.init_slave;
 SET autocomit=0
 SET global init_slave='SET autocomit=0';
 SELECT global init_slave;
-ERROR 42S22: Unknown column 'global' in 'field list'
+ERROR 42S22: Unknown column 'global' in 'SELECT'
 SELECT @@global init_slave;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'init_slave' at line 1
 '#--------------------FN_DYNVARS_037_02-------------------------#'

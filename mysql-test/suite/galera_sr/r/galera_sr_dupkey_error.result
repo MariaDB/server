@@ -24,6 +24,7 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_1;
+SET innodb_snapshot_isolation=OFF;
 INSERT INTO t1 VALUES (REPEAT('d', 512));
 INSERT INTO t1 VALUES (REPEAT('e', 512));
 INSERT INTO t1 VALUES (REPEAT('f', 512));

@@ -56,3 +56,15 @@ create user foo with MAX_QUERIES_PER_HOUR 10
                      MAX_USER_CONNECTIONS 40;
 select * from mysql.user where user like 'foo';
 drop user foo;
+
+--echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-24193 UBSAN: sql/sql_acl.cc:9985:29: runtime error: member access within null pointer of type 'struct TABLE' , ASAN: use-after-poison in handle_grant_table
+--echo #
+RENAME TABLE mysql.procs_priv TO mysql.temp;
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE USER a IDENTIFIED WITH 'a';
+RENAME TABLE mysql.temp TO mysql.procs_priv;
+
+--echo # End of 10.5 tests

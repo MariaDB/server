@@ -17,6 +17,7 @@ a
 3
 connection b;
 set binlog_format=mixed;
+set innodb_snapshot_isolation=OFF;
 set session transaction isolation level repeatable read;
 set autocommit=0;
 update t1 set a=10 where a=5;

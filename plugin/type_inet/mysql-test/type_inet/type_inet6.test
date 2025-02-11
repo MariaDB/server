@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 --echo #
 --echo # Basic CREATE functionality, defaults, metadata
 --echo #
@@ -18,7 +20,10 @@ CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::1');
 --enable_metadata
 SELECT * FROM t1;
+#check after fix MDEV-31540
+--disable_cursor_protocol
 SELECT CAST('::' AS INET6) AS a;
+--enable_cursor_protocol
 --disable_metadata
 DROP TABLE t1;
 
@@ -485,14 +490,10 @@ INSERT INTO t1 VALUES ('::'),('::1');
 SELECT a, a IS TRUE, a IS FALSE FROM t1 ORDER BY a;
 DROP TABLE t1;
 
-#
-# TODO: Error looks like a bug. This should return rows where a<>'::'.
-# The same problem is repeatable with GEOMETRY.
-#
 CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::'),('::1'),('::2');
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT * FROM t1 WHERE a;
+SELECT * FROM t1 WHERE NOT a;
 DROP TABLE t1;
 
 
@@ -1430,6 +1431,8 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (a INET6);
+#check after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 SELECT
   CAST(a AS BINARY(0)),
@@ -1448,6 +1451,7 @@ SELECT
   CAST(a AS BINARY(16777216))
 FROM t1;
 --disable_metadata
+--enable_cursor_protocol
 DROP TABLE t1;
 
 --echo #
@@ -1735,3 +1739,17 @@ DROP TABLE t1;
 SET max_sort_length=DEFAULT;
 
 --echo # End of 10.8 tests
+
+--echo # Start of 11.8 tests
+
+--echo #
+--echo # MDEV-34189 Unexpected error on `WHERE inet6col`
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a INET6, KEY(a));
+INSERT INTO t1 VALUES (-1,NULL);
+INSERT INTO t1 SELECT seq,CONCAT('::',seq) FROM seq_0_to_31;
+--source include/boolean_factor.inc
+DROP TABLE t1;
+
+--echo # End of 11.8 tests

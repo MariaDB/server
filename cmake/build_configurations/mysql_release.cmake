@@ -85,6 +85,8 @@ ENDIF()
 SET(WITH_INNODB_SNAPPY OFF CACHE STRING "")
 SET(WITH_NUMA 0 CACHE BOOL "")
 SET(CPU_LEVEL1_DCACHE_LINESIZE 0)
+# generate SBOMS
+SET(SBOM_DEFAULT 1)
 
 IF(NOT EXISTS ${CMAKE_SOURCE_DIR}/.git)
   SET(GIT_EXECUTABLE GIT_EXECUTABLE-NOTFOUND CACHE FILEPATH "")
@@ -172,12 +174,12 @@ IF(UNIX)
 
   # Default GCC flags
   IF(CMAKE_COMPILER_IS_GNUCC)
-    SET(COMMON_C_FLAGS               "-g -static-libgcc -fno-omit-frame-pointer -fno-strict-aliasing  -Wno-uninitialized")
+    SET(COMMON_C_FLAGS               "-g -fno-omit-frame-pointer -fno-strict-aliasing  -Wno-uninitialized")
     SET(CMAKE_C_FLAGS_DEBUG          "-O ${COMMON_C_FLAGS}")
     SET(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 ${COMMON_C_FLAGS}")
   ENDIF()
   IF(CMAKE_COMPILER_IS_GNUCXX)
-    SET(COMMON_CXX_FLAGS               "-g -static-libgcc -fno-omit-frame-pointer -fno-strict-aliasing -Wno-uninitialized")
+    SET(COMMON_CXX_FLAGS               "-g -fno-omit-frame-pointer -fno-strict-aliasing -Wno-uninitialized")
     SET(CMAKE_CXX_FLAGS_DEBUG          "-O ${COMMON_CXX_FLAGS}")
     SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 ${COMMON_CXX_FLAGS}")
   ENDIF()

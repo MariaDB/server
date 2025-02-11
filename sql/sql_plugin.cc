@@ -62,8 +62,7 @@ extern struct st_maria_plugin *mysql_mandatory_plugins[];
 const char *global_plugin_typelib_names[]=
   { "OFF", "ON", "FORCE", "FORCE_PLUS_PERMANENT", NULL };
 static TYPELIB global_plugin_typelib=
-  { array_elements(global_plugin_typelib_names)-1,
-    "", global_plugin_typelib_names, NULL };
+  CREATE_TYPELIB_FOR(global_plugin_typelib_names);
 
 static I_List<i_string> opt_plugin_load_list;
 I_List<i_string> *opt_plugin_load_list_ptr= &opt_plugin_load_list;
@@ -103,16 +102,16 @@ const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   { STRING_WITH_LEN("FUNCTION") }
 };
 
-extern int initialize_schema_table(st_plugin_int *plugin);
-extern int finalize_schema_table(st_plugin_int *plugin);
+extern int initialize_schema_table(void *plugin);
+extern int finalize_schema_table(void *plugin);
 
-extern int initialize_audit_plugin(st_plugin_int *plugin);
-extern int finalize_audit_plugin(st_plugin_int *plugin);
+extern int initialize_audit_plugin(void *plugin);
+extern int finalize_audit_plugin(void *plugin);
 
-extern int initialize_encryption_plugin(st_plugin_int *plugin);
-extern int finalize_encryption_plugin(st_plugin_int *plugin);
+extern int initialize_encryption_plugin(void *plugin);
+extern int finalize_encryption_plugin(void *plugin);
 
-extern int initialize_data_type_plugin(st_plugin_int *plugin);
+extern int initialize_data_type_plugin(void *plugin);
 
 /*
   The number of elements in both plugin_type_initialize and
@@ -1450,8 +1449,9 @@ static int plugin_do_initialize(struct st_plugin_int *plugin, uint &state)
   mysql_mutex_assert_not_owner(&LOCK_plugin);
   plugin_type_init init= plugin_type_initialize[plugin->plugin->type];
   if (!init)
-    init= (plugin_type_init) plugin->plugin->init;
+    init= plugin->plugin->init;
   if (init)
+  {
     if (int ret= init(plugin))
     {
       /* Plugin init failed and did not requested a retry */
@@ -1459,6 +1459,7 @@ static int plugin_do_initialize(struct st_plugin_int *plugin, uint &state)
         print_init_failed_error(plugin);
       DBUG_RETURN(ret);
     }
+  }
   state= PLUGIN_IS_READY; // plugin->init() succeeded
 
   if (plugin->plugin->status_vars)
@@ -1517,25 +1518,23 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 }
 
 
-extern "C" uchar *get_plugin_hash_key(const uchar *, size_t *, my_bool);
-extern "C" uchar *get_bookmark_hash_key(const uchar *, size_t *, my_bool);
+extern "C" const uchar *get_plugin_hash_key(const void *, size_t *, my_bool);
+extern "C" const uchar *get_bookmark_hash_key(const void *, size_t *, my_bool);
 
 
-uchar *get_plugin_hash_key(const uchar *buff, size_t *length,
-                           my_bool not_used __attribute__((unused)))
+const uchar *get_plugin_hash_key(const void *buff, size_t *length, my_bool)
 {
-  struct st_plugin_int *plugin= (st_plugin_int *)buff;
-  *length= (uint)plugin->name.length;
-  return((uchar *)plugin->name.str);
+  auto plugin= static_cast<const st_plugin_int *>(buff);
+  *length= plugin->name.length;
+  return reinterpret_cast<const uchar *>(plugin->name.str);
 }
 
 
-uchar *get_bookmark_hash_key(const uchar *buff, size_t *length,
-                             my_bool not_used __attribute__((unused)))
+const uchar *get_bookmark_hash_key(const void *buff, size_t *length, my_bool)
 {
-  struct st_bookmark *var= (st_bookmark *)buff;
+  auto var= static_cast<const st_bookmark *>(buff);
   *length= var->name_len + 1;
-  return (uchar*) var->key;
+  return reinterpret_cast<const uchar *>(var->key);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -1602,9 +1601,9 @@ int plugin_init(int *argc, char **argv, int flags)
 
   init_plugin_psi_keys();
 
-  init_alloc_root(key_memory_plugin_mem_root, &plugin_mem_root, 4096, 4096, MYF(0));
-  init_alloc_root(key_memory_plugin_mem_root, &plugin_vars_mem_root, 4096, 4096, MYF(0));
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &tmp_root, 4096, 4096, MYF(0));
+  init_alloc_root(key_memory_plugin_mem_root, &plugin_mem_root, 4096, 16384, MYF(0));
+  init_alloc_root(key_memory_plugin_mem_root, &plugin_vars_mem_root, 4096, 32768, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &tmp_root, 16384, 32768, MYF(0));
 
   if (my_hash_init(key_memory_plugin_bookmark, &bookmark_hash, &my_charset_bin, 32, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))
@@ -1716,8 +1715,7 @@ int plugin_init(int *argc, char **argv, int flags)
   {
     char path[FN_REFLEN + 1];
     build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
-    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name,
-                                  NULL, NULL);
+    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name, NULL);
     if (ttype != TABLE_TYPE_NORMAL)
       plugin_table_engine_name=empty_clex_str;
   }
@@ -1880,7 +1878,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   if (global_system_variables.log_warnings >= 9)
     sql_print_information("Initializing installed plugins");
 
-  new_thd->thread_stack= (char*) &tables;
+  new_thd->thread_stack= (void*) &tables;       // Big stack
   new_thd->store_globals();
   new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:plugin_load"),
                            default_charset_info);
@@ -3390,7 +3388,7 @@ void plugin_thdvar_cleanup(THD *thd)
   if ((idx= thd->lex->plugins.elements))
   {
     list= ((plugin_ref*) thd->lex->plugins.buffer) + idx - 1;
-    DBUG_PRINT("info",("unlocking %d plugins", idx));
+    DBUG_PRINT("info",("unlocking %zu plugins", idx));
     while ((uchar*) list >= thd->lex->plugins.buffer)
       intern_plugin_unlock(NULL, *list--);
   }

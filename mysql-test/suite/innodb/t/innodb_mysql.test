@@ -625,7 +625,9 @@ CREATE TABLE t2 (a INT, b INT,
 --echo # set up our data elements
 INSERT INTO t1 (d) VALUES (1);
 INSERT INTO t2 (a,b) VALUES (1,1);
+--disable_cursor_protocol
 SELECT SECOND(c) INTO @bug47453 FROM t2;
+--enable_cursor_protocol
 
 SELECT SECOND(c)-@bug47453 FROM t1 JOIN t2 ON d=a;
 UPDATE t1 JOIN t2 ON d=a SET b=1 WHERE a=1;

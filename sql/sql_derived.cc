@@ -388,7 +388,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       make_leaves_list(thd, dt_select->leaf_tables, derived, TRUE, 0);
     } 
 
-    derived->nested_join= (NESTED_JOIN*) thd->calloc(sizeof(NESTED_JOIN));
+    derived->nested_join= thd->calloc<NESTED_JOIN>(1);
     if (!derived->nested_join)
     {
       res= TRUE;
@@ -1112,7 +1112,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 
 void TABLE_LIST::register_as_derived_with_rec_ref(With_element *rec_elem)
 {
-  rec_elem->derived_with_rec_ref.link_in_list(this, &this->next_with_rec_ref);
+  rec_elem->derived_with_rec_ref.insert(this, &this->next_with_rec_ref);
   is_derived_with_recursive_reference= true;
   get_unit()->uncacheable|= UNCACHEABLE_DEPENDENT;
 }
@@ -1353,6 +1353,9 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
   st_select_lex_unit *unit= derived->get_unit();
+
+  if (derived->original_names_source)
+    unit->first_select()->set_item_list_names(derived->original_names);
 
   // reset item names to that saved after wildcard expansion in JOIN::prepare
   for(st_select_lex *sl= unit->first_select(); sl; sl= sl->next_select())

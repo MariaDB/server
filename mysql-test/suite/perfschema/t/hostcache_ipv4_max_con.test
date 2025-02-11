@@ -17,8 +17,10 @@
 --source ../include/wait_for_pfs_thread_count.inc
 --source ../include/hostcache_set_state.inc
 
+--disable_cursor_protocol
 select @@global.max_connections into @saved_max_connections;
 select @@global.max_user_connections into @saved_max_user_connections;
+--enable_cursor_protocol
 
 create user 'quota'@'santa.claus.ipv4.example.com';
 grant select on test.* to 'quota'@'santa.claus.ipv4.example.com';

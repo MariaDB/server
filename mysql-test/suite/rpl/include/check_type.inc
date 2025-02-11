@@ -43,7 +43,9 @@ connection master;
 eval INSERT INTO t1 VALUES(1, $source_value);
 if ($can_convert) {
   sync_slave_with_master;
+  --disable_cursor_protocol
   eval SELECT a = $target_value into @compare FROM t1;
+  --enable_cursor_protocol
   eval INSERT INTO type_conversions SET
        Source = "$source_type",
        Target = "$target_type",

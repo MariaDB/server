@@ -28,7 +28,7 @@ SELECT @@GLOBAL.innodb_purge_threads;
 SET @@GLOBAL.innodb_purge_threads=1;
 SET @@GLOBAL.innodb_purge_threads=32;
 SELECT innodb_purge_threads = @@SESSION.innodb_purge_threads;
-ERROR 42S22: Unknown column 'innodb_purge_threads' in 'field list'
+ERROR 42S22: Unknown column 'innodb_purge_threads' in 'SELECT'
 Expected error 'Read-only variable'
 SELECT @@GLOBAL.innodb_purge_threads = VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES

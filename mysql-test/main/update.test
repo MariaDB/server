@@ -238,9 +238,11 @@ insert into t1 (a) values (0),(0),(0),(0),(0),(0),(0),(0);
 # the view protocol creates an additional statistics data
 --disable_ps2_protocol
 --disable_view_protocol
+--disable_cursor_protocol
 flush status;
 select a from t1 order by a limit 1;
 show status like 'handler_read%';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
 
@@ -348,6 +350,7 @@ INSERT INTO t1(user_id) SELECT user_id FROM t1;
 INSERT INTO t1(user_id) SELECT user_id FROM t1;
 INSERT INTO t1(user_id) SELECT user_id FROM t1;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 flush status;
 SELECT user_id FROM t1 WHERE request_id=9999999999999; 
@@ -359,6 +362,7 @@ show status like '%Handler_read%';
 UPDATE t1 SET user_id=null WHERE request_id=999999999999999999999999999999;
 show status like '%Handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 DROP TABLE t1;
 
@@ -395,7 +399,7 @@ DROP TABLE t1;
 connect (con1,localhost,root,,test);
 connection con1;
 
-set tmp_table_size=1024;
+set tmp_table_size=2048;
 
 # Create the test tables
 create table t1 (id int, a int, key idx(a));
@@ -746,4 +750,78 @@ DROP TABLE t1;
 
 --echo # End of MariaDB 10.10 tests
 
+--echo #
+--echo # MDEV-25008: Delete query gets stuck on mariadb, same query works
+--echo #             on MySQL 8.0.21
+--echo #
+
+--source include/have_sequence.inc
+
+# original case
+CREATE TABLE t1 (
+  id int NOT NULL PRIMARY KEY,
+  item_id varchar(100),
+  seller_name varchar(400),
+  variant varchar(400),
+  FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+
+# Masking the `rows` column as the value might vary a bit
+--replace_column 9 #
+explain
+UPDATE t1 SET item_id="foo" WHERE id NOT IN
+  (SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+
+drop table t1;
+
+# example of not full table
+create table t1 (a int primary key, b int, c int, key(b));
+insert into t1 select seq, seq, seq from seq_1_to_20000;
+create table t2 as select * from t1;
+explain update t1 set c = 5  where    b <= 2 and a not in (select b from t2);
+explain update t1 set c = 5  where    b <= 3 and a not in (select b from t2);
+drop table t1, t2;
+
+--echo # End of 11.7 tests
+
 --source include/test_db_charset_restore.inc
+--echo # MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+--echo #
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t1, t2, t3;
+
+--echo # End of MariaDB 10.11 tests

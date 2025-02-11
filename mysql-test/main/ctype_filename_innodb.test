@@ -1,0 +1,19 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-35392 Assertion `!__asan_region_is_poisoned((vo id*) dest,templ->mysql_col_len)' failed in void row_sel_field_store_in_mysql_format_func(byte *, const mysql_row_templ_t *, const byte *, ulint)
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t (a CHAR(205)) ENGINE=INNODB CHARACTER SET filename;
+INSERT INTO t VALUES (1);
+SELECT * FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

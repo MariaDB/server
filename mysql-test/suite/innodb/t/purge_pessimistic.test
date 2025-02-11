@@ -1,0 +1,51 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-35508: Race condition between purge and secondary index INSERT or UPDATE
+--echo #
+
+SET @old_debug_dbug = @@global.debug_dbug;
+
+CREATE TABLE t1(col1 INT PRIMARY KEY, col2 int, KEY k1(col2)) ENGINE=Innodb;
+INSERT INTO t1 VALUES(1, 100);
+
+CREATE TABLE t2(col1 INT PRIMARY KEY) Engine=Innodb;
+--source include/wait_all_purged.inc
+
+START TRANSACTION;
+INSERT INTO t2 VALUES(10);
+
+SET DEBUG_SYNC='RESET';
+
+SET GLOBAL debug_dbug= "+d,btr_force_pessimistic_delete";
+SET GLOBAL debug_dbug= "+d,enable_row_purge_sec_tree_sync";
+
+--connect (con1,localhost,root)
+UPDATE t1 SET col2 = 200 WHERE col1 = 1;
+
+--connection default
+SET DEBUG_SYNC= 'now WAIT_FOR purge_sec_tree_begin';
+SET GLOBAL debug_dbug= "-d,enable_row_purge_sec_tree_sync";
+
+UPDATE t1 SET col2 = 100 WHERE col1 = 1;
+SET DEBUG_SYNC= 'now SIGNAL purge_sec_tree_execute';
+
+COMMIT;
+--source include/wait_all_purged.inc
+
+--disconnect con1
+--source include/wait_until_count_sessions.inc
+
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+SELECT * FROM t2;
+DROP TABLE t2;
+
+SET @@GLOBAL.debug_dbug = @old_debug_dbug;
+SET DEBUG_SYNC='RESET';

@@ -168,11 +168,11 @@ SELECT @@min_examined_row_limit;
 @@min_examined_row_limit
 1
 SELECT local.min_examined_row_limit;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.min_examined_row_limit;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT min_examined_row_limit = @@session.min_examined_row_limit;
-ERROR 42S22: Unknown column 'min_examined_row_limit' in 'field list'
+ERROR 42S22: Unknown column 'min_examined_row_limit' in 'SELECT'
 SET @@global.min_examined_row_limit = @start_global_value;
 SELECT @@global.min_examined_row_limit;
 @@global.min_examined_row_limit

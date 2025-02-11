@@ -1,4 +1,5 @@
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 call mtr.add_suppression("plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
 CREATE TABLE t1(f1 INT NOT NULL, f2 TEXT)ENGINE=InnoDB;
 # restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0

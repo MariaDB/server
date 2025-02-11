@@ -262,7 +262,7 @@ GRANT USAGE ON *.* TO `testuser1`@`localhost`
 GRANT ALL PRIVILEGES ON `test`.* TO `testuser1`@`localhost`
 GRANT SELECT (`f3`, `f1`), UPDATE (`f1`) ON `db_datadict`.`my_table` TO `testuser1`@`localhost`
 SELECT f1, f3 FROM db_datadict.my_table;
-ERROR 42S22: Unknown column 'f3' in 'field list'
+ERROR 42S22: Unknown column 'f3' in 'SELECT'
 connection default;
 ALTER TABLE db_datadict.my_table CHANGE COLUMN f1 my_col BIGINT;
 SELECT * FROM information_schema.column_privileges

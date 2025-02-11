@@ -1,0 +1,7 @@
+--echo #
+--echo # MDEV-33827 UUID() returns a NULL-able result
+--echo #
+
+CREATE TABLE t1 AS SELECT UUID_v7();
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

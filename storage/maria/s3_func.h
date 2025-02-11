@@ -38,6 +38,7 @@ extern struct s3_func {
 } s3f;
 
 extern TYPELIB s3_protocol_typelib;
+extern TYPELIB s3_provider_typelib;
 
 /* Store information about a s3 connection */
 
@@ -47,6 +48,8 @@ struct s3_info
   LEX_CSTRING access_key, secret_key, region, bucket, host_name;
   int port; // 0 means 'Use default'
   my_bool use_http;
+  my_bool ssl_no_verify;
+  my_bool no_content_type;
 
   /* Will be set by caller or by ma_open() */
   LEX_CSTRING database, table;
@@ -63,6 +66,8 @@ struct s3_info
 
   /* Protocol for the list bucket API call. 1 for Amazon, 2 for some others */
   uint8_t protocol_version;
+
+  uint8_t provider;
 };
 
 

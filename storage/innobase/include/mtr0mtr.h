@@ -314,13 +314,14 @@ public:
 
   /** Latch a buffer pool block.
   @param block    block to be latched
-  @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
-  void page_lock(buf_block_t *block, ulint rw_latch);
+  @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH
+  @return block */
+  buf_block_t *page_lock(buf_block_t *block, ulint rw_latch) noexcept;
 
   /** Acquire a latch on a buffer-fixed buffer pool block.
   @param savepoint   savepoint location of the buffer-fixed block
   @param rw_latch    latch to acquire */
-  void upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch);
+  void upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch) noexcept;
 
   /** Register a change to the page latch state. */
   void lock_register(ulint savepoint, mtr_memo_type_t type)
@@ -331,8 +332,10 @@ public:
     slot.type= type;
   }
 
-  /** Upgrade U locks on a block to X */
-  void page_lock_upgrade(const buf_block_t &block);
+  /** Upgrade U locks on a block to X
+  @param block   block on which to upgrade
+  @return &block */
+  buf_block_t *page_lock_upgrade(const buf_block_t &block) noexcept;
 
   /** Upgrade index U lock to X */
   ATTRIBUTE_COLD void index_lock_upgrade();
@@ -687,7 +690,7 @@ private:
   ATTRIBUTE_NOINLINE void encrypt();
 
   /** Commit the mini-transaction log.
-  @tparam pmem log_sys.is_pmem()
+  @tparam pmem log_sys.is_mmap()
   @param mtr   mini-transaction
   @param lsns  {start_lsn,flush_ahead} */
   template<bool pmem>
@@ -699,11 +702,11 @@ private:
 
   /** Append the redo log records to the redo log buffer.
   @tparam spin whether to use the spin-only log_sys.lock_lsn()
-  @tparam pmem log_sys.is_pmem()
+  @tparam mmap log_sys.is_mmap()
   @param mtr   mini-transaction
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead} */
-  template<bool spin,bool pmem> static
+  template<bool spin,bool mmap> static
   std::pair<lsn_t,page_flush_ahead> finish_writer(mtr_t *mtr, size_t len);
 
   /** The applicable variant of commit_log() */

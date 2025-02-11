@@ -19,9 +19,9 @@
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
 
-if (`SELECT $PS_PROTOCOL != 0`)
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
 {
-   --skip Need regular protocol but ps-protocol was specified
+   --skip Need regular protocol but ps-protocol and cursor-protocol were specified
 }
 
 --source include/default_charset.inc
@@ -3024,8 +3024,10 @@ create procedure bug5251()
 begin
 end|
 
+--disable_cursor_protocol
 select created into @c1 from mysql.proc
   where db='test' and name='bug5251'|
+--enable_cursor_protocol
 --sleep 2
 alter procedure bug5251 comment 'foobar'|
 select count(*) from mysql.proc
@@ -8255,12 +8257,16 @@ drop procedure if exists p;
 --enable_warnings
 set @old_mode= @@sql_mode;
 set @@sql_mode= cast(pow(2,32)-1 as unsigned integer);
+--disable_cursor_protocol
 select @@sql_mode into @full_mode;
+--enable_cursor_protocol
 create procedure p() as begin end;
 call p();
 set @@sql_mode= @old_mode;
 # Rename SQL modes that differ in name between the server and the table definition.
+--disable_cursor_protocol
 select replace(@full_mode, 'ALLOW_INVALID_DATES', 'INVALID_DATES') into @full_mode;
+--enable_cursor_protocol
 select name from mysql.proc where name = 'p' and sql_mode = @full_mode;
 drop procedure p;
 
@@ -10692,4 +10698,25 @@ CREATE PROCEDURE sp() SELECT @;
 
 --echo #
 --echo # End of 10.7 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-35437 Suppress "This function has the same name" warnings in I_S queries
+--echo #
+
+CREATE FUNCTION upper() RETURNS TEXT RETURN 'upper';
+SELECT test.upper();
+# I_S queries should not produce warnings
+SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME='upper';
+SELECT SPECIFIC_NAME FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='test' AND SPECIFIC_NAME='upper';
+DROP FUNCTION upper;
+
+
+--echo #
+--echo # End of 11.8 tests
 --echo #

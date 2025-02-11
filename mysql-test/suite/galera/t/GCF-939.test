@@ -13,6 +13,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+
 # Expect only one GRA_*.log file
 # TODO replace_regex is somehow broken, it will filter out
 #      result totally if replacement string is already in result
@@ -20,7 +25,6 @@ INSERT INTO t1 VALUES (1);
 #      to get GRA_.log two times, this works for some reason
 #
 --replace_regex /GRA_.+\.log/GRA_.log/
---list_files $MYSQLTEST_VARDIR/mysqld.2/data GRA_*.log
 --replace_regex /GRA_.+\.log/GRA_.log/
 --list_files $MYSQLTEST_VARDIR/mysqld.2/data GRA_*.log
 

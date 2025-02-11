@@ -94,11 +94,11 @@ SELECT @@delayed_queue_size;
 @@delayed_queue_size
 1
 SELECT local.delayed_queue_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.delayed_queue_size;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT delayed_queue_size = @@session.delayed_queue_size;
-ERROR 42S22: Unknown column 'delayed_queue_size' in 'field list'
+ERROR 42S22: Unknown column 'delayed_queue_size' in 'SELECT'
 SET @@global.delayed_queue_size = @start_value;
 SELECT @@global.delayed_queue_size;
 @@global.delayed_queue_size

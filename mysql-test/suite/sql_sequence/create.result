@@ -722,6 +722,37 @@ ERROR HY000: Sequence 'test.s' table structure is invalid (Wrong number of colum
 #
 # End of 10.4 test
 #
+#
+# Ensure that SHOW CREATE TABLE shows used table options
+#
+SET @@innodb_compression_default=ON;
+CREATE TABLE seq (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL
+) engine=innodb,sequence=1;
+show create sequence seq;
+Table	Create Table
+seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB `PAGE_COMPRESSED`='ON'
+show create table seq;
+Table	Create Table
+seq	CREATE TABLE `seq` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) ENGINE=InnoDB SEQUENCE=1 `PAGE_COMPRESSED`='ON'
+drop sequence seq;
+SET @@innodb_compression_default=DEFAULT;
 ######
 # MDEV-28152 Features for sequence
 ######
@@ -1341,6 +1372,4 @@ def	test	s7	int	32	2	0	1	1	2147483646	1	0
 def	test	s8	bigint	64	2	0	1	1	9223372036854775806	1	0
 def	test	s9	tinyint unsigned	8	2	0	1	1	254	1	0
 drop sequence s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
-#
 # End of 11.5 tests
-#

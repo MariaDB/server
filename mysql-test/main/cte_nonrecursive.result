@@ -748,7 +748,7 @@ ERROR HY000: No anchors for recursive WITH element 's'
 #erroneous definition of unreferenced with table t
 with t as (select count(*) from t1 where d>='f' group by a)
 select t1.b from t2,t1 where t1.a = t2.c;
-ERROR 42S22: Unknown column 'd' in 'where clause'
+ERROR 42S22: Unknown column 'd' in 'WHERE'
 with t as (select count(*) from t1 where b>='f' group by a)
 select t1.b from t2,t1 where t1.a = t2.c;
 b
@@ -760,11 +760,11 @@ ggg
 with t(d) as (select count(*) from t1 where b<='ccc' group by b),
 s as (select * from t1 where a in (select t2.d from t2,t where t2.c=t.d))
 select t1.b from t1,t2 where t1.a=t2.c;
-ERROR 42S22: Unknown column 't2.d' in 'field list'
+ERROR 42S22: Unknown column 't2.d' in 'SELECT'
 with t(d) as (select count(*) from t1 where b<='ccc' group by b),
 s as (select * from t1 where a in (select t2.c from t2,t where t2.c=t.c))
 select t1.b from t1,t2 where t1.a=t2.c;
-ERROR 42S22: Unknown column 't.c' in 'where clause'
+ERROR 42S22: Unknown column 't.c' in 'WHERE'
 with t(d) as (select count(*) from t1 where b<='ccc' group by b),
 s as (select * from t1 where a in (select t2.c from t2,t where t2.c=t.d))
 select t1.b from t1,t2 where t1.a=t2.c;
@@ -1887,13 +1887,13 @@ cte1(a) as (select * from t1 where c1 <= 2),
 cte2(b) as (select * from cte1 where c1 >= 2),
 cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
 select * from t2;
-ERROR 42S22: Unknown column 'c1' in 'where clause'
+ERROR 42S22: Unknown column 'c1' in 'WHERE'
 with
 cte1(a) as (select * from t1 where c1 <= 2),
 cte2(b) as (select * from cte1 where a >= 2),
 cte3 as (select * from cte1,cte2 where cte1.a < cte2.c1)
 select * from t2;
-ERROR 42S22: Unknown column 'cte2.c1' in 'where clause'
+ERROR 42S22: Unknown column 'cte2.c1' in 'WHERE'
 with
 cte1 as (select * from t1 where c1 <= 2),
 cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
@@ -1912,7 +1912,7 @@ with
 cte1 as (select * from t1 where c1 <= 2),
 cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=c1)
 select * from t2;
-ERROR 23000: Column 'c1' in where clause is ambiguous
+ERROR 23000: Column 'c1' in WHERE is ambiguous
 with cte3 as
 ( with cte2(a,b) as
 ( with cte1 as (select * from t1 where c1 <= 2)
@@ -1939,7 +1939,7 @@ with cte3 as
 select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
 select r1.c1,r2.c1 from cte2 as r1, cte2 as r2)
 select * from t2;
-ERROR 42S22: Unknown column 'r1.c1' in 'field list'
+ERROR 42S22: Unknown column 'r1.c1' in 'SELECT'
 create procedure p1()
 begin
 insert into t2
@@ -1960,7 +1960,7 @@ with cte1 as (select a from t1)
 select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
 end |
 call p1();
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 drop procedure p1;
 drop table t1,t2;
 #

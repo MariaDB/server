@@ -13,7 +13,7 @@ eval create table t1 (a int, b int, unique key (a), key (b))
  engine=federated CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
 
 insert into t1 values (3, 3), (7, 7);
-delete t1 from t1 where a = 3;
+delete t1 from t1 where b = 3;
 select * from t1;
 drop table t1;
 

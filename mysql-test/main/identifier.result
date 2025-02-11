@@ -119,9 +119,9 @@ SELECT 'a' AS ı FROM t1 GROUP BY I;
 ı
 a
 SELECT 'a' AS İ FROM t1 GROUP BY i;
-ERROR 42S22: Unknown column 'i' in 'group statement'
+ERROR 42S22: Unknown column 'i' in 'GROUP BY'
 SELECT 'a' AS i FROM t1 GROUP BY İ;
-ERROR 42S22: Unknown column 'İ' in 'group statement'
+ERROR 42S22: Unknown column 'İ' in 'GROUP BY'
 DROP TABLE t1;
 #
 # End of 11.5 tests

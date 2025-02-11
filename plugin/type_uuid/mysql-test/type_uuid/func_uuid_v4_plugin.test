@@ -1,0 +1,24 @@
+--echo #
+--echo # MDEV-11339 Support UUID v4 generation
+--echo #
+
+--vertical_results
+SELECT
+  '----' AS `----`,
+  PLUGIN_NAME,
+  PLUGIN_VERSION,
+  PLUGIN_STATUS,
+  PLUGIN_TYPE,
+  PLUGIN_AUTHOR,
+  PLUGIN_DESCRIPTION,
+  PLUGIN_LICENSE,
+  PLUGIN_MATURITY,
+  PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_TYPE='FUNCTION'
+  AND PLUGIN_NAME IN
+    ('uuid_v4')
+ORDER BY PLUGIN_NAME;
+--horizontal_results
+
+--echo # End of 11.7 tests

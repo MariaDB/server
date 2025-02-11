@@ -28,3 +28,10 @@ ab
 ac
 DROP TABLE t0,t1;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+#
+# MDEV-35419 Server crashes when a adding column to the table which has a primary key using hash
+#
+create table t1 (a int,primary key using hash (a)) engine=innodb;
+alter table t1 add b int;
+drop table t1;
+# End of 11.7 tests

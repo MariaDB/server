@@ -211,6 +211,12 @@ Event_parse_data::init_execute_at(THD *thd)
   if (item_execute_at->fix_fields(thd, &item_execute_at))
     goto wrong_value;
 
+  if (item_execute_at->check_cols(1))
+  {
+   // Don't go to wrong_value, it will call val_str() and hit DBUG_ASSERT(0)
+    DBUG_RETURN(ER_WRONG_VALUE);
+  }
+
   /* no starts and/or ends in case of execute_at */
   DBUG_PRINT("info", ("starts_null && ends_null should be 1 is %d",
                       (starts_null && ends_null)));
@@ -280,6 +286,12 @@ Event_parse_data::init_interval(THD *thd)
 
   if (item_expression->fix_fields(thd, &item_expression))
     goto wrong_value;
+
+  if (item_expression->check_cols(1))
+  {
+    // Don't go to wrong_value, it will call val_str() and hit DBUG_ASSERT(0)
+    DBUG_RETURN(ER_WRONG_VALUE);
+  }
 
   if (get_interval_value(thd, item_expression, interval, &interval_tmp))
     goto wrong_value;
@@ -384,6 +396,12 @@ Event_parse_data::init_starts(THD *thd)
   if (item_starts->fix_fields(thd, &item_starts))
     goto wrong_value;
 
+  if (item_starts->check_cols(1))
+  {
+    // Don't go to wrong_value, it will call val_str() and hit DBUG_ASSERT(0)
+    DBUG_RETURN(ER_WRONG_VALUE);
+  }
+
   if (item_starts->get_date(thd, &ltime, TIME_NO_ZERO_DATE |
                                          thd->temporal_round_mode()))
     goto wrong_value;
@@ -438,6 +456,15 @@ Event_parse_data::init_ends(THD *thd)
 
   if (item_ends->fix_fields(thd, &item_ends))
     goto error_bad_params;
+
+  if (item_ends->check_cols(1))
+  {
+    /*
+      Don't go to error_bad_params it will call val_str() and
+      hit DBUG_ASSERT(0)
+    */
+    DBUG_RETURN(EVEX_BAD_PARAMS);
+  }
 
   DBUG_PRINT("info", ("convert to TIME"));
   if (item_ends->get_date(thd, &ltime, TIME_NO_ZERO_DATE |
@@ -544,7 +571,7 @@ Event_parse_data::init_definer(THD *thd)
   /* + 1 for @ */
   DBUG_PRINT("info",("init definer as whole"));
   definer.length= definer_user_len + definer_host_len + 1;
-  definer.str= tmp= (char*) thd->alloc(definer.length + 1);
+  definer.str= tmp= thd->alloc(definer.length + 1);
 
   DBUG_PRINT("info",("copy the user"));
   strmake(tmp, definer_user, definer_user_len);

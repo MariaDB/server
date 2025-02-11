@@ -134,11 +134,11 @@ SELECT @@bulk_insert_buffer_size;
 @@bulk_insert_buffer_size
 1
 SELECT local.bulk_insert_buffer_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.bulk_insert_buffer_size;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT bulk_insert_buffer_size = @@session.bulk_insert_buffer_size;
-ERROR 42S22: Unknown column 'bulk_insert_buffer_size' in 'field list'
+ERROR 42S22: Unknown column 'bulk_insert_buffer_size' in 'SELECT'
 SET @@global.bulk_insert_buffer_size = @start_global_value;
 SELECT @@global.bulk_insert_buffer_size;
 @@global.bulk_insert_buffer_size

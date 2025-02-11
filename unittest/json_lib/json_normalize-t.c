@@ -32,11 +32,11 @@ check_json_normalize(const char *in, const char *expected)
 
   err= json_normalize(&result, in, strlen(in), cs);
 
-  ok(err == 0, "normalize err?");
+  ok(err == 0, "normalize err: %d", err);
 
   ok(strcmp(expected, result.str) == 0,
-    "expected '%s' from '%s' but was '%s'",
-    expected, in, result.str);
+    "from '%s'\n expect: '%s'\n actual: '%s'",
+    in, expected, result.str);
 
   dynstr_free(&result);
 }
@@ -205,13 +205,13 @@ test_json_normalize_non_utf8(void)
 
   init_dynamic_string(&result, NULL, 0, 0);
   err= json_normalize(&result, utf8, strlen(utf8), cs_utf8);
-  ok(err == 0, "normalize err?");
+  ok(err == 0, "normalize err: %d", err);
   ok((strcmp(utf8, result.str) == 0), "utf8 round trip");
   dynstr_free(&result);
 
   init_dynamic_string(&result, NULL, 0, 0);
   err= json_normalize(&result, latin, strlen(latin), cs_latin);
-  ok(err == 0, "normalize err?");
+  ok(err == 0, "normalize err: %d", err);
   ok((strcmp(utf8, result.str) == 0), "latin to utf8 round trip");
   dynstr_free(&result);
 }
@@ -226,23 +226,25 @@ check_number_normalize(const char *in, const char *expected)
   init_dynamic_string(&buf, NULL, 0, 0);
 
   err= json_normalize_number(&buf, in, strlen(in));
-  ok(err == 0, "normalize number err?");
+  ok(err == 0, "normalize number err: %d", err);
 
   ok(strcmp(buf.str, expected) == 0,
+    "    from: %s\n"
     "expected: %s\n"
-    " but was: %s\n"
-    "    from: %s\n",
+    "  actual: %s\n",
+    in,
     expected,
-    buf.str,
-    in);
+    buf.str);
 
   dynstr_free(&buf);
 }
 
 
 int
-main(void)
+main(int argc, char** argv)
 {
+  MY_INIT(argv[0]);
+
   plan(88);
   diag("Testing json_normalization.");
 
@@ -276,5 +278,6 @@ main(void)
   test_json_normalize_nested_deep();
   test_json_normalize_non_utf8();
 
+  my_end(MY_CHECK_ERROR);
   return exit_status();
 }

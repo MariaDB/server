@@ -1,6 +1,8 @@
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[123]\\.ibd' cannot be decrypted; key_version=1");
 call mtr.add_suppression("InnoDB: Recovery failed to read page");
-call mtr.add_suppression("InnoDB: Unable to decompress ..test.t[1-3]\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
+call mtr.add_suppression("InnoDB: Unable to decompress ..test.t[12]\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
+call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t[12]\\.ibd'");
+call mtr.add_suppression("InnoDB: File '.*test/t[12]\\.ibd' is corrupted");
 call mtr.add_suppression("Table `test`\\.`t[12]` is corrupted");
 # Restart mysqld --file-key-management-filename=keys2.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt

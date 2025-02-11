@@ -2190,7 +2190,7 @@ SELECT ELT(FIELD(kundentyp,'PP','PPA','PG','PGA','FK','FKA','FP','FPA','K','KA',
 Kundentyp	kategorie
 Privat (Private Nutzung)	Mobilfunk
 Warnings:
-Warning	1052	Column 'kundentyp' in group statement is ambiguous
+Warning	1052	Column 'kundentyp' in GROUP BY is ambiguous
 drop table t1;
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 have_ssl

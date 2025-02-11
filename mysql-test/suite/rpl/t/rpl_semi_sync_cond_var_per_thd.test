@@ -19,12 +19,16 @@
 # References:
 #   MDEV-33551: Semi-sync Wait Point AFTER_COMMIT Slow on Workloads with Heavy
 #               Concurrency
+#   MDEV-34122: Assertion `entry' failed in Active_tranx::assert_thd_is_waiter
 #
 --source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/master-slave.inc
 
 --connection master
+call mtr.add_suppression("Got an error writing communication packets");
 call mtr.add_suppression("Got an error reading communication packets");
 call mtr.add_suppression("Could not read packet:.* vio_errno: 1158");
 call mtr.add_suppression("Could not write packet:.* vio_errno: 1160");
@@ -86,6 +90,126 @@ source include/wait_for_status_var.inc;
 set @@global.binlog_commit_wait_count=@save_bgc_count;
 set @@global.binlog_commit_wait_usec=@save_bgc_usec;
 set @@global.debug_dbug=@save_debug_dbug;
+drop table t1, t2, t3;
+--sync_slave_with_master
+
+
+--echo #
+--echo # MDEV-34122
+--echo # If semi-sync is switched off then on while a transaction is
+--echo # in-between binlogging and waiting for an ACK, ensure that the
+--echo # transaction skips the wait altogether (otherwise it would time-out).
+--echo # Note that prior to MDEV-34122, there was a debug assertion that would
+--echo # trigger if the transaction tried to wait but could not receive an ACK
+--echo # signal.
+
+--echo #
+--echo # MDEV-34122.a: Test wait_point = AFTER_SYNC
+--echo # Here, debug_sync is used to pause the leader thread between reporting
+--echo # the binlogging to semi-sync, and starting the wait for ACK; and during
+--echo # this pause, semi-sync is manually switched off and on.
+
+
+--connection master
+set @old_master_wait_point= @@global.rpl_semi_sync_master_wait_point;
+set @old_master_wait_no_slave= @@global.rpl_semi_sync_master_wait_no_slave;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_SYNC;
+set @@global.rpl_semi_sync_master_wait_no_slave= 1;
+--eval set @@global.debug_dbug="+d,semisync_log_skip_trx_wait"
+
+--echo # Waiting for semi-sync to turn on..
+let $status_var= rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+--connection slave
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+
+--connection master
+create table t (a int) engine=innodb;
+--sync_slave_with_master
+
+--echo # Wait no slave is on, so we don't need to slave on to wait for the
+--echo # ACK, and this way we guarantee the ACK doesn't come, so we can verify
+--echo # the informational message is displayed
+--connection slave
+--source include/stop_slave.inc
+# Also kill the master-side dump thread so it doesn't try and send an event
+# over a dead connection (potentially resulting in an error in the log)
+--connection master
+--source include/kill_binlog_dump_threads.inc
+
+--connection server_1
+start transaction;
+insert into t values (0);
+set debug_sync= "commit_after_release_LOCK_log SIGNAL trx_binlogged WAIT_FOR continue_commit";
+--send commit
+
+--connection master
+set debug_sync= "now WAIT_FOR trx_binlogged";
+
+--echo # Switching semi-sync off/on
+set @@global.rpl_semi_sync_master_enabled= 0;
+set @@global.rpl_semi_sync_master_enabled= 1;
+let $status_var= rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+
+--echo # Resuming transaction to await ACK
+set debug_sync= "now SIGNAL continue_commit";
+
+--connection server_1
+--reap
+
+--let $assert_text= Ensure error log shows that transaction is skipping its semi-sync wait
+--let $assert_select=Skipping semi-sync wait for transaction
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_count= 1
+--let $assert_only_after=CURRENT_TEST
+--source include/assert_grep.inc
+
+--echo # Cleanup
+--connection slave
+--source include/start_slave.inc
+
+--connection master
+drop table t;
+--sync_slave_with_master
+
+
+--echo #
+--echo # MDEV-34122.b: Test wait_point = AFTER_COMMIT
+--echo # Here, use a transaction with a non-transactional statement to write to
+--echo # the binlog directly, and turn off/on semi-sync before committing the
+--echo # transaction.
+
+--connection master
+set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+
+--echo # Waiting for semi-sync to turn on..
+let $status_var= rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+--connection slave
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+
+--connection master
+create table tn (a int) engine=Aria;
+start transaction;
+insert into tn values (NULL);
+set @@global.rpl_semi_sync_master_enabled= 0;
+set @@global.rpl_semi_sync_master_enabled= 1;
+commit;
+
+--echo # Cleanup
+--connection master
+drop table tn;
+set @@global.rpl_semi_sync_master_wait_point= @old_master_wait_point;
+set @@global.rpl_semi_sync_master_wait_no_slave= @old_master_wait_no_slave;
+set @@global.debug_dbug=@save_debug_dbug;
 set @@global.rpl_semi_sync_master_enabled= @save_semi_sync_master_enabled;
 set @@global.rpl_semi_sync_master_wait_point= @save_semi_sync_wp;
 
@@ -93,9 +217,5 @@ set @@global.rpl_semi_sync_master_wait_point= @save_semi_sync_wp;
 --source include/stop_slave.inc
 set @@global.rpl_semi_sync_slave_enabled= @save_semi_sync_slave_enabled;
 --source include/start_slave.inc
-
---connection master
-drop table t1, t2, t3;
---sync_slave_with_master
 
 --source include/rpl_end.inc

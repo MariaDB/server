@@ -22,13 +22,17 @@ insert into t1 (x, y) values
   (8, 108),
   (9, 109);
 set @t0= now(6);
+--disable_cursor_protocol
 --enable_prepare_warnings
 select sys_start from t1 limit 1 into @x0;
 --disable_prepare_warnings
+--enable_cursor_protocol
+
 delete from t1 where x = 3;
 delete from t1 where x > 7;
 
 insert into t1(x, y) values(3, 33);
+--disable_cursor_protocol
 --enable_prepare_warnings
 select sys_start from t1 where x = 3 and y = 33 into @t1;
 --disable_prepare_warnings
@@ -36,6 +40,7 @@ if($MTR_COMBINATION_TRX_ID) {
   set @x1= @t1;
   select trt_commit_ts(@x1) into @t1;
 }
+--enable_cursor_protocol
 
 select x, y from t1;
 select x as ASOF_x, y from t1 for system_time as of timestamp @t0;

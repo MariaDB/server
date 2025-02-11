@@ -44,5 +44,5 @@ SELECT @@GLOBAL.innodb_encrypt_log;
 0
 0 Expected
 SELECT innodb_encrypt_log;
-ERROR 42S22: Unknown column 'innodb_encrypt_log' in 'field list'
+ERROR 42S22: Unknown column 'innodb_encrypt_log' in 'SELECT'
 Expected error 'Unknown column in field list'

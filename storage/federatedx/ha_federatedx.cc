@@ -308,10 +308,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include <mysql/plugin.h>
@@ -363,21 +359,20 @@ static handler *federatedx_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static uchar *
-federatedx_share_get_key(FEDERATEDX_SHARE *share, size_t *length,
-                         my_bool not_used __attribute__ ((unused)))
+static const uchar *federatedx_share_get_key(const void *share_,
+                                             size_t *length, my_bool)
 {
+  auto share= static_cast<const FEDERATEDX_SHARE *>(share_);
   *length= share->share_key_length;
-  return (uchar*) share->share_key;
+  return reinterpret_cast<const uchar *>(share->share_key);
 }
 
-
-static uchar *
-federatedx_server_get_key(FEDERATEDX_SERVER *server, size_t *length,
-                          my_bool not_used __attribute__ ((unused)))
+static const uchar *federatedx_server_get_key(const void *server_,
+                                              size_t *length, my_bool)
 {
+  auto server= static_cast<const FEDERATEDX_SERVER *>(server_);
   *length= server->key_length;
-  return server->key;
+  return reinterpret_cast<const uchar *>(server->key);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -467,10 +462,12 @@ int federatedx_db_init(void *p)
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
     goto error;
-  if (!my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_tables, &my_charset_bin, 32, 0, 0,
-                 (my_hash_get_key) federatedx_share_get_key, 0, 0) &&
-      !my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_servers, &my_charset_bin, 32, 0, 0,
-                 (my_hash_get_key) federatedx_server_get_key, 0, 0))
+  if (!my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_tables,
+                    &my_charset_bin, 32, 0, 0, federatedx_share_get_key, 0,
+                    0) &&
+      !my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_servers,
+                    &my_charset_bin, 32, 0, 0, federatedx_server_get_key, 0,
+                    0))
   {
     DBUG_RETURN(FALSE);
   }
@@ -1776,9 +1773,9 @@ federatedx_txn *ha_federatedx::get_txn(THD *thd, bool no_create)
 }
 
 
-int ha_federatedx::disconnect(handlerton *hton, MYSQL_THD thd)
+int ha_federatedx::disconnect(MYSQL_THD thd)
 {
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   delete txn;
   return 0;
 }
@@ -3545,16 +3542,16 @@ int ha_federatedx::external_lock(MYSQL_THD thd, int lock_type)
 }
 
 
-int ha_federatedx::savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv)
+int ha_federatedx::savepoint_set(MYSQL_THD thd, void *sv)
 {
   int error= 0;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::savepoint_set");
 
   if (txn && txn->has_connections())
   {
     if (txn->txn_begin())
-      trans_register_ha(thd, TRUE, hton, 0);
+      trans_register_ha(thd, TRUE, federatedx_hton, 0);
     
     txn->sp_acquire((ulong *) sv);
 
@@ -3565,10 +3562,10 @@ int ha_federatedx::savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv)
 }
 
 
-int ha_federatedx::savepoint_rollback(handlerton *hton, MYSQL_THD thd, void *sv)
+int ha_federatedx::savepoint_rollback(MYSQL_THD thd, void *sv)
  {
   int error= 0;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::savepoint_rollback");
   
   if (txn)
@@ -3578,10 +3575,10 @@ int ha_federatedx::savepoint_rollback(handlerton *hton, MYSQL_THD thd, void *sv)
 }
 
 
-int ha_federatedx::savepoint_release(handlerton *hton, MYSQL_THD thd, void *sv)
+int ha_federatedx::savepoint_release(MYSQL_THD thd, void *sv)
 {
   int error= 0;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::savepoint_release");
   
   if (txn)
@@ -3591,10 +3588,10 @@ int ha_federatedx::savepoint_release(handlerton *hton, MYSQL_THD thd, void *sv)
 }
 
 
-int ha_federatedx::commit(handlerton *hton, MYSQL_THD thd, bool all)
+int ha_federatedx::commit(MYSQL_THD thd, bool all)
 {
   int return_val;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::commit");
 
   if (all)
@@ -3607,10 +3604,10 @@ int ha_federatedx::commit(handlerton *hton, MYSQL_THD thd, bool all)
 }
 
 
-int ha_federatedx::rollback(handlerton *hton, MYSQL_THD thd, bool all)
+int ha_federatedx::rollback(MYSQL_THD thd, bool all)
 {
   int return_val;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::rollback");
 
   if (all)

@@ -50,6 +50,7 @@ connection default;
 disconnect u1;
 drop user u1@localhost;
 drop database mysqltest1;
+use test;
 
 --echo #
 --echo # MDEV-22313: Neither SHOW CREATE USER nor SHOW GRANTS prints a user's default role
@@ -130,7 +131,7 @@ drop user 'O\'Brien'@'localhost';
 
 CREATE USER 'test-user';
 CREATE ROLE `r``o'l"e`;
-select user from mysql.user where is_role='Y';
+select user as User from mysql.user where is_role='Y';
 GRANT `r``o'l"e` TO 'test-user';
 SET DEFAULT ROLE `r``o'l"e` FOR 'test-user';
 # it is expected that quotes won't be shown correctly
@@ -310,7 +311,7 @@ set password for u7@h = old_password('pwd');
 create user u8@h identified with 'mysql_old_password';
 eval set password for u8@h = '$p';
 sorted_result;
-select user,host,plugin,authentication_string from mysql.user where host='h';
+select user as User,host as Host,plugin,authentication_string from mysql.user where host='h';
 # test with invalid entries
 update mysql.global_priv set priv=json_set(priv, '$.authentication_string', 'bad') where user='u1';
 update mysql.global_priv set priv=json_set(priv, '$.authentication_string', 'bad') where user='u5';
@@ -332,7 +333,7 @@ grant select on *.* to u5@h;
 grant select on *.* to u6@h;
 grant select on *.* to u7@h;
 grant select on *.* to u8@h;
-select user,select_priv,plugin,authentication_string from mysql.user where user like 'u_';
+select user as User,select_priv as Select_priv,plugin,authentication_string from mysql.user where user like 'u_';
 
 # but they still can be dropped
 drop user u1@h, u2@h, u3@h, u4@h, u5@h, u6@h, u7@h, u8@h;
@@ -419,6 +420,20 @@ insert mysql.host values('10.5.0.0/255.255.0.0','','Y','Y','Y','Y','Y','Y','Y','
 flush privileges;
 drop table mysql.host;
 
---echo #
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+--echo #
+
+CREATE USER foo@localhost;
+--error ER_PLUGIN_IS_NOT_LOADED
+GRANT FILE ON *.* TO foo@localhost IDENTIFIED VIA not_installed_plugin;
+
+# Cleanup
+DROP USER foo@localhost;
+
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
+
+--echo # End of 10.5 tests

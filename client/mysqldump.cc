@@ -118,7 +118,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_delayed=0,create_options=1,opt_quoted=0,opt_databases=0,
                 opt_alldbs=0,opt_create_db=0,opt_lock_all_tables=0,
                 opt_set_charset=0, opt_dump_date=1,
-                opt_autocommit=0,opt_disable_keys=1,opt_xml=0,
+                no_autocommit=0,opt_disable_keys=1,opt_xml=0,
                 opt_delete_master_logs=0, tty_password=0,
                 opt_single_transaction=0, opt_comments= 0, opt_compact= 0,
                 opt_hex_blob=0, opt_order_by_primary=0, opt_order_by_size = 0,
@@ -140,11 +140,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
 #define OPT_SYSTEM_TIMEZONES 64
 static const char *opt_system_type_values[]=
   {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones"};
-static TYPELIB opt_system_types=
-{
-  array_elements(opt_system_type_values), "system dump options",
-  opt_system_type_values, NULL
-};
+static TYPELIB opt_system_types=CREATE_TYPELIB_FOR(opt_system_type_values);
 static ulonglong opt_system= 0ULL;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
                select_field_names_inited= 0;
@@ -250,8 +246,7 @@ const char *compatible_mode_names[]=
  (1U<<6)  | /* MAXDB      */\
  (1U<<10)   /* ANSI       */\
 )
-TYPELIB compatible_mode_typelib= {array_elements(compatible_mode_names) - 1,
-                                  "", compatible_mode_names, NULL};
+TYPELIB compatible_mode_typelib= CREATE_TYPELIB_FOR(compatible_mode_names);
 
 #define MED_ENGINES "MRG_MyISAM, MRG_ISAM, CONNECT, OQGRAPH, SPIDER, VP, FEDERATED"
 
@@ -437,8 +432,9 @@ static struct my_option my_long_options[] =
   {"hex-blob", 0, "Dump binary strings (BINARY, "
     "VARBINARY, BLOB) in hexadecimal format.",
    &opt_hex_blob, &opt_hex_blob, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &current_host,
-   &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host. Defaults in the following order: "
+  "$MARIADB_HOST, and then localhost",
+   &current_host, &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-database", OPT_IGNORE_DATABASE,
    "Do not dump the specified database. To specify more than one database to ignore, "
    "use the directive multiple times, once for each database. Only takes effect "
@@ -505,7 +501,7 @@ static struct my_option my_long_options[] =
     1024*1024L-1025, 4096, 16*1024L*1024L, 0, 1024, 0},
   {"no-autocommit", 0,
    "Wrap tables with autocommit/commit statements.",
-   &opt_autocommit, &opt_autocommit, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   &no_autocommit, &no_autocommit, 0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
   {"no-create-db", 'n',
    "Suppress the CREATE DATABASE ... IF EXISTS statement that normally is "
    "output for each dumped database if --all-databases or --databases is "
@@ -881,11 +877,10 @@ static void write_footer(FILE *sql_file)
 } /* write_footer */
 
 
-uchar* get_table_key(const char *entry, size_t *length,
-                     my_bool not_used __attribute__((unused)))
+const uchar *get_table_key(const void *entry, size_t *length, my_bool)
 {
-  *length= strlen(entry);
-  return (uchar*) entry;
+  *length= strlen(static_cast<const char*>(entry));
+  return static_cast<const uchar*>(entry);
 }
 
 
@@ -954,7 +949,7 @@ get_one_option(const struct my_option *opt,
   case 'X':
     opt_xml= 1;
     extended_insert= opt_drop= opt_lock=
-      opt_disable_keys= opt_autocommit= opt_create_db= 0;
+      opt_disable_keys= no_autocommit= opt_create_db= 0;
     break;
   case 'i':
     opt_comments_used= 1;
@@ -1107,8 +1102,13 @@ get_one_option(const struct my_option *opt,
 
 static int get_options(int *argc, char ***argv)
 {
+  char *tmp;
   int ho_error;
   MYSQL_PARAMETERS *mysql_params= mysql_get_parameters();
+
+  tmp= getenv("MARIADB_HOST");
+  if (tmp && current_host == NULL)
+    current_host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
 
   opt_max_allowed_packet= *mysql_params->p_max_allowed_packet;
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;
@@ -1120,11 +1120,11 @@ static int get_options(int *argc, char ***argv)
   load_defaults_or_exit("my", load_default_groups, argc, argv);
   defaults_argv= *argv;
 
-  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_database, charset_info, 16, 0, 0,
-        (my_hash_get_key) get_table_key, my_free, 0))
+  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_database, charset_info, 16, 0,
+                   0, get_table_key, my_free, 0))
     return(EX_EOM);
   if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_table, charset_info, 16, 0, 0,
-        (my_hash_get_key) get_table_key, my_free, 0))
+                   get_table_key, my_free, 0))
     return(EX_EOM);
   /* Don't copy internal log tables */
   if (my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
@@ -1140,7 +1140,7 @@ static int get_options(int *argc, char ***argv)
     return(EX_EOM);
 
   if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_data, charset_info, 16, 0, 0,
-                   (my_hash_get_key) get_table_key, my_free, 0))
+                   get_table_key, my_free, 0))
     return(EX_EOM);
 
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
@@ -1864,7 +1864,7 @@ static int switch_character_set_results(MYSQL *mysql, const char *cs_name)
   query_length= my_snprintf(query_buffer,
                             sizeof (query_buffer),
                             "SET SESSION character_set_results = '%s'",
-                            (const char *) cs_name);
+                            cs_name);
 
   return mysql_real_query(mysql, query_buffer, (ulong)query_length);
 }
@@ -2104,7 +2104,7 @@ static MYSQL* connect_to_db(char *host, char *user,char *passwd)
     goto err;
 
   /* Set server side timeout between client commands to server compiled-in default */
-  if(mysql_query_with_error_report(con,0, "/*!100100 SET WAIT_TIMEOUT=DEFAULT */"))
+  if(mysql_query_with_error_report(con,0, "/*M!100100 SET WAIT_TIMEOUT=DEFAULT */"))
     goto err;
 
   DBUG_RETURN(con);
@@ -4434,7 +4434,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
     if (versioned && !opt_xml && opt_dump_history)
     {
-      fprintf(md_result_file,"/*!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;\n");
+      fprintf(md_result_file,"/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;\n");
       check_io(md_result_file);
     }
     if (opt_lock)
@@ -4457,7 +4457,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (opt_xml)
       print_xml_tag(md_result_file, "\t", "\n", "table_data", "name=", table,
               NullS);
-    if (opt_autocommit)
+    if (no_autocommit)
     {
       fprintf(md_result_file, "set autocommit=0;\n");
       check_io(md_result_file);
@@ -4729,14 +4729,14 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       fputs("UNLOCK TABLES;\n", md_result_file);
       check_io(md_result_file);
     }
-    if (opt_autocommit)
+    if (no_autocommit)
     {
       fprintf(md_result_file, "commit;\n");
       check_io(md_result_file);
     }
     if (versioned && !opt_xml && opt_dump_history)
     {
-      fprintf(md_result_file,"/*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;\n");
+      fprintf(md_result_file,"/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;\n");
       check_io(md_result_file);
     }
     mysql_free_result(res);
@@ -5144,33 +5144,25 @@ static int dump_all_udfs()
 
 static int dump_all_servers()
 {
-  /* No create server yet - MDEV-15696 */
   MYSQL_ROW row;
-  MYSQL_RES *tableres;
-  MYSQL_FIELD *f;
-  unsigned int num_fields, i;
-  my_bool comma_prepend= 0;
-  const char *qstring;
+  MYSQL_RES *tableres, *serverres;
 
-  if (mysql_query_with_error_report(mysql, &tableres, "SELECT * FROM mysql.servers"))
+  if (mysql_query_with_error_report(mysql, &tableres,
+                                    "SELECT Server_name FROM mysql.servers"))
     return 1;
-  num_fields= mysql_num_fields(tableres);
   while ((row= mysql_fetch_row(tableres)))
   {
-    fprintf(md_result_file,"CREATE %sSERVER %s%s FOREIGN DATA WRAPPER %s OPTIONS (",
+    /* row[0] is the server name */
+    char buff[20+FN_REFLEN];
+    my_snprintf(buff, sizeof(buff), "show create server %s", row[0]);
+    if (mysql_query_with_error_report(mysql, &serverres, buff))
+      return 1;
+    row= mysql_fetch_row(serverres);
+    row[1]+= 14;                /* strlen("CREATE SERVER ") == 14 */
+    fprintf(md_result_file, "CREATE %sSERVER %s%s\n",
             opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
-            opt_ignore ? "/*M!100103 IF NOT EXISTS */ " : "", row[0], row[7]);
-    for (i= 1; i < num_fields; i++)
-    {
-      if (i == 7 || row[i][0] == '\0') /* Wrapper or empty string */
-        continue;
-      f= &tableres->fields[i];
-      qstring= (f->type == MYSQL_TYPE_STRING || f->type == MYSQL_TYPE_VAR_STRING) ? "'" : "";
-      fprintf(md_result_file, "%s%s %s%s%s",
-              (comma_prepend ? ", " : ""), f->name, qstring, row[i], qstring);
-      comma_prepend= 1;
-    }
-    fputs(");\n", md_result_file);
+            opt_ignore ? "/*M!100103 IF NOT EXISTS */ " : "", row[1]);
+    mysql_free_result(serverres);
   }
   mysql_free_result(tableres);
 
@@ -7432,7 +7424,7 @@ int main(int argc, char **argv)
       goto err;
     connection_pool.for_each_connection([](MYSQL *c) {
       if (start_transaction(c))
-        maybe_die(EX_MYSQLERR, "Failed to start transaction on connection ID %u", mysql->thread_id);
+        maybe_die(EX_MYSQLERR, "Failed to start transaction on connection ID %lu", mysql->thread_id);
     });
   }
 

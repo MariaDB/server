@@ -1,5 +1,5 @@
---- suite/storage_engine/fulltext_search.result	2013-11-27 18:50:16.000000000 +0400
-+++ suite/storage_engine/fulltext_search.reject	2014-02-05 15:33:26.000000000 +0400
+--- suite/storage_engine/fulltext_search.result
++++ suite/storage_engine/fulltext_search.reject
 @@ -52,15 +52,14 @@
  INSERT INTO t1 (v0,v1,v2) VALUES ('text4','Contributing more...','...is a good idea'),('text5','test','test');
  SELECT v0, MATCH(v1) AGAINST('contributing') AS rating FROM t1 WHERE MATCH(v1) AGAINST ('contributing');

@@ -21,10 +21,6 @@
 
 /* This file defines all string functions */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 extern size_t username_char_length;
 
 class Item_str_func :public Item_func
@@ -697,6 +693,7 @@ public:
   bool hash_not_null(Hasher *hasher) override;
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
+  enum Functype functype() const override { return LEFT_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("left") };
@@ -743,6 +740,7 @@ public:
     print_sql_mode_qualified_name(str, query_type);
     print_args_parenthesized(str, query_type);
   }
+  enum Functype functype() const override { return SUBSTR_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("substr") };
@@ -1283,6 +1281,23 @@ public:
   }
 };
 
+class Item_func_session_user :public Item_func_user
+{
+public:
+  Item_func_session_user(THD *thd):
+    Item_func_user(thd) {}
+  bool fix_fields(THD *thd, Item **ref) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("session_user") };
+    return name;
+  }
+  const Lex_ident_routine fully_qualified_func_name() const override
+  { return Lex_ident_routine("session_user()"_LEX_CSTRING); }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_session_user>(thd, this); }
+};
+
 
 class Item_func_current_role :public Item_func_sysconst
 {
@@ -1649,7 +1664,7 @@ public:
   bool fix_length_and_dec(THD *thd) override
   {
     collation.set(default_charset());
-    fix_char_length(64);
+    fix_char_length(65);
     set_maybe_null();
     return FALSE;
   }
@@ -2395,6 +2410,7 @@ public:
   { return get_item_copy<Item_temptable_rowid>(thd, this); }
 };
 
+
 class Item_func_format_pico_time : public Item_str_ascii_func
 {
   /* Format is 'AAAA.BB UUU' = 11 characters or 'AAA ps' = 6 characters. */
@@ -2418,6 +2434,33 @@ public:
   Item *do_get_copy(THD *thd) const override
   {
     return get_item_copy<Item_func_format_pico_time>(thd, this);
+  }
+};
+
+
+class Item_func_format_bytes : public Item_str_ascii_func
+{
+  /* Format is '-A.AAe+BB UUU' = 13 or 'AAAA.BB UUU' = 11 characters or 'AAAA bytes' = 10 characters. */
+  char m_value_buffer[14];
+  String m_value;
+
+public:
+    Item_func_format_bytes(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
+  String *val_str_ascii(String *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("format_bytes")};
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    m_value.set(m_value_buffer, sizeof(m_value_buffer), default_charset());
+    fix_length_and_charset(sizeof(m_value_buffer), default_charset());
+    return false;
+  }
+  Item *do_get_copy(THD *thd) const override
+  {
+    return get_item_copy<Item_func_format_bytes>(thd, this);
   }
 };
 

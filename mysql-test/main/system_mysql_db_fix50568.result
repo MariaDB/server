@@ -173,9 +173,10 @@ servers	CREATE TABLE `servers` (
   `Username` char(128) NOT NULL DEFAULT '',
   `Password` char(64) NOT NULL DEFAULT '',
   `Port` int(4) NOT NULL DEFAULT 0,
-  `Socket` char(64) NOT NULL DEFAULT '',
+  `Socket` char(108) NOT NULL DEFAULT '',
   `Wrapper` char(64) NOT NULL DEFAULT '',
   `Owner` varchar(512) NOT NULL DEFAULT '',
+  `Options` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '{}' CHECK (json_valid(`Options`)),
   PRIMARY KEY (`Server_name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='MySQL Foreign Servers table'
 show create table proc;

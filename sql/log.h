@@ -600,9 +600,12 @@ class binlog_cache_mngr;
 class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
+class Binlog_commit_by_rotate;
 
 class MYSQL_BIN_LOG: public TC_LOG, private Event_log
 {
+  friend Binlog_commit_by_rotate;
+
 #ifdef HAVE_PSI_INTERFACE
   /** The instrumentation key to use for @ LOCK_index. */
   PSI_mutex_key m_key_LOCK_index;
@@ -756,18 +759,24 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
     new_file() is locking. new_file_without_locking() does not acquire
     LOCK_log.
   */
-  int new_file_impl();
+  int new_file_impl(bool commit_by_rotate);
   void do_checkpoint_request(ulong binlog_id);
-  int write_transaction_or_stmt(group_commit_entry *entry, uint64 commit_id);
+  int write_transaction_or_stmt(group_commit_entry *entry, uint64 commit_id,
+                                bool commit_by_rotate);
   int queue_for_group_commit(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
+  bool write_transaction_with_group_commit(group_commit_entry *entry);
+  void write_transaction_handle_error(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
+  void trx_group_commit_with_engines(group_commit_entry *leader,
+                                     group_commit_entry *tail,
+                                     bool commit_by_rotate);
   bool is_xidlist_idle_nolock();
   void update_gtid_index(uint32 offset, rpl_gtid gtid);
 
 public:
   void purge(bool all);
-  int new_file_without_locking();
+  int new_file_without_locking(bool commit_by_rotate);
   /*
     A list of struct xid_count_per_binlog is used to keep track of how many
     XIDs are in prepared, but not committed, state in each binlog. And how
@@ -997,7 +1006,8 @@ public:
 	    enum cache_type io_cache_type_arg,
 	    ulong max_size,
             bool null_created,
-            bool need_mutex);
+            bool need_mutex,
+            bool commit_by_rotate = false);
   bool open_index_file(const char *index_file_name_arg,
                        const char *log_name, bool need_mutex);
   /* Use this to start writing a new log file */
@@ -1037,7 +1047,8 @@ public:
   bool is_active(const char* log_file_name);
   bool can_purge_log(const char *log_file_name, bool interactive);
   int update_log_index(LOG_INFO* linfo, bool need_update_threads);
-  int rotate(bool force_rotate, bool* check_purge);
+  int rotate(bool force_rotate, bool *check_purge,
+             bool commit_by_rotate= false);
   void checkpoint_and_purge(ulong binlog_id);
   int rotate_and_purge(bool force_rotate, DYNAMIC_ARRAY* drop_gtid_domain= NULL);
   /**
@@ -1117,6 +1128,7 @@ public:
   bool is_xidlist_idle();
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
                         uint64 commit_id,
+                        bool commit_by_rotate,
                         bool has_xid= false, bool ro_1pc= false);
   int read_state_from_file();
   int write_state_to_file();
@@ -1397,7 +1409,7 @@ binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
                                          bool use_trans_cache);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
-extern handlerton *binlog_hton;
+extern transaction_participant binlog_tp;
 extern LOGGER logger;
 
 extern const char *log_bin_index;
@@ -1464,7 +1476,7 @@ end:
 
 static inline TC_LOG *get_tc_log_implementation()
 {
-  if (total_ha_2pc <= 1)
+  if (total_ha_2pc <= 2) // online_alter_tp and MHNSW_Trx::tp
     return &tc_log_dummy;
   if (opt_bin_log)
     return &mysql_bin_log;
@@ -1483,8 +1495,8 @@ const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
 
 int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
-int binlog_commit_by_xid(handlerton *hton, XID *xid);
-int binlog_rollback_by_xid(handlerton *hton, XID *xid);
+int binlog_commit_by_xid(XID *xid);
+int binlog_rollback_by_xid(XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
 #endif /* LOG_H */

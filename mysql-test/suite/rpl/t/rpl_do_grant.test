@@ -343,7 +343,9 @@ SELECT Grantor FROM mysql.tables_priv WHERE User='user_bug27606';
 
 --connection master
 DROP USER user_bug27606@localhost;
+--disable_cursor_protocol
 select priv into @root_priv from mysql.global_priv where user='root' and host='127.0.0.1';
+--enable_cursor_protocol
 update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';
 
 

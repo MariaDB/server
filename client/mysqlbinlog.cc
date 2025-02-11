@@ -43,6 +43,11 @@
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include <atomic>
+#if 0 /* FIXME: the following is broken for now */
+# include "mariadb_rpl.h"
+#else
+enum Item_result {STRING_RESULT,REAL_RESULT,INT_RESULT,ROW_RESULT,DECIMAL_RESULT};
+#endif
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"
@@ -116,9 +121,7 @@ static bool one_database=0, one_table=0, to_last_remote_log= 0, disable_log_bin=
 static bool opt_hexdump= 0, opt_version= 0;
 const char *base64_output_mode_names[]=
 {"NEVER", "AUTO", "UNSPEC", "DECODE-ROWS", NullS};
-TYPELIB base64_output_mode_typelib=
-  { array_elements(base64_output_mode_names) - 1, "",
-    base64_output_mode_names, NULL };
+TYPELIB base64_output_mode_typelib=CREATE_TYPELIB_FOR(base64_output_mode_names);
 static enum_base64_output_mode opt_base64_output_mode= BASE64_OUTPUT_UNSPEC;
 static char *opt_base64_output_mode_str= NullS;
 static char* database= 0;
@@ -150,6 +153,7 @@ static char *ignore_server_ids_str, *do_server_ids_str;
 static char *start_pos_str, *stop_pos_str;
 static ulonglong start_position= BIN_LOG_HEADER_SIZE,
                  stop_position= (longlong)(~(my_off_t)0) ;
+static const longlong stop_position_default= (longlong)(~(my_off_t)0);
 #define start_position_mot ((my_off_t)start_position)
 #define stop_position_mot  ((my_off_t)stop_position)
 
@@ -160,7 +164,8 @@ static Domain_gtid_event_filter *domain_id_gtid_filter= NULL;
 static Server_gtid_event_filter *server_id_gtid_filter= NULL;
 
 static char *start_datetime_str, *stop_datetime_str;
-static my_time_t start_datetime= 0, stop_datetime= MY_TIME_T_MAX;
+static my_time_t start_datetime= 0, stop_datetime= 0;
+static bool stop_datetime_given= false;
 static ulonglong rec_count= 0;
 static MYSQL* mysql = NULL;
 static const char* dirname_for_local_load= 0;
@@ -1028,7 +1033,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       if (ev_type != ROTATE_EVENT && is_server_id_excluded(ev->server_id))
         goto end;
     }
-    if ((ev->when >= stop_datetime)
+    if ((stop_datetime_given && ev->when >= stop_datetime)
         || (pos >= stop_position_mot))
     {
       /* end the program */
@@ -1484,8 +1489,9 @@ static struct my_option my_options[] =
   {"hexdump", 'H', "Augment output with hexadecimal and ASCII event dump.",
    &opt_hexdump, &opt_hexdump, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Get the binlog from server.", &host, &host,
-   0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Get the binlog from server. Defaults in the following order: "
+  "$MARIADB_HOST, and then localhost",
+   &host, &host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"local-load", 'l', "Prepare local temporary files for LOAD DATA INFILE in the specified directory.",
    &dirname_for_local_load, &dirname_for_local_load, 0,
    GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -2120,6 +2126,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
   case OPT_STOP_DATETIME:
     stop_datetime= convert_str_to_timestamp(stop_datetime_str);
+    stop_datetime_given= true;
     break;
   case OPT_BASE64_OUTPUT_MODE:
     int val;
@@ -2264,6 +2271,11 @@ get_one_option(const struct my_option *opt, const char *argument,
 static int parse_args(int *argc, char*** argv)
 {
   int ho_error;
+  char *tmp;
+
+  tmp= getenv("MARIADB_HOST");
+  if (tmp && host == NULL)
+    host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
   {
@@ -3078,6 +3090,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   IO_CACHE cache,*file= &cache;
   uchar tmp_buff[BIN_LOG_HEADER_SIZE];
   Exit_status retval= OK_CONTINUE;
+  my_time_t last_ev_when= MY_TIME_T_MAX;
 
   if (logname && strcmp(logname, "-") != 0)
   {
@@ -3169,9 +3182,35 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
               llstr(old_off,llbuff));
         goto err;
       }
-      // file->error == 0 means EOF, that's OK, we break in this case
+      // else file->error == 0 means EOF, that's OK, we break in this case
+
+      /*
+        Emit a warning in the event that we finished processing input
+        before reaching the boundary indicated by --stop-position.
+      */
+      if (((longlong)stop_position != stop_position_default) &&
+          stop_position > my_b_tell(file))
+      {
+          retval = OK_STOP;
+          warning("Did not reach stop position %llu before "
+                  "end of input", stop_position);
+      }
+
+      /*
+        Emit a warning in the event that we finished processing input
+        before reaching the boundary indicated by --stop-datetime.
+      */
+      if (stop_datetime_given &&
+          stop_datetime > last_ev_when)
+      {
+          retval = OK_STOP;
+          warning("Did not reach stop datetime '%s' "
+                  "before end of input", stop_datetime_str);
+      }
+
       goto end;
     }
+    last_ev_when= ev->when;
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
         OK_CONTINUE)
       goto end;
@@ -3268,7 +3307,7 @@ int main(int argc, char** argv)
     if (stop_position != (ulonglong)(~(my_off_t)0))
       warning("The --stop-position option is ignored in raw mode");
 
-    if (stop_datetime != MY_TIME_T_MAX)
+    if (stop_datetime_given)
       warning("The --stop-datetime option is ignored in raw mode");
     result_file= 0;
     if (result_file_name)

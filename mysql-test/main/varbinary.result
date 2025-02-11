@@ -73,7 +73,7 @@ drop table t1;
 select x'hello';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'x'hello'' at line 1
 select 0xfg;
-ERROR 42S22: Unknown column '0xfg' in 'field list'
+ERROR 42S22: Unknown column '0xfg' in 'SELECT'
 create table t1 select 1 as x, 2 as xx;
 select x,xx from t1;
 x	xx
@@ -178,6 +178,6 @@ x''	0+x''
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: ''
 select 0x;
-ERROR 42S22: Unknown column '0x' in 'field list'
+ERROR 42S22: Unknown column '0x' in 'SELECT'
 select 0b;
-ERROR 42S22: Unknown column '0b' in 'field list'
+ERROR 42S22: Unknown column '0b' in 'SELECT'

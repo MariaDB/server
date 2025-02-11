@@ -60,3 +60,14 @@ drop table t2;
 select * from t1, t1 t where t1.b div 4 in (6,7) and t.b div 4 in (6,7) and concat(t1.a) > concat(t.a);
 
 drop table t1;
+
+--echo #
+--echo # MDEV-32637 Implement native UUID7 function
+--echo #
+
+# Verify that UUIDv7 are time-ordered and unique
+
+CREATE TABLE t1 (a int primary key not null, u UUID DEFAULT UUID_v7(), unique key(u));
+insert into t1(a) select seq from seq_1_to_10;
+select a from t1 order by u asc;
+drop table t1;

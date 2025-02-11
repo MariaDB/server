@@ -1,14 +1,14 @@
 create or replace view v1 as select NOT NULL IS TRUE, NOT (NULL IS TRUE), (NOT NULL) IS TRUE;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
-select !(NULL is true) AS `NOT NULL IS TRUE`,!(NULL is true) AS `NOT (NULL IS TRUE)`,!NULL is true AS `(NOT NULL) IS TRUE`
+select NULL is not true AS `NOT NULL IS TRUE`,NULL is not true AS `NOT (NULL IS TRUE)`,!NULL is true AS `(NOT NULL) IS TRUE`
 select NOT NULL IS TRUE, NOT (NULL IS TRUE), (NOT NULL) IS TRUE union select * from v1;
 NOT NULL IS TRUE	NOT (NULL IS TRUE)	(NOT NULL) IS TRUE
 1	1	0
 create or replace view v1 as select ! NULL IS TRUE, ! (NULL IS TRUE), (! NULL) IS TRUE;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
-select !NULL is true AS `! NULL IS TRUE`,!(NULL is true) AS `! (NULL IS TRUE)`,!NULL is true AS `(! NULL) IS TRUE`
+select !NULL is true AS `! NULL IS TRUE`,NULL is not true AS `! (NULL IS TRUE)`,!NULL is true AS `(! NULL) IS TRUE`
 select ! NULL IS TRUE, ! (NULL IS TRUE), (! NULL) IS TRUE union select * from v1;
 ! NULL IS TRUE	! (NULL IS TRUE)	(! NULL) IS TRUE
 0	1	0

@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-CLIENT-TEST\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-CLIENT-TEST\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,37 +11,37 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql_client_test
-.\" mysql_client_test_embedded
+.\" mariadb-client-test
+.\" mariadb-client-test-embedded
 .SH "NAME"
-mariadb-client-test \- test client API (mysql_client_test is now a symlink to mariadb-client-test)
+mariadb-client-test \- test client API (mariadb-client-test is now a symlink to mariadb-client-test)
 .br
-mariadb-client-test-embedded \- test client API for embedded server (mysql_client_test_embedded is now a symlink to mariadb-client-test-embedded)
+mariadb-client-test-embedded \- test client API for embedded server (mariadb-client-test-embedded is now a symlink to mariadb-client-test-embedded)
 .SH "SYNOPSIS"
-.HP \w'\fBmysql_client_test\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fItest_name\fR\fR\fB]\ \&.\&.\&.\fR\ 'u
-\fBmysql_client_test [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fItest_name\fR\fR\fB] \&.\&.\&.\fR
-.HP \w'\fBmysql_client_test_embedded\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fItest_name\fR\fR\fB]\ \&.\&.\&.\fR\ 'u
-\fBmysql_client_test_embedded [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fItest_name\fR\fR\fB] \&.\&.\&.\fR
+.HP \w'\fBmariadb-client-test\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fItest_name\fR\fR\fB]\ \&.\&.\&.\fR\ 'u
+\fBmariadb-client-test [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fItest_name\fR\fR\fB] \&.\&.\&.\fR
+.HP \w'\fBmariadb-client-test-embedded\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fItest_name\fR\fR\fB]\ \&.\&.\&.\fR\ 'u
+\fBmariadb-client-test-embedded [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fItest_name\fR\fR\fB] \&.\&.\&.\fR
 .SH "DESCRIPTION"
 .PP
 The
-\fBmysql_client_test\fR
+\fBmariadb-client-test\fR
 program is used for testing aspects of the MariaDB client API that cannot be tested using
-\fBmysqltest\fR
+\fBmariadb-test\fR
 and its test language\&.
-\fBmysql_client_test_embedded\fR
+\fBmariadb-client-test-embedded\fR
 is similar but used for testing the embedded server\&. Both programs are run as part of the test suite\&.
 .PP
 The source code for the programs can be found in in
-tests/mysql_client_test\&.c
+tests/mariadb-client-test\&.c
 in a source distribution\&. The program serves as a good source of examples illustrating how to use various features of the client API\&.
 .PP
-\fBmysql_client_test\fR
+\fBmariadb-client-test\fR
 is used in a test by the same name in the main tests suite of
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 but may also be run directly\&. Unlike the other programs listed here, it does not read an external description of what tests to run\&. Instead, all tests are coded into the program, which is written to cover all aspects of the C language API\&.
 .PP
-\fBmysql_client_test\fR
+\fBmariadb-client-test\fR
 supports the following options:
 .sp
 .RS 4
@@ -52,8 +52,8 @@ supports the following options:
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: help option
-.\" help option: mysql_client_test
+.\" mariadb-client-test: help option
+.\" help option: mariadb-client-test
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -69,8 +69,8 @@ Display a help message and exit\&.
 .IP \(bu 2.3
 .\}
 \fB\-\-basedir=\fR\fB\fIdir_name\fR\fR,
-.\" mysql_client_test: basedir option
-.\" basedir option: mysql_client_test
+.\" mariadb-client-test: basedir option
+.\" basedir option: mariadb-client-test
 \fB\-b \fR\fB\fIdir_name\fR\fR
 .sp
 The base directory for the tests\&.
@@ -85,8 +85,8 @@ The base directory for the tests\&.
 .IP \(bu 2.3
 .\}
 \fB\-\-count=\fR\fB\fIcount\fR\fR,
-.\" mysql_client_test: count option
-.\" count option: mysql_client_test
+.\" mariadb-client-test: count option
+.\" count option: mariadb-client-test
 \fB\-t \fR\fB\fIcount\fR\fR
 .sp
 The number of times to execute the tests\&.
@@ -100,8 +100,8 @@ The number of times to execute the tests\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: database option
-.\" database option: mysql_client_test
+.\" mariadb-client-test: database option
+.\" database option: mariadb-client-test
 \fB\-\-database=\fR\fB\fIdb_name\fR\fR,
 \fB\-D \fR\fB\fIdb_name\fR\fR
 .sp
@@ -116,14 +116,14 @@ The database to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: debug option
-.\" debug option: mysql_client_test
+.\" mariadb-client-test: debug option
+.\" debug option: mariadb-client-test
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-#[\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
 Write a debugging log if MariaDB is built with debugging support\&. The default
 \fIdebug_options\fR
-value is 'd:t:o,/tmp/mysql_client_test.trace'.
+value is 'd:t:o,/tmp/mariadb-client-test.trace'.
 .RE
 .sp
 .RS 4
@@ -135,8 +135,8 @@ value is 'd:t:o,/tmp/mysql_client_test.trace'.
 .IP \(bu 2.3
 .\}
 \fB\-\-getopt\-ll\-test=\fR\fB\fIoption\fR\fR,
-.\" mysql_client_test: getopt-ll-test option
-.\" getopt-ll-test option: mysql_client_test
+.\" mariadb-client-test: getopt-ll-test option
+.\" getopt-ll-test option: mariadb-client-test
 \fB\-g \fR\fB\fIoption\fR\fR
 .sp
 Option to use for testing bugs in the
@@ -152,8 +152,8 @@ library\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: host option
-.\" host option: mysql_client_test
+.\" mariadb-client-test: host option
+.\" host option: mariadb-client-test
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -168,8 +168,8 @@ Connect to the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: password option
-.\" password option: mysql_client_test
+.\" mariadb-client-test: password option
+.\" password option: mariadb-client-test
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -178,8 +178,8 @@ The password to use when connecting to the server\&. If you use the short option
 have a space between the option and the password\&. If you omit the
 \fIpassword\fR
 value following the
-.\" mysql_client_test: password option
-.\" password option: mysql_client_test
+.\" mariadb-client-test: password option
+.\" password option: mariadb-client-test
 \fB\-\-password\fR
 or
 \fB\-p\fR
@@ -194,8 +194,8 @@ option on the command line, you are prompted for one\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: port option
-.\" port option: mysql_client_test
+.\" mariadb-client-test: port option
+.\" port option: mariadb-client-test
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -211,8 +211,8 @@ The TCP/IP port number to use for the connection\&.
 .IP \(bu 2.3
 .\}
 \fB\-\-server\-arg=\fR\fB\fIarg\fR\fR,
-.\" mysql_client_test: server-arg option
-.\" server-arg option: mysql_client_test
+.\" mariadb-client-test: server-arg option
+.\" server-arg option: mariadb-client-test
 \fB\-A \fR\fB\fIarg\fR\fR
 .sp
 Argument to send to the embedded server\&.
@@ -240,8 +240,8 @@ Show all test names\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: silent option
-.\" silent option: mysql_client_test
+.\" mariadb-client-test: silent option
+.\" silent option: mariadb-client-test
 \fB\-\-silent\fR,
 \fB\-s\fR
 .sp
@@ -256,8 +256,8 @@ Be more silent\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: socket option
-.\" socket option: mysql_client_test
+.\" mariadb-client-test: socket option
+.\" socket option: mariadb-client-test
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -278,8 +278,8 @@ localhost
 \fB\-c\fR
 .sp
 The option is used when called from
-\fBmysql\-test\-run\&.pl\fR, so that
-\fBmysql_client_test\fR
+\fBmariadb\-test\-run\&.pl\fR, so that
+\fBmariadb-client-test\fR
 may optionally behave in a different way than if called manually, for example by skipping some tests\&. Currently, there is no difference in behavior but the option is included in order to make this possible\&.
 .RE
 .sp
@@ -291,8 +291,8 @@ may optionally behave in a different way than if called manually, for example by
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_client_test: user option
-.\" user option: mysql_client_test
+.\" mariadb-client-test: user option
+.\" user option: mariadb-client-test
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -308,17 +308,17 @@ The MariaDB user name to use when connecting to the server\&.
 .IP \(bu 2.3
 .\}
 \fB\-v \fR\fB\fIdir_name\fR\fR,
-.\" mysql_client_test: vardir option
-.\" vardir option: mysql_client_test
+.\" mariadb-client-test: vardir option
+.\" vardir option: mariadb-client-test
 \fB\-\-vardir=\fR\fB\fIdir_name\fR\fR
 .sp
 The data directory for tests\&. The default is
-mysql\-test/var\&.
+mariadb\-test/var\&.
 .RE
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2020 MariaDB Foundation
+Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

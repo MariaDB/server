@@ -66,7 +66,10 @@ set debug_sync='reset';
 
 SET NAMES utf8;
 --vertical_results
+#Check after fix MDEV-31514
+--disable_cursor_protocol
 SELECT INFO, INFO_BINARY, 'xxx😎yyy' AS utf8mb4_string FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE '%xxx%yyy%';
+--enable_cursor_protocol
 --horizontal_results
 
 --echo #

@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_type.h"
 #include "sql_type_geom.h"
+#include "sql_type_vector.h"
 #include "sql_const.h"
 #include "sql_class.h"
 #include "sql_time.h"
@@ -260,10 +261,7 @@ const Type_collection *Type_handler_row::type_collection() const
 
 bool Type_handler_data::init()
 {
-#ifdef HAVE_SPATIAL
   return type_collection_geometry.init(this);
-#endif
-  return false;
 }
 
 
@@ -291,12 +289,10 @@ Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
     return ph;
   }
 
-#ifdef HAVE_SPATIAL
   const Type_handler *ha= Type_collection_geometry_handler_by_name(name);
-  if (ha)
-    return ha;
-#endif
-  return NULL;
+  if (!ha && type_handler_vector.name().eq(name))
+    return &type_handler_vector;
+  return ha;
 }
 
 
@@ -335,27 +331,7 @@ Type_handler_data *type_handler_data= NULL;
 
 bool Float::to_string(String *val_buffer, uint dec) const
 {
-  uint to_length= 70;
-  if (val_buffer->alloc(to_length))
-    return true;
-
-  char *to=(char*) val_buffer->ptr();
-  size_t len;
-
-  if (dec >= FLOATING_POINT_DECIMALS)
-    len= my_gcvt(m_value, MY_GCVT_ARG_FLOAT, to_length - 1, to, NULL);
-  else
-  {
-    /*
-      We are safe here because the buffer length is 70, and
-      fabs(float) < 10^39, dec < FLOATING_POINT_DECIMALS. So the resulting string
-      will be not longer than 69 chars + terminating '\0'.
-    */
-    len= my_fcvt(m_value, (int) dec, to, NULL);
-  }
-  val_buffer->length((uint) len);
-  val_buffer->set_charset(&my_charset_numeric);
-  return false;
+  return val_buffer->set_real(m_value, dec, &my_charset_numeric);
 }
 
 
@@ -468,7 +444,10 @@ bool Timestamp::to_native(Native *to, uint decimals) const
 {
   uint len= my_timestamp_binary_length(decimals);
   if (to->reserve(len))
+  {
+    to->length(0); // Safety: set to '0000-00-00 00:00:00' on falures
     return true;
+  }
   my_timestamp_to_binary(this, (uchar *) to->ptr(), decimals);
   to->length(len);
   return false;
@@ -2254,12 +2233,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_STRING:      return &type_handler_string;
   case MYSQL_TYPE_ENUM:        return &type_handler_varchar; // Map to VARCHAR
   case MYSQL_TYPE_SET:         return &type_handler_varchar; // Map to VARCHAR
-  case MYSQL_TYPE_GEOMETRY:
-#ifdef HAVE_SPATIAL
-    return &type_handler_geometry;
-#else
-    return NULL;
-#endif
+  case MYSQL_TYPE_GEOMETRY:    return &type_handler_geometry;
   case MYSQL_TYPE_TIMESTAMP:   return &type_handler_timestamp2;// Map to timestamp2
   case MYSQL_TYPE_TIMESTAMP2:  return &type_handler_timestamp2;
   case MYSQL_TYPE_DATE:        return &type_handler_newdate;   // Map to newdate
@@ -2311,12 +2285,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_STRING:      return &type_handler_string;
   case MYSQL_TYPE_ENUM:        return &type_handler_enum;
   case MYSQL_TYPE_SET:         return &type_handler_set;
-  case MYSQL_TYPE_GEOMETRY:
-#ifdef HAVE_SPATIAL
-    return &type_handler_geometry;
-#else
-    return NULL;
-#endif
+  case MYSQL_TYPE_GEOMETRY:    return &type_handler_geometry;
   case MYSQL_TYPE_TIMESTAMP:   return &type_handler_timestamp;
   case MYSQL_TYPE_TIMESTAMP2:  return &type_handler_timestamp2;
   case MYSQL_TYPE_DATE:        return &type_handler_date;
@@ -4459,6 +4428,13 @@ int Type_handler_int_result::Item_save_in_field(Item *item, Field *field,
 }
 
 
+int Type_handler_bool::Item_save_in_field(Item *item, Field *field,
+                                          bool no_conversions) const
+{
+  return item->save_bool_in_field(field, no_conversions);
+}
+
+
 /***********************************************************************/
 
 bool Type_handler_row::
@@ -4617,6 +4593,12 @@ Item_cache *
 Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 {
   return new (thd->mem_root) Item_cache_int(thd, item->type_handler());
+}
+
+Item_cache *
+Type_handler_bool::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_bool(thd);
 }
 
 Item_cache *
@@ -5251,7 +5233,22 @@ bool Type_handler_real_result::Item_val_bool(Item *item) const
 
 bool Type_handler_int_result::Item_val_bool(Item *item) const
 {
-  return item->val_int() != 0;
+  /*
+    Some Item descendants have DBUG_ASSERT(!is_cond()) is their
+    val_int() implementations, which means val_int() must not be used
+    to evaluate a condition: val_bool() must be used instead.
+    If we come here, it means item's class does not override val_bool()
+    and we need to evaluate the boolean value from the integer value
+    as a fall-back method. To avoid the assert, let's hide the IS_COND flag.
+    Eventually we'll need to implement val_bool() in all Item descendants and
+    remove the trick with flags. This change would be too ricky for 10.6.
+    Let's do it in a later version.
+  */
+  item_base_t flags= item->base_flags;
+  item->base_flags &= ~item_base_t::IS_COND;
+  bool rc= item->val_int() != 0;
+  item->base_flags= flags;
+  return rc;
 }
 
 bool Type_handler_temporal_result::Item_val_bool(Item *item) const
@@ -5261,7 +5258,7 @@ bool Type_handler_temporal_result::Item_val_bool(Item *item) const
 
 bool Type_handler_string_result::Item_val_bool(Item *item) const
 {
-  return item->val_real() != 0.0;
+  return item->val_bool_from_str();
 }
 
 
@@ -5946,9 +5943,9 @@ cmp_item *Type_handler_timestamp_common::make_cmp_item(THD *thd,
 
 /***************************************************************************/
 
-static int srtcmp_in(const void *cs_, const void *x_, const void *y_)
+static int srtcmp_in(void *cs_, const void *x_, const void *y_)
 {
-  const CHARSET_INFO *cs= static_cast<const CHARSET_INFO *>(cs_);
+  CHARSET_INFO *cs= static_cast<CHARSET_INFO *>(cs_);
   const String *x= static_cast<const String *>(x_);
   const String *y= static_cast<const String *>(y_);
   return cs->strnncollsp(x->ptr(), x->length(), y->ptr(), y->length());
@@ -5958,11 +5955,9 @@ in_vector *Type_handler_string_result::make_in_vector(THD *thd,
                                                       const Item_func_in *func,
                                                       uint nargs) const
 {
-  return new (thd->mem_root) in_string(thd, nargs, (qsort2_cmp) srtcmp_in,
-                                       func->compare_collation());
-
+  return new (thd->mem_root)
+      in_string(thd, nargs, srtcmp_in, func->compare_collation());
 }
-
 
 in_vector *Type_handler_int_result::make_in_vector(THD *thd,
                                                    const Item_func_in *func,
@@ -6254,7 +6249,7 @@ longlong Type_handler_timestamp_common::
 longlong Type_handler_numeric::
          Item_func_min_max_val_int(Item_func_min_max *func) const
 {
-  return func->val_int_native();
+  return is_unsigned() ? func->val_uint_native() : func->val_int_native();
 }
 
 
@@ -8168,6 +8163,12 @@ Item *Type_handler_interval_DDhhmmssff::
 }
 
 /***************************************************************************/
+Item_literal *Type_handler::create_boolean_false_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_int(thd, 0);
+}
+
+/***************************************************************************/
 
 void Type_handler_string_result::Item_param_setup_conversion(THD *thd,
                                                              Item_param *param)
@@ -9426,6 +9427,7 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
   Datetime dt(thd, item, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd));
   return
     !dt.is_valid_datetime() ||
+    dt.check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE) ||
     TIME_to_native(thd, dt.get_mysql_time(), to, item->datetime_precision(thd));
 }
 
@@ -9805,9 +9807,11 @@ Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
   return name0.length && !cmp(&name0, &name1);
 }
 
-int initialize_data_type_plugin(st_plugin_int *plugin)
+int initialize_data_type_plugin(void *plugin_)
 {
-  st_mariadb_data_type *data= (st_mariadb_data_type*) plugin->plugin->info;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  st_mariadb_data_type *data=
+      static_cast<st_mariadb_data_type *>(plugin->plugin->info);
   data->type_handler->set_name(Name(plugin->name));
   if (plugin->plugin->init && plugin->plugin->init(NULL))
   {

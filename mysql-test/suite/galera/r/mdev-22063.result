@@ -17,12 +17,14 @@ SELECT * FROM s;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 connection node_2;
+SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
 SELECT * FROM t1;
 a
 SELECT * FROM s;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 connection node_1;
+SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
 DROP TABLE t1;
 DROP SEQUENCE s;
 # Case 2 REPLACE INTO ... SELECT with error
@@ -239,4 +241,6 @@ pk
 5
 DROP TABLE t1;
 DROP VIEW view_t1;
+SET GLOBAL wsrep_mode=DEFAULT;
+connection node_2;
 SET GLOBAL wsrep_mode=DEFAULT;

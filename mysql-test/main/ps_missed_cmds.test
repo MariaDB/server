@@ -1,8 +1,8 @@
 --source include/have_innodb.inc
 
-if (`SELECT $PS_PROTOCOL != 0`)
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
 {
-   --skip Need regular protocol but ps-protocol was specified
+   --skip Need regular protocol but ps-protocol and cursor-protocol were specified
 }
 
 SET @save_storage_engine= @@default_storage_engine;

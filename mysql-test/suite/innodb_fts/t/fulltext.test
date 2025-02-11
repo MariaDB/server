@@ -805,3 +805,21 @@ SELECT f1, MATCH(f1) AGAINST ("test" IN BOOLEAN MODE) FROM t1;
 DROP TABLE t1;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo #  MDEV-35183 ADD FULLTEXT INDEX unnecessarily DROPS FTS
+--echo #		COMMON TABLES
+--echo #
+CREATE TABLE t1 (
+        ID INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        title VARCHAR(200), book VARCHAR(200),
+        FULLTEXT fidx(title)) ENGINE = InnoDB;
+INSERT INTO t1(title) VALUES('database');
+ALTER TABLE t1 DROP INDEX fidx;
+create table t2 as select space from information_schema.innodb_sys_tables where name like "test/FTS_%_CONFIG";
+ALTER TABLE t1 ADD FULLTEXT fidx_1(book);
+select i_s.space=t2.space from information_schema.innodb_sys_tables i_s join t2 where name like "test/FTS_%_CONFIG";
+SHOW CREATE TABLE t1;
+DROP TABLE t1, t2;
+
+--echo # End of 10.5 tests

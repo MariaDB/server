@@ -38,14 +38,14 @@ create or replace table t1 (a datetime as (curtime()) PERSISTENT);
 ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # LOCALTIME(), LOCALTIME
 create or replace table t1 (a datetime, b varchar(10) as (localtime()) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 create or replace table t1 (a datetime, b varchar(10) as (localtime) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # LOCALTIMESTAMP, LOCALTIMESTAMP()(v4.0.6)
 create or replace table t1 (a datetime, b varchar(10) as (localtimestamp()) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'localtimestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 create or replace table t1 (a datetime, b varchar(10) as (localtimestamp) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'localtimestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # NOW()
 create or replace table t1 (a datetime, b varchar(10) as (now()) PERSISTENT);
 ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
@@ -119,7 +119,7 @@ create or replace table t1 (a varchar(32) as (schema()) PERSISTENT);
 ERROR HY000: Function or expression 'database()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # SESSION_USER()
 create or replace table t1 (a varchar(32) as (session_user()) PERSISTENT);
-ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+ERROR HY000: Function or expression 'session_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # SLEEP()
 create or replace table t1 (a int, b int as (sleep(a)));
 ERROR HY000: Function or expression 'sleep()' cannot be used in the GENERATED ALWAYS AS clause of `b`

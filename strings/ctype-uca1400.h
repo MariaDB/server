@@ -248,5 +248,6 @@ my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
 
 #define MY_UCA1400_COLLATION_DEFINITION_COUNT 26
 
+my_bool mysql_utf8mb4_0900_collation_definitions_add();
 
 #endif /* CTYPE_UCA_1400_H */

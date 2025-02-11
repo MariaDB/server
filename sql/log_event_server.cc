@@ -29,6 +29,7 @@
 
 #include "unireg.h"
 #include "log_event.h"
+#include "log_cache.h"
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_cache.h"                       // QUERY_CACHE_FLAGS_SIZE
 #include "sql_locale.h" // MY_LOCALE, my_locale_by_number, my_locale_en_US
@@ -690,6 +691,13 @@ void Log_event::init_show_field_list(THD *thd, List<Item>* field_list)
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
   DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
+  if (cache_data &&
+#ifdef WITH_WSREP
+      mysql_bin_log.is_open() &&
+#endif
+      cache_data->write_prepare(len))
+    return 1;
+
   if (my_b_safe_write(file, pos, len))
   {
     DBUG_PRINT("error", ("write to log failed: %d", my_errno));
@@ -1850,10 +1858,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   {
     bool is_rb_alter= gtid_flags_extra & Gtid_log_event::FL_ROLLBACK_ALTER_E1;
 
-#ifdef WITH_WSREP
-    if (!wsrep_thd_is_applying(thd))
-#endif
-      thd->set_time(when, when_sec_part);
+    thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
@@ -2471,10 +2476,10 @@ static void check_and_remove_stale_alter(Relay_log_info *rli)
   {
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
 
-    sql_print_warning("ALTER query started at %u-%u-%llu could not "
+    sql_print_warning("ALTER query started at %u-%lu-%llu could not "
                       "be completed because of unexpected master server "
-                      "or its binlog change", info->sa_seq_no, // todo:gtid
-                      0, 0);
+                      "or its binlog change", info->domain_id,
+                      mi->master_id, info->sa_seq_no);
     info_iterator.remove();
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::ROLLBACK_ALTER;
@@ -2839,7 +2844,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                bool ro_1pc)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    flags2((standalone ? FL_STANDALONE : 0) |
+    pad_to_size(0), flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
     flags_extra(0), extra_engines(0),
     thread_id(thd_arg->variables.pseudo_thread_id)
@@ -2959,10 +2964,7 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 bool
 Gtid_log_event::write(Log_event_writer *writer)
 {
-  uchar buf[GTID_HEADER_LEN + 2 + sizeof(XID)
-            + 1 /* flags_extra: */
-            + 4 /* Extra Engines */
-            + 4 /* FL_EXTRA_THREAD_ID */];
+  uchar buf[max_data_length];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
@@ -3042,6 +3044,27 @@ Gtid_log_event::write(Log_event_writer *writer)
     bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
+
+  if (unlikely(pad_to_size > write_len))
+  {
+    if (write_header(writer, pad_to_size) ||
+        write_data(writer, buf, write_len))
+      return true;
+
+    pad_to_size-= write_len;
+
+    char pad_buf[IO_SIZE];
+    bzero(pad_buf,  pad_to_size);
+    while (pad_to_size)
+    {
+      uint64 size= pad_to_size >= IO_SIZE ? IO_SIZE : pad_to_size;
+      if (write_data(writer, pad_buf, size))
+        return true;
+      pad_to_size-= size;
+    }
+    return write_footer(writer);
+  }
+
   return write_header(writer, write_len) ||
          write_data(writer, buf, write_len) ||
          write_footer(writer);
@@ -3123,7 +3146,20 @@ static char gtid_begin_string[] = "BEGIN";
 int
 Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   ulonglong bits= thd->variables.option_bits;
+
+  if (unlikely(thd->transaction->all.ha_list || (bits & OPTION_GTID_BEGIN)))
+  {
+    rli->report(WARNING_LEVEL, 0, NULL,
+                "Rolling back unfinished transaction (no COMMIT "
+                "or ROLLBACK in relay log). This indicates a corrupt binlog "
+                "on the master, possibly caused by disk full or other write "
+                "error.");
+    rgi->cleanup_context(thd, 1);
+    bits= thd->variables.option_bits;
+  }
+
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
@@ -3143,7 +3179,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 
   DBUG_ASSERT((bits & OPTION_GTID_BEGIN) == 0);
 
-  Master_info *mi=rgi->rli->mi;
+  Master_info *mi= rli->mi;
   switch (flags2 & (FL_DDL | FL_TRANSACTIONAL))
   {
     case FL_TRANSACTIONAL:
@@ -3702,7 +3738,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 #endif
   }
 
-  general_log_print(thd, COM_QUERY, get_query());
+  general_log_print(thd, COM_QUERY, "%s", get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   /*
     Use the time from the current Xid_log_event for the generated
@@ -4923,15 +4959,17 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     if (unlikely(open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0)))
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd))
+      if (WSREP(thd) && !thd->slave_thread)
       {
-        WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
+        WSREP_WARN("BF applier thread=%lu failed to open_and_lock_tables for "
+                   "%s, fatal: %d "
                    "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
-                    thd->get_stmt_da()->sql_errno(),
-                    thd->is_fatal_error,
-                    thd->wsrep_cs().mode(),
-                    thd->wsrep_trx().state(),
-                    (long long) wsrep_thd_trx_seqno(thd));
+                   thd_get_thread_id(thd),
+                   thd->get_stmt_da()->message(),
+                   thd->is_fatal_error,
+                   thd->wsrep_cs().mode(),
+                   thd->wsrep_trx().state(),
+                   wsrep_thd_trx_seqno(thd));
       }
 #endif /* WITH_WSREP */
       if (thd->is_error() &&
@@ -5086,7 +5124,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     Rows_log_event::Db_restore_ctx restore_ctx(this);
     master_had_triggers= table->master_had_triggers;
     bool transactional_table= table->file->has_transactions_and_rollback();
-    table->file->prepare_for_insert(get_general_type_code() != WRITE_ROWS_EVENT);
+    table->file->prepare_for_modify(true,
+                                  get_general_type_code() != WRITE_ROWS_EVENT);
 
     /*
       table == NULL means that this table should not be replicated
@@ -5722,8 +5761,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulonglong tid,
               (tbl->s->db.str[tbl->s->db.length] == 0));
   DBUG_ASSERT(tbl->s->table_name.str[tbl->s->table_name.length] == 0);
 
-  binlog_type_info_array= (Binlog_type_info *)thd->alloc(m_table->s->fields *
-                                                   sizeof(Binlog_type_info));
+  binlog_type_info_array= thd->alloc<Binlog_type_info>(m_table->s->fields);
   for (uint i= 0; i <  m_table->s->fields; i++)
     binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
 
@@ -6650,7 +6688,8 @@ Write_rows_log_event::do_after_row_operations(int error)
 
 bool Rows_log_event::process_triggers(trg_event_type event,
                                       trg_action_time_type time_type,
-                                      bool old_row_is_record1)
+                                      bool old_row_is_record1,
+                                      bool *skip_row_indicator)
 {
   bool result;
   DBUG_ENTER("Rows_log_event::process_triggers");
@@ -6659,12 +6698,14 @@ bool Rows_log_event::process_triggers(trg_event_type event,
   {
     result= m_table->triggers->process_triggers(thd, event,
                                                 time_type,
-                                                old_row_is_record1);
+                                                old_row_is_record1,
+                                                skip_row_indicator);
   }
   else
     result= m_table->triggers->process_triggers(thd, event,
                                                 time_type,
-                                                old_row_is_record1);
+                                                old_row_is_record1,
+                                                skip_row_indicator);
 
   DBUG_RETURN(result);
 }
@@ -6679,6 +6720,46 @@ last_uniq_key(TABLE *table, uint keyno)
       return 0;
   return 1;
 }
+
+
+/*
+  We need to set the null bytes to ensure that the filler bit are
+  all set when returning.  There are storage engines that just set
+  the necessary bits on the bytes and don't set the filler bits
+  correctly.
+*/
+static void
+normalize_null_bits(TABLE *table)
+{
+  if (table->s->null_bytes > 0)
+  {
+    DBUG_ASSERT(table->s->last_null_bit_pos < 8);
+    /*
+      Normalize any unused null bits.
+
+      We need to set the highest (8 - last_null_bit_pos) bits to 1, except that
+      if last_null_bit_pos is 0 then there are no unused bits and we should set
+      no bits to 1.
+
+      When N = last_null_bit_pos != 0, we can get a mask for this with
+
+        0xff << N = (0xff << 1) << (N-1) = 0xfe << (N-1) = 0xfe << ((N-1) & 7)
+
+      And we can get a mask=0 for the case N = last_null_bit_pos = 0 with
+
+        0xfe << 7 = 0xfe << ((N-1) & 7)
+
+     Thus we can set the desired bits in all cases by OR-ing with
+     (0xfe << ((N-1) & 7)), avoiding a conditional jump.
+    */
+    table->record[0][table->s->null_bytes - 1]|=
+      (uchar)(0xfe << ((table->s->last_null_bit_pos - 1) & 7));
+    /* Normalize the delete marker bit, if any. */
+    table->record[0][0]|=
+      !(table->s->db_create_options & HA_OPTION_PACK_RECORD);
+  }
+}
+
 
 /**
    Check if an error is a duplicate key error.
@@ -6797,11 +6878,17 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
   if (table->s->long_unique_table)
     table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
 
+  bool trg_skip_row= false;
   if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, true,
+                                &trg_skip_row)))
   {
     DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
   }
+
+  /* In case any of triggers signals to skip the current row, do it. */
+  if (trg_skip_row)
+    return false;
 
   // Handle INSERT.
   if (table->versioned(VERS_TIMESTAMP))
@@ -6978,7 +7065,7 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
       DBUG_PRINT("info",("Deleting offending row and trying to write new one again"));
       if (invoke_triggers &&
           unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE,
-                                    TRUE)))
+                                    true, &trg_skip_row)))
         error= HA_ERR_GENERIC; // in case if error is not set yet
       else
       {
@@ -6988,17 +7075,18 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
           table->file->print_error(error, MYF(0));
           DBUG_RETURN(error);
         }
-        if (invoke_triggers &&
+        if (invoke_triggers && !trg_skip_row &&
             unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER,
-                                      TRUE)))
+                                      true, nullptr)))
           DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
       }
       /* Will retry ha_write_row() with the offending row removed. */
     }
   }
 
-  if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_AFTER, TRUE)))
+  if (invoke_triggers && !trg_skip_row &&
+      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_AFTER, true,
+                                nullptr)))
     error= HA_ERR_GENERIC; // in case if error is not set yet
 
   DBUG_RETURN(error);
@@ -7140,6 +7228,7 @@ static bool record_compare(TABLE *table, bool vers_from_plain= false)
        table->s->null_fields) == 0
       && all_values_set)
   {
+    normalize_null_bits(table);
     result= cmp_record(table, record[1]);
     goto record_compare_exit;
   }
@@ -7449,7 +7538,7 @@ void issue_long_find_row_warning(Log_event_type type,
                             "while looking up records to be processed. Consider adding a "
                             "primary key (or unique key) to the table to improve "
                             "performance.",
-                            evt_type, table_name, (long) delta, scan_type);
+                            evt_type, table_name, delta, scan_type);
     }
   }
 }
@@ -7592,6 +7681,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 
   // We can't use position() - try other methods.
   
+  normalize_null_bits(table);
+
   /*
     Save copy of the record in table->record[1]. It might be needed 
     later if linear search is used to find exact match.
@@ -7627,16 +7718,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 #ifndef HAVE_valgrind
     DBUG_DUMP("key data", m_key, m_key_info->key_length);
 #endif
-
-    /*
-      We need to set the null bytes to ensure that the filler bit are
-      all set when returning.  There are storage engines that just set
-      the necessary bits on the bytes and don't set the filler bits
-      correctly.
-    */
-    if (table->s->null_bytes > 0)
-      table->record[0][table->s->null_bytes - 1]|=
-        256U - (1U << table->s->last_null_bit_pos);
 
     const enum ha_rkey_function find_flag=
       m_usable_key_parts == m_key_info->user_defined_key_parts
@@ -7892,10 +7973,12 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif
     thd_proc_info(thd, message);
 
+    bool trg_skip_row= false;
     if (invoke_triggers &&
-        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE)))
+        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, false,
+                                  &trg_skip_row)))
       error= HA_ERR_GENERIC; // in case if error is not set yet
-    if (likely(!error))
+    if (likely(!error) && !trg_skip_row)
     {
       if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
       {
@@ -7910,8 +7993,9 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
         error= m_table->file->ha_delete_row(m_table->record[0]);
       }
     }
-    if (invoke_triggers && likely(!error) &&
-        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, FALSE)))
+    if (invoke_triggers && likely(!error) && !trg_skip_row &&
+        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, false,
+                                  nullptr)))
       error= HA_ERR_GENERIC; // in case if error is not set yet
     m_table->file->ha_index_or_rnd_end();
   }
@@ -8014,6 +8098,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
     get_quote_char_for_identifier(thd, table_name.str, table_name.length);
+  bool trg_skip_row= false;
   my_snprintf(msg, sizeof msg,
               "Update_rows_log_event::find_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
@@ -8109,12 +8194,18 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
   thd_proc_info(thd, message);
   if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, true,
+                                &trg_skip_row)))
   {
     error= HA_ERR_GENERIC; // in case if error is not set yet
     goto err;
   }
 
+  if (trg_skip_row)
+  {
+    error= 0;
+    goto err;
+  }
   if (m_table->versioned())
   {
     if (m_table->versioned(VERS_TIMESTAMP))
@@ -8140,7 +8231,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   }
 
   if (invoke_triggers && likely(!error) &&
-      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, true,
+                                nullptr)))
     error= HA_ERR_GENERIC; // in case if error is not set yet
 
 

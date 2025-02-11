@@ -14,10 +14,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface
-#endif
-
 #define SPIDER_CONNECT_INFO_MAX_LEN 64
 #define SPIDER_CONNECT_INFO_PATH_MAX_LEN FN_REFLEN
 #define SPIDER_LONGLONG_LEN 20
@@ -121,9 +117,7 @@ public:
   bool               pre_bitmap_checked;
   bool               bulk_insert;
   bool               info_auto_called;
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   bool               auto_inc_temporary;
-#endif
   int                bulk_size= 0;
   int                direct_dup_insert;
   int                store_error_num;
@@ -353,9 +347,7 @@ public:
   uint max_supported_key_part_length() const override;
   uint8 table_cache_type() override;
   bool need_info_for_auto_inc() override;
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   bool can_use_for_auto_inc_init() override;
-#endif
   int update_auto_increment();
   void get_auto_increment(
     ulonglong offset,
@@ -376,7 +368,6 @@ public:
   bool start_bulk_update() override;
   int exec_bulk_update(ha_rows *dup_key_found) override;
   int end_bulk_update() override;
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
   int bulk_update_row(
     const uchar *old_data,
     const uchar *new_data,
@@ -386,17 +377,6 @@ public:
     const uchar *old_data,
     const uchar *new_data
   ) override;
-#else
-  int bulk_update_row(
-    const uchar *old_data,
-    uchar *new_data,
-    ha_rows *dup_key_found
-  );
-  int update_row(
-    const uchar *old_data,
-    uchar *new_data
-  );
-#endif
   bool check_direct_update_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
@@ -759,6 +739,8 @@ public:
   int append_lock_tables_list();
   int lock_tables();
   int dml_init();
+private:
+  void init_fields();
 };
 
 

@@ -5734,7 +5734,7 @@ translog_write_variable_record_mgroup(LSN *lsn,
       goto err_unlock;
     }
 
-    DBUG_PRINT("info", ("chunk: #%u  first_page: %u (%u)  "
+    DBUG_PRINT("info", ("chunk: #%zu  first_page: %u (%u)  "
                         "full_pages: %lu (%lu)  "
                         "Left %lu",
                         groups.elements,
@@ -5902,8 +5902,8 @@ translog_write_variable_record_mgroup(LSN *lsn,
          record_rest + header_fixed_part +
          (groups.elements - groups_per_page * (chunk0_pages - 1)) * (7 + 1))
     chunk0_pages++;
-  DBUG_PRINT("info", ("chunk0_pages: %u  groups %u  groups per full page: %u  "
-                      "Group on last page: %u",
+  DBUG_PRINT("info", ("chunk0_pages: %u  groups %zu  groups per full page: %u  "
+                      "Group on last page: %zu",
                       chunk0_pages, groups.elements,
                       groups_per_page,
                       (groups.elements -
@@ -6414,7 +6414,7 @@ my_bool translog_write_record(LSN *lsn,
   struct st_translog_parts parts;
   LEX_CUSTRING *part;
   int rc;
-  uint short_trid= trn->short_id;
+  SHORT_TRANSACTION_ID short_trid= trn->short_id;
   DBUG_ENTER("translog_write_record");
   DBUG_PRINT("enter", ("type: %u (%s)  ShortTrID: %u  rec_len: %lu",
                        (uint) type, log_record_type_descriptor[type].name,
@@ -8731,7 +8731,7 @@ my_bool translog_purge(TRANSLOG_ADDRESS low)
                     log_descriptor.open_files.elements);
         DBUG_ASSERT(log_descriptor.min_file == i);
         file= *((TRANSLOG_FILE **)pop_dynamic(&log_descriptor.open_files));
-        DBUG_PRINT("info", ("Files : %d", log_descriptor.open_files.elements));
+        DBUG_PRINT("info", ("Files : %zu", log_descriptor.open_files.elements));
         DBUG_ASSERT(i == file->number);
         log_descriptor.min_file++;
         DBUG_ASSERT(log_descriptor.max_file - log_descriptor.min_file + 1 ==

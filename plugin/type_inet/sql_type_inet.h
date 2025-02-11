@@ -39,6 +39,10 @@ public:
   using FixedBinTypeStorage::FixedBinTypeStorage;
   bool ascii_to_fbt(const char *str, size_t str_length);
   size_t to_string(char *dst, size_t dstsize) const;
+  bool to_bool() const
+  {
+    return !only_zero_bytes(m_buffer, sizeof(m_buffer));
+  }
   static const Name &default_value();
 };
 

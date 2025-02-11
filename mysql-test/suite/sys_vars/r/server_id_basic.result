@@ -117,7 +117,7 @@ SELECT @@server_id = @@global.server_id;
 '#---------------------FN_DYNVARS_001_10----------------------#'
 SET server_id = 2048;
 SELECT server_id;
-ERROR 42S22: Unknown column 'server_id' in 'field list'
+ERROR 42S22: Unknown column 'server_id' in 'SELECT'
 SELECT @@server_id;
 @@server_id
 2048

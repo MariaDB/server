@@ -37,7 +37,7 @@ extern const uchar _my_bits_reverse_table[256];
   - returns 0 for (1<<0)
   - returns 1 for (1<<1)
   - returns 2 for (1<<2)
-  - returns 2 for 3, which has (1<<2) as the highest bit set.
+  - returns 1 for 3, which has (1<<1) as the highest bit set.
 
   Note, the behaviour of log2(0) is not defined.
   Let's return 0 for the input 0, for the code simplicity.
@@ -173,6 +173,11 @@ static inline uchar last_byte_mask(uint bits)
   unsigned int const used = (bits - 1U) & 7U;
   /* Return bitmask for the significant bits */
   return (uchar) ((2U << used) - 1);
+}
+
+static inline uint my_bits_in_bytes(uint n)
+{
+  return ((n + 7) / 8);
 }
 
 #ifdef _MSC_VER

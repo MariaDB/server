@@ -45,8 +45,8 @@ let $MARIADB_DATADIR= `select @@datadir`;
 --copy_file std_data/sv_partition.frm $MARIADB_DATADIR/test/sv_partition.frm
 --copy_file std_data/sv_partition.par $MARIADB_DATADIR/test/sv_partition.par
 
---exec $MYSQL_DUMP --compact --dump-history test
---exec $MYSQL_DUMP --compact --dump-history --update-history test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --dump-history test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --dump-history --update-history test
 --exec $MYSQL_UPGRADE --force --silent 2>&1
 --remove_file $MARIADB_DATADIR/mariadb_upgrade_info
 

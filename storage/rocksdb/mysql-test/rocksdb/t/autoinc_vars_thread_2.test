@@ -99,10 +99,12 @@ while ($i > 0)
 # smallest value in the sequence for thread 'thr' that is greater than
 # the pk in the previous row.
 let $file = `SELECT CONCAT(@@datadir, "test_export.txt")`;
+--disable_cursor_protocol
 --disable_query_log
 --echo SELECT * FROM t1 ORDER BY pk INTO OUTFILE <output_file>;
 eval SELECT * FROM t1 ORDER BY pk INTO OUTFILE "$file";
 --enable_query_log
+--enable_cursor_protocol
 
 let ROCKSDB_OUTFILE = $file;
 

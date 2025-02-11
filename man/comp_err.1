@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBCOMP_ERR\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBCOMP_ERR\fR" "1" "4 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -23,7 +23,7 @@ comp_err \- compile MariaDB error message file
 creates the
 errmsg\&.sys
 file that is used by
-\fBmysqld\fR
+\fBmariadbd\fR
 to determine the error messages to display for different error codes\&.
 \fBcomp_err\fR
 normally is run automatically when MariaDB is built\&. It compiles the
@@ -39,7 +39,7 @@ mysqld_ername\&.h, and
 sql_state\&.h
 header files\&.
 .PP
-For more information about how error messages are defined, see the MySQL Internals Manual\&.
+For more information about how error messages are defined, see the MariaDB Manual\&.
 .PP
 Invoke
 \fBcomp_err\fR
@@ -141,7 +141,7 @@ Print some debugging information when the program exits\&.
 \fB\-H \fR\fB\fIfile_name\fR\fR
 .sp
 The name of the error header file\&. The default is
-mysqld_error\&.h\&.
+mariadbd_error\&.h\&.
 .RE
 .sp
 .RS 4
@@ -247,7 +247,7 @@ Display version information and exit\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

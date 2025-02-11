@@ -18,7 +18,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "my_base.h"                            /* ha_rows */
-#include <my_sys.h>                             /* qsort2_cmp */
+#include <my_cmp.h>
 #include "queues.h"
 #include "sql_string.h"
 #include "sql_class.h"
@@ -578,7 +578,7 @@ public:
   bool not_killable;
   String tmp_buffer;
   // The fields below are used only by Unique class.
-  qsort2_cmp compare;
+  qsort_cmp2 compare;
   BUFFPEK_COMPARE_CONTEXT cmp_context;
 
   Sort_param()
@@ -688,7 +688,7 @@ public:
 
   void try_to_pack_sortkeys();
 
-  qsort2_cmp get_compare_function() const
+  qsort_cmp2 get_compare_function() const
   {
     return using_packed_sortkeys() ?
            get_packed_keys_compare_ptr() :

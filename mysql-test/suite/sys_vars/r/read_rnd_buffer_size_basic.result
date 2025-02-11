@@ -124,11 +124,11 @@ SELECT @@read_rnd_buffer_size;
 @@read_rnd_buffer_size
 9100
 SELECT local.read_rnd_buffer_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.read_rnd_buffer_size;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT read_rnd_buffer_size = @@session.read_rnd_buffer_size;
-ERROR 42S22: Unknown column 'read_rnd_buffer_size' in 'field list'
+ERROR 42S22: Unknown column 'read_rnd_buffer_size' in 'SELECT'
 SET @@global.read_rnd_buffer_size = @start_global_value;
 SELECT @@global.read_rnd_buffer_size;
 @@global.read_rnd_buffer_size

@@ -92,20 +92,6 @@ a.a	a.b
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
 #
-# ROW as an SP return value is not supported yet
-#
-CREATE FUNCTION p1() RETURN ROW(a INT)
-AS
-BEGIN
-RETURN NULL;
-END;
-$$
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT)
-AS
-BEGIN
-RETURN NULL;
-END' at line 1
-#
 # Diplicate row field
 #
 CREATE PROCEDURE p1()
@@ -3109,3 +3095,96 @@ t1	CREATE TABLE "t1" (
   "int11" int(11) DEFAULT NULL,
   "text1" text DEFAULT NULL
 )
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+CREATE FUNCTION f1() RETURN ROW(a INT)
+AS
+BEGIN
+RETURN NULL;
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN row(a int(11))
+AS
+BEGIN
+RETURN NULL;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURN ROW(a INT, b VARCHAR(32))
+AS
+BEGIN
+RETURN ROW(1,'b1');
+END;
+$$
+CREATE PROCEDURE p1col2
+AS
+r ROW(a INT, b VARCHAR(32)) := f1();
+BEGIN
+SELECT r.a, r.b;
+END;
+$$
+CREATE PROCEDURE p1col3
+AS
+r ROW(a INT, b VARCHAR(32),c DOUBLE) := f1();
+BEGIN
+SELECT r.a, r.b, r.c;
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN row(a int(11),b varchar(32) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci)
+AS
+BEGIN
+RETURN ROW(1,'b1');
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+CALL p1col2();
+r.a	r.b
+1	b1
+CALL p1col3();
+ERROR 21000: Operand should contain 3 column(s)
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1()=ROW(1,'b1') AS c;
+c
+1
+DROP FUNCTION f1;
+DROP PROCEDURE p1col2;
+DROP PROCEDURE p1col3;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE FUNCTION f1() RETURN ROW(a INT, b VARCHAR(32))
+AS
+BEGIN
+RETURN (SELECT * FROM t1);
+END;
+$$
+CREATE PROCEDURE p1
+AS
+r ROW(a INT, b VARCHAR(32)) := f1();
+BEGIN
+SELECT r.a, r.b;
+END;
+$$
+# Testing with no rows
+CALL p1;
+r.a	r.b
+NULL	NULL
+# Testing with one row
+INSERT INTO t1 VALUES (1,'b1');
+CALL p1;
+r.a	r.b
+1	b1
+# Testing with two rows
+INSERT INTO t1 VALUES (1,'b1');
+CALL p1;
+ERROR 21000: Subquery returns more than 1 row
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# End of 11.7 tests
+#

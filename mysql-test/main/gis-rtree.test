@@ -1,6 +1,39 @@
 -- source include/have_geometry.inc
 
 #
+# invalid index specifications
+#
+--error ER_PARSE_ERROR
+create table t1 (g geometry not null, spatial key(g(10)));
+--error ER_PARSE_ERROR
+create table t1 (g geometry not null, spatial key(g asc));
+--error ER_PARSE_ERROR
+create table t1 (g geometry not null, spatial key(g desc));
+--error ER_PARSE_ERROR
+create table t1 (g geometry not null, f geometry not null, spatial key(g,f));
+
+create table t1 (g geometry not null, f geometry not null);
+--error ER_PARSE_ERROR
+create spatial index bad on t1 (g(10));
+--error ER_PARSE_ERROR
+create spatial index bad on t1 (g asc);
+--error ER_PARSE_ERROR
+create spatial index bad on t1 (g desc);
+--error ER_PARSE_ERROR
+create spatial index bad on t1 (f,g);
+
+--error ER_PARSE_ERROR
+alter table t1 add spatial index bad (g(10));
+--error ER_PARSE_ERROR
+alter table t1 add spatial index bad (g asc);
+--error ER_PARSE_ERROR
+alter table t1 add spatial index bad (g desc);
+--error ER_PARSE_ERROR
+alter table t1 add spatial index bad (f,g);
+
+drop table t1;
+
+#
 # test of rtree (using with spatial data)
 #
 

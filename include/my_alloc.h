@@ -60,6 +60,14 @@ typedef struct st_mem_root
   PSI_memory_key psi_key;
 } MEM_ROOT;
 
+typedef struct st_mem_root_savepoint
+{
+  MEM_ROOT *root;
+  USED_MEM *free;
+  USED_MEM *used;
+  unsigned short first_block_usage;
+} MEM_ROOT_SAVEPOINT;
+
 #ifdef  __cplusplus
 }
 #endif

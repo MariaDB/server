@@ -180,10 +180,6 @@ with mysql_mutex_lock(), which will wait until it gets the mutex. */
 ulint	srv_buf_pool_size;
 /** Requested buffer pool chunk size */
 size_t	srv_buf_pool_chunk_unit;
-/** innodb_lru_scan_depth; number of blocks scanned in LRU flush batch */
-ulong	srv_LRU_scan_depth;
-/** innodb_flush_neighbors; whether or not to flush neighbors of a block */
-ulong	srv_flush_neighbors;
 /** Previously requested size */
 ulint	srv_buf_pool_old_size;
 /** Current size as scaling factor for the other components */
@@ -747,20 +743,17 @@ srv_printf_innodb_monitor(
 	os_aio_print(file);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (btr_search_enabled) {
+	if (btr_search.enabled) {
 		fputs("-------------------\n"
 		      "ADAPTIVE HASH INDEX\n"
 		      "-------------------\n", file);
-		for (ulint i = 0; i < btr_ahi_parts; ++i) {
-			const auto part= &btr_search_sys.parts[i];
-			part->latch.rd_lock(SRW_LOCK_CALL);
-			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
+		for (ulong i = 0; i < btr_search.n_parts; ++i) {
+			btr_sea::partition& part= btr_search.parts[i];
+			part.blocks_mutex.wr_lock();
 			fprintf(file, "Hash table size " ULINTPF
 				", node heap has " ULINTPF " buffer(s)\n",
-				part->table.n_cells,
-				part->heap->base.count
-				- !part->heap->free_block);
-			part->latch.rd_unlock();
+				part.table.n_cells, part.blocks.count + !!part.spare);
+			part.blocks_mutex.wr_unlock();
 		}
 
 		const ulint with_ahi = btr_cur_n_sea;
@@ -840,17 +833,17 @@ srv_export_innodb_status(void)
 	export_vars.innodb_ahi_miss = btr_cur_n_non_sea;
 
 	ulint mem_adaptive_hash = 0;
-	for (ulong i = 0; i < btr_ahi_parts; i++) {
-		const auto part= &btr_search_sys.parts[i];
-		part->latch.rd_lock(SRW_LOCK_CALL);
-		if (part->heap) {
-			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
-
-			mem_adaptive_hash += mem_heap_get_size(part->heap)
-				+ part->table.n_cells * sizeof(hash_cell_t);
-		}
-		part->latch.rd_unlock();
+	for (ulong i = 0; i < btr_search.n_parts; i++) {
+		btr_sea::partition& part= btr_search.parts[i];
+		part.blocks_mutex.wr_lock();
+		mem_adaptive_hash += part.blocks.count + !!part.spare;
+		part.blocks_mutex.wr_unlock();
 	}
+	mem_adaptive_hash <<= srv_page_size_shift;
+	btr_search.parts[0].latch.rd_lock(SRW_LOCK_CALL);
+	mem_adaptive_hash += btr_search.parts[0].table.n_cells
+		* sizeof *btr_search.parts[0].table.array * btr_search.n_parts;
+	btr_search.parts[0].latch.rd_unlock();
 	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
 #endif
 
@@ -1138,10 +1131,9 @@ bool purge_sys_t::running()
 
 void purge_sys_t::stop_FTS()
 {
-  latch.rd_lock(SRW_LOCK_CALL);
-  m_FTS_paused++;
-  latch.rd_unlock();
-  while (m_active)
+  ut_d(const auto paused=) m_FTS_paused.fetch_add(1);
+  ut_ad((paused + 1) & ~PAUSED_SYS);
+  while (m_active.load(std::memory_order_acquire))
     std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
@@ -1175,8 +1167,8 @@ void purge_sys_t::stop()
 /** Resume purge in data dictionary tables */
 void purge_sys_t::resume_SYS(void *)
 {
-  ut_d(auto paused=) purge_sys.m_SYS_paused--;
-  ut_ad(paused);
+  ut_d(auto paused=) purge_sys.m_FTS_paused.fetch_sub(PAUSED_SYS);
+  ut_ad(paused >= PAUSED_SYS);
 }
 
 /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
@@ -1346,7 +1338,6 @@ static bool srv_purge_should_exit(size_t old_history_size)
 
 /*********************************************************************//**
 Fetch and execute a task from the work queue.
-@param [in,out]	slot	purge worker thread slot
 @return true if a task was executed */
 static bool srv_task_execute()
 {
@@ -1487,6 +1478,13 @@ static void release_thd(THD *thd, void *ctx)
 	set_current_thd(0);
 }
 
+void srv_purge_worker_task_low()
+{
+  ut_ad(current_thd);
+  while (srv_task_execute())
+    ut_ad(purge_sys.running());
+}
+
 static void purge_worker_callback(void*)
 {
   ut_ad(!current_thd);
@@ -1494,8 +1492,7 @@ static void purge_worker_callback(void*)
   ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
   void *ctx;
   THD *thd= acquire_thd(&ctx);
-  while (srv_task_execute())
-    ut_ad(purge_sys.running());
+  srv_purge_worker_task_low();
   release_thd(thd,ctx);
 }
 
@@ -1581,5 +1578,9 @@ void srv_purge_shutdown()
     }
     purge_sys.coordinator_shutdown();
     srv_shutdown_purge_tasks();
+    if (!srv_fast_shutdown && !high_level_read_only && srv_was_started &&
+        !opt_bootstrap && srv_operation == SRV_OPERATION_NORMAL &&
+        !srv_sys_space.is_shrink_fail())
+      fsp_system_tablespace_truncate(true);
   }
 }

@@ -635,9 +635,7 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
 
       if (seg->type == HA_KEYTYPE_FLOAT)
       {
-	float nr;
-	float4get(nr, pos);
-	if (isnan(nr))
+	if (isnan(get_float(pos)))
 	{
 	  /* Replace NAN with zero */
  	  bzero(key, length);

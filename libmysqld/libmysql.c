@@ -3658,9 +3658,7 @@ static void fetch_result_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
   }
   case MYSQL_TYPE_FLOAT:
   {
-    float value;
-    float4get(value,*row);
-    fetch_float_with_conversion(param, field, value, MY_GCVT_ARG_FLOAT);
+    fetch_float_with_conversion(param, field, get_float(*row), MY_GCVT_ARG_FLOAT);
     *row+= 4;
     break;
   }

@@ -660,7 +660,7 @@ create table `a1\``b1` (a int);
 show tables;
 insert `a1\``b1` values (1),(2);
 show create table `a1\``b1`;
---exec $MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact test
 --exec $MYSQL_DUMP test > $MYSQLTEST_VARDIR/tmp/bug.sql
 insert `a1\``b1` values (4),(5);
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug.sql
@@ -674,8 +674,8 @@ create table "a1\""b1" (a int);
 show tables;
 insert "a1\""b1" values (1),(2);
 show create table "a1\""b1";
---exec $MYSQL_DUMP --compact --compatible=postgres test
---exec $MYSQL_DUMP --compatible=postgres test > $MYSQLTEST_VARDIR/tmp/bug.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --compatible=postgres test
+--exec $MYSQL_DUMP --no-autocommit=0 --compatible=postgres test > $MYSQLTEST_VARDIR/tmp/bug.sql
 insert "a1\""b1" values (4),(5);
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug.sql
 show create table "a1\""b1";
@@ -762,7 +762,7 @@ source $MYSQL_TMP_DIR/mysql_in;" $MYSQL_TMP_DIR/mysql_in2;
 
 create table t1 (a int);
 
---exec $MYSQL_DUMP test t1 > $MYSQLTEST_VARDIR/tmp/MDEV-34203.sql
+--exec $MYSQL_DUMP --no-autocommit test t1 > $MYSQLTEST_VARDIR/tmp/MDEV-34203.sql
 
 drop table t1;
 

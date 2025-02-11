@@ -30,7 +30,7 @@ struct hstcpcli_filter {
 };
 
 struct hstcpcli_i;
-typedef std::auto_ptr<hstcpcli_i> hstcpcli_ptr;
+typedef std::unique_ptr<hstcpcli_i> hstcpcli_ptr;
 
 struct hstcpcli_i {
   virtual ~hstcpcli_i() = default;

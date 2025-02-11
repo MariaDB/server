@@ -2178,38 +2178,43 @@ updated then its state must be set to BUF_PAGE_NOT_USED.
 @retval DB_SUCCESS or error code. */
 dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 {
-	/* If we already had an old page with matching number
-	in the buffer pool, evict it now, because
-	we no longer evict the pages on DISCARD TABLESPACE. */
-	buf_page_get_gen(block->page.id(), get_zip_size(), RW_NO_LATCH,
-			 nullptr, BUF_PEEK_IF_IN_POOL,
-			 nullptr, nullptr, nullptr);
+  /* If we already had an old page with matching number in the buffer
+  pool, evict it now, because we no longer evict the pages on
+  DISCARD TABLESPACE. */
+  if (buf_block_t *b= buf_pool.page_fix(block->page.id(), nullptr,
+                                        buf_pool_t::FIX_ALSO_FREED))
+  {
+    ut_ad(!b->page.oldest_modification());
+    mysql_mutex_lock(&buf_pool.mutex);
+    b->unfix();
 
-	uint16_t page_type;
+    if (!buf_LRU_free_page(&b->page, true))
+      ut_ad(0);
 
-	if (dberr_t err = update_page(block, page_type)) {
-		return err;
-	}
+    mysql_mutex_unlock(&buf_pool.mutex);
+  }
 
-	const bool full_crc32 = fil_space_t::full_crc32(get_space_flags());
-	byte* frame = get_frame(block);
-	memset_aligned<8>(frame + FIL_PAGE_LSN, 0, 8);
+  uint16_t page_type;
 
-	if (!block->page.zip.data) {
-		buf_flush_init_for_writing(
-			NULL, block->page.frame, NULL, full_crc32);
-	} else if (fil_page_type_is_index(page_type)) {
-		buf_flush_init_for_writing(
-			NULL, block->page.zip.data, &block->page.zip,
-			full_crc32);
-	} else {
-		/* Calculate and update the checksum of non-index
-		pages for ROW_FORMAT=COMPRESSED tables. */
-		buf_flush_update_zip_checksum(
-			block->page.zip.data, block->zip_size());
-	}
+  if (dberr_t err= update_page(block, page_type))
+    return err;
 
-	return DB_SUCCESS;
+  const bool full_crc32= fil_space_t::full_crc32(get_space_flags());
+  byte *frame= get_frame(block);
+  memset_aligned<8>(frame + FIL_PAGE_LSN, 0, 8);
+
+  if (!block->page.zip.data)
+    buf_flush_init_for_writing(nullptr, block->page.frame, nullptr,
+                               full_crc32);
+  else if (fil_page_type_is_index(page_type))
+    buf_flush_init_for_writing(nullptr, block->page.zip.data, &block->page.zip,
+                               full_crc32);
+  else
+    /* Calculate and update the checksum of non-index
+    pages for ROW_FORMAT=COMPRESSED tables. */
+    buf_flush_update_zip_checksum(block->page.zip.data, block->zip_size());
+
+  return DB_SUCCESS;
 }
 
 static void reload_fts_table(row_prebuilt_t *prebuilt,
@@ -3219,10 +3224,6 @@ static void add_fts_index(dict_table_t *table)
   for (ulint i= 0; i < clust_index->n_uniq; i++)
     dict_index_add_col(fts_index, table, clust_index->fields[i].col,
                        clust_index->fields[i].prefix_len);
-#ifdef BTR_CUR_HASH_ADAPT
-  fts_index->search_info= btr_search_info_create(fts_index->heap);
-  fts_index->search_info->ref_count= 0;
-#endif /* BTR_CUR_HASH_ADAPT */
   UT_LIST_ADD_LAST(fts_index->table->indexes, fts_index);
 }
 
@@ -3325,7 +3326,6 @@ static dict_table_t *build_fts_hidden_table(
       new_index->fields[old_index->n_fields].fixed_len= sizeof(doc_id_t);
     }
 
-    new_index->search_info= old_index->search_info;
     UT_LIST_ADD_LAST(new_index->table->indexes, new_index);
     old_index= UT_LIST_GET_NEXT(indexes, old_index);
     if (UT_LIST_GET_LEN(new_table->indexes)
@@ -4917,9 +4917,10 @@ import_error:
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
-	table->space = fil_ibd_open(
-		2, FIL_TYPE_IMPORT, table->space_id,
-		dict_tf_to_fsp_flags(table->flags), name, filepath, &err);
+	table->space = fil_ibd_open(table->space_id,
+				    dict_tf_to_fsp_flags(table->flags),
+				    fil_space_t::VALIDATE_IMPORT,
+				    name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
@@ -5008,8 +5009,6 @@ import_error:
 	}
 
 	ib::info() << "Phase IV - Flush complete";
-	/* Set tablespace purpose as FIL_TYPE_TABLESPACE,
-	so that rollback can go ahead smoothly */
 	table->space->set_imported();
 
 	err = lock_sys_tables(trx);

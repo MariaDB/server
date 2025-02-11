@@ -29,7 +29,9 @@ SELECT * FROM t1 FORCE INDEX (PRIMARY);
 --sorted_result
 SELECT * FROM t1 FORCE INDEX (kb);
 
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+--enable_cursor_protocol
 set global rocksdb_debug_ttl_ignore_pk = 1;
 set global rocksdb_compact_cf='default';
 set global rocksdb_debug_ttl_ignore_pk = 0;
@@ -145,7 +147,9 @@ INSERT INTO t1 values (1,2,2);
 INSERT INTO t1 values (1,2,3);
 set global rocksdb_debug_ttl_rec_ts = 0;
 
+--disable_cursor_protocol
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+--enable_cursor_protocol
 
 set global rocksdb_force_flush_memtable_now=1;
 

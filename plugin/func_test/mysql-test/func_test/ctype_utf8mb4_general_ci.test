@@ -1,0 +1,10 @@
+SET NAMES utf8mb4;
+
+--source strnxfrm_sp_create.inc
+
+CREATE TABLE t1 (str TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci);
+CALL populate_t1('simple');
+CALL test_strnxfrm(10,22);
+DROP TABLE t1;
+
+--source strnxfrm_sp_drop.inc

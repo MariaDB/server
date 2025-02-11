@@ -154,7 +154,7 @@ typedef struct st_mi_create_info
   ulonglong auto_increment;
   ulonglong data_file_length;
   ulonglong key_file_length;
-  uint old_options;
+  uint old_options, rec_reflength;
   uint16 language;
   my_bool with_auto_increment;
 } MI_CREATE_INFO;
@@ -374,7 +374,7 @@ typedef struct st_mi_sort_param
   my_bool fix_datafile, master;
   my_bool calc_checksum;                /* calculate table checksum */
 
-  int (*key_cmp)(struct st_mi_sort_param *, const void *, const void *);
+  int (*key_cmp)(void *, const void *, const void *);
   int (*key_read)(struct st_mi_sort_param *,void *);
   int (*key_write)(struct st_mi_sort_param *, const void *);
   void (*lock_in_memory)(HA_CHECK *);

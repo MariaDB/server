@@ -1,5 +1,5 @@
---- suite/storage_engine/foreign_keys.result	2012-07-12 18:56:19.782678645 +0400
-+++ suite/storage_engine/foreign_keys.reject	2012-07-15 16:21:30.414240794 +0400
+--- suite/storage_engine/foreign_keys.result
++++ suite/storage_engine/foreign_keys.reject
 @@ -12,29 +12,57 @@
  t2	CREATE TABLE `t2` (
    `a` int(11) DEFAULT NULL,

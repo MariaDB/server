@@ -3,7 +3,7 @@ connection server_1;
 set @old_enabled= @@global.rpl_semi_sync_master_enabled;
 set @old_timeout= @@global.rpl_semi_sync_master_timeout;
 set global rpl_semi_sync_master_enabled= 1;
-set global rpl_semi_sync_master_timeout= 500;
+set global rpl_semi_sync_master_timeout= 2000;
 connection server_2;
 include/stop_slave.inc
 set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
@@ -14,12 +14,24 @@ include/start_slave.inc
 connection server_3;
 include/stop_slave.inc
 set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set @old_dbug= @@global.debug_dbug;
 set global rpl_semi_sync_slave_enabled= 1;
+set global debug_dbug="+d,simulate_delay_semisync_slave_reply";
 include/start_slave.inc
 # Ensure primary recognizes both replicas are semi-sync
 connection server_1;
-connection server_1;
-create table t1 (a int);
+connection default;
+create table t1 (a int);;
+# Ensure both slaves get the event with the need_ack flag set (i.e. one
+# slave shouldn't be able to receive the event and send an ACK before
+# the dump thread for the other server prepares the event to send).
+connection server_3;
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+connection server_2;
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+connection server_3;
+set debug_sync= "now signal io_thd_do_reply";
+connection default;
 connection server_2;
 # Verifying server_2 did not send ACK
 connection server_3;
@@ -27,15 +39,18 @@ connection server_3;
 connection server_1;
 # Verifying master's semi-sync status is still ON (This failed pre-MDEV-32960 fixes)
 # Verifying rpl_semi_sync_master_yes_tx incremented
+connection server_2;
+set debug_sync= "now signal io_thd_do_reply";
 #
 # Cleanup
 connection server_2;
+include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled= @old_enabled;
 set global debug_dbug= @old_dbug;
-include/stop_slave.inc
 connection server_3;
-set global rpl_semi_sync_slave_enabled= @old_enabled;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled= @old_enabled;
+set global debug_dbug= @old_dbug;
 connection server_1;
 set global rpl_semi_sync_master_enabled= @old_enabled;
 set global rpl_semi_sync_master_timeout= @old_timeout;

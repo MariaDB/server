@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -101,48 +100,52 @@ ulong spider_open_connections_line_no;
 pthread_mutex_t spider_conn_mutex;
 
 /* for spider_open_connections and trx_conn_hash */
-uchar *spider_conn_get_key(
-  SPIDER_CONN *conn,
+const uchar *spider_conn_get_key(
+  const void *conn_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
+  auto conn= static_cast<const SPIDER_CONN *>(conn_);
   DBUG_ENTER("spider_conn_get_key");
   *length = conn->conn_key_length;
 #ifdef DBUG_TRACE
   spider_print_keys(conn->conn_key, conn->conn_key_length);
 #endif
-  DBUG_RETURN((uchar*) conn->conn_key);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(conn->conn_key));
 }
 
-uchar *spider_ipport_conn_get_key(
-   SPIDER_IP_PORT_CONN *ip_port,
+const uchar *spider_ipport_conn_get_key(
+   const void *ip_port_,
    size_t *length,
-   my_bool not_used __attribute__ ((unused))
+   my_bool
 )
 {
+  auto ip_port= static_cast<const SPIDER_IP_PORT_CONN *>(ip_port_);
   DBUG_ENTER("spider_ipport_conn_get_key");
   *length = ip_port->key_len;
-  DBUG_RETURN((uchar*) ip_port->key);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(ip_port->key));
 }
 
-static uchar *spider_loop_check_full_get_key(
-  SPIDER_CONN_LOOP_CHECK *ptr,
+static const uchar *spider_loop_check_full_get_key(
+  const void *ptr_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
+  auto ptr= static_cast<const SPIDER_CONN_LOOP_CHECK *>(ptr_);
   DBUG_ENTER("spider_loop_check_full_get_key");
   *length = ptr->full_name.length;
-  DBUG_RETURN((uchar*) ptr->full_name.str);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(ptr->full_name.str));
 }
 
-static uchar *spider_loop_check_to_get_key(
-  SPIDER_CONN_LOOP_CHECK *ptr,
+static const uchar *spider_loop_check_to_get_key(
+  const void *ptr_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
+  auto ptr= static_cast<const SPIDER_CONN_LOOP_CHECK *>(ptr_);
   DBUG_ENTER("spider_loop_check_to_get_key");
   *length = ptr->to_name.length;
-  DBUG_RETURN((uchar*) ptr->to_name.str);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(ptr->to_name.str));
 }
 
 int spider_conn_init(
@@ -155,24 +158,24 @@ int spider_conn_init(
   {
     goto error_loop_check_mutex_init;
   }
-  if (
-    my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_checked, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_loop_check_full_get_key, 0, 0)
-  ) {
+  if (my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_checked,
+                   spd_charset_utf8mb3_bin, 32, 0, 0,
+                   spider_loop_check_full_get_key, 0, 0))
+  {
     goto error_loop_checked_hash_init;
   }
-  spider_alloc_calc_mem_init(conn->loop_checked, 268);
+  spider_alloc_calc_mem_init(conn->loop_checked, SPD_MID_CONN_INIT_1);
   spider_alloc_calc_mem(spider_current_trx,
     conn->loop_checked,
     conn->loop_checked.array.max_element *
     conn->loop_checked.array.size_of_element);
-  if (
-    my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_check_queue, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_loop_check_to_get_key, 0, 0)
-  ) {
+  if (my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_check_queue,
+                   spd_charset_utf8mb3_bin, 32, 0, 0,
+                   spider_loop_check_to_get_key, 0, 0))
+  {
     goto error_loop_check_queue_hash_init;
   }
-  spider_alloc_calc_mem_init(conn->loop_check_queue, 269);
+  spider_alloc_calc_mem_init(conn->loop_check_queue, SPD_MID_CONN_INIT_2);
   spider_alloc_calc_mem(spider_current_trx,
     conn->loop_check_queue,
     conn->loop_check_queue.array.max_element *
@@ -271,7 +274,6 @@ int spider_free_conn_alloc(
     conn->db_conn = NULL;
   }
   spider_conn_done(conn);
-  DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
   pthread_mutex_destroy(&conn->mta_conn_mutex);
   conn->default_database.free();
   DBUG_RETURN(0);
@@ -402,7 +404,7 @@ SPIDER_CONN *spider_create_conn(
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
   char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
-  char *tmp_dsn, *tmp_filedsn, *tmp_driver;
+  char *tmp_dsn, *tmp_filedsn, *tmp_driver, *tmp_odbc_conn_str;
   DBUG_ENTER("spider_create_conn");
 
   if (unlikely(!UTC))
@@ -454,6 +456,8 @@ SPIDER_CONN *spider_create_conn(
           (uint) (share->tgt_filedsns_lengths[link_idx] + 1),
         &tmp_driver,
           (uint) (share->tgt_drivers_lengths[link_idx] + 1),
+        &tmp_odbc_conn_str,
+          (uint) (share->tgt_odbc_conn_strs_lengths[link_idx] + 1),
         &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
@@ -529,6 +533,10 @@ SPIDER_CONN *spider_create_conn(
     spider_memcpy_or_null(&conn->tgt_driver, tmp_driver, share->tgt_drivers[link_idx],
                           &conn->tgt_driver_length,
                           share->tgt_drivers_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_odbc_conn_str, tmp_odbc_conn_str,
+                          share->tgt_odbc_conn_strs[link_idx],
+                          &conn->tgt_odbc_conn_str_length,
+                          share->tgt_odbc_conn_strs_lengths[link_idx]);
     conn->tgt_port = share->tgt_ports[link_idx];
     conn->tgt_ssl_vsc = share->tgt_ssl_vscs[link_idx];
     conn->dbton_id = share->sql_dbton_ids[link_idx];
@@ -1110,7 +1118,7 @@ int spider_conn_queue_and_merge_loop_check(
   } else {
     /* Merge lcptr and lcqptr into a newly created lcrptr. */
     DBUG_PRINT("info", ("spider append merged_value and replace"));
-    if (unlikely(!spider_bulk_malloc(spider_current_trx, 271, MYF(MY_WME),
+    if (unlikely(!spider_bulk_malloc(spider_current_trx, SPD_MID_CONN_QUEUE_AND_MERGE_LOOP_CHECK_1, MYF(MY_WME),
       &lcrptr, (uint) (sizeof(SPIDER_CONN_LOOP_CHECK)),
       &cur_name, (uint) (lcqptr->cur_name.length + 1),
       &to_name, (uint) (lcqptr->to_name.length + 1),
@@ -1365,7 +1373,7 @@ int spider_conn_queue_loop_check(
       spider_free(spider_current_trx, lcptr, MYF(0));
     }
     DBUG_PRINT("info", ("spider alloc_lcptr"));
-    if (unlikely(!spider_bulk_malloc(spider_current_trx, 272, MYF(MY_WME),
+    if (unlikely(!spider_bulk_malloc(spider_current_trx, SPD_MID_CONN_QUEUE_LOOP_CHECK_1, MYF(MY_WME),
       &lcptr, (uint) (sizeof(SPIDER_CONN_LOOP_CHECK)),
       &cur_name, (uint) (top_share->path.length + 1),
       &to_name, (uint) (to_str.length + 1),
@@ -1463,10 +1471,6 @@ void spider_conn_clear_queue(
 ) {
   DBUG_ENTER("spider_conn_clear_queue");
   DBUG_PRINT("info", ("spider conn=%p", conn));
-/*
-  conn->queued_connect = FALSE;
-  conn->queued_ping = FALSE;
-*/
   conn->queued_trx_isolation = FALSE;
   conn->queued_semi_trx_isolation = FALSE;
   conn->queued_autocommit = FALSE;
@@ -2530,7 +2534,6 @@ void *spider_bg_conn_action(
       ) {
         ulong sql_type;
         sql_type= SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_TMP_SQL;
-        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if (spider->use_fields)
         {
           if ((error_num = dbton_handler->set_sql_for_exec(sql_type,
@@ -2549,17 +2552,12 @@ void *spider_bg_conn_action(
               strmov(result_list->bgs_error_msg, spider_stmt_da_message(thd));
           }
         }
-        pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+        /* todo: is it ok if the following statement is not locked? */
         sql_type &= ~SPIDER_SQL_TYPE_TMP_SQL;
         DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
         if (!result_list->bgs_error)
         {
-          conn->need_mon = &spider->need_mons[conn->link_idx];
-          DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = TRUE;
-          conn->mta_conn_mutex_unlock_later = TRUE;
+          spider_lock_before_query(conn, &spider->need_mons[conn->link_idx]);
             if (!(result_list->bgs_error =
               spider_db_set_names(spider, conn, conn->link_idx)))
             {
@@ -2628,15 +2626,7 @@ void *spider_bg_conn_action(
                 strmov(result_list->bgs_error_msg,
                   spider_stmt_da_message(thd));
             }
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        } else {
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
+            spider_unlock_after_query(conn, 0);
         }
       } else {
         spider->connection_ids[conn->link_idx] = conn->connection_id;
@@ -2711,26 +2701,14 @@ void *spider_bg_conn_action(
     {
       DBUG_PRINT("info",("spider bg exec sql start"));
       spider = (ha_spider*) conn->bg_target;
-      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-      pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      conn->need_mon = &spider->need_mons[conn->link_idx];
-      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = TRUE;
-      conn->mta_conn_mutex_unlock_later = TRUE;
+      spider_lock_before_query(conn, &spider->need_mons[conn->link_idx]);
       *conn->bg_error_num = spider_db_query_with_set_names(
         conn->bg_sql_type,
         spider,
         conn,
         conn->link_idx
       );
-      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = FALSE;
-      conn->mta_conn_mutex_unlock_later = FALSE;
-      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      pthread_mutex_unlock(&conn->mta_conn_mutex);
+      spider_unlock_after_query(conn, 0);
       conn->bg_exec_sql = FALSE;
       continue;
     }
@@ -3279,32 +3257,6 @@ void *spider_bg_crd_action(
                           share->conn_keys[spider.search_link_idx], trx,
                           &spider, FALSE, FALSE, &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-/*
-          if (
-            error_num &&
-            share->monitoring_kind[spider.search_link_idx] &&
-            need_mons[spider.search_link_idx]
-          ) {
-            lex_start(thd);
-            error_num = spider_ping_table_mon_from_table(
-                trx,
-                thd,
-                share,
-                spider.search_link_idx,
-                (uint32) share->monitoring_sid[spider.search_link_idx],
-                share->table_name,
-                share->table_name_length,
-                spider.conn_link_idx[spider.search_link_idx],
-                NULL,
-                0,
-                share->monitoring_kind[spider.search_link_idx],
-                share->monitoring_limit[spider.search_link_idx],
-                share->monitoring_flag[spider.search_link_idx],
-                TRUE
-              );
-            lex_end(thd->lex);
-          }
-*/
           spider.search_link_idx = -1;
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
@@ -3315,31 +3267,6 @@ void *spider_bg_crd_action(
             share->bg_crd_sync,
             2))
           {
-/*
-            if (
-              share->monitoring_kind[spider.search_link_idx] &&
-              need_mons[spider.search_link_idx]
-            ) {
-              lex_start(thd);
-              error_num = spider_ping_table_mon_from_table(
-                  trx,
-                  thd,
-                  share,
-                  spider.search_link_idx,
-                  (uint32) share->monitoring_sid[spider.search_link_idx],
-                  share->table_name,
-                  share->table_name_length,
-                  spider.conn_link_idx[spider.search_link_idx],
-                  NULL,
-                  0,
-                  share->monitoring_kind[spider.search_link_idx],
-                  share->monitoring_limit[spider.search_link_idx],
-                  share->monitoring_flag[spider.search_link_idx],
-                  TRUE
-                );
-              lex_end(thd->lex);
-            }
-*/
             spider.search_link_idx = -1;
           }
         }
@@ -3644,17 +3571,11 @@ void *spider_bg_mon_action(
         share->monitoring_bg_interval[link_idx] * 1000);
       pthread_cond_timedwait(&share->bg_mon_sleep_conds[link_idx],
         &share->bg_mon_mutexes[link_idx], &abstime);
-/*
-      my_sleep((ulong) share->monitoring_bg_interval[link_idx]);
-*/
     }
     DBUG_PRINT("info",("spider bg mon roop start"));
     if (share->bg_mon_kill)
     {
       DBUG_PRINT("info",("spider bg mon kill start"));
-/*
-      pthread_mutex_lock(&share->bg_mon_mutexes[link_idx]);
-*/
       pthread_cond_signal(&share->bg_mon_conds[link_idx]);
       pthread_mutex_unlock(&share->bg_mon_mutexes[link_idx]);
       spider_free_trx(trx, TRUE);
@@ -3718,7 +3639,7 @@ int spider_conn_first_link_idx(
   int eligible_link_idx, eligible_links = 0;
   longlong balance_total = 0, balance_threshold;
   double rand_val;
-  int *link_idxs, result;
+  int *link_idxs, result= -1;
   DBUG_ENTER("spider_conn_first_link_idx");
   char *ptr;
   /* Allocate memory for link_idxs */
@@ -4053,4 +3974,43 @@ void spider_free_ipport_conn(void *info)
     spider_my_free(p, MYF(0));
   }
   DBUG_VOID_RETURN;
+}
+
+void spider_lock_before_query(SPIDER_CONN *conn, int *need_mon)
+{
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
+}
+
+int spider_unlock_after_query(SPIDER_CONN *conn, int ret)
+{
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
+  pthread_mutex_unlock(&conn->mta_conn_mutex);
+  return ret;
+}
+
+int spider_unlock_after_query_1(SPIDER_CONN *conn)
+{
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
+  return spider_db_errorno(conn);
+}
+
+int spider_unlock_after_query_2(SPIDER_CONN *conn, ha_spider *spider, int link_idx, TABLE *table)
+{
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
+  return spider_db_store_result(spider, link_idx, table);
 }

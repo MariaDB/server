@@ -26,18 +26,6 @@ Created 10/4/1994 Heikki Tuuri
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
-Gets pointer to the page frame where the cursor is positioned.
-@return page */
-UNIV_INLINE
-page_t*
-page_cur_get_page(
-/*==============*/
-	page_cur_t*	cur)	/*!< in: page cursor */
-{
-  return page_align(page_cur_get_rec(cur));
-}
-
-/*********************************************************//**
 Gets pointer to the buffer block where the cursor is positioned.
 @return page */
 UNIV_INLINE

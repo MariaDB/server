@@ -31,6 +31,7 @@ SET GLOBAL wsrep_cluster_address = '';
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_sync_wait = default;
 connection node_1;
+SET innodb_snapshot_isolation=OFF;
 INSERT INTO t1 VALUES (6);
 INSERT INTO t1 VALUES (7);
 INSERT INTO t1 VALUES (8);
