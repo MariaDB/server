@@ -2889,7 +2889,15 @@ loop:
 
 	if (block) {
 		transactional_shared_lock_guard<page_hash_latch> g{hash_lock};
-		if (page_id == block->page.id()) {
+		const page_id_t block_id{block->page.id()};
+		/* We may be accessing an uninitialized block here if the
+		buffer pool has been extended and shrunk in the past. These
+		blocks should never carry a valid page ID and even less so
+		a valid block->page.state(). Typically they would be filled
+		with zeroes. Let us suppress any MemorySantitizer warning
+		regarding comparing an uninitialized block_id. */
+		MEM_MAKE_DEFINED(&block_id, sizeof block_id);
+		if (page_id == block_id) {
 			state = block->page.state();
 			/* Ignore guesses that point to read-fixed blocks.
 			We can only avoid a race condition by
