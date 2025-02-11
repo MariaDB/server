@@ -285,7 +285,8 @@ static void buf_LRU_check_size_of_non_data_objects() noexcept
 #endif /* BTR_CUR_HASH_ADAPT */
                     "! Check that your transactions do not set too many"
                     " row locks, or review if innodb_buffer_pool_size=%zuM"
-                    " could be bigger", curr_size >> 20);
+                    " could be bigger",
+                    curr_size >> (20 - srv_page_size_shift));
     abort();
   }
 
@@ -303,7 +304,7 @@ static void buf_LRU_check_size_of_non_data_objects() noexcept
                         "! Check that your transactions do not set too many"
                         " row locks. innodb_buffer_pool_size=%zuM."
                         " Starting the InnoDB Monitor to print diagnostics.",
-                        curr_size >> 20);
+                        curr_size >> (20 - srv_page_size_shift));
 
       buf_lru_switched_on_innodb_mon= true;
       srv_print_innodb_monitor= TRUE;
