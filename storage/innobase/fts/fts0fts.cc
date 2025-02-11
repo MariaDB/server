@@ -1871,7 +1871,8 @@ fts_create_one_common_table(
 		}
 	}
 
-	ut_ad(trx->state == TRX_STATE_NOT_STARTED);
+	ut_ad(trx->state == TRX_STATE_NOT_STARTED
+	      || trx->error_state == error);
 	sql_print_warning("InnoDB: Failed to create FTS common table %s: %s",
 			  fts_table_name, ut_strerr(error));
 	return NULL;
@@ -2057,7 +2058,8 @@ fts_create_one_index_table(
 		}
 	}
 
-	ut_ad(trx->state == TRX_STATE_NOT_STARTED);
+	ut_ad(trx->state == TRX_STATE_NOT_STARTED
+	      || trx->error_state == error);
 	sql_print_warning("InnoDB: Failed to create FTS index table %s: %s",
 			  table_name, ut_strerr(error));
 	return NULL;
