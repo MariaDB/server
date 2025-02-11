@@ -163,4 +163,3 @@ if (`SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsre
 }
 
 --enable_query_log
-
