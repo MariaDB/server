@@ -2204,11 +2204,11 @@ rpl_binlog_state::append_state(String *str)
 /**
   Remove domains supplied by the first argument from binlog state.
   Removal is done for any domain whose last gtids (from all its servers) match
-  ones in Gtid list event of the 2nd argument.
+  ones in the binlog state at the start of the current binlog, passed in as the
+  2nd argument.
 
   @param  ids               gtid domain id sequence, may contain dups
-  @param  glev              pointer to Gtid list event describing
-                            the match condition
+  @param  init_state        Binlog state at the start of the current binlog
   @param  errbuf [out]      pointer to possible error message array
 
   @retval NULL              as success when at least one domain is removed
@@ -2218,12 +2218,12 @@ rpl_binlog_state::append_state(String *str)
 */
 const char*
 rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
-                              Gtid_list_log_event *glev,
+                              rpl_binlog_state_base *init_state,
                               char* errbuf)
 {
   DYNAMIC_ARRAY domain_unique; // sequece (unsorted) of unique element*:s
   rpl_binlog_state::element* domain_unique_buffer[16];
-  ulong k, l;
+  ulong k;
   const char* errmsg= NULL;
 
   DBUG_ENTER("rpl_binlog_state::drop_domain");
@@ -2250,45 +2250,46 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
     B and C may require the user's attention so any (incl the A's suspected)
     inconsistency is diagnosed and *warned*.
   */
-  for (l= 0, errbuf[0]= 0; l < glev->count; l++, errbuf[0]= 0)
-  {
-    rpl_gtid* rb_state_gtid= find_nolock(glev->list[l].domain_id,
-                                         glev->list[l].server_id);
+
+  errbuf[0]= 0;
+  init_state->iterate([this, errbuf](const rpl_gtid *gtid) {
+    rpl_gtid* rb_state_gtid= find_nolock(gtid->domain_id, gtid->server_id);
     if (!rb_state_gtid)
       sprintf(errbuf,
               "missing gtids from the '%u-%u' domain-server pair which is "
               "referred to in the gtid list describing an earlier state. Ignore "
               "if the domain ('%u') was already explicitly deleted",
-              glev->list[l].domain_id, glev->list[l].server_id,
-              glev->list[l].domain_id);
-    else if (rb_state_gtid->seq_no < glev->list[l].seq_no)
+              gtid->domain_id, gtid->server_id,
+              gtid->domain_id);
+    else if (rb_state_gtid->seq_no < gtid->seq_no)
       sprintf(errbuf,
               "having a gtid '%u-%u-%llu' which is less than "
               "the '%u-%u-%llu' of the gtid list describing an earlier state. "
               "The state may have been affected by manually injecting "
               "a lower sequence number gtid or via replication",
               rb_state_gtid->domain_id, rb_state_gtid->server_id,
-              rb_state_gtid->seq_no, glev->list[l].domain_id,
-              glev->list[l].server_id, glev->list[l].seq_no);
+              rb_state_gtid->seq_no, gtid->domain_id,
+              gtid->server_id, gtid->seq_no);
     if (strlen(errbuf)) // use strlen() as cheap flag
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BINLOG_CANT_DELETE_GTID_DOMAIN,
                           "The current gtid binlog state is incompatible with "
                           "a former one %s.", errbuf);
-  }
+    errbuf[0]= 0;
+    return false;    // No error
+  });
 
   /*
     For each domain_id from ids
       If the domain is already absent from the binlog state
         Warn && continue
-      If any GTID with that domain in binlog state is missing from glev.list
+      If any GTID with that domain in binlog state is missing from init_state
         Error out binlog state can't change
   */
   for (ulong i= 0; i < ids->elements; i++)
   {
     rpl_binlog_state::element *elem= NULL;
     uint32 *ptr_domain_id;
-    bool all_found;
 
     ptr_domain_id= (uint32*) dynamic_array_ptr(ids, i);
     elem= (rpl_binlog_state::element *)
@@ -2303,25 +2304,21 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
       continue;
     }
 
-    all_found= true;
-    for (k= 0; k < elem->hash.records && all_found; k++)
+    for (k= 0; k < elem->hash.records; k++)
     {
       rpl_gtid *d_gtid= (rpl_gtid *)my_hash_element(&elem->hash, k);
-      bool match_found= false;
-      for (ulong l= 0; l < glev->count && !match_found; l++)
-        match_found= match_found || (*d_gtid == glev->list[l]);
-      if (!match_found)
-        all_found= false;
+      rpl_gtid *state_gtid=
+        init_state->find_nolock(d_gtid->domain_id, d_gtid->server_id);
+      if (!state_gtid || state_gtid->seq_no != d_gtid->seq_no)
+      {
+        sprintf(errbuf, "binlog files may contain gtids from the domain ('%u') "
+                "being deleted. Make sure to first purge those files",
+                *ptr_domain_id);
+        errmsg= errbuf;
+        goto end;
+      }
     }
 
-    if (!all_found)
-    {
-      sprintf(errbuf, "binlog files may contain gtids from the domain ('%u') "
-              "being deleted. Make sure to first purge those files",
-              *ptr_domain_id);
-      errmsg= errbuf;
-      goto end;
-    }
     // compose a sequence of unique pointers to domain object
     for (k= 0; k < domain_unique.elements; k++)
     {
