@@ -6,6 +6,7 @@
 --echo #
 
 --disable_query_log
+call mtr.add_suppression("InnoDB: Over 67 percent of the buffer pool is occupied by lock heaps");
 call mtr.add_suppression("innodb_buffer_pool_size change aborted");
 set @old_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
 set @old_innodb_adaptive_hash_index = @@innodb_adaptive_hash_index;

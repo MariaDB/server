@@ -2074,6 +2074,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
     if (LRU_warned && !UT_LIST_GET_FIRST(free))
     {
+      LRU_warned_clear();
       mysql_mutex_unlock(&flush_list_mutex);
       goto withdraw_abort;
     }
