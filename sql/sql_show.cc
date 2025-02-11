@@ -9226,18 +9226,12 @@ static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (uint i=0; !field_info->end_marker(); field_info++, i++)
   {
     if (all_slaves ||
-        // not SLAVE_STATUS_COL_CONNECTION_NAME,
-        // SLAVE_STATUS_COL_SLAVE_SQL_STATE
-        // and less
-        // SLAVE_STATUS_COL_RETRIED_TRANSACTIONS
-        !(i <= SLAVE_STATUS_COL_SLAVE_SQL_STATE ||
-          i >= SLAVE_STATUS_COL_RETRIED_TRANSACTIONS))
+        (i > SLAVE_STATUS_COL_SLAVE_SQL_STATE &&
+         i < SLAVE_STATUS_COL_RETRIED_TRANSACTIONS))
     {
       LEX_CSTRING field_name= field_info->name();
       Item_field *field= new (thd->mem_root)
         Item_field(thd, context, field_name);
-      DBUG_ASSERT(all_slaves || (i > SLAVE_STATUS_COL_SLAVE_SQL_STATE &&
-                                 i < SLAVE_STATUS_COL_RETRIED_TRANSACTIONS));
       if (!field || add_item_to_list(thd, field))
         return 1;
     }
