@@ -1572,6 +1572,14 @@ struct handlerton
     Used to implement FLUSH BINARY LOGS.
   */
   bool (*binlog_flush)();
+  /*
+    Read the binlog state at the start of the very first (not purged) binlog
+    file, and return it in *out_state. This is used to check validity of
+    FLUSH BINARY LOGS DELETE_DOMAIN_ID=(<list>).
+
+    Returns true on error, false on ok.
+  */
+  bool (*binlog_get_init_state)(rpl_binlog_state_base *out_state);
   /* Engine implementation of RESET MASTER. */
   bool (*reset_binlogs)();
   /*
