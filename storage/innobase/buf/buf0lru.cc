@@ -38,6 +38,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0mon.h"
 #include "my_cpu.h"
+#include "log.h"
 
 /** The number of blocks from the LRU_old pointer onward, including
 the block pointed to, must be buf_pool.LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV
@@ -264,27 +265,29 @@ Checks how much of buf_pool is occupied by non-data objects like
 AHI, lock heaps etc. Depending on the size of non-data objects this
 function will either assert or issue a warning and switch on the
 status monitor. */
-static void buf_LRU_check_size_of_non_data_objects()
+static void buf_LRU_check_size_of_non_data_objects() noexcept
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
 
   if (recv_recovery_is_on())
     return;
 
-  const size_t curr_size{buf_pool.curr_size()};
+  const size_t curr_size{buf_pool.usable_size()};
 
   auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
 
   if (s < curr_size / 20)
-    ib::fatal()
-      << "Over 95 percent of the buffer pool is"
-      " occupied by lock heaps"
+  {
+    sql_print_error("[FATAL] InnoDB: Over 95 percent of the buffer pool is"
+                    " occupied by lock heaps"
 #ifdef BTR_CUR_HASH_ADAPT
-      " or the adaptive hash index"
+                    " or the adaptive hash index"
 #endif /* BTR_CUR_HASH_ADAPT */
-      "! Check that your transactions do not set too many"
-      " row locks, or review if innodb_buffer_pool_size="
-      << (buf_pool.curr_pool_size() >> 20) << "M could be bigger.";
+                    "! Check that your transactions do not set too many"
+                    " row locks, or review if innodb_buffer_pool_size=%zuM"
+                    " could be bigger", curr_size >> 20);
+    abort();
+  }
 
   if (s < curr_size / 3)
   {
@@ -292,16 +295,16 @@ static void buf_LRU_check_size_of_non_data_objects()
     {
       /* Over 67 % of the buffer pool is occupied by lock heaps or
       the adaptive hash index. This may be a memory leak! */
-      ib::warn()
-        << "Over 67 percent of the buffer pool is"
-        " occupied by lock heaps"
+      sql_print_warning("InnoDB: Over 67 percent of the buffer pool is"
+                        " occupied by lock heaps"
 #ifdef BTR_CUR_HASH_ADAPT
-        " or the adaptive hash index"
+                        " or the adaptive hash index"
 #endif /* BTR_CUR_HASH_ADAPT */
-        "! Check that your transactions do not set too many row locks."
-        " innodb_buffer_pool_size="
-        << (buf_pool.curr_pool_size() >> 20)
-        << "M. Starting the InnoDB Monitor to print diagnostics.";
+                        "! Check that your transactions do not set too many"
+                        " row locks. innodb_buffer_pool_size=%zuM."
+                        " Starting the InnoDB Monitor to print diagnostics.",
+                        curr_size >> 20);
+
       buf_lru_switched_on_innodb_mon= true;
       srv_print_innodb_monitor= TRUE;
       srv_monitor_timer_schedule_now();

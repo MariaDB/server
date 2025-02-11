@@ -1212,7 +1212,7 @@ public:
   TPOOL_SUPPRESS_TSAN size_t curr_size() const noexcept { return n_blocks; }
   /** @return the maximum usable size of the buffer pool, in pages */
   TPOOL_SUPPRESS_TSAN size_t usable_size() const noexcept
-  { return n_blocks - n_blocks_to_withdraw; }
+  { return n_blocks - n_blocks_to_withdraw - UT_LIST_GET_LEN(withdrawn); }
 
   /** Determine the used size of the buffer pool in bytes.
   @param n_blocks   size of the buffer pool in blocks
