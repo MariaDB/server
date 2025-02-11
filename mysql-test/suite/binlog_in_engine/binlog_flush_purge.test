@@ -133,13 +133,17 @@ while ($i < $num_insert) {
 }
 COMMIT;
 --enable_query_log
+# We need to wait for 25 to be pre-allocated here, so we know that 23 has been
+# fully written to disk. Otherwise 23 may still be in the buffer pool, and the
+# file date can be older than @now and then the PURGE ... BEFORE @now below
+# fails.
+--let $binlog_name= binlog-000025.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
 PURGE BINARY LOGS BEFORE @now;
 --let $binlog_name= binlog-000022.ibb
 --let $binlog_size= 262144
 --let $wait_notfound= 1
---source include/wait_for_engine_binlog.inc
---let $binlog_name= binlog-000025.ibb
---let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 SHOW BINARY LOGS;
 
@@ -160,7 +164,6 @@ while ($i < $num_insert) {
 }
 COMMIT;
 --enable_query_log
---source include/wait_for_engine_binlog.inc
 --let $binlog_name= binlog-000029.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
@@ -185,5 +188,41 @@ SET SESSION binlog_format= MIXED;
 DROP TABLE t1;
 
 SET GLOBAL max_binlog_total_size= @old_max_total;
-SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
 SET GLOBAL binlog_expire_logs_seconds= @old_expire;
+
+
+--echo *** Test FLUSH BINARY LOGS DELETE_DOMAIN_ID.
+
+SET SESSION gtid_domain_id= 1;
+SET SESSION gtid_seq_no= 1000;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 2), (3, 0), (4, 5), (5, 0), (6, 3), (7, 4), (8, 8);
+SET SESSION gtid_domain_id= 2;
+SET SESSION gtid_seq_no= 100;
+ALTER TABLE t1 ADD INDEX b_idx(b);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (10, 0), (11, 0), (12, 0);
+SELECT @@GLOBAL.gtid_binlog_state;
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
+SELECT @@GLOBAL.gtid_binlog_state;
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000031.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+PURGE BINARY LOGS TO 'binlog-000030.ibb';
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
+SELECT @@GLOBAL.gtid_binlog_state;
+
+# Test that deletion of domains in the state got persisted to disk.
+--let $binlog_name= binlog-000032.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+--source include/restart_mysqld.inc
+SELECT @@GLOBAL.gtid_binlog_state;
+
+DROP TABLE t1;
+
+# No need to restore @@GLOBAL.slave_connections_needed_for_purge, as we
+# restarted the server.

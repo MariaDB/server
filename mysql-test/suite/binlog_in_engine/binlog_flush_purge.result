@@ -128,5 +128,34 @@ binlog-000029.ibb	262144
 SET SESSION binlog_format= MIXED;
 DROP TABLE t1;
 SET GLOBAL max_binlog_total_size= @old_max_total;
-SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
 SET GLOBAL binlog_expire_logs_seconds= @old_expire;
+*** Test FLUSH BINARY LOGS DELETE_DOMAIN_ID.
+SET SESSION gtid_domain_id= 1;
+SET SESSION gtid_seq_no= 1000;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 2), (3, 0), (4, 5), (5, 0), (6, 3), (7, 4), (8, 8);
+SET SESSION gtid_domain_id= 2;
+SET SESSION gtid_seq_no= 100;
+ALTER TABLE t1 ADD INDEX b_idx(b);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (10, 0), (11, 0), (12, 0);
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2508,1-1-1003,2-1-100
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
+ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtids from the domain ('2') being deleted. Make sure to first purge those files.
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2508,1-1-1003,2-1-100
+FLUSH BINARY LOGS;
+PURGE BINARY LOGS TO 'binlog-000030.ibb';
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2508,1-1-1003
+# restart
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2508,1-1-1003
+DROP TABLE t1;
