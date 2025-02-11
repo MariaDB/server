@@ -1308,14 +1308,15 @@ void end_slave()
   DBUG_VOID_RETURN;
 }
 
+/** @return whether the replica's Master_info is marked as killed */
 static bool io_slave_killed(Master_info* mi)
 {
   DBUG_ENTER("io_slave_killed");
-
   DBUG_ASSERT(mi->slave_running); // tracking buffer overrun
-  if (mi->abort_slave || mi->io_thd->killed)
+  bool is_io_slave_killed= mi->abort_slave || mi->io_thd->killed;
+  if (is_io_slave_killed)
     DBUG_PRINT("info", ("killed"));
-  DBUG_RETURN(mi->abort_slave || mi->io_thd->killed);
+  DBUG_RETURN(is_io_slave_killed);
 }
 
 /**
@@ -2600,10 +2601,6 @@ err:
   DBUG_RETURN(0);
 
 network_err:
-  if (master_res)
-    mysql_free_result(master_res);
-  DBUG_RETURN(2);
-
 slave_killed_err:
   if (master_res)
     mysql_free_result(master_res);
@@ -4377,15 +4374,13 @@ on this slave.\
 }
 
 
+/** Return io_slave_killed(); if it's `true`, also log the given `info`. */
 static bool check_io_slave_killed(Master_info *mi, const char *info)
 {
-  if (io_slave_killed(mi))
-  {
-    if (info && global_system_variables.log_warnings)
-      sql_print_information("%s", info);
-    return TRUE;
-  }
-  return FALSE;
+  bool is_io_slave_killed= io_slave_killed(mi);
+  if (is_io_slave_killed && info && global_system_variables.log_warnings)
+    sql_print_information("%s", info);
+  return is_io_slave_killed;
 }
 
 /**
@@ -4430,11 +4425,10 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
     {
       tmp.append(STRING_WITH_LEN("; GTID position '"));
       mi->gtid_current_pos.append_to_string(&tmp);
-      if (mi->events_queued_since_last_gtid == 0)
-        tmp.append(STRING_WITH_LEN("'"));
-      else
+      tmp.append('\'');
+      if (mi->events_queued_since_last_gtid)
       {
-        tmp.append(STRING_WITH_LEN("', GTID event skip "));
+        tmp.append(STRING_WITH_LEN(", GTID event skip "));
         tmp.append_ulonglong((ulonglong)mi->events_queued_since_last_gtid);
       }
     }
@@ -4678,7 +4672,7 @@ connected:
 
   DBUG_PRINT("info",("Starting reading binary log from master"));
   thd->set_command(COM_SLAVE_IO);
-  while (!io_slave_killed(mi))
+  if (!io_slave_killed(mi))
   {
     const uchar *event_buf;
 
@@ -6931,20 +6925,21 @@ static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi)
 }
 
 
-/*
-  SYNPOSIS
-    connect_to_master()
-
-  IMPLEMENTATION
-    Try to connect until successful or slave killed or we have retried
-    mi->retry_count times
+/**
+  @brief Re/connect to the primary
+  @details
+    After preparations and config validations,
+    this repeatedly calls the low-level connection function (and logs statuses)
+    up to mi->retry_count times until success or when the replica's killed.
+  @param reconnect
+    whether this connection is a new first-time or reconnects an existing one
+  @return errno: 1 if error or 0 if successful
 */
-
 static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                              bool reconnect, bool suppress_warnings)
 {
   int slave_was_killed;
-  int last_errno= -2;                           // impossible error
+  unsigned int last_errno= 0; // initialize with not-error
   mi->connects_tried= 0; // reset retry counter
   my_bool my_true= 1;
   DBUG_ENTER("connect_to_master");
@@ -7005,13 +7000,13 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                "terminated.");
     DBUG_RETURN(1);
   }
-  while (!(slave_was_killed = io_slave_killed(mi)) &&
-         (reconnect ? mysql_reconnect(mysql) != 0 :
-          mysql_real_connect(mysql, mi->host, mi->user, mi->password, 0,
-                             mi->port, 0, client_flag) == 0))
+  while (!(slave_was_killed= io_slave_killed(mi)) &&
+         (reconnect ? mysql_reconnect(mysql) :
+          !mysql_real_connect(mysql, mi->host, mi->user, mi->password, 0,
+                              mi->port, 0, client_flag)))
   {
     /* Don't repeat last error */
-    if ((int)mysql_errno(mysql) != last_errno && !io_slave_killed(mi))
+    if (mysql_errno(mysql) != last_errno)
     {
       last_errno=mysql_errno(mysql);
       suppress_warnings= 0;

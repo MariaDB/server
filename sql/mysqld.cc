@@ -778,9 +778,9 @@ mysql_cond_t COND_server_started;
 int mysqld_server_started=0, mysqld_server_initialized= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
 
-/* replication parameters, if master_host is not NULL, we are a slave */
+/* replication parameters */
 uint report_port= 0;
-ulong master_retry_count=0;
+ulong master_retry_count=100000;
 char *master_info_file;
 char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
@@ -6817,7 +6817,7 @@ struct my_option my_long_options[]=
   {"master-retry-count", 0,
    "The number of tries the slave will make to connect to the master before giving up",
    &master_retry_count, &master_retry_count, 0, GET_ULONG,
-   REQUIRED_ARG, 100000, 0, 0, 0, 0, 0},
+   REQUIRED_ARG, static_cast<longlong>(master_retry_count), 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
   {"init-rpl-role", 0, "Set the replication role",
    &rpl_status, &rpl_status, &rpl_role_typelib,
