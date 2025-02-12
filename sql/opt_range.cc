@@ -16567,7 +16567,6 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
   ha_rkey_function find_flag;
   key_part_map keypart_map;
   QUICK_RANGE *cur_range;
-  bool found_null= FALSE;
   int result= HA_ERR_KEY_NOT_FOUND;
 
   DBUG_ASSERT(min_max_ranges.elements > 0);
@@ -16596,7 +16595,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
       memcpy(group_prefix + real_prefix_len, cur_range->min_key,
              cur_range->min_length);
       keypart_map= make_keypart_map(real_key_parts);
-      find_flag= (cur_range->flag & (EQ_RANGE | NULL_RANGE)) ?
+      find_flag= (cur_range->flag & (EQ_RANGE)) ?
                  HA_READ_KEY_EXACT : (cur_range->flag & NEAR_MIN) ?
                  HA_READ_AFTER_KEY : HA_READ_KEY_OR_NEXT;
     }
@@ -16606,7 +16605,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
     if (result)
     {
       if ((result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE) &&
-          (cur_range->flag & (EQ_RANGE | NULL_RANGE)))
+          (cur_range->flag & (EQ_RANGE)))
         continue; /* Check the next range. */
 
       /*
@@ -16620,17 +16619,6 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
     /* A key was found. */
     if (cur_range->flag & EQ_RANGE)
       break; /* No need to perform the checks below for equal keys. */
-
-    if (cur_range->flag & NULL_RANGE)
-    {
-      /*
-        Remember this key, and continue looking for a non-NULL key that
-        satisfies some other condition.
-      */
-      memcpy(tmp_record, record, head->s->rec_buff_length);
-      found_null= TRUE;
-      continue;
-    }
 
     /* Check if record belongs to the current group. */
     if (key_cmp(index_info->key_part, group_prefix, real_prefix_len))
@@ -16659,16 +16647,6 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
     /* If we got to this point, the current key qualifies as MIN. */
     DBUG_ASSERT(result == 0);
     break;
-  }
-  /*
-    If there was a key with NULL in the MIN/MAX field, and there was no other
-    key without NULL from the same group that satisfies some other condition,
-    then use the key with the NULL.
-  */
-  if (found_null && result)
-  {
-    memcpy(record, tmp_record, head->s->rec_buff_length);
-    result= 0;
   }
   return result;
 }
