@@ -1016,6 +1016,11 @@ public:
   @param shutdown called during slow shutdown
   @return error code */
   dberr_t garbage_collect(bool shutdown);
+
+  /** Defragment the tablespace by collecting
+  extent description information
+  @return error code */
+  dberr_t defragment();
 private:
   /** @return whether the file is usable for io() */
   ATTRIBUTE_COLD bool prepare_acquired();

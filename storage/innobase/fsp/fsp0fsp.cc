@@ -1067,6 +1067,33 @@ static buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
   return block;
 }
 
+/** Allocate a free extent and add it to the FREE_FRAG list.
+Allocate the page from the the free extent anyway.
+@param[in,out]	space		tablespace
+@param[in]	hint		hint of which page would be desirable
+@param[in,out]	mtr		mini-transaction
+@param[out]	err		error code
+@param[in]	header_block	tablespace header page
+@param[in]	xdes		extent descriptor page
+@param hint  extent to */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
+xdes_t *fsp_alloc_extent_for_free_frag(fil_space_t *space, uint32_t hint,
+                                       mtr_t *mtr, dberr_t *err,
+                                       buf_block_t *header_block,
+                                       buf_block_t **xdes)
+{
+  xdes_t *descr= fsp_alloc_free_extent(space, hint, xdes, mtr, err);
+  if (!descr)
+    return nullptr;
+  if (flst_add_last(header_block, FSP_HEADER_OFFSET + FSP_FREE_FRAG, *xdes,
+                     static_cast<uint16_t>(descr - (*xdes)->page.frame +
+                                                   XDES_FLST_NODE),
+                     space->free_limit, mtr))
+    return nullptr;
+  xdes_set_state(**xdes, descr, XDES_FREE_FRAG, mtr);
+  return descr;
+}
+
 /** Allocates a single free page from a space.
 The page is marked as used.
 @param[in,out]	space		tablespace
@@ -1077,6 +1104,7 @@ initialized (may be the same as mtr)
 @param[out]	err		error code
 @return allocated block
 @retval nullptr	if no page could be allocated */
+template<bool defragment_space=false>
 static MY_ATTRIBUTE((warn_unused_result, nonnull))
 buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
                                  mtr_t *mtr, mtr_t *init_mtr, dberr_t *err)
@@ -1100,6 +1128,15 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
   }
   else
   {
+    if (defragment_space)
+    {
+      descr= fsp_alloc_extent_for_free_frag(space, hint, mtr, err,
+                                            block, &xdes);
+      if (!descr)
+        goto err_exit;
+      goto find_page_in_extent;
+    }
+
     /* Else take the first extent in free_frag list */
     fil_addr_t first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE_FRAG +
                                       block->page.frame);
@@ -1113,16 +1150,10 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
       have as a side-effect that an extent containing a descriptor
       page is added to the FREE_FRAG list. But we will allocate our
       page from the the free extent anyway. */
-      descr= fsp_alloc_free_extent(space, hint, &xdes, mtr, err);
+      descr= fsp_alloc_extent_for_free_frag(space, hint, mtr, err,
+                                            block, &xdes);
       if (!descr)
-        return nullptr;
-      *err= flst_add_last(block, FSP_HEADER_OFFSET + FSP_FREE_FRAG, xdes,
-                          static_cast<uint16_t>(descr - xdes->page.frame +
-                                                XDES_FLST_NODE),
-                          space->free_limit, mtr);
-      if (UNIV_UNLIKELY(*err != DB_SUCCESS))
-        return nullptr;
-      xdes_set_state(*xdes, descr, XDES_FREE_FRAG, mtr);
+        goto err_exit;
     }
     else
     {
@@ -1142,7 +1173,7 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
       hint= 0;
     }
   }
-
+find_page_in_extent:
   /* Now we have in descr an extent with at least one free page. Look
   for a free page in the extent. */
   uint32_t free= xdes_find_free(descr, hint % FSP_EXTENT_SIZE);
@@ -3088,6 +3119,690 @@ std::ostream &fseg_header::to_stream(std::ostream &out) const
 }
 #endif /* UNIV_DEBUG */
 
+class spaceDefragmenter;
+
+class indexDefragmenter
+{
+  /** Parent block and its associate offset where
+  we store the child page number. This is stored
+  in the form of <child_page_no, parent_page_no + parent_offset> */
+  std::map<uint32_t, uint64_t> m_parent_pages;
+
+  dict_index_t *m_index;
+
+  /** Iterate through the page and map the child_page_no
+  with the parent page and their associate offset
+  in m_parent_pages
+  @param block	block to be traversed */
+  void store_child_pages(buf_block_t *block);
+
+  /** Get the first block for the given level
+  @param level level
+  @param err   error code
+  @return first page number for the given level
+  @retval FIL_PAGE_NULL when there is a error encountered */
+  uint32_t get_level_block(uint16_t level, dberr_t *err);
+
+  /** Defragment the level of the index
+  @param level		level to be defragmented
+  @param space_defrag	space defragmenter information
+                        and also responsible for allocating new
+			segment or page from tablespace
+  @return error code or DB_SUCCESS */
+  dberr_t defragment_level(uint16_t level, spaceDefragmenter *space_defrag);
+
+public:
+  indexDefragmenter(dict_index_t *index): m_index(index) {}
+
+  /** Defragment the index with the help of space defragmenter.
+  1) Iterate through each level of the index
+  2) Find out what are the pages/segment
+  to be modified for the index.
+  3) Allocate the page from the new segment/extent
+  4) Copy the to be changed page content to new page
+  5) Change the associative pages in the tree with
+  new page(left, right, parent block)
+  6) Do step (4), (5) within single mini-transaction
+  and commit the mini-transaction
+  @return error code or DB_SUCCESS */
+  dberr_t defragment(spaceDefragmenter *space_defrag);
+};
+
+class spaceDefragmenter
+{
+  /* System tablespace */
+  fil_space_t *m_space;
+  /* Store the extent information in the tablespace <extent, state>*/
+  std::map<uint32_t, uint32_t> m_extent_info;
+  /* Map of last used extent with early unused extent within
+  the tablespace */
+  std::map<uint32_t, uint32_t> m_extent_map;
+
+  /* Collect the extent information from tablespace */
+  void extract_extent_state()
+  {
+    mtr_t mtr;
+    dberr_t err= DB_SUCCESS;
+    uint32_t last_descr_page_no= 0;
+
+    mtr.start();
+    mtr.x_lock_space(m_space);
+    buf_block_t *last_descr=
+      buf_page_get_gen(page_id_t{m_space->id, 0}, 0, RW_S_LATCH,
+                       nullptr, BUF_GET_POSSIBLY_FREED, &mtr, &err);
+    for (uint32_t xdes_n= 0; xdes_n < m_space->free_limit;
+         xdes_n+= FSP_EXTENT_SIZE)
+    {
+      /* Ignore doublewrite buffer extent */
+      if (m_space == fil_system.sys_space
+          && buf_dblwr.is_inside(xdes_n))
+        continue;
+      uint32_t descr_page_no=
+        xdes_calc_descriptor_page(m_space->id, xdes_n);
+      if (descr_page_no != last_descr_page_no)
+        last_descr= buf_page_get_gen(page_id_t{m_space->id, xdes_n},
+                                     0, RW_S_LATCH, nullptr,
+                                     BUF_GET_POSSIBLY_FREED, &mtr,
+                                     &err);
+      xdes_t *descr= XDES_ARR_OFFSET + XDES_SIZE
+        * xdes_calc_descriptor_index(0, xdes_n)
+	  + last_descr->page.frame;
+      last_descr_page_no= descr_page_no;
+      if (xdes_n % srv_page_size == 0 && xdes_get_n_used(descr) == 2)
+        continue;
+      m_extent_info[xdes_n]= uint32_t(xdes_get_state(descr));
+    }
+    mtr.commit();
+  }
+
+  /** Find the earlier free extent for the given used extent
+  @param max_limit Find the extent below max limit extent
+  @return value or FIL_NULL if there is no extent */
+  uint32_t find_free_extent(uint32_t max_limit)
+  {
+    for (auto &extent_info : m_extent_info)
+    {
+      if (max_limit <= extent_info.first)
+        return FIL_NULL;
+
+      /* Ignore the already used extents */
+      if (extent_info.second >> 31)
+        continue;
+      if (extent_info.second == XDES_FREE)
+      {
+        /* Mark the extent as used one */
+        extent_info.second |= (1U << 31);
+        return extent_info.first;
+      }
+    }
+    return FIL_NULL;
+  }
+
+  /** Find the index from the given table for the given index id
+  @param table table to be searched
+  @param index_id index id to be search
+  @return index */
+  dict_index_t *find_index(const dict_table_t *table, uint64_t index_id)
+  {
+    for (dict_index_t *idx= dict_table_get_first_index(table);
+         idx; idx= dict_table_get_next_index(idx))
+      if (idx->id == index_id)
+        return idx;
+    return nullptr;
+  }
+
+  /** Find the index on the system tables for the given index_id */
+  dict_index_t* find_sys_index(uint64_t index_id)
+  {
+    dict_index_t *idx= find_index(dict_sys.sys_tables, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_columns, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_indexes, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_fields, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_foreign, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_foreign_cols, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_virtual, index_id);
+    return idx;
+  }
+
+  /** Defragment the indexes */
+  dberr_t defragment_index(dict_index_t *index)
+  {
+    ib::info() <<"Defragmentation of index " << index->name()
+               << " in table " << index->table->name << " happens";
+    indexDefragmenter index_defrag(index);
+    return index_defrag.defragment(this);
+  }
+
+  /** Defragment the table */
+  dberr_t defragment_table(dict_table_t *table)
+  {
+    for (dict_index_t *index= dict_table_get_first_index(table);
+         index; index= dict_table_get_next_index(index))
+    {
+      dberr_t err= defragment_index(index);
+      if (err) return err;
+    }
+    return DB_SUCCESS;
+  }
+public:
+  spaceDefragmenter(fil_space_t *space): m_space(space) {}
+
+  fil_space_t *space() { return m_space; }
+
+  /** Find the new extent for the existing last used extent
+  Iterate the tablespace from last and find out the free
+  extent in the beginning of the tablespace */
+  bool find_new_extents()
+  {
+    extract_extent_state();
+    uint32_t free_limit= m_space->free_limit;
+    uint32_t fixed_size= 0;
+
+    if (m_space == fil_system.sys_space)
+      fixed_size= srv_sys_space.get_min_size();
+    while (free_limit > fixed_size)
+    {
+      uint32_t state= m_extent_info[free_limit];
+      if (state >> 31)
+        goto func_exit;
+
+      switch (state) {
+      case XDES_FREE:
+        goto prev_extent;
+      case XDES_FSEG:
+      case XDES_FULL_FRAG:
+      case XDES_FREE_FRAG:
+        uint32_t dest= find_free_extent(free_limit);
+	if (dest == FIL_NULL)
+	  goto func_exit;
+	m_extent_map[free_limit]= dest;
+	break;
+      }
+prev_extent:
+      free_limit-= FSP_EXTENT_SIZE;
+    }
+func_exit:
+    if (m_extent_map.size() == 0)
+      return false;
+
+    ib::info() << "System tablespace defragmentation process starts";
+    for (const auto &kv : m_extent_map)
+      ib::info() << "Moving the data from old extent " << kv.first
+                 << " to " << kv.second;
+    return true;
+  }
+
+  /** Defragment the system tables */
+  dberr_t defragment_system_tables()
+  {
+    dberr_t err= defragment_table(dict_sys.sys_tables);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_columns);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_indexes);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_fields);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_foreign);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_foreign_cols);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_virtual);
+    return err;
+  }
+
+  /** @return extent which replaces the later extent
+  or same extent if there is no replacement exist */
+  uint32_t get_new_extent(uint32_t old_extent)
+  {
+    auto it= m_extent_map.find(old_extent);
+    if (it != m_extent_map.end())
+      return it->second;
+    return old_extent;
+  }
+
+  /** @return state for the given extent */
+  uint32_t get_state(uint32_t extent)
+  {
+    return m_extent_info[extent];
+  }
+
+  /** If the extent descriptor state is XDES_FREE then
+  allocate the new extent for the given segment.
+  If the extent descriptor state is XDES_FSEG then
+  try to find the free page from the segment.
+  @param seg_header segment header where new extent will be added
+  @param iblock     inode block
+  @param inode      index node information
+  @param extent     create a new extent
+  @param mtr        mini-transaction
+  @param err        error code
+  @return block or nullptr in case of failure */
+  buf_block_t *alloc_page_from_new_seg(
+    fseg_header_t *seg_header, buf_block_t *iblock,
+    fseg_inode_t *inode, uint32_t extent, mtr_t *mtr,
+    dberr_t *err)
+  {
+    fil_space_t *space= fil_system.sys_space;
+    buf_block_t *fsp_header= fsp_get_header(space, mtr, err);
+    if (*err)
+      return nullptr;
+    uint64_t seg_id= mach_read_from_8(inode + FSEG_ID);
+    buf_block_t *xdes;
+    xdes_t *descr=
+      xdes_get_descriptor_with_space_hdr(fsp_header, space, extent, mtr,
+                                         err, &xdes);
+    uint32_t allocated_page= FIL_NULL;
+
+    if (!descr)
+      return nullptr;
+
+    ut_a(xdes_get_state(descr) == XDES_FSEG
+         || xdes_get_state(descr) == XDES_FREE);
+
+    /* If the descriptor already belongs to the segment
+    then allocate the free page */
+    if (xdes_get_state(descr) == XDES_FSEG
+        && mach_read_from_8(descr + XDES_ID) == seg_id)
+    {
+      allocated_page= xdes_find_free(descr);
+      if (allocated_page == FIL_NULL)
+      {
+        *err= DB_ERROR;
+	return nullptr;
+      }
+      allocated_page += xdes_get_offset(descr);
+    }
+    else
+    {
+      descr= fsp_alloc_free_extent(space, extent, &xdes, mtr, err);
+      xdes_set_state(*xdes, descr, XDES_FSEG, mtr);
+      mtr->write<8,mtr_t::MAYBE_NOP>(*xdes, descr + XDES_ID, seg_id);
+      *err= flst_add_last(
+              iblock,
+              static_cast<uint16_t>(inode - iblock->page.frame
+                                    + FSEG_FREE), xdes,
+              static_cast<uint16_t>(descr - xdes->page.frame
+                                    + XDES_FLST_NODE),
+              space->free_limit, mtr);
+      if (*err)
+        return nullptr;
+
+      allocated_page= extent;
+      *err = fseg_fill_free_list(inode, iblock, space,
+                                 extent + FSP_EXTENT_SIZE, mtr);
+    }
+
+    if (*err == DB_SUCCESS)
+    {
+      *err= fseg_mark_page_used(space, inode, iblock, allocated_page,
+                                descr, xdes, mtr);
+      if (*err == DB_SUCCESS)
+        return fsp_page_create(space, allocated_page, mtr);
+    }
+    return nullptr;
+  }
+};
+
+void indexDefragmenter::store_child_pages(buf_block_t *block)
+{
+  mem_heap_t *heap= nullptr;
+  rec_offs *offsets= nullptr;
+  rec_t *rec=
+    page_rec_get_next(page_get_infimum_rec(buf_block_get_frame(block)));
+  while (!page_rec_is_supremum(rec))
+  {
+    offsets= rec_get_offsets(rec, m_index, offsets, 0,
+                             ULINT_UNDEFINED, &heap);
+    ulint len;
+    byte *field= rec_get_nth_field(rec, offsets,
+                                   rec_offs_n_fields(offsets) - 1, &len);
+    ut_ad(len == 4);
+
+    /* m_parent_pages[child_page_no] =
+       1st 32 bit to indicate offset in parent page
+       2nd 32 bit to indicate parent page number */
+    m_parent_pages[mach_read_from_4(field)]=
+      uint64_t(page_offset(field)) << 32 | block->page.id().page_no();
+    rec= page_rec_get_next(rec);
+  }
+
+  if (heap)
+    mem_heap_free(heap);
+}
+
+uint32_t indexDefragmenter::get_level_block(uint16_t level, dberr_t *err)
+{
+  mtr_t mtr;
+  mtr.start();
+  mtr_x_lock_index(m_index, &mtr);
+  uint32_t child_page_no= m_index->page;
+  mem_heap_t *heap= nullptr;
+  rec_offs *offsets= nullptr;
+  while (1)
+  {
+    dberr_t err= DB_SUCCESS;
+    buf_block_t *block= buf_page_get_gen(page_id_t{0, child_page_no},
+                                         0, RW_S_LATCH, nullptr,
+                                         BUF_GET_POSSIBLY_FREED, &mtr,
+                                         &err);
+    if (!block)
+    {
+      child_page_no= FIL_NULL;
+      break;
+    }
+
+    page_t *page= buf_block_get_frame(block);
+    uint16_t cur_level= btr_page_get_level(page);
+    if (cur_level == level)
+      break;
+    rec_t *rec= page_rec_get_next(page_get_infimum_rec(page));
+    if (rec && !page_rec_is_supremum(rec))
+    {
+      offsets= rec_get_offsets(rec, m_index, offsets,
+                               page_is_leaf(page)
+                               ? m_index->n_core_fields : 0,
+                               ULINT_UNDEFINED, &heap);
+      child_page_no= btr_node_ptr_get_child_page_no(rec, offsets);
+    }
+    else
+    {
+      child_page_no= FIL_NULL;
+      err= DB_CORRUPTION;
+      break;
+    }
+    if (cur_level == level + 1)
+      break;
+  }
+  mtr.commit();
+
+  if (heap)
+    mem_heap_free(heap);
+  return child_page_no;
+}
+
+dberr_t indexDefragmenter::defragment_level(uint16_t level,
+                                            spaceDefragmenter *space_defrag)
+{
+  dberr_t err= DB_SUCCESS;
+  uint32_t cur_page_no= get_level_block(level, &err);
+  if (cur_page_no == FIL_NULL)
+    return err;
+
+  fil_space_t *space= fil_system.sys_space;
+  mtr_t mtr;
+  mtr.start();
+  mtr.x_lock_space(space);
+  mtr_x_lock_index(m_index, &mtr);
+
+  buf_block_t *block= buf_page_get_gen(page_id_t{0, cur_page_no},
+                                       0, RW_X_LATCH, nullptr,
+                                       BUF_GET_POSSIBLY_FREED, &mtr, &err);
+  if (!block)
+  {
+err_exit:
+    mtr.discard_modifications();
+    mtr.commit();
+    return err;
+  }
+
+  while (block)
+  {
+    page_t *page= buf_block_get_frame(block);
+    uint32_t next_page_no= btr_page_get_next(page);
+    uint32_t cur_extent= (cur_page_no / FSP_EXTENT_SIZE) * FSP_EXTENT_SIZE;
+    uint32_t state= space_defrag->get_state(cur_extent);
+
+    if (state == XDES_FREE)
+    {
+fetch_next_page:
+      mtr.commit();
+
+      if (next_page_no == FIL_NULL)
+        break;
+      cur_page_no= next_page_no;
+
+      mtr.start();
+      mtr_x_lock_index(m_index, &mtr);
+      mtr.x_lock_space(fil_system.sys_space);
+      block= buf_page_get_gen(page_id_t{0, cur_page_no}, 0, RW_X_LATCH,
+                            nullptr, BUF_GET_POSSIBLY_FREED, &mtr,
+                            &err);
+      continue;
+    }
+
+    uint32_t new_extent= space_defrag->get_new_extent(cur_extent);
+
+    if (new_extent == cur_extent)
+    {
+next_page:
+      /* Read all child pages exist in parent block */
+      if (level)
+        store_child_pages(block);
+      goto fetch_next_page;
+    }
+
+    /* Need to replace the current extent with new extent */
+    buf_block_t *root= btr_root_block_get(m_index, RW_SX_LATCH, &mtr,
+                                          &err);
+    if (UNIV_UNLIKELY(!root))
+      goto err_exit;
+
+    buf_block_t *new_block= nullptr;
+    fseg_header_t *seg_header=
+      root->page.frame + (level
+                          ? PAGE_HEADER + PAGE_BTR_SEG_TOP
+                          : PAGE_HEADER + PAGE_BTR_SEG_LEAF);
+
+    buf_block_t *iblock;
+    fseg_inode_t *inode= fseg_inode_try_get(seg_header, 0, 0, &mtr,
+                                            &iblock, &err);
+    if (!inode)
+      goto err_exit;
+
+    switch(state)
+    {
+    case XDES_FSEG:
+      new_block=
+	space_defrag->alloc_page_from_new_seg(seg_header, iblock,
+                                              inode, new_extent,
+                                              &mtr, &err);
+    break;
+    case XDES_FREE_FRAG:
+    case XDES_FULL_FRAG:
+      new_block= fsp_alloc_free_page<true>(space, new_extent,
+                                           &mtr, &mtr, &err);
+    break;
+    case XDES_FREE:
+      ut_error;
+    }
+
+    if (!new_block)
+      goto err_exit;
+
+    /** Copy the contents from block to new block */
+    mtr.memcpy(*new_block, new_block->page.frame,
+               block->page.frame, srv_page_size - FIL_PAGE_DATA_END);
+
+    uint32_t new_page_no= new_block->page.id().page_no();
+    mtr.write<4,mtr_t::FORCED>(*new_block,
+                               FIL_PAGE_OFFSET + new_block->page.frame,
+                               new_page_no);
+
+    uint32_t prev_page_no= btr_page_get_prev(page);
+
+    /* change the previous page */
+    if (prev_page_no != FIL_NULL)
+    {
+      buf_block_t *prev_block=
+        buf_page_get_gen(page_id_t{0, prev_page_no}, 0, RW_X_LATCH,
+                         nullptr, BUF_GET_POSSIBLY_FREED, &mtr,
+                         &err);
+      if (!prev_block)
+        goto err_exit;
+      mtr.write<4>(*prev_block,
+                   prev_block->page.frame + FIL_PAGE_NEXT,
+                   new_page_no);
+    }
+
+    /* Change the next page */
+    if (next_page_no != FIL_NULL)
+    {
+      buf_block_t *next_block=
+        buf_page_get_gen(page_id_t{0, next_page_no}, 0, RW_X_LATCH,
+                         nullptr, BUF_GET_POSSIBLY_FREED, &mtr,
+                         &err);
+      if (!next_block)
+        goto err_exit;
+      mtr.write<4>(*next_block,
+                   next_block->page.frame + FIL_PAGE_PREV,
+                   new_page_no);
+    }
+
+    DBUG_EXECUTE_IF("fail_level_defragment",
+                    err= DB_CORRUPTION; goto err_exit;);
+    /* Change the parent page */
+    auto parent_it= m_parent_pages.find(cur_page_no);
+    if (parent_it != m_parent_pages.end())
+    {
+      buf_block_t *parent_block=
+        buf_page_get_gen(page_id_t{0, uint32_t(parent_it->second)},
+                         0, RW_X_LATCH, nullptr,
+                         BUF_GET_POSSIBLY_FREED, &mtr, &err);
+      if (!parent_block)
+        goto err_exit;
+      mtr.write<4>(*parent_block,
+                    parent_block->page.frame
+                      + uint32_t(parent_it->second >> 32),
+                    new_page_no);
+    }
+
+    /* Free the page from the segment */
+    err= fseg_free_page(seg_header, space, cur_page_no, &mtr);
+    if (err)
+      goto err_exit;
+
+    if (state == XDES_FREE_FRAG || state == XDES_FULL_FRAG)
+    {
+      /* Put the new page in the fragment page array of the segment */
+      ulint n= fseg_find_free_frag_page_slot(inode);
+      if (UNIV_UNLIKELY(n == ULINT_UNDEFINED))
+      {
+        err= DB_ERROR;
+        goto err_exit;
+      }
+      fseg_set_nth_frag_page_no(inode, iblock, n, new_page_no, &mtr);
+    }
+
+    block= new_block;
+    goto next_page;
+  }
+
+  return DB_SUCCESS;
+}
+
+dberr_t indexDefragmenter::defragment(spaceDefragmenter *space_defrag)
+{
+  mtr_t mtr;
+  dberr_t err= DB_SUCCESS;
+  mtr.start();
+  mtr.x_lock_space(fil_system.sys_space);
+  buf_block_t *root= buf_page_get_gen(page_id_t{0, m_index->page},
+                                      0, RW_SX_LATCH, nullptr,
+                                      BUF_GET_POSSIBLY_FREED, &mtr,
+                                      &err);
+  if (err)
+  {
+    mtr.commit();
+    return err;
+  }
+  uint16_t level= btr_page_get_level(root->page.frame);
+  mtr.commit();
+  while (1)
+  {
+    err= defragment_level(level, space_defrag);
+    DBUG_EXECUTE_IF("fail_after_level_defragment",
+                    if (level == 1)
+		      err= DB_CORRUPTION;);
+    if (err || !level)
+      break;
+    level--;
+  }
+  return err;
+}
+
+static
+bool is_user_table_exists(fil_space_t *space, dberr_t *err)
+{
+  mtr_t mtr;
+  btr_pcur_t pcur;
+  mtr.start();
+  dict_sys.lock(SRW_LOCK_CALL);
+  for (const rec_t *rec= dict_startscan_system(&pcur, &mtr,
+			                       dict_sys.sys_tables);
+       rec; rec= dict_getnext_system(&pcur, &mtr))
+  {
+    if (rec_get_deleted_flag(rec, 0))
+    {
+      ib::error() << "Encountered corrupted record in SYS_TABLES";
+      *err= DB_CORRUPTION;
+user_table_found:
+      mtr.commit();
+      dict_sys.unlock();
+      return true;
+    }
+    ulint len;
+    const byte *field=
+      rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__SPACE, &len);
+    ut_ad(len == 4);
+    if (mach_read_from_4(field) != space->id)
+      continue;
+    field= rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__ID, &len);
+    ut_ad(len == 8);
+    ulint table_id= mach_read_from_8(field);
+    if (!dict_sys.is_sys_table(table_id))
+      goto user_table_found;
+  }
+  mtr.commit();
+  dict_sys.unlock();
+  return false;
+}
+
+dberr_t fil_space_t::defragment()
+{
+  dberr_t err= DB_SUCCESS;
+  if (is_user_table_exists(fil_system.sys_space, &err))
+  {
+    if (err)
+      return err;
+    ib::info() << "User table exists in the system tablespace."
+	          "Please try to move the data from system tablespace "
+		  "to separate tablespace before defragment the "
+		  "system tablespace.";
+    return DB_SUCCESS;
+  }
+  spaceDefragmenter defragmenter(fil_system.sys_space);
+  if (!defragmenter.find_new_extents())
+    return DB_SUCCESS;
+
+  err= defragmenter.defragment_system_tables();
+  if (err)
+    goto func_exit;
+
+func_exit:
+  if (err)
+    ib::error() << "Defragmentation of system tablespace failed.";
+  else
+    ib::info() << "Defragmentation of system tablespace is successful";
+  return err;
+}
+
 /** Get the latched extent descriptor page or
 acquire the extent descriptor page.
 @param page_id  page identifier to be acquired
@@ -4025,8 +4740,16 @@ void fsp_system_tablespace_truncate(bool shutdown)
   dberr_t err= space->garbage_collect(shutdown);
   if (err)
   {
+early_exit:
     srv_sys_space.set_shrink_fail();
     return;
+  }
+
+  if (!shutdown)
+  {
+    err= space->defragment();
+    if (err)
+      goto early_exit;
   }
 
   mtr_t mtr;
