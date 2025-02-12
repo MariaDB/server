@@ -1,0 +1,22 @@
+call mtr.add_suppression("InnoDB: Defragmentation of system tablespace failed.");
+# restart
+set GLOBAL innodb_file_per_table = 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+set GLOBAL innodb_limit_optimistic_insert_debug = 2;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+SET GLOBAL innodb_file_per_table= 1;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY, f2 VARCHAR(40))ENGINE=InnoDB PARTITION BY KEY() PARTITIONS 256;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+DROP TABLE t1, t2;
+InnoDB		0 transactions not purged
+# restart: --debug_dbug=d,fail_after_level_defragment
+FOUND 1 /InnoDB: Defragmentation of system tablespace failed./ in mysqld.1.err
+# restart: --debug_dbug=d,fail_level_defragment
+FOUND 2 /InnoDB: Defragmentation of system tablespace failed./ in mysqld.1.err
+# restart
+FOUND 1 /InnoDB: Defragmentation of system tablespace is successful/ in mysqld.1.err
+# restart
