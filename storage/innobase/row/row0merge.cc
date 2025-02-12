@@ -4088,7 +4088,7 @@ row_merge_drop_indexes(
 					prebuilt->ins_node->entry_list
 					in ins_node_create_entry_list(). */
 #ifdef BTR_CUR_HASH_ADAPT
-					ut_ad(!index->search_info->ref_count);
+					ut_ad(!index->search_info.ref_count);
 #endif /* BTR_CUR_HASH_ADAPT */
 					dict_index_remove_from_cache(
 						table, index);

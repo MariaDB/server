@@ -763,20 +763,17 @@ srv_printf_innodb_monitor(
 	ibuf_print(file);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (btr_search_enabled) {
+	if (btr_search.enabled) {
 		fputs("-------------------\n"
 		      "ADAPTIVE HASH INDEX\n"
 		      "-------------------\n", file);
-		for (ulint i = 0; i < btr_ahi_parts; ++i) {
-			const auto part= &btr_search_sys.parts[i];
-			part->latch.rd_lock(SRW_LOCK_CALL);
-			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
+		for (ulong i = 0; i < btr_search.n_parts; ++i) {
+			btr_sea::partition& part= btr_search.parts[i];
+			part.blocks_mutex.wr_lock();
 			fprintf(file, "Hash table size " ULINTPF
 				", node heap has " ULINTPF " buffer(s)\n",
-				part->table.n_cells,
-				part->heap->base.count
-				- !part->heap->free_block);
-			part->latch.rd_unlock();
+				part.table.n_cells, part.blocks.count + !!part.spare);
+			part.blocks_mutex.wr_unlock();
 		}
 
 		const ulint with_ahi = btr_cur_n_sea;
@@ -849,17 +846,17 @@ srv_export_innodb_status(void)
 	export_vars.innodb_ahi_miss = btr_cur_n_non_sea;
 
 	ulint mem_adaptive_hash = 0;
-	for (ulong i = 0; i < btr_ahi_parts; i++) {
-		const auto part= &btr_search_sys.parts[i];
-		part->latch.rd_lock(SRW_LOCK_CALL);
-		if (part->heap) {
-			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
-
-			mem_adaptive_hash += mem_heap_get_size(part->heap)
-				+ part->table.n_cells * sizeof(hash_cell_t);
-		}
-		part->latch.rd_unlock();
+	for (ulong i = 0; i < btr_search.n_parts; i++) {
+		btr_sea::partition& part= btr_search.parts[i];
+		part.blocks_mutex.wr_lock();
+		mem_adaptive_hash += part.blocks.count + !!part.spare;
+		part.blocks_mutex.wr_unlock();
 	}
+	mem_adaptive_hash <<= srv_page_size_shift;
+	btr_search.parts[0].latch.rd_lock(SRW_LOCK_CALL);
+	mem_adaptive_hash += btr_search.parts[0].table.n_cells
+		* sizeof *btr_search.parts[0].table.array * btr_search.n_parts;
+	btr_search.parts[0].latch.rd_unlock();
 	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
 #endif
 

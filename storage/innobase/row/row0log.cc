@@ -744,7 +744,7 @@ row_log_table_low_redundant(
 	ulint		avail_size;
 	mem_heap_t*	heap		= NULL;
 	dtuple_t*	tuple;
-	const ulint	n_fields = rec_get_n_fields_old(rec);
+	const auto	n_fields = rec_get_n_fields_old(rec);
 
 	ut_ad(index->n_fields >= n_fields);
 	ut_ad(index->n_fields == n_fields || index->is_instant());
@@ -1701,22 +1701,7 @@ err_exit:
 		if (error) {
 			goto err_exit;
 		}
-#ifdef UNIV_DEBUG
-		switch (btr_pcur_get_btr_cur(pcur)->flag) {
-		case BTR_CUR_DELETE_REF:
-		case BTR_CUR_DEL_MARK_IBUF:
-		case BTR_CUR_DELETE_IBUF:
-		case BTR_CUR_INSERT_TO_IBUF:
-			/* We did not request buffering. */
-			break;
-		case BTR_CUR_HASH:
-		case BTR_CUR_HASH_FAIL:
-		case BTR_CUR_BINARY:
-			goto flag_ok;
-		}
-		ut_ad(0);
-flag_ok:
-#endif /* UNIV_DEBUG */
+		ut_ad(pcur->btr_cur.flag == BTR_CUR_BINARY);
 
 		if (page_rec_is_infimum(btr_pcur_get_rec(pcur))
 		    || btr_pcur_get_low_match(pcur) < index->n_uniq) {
@@ -1785,22 +1770,8 @@ row_log_table_apply_delete(
 	if (err != DB_SUCCESS) {
 		goto all_done;
 	}
-#ifdef UNIV_DEBUG
-	switch (btr_pcur_get_btr_cur(&pcur)->flag) {
-	case BTR_CUR_DELETE_REF:
-	case BTR_CUR_DEL_MARK_IBUF:
-	case BTR_CUR_DELETE_IBUF:
-	case BTR_CUR_INSERT_TO_IBUF:
-		/* We did not request buffering. */
-		break;
-	case BTR_CUR_HASH:
-	case BTR_CUR_HASH_FAIL:
-	case BTR_CUR_BINARY:
-		goto flag_ok;
-	}
-	ut_ad(0);
-flag_ok:
-#endif /* UNIV_DEBUG */
+
+	ut_ad(btr_pcur_get_btr_cur(&pcur)->flag == BTR_CUR_BINARY);
 
 	if (page_rec_is_infimum(btr_pcur_get_rec(&pcur))
 	    || btr_pcur_get_low_match(&pcur) < index->n_uniq) {
@@ -1934,19 +1905,8 @@ func_exit_committed:
 
 		return error;
 	}
-#ifdef UNIV_DEBUG
-	switch (btr_pcur_get_btr_cur(&pcur)->flag) {
-	case BTR_CUR_DELETE_REF:
-	case BTR_CUR_DEL_MARK_IBUF:
-	case BTR_CUR_DELETE_IBUF:
-	case BTR_CUR_INSERT_TO_IBUF:
-		ut_ad(0);/* We did not request buffering. */
-	case BTR_CUR_HASH:
-	case BTR_CUR_HASH_FAIL:
-	case BTR_CUR_BINARY:
-		break;
-	}
-#endif /* UNIV_DEBUG */
+
+	ut_ad(btr_pcur_get_btr_cur(&pcur)->flag == BTR_CUR_BINARY);
 
 	ut_ad(!page_rec_is_infimum(btr_pcur_get_rec(&pcur))
 	      && btr_pcur_get_low_match(&pcur) >= index->n_uniq);

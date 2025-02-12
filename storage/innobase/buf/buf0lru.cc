@@ -917,7 +917,7 @@ func_exit:
 		order to avoid bogus Valgrind or MSAN warnings.*/
 
 		MEM_MAKE_DEFINED(block->page.frame, srv_page_size);
-		btr_search_drop_page_hash_index(block, false);
+		btr_search_drop_page_hash_index(block, nullptr);
 		MEM_UNDEFINED(block->page.frame, srv_page_size);
 		mysql_mutex_lock(&buf_pool.mutex);
 	}
@@ -943,7 +943,10 @@ buf_LRU_block_free_non_file_page(
 	void*		data;
 
 	ut_ad(block->page.state() == buf_page_t::MEMORY);
+#ifdef BTR_CUR_HASH_ADAPT
 	assert_block_ahi_empty(block);
+	block->n_hash_helps = 0;
+#endif
 	ut_ad(!block->page.in_free_list);
 	ut_ad(!block->page.oldest_modification());
 	ut_ad(!block->page.in_LRU_list);

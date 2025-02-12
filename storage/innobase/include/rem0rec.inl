@@ -164,7 +164,7 @@ rec_set_bit_field_1(
 /******************************************************//**
 Gets a bit field from within 2 bytes. */
 UNIV_INLINE
-ulint
+uint16_t
 rec_get_bit_field_2(
 /*================*/
 	const rec_t*	rec,	/*!< in: pointer to record origin */
@@ -174,7 +174,7 @@ rec_get_bit_field_2(
 {
 	ut_ad(rec);
 
-	return((mach_read_from_2(rec - offs) & mask) >> shift);
+	return uint16_t((mach_read_from_2(rec - offs) & mask) >> shift);
 }
 
 /******************************************************//**
@@ -307,18 +307,14 @@ The following function is used to get the number of fields
 in an old-style record.
 @return number of data fields */
 UNIV_INLINE
-ulint
+uint16_t
 rec_get_n_fields_old(
 /*=================*/
 	const rec_t*	rec)	/*!< in: physical record */
 {
-	ulint	ret;
-
-	ut_ad(rec);
-
-	ret = rec_get_bit_field_2(rec, REC_OLD_N_FIELDS,
-				  REC_OLD_N_FIELDS_MASK,
-				  REC_OLD_N_FIELDS_SHIFT);
+	uint16_t ret = rec_get_bit_field_2(rec, REC_OLD_N_FIELDS,
+					   REC_OLD_N_FIELDS_MASK,
+					   REC_OLD_N_FIELDS_SHIFT);
 	ut_ad(ret <= REC_MAX_N_FIELDS);
 	ut_ad(ret > 0);
 
@@ -397,7 +393,7 @@ rec_n_fields_is_sane(
 	       /* a record for older SYS_INDEXES table
 	       (missing merge_threshold column) is acceptable. */
 	       || (index->table->id == DICT_INDEXES_ID
-		   && n_fields == dtuple_get_n_fields(entry) - 1));
+		   && n_fields + 1 == dtuple_get_n_fields(entry)));
 }
 
 /******************************************************//**
@@ -518,7 +514,7 @@ The following function is used to get the order number
 of an old-style record in the heap of the index page.
 @return heap order number */
 UNIV_INLINE
-ulint
+uint16_t
 rec_get_heap_no_old(
 /*================*/
 	const rec_t*	rec)	/*!< in: physical record */
@@ -532,7 +528,7 @@ The following function is used to get the order number
 of a new-style record in the heap of the index page.
 @return heap order number */
 UNIV_INLINE
-ulint
+uint16_t
 rec_get_heap_no_new(
 /*================*/
 	const rec_t*	rec)	/*!< in: physical record */
