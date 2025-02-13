@@ -29,6 +29,13 @@ Created 1/30/1994 Heikki Tuuri
 
 /*************************************************************//**
 Report a failed assertion. */
+
+static std::function<void()> assert_callback;
+
+void ut_set_assert_callback(std::function<void()> &callback) {
+  assert_callback = callback;
+}
+
 ATTRIBUTE_NORETURN
 void
 ut_dbg_assertion_failed(
@@ -57,5 +64,10 @@ ut_dbg_assertion_failed(
 
 	fflush(stderr);
 	fflush(stdout);
+
+	/* Call any registered callback function. */
+	if (assert_callback) {
+		assert_callback();
+	}
 	abort();
 }

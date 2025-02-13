@@ -33,10 +33,16 @@ Created 1/30/1994 Heikki Tuuri
 #define ut_error	assert(0)
 #else /* !UNIV_INNOCHECKSUM */
 
+#include <functional>
 /* Do not include univ.i because univ.i includes this. */
 
 /*************************************************************//**
 Report a failed assertion. */
+
+/** Set a callback function to be called before exiting.
+@param[in] callback user callback function */
+void ut_set_assert_callback(std::function<void()> &callback);
+
 ATTRIBUTE_NORETURN ATTRIBUTE_COLD __attribute__((nonnull(2)))
 void
 ut_dbg_assertion_failed(

@@ -155,6 +155,9 @@ enum dberr_t {
 
 	DB_PAGE_CORRUPTED,		/* Page read from tablespace is
 					corrupted. */
+
+	DB_ABORT_INCOMPLETE_CLONE,	/* Incomplete cloned directory */
+
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,
 	DB_OVERFLOW,
