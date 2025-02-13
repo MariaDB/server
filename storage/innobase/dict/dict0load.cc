@@ -872,6 +872,75 @@ static uint32_t dict_find_max_space_id(btr_pcur_t *pcur, mtr_t *mtr)
   return max_space_id;
 }
 
+void dict_load_spaces_no_ddl()
+{
+  btr_pcur_t pcur;
+  mtr_t mtr;
+  mtr.start();
+
+  for (const rec_t *rec= dict_startscan_system(&pcur, &mtr,
+       dict_sys.sys_tables); rec;
+       rec= dict_getnext_system_low(&pcur, &mtr))
+  {
+    /* If a table record is not useable, ignore it and continue. */
+    if (dict_sys_tables_rec_check(rec) || rec_get_deleted_flag(rec, 0))
+      continue;
+
+    const byte *field= nullptr;
+    ulint len= 0;
+
+    /* 1. Extract space ID. */
+    field= rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__SPACE, &len);
+    ut_ad(len == 4);
+    auto space_id= mach_read_from_4(field);
+
+    mysql_mutex_lock(&fil_system.mutex);
+    auto space= fil_space_get_by_id(space_id);
+    mysql_mutex_unlock(&fil_system.mutex);
+
+    if (space)
+      continue;
+
+    /* 2. Extract space flags. */
+    field= rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__TYPE, &len);
+    ut_ad(len == 4);
+    auto type= mach_read_from_4(field);
+
+    field= rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__N_COLS, &len);
+    ut_a(len == 4);
+    auto n_cols= mach_read_from_4(field);
+
+    const bool redundant= (0 == (n_cols & DICT_N_COLS_COMPACT));
+    auto flags= dict_sys_tables_type_to_tf(type, !redundant);
+    ut_ad(dict_sys_tables_type_valid(type, !redundant));
+
+    /* 3. Extract table name. */
+    auto t_name= reinterpret_cast<const char *>(
+        rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__NAME, &len));
+    const span<const char> name{t_name, len};
+
+    table_name_t table_name(const_cast<char *>(name.data()));
+    auto filepath= fil_make_filepath(nullptr, table_name, IBD, false);
+    dict_sys.lock(SRW_LOCK_CALL);
+
+    /* Check again after acquiring dictionary lock. */
+    mysql_mutex_lock(&fil_system.mutex);
+    space= fil_space_get_by_id(space_id);
+    mysql_mutex_unlock(&fil_system.mutex);
+
+    if (!space)
+      space= fil_ibd_open(space_id, dict_tf_to_fsp_flags(flags),
+                          fil_space_t::VALIDATE_NOTHING, name, filepath);
+    dict_sys.unlock();
+
+    if (!space)
+      ib::error() << "Clone Error opening space: " << name.data()
+                  << " File: " << filepath;
+    ut_free(filepath);
+  }
+  mtr.commit();
+}
+
 /** Check MAX(SPACE) FROM SYS_TABLES and store it in fil_system.
 Open each data file if an encryption plugin has been loaded.
 

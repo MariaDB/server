@@ -91,6 +91,8 @@ IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion -Wno-sign-conversion")
   SET_SOURCE_FILES_PROPERTIES(fts/fts0pars.cc
     PROPERTIES COMPILE_FLAGS -Wno-conversion)
+  SET_SOURCE_FILES_PROPERTIES(clone/clone0api.cc
+    PROPERTIES COMPILE_FLAGS -Wno-conversion)
 ENDIF()
 
 IF(NOT MSVC)
@@ -150,7 +152,7 @@ SET(INNOBASE_SOURCES
 	buf/buf0flu.cc
 	buf/buf0lru.cc
 	buf/buf0rea.cc
-	# clone/clone0api.cc
+	clone/clone0api.cc
 	clone/clone0clone.cc
 	clone/clone0copy.cc
 	clone/clone0apply.cc
