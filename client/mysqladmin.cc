@@ -670,7 +670,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       }
       if (maybe_disable_binlog(mysql))
         return -1;
-      sprintf(buff,"create database `%.*s`",FN_REFLEN,argv[1]);
+      snprintf(buff, sizeof(buff), "create database `%.*s`",FN_REFLEN,argv[1]);
       if (mysql_query(mysql,buff))
       {
 	my_printf_error(0,"CREATE DATABASE failed; error: '%-.200s'",
@@ -711,7 +711,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 
       if (opt_shutdown_wait_for_slaves)
       {
-        sprintf(buff, "SHUTDOWN WAIT FOR ALL SLAVES");
+        snprintf(buff, sizeof(buff), "SHUTDOWN WAIT FOR ALL SLAVES");
         if (mysql_query(mysql, buff))
         {
           my_printf_error(0, "%s failed; error: '%-.200s'",
@@ -1198,7 +1198,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       }
       else
 	crypted_pw[0]=0;			/* No password */
-      sprintf(buff,"set password='%s',sql_log_off=0",crypted_pw);
+      snprintf(buff, sizeof(buff), "set password='%s',sql_log_off=0",crypted_pw);
 
       if (mysql_query(mysql,"set sql_log_off=1"))
       {
@@ -1430,10 +1430,12 @@ static void usage(void)
   version		Get version info from server");
 }
 
+#define SHOW_MSG_LEN (FN_REFLEN + 20)
+#define UINPUT_BUF_LEN 10
 
 static int drop_db(MYSQL *mysql, const char *db)
 {
-  char name_buff[FN_REFLEN+20], buf[10];
+  char name_buff[SHOW_MSG_LEN], buf[UINPUT_BUF_LEN];
   char *input;
 
   if (!option_force)
@@ -1449,7 +1451,7 @@ static int drop_db(MYSQL *mysql, const char *db)
       return -1;
     }
   }
-  sprintf(name_buff,"drop database `%.*s`",FN_REFLEN,db);
+  snprintf(name_buff, SHOW_MSG_LEN, "drop database `%.*s`", FN_REFLEN, db);
   if (mysql_query(mysql,name_buff))
   {
     my_printf_error(0, "DROP DATABASE %s failed;\nerror: '%s'", error_flags,
