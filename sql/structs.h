@@ -587,6 +587,7 @@ public:
   Options create_like_options() const
   {
     return (DDL_options_st::Options)
+           // Pass OPT_LIKE into HA_CREATE_INFO copy
            (((uint) m_options) & (OPT_IF_NOT_EXISTS | OPT_LIKE | OPT_OR_REPLACE));
   }
   void init() { m_options= OPT_NONE; }

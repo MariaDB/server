@@ -12394,6 +12394,10 @@ create_table_info_t::create_foreign_keys()
 		char* bufend = innobase_convert_name(
 			create_name, sizeof create_name, n, strlen(n), m_thd);
 		*bufend = '\0';
+// fk_check_dup_arg() excludes FOR_NAME == orig_name from check.
+// Otherwise REMOVE PARTITIONING will fail on fk_check_dup() as it creates
+// new table with foreign keys but old foreign keys for partitioned table still
+// exist.
 		strcpy(orig_name, n);
 		mem_heap_free(heap);
 		operation = "Alter ";
@@ -13651,6 +13655,13 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
 int ha_innobase::create(const char *name, TABLE *form,
                         HA_CREATE_INFO *create_info)
 {
+// We would be happy to create foreign keys in CREATE LIKE but it will fail on
+// FOREIGN ID duplicate check. Old behaviour silently skipped old foreign keys
+// now create_foreign_keys() works differently and without this arg it will create
+// create foreign keys for CREATE LIKE, see comment above:
+// Now we process tmp table from ALTER and create FKs for it prefixed by \xFF
+// TODO: when limitation on foreign id uniquness per db removed remove this flag
+// and allow CREATE LIKE to copy foreign keys.
   return create(name, form, create_info, srv_file_per_table, nullptr, !create_info->like());
 }
 
