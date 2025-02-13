@@ -1,0 +1,249 @@
+include/master-slave.inc
+[connection master]
+MDEV-35217: Provide information for debugging parallel replication conflicts and hangs
+connection master;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b INT, c INT, INDEX (c)) ENGINE=InnoDB;
+INSERT INTO t1 (b,c) VALUES (0, 1), (0, 1), (0, 2), (0,3), (0, 5), (0, 7), (0, 8);
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (10,1), (20,2), (30,3), (40,4), (50,5);
+CREATE TABLE t3 (a VARCHAR(20) PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES ('row for T1', 0), ('row for T2', 0), ('row for T3', 0);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+SET @save_slave_parallel_print_all_deadlocks= @@global.slave_parallel_print_all_deadlocks;
+SET @save_slave_parallel_threads= @@global.slave_parallel_threads;
+SET @save_slave_parallel_mode= @@global.slave_parallel_mode;
+SET @save_slave_transaction_retries= @@global.slave_transaction_retries;
+SET @save_innodb_status_output_locks= @@global.innodb_status_output_locks;
+set @@global.slave_parallel_threads= 3;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+SET @@global.innodb_status_output_locks= 1;
+CHANGE MASTER TO master_use_gtid= Slave_pos;
+*** Test --slave-parallel-print-all-deadlocks set to 0:
+connection slave;
+SET GLOBAL slave_parallel_print_all_deadlocks= 0;
+*** 1. Provoke a lock wait timeout.
+SET GLOBAL innodb_lock_wait_timeout= 1;
+SET @@global.slave_transaction_retries= 2;
+include/start_slave.inc
+connection slave1;
+BEGIN;
+SELECT COUNT(*) FROM t1 FOR UPDATE;
+COUNT(*)
+7
+connection master;
+INSERT INTO t1 (b, c) VALUES (0, 100 + 0*10);
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave1;
+ROLLBACK;
+connection slave;
+SET GLOBAL innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+SET GLOBAL slave_transaction_retries= @save_slave_transaction_retries;
+START SLAVE SQL_THREAD;
+include/sync_with_master_gtid.inc
+*** 2. A normal conflict that causes only a single retry.
+connection slave1;
+BEGIN;
+SELECT * FROM t3 WHERE a="row for T1" FOR UPDATE;
+a	b
+row for T1	0
+connection master;
+BEGIN;
+UPDATE t3 SET b=b+1 WHERE a="row for T1";
+UPDATE t2 SET b=101 + 10*0 WHERE a=10;
+COMMIT;
+UPDATE t2 SET b=102 + 10*0 WHERE a=10;
+include/save_master_gtid.inc
+connection slave;
+connection slave1;
+ROLLBACK;
+connection slave;
+include/sync_with_master_gtid.inc
+*** 3. Simulate a double retry.
+connection slave;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_double_temp_err_gtid_0_x_100";
+connection master;
+SET gtid_seq_no = 100*(0+1);
+BEGIN;
+INSERT INTO t2 VALUES (100 + 10*0 + 4, 1);
+UPDATE t2 SET b=b+1 WHERE a=20;
+INSERT INTO t2 VALUES (100 + 10*0 + 5, 1);
+INSERT INTO t2 VALUES (100 + 10*0 + 6, 1);
+COMMIT;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug=@old_dbug;
+*** No debug output when disabled.
+NOT FOUND /Slave SQL thread: Deadlock detected, aborting/ in mysqld.2.err
+NOT FOUND /Slave SQL thread: Parallel replication retry/ in mysqld.2.err
+connection slave;
+include/stop_slave.inc
+*** Test --slave-parallel-print-all-deadlocks set to 1:
+connection slave;
+SET GLOBAL slave_parallel_print_all_deadlocks= 1;
+*** 1. Provoke a lock wait timeout.
+SET GLOBAL innodb_lock_wait_timeout= 1;
+SET @@global.slave_transaction_retries= 2;
+include/start_slave.inc
+connection slave1;
+BEGIN;
+SELECT COUNT(*) FROM t1 FOR UPDATE;
+COUNT(*)
+8
+connection master;
+INSERT INTO t1 (b, c) VALUES (1, 100 + 1*10);
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave1;
+ROLLBACK;
+*** Lock wait timeout printed also for first retry.
+FOUND 1 /Slave SQL thread: Parallel replication retry 1 for event group GTID 0-1-101 .*error: 1205.*Lock wait timeout exceeded; try restarting transaction/ in mysqld.2.err
+FOUND 1 /Slave SQL thread: Parallel replication retry 2 for event group GTID 0-1-101 .*error: 1205.*Lock wait timeout exceeded; try restarting transaction/ in mysqld.2.err
+FOUND 2 /END OF INNODB MONITOR OUTPUT/ in mysqld.2.err
+connection slave;
+SET GLOBAL innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+SET GLOBAL slave_transaction_retries= @save_slave_transaction_retries;
+START SLAVE SQL_THREAD;
+include/sync_with_master_gtid.inc
+*** 2. A normal conflict that causes only a single retry.
+connection slave1;
+BEGIN;
+SELECT * FROM t3 WHERE a="row for T1" FOR UPDATE;
+a	b
+row for T1	1
+connection master;
+BEGIN;
+UPDATE t3 SET b=b+1 WHERE a="row for T1";
+UPDATE t2 SET b=101 + 10*1 WHERE a=10;
+COMMIT;
+UPDATE t2 SET b=102 + 10*1 WHERE a=10;
+include/save_master_gtid.inc
+connection slave;
+connection slave1;
+ROLLBACK;
+connection slave;
+include/sync_with_master_gtid.inc
+*** Normal conflict and retry _not_ printed when --slave-parallel-print-all-deadlocks=1
+NOT FOUND /GTID 0-1-102: MySQL thread id/ in mysqld.2.err
+NOT FOUND /GTID 0-1-103: MySQL thread id/ in mysqld.2.err
+NOT FOUND /Slave SQL thread: Parallel replication retry [0-9]* for event group GTID 0-1-103/ in mysqld.2.err
+*** 3. Simulate a double retry.
+connection slave;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_double_temp_err_gtid_0_x_100";
+connection master;
+SET gtid_seq_no = 100*(1+1);
+BEGIN;
+INSERT INTO t2 VALUES (100 + 10*1 + 4, 1);
+UPDATE t2 SET b=b+1 WHERE a=20;
+INSERT INTO t2 VALUES (100 + 10*1 + 5, 1);
+INSERT INTO t2 VALUES (100 + 10*1 + 6, 1);
+COMMIT;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug=@old_dbug;
+*** Double retry printed for both --slave-parallel-print-all-deadlocks=1 and =2
+FOUND 1 /Slave SQL thread: Parallel replication retry 2 for event group GTID 0-1-200 .*error: 1213.*Deadlock found when trying to get lock/ in mysqld.2.err
+FOUND 2 /END OF INNODB MONITOR OUTPUT/ in mysqld.2.err
+*** First retry only printed in --slave-parallel-print-all-deadlocks=2
+NOT FOUND /Slave SQL thread: Parallel replication retry 1 for event group GTID 0-1-200 .*error: 1213.*Deadlock found when trying to get lock/ in mysqld.2.err
+connection slave;
+include/stop_slave.inc
+*** Test --slave-parallel-print-all-deadlocks set to 2:
+connection slave;
+SET GLOBAL slave_parallel_print_all_deadlocks= 2;
+*** 1. Provoke a lock wait timeout.
+SET GLOBAL innodb_lock_wait_timeout= 1;
+SET @@global.slave_transaction_retries= 2;
+include/start_slave.inc
+connection slave1;
+BEGIN;
+SELECT COUNT(*) FROM t1 FOR UPDATE;
+COUNT(*)
+9
+connection master;
+INSERT INTO t1 (b, c) VALUES (2, 100 + 2*10);
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave1;
+ROLLBACK;
+*** Lock wait timeout printed also for first retry.
+FOUND 1 /Slave SQL thread: Parallel replication retry 1 for event group GTID 0-1-201 .*error: 1205.*Lock wait timeout exceeded; try restarting transaction/ in mysqld.2.err
+FOUND 1 /Slave SQL thread: Parallel replication retry 2 for event group GTID 0-1-201 .*error: 1205.*Lock wait timeout exceeded; try restarting transaction/ in mysqld.2.err
+FOUND 4 /END OF INNODB MONITOR OUTPUT/ in mysqld.2.err
+connection slave;
+SET GLOBAL innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+SET GLOBAL slave_transaction_retries= @save_slave_transaction_retries;
+START SLAVE SQL_THREAD;
+include/sync_with_master_gtid.inc
+*** 2. A normal conflict that causes only a single retry.
+connection slave1;
+BEGIN;
+SELECT * FROM t3 WHERE a="row for T1" FOR UPDATE;
+a	b
+row for T1	2
+connection master;
+BEGIN;
+UPDATE t3 SET b=b+1 WHERE a="row for T1";
+UPDATE t2 SET b=101 + 10*2 WHERE a=10;
+COMMIT;
+UPDATE t2 SET b=102 + 10*2 WHERE a=10;
+include/save_master_gtid.inc
+connection slave;
+connection slave1;
+ROLLBACK;
+connection slave;
+include/sync_with_master_gtid.inc
+*** Any conflict and retry printed when --slave-parallel-print-all-deadlocks=2
+FOUND 1 /Slave SQL thread: Deadlock detected, aborting second event group/ in mysqld.2.err
+FOUND 1 /GTID 0-1-202: MySQL thread id/ in mysqld.2.err
+FOUND 1 /GTID 0-1-203: MySQL thread id/ in mysqld.2.err
+FOUND 1 /Slave SQL thread: Parallel replication retry 1 for event group GTID 0-1-203 .*error: 1213.*Deadlock found when trying to get lock/ in mysqld.2.err
+FOUND 5 /END OF INNODB MONITOR OUTPUT/ in mysqld.2.err
+*** 3. Simulate a double retry.
+connection slave;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_double_temp_err_gtid_0_x_100";
+connection master;
+SET gtid_seq_no = 100*(2+1);
+BEGIN;
+INSERT INTO t2 VALUES (100 + 10*2 + 4, 1);
+UPDATE t2 SET b=b+1 WHERE a=20;
+INSERT INTO t2 VALUES (100 + 10*2 + 5, 1);
+INSERT INTO t2 VALUES (100 + 10*2 + 6, 1);
+COMMIT;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug=@old_dbug;
+*** Double retry printed for both --slave-parallel-print-all-deadlocks=1 and =2
+FOUND 1 /Slave SQL thread: Parallel replication retry 2 for event group GTID 0-1-300 .*error: 1213.*Deadlock found when trying to get lock/ in mysqld.2.err
+FOUND 6 /END OF INNODB MONITOR OUTPUT/ in mysqld.2.err
+*** First retry only printed in --slave-parallel-print-all-deadlocks=2
+FOUND 1 /Slave SQL thread: Parallel replication retry 1 for event group GTID 0-1-300 .*error: 1213.*Deadlock found when trying to get lock/ in mysqld.2.err
+connection slave;
+include/stop_slave.inc
+connection slave;
+SET GLOBAL innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+SET GLOBAL slave_parallel_print_all_deadlocks= @save_slave_parallel_print_all_deadlocks;
+SET GLOBAL slave_parallel_threads= @save_slave_parallel_threads;
+SET GLOBAL slave_parallel_mode= @save_slave_parallel_mode;
+SET GLOBAL slave_transaction_retries= @save_slave_transaction_retries;
+SET GLOBAL innodb_status_output_locks= @save_innodb_status_output_locks;
+include/start_slave.inc
+connection master;
+CALL mtr.add_suppression("Slave worker thread retried transaction");
+DROP TABLE t1, t2, t3;
+connection slave;
+include/rpl_end.inc
