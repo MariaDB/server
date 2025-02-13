@@ -1,55 +1,67 @@
 # MDEV-25674: Test the `Master_Retry_Count` field of
-# CHANGE MASTER TO (no feature testing)
+# CHANGE MASTER TO and SHOW SLAVE STATUS & co. (no feature testing)
 
 # Use `--master-retry-count` if not specified
 CHANGE MASTER 'named' TO master_host='example.com';
 CHANGE MASTER TO master_host='127.0.0.1', master_ssl_verify_server_cert=0;
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-  FROM performance_schema.replication_connection_configuration;
+SELECT Connection_name, Master_Retry_Count
+  FROM information_schema.SLAVE_STATUS;
 
 # Replace if specified
 CHANGE MASTER 'named' TO master_retry_count=11;
 # Default master does not replace named master
 CHANGE MASTER TO master_retry_count=10;
+SELECT Connection_name, Master_Retry_Count
+  FROM information_schema.SLAVE_STATUS;
+
+# Conventional views also show the configuations
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Master_Retry_Count
+--source include/show_slave_status.inc
+--let $all_slaves_status= 0
+--let $status_items= Master_Retry_Count
+--source include/show_slave_status.inc
+--let $slave_name= 'named'
+--source include/show_slave_status.inc
 SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
   FROM performance_schema.replication_connection_configuration;
 
 # Restore config on restart
 --let $restart_parameters= --skip-slave-start
 --source include/restart_mysqld.inc # not_embedded
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-  FROM performance_schema.replication_connection_configuration;
+SELECT Connection_name, Master_Retry_Count
+  FROM information_schema.SLAVE_STATUS;
 
 # Keep config on RESET REPLICA
 RESET REPLICA 'named';
 RESET REPLICA;
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-  FROM performance_schema.replication_connection_configuration;
+SELECT Connection_name, Master_Retry_Count
+  FROM information_schema.SLAVE_STATUS;
 
 # Don't replace if not specified
 CHANGE MASTER TO master_user='root';
 CHANGE MASTER 'named' TO master_user='root';
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-  FROM performance_schema.replication_connection_configuration;
+SELECT Connection_name, Master_Retry_Count
+  FROM information_schema.SLAVE_STATUS;
 
 # 0 internally means "not specified"
 CHANGE MASTER TO master_retry_count=0;
 CHANGE MASTER 'named' TO master_retry_count=0;
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-  FROM performance_schema.replication_connection_configuration;
+SELECT Connection_name, Master_Retry_Count
+  FROM information_schema.SLAVE_STATUS;
 
 # Truncates decimals
 CHANGE MASTER TO master_retry_count=0.5;
 CHANGE MASTER 'named' TO master_retry_count=0.5;
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-  FROM performance_schema.replication_connection_configuration;
+SELECT Connection_name, Master_Retry_Count
+  FROM information_schema.SLAVE_STATUS;
 
 # Caps values (such as UINT64_MAX + 1) to `--master-retry-count`'s max
 CHANGE MASTER TO master_retry_count=18446744073709551616;
 CHANGE MASTER 'named' TO master_retry_count=18446744073709551616;
-SELECT CHANNEL_NAME
-  FROM performance_schema.replication_connection_configuration
-  WHERE CONNECTION_RETRY_COUNT IN (2147483647, 18446744073709551615);
+SELECT Connection_name
+  FROM information_schema.SLAVE_STATUS
+  WHERE Master_Retry_Count IN (2147483647, 18446744073709551615);
 
 # Negative
 --error ER_PARSE_ERROR

@@ -1,0 +1,60 @@
+# This test references `rpl_get_master_version_and_clock`.
+--source include/have_binlog_format_mixed.inc # The test is agnostic of binlog formats.
+
+# not-master-slave.inc
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc # shut the primary down
+--connection slave
+
+CHANGE MASTER TO master_connect_retry=1;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+--eval CHANGE MASTER 'named' TO master_host='localhost', master_port=$MASTER_MYPORT, master_user='root', master_connect_retry=2
+
+--echo `Connects_Tried` is 0 before connections begin.
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+
+START ALL REPLICAS; # will fail because the master's gone
+
+--let $slave_io_error_is_nonfatal= 1
+# CR_CONN_HOST_ERROR
+--let $slave_io_errno= 2003
+--source include/wait_for_slave_io_error.inc
+
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+--sleep 3
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+
+# Conventional views
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Connects_Tried
+--source include/show_slave_status.inc
+--let $all_slaves_status= 0
+--let $status_items= Connects_Tried
+--source include/show_slave_status.inc
+--let $slave_name= 'named'
+--source include/show_slave_status.inc
+
+# Boot replication up
+--source include/rpl_start_server.inc
+--connection slave
+# `wait_for_slave_io_to_start.inc` fails if the IO thread has an error.
+--let $slave_param= Slave_IO_Running
+--let $slave_param_value= Yes
+--source include/wait_for_slave_param.inc
+
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+
+# Reset status on RESET REPLICA (see also: `multi_source.reset_slave`)
+STOP ALL REPLICAS;
+--source include/wait_for_slave_to_stop.inc
+RESET REPLICA;
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+
+# Cleanup
+SET @@SESSION.default_master_connection= 'named';
+--source include/wait_for_slave_to_stop.inc
+RESET REPLICA 'named' ALL;
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc

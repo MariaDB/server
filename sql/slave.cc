@@ -3117,6 +3117,10 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   rpl_filter->get_rewrite_db(&tmp);
   (*field++)->store(tmp.ptr(), tmp.length(), &my_charset_bin);
 
+  (*field++)->store(static_cast<long long>(mi->connects_tried), true);
+  (*field++)->store(static_cast<long long>(mi->retry_count), true);
+
+  // SHOW ALL SLAVE STATUS additional entries commences-
   (*field++)->store((uint32)    mi->rli.retried_trans, true);
   (*field++)->store((ulonglong) mi->rli.max_relay_log_size, true);
   (*field++)->store(mi->rli.executed_entries, true);
@@ -4389,9 +4393,9 @@ static bool check_io_slave_killed(Master_info *mi, const char *info)
 
   @details Terminates current connection to master
   and initiates new connection with safe_reconnect(), which sleeps for
-  @c mi->connect_retry msecs and increases @c mi->TODO for each attempt -
-  if it exceeds @c mi->retry_count then connection is not re-established
-  and function signals error.
+  @c mi->connect_retry msecs and increases @c mi->connects_tried for each
+  attempt - if it exceeds @c mi->retry_count then connection is not
+  re-established and function signals error.
   Unless @c suppres_warnings is TRUE, a warning is put in the server error log
   when reconnecting. The warning message and messages used to report errors
   are taken from @c messages array.
@@ -6941,7 +6945,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 {
   int slave_was_killed;
   int last_errno= -2;                           // impossible error
-  ulong err_count=0;
+  mi->connects_tried= 0; // reset retry counter
   my_bool my_true= 1;
   DBUG_ENTER("connect_to_master");
   set_slave_max_allowed_packet(thd, mysql);
@@ -7019,7 +7023,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                  mi->connect_retry, mi->retry_count,
                  mysql_error(mysql));
     }
-    if (++err_count == mi->retry_count)
+    if (++(mi->connects_tried) == mi->retry_count)
     {
       slave_was_killed=1;
       if (reconnect)
@@ -7046,6 +7050,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
       general_log_print(thd, COM_CONNECT_OUT, "%s@%s:%d",
                         mi->user, mi->host, mi->port);
     }
+    ++(mi->connects_tried); // count the final success in addition to failures
 #ifdef SIGNAL_WITH_VIO_CLOSE
     thd->set_active_vio(mysql->net.vio);
 #endif

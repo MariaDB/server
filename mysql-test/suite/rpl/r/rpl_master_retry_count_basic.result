@@ -1,59 +1,70 @@
 CHANGE MASTER 'named' TO master_host='example.com';
 CHANGE MASTER TO master_host='127.0.0.1', master_ssl_verify_server_cert=0;
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-FROM performance_schema.replication_connection_configuration;
-CHANNEL_NAME	CONNECTION_RETRY_COUNT
-named	1
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
 	1
+named	1
 CHANGE MASTER 'named' TO master_retry_count=11;
 CHANGE MASTER TO master_retry_count=10;
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	10
+named	11
+Connection_name = ''
+Connection_name = 'named'
+Master_Retry_Count = '10'
+Master_Retry_Count = '11'
+Master_Retry_Count = '10'
+Master_Retry_Count = '11'
 SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
 FROM performance_schema.replication_connection_configuration;
 CHANNEL_NAME	CONNECTION_RETRY_COUNT
 named	11
 	10
 # restart: --skip-slave-start
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-FROM performance_schema.replication_connection_configuration;
-CHANNEL_NAME	CONNECTION_RETRY_COUNT
-named	11
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
 	10
+named	11
 RESET REPLICA 'named';
 RESET REPLICA;
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-FROM performance_schema.replication_connection_configuration;
-CHANNEL_NAME	CONNECTION_RETRY_COUNT
-named	11
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
 	10
+named	11
 CHANGE MASTER TO master_user='root';
 CHANGE MASTER 'named' TO master_user='root';
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-FROM performance_schema.replication_connection_configuration;
-CHANNEL_NAME	CONNECTION_RETRY_COUNT
-named	11
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
 	10
+named	11
 CHANGE MASTER TO master_retry_count=0;
 CHANGE MASTER 'named' TO master_retry_count=0;
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-FROM performance_schema.replication_connection_configuration;
-CHANNEL_NAME	CONNECTION_RETRY_COUNT
-named	11
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
 	10
+named	11
 CHANGE MASTER TO master_retry_count=0.5;
 CHANGE MASTER 'named' TO master_retry_count=0.5;
-SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
-FROM performance_schema.replication_connection_configuration;
-CHANNEL_NAME	CONNECTION_RETRY_COUNT
-named	11
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
 	10
+named	11
 CHANGE MASTER TO master_retry_count=18446744073709551616;
 CHANGE MASTER 'named' TO master_retry_count=18446744073709551616;
-SELECT CHANNEL_NAME
-FROM performance_schema.replication_connection_configuration
-WHERE CONNECTION_RETRY_COUNT IN (2147483647, 18446744073709551615);
-CHANNEL_NAME
-named
+SELECT Connection_name
+FROM information_schema.SLAVE_STATUS
+WHERE Master_Retry_Count IN (2147483647, 18446744073709551615);
+Connection_name
 
+named
 CHANGE MASTER TO master_retry_count=-1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1' at line 1
 CHANGE MASTER 'named' TO master_retry_count=-1;

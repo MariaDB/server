@@ -1,0 +1,51 @@
+include/master-slave.inc
+[connection master]
+include/rpl_stop_server.inc [server_number=1]
+connection slave;
+CHANGE MASTER TO master_connect_retry=1;
+CHANGE MASTER 'named' TO master_host='localhost', master_port=MASTER_MYPORT, master_user='root', master_connect_retry=2;
+`Connects_Tried` is 0 before connections begin.
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+Connection_name	Connects_Tried
+	0
+named	0
+START ALL REPLICAS;
+Warnings:
+Note	1937	SLAVE 'named' started
+Note	1937	SLAVE '' started
+include/wait_for_slave_io_error.inc [errno=2003]
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+Connection_name	Connects_Tried
+	1
+named	1
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+Connection_name	Connects_Tried
+	4
+named	2
+Connection_name = ''
+Connection_name = 'named'
+Connects_Tried = '4'
+Connects_Tried = '2'
+Connects_Tried = '4'
+Connects_Tried = '2'
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+include/wait_for_slave_param.inc [Slave_IO_Running]
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+Connection_name	Connects_Tried
+	5
+named	3
+STOP ALL REPLICAS;
+Warnings:
+Note	1938	SLAVE 'named' stopped
+Note	1938	SLAVE '' stopped
+include/wait_for_slave_to_stop.inc
+RESET REPLICA;
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+Connection_name	Connects_Tried
+	0
+named	3
+SET @@SESSION.default_master_connection= 'named';
+include/wait_for_slave_to_stop.inc
+RESET REPLICA 'named' ALL;
+include/rpl_end.inc
