@@ -4641,6 +4641,19 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     my_error(ER_UNSUPPORTED_PS, MYF(0));
     goto err;
   }
+
+  if (lex->needs_reprepare)
+  {
+    /*
+      Something has happened on previous execution that requires us to
+      re-prepare before we try to execute.
+    */
+    lex->needs_reprepare= false;
+    error= reprepare();
+    if (error)
+      goto err;
+  }
+
   /*
      Here second buffer for not optimized commands,
      optimized commands do it inside thier internal loop.
