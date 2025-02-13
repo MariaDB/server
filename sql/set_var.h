@@ -111,6 +111,7 @@ public:
     of sys_var_pluginvar, and 0 otherwise.
   */
   virtual sys_var_pluginvar *cast_pluginvar() { return 0; }
+  virtual const struct st_mysql_sys_var *cast_mysql_sys_var() const { return nullptr; }
 
   bool check(THD *thd, set_var *var);
   const uchar *value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
