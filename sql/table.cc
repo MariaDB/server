@@ -11036,6 +11036,7 @@ bool TABLE::is_vers_current_partition(handler *part_file) const
   partition_element *el= hp->part_elem_by_file(part_file);
   return part_info->vers_info->now_part == el;
 }
+// We do fk_check_dup() only for first partition
 bool TABLE::is_first_partition(handler *part_file) const
 {
   return (((ha_partition *) file)->get_child_handlers()[0] == part_file);

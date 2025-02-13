@@ -2358,6 +2358,8 @@ struct Table_scope_and_contents_source_st:
 */
 struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                        public Schema_specification_st,
+                       // Make OPT_LIKE accessible from ha_innobase::create().
+                       // We don't create foreign keys for CREATE LIKE.
                        public DDL_options_st
 {
   /* TODO: remove after MDEV-20865 */
