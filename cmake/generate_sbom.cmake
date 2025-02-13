@@ -48,9 +48,12 @@ FUNCTION(SBOM_GET_CPE name version var)
     "boost" "boost:boost"
     "thrift" "apache:thrift"
   )
-  LIST(FIND cpe_prefix_map "${name}" i)
-  IF(i GREATER -1)
-    MATH(EXPR next_idx "${i}+1")
+  LIST(FIND cpe_prefix_map "${name}" idx_cpe_mapping)
+  # Version needs to have at least one dot character in it.
+  # Otherwise, we assume it is a git  hash, and do not generate CPE
+  STRING(FIND "${version}" "." idx_version_dot)
+  IF((idx_cpe_mapping GREATER -1) AND (idx_version_dot GREATER -1))
+    MATH(EXPR next_idx "${idx_cpe_mapping}+1")
     LIST(GET cpe_prefix_map ${next_idx} cpe_name_and_vendor)
     STRING(REGEX REPLACE "[^0-9\\.]" "" cleaned_version "${version}")
     SET(${var} "cpe:2.3:a:${cpe_name_and_vendor}:${cleaned_version}:*:*:*:*:*:*:*" PARENT_SCOPE)
@@ -101,10 +104,9 @@ FUNCTION (sbom_get_supplier repo_name repo_user varname)
     SET(${varname} "MariaDB" PARENT_SCOPE)
   ELSEIF (repo_name MATCHES "boost")
     SET(${varname} "Boost.org" PARENT_SCOPE)
+  ELSEIF(repo_user MATCHES "mariadb-corporation|mariadb")
+    SET(${varname} "MariaDB")
   ELSE()
-    IF(repo_user MATCHES "mariadb-corporation|mariadb")
-      set(repo_user "MariaDB")
-    ENDIF()
     # Capitalize just first letter in repo_user
     STRING(SUBSTRING "${repo_user}" 0 1 first_letter)
     STRING(SUBSTRING "${repo_user}" 1 -1 rest)
