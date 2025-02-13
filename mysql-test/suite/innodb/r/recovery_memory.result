@@ -12,7 +12,7 @@ END LOOP
 connect con1,localhost,root,,,;
 CALL dorepeat();
 connection default;
-# restart: --innodb_buffer_pool_size=5242880
+# restart: --innodb_buffer_pool_size=6m
 DROP TABLE t1;
 DROP PROCEDURE dorepeat;
 #
