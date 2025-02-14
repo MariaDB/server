@@ -1121,9 +1121,6 @@ struct dict_index_t {
 	uint32_t	stat_n_leaf_pages;
 				/*!< approximate number of leaf pages in the
 				index tree */
-	bool		stats_error_printed;
-				/*!< has persistent statistics error printed
-				for this index ? */
 	/* @} */
 	/** Statistics for defragmentation, these numbers are estimations and
 	could be very inaccurate at certain times, e.g. right after restart,
@@ -2387,7 +2384,7 @@ public:
 	ib_uint64_t				stat_modified_counter;
 
 	bool		stats_error_printed;
-				/*!< Has persistent stats error beein
+				/*!< Has persistent stats error been
 				already printed for this table ? */
 	/* @} */
 

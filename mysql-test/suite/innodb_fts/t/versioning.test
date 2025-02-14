@@ -64,7 +64,8 @@ if ($MTR_COMBINATION_PREPARE)
 if ($MTR_COMBINATION_UPGRADE)
 {
 --disable_query_log
-call mtr.add_suppression("InnoDB: Table `mysql`.\`innodb_(table|index)_stats`");
+call mtr.add_suppression("`?mysql`?\\.`?innodb_(table|index)_stats");
+call mtr.add_suppression("Fetch of persistent.*storage is corrupted");
 --enable_query_log
   --source include/shutdown_mysqld.inc
   --exec rm -f $datadir/test/*.ibd $datadir/ib*

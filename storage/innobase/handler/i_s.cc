@@ -2348,7 +2348,7 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)
 		   || !user_table->is_readable()) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -2363,7 +2363,7 @@ i_s_fts_deleted_generic_fill(
 
 	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	trx->free();
 
@@ -2718,7 +2718,7 @@ i_s_fts_index_cache_fill(
 	}
 
 	if (!user_table->fts || !user_table->fts->cache) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -2743,7 +2743,7 @@ i_s_fts_index_cache_fill(
 	}
 
 	mysql_mutex_unlock(&cache->lock);
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	DBUG_RETURN(ret);
 }
@@ -3171,7 +3171,7 @@ i_s_fts_index_table_fill(
 		}
 	}
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	ut_free(conv_str.f_str);
 
@@ -3307,7 +3307,7 @@ i_s_fts_config_fill(
 	}
 
 	if (!dict_table_has_fts_index(user_table)) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -3364,7 +3364,7 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	trx->free();
 
