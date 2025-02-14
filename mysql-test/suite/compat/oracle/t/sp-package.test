@@ -366,13 +366,13 @@ SELECT test2.f1();
 UPDATE mysql.proc SET `body`='garbage'
   WHERE db='test' AND name='test2' AND type='PACKAGE';
 --source sp-cache-invalidate.inc
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 SELECT test2.f1();
 show warnings;
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 SELECT test2.f1();
 show warnings;
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 SELECT test2.f1();
 show warnings;
 
@@ -405,13 +405,13 @@ CALL test2.f1();
 UPDATE mysql.proc SET `body`='garbage'
   WHERE db='test' AND name='test2' AND type='PACKAGE';
 --source sp-cache-invalidate.inc
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 CALL test2.p1();
 show warnings;
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 CALL test2.p1();
 show warnings;
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 CALL test2.p1();
 show warnings;
 

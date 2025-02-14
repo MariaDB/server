@@ -2487,8 +2487,12 @@ is_package_public_routine(THD *thd,
 {
   sp_head *sp= NULL;
   Database_qualified_name tmp(db, package);
-  bool ret= sp_handler_package_spec.
-              sp_cache_routine_reentrant(thd, &tmp, &sp);
+
+  Dummy_error_handler err_handler;
+  thd->push_internal_handler(&err_handler);
+  bool ret= sp_handler_package_spec.sp_cache_routine_reentrant(thd, &tmp, &sp);
+  thd->pop_internal_handler();
+
   sp_package *spec= (!ret && sp) ? sp->get_package() : NULL;
   return spec && spec->m_routine_declarations.find(routine, type);
 }

@@ -216,6 +216,14 @@ CALL pkg.p2;
 DROP PACKAGE pkg;
 DROP TABLE t1;
 
---echo #
 --echo # End of 11.7 tests
+
 --echo #
+--echo # MDEV-36067 Assertion failure in TABLE_SHARE::init_from_sql_statement_string
+--echo #
+rename table mysql.proc to test.proc_backup;
+select * from information_schema.tables where
+  table_schema='sys' and table_name='x$schema_table_lock_waits';
+rename table test.proc_backup to mysql.proc;
+
+--echo # End of 11.8 tests

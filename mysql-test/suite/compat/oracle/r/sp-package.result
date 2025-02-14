@@ -273,23 +273,20 @@ UPDATE mysql.proc SET `body`='garbage'
   WHERE db='test' AND name='test2' AND type='PACKAGE';
 # sp-cache-invalidate
 SELECT test2.f1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: FUNCTION test2.f1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	FUNCTION test2.f1 does not exist
 SELECT test2.f1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: FUNCTION test2.f1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	FUNCTION test2.f1 does not exist
 SELECT test2.f1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: FUNCTION test2.f1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	FUNCTION test2.f1 does not exist
 DROP PACKAGE test2;
 #
 # Broken CREATE PACKAGE at a package procedure call time
@@ -311,23 +308,20 @@ UPDATE mysql.proc SET `body`='garbage'
   WHERE db='test' AND name='test2' AND type='PACKAGE';
 # sp-cache-invalidate
 CALL test2.p1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: PROCEDURE test2.p1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	PROCEDURE test2.p1 does not exist
 CALL test2.p1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: PROCEDURE test2.p1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	PROCEDURE test2.p1 does not exist
 CALL test2.p1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: PROCEDURE test2.p1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	PROCEDURE test2.p1 does not exist
 DROP PACKAGE test2;
 #
 # Bad routine names
