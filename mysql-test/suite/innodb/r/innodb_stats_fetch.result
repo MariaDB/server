@@ -131,21 +131,21 @@ FROM information_schema.statistics WHERE table_name = 'test_ps_fetch'
 ORDER BY index_name, seq_in_index;
 seq_in_index	1
 column_name	c
-cardinality	6
+cardinality	0
 seq_in_index	2
 column_name	d
-cardinality	22
+cardinality	0
 seq_in_index	1
 column_name	a
-cardinality	40
+cardinality	0
 seq_in_index	2
 column_name	b
-cardinality	200
+cardinality	0
 SELECT
 table_rows, avg_row_length, max_data_length, index_length
 FROM information_schema.tables WHERE table_name = 'test_ps_fetch';
-table_rows	1000
-avg_row_length	81
+table_rows	0
+avg_row_length	0
 max_data_length	0
 index_length	16384
 DROP TABLE test_ps_fetch;

@@ -1059,7 +1059,7 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd)
     else if (t.second.first == reinterpret_cast<dict_table_t*>(-1));
     else
     {
-      dict_table_close(t.second.first, false, thd, t.second.second);
+      dict_table_close(t.second.first, thd, t.second.second);
       t.second.first= reinterpret_cast<dict_table_t*>(-1);
     }
   }
@@ -1197,7 +1197,7 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
         if (t.second.first == reinterpret_cast<dict_table_t*>(-1))
         {
           if (table)
-            dict_table_close(table, false, thd, *mdl);
+            dict_table_close(table, thd, *mdl);
           goto retry;
         }
       }

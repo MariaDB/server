@@ -353,9 +353,9 @@ extern uint	srv_fast_shutdown;
 
 extern ibool	srv_innodb_status;
 
-extern unsigned long long	srv_stats_transient_sample_pages;
+extern uint32_t			srv_stats_transient_sample_pages;
 extern my_bool			srv_stats_persistent;
-extern unsigned long long	srv_stats_persistent_sample_pages;
+extern uint32_t			srv_stats_persistent_sample_pages;
 extern my_bool			srv_stats_auto_recalc;
 extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;

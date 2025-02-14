@@ -2348,7 +2348,7 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)
 		   || !user_table->is_readable()) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -2363,7 +2363,7 @@ i_s_fts_deleted_generic_fill(
 
 	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	trx->free();
 
@@ -2718,7 +2718,7 @@ i_s_fts_index_cache_fill(
 	}
 
 	if (!user_table->fts || !user_table->fts->cache) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -2743,7 +2743,7 @@ i_s_fts_index_cache_fill(
 	}
 
 	mysql_mutex_unlock(&cache->lock);
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	DBUG_RETURN(ret);
 }
@@ -3171,7 +3171,7 @@ i_s_fts_index_table_fill(
 		}
 	}
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	ut_free(conv_str.f_str);
 
@@ -3307,7 +3307,7 @@ i_s_fts_config_fill(
 	}
 
 	if (!dict_table_has_fts_index(user_table)) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -3364,7 +3364,7 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	trx->free();
 
@@ -4994,9 +4994,9 @@ i_s_dict_fill_sys_tablestats(THD* thd, dict_table_t *table,
 
     OK(field_store_string(fields[SYS_TABLESTATS_NAME],
                           table->name.m_name));
-    OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized, true));
+    OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized(), true));
 
-    if (table->stat_initialized)
+    if (table->stat_initialized())
     {
       OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows, true));
 
