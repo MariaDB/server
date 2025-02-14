@@ -1386,7 +1386,7 @@ rollback_clust:
 		bool update_statistics
 			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
 
-		if (err == DB_SUCCESS && node->table->stat_initialized) {
+		if (err == DB_SUCCESS && node->table->stat_initialized()) {
 			switch (node->rec_type) {
 			case TRX_UNDO_UPD_EXIST_REC:
 				break;

@@ -1605,7 +1605,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	ut_ad(table->stat_initialized);
+	ut_ad(table->stat_initialized());
 
 	if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);

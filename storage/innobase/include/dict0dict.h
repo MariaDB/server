@@ -674,7 +674,7 @@ TPOOL_SUPPRESS_TSAN
 @return estimated number of rows */
 inline uint64_t dict_table_get_n_rows(const dict_table_t *table)
 {
-  ut_ad(table->stat_initialized);
+  ut_ad(table->stat_initialized());
   return table->stat_n_rows;
 }
 

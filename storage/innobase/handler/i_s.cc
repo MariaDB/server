@@ -4994,9 +4994,9 @@ i_s_dict_fill_sys_tablestats(THD* thd, dict_table_t *table,
 
     OK(field_store_string(fields[SYS_TABLESTATS_NAME],
                           table->name.m_name));
-    OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized, true));
+    OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized(), true));
 
-    if (table->stat_initialized)
+    if (table->stat_initialized())
     {
       OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows, true));
 

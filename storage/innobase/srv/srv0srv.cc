@@ -301,13 +301,13 @@ this many index pages, there are 2 ways to calculate statistics:
   in the innodb database.
 * quick transient stats, that are used if persistent stats for the given
   table/index are not found in the innodb database */
-unsigned long long	srv_stats_transient_sample_pages;
+uint32_t	srv_stats_transient_sample_pages;
 /** innodb_stats_persistent */
 my_bool		srv_stats_persistent;
 /** innodb_stats_include_delete_marked */
 my_bool		srv_stats_include_delete_marked;
 /** innodb_stats_persistent_sample_pages */
-unsigned long long	srv_stats_persistent_sample_pages;
+uint32_t	srv_stats_persistent_sample_pages;
 /** innodb_stats_auto_recalc */
 my_bool		srv_stats_auto_recalc;
 
