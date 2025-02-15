@@ -44,6 +44,7 @@ typedef struct st_key_cache KEY_CACHE;
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;
 typedef struct st_order ORDER;
 typedef struct st_ddl_log_state DDL_LOG_STATE;
+extern LEX_CSTRING generated_by_server;
 
 enum enum_explain_filename_mode
 {

@@ -28,7 +28,7 @@
 #
 
 --source include/have_partition.inc
---source include/have_binlog_format_mixed.inc
+--source include/have_binlog_format_statement.inc
 --source include/master-slave.inc
 
 CREATE TEMPORARY TABLE t1 (a INT NOT NULL);

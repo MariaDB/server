@@ -15,8 +15,13 @@ CREATE TEMPORARY TABLE t2 (a VARCHAR(100));
 
 --echo # Test allow switching @@SESSION.binlog_format from MIXED to STATEMENT
 --echo # when there are open temp tables and we are logging in statement based format.
+--ERROR ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR
 SET SESSION binlog_format = STATEMENT;
 SELECT @@SESSION.binlog_format;
+
+DROP TABLE t2;
+SET SESSION binlog_format = STATEMENT;
+CREATE TEMPORARY TABLE t2 (a VARCHAR(100));
 
 --echo # Test allow switching @@SESSION.binlog_format from STATEMENT to
 --echo # STATEMENT when there are open temp tables.
@@ -35,6 +40,15 @@ SELECT @@SESSION.binlog_format;
 SET SESSION binlog_format = MIXED;
 SELECT @@SESSION.binlog_format;
 
+--echo # Switching between mixed and row still works
+SET SESSION binlog_format = STATEMENT;
+SET SESSION binlog_format = MIXED;
+
+--echo # Ensure that usage of t2 uses statement logging
+SET SESSION binlog_format = MIXED;
+insert into t1 select * from t2;
+
+--echo # This will switch binlog format when using t2 to ROW
 INSERT INTO t2 VALUES (UUID());
 SELECT @@SESSION.binlog_format;
 
@@ -71,6 +85,10 @@ INSERT INTO t1 VALUES ('row based');
 SET SESSION binlog_format = STATEMENT;
 SELECT @@SESSION.binlog_format;
 
+--echo # Ensure that usage of t2 uses row logging
+SET SESSION binlog_format = MIXED;
+insert into t1 select * from t2;
+
 DROP TEMPORARY TABLE t2;
 DROP TABLE t1;
-
+source include/show_binlog_events.inc;
