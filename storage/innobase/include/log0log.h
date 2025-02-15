@@ -102,6 +102,10 @@ or the MySQL version that created the redo log file. */
 #define LOG_HEADER_CREATOR_END	48
 /* @} */
 
+/** Fake tablespace id for InnoDB-implemented binlog files. */
+#define LOG_BINLOG_ID_0 0xFFFFFFFEU
+#define LOG_BINLOG_ID_1 0xFFFFFFFFU
+
 struct log_t;
 
 /** File abstraction */

@@ -28,8 +28,6 @@ InnoDB implementation of binlog.
 #include "fsp_binlog.h"
 
 
-struct fil_space_t;
-struct buf_block_t;
 struct mtr_t;
 struct rpl_binlog_state_base;
 struct rpl_gtid;
@@ -97,8 +95,8 @@ extern void innodb_binlog_startup_init();
 extern bool innodb_binlog_init(size_t binlog_size, const char *directory);
 extern void innodb_binlog_close(bool shutdown);
 extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
-                              buf_block_t * &block, uint32_t &page_no,
-                              uint32_t &page_offset, fil_space_t *space);
+                              fsp_binlog_page_entry * &block, uint32_t &page_no,
+                              uint32_t &page_offset, uint64_t file_no);
 extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
 extern void innodb_free_oob(THD *thd, void *engine_data);
