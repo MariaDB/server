@@ -2777,8 +2777,7 @@ use test;
 --echo # MDEV-23406: query with mutually recursive CTEs when big_tables=1
 --echo #
 
-set @save_big_tables=@@big_tables;
-set big_tables=1;
+set tmp_memory_table_size=0; # force on-disk tmp table
 
 create table  folks(id int, name char(32), dob date, father int, mother int);
 
@@ -2865,7 +2864,7 @@ deallocate prepare stmt;
 
 drop table folks;
 
-set big_tables=@save_big_tables;
+set tmp_memory_table_size=default;
 
 --echo #
 --echo # MDEV-26135: execution of PS for query with hanging recursive CTE

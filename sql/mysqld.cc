@@ -430,7 +430,6 @@ my_bool lower_case_file_system= 0;
 my_bool opt_large_pages= 0;
 my_bool opt_super_large_pages= 0;
 my_bool opt_myisam_use_mmap= 0;
-uint   opt_large_page_size= 0;
 #if defined(ENABLED_DEBUG_SYNC)
 MYSQL_PLUGIN_IMPORT uint    opt_debug_sync_timeout= 0;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -5436,6 +5435,10 @@ static int init_server_components()
       /* removed in 11.5 */
       MARIADB_REMOVED_OPTION("wsrep-load-data-splitting"),
 
+      /* removed in 12.0 */
+      MARIADB_REMOVED_OPTION("big-tables"),
+      MARIADB_REMOVED_OPTION("large-page-size"),
+      MARIADB_REMOVED_OPTION("storage-engine"),
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*

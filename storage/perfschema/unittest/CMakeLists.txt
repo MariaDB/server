@@ -35,6 +35,6 @@ ADD_CONVENIENCE_LIBRARY(pfs_server_stubs pfs_server_stubs.cc)
 ADD_DEPENDENCIES(pfs_server_stubs GenError)
 
 MY_ADD_TESTS(pfs_instr_class pfs_instr_class-oom pfs_instr pfs_instr-oom
-             pfs_account-oom pfs_host-oom pfs_timer pfs_user-oom pfs_noop pfs
+             pfs_account-oom pfs_host-oom pfs_user-oom pfs_noop pfs
              pfs_misc
   EXT "cc" LINK_LIBRARIES perfschema mysys pfs_server_stubs)

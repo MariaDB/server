@@ -1507,25 +1507,19 @@ CREATE TABLE t1 (c CHAR(1) NULL) ENGINE=MyISAM;
 INSERT INTO t1 (c) VALUES (1);
 SET statement
 optimizer_where_cost=1,
-big_tables=1,
+tmp_memory_table_size=0,
 in_predicate_conversion_threshold=2
 FOR
 SELECT * FROM t1 WHERE c IN ('','');
 c
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET statement
 optimizer_where_cost=1,
-big_tables=1,
+tmp_memory_table_size=0,
 in_predicate_conversion_threshold=2,
 sql_mode=''
 FOR
 SELECT * FROM t1 WHERE c IN ('','');
 c
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 DROP TABLE t1;
 #
 # End of 11.0 tests

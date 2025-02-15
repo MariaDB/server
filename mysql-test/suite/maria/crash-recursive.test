@@ -4,11 +4,10 @@
 # upper levels when trying to access structures that does not exist anymore
 #
 
---source include/have_debug_sync.inc
+--source include/have_debug.inc
 --source include/not_embedded.inc
 
-set @save_big_tables=@@big_tables;
-set big_tables=1;
+set tmp_memory_table_size=0;
 
 create table  folks(id int, name char(32), dob date, father int, mother int);
 
@@ -63,5 +62,5 @@ select h_name, h_dob, w_name, w_dob
 eval $q;
 drop table folks;
 
-set big_tables=@save_big_tables;
+set tmp_memory_table_size=default;
 SET @@SESSION.debug_dbug=@saved_dbug;

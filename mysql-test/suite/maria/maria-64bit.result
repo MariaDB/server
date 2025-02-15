@@ -1,6 +1,4 @@
-set session storage_engine=aria;
-Warnings:
-Warning	1287	'@@storage_engine' is deprecated and will be removed in a future release. Please use '@@default_storage_engine' instead
+set session default_storage_engine=aria;
 #
 # BUG#47444 - --myisam_repair_threads > 1 can result in all index
 #             cardinalities=1

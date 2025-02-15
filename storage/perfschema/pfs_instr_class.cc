@@ -153,25 +153,6 @@ PFS_ALIGNED PFS_instr_class global_idle_class;
 PFS_ALIGNED PFS_instr_class global_metadata_class;
 PFS_ALIGNED PFS_transaction_class global_transaction_class;
 
-/** Class-timer map */
-enum_timer_name *class_timers[] =
-{&wait_timer,        /* PFS_CLASS_NONE */
- &wait_timer,        /* PFS_CLASS_MUTEX */
- &wait_timer,        /* PFS_CLASS_RWLOCK */
- &wait_timer,        /* PFS_CLASS_COND */
- &wait_timer,        /* PFS_CLASS_FILE */
- &wait_timer,        /* PFS_CLASS_TABLE */
- &stage_timer,       /* PFS_CLASS_STAGE */
- &statement_timer,   /* PFS_CLASS_STATEMENT */
- &transaction_timer, /* PFS_CLASS_TRANSACTION */
- &wait_timer,        /* PFS_CLASS_SOCKET */
- &wait_timer,        /* PFS_CLASS_TABLE_IO */
- &wait_timer,        /* PFS_CLASS_TABLE_LOCK */
- &idle_timer,        /* PFS_CLASS_IDLE */
- &wait_timer,        /* PFS_CLASS_METADATA */
- &wait_timer         /* PFS_CLASS_MEMORY */
-};
-
 /**
   Hash index for instrumented table shares.
   This index is searched by table fully qualified name (@c PFS_table_share_key),
@@ -1000,7 +981,6 @@ static void init_instr_class(PFS_instr_class *klass,
   klass->m_enabled= true;
   klass->m_timed= true;
   klass->m_type= class_type;
-  klass->m_timer= class_timers[class_type];
 }
 
 /**

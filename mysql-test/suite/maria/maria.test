@@ -2070,8 +2070,8 @@ drop table t1;
 --echo #
 
 connect (session1,localhost,root,,);
-SET big_tables= on;
 SET NAMES 'sjis';
+set statement tmp_memory_table_size=0 for
 SELECT 'למטה' AS a UNION SELECT 'Wetter' AS a;
 connection default;
 disconnect session1;
