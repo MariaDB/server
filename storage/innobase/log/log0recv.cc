@@ -2394,6 +2394,14 @@ void recv_sys_t::rewind(source &l, source &begin) noexcept
   pages_it= pages.end();
 }
 
+static void binlog_recover_write_data(bool space_id, uint32_t page_no,
+                                      uint16_t offset,
+                                      lsn_t start_lsn, lsn_t lsn,
+                                      const byte *buf, size_t size) noexcept
+{}
+static void binlog_recover_end(lsn_t lsn) noexcept {}
+
+
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
 @tparam storing   whether to store the records
 @param  l         log data source
@@ -2883,6 +2891,23 @@ restart:
 #endif
       if (storing == YES)
       {
+        if (space_id >= 0xfffffffe)
+        {
+          if ((b & 0xf0) != WRITE)
+            goto record_corrupted;
+          const size_t olen= mlog_decode_varint_length(*cl);
+          if (UNIV_UNLIKELY(olen >= rlen) || UNIV_UNLIKELY(olen > 3))
+            goto record_corrupted;
+          const uint32_t offset= mlog_decode_varint(cl);
+          ut_ad(offset != MLOG_DECODE_ERROR);
+          if (UNIV_UNLIKELY(offset + rlen - olen >= 65535))
+            goto record_corrupted;
+          binlog_recover_write_data(space_id & 1, page_no, uint16_t(offset),
+                                    start_lsn, lsn,
+                                    l.get_buf(cl, recs, decrypt_buf) + olen,
+                                    l - recs + rlen - olen);
+          continue;
+        }
         if (if_exists)
         {
           if (fil_space_t *space= fil_space_t::get(space_id))
@@ -4231,6 +4256,7 @@ static bool recv_scan_log(bool last_phase)
     ut_ad(!rewound_lsn);
     ut_ad(recv_sys.lsn >= recv_sys.file_checkpoint);
     log_sys.set_recovered_lsn(recv_sys.lsn);
+    binlog_recover_end(recv_sys.lsn);
   }
   else if (rewound_lsn)
   {
