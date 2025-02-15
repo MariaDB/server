@@ -2048,6 +2048,49 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   return true;
 }
 
+static void binlog_write_up_to(lsn_t lsn) noexcept {}
+
+void mtr_t::write_binlog(bool space_id, uint32_t page_no,
+                         uint16_t offset,
+                         const void *buf, size_t size) noexcept
+{
+  /* ToDo: this asserts in multiple places currently. */
+  return;
+  ut_ad(!srv_read_only_mode);
+  ut_ad(m_log_mode == MTR_LOG_ALL);
+
+  bool alloc{size < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5)};
+  byte *end= log_write<WRITE>(page_id_t{0xfffffffe | (uint)space_id, page_no},
+                              nullptr, size, alloc, offset);
+  if (alloc)
+          {
+    ::memcpy(end, buf, size);
+    m_log.close(end + size);
+  }
+  else
+  {
+    m_log.close(end);
+    m_log.push(static_cast<const byte*>(buf), uint32_t(size));
+  }
+}
+
+/** Write binlog data
+@param space_id  binlog tablespace
+@param page_no   binlog page number
+@param offset    offset within the page
+@param buf       data
+@param size      size of data
+@return start LSN of the mini-transaction */
+lsn_t binlog_write_data(bool space_id, uint32_t page_no, uint16_t offset,
+                        const void *buf, size_t size) noexcept
+{
+  mtr_t mtr;
+  mtr.start();
+  mtr.write_binlog(space_id, page_no, offset, buf, size);
+  mtr.commit();
+  return mtr.commit_lsn();
+}
+
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
@@ -2068,11 +2111,13 @@ static bool log_checkpoint() noexcept
 #endif
 
   fil_flush_file_spaces();
+  binlog_write_up_to(log_sys.get_lsn());
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const lsn_t end_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
+  // FIXME: limit oldest_lsn below binlog split write LSN
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   return log_checkpoint_low(oldest_lsn, end_lsn);
 }
@@ -2268,12 +2313,14 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
 
   os_aio_wait_until_no_pending_writes(false);
   fil_flush_file_spaces();
+  binlog_write_up_to(log_sys.get_lsn());
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const lsn_t newest_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_t measure= buf_pool.get_oldest_modification(0);
   const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
+  // FIXME: limit checkpoint_lsn below binlog split write LSN
 
   if (!recv_recovery_is_on() &&
       checkpoint_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)

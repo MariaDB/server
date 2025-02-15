@@ -31,7 +31,6 @@ InnoDB implementation of binlog.
 #include "mtr0mtr.h"
 
 
-struct fil_space_t;
 struct chunk_data_base;
 
 
@@ -84,6 +83,94 @@ static_assert(FSP_BINLOG_TYPE_END <= 8*sizeof(ALLOWED_NESTED_RECORDS),
               "in ALLOWED_NESTED_RECORDS bitmask");
 
 
+struct fsp_binlog_page_entry {
+  fsp_binlog_page_entry *next;
+  byte *page_buf;
+  uint32_t latched;
+  /*
+    Flag set when the page has been filled, no more data will be added and
+    it is safe to write out to disk and remove from the FIFO.
+  */
+  bool complete;
+  /*
+    Flag set when the page is not yet complete, but all data added so far
+    have been written out to the file. So the page should not be written
+    again (until more data is added), but nor can it be removed from the
+    FIFO yet.
+  */
+  bool flushed_clean;
+};
+
+
+/*
+  A page FIFO, as a lower-level alternative to the buffer pool used for full
+  tablespaces.
+
+  Since binlog files are written strictly append-only, we can simply add new
+  pages at the end and flush them from the beginning.
+
+  ToDo: This is deliberately a naive implementation with single global mutex
+  and repeated malloc()/free(), as a starting point. Should be improved later
+  for efficiency and scalability.
+*/
+class fsp_binlog_page_fifo {
+public:
+  struct page_list {
+    fsp_binlog_page_entry *first_page;
+    uint32_t first_page_no;
+    uint32_t size_in_pages;
+    File fh;
+  };
+private:
+  mysql_mutex_t m_mutex;
+  pthread_cond_t m_cond;
+  std::thread flush_thread_obj;
+
+  /*
+    The first_file_no is the first valid file in the fifo. The other entry in
+    the fifo holds (first_file_no+1) if it is not empty.
+    If first_file_no==~0, then there are no files in the fifo (initial state
+    just after construction).
+  */
+  uint64_t first_file_no;
+  page_list fifos[2];
+
+  bool flushing;
+  bool flush_thread_started;
+  bool flush_thread_end;
+
+
+public:
+  fsp_binlog_page_fifo();
+  ~fsp_binlog_page_fifo();
+  void reset();
+  void start_flush_thread();
+  void stop_flush_thread();
+  void flush_thread_run();
+  void lock_wait_for_idle();
+  void unlock() { mysql_mutex_unlock(&m_mutex); }
+  void create_tablespace(uint64_t file_no, uint32_t size_in_pages,
+                         uint32_t init_page= ~(uint32_t)0,
+                         byte *partial_page= nullptr);
+  void release_tablespace(uint64_t file_no);
+  fsp_binlog_page_entry *create_page(uint64_t file_no, uint32_t page_no);
+  fsp_binlog_page_entry *get_page(uint64_t file_no, uint32_t page_no);
+  void release_page(uint64_t file_no, uint32_t page_no,
+                    fsp_binlog_page_entry *page);
+  bool flush_one_page(uint64_t file_no, bool force);
+  void flush_up_to(uint64_t file_no, uint32_t page_no);
+  void do_fdatasync(uint64_t file_no);
+  File get_fh(uint64_t file_no);
+  uint32_t size_in_pages(uint64_t file_no) {
+    return fifos[file_no & 1].size_in_pages;
+  }
+  void truncate_file_size(uint64_t file_no, uint32_t size_in_pages)
+  {
+    fifos[file_no & 1].size_in_pages= size_in_pages;
+  }
+};
+
+
 class binlog_chunk_reader {
 public:
   enum chunk_reader_status {
@@ -117,15 +204,13 @@ public:
     bool in_record;
   } s;
 
-  /* The mtr is started iff cur_block is non-NULL. */
-  mtr_t mtr;
   /*
     After fetch_current_page(), this points into either cur_block or
     page_buffer as appropriate.
   */
   byte *page_ptr;
   /* Valid after fetch_current_page(), if page found in buffer pool. */
-  buf_block_t *cur_block;
+  fsp_binlog_page_entry *cur_block;
   /* Buffer for reading a page directly from a tablespace file. */
   byte *page_buffer;
   /* Amount of data in file, valid after fetch_current_page(). */
@@ -200,22 +285,23 @@ extern uint64_t current_binlog_state_interval;
 extern mysql_mutex_t active_binlog_mutex;
 extern pthread_cond_t active_binlog_cond;
 extern std::atomic<uint64_t> active_binlog_file_no;
-extern fil_space_t* active_binlog_space;
 extern uint64_t first_open_binlog_file_no;
 extern uint64_t last_created_binlog_file_no;
-extern fil_space_t *last_created_binlog_space;
 extern std::atomic<uint64_t> binlog_cur_written_offset[2];
 extern std::atomic<uint64_t> binlog_cur_end_offset[2];
+extern fsp_binlog_page_fifo *binlog_page_fifo;
 
+extern void fsp_log_binlog_write(mtr_t *mtr, uint64_t file_no, uint32_t page_no,
+                                 fsp_binlog_page_entry *page,
+                                 uint32_t page_offset, uint32_t len);
 extern void fsp_binlog_init();
 extern void fsp_binlog_shutdown();
 extern dberr_t fsp_binlog_tablespace_close(uint64_t file_no);
-extern fil_space_t *fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
-                                    uint64_t file_no, size_t file_size,
-                                    bool open_empty);
+extern bool fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
+                            uint64_t file_no, size_t file_size,
+                            uint32_t init_page, byte *partial_page);
 extern dberr_t fsp_binlog_tablespace_create(uint64_t file_no,
-                                            uint32_t size_in_pages,
-                                            fil_space_t **new_space);
+                                            uint32_t size_in_pages);
 extern std::pair<uint64_t, uint64_t> fsp_binlog_write_rec(
   struct chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type);
 extern bool fsp_binlog_flush();

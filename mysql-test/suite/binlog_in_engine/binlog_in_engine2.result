@@ -1,0 +1,13 @@
+CREATE TABLE sbtest1(
+id INTEGER NOT NULL AUTO_INCREMENT,
+k INTEGER DEFAULT '0' NOT NULL,
+c CHAR(120) DEFAULT '' NOT NULL,
+pad CHAR(60) DEFAULT '' NOT NULL,
+PRIMARY KEY (id)
+) ENGINE = innodb;
+*** Test bug where a large event in trx cache would fail to flush to disk
+*** the last part of the IO_CACHE after reinit_io_cache()
+SELECT COUNT(*) FROM sbtest1;
+COUNT(*)
+1000
+DROP TABLE sbtest1;

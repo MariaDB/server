@@ -2455,6 +2455,14 @@ recv_sys_t::parse_mtr_result log_parse_start(source &l, unsigned nonce)
   return crc32c == stored_crc32c ? recv_sys_t::OK : recv_sys_t::GOT_EOF;
 }
 
+static void binlog_recover_write_data(bool space_id, uint32_t page_no,
+                                      uint16_t offset,
+                                      lsn_t start_lsn, lsn_t lsn,
+                                      const byte *buf, size_t size) noexcept
+{}
+static void binlog_recover_end(lsn_t lsn) noexcept {}
+
+
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
 @tparam source    type of log data source
 @tparam storing   whether to store the records
@@ -3180,6 +3188,20 @@ restart:
       }
 #endif
       if (storing != YES);
+      else if (!ENC_10_8 && space_id >= 0xfffffffe)
+      {
+        if ((b & 0xf0) != WRITE)
+          goto record_corrupted;
+        const size_t olen= mlog_decode_varint_length(*l);
+        if (UNIV_UNLIKELY(olen >= rlen) || UNIV_UNLIKELY(olen > 3))
+          goto record_corrupted;
+        const uint32_t offset= mlog_decode_varint(l);
+        ut_ad(offset != MLOG_DECODE_ERROR);
+        if (UNIV_UNLIKELY(offset + rlen - olen >= 65535))
+          goto record_corrupted;
+        binlog_recover_write_data(space_id & 1, page_no, uint16_t(offset),
+                                  start_lsn, lsn, l + olen, rlen - olen);
+      }
       else if (if_exists && !parse_store_if_exists(space_id));
       else if (UNIV_UNLIKELY(parse_store(id, ENC_10_8 && l != cl
                                          ? decrypt_buf : recs,
@@ -4401,6 +4423,7 @@ static bool recv_scan_log(bool last_phase, const recv_sys_t::parser *parser)
     ut_ad(!rewound_lsn);
     ut_ad(recv_sys.lsn >= recv_sys.file_checkpoint);
     log_sys.set_recovered_lsn(recv_sys.lsn);
+    binlog_recover_end(recv_sys.lsn);
   }
   else if (rewound_lsn)
   {
