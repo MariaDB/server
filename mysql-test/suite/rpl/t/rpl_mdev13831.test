@@ -1,6 +1,6 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
---source include/have_binlog_format_mixed.inc
+--source include/have_binlog_format_statement.inc
 --source include/master-slave.inc
 
 --echo *** MDEV-13831: Assertion on event group missing XID/COMMIT event

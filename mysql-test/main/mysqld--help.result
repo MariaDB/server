@@ -228,6 +228,13 @@ The following specify which files/extra groups are read (specified before remain
  --console           Write error output on screen; don't remove the console
  window on Windows
  --core-file         Write core on crashes
+ --create-tmp-table-binlog-formats=name 
+ The binary logging formats under which the master will
+ log CREATE TEMPORARY statments to the binary log. If
+ CREATE TEMPORARY is not logged, all usage of the
+ temporary table will be logged in ROW format. Allowed
+ values are STATEMENT or MIXED,STATEMENT, or ALL to set
+ all combinations
  -h, --datadir=name  Path to the database root directory
  --deadlock-search-depth-long=# 
  Long search depth for the two-step deadlock detection
@@ -1699,6 +1706,7 @@ completion-type NO_CHAIN
 concurrent-insert AUTO
 console TRUE
 core-file TRUE
+create-tmp-table-binlog-formats STATEMENT
 deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000

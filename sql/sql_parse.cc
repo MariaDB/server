@@ -530,6 +530,7 @@ void init_update_queries(void)
                                             CF_SCHEMA_CHANGE;
   sql_command_flags[SQLCOM_CREATE_SEQUENCE]=  (CF_CHANGES_DATA |
                                             CF_REEXECUTION_FRAGILE |
+                                            CF_FORCE_ORIGINAL_BINLOG_FORMAT |
                                             CF_AUTO_COMMIT_TRANS |
                                             CF_SCHEMA_CHANGE);
   sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
@@ -7494,6 +7495,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   get_stmt_da()->reset_for_next_command();
   sent_row_count_for_statement= examined_row_count_for_statement= 0;
   accessed_rows_and_keys= 0;
+  tmp_table_binlog_handled= 0;
 
   reset_slow_query_state(0);
 

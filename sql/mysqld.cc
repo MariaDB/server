@@ -456,6 +456,7 @@ uint opt_binlog_gtid_index_span_min= 65536;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
+const char *binlog_formats_create_tmp_names[]= {"MIXED", "STATEMENT", NullS};
 volatile sig_atomic_t calling_initgroups= 0; /**< Used in SIGSEGV handler. */
 uint mysqld_port, select_errors, ha_open_options;
 uint mysqld_extra_port;
@@ -4472,6 +4473,10 @@ static int init_common_variables()
 
   if (tls_version & (VIO_TLSv1_0 + VIO_TLSv1_1))
       sql_print_warning("TLSv1.0 and TLSv1.1 are insecure and should not be used for tls_version");
+
+  /* create_temporary_table... must always have the flag BINLOG_FORMAT_STMT */
+  global_system_variables.create_temporary_table_binlog_formats|=
+    (1ULL << BINLOG_FORMAT_STMT);
 
 #ifdef WITH_WSREP
   /*

@@ -57,6 +57,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 
   trans_rollback_stmt(thd);
   trans_rollback(thd);
+  thd->tmp_table_binlog_handled= 1;
   close_thread_tables(thd);
   thd->release_transactional_locks();
 
@@ -1286,6 +1287,7 @@ send_result_message:
       recreate_used= 1;
       trans_commit_stmt(thd);
       trans_commit(thd);
+      thd->tmp_table_binlog_handled= 1;
       close_thread_tables(thd);
       thd->release_transactional_locks();
       /* Clear references to TABLE and MDL_ticket after releasing them. */
@@ -1459,6 +1461,7 @@ send_result_message:
         goto err;
       is_table_modified= true;
     }
+    thd->tmp_table_binlog_handled= 1;
     close_thread_tables(thd);
 
     if (storage_engine_name[0])
@@ -1509,6 +1512,16 @@ send_result_message:
     if (res)
       goto err;
   }
+  else
+  {
+    /*
+      We decided to not log the query to binlog.
+      We mark the query as logged to ensure that temporary tables are not
+      marked with 'mark_as_not_binlogged()' on close.
+    */
+    thd->tmp_table_binlog_handled= 1;
+  }
+
   my_eof(thd);
 
   DBUG_RETURN(FALSE);
@@ -1521,6 +1534,7 @@ err:
   if (table && table->table)
   {
     table->table->mark_table_for_reopen();
+    table->table->mark_as_not_binlogged();
     table->table= 0;
   }
   close_thread_tables(thd);			// Shouldn't be needed
