@@ -6858,7 +6858,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       table= tbl->table;
       share= table->s;
       flags= table->file->ha_table_flags();
-      if (!share->table_creation_was_logged)
+      if (!share->using_binlog())
       {
         /*
           This is a temporary table which was not logged in the binary log.
@@ -8082,6 +8082,8 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
         row logged binlog may not have been reset in the case of locked tables
       */
       reset_binlog_for_next_statement();
+
+      query_binlogged_as_stmt= 1;
 
       DBUG_RETURN(error >= 0 ? error : 1);
     }

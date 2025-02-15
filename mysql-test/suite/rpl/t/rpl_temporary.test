@@ -4,6 +4,7 @@ SET sql_log_bin = 0;
 source include/add_anonymous_users.inc;
 SET sql_log_bin = 1;
 
+set @@binlog_format="statement";
 -- source include/master-slave.inc
 
 # Clean up old slave's binlogs.

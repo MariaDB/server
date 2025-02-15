@@ -898,8 +898,17 @@ struct TABLE_SHARE
   bool crashed;
   bool is_view;
   bool can_cmp_whole_record;
-  /* This is set for temporary tables where CREATE was binary logged */
-  bool table_creation_was_logged;
+  /*
+    This is set for all normal tables and for temporary tables that have
+    the CREATE TABLE statement binary logged.
+
+    0 table is not in the binary log (not logged temporary table)
+    1 table create was logged (normal table or logged temp table)
+    2 table create was logged but not all changes are in the binary log.
+      ROW LOGGING will be used for the table.
+  */
+  uint table_creation_was_logged;
+  bool binlog_not_up_to_date;
   bool non_determinstic_insert;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
@@ -1234,6 +1243,11 @@ struct TABLE_SHARE
   void update_optimizer_costs(handlerton *hton);
   void update_engine_independent_stats(TABLE_STATISTICS_CB *stat);
   bool histograms_exists();
+  /* True if changes for the table should be logged to binary log */
+  bool using_binlog()
+  {
+    return table_creation_was_logged == 1;
+  }
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -1989,6 +2003,17 @@ public:
   void vers_fix_old_timestamp(rpl_group_info *rgi);
 #endif
   void find_constraint_correlated_indexes();
+
+  /* Mark that table is not up to date in binary log */
+  void mark_as_not_binlogged()
+  {
+    if (s->tmp_table && s->table_creation_was_logged == 1 &&
+        file->mark_trx_read_write_done)
+    {
+      /* Do not log anything more to binlog for this table */
+      s->table_creation_was_logged= 2;
+    }
+  }
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2

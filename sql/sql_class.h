@@ -736,6 +736,7 @@ typedef struct system_variables
   ulonglong default_regex_flags;
   ulonglong max_mem_used;
   ulonglong max_rowid_filter_size;
+  ulonglong create_temporary_table_binlog_formats;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -3187,6 +3188,11 @@ public:
   bool semi_sync_slave;
   /* Several threads may share this thd. Used with parallel repair */
   bool shared_thd;
+  /*
+    Mark if query was logged as statement. Used to check if tmp table changes
+    are logged.
+  */
+  bool query_binlogged_as_stmt;
   ulonglong client_capabilities;  /* What the client supports */
   ulong max_client_packet_length;
 
@@ -3366,6 +3372,33 @@ public:
                 current_stmt_binlog_format == BINLOG_FORMAT_ROW);
     return current_stmt_binlog_format == BINLOG_FORMAT_ROW;
   }
+
+  int is_binlog_format_row() const
+  {
+    return variables.binlog_format == BINLOG_FORMAT_ROW;
+  }
+
+  /*
+    Should we binlog a CREATE TEMPORARY statement.
+
+    This should happen only if all of the following is true
+    - binlog format is either BINLOG_FORMAT_STMT or BINLOG_FORMAT_MIXED
+      and the corresponding bit is set in binlog_format_for_create_temporary.
+    - The server is not in readonly mode or this is a slave thread.
+      - Slave threads are not affected by readonly in this case.
+
+    Note that CREATE TEMPORARY is always logged in STATEMENT from as
+    temporary tables does not support ROW logging.
+
+    @result 1 CREATE should be logged
+    @result 0 CREATE should not be logged
+  */
+  bool binlog_create_tmp_table()
+  {
+    return (((1ULL << variables.binlog_format) &
+             variables.create_temporary_table_binlog_formats) &&
+            (!opt_readonly || slave_thread));
+  }
   /**
     Determine if binlogging is disabled for this session
     @retval 0 if the current statement binlogging is disabled
@@ -3407,6 +3440,8 @@ public:
   {
     return m_binlog_filter_state;
   }
+
+  bool binlog_renamed_tmp_tables(TABLE_LIST *table_list);
 
   /**
     Checks if a user connection is read-only
@@ -5047,21 +5082,6 @@ public:
   inline void reset_current_stmt_binlog_format_row()
   {
     DBUG_ENTER("reset_current_stmt_binlog_format_row");
-    /*
-      If there are temporary tables, don't reset back to
-      statement-based. Indeed it could be that:
-      CREATE TEMPORARY TABLE t SELECT UUID(); # row-based
-      # and row-based does not store updates to temp tables
-      # in the binlog.
-      INSERT INTO u SELECT * FROM t; # stmt-based
-      and then the INSERT will fail as data inserted into t was not logged.
-      So we continue with row-based until the temp table is dropped.
-      If we are in a stored function or trigger, we mustn't reset in the
-      middle of its execution (as the binary logging way of a stored function
-      or trigger is decided when it starts executing, depending for example on
-      the caller (for a stored function: if caller is SELECT or
-      INSERT/UPDATE/DELETE...).
-    */
     DBUG_PRINT("debug",
                ("temporary_tables: %s, in_sub_stmt: %s, system_thread: %s",
                 YESNO(has_temporary_tables()), YESNO(in_sub_stmt),
@@ -5070,7 +5090,7 @@ public:
     {
       if (wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
-      else if (!has_temporary_tables())
+      else
         set_current_stmt_binlog_format_stmt();
     }
     DBUG_VOID_RETURN;
@@ -5671,6 +5691,8 @@ public:
   };
   bool has_thd_temporary_tables();
   bool has_temporary_tables();
+  bool has_not_logged_temporary_tables();
+  bool has_logged_temporary_tables();
 
   TABLE *create_and_open_tmp_table(LEX_CUSTRING *frm,
                                    const char *path,
@@ -6676,7 +6698,7 @@ class select_insert :public select_result_interceptor {
   int send_data(List<Item> &items) override;
   virtual bool store_values(List<Item> &values, bool *trg_skip_row);
   virtual bool can_rollback_data() { return 0; }
-  bool prepare_eof();
+  bool prepare_eof(bool using_create);
   bool send_ok_packet();
   bool send_eof() override;
   void abort_result_set() override;

@@ -1253,9 +1253,12 @@ values_loop_end:
         thd->log_current_statement() ||
 	was_insert_delayed)
     {
-      if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+      bool binlogged= 0;
+      if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+          table->s->using_binlog())
       {
-        int errcode= 0;
+        int errcode= 0, skip_binlog= 0;
+        String log_query;
 	if (error <= 0)
         {
 	  /*
@@ -1291,26 +1294,33 @@ values_loop_end:
         if (was_insert_delayed && table_list->lock_type == TL_WRITE)
         {
           /* Binlog INSERT DELAYED as INSERT without DELAYED. */
-          String log_query;
           if (create_insert_stmt_from_insert_delayed(thd, &log_query))
           {
             sql_print_error("Event Error: An error occurred while creating query string"
                             "for INSERT DELAYED stmt, before writing it into binary log.");
 
-            error= 1;
+            skip_binlog= error= 1;
           }
-          else if (thd->binlog_query(THD::ROW_QUERY_TYPE,
-                                     log_query.c_ptr(), log_query.length(),
-                                     transactional_table, FALSE, FALSE,
-                                     errcode) > 0)
+        }
+        else
+          log_query.set(thd->query(), thd->query_length(), log_query.charset());
+
+        if (!skip_binlog)
+        {
+          int binlog_error;
+          binlog_error= thd->binlog_query(THD::ROW_QUERY_TYPE,
+                                          log_query.c_ptr(),
+                                          log_query.length(),
+                                          transactional_table, FALSE, FALSE,
+                                          errcode);
+          if (likely(binlog_error == 0))
+            binlogged= 1;
+          else if (binlog_error > 0)
             error= 1;
         }
-        else if (thd->binlog_query(THD::ROW_QUERY_TYPE,
-			           thd->query(), thd->query_length(),
-			           transactional_table, FALSE, FALSE,
-                                   errcode) > 0)
-	  error= 1;
       }
+      if (changed && !binlogged)
+        table->mark_as_not_binlogged();
     }
     DBUG_ASSERT(transactional_table || !changed || 
                 thd->transaction->stmt.modified_non_trans_table);
@@ -4394,7 +4404,7 @@ bool select_insert::store_values(List<Item> &values, bool *trg_skip_row)
   DBUG_RETURN(error);
 }
 
-bool select_insert::prepare_eof()
+bool select_insert::prepare_eof(bool in_create_table)
 {
   int error;
   bool const trans_table= table->file->has_transactions_and_rollback();
@@ -4454,14 +4464,22 @@ bool select_insert::prepare_eof()
               thd->transaction->stmt.modified_non_trans_table);
 
   /*
-    Write to binlog before commiting transaction.  No statement will
+    Write to binlog before committing transaction.  No statement will
     be written by the binlog_query() below in RBR mode.  All the
     events are in the transaction cache and will be written when
     ha_autocommit_or_rollback() is issued below.
+
+    Temporary tables will be logged only on CREATE in STMT format
+    or on INSERT if all changes to the table is in the binlog.
   */
   if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      (likely(!error) || thd->transaction->stmt.modified_non_trans_table ||
-       thd->log_current_statement()))
+      (table->s->using_binlog() ||
+       ((in_create_table &&
+         (!table->s->tmp_table || thd->binlog_create_tmp_table())))) &&
+       (likely(!error) ||
+        (!in_create_table &&
+         (thd->transaction->stmt.modified_non_trans_table ||
+          thd->log_current_statement()))))
   {
     int errcode= 0;
     int res;
@@ -4481,7 +4499,10 @@ bool select_insert::prepare_eof()
     }
     binary_logged= res == 0 || !table->s->tmp_table;
   }
-  table->s->table_creation_was_logged|= binary_logged;
+  else if (changed)
+    table->mark_as_not_binlogged();
+
+  table->s->table_creation_was_logged|= (uint) binary_logged;
   table->file->ha_release_auto_increment();
 
   if (unlikely(error))
@@ -4534,7 +4555,7 @@ bool select_insert::send_eof()
 {
   bool res;
   DBUG_ENTER("select_insert::send_eof");
-  res= (prepare_eof() || (!suppress_my_ok && send_ok_packet()));
+  res= (prepare_eof(0) || (!suppress_my_ok && send_ok_packet()));
   DBUG_RETURN(res);
 }
 
@@ -4620,7 +4641,7 @@ void select_insert::abort_result_set()
     DBUG_ASSERT(transactional_table || !changed ||
 		thd->transaction->stmt.modified_non_trans_table);
 
-    table->s->table_creation_was_logged|= binary_logged;
+    table->s->table_creation_was_logged|= (uint) binary_logged;
     table->file->ha_release_auto_increment();
   }
 
@@ -5134,16 +5155,16 @@ bool binlog_create_table(THD *thd, TABLE *table, bool replace)
   bool result;
   ulonglong save_option_bits;
 
-  /* Don't log temporary tables in row format */
-  if (thd->variables.binlog_format == BINLOG_FORMAT_ROW &&
-      table->s->tmp_table)
+  /* Don't log temporary tables in row or mixed format */
+  if (table->s->tmp_table && !thd->binlog_create_tmp_table())
     return 0;
   if (!thd->binlog_table_should_be_logged(&table->s->db))
     return 0;
 
   /*
     We have to use ROW format to ensure that future row inserts will be
-    logged
+    logged. For temporary tables this means the table will not be binlogged
+    anymore.
   */
   thd->set_current_stmt_binlog_format_row();
   table->file->prepare_for_row_logging();
@@ -5176,7 +5197,7 @@ bool binlog_create_table(THD *thd, TABLE *table, bool replace)
 bool binlog_drop_table(THD *thd, TABLE *table)
 {
   StringBuffer<2048> query(system_charset_info);
-  /* Don't log temporary tables in row format */
+  /* Don't log temporary tables if creation was not logged */
   if (!table->s->table_creation_was_logged)
     return 0;
   if (!thd->binlog_table_should_be_logged(&table->s->db))
@@ -5240,7 +5261,7 @@ bool select_create::send_eof()
     ddl_log_complete(&ddl_log_state_rm);
   }
 
-  if (prepare_eof())
+  if (prepare_eof(1))
   {
     abort_result_set();
     DBUG_RETURN(true);
