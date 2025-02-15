@@ -131,7 +131,6 @@ table_setup_actors.h
 table_setup_consumers.h
 table_setup_instruments.h
 table_setup_objects.h
-table_setup_timers.h
 table_sync_instances.h
 table_status_by_account.h
 table_status_by_host.h
@@ -248,7 +247,6 @@ table_setup_actors.cc
 table_setup_consumers.cc
 table_setup_instruments.cc
 table_setup_objects.cc
-table_setup_timers.cc
 table_sync_instances.cc
 table_status_by_account.cc
 table_status_by_host.cc

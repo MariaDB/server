@@ -5687,7 +5687,7 @@ CREATE TABLE t1(a VARCHAR(16383) CHARACTER SET UTF32, KEY k(a));
 Warnings:
 Note	1071	Specified key was too long; max key length is 1000 bytes
 INSERT INTO t1 VALUES ('abc'), ('def'), ('FFF'), ('abc'), ('FFF');
-SET SESSION big_tables=ON;
+set tmp_memory_table_size=0;
 SELECT DISTINCT COUNT(DISTINCT a) FROM t1;
 COUNT(DISTINCT a)
 3
@@ -5698,6 +5698,7 @@ COUNT(DISTINCT a)
 EXECUTE stmt;
 COUNT(DISTINCT a)
 3
+set tmp_memory_table_size=default;
 DROP TABLE t1;
 #
 # MDEV-29294: Assertion `functype() == ((Item_cond *) new_item)->functype()'

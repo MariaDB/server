@@ -4768,16 +4768,14 @@ DROP TABLE t1;
 CREATE TABLE t1(a VARCHAR(16383) CHARACTER SET UTF32, KEY k(a));
 INSERT INTO t1 VALUES ('abc'), ('def'), ('FFF'), ('abc'), ('FFF');
 
-# big_tables are deprecated after some version
---disable_warnings
-SET SESSION big_tables=ON;
+set tmp_memory_table_size=0;
 SELECT DISTINCT COUNT(DISTINCT a) FROM t1;
 
 PREPARE stmt FROM 'SELECT DISTINCT COUNT(DISTINCT a) FROM t1';
 EXECUTE stmt;
 EXECUTE stmt;
 
---enable_warnings
+set tmp_memory_table_size=default;
 DROP TABLE t1;
 
 --echo #

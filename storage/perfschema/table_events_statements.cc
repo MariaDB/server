@@ -236,7 +236,9 @@ table_events_statements_common::table_events_statements_common
 (const PFS_engine_table_share *share, void *pos)
   : PFS_engine_table(share, pos),
   m_row_exists(false)
-{}
+{
+  m_normalizer = time_normalizer::get_statement();
+}
 
 /**
   Build a row.
@@ -264,7 +266,7 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
 
   if (m_row.m_end_event_id == 0)
   {
-    timer_end= get_timer_raw_value(statement_timer);
+    timer_end = get_statement_timer();
   }
   else
   {
@@ -612,7 +614,6 @@ void table_events_statements_current::reset_position(void)
 
 int table_events_statements_current::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(statement_timer);
   return 0;
 }
 
@@ -749,7 +750,6 @@ void table_events_statements_history::reset_position(void)
 
 int table_events_statements_history::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(statement_timer);
   return 0;
 }
 
@@ -877,7 +877,6 @@ void table_events_statements_history_long::reset_position(void)
 
 int table_events_statements_history_long::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(statement_timer);
   return 0;
 }
 

@@ -129,9 +129,6 @@ public:
   /** Reset the cursor position to the beginning of the table. */
   virtual void reset_position(void)= 0;
 
-  /** Get the normalizer and class type for the current row. */
-  void get_normalizer(PFS_instr_class *instr_class);
-
   /** Destructor. */
   virtual ~PFS_engine_table() = default;
 
@@ -270,7 +267,7 @@ protected:
   */
   PFS_engine_table(const PFS_engine_table_share *share, void *pos)
     : m_share_ptr(share), m_pos_ptr(pos),
-      m_normalizer(NULL), m_class_type(PFS_CLASS_NONE)
+      m_normalizer(NULL)
   {}
 
   /** Table share. */
@@ -279,8 +276,6 @@ protected:
   void *m_pos_ptr;
   /** Current normalizer */
   time_normalizer *m_normalizer;
-  /** Current class type */
-  enum PFS_class_type m_class_type;
 };
 
 /** Callback to open a table. */

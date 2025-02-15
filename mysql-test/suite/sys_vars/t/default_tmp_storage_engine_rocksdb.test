@@ -60,13 +60,13 @@ DROP TABLE t1;
 
 
 SHOW VARIABLES like '%storage_engine';
-SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine;
 --error ER_UNKNOWN_SYSTEM_VARIABLE
 SELECT @@GLOBAL.table_type;
 
 SET default_storage_engine=DEFAULT;
 SET default_tmp_storage_engine=innodb;
-SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine;
 
 CREATE TABLE t (t int);
 CREATE TEMPORARY TABLE t1 (t int);
@@ -75,7 +75,7 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1, t;
 
 SET GLOBAL default_tmp_storage_engine='default';
-SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine;
 
 CREATE TABLE t (t int);
 CREATE TEMPORARY TABLE t1 (t int);

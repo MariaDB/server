@@ -36,7 +36,6 @@
 #include "table_setup_consumers.h"
 #include "table_setup_instruments.h"
 #include "table_setup_objects.h"
-#include "table_setup_timers.h"
 #include "table_performance_timers.h"
 #include "table_events_waits_summary.h"
 #include "table_ews_by_thread_by_event_name.h"
@@ -255,7 +254,6 @@ static PFS_engine_table_share *all_shares[]=
   &table_setup_consumers::m_share,
   &table_setup_instruments::m_share,
   &table_setup_objects::m_share,
-  &table_setup_timers::m_share,
   &table_tiws_by_index_usage::m_share,
   &table_tiws_by_table::m_share,
   &table_tlws_by_table::m_share,
@@ -507,19 +505,6 @@ void PFS_engine_table::get_position(void *ref)
 void PFS_engine_table::set_position(const void *ref)
 {
   memcpy(m_pos_ptr, ref, m_share_ptr->m_ref_length);
-}
-
-/**
-  Get the timer normalizer and class type for the current row.
-  @param [in] instr_class    class
-*/
-void PFS_engine_table::get_normalizer(PFS_instr_class *instr_class)
-{
-  if (instr_class->m_type != m_class_type)
-  {
-    m_normalizer= time_normalizer::get(*instr_class->m_timer);
-    m_class_type= instr_class->m_type;
-  }
 }
 
 void PFS_engine_table::set_field_long(Field *f, long value)

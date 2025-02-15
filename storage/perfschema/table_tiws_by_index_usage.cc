@@ -122,7 +122,9 @@ table_tiws_by_index_usage::get_row_count(void)
 table_tiws_by_index_usage::table_tiws_by_index_usage()
   : PFS_engine_table(&m_share, &m_pos),
     m_row_exists(false), m_pos(), m_next_pos()
-{}
+{
+  m_normalizer= time_normalizer::get_wait();
+}
 
 void table_tiws_by_index_usage::reset_position(void)
 {
@@ -132,7 +134,6 @@ void table_tiws_by_index_usage::reset_position(void)
 
 int table_tiws_by_index_usage::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(wait_timer);
   return 0;
 }
 

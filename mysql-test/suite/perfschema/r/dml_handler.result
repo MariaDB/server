@@ -10,51 +10,48 @@ SELECT COUNT(*) FROM table_list INTO @table_count;
 # For each table in the performance schema, attempt HANDLER...OPEN,
 # which should fail with an error 1031, ER_ILLEGAL_HA.
 #
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=81;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=80;
 HANDLER performance_schema.user_variables_by_thread OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`user_variables_by_thread` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=80;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=79;
 HANDLER performance_schema.users OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`users` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=79;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=78;
 HANDLER performance_schema.threads OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`threads` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=78;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=77;
 HANDLER performance_schema.table_lock_waits_summary_by_table OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`table_lock_waits_summary_by_table` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=77;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=76;
 HANDLER performance_schema.table_io_waits_summary_by_table OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`table_io_waits_summary_by_table` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=76;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=75;
 HANDLER performance_schema.table_io_waits_summary_by_index_usage OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`table_io_waits_summary_by_index_usage` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=75;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=74;
 HANDLER performance_schema.table_handles OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`table_handles` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=74;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=73;
 HANDLER performance_schema.status_by_user OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`status_by_user` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=73;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=72;
 HANDLER performance_schema.status_by_thread OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`status_by_thread` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=72;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=71;
 HANDLER performance_schema.status_by_host OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`status_by_host` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=71;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=70;
 HANDLER performance_schema.status_by_account OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`status_by_account` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=70;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=69;
 HANDLER performance_schema.socket_summary_by_instance OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`socket_summary_by_instance` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=69;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=68;
 HANDLER performance_schema.socket_summary_by_event_name OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`socket_summary_by_event_name` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=68;
+SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=67;
 HANDLER performance_schema.socket_instances OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`socket_instances` doesn't have this option
-SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=67;
-HANDLER performance_schema.setup_timers OPEN;
-ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`setup_timers` doesn't have this option
 SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=66;
 HANDLER performance_schema.setup_objects OPEN;
 ERROR HY000: Storage engine PERFORMANCE_SCHEMA of the table `performance_schema`.`setup_objects` doesn't have this option
