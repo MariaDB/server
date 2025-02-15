@@ -109,6 +109,7 @@ connect (con2,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 -- connection con1
 -- eval create database $dbname
 -- eval use $dbname
+set @@binlog_format="statement";
 create temporary table t1(i int);
 
 #
@@ -130,6 +131,7 @@ create temporary table t1(i int);
 #         in its header).
 
 -- connection con1
+set @@binlog_format="statement";
 -- error 1050
 create temporary table t1(i int);
 -- disconnect con1

@@ -4,6 +4,9 @@
 DROP DATABASE IF EXISTS `drop-temp+table-test`;
 --enable_warnings
 
+select @@session.binlog_format;
+select @@session.create_temporary_table_binlog_formats;
+
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connection con1;
@@ -95,7 +98,8 @@ SELECT @@session.binlog_format;
 --disconnect con1
 
 -- connection default
-if (!`SELECT @@BINLOG_FORMAT = 'ROW'`) {
+if (`SELECT FIND_IN_SET(@@BINLOG_FORMAT,@@CREATE_TEMPORARY_TABLE_BINLOG_FORMATS) > 0`)
+{
 --let $wait_binlog_event= DROP
 --source include/wait_for_binlog_event.inc
 }
