@@ -5,7 +5,7 @@
 --source include/not_embedded.inc
 --source ./include/innodb_stable_estimates.inc
 
-SET SESSION STORAGE_ENGINE='InnoDB';
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
 set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
@@ -14,4 +14,4 @@ set optimizer_switch='extended_keys=on';
 
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 
-SET SESSION STORAGE_ENGINE=DEFAULT;
+SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;

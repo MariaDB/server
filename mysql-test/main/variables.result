@@ -1182,19 +1182,6 @@ ERROR HY000: Variable 'lc_messages_dir' is a read only variable
 SET @@global.lc_messages_dir= 'x';
 ERROR HY000: Variable 'lc_messages_dir' is a read only variable
 #
-SHOW VARIABLES like 'large_page_size';
-Variable_name	Value
-large_page_size	#
-SELECT @@session.large_page_size;
-ERROR HY000: Variable 'large_page_size' is a GLOBAL variable
-SELECT @@global.large_page_size;
-@@global.large_page_size
-#
-SET @@session.large_page_size= 7;
-ERROR HY000: Variable 'large_page_size' is a read only variable
-SET @@global.large_page_size= 7;
-ERROR HY000: Variable 'large_page_size' is a read only variable
-#
 SHOW VARIABLES like 'large_pages';
 Variable_name	Value
 large_pages	#

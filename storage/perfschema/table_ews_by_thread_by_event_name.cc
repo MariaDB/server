@@ -89,7 +89,10 @@ table_ews_by_thread_by_event_name::get_row_count(void)
 table_ews_by_thread_by_event_name::table_ews_by_thread_by_event_name()
   : PFS_engine_table(&m_share, &m_pos),
     m_row_exists(false), m_pos(), m_next_pos()
-{}
+{
+  // For all cases except IDLE
+  m_normalizer = time_normalizer::get_wait();
+}
 
 void table_ews_by_thread_by_event_name::reset_position(void)
 {
@@ -214,6 +217,7 @@ table_ews_by_thread_by_event_name::rnd_pos(const void *pos)
 void table_ews_by_thread_by_event_name
 ::make_row(PFS_thread *thread, PFS_instr_class *klass)
 {
+  time_normalizer *normalizer = m_normalizer;
   pfs_optimistic_state lock;
   m_row_exists= false;
 
@@ -246,8 +250,12 @@ void table_ews_by_thread_by_event_name
 
   m_row_exists= true;
 
-  get_normalizer(klass);
-  m_row.m_stat.set(m_normalizer, & visitor.m_stat);
+  if (klass->m_type == PFS_CLASS_IDLE)
+  {
+    normalizer = time_normalizer::get_idle();
+  }
+
+  m_row.m_stat.set(normalizer, &visitor.m_stat);
 }
 
 int table_ews_by_thread_by_event_name

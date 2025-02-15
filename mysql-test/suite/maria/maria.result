@@ -2831,10 +2831,8 @@ drop table t1;
 # MDEV-28269 Assertion `save_errno' in maria_write or ER_GET_ERRNO
 #
 connect  session1,localhost,root,,;
-SET big_tables= on;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET NAMES 'sjis';
+set statement tmp_memory_table_size=0 for
 SELECT 'למטה' AS a UNION SELECT 'Wetter' AS a;
 a
 למט�?

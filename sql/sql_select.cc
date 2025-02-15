@@ -22172,8 +22172,6 @@ bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
   */
 
   if (share->blob_fields || m_using_unique_constraint ||
-      (thd->variables.big_tables &&
-       !(m_select_options & SELECT_SMALL_RESULT)) ||
       (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
       thd->variables.tmp_memory_table_size == 0)
   {

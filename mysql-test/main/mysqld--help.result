@@ -38,11 +38,6 @@ The following specify which files/extra groups are read (specified before remain
  (Automatically configured unless set explicitly)
  -b, --basedir=name  Path to installation directory. All paths are usually
  resolved relative to this
- --big-tables        Old variable, which if set to 1, allows large result sets
- by saving all temporary sets to disk, avoiding 'table
- full' errors. No longer needed, as the server now handles
- this automatically. Deprecated, will be removed in a
- future release.
  --bind-address=name IP address to bind to. Several addresses may be
  specified, separated by a comma (,)
  --binlog-alter-two-phase 
@@ -1672,7 +1667,6 @@ auto-increment-offset 1
 autocommit TRUE
 automatic-sp-privileges TRUE
 back-log 80
-big-tables FALSE
 bind-address (No default value)
 binlog-alter-two-phase FALSE
 binlog-annotate-row-events TRUE

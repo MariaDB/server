@@ -685,7 +685,6 @@ extern LEX_CUSTRING ssl_acceptor_fingerprint();
   The following variables were under INNODB_COMPABILITY_HOOKS
  */
 extern my_bool opt_large_pages;
-extern uint opt_large_page_size;
 extern MYSQL_PLUGIN_IMPORT char lc_messages_dir[FN_REFLEN];
 extern char *lc_messages_dir_ptr, *log_error_file_ptr;
 extern MYSQL_PLUGIN_IMPORT char reg_ext[FN_EXTLEN];

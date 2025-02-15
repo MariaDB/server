@@ -2249,13 +2249,9 @@ loop_end:
     tmp_param->field_count= temp_fields.elements;
     tmp_param->func_count=  temp_fields.elements - 1;
     calc_group_buffer(tmp_param, &group);
-    /* small table, ignore @@big_tables */
-    my_bool save_big_tables= thd->variables.big_tables; 
-    thd->variables.big_tables= FALSE;
     tmp_tables[index]=create_tmp_table(thd, tmp_param, temp_fields,
                                      (ORDER*) &group, 0, 0,
                                      TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
-    thd->variables.big_tables= save_big_tables;
     if (!tmp_tables[index])
       DBUG_RETURN(1);
     tmp_tables[index]->file->extra(HA_EXTRA_WRITE_CACHE);

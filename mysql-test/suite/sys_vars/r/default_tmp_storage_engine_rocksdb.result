@@ -58,17 +58,16 @@ Variable_name	Value
 default_storage_engine	ROCKSDB
 default_tmp_storage_engine	Aria
 enforce_storage_engine	
-storage_engine	ROCKSDB
-SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
-@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@GLOBAL.storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine	@@SESSION.storage_engine
-NULL	MyISAM	MyISAM	Aria	ROCKSDB	ROCKSDB
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine;
+@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine
+NULL	MyISAM	Aria	ROCKSDB
 SELECT @@GLOBAL.table_type;
 ERROR HY000: Unknown system variable 'table_type'
 SET default_storage_engine=DEFAULT;
 SET default_tmp_storage_engine=innodb;
-SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
-@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@GLOBAL.storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine	@@SESSION.storage_engine
-NULL	MyISAM	MyISAM	InnoDB	MyISAM	MyISAM
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine;
+@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine
+NULL	MyISAM	InnoDB	MyISAM
 CREATE TABLE t (t int);
 CREATE TEMPORARY TABLE t1 (t int);
 SHOW CREATE TABLE t;
@@ -83,9 +82,9 @@ t1	CREATE TEMPORARY TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t;
 SET GLOBAL default_tmp_storage_engine='default';
-SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
-@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@GLOBAL.storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine	@@SESSION.storage_engine
-MyISAM	MyISAM	MyISAM	InnoDB	MyISAM	MyISAM
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine;
+@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine
+MyISAM	MyISAM	InnoDB	MyISAM
 CREATE TABLE t (t int);
 CREATE TEMPORARY TABLE t1 (t int);
 SHOW CREATE TABLE t;

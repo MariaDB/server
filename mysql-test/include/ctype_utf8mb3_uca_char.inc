@@ -46,9 +46,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (c CHAR(100) COLLATE utf8mb3_unicode_nopad_ci);
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('ss'),('ß');
-SET big_tables=0;
 SELECT DISTINCT c FROM t1;
-SET big_tables=1;
+set statement tmp_memory_table_size=0 for
 SELECT DISTINCT c FROM t1;
 DROP TABLE t1;
-SET big_tables=DEFAULT;

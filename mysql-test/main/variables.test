@@ -954,18 +954,6 @@ SET @@global.lc_messages_dir= 'x';
 #
 --echo #
 --replace_column 2 #
-SHOW VARIABLES like 'large_page_size';
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SELECT @@session.large_page_size;
---replace_column 1 #
-SELECT @@global.large_page_size;
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SET @@session.large_page_size= 7;
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SET @@global.large_page_size= 7;
-#
---echo #
---replace_column 2 #
 SHOW VARIABLES like 'large_pages';
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.large_pages;

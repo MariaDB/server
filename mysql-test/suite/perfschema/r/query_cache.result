@@ -37,11 +37,6 @@ Qcache_hits	1
 select spins from performance_schema.events_waits_current order by event_name limit 1;
 spins
 NULL
-select * from performance_schema.setup_timers where name='wait';
-NAME	TIMER_NAME
-wait	{CYCLE_OR_NANOSECOND}
-Warnings:
-Warning	1287	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 show global status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
@@ -54,11 +49,6 @@ Qcache_hits	1
 select spins from performance_schema.events_waits_current order by event_name limit 1;
 spins
 NULL
-select * from performance_schema.setup_timers where name='wait';
-NAME	TIMER_NAME
-wait	{CYCLE_OR_NANOSECOND}
-Warnings:
-Warning	1287	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 show global status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1

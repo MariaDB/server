@@ -170,7 +170,9 @@ table_events_waits_common::table_events_waits_common
 (const PFS_engine_table_share *share, void *pos)
   : PFS_engine_table(share, pos),
   m_row_exists(false)
-{}
+{
+  m_normalizer = time_normalizer::get_wait();
+}
 
 void table_events_waits_common::clear_object_columns()
 {
@@ -455,8 +457,9 @@ int table_events_waits_common::make_metadata_lock_object_columns(PFS_events_wait
 void table_events_waits_common::make_row(PFS_events_waits *wait)
 {
   PFS_instr_class *safe_class;
-  enum_timer_name timer_name= wait_timer;
   ulonglong timer_end;
+  /* wait normalizer for most rows. */
+  time_normalizer *normalizer = m_normalizer;
 
   m_row_exists= false;
 
@@ -494,7 +497,7 @@ void table_events_waits_common::make_row(PFS_events_waits *wait)
     clear_object_columns();
     m_row.m_object_instance_addr= 0;
     safe_class= sanitize_idle_class(wait->m_class);
-    timer_name= idle_timer;
+    normalizer = time_normalizer::get_idle();
     break;
   case WAIT_CLASS_MUTEX:
     clear_object_columns();
@@ -540,19 +543,27 @@ void table_events_waits_common::make_row(PFS_events_waits *wait)
   m_row.m_nesting_event_id= wait->m_nesting_event_id;
   m_row.m_nesting_event_type= wait->m_nesting_event_type;
 
-  get_normalizer(safe_class);
-
   if (m_row.m_end_event_id == 0)
   {
-    timer_end= get_timer_raw_value(timer_name);
+    if (wait->m_wait_class == WAIT_CLASS_IDLE)
+    {
+      timer_end = get_idle_timer();
+    }
+    else
+    {
+      timer_end = get_wait_timer();
+    }
   }
   else
   {
     timer_end= wait->m_timer_end;
   }
 
-  m_normalizer->to_pico(wait->m_timer_start, timer_end,
-                      & m_row.m_timer_start, & m_row.m_timer_end, & m_row.m_timer_wait);
+  normalizer->to_pico(wait->m_timer_start,
+                      timer_end,
+                      &m_row.m_timer_start,
+                      &m_row.m_timer_end,
+                      &m_row.m_timer_wait);
 
   m_row.m_name= safe_class->m_name;
   m_row.m_name_length= safe_class->m_name_length;
