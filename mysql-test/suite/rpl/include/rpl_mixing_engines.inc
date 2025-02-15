@@ -617,6 +617,26 @@ while ($commands != '')
     # due to BUG#13692513.
     --connection server_1
     --source include/show_binlog_events.inc
+    sync_slave_with_master;
+    --let $n= $6
+    while ($n)
+    {
+      connection master;
+      let $master_tt_xx_count=`select count(*) from nt_$n`;
+      let $master_nt_xx_count=`select count(*) from tt_$n`;
+      connection server_2;
+      let $slave_tt_xx_count=`select count(*) from nt_$n`;
+      let $slave_nt_xx_count=`select count(*) from tt_$n`;
+      if ($slave_tt_xx_count != $master_tt_xx_count)
+      {
+        --echo # Error: Data mismatch in tt_$n:  Master: $master_tt_xx_count rows  Slave: $slave_tt_xx_count rows
+      }
+      if ($slave_nt_xx_count != $master_nt_xx_count)
+      {
+        --echo # Error: Data mismatch in nt_$n:  Master: $master_nt_xx_count rows  Slave: $slave_nt_xx_count rows
+      }
+      dec $n;
+    }
     --connection master
     --echo -e-e-e-e-e-e-e-e-e-e-e- >> $command << -e-e-e-e-e-e-e-e-e-e-e-
   }

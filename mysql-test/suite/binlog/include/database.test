@@ -1,6 +1,8 @@
 source include/have_log_bin.inc;
 source include/not_embedded.inc;
 
+select @@binlog_format, @@create_temporary_table_binlog_formats;
+
 # Checking that the drop of a database does not replicate anything in
 # addition to the drop of the database
 
@@ -22,10 +24,11 @@ reset master;
 create temporary table tt1 (a int);
 create table t1 (a int);
 insert into t1 values (1);
+insert into tt1 values (2);
 disable_warnings;
 drop database if exists mysqltest1;
 enable_warnings;
-insert into t1 values (1);
+insert into t1 select * from tt1;
 drop table tt1, t1;
 source include/show_binlog_events.inc;
 

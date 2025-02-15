@@ -1,0 +1,8 @@
+# This is a wrapper for drop_table.test so that the same test case can be used
+# For both statement and row based bin logs
+
+-- source include/have_binlog_format_mixed.inc
+set @@session.create_temporary_table_binlog_formats="MIXED";
+set @@global.create_temporary_table_binlog_formats="MIXED";
+-- source include/drop_temp_table.test
+set @@global.create_temporary_table_binlog_formats=default;

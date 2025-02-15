@@ -2,6 +2,14 @@
 -- source include/have_binlog_format_mixed_or_statement.inc
 -- source include/master-slave.inc
 
+if (`SELECT @@binlog_format = "MIXED"`) {
+--disable_query_log
+# Ensure that switching between mixed and statment works in all case */
+set @@global.create_temporary_table_binlog_formats= "MIXED";
+set @@session.create_temporary_table_binlog_formats= "MIXED";
+--enable_query_log
+}
+
 --connection slave
 set sql_log_bin=0;
 create database y;
@@ -246,5 +254,7 @@ SET sql_log_bin= 1;
 connection master;
 sync_slave_with_master;
 
+connection default;
+set @@global.create_temporary_table_binlog_formats=default;
 # end of 5.0 tests
 --source include/rpl_end.inc
