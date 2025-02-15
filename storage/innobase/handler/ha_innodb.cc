@@ -552,6 +552,7 @@ mysql_pfs_key_t	srv_threads_mutex_key;
 mysql_pfs_key_t	tpool_cache_mutex_key;
 mysql_pfs_key_t fsp_active_binlog_mutex_key;
 mysql_pfs_key_t fsp_purge_binlog_mutex_key;
+mysql_pfs_key_t fsp_page_fifo_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
