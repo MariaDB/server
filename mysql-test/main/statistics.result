@@ -1278,7 +1278,7 @@ Table	Op	Msg_type	Msg_text
 mysql.column_stats	analyze	error	Invalid argument
 ANALYZE TABLE mysql.column_stats;
 Table	Op	Msg_type	Msg_text
-mysql.column_stats	analyze	status	OK
+mysql.column_stats	analyze	status	Table is already up to date
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 SELECT * FROM mysql.column_stats;

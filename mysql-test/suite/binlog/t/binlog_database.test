@@ -9,6 +9,9 @@ set binlog_format=statement;
 source include/database.test;
 set binlog_format=mixed;
 source include/database.test;
+set binlog_format=mixed;
+SET @@create_temporary_table_binlog_formats="mixed";
+source include/database.test;
 set binlog_format=row;
 source include/database.test;
 

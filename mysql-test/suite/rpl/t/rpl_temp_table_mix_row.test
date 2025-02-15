@@ -1,6 +1,7 @@
 # ==== Purpose ====
 #
-# Test that temporary tables are correctly replicated after switching to ROW format in MIX mode.
+# Test that temporary tables are correctly replicated after switching to ROW format in
+# STATEMENT mode.
 # This test case will test the condition of the bug#40013.
 # The test step is:
 #   1: create temp table on connection 'master';
@@ -31,9 +32,12 @@ SHOW STATUS LIKE "Slave_open_temp_tables";
 disconnect master;
 --connection master1
 
-# waiting DROP TEMPORARY TABLE event to be written into binlog
+# waiting for DROP TEMPORARY TABLE event to be written into binlog
+if (`SELECT FIND_IN_SET(@@BINLOG_FORMAT,@@CREATE_TEMPORARY_TABLE_BINLOG_FORMATS) > 0`)
+{
 let $wait_binlog_event= DROP;
 source include/wait_for_binlog_event.inc;
+}
 
 sync_slave_with_master;
 
@@ -102,17 +106,13 @@ CREATE TEMPORARY TABLE t1_tmp (i1 int);
 # assertion: assert that ALTER TABLE is logged as STATEMENT
 ALTER TABLE t1_tmp ADD COLUMN b INT;
 
-# action: force switch to RBR
 INSERT INTO t1 values(1);
 INSERT INTO t2 (i1) select * from t1;
 
-# assertion: assert that t2_tmp will not make into the binlog (RBR logging atm)
 CREATE TEMPORARY TABLE t2_tmp (a int);
 
-# assertion: assert that ALTER TABLE on t1_tmp will not make into the binlog
 ALTER TABLE t1_tmp ADD COLUMN c INT;
 
--- echo ### assertion: assert that there is one open temp table on slave
 -- sync_slave_with_master
 SHOW STATUS LIKE 'Slave_open_temp_tables';
 
@@ -121,15 +121,10 @@ SHOW STATUS LIKE 'Slave_open_temp_tables';
 # assertion: assert that both drops are logged
 DROP TABLE t1_tmp, t2;
 
-# assertion: assert that statement is logged as row (master still has one
-#            opened temporary table - t2_tmp.
 INSERT INTO t1 VALUES (1);
 
-# assertion: assert that DROP TABLE *is* logged despite CREATE is not.
 DROP TEMPORARY TABLE t2_tmp;
 
-# assertion: assert that statement is now logged as STMT (mixed mode switches
-#            back to STATEMENT).
 INSERT INTO t1 VALUES (2);
 
 -- sync_slave_with_master

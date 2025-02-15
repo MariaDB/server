@@ -1,4 +1,10 @@
 DROP DATABASE IF EXISTS `drop-temp+table-test`;
+select @@session.binlog_format;
+@@session.binlog_format
+ROW
+select @@session.create_temporary_table_binlog_formats;
+@@session.create_temporary_table_binlog_formats
+STATEMENT
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connection con1;

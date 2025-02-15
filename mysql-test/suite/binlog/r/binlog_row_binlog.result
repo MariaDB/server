@@ -840,6 +840,9 @@ id
 drop table t1;
 create table t1 (a int);
 create table if not exists t2 select * from t1;
+select @@binlog_format;
+@@binlog_format
+ROW
 create temporary table tt1 (a int);
 create table if not exists t3 like tt1;
 USE mysql;
