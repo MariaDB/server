@@ -261,6 +261,7 @@ create table t1 (a int);
 create table if not exists t2 select * from t1;
 
 # bug#22762
+select @@binlog_format;
 create temporary table tt1 (a int);
 create table if not exists t3 like tt1;
 

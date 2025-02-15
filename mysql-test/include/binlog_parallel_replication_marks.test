@@ -55,7 +55,8 @@ connection default;
 # DROP TEMPORARY TABLE statement will be not be written to binary log upon
 # session closure.
 
-if (!`SELECT @@BINLOG_FORMAT = 'ROW'`) {
+if (`SELECT FIND_IN_SET(@@BINLOG_FORMAT,@@CREATE_TMP_TABLE_BINLOG_FORMATS) > 0`)
+{
 --let $wait_condition= SELECT variable_value > $before_drop_pos FROM information_schema.global_status WHERE variable_name = 'binlog_snapshot_position'
 --source include/wait_condition.inc
 }

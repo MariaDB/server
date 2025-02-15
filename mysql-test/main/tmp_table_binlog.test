@@ -1,0 +1,33 @@
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-36563 Assertion `!mysql_bin_log.is_open()' failed in
+--echo # THD::mark_tmp_table_as_free_for_reuse upon REPAIR
+--echo #
+
+CREATE TEMPORARY TABLE t1 (c INT);
+REPAIR TABLE t1;
+DROP TABLE t1;
+
+CREATE TEMPORARY TABLE t1 (c INT) engine=innodb;
+REPAIR TABLE t1;
+DROP TABLE t1;
+
+set sql_mode='strict_all_tables';
+SET @@session.binlog_format=statement;
+CREATE TEMPORARY TABLE t1(a CHAR(3));
+--error ER_DATA_TOO_LONG
+insert into t1 values ("a"),("abcd"),("b");
+select * from t1;
+drop table t1;
+set sql_mode=default;
+
+CREATE TABLE t1 (c CHAR(3));
+INSERT INTO t1 VALUES ("a"),("a");
+
+CREATE TEMPORARY TABLE t2 (c CHAR(1) primary key);
+INSERT INTO t2 (c) VALUES ('b');
+--error ER_DUP_ENTRY
+INSERT INTO t2 (c) VALUES ('b');
+drop table t1,t2;

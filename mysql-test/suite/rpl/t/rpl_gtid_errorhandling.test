@@ -95,6 +95,7 @@ SET SESSION gtid_domain_id= 202;
 DROP TEMPORARY TABLE t2;
 
 SET SESSION binlog_format= mixed;
+SET SESSION create_tmp_table_binlog_formats="mixed";
 SET SESSION gtid_domain_id= 0;
 CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1);

@@ -11,6 +11,10 @@ set sql_mode=no_engine_substitution;
 eval set default_storage_engine = $engine_type;
 set autocommit=1;
 
+# The tests of number of commits assumes that temporary tables will be
+# logged to binary log.
+set @@create_tmp_table_binlog_formats="mixed";
+
 --disable_warnings
 drop table if exists t1;
 drop table if exists t2;

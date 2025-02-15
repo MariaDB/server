@@ -2,6 +2,7 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 set sql_mode=no_engine_substitution;
 set default_storage_engine = InnoDB;
 set autocommit=1;
+set @@create_tmp_table_binlog_formats="mixed";
 drop table if exists t1;
 drop table if exists t2;
 drop table if exists t3;

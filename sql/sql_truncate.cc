@@ -453,8 +453,12 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   /* If it is a temporary table, no need to take locks. */
   if (is_temporary_table(table_ref))
   {
-    /* In RBR, the statement is not binlogged if the table is temporary. */
-    binlog_stmt= !thd->is_current_stmt_binlog_format_row();
+    /*
+      In RBR, the statement is not binlogged if the table is temporary or
+      table is not up to date in binlog.
+    */
+    binlog_stmt= (!thd->is_binlog_format_row() &&
+                  table_ref->table->s->using_binlog());
 
     thd->close_unused_temporary_table_instances(table_ref);
 

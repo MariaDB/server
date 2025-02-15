@@ -5589,6 +5589,7 @@ bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 extern const LEX_CSTRING ha_row_type[];
 extern MYSQL_PLUGIN_IMPORT const char *tx_isolation_names[];
 extern MYSQL_PLUGIN_IMPORT const char *binlog_format_names[];
+extern MYSQL_PLUGIN_IMPORT const char *binlog_formats_create_tmp_names[];
 extern TYPELIB tx_isolation_typelib;
 extern const char *myisam_stats_method_names[];
 extern ulong total_ha, total_ha_2pc;

@@ -44,7 +44,8 @@ struct TABLE_PAIR
 static bool rename_tables(THD *thd, TABLE_LIST *table_list,
                           DDL_LOG_STATE *ddl_log_state,
                           bool skip_error, bool if_exits,
-                          bool *force_if_exists);
+                          bool *force_if_exists,
+                          bool *not_logged_temporary_tables);
 
 /*
   Every two entries in the table_list form a pair of original name and
@@ -55,7 +56,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
                           bool if_exists)
 {
   bool error= 1;
-  bool binlog_error= 0, force_if_exists;
+  bool binlog_error= 0, force_if_exists, not_logged_temporary_tables;
   TABLE_LIST *ren_table= 0;
   int to_table;
   const char *rename_log_table[2]= {NULL, NULL};
@@ -163,7 +164,8 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     no other thread accesses this table.
   */
   error= rename_tables(thd, table_list, &ddl_log_state,
-                       0, if_exists, &force_if_exists);
+                       0, if_exists, &force_if_exists,
+                       &not_logged_temporary_tables);
 
   if (likely(!silent && !error))
   {
@@ -181,9 +183,16 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     */
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
-    binlog_error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-    if (binlog_error)
-      error= 1;
+    if (mysql_bin_log.is_open())
+    {
+      if (not_logged_temporary_tables)
+        binlog_error= thd->binlog_renamed_tmp_tables(table_list);
+      else
+        binlog_error= write_bin_log(thd, TRUE, thd->query(),
+                                    thd->query_length());
+      if (binlog_error)
+        error= 1;
+    }
     thd->binlog_xid= 0;
     thd->variables.option_bits= save_option_bits;
     debug_crash_here("ddl_log_rename_after_binlog");
@@ -475,6 +484,8 @@ do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
       if_exists         Don't give an error if table doesn't exists
       force_if_exists   Set to 1 if we have to log the query with 'IF EXISTS'
                         Otherwise set it to 0
+      not_logged_temporary_tables  Set to 1 if there was a temporary table in the statement
+                                   that was not in the binary logged.
 
   DESCRIPTION
     Take a table/view name from and odd list element and rename it to a
@@ -489,13 +500,15 @@ do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
 
 static bool
 rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
-              bool skip_error, bool if_exists, bool *force_if_exists)
+              bool skip_error, bool if_exists, bool *force_if_exists,
+              bool *not_logged_temporary_tables)
 {
   TABLE_LIST *ren_table, *new_table;
   List<TABLE_PAIR> tmp_tables;
   DBUG_ENTER("rename_tables");
 
   *force_if_exists= 0;
+  *not_logged_temporary_tables= 0;
 
   for (ren_table= table_list; ren_table; ren_table= new_table->next_local)
   {
@@ -517,6 +530,8 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
 
       if (do_rename_temporary(thd, ren_table, new_table))
         goto revert_rename;
+      if (!ren_table->table->s->table_creation_was_logged)
+        *not_logged_temporary_tables= 1;
     }
     else
     {

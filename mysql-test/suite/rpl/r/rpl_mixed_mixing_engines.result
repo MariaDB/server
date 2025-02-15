@@ -1,5 +1,7 @@
 include/master-slave.inc
 [connection master]
+set @@global.create_tmp_table_binlog_formats="mixed";
+set @@session.create_tmp_table_binlog_formats="mixed";
 #########################################################################
 #                            CONFIGURATION
 #########################################################################
@@ -13315,4 +13317,6 @@ DROP FUNCTION fc_i_tt_5_suc;
 DROP FUNCTION fc_i_nt_5_suc;
 DROP FUNCTION fc_i_nt_3_tt_3_suc;
 connection slave;
+connection server_1;
+set @@global.create_tmp_table_binlog_formats=default;
 include/rpl_end.inc
