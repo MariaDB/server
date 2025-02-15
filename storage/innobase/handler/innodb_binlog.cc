@@ -230,8 +230,6 @@ class ha_innodb_binlog_reader : public handler_binlog_reader {
   /* Used to read the header of the commit record. */
   byte rd_buf[5*COMPR_INT_MAX64];
 private:
-  int read_from_buffer_pool_page(buf_block_t *block, uint64_t end_offset,
-                                 uchar *buf, uint32_t len);
   int read_from_file(uint64_t end_offset, uchar *buf, uint32_t len);
   int read_from_page(uchar *page_ptr, uint64_t end_offset,
                      uchar *buf, uint32_t len);
@@ -463,7 +461,6 @@ innodb_binlog_init_state()
   earliest_binlog_file_no= ~(uint64_t)0;
   total_binlog_used_size= 0;
   active_binlog_file_no.store(~(uint64_t)0, std::memory_order_release);
-  active_binlog_space= nullptr;
   binlog_cur_page_no= 0;
   binlog_cur_page_offset= FIL_PAGE_DATA;
   current_binlog_state_interval= innodb_binlog_state_interval;
@@ -597,7 +594,6 @@ binlog_page_empty(const byte *page)
 
 static int
 find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
-                   fil_space_t **out_space,
                    uint32_t *out_page_no, uint32_t *out_pos_in_page)
 {
   const uint32_t page_size= (uint32_t)srv_page_size;
@@ -627,10 +623,11 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
     return -1;
   }
   if (binlog_page_empty(page_buf)) {
-    *out_space= fsp_binlog_open(file_name, fh, file_no, file_size, true);
+    ret=
+      fsp_binlog_open(file_name, fh, file_no, file_size, ~(uint32_t)0, nullptr);
     binlog_cur_written_offset[idx].store(0, std::memory_order_relaxed);
     binlog_cur_end_offset[idx].store(0, std::memory_order_relaxed);
-    return (*out_space ? 0 : -1);
+    return (ret ? -1 : 0);
   }
   last_nonempty= 0;
 
@@ -688,11 +685,14 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   *out_page_no= p_0 - 1;
   *out_pos_in_page= (uint32_t)(p - page_buf);
 
-  *out_space= fsp_binlog_open(file_name, fh, file_no, file_size, false);
+  if (*out_pos_in_page >= page_size - FIL_PAGE_DATA_END)
+    ret= fsp_binlog_open(file_name, fh, file_no, file_size, p_0, nullptr);
+  else
+    ret= fsp_binlog_open(file_name, fh, file_no, file_size, p_0 - 1, page_buf);
   uint64_t pos= (*out_page_no << page_size_shift) | *out_pos_in_page;
   binlog_cur_written_offset[idx].store(pos, std::memory_order_relaxed);
   binlog_cur_end_offset[idx].store(pos, std::memory_order_relaxed);
-  return (*out_space ? 1 : -1);
+  return ret ? -1 : 1;
 }
 
 
@@ -736,7 +736,6 @@ innodb_binlog_discover()
     Now, if we found any binlog files, locate the point in one of them where
     binlogging stopped, and where we should continue writing new binlog data.
   */
-  fil_space_t *space, *prev_space;
   uint32_t page_no, prev_page_no, pos_in_page, prev_pos_in_page;
   std::unique_ptr<byte, void (*)(void *)>
     page_buf(static_cast<byte*>(aligned_malloc(page_size, page_size)),
@@ -749,8 +748,7 @@ innodb_binlog_discover()
 
     int res= find_pos_in_binlog(binlog_files.last_file_no,
                                 binlog_files.last_size,
-                                page_buf.get(),
-                                &space, &page_no, &pos_in_page);
+                                page_buf.get(), &page_no, &pos_in_page);
     if (res < 0) {
       file_no= binlog_files.last_file_no;
       active_binlog_file_no.store(file_no, std::memory_order_release);
@@ -764,7 +762,6 @@ innodb_binlog_discover()
       /* Found start position in the last binlog file. */
       file_no= binlog_files.last_file_no;
       active_binlog_file_no.store(file_no, std::memory_order_release);
-      active_binlog_space= space;
       binlog_cur_page_no= page_no;
       binlog_cur_page_offset= pos_in_page;
       ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -779,11 +776,10 @@ innodb_binlog_discover()
       res= find_pos_in_binlog(binlog_files.prev_file_no,
                               binlog_files.prev_size,
                               page_buf.get(),
-                              &prev_space, &prev_page_no, &prev_pos_in_page);
+                              &prev_page_no, &prev_pos_in_page);
       if (res < 0) {
         file_no= binlog_files.last_file_no;
         active_binlog_file_no.store(file_no, std::memory_order_release);
-        active_binlog_space= space;
         binlog_cur_page_no= page_no;
         binlog_cur_page_offset= pos_in_page;
         sql_print_warning("Binlog number %llu could not be opened, starting "
@@ -793,7 +789,6 @@ innodb_binlog_discover()
       }
       file_no= binlog_files.prev_file_no;
       active_binlog_file_no.store(file_no, std::memory_order_release);
-      active_binlog_space= prev_space;
       binlog_cur_page_no= prev_page_no;
       binlog_cur_page_offset= prev_pos_in_page;
       ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -806,7 +801,6 @@ innodb_binlog_discover()
     /* Just one empty binlog file found. */
     file_no= binlog_files.last_file_no;
     active_binlog_file_no.store(file_no, std::memory_order_release);
-    active_binlog_space= space;
     binlog_cur_page_no= page_no;
     binlog_cur_page_offset= pos_in_page;
     ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -875,7 +869,6 @@ innodb_binlog_prealloc_thread()
     /* Pre-allocate the next tablespace (if not done already). */
     uint64_t last_created= last_created_binlog_file_no;
     if (last_created <= active && last_created <= first_open) {
-      fil_space_t *new_space;
       ut_ad(last_created == active);
       ut_ad(last_created == first_open || first_open == ~(uint64_t)0);
       /*
@@ -887,8 +880,7 @@ innodb_binlog_prealloc_thread()
 
       mysql_mutex_lock(&purge_binlog_mutex);
       uint32_t size_in_pages=  innodb_binlog_size_in_pages;
-      dberr_t res2= fsp_binlog_tablespace_create(last_created, size_in_pages,
-                                                 &new_space);
+      dberr_t res2= fsp_binlog_tablespace_create(last_created, size_in_pages);
       if (earliest_binlog_file_no == ~(uint64_t)0)
         earliest_binlog_file_no= last_created;
       total_binlog_used_size+= (size_in_pages << srv_page_size_shift);
@@ -898,15 +890,12 @@ innodb_binlog_prealloc_thread()
 
       mysql_mutex_lock(&active_binlog_mutex);
       ut_a(res2 == DB_SUCCESS /* ToDo: Error handling. */);
-      ut_a(new_space);
       last_created_binlog_file_no= last_created;
-      last_created_binlog_space= new_space;
 
       /* If we created the initial tablespace file, make it the active one. */
       ut_ad(active < ~(uint64_t)0 || last_created == 0);
       if (active == ~(uint64_t)0) {
         active_binlog_file_no.store(last_created, std::memory_order_relaxed);
-        active_binlog_space= last_created_binlog_space;
       }
       if (first_open == ~(uint64_t)0)
         first_open_binlog_file_no= first_open= last_created;
@@ -988,8 +977,8 @@ serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
 
 bool
 binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
-                  buf_block_t * &block, uint32_t &page_no,
-                  uint32_t &page_offset, fil_space_t *space)
+                  fsp_binlog_page_entry * &block, uint32_t &page_no,
+                  uint32_t &page_offset, uint64_t file_no)
 {
   /*
     Use a small, efficient stack-allocated buffer by default, falling back to
@@ -997,6 +986,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   */
   byte small_buf[192];
   byte *buf, *alloced_buf;
+  uint32_t block_page_no= ~(uint32_t)0;
+  block= nullptr;
 
   ssize_t used_bytes= serialize_gtid_state(state, small_buf, sizeof(small_buf),
                                            page_no==0);
@@ -1034,16 +1025,19 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     afterwards. There is no point in using space to allow fast search to a
     point if there is no data to search for after that point.
   */
-  if (page_no + needed_pages < space->size)
+  if (page_no + needed_pages < binlog_page_fifo->size_in_pages(file_no))
   {
     byte cont_flag= 0;
     while (used_bytes > 0)
     {
-      ut_ad(page_no < space->size);
-      block= fsp_page_create(space, page_no, mtr);
+      ut_ad(page_no < binlog_page_fifo->size_in_pages(file_no));
+      if (block)
+        binlog_page_fifo->release_page(file_no, block_page_no, block);
+      block_page_no= page_no;
+      block= binlog_page_fifo->create_page(file_no, block_page_no);
       ut_a(block /* ToDo: error handling? */);
       page_offset= FIL_PAGE_DATA;
-      byte *ptr= page_offset + block->page.frame;
+      byte *ptr= page_offset + &block->page_buf[0];
       ssize_t chunk= used_bytes;
       byte last_flag= FSP_BINLOG_FLAG_LAST;
       if (chunk > page_room - 3) {
@@ -1056,15 +1050,19 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       ptr[2] = (byte)(chunk >> 8);
       ut_ad(chunk <= 0xffff);
       memcpy(ptr+3, buf, chunk);
-      mtr->memcpy(*block, page_offset, chunk+3);
+      fsp_log_binlog_write(mtr, file_no, block_page_no, block, page_offset,
+                           (uint32)(chunk+3));
       page_offset+= (uint32_t)(chunk+3);
       buf+= chunk;
       used_bytes-= chunk;
       cont_flag= FSP_BINLOG_FLAG_CONT;
     }
 
-    if (page_offset == FIL_PAGE_DATA_END) {
+    if (page_offset == page_size - FIL_PAGE_DATA_END) {
+      if (block)
+        binlog_page_fifo->release_page(file_no, block_page_no, block);
       block= nullptr;
+      block_page_no= ~(uint32_t)0;
       page_offset= FIL_PAGE_DATA;
       ++page_no;
     }
@@ -1073,7 +1071,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 
   /* Make sure we return a page for caller to write the main event data into. */
   if (UNIV_UNLIKELY(!block)) {
-    block= fsp_page_create(space, page_no, mtr);
+    block= binlog_page_fifo->create_page(file_no, page_no);
     ut_a(block /* ToDo: error handling? */);
   }
 
@@ -1895,8 +1893,6 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
                                      uint64_t *out_file_end,
                                      uint64_t *out_diff_state_interval)
 {
-  buf_block_t *block;
-
   *out_file_end= 0;
   uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
   if (file_no > active2)
@@ -1904,11 +1900,11 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
 
   for (;;)
   {
-    mtr_t mtr;
-    bool mtr_started= false;
     uint64_t active= active2;
     uint64_t end_offset=
       binlog_cur_end_offset[file_no&1].load(std::memory_order_acquire);
+    fsp_binlog_page_entry *block;
+
     if (file_no + 1 >= active &&
         end_offset != ~(uint64_t)0 &&
         page_no <= (end_offset >> srv_page_size_shift))
@@ -1920,16 +1916,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
         not change while getting the page (otherwise it might belong to a
         later tablespace file).
       */
-      mtr.start();
-      mtr_started= true;
-      uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (uint32_t)(file_no & 1);
-      dberr_t err= DB_SUCCESS;
-      block= buf_page_get_gen(page_id_t{space_id, page_no}, 0, RW_S_LATCH,
-                              nullptr, BUF_GET_IF_IN_POOL, &mtr, &err);
-      if (err != DB_SUCCESS) {
-        mtr.commit();
-        return READ_ERROR;
-      }
+      block= binlog_page_fifo->get_page(file_no, page_no);
     }
     else
       block= nullptr;
@@ -1937,8 +1924,8 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
     if (UNIV_UNLIKELY(active2 != active))
     {
       /* Active moved ahead while we were reading, try again. */
-      if (mtr_started)
-        mtr.commit();
+      if (block)
+        binlog_page_fifo->release_page(file_no, page_no, block);
       continue;
     }
     if (file_no + 1 >= active)
@@ -1952,7 +1939,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
       */
       if (page_no > (end_offset >> srv_page_size_shift))
       {
-        ut_ad(!mtr_started);
+        ut_ad(!block);
         return READ_NOT_FOUND;
       }
     }
@@ -1960,17 +1947,13 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
     if (block)
     {
       ut_ad(end_offset != ~(uint64_t)0);
-      int res= read_gtid_state_from_page(state, block->page.frame, page_no,
+      int res= read_gtid_state_from_page(state, block->page_buf, page_no,
                                          out_diff_state_interval);
-      ut_ad(mtr_started);
-      if (mtr_started)
-        mtr.commit();
+      binlog_page_fifo->release_page(file_no, page_no, block);
       return (Read_Result)res;
     }
     else
     {
-      if (mtr_started)
-        mtr.commit();
       if (cur_open_file_no != file_no)
       {
         if (cur_open_file >= (File)0)
@@ -2234,8 +2217,13 @@ innodb_reset_binlogs()
   bool err= false;
 
   ut_a(innodb_binlog_inited >= 2);
+
   /* Close existing binlog tablespaces and stop the pre-alloc thread. */
   innodb_binlog_close(false);
+
+  /* Prevent any flushing activity while resetting. */
+  binlog_page_fifo->lock_wait_for_idle();
+  binlog_page_fifo->reset();
 
   /* Delete all binlog files in the directory. */
   MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(MY_WME));
@@ -2269,6 +2257,7 @@ innodb_reset_binlogs()
 
   /* Re-initialize empty binlog state and start the pre-alloc thread. */
   innodb_binlog_init_state();
+  binlog_page_fifo->unlock();
   start_binlog_prealloc_thread();
 
   return err;
