@@ -14768,6 +14768,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   char ssl_info[256/4 + 2]= {0}; // '\1', SHA256 (1 char per 4 bits), '\0'
   enum  enum_server_command command= com_change_user_pkt_len ? COM_CHANGE_USER
                                                              : COM_CONNECT;
+  bool sudo= false;
   DBUG_ENTER("acl_authenticate");
 
   bzero(&mpvio, sizeof(mpvio));
@@ -14791,6 +14792,11 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     if (parse_com_change_user_packet(&mpvio, com_change_user_pkt_len))
       DBUG_RETURN(1);
 
+    if (thd->security_ctx->master_access & PRIV_SUDO_CHANGE_USER)
+    {
+      sudo= true;
+      mpvio.status= MPVIO_EXT::SUCCESS;
+    }
     res= mpvio.status ==  MPVIO_EXT::SUCCESS ? CR_OK : CR_ERROR;
 
     DBUG_ASSERT(mpvio.status == MPVIO_EXT::RESTART ||
@@ -14894,95 +14900,98 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
   if (initialized) // if not --skip-grant-tables
   {
-    /*
-      OK. Let's check the SSL. Historically it was checked after the password,
-      as an additional layer, not instead of the password
-      (in which case it would've been a plugin too).
-    */
-    if (acl_check_ssl(thd, acl_user))
+    if (!sudo)
     {
-      Host_errors errors;
-      errors.m_ssl= 1;
-      inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
-      login_failed_error(thd);
-      DBUG_RETURN(1);
-    }
+      /*
+        OK. Let's check the SSL. Historically it was checked after the password,
+        as an additional layer, not instead of the password
+        (in which case it would've been a plugin too).
+      */
+      if (acl_check_ssl(thd, acl_user))
+      {
+        Host_errors errors;
+        errors.m_ssl= 1;
+        inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
+        login_failed_error(thd);
+        DBUG_RETURN(1);
+      }
 
-    if (acl_user->account_locked)
-    {
-      status_var_increment(denied_connections);
-      my_error(ER_ACCOUNT_HAS_BEEN_LOCKED, MYF(0));
-      DBUG_RETURN(1);
-    }
+      if (acl_user->account_locked)
+      {
+        status_var_increment(denied_connections);
+        my_error(ER_ACCOUNT_HAS_BEEN_LOCKED, MYF(0));
+        DBUG_RETURN(1);
+      }
 
-    bool client_can_handle_exp_pass= thd->client_capabilities &
-                                     CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS;
-    bool password_expired= thd->password != PASSWORD_USED_NO_MENTION
-                           && (acl_user->password_expired ||
-                               check_password_lifetime(thd, *acl_user));
+      bool client_can_handle_exp_pass= thd->client_capabilities &
+                                       CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS;
+      bool password_expired= thd->password != PASSWORD_USED_NO_MENTION
+                             && (acl_user->password_expired ||
+                                 check_password_lifetime(thd, *acl_user));
 
-    if (!client_can_handle_exp_pass && disconnect_on_expired_password &&
-        password_expired)
-    {
-      status_var_increment(denied_connections);
-      my_error(ER_MUST_CHANGE_PASSWORD_LOGIN, MYF(0));
-      DBUG_RETURN(1);
-    }
+      if (!client_can_handle_exp_pass && disconnect_on_expired_password &&
+          password_expired)
+      {
+        status_var_increment(denied_connections);
+        my_error(ER_MUST_CHANGE_PASSWORD_LOGIN, MYF(0));
+        DBUG_RETURN(1);
+      }
 
-    sctx->password_expired= password_expired;
+      sctx->password_expired= password_expired;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (!password_expired)
-    {
-      bool is_proxy_user= FALSE;
-      const char *auth_user = acl_user->user.str;
-      ACL_PROXY_USER *proxy_user;
-      /* check if the user is allowed to proxy as another user */
-      proxy_user= acl_find_proxy_user(auth_user, sctx->host, sctx->ip,
-                                      mpvio.auth_info.authenticated_as,
-                                            &is_proxy_user);
-      if (is_proxy_user)
+      if (!password_expired)
       {
-        ACL_USER *acl_proxy_user;
-
-        /* we need to find the proxy user, but there was none */
-        if (!proxy_user)
+        bool is_proxy_user= FALSE;
+        const char *auth_user = acl_user->user.str;
+        ACL_PROXY_USER *proxy_user;
+        /* check if the user is allowed to proxy as another user */
+        proxy_user= acl_find_proxy_user(auth_user, sctx->host, sctx->ip,
+                                        mpvio.auth_info.authenticated_as,
+                                              &is_proxy_user);
+        if (is_proxy_user)
         {
-          Host_errors errors;
-          errors.m_proxy_user= 1;
-          inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
-          if (!thd->is_error())
-            login_failed_error(thd);
-          DBUG_RETURN(1);
-        }
+          ACL_USER *acl_proxy_user;
 
-        my_snprintf(sctx->proxy_user, sizeof(sctx->proxy_user) - 1,
-                    "'%s'@'%s'", auth_user,
-                    safe_str(acl_user->host.hostname));
+          /* we need to find the proxy user, but there was none */
+          if (!proxy_user)
+          {
+            Host_errors errors;
+            errors.m_proxy_user= 1;
+            inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
+            if (!thd->is_error())
+              login_failed_error(thd);
+            DBUG_RETURN(1);
+          }
 
-        /* we're proxying : find the proxy user definition */
-        mysql_mutex_lock(&acl_cache->lock);
-        acl_proxy_user=
-          find_user_exact(
-            Lex_cstring_strlen(safe_str(proxy_user->get_proxied_host())),
-            Lex_cstring_strlen(mpvio.auth_info.authenticated_as));
+          my_snprintf(sctx->proxy_user, sizeof(sctx->proxy_user) - 1,
+                      "'%s'@'%s'", auth_user,
+                      safe_str(acl_user->host.hostname));
 
-        if (!acl_proxy_user)
-        {
+          /* we're proxying : find the proxy user definition */
+          mysql_mutex_lock(&acl_cache->lock);
+          acl_proxy_user=
+            find_user_exact(
+              Lex_cstring_strlen(safe_str(proxy_user->get_proxied_host())),
+              Lex_cstring_strlen(mpvio.auth_info.authenticated_as));
+
+          if (!acl_proxy_user)
+          {
+            mysql_mutex_unlock(&acl_cache->lock);
+
+            Host_errors errors;
+            errors.m_proxy_user_acl= 1;
+            inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
+            if (!thd->is_error())
+              login_failed_error(thd);
+            DBUG_RETURN(1);
+          }
+          acl_user= acl_proxy_user->copy(thd->mem_root);
           mysql_mutex_unlock(&acl_cache->lock);
-
-          Host_errors errors;
-          errors.m_proxy_user_acl= 1;
-          inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
-          if (!thd->is_error())
-            login_failed_error(thd);
-          DBUG_RETURN(1);
         }
-        acl_user= acl_proxy_user->copy(thd->mem_root);
-        mysql_mutex_unlock(&acl_cache->lock);
       }
-    }
 #endif
+    }
 
     sctx->master_access= (acl_user->access | public_access());
     strmake_buf(sctx->priv_user, acl_user->user.str);

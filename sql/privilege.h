@@ -332,6 +332,8 @@ constexpr privilege_t PRIV_DEFINER_CLAUSE= SET_USER_ACL;
 */
 constexpr privilege_t PRIV_REVEAL_MISSING_DEFINER= SET_USER_ACL;
 
+constexpr privilege_t PRIV_SUDO_CHANGE_USER= SET_USER_ACL;
+
 /* Actions that require only the SUPER privilege */
 constexpr privilege_t PRIV_DES_DECRYPT_ONE_ARG= SUPER_ACL;
 constexpr privilege_t PRIV_LOG_BIN_TRUSTED_SP_CREATOR= SUPER_ACL;

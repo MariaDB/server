@@ -16950,6 +16950,7 @@ static void test_change_user()
 
   mysql_close(conn);
   conn= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
+  mysql_change_user(conn, user_pw, pw, db); // MDEV-20299
 
   rc= mysql_change_user(conn, "", NULL, "");
   DIE_UNLESS(rc);
@@ -16968,6 +16969,7 @@ static void test_change_user()
 
   mysql_close(conn);
   conn= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
+  mysql_change_user(conn, user_pw, pw, db); // MDEV-20299
 
   rc= mysql_change_user(conn, user_pw, "", NULL);
   DIE_UNLESS(rc);
@@ -16986,6 +16988,7 @@ static void test_change_user()
 
   mysql_close(conn);
   conn= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
+  mysql_change_user(conn, user_pw, pw, db); // MDEV-20299
 
   rc= mysql_change_user(conn, user_pw, NULL, db);
   DIE_UNLESS(rc);
@@ -17027,6 +17030,7 @@ static void test_change_user()
 
   mysql_close(conn);
   conn= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
+  mysql_change_user(conn, user_pw, pw, db); // MDEV-20299
 
   rc= mysql_change_user(conn, user_no_pw, pw, NULL);
   DIE_UNLESS(rc);
@@ -17813,7 +17817,7 @@ static void test_bug31669()
   user[OLD_USERNAME_CHAR_LENGTH-1]= 'b';
   buff[LARGE_BUFFER_SIZE-1]= 'd';
   rc= mysql_change_user(conn, user, buff, db);
-  DIE_UNLESS(rc);
+  DIE_UNLESS(!rc);
 
   buff[LARGE_BUFFER_SIZE-1]= 'c';
   db[NAME_CHAR_LEN-1]= 'e';
