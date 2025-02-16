@@ -169,6 +169,7 @@ test
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 connect con1,localhost,root,foo,,,;
 update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'))  where user='root';
 flush privileges;

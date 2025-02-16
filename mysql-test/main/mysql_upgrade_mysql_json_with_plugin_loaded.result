@@ -179,6 +179,7 @@ Repairing tables
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 show create table mysql_json_test;
 Table	Create Table
 mysql_json_test	CREATE TABLE `mysql_json_test` (

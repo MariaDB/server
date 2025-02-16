@@ -58,7 +58,6 @@ static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *,
                                               const Lex_ident_db_normalized &db,
                                               const char *, TABLE_LIST **);
 
-long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
 my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
 static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
@@ -1387,25 +1386,6 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
     char *extension;
     DBUG_PRINT("info",("Examining: %s", file->name));
 
-    if (file->name[0] == 'a' && file->name[1] == 'r' &&
-             file->name[2] == 'c' && file->name[3] == '\0')
-    {
-      /* .frm archive:
-        Those archives are obsolete, but following code should
-        exist to remove existent "arc" directories.
-      */
-      char newpath[FN_REFLEN];
-      MY_DIR *new_dirp;
-      strxmov(newpath, path, "/", "arc", NullS);
-      (void) unpack_filename(newpath, newpath);
-      if ((new_dirp = my_dir(newpath, MYF(MY_DONT_SORT))))
-      {
-	DBUG_PRINT("my",("Archive subdir found: %s", newpath));
-	if ((mysql_rm_arc_files(thd, new_dirp, newpath)) < 0)
-	  DBUG_RETURN(true);
-      }
-      continue;
-    }
     if (!(extension= strrchr(file->name, '.')))
       extension= strend(file->name);
     if (find_type(extension, &deletable_extensions, FIND_TYPE_NO_PREFIX) > 0)
@@ -1479,78 +1459,6 @@ my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
 }
 
 
-/*
-  Remove .frm archives from directory
-
-  SYNOPSIS
-    thd       thread handler
-    dirp      list of files in archive directory
-    db        data base name
-    org_path  path of archive directory
-
-  RETURN
-    > 0 number of removed files
-    -1  error
-
-  NOTE
-    A support of "arc" directories is obsolete, however this
-    function should exist to remove existent "arc" directories.
-*/
-long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path)
-{
-  long deleted= 0;
-  ulong found_other_files= 0;
-  char filePath[FN_REFLEN];
-  DBUG_ENTER("mysql_rm_arc_files");
-  DBUG_PRINT("enter", ("path: %s", org_path));
-
-  for (size_t idx=0; idx < dirp->number_of_files && !thd->killed; idx++)
-  {
-    FILEINFO *file=dirp->dir_entry+idx;
-    char *extension, *revision;
-    DBUG_PRINT("info",("Examining: %s", file->name));
-
-    extension= fn_ext(file->name);
-    if (extension[0] != '.' ||
-        extension[1] != 'f' || extension[2] != 'r' ||
-        extension[3] != 'm' || extension[4] != '-')
-    {
-      found_other_files++;
-      continue;
-    }
-    revision= extension+5;
-    while (*revision && my_isdigit(system_charset_info, *revision))
-      revision++;
-    if (*revision)
-    {
-      found_other_files++;
-      continue;
-    }
-    strxmov(filePath, org_path, "/", file->name, NullS);
-    if (mysql_file_delete_with_symlink(key_file_misc, filePath, "", MYF(MY_WME)))
-    {
-      goto err;
-    }
-    deleted++;
-  }
-  if (thd->killed)
-    goto err;
-
-  my_dirend(dirp);
-
-  /*
-    If the directory is a symbolic link, remove the link first, then
-    remove the directory the symbolic link pointed at
-  */
-  if (!found_other_files &&
-      rm_dir_w_symlink(org_path, 0))
-    DBUG_RETURN(-1);
-  DBUG_RETURN(deleted);
-
-err:
-  my_dirend(dirp);
-  DBUG_RETURN(-1);
-}
 
 
 /**
