@@ -181,6 +181,7 @@ test
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 SHOW CREATE DATABASE sys;
 Database	Create Database
 sys	CREATE DATABASE `sys` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
