@@ -1,4 +1,8 @@
-connect  test,localhost,root,,;
+create user chu@localhost;
+#
+# MDEV-3915 COM_CHANGE_USER allows fast password brute-forcing
+#
+connect test,localhost,chu;
 connection test;
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: YES)
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: NO)
@@ -7,4 +11,37 @@ ERROR 08S01: Unknown command
 ERROR 08S01: Unknown command
 disconnect test;
 connection default;
-that's all
+drop user chu@localhost;
+# End of 10.5 tests
+#
+# MDEV-20299 "sudo" feature in the server
+#
+create user chuchu@localhost identified via mysql_native_password as password('good');
+connect con1,localhost,root;
+select current_user();
+current_user()
+root@localhost
+select current_user();
+current_user()
+chuchu@localhost
+ERROR 28000: Access denied for user 'chuchu'@'localhost' (using password: NO)
+ERROR 28000: Access denied for user 'chuchu'@'localhost' (using password: YES)
+disconnect con1;
+connection default;
+ERROR 28000: Access denied for user 'foo'@'localhost' (using password: NO)
+select current_user();
+current_user()
+root@localhost
+alter user chuchu@localhost require issuer 'whatever';
+alter user chuchu@localhost password expire;
+alter user chuchu@localhost account lock;
+create definer=chuchu@localhost view v as select current_user();
+select * from v;
+current_user()
+chuchu@localhost
+drop view v;
+select current_user();
+current_user()
+chuchu@localhost
+drop user chuchu@localhost;
+# End of 12.0 tests

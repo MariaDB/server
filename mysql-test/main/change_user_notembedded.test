@@ -1,26 +1,78 @@
 source include/not_embedded.inc;
 
-#
-# MDEV-3915 COM_CHANGE_USER allows fast password brute-forcing
+create user chu@localhost;
+
+--echo #
+--echo # MDEV-3915 COM_CHANGE_USER allows fast password brute-forcing
+--echo #
 #
 # only three failed change_user per connection.
 # successful change_user do NOT reset the counter
 #
-connect (test,localhost,root,,);
+connect test,localhost,chu;
 connection test;
---error 1045
+--error ER_ACCESS_DENIED_ERROR
 change_user foo,bar;
---error 1045
+--error ER_ACCESS_DENIED_ERROR
 change_user foo;
 change_user;
---error 1045
+--error ER_ACCESS_DENIED_ERROR
 change_user foo,bar;
---error 1047
+--error ER_UNKNOWN_COM_ERROR
 change_user foo,bar;
---error 1047
+--error ER_UNKNOWN_COM_ERROR
 change_user;
 disconnect test;
+# cleanup
+connection default;
+drop user chu@localhost;
+
+--echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-20299 "sudo" feature in the server
+--echo #
+--disable_service_connection
+
+create user chuchu@localhost identified via mysql_native_password as password('good');
+
+connect con1,localhost,root;
+select current_user();
+# root->chuchu, no password: ok
+change_user chuchu;
+select current_user();
+# chuchu->chuchu, no password: error
+--error ER_ACCESS_DENIED_ERROR
+change_user chuchu;
+# chuchu->chuchu, bad password: error
+--error ER_ACCESS_DENIED_ERROR
+change_user chuchu,bad;
+# chuchu->chuchu, good password: ok
+change_user chuchu,good;
+disconnect con1;
 connection default;
 
---echo that's all
+# nonexistent user:
+--error ER_ACCESS_DENIED_ERROR
+change_user foo;
+select current_user();
 
+# SSL, expired password, locked:
+alter user chuchu@localhost require issuer 'whatever';
+alter user chuchu@localhost password expire;
+alter user chuchu@localhost account lock;
+
+create definer=chuchu@localhost view v as select current_user();
+select * from v;
+drop view v;
+
+# view works, so change_user should too
+change_user chuchu;
+select current_user();
+
+# cleanup
+change_user root,,test;
+drop user chuchu@localhost;
+--enable_service_connection
+
+--echo # End of 12.0 tests
