@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-23962 Remove arc directory support
+--echo #
+
+CREATE DATABASE test_arc;
+USE test_arc;
+CREATE TABLE t1 (id INT);
+
+# Get datadir path and construct paths
+--let $MYSQLD_DATADIR= `SELECT @@datadir`
+--let $DB_PATH= $MYSQLD_DATADIR/test_arc
+--let $ARC_PATH= $DB_PATH/arc
+
+# Show paths for debugging
+--echo # Datadir: $MYSQLD_DATADIR
+--echo # Database path: $DB_PATH
+--echo # Arc path: $ARC_PATH
+
+# Ensure database directory exists
+--echo # Checking database directory
+--file_exists $DB_PATH
+
+# Create arc directory
+--echo # Creating arc directory
+--mkdir $ARC_PATH
+--echo # Verifying arc directory creation
+--file_exists $ARC_PATH
+
+# Sleep briefly to ensure directory is fully created
+--sleep 1
+
+
+# Create archive files manually with error checking
+--write_file $ARC_PATH/t1.frm-001
+dummy content
+EOF
+--chmod 0644 $ARC_PATH/t1.frm-001
+--file_exists $ARC_PATH/t1.frm-001
+
+--write_file $ARC_PATH/t1.frm-002
+dummy content
+EOF
+--chmod 0644 $ARC_PATH/t1.frm-002
+--file_exists $ARC_PATH/t1.frm-002
+
+# List directory contents for debugging
+--list_files $ARC_PATH
+
+
+--file_exists $ARC_PATH/t1.frm-001
+--file_exists $ARC_PATH/t1.frm-002
+
+--echo # Running mysql_upgrade
+--exec $MYSQL_UPGRADE --force
+
+
+--error 1
+--file_exists $MYSQLD_DATADIR/test_arc/arc
+
+DROP DATABASE test_arc;

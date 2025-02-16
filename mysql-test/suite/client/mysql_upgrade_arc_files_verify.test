@@ -1,0 +1,96 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-23962 Remove arc directory support - Verify normal operations
+--echo #
+
+# Create test database and tables
+CREATE DATABASE test_arc_verify;
+USE test_arc_verify;
+
+# Create and populate a normal table
+CREATE TABLE normal_table (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data VARCHAR(100)
+) ENGINE=InnoDB;
+
+INSERT INTO normal_table (data) VALUES 
+  ('test data 1'),
+  ('test data 2'),
+  ('test data 3');
+
+# Create another table that will have arc files
+CREATE TABLE arc_table (id INT);
+
+# Get datadir path and construct paths
+--let $MYSQLD_DATADIR= `SELECT @@datadir`
+--let $DB_PATH= $MYSQLD_DATADIR/test_arc_verify
+--let $ARC_PATH= $DB_PATH/arc
+
+# Show paths for debugging
+--echo # Datadir: $MYSQLD_DATADIR
+--echo # Database path: $DB_PATH
+--echo # Arc path: $ARC_PATH
+
+# Create arc directory
+--echo # Creating arc directory
+--mkdir $ARC_PATH
+--echo # Verifying arc directory creation
+--file_exists $ARC_PATH
+
+# Create archive files
+--write_file $ARC_PATH/arc_table.frm-001
+dummy content
+EOF
+--chmod 0644 $ARC_PATH/arc_table.frm-001
+
+--write_file $ARC_PATH/arc_table.frm-002
+dummy content
+EOF
+--chmod 0644 $ARC_PATH/arc_table.frm-002
+
+# Create a non-arc file to verify it's not deleted
+--write_file $ARC_PATH/normal.txt
+This file should not be deleted
+EOF
+--chmod 0644 $ARC_PATH/normal.txt
+
+# List directory contents before upgrade
+--echo # Files before mysql_upgrade:
+--list_files $ARC_PATH
+
+# Run mysql_upgrade
+--echo # Running mysql_upgrade
+--let $MYSQL_UPGRADE_PARAMS= --user=root --host=localhost --port=$MASTER_MYPORT
+--exec $MYSQL_UPGRADE $MYSQL_UPGRADE_PARAMS --force
+
+# Verify arc directory is gone
+--error 1
+--file_exists $ARC_PATH/arc_table.frm-001
+--error 1
+--file_exists $ARC_PATH/arc_table.frm-002
+
+# Verify normal.txt still exists
+--file_exists $ARC_PATH/normal.txt
+
+# Verify normal table data is intact
+SELECT * FROM normal_table ORDER BY id;
+
+# Verify we can still perform normal operations
+INSERT INTO normal_table (data) VALUES ('test data 4');
+SELECT * FROM normal_table WHERE id = 4;
+
+# Verify we can create new tables
+CREATE TABLE new_table (id INT);
+INSERT INTO new_table VALUES (1), (2), (3);
+SELECT * FROM new_table ORDER BY id;
+
+# Clean up the remaining normal.txt file
+--remove_file $ARC_PATH/normal.txt
+
+# Remove the now-empty arc directory
+--rmdir $ARC_PATH
+
+# Clean up
+DROP DATABASE test_arc_verify;
