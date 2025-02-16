@@ -30,6 +30,10 @@
 #include <sys/wait.h>
 #endif
 
+#ifdef _WIN32
+#include <direct.h>
+#endif
+
 #ifndef WEXITSTATUS
 # ifdef _WIN32
 #  define WEXITSTATUS(stat_val) (stat_val)
@@ -1453,7 +1457,8 @@ static int check_version_match(void)
   return 0;
 }
 
-static char* get_datadir(void) {
+static char* get_datadir(void) 
+{
   static char datadir[FN_REFLEN] = {0};
   DYNAMIC_STRING ds_datadir;
   
@@ -1485,7 +1490,7 @@ static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
   /* Remove all files in directory */
   if ((dir_ptr = my_dir(tmp_path, MYF(MY_DONT_SORT))))
   {
-    uint nfiles = dir_ptr->number_of_files;
+    size_t nfiles = dir_ptr->number_of_files;
     for (uint idx = 0; idx < nfiles; idx++)
     {
       FILEINFO *file = dir_ptr->dir_entry + idx;
@@ -1534,6 +1539,7 @@ long mysql_rm_arc_files(MY_DIR *dirp, const char *org_path)
   long deleted= 0;
   char filePath[FN_REFLEN];
   ulong found_other_files= 0;
+  const char *extension, *revision;
   DBUG_ENTER("mysql_rm_arc_files");
   DBUG_PRINT("enter", ("path: %s", org_path));
 
@@ -1542,14 +1548,14 @@ long mysql_rm_arc_files(MY_DIR *dirp, const char *org_path)
     const FILEINFO *file= dirp->dir_entry+idx;
     DBUG_PRINT("info",("Examining: %s", file->name));
 
-    const char *extension= fn_ext(file->name);
+    extension= fn_ext(file->name);
     if (extension[0] != '.' || extension[1] != 'f' || extension[2] != 'r' ||
         extension[3] != 'm' || extension[4] != '-')
     {
       found_other_files++;
       continue;
     }
-    const char *revision= extension + 5;
+    revision= extension + 5;
     while (*revision && my_isdigit(system_charset_info, *revision))
       revision++;
     if (*revision)
@@ -1587,16 +1593,19 @@ static my_bool remove_obsolete_arc_files(const char *org_path)
   MY_DIR *dirp;
   long total_removed = 0;
   char *datadir;
+  long removed;
   DBUG_ENTER("remove_obsolete_arc_files");
   
-  if (!(datadir = get_datadir())) {
+  if (!(datadir = get_datadir())) 
+  {
     if (!opt_silent)
       fprintf(stderr, "Error: Unable to get data directory from server\n");
     DBUG_RETURN(1);
   }
   
   /* Scan each database directory */
-  if ((dirp = my_dir(datadir, MYF(MY_DONT_SORT | MY_WANT_STAT)))) {
+  if ((dirp = my_dir(datadir, MYF(MY_DONT_SORT | MY_WANT_STAT)))) 
+  {
     size_t i;
     for (i = 0; i < dirp->number_of_files; i++) {
       const FILEINFO *file = dirp->dir_entry+i;
@@ -1611,22 +1620,25 @@ static my_bool remove_obsolete_arc_files(const char *org_path)
       fn_format(db_path, file->name, datadir, "", MYF(MY_RELATIVE_PATH));
       
       /* Check this database directory for an arc subdirectory */
-      if ((db_dirp = my_dir(db_path, MYF(MY_DONT_SORT | MY_WANT_STAT)))) {
+      if ((db_dirp = my_dir(db_path, MYF(MY_DONT_SORT | MY_WANT_STAT)))) 
+      {
         size_t j;
         for (j = 0; j < db_dirp->number_of_files; j++) {
           const FILEINFO *db_file = db_dirp->dir_entry+j;
           
           if (strcmp(db_file->name, "arc") == 0 && 
-              MY_S_ISDIR(db_file->mystat->st_mode)) {
-            char arc_path[FN_REFLEN];
-            MY_DIR *arc_dirp;
+              MY_S_ISDIR(db_file->mystat->st_mode)) 
+              {
+                char arc_path[FN_REFLEN];
+                MY_DIR *arc_dirp;
             
             fn_format(arc_path, "arc", db_path, "", MYF(MY_RELATIVE_PATH));
             
-            if ((arc_dirp = my_dir(arc_path, MYF(MY_DONT_SORT)))) {
+            if ((arc_dirp = my_dir(arc_path, MYF(MY_DONT_SORT)))) 
+            {
               verbose("Processing archive directory: %s", arc_path);
               
-              long removed = mysql_rm_arc_files(arc_dirp, arc_path);
+              removed = mysql_rm_arc_files(arc_dirp, arc_path);
               if (removed < 0) {
                 if (!opt_silent)
                   fprintf(stderr, "Error: Failed to clean archive directory '%s'\n", 
