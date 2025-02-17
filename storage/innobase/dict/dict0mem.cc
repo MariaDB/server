@@ -81,6 +81,14 @@ const char table_name_t::part_suffix[4]
 = "#P#";
 #endif
 
+// subpart_suffix is used by fixup_foreign_id() to cut out needless data in I_S
+const char table_name_t::subpart_suffix[5]
+#ifdef _WIN32
+= "#sp#";
+#else
+= "#SP#";
+#endif
+
 /** Display an identifier.
 @param[in,out]	s	output stream
 @param[in]	id_name	SQL identifier (other than table name)

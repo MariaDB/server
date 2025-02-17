@@ -135,6 +135,8 @@ struct table_name_t
 
 	/** The start of the table basename suffix for partitioned tables */
 	static const char part_suffix[4];
+// Used by fixup_foreign_id() to cut out needless data in I_S, OS-dependent.
+	static const char subpart_suffix[5];
 
 	/** Determine the partition or subpartition name suffix.
 	@return the partition name
