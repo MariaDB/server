@@ -18605,7 +18605,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                     " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
-    switch (log_sys.resize_start(*static_cast<const ulonglong*>(save))) {
+    switch (log_sys.resize_start(*static_cast<const ulonglong*>(save), thd)) {
     case log_t::RESIZE_NO_CHANGE:
       break;
     case log_t::RESIZE_IN_PROGRESS:
@@ -18617,12 +18617,11 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
       ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_CANT_CREATE_HANDLER_FILE);
       break;
     case log_t::RESIZE_STARTED:
-      const lsn_t start{log_sys.resize_in_progress()};
       for (timespec abstime;;)
       {
         if (thd_kill_level(thd))
         {
-          log_sys.resize_abort();
+          log_sys.resize_abort(thd);
           break;
         }
 
@@ -18637,13 +18636,15 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
           resizing= log_sys.resize_in_progress();
         }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        if (start > log_sys.get_lsn())
+        if (!resizing || !log_sys.resize_running(thd))
+          break;
+        if (resizing > log_sys.get_lsn())
         {
           ut_ad(!log_sys.is_mmap());
           /* The server is almost idle. Write dummy FILE_CHECKPOINT records
           to ensure that the log resizing will complete. */
           log_sys.latch.wr_lock(SRW_LOCK_CALL);
-          while (start > log_sys.get_lsn())
+          while (resizing > log_sys.get_lsn())
           {
             mtr_t mtr;
             mtr.start();
@@ -18651,8 +18652,6 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
           }
           log_sys.latch.wr_unlock();
         }
-        if (!resizing || resizing > start /* only wait for our resize */)
-          break;
       }
     }
   }
