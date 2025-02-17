@@ -389,9 +389,13 @@ Trigger* Table_triggers_list::for_all_triggers(Triggers_processor func,
     {
       for (Trigger *trigger= get_trigger(i,j) ;
            trigger ;
-           trigger= trigger->next)
-        if ((trigger->*func)(arg))
+           trigger= trigger->next[i])
+        if (is_the_right_most_event_bit(trigger->events, (trg_event_type)i) &&
+            (trigger->*func)(arg))
+        {
+          (trigger->*func)(arg);
           return trigger;
+        }
     }
   }
   return 0;
@@ -992,7 +996,11 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   if (lex->trg_chistics.ordering_clause != TRG_ORDER_NONE)
   {
     if (!(trigger= find_trigger(&lex->trg_chistics.anchor_trigger_name, 0)) ||
-        trigger->event != lex->trg_chistics.event ||
+        /*
+          check that every event listed for the trigger being created is also
+          specified for anchored trigger
+        */
+        !is_subset_of_trg_events(trigger->events, lex->trg_chistics.events) ||
         trigger->action_time != lex->trg_chistics.action_time)
     {
       my_error(ER_REFERENCED_TRG_DOES_NOT_EXIST, MYF(0),
@@ -1128,8 +1136,9 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   trigger->db_cl_name= get_default_db_collation(thd, tables->db.str)->coll_name;
   trigger->name= Lex_ident_trigger(lex->spname->m_name);
 
+
   /* Add trigger in it's correct place */
-  add_trigger(lex->trg_chistics.event,
+  add_trigger(lex->trg_chistics.events,
               lex->trg_chistics.action_time,
               lex->trg_chistics.ordering_clause,
               Lex_ident_trigger(lex->trg_chistics.anchor_trigger_name),
@@ -1234,7 +1243,7 @@ bool Trigger::add_to_file_list(void* param_arg)
 
 bool Trigger::match_updatable_columns(List<Item> &fields)
 {
-  DBUG_ASSERT(event == TRG_EVENT_UPDATE);
+  DBUG_ASSERT(is_trg_event_on(events, TRG_EVENT_UPDATE));
 
   /*
     No table columns were specified in OF col1, col2 ... colN of
@@ -1354,29 +1363,53 @@ bool Table_triggers_list::save_trigger_file(THD *thd, const LEX_CSTRING *db,
 Trigger *Table_triggers_list::find_trigger(const LEX_CSTRING *name,
                                            bool remove_from_list)
 {
+  Trigger *trigger = nullptr;
+
   for (uint i= 0; i < (uint)TRG_EVENT_MAX; i++)
   {
     for (uint j= 0; j < (uint)TRG_ACTION_MAX; j++)
     {
-      Trigger **parent, *trigger;
+      Trigger **parent;
 
       for (parent= &triggers[i][j];
            (trigger= *parent);
-           parent= &trigger->next)
+           parent= &trigger->next[i])
       {
         if (trigger->name.streq(*name))
         {
           if (remove_from_list)
           {
-            *parent= trigger->next;
+            *parent= trigger->next[i];
             count--;
+            /*
+              in case only one event left or was assigned to this trigger
+              return it, else continue iterations to remove the trigger
+              from all events entries.
+            */
+            if (trigger->events != (1 << i))
+            {
+              /*
+                Turn off event bits in the mask as the trigger is removed
+                from the array for corresponding trigger event action.
+                Eventually, we come to the last event this trigger is
+                associated to. The associated trigger be returned from
+                the method and finally deleted.
+              */
+              trigger->events &= ~(1 << i);
+              continue;
+            }
           }
           return trigger;
         }
       }
     }
   }
-  return 0;
+  /*
+    We come to this point if either remove_from_list == true and
+    the trigger is associated with multiple events, or there is no a trigger
+    with requested name.
+  */
+  return trigger;
 }
 
 
@@ -1471,15 +1504,26 @@ Table_triggers_list::~Table_triggers_list()
 {
   DBUG_ENTER("Table_triggers_list::~Table_triggers_list");
 
-  for (uint i= 0; i < (uint)TRG_EVENT_MAX; i++)
+  /*
+    Iterate over trigger events in descending order to delete only the last
+    instance of the Trigger class in case there are several events associated
+    with the trigger.
+  */
+  for (int i= (int)TRG_EVENT_MAX - 1; i >= 0; i--)
   {
     for (uint j= 0; j < (uint)TRG_ACTION_MAX; j++)
     {
       Trigger *next, *trigger;
       for (trigger= get_trigger(i,j) ; trigger ; trigger= next)
       {
-        next= trigger->next;
-        delete trigger;
+        next= trigger->next[i];
+        /*
+          Since iteration along triggers is performed in descending order
+          deleting an instance of the Trigger class for the right most event
+          bit guarantees that the instance is deleted only once.
+        */
+        if (is_the_right_most_event_bit(trigger->events, (trg_event_type)i))
+          delete trigger;
       }
     }
   }
@@ -1787,7 +1831,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         thd->spcont= NULL;
 
         /* The following is for catching parse errors */
-        lex.trg_chistics.event= TRG_EVENT_MAX;
+        lex.trg_chistics.events= TRG_EVENT_UNKNOWN;
         lex.trg_chistics.action_time= TRG_ACTION_MAX;
         Deprecated_trigger_syntax_handler error_handler;
         thd->push_internal_handler(&error_handler);
@@ -1846,13 +1890,21 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
                                         lex.trg_chistics.on_update_col_names))
           goto err_with_lex_cleanup;
 
-        /* event can only be TRG_EVENT_MAX in case of fatal parse errors */
-        if (lex.trg_chistics.event != TRG_EVENT_MAX)
-          trigger_list->add_trigger(lex.trg_chistics.event,
+        /*
+          events can be equal TRG_EVENT_UNKNOWN only in case of
+          fatal parse errors
+        */
+        if (lex.trg_chistics.events != TRG_EVENT_UNKNOWN)
+        {
+          const Lex_ident_trigger
+            anchor_trg_name(lex.trg_chistics.anchor_trigger_name);
+
+          trigger_list->add_trigger(lex.trg_chistics.events,
                                     lex.trg_chistics.action_time,
                                     TRG_ORDER_NONE,
-                        Lex_ident_trigger(lex.trg_chistics.anchor_trigger_name),
+                                    anchor_trg_name,
                                     trigger);
+        }
 
         if (unlikely(parse_error))
         {
@@ -2006,6 +2058,36 @@ error:
 }
 
 
+void Table_triggers_list::add_trigger(trg_event_set trg_events,
+                                      trg_action_time_type action_time,
+                                      trigger_order_type ordering_clause,
+                                      const Lex_ident_trigger &
+                                        anchor_trigger_name,
+                                      Trigger *trigger)
+{
+  if (is_trg_event_on(trg_events, TRG_EVENT_INSERT))
+    add_trigger(TRG_EVENT_INSERT,
+                action_time,
+                ordering_clause,
+                anchor_trigger_name,
+                trigger);
+
+  if (is_trg_event_on(trg_events, TRG_EVENT_UPDATE))
+    add_trigger(TRG_EVENT_UPDATE,
+                action_time,
+                ordering_clause,
+                anchor_trigger_name,
+                trigger);
+
+  if (is_trg_event_on(trg_events, TRG_EVENT_DELETE))
+      add_trigger(TRG_EVENT_DELETE,
+                  action_time,
+                  ordering_clause,
+                  anchor_trigger_name,
+                  trigger);
+}
+
+
 /**
    Add trigger in the correct position according to ordering clause
    Also update action order
@@ -2023,14 +2105,14 @@ void Table_triggers_list::add_trigger(trg_event_type event,
   Trigger **parent= &triggers[event][action_time];
   uint position= 0;
 
-  for ( ; *parent ; parent= &(*parent)->next, position++)
+  for ( ; *parent ; parent= &(*parent)->next[event], position++)
   {
     if (ordering_clause != TRG_ORDER_NONE &&
         anchor_trigger_name.streq((*parent)->name))
     {
       if (ordering_clause == TRG_ORDER_FOLLOWS)
       {
-        parent= &(*parent)->next;               // Add after this one
+        parent= &(*parent)->next[event];        // Add after this one
         position++;
       }
       break;
@@ -2038,15 +2120,15 @@ void Table_triggers_list::add_trigger(trg_event_type event,
   }
 
   /* Add trigger where parent points to */
-  trigger->next= *parent;
+  trigger->next[event]= *parent;
   *parent= trigger;
 
   /* Update action_orders and position */
-  trigger->event= event;
+  trigger->events|= trg2bit(event);
   trigger->action_time= action_time;
-  trigger->action_order= ++position;
-  while ((trigger= trigger->next))
-    trigger->action_order= ++position;
+  trigger->action_order[event]= ++position;
+  while ((trigger= trigger->next[event]))
+    trigger->action_order[event]= ++position;
 
   count++;
 }
@@ -2212,7 +2294,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
         Trigger *trigger;
         for (trigger= table.triggers->get_trigger(i,j) ;
              trigger ;
-             trigger= trigger->next)
+             trigger= trigger->next[i])
         {
           /*
             Trigger, which body we failed to parse during call
@@ -2737,7 +2819,7 @@ bool Table_triggers_list::process_triggers(THD *thd,
     }
 
     status_var_increment(thd->status_var.executed_triggers);
-  } while (!err_status && (trigger= trigger->next));
+  } while (!err_status && (trigger= trigger->next[event]));
   thd->bulk_param= save_bulk_param;
   thd->lex->current_select= save_current_select;
 
@@ -2777,7 +2859,7 @@ add_tables_and_routines_for_triggers(THD *thd,
       {
         Trigger *triggers= table_list->table->triggers->get_trigger(i,j);
 
-        for ( ; triggers ; triggers= triggers->next)
+        for ( ; triggers ; triggers= triggers->next[i])
         {
           sp_head *trigger= triggers->body;
 
@@ -2823,7 +2905,7 @@ bool Table_triggers_list::match_updatable_columns(List<Item> *fields)
   {
     for (Trigger *trigger= get_trigger(TRG_EVENT_UPDATE, i) ;
          trigger ;
-         trigger= trigger->next)
+         trigger= trigger->next[TRG_EVENT_UPDATE])
       if (trigger->match_updatable_columns(*fields))
         return true;
   }
@@ -2854,7 +2936,7 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
   {
     for (Trigger *trigger= get_trigger(event,action_time);
          trigger ;
-         trigger= trigger->next)
+         trigger= trigger->next[event])
     {
       /*
         Skip a trigger that was parsed with an error.

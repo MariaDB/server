@@ -2992,5 +2992,78 @@ SELECT * FROM t2;
 DROP TABLE t1, t2;
 
 --echo #
+--echo # MDEV-10164: Add support for TRIGGERS that fire on multiple events
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TRIGGER t1_b_any BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (1000);
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);
+CREATE TRIGGER t1_bd BEFORE DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (OLD.a);
+
+INSERT INTO t1 VALUES (1);
+--echo # The previous statement should fire the triggers t1_b_any and t1_bi.
+--echo # Check it. The following query should return the rows (1000), (1)
+SELECT * FROM t2;
+
+--echo # Clean up the table t2 before running the next test case
+TRUNCATE TABLE t2;
+
+UPDATE t1 SET a = -1;
+--echo # The previous statement should fire the triggers t1_b_any and t1_bu.
+--echo # Check it. The following query should return the rows (1000), (-1)
+SELECT * FROM t2;
+
+--echo # Clean up the table t2 before running the next test case
+TRUNCATE TABLE t2;
+
+DELETE FROM t1 WHERE a = -1;
+--echo # The previous statement should fire the triggers t1_b_any and t1_bu.
+--echo # Check it. The following query should return the rows (1000), (-1)
+SELECT * FROM t2;
+
+--echo # Clean up
+DROP TABLE t1, t2;
+
+--echo # The following test case is about handling the new clauses
+--echo # INSERTING, UPDATING, DELETING
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+
+--delimiter $
+CREATE TRIGGER t1_b_any BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+    INSERT INTO t2 VALUES (NEW.a, 'INSERTING');
+  ELSEIF UPDATING THEN
+    INSERT INTO t2 VALUES (NEW.a, 'UPDATING');
+  ELSEIF DELETING THEN
+    INSERT INTO t2 VALUES (OLD.a, 'DELETING');
+  END IF;
+END
+$
+
+--delimiter ;
+
+INSERT INTO t1 VALUES(100);
+UPDATE t1 SET a = 300;
+DELETE FROM t1;
+
+--echo # Query results of trigger executions
+SELECT * FROM t2;
+
+--echo # Check that SHOW TRIGGERS outputs data about every specified event type
+--echo # in the column `event`. For the trigger t1_b_any the column `event`
+--echo # must contain the value `INSERT,UPDATE,DELETE`
+--replace_column 6 #
+SHOW TRIGGERS;
+
+--echo # Check that DROP TRIGGER does work correctly
+DROP TRIGGER t1_b_any;
+--echo # No triggers in output of SHOW TRIGGERS;
+SHOW TRIGGERS;
+--echo # Clean up
+DROP TABLE t1, t2;
+--echo #
 --echo # End of 11.8 tests
 --echo #

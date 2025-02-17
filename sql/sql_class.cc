@@ -4139,7 +4139,8 @@ Statement::Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
   id(id_arg),
   column_usage(MARK_COLUMNS_READ),
   lex(lex_arg),
-  db(null_clex_str)
+  db(null_clex_str),
+  m_running_stmts{PSI_INSTRUMENT_MEM}
 {
   hr_prepare_time.val= 0,
   name= null_clex_str;
@@ -4222,6 +4223,36 @@ void Statement::restore_backup_statement(Statement *stmt, Statement *backup)
   stmt->set_statement(this);
   set_statement(backup);
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  Get a type of DML statement currently is running
+*/
+
+active_dml_stmt Statement::current_active_stmt()
+{
+  return *m_running_stmts.back();
+}
+
+
+/**
+  Store information about a type of the current DML statement being executed
+*/
+
+bool Statement::push_active_stmt(active_dml_stmt new_active_stmt)
+{
+  return m_running_stmts.append(new_active_stmt);
+}
+
+
+/**
+  Remove information about a type of completed DML statement
+*/
+
+void Statement::pop_current_active_stmt()
+{
+  m_running_stmts.pop();
 }
 
 

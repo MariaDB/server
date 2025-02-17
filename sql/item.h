@@ -28,6 +28,8 @@
 #include <typeinfo>
 
 #include "cset_narrowing.h"
+#include "sql_basic_types.h"
+
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -7382,6 +7384,31 @@ public:
 public:
   bool unknown_splocal_processor(void *) override { return false; }
   bool check_vcol_func_processor(void *arg) override;
+};
+
+
+/**
+  This item is instantiated in case one of the clauses
+    INSERTING, UPDATING, DELETING
+  encountered in trigger's body. The method val_bool() of this class returns
+  true if currently running DML statement matches the type of DML
+  activity (insert, update, delete) describing by the one of the clauses
+  INSERTING, UPDATING, DELETING
+*/
+
+class Item_trigger_type_of_statement : public Item_int
+{
+public:
+  Item_trigger_type_of_statement(THD *thd,
+                                 active_dml_stmt stmt_type)
+  : Item_int(thd, 0), m_thd{thd}, m_trigger_stmt_type{stmt_type}
+  {}
+
+  bool val_bool() override;
+
+private:
+  THD *m_thd;
+  active_dml_stmt m_trigger_stmt_type;
 };
 
 

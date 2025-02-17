@@ -10497,6 +10497,11 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
 }
 
 
+bool Item_trigger_type_of_statement::val_bool()
+{
+  return m_trigger_stmt_type == m_thd->current_active_stmt();
+}
+
 void Item_cache::store(Item *item)
 {
   example= item;
