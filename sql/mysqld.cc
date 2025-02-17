@@ -4737,10 +4737,10 @@ static void init_ssl()
 
     /* having ssl_acceptor_fd != 0 signals the use of SSL */
     ssl_acceptor_fd= new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
-					  opt_ssl_ca, opt_ssl_capath,
-					  opt_ssl_cipher, &error,
-					  opt_ssl_crl, opt_ssl_crlpath,
-					  tls_version);
+                                          opt_ssl_ca, opt_ssl_capath,
+                                          opt_ssl_cipher, &error,
+                                          opt_ssl_crl, opt_ssl_crlpath,
+                                          tls_version, get_ssl_passphrase());
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
@@ -4789,7 +4789,7 @@ int reinit_ssl()
   enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
   st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
     opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl,
-    opt_ssl_crlpath, tls_version);
+    opt_ssl_crlpath, tls_version, get_ssl_passphrase());
 
   if (!new_fd)
   {

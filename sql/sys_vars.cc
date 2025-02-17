@@ -4136,6 +4136,67 @@ static Sys_var_charptr_fscs Sys_ssl_crlpath(
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        DEFAULT(0));
 
+static char *opt_ssl_passphrase;
+static Sys_var_charptr Sys_ssl_passphrase(
+       "ssl_passphrase",
+       "SSL certificate key passphrase",
+       READ_ONLY GLOBAL_VAR(opt_ssl_passphrase), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+/**
+  Retrieve ssl passphrase.
+
+  This function should be used instead of directly accessing
+  opt_ssl_passphrase.
+
+  If system variable ssl_passphrase is set, this function
+  saves the original value of, then changes system variable,
+  hiding security sensitive info in SHOW VARIABLES.
+
+  We store original value internally, it will be needed in
+  FLUSH SSL
+*/
+const char *get_ssl_passphrase()
+{
+  static std::string saved_ssl_passphrase;
+
+  if (!saved_ssl_passphrase.empty())
+    return saved_ssl_passphrase.c_str();
+
+  if (!opt_ssl_passphrase)
+    return NULL;
+
+  /*
+    Warn, if file-based passphrase is readable by LOAD_FILE()
+    or LOAD DATA INFILE.
+  */
+  if (!strncmp(opt_ssl_passphrase, STRING_WITH_LEN("file:")))
+  {
+    char *file= opt_ssl_passphrase + 5;
+    if (is_secure_file_path(file))
+    {
+      sql_print_warning("ssl passphrase file '%s' is not secure, can be read "
+        "by LOAD_FILE() or LOAD DATA. Define secure-file-dir, and place "
+        "passphrase file outside of this directory, to avoid this warning",
+        file);
+    }
+  }
+  saved_ssl_passphrase= opt_ssl_passphrase;
+  /*
+    Modify opt_ssl_passphrase to wipe everything after prefix ending
+    in colon char.It will just leave just one of "file:", "env:", or "pass:"
+    at the end.
+  */
+  char *p= strchr(opt_ssl_passphrase, ':');
+  if (p)
+  {
+    p++;
+    while (*p)
+      *p++= 0;
+  }
+  return saved_ssl_passphrase.c_str();
+}
+
 static const char *tls_version_names[]=
 {
   "TLSv1.0",
