@@ -33,6 +33,7 @@
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
 #include <m_ctype.h>
+#include "sp_rcontext.h"
 
 // Maximum allowed exponent value for converting string to decimal
 #define MAX_EXPONENT 1024
@@ -2857,6 +2858,474 @@ void Field_row::sql_type_for_sp_returns(String &res) const
     res.append(col.to_lex_cstring());
   }
   res.append(')');
+}
+
+
+/****************************************************************************
+  Field_assoc_array, e.g. for associative array type SP variables
+****************************************************************************/
+
+/*
+  The data structure used to store the key-value pairs in the
+  associative array (TREE)
+*/
+struct Assoc_array_data :public Sql_alloc
+{
+  Assoc_array_data(String *key, Item_field *value)
+    : key(key), value(value)
+  {
+  }
+
+  String* key;
+  Item_field *value;
+};
+
+
+static int assoc_array_tree_cmp(void *arg, const void *lhs_arg,
+                         const void *rhs_arg)
+{
+  const Assoc_array_data *lhs= (const Assoc_array_data *)lhs_arg;
+  const Assoc_array_data *rhs= (const Assoc_array_data *)rhs_arg;
+  return sortcmp(lhs->key, rhs->key, (CHARSET_INFO*)arg);
+}
+
+
+static int assoc_array_tree_del(void *data_arg, TREE_FREE, void*)
+{
+  DBUG_ASSERT(data_arg);
+  Assoc_array_data *data= (Assoc_array_data *)data_arg;
+
+  // Explicitly set the key's buffer to NULL to deallocate
+  // the memory held in it's internal buffer.
+  data->key->set((const char*)NULL, 0, &my_charset_bin); 
+  delete data;
+  return 0;
+}
+
+
+Field_assoc_array::Field_assoc_array(uchar *ptr_arg,
+                                     const LEX_CSTRING *field_name_arg)
+  :Field_null(ptr_arg, 0, Field::NONE, field_name_arg, &my_charset_bin)
+{
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &m_mem_root, 512, 0, MYF(0));
+
+  m_table= (TABLE*) alloc_root(&m_mem_root, sizeof(TABLE)+ sizeof(TABLE_SHARE));
+  if (!m_table)
+    return;
+
+  bzero((void *)m_table, sizeof(TABLE)+ sizeof(TABLE_SHARE));
+  m_table->s= (TABLE_SHARE*) (m_table+1);
+
+  m_table->alias.set("", 0, table_alias_charset);
+  m_table->in_use= get_thd();
+  m_table->copy_blobs= TRUE;
+  m_table->s->table_cache_key= empty_clex_str;
+  m_table->s->table_name= Lex_ident_table(empty_clex_str);
+  
+  init_tree(&m_tree, 0, 0,
+            sizeof(Assoc_array_data), assoc_array_tree_cmp,
+	          assoc_array_tree_del, NULL,
+            MYF(MY_THREAD_SPECIFIC | MY_TREE_WITH_DELETE));
+}
+
+
+Field_assoc_array::~Field_assoc_array()
+{
+  m_table->alias.free();
+  delete_tree(&m_tree, 0);
+
+  free_root(&m_mem_root, MYF(0));
+}
+
+
+CHARSET_INFO *Field_assoc_array::key_charset() const
+{
+  if (!m_def || !m_def->m_key_def)
+    return &my_charset_bin;
+
+  return m_def->m_key_def->charset;
+}
+
+
+bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
+{
+  DBUG_ENTER("Field_assoc_array::sp_prepare_and_store_item");
+
+  if (value[0]->type() == Item::NULL_ITEM)
+  {
+    delete_all_elements();
+
+    DBUG_RETURN(false);
+  }
+
+  Item *src;
+  if (!(src= thd->sp_fix_func_item(value)) ||
+        src->cmp_type() != ASSOC_ARRAY_RESULT)
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), m_table->s->fields);
+    DBUG_RETURN(true);
+  }
+
+  src->bring_value();
+
+  delete_all_elements();
+
+  Query_arena backup_arena;
+  Query_arena owner_arena(&m_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
+  thd->set_n_backup_active_arena(&owner_arena, &backup_arena);
+
+  String src_key;
+  if (!src->get_key(&src_key, true))
+  {
+    do
+    {
+      Item_field* element= create_element(thd);
+      if (!element)
+        goto error;
+
+      Item **src_elem= src->element_addr_by_key(thd, NULL, &src_key);
+      if (!src_elem)
+        goto error;
+
+      if (element->field->sp_prepare_and_store_item(thd, src_elem))
+        goto error;
+      
+      String *key_copy= copy_and_convert_key(thd, &src_key);
+      if (!key_copy)
+        goto error;
+
+      Assoc_array_data *data = new (thd->mem_root)
+                               Assoc_array_data(key_copy, element);
+      tree_insert(&m_tree, data, 0, (void *)key_charset());
+
+      set_notnull();
+    } while (!src->get_next_key(&src_key, &src_key));
+  }
+
+  thd->restore_active_arena(&owner_arena, &backup_arena);
+  DBUG_RETURN(false);
+
+error:
+  thd->restore_active_arena(&owner_arena, &backup_arena);
+  DBUG_RETURN(true);
+}
+
+
+Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
+{
+  if (!key)
+    return NULL;
+
+  Item_field *item= NULL;
+
+  Assoc_array_data key_data(key, NULL);
+  Assoc_array_data *data= (Assoc_array_data *)
+                          tree_search(&m_tree, &key_data,
+                          (void *)key_charset());
+  if (data)
+    item= data->value;
+
+  Query_arena backup_arena;
+  Query_arena owner_arena(&m_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
+  thd->set_n_backup_active_arena(&owner_arena, &backup_arena);
+  if (!item)
+  {
+    // Create an element for the key if not found
+    if (!(item= create_element(thd)))
+      goto error;
+    
+    String *key_copy= copy_and_convert_key(thd, key);
+    if (!key_copy)
+      goto error;
+
+    Assoc_array_data *data= new (thd->mem_root)
+                            Assoc_array_data(key_copy, item);
+    if (!data)
+      goto error;
+
+    tree_insert(&m_tree, data, 0, (void *)key_charset());
+    set_notnull();
+  }
+
+  thd->restore_active_arena(&owner_arena, &backup_arena);
+  return item;
+
+error:
+  thd->restore_active_arena(&owner_arena, &backup_arena);
+  return NULL;
+}
+
+
+Item_field *Field_assoc_array::element_by_key(THD *thd, String *key) const
+{
+  if (!key)
+    return NULL;
+
+  Item_field *item= NULL;
+
+  String *key_copy= copy_and_convert_key(thd, key);
+  if (!key_copy)
+    return NULL;
+
+  Assoc_array_data key_data(key_copy, NULL);
+  Assoc_array_data *data= (Assoc_array_data *)
+                           tree_search((TREE *)&m_tree,
+                                        &key_data,
+                                        (void *)key_charset());
+  if (data)
+    item= data->value;
+
+  delete key_copy;
+  return item;
+}
+
+
+String *Field_assoc_array::copy_and_convert_key(THD *thd, const String *key) const
+{
+  DBUG_ASSERT(key);
+
+  String *key_copy= new (thd->mem_root) String();
+  if (!key_copy)
+    return NULL;
+
+  uint errors;
+  auto key_def= m_def->m_key_def;
+  if (key_def->type_handler()->field_type() == MYSQL_TYPE_VARCHAR)
+  {
+    if (key_copy->copy(key, key_def->charset, &errors))
+    {
+      delete key_copy;
+      return NULL;
+    }
+
+    if (key_copy->length() > key_def->length)
+    {
+      delete key_copy;
+      my_error(ER_TOO_LONG_KEY, MYF(0), key_def->length);
+      return NULL;
+    }
+  }
+  else
+  {
+    if (key_copy->copy(key, key_charset(), &errors))
+      return NULL;
+
+    // Convert the key to a number to perform range check
+    // Follow Oracle's range for numerical keys
+    char *endptr;
+    int error;
+    long key_long= key_charset()->strntol(key_copy->ptr(),
+                                          key_copy->length(),
+                                          10, &endptr, &error);
+    
+    if (error ||
+        (endptr != key_copy->ptr() + key_copy->length()) ||
+        key_long < INT32_MIN || key_long > INT32_MAX)
+    {
+      my_error(ER_WRONG_VALUE, MYF(0), "ASSOCIATIVE ARRAY KEY",
+               key_copy->c_ptr());
+      delete key_copy;
+      return NULL;
+    }
+  }
+
+  return key_copy;
+}
+
+
+Item_field *Field_assoc_array::create_element(THD *thd)
+{
+  Item_field *item= NULL;
+
+  auto def= m_def->m_value_def;
+  const LEX_CSTRING empty_clex_str= {"", 0};
+  Field *field= NULL;
+  if (def->is_column_type_ref())
+  {
+    Column_definition cdef;
+    if (def->column_type_ref()->resolve_type_ref(thd,  &cdef))
+      return NULL;
+    
+    field= cdef.make_field(m_table->s, thd->mem_root, &empty_clex_str);
+  }
+  else
+  {
+    field= def->make_field(m_table->s, thd->mem_root, &empty_clex_str);
+  }
+  
+  field->init(m_table);
+
+  Field_row *field_row= dynamic_cast<Field_row*>(field);
+  if (field_row)
+  {
+    item= def->make_item_field_row(thd, field_row);
+  }
+  else
+  {
+    // Assign a buffer to the field
+    uchar *tmp;
+    if (!(tmp= (uchar *)thd->alloc(field->pack_length() + 1)))
+      return NULL;
+    field->move_field(tmp + 1, field->maybe_null() ? tmp : 0, 1);
+
+    if (field->maybe_null())
+      field->set_null();
+    
+    if (field->default_value)
+      field->set_default();
+
+    item= new (thd->mem_root) Item_field(thd, field);
+  }
+
+  return item;
+}
+
+
+Item **Field_assoc_array::element_addr_by_key(THD *thd, String *key)
+{
+  if (!key)
+    return NULL;
+
+  String *key_copy= copy_and_convert_key(thd, key);
+  if (!key_copy)
+    return NULL;
+
+  Assoc_array_data key_data(key_copy, NULL);
+  Assoc_array_data *data= (Assoc_array_data *)
+                          tree_search(&m_tree,
+                                      &key_data,
+                                      (void *)key_charset());
+  delete key_copy;
+  if (data)
+    return (Item **)&data->value;
+
+  return NULL;
+}
+
+
+Field *
+Field_assoc_array::get_field_by_key_and_name(THD *thd,
+                                             const LEX_CSTRING &var_name,
+                                             String *key,
+                                             const LEX_CSTRING &field_name)
+                                             const
+{
+  Item_field *item= element_by_key(thd, key);
+  if (!item)
+    return NULL;
+
+  Field *elem_field= item->field;
+  Virtual_tmp_table **ptable= elem_field->virtual_tmp_table_addr();
+  DBUG_ASSERT(ptable);
+  DBUG_ASSERT(ptable[0]);
+
+  uint field_index;
+  if (ptable[0]->sp_find_field_by_name_or_error(
+                                  &field_index,
+                                  empty_clex_str,
+                                  field_name))
+    return NULL;
+  
+  return ptable[0]->field[field_index];
+}
+
+
+bool Field_assoc_array::delete_all_elements()
+{
+  delete_tree(&m_tree, 0);
+  set_null();
+  return false;
+}
+
+
+bool Field_assoc_array::delete_element_by_key(String *key)
+{
+  if (!key)
+    return false; // We do not care if the key is NULL
+
+  Assoc_array_data key_data(key, NULL);
+  (void) tree_delete(&m_tree, &key_data, 0, (void *)key_charset());
+  return false;
+}
+
+
+uint Field_assoc_array::rows() const
+{
+  return m_tree.elements_in_tree;
+}
+
+
+bool Field_assoc_array::get_key(String *key, bool is_first)
+{
+  TREE_ELEMENT **last_pos;
+  TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
+
+  Assoc_array_data *data= (Assoc_array_data *)
+                          tree_search_edge(&m_tree,
+                                           parents,
+                                           &last_pos, is_first ?
+                                           offsetof(TREE_ELEMENT, left) :
+                                           offsetof(TREE_ELEMENT, right));
+  if (data)
+  {
+    key->copy(*data->key);
+    return false;
+  }
+  
+  return true;
+}
+
+
+bool Field_assoc_array::get_next_key(const String *curr_key, String *next_key)
+{
+  DBUG_ASSERT(next_key);
+
+  TREE_ELEMENT **last_pos;
+  TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
+
+  if (!curr_key)
+    return true;
+
+  Assoc_array_data key_data((String *)curr_key, NULL);
+
+  Assoc_array_data *data= (Assoc_array_data *)
+                          tree_search_key(&m_tree, &key_data, 
+                          parents, &last_pos,
+                          HA_READ_AFTER_KEY, (void *)key_charset());
+  if (data)
+  {
+    next_key->copy(*data->key);
+    return false;
+  }
+  return true;
+}
+
+
+bool Field_assoc_array::get_prior_key(const String *curr_key, String *prior_key)
+{
+  DBUG_ASSERT(prior_key);
+
+  TREE_ELEMENT **last_pos;
+  TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
+
+  if (!curr_key)
+    return true;
+  
+  Assoc_array_data key_data((String *)curr_key, NULL);
+
+  Assoc_array_data *data= (Assoc_array_data *)
+                          tree_search_key(&m_tree,
+                                          &key_data, 
+                                          parents,
+                                          &last_pos,
+                                          HA_READ_BEFORE_KEY,
+                                          (void *)key_charset());
+  if (data)
+  {
+    prior_key->copy(*data->key);
+    return false;
+  }
+  return true;
 }
 
 
@@ -9962,6 +10431,7 @@ Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
             Data_type_compatibility::OK :
             Data_type_compatibility::INCOMPATIBLE_COLLATION);
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     break;
   }

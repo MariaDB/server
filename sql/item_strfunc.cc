@@ -1602,6 +1602,7 @@ String *Item_func_sformat::val_str(String *res)
       break;
     case TIME_RESULT: // TODO
     case ROW_RESULT: // TODO
+    case ASSOC_ARRAY_RESULT: // TODO
     default:
       DBUG_ASSERT(0);
       return NULL;
