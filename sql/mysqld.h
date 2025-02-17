@@ -732,6 +732,9 @@ extern mysql_cond_t COND_manager;
 extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
+
+extern const char *get_ssl_passphrase();
+
 extern ulonglong tls_version;
 
 #ifdef MYSQL_SERVER
