@@ -903,8 +903,18 @@ ALTER TABLE servers
   MODIFY Socket char(108) NOT NULL DEFAULT '';
 
 # MDEV-34716 Allow arbitrary options in CREATE SERVER
+# Check existence of the Options column
+SET @hadOptions:=0;
+SELECT @hadOptions:=1 FROM servers WHERE options IS NOT NULL;
 ALTER TABLE servers
   ADD Options JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Options));
 # Ensure the collation is utf8mb4_bin (default for JSON)
 ALTER TABLE servers
   MODIFY Options JSON  NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Options));
+# If the Options column did not exist, convert to the Options
+UPDATE servers SET Options = JSON_INSERT(Options, '$.host', Host) WHERE Host <> '' AND @hadOptions = 0;
+UPDATE servers SET Options = JSON_INSERT(Options, '$.database', Db) WHERE Db <> '' AND @hadOptions = 0;
+UPDATE servers SET Options = JSON_INSERT(Options, '$.username', Username) WHERE Username <> '' AND @hadOptions = 0;
+UPDATE servers SET Options = JSON_INSERT(Options, '$.port', CAST(Port AS VARCHAR(5))) WHERE @hadOptions = 0;
+UPDATE servers SET Options = JSON_INSERT(Options, '$.socket', Socket) WHERE Socket <> '' AND @hadOptions = 0;
+UPDATE servers SET Options = JSON_INSERT(Options, '$.owner', Owner) WHERE Owner <> '' AND @hadOptions = 0;
