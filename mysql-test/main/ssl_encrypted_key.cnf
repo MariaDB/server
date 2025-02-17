@@ -1,0 +1,4 @@
+!include include/default_my.cnf
+
+[ENV]
+SSL_KEY_PASSWORD=MySecretPass

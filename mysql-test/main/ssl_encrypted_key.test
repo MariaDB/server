@@ -1,0 +1,5 @@
+-- source include/have_ssl_communication.inc
+SELECT @@ssl_passphrase;
+--exec $MYSQL --ssl -e "SELECT (VARIABLE_VALUE <> '') as have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher'" 2>&1
+FLUSH SSL;
+--exec $MYSQL --ssl -e "SELECT (VARIABLE_VALUE <> '') as have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher'" 2>&1

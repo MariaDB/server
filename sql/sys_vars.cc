@@ -4164,6 +4164,47 @@ static Sys_var_charptr_fscs Sys_ssl_crlpath(
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        DEFAULT(0));
 
+static char *opt_ssl_passphrase;
+static Sys_var_charptr Sys_ssl_passphrase(
+       "ssl_passphrase",
+       "SSL certificate key passphrase",
+       READ_ONLY GLOBAL_VAR(opt_ssl_passphrase), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+/**
+  Retrieve ssl passphrase.
+
+  This function should be used instead of directly accessing
+  opt_ssl_passphrase.
+
+  If system variable ssl_passphrase is set, this function
+  saves the original value of, then resets system variable,
+  to avoid  showing ssl_passphrase in SHOW VARIABLES.
+  We do not want this value to be shown, because of possible
+  security implications.
+
+  We store original value internally, it will be needed in
+  FLUSH SSL
+*/
+const char *get_ssl_passphrase()
+{
+  static std::string saved_ssl_passphrase;
+  if (opt_ssl_passphrase && opt_ssl_passphrase[0])
+  {
+    saved_ssl_passphrase= opt_ssl_passphrase;
+    /*
+      The following memset hide --ssl_passphrase argument
+      from "ps" command on Linux and BSD.
+    */
+    memset(opt_ssl_passphrase, 0, saved_ssl_passphrase.size());
+    if (Sys_ssl_passphrase.get_flags() & sys_var::ALLOCATED)
+      my_free(opt_ssl_passphrase);
+
+    opt_ssl_passphrase= NULL;
+  }
+  return saved_ssl_passphrase.empty() ? NULL : saved_ssl_passphrase.c_str();
+}
+
 static const char *tls_version_names[]=
 {
   "TLSv1.0",
