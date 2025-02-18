@@ -819,7 +819,8 @@ void wsrep_init_globals()
     wsrep_server_gtid_t new_gtid;
     new_gtid.domain_id= wsrep_gtid_domain_id;
     new_gtid.server_id= global_system_variables.server_id;
-    new_gtid.seqno= 0;
+    /* Use seqno which was recovered in wsrep_init_gtid() */
+    new_gtid.seqno= wsrep_gtid_server.seqno();
     /* Try to search for domain_id and server_id combination in binlog if found continue from last seqno */
     wsrep_get_binlog_gtid_seqno(new_gtid);
     wsrep_gtid_server.gtid(new_gtid);

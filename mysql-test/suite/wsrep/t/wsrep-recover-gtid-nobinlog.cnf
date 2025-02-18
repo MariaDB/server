@@ -1,0 +1,10 @@
+!include ../my.cnf
+
+[mysqld.1]
+wsrep-on=ON
+wsrep-provider=@ENV.WSREP_PROVIDER
+wsrep-cluster-address=gcomm://
+binlog-format=ROW
+wsrep-gtid-domain-id=100
+server-id=10
+innodb-autoinc-lock-mode=2
