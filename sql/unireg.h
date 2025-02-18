@@ -137,6 +137,9 @@
 */
 #define I_S_EXTENDED_ERROR_HANDLING (1 << 22)
 
+/** This TABLE handle is not suitable for cache and should not be reused. */
+#define OPEN_NO_CACHE (1 << 23)
+
 /*
   Minimum length pattern before Turbo Boyer-Moore is used
   for SELECT "text" LIKE "%pattern%", excluding the two
