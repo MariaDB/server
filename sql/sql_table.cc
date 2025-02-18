@@ -1129,6 +1129,16 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
   {
     if (check_if_log_table(table, TRUE, "DROP"))
       DBUG_RETURN(true);
+
+    TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table);
+    if (share && share->from_share)
+    {
+      if (drop_temporary)
+        my_error(ER_BAD_TABLE_ERROR, MYF(0), table->alias.str);
+      else
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      DBUG_RETURN(true);
+    }
   }
 
   if (!drop_temporary)
@@ -10600,6 +10610,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool online= false;
 #endif
   TRIGGER_RENAME_PARAM trigger_param;
+  uint lock_wait_timeout= thd->variables.lock_wait_timeout;
+
+  // TMP_TABLE_SHARE *global_tmp_ref= NULL;
 
   /*
     Callback function that an engine can request to be called after executing
@@ -11605,6 +11618,21 @@ alter_copy:
   if (fk_prepare_copy_alter_table(thd, table, alter_info, &alter_ctx))
     goto err_new_table_cleanup;
 
+  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+  {
+    if (thd->find_tmp_table_share(table_list))
+    {
+      // The table is opened in the same connection.
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      goto err_new_table_cleanup;
+    }
+    lock_wait_timeout= 0; // Oracle compatibility
+
+    // wait_while_table_is_used will first acquire exclusive table lock.
+    // See the `if` branch below.
+    alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
+  }
+
   if (!table->s->tmp_table)
   {
     // If EXCLUSIVE lock is requested, upgrade already.
@@ -11618,7 +11646,7 @@ alter_copy:
     */
     if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
         thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_SHARED_NO_WRITE,
-                                             thd->variables.lock_wait_timeout))
+                                             lock_wait_timeout))
       goto err_new_table_cleanup;
 
     DEBUG_SYNC(thd, "alter_table_copy_after_lock_upgrade");

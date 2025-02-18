@@ -4320,6 +4320,9 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->db_stat= db_stat;
   outparam->status= STATUS_NO_RECORD;
 
+  if (prgflag & OPEN_NO_CACHE)
+    outparam->internal_set_needs_reopen(true);
+
   if (share->incompatible_version &&
       !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR |
                          HA_OPEN_FOR_FLUSH)))

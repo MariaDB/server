@@ -2232,12 +2232,17 @@ retry_share:
   }
   else
   {
+    uint open_flags= EXTRA_RECORD;
+
     if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
     {
       if ((thd->sql_command_flags()
            & (CF_SCHEMA_CHANGE | CF_ADMIN_COMMAND)) == 0) // CF_STATUS_COMMAND?
         DBUG_RETURN(open_global_temporary_table(thd, share, table_list,
                                                 mdl_ticket));
+
+      // ALTER and DROP open a real table handle. Don't reuse it.
+      open_flags|= OPEN_NO_CACHE;
     }
 
     enum open_frm_error error;
@@ -2248,7 +2253,7 @@ retry_share:
 
     error= open_table_from_share(thd, share, &table_list->alias,
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
-                                 EXTRA_RECORD,
+                                 open_flags,
                                  thd->open_options, table, FALSE,
                                  IF_PARTITIONING(table_list->partition_names,0));
 
