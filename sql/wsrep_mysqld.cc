@@ -2625,12 +2625,13 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables,
                              const HA_CREATE_INFO *create_info)
 {
+  DEBUG_SYNC(thd, "wsrep_kill_thd_before_enter_toi");
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   const killed_state killed = thd->killed;
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
   if (killed)
   {
-    DBUG_ASSERT(FALSE);
+    /* The thread may have been killed as a result of memory pressure. */
     return -1;
   }
 
