@@ -5924,6 +5924,101 @@ err:
   DBUG_RETURN(res != 0);
 }
 
+struct Closefrm_context
+{
+  TABLE *table;
+  ~Closefrm_context() { closefrm(table); }
+};
+
+my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
+                                    TABLE_LIST *out_table,
+                                    MDL_ticket *mdl_ticket)
+{
+  // First, lookup in tmp tables list for cases like "t join t"
+  // This also could happen if tl->open_type is OT_BASE_ONLY
+  TABLE *table= NULL;
+  if (thd->temporary_tables
+      && thd->temporary_tables->global_temporary_tables_count) // TODO this may be buggy on slave
+  {
+    // TODO test table reopen (see "Can't reopen" in main.reopen_temp_table)
+    TMP_TABLE_SHARE *share= NULL;
+    if (thd->internal_open_temporary_table(out_table, &table, &share))
+      return TRUE;
+
+    if (table)
+    {
+      DBUG_ASSERT(share->from_share == source);
+      tdc_release_share(source);
+      table->query_id= thd->query_id;
+    }
+  }
+
+  if (!table)
+  {
+    TABLE global_table;
+    if (open_table_from_share(thd, source, &empty_clex_str,
+                              HA_OPEN_KEYFILE, READ_ALL, 0,
+                              &global_table, true))
+      return TRUE;
+
+    DBUG_ASSERT(!global_table.versioned());
+
+    Closefrm_context closefrm_context{&global_table};
+
+    if (global_table.file->discover_check_version()) // TODO test (S3)!
+      return TRUE;
+
+    Alter_info alter_info;
+    Alter_table_ctx alter_ctx;
+    Table_specification_st create_info;
+    create_info.init();
+    create_info.db_type= source->db_type();
+    create_info.row_type= source->row_type;
+    create_info.alter_info= &alter_info;
+
+    if (mysql_prepare_alter_table(thd, &global_table, &create_info,
+                                  &alter_info, &alter_ctx))
+      return TRUE;
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    thd->work_part_info= 0;
+#endif
+    create_info.options|= HA_LEX_CREATE_TMP_TABLE
+                          | HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE;
+    int res= mysql_create_table_no_lock(thd,
+                                        NULL, NULL,
+                                        &create_info, &alter_info,
+                                        NULL, C_ORDINARY_CREATE,
+                                        out_table);
+    if (res > 0)
+      return TRUE;
+
+    ++thd->temporary_tables->global_temporary_tables_count;
+    table= create_info.table;
+
+    // TODO pos_in_locked_tables??
+
+    TMP_TABLE_SHARE *share= (TMP_TABLE_SHARE*)table->s;
+    share->from_share= source;
+    share->table_type= TABLE_TYPE_NORMAL;
+
+    MDL_REQUEST_INIT_BY_KEY(&share->mdl_request, &out_table->mdl_request.key,
+                            MDL_SHARED, MDL_EXPLICIT);
+    share->mdl_request.ticket= mdl_ticket; // It'll be cloned.
+    if (thd->mdl_context.clone_ticket(&share->mdl_request))
+      return TRUE;
+    table->reginfo.lock_type= TL_IGNORE;
+  }
+
+  thd->used|= Sql_used::THREAD_SPECIFIC_USED;
+
+  out_table->updatable= true;
+  out_table->table= table;
+  table->init(thd, out_table);
+
+  return FALSE;
+}
+
 
 /* table_list should contain just one table */
 int mysql_discard_or_import_tablespace(THD *thd,

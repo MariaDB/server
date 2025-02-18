@@ -292,6 +292,66 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length)
   DBUG_RETURN(result);
 }
 
+bool THD::internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
+                                        TMP_TABLE_SHARE **share)
+{
+  DBUG_ENTER("THD::internal_open_temporary_table");
+  /*
+    Temporary tables are not safe for parallel replication. They were
+    designed to be visible to one thread only, so have no table locking.
+    Thus, there is no protection against two conflicting transactions
+    committing in parallel and things like that.
+
+    So for now, anything that uses temporary tables will be serialised
+    with anything before it, when using parallel replication.
+  */
+
+  if (rgi_slave &&
+      rgi_slave->is_parallel_exec &&
+      find_temporary_table(tl) &&
+      wait_for_prior_commit())
+    DBUG_RETURN(true);
+
+  /*
+    First check if there is a reusable open table available in the
+    open table list.
+  */
+  if (find_and_use_tmp_table(tl, table))
+  {
+    DBUG_RETURN(true);                          /* Error */
+  }
+
+  /*
+    No reusable table was found. We will have to open a new instance.
+  */
+  TMP_TABLE_SHARE *tmp_share;
+  if (!*table && (tmp_share= find_tmp_table_share(tl)))
+  {
+    if (tmp_share->from_share && sql_command_flags() & (CF_ADMIN_COMMAND
+                                                        |CF_SCHEMA_CHANGE))
+      DBUG_RETURN(false);
+
+    *share= tmp_share;
+    *table= open_temporary_table(*share, tl->get_table_name());
+    /*
+       Temporary tables are not safe for parallel replication. They were
+       designed to be visible to one thread only, so have no table locking.
+       Thus, there is no protection against two conflicting transactions
+       committing in parallel and things like that.
+
+       So for now, anything that uses temporary tables will be serialised
+       with anything before it, when using parallel replication.
+    */
+    if (*table && rgi_slave &&
+        rgi_slave->is_parallel_exec &&
+        wait_for_prior_commit())
+      DBUG_RETURN(true);
+
+    if (!*table && is_error())
+      DBUG_RETURN(true);                        // Error when opening table
+  }
+  DBUG_RETURN(false);
+}
 
 /**
   Find a temporary table specified by TABLE_LIST instance in the open table
@@ -357,54 +417,8 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     DBUG_RETURN(false);
   }
 
-  /*
-    Temporary tables are not safe for parallel replication. They were
-    designed to be visible to one thread only, so have no table locking.
-    Thus there is no protection against two conflicting transactions
-    committing in parallel and things like that.
-
-    So for now, anything that uses temporary tables will be serialised
-    with anything before it, when using parallel replication.
-  */
-
-  if (rgi_slave &&
-      rgi_slave->is_parallel_exec &&
-      find_temporary_table(tl) &&
-      wait_for_prior_commit())
+  if (unlikely(internal_open_temporary_table(tl, &table, &share)))
     DBUG_RETURN(true);
-
-  /*
-    First check if there is a reusable open table available in the
-    open table list.
-  */
-  if (find_and_use_tmp_table(tl, &table))
-  {
-    DBUG_RETURN(true);                          /* Error */
-  }
-
-  /*
-    No reusable table was found. We will have to open a new instance.
-  */
-  if (!table && (share= find_tmp_table_share(tl)))
-  {
-    table= open_temporary_table(share, tl->get_table_name());
-    /*
-       Temporary tables are not safe for parallel replication. They were
-       designed to be visible to one thread only, so have no table locking.
-       Thus there is no protection against two conflicting transactions
-       committing in parallel and things like that.
-
-       So for now, anything that uses temporary tables will be serialised
-       with anything before it, when using parallel replication.
-    */
-    if (table && rgi_slave &&
-        rgi_slave->is_parallel_exec &&
-        wait_for_prior_commit())
-      DBUG_RETURN(true);
-
-    if (!table && is_error())
-      DBUG_RETURN(true);                        // Error when opening table
-  }
 
   if (!table)
   {
@@ -1014,6 +1028,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
 
   /* Initialize the all_tmp_tables list. */
   share->all_tmp_tables.empty();
+  share->from_share= NULL;
 
   /*
     We need to alloc & initialize temporary_tables if this happens
@@ -1076,6 +1091,13 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
         !(memcmp(share->table_cache_key.str, key, key_length)))
     {
       /* A matching TMP_TABLE_SHARE is found. */
+
+      if (share->from_share && sql_command_flags() & (CF_ADMIN_COMMAND
+                                                      |CF_SCHEMA_CHANGE))
+        break; /* We want to use real global temporary table
+                  when ALTER/DROP is executed.
+                */
+
       All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
 
       bool found= false;
@@ -1496,6 +1518,14 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
       /* as of now: only one vector index can be here */
       DBUG_ASSERT(share->hlindexes() == 1);
       rm_temporary_table(share->hlindex->db_type(), share->hlindex->path.str);
+    }
+
+    if (share->from_share)
+    {
+      mdl_context.release_lock(share->mdl_request.ticket);
+      tdc_release_share(share->from_share);
+      temporary_tables->global_temporary_tables_count--;
+      share->from_share= NULL;
     }
   }
   free_table_share(share);

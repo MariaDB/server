@@ -2195,6 +2195,7 @@ retry_share:
       goto retry_share;
     }
 
+    // TODO test!
     if (thd->open_tables && thd->open_tables->s->tdc->flushed)
     {
       /*
@@ -2216,6 +2217,7 @@ retry_share:
   if (table)
   {
     DBUG_ASSERT(table->file != NULL);
+    DBUG_ASSERT(share->table_type != TABLE_TYPE_GLOBAL_TEMPORARY);
     if (table->file->discover_check_version())
     {
       tc_release_table(table);
@@ -2230,6 +2232,14 @@ retry_share:
   }
   else
   {
+    if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+    {
+      if ((thd->sql_command_flags()
+           & (CF_SCHEMA_CHANGE | CF_ADMIN_COMMAND)) == 0) // CF_STATUS_COMMAND?
+        DBUG_RETURN(open_global_temporary_table(thd, share, table_list,
+                                                mdl_ticket));
+    }
+
     enum open_frm_error error;
     /* make a new table */
     if (!(table=(TABLE*) my_malloc(key_memory_TABLE, sizeof(*table),
