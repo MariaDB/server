@@ -6,11 +6,22 @@
 --source include/auto_increment_offset_save.inc
 
 --connection node_1
-call mtr.add_suppression("WSREP:.*");
+
+call mtr.add_suppression("WSREP: async IST sender failed to serve");
+call mtr.add_suppression("WSREP: Failed to establish connection: Connection refused");
+call mtr.add_suppression("WSREP: IST failed: IST sender, failed to connect");
+call mtr.add_suppression("WSREP: .*State transfer.* failed: Protocol error");
+
 SET @wsrep_provider_options_orig = @@GLOBAL.wsrep_provider_options;
 SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true;pc.weight=2';
 
 --connection node_2
+
+call mtr.add_suppression("WSREP: async IST sender failed to serve");
+call mtr.add_suppression("WSREP: Failed to establish connection: Connection refused");
+call mtr.add_suppression("WSREP: IST failed: IST sender, failed to connect");
+call mtr.add_suppression("WSREP: .*State transfer.* failed: Protocol error");
+
 SET @wsrep_cluster_address_orig = @@GLOBAL.wsrep_cluster_address;
 SET GLOBAL WSREP_ON=0;
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;

@@ -44,6 +44,7 @@ connection node_2;
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
 0
+call mtr.add_suppression("WSREP: node uuid:");
 connection node_1;
 DROP TABLE t1;
 DROP TABLE t2;

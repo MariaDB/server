@@ -1,13 +1,12 @@
 --- r/galera_sst_mysqldump_with_key.result
 +++ r/galera_sst_mysqldump_with_key,debug.reject
-@@ -358,11 +358,195 @@
+@@ -358,6 +358,190 @@
  1
  DROP TABLE t1;
  COMMIT;
 +Performing State Transfer on a server that has been killed and restarted
 +while a DDL was in progress on it
- connection node_1;
--CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
++connection node_1;
 +CREATE TABLE t1 (id int not null primary key,f1 CHAR(255)) ENGINE=InnoDB;
 +SET AUTOCOMMIT=OFF;
 +START TRANSACTION;
@@ -189,12 +188,6 @@
 +DROP TABLE t1;
 +COMMIT;
 +SET GLOBAL debug_dbug = $debug_orig;
-+connection node_1;
-+CALL mtr.add_suppression("Slave SQL: Error 'The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+ connection node_1;
+ CALL mtr.add_suppression("Slave SQL: Error 'The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
  DROP USER sst;
- connection node_2;
--CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
-+CALL mtr.add_suppression("Slave SQL: Error 'The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
- CALL mtr.add_suppression("InnoDB: Error: Table \"mysql\"\\.\"innodb_index_stats\" not found");
- CALL mtr.add_suppression("Can't open and lock time zone table");
- CALL mtr.add_suppression("Can't open and lock privilege tables");

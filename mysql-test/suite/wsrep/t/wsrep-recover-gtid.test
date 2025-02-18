@@ -1,0 +1,73 @@
+# Test wsrep recovery with gtid_mode=ON. The test crashes the server
+# in different commit stages and verifies that the GTID returned by
+# SELECT WSREP_LAST_SEEN_GTID() and @@GLOBAL.gtid_binlog_pos get
+# initialized properly during server restart.
+#
+--source include/have_wsrep.inc
+--source include/have_wsrep_provider.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+--echo # Case 1: Server goes through graceful shutdown and is restarted
+--connection default
+INSERT INTO t1 VALUES (1);
+--source include/shutdown_mysqld.inc
+--let $galera_wsrep_recover_server_id = 1
+--source suite/galera/include/galera_wsrep_recover.inc
+--source suite/galera/include/start_mysqld.inc
+
+--echo Expect 100-10-2
+SELECT WSREP_LAST_SEEN_GTID();
+SELECT @@GLOBAL.gtid_binlog_pos;
+SELECT * FROM t1;
+
+--echo # Case 2: Server is killed after the transaction gets prepared
+--echo # but before it is written into binlog. As there is not GTID assigned,
+--echo # the transaction must be rolled back during recovery.
+--connect con, localhost, root
+SET DEBUG_SYNC = "ha_commit_trans_after_prepare SIGNAL reached WAIT_FOR continue";
+--send INSERT INTO t1 VALUES (2)
+
+--connection default
+SET DEBUG_SYNC = "now WAIT_FOR reached";
+--source include/kill_mysqld.inc
+--let $galera_wsrep_recover_server_id = 1
+--source suite/galera/include/galera_wsrep_recover.inc
+--source suite/galera/include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+--echo Expect 100-10-2
+SELECT WSREP_LAST_SEEN_GTID();
+SELECT @@GLOBAL.gtid_binlog_pos;
+--echo Expect 1
+SELECT * FROM t1;
+--disconnect con
+
+--echo # Case 3: Server is killed after the transaction gets written into binlog
+--echo # but before it is committed in storage engine. In this case the
+--echo # transaction must be committed during recovery as it had a valid
+--echo # GTID assigned.
+
+--connect con, localhost, root
+SET DEBUG_SYNC = "commit_before_get_LOCK_commit_ordered SIGNAL reached WAIT_FOR continue";
+--send INSERT INTO t1 VALUES (3)
+
+--connection default
+SET DEBUG_SYNC = "now WAIT_FOR reached";
+--source include/kill_mysqld.inc
+--let $galera_wsrep_recover_server_id = 1
+--source suite/galera/include/galera_wsrep_recover.inc
+--source suite/galera/include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+--echo Expect 100-10-3
+SELECT WSREP_LAST_SEEN_GTID();
+SELECT @@GLOBAL.gtid_binlog_pos;
+--echo Expect 1 3
+SELECT * FROM t1;
+
+--disconnect con
+
+DROP TABLE t1;

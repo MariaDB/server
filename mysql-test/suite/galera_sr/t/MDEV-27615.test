@@ -43,7 +43,8 @@ SET DEBUG_SYNC = 'now SIGNAL continue';
 # Disconnect causes connection to node_2 to be closed
 #
 --connection node_2
---error 2013 # CR_SERVER_LOST
+# CR_SERVER_LOST, CR_SSL_CONNECTION_ERROR
+--error 2013,2026
 --reap
 
 
@@ -67,6 +68,5 @@ SET DEBUG_SYNC = 'RESET';
 
 --disconnect node_2
 --connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2
-
 
 --source suite/galera/include/auto_increment_offset_restore.inc

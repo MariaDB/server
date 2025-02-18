@@ -1097,6 +1097,7 @@ retry:
                             ER_NET_READ_INTERRUPTED :
                             ER_NET_READ_ERROR);
 #ifdef MYSQL_SERVER
+          strmake_buf(net->last_error, ER(net->last_errno));
           if (global_system_variables.log_warnings > 3)
           {
             /* Log things as a warning */
@@ -1108,8 +1109,8 @@ retry:
                               remain, vio_errno(net->vio), net->last_errno,
                               (longlong) length);
           }
-          my_error(net->last_errno, MYF(0));
 #endif /* MYSQL_SERVER */
+          my_error(net->last_errno, MYF(0));
 	  goto end;
 	}
 	remain -= (uint32) length;

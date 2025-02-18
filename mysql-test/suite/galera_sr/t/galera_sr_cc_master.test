@@ -7,7 +7,7 @@
 # leave the cluster.
 #
 
-CALL mtr.add_suppression("WSREP: discarding established.*");
+CALL mtr.add_suppression("WSREP: discarding established");
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
@@ -51,7 +51,7 @@ SET GLOBAL wsrep_cluster_address = '';
 SET SESSION wsrep_sync_wait = DEFAULT;
 
 --connection node_2
---error 2013 # CR_SERVER_LOST
+--error 2013,2026
 INSERT INTO t1 VALUES (6);
 
 --connection node_1

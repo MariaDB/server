@@ -782,6 +782,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   }
 }
 
+#ifdef DBUG_ASSERT_EXISTS
 static inline bool check_field_pointers(const TABLE *table)
 {
   for (Field **pf= table->field; *pf; pf++)
@@ -797,6 +798,7 @@ static inline bool check_field_pointers(const TABLE *table)
   }
   return true;
 }
+#endif
 
 
 /*

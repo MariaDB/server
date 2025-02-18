@@ -4,6 +4,3 @@
 binlog-row-event-max-size=256
 
 [mysqld.2]
-
-
-
