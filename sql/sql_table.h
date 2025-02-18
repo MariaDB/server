@@ -173,6 +173,9 @@ bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
                         const LEX_CSTRING *new_name, const LEX_CUSTRING *id,
                         uint flags);
+my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
+                                    TABLE_LIST *out_table,
+                                    MDL_ticket *mdl_ticket);
 bool mysql_backup_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 

@@ -1939,6 +1939,8 @@ public:
     for this share.
   */
   All_share_tables_list all_tmp_tables;
+  TABLE_SHARE *from_share;
+  MDL_request mdl_request;
 };
 
 /**
@@ -1959,7 +1961,15 @@ struct All_tmp_table_shares
 };
 
 /* Also used in rpl_rli.h. */
-typedef I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares> All_tmp_tables_list;
+struct All_tmp_tables_list: I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares>
+{
+  ulonglong global_temporary_tables_count= 0;
+  inline void empty()
+  {
+    I_P_List::empty();
+    global_temporary_tables_count= 0;
+  }
+};
 
 /**
   Class that holds information about tables which were opened and locked
@@ -5686,6 +5696,8 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
+  bool internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
+                                     TMP_TABLE_SHARE **share);
   bool open_temporary_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
