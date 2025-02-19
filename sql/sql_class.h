@@ -5704,6 +5704,8 @@ public:
   bool close_temporary_tables();
   bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
                               const LEX_CSTRING *table_name);
+  bool drop_tmp_table_share(TMP_TABLE_SHARE *share, TABLE *table,
+                            bool delete_table);
   bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
   bool rm_temporary_table(handlerton *hton, const char *path);
   void mark_tmp_tables_as_free_for_reuse();
@@ -5712,6 +5714,8 @@ public:
   TMP_TABLE_SHARE* save_tmp_table_share(TABLE *table);
   void restore_tmp_table_share(TMP_TABLE_SHARE *share);
   void close_unused_temporary_table_instances(const TABLE_LIST *tl);
+  int commit_global_tmp_tables();
+  void use_global_tmp_table_tp();
 
 private:
   /* Whether a lock has been acquired? */

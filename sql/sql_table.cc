@@ -5934,6 +5934,39 @@ err:
   DBUG_RETURN(res != 0);
 }
 
+
+static int commit_global_tmp_table(THD *thd, bool all)
+{
+  if (ending_trans(thd, all))
+    return thd->commit_global_tmp_tables();
+  return 0;
+}
+
+static transaction_participant global_temporary_tp=
+{
+  0, 0,  HTON_NO_ROLLBACK,
+  [](THD *) { return 0; },
+  NULL, NULL, NULL, NULL,
+  commit_global_tmp_table,
+  commit_global_tmp_table,
+  NULL,
+  [](XID*, uint){ return 0; },   /*recover*/
+  NULL, // xa_commit
+  NULL, // xa_rollback
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
+void THD::use_global_tmp_table_tp()
+{
+  if (!(sql_command_flags() & CF_STATUS_COMMAND))
+  {
+    trans_register_ha(this, false, &global_temporary_tp, 0);
+    if (in_multi_stmt_transaction_mode())
+      trans_register_ha(this, true, &global_temporary_tp, 0);
+  }
+}
+
+
 struct Closefrm_context
 {
   TABLE *table;
@@ -6026,6 +6059,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
   out_table->table= table;
   table->init(thd, out_table);
 
+  thd->use_global_tmp_table_tp();
   return FALSE;
 }
 
