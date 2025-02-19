@@ -351,6 +351,7 @@ struct LEX_MASTER_INFO
   ulong relay_log_pos;
   ulong server_id;
   uint port, connect_retry;
+  ulong retry_count;
   float heartbeat_period;
   int sql_delay;
   bool is_demotion_opt;
@@ -391,7 +392,7 @@ struct LEX_MASTER_INFO
 
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
-    pos= relay_log_pos= server_id= port= connect_retry= 0;
+    pos= relay_log_pos= server_id= port= connect_retry= retry_count= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
       repl_ignore_server_ids_opt= repl_do_domain_ids_opt=
