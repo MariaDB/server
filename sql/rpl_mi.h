@@ -253,7 +253,10 @@ class Master_info : public Slave_reporting_capability
     @@global.binlog_checksum and deactivated once FD has been received.
   */
   enum_binlog_checksum_alg checksum_alg_before_fd;
+  /** pause duration between each connection retry */
   uint connect_retry;
+  /** per-slave @ref master_retry_count */
+  ulong retry_count;
 #ifndef DBUG_OFF
   int events_till_disconnect;
 

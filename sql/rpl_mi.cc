@@ -35,7 +35,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
    ssl(1), ssl_verify_server_cert(1), fd(-1), io_thd(0),
    rli(is_slave_recovery), port(MYSQL_PORT),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
-   connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
+   connect_retry(DEFAULT_CONNECT_RETRY), retry_count(master_retry_count),
+   inited(0), abort_slave(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), slave_run_id(0),
    clock_diff_with_master(0),
    sync_counter(0), heartbeat_period(0), received_heartbeats(0),
@@ -569,9 +570,12 @@ file '%s')", fname);
 	  goto errwithmsg;
 
       /* Starting from 5.5 the master_retry_count may be in the repository. */
-      if (lines >= LINE_FOR_MASTER_RETRY_COUNT &&
-	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
-	  goto errwithmsg;
+      if (lines >= LINE_FOR_MASTER_RETRY_COUNT)
+      {
+        if (init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
+          goto errwithmsg;
+        mi->retry_count = atol(buf);
+      }
 
       if (lines >= LINE_FOR_SSL_CRLPATH &&
 	  (init_strvar_from_file(mi->ssl_crl, sizeof(mi->ssl_crl),
@@ -831,7 +835,7 @@ int flush_master_info(Master_info* mi,
               (int)(mi->ssl), mi->ssl_ca, mi->ssl_capath, mi->ssl_cert,
               mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
               heartbeat_buf, "", ignore_server_ids_buf,
-              "", 0,
+              "", mi->retry_count,
               mi->ssl_crl, mi->ssl_crlpath, mi->using_gtid,
               do_domain_ids_buf, ignore_domain_ids_buf);
   err= flush_io_cache(file);

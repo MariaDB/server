@@ -1,0 +1,68 @@
+# MDEV-25674: Test the `Master_Retry_Count` field of
+# CHANGE MASTER [name] TO (no feature testing)
+# Two connections tests that the field is now per-connection.
+--source include/have_perfschema.inc
+
+--echo # Use `--master-retry-count` when not specified
+CHANGE MASTER 'named' TO master_host='example.com';
+CHANGE MASTER TO master_host='127.0.0.1', master_ssl_verify_server_cert=0;
+SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
+  FROM performance_schema.replication_connection_configuration;
+
+--echo # Replace when specified
+CHANGE MASTER 'named' TO master_retry_count=11;
+# Default master does not replace named master
+CHANGE MASTER TO master_retry_count=10;
+SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
+  FROM performance_schema.replication_connection_configuration;
+
+--echo # Restore specified config on restart
+--let $restart_parameters= --skip-slave-start
+--source include/restart_mysqld.inc # not_embedded
+SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
+  FROM performance_schema.replication_connection_configuration;
+
+--echo # Keep specified config on RESET REPLICA
+RESET REPLICA 'named';
+RESET REPLICA;
+SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
+  FROM performance_schema.replication_connection_configuration;
+
+--echo # Don't replace when not specified
+CHANGE MASTER TO master_user='root';
+CHANGE MASTER 'named' TO master_user='root';
+SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
+  FROM performance_schema.replication_connection_configuration;
+
+--echo # 0 internally means "not specified"
+CHANGE MASTER TO master_retry_count=0;
+CHANGE MASTER 'named' TO master_retry_count=0;
+SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
+  FROM performance_schema.replication_connection_configuration;
+
+--echo # Truncates decimals
+CHANGE MASTER TO master_retry_count=0.5;
+CHANGE MASTER 'named' TO master_retry_count=0.5;
+SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
+  FROM performance_schema.replication_connection_configuration;
+
+--echo # Caps values (such as UINT64_MAX + 1) to `--master-retry-count`'s max
+CHANGE MASTER TO master_retry_count=18446744073709551616;
+CHANGE MASTER 'named' TO master_retry_count=18446744073709551616;
+SELECT CHANNEL_NAME
+  FROM performance_schema.replication_connection_configuration
+  WHERE CONNECTION_RETRY_COUNT IN (4294967295, 18446744073709551615);
+
+--echo # Negative
+--error ER_PARSE_ERROR
+CHANGE MASTER TO master_retry_count=-1;
+--error ER_PARSE_ERROR
+CHANGE MASTER 'named' TO master_retry_count=-1;
+--echo # NaN
+--error ER_PARSE_ERROR
+CHANGE MASTER TO master_retry_count='5';
+--error ER_PARSE_ERROR
+CHANGE MASTER 'named' TO master_retry_count='5';
+
+--echo # Cleanup
+RESET REPLICA 'named' ALL;
