@@ -1,0 +1,53 @@
+create table t1 (a int, b int);
+
+insert into t1 (a, b) values
+  (1, 1000),
+  (2, 2000),
+  (3, 3000),
+  (4, 4000),
+  (5, 5000),
+  (6, 6000),
+  (7, 7000),
+  (8, 8000),
+  (9, 9000),
+  (10, 10000);
+
+create index t1_a on t1 (a);
+create index t1_b on t1 (b);
+
+# set the WHERE clause cost higher to force the use of the rowid filter
+set @old_where_cost=@@optimizer_where_cost;
+set session optimizer_where_cost=10;
+
+--source include/explain-no-costs.inc
+explain format=json select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+--disable_ps_protocol
+flush status;
+select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+--source include/explain-no-costs.inc
+explain format=json select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+--disable_ps_protocol
+flush status;
+select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+set @old_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=off';
+--source include/explain-no-costs.inc
+explain format=json select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+--disable_ps_protocol
+flush status;
+select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+--enable_ps_protocol
+
+set optimizer_switch=@old_optimizer_switch;
+set session optimizer_where_cost=@old_where_cost;
+drop table t1;
