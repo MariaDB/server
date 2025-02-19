@@ -137,6 +137,8 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	5
 Handler_rollback	2
+Handler_rowid_filter_attempts	0
+Handler_rowid_filter_matches	0
 Handler_savepoint	0
 Handler_savepoint_rollback	0
 Handler_tmp_delete	0
