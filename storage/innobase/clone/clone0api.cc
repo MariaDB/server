@@ -53,9 +53,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 constexpr space_id_t SPACE_UNKNOWN = std::numeric_limits<space_id_t>::max();
 
-/* To get current session thread default THD */
-THD *thd_get_current_thd();
-
 /** Check if clone status file exists.
 @param[in]      file_name       file name
 @return true if file exists. */
@@ -107,12 +104,18 @@ static void create_file(std::string &file_name)
 static void remove_file(const std::string &file)
 {
   os_file_type_t file_type;
+  bool exists;
 
-  if (!os_file_status(file.c_str(), nullptr, &file_type))
+  if (!os_file_status(file.c_str(), &exists, &file_type))
   {
     ib::error() << "Error checking a file to remove : " << file.c_str();
     return;
   }
+  /* Allow non existent file, as the server could have crashed or returned
+  with error before creating the file. This is needed during error cleanup. */
+  if (!exists)
+    return;
+
   /* In C++17 there will be std::filesystem::remove_all and the
   code below will no longer be required. */
   if (file_type == OS_FILE_TYPE_DIR)
@@ -128,17 +131,10 @@ static void remove_file(const std::string &file)
 
     if (!os_file_scan_directory(file.c_str(), scan_cbk, true))
       ib::error() << "Error removing directory : " << file.c_str();
-
   }
   else
   {
-    /* Allow non existent file, as the server could have crashed or returned
-    with error before creating the file. This is needed during error cleanup. */
-    if (!file_exists(file))
-      return;
-
     auto ret= std::remove(file.c_str());
-
     if (ret != 0)
       ib::error() << "Error removing file : " << file.c_str();
   }
@@ -1442,33 +1438,6 @@ static void clone_init_recovery_status(bool replace)
   clone_update_recovery_status(false, false, replace);
 }
 
-void clone_update_gtid_status(std::string &gtids)
-{
-  /* Return if not clone database recovery. */
-  std::string replace_files(CLONE_INNODB_REPLACED_FILES);
-  if (!file_exists(replace_files))
-    return;
-
-  /* Return if status file is not created. */
-  std::string recovery_file(CLONE_INNODB_RECOVERY_FILE);
-  if (!file_exists(recovery_file))
-  {
-    ut_d(ut_error);
-    return;
-  }
-  /* Open status file to append GTID. */
-  std::ofstream status_file;
-  status_file.open(recovery_file, std::ofstream::app);
-  if (!status_file.is_open())
-    return;
-
-  status_file << gtids << std::endl;
-  status_file.close();
-
-  /* Remove replace file after successful recovery and status update. */
-  remove_file(replace_files);
-}
-
 /** Type of function which is supposed to handle a single file during
 Clone operations, accepting the file's name (string).
 @see clone_files_for_each_file */
@@ -1804,7 +1773,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
   {
     /* Clear any error raised. */
     m_error= 0;
-    auto thd= thd_get_current_thd();
+    auto thd= current_thd;
     if (thd != nullptr)
     {
       thd->clear_error();
@@ -1943,7 +1912,7 @@ static int clone_init_tablespaces(THD *thd)
 Clone_Sys::Wait_stage::Wait_stage(const char *new_info)
 {
   m_saved_info= nullptr;
-  THD *thd= thd_get_current_thd();
+  THD *thd= current_thd;
 
   if (thd != nullptr)
   {
@@ -1954,7 +1923,7 @@ Clone_Sys::Wait_stage::Wait_stage(const char *new_info)
 
 Clone_Sys::Wait_stage::~Wait_stage()
 {
-  THD *thd= thd_get_current_thd();
+  THD *thd= current_thd;
 
   if (thd != nullptr && m_saved_info != nullptr)
     thd->proc_info= m_saved_info;

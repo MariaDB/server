@@ -139,9 +139,6 @@ enum os_file_create_t {
   /** do not display diagnostic messages */
   OS_FILE_ON_ERROR_SILENT= 4,
 
-  /** Create the directories */
-  OS_FILE_CREATE_PATH,
-
   OS_FILE_CREATE_SILENT= OS_FILE_CREATE | OS_FILE_ON_ERROR_SILENT,
   OS_FILE_OPEN_SILENT= OS_FILE_OPEN | OS_FILE_ON_ERROR_SILENT,
   OS_FILE_OPEN_RETRY_SILENT= OS_FILE_OPEN_RETRY | OS_FILE_ON_ERROR_SILENT

@@ -155,10 +155,6 @@ bool clone_check_recovery_crashpoint(bool is_cloned_db);
 @param[in]      finished        if recovery is finishing */
 void clone_files_recovery(bool finished);
 
-/** Update cloned GTIDs to recovery status file.
-@param[in]      gtids   cloned GTIDs */
-void clone_update_gtid_status(std::string &gtids);
-
 /** Initialize Clone system
 @return inndodb error code */
 dberr_t clone_init();
@@ -173,11 +169,6 @@ bool clone_check_active();
 /** @return true, if clone provisioning in progress. */
 bool clone_check_provisioning();
 #endif /* !UNIV_HOTBACKUP */
-
-/** Fix cloned non-Innodb tables during recovery.
-@param[in,out]  thd     current THD
-@return true if error */
-bool fix_cloned_tables(THD *thd);
 
 /** Clone Notification handler. */
 class Clone_notify {

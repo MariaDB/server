@@ -38,9 +38,11 @@ Created 2/16/1996 Heikki Tuuri
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 
+#include "arch0arch.h"
 #include "row0ftsort.h"
 #include "ut0mem.h"
 #include "mem0mem.h"
+#include "clone0api.h"
 #include "data0data.h"
 #include "data0type.h"
 #include "dict0dict.h"
@@ -1072,6 +1074,7 @@ srv_init_abort_low(
 			" with error " << err;
 	}
 
+	clone_files_error();
 	srv_shutdown_bg_undo_sources();
 	srv_shutdown_threads();
 	return(err);
@@ -1296,6 +1299,14 @@ dberr_t srv_start(bool create_new_db)
 
 	srv_boot();
 
+	/* Must replace clone files before opening any files. When clone
+        replaces current database, cloned files are moved to data files
+	at this stage. */
+	err = clone_init();
+
+	if (err != DB_SUCCESS) {
+		return (srv_init_abort(err));
+	}
 	ib::info() << my_crc32c_implementation();
 
 	if (!srv_read_only_mode) {
@@ -1452,6 +1463,7 @@ dberr_t srv_start(bool create_new_db)
 		Datafile::validate_first_page() */
 		return srv_init_abort(err);
 	}
+	arch_init();
 
 	if (create_new_db) {
 		lsn_t flushed_lsn = log_sys.init_lsn();
@@ -1578,6 +1590,10 @@ dberr_t srv_start(bool create_new_db)
 
 		switch (srv_operation) {
                 case SRV_OPERATION_NORMAL:
+			if (err == DB_SUCCESS) {
+				arch_page_sys->post_recovery_init();
+			}
+			[[fallthrough]];
 		case SRV_OPERATION_EXPORT_RESTORED:
 		case SRV_OPERATION_RESTORE_EXPORT:
 			if (err != DB_SUCCESS) {
@@ -1612,6 +1628,7 @@ dberr_t srv_start(bool create_new_db)
 		if (err != DB_SUCCESS) {
 			return srv_init_abort(err);
 		}
+		ut_ad(clone_check_recovery_crashpoint(recv_sys.is_cloned_db));
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
@@ -2010,6 +2027,10 @@ skip_monitors:
 		srv_started_redo = true;
 	}
 
+	/* Finish clone files recovery. This call is idempotent and is no op
+	if it is already done before creating new log files. */
+	clone_files_recovery(true);
+
 	return(DB_SUCCESS);
 }
 
@@ -2165,6 +2186,8 @@ void innodb_shutdown()
 			   << srv_shutdown_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
+	clone_free();
+	arch_free();
 	srv_thread_pool_end();
 	srv_started_redo = false;
 	srv_was_started = false;

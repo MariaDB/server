@@ -183,7 +183,7 @@ int Clone_Sys::find_free_index(Clone_Handle_Type hdl_type, uint &free_index) {
         auto current_clone = m_clone_arr[target_index];
         result = (current_clone != nullptr);
 
-        if (thd_killed(nullptr)) {
+        if (thd_killed(current_thd)) {
           ib::info()
               << "Clone Begin Master wait for abort interrupted";
           my_error(ER_QUERY_INTERRUPTED, MYF(0));
@@ -921,7 +921,7 @@ int Clone_Task_Manager::handle_error_other_task(bool set_error) {
   }
 
   /* Handle shutdown and KILL */
-  if (thd_killed(nullptr)) {
+  if (thd_killed(current_thd)) {
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     return (ER_QUERY_INTERRUPTED);
   }
@@ -2219,64 +2219,68 @@ void Clone_Handle::set_abort() {
 
 int Clone_Handle::open_file(Clone_Task *task, const Clone_file_ctx *file_ctx,
                             ulint file_type, bool create_file,
-                            File_init_cbk &init_cbk) {
-  os_file_type_t type;
-  bool exists;
+                            File_init_cbk &init_cbk)
+{
   std::string file_name;
-
   file_ctx->get_file_name(file_name);
 
   /* Check if file exists */
-  auto status = os_file_status(file_name.c_str(), &exists, &type);
+  os_file_type_t type;
+  bool exists;
+  auto status= os_file_status(file_name.c_str(), &exists, &type);
 
-  if (!status) {
-    return (0);
-  }
+  auto err_exit= [&](int in_err)
+  {
+     char errbuf[MYSYS_STRERROR_SIZE];
+     my_error(in_err, MYF(0), file_name.c_str(), errno,
+              my_strerror(errbuf, sizeof(errbuf), errno));
+     return in_err;
+   };
+
+  if (!status)
+    return err_exit(ER_CANT_OPEN_FILE);
 
   os_file_create_t option;
   bool read_only;
 
-  if (create_file) {
-    option = exists ? OS_FILE_OPEN : OS_FILE_CREATE_PATH;
-    read_only = false;
+  if (create_file)
+  {
+    option= exists ? OS_FILE_OPEN : OS_FILE_CREATE;
+    read_only= false;
   } else {
     ut_ad(exists);
-    option = OS_FILE_OPEN;
-    read_only = true;
+    option= OS_FILE_OPEN;
+    read_only= true;
   }
 
-  bool success = false;
-  auto handle = os_file_create(innodb_clone_file_key, file_name.c_str(), option,
-                               file_type, read_only, &success);
+  if (option == OS_FILE_CREATE)
+    /* In case of a failure, we would use the error from os_file_create. */
+    std::ignore= os_file_create_subdirs_if_needed(file_name.c_str());
 
-  int err = 0;
+  bool success= false;
+  auto handle= os_file_create(innodb_clone_file_key, file_name.c_str(), option,
+                              file_type, read_only, &success);
 
-  if (!success) {
-    /* purecov: begin inspected */
-    err = (option == OS_FILE_OPEN) ? ER_CANT_OPEN_FILE : ER_CANT_CREATE_FILE;
-    /* purecov: end */
+  int err= 0;
+  if (!success)
+    err= (option == OS_FILE_OPEN) ? ER_CANT_OPEN_FILE : ER_CANT_CREATE_FILE;
 
-  } else if (create_file && init_cbk) {
-    auto db_err = init_cbk(handle);
+  else if (create_file && init_cbk)
+  {
+    auto db_err= init_cbk(handle);
 
-    if (db_err != DB_SUCCESS) {
-      /* purecov: begin inspected */
+    if (db_err != DB_SUCCESS)
+    {
       os_file_close(handle);
-      err = ER_ERROR_ON_WRITE;
-      /* purecov: end */
+      err= ER_ERROR_ON_WRITE;
     }
   }
 
-  if (err != 0) {
-    /* purecov: begin inspected */
-    char errbuf[MYSYS_STRERROR_SIZE];
-    my_error(err, MYF(0), file_name.c_str(), errno,
-             my_strerror(errbuf, sizeof(errbuf), errno));
-    return err;
-    /* purecov: end */
-  }
+  if (err != 0)
+    return err_exit(err);
 
-  if (task == nullptr) {
+  if (task == nullptr)
+  {
     ut_ad(create_file);
     os_file_close(handle);
     return 0;
@@ -2288,27 +2292,26 @@ int Clone_Handle::open_file(Clone_Task *task, const Clone_file_ctx *file_ctx,
 
   ut_ad(handle.m_file != OS_FILE_CLOSED);
 
-  task->m_file_cache = true;
+  task->m_file_cache= true;
 
   /* Set cache to false if direct IO(O_DIRECT) is used. */
-  if (file_type == OS_CLONE_DATA_FILE) {
+  if (file_type == OS_CLONE_DATA_FILE)
+  {
     task->m_file_cache= fil_system.is_buffered();
-    DBUG_EXECUTE_IF("clone_no_zero_copy", task->m_file_cache = false;);
+    DBUG_EXECUTE_IF("clone_no_zero_copy", task->m_file_cache= false;);
   }
   #if defined __linux__ || defined _WIN32
   else if (file_type == OS_CLONE_LOG_FILE)
-  {
     task->m_file_cache= log_sys.log_buffered;
-  }
   #endif
 
-  auto file_meta = file_ctx->get_file_meta_read();
+  auto file_meta= file_ctx->get_file_meta_read();
 
   /* If the task has pinned file, the index should be set. */
   ut_ad(!task->m_pinned_file ||
         task->m_current_file_index == file_meta->m_file_index);
 
-  task->m_current_file_index = file_meta->m_file_index;
+  task->m_current_file_index= file_meta->m_file_index;
 
   return 0;
 }

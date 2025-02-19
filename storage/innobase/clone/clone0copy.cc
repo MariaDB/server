@@ -328,9 +328,6 @@ int Clone_Snapshot::init_page_copy(Snapshot_State new_state, byte *page_buffer,
   return err;
 }
 
-/* To get current session thread default THD */
-THD *thd_get_current_thd();
-
 int Clone_Snapshot::init_redo_copy(Snapshot_State new_state,
                                    Clone_Alert_Func cbk) {
   ut_ad(m_snapshot_handle_type == CLONE_HDL_COPY);
@@ -340,8 +337,8 @@ int Clone_Snapshot::init_redo_copy(Snapshot_State new_state,
   are first logged to binlog and added to global gtid_executed before doing
   operation in SE. Without blocking, we might persist such GTIDs from global
   gtid_executed before the operations are persisted in Innodb. */
-  int binlog_error = 0;
-  auto thd = thd_get_current_thd();
+  int binlog_error= 0;
+  auto thd= current_thd;
   Clone_handler::XA_Block xa_block_guard(thd);
 
   if (xa_block_guard.failed()) {

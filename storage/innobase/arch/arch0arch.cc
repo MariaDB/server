@@ -414,7 +414,11 @@ dberr_t Arch_File_Ctx::open(bool read_only, lsn_t start_lsn, uint file_index,
     option= OS_FILE_OPEN;
   }
   else
-    option= exists ? OS_FILE_OPEN : OS_FILE_CREATE_PATH;
+    option= exists ? OS_FILE_OPEN : OS_FILE_CREATE;
+
+  if (option == OS_FILE_CREATE)
+    /* In case of a failure, we would use the error from os_file_create. */
+    std::ignore= os_file_create_subdirs_if_needed(m_name_buf);
 
   m_file= os_file_create(innodb_arch_file_key, m_name_buf, option,
       OS_CLONE_LOG_FILE, read_only, &success);

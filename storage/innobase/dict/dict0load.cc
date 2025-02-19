@@ -492,8 +492,6 @@ dict_sys_tables_rec_check(
 	const byte*	field;
 	ulint		len;
 
-	ut_ad(dict_sys.locked());
-
 	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_TABLES) {
 		return("wrong number of columns in SYS_TABLES record");
 	}
