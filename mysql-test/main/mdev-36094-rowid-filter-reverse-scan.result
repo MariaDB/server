@@ -1,0 +1,92 @@
+create table t1 (a int, b int);
+insert into t1 (a, b) values
+(1, 1000),
+(2, 2000),
+(3, 3000),
+(4, 4000),
+(5, 5000),
+(6, 6000),
+(7, 7000),
+(8, 8000),
+(9, 9000),
+(10, 10000);
+create index t1_a on t1 (a);
+create index t1_b on t1 (b);
+explain select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	t1_a,t1_b	t1_b	5	NULL	1	Using index condition; Using where
+select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+a	b
+4	4000
+flush status;
+select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+a	b
+4	4000
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%' OR VARIABLE_NAME LIKE '%rowid%';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_ATTEMPTS	1
+HANDLER_ICP_MATCH	1
+HANDLER_MRR_ROWID_REFILLS	0
+HANDLER_ROWID_FILTER_ATTEMPTS	0
+HANDLER_ROWID_FILTER_MATCHES	0
+set @old_where_cost=@@optimizer_where_cost;
+set session optimizer_where_cost=10;
+explain select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	t1_a,t1_b	t1_b	5	NULL	1	Using index condition; Using where
+select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+a	b
+4	4000
+flush status;
+select * from t1 where t1.a between 3 and 8 and t1.b between 4000 and 4100 order by t1.b desc;
+a	b
+4	4000
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%' OR VARIABLE_NAME LIKE '%rowid%';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_ATTEMPTS	1
+HANDLER_ICP_MATCH	1
+HANDLER_MRR_ROWID_REFILLS	0
+HANDLER_ROWID_FILTER_ATTEMPTS	0
+HANDLER_ROWID_FILTER_MATCHES	0
+set session optimizer_where_cost=@old_where_cost;
+explain select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	t1_a,t1_b	t1_b	5	NULL	2	Using index condition; Using where
+select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+a	b
+5	5000
+4	4000
+flush status;
+select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+a	b
+5	5000
+4	4000
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%' OR VARIABLE_NAME LIKE '%rowid%';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_ATTEMPTS	2
+HANDLER_ICP_MATCH	2
+HANDLER_MRR_ROWID_REFILLS	0
+HANDLER_ROWID_FILTER_ATTEMPTS	0
+HANDLER_ROWID_FILTER_MATCHES	0
+set session optimizer_where_cost=10;
+explain select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	t1_a,t1_b	t1_b	5	NULL	2	Using index condition; Using where
+select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+a	b
+5	5000
+4	4000
+flush status;
+select * from t1 where t1.a between 2 and 9 and t1.b between 4000 and 5001 order by t1.b desc;
+a	b
+5	5000
+4	4000
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%' OR VARIABLE_NAME LIKE '%rowid%';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_ATTEMPTS	2
+HANDLER_ICP_MATCH	2
+HANDLER_MRR_ROWID_REFILLS	0
+HANDLER_ROWID_FILTER_ATTEMPTS	0
+HANDLER_ROWID_FILTER_MATCHES	0
+set session optimizer_where_cost=@old_where_cost;
+drop table t1;

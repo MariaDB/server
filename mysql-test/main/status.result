@@ -335,6 +335,8 @@ Handler_read_rnd	7
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	23
 Handler_rollback	0
+Handler_rowid_filter_attempts	0
+Handler_rowid_filter_matches	0
 Handler_savepoint	0
 Handler_savepoint_rollback	0
 Handler_tmp_delete	0
@@ -351,7 +353,7 @@ Handler_tmp_delete	0
 Handler_tmp_update	2
 Handler_tmp_write	7
 Max_tmp_space_used	32768
-Rows_tmp_read	44
+Rows_tmp_read	46
 drop table t1;
 CREATE TABLE t1 (i int(11) DEFAULT NULL, KEY i (i) ) ENGINE=MyISAM;
 insert into t1 values (1),(2),(3),(4),(5);
@@ -381,6 +383,8 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	1
 Handler_read_rnd_next	2
 Handler_rollback	0
+Handler_rowid_filter_attempts	0
+Handler_rowid_filter_matches	0
 Handler_savepoint	0
 Handler_savepoint_rollback	0
 Handler_tmp_delete	0

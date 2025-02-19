@@ -7352,7 +7352,15 @@ check_result_t handler_rowid_filter_check(void *h_arg)
   }
 
   h->position(tab->record[0]);
-  return h->pushed_rowid_filter->check((char*)h->ref) ? CHECK_POS: CHECK_NEG;
+  check_result_t retval= CHECK_NEG;
+  h->fast_increment_statistics(&SSV::ha_rowid_filter_attempts);
+  bool check_result= h->pushed_rowid_filter->check((char*)h->ref);
+  if (check_result)
+  {
+      h->fast_increment_statistics(&SSV::ha_rowid_filter_matches);
+      retval= CHECK_POS;
+  }
+  return retval;
 }
 
 
