@@ -43,7 +43,8 @@ dberr_t Arch_Page_Sys::recover()
 
   auto err= arch_recv.init_dblwr();
 
-  if (err != DB_SUCCESS)
+  /* Tolerate non-existent file error. */
+  if (err != DB_SUCCESS && err != DB_CANNOT_OPEN_FILE)
     sql_print_error("Page Archiver's doublewrite initialisation failed");
 
   /* Scan for group directories and files */

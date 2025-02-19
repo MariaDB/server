@@ -681,14 +681,19 @@ bool Arch_Log_Sys::wait_idle() {
     signal_log_archiver();
     bool is_timeout= false;
     int alert_count= 0;
+    auto thd= current_thd;
 
     auto err= Clone_Sys::wait_default(
         [&](bool alert, bool &result) {
           mysql_mutex_assert_owner(&m_mutex);
           result= (m_state == ARCH_STATE_PREPARE_IDLE);
 
-          if (srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP)
+          if (srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP ||
+              (thd && thd_killed(thd)))
+          {
+            if (thd) my_error(ER_QUERY_INTERRUPTED, MYF(0));
             return ER_QUERY_INTERRUPTED;
+          }
 
           if (result)
           {
@@ -732,6 +737,7 @@ int Arch_Log_Sys::wait_archive_complete(lsn_t target_lsn)
 
     bool is_timeout= false;
     int alert_count= 0;
+    auto thd= current_thd;
 
     auto err= Clone_Sys::wait_default(
         [&](bool alert, bool &result)
@@ -743,9 +749,10 @@ int Arch_Log_Sys::wait_archive_complete(lsn_t target_lsn)
 
           /* Check if we need to abort. */
           if (state == ARCH_STATE_ABORT ||
-              srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP)
+              srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP ||
+              (thd && thd_killed(thd)))
           {
-            my_error(ER_QUERY_INTERRUPTED, MYF(0));
+            if (thd) my_error(ER_QUERY_INTERRUPTED, MYF(0));
             return ER_QUERY_INTERRUPTED;
           }
 

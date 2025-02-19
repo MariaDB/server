@@ -3293,25 +3293,6 @@ bool fil_space_t::is_encrypted() const
   return encrypted;
 }
 
-dberr_t Fil_iterator::iterate(Function &&f)
-{
-  dberr_t err= DB_SUCCESS;
-  mysql_mutex_lock(&fil_system.mutex);
-  for (fil_space_t &space : fil_system.space_list)
-  {
-    if (space.is_temporary())
-      continue;
-
-    auto node= UT_LIST_GET_FIRST(space.chain);
-    err= f(node);
-
-    while (err == DB_SUCCESS && (node= UT_LIST_GET_NEXT(chain, node)))
-      err= f(node);
-  }
-  mysql_mutex_unlock(&fil_system.mutex);
-  return err;
-}
-
 #ifdef UNIV_DEBUG
 
 fil_space_t *fil_space_t::next_in_space_list() noexcept

@@ -242,9 +242,12 @@ int Arch_Group::mark_active()
     return ER_CANT_OPEN_FILE;
 
   ut_ad(!exists);
-  option= OS_FILE_CREATE_PATH;
+  option= OS_FILE_CREATE;
 
   ut_ad(m_active_file.m_file == OS_FILE_CLOSED);
+
+  /* In case of a failure, we would use the error from os_file_create. */
+  std::ignore= os_file_create_subdirs_if_needed(m_active_file_name);
 
   m_active_file= os_file_create(innodb_arch_file_key, m_active_file_name,
       option, OS_CLONE_LOG_FILE, false, &success);
@@ -274,7 +277,10 @@ int Arch_Group::mark_durable()
   if (!success)
     return ER_CANT_OPEN_FILE;
 
-  option= OS_FILE_CREATE_PATH;
+  option= OS_FILE_CREATE;
+
+  /* In case of a failure, we would use the error from os_file_create. */
+  std::ignore= os_file_create_subdirs_if_needed(m_durable_file_name);
 
   ut_ad(m_durable_file.m_file == OS_FILE_CLOSED);
 
@@ -1121,6 +1127,7 @@ bool wait_flush_archiver(Page_Wait_Flush_Archiver_Cbk cbk_func)
     signal_page_archiver();
     bool is_timeout= false;
     int alert_count= 0;
+    auto thd= current_thd;
 
     auto err= Clone_Sys::wait_default(
         [&](bool alert, bool &result)
@@ -1131,9 +1138,12 @@ bool wait_flush_archiver(Page_Wait_Flush_Archiver_Cbk cbk_func)
           int err2= 0;
           if (srv_shutdown_state.load() == SRV_SHUTDOWN_LAST_PHASE ||
               srv_shutdown_state.load() == SRV_SHUTDOWN_EXIT_THREADS ||
-              arch_page_sys->is_abort())
+              arch_page_sys->is_abort() ||
+              (thd && thd_killed(thd)))
+          {
+            if (thd) my_error(ER_QUERY_INTERRUPTED, MYF(0));
             err2= ER_QUERY_INTERRUPTED;
-
+          }
           else if (result)
           {
             signal_page_archiver();
@@ -2100,6 +2110,7 @@ bool Arch_Page_Sys::wait_idle()
     signal_page_archiver();
     bool is_timeout= false;
     int alert_count= 0;
+    auto thd= current_thd;
 
     auto err= Clone_Sys::wait_default(
         [&](bool alert, bool &result)
@@ -2107,9 +2118,12 @@ bool Arch_Page_Sys::wait_idle()
           mysql_mutex_assert_owner(&m_mutex);
           result= (m_state == ARCH_STATE_PREPARE_IDLE);
 
-          if (srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP)
+          if (srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP ||
+              (thd && thd_killed(thd)))
+          {
+            if (thd) my_error(ER_QUERY_INTERRUPTED, MYF(0));
             return ER_QUERY_INTERRUPTED;
-
+          }
           if (result)
           {
             signal_page_archiver();

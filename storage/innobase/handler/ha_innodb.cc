@@ -72,6 +72,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0buf.h"
 #include "buf0flu.h"
 #include "buf0lru.h"
+#include "clone0api.h"
 #include "dict0boot.h"
 #include "dict0load.h"
 #include "dict0crea.h"
@@ -4174,6 +4175,18 @@ static int innodb_init(void* p)
 		= innodb_prepare_commit_versioned;
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
+
+	/* Clone interfaces. */
+	innobase_hton->clone_interface.clone_capability = innodb_clone_get_capability;
+
+	innobase_hton->clone_interface.clone_begin = innodb_clone_begin;
+	innobase_hton->clone_interface.clone_copy = innodb_clone_copy;
+	innobase_hton->clone_interface.clone_ack = innodb_clone_ack;
+	innobase_hton->clone_interface.clone_end = innodb_clone_end;
+
+	innobase_hton->clone_interface.clone_apply_begin = innodb_clone_apply_begin;
+	innobase_hton->clone_interface.clone_apply = innodb_clone_apply;
+	innobase_hton->clone_interface.clone_apply_end = innodb_clone_apply_end;
 
 	innodb_remember_check_sysvar_funcs();
 

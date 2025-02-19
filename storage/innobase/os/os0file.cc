@@ -1176,10 +1176,11 @@ os_file_create_func(
 	struct stat st;
 # endif
 	ut_a(type == OS_LOG_FILE
-	     || type == OS_DATA_FILE || type == OS_DATA_FILE_NO_O_DIRECT);
+	     || type == OS_DATA_FILE || type == OS_DATA_FILE_NO_O_DIRECT
+	     || type == OS_CLONE_DATA_FILE || type == OS_CLONE_LOG_FILE);
 	int direct_flag = 0;
 
-	if (type == OS_DATA_FILE) {
+	if (type == OS_DATA_FILE || type == OS_CLONE_DATA_FILE) {
 		if (!fil_system.is_buffered()) {
 			direct_flag = O_DIRECT;
 		}
@@ -1204,7 +1205,8 @@ skip_o_direct:
 # endif
 	}
 #else
-	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
+	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE
+	     || type == OS_CLONE_DATA_FILE || type == OS_CLONE_LOG_FILE);
 	constexpr int direct_flag = 0;
 #endif
 
@@ -1270,6 +1272,8 @@ not_found:
 	if (!read_only
 	    && create_mode != OS_FILE_OPEN_RAW
 	    && !my_disable_locking
+	    /* Don't acquire file lock while cloning files. */
+	    && type != OS_CLONE_DATA_FILE && type != OS_CLONE_LOG_FILE
 	    && os_file_lock(file, name)) {
 
 		if (create_mode == OS_FILE_OPEN_RETRY
@@ -2148,7 +2152,10 @@ os_file_create_func(
 		break;
 	}
 
-	DWORD attributes= FILE_FLAG_OVERLAPPED;
+	DWORD attributes= 0;
+
+	if (type != OS_CLONE_LOG_FILE && type != OS_CLONE_DATA_FILE)
+		attributes|= FILE_FLAG_OVERLAPPED;
 
 	if (type == OS_LOG_FILE) {
 		if (!log_sys.is_opened() && !log_sys.log_buffered) {
@@ -2157,13 +2164,18 @@ os_file_create_func(
 		if (log_sys.log_write_through)
 			attributes|= FILE_FLAG_WRITE_THROUGH;
 	} else {
-		if (type == OS_DATA_FILE && !fil_system.is_buffered())
+		if ((type == OS_DATA_FILE || type == OS_CLONE_DATA_FILE)
+                    && !fil_system.is_buffered())
 			attributes|= FILE_FLAG_NO_BUFFERING;
 		if (fil_system.is_write_through())
 			attributes|= FILE_FLAG_WRITE_THROUGH;
 	}
 
 	DWORD access = read_only ? GENERIC_READ : GENERIC_READ | GENERIC_WRITE;
+
+	/* Clone data and log must allow concurrent write to file. */
+	if (type == OS_CLONE_LOG_FILE || type == OS_CLONE_DATA_FILE)
+		share_mode |= FILE_SHARE_WRITE;
 
 	for (;;) {
 		const  char *operation;

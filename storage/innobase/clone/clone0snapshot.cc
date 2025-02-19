@@ -1257,7 +1257,7 @@ int Clone_Snapshot::wait(Wait_type wait_type, const Clone_file_ctx *ctx,
         ib::info() << info_mesg; /* purecov: tested */
       }
 
-      if (check_intr && thd_killed(nullptr)) {
+      if (check_intr && thd_killed(current_thd)) {
         /* For early exit the caller would ignore error. */
         if (!early_exit) {
           my_error(ER_QUERY_INTERRUPTED, MYF(0));

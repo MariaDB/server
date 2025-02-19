@@ -1336,6 +1336,7 @@ void recv_sys_t::create()
 	mysql_mutex_init(recv_sys_mutex_key, &mutex, nullptr);
 
 	apply_log_recs = false;
+	is_cloned_db = false;
 
 	len = 0;
 	offset = 0;
