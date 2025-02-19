@@ -1,5 +1,5 @@
---- suite/galera/r/galera_sst_rsync_gtid.result	2025-01-02 15:35:15.162175835 +0200
-+++ suite/galera/r/galera_sst_rsync_gtid.reject	2025-01-02 16:02:08.588902711 +0200
+--- r/galera_sst_rsync_gtid.result
++++ r/galera_sst_rsync_gtid,debug.reject
 @@ -516,19 +516,203 @@
  1
  DROP TABLE t1;
