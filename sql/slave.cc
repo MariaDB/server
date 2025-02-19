@@ -4390,7 +4390,7 @@ static bool check_io_slave_killed(Master_info *mi, const char *info)
   @details Terminates current connection to master
   and initiates new connection with safe_reconnect(), which sleeps for
   @c mi->connect_retry msecs and increases @c mi->TODO for each attempt -
-  if it exceeds @c master_retry_count then connection is not re-established
+  if it exceeds @c mi->retry_count then connection is not re-established
   and function signals error.
   Unless @c suppres_warnings is TRUE, a warning is put in the server error log
   when reconnecting. The warning message and messages used to report errors
@@ -6933,7 +6933,7 @@ static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi)
 
   IMPLEMENTATION
     Try to connect until successful or slave killed or we have retried
-    master_retry_count times
+    mi->retry_count times
 */
 
 static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
@@ -7016,16 +7016,10 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                  " - retry-time: %d  maximum-retries: %lu  message: %s",
                  (reconnect ? "reconnecting" : "connecting"),
                  mi->user, mi->host, mi->port,
-                 mi->connect_retry, master_retry_count,
+                 mi->connect_retry, mi->retry_count,
                  mysql_error(mysql));
     }
-    /*
-      By default we try forever. The reason is that failure will trigger
-      master election, so if the user did not set master_retry_count we
-      do not want to have election triggered on the first failure to
-      connect
-    */
-    if (++err_count == master_retry_count)
+    if (++err_count == mi->retry_count)
     {
       slave_was_killed=1;
       if (reconnect)
@@ -7067,7 +7061,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 
   IMPLEMENTATION
     Try to connect until successful or slave killed or we have retried
-    master_retry_count times
+    mi->retry_count times
 */
 
 static int safe_reconnect(THD* thd, MYSQL* mysql, Master_info* mi,
