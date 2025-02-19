@@ -634,9 +634,6 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   DBUG_ENTER("THD::drop_temporary_table");
 
   TMP_TABLE_SHARE *share;
-  TABLE *tab;
-  bool result= false;
-  bool locked;
 
   DBUG_ASSERT(table);
   DBUG_PRINT("tmptable", ("Dropping table: '%s'.'%s'",
@@ -644,16 +641,27 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
 
   // close all handlers in case it is statement abort and some can be left
   table->file->ha_reset();
-
-  locked= lock_temporary_tables();
+  if (is_trans)
+    *is_trans= table->file->has_transactions();
 
   share= tmp_table_share(table);
+  DBUG_RETURN(drop_tmp_table_share(share, table, delete_table));
+}
+
+bool THD::drop_tmp_table_share(TMP_TABLE_SHARE *share, TABLE *table,
+                               bool delete_table)
+{
+  DBUG_ENTER("THD::drop_tmp_table_share");
+  TABLE *tab;
+  bool result= false;
+
+  bool locked= lock_temporary_tables();
 
   /* Table might be in use by some outer statement. */
   All_share_tables_list::Iterator it(share->all_tmp_tables);
   while ((tab= it++))
   {
-    if (tab != table && tab->query_id != 0)
+    if (table && tab != table && tab->query_id != 0)
     {
       /* Found a table instance in use. This table cannot be be dropped. */
       my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
@@ -662,8 +670,6 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
     }
   }
 
-  if (is_trans)
-    *is_trans= table->file->has_transactions();
 
   /*
     Iterate over the list of open tables and close them.
@@ -1265,6 +1271,8 @@ bool THD::use_temporary_table(TABLE *table, TABLE **out_table)
     parallel replication
   */
   table->in_use= this;
+  if (tmp_table_share(table)->from_share)
+    use_global_tmp_table_tp();
 
   DBUG_RETURN(false);
 }
@@ -1298,6 +1306,34 @@ void THD::close_temporary_table(TABLE *table)
 
   DBUG_VOID_RETURN;
 }
+
+
+int THD::commit_global_tmp_tables()
+{
+  if (rgi_slave // global temporary tables are not used on slave
+      || !temporary_tables
+      || !temporary_tables->global_temporary_tables_count)
+    return 0;
+
+  int error= 0;
+  All_tmp_tables_list::Iterator it(*temporary_tables);
+  while (TMP_TABLE_SHARE *share= it++)
+  {
+    if (!share->from_share)
+      continue;
+
+    All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
+    TABLE *table= tables_it++;
+    DBUG_ASSERT(table);
+    if (!share->on_commit_delete)
+      table->file->info(HA_STATUS_VARIABLE); // update records() stat
+
+    if (share->on_commit_delete || table->file->records() == 0)
+      error= drop_tmp_table_share(share, NULL, true);
+  }
+  return error;
+}
+
 
 
 /**
