@@ -783,7 +783,8 @@ lsn_t Arch_File_Ctx::purge(lsn_t begin_lsn, lsn_t end_lsn, lsn_t purge_lsn)
 
   if (!success || reset_point.lsn == begin_lsn)
   {
-    sql_print_information(ER_DEFAULT(ER_IB_MSG_PAGE_ARCH_NO_RESET_POINTS));
+    const char* mesg= my_get_err_msg(ER_IB_MSG_PAGE_ARCH_NO_RESET_POINTS);
+    sql_print_information("%s", mesg);
     return LSN_MAX;
   }
 
@@ -979,9 +980,8 @@ int Page_Arch_Client_Ctx::stop(lsn_t *stop_id)
   if (!is_active())
   {
     arch_client_mutex_exit();
-    my_printf_error(ER_PAGE_TRACKING_NOT_STARTED,
-                    ER_DEFAULT(ER_PAGE_TRACKING_NOT_STARTED),
-                    MYF(ME_ERROR_LOG_ONLY));
+    const char* mesg= my_get_err_msg(ER_PAGE_TRACKING_NOT_STARTED);
+    sql_print_error("%s", mesg);
     return ER_PAGE_TRACKING_NOT_STARTED;
   }
 
@@ -1258,10 +1258,12 @@ bool Arch_Block::validate(byte *block)
 
   if (checksum != block_checksum)
   {
-    my_printf_error(ER_IB_ERR_PAGE_ARCH_INVALID_DOUBLE_WRITE_BUF,
-                    ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_INVALID_DOUBLE_WRITE_BUF),
-                    Arch_Block::get_block_number(block),
-                    MYF(ME_ERROR_LOG_ONLY|ME_WARNING));
+    const char* format= my_get_err_msg(
+        ER_IB_ERR_PAGE_ARCH_INVALID_DOUBLE_WRITE_BUF);
+
+    my_printf_error(ER_IB_ERR_PAGE_ARCH_INVALID_DOUBLE_WRITE_BUF, format,
+                    MYF(ME_ERROR_LOG_ONLY|ME_WARNING),
+                    Arch_Block::get_block_number(block));
     ut_d(ut_error);
     return false;
   }
@@ -1710,9 +1712,10 @@ void Arch_Page_Sys::flush_at_checkpoint(lsn_t checkpoint_lsn)
   auto cbk = [&] { return (request_flush_pos < m_flush_pos ? false : true); };
 
   if (!wait_flush_archiver(cbk))
-    my_printf_error(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA,
-                    ER_DEFAULT(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA),
-                    MYF(ME_ERROR_LOG_ONLY|ME_WARNING));
+  {
+    const char* mesg= my_get_err_msg(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA);
+    sql_print_warning("%s", mesg);
+  }
   arch_oper_mutex_exit();
 }
 
@@ -2525,10 +2528,10 @@ int Arch_Page_Sys::start(Arch_Group **group, lsn_t *start_lsn,
     bool success= wait_for_reset_info_flush(m_request_blk_num_with_lsn);
 
     if (!success)
-      my_printf_error(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA,
-                      ER_DEFAULT(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA),
-                      MYF(ME_ERROR_LOG_ONLY|ME_WARNING));
-
+    {
+      const char* mesg= my_get_err_msg(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA);
+      sql_print_warning("%s", mesg);
+    }
     ut_ad(m_current_group->get_file_count());
   }
 
@@ -2621,10 +2624,10 @@ int Arch_Page_Sys::stop(Arch_Group *group, lsn_t *stop_lsn,
     arch_oper_mutex_enter();
 
     if (!wait_flush_archiver(cbk))
-      my_printf_error(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA,
-                    ER_DEFAULT(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA),
-                    MYF(ME_ERROR_LOG_ONLY|ME_WARNING));
-
+    {
+      const char* mesg= my_get_err_msg(ER_IB_WRN_PAGE_ARCH_FLUSH_DATA);
+      sql_print_warning("%s", mesg);
+    }
     arch_oper_mutex_exit();
     ut_ad(group->validate_info_in_files());
   }

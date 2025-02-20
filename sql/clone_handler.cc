@@ -176,8 +176,9 @@ int Clone_handler::init()
   if (!plugin)
   {
     m_plugin_handle= nullptr;
-    my_printf_error(ER_CLONE_PLUGIN_NOT_LOADED_TRACE,
-        ER_DEFAULT(ER_CLONE_PLUGIN_NOT_LOADED_TRACE), ME_ERROR_LOG_ONLY);
+    const char* mesg= my_get_err_msg(ER_CLONE_PLUGIN_NOT_LOADED_TRACE);
+    my_printf_error(ER_CLONE_PLUGIN_NOT_LOADED_TRACE, "%s", ME_ERROR_LOG_ONLY,
+                    mesg);
     return 1;
   }
 
@@ -263,8 +264,9 @@ int clone_handle_create(const char *plugin_name)
 {
   if (clone_handle)
   {
-    my_printf_error(ER_CLONE_HANDLER_EXIST_TRACE,
-        ER_DEFAULT(ER_CLONE_HANDLER_EXIST_TRACE), ME_ERROR_LOG_ONLY);
+    const char* mesg= my_get_err_msg(ER_CLONE_HANDLER_EXIST_TRACE);
+    my_printf_error(ER_CLONE_HANDLER_EXIST_TRACE, "%s", ME_ERROR_LOG_ONLY,
+                    mesg);
     return 1;
   }
 
@@ -272,8 +274,9 @@ int clone_handle_create(const char *plugin_name)
 
   if (!clone_handle)
   {
-    my_printf_error(ER_CLONE_CREATE_HANDLER_FAIL_TRACE,
-        ER_DEFAULT(ER_CLONE_CREATE_HANDLER_FAIL_TRACE), ME_ERROR_LOG_ONLY);
+    const char* mesg= my_get_err_msg(ER_CLONE_CREATE_HANDLER_FAIL_TRACE);
+    my_printf_error(ER_CLONE_CREATE_HANDLER_FAIL_TRACE, "%s",
+                    ME_ERROR_LOG_ONLY, mesg);
     return 1;
   }
 
@@ -400,9 +403,9 @@ void Clone_handler::begin_xa_operation(THD *thd)
     /* Timeout in 60 seconds */
     if (++count > 60 * 100)
     {
-      my_printf_error(ER_CLONE_CLIENT_TRACE,
-          "Clone blocked XA operation too long: 1 minute(Timeout)",
-          ME_ERROR_LOG_ONLY);
+      const char* format= my_get_err_msg(ER_CLONE_CLIENT_TRACE);
+      my_printf_error(ER_CLONE_CLIENT_TRACE, format, ME_ERROR_LOG_ONLY,
+          "Clone blocked XA operation too long: 1 minute(Timeout)");
       break;
     }
     /* Check for kill/shutdown. */
@@ -462,9 +465,9 @@ bool Clone_handler::block_xa_operation(THD *thd)
     /* Timeout in 60 seconds */
     if (++count > 60 * 100)
     {
-      my_printf_error(ER_CLONE_CLIENT_TRACE,
-          "Clone wait for XA operation too long: 1 minute(Timeout)",
-          ME_ERROR_LOG_ONLY);
+      const char* format= my_get_err_msg(ER_CLONE_CLIENT_TRACE);
+      my_printf_error(ER_CLONE_CLIENT_TRACE, format, ME_ERROR_LOG_ONLY,
+          "Clone wait for XA operation too long: 1 minute(Timeout)");
       ret= false;
       break;
     }

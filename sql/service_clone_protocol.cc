@@ -195,8 +195,9 @@ MYSQL* clone_connect(THD * thd, const char *host, uint32_t port,
              mysql_errno(mysql), mysql_error(mysql));
 
     my_error(ER_CLONE_DONOR, MYF(0), err_buf);
-    my_printf_error(ER_CLONE_CLIENT_TRACE, err_buf, ME_ERROR_LOG_ONLY|ME_NOTE);
-
+    const char* format= my_get_err_msg(ER_CLONE_CLIENT_TRACE);
+    my_printf_error(ER_CLONE_CLIENT_TRACE, format,
+                    ME_ERROR_LOG_ONLY|ME_NOTE, err_buf);
     mysql_close(mysql);
     return nullptr;
   }
@@ -234,8 +235,9 @@ MYSQL* clone_connect(THD * thd, const char *host, uint32_t port,
 
     snprintf(err_buf, sizeof(err_buf), "COM_CLONE failed: %d : %s",
              net->last_errno, net->last_error);
-    my_printf_error(ER_CLONE_CLIENT_TRACE, err_buf, ME_ERROR_LOG_ONLY|ME_NOTE);
-
+    const char* format= my_get_err_msg(ER_CLONE_CLIENT_TRACE);
+    my_printf_error(ER_CLONE_CLIENT_TRACE, format,
+                    ME_ERROR_LOG_ONLY|ME_NOTE, err_buf);
     mysql_close(mysql);
     mysql= nullptr;
   }

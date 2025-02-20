@@ -124,17 +124,18 @@ namespace myclone {
 
 void LogPluginErr(enum loglevel level, int error, const char* string)
 {
-  myf flags = ME_ERROR_LOG_ONLY;
+  myf flags= ME_ERROR_LOG_ONLY;
+  const char* format= my_get_err_msg(error);
   switch (level)
   {
     case ERROR_LEVEL:
-      my_printf_error(error, string, flags);
+      my_printf_error(error, format, flags, string);
       break;
     case WARNING_LEVEL:
-      my_printf_error(error, string, flags|ME_WARNING);
+      my_printf_error(error, format, flags|ME_WARNING, string);
       break;
     case INFORMATION_LEVEL:
-      my_printf_error(error, string, flags|ME_NOTE);
+      my_printf_error(error, format, flags|ME_NOTE, string);
       break;
   }
   return;
