@@ -3703,7 +3703,8 @@ static void innodb_buffer_pool_size_update(THD* thd,st_mysql_sys_var*,void*,
 
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size, buf_pool.size_in_bytes_requested,
   PLUGIN_VAR_RQCMDARG,
-  "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
+  "The size of the memory buffer InnoDB uses to cache data"
+  " and indexes of its tables.",
   nullptr, innodb_buffer_pool_size_update,
   128U << 20, 2U << 20, SIZE_T_MAX, 1U << 20);
 

@@ -1193,9 +1193,9 @@ class buf_pool_t
 #endif
   /** initialized number of block descriptors */
   size_t n_blocks;
-  /** number of blocks that need to be freed in resize() */
+  /** number of blocks that need to be freed in shrink() */
   size_t n_blocks_to_withdraw;
-  /** first block to withdraw in resize() */
+  /** first block to withdraw in shrink() */
   const buf_page_t *first_to_withdraw;
 
   /** amount of memory allocated to the buffer pool and descriptors;
@@ -1255,6 +1255,11 @@ public:
 
   /** Clean up after successful create() */
   void close() noexcept;
+
+  /** Attempt to shrink the buffer pool.
+  @param size   requested innodb_buffer_pool_size in bytes
+  @retval whether the shrinking was completed */
+  ATTRIBUTE_COLD bool shrink(size_t size) noexcept;
 
   /** Resize the buffer pool.
   @param size   requested innodb_buffer_pool_size in bytes

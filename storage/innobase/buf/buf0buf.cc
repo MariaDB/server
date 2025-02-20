@@ -1664,6 +1664,211 @@ ATTRIBUTE_COLD int buf_pool_t::LRU_shrink(buf_page_t *bpage) noexcept
   return 1;
 }
 
+ATTRIBUTE_COLD bool buf_pool_t::shrink(size_t size) noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
+  buf_load_abort();
+
+  if (!n_blocks_to_withdraw)
+  {
+withdraw_done:
+    first_to_withdraw= nullptr;
+    while (buf_page_t *b= UT_LIST_GET_FIRST(withdrawn))
+    {
+      UT_LIST_REMOVE(withdrawn, b);
+      /* satisfy the check in lazy_allocate() */
+      ut_d(memset((void*) b, 0, sizeof(buf_block_t)));
+    }
+    return true;
+  }
+
+  buf_buddy_condense_free(size);
+
+  for (buf_page_t *b= UT_LIST_GET_FIRST(free), *next; b; b= next)
+  {
+    ut_ad(b->in_free_list);
+    ut_ad(!b->in_LRU_list);
+    ut_ad(!b->zip.data);
+    ut_ad(!b->oldest_modification());
+    ut_a(b->state() == buf_page_t::NOT_USED);
+
+    next= UT_LIST_GET_NEXT(list, b);
+
+    if (b >= first_to_withdraw)
+    {
+      UT_LIST_REMOVE(free, b);
+      b->lock.free();
+      UT_LIST_ADD_LAST(withdrawn, b);
+      if (!--n_blocks_to_withdraw)
+        goto withdraw_done;
+    }
+  }
+
+  buf_block_t *block= allocate();
+
+  for (buf_page_t *b= UT_LIST_GET_FIRST(LRU), *next; block && b; b= next)
+  {
+    ut_ad(b->in_LRU_list);
+    ut_a(b->in_file());
+
+    next= UT_LIST_GET_NEXT(LRU, b);
+
+    if (!b->can_relocate())
+      continue;
+
+    const page_id_t id{b->id()};
+    hash_chain &chain= page_hash.cell_get(id.fold());
+    page_hash_latch &hash_lock= page_hash.lock_get(chain);
+    hash_lock.lock();
+
+    {
+      /* relocate flush_list and b->page.zip */
+      bool have_flush_list_mutex= false;
+
+      switch (b->oldest_modification()) {
+      case 2:
+        ut_ad(fsp_is_system_temporary(id.space()));
+        /* fall through */
+      case 0:
+        break;
+      default:
+        mysql_mutex_lock(&flush_list_mutex);
+        switch (ut_d(lsn_t om=) b->oldest_modification()) {
+        case 1:
+          delete_from_flush_list(b);
+          /* fall through */
+        case 0:
+          mysql_mutex_unlock(&flush_list_mutex);
+          break;
+        default:
+          ut_ad(om != 2);
+          have_flush_list_mutex= true;
+        }
+      }
+
+      if (!b->can_relocate())
+      {
+      next:
+        if (have_flush_list_mutex)
+          mysql_mutex_unlock(&flush_list_mutex);
+        hash_lock.unlock();
+        continue;
+      }
+
+      if (UNIV_LIKELY_NULL(b->zip.data) &&
+          will_be_withdrawn(b->zip.data, size))
+      {
+        block= buf_buddy_shrink(b, block);
+        ut_ad(mach_read_from_4(b->zip.data + FIL_PAGE_OFFSET) == id.page_no());
+        if (UNIV_UNLIKELY(!n_blocks_to_withdraw))
+        {
+          if (have_flush_list_mutex)
+            mysql_mutex_unlock(&flush_list_mutex);
+          hash_lock.unlock();
+          if (block)
+            buf_LRU_block_free_non_file_page(block);
+          goto withdraw_done;
+        }
+        if (!block && !(block= allocate()))
+          goto next;
+      }
+
+      if (!b->frame || b < first_to_withdraw)
+        goto next;
+
+      ut_ad(is_uncompressed_current(b));
+
+      byte *const frame= block->page.frame;
+      memcpy_aligned<4096>(frame, b->frame, srv_page_size);
+      b->lock.free();
+      block->page.lock.free();
+      new(&block->page) buf_page_t(*b);
+      block->page.frame= frame;
+
+      if (have_flush_list_mutex)
+      {
+        buf_flush_relocate_on_flush_list(b, &block->page);
+        mysql_mutex_unlock(&flush_list_mutex);
+      }
+    }
+
+    /* relocate LRU list */
+    if (buf_page_t *prev_b= LRU_remove(b))
+      UT_LIST_INSERT_AFTER(LRU, prev_b, &block->page);
+    else
+      UT_LIST_ADD_FIRST(LRU, &block->page);
+
+    if (LRU_old == b)
+      LRU_old= &block->page;
+
+    ut_ad(block->page.in_LRU_list);
+
+    /* relocate page_hash */
+    ut_ad(b == page_hash.get(id, chain));
+    page_hash.replace(chain, b, &block->page);
+
+    if (b->zip.data)
+    {
+      ut_ad(mach_read_from_4(b->zip.data + FIL_PAGE_OFFSET) == id.page_no());
+      b->zip.data= nullptr;
+      /* relocate unzip_LRU list */
+      buf_block_t *old_block= reinterpret_cast<buf_block_t*>(b);
+      ut_ad(old_block->in_unzip_LRU_list);
+      ut_d(old_block->in_unzip_LRU_list= false);
+      ut_d(block->in_unzip_LRU_list= true);
+
+      buf_block_t *prev= UT_LIST_GET_PREV(unzip_LRU, old_block);
+      UT_LIST_REMOVE(unzip_LRU, old_block);
+
+      if (prev)
+        UT_LIST_INSERT_AFTER(unzip_LRU, prev, block);
+      else
+        UT_LIST_ADD_FIRST(unzip_LRU, block);
+    }
+
+    buf_block_modify_clock_inc(block);
+
+#ifdef BTR_CUR_HASH_ADAPT
+    assert_block_ahi_empty_on_init(block);
+    block->index= nullptr;
+    block->n_hash_helps= 0;
+    block->n_fields= 1;
+    block->left_side= true;
+#endif /* BTR_CUR_HASH_ADAPT */
+    hash_lock.unlock();
+
+    ut_d(b->in_LRU_list= false);
+
+    b->set_state(buf_page_t::NOT_USED);
+    UT_LIST_ADD_LAST(withdrawn, b);
+    if (!--n_blocks_to_withdraw)
+      goto withdraw_done;
+
+    block= allocate();
+  }
+
+  mysql_mutex_lock(&flush_list_mutex);
+
+  if (LRU_warned && !UT_LIST_GET_FIRST(free))
+  {
+    LRU_warned_clear();
+    mysql_mutex_unlock(&flush_list_mutex);
+    return false;
+  }
+
+  try_LRU_scan= false;
+  mysql_mutex_unlock(&mutex);
+  page_cleaner_wakeup(true);
+  my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+  mysql_mutex_unlock(&flush_list_mutex);
+  mysql_mutex_lock(&mutex);
+
+  if (!n_blocks_to_withdraw)
+    goto withdraw_done;
+
+  return false;
+}
+
 #ifdef _WIN32
 extern "C" my_bool my_use_large_pages;
 #endif
@@ -1691,18 +1896,17 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   mysql_mutex_lock(&mutex);
 
   const size_t old_size= size_in_bytes;
-  if (old_size != size_in_bytes_requested)
+  if (first_to_withdraw || old_size != size_in_bytes_requested)
   {
     mysql_mutex_unlock(&mutex);
     my_printf_error(ER_WRONG_USAGE,
-                    "innodb_buffer_pool_size changes is already in progress",
+                    "innodb_buffer_pool_size change is already in progress",
                     MYF(0));
     return;
   }
 
   ut_ad(UT_LIST_GET_LEN(withdrawn) == 0);
   ut_ad(n_blocks_to_withdraw == 0);
-  ut_ad(!first_to_withdraw);
 
   if (size == old_size)
   {
@@ -1874,7 +2078,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
     time_t last_message= 0;
 
-  withdraw_retry:
+    do
     {
       time_t now= time(nullptr);
       if (now - last_message > 15)
@@ -1887,212 +2091,11 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
                               old_size >> 20, n_blocks,
                               n_blocks_to_withdraw);
       }
+      if (shrink(size))
+        goto resized;
     }
+    while (!thd_kill_level(thd));
 
-    buf_load_abort();
-
-    if (!n_blocks_to_withdraw)
-    {
-    withdraw_done:
-      while (buf_page_t *b= UT_LIST_GET_FIRST(withdrawn))
-      {
-        UT_LIST_REMOVE(withdrawn, b);
-        /* satisfy the check in lazy_allocate() */
-        ut_d(memset((void*) b, 0, sizeof(buf_block_t)));
-      }
-      first_to_withdraw= nullptr;
-      goto resized;
-    }
-
-    buf_buddy_condense_free(size);
-
-    for (buf_page_t *b= UT_LIST_GET_FIRST(free), *next; b; b= next)
-    {
-      ut_ad(b->in_free_list);
-      ut_ad(!b->in_LRU_list);
-      ut_ad(!b->zip.data);
-      ut_ad(!b->oldest_modification());
-      ut_a(b->state() == buf_page_t::NOT_USED);
-
-      next= UT_LIST_GET_NEXT(list, b);
-
-      if (b >= first_to_withdraw)
-      {
-        UT_LIST_REMOVE(free, b);
-        b->lock.free();
-        UT_LIST_ADD_LAST(withdrawn, b);
-        if (!--n_blocks_to_withdraw)
-          goto withdraw_done;
-      }
-    }
-
-    buf_block_t *block= allocate();
-
-    for (buf_page_t *b= UT_LIST_GET_FIRST(LRU), *next; block && b; b= next)
-    {
-      ut_ad(b->in_LRU_list);
-      ut_a(b->in_file());
-
-      next= UT_LIST_GET_NEXT(LRU, b);
-
-      if (!b->can_relocate())
-        continue;
-
-      const page_id_t id{b->id()};
-      hash_chain &chain= page_hash.cell_get(id.fold());
-      page_hash_latch &hash_lock= page_hash.lock_get(chain);
-      hash_lock.lock();
-
-      {
-        /* relocate flush_list and b->page.zip */
-        bool have_flush_list_mutex= false;
-
-        switch (b->oldest_modification()) {
-        case 2:
-          ut_ad(fsp_is_system_temporary(id.space()));
-          /* fall through */
-        case 0:
-          break;
-        default:
-          mysql_mutex_lock(&flush_list_mutex);
-          switch (ut_d(lsn_t om=) b->oldest_modification()) {
-          case 1:
-            delete_from_flush_list(b);
-            /* fall through */
-          case 0:
-            mysql_mutex_unlock(&flush_list_mutex);
-            break;
-          default:
-            ut_ad(om != 2);
-            have_flush_list_mutex= true;
-          }
-        }
-
-        if (!b->can_relocate())
-        {
-        next:
-          if (have_flush_list_mutex)
-            mysql_mutex_unlock(&flush_list_mutex);
-          hash_lock.unlock();
-          continue;
-        }
-
-        if (UNIV_LIKELY_NULL(b->zip.data) &&
-            will_be_withdrawn(b->zip.data, size))
-        {
-          block= buf_buddy_shrink(b, block);
-          ut_ad(mach_read_from_4(b->zip.data + FIL_PAGE_OFFSET) ==
-                id.page_no());
-          if (UNIV_UNLIKELY(!n_blocks_to_withdraw))
-          {
-            if (have_flush_list_mutex)
-              mysql_mutex_unlock(&flush_list_mutex);
-            hash_lock.unlock();
-            if (block)
-              buf_LRU_block_free_non_file_page(block);
-            goto withdraw_done;
-          }
-          if (!block && !(block= allocate()))
-            goto next;
-        }
-
-        if (!b->frame || b < first_to_withdraw)
-          goto next;
-
-        ut_ad(is_uncompressed_current(b));
-
-        byte *const frame= block->page.frame;
-        memcpy_aligned<4096>(frame, b->frame, srv_page_size);
-        b->lock.free();
-        block->page.lock.free();
-        new(&block->page) buf_page_t(*b);
-        block->page.frame= frame;
-
-        if (have_flush_list_mutex)
-        {
-          buf_flush_relocate_on_flush_list(b, &block->page);
-          mysql_mutex_unlock(&flush_list_mutex);
-        }
-      }
-
-      /* relocate LRU list */
-      if (buf_page_t *prev_b= LRU_remove(b))
-        UT_LIST_INSERT_AFTER(LRU, prev_b, &block->page);
-      else
-        UT_LIST_ADD_FIRST(LRU, &block->page);
-
-      if (LRU_old == b)
-        LRU_old= &block->page;
-
-      ut_ad(block->page.in_LRU_list);
-
-      /* relocate page_hash */
-      ut_ad(b == page_hash.get(id, chain));
-      page_hash.replace(chain, b, &block->page);
-
-      if (b->zip.data)
-      {
-        ut_ad(mach_read_from_4(b->zip.data + FIL_PAGE_OFFSET) == id.page_no());
-        b->zip.data= nullptr;
-        /* relocate unzip_LRU list */
-        buf_block_t *old_block= reinterpret_cast<buf_block_t*>(b);
-        ut_ad(old_block->in_unzip_LRU_list);
-        ut_d(old_block->in_unzip_LRU_list= false);
-        ut_d(block->in_unzip_LRU_list= true);
-
-        buf_block_t *prev= UT_LIST_GET_PREV(unzip_LRU, old_block);
-        UT_LIST_REMOVE(unzip_LRU, old_block);
-
-        if (prev)
-          UT_LIST_INSERT_AFTER(unzip_LRU, prev, block);
-        else
-          UT_LIST_ADD_FIRST(unzip_LRU, block);
-      }
-
-      buf_block_modify_clock_inc(block);
-
-#ifdef BTR_CUR_HASH_ADAPT
-      assert_block_ahi_empty_on_init(block);
-      block->index= nullptr;
-      block->n_hash_helps= 0;
-      block->n_fields= 1;
-      block->left_side= true;
-#endif /* BTR_CUR_HASH_ADAPT */
-      hash_lock.unlock();
-
-      ut_d(b->in_LRU_list= false);
-
-      b->set_state(buf_page_t::NOT_USED);
-      UT_LIST_ADD_LAST(withdrawn, b);
-      if (!--n_blocks_to_withdraw)
-        goto withdraw_done;
-
-      block= allocate();
-    }
-
-    mysql_mutex_lock(&flush_list_mutex);
-
-    if (LRU_warned && !UT_LIST_GET_FIRST(free))
-    {
-      LRU_warned_clear();
-      mysql_mutex_unlock(&flush_list_mutex);
-      goto withdraw_abort;
-    }
-
-    try_LRU_scan= false;
-    mysql_mutex_unlock(&mutex);
-    page_cleaner_wakeup(true);
-    my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
-    mysql_mutex_unlock(&flush_list_mutex);
-    mysql_mutex_lock(&mutex);
-
-    if (!n_blocks_to_withdraw)
-      goto withdraw_done;
-
-    if (!thd_kill_level(thd))
-      goto withdraw_retry;
-
-  withdraw_abort:
     ut_ad(size_in_bytes > size_in_bytes_requested);
     n_blocks_to_withdraw= 0;
     first_to_withdraw= nullptr;
