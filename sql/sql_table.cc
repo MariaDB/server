@@ -5977,11 +5977,13 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                                     TABLE_LIST *out_table,
                                     MDL_ticket *mdl_ticket)
 {
+  DBUG_ASSERT(!thd->rgi_slave); // slave won't use global temporary tables
+
   // First, lookup in tmp tables list for cases like "t join t"
   // This also could happen if tl->open_type is OT_BASE_ONLY
   TABLE *table= NULL;
   if (thd->temporary_tables
-      && thd->temporary_tables->global_temporary_tables_count) // TODO this may be buggy on slave
+      && thd->temporary_tables->global_temporary_tables_count)
   {
     // TODO test table reopen (see "Can't reopen" in main.reopen_temp_table)
     TMP_TABLE_SHARE *share= NULL;
@@ -6051,6 +6053,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
     if (thd->mdl_context.clone_ticket(&share->mdl_request))
       return TRUE;
     table->reginfo.lock_type= TL_IGNORE;
+    share->table_creation_was_logged= 1;
   }
 
   thd->used|= Sql_used::THREAD_SPECIFIC_USED;

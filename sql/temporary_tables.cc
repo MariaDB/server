@@ -1310,9 +1310,8 @@ void THD::close_temporary_table(TABLE *table)
 
 int THD::commit_global_tmp_tables()
 {
-  if (rgi_slave // global temporary tables are not used on slave
-      || !temporary_tables
-      || !temporary_tables->global_temporary_tables_count)
+  DBUG_ASSERT(!rgi_slave);
+  if (!temporary_tables || !temporary_tables->global_temporary_tables_count)
     return 0;
 
   int error= 0;
