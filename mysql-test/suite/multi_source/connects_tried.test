@@ -1,0 +1,133 @@
+# MDEV-35304: Test the `Connects_Tried` feature
+#
+# Two connections with different retry frequencies tests their
+# separate counters in parallel multi-source (SHOW SLAVE [name] STATUS).
+#
+# Note: nearly all SELECT results are timing-sensitive,
+# they therefore list unexpected rows because.
+
+--source include/have_binlog_format_mixed.inc # The test is agnostic of binlog formats.
+# `rpl_*.inc` (still) expects `server_1` be `master` and `server_2` be `slave`.
+--let $rpl_server_count= 3
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+--let $rpl_server_number= 3
+--source include/rpl_stop_server.inc
+
+--connection slave
+CHANGE MASTER TO master_connect_retry=1;
+--replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3
+--eval CHANGE MASTER 'named' TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_3, master_user='root', master_ssl_verify_server_cert=0, master_connect_retry=2
+--echo # `Connects_Tried` is 0 before connections begin.
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+
+--disable_warnings
+START ALL SLAVES; # will fail because the masters are down
+# CR_CONN_HOST_ERROR
+--let $slave_io_errno= 2003
+--let $slave_io_error_is_nonfatal= 1
+SET @@SESSION.default_master_connection= 'named';
+--source include/wait_for_slave_io_error.inc
+--let $slave_io_error_is_nonfatal= 1
+SET @@SESSION.default_master_connection= '';
+--source include/wait_for_slave_io_error.inc
+--enable_warnings
+
+CREATE TEMPORARY TABLE status_begin AS
+  SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+--echo # `Connects_Tried` is 1 immediately after connections begin.
+SELECT Connection_name, Connects_Tried
+  FROM status_begin
+  WHERE Connects_Tried <= 0;
+
+DO SLEEP(3);
+--echo # `Connects_Tried` increments (at least) 3 for connection '' and 1 for 'named'.
+CREATE TEMPORARY TABLE status_sleep AS
+  SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+SELECT *
+  FROM status_begin JOIN status_sleep USING(Connection_name)
+  WHERE status_sleep.Connects_Tried - status_begin.Connects_Tried <
+    IF(LENGTH(Connection_name), 1, 3);
+
+--echo # Boot replication up and assert final count
+--let $rpl_server_number= 1
+--source include/rpl_start_server.inc
+--let $rpl_server_number= 3
+--source include/rpl_start_server.inc
+--connection slave
+# `wait_for_slave_io_to_start.inc` fails if the IO thread has an error.
+--let $slave_param= Slave_IO_Running
+--let $slave_param_value= Yes
+SET @@SESSION.default_master_connection= 'named';
+--source include/wait_for_slave_param.inc
+SET @@SESSION.default_master_connection= '';
+--source include/wait_for_slave_param.inc
+
+CREATE TEMPORARY TABLE status_end AS
+  SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+--echo # `Connects_Tried` increments (at least) 1 for each connection.
+SELECT *
+  FROM status_sleep JOIN status_end USING(Connection_name)
+  WHERE status_end.Connects_Tried <= status_sleep.Connects_Tried;
+
+DO SLEEP(2);
+--echo # `Connects_Tried` does not increment after connection establishes.
+CREATE TEMPORARY TABLE status_after AS
+  SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+SELECT *
+  FROM status_end JOIN status_after USING(Connection_name)
+  WHERE status_after.Connects_Tried <> status_end.Connects_Tried;
+
+--echo # Conventional views
+--let $connects_tried= query_get_value("SHOW SLAVE STATUS", Connects_Tried, 1)
+--let $connects_tried_named= query_get_value("SHOW SLAVE 'named' STATUS", Connects_Tried, 1)
+--replace_result $connects_tried connects_tried $connects_tried_named connects_tried_named
+SELECT * FROM status_end;
+--let $connects_tried= query_get_value("SHOW ALL SLAVES STATUS", Connects_Tried, 1)
+--let $connects_tried_named= query_get_value("SHOW ALL SLAVES STATUS", Connects_Tried, 2)
+--replace_result $connects_tried connects_tried $connects_tried_named connects_tried_named
+SELECT * FROM status_end;
+
+--disable_warnings
+STOP ALL SLAVES;
+SET @@SESSION.default_master_connection= 'named';
+--source include/wait_for_slave_to_stop.inc
+SET @@SESSION.default_master_connection= '';
+--source include/wait_for_slave_to_stop.inc
+--enable_warnings
+--echo # STOP SLAVE does not reset `Connects_Tried`.
+# That is, so the user can check this stat without leaving the slave spinning.
+CREATE TEMPORARY TABLE status_stop AS
+  SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+SELECT *
+  FROM status_after JOIN status_stop USING(Connection_name)
+  WHERE status_stop.Connects_Tried <> status_after.Connects_Tried;
+
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+--echo # START SLAVE recounts `Connects_Tried` from 1 (for the restarted connection only).
+CREATE TEMPORARY TABLE status_restart AS
+  SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+SELECT *
+  FROM status_restart JOIN status_stop USING(Connection_name)
+  WHERE status_restart.Connects_Tried NOT BETWEEN IF(
+    LENGTH(Connection_name), status_stop.Connects_Tried, 1
+  ) AND status_stop.Connects_Tried;
+
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+RESET SLAVE;
+--echo # RESET SLAVE resets `Connects_Tried` to 0 (for the resetted connection only).
+CREATE TEMPORARY TABLE status_reset AS
+  SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+SELECT *
+  FROM status_reset JOIN status_restart USING(Connection_name)
+  WHERE status_reset.Connects_Tried <>
+    IF(LENGTH(Connection_name), status_restart.Connects_Tried, 0);
+
+--echo # Cleanup
+RESET SLAVE 'named' ALL;
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
