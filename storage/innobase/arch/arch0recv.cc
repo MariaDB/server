@@ -58,15 +58,17 @@ dberr_t Arch_Page_Sys::recover()
 
   if (err != DB_SUCCESS)
   {
-    sql_print_error(ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED));
+    const char* mesg= my_get_err_msg(ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED);
+    sql_print_error("%s", mesg);
     return err;
   }
-
   err= arch_recv.load_archiver();
 
   if (err != DB_SUCCESS)
-    sql_print_error(ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED));
-
+  {
+    const char* mesg= my_get_err_msg(ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED);
+    sql_print_error("%s", mesg);
+  }
   return err;
 }
 
@@ -206,8 +208,9 @@ void Arch_Page_Sys::Recovery::read_group_dirs(const std::string file_path)
   }
   catch (const std::exception &)
   {
-    sql_print_error(ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT),
-                    ARCH_PAGE_FILE);
+    const char* format= my_get_err_msg(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT);
+    my_printf_error(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT, format,
+                    MYF(ME_ERROR_LOG_ONLY), ARCH_PAGE_FILE);
     return;
   }
 }
@@ -249,8 +252,9 @@ void Arch_Page_Sys::Recovery::read_group_files(const std::string dir_path,
   }
   catch (const std::exception &)
   {
-    sql_print_error(ER_DEFAULT(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT),
-                    ARCH_PAGE_FILE);
+    const char* format= my_get_err_msg(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT);
+    my_printf_error(ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT, format,
+                    MYF(ME_ERROR_LOG_ONLY), ARCH_PAGE_FILE);
     return;
   }
 }

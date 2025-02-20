@@ -1758,7 +1758,7 @@ Sql_cmd_clone::Sql_cmd_clone(LEX_USER *user_info, ulong port,
 
 bool Sql_cmd_clone::execute(THD *thd)
 {
-  const bool is_replace = (m_data_dir.str == nullptr);
+  const bool is_replace= (m_data_dir.str == nullptr);
 
   if (is_local())
     DBUG_PRINT("admin", ("CLONE type = local, DIR = %s", m_data_dir.str));
@@ -1777,7 +1777,7 @@ bool Sql_cmd_clone::execute(THD *thd)
     return true;
 
   assert(m_clone == nullptr);
-  m_clone = clone_plugin_lock(thd, &m_plugin);
+  m_clone= clone_plugin_lock(thd, &m_plugin);
 
   if (m_clone == nullptr)
   {
@@ -1788,7 +1788,7 @@ bool Sql_cmd_clone::execute(THD *thd)
   if (is_local())
   {
     assert(!is_replace);
-    auto err = m_clone->clone_local(thd, m_data_dir.str);
+    auto err= m_clone->clone_local(thd, m_data_dir.str);
     clone_plugin_unlock(thd, m_plugin);
 
     if (err != 0)
@@ -1800,49 +1800,54 @@ bool Sql_cmd_clone::execute(THD *thd)
 
   assert(!is_local());
 
-  int ssl_mode = 1;
+  int ssl_mode= 1;
 
   if (thd->lex->account_options.ssl_type == SSL_TYPE_NONE)
-    ssl_mode = 0;
+    ssl_mode= 0;
 
-  auto err = m_clone->clone_remote_client(
+  auto err= m_clone->clone_remote_client(
       thd, m_host.str, static_cast<uint>(m_port), m_user.str, m_passwd.str,
       m_data_dir.str, ssl_mode);
   clone_plugin_unlock(thd, m_plugin);
-  m_clone = nullptr;
+  m_clone= nullptr;
 
   /* Set active VIO as clone plugin might have reset it */
   thd->set_active_vio(thd->net.vio);
 
-  if (err != 0) {
+  if (err != 0)
+  {
     /* Log donor error number and message. */
-    if (err == ER_CLONE_DONOR) {
-      const char *donor_mesg = nullptr;
-      int donor_error = 0;
-      const bool success =
+    if (err == ER_CLONE_DONOR)
+    {
+      const char *donor_mesg= nullptr;
+      int donor_error= 0;
+      const bool success=
           Clone_handler::get_donor_error(donor_error, donor_mesg);
-      if (success && donor_error != 0 && donor_mesg != nullptr) {
+      if (success && donor_error != 0 && donor_mesg != nullptr)
+      {
         char info_mesg[128];
         snprintf(info_mesg, 128, "Clone Donor error : %d : %s", donor_error,
                  donor_mesg);
-        my_printf_error(ER_CLONE_CLIENT_TRACE, info_mesg,
-                        ME_ERROR_LOG_ONLY | ME_NOTE);
+        const char* format= my_get_err_msg(ER_CLONE_CLIENT_TRACE);
+        sql_print_information(format, info_mesg);
       }
     }
     return true;
   }
 
   /* Check for KILL after setting active VIO */
-  if (!is_replace && thd->killed != NOT_KILLED) {
+  if (!is_replace && thd->killed != NOT_KILLED)
+  {
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     return true;
   }
 
   /* Restart server after successfully cloning to current data directory. */
-  if (is_replace) {
+  if (is_replace)
+  {
     /* Shutdown server if restart failed. */
-    my_printf_error(ER_CLONE_SHUTDOWN_TRACE,
-        ER_DEFAULT(ER_CLONE_SHUTDOWN_TRACE), ME_ERROR_LOG_ONLY | ME_NOTE);
+    const char* mesg= my_get_err_msg(ER_CLONE_SHUTDOWN_TRACE);
+    sql_print_information("%s", mesg);
 
     Diagnostics_area *da= thd->get_stmt_da();
     Warning_info shutdown_wi(thd->query_id, false, true);

@@ -12410,36 +12410,6 @@ ER_CLONE_SERVER_TRACE
   eng "Server: %.512s."
 ER_CLONE_SHUTDOWN_TRACE
   eng "Clone shutting down server as RESTART failed. Please start server to complete clone operation."
-ER_IB_CLONE_INTERNAL
-  eng "%s"
-ER_IB_CLONE_TIMEOUT
-  eng "%s"
-ER_IB_CLONE_STATUS_FILE
-  eng "%s"
-ER_IB_CLONE_SQL
-  eng "%s"
-ER_IB_CLONE_VALIDATE
-  eng "%s"
-ER_IB_CLONE_PUNCH_HOLE
-  eng "%s"
-ER_IB_CLONE_GTID_PERSIST
-  eng "%s"
-ER_IB_CLONE_START_STOP
-  eng "%s"
-ER_IB_CLONE_OPERATION
-  eng "%s"
-ER_IB_CLONE_RESTART
-  eng "%s"
-ER_IB_CLONE_USER_DATA
-  eng "Clone removing all user data for provisioning: %s"
-ER_IB_CLONE_NON_INNODB_TABLE
-  eng "Non innodb table: %s.%s is not cloned and is empty."
-ER_IB_MSG_CLONE_DDL_NTFN
-  eng "Clone DDL Notification: %s"
-ER_IB_MSG_CLONE_DDL_APPLY
-  eng "Clone DDL APPLY: %s"
-ER_IB_MSG_CLONE_DDL_INVALIDATE
-  eng "Clone DDL Invalidate : %s"
 ER_PATH_IN_DATADIR
   eng "Path is within the current data directory '%-.192s'"
 ER_IB_MSG_PAGE_ARCH_NO_RESET_POINTS
