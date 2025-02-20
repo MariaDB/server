@@ -1,0 +1,241 @@
+--echo #
+--echo # MDEV-13817 add support for oracle's left join syntax - the ( + )
+--echo #
+
+SET sql_mode=ORACLE;
+
+
+CREATE TABLE tj1(a int, b int);
+CREATE TABLE tj2(c int, d int);
+CREATE TABLE tj3(e int, f int);
+CREATE TABLE tj4(b int, c int);
+INSERT INTO tj1 VALUES (1, 1);
+INSERT INTO tj1 VALUES (2, 2);
+INSERT INTO tj2 VALUES (2, 3);
+INSERT INTO tj3 VALUES (1, 4);
+
+--echo #
+--echo # Basic test
+--echo #
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+);
+
+--echo #
+--echo # Compare marked with literal
+--echo #
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d(+) > 4;
+
+--echo #
+--echo # Use both marked and unmarked field in the same condition
+--echo #
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d = 3;
+
+--echo #
+--echo # Use both marked and unmarked field in OR condition
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj2,tj1 WHERE tj1.a = tj2.c(+) OR tj2.d=4;
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj3.e(+) AND (tj1.a = tj2.c(+) OR tj2.d=4);
+
+--echo #
+--echo # Use unmarked fields in OR condition
+--echo #
+SELECT * FROM tj2,tj1 WHERE tj1.a = tj2.c(+) AND (tj2.d=3 OR tj2.d * 2=3);
+
+--echo #
+--echo # Use marked fields in OR condition when all fields are marked
+--echo #
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND (tj2.d(+)=3 OR tj2.c(+)=1);
+
+--echo #
+--echo # Use more than one marked table per condition
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) + tj3.e(+);
+
+--echo #
+--echo # Use different tables per `AND` operand
+--echo #
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj1.a = tj3.e(+);
+
+--echo #
+--echo # Ensure table dependencies are properly resolved
+--echo #
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj3.e AND tj1.a + 1 = tj2.c(+);
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj2.c = tj3.e(+) + 1;
+SELECT * FROM tj1, tj2, tj3 WHERE tj1.a + tj3.e = tj2.c(+);
+
+--echo #
+--echo # Cyclic dependency of tables
+--echo # ORA-01416 two tables cannot be outer-joined to each other
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj2.c = tj3.e(+) + 1 AND tj3.e = tj1.a(+);
+
+--echo #
+--echo # Table not referenced in where condition (must be cross-joined)
+--echo #
+SELECT * FROM tj1, tj2, tj3 WHERE tj1.a + 1 = tj2.c(+);
+
+--echo #
+--echo # Alias
+--echo #
+SELECT * FROM tj1, tj2 b WHERE tj1.a + 1 = b.c(+);
+
+--echo #
+--echo # Subselect
+--echo #
+SELECT * FROM tj1, (SELECT * from tj2) b WHERE tj1.a + 1 = b.c(+);
+SELECT * FROM tj1, (SELECT * FROM tj1, tj2 d WHERE tj1.a = d.c(+)) b WHERE tj1.a + 1 = b.c(+);
+
+--echo #
+--echo # Single table
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1 WHERE tj1.a(+) = 1;
+
+--echo #
+--echo # Self outer join
+--echo #
+SELECT * FROM tj1 a, tj1 b WHERE a.a + 1 = b.a(+);
+
+--echo #
+--echo # Self outer join without alias
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1, tj2 WHERE tj1.a + 1 = tj1.a(+);
+
+--echo #
+--echo # Outer join condition is independent of other tables
+--echo # In this case we need to restrict the marked table(s) to appear
+--echo # after the unmarked table(s) during topological sort. This test
+--echo # ensures that the topological sort is working correctly.
+--echo #
+SELECT * FROM tj1, tj2 WHERE tj2.c(+) = 1;
+SELECT * FROM tj1, tj2 WHERE tj1.a(+) = 1;
+
+--echo #
+--echo # Outer join in 'IN' condition
+--echo # ORA-01719
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+), tj2.d(+));
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+), tj2.d(+));
+
+--echo #
+--echo # Outer join in 'IN' condition with a single expression
+--echo # This is also allowed in oracle since the expression is
+--echo # can be simplified to 'equal' or 'not equal' condition
+--echo #
+SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+));
+SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+));
+
+--echo #
+--echo # Oracle outer join not in WHERE clause
+--echo #
+--error ER_PARSE_ERROR
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c GROUP BY tj2.c(+);
+--error ER_PARSE_ERROR
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c GROUP BY tj2.c HAVING tj2.c(+) > 1;
+--error ER_PARSE_ERROR
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c ORDER BY tj2.c(+);
+--error ER_PARSE_ERROR
+SELECT tj2.c(+) FROM tj2;
+
+--echo #
+--echo # Mix ANSI and Oracle outer join
+--echo # ORA-25156
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1 LEFT JOIN tj2 ON tj2.c = 1 WHERE tj1.a = tj2.c(+);
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1 INNER JOIN tj2 ON tj2.c = 1 WHERE tj1.a = tj2.c(+);
+--error ER_INVALID_USE_OF_ORA_JOIN
+SELECT * FROM tj1 NATURAL JOIN tj2 WHERE tj1.a = tj2.c(+);
+
+--echo #
+--echo # View with oracle outer join
+--echo #
+CREATE VIEW v1 AS SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c(+);
+SELECT * FROM v1;
+
+--echo #
+--echo # Cursor with oracle outer join
+--echo #
+DELIMITER $$;
+DECLARE
+  CURSOR c1 IS SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c(+);
+BEGIN
+  FOR r1 IN c1 LOOP
+    SELECT r1.a || ' ' || r1.c;
+  END LOOP;
+END
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Marking ROW type
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  v1 ROW (a INT, b INT);
+BEGIN
+  SELECT * FROM tj1 WHERE tj1.a = v1.a(+);
+END
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Unspecified table used in WHERE clause that contains (+)
+--echo #
+--error ER_BAD_TABLE_ERROR
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj3.c(+);
+
+--echo #
+--echo # '.' prefixed table name
+--echo #
+SELECT * FROM tj1, tj2 WHERE tj1.a = .tj2.c(+);
+
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE tj1(a int, b int);
+INSERT INTO tj1 VALUES (3, 3);
+INSERT INTO tj1 VALUES (4, 4);
+
+--echo #
+--echo # DB qualifed ident with oracle outer join (aliased)
+--echo #
+SELECT * FROM test.tj2 a, tj1 WHERE a.c(+) = tj1.a - 1;
+
+--echo #
+--echo # DB qualifed ident with oracle outer join (non-aliased)
+--echo #
+SELECT * FROM test.tj2, tj1 WHERE test.tj2.c(+) = tj1.a - 1;
+
+--echo #
+--echo # DB qualifed ident with oracle outer join (aliased but use table name)
+--echo #
+--error ER_BAD_TABLE_ERROR
+SELECT * FROM test.tj2 a, tj1 WHERE test.tj2.c(+) = tj1.a - 1;
+
+USE test;
+
+--echo #
+--echo # UPDATE with oracle outer join
+--echo #
+UPDATE tj1, tj2 SET tj1.a = tj2.c WHERE tj1.a = tj2.c(+);
+SELECT * FROM tj1;
+
+--echo #
+--echo # DELETE with oracle outer join
+--echo #
+DELETE tj1 FROM tj1, tj2 WHERE tj1.b(+) = tj2.c;
+SELECT * FROM tj1;
+
+DROP DATABASE db1;
+DROP VIEW v1;
+DROP TABLE tj4;
+DROP TABLE tj3;
+DROP TABLE tj2;
+DROP TABLE tj1;
