@@ -1413,8 +1413,13 @@ exit:
   if (table_list->table && table_list->table->s->tmp_table != NO_TMP_TABLE)
   {
     TMP_TABLE_SHARE *share= (TMP_TABLE_SHARE*)table_list->table->s;
-    if (share->from_share && table_list->table->file->records() == 0)
-      thd->drop_temporary_table(table_list->table, NULL, true);
+    if (share->from_share)
+    {
+      if (table_list->table->file->info(HA_STATUS_VARIABLE)
+          || (table_list->table->file->records() == 0
+              && thd->drop_temporary_table(table_list->table, NULL, true)))
+        error= TRUE;
+    }
   }
 
   close_thread_tables(thd);
