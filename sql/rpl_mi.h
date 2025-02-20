@@ -257,6 +257,8 @@ class Master_info : public Slave_reporting_capability
   uint connect_retry;
   /** per-slave @ref master_retry_count */
   ulong retry_count;
+  /** count of connects the most-recent (or the current) connection has tried */
+  ulong connects_tried;
 #ifndef DBUG_OFF
   int events_till_disconnect;
 
