@@ -1205,6 +1205,8 @@ class buf_pool_t
 public:
   /** The requested innodb_buffer_pool_size */
   size_t size_in_bytes_requested;
+  /** The minimum allowed innodb_buffer_pool_size */
+  size_t size_in_bytes_min;
   /** The maximum allowed innodb_buffer_pool_size */
   size_t size_in_bytes_max;
 

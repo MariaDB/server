@@ -3701,12 +3701,26 @@ static void innodb_buffer_pool_size_update(THD* thd,st_mysql_sys_var*,void*,
   buf_pool.resize(*static_cast<const size_t*>(save), thd);
 }
 
+static void innodb_buffer_pool_size_min_update(THD*,st_mysql_sys_var*,void*,
+                                               const void *save)
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  buf_pool.size_in_bytes_min= *static_cast<const size_t*>(save);
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size, buf_pool.size_in_bytes_requested,
   PLUGIN_VAR_RQCMDARG,
   "The size of the memory buffer InnoDB uses to cache data"
   " and indexes of its tables.",
   nullptr, innodb_buffer_pool_size_update,
   128U << 20, 2U << 20, SIZE_T_MAX, 1U << 20);
+
+static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_min, buf_pool.size_in_bytes_min,
+  PLUGIN_VAR_RQCMDARG,
+  "Minimum innodb_buffer_pool_size",
+  nullptr, innodb_buffer_pool_size_min_update, 0, 0, SIZE_T_MAX,
+  innodb_buffer_pool_extent_size);
 
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_max, buf_pool.size_in_bytes_max,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -3807,8 +3821,12 @@ static int innodb_init_params()
       ? ut_calc_align(innodb_buffer_pool_size * 2,
                       innodb_buffer_pool_extent_size)
       : (SIZE_T_MAX / 2) + 1;
+  if (!buf_pool.size_in_bytes_min ||
+      buf_pool.size_in_bytes_min > buf_pool.size_in_bytes_max)
+    buf_pool.size_in_bytes_min= innodb_buffer_pool_size;
 
   MYSQL_SYSVAR_NAME(buffer_pool_size).max_val= buf_pool.size_in_bytes_max;
+  MYSQL_SYSVAR_NAME(buffer_pool_size_min).max_val= buf_pool.size_in_bytes_max;
 
   if (innodb_buffer_pool_size < min)
   {
@@ -19853,6 +19871,7 @@ static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tabl
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
+  MYSQL_SYSVAR(buffer_pool_size_min),
   MYSQL_SYSVAR(buffer_pool_size_max),
   MYSQL_SYSVAR(buffer_pool_chunk_size),
   MYSQL_SYSVAR(buffer_pool_filename),
