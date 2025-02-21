@@ -229,6 +229,73 @@ struct FVector
   }
 #endif
 
+#ifdef POWER_IMPLEMENTATION
+  /************* POWERPC *****************************************************/
+  static constexpr size_t POWER_bytes = 128 / 8; // Assume 128-bit vector width
+  static constexpr size_t POWER_dims = POWER_bytes / sizeof(int16_t);
+
+  POWER_IMPLEMENTATION
+  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  {
+    long sum = 0;
+    vector long ll_sum = {0, 0};
+
+    size_t base = (len / 8) * 8; // Process 8 elements per iteration
+
+    for (size_t i = 0; i < base; i += 8)
+    {
+      vector short x = vec_ld(0, &v1[i]);
+      vector short y = vec_ld(0, &v2[i]);
+
+      // Convert int16_t -> int32_t
+      vector int x_hi = __builtin_vec_vupkhsh(x);
+      vector int x_lo = __builtin_vec_vupklsh(x);
+      vector int y_hi = __builtin_vec_vupkhsh(y);
+      vector int y_lo = __builtin_vec_vupklsh(y);
+
+      // Vectorized multiplication
+      vector int product_hi = x_hi * y_hi;
+      vector int product_lo = x_lo * y_lo;
+
+      // Convert int32_t -> int64_t for accumulation
+      vector long llhi1 = __builtin_vec_vupkhsw(product_hi);
+      vector long llhi2 = __builtin_vec_vupklsw(product_hi);
+      vector long lllo1 = __builtin_vec_vupkhsw(product_lo);
+      vector long lllo2 = __builtin_vec_vupklsw(product_lo);
+
+      ll_sum += llhi1 + llhi2 + lllo1 + lllo2;
+    }
+
+    // Reduce the vector sum
+    sum += ll_sum[0] + ll_sum[1];
+
+    // Process remaining elements
+    for (size_t i = base; i < len; ++i)
+      sum += float(v1[i]) * float(v2[i]);
+
+    return static_cast<float>(sum);
+  }
+
+  POWER_IMPLEMENTATION
+  static size_t alloc_size(size_t n)
+  {
+    return alloc_header + MY_ALIGN(n * 2, POWER_bytes) + POWER_bytes - 1;
+  }
+
+  POWER_IMPLEMENTATION
+  static FVector *align_ptr(void *ptr)
+  {
+    return (FVector *)(MY_ALIGN(((intptr)ptr) + alloc_header, POWER_bytes) - alloc_header);
+  }
+
+  POWER_IMPLEMENTATION
+  void fix_tail(size_t vec_len)
+  {
+    bzero(dims + vec_len, (MY_ALIGN(vec_len, POWER_dims) - vec_len) * 2);
+  }
+#undef DEFAULT_IMPLEMENTATION
+#endif
+
   /************* no-SIMD default ******************************************/
 #ifdef DEFAULT_IMPLEMENTATION
   DEFAULT_IMPLEMENTATION
