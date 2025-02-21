@@ -229,6 +229,58 @@ struct FVector
   }
 #endif
 
+#ifdef POWER_IMPLEMENTATION
+  /************* POWERPC *****************************************************/
+  static constexpr size_t POWER_bytes= 128 / 8; // Assume 128-bit vector width
+  static constexpr size_t POWER_dims= POWER_bytes / sizeof(int16_t);
+
+  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  {
+    // Using vector long long for int64_t accumulation
+    vector long long ll_sum= {0, 0};
+    // Round up to process full vector, including padding
+    size_t base= ((len + POWER_dims - 1) / POWER_dims) * POWER_dims;
+
+    for (size_t i= 0; i < base; i+= POWER_dims)
+    {
+      vector short x= vec_ld(0, &v1[i]);
+      vector short y= vec_ld(0, &v2[i]);
+
+      // Vectorized multiplication using vec_mule() and vec_mulo()
+      vector int product_hi= vec_mule(x, y);
+      vector int product_lo= vec_mulo(x, y);
+
+      // Extend vector int to vector long long for accumulation
+      vector long long llhi1= vec_unpackh(product_hi);
+      vector long long llhi2= vec_unpackl(product_hi);
+      vector long long lllo1= vec_unpackh(product_lo);
+      vector long long lllo2= vec_unpackl(product_lo);
+
+      ll_sum+= llhi1 + llhi2 + lllo1 + lllo2;
+    }
+
+    return static_cast<float>(static_cast<int64_t>(ll_sum[0]) +
+                              static_cast<int64_t>(ll_sum[1]));
+  }
+
+  static size_t alloc_size(size_t n)
+  {
+    return alloc_header + MY_ALIGN(n * 2, POWER_bytes) + POWER_bytes - 1;
+  }
+
+  static FVector *align_ptr(void *ptr)
+  {
+    return (FVector*)(MY_ALIGN(((intptr)ptr) + alloc_header, POWER_bytes)
+                    - alloc_header);
+  }
+
+  void fix_tail(size_t vec_len)
+  {
+    bzero(dims + vec_len, (MY_ALIGN(vec_len, POWER_dims) - vec_len) * 2);
+  }
+#undef DEFAULT_IMPLEMENTATION
+#endif
+
   /************* no-SIMD default ******************************************/
 #ifdef DEFAULT_IMPLEMENTATION
   DEFAULT_IMPLEMENTATION
