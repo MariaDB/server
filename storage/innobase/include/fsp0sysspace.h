@@ -266,7 +266,8 @@ extern SysTablespace srv_tmp_space;
 @return true if id is a system tablespace, false if not. */
 inline bool is_system_tablespace(uint32_t id)
 {
-  return id == TRX_SYS_SPACE || id == SRV_TMP_SPACE_ID;
+  return id == TRX_SYS_SPACE || id == SRV_TMP_SPACE_ID ||
+         id == SRV_EXT_BP_SPACE_ID;
 }
 
 /** Check if predefined shared tablespace.

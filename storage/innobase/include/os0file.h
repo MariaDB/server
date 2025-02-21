@@ -64,6 +64,7 @@ extern bool	os_has_said_disk_full;
 typedef ib_uint64_t os_offset_t;
 
 class buf_tmp_buffer_t;
+class ext_buf_page_t;
 
 #ifdef _WIN32
 
@@ -129,9 +130,11 @@ enum os_file_create_t {
   OS_FILE_OPEN_RETRY,
   /** open a raw block device */
   OS_FILE_OPEN_RAW,
+  /** open file or create if it doesn't exist */
+  OS_FILE_OPEN_OR_CREATE,
 
   /** do not display diagnostic messages */
-  OS_FILE_ON_ERROR_SILENT= 4,
+  OS_FILE_ON_ERROR_SILENT= 8,
 
   OS_FILE_CREATE_SILENT= OS_FILE_CREATE | OS_FILE_ON_ERROR_SILENT,
   OS_FILE_OPEN_SILENT= OS_FILE_OPEN | OS_FILE_ON_ERROR_SILENT,
@@ -203,12 +206,19 @@ public:
   };
 
   constexpr IORequest(buf_page_t *bpage, buf_tmp_buffer_t *slot,
-                      fil_node_t *node, Type type) :
-    bpage(bpage), slot(slot), node(node), type(type) {}
+                      fil_node_t *node, Type type,
+                      ext_buf_page_t *ext_buf_page= nullptr)
+      : bpage(bpage), slot(slot), node(node), type(type),
+        ext_buf_page(ext_buf_page)
+  {
+  }
 
   constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr,
-                      buf_tmp_buffer_t *slot= nullptr) :
-    bpage(bpage), slot(slot), type(type) {}
+                      buf_tmp_buffer_t *slot= nullptr,
+                      ext_buf_page_t *ext_buf_page= nullptr)
+      : bpage(bpage), slot(slot), type(type), ext_buf_page(ext_buf_page)
+  {
+  }
 
   bool is_read() const noexcept { return (type & READ_SYNC) != 0; }
   bool is_write() const noexcept { return (type & WRITE_SYNC) != 0; }
@@ -249,6 +259,10 @@ public:
 
   /** Request type bit flags */
   const Type type;
+
+  /** External buffer pool page if the request is for external buffer pool
+  file, nullptr otherwise */
+  ext_buf_page_t *const ext_buf_page;
 };
 
 constexpr IORequest IORequestRead(IORequest::READ_SYNC);

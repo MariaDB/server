@@ -3701,6 +3701,15 @@ static void innodb_buffer_pool_size_update(THD* thd,st_mysql_sys_var*,void*,
   buf_pool.resize(*static_cast<const size_t*>(save), thd);
 }
 
+static void innodb_extended_buffer_pool_size_update(THD *thd,
+                                                    st_mysql_sys_var *, void *,
+                                                    const void *save)
+{
+  buf_pool.extended_pages=
+      (*static_cast<const size_t *>(save) >> srv_page_size_shift);
+  buf_pool.extended_size= buf_pool.extended_pages << srv_page_size_shift;
+}
+
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size, buf_pool.size_in_bytes_requested,
   PLUGIN_VAR_RQCMDARG,
   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
@@ -3716,6 +3725,19 @@ static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Redo log write size to avoid read-on-write; must be a power of two",
   nullptr, nullptr, 512, 512, 4096, 1);
+
+static MYSQL_SYSVAR_SIZE_T(extended_buffer_pool_size, buf_pool.extended_size,
+  PLUGIN_VAR_RQCMDARG,
+  "The extended buffer pool file size.",
+  nullptr, innodb_extended_buffer_pool_size_update,
+  // TODO: set correct min and max values here.
+  0, 0, SIZE_T_MAX, 0);
+
+static MYSQL_SYSVAR_STR(extended_buffer_pool_path, buf_pool.extended_path,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Path to extended buffer pool file.",
+  nullptr, nullptr, nullptr);
+
 
 /****************************************************************//**
 Gives the file extension of an InnoDB single-table tablespace. */
@@ -3808,6 +3830,8 @@ static int innodb_init_params()
       : (SIZE_T_MAX / 2) + 1;
 
   MYSQL_SYSVAR_NAME(buffer_pool_size).max_val= buf_pool.size_in_bytes_max;
+
+  buf_pool.extended_pages = buf_pool.extended_size >> srv_page_size_shift;
 
   if (innodb_buffer_pool_size < min)
   {
@@ -18530,9 +18554,11 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         lsn_t resizing= log_sys.resize_in_progress();
         if (resizing > buf_pool.get_oldest_modification(0))
         {
+          ++buf_pool.done_flush_list_waiters_count;
           buf_pool.page_cleaner_wakeup(true);
           my_cond_timedwait(&buf_pool.done_flush_list,
                             &buf_pool.flush_list_mutex.m_mutex, &abstime);
+          --buf_pool.done_flush_list_waiters_count;
           resizing= log_sys.resize_in_progress();
         }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -19854,6 +19880,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
   MYSQL_SYSVAR(buffer_pool_size_max),
+  MYSQL_SYSVAR(extended_buffer_pool_size),
+  MYSQL_SYSVAR(extended_buffer_pool_path),
   MYSQL_SYSVAR(buffer_pool_chunk_size),
   MYSQL_SYSVAR(buffer_pool_filename),
   MYSQL_SYSVAR(buffer_pool_dump_now),

@@ -479,6 +479,38 @@ for compressed and uncompressed frames */
 
 class buf_pool_t;
 
+/* External buffer pool page. The first 3 members (6 for debug build) must be
+the same as in buf_page_t. The "frame" member must always be equal to
+EXT_BUF_FRAME, this is how we determine if some page is external one. */
+class ext_buf_page_t {
+public:
+  /** ext_buf_page_t indentifier */
+  static constexpr std::uintptr_t EXT_BUF_FRAME{1};
+  /** Page id. Protected by buf_pool.page_hash.lock_get() when
+  the page is in buf_pool.page_hash. */
+  page_id_t id;
+  /** buf_pool.page_hash link; protected by buf_pool.page_hash.lock_get() */
+  buf_page_t *hash;
+  /** Always equal to EXT_BUF_FRAME to distinguish external and internal
+  pages */
+  byte *frame;
+#ifdef UNIV_DEBUG
+  /** whether the page(ext_LRU_list) is in external buffer pool LRU
+  list(buf_pool_t::ext_LRU); protected by buf_pool.mutex */
+  bool in_LRU_list;
+  /** whether the page is in buf_pool.page_hash;
+  protected by buf_pool.mutex */
+  bool in_page_hash;
+  /** whether the page(free_list) is in external buffer pool free
+  list(buf_pool_t::ext_free); protected by buf_pool.mutex */
+  bool in_free_list;
+#endif /* UNIV_DEBUG */
+  /** Node of buf_pool_t::ext_free */
+  UT_LIST_NODE_T(ext_buf_page_t) free_list;
+  /** Node of buf_pool_t::ext_LRU */
+  UT_LIST_NODE_T(ext_buf_page_t) ext_LRU_list;
+};
+
 class buf_page_t
 {
   friend buf_pool_t;
@@ -504,18 +536,6 @@ public: // FIXME: fix fil_iterate()
       uint16_t free_offset;
     };
   };
-private:
-  /** log sequence number of the START of the log entry written of the
-  oldest modification to this block which has not yet been written
-  to the data file;
-
-  0 if no modifications are pending;
-  1 if no modifications are pending, but the block is in buf_pool.flush_list;
-  2 if modifications are pending, but the block is not in buf_pool.flush_list
-  (because id().space() is the temporary tablespace). */
-  Atomic_relaxed<lsn_t> oldest_modification_;
-
-public:
   /** state() of unused block (in buf_pool.free list) */
   static constexpr uint32_t NOT_USED= 0;
   /** state() of block allocated as general-purpose memory */
@@ -541,15 +561,8 @@ public:
   /** buf_pool.LRU status mask in state() */
   static constexpr uint32_t LRU_MASK= 7U << 29;
 
-  /** lock covering the contents of frame() */
-  block_lock lock;
   /** pointer to aligned, uncompressed page frame of innodb_page_size */
   byte *frame;
-  /* @} */
-  /** ROW_FORMAT=COMPRESSED page; zip.data (but not the data it points to)
-  is also protected by buf_pool.mutex;
-  !frame && !zip.data means an active buf_pool.watch */
-  page_zip_des_t zip;
 #ifdef UNIV_DEBUG
   /** whether this->LRU is in buf_pool.LRU (in_file());
   protected by buf_pool.mutex */
@@ -561,6 +574,24 @@ public:
   protected by buf_pool.flush_list_mutex */
   bool in_free_list;
 #endif /* UNIV_DEBUG */
+private:
+  /** log sequence number of the START of the log entry written of the
+  oldest modification to this block which has not yet been written
+  to the data file;
+
+  0 if no modifications are pending;
+  1 if no modifications are pending, but the block is in buf_pool.flush_list;
+  2 if modifications are pending, but the block is not in buf_pool.flush_list
+  (because id().space() is the temporary tablespace). */
+  Atomic_relaxed<lsn_t> oldest_modification_;
+public:
+  /** lock covering the contents of frame() */
+  block_lock lock;
+  /* @} */
+  /** ROW_FORMAT=COMPRESSED page; zip.data (but not the data it points to)
+  is also protected by buf_pool.mutex;
+  !frame && !zip.data means an active buf_pool.watch */
+  page_zip_des_t zip;
   /** list member in one of the lists of buf_pool; protected by
   buf_pool.mutex or buf_pool.flush_list_mutex
 
@@ -601,13 +632,14 @@ public:
 
   buf_page_t(const buf_page_t &b) :
     id_(b.id_), hash(b.hash),
-    oldest_modification_(b.oldest_modification_),
-    lock() /* not copied */,
-    frame(b.frame), zip(b.zip),
+    frame(b.frame),
 #ifdef UNIV_DEBUG
     in_LRU_list(b.in_LRU_list),
     in_page_hash(b.in_page_hash), in_free_list(b.in_free_list),
 #endif /* UNIV_DEBUG */
+    oldest_modification_(b.oldest_modification_),
+    lock(), /* not copied */
+    zip(b.zip),
     list(b.list), LRU(b.LRU), old(b.old), freed_page_clock(b.freed_page_clock),
     access_time(b.access_time)
   {
@@ -642,6 +674,13 @@ public:
 public:
   const page_id_t &id() const noexcept { return id_; }
   uint32_t state() const noexcept { return zip.fix; }
+  bool external() const noexcept
+  {
+    /* TODO: we could just compare the address of the page, as it is done for
+    sentinel pages, and use *frame for something else */
+    return reinterpret_cast<std::uintptr_t>(frame) ==
+           ext_buf_page_t::EXT_BUF_FRAME;
+  }
   static uint32_t buf_fix_count(uint32_t s) noexcept
   { ut_ad(s >= FREED); return s < UNFIXED ? (s - FREED) : (~LRU_MASK & s); }
 
@@ -768,16 +807,26 @@ public:
   @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
   dberr_t read_complete(const fil_node_t &node) noexcept;
 
+  /** Space type for write complete */
+  enum space_type
+  {
+    PERSISTENT, /* Persistent space */
+    TEMPORARY,  /* Temporary space */
+    EXT_BUF     /* External buffer pool space */
+  };
+
   /** Release a write fix after a page write was completed.
-  @param persistent  whether the page belongs to a persistent tablespace
+  @param type        the type of space which the page was written to
   @param error       whether an error may have occurred while writing
   @param state       recently read state() value with the correct io-fix */
-  void write_complete(bool persistent, bool error, uint32_t state) noexcept;
+  void write_complete(space_type type, bool error,
+                      uint32_t state) noexcept;
 
   /** Write a flushable page to a file or free a freeable block.
   @param space       tablespace
+  @param to_ext_buf  wherher to write the page to external buffer pull file
   @return whether a page write was initiated and buf_pool.mutex released */
-  bool flush(fil_space_t *space) noexcept;
+  bool flush(fil_space_t *space, bool to_ext_buf= false) noexcept;
 
   /** Notify that a page in a temporary tablespace has been modified. */
   void set_temp_modified() noexcept
@@ -867,6 +916,23 @@ public:
   unsigned is_accessed() const noexcept
   { ut_ad(in_file()); return access_time; }
 };
+
+static_assert(offsetof(ext_buf_page_t, id) == offsetof(buf_page_t, id_), "");
+static_assert(offsetof(ext_buf_page_t, hash) == offsetof(buf_page_t, hash),
+              "");
+static_assert(offsetof(ext_buf_page_t, frame) == offsetof(buf_page_t, frame),
+              "");
+#ifdef UNIV_DEBUG
+static_assert(offsetof(ext_buf_page_t, in_LRU_list) ==
+                  offsetof(buf_page_t, in_LRU_list),
+              "");
+static_assert(offsetof(ext_buf_page_t, in_page_hash) ==
+                  offsetof(buf_page_t, in_page_hash),
+              "");
+static_assert(offsetof(ext_buf_page_t, in_free_list) ==
+                  offsetof(buf_page_t, in_free_list),
+              "");
+#endif /* UNIV_DEBUG */
 
 /** The buffer control block structure */
 
@@ -1202,11 +1268,83 @@ class buf_pool_t
   protected by mutex */
   Atomic_relaxed<size_t> size_in_bytes;
 
+  /** External buffer pool pages array*/
+  ext_buf_page_t *ext_buf_pages_array;
+  /** External buffer pool pages free list, protected with buf_pool.mutex */
+  UT_LIST_BASE_NODE_T(ext_buf_page_t) ext_free;
+
 public:
   /** The requested innodb_buffer_pool_size */
   size_t size_in_bytes_requested;
   /** The maximum allowed innodb_buffer_pool_size */
   size_t size_in_bytes_max;
+
+  /** Amount of pages in extended buffr pool file and the size of
+  ext_buf_pages_array */
+  size_t extended_pages;
+  /** Extended buffer pool file size, equals to 0 if extended buffer pool is
+  not used. */
+  size_t extended_size;
+  /** Extended buffer pool file path */
+  char  *extended_path;
+
+  /** Hash cell chain in page_hash_table */
+  struct hash_chain
+  {
+    /** pointer to the first block */
+    buf_page_t *first;
+  };
+
+  /** Allocates external buffer pool page. Tries to get a page for external
+  buffer pool free list. If the list is empty, tries to get page from the tail
+  of external buffer pool LRU list, if the corresponding page hash chain is not
+  locked, removes the page from the chain.
+  @param page_id page id which will be assigned to allocated page
+  @return allocated external buffer pool page or nullptr if free list is empty
+  and all page hash chains were locked */
+  ext_buf_page_t *alloc_ext_page(page_id_t page_id) noexcept;
+
+  /** Frees external buffer pool page. Pushes a page to the head of external
+  buffer pool free list.
+  @param p page to free. */
+  void free_ext_page(ext_buf_page_t &p) noexcept
+  {
+    ut_ad(&p >= ext_buf_pages_array &&
+          &p < ext_buf_pages_array + extended_pages);
+    mysql_mutex_assert_owner(&mutex);
+    UT_LIST_ADD_FIRST(ext_free, &p);
+    ut_d(p.in_free_list= true);
+  }
+
+  /** Pushes external buffer pool page to the head of external buffer pool LRU
+  list.
+  @param ext_page page to push */
+  void push_ext_page_to_LRU(ext_buf_page_t &ext_page) noexcept {
+    ut_ad(&ext_page >= ext_buf_pages_array &&
+          &ext_page < ext_buf_pages_array + extended_pages);
+      mysql_mutex_assert_owner(&mutex);
+      UT_LIST_ADD_FIRST(ext_LRU, &ext_page);
+      ut_d(ext_page.in_LRU_list= true);
+  }
+
+  /** Removes external buffer pool page from external buffer pool LRU list.
+  @param ext_page page to remove */
+  void remove_ext_page_from_LRU(ext_buf_page_t &ext_page) noexcept {
+    ut_ad(&ext_page >= ext_buf_pages_array &&
+          &ext_page < ext_buf_pages_array + extended_pages);
+      mysql_mutex_assert_owner(&mutex);
+      UT_LIST_REMOVE(ext_LRU, &ext_page);
+      ut_d(ext_page.in_LRU_list= false);
+  }
+
+  /** Calculates external buffer pool page offset in external buffer pool file.
+  @param ext_page page for which offset is calulated
+  @return offset in external biffer pool file */
+  os_offset_t ext_page_offset(const ext_buf_page_t &ext_page) const noexcept {
+    ut_ad(&ext_page >= ext_buf_pages_array &&
+          &ext_page < ext_buf_pages_array + extended_pages);
+    return (&ext_page - ext_buf_pages_array) << srv_page_size_shift;
+  }
 
   /** @return the current size of the buffer pool, in bytes */
   size_t curr_pool_size() const noexcept { return size_in_bytes; }
@@ -1234,12 +1372,6 @@ public:
   static int madvise_do_dump() noexcept;
 #endif
 
-  /** Hash cell chain in page_hash_table */
-  struct hash_chain
-  {
-    /** pointer to the first block */
-    buf_page_t *first;
-  };
 private:
   /** Determine the number of blocks in a buffer pool of a particular size.
   @param size_in_bytes    innodb_buffer_pool_size in bytes
@@ -1252,6 +1384,10 @@ public:
   /** Create the buffer pool.
   @return whether the creation failed */
   bool create() noexcept;
+
+  /** Create external buffer pool file.
+  @return whether the creation failed */
+  bool create_ext_file();
 
   /** Clean up after successful create() */
   void close() noexcept;
@@ -1631,9 +1767,12 @@ public:
       *prev= bpage;
     }
 
-    /** Look up a page in a hash bucket chain. */
-    inline buf_page_t *get(const page_id_t id, const hash_chain &chain) const
-      noexcept;
+    /** Look up a page in a hash bucket chain.
+    @tparam show_ext_pages false if external buffer pool pages must be ignored,
+                           true otherwise */
+    template <bool show_ext_pages= false>
+    inline buf_page_t *get(const page_id_t id,
+                           const hash_chain &chain) const noexcept;
   };
 
   /** Buffer pool mutex */
@@ -1701,6 +1840,11 @@ public:
   pthread_cond_t done_flush_LRU;
   /** broadcast when a batch completes; protected by flush_list_mutex */
   pthread_cond_t done_flush_list;
+
+  /** The number of threads waiting for done_flush_list, must be set before
+  page cleaner wake up and reset after done_flush_list waiting is finished,
+  protected with flush_list_mutex */
+  size_t done_flush_list_waiters_count;
 
   /** @return number of pending LRU flush */
   unsigned n_flush() const noexcept
@@ -1832,7 +1976,8 @@ public:
 	UT_LIST_BASE_NODE_T(buf_block_t) unzip_LRU;
 					/*!< base node of the
 					unzip_LRU list */
-
+  /** base node of external LRU list */
+  UT_LIST_BASE_NODE_T(ext_buf_page_t) ext_LRU;
 	/* @} */
   /** free ROW_FORMAT=COMPRESSED page frames */
   UT_LIST_BASE_NODE_T(buf_buddy_free_t) zip_free[BUF_BUDDY_SIZES_MAX];
@@ -1906,6 +2051,7 @@ private:
 /** The InnoDB buffer pool */
 extern buf_pool_t buf_pool;
 
+template <bool show_ext_pages>
 inline buf_page_t *buf_pool_t::page_hash_table::get(const page_id_t id,
                                                     const hash_chain &chain)
   const noexcept
@@ -1917,9 +2063,11 @@ inline buf_page_t *buf_pool_t::page_hash_table::get(const page_id_t id,
   for (buf_page_t *bpage= chain.first; bpage; bpage= bpage->hash)
   {
     ut_ad(bpage->in_page_hash);
-    ut_ad(bpage->in_file());
-    if (bpage->id() == id)
+    ut_ad(bpage->external() || bpage->in_file());
+    if (bpage->id() == id && (show_ext_pages || !bpage->external()))
       return bpage;
+    /* There can be sentinel pages, don't break the loop if external page
+    was found and ignored. */
   }
   return nullptr;
 }

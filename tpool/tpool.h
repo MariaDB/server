@@ -121,7 +121,7 @@ enum class aio_opcode
   AIO_PREAD,
   AIO_PWRITE
 };
-constexpr size_t MAX_AIO_USERDATA_LEN= 4 * sizeof(void*);
+constexpr size_t MAX_AIO_USERDATA_LEN= 5 * sizeof(void*);
 
 /** IO control block, includes parameters for the IO, and the callback*/
 

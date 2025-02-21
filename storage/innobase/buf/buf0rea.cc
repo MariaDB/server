@@ -70,13 +70,24 @@ inline uint32_t buf_pool_t::watch_remove(buf_page_t *w,
   ut_ad(s >= buf_page_t::UNFIXED);
   ut_ad(s < buf_page_t::READ_FIX);
 
+  /* no need to check for external page here, invoker must care about it */
   if (~buf_page_t::LRU_MASK & s)
     page_hash.remove(chain, w);
 
   ut_ad(!w->in_page_hash);
   w->id_= page_id_t(~0ULL);
+  w->frame= nullptr;
   return s;
 }
+
+/** The result, returned by buf_page_init_for_read() */
+struct page_init_result {
+  page_init_result() : bpage(nullptr), ext_buf_page(nullptr) {}
+  bool in_ext_buffer_pool() const noexcept { return ext_buf_page; }
+  buf_page_t* bpage; /* Initialized page */
+  ext_buf_page_t *ext_buf_page; /* External buffer pool page if bpage can be
+                               read from from exretnal buffer pool file */
+};
 
 /** Initialize a page for read to the buffer buf_pool. If the page is
 (1) already in buf_pool, or
@@ -92,11 +103,17 @@ and the lock released later.
 @param[in]	unzip			whether the uncompressed page is
 					requested (for ROW_FORMAT=COMPRESSED)
 @return pointer to the block
-@retval	NULL	in case of an error */
+@retval	page_init_result::bpage==nullptr in case of an error, otherwise
+page_init_result::bpage points to initialized page and
+page_init_result::ext_buf_page point to external buffer pool page if
+page_init_result::bpage can be read from external buffer pool file */
 TRANSACTIONAL_TARGET
-static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
-                                          ulint zip_size, bool unzip) noexcept
+static page_init_result buf_page_init_for_read(ulint mode,
+                                               const page_id_t page_id,
+                                               ulint zip_size,
+                                               bool unzip) noexcept
 {
+  page_init_result result;
   mtr_t mtr;
 
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
@@ -108,13 +125,12 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     if (!recv_no_ibuf_operations && !ibuf_page(page_id, zip_size, &mtr))
     {
       ibuf_mtr_commit(&mtr);
-      return nullptr;
+      return result;
     }
   }
   else
     ut_ad(mode == BUF_READ_ANY_PAGE);
 
-  buf_page_t *bpage= nullptr;
   buf_block_t *block= nullptr;
   if (!zip_size || unzip || recv_recovery_is_on())
   {
@@ -129,37 +145,66 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
   mysql_mutex_lock(&buf_pool.mutex);
 
-  buf_page_t *hash_page= buf_pool.page_hash.get(page_id, chain);
-  if (hash_page && !buf_pool.watch_is_sentinel(*hash_page))
-  {
-    /* The page is already in the buffer pool. */
-    if (block)
+  buf_page_t *hash_page= buf_pool.page_hash.get<true>(page_id, chain);
+  if (hash_page) {
+    if (UNIV_UNLIKELY(hash_page->external()))
     {
-      block->page.lock.x_unlock(true);
-      ut_d(block->page.set_state(buf_page_t::MEMORY));
-      buf_LRU_block_free_non_file_page(block);
+      ext_buf_page_t *ext_buf_page=
+          reinterpret_cast<ext_buf_page_t *>(hash_page);
+      result.ext_buf_page= ext_buf_page;
+      hash_page= nullptr;
     }
-    goto func_exit;
+    else
+    {
+      /* The page is already in the buffer pool. */
+      if (!buf_pool.watch_is_sentinel(*hash_page) && block)
+      {
+        block->page.lock.x_unlock(true);
+        ut_d(block->page.set_state(buf_page_t::MEMORY));
+        buf_LRU_block_free_non_file_page(block);
+      }
+      goto func_exit;
+    }
   }
 
   if (UNIV_LIKELY(block != nullptr))
   {
-    bpage= &block->page;
+    result.bpage= &block->page;
 
     /* Insert into the hash table of file pages */
     if (hash_page)
     {
-      transactional_lock_guard<page_hash_latch> g
-        {buf_pool.page_hash.lock_get(chain)};
-      bpage->set_state(buf_pool.watch_remove(hash_page, chain) +
-                       (buf_page_t::READ_FIX - buf_page_t::UNFIXED));
+      ut_ad(!result.ext_buf_page);
+      transactional_lock_guard<page_hash_latch> g{
+          buf_pool.page_hash.lock_get(chain)};
+      result.ext_buf_page=
+          reinterpret_cast<ext_buf_page_t *>(hash_page->frame);
+      /* buf_pool.watch_remove() removes extended buffer pool pages also */
+      result.bpage->set_state(buf_pool.watch_remove(hash_page, chain) +
+                              (buf_page_t::READ_FIX - buf_page_t::UNFIXED));
+      /* don't replace pages in the chain for sentinel pages */
       buf_pool.page_hash.append(chain, &block->page);
     }
     else
     {
       transactional_lock_guard<page_hash_latch> g
         {buf_pool.page_hash.lock_get(chain)};
-      buf_pool.page_hash.append(chain, &block->page);
+      if (result.ext_buf_page)
+      {
+        result.bpage->hash= result.ext_buf_page->hash;
+        ut_d(result.bpage->in_page_hash= true);
+        buf_pool.page_hash.replace(
+            chain, reinterpret_cast<buf_page_t *>(result.ext_buf_page),
+            result.bpage);
+      }
+      else
+        buf_pool.page_hash.append(chain, &block->page);
+    }
+
+    if (result.ext_buf_page)
+    {
+      ut_ad(!result.ext_buf_page->in_page_hash);
+      buf_pool.remove_ext_page_from_LRU(*result.ext_buf_page);
     }
 
     /* The block must be put to the LRU list, to the old blocks */
@@ -196,40 +241,79 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     check the page_hash again, as it may have been modified. */
     if (UNIV_UNLIKELY(lru))
     {
-      hash_page= buf_pool.page_hash.get(page_id, chain);
+      hash_page= buf_pool.page_hash.get<true>(page_id, chain);
 
-      if (UNIV_UNLIKELY(hash_page && !buf_pool.watch_is_sentinel(*hash_page)))
+      if (UNIV_LIKELY_NULL(hash_page))
       {
-        /* The block was added by some other thread. */
-        buf_buddy_free(data, zip_size);
-        goto func_exit;
+        if (UNIV_UNLIKELY(hash_page->external()))
+        {
+          // TODO: avoid copy-paste here
+          ext_buf_page_t *ext_buf_page=
+              reinterpret_cast<ext_buf_page_t *>(hash_page);
+          /*
+          page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+          hash_lock.lock();
+          buf_pool.page_hash.remove(chain, hash_page);
+          hash_lock.unlock();
+          ext_buf_page->in_page_hash= false;
+          buf_pool.remove_ext_page_from_LRU(ext_buf_page);
+          */
+          result.ext_buf_page= ext_buf_page;
+          hash_page= nullptr;
+        }
+        if (UNIV_UNLIKELY(!buf_pool.watch_is_sentinel(*hash_page)))
+        {
+          /* The block was added by some other thread. */
+          buf_buddy_free(data, zip_size);
+          goto func_exit;
+        }
       }
     }
 
-    bpage= static_cast<buf_page_t*>(ut_zalloc_nokey(sizeof *bpage));
+    result.bpage=
+        static_cast<buf_page_t *>(ut_zalloc_nokey(sizeof *result.bpage));
 
-    page_zip_des_init(&bpage->zip);
-    page_zip_set_size(&bpage->zip, zip_size);
-    bpage->zip.data = (page_zip_t*) data;
+    // TODO: do we need to init it for compressed pages? I think no.
+    page_zip_des_init(&result.bpage->zip);
+    page_zip_set_size(&result.bpage->zip, zip_size);
+    result.bpage->zip.data = (page_zip_t*) data;
 
-    bpage->lock.init();
-    bpage->init(buf_page_t::READ_FIX, page_id);
-    bpage->lock.x_lock(true);
+    result.bpage->lock.init();
+    result.bpage->init(buf_page_t::READ_FIX, page_id);
+    result.bpage->lock.x_lock(true);
 
     {
       transactional_lock_guard<page_hash_latch> g
         {buf_pool.page_hash.lock_get(chain)};
 
-      if (hash_page)
-        bpage->set_state(buf_pool.watch_remove(hash_page, chain) +
+      if (hash_page) {
+        ut_ad(!result.ext_buf_page);
+        result.ext_buf_page=
+            reinterpret_cast<ext_buf_page_t *>(hash_page->frame);
+        result.bpage->set_state(buf_pool.watch_remove(hash_page, chain) +
                          (buf_page_t::READ_FIX - buf_page_t::UNFIXED));
+      }
+      /* don't replace pages in the chain for sentinel pages */
+      else if (result.ext_buf_page) {
+        result.bpage->hash= result.ext_buf_page->hash;
+        ut_d(result.bpage->in_page_hash= true);
+        buf_pool.page_hash.replace(
+            chain, reinterpret_cast<buf_page_t *>(result.ext_buf_page),
+            result.bpage);
+      }
+      else
+        buf_pool.page_hash.append(chain, result.bpage);
+    }
 
-      buf_pool.page_hash.append(chain, bpage);
+    if (result.ext_buf_page)
+    {
+      ut_ad(!result.ext_buf_page->in_page_hash);
+      buf_pool.remove_ext_page_from_LRU(*result.ext_buf_page);
     }
 
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
-    buf_LRU_add_block(bpage, true/* to old blocks */);
+    buf_LRU_add_block(result.bpage, true/* to old blocks */);
   }
 
   buf_pool.stat.n_pages_read++;
@@ -239,9 +323,9 @@ func_exit:
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
     ibuf_mtr_commit(&mtr);
 
-  ut_ad(!bpage || bpage->in_file());
+  ut_ad(!result.bpage || result.bpage->in_file());
 
-  return bpage;
+  return result;
 }
 
 /** Low-level function which reads a page asynchronously from a file to the
@@ -268,8 +352,6 @@ buf_read_page_low(
 	ulint			zip_size,
 	bool			unzip) noexcept
 {
-	buf_page_t*	bpage;
-
 	if (buf_dblwr.is_inside(page_id)) {
 		space->release();
 		return DB_PAGE_CORRUPTED;
@@ -293,7 +375,10 @@ buf_read_page_low(
 	or is being dropped; if we succeed in initing the page in the buffer
 	pool for read, then DISCARD cannot proceed until the read has
 	completed */
-	bpage = buf_page_init_for_read(mode, page_id, zip_size, unzip);
+	auto init_page_result = buf_page_init_for_read(mode, page_id, zip_size,
+	    unzip);
+	/* Should be optimized out */
+	buf_page_t *bpage= init_page_result.bpage;
 
 	if (!bpage) {
 		space->release();
@@ -319,24 +404,56 @@ buf_read_page_low(
 	void* dst = zip_size ? bpage->zip.data : bpage->frame;
 	const ulint len = zip_size ? zip_size : srv_page_size;
 
-	auto fio = space->io(IORequest(sync
-				       ? IORequest::READ_SYNC
-				       : IORequest::READ_ASYNC),
-			     os_offset_t{page_id.page_no()} * len, len,
-			     dst, bpage);
+	fil_io_t fio;
+	if (!init_page_result.in_ext_buffer_pool()) {
+		fio = space->io(IORequest(sync
+					       ? IORequest::READ_SYNC
+					       : IORequest::READ_ASYNC),
+				     os_offset_t{page_id.page_no()} * len, len,
+				     dst, bpage);
+	}
+	else {
+		ut_d(auto acquired= )fil_system.ext_bp_space->acquire();
+		// TODO: process error correctly
+		ut_ad(acquired);
+		os_offset_t offset= buf_pool.ext_page_offset(
+		    *init_page_result.ext_buf_page);
+		fio = fil_system.ext_bp_space->io(IORequest(sync
+					       ? IORequest::READ_SYNC
+					       : IORequest::READ_ASYNC,
+					       nullptr, nullptr,
+					       init_page_result.ext_buf_page),
+					// FIXME: set correct destination and
+					// length for zipped pages
+				     offset, len,
+				     dst, bpage);
+	}
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
 		recv_sys.free_corrupted_page(page_id, *space->chain.start);
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 	} else if (sync) {
 		thd_wait_end(nullptr);
+		if (init_page_result.in_ext_buffer_pool()) {
+			mysql_mutex_lock(&buf_pool.mutex);
+			buf_pool.free_ext_page(*init_page_result.ext_buf_page);
+			mysql_mutex_unlock(&buf_pool.mutex);
+		}
 		/* The i/o was already completed in space->io() */
-		fio.err = bpage->read_complete(*fio.node);
+		fio.err = bpage->read_complete(
+		    init_page_result.in_ext_buffer_pool()
+		      ? *UT_LIST_GET_FIRST(space->chain)
+		      : *fio.node);
 		space->release();
+		if (init_page_result.in_ext_buffer_pool())
+			fil_system.ext_bp_space->release();
 		if (mariadb_timer) {
 			mariadb_increment_pages_read_time(mariadb_timer);
 		}
 	}
+
+	if (init_page_result.in_ext_buffer_pool() && !sync)
+		space->release();
 
 	return fio.err;
 }
@@ -697,11 +814,13 @@ void buf_read_recover(fil_space_t *space, const page_id_t page_id,
 
   if (init)
   {
-    if (buf_page_t *bpage= buf_page_init_for_read(BUF_READ_ANY_PAGE, page_id,
-                                                  zip_size, true))
+    auto init_page_result=  buf_page_init_for_read(BUF_READ_ANY_PAGE, page_id,
+                                                  zip_size, true);
+    if (init_page_result.bpage)
     {
-      ut_ad(bpage->in_file());
-      os_fake_read(IORequest{bpage, (buf_tmp_buffer_t*) &recs,
+      ut_ad(init_page_result.bpage->in_file());
+      // TODO: find out if we need to read for ext buffer pool here(I think no)
+      os_fake_read(IORequest{init_page_result.bpage, (buf_tmp_buffer_t*) &recs,
                              UT_LIST_GET_FIRST(space->chain),
                              IORequest::READ_ASYNC}, ptrdiff_t(init));
     }

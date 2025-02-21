@@ -63,6 +63,9 @@ Created 11/5/1995 Heikki Tuuri
 #include <sstream>
 #include "log.h"
 
+/* External buffer pool file name */
+const char *ext_buffer_pool_file_name= "ext_buffer_pool";
+
 using st_::span;
 
 #ifdef HAVE_LIBNUMA
@@ -1284,6 +1287,34 @@ buf_block_t *buf_pool_t::allocate() noexcept
   return nullptr;
 }
 
+ext_buf_page_t *buf_pool_t::alloc_ext_page(page_id_t page_id) noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
+  ext_buf_page_t *p;
+  if ((p= UT_LIST_GET_FIRST(ext_free)))
+    UT_LIST_REMOVE(ext_free, p);
+  else if ((p= UT_LIST_GET_LAST(ext_LRU))) {
+    for (; p; p= UT_LIST_GET_PREV(ext_LRU_list, p)) {
+      hash_chain &hash_chain= page_hash.cell_get(p->id.fold());
+      page_hash_latch &hash_lock= page_hash.lock_get(hash_chain);
+      if (!hash_lock.try_lock())
+        continue;
+      UT_LIST_REMOVE(ext_LRU, p);
+      page_hash.remove(hash_chain, reinterpret_cast<buf_page_t *>(p));
+      hash_lock.unlock();
+      break;
+    }
+    if (!p)
+      return nullptr;
+  }
+  else
+    return nullptr;
+  p->id= page_id;
+  ut_d(p->in_LRU_list= p->in_free_list= false);
+  ut_d(p->in_page_hash= true);
+  return p;
+}
+
 /** Create the hash table.
 @param n  the lower bound of n_cells */
 void buf_pool_t::page_hash_table::create(ulint n) noexcept
@@ -1445,6 +1476,7 @@ bool buf_pool_t::create() noexcept
   n_blocks= get_n_blocks(actual_size);
   n_blocks_to_withdraw= 0;
   UT_LIST_INIT(free, &buf_page_t::list);
+  UT_LIST_INIT(ext_free, &ext_buf_page_t::free_list);
   const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
 
   for (byte *extent= memory,
@@ -1467,6 +1499,19 @@ bool buf_pool_t::create() noexcept
     }
   }
 
+  size_t ext_buf_pages_array_size= extended_pages * sizeof(ext_buf_page_t);
+  ext_buf_pages_array= static_cast<ext_buf_page_t *>(
+      my_malloc(PSI_NOT_INSTRUMENTED, ext_buf_pages_array_size, MYF(0)));
+  UT_LIST_INIT(ext_free, &ext_buf_page_t::free_list);
+  for (ext_buf_page_t *page= ext_buf_pages_array,
+                      *end= ext_buf_pages_array + extended_pages;
+       page != end; ++page) {
+    page->frame= reinterpret_cast<byte *>(ext_buf_page_t::EXT_BUF_FRAME);
+    ut_d(page->in_free_list= true);
+    ut_d(page->in_LRU_list= page->in_free_list= false);
+    UT_LIST_ADD_LAST(ext_free, page);
+  }
+
 #if defined(__aarch64__)
   mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
 #else
@@ -1475,6 +1520,7 @@ bool buf_pool_t::create() noexcept
 
   UT_LIST_INIT(withdrawn, &buf_page_t::list);
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
+  UT_LIST_INIT(ext_LRU, &ext_buf_page_t::ext_LRU_list);
   UT_LIST_INIT(flush_list, &buf_page_t::list);
   UT_LIST_INIT(unzip_LRU, &buf_block_t::unzip_LRU);
 
@@ -1496,6 +1542,8 @@ bool buf_pool_t::create() noexcept
   pthread_cond_init(&done_flush_list, nullptr);
   pthread_cond_init(&do_flush_list, nullptr);
   pthread_cond_init(&done_free, nullptr);
+
+  done_flush_list_waiters_count= 0;
 
   try_LRU_scan= true;
 
@@ -1519,6 +1567,54 @@ bool buf_pool_t::create() noexcept
   sql_print_information("InnoDB: Completed initialization of buffer pool");
   return false;
 }
+
+bool buf_pool_t::create_ext_file() {
+  ut_ad(!fil_system.ext_bp_space);
+
+  char path[FN_REFLEN];
+  snprintf(path, sizeof(path), "%s" FN_ROOTDIR "%s",
+           extended_path ? extended_path : fil_path_to_mysql_datadir,
+           ext_buffer_pool_file_name);
+  bool ret;
+  os_file_t file{os_file_create(innodb_data_file_key, path,
+                                OS_FILE_OPEN_OR_CREATE, OS_DATA_FILE, false,
+                                &ret)};
+  if (!ret)
+  {
+    sql_print_error("Cannot open/create extended buffer pool file '%s'",
+                    path);
+    /* Report OS error in error log */
+    (void)os_file_get_last_error(true, false);
+    return false;
+  }
+
+  ret= os_file_set_size(path, file, extended_size);
+  if (!ret)
+  {
+    os_file_close_func(file);
+    sql_print_error("Cannot set extended buffer pool file '%s' size to %zum",
+                    path, extended_size);
+    return false;
+  }
+
+  uint32_t fsp_flags;
+
+ fsp_flags= FSP_FLAGS_PAGE_SSIZE();
+
+  mysql_mutex_lock(&fil_system.mutex);
+  ut_d(fil_space_t *ext_bp_space=)
+      fil_space_t::create(SRV_EXT_BP_SPACE_ID, fsp_flags, false,
+                         // TODO: add encryption
+                          nullptr, FIL_ENCRYPTION_OFF, true);
+  ut_ad(fil_system.ext_bp_space == ext_bp_space);
+
+  (void) fil_system.ext_bp_space->add(
+      path, file, static_cast<uint32_t>(extended_pages), false, true);
+  mysql_mutex_unlock(&fil_system.mutex);
+
+  return true;
+}
+
 
 /** Clean up after successful create() */
 void buf_pool_t::close() noexcept
@@ -1586,6 +1682,8 @@ void buf_pool_t::close() noexcept
     memory= nullptr;
     memory_unaligned= nullptr;
   }
+
+  my_free(ext_buf_pages_array);
 
   pthread_cond_destroy(&done_flush_LRU);
   pthread_cond_destroy(&done_flush_list);
@@ -1864,8 +1962,10 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
     mysql_mutex_unlock(&mutex);
     mysql_mutex_lock(&flush_list_mutex);
+    ++done_flush_list_waiters_count;
     page_cleaner_wakeup(true);
     my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+    --done_flush_list_waiters_count;
     mysql_mutex_unlock(&flush_list_mutex);
 #ifdef BTR_CUR_HASH_ADAPT
     ahi_disabled= btr_search_disable();
@@ -2080,8 +2180,10 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
     try_LRU_scan= false;
     mysql_mutex_unlock(&mutex);
+    ++done_flush_list_waiters_count;
     page_cleaner_wakeup(true);
     my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+    --done_flush_list_waiters_count;
     mysql_mutex_unlock(&flush_list_mutex);
     mysql_mutex_lock(&mutex);
 
@@ -2221,8 +2323,8 @@ got_block:
     w->id_= id;
 
     page_hash.lock_get(chain).lock();
-    bpage= page_hash.get(id, chain);
-    if (UNIV_LIKELY_NULL(bpage))
+    bpage= page_hash.get<true>(id, chain);
+    if (UNIV_LIKELY_NULL(bpage) && !bpage->external())
     {
       w->set_state(buf_page_t::NOT_USED);
       mysql_mutex_unlock(&mutex);
@@ -2230,7 +2332,21 @@ got_block:
     }
 
     ut_ad(w->state() == buf_page_t::UNFIXED + 1);
-    buf_pool.page_hash.append(chain, w);
+    /* If we want to set watch to the page, which was flushed to external
+    buffer pool, replace the external page with the sentinel page in page hash
+    and let w->frame to point to the external page.
+    TODO: remove the following code during rebasing to 12, otherwise don't
+    forget to check for sentinel when external page is removed from page hash.
+    */
+    if (bpage && bpage->external()) {
+      ut_ad(!w->frame);
+      w->frame= reinterpret_cast<byte *>(bpage);
+      w->hash= bpage->hash;
+      ut_d(w->in_page_hash= true);
+      buf_pool.page_hash.replace(chain, bpage, w);
+    }
+    else
+      buf_pool.page_hash.append(chain, w);
     mysql_mutex_unlock(&mutex);
     page_hash.lock_get(chain).unlock();
     return nullptr;
@@ -2287,7 +2403,17 @@ void buf_pool_t::watch_unset(const page_id_t id, buf_pool_t::hash_chain &chain)
 
     if (f == buf_page_t::UNFIXED && w == old)
     {
-      page_hash.remove(chain, w);
+      if (w->frame) {
+        buf_page_t *ext_buf_page=
+            reinterpret_cast<buf_page_t *>(w->frame);
+        ut_ad(w->id_ == ext_buf_page->id_);
+        ext_buf_page->hash= w->hash;
+        ut_d(ext_buf_page->in_page_hash= true);
+        page_hash.replace(chain, w, ext_buf_page);
+        w->frame= nullptr;
+      }
+      else
+        page_hash.remove(chain, w);
       // Now that w is detached from page_hash, release it to watch[].
       ut_ad(w->id_ == id);
       ut_ad(!w->frame);
@@ -3433,7 +3559,21 @@ static buf_block_t *buf_page_create_low(page_id_t page_id, ulint zip_size,
 retry:
   mysql_mutex_lock(&buf_pool.mutex);
 
-  buf_page_t *bpage= buf_pool.page_hash.get(page_id, chain);
+  buf_page_t *bpage= buf_pool.page_hash.get<true>(page_id, chain);
+
+  if (bpage && bpage->external()) {
+      {
+        transactional_lock_guard<page_hash_latch> g{
+            buf_pool.page_hash.lock_get(chain)};
+        buf_pool.page_hash.remove(chain, bpage);
+      }
+      ut_ad(!bpage->in_page_hash);
+      ext_buf_page_t *ext_buf_page=
+        reinterpret_cast<ext_buf_page_t *>(bpage);
+      buf_pool.remove_ext_page_from_LRU(*ext_buf_page);
+      buf_pool.free_ext_page(*ext_buf_page);
+      bpage= nullptr;
+  }
 
   if (bpage && !buf_pool.watch_is_sentinel(*bpage))
   {
@@ -3851,6 +3991,7 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node) noexcept
   const page_id_t expected_id{id()};
   ut_ad(is_read_fixed());
   ut_ad(!buf_dblwr.is_inside(id()));
+  ut_ad(node.space->id != SRV_EXT_BP_SPACE_ID);
   ut_ad(id().space() == node.space->id);
   ut_ad(zip_size() == node.space->zip_size());
   ut_ad(!!zip.ssize == !!zip.data);
@@ -3968,6 +4109,7 @@ success_page:
 
   const bool recovery= recv_recovery_is_on();
 
+  ut_ad(id().space() != SRV_EXT_BP_SPACE_ID || !recovery);
   if (recovery && !recv_recover_page(node.space, this))
     return DB_PAGE_CORRUPTED;
 

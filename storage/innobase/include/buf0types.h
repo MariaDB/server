@@ -29,6 +29,7 @@ Created 11/17/1995 Heikki Tuuri
 
 /** Buffer page (uncompressed or compressed) */
 class buf_page_t;
+class ext_buf_page_t;
 /** Buffer block for which an uncompressed page exists */
 struct buf_block_t;
 /** Buffer pool statistics struct */
@@ -215,6 +216,7 @@ public:
   void lock_shared() noexcept { lk.rd_lock(); }
   void unlock_shared() noexcept { lk.rd_unlock(); }
   void lock() noexcept { lk.wr_lock(); }
+  bool try_lock() noexcept { return lk.wr_lock_try(); }
   void unlock() noexcept { lk.wr_unlock(); }
   bool is_write_locked() const noexcept { return lk.is_write_locked(); }
   bool is_locked() const noexcept { return lk.is_locked(); }

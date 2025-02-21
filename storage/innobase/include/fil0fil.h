@@ -1428,6 +1428,9 @@ public:
   mysql_mutex_t mutex;
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
+  /** External buffer pool space */
+  fil_space_t* ext_bp_space;
+
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
   /** tablespaces for which fil_space_t::needs_flush() holds */
