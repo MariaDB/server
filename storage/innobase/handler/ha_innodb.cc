@@ -971,8 +971,12 @@ static SHOW_VAR innodb_status_variables[]= {
    &buf_pool.stat.n_ra_pages_evicted, SHOW_SIZE_T},
   {"buffer_pool_read_requests", &buf_pool.stat.n_page_gets, SHOW_SIZE_T},
   {"buffer_pool_reads", &buf_pool.stat.n_pages_read, SHOW_SIZE_T},
+  {"ext_buffer_pool_reads", &buf_pool.stat.n_pages_read_from_ebp,
+    SHOW_SIZE_T},
   {"buffer_pool_wait_free", &buf_pool.stat.LRU_waits, SHOW_SIZE_T},
   {"buffer_pool_write_requests", &buf_pool.flush_list_requests, SHOW_SIZE_T},
+  {"ext_buffer_pool_pages_flushed", &buf_pool.stat.n_pages_written_to_ebp,
+    SHOW_SIZE_T},
   {"checkpoint_age", &export_vars.innodb_checkpoint_age, SHOW_SIZE_T},
   {"checkpoint_max_age", &export_vars.innodb_checkpoint_max_age, SHOW_SIZE_T},
   {"data_fsyncs", (size_t*) &os_n_fsyncs, SHOW_SIZE_T},
@@ -3551,6 +3555,38 @@ static void innodb_buffer_pool_size_update(THD* thd,st_mysql_sys_var*,void*,
   buf_pool.resize(*static_cast<const size_t*>(save), thd);
 }
 
+static void innodb_extended_buffer_pool_size_update(THD *thd,
+                                                    st_mysql_sys_var *, void *,
+                                                    const void *save)
+{
+  buf_pool.extended_pages=
+      (*static_cast<const size_t *>(save) >> srv_page_size_shift);
+  fil_system.ext_bp_size= buf_pool.extended_pages << srv_page_size_shift;
+}
+
+#ifdef UNIV_DEBUG
+static void innodb_force_LRU_eviction_set(THD *, st_mysql_sys_var *, void *,
+                                            const void *save)
+{
+  buf_pool.force_LRU_eviction_to_ebp= *static_cast<const my_bool *>(save);
+  if (buf_pool.force_LRU_eviction_to_ebp)
+  {
+    /* Wake up page cleaner twice, the first one is to flush dirty pages to
+    data files, the second one is to flush clean pages to external buffer pool.
+    */
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    buf_pool.page_cleaner_wakeup(true);
+    my_cond_wait(&buf_pool.done_flush_list,
+                 &buf_pool.flush_list_mutex.m_mutex);
+    buf_pool.page_cleaner_wakeup(true);
+    my_cond_wait(&buf_pool.done_flush_list,
+                 &buf_pool.flush_list_mutex.m_mutex);
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  }
+  buf_pool.force_LRU_eviction_to_ebp= false;
+}
+#endif /* UNIV_DEBUG */
+
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size, buf_pool.size_in_bytes_requested,
   PLUGIN_VAR_RQCMDARG,
   "The size of the memory buffer InnoDB uses to cache data"
@@ -3589,6 +3625,25 @@ static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
   "Redo log write size to avoid read-on-write; must be a power of two",
   nullptr, nullptr, 512, 512, 4096, 1);
 
+static MYSQL_SYSVAR_SIZE_T(extended_buffer_pool_size,
+                           fil_system.ext_bp_size_non_atomic,
+                           PLUGIN_VAR_RQCMDARG,
+                           "The extended buffer pool file size", nullptr,
+                           innodb_extended_buffer_pool_size_update,
+                           // TODO: set correct min and max values here.
+                           0, 0, SIZE_T_MAX, 0);
+
+static MYSQL_SYSVAR_STR(extended_buffer_pool_path, fil_system.ext_bp_path,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Path to extended buffer pool file",
+  nullptr, nullptr, nullptr);
+
+#ifdef UNIV_DEBUG
+static MYSQL_SYSVAR_BOOL(force_LRU_eviction, buf_pool.force_LRU_eviction_to_ebp,
+  PLUGIN_VAR_OPCMDARG,
+  "Wake up page cleaner and wait for pages flushing end, used for testing only",
+  NULL, innodb_force_LRU_eviction_set, FALSE);
+#endif
 
 #ifdef BTR_CUR_HASH_ADAPT
 static void innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
@@ -3720,6 +3775,8 @@ static int innodb_init_params()
   MYSQL_SYSVAR_NAME(buffer_pool_size_auto_min).max_val=
     buf_pool.size_in_bytes_max;
 #endif
+
+  buf_pool.extended_pages = fil_system.ext_bp_size >> srv_page_size_shift;
 
   if (innodb_buffer_pool_size < min)
   {
@@ -18738,9 +18795,11 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         lsn_t resizing= log_sys.resize_in_progress();
         if (resizing > buf_pool.get_oldest_modification(0))
         {
+          ++buf_pool.done_flush_list_waiters_count;
           buf_pool.page_cleaner_wakeup(true);
           my_cond_timedwait(&buf_pool.done_flush_list,
                             &buf_pool.flush_list_mutex.m_mutex, &abstime);
+          --buf_pool.done_flush_list_waiters_count;
           resizing= log_sys.resize_in_progress();
         }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -19980,6 +20039,11 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buffer_pool_size_auto_min),
 #endif
   MYSQL_SYSVAR(buffer_pool_size_max),
+  MYSQL_SYSVAR(extended_buffer_pool_size),
+  MYSQL_SYSVAR(extended_buffer_pool_path),
+#ifdef UNIV_DEBUG
+  MYSQL_SYSVAR(force_LRU_eviction),
+#endif
   MYSQL_SYSVAR(buffer_pool_chunk_size),
   MYSQL_SYSVAR(buffer_pool_filename),
   MYSQL_SYSVAR(buffer_pool_dump_now),
