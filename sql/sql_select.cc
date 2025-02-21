@@ -15790,6 +15790,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
                                             BNL_HINT_ENUM, true);
   bool no_bka_cache= !hint_table_state(join->thd, tab->tab_list->table,
           BKA_HINT_ENUM, join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
+  bool hint_forces_bnl= hint_table_state(join->thd, tab->tab_list->table,
+                                         BNL_HINT_ENUM, false);
   bool hint_forces_bka= hint_table_state(join->thd, tab->tab_list->table,
                                          BKA_HINT_ENUM, false);
   join->return_tab= 0;
@@ -15797,18 +15799,30 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   if (tab->no_forced_join_cache || (hint_disables_bnl && no_bka_cache))
     goto no_join_cache;
 
-  if (cache_level < 4 && hint_table_state(join->thd, tab->tab_list->table,
-                                          BNL_HINT_ENUM, false))
+  // Hints BNL() and BKA() cannot be both specified for a single table
+  DBUG_ASSERT(!(hint_forces_bnl && hint_forces_bka));
+
+  if (cache_level < 4 && hint_forces_bnl)
   {
-    cache_level= 4; // BNL() hint present, raise join_cache_level to BNLH
+    // BNL() hint present, raise join_cache_level to BNLH-incremental
+    cache_level= 4;
+  }
+  else if (hint_forces_bka && !(cache_level >= 5 && cache_level <= 8))
+  {
+    /*
+      BKA() hint present. If join_cache_level is already set to BKA or BKAH,
+      just ignore the hint. For other join_cache_levels raise the level to
+      maximum possible (BKAH incremental) as there is no such granularity
+      in hints as there is in join cache levels
+    */
+    cache_level= 8;
   }
 
   /*
-    Don't use join cache if @@join_cache_level==0 and hint BKA()
-    is not specified or this table is the first
+    Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
   */
-  if ((cache_level == 0 && !hint_forces_bka) || !prev_tab)
+  if (cache_level == 0 || !prev_tab)
   {
     /*
       We could have cache_level==0 but join cache was forced for some previous
@@ -15955,10 +15969,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_CONST:
   case JT_REF:
   case JT_EQ_REF:
-    if (hint_forces_bka)
-      cache_level= 8; // Increase to BKAH incremental
     if (cache_level <=2 || (no_hashed_cache && no_bka_cache))
       goto no_join_cache;
+
     if (tab->ref.is_access_triggered())
       goto no_join_cache;
 
@@ -15976,8 +15989,10 @@ uint check_join_cache_usage(JOIN_TAB *tab,
 
     if ((cache_level <=4 && !no_hashed_cache) || no_bka_cache ||
         tab->is_ref_for_hash_join() ||
-	((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6))
+        ((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6) ||
+        (hint_forces_bnl && !no_hashed_cache))
     {
+      // Only BNLH cache is applicable for the conditions given
       if (hint_disables_bnl)
         goto no_join_cache;
       if (!tab->hash_join_is_possible() ||
@@ -15992,11 +16007,13 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       }
       goto no_join_cache;
     }
+
+    // Check and apply BKA/BKAH cache if possible
     if (cache_level < 5 || no_bka_cache)
       goto no_join_cache;
-    
+
     if ((flags & HA_MRR_NO_ASSOCIATION) &&
-	(cache_level <= 6 || no_hashed_cache))
+       (cache_level <= 6 || no_hashed_cache))
       goto no_join_cache;
 
     if ((rows != HA_POS_ERROR) && !(flags & HA_MRR_USE_DEFAULT_IMPL))
