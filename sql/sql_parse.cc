@@ -1713,22 +1713,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   case COM_RESET_CONNECTION:
   {
     thd->status_var.com_other++;
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_after_command_ignore_result(thd);
-      wsrep_close(thd);
-    }
-#endif /* WITH_WSREP */
     thd->change_user();
     thd->clear_error();                         // if errors from rollback
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_open(thd);
-      wsrep_before_command(thd);
-    }
-#endif /* WITH_WSREP */
     /* Restore original charset from client authentication packet.*/
     if(thd->org_charset)
       thd->update_charset(thd->org_charset,thd->org_charset,thd->org_charset);
@@ -1740,21 +1726,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     int auth_rc;
     status_var_increment(thd->status_var.com_other);
 
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_after_command_ignore_result(thd);
-      wsrep_close(thd);
-    }
-#endif /* WITH_WSREP */
     thd->change_user();
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_open(thd);
-      wsrep_before_command(thd);
-    }
-#endif /* WITH_WSREP */
     thd->clear_error();                         // if errors from rollback
 
     /* acl_authenticate() takes the data from net->read_pos */

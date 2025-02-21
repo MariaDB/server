@@ -1546,6 +1546,14 @@ void THD::init_for_queries()
 
 void THD::change_user(void)
 {
+#ifdef WITH_WSREP
+  bool pause_wsrep= wsrep_cs().state() != wsrep::client_state::s_none;
+  if (pause_wsrep)
+  {
+    wsrep_after_command_ignore_result(this);
+    wsrep_close(this);
+  }
+#endif /* WITH_WSREP */
   if (!status_in_global)                        // Reset in init()
     add_status_to_global();
 
@@ -1575,6 +1583,13 @@ void THD::change_user(void)
   sp_caches_clear();
   statement_rcontext_reinit();
   opt_trace.delete_traces();
+#ifdef WITH_WSREP
+  if (pause_wsrep)
+  {
+    wsrep_open(this);
+    wsrep_before_command(this);
+  }
+#endif /* WITH_WSREP */
 }
 
 /**
