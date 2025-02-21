@@ -1,0 +1,40 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (
+`id` bigint(20) unsigned NOT NULL,
+`login` bigint(20) unsigned NOT NULL,
+`source` int(10) unsigned NOT NULL,
+PRIMARY KEY (`id`,`source`)
+);
+create table t1 (
+`id` bigint(20) unsigned NOT NULL,
+`login` bigint(20) unsigned NOT NULL,
+`source` int(10) unsigned NOT NULL,
+PRIMARY KEY (`id`,`source`)
+) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+INSERT INTO `t1`
+(`id`, `login`, `source` )
+VALUES
+(1,12345,100),
+(2,12345,100),
+(3,12345,100);
+SELECT `id`, `login`, `source` from `t1`;
+id	login	source
+1	12345	100
+2	12345	100
+3	12345	100
+SELECT -1 as x, `id`, `login`, `source` from `t1`;
+x	id	login	source
+-1	1	12345	100
+-1	2	12345	100
+-1	3	12345	100
+drop table t1, t2;
+drop server srv;
+for master_1
+for child2
+for child3
