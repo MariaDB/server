@@ -1088,10 +1088,12 @@ inline void buf_pool_t::garbage_collect() noexcept
 #endif /* BTR_CUR_HASH_ADAPT */
   time_t start= time(nullptr);
   mysql_mutex_lock(&mutex);
+  shrink_status s;
 
   do
   {
-    if (shrink(size))
+    s= shrink(size);
+    if (s == SHRINK_DONE)
     {
       const size_t old_blocks{n_blocks};
       n_blocks= n_blocks_new;
@@ -1132,7 +1134,7 @@ inline void buf_pool_t::garbage_collect() noexcept
       return;
     }
   }
-  while (time(nullptr) - start < 15);
+  while (s == SHRINK_IN_PROGRESS && time(nullptr) - start < 15);
 
   ut_ad(size_in_bytes > size_in_bytes_requested);
   n_blocks_to_withdraw= 0;
@@ -1672,14 +1674,15 @@ ATTRIBUTE_COLD bool buf_pool_t::LRU_shrink(buf_page_t *bpage) noexcept
   return true;
 }
 
-ATTRIBUTE_COLD bool buf_pool_t::shrink(size_t size) noexcept
+ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
+  noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   buf_load_abort();
 
   if (!n_blocks_to_withdraw)
   {
-withdraw_done:
+  withdraw_done:
     first_to_withdraw= nullptr;
     while (buf_page_t *b= UT_LIST_GET_FIRST(withdrawn))
     {
@@ -1687,7 +1690,7 @@ withdraw_done:
       /* satisfy the check in lazy_allocate() */
       ut_d(memset((void*) b, 0, sizeof(buf_block_t)));
     }
-    return true;
+    return SHRINK_DONE;
   }
 
   buf_buddy_condense_free(size);
@@ -1861,7 +1864,7 @@ withdraw_done:
   {
     LRU_warned_clear();
     mysql_mutex_unlock(&flush_list_mutex);
-    return false;
+    return SHRINK_ABORT;
   }
 
   try_LRU_scan= false;
@@ -1874,7 +1877,7 @@ withdraw_done:
   if (!n_blocks_to_withdraw)
     goto withdraw_done;
 
-  return false;
+  return SHRINK_IN_PROGRESS;
 }
 
 #ifdef _WIN32
@@ -2069,7 +2072,8 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   }
   else
   {
-    n_blocks_to_withdraw= size_t(n_blocks_removed);
+    size_t to_withdraw= size_t(n_blocks_removed);
+    n_blocks_to_withdraw= to_withdraw;
     first_to_withdraw= &get_nth_page(n_blocks_new)->page;
     size_in_bytes_requested= size;
     mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -2091,16 +2095,21 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       time_t now= time(nullptr);
       if (now - last_message > 15)
       {
+        if (last_message != 0 && to_withdraw == n_blocks_to_withdraw)
+          break;
+        to_withdraw= n_blocks_to_withdraw;
         last_message= now;
         sql_print_information("InnoDB: Trying to shrink"
                               " innodb_buffer_pool_size=%zum (%zu pages)"
                               " from %zum (%zu pages, to withdraw %zu)",
                               size >> 20, n_blocks_new,
-                              old_size >> 20, n_blocks,
-                              n_blocks_to_withdraw);
+                              old_size >> 20, n_blocks, to_withdraw);
       }
-      if (shrink(size))
+      shrink_status s{shrink(size)};
+      if (s == SHRINK_DONE)
         goto resized;
+      if (s != SHRINK_IN_PROGRESS)
+        break;
     }
     while (!thd_kill_level(thd));
 

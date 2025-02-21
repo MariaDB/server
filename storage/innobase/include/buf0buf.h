@@ -1248,6 +1248,14 @@ private:
   @return number of buffer pool pages */
   static size_t get_n_blocks(size_t size_in_bytes) noexcept;
 
+  /** The outcome of shrink() */
+  enum shrink_status{SHRINK_DONE= -1, SHRINK_IN_PROGRESS= 0, SHRINK_ABORT};
+
+  /** Attempt to shrink the buffer pool.
+  @param size   requested innodb_buffer_pool_size in bytes
+  @retval whether the shrinking was completed */
+  ATTRIBUTE_COLD shrink_status shrink(size_t size) noexcept;
+
 public:
   bool is_initialised() const noexcept { return memory != nullptr; }
 
@@ -1257,11 +1265,6 @@ public:
 
   /** Clean up after successful create() */
   void close() noexcept;
-
-  /** Attempt to shrink the buffer pool.
-  @param size   requested innodb_buffer_pool_size in bytes
-  @retval whether the shrinking was completed */
-  ATTRIBUTE_COLD bool shrink(size_t size) noexcept;
 
   /** Resize the buffer pool.
   @param size   requested innodb_buffer_pool_size in bytes
