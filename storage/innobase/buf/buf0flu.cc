@@ -1213,14 +1213,14 @@ static void buf_flush_discard_page(buf_page_t *bpage) noexcept
 
 /** Flush dirty blocks from the end buf_pool.LRU,
 and move clean blocks to buf_pool.free.
-@param max        maximum number of blocks to flush
-@param n          counts of flushed and evicted pages
-@param shrinking  buf_pool.is_shrinking() */
+@param max         maximum number of blocks to flush
+@param n           counts of flushed and evicted pages
+@param to_withdraw buf_pool.to_withdraw() */
 static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
-                                     size_t shrinking) noexcept
+                                     size_t to_withdraw) noexcept
 {
   size_t scanned= 0;
-  size_t free_limit{buf_pool.LRU_scan_depth + shrinking};
+  size_t free_limit{buf_pool.LRU_scan_depth + to_withdraw};
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
     ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
@@ -1238,8 +1238,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
   data objects as checked in buf_LRU_check_size_of_non_data_objects() i.e. one
   page less than 5% of BP. */
   const size_t buf_lru_min_len=
-    std::min((buf_pool.curr_size() - shrinking) / 20 - 1,
-             size_t{BUF_LRU_MIN_LEN});
+    std::min((buf_pool.usable_size()) / 20 - 1, size_t{BUF_LRU_MIN_LEN});
 
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU); bpage;
        ++scanned, bpage= buf_pool.lru_hp.get())
@@ -1247,18 +1246,21 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
     if (UT_LIST_GET_LEN(buf_pool.LRU) <= buf_lru_min_len ||
         UT_LIST_GET_LEN(buf_pool.free) >= free_limit)
     {
-      if (UNIV_UNLIKELY(shrinking))
+      if (UNIV_UNLIKELY(to_withdraw))
       {
-      loop:
-        auto i= buf_pool.LRU_shrink(bpage);
-        if (!i)
-          break;
-        if (i < 0)
+        while (!buf_pool.LRU_shrink(bpage))
         {
           bpage= UT_LIST_GET_PREV(LRU, bpage);
-          if (bpage)
-            goto loop;
-          break;
+          if (!bpage)
+            goto done;
+          if (UNIV_UNLIKELY(!(++scanned & 31)))
+          {
+            mysql_mutex_unlock(&buf_pool.mutex);
+            mysql_mutex_lock(&buf_pool.mutex);
+            to_withdraw= buf_pool.to_withdraw();
+            if (!to_withdraw)
+              break;
+          }
         }
       }
       else if (!recv_recovery_is_on())
@@ -1284,6 +1286,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       mysql_mutex_unlock(&buf_pool.mutex);
     reacquire_mutex:
       mysql_mutex_lock(&buf_pool.mutex);
+      to_withdraw= buf_pool.to_withdraw();
       continue;
     }
 
@@ -1330,6 +1333,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
           }
           mysql_mutex_lock(&buf_pool.mutex);
           buf_pool.stat.n_pages_written+= p.second;
+          to_withdraw= buf_pool.to_withdraw();
         }
         else
         {
@@ -1370,6 +1374,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       ut_ad(buf_pool.lru_hp.is_hp(prev));
   }
 
+done:
   buf_pool.lru_hp.set(nullptr);
 
   if (space)
@@ -1390,12 +1395,12 @@ Whether LRU or unzip_LRU is used depends on the state of the system.
 @param n      counts of flushed and evicted pages */
 static void buf_do_LRU_batch(ulint max, flush_counters_t *n) noexcept
 {
-  const size_t shrinking= buf_pool.is_shrinking();
-  if (!shrinking && buf_LRU_evict_from_unzip_LRU())
+  const size_t to_withdraw= buf_pool.to_withdraw();
+  if (!to_withdraw && buf_LRU_evict_from_unzip_LRU())
     buf_free_from_unzip_LRU_list_batch();
   n->evicted= 0;
   n->flushed= 0;
-  buf_flush_LRU_list_batch(max, n, shrinking);
+  buf_flush_LRU_list_batch(max, n, to_withdraw);
 
   mysql_mutex_assert_owner(&buf_pool.mutex);
   buf_lru_freed_page_count+= n->evicted;

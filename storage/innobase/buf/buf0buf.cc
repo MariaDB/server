@@ -1660,17 +1660,16 @@ ATTRIBUTE_COLD bool buf_pool_t::withdraw(buf_page_t &bpage) noexcept
   return true;
 }
 
-ATTRIBUTE_COLD int buf_pool_t::LRU_shrink(buf_page_t *bpage) noexcept
+ATTRIBUTE_COLD bool buf_pool_t::LRU_shrink(buf_page_t *bpage) noexcept
 {
-  if (UNIV_UNLIKELY(!is_shrinking()))
-    return 0;
+  ut_ad(is_shrinking());
   if (bpage >= first_to_withdraw &&
       reinterpret_cast<byte*>(bpage) <= memory + size_in_bytes_max);
   else if (bpage->zip.data &&
            will_be_withdrawn(bpage->zip.data, size_in_bytes_requested));
   else
-    return -1;
-  return 1;
+    return false;
+  return true;
 }
 
 ATTRIBUTE_COLD bool buf_pool_t::shrink(size_t size) noexcept
