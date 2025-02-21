@@ -4722,20 +4722,18 @@ static int com_source(String *, char *line)
   /* open file name */
   if (!(sql_file = my_fopen(source_name, O_RDONLY | O_BINARY,MYF(0))))
   {
-    
     if (script_dir)
     {
       snprintf(full_path, sizeof(full_path), "%s/%s", script_dir, source_name);
       sql_file = my_fopen(full_path, O_RDONLY | O_BINARY, MYF(0));
     }
+  }
 
-    if (!sql_file)
-    {
-      char buff[FN_REFLEN + 60];
-      sprintf(buff, "Failed to open file '%s', error: %d", source_name, errno);
-      return put_info(buff, INFO_ERROR, 0);
-    }
-
+  if (!sql_file)
+  {
+    char buff[FN_REFLEN + 60];
+    sprintf(buff, "Failed to open file '%s', error: %d", source_name, errno);
+    return put_info(buff, INFO_ERROR, 0);
   }
 
   if (!(line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, sql_file)))

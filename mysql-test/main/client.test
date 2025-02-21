@@ -44,3 +44,43 @@ drop table t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-23818: mysql option --script-dir
+--echo #
+
+--echo #test 1: can't find the file at all
+--exec mkdir dir1
+--error 1
+--exec echo "source file1;" | $MYSQL --script-dir=./dir1/ 2>&1
+--exec rm -rf dir1
+
+--echo #test 2: file in the current working directory
+--exec echo "select 1;" > file1.sql
+--exec mkdir dir1
+--exec echo "source file1.sql;" | $MYSQL --script-dir=./dir1/ 2>&1
+--exec rm -rf dir1 file1.sql
+
+--echo #test 3: file is present in CWD and also in scrpit-dir
+--exec mkdir dir1
+--exec echo "select 'hello from file1';" > file1.sql && echo "select 'hello from dir1/file1';" > dir1/file1.sql
+--exec echo "source file1.sql;" | $MYSQL --script-dir=./dir1/ 2>&1
+--exec rm -rf dir1 file1.sql
+
+--echo #test 4: file is only present in the script-dir
+--exec mkdir dir1
+--exec echo "select 'hello from dir1/file1.sql'" > dir1/file1.sql
+--exec echo "source file1.sql;" | $MYSQL --script-dir=./dir1/ 2>&1
+--exec rm -rf dir1
+
+--echo #test 5: script-dir file has source command that references CWD
+--exec mkdir dir1
+--exec echo "source file2.sql;" > dir1/file1.sql && echo "select 'hello from file2.sql';" > file2.sql
+--exec echo "source file1.sql;" | $MYSQL --script-dir=./dir1/ 2>&1
+--exec rm -rf dir1 file2.sql
+
+--echo #test 6: script-dir file has source command that references script-dir
+--exec mkdir dir1
+--exec echo "source file2.sql" > dir1/file1.sql && echo "select 'hello from dir1/file2.sql'" > dir1/file2.sql
+--exec echo "source file1.sql" | $MYSQL --script-dir=./dir1/ 2>&1
+--exec rm -rf dir1
