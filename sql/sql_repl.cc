@@ -3707,6 +3707,7 @@ int reset_slave(THD *thd, Master_info* mi)
   mi->rli.clear_until_condition();
   mi->rli.clear_sql_delay();
   mi->rli.slave_skip_counter= 0;
+  mi->connects_tried= 0;
   mi->rli.newest_master_timestamp= 0;
   mi->rli.slave_timestamp= 0;
 
@@ -4050,6 +4051,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->port = lex_mi->port;
   if (lex_mi->connect_retry)
     mi->connect_retry = lex_mi->connect_retry;
+  if (lex_mi->retry_count)
+    mi->retry_count= lex_mi->retry_count;
   if (lex_mi->heartbeat_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->heartbeat_period = lex_mi->heartbeat_period;
   else

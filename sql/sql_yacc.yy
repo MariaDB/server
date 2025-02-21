@@ -939,6 +939,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MASTER_LOG_POS_SYM
 %token  <kwd>  MASTER_PASSWORD_SYM
 %token  <kwd>  MASTER_PORT_SYM
+%token  <kwd>  MASTER_RETRY_COUNT_SYM
 %token  <kwd>  MASTER_SERVER_ID_SYM
 %token  <kwd>  MASTER_SSL_CAPATH_SYM
 %token  <kwd>  MASTER_SSL_CA_SYM
@@ -2274,6 +2275,10 @@ master_def:
         | MASTER_CONNECT_RETRY_SYM '=' ulong_num
           {
             Lex->mi.connect_retry = $3;
+          }
+        | MASTER_RETRY_COUNT_SYM '=' ulong_num
+          {
+            Lex->mi.retry_count = $3;
           }
         | MASTER_DELAY_SYM '=' ulong_num
           {
@@ -16536,6 +16541,7 @@ keyword_func_sp_var_and_label:
         | MASTER_SERVER_ID_SYM
         | MASTER_CONNECT_RETRY_SYM
         | MASTER_DELAY_SYM
+        | MASTER_RETRY_COUNT_SYM
         | MASTER_SSL_SYM
         | MASTER_SSL_CA_SYM
         | MASTER_SSL_CAPATH_SYM
