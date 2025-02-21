@@ -1,8 +1,9 @@
---source include/have_symlink.inc
 let $table_data_dir=$MYSQLTEST_VARDIR/ddir;
 mkdir $table_data_dir;
+--disable_warnings
 --replace_result $table_data_dir table_data_dir
 EVAL CREATE TABLE t(a INT) ENGINE=InnoDB DATA DIRECTORY='$table_data_dir';
+--enable_warnings
 INSERT INTO t VALUES(1);
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
@@ -26,13 +27,12 @@ rmdir $targetdir;
 --echo # MDEV-18200 MariaBackup full backup failed with InnoDB: Failing assertion: success
 --echo #
 let $DATADIR= `select @@datadir`;
-chmod 0000 $DATADIR/ibdata1;
+--move_file $DATADIR/ibdata1 $DATADIR/ibdata1_hidden
 --disable_result_log
 --error 1
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
 --enable_result_log
-chmod 0755 $DATADIR/ibdata1;
-rmdir $table_data_dir;
+--move_file $DATADIR/ibdata1_hidden $DATADIR/ibdata1
 rmdir $targetdir;
 --echo #
 --echo # End of 10.4 tests
