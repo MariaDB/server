@@ -219,6 +219,72 @@ enum sj_strategy_enum
   SJ_OPT_MATERIALIZE_SCAN=5
 };
 
+
+class Join_cache_level
+{
+public:
+  /*
+    NB: the numeration of members below is important as arithmetic operation
+    and comparisons are applied to the values
+  */
+  enum Value : uint
+  {
+    NO_JOIN_CACHE= 0, // no join cache employed
+    BNL_NON_INCR= 1,  // non-incremental join cache used for BNL join algorithm
+    BNL_INCR= 2,      // incremental join cache used for BNL join algorithm
+    BNLH_NON_INCR= 3, // non-incremental join cache used for BNLH join algorithm
+    BNLH_INCR= 4,     // incremental join cache used for BNLH join algorithm
+    BKA_NON_INCR= 5,  // non-incremental join cache used for BKA join algorithm
+    BKA_INCR= 6,      // incremental join cache used for BKA join algorithm
+    BKAH_NON_INCR= 7, // non-incremental join cache used for BKAH join algorithm
+    BKAH_INCR= 8      // incremental join cache used for BKAH join algorithm
+  };
+
+  Value value;
+
+  Join_cache_level() = default;
+  constexpr Join_cache_level(Value jcl) : value(jcl) { }
+
+  bool isIncremental() const
+  {
+    return (value == BNL_INCR) || (value == BNLH_INCR) ||
+           (value == BKA_INCR) || (value == BKAH_INCR);
+  }
+
+  bool isNonIncremental() const
+  {
+    return !isIncremental() && value != NO_JOIN_CACHE;
+  }
+
+  void decreaseLevel()
+  {
+    uint cur_value = (uint)value;
+    cur_value--;
+    value= (Value)cur_value;
+  }
+
+  Join_cache_level &operator=(Join_cache_level::Value val)
+  {
+    value= val;
+    return *this;
+  }
+
+  bool operator==(Join_cache_level rhs) const { return value == rhs.value; }
+  bool operator==(Join_cache_level::Value rhs) const { return value == rhs; }
+  bool operator<=(Join_cache_level rhs) const { return value <= rhs.value; }
+  bool operator<=(Join_cache_level::Value rhs) const { return value <= rhs; }
+  bool operator<(Join_cache_level rhs) const { return value < rhs.value; }
+  bool operator<(Join_cache_level::Value rhs) const { return value < rhs; }
+  bool operator>=(Join_cache_level rhs) const { return value >= rhs.value; }
+  bool operator>=(Join_cache_level::Value rhs) const { return value >= rhs; }
+
+  explicit operator bool() const
+  {
+    return value != Value::NO_JOIN_CACHE;
+  }
+};
+
+
 /* Values for JOIN_TAB::packed_info */
 #define TAB_INFO_HAVE_VALUE 1U
 #define TAB_INFO_USING_INDEX 2U
@@ -445,7 +511,7 @@ typedef struct st_join_table {
   bool          use_join_cache;
   /* TRUE <=> it is prohibited to join this table using join buffer */
   bool          no_forced_join_cache;
-  uint          used_join_cache_level;
+  Join_cache_level used_join_cache_level;
   JOIN_CACHE	*cache;
   /*
     Index condition for BKA access join
@@ -1542,7 +1608,7 @@ public:
   bool allowed_semijoin_with_cache;
   bool allowed_outer_join_with_cache;
   /* Maximum level of the join caches that can be used for join operations */ 
-  uint max_allowed_join_cache_level;
+  Join_cache_level max_allowed_join_cache_level;
   select_result *result;
   TMP_TABLE_PARAM tmp_table_param;
   MYSQL_LOCK *lock;

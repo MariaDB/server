@@ -14431,14 +14431,16 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           add_cond_and_fix(thd, &tmp, tab->select_cond);
       }
 
-      uint max_jcl= join->max_allowed_join_cache_level;
+      Join_cache_level max_jcl= join->max_allowed_join_cache_level;
       bool is_hash_allowed= join->allowed_join_cache_types &
                             JOIN_CACHE_HASHED_BIT;
-      bool is_bnlh_enabled= ((max_jcl == 3 || max_jcl == 4) &&
-                              is_hash_allowed) ||
-          hint_table_state(thd, tab->table, BNL_HINT_ENUM, false);
-      bool is_bkah_enabled= (max_jcl > 4 && is_hash_allowed) ||
-          hint_table_state(thd, tab->table, BKA_HINT_ENUM, false);
+      bool is_bnlh_enabled=
+        ((max_jcl == Join_cache_level::BNLH_NON_INCR ||
+           max_jcl == Join_cache_level::BNLH_INCR) && is_hash_allowed) ||
+            hint_table_state(thd, tab->table, BNL_HINT_ENUM, false);
+      bool is_bkah_enabled=
+        (max_jcl >= Join_cache_level::BKA_NON_INCR && is_hash_allowed) ||
+        hint_table_state(thd, tab->table, BKA_HINT_ENUM, false);
       is_hj= (tab->type == JT_REF || tab->type == JT_EQ_REF) &&
              (is_bnlh_enabled ||
                (is_bkah_enabled && is_hash_join_key_no(tab->ref.key))) &&
@@ -15275,7 +15277,7 @@ void set_join_cache_denial(JOIN_TAB *join_tab)
   if (join_tab->use_join_cache)
   {
     join_tab->use_join_cache= FALSE;
-    join_tab->used_join_cache_level= 0;
+    join_tab->used_join_cache_level= Join_cache_level::NO_JOIN_CACHE;
     /*
       It could be only sub_select(). It could not be sub_seject_sjm because we
       don't do join buffering for the first table in sjm nest. 
@@ -15626,7 +15628,7 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 */
 
 static
-uint check_join_cache_usage(JOIN_TAB *tab,
+Join_cache_level check_join_cache_usage(JOIN_TAB *tab,
                             ulonglong options,
                             uint no_jbuf_after,
                             uint table_index,
@@ -15638,7 +15640,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   JOIN_CACHE *prev_cache=0;
   JOIN *join= tab->join;
   MEM_ROOT *root= join->thd->mem_root;
-  uint cache_level= tab->used_join_cache_level;
+  Join_cache_level cache_level= tab->used_join_cache_level;
   bool force_unlinked_cache=
          !(join->allowed_join_cache_types & JOIN_CACHE_INCREMENTAL_BIT);
   bool no_hashed_cache=
@@ -15647,6 +15649,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
                                        BNL_HINT_ENUM, true);
   bool no_bka_cache= !hint_table_state(join->thd, tab->tab_list->table,
           BKA_HINT_ENUM, join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
+  bool hint_forces_bnl= hint_table_state(join->thd, tab->tab_list->table,
+                                         BNL_HINT_ENUM, false);
   bool hint_forces_bka= hint_table_state(join->thd, tab->tab_list->table,
                                          BKA_HINT_ENUM, false);
   join->return_tab= 0;
@@ -15654,18 +15658,25 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   if (tab->no_forced_join_cache || (no_bnl_cache && no_bka_cache))
     goto no_join_cache;
 
-  if (cache_level < 4 && hint_table_state(join->thd, tab->tab_list->table,
-                                          BNL_HINT_ENUM, false))
+  // Hints BNL() and BKA() cannot be both specified for a single table
+  DBUG_ASSERT(!(hint_forces_bnl && hint_forces_bka));
+
+  if (cache_level < Join_cache_level::BNLH_INCR && hint_forces_bnl)
   {
-    cache_level= 4; // BNL() hint present, raise join_cache_level to BNLH
+    // BNL() hint present, raise join_cache_level to BNLH-incremental
+    cache_level= Join_cache_level::BNLH_INCR;
+  }
+  else if (hint_forces_bka)
+  {
+    // BKA() hint present, raise join_cache_level to BKAH-incremental
+    cache_level= Join_cache_level::BKAH_INCR;
   }
 
   /*
-    Don't use join cache if @@join_cache_level==0 and hint BKA()
-    is not specified or this table is the first
+    Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
   */
-  if ((cache_level == 0 && !hint_forces_bka) || !prev_tab)
+  if (cache_level == Join_cache_level::NO_JOIN_CACHE || !prev_tab)
   {
     /*
       We could have cache_level==0 but join cache was forced for some previous
@@ -15675,8 +15686,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     goto no_join_cache;
   }
 
-  if (force_unlinked_cache && (cache_level%2 == 0))
-    cache_level--;
+  if (force_unlinked_cache && cache_level.isIncremental())
+    cache_level.decreaseLevel();
 
   if (options & SELECT_NO_JOIN_CACHE)
     goto no_join_cache;
@@ -15712,10 +15723,10 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   */
   if (tab->is_nested_inner())
   {
-    if (force_unlinked_cache || cache_level == 1)
+    if (force_unlinked_cache || cache_level == Join_cache_level::BNL_NON_INCR)
       goto no_join_cache;
-    if (cache_level & 1)
-      cache_level--;
+    if (cache_level.isNonIncremental())
+      cache_level.decreaseLevel();
   }
     
   /*
@@ -15797,7 +15808,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_RANGE:
     if (no_bnl_cache)
       goto no_join_cache;
-    if (cache_level == 1)
+    if (cache_level == Join_cache_level::BNL_NON_INCR)
       prev_cache= 0;
     if ((tab->cache= new (root) JOIN_CACHE_BNL(join, tab, prev_cache)))
     {
@@ -15805,17 +15816,19 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       /* If make_join_select() hasn't called make_scan_filter(), do it now */
       if (!tab->cache_select && tab->make_scan_filter())
         goto no_join_cache;
-      return (2 - MY_TEST(!prev_cache));
+      return Join_cache_level(prev_cache ? Join_cache_level::BNL_INCR :
+                                           Join_cache_level::BNL_NON_INCR);
     }
     goto no_join_cache;
   case JT_SYSTEM:
   case JT_CONST:
   case JT_REF:
   case JT_EQ_REF:
-    if (hint_forces_bka)
-      cache_level= 8; // Increase to BKAH incremental
-    if (cache_level <=2 || (no_hashed_cache && no_bka_cache))
+    if (cache_level <= Join_cache_level::BNL_INCR ||
+        (no_hashed_cache && no_bka_cache))
+    {
       goto no_join_cache;
+    }
     if (tab->ref.is_access_triggered())
       goto no_join_cache;
 
@@ -15831,49 +15844,61 @@ uint check_join_cache_usage(JOIN_TAB *tab,
                                                     &bufsz, &flags, &cost);
     }
 
-    if ((cache_level <=4 && !no_hashed_cache) || no_bka_cache ||
+    if ((cache_level <= Join_cache_level::BNLH_INCR && !no_hashed_cache) ||
+        no_bka_cache ||
         tab->is_ref_for_hash_join() ||
-	((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6))
+        ((flags & HA_MRR_NO_ASSOCIATION) &&
+           cache_level <= Join_cache_level::BKA_INCR) || hint_forces_bnl)
     {
+      // Only BNLH cache is applicable for the conditions given
       if (no_bnl_cache)
         goto no_join_cache;
       if (!tab->hash_join_is_possible() ||
           tab->make_scan_filter())
         goto no_join_cache;
-      if (cache_level == 3)
+      if (cache_level == Join_cache_level::BNLH_NON_INCR)
         prev_cache= 0;
       if ((tab->cache= new (root) JOIN_CACHE_BNLH(join, tab, prev_cache)))
       {
         tab->icp_other_tables_ok= FALSE;        
-        return (4 - MY_TEST(!prev_cache));
+        return Join_cache_level(prev_cache ? Join_cache_level::BNLH_INCR :
+                                             Join_cache_level::BNLH_NON_INCR);
       }
       goto no_join_cache;
     }
-    if (cache_level > 4 && no_bka_cache)
+
+    // Check and apply BKA/BKAH cache if possible
+    if (cache_level <= Join_cache_level::BNLH_INCR || no_bka_cache)
       goto no_join_cache;
-    
+
     if ((flags & HA_MRR_NO_ASSOCIATION) &&
-	(cache_level <= 6 || no_hashed_cache))
+        (cache_level <= Join_cache_level::BKA_INCR || no_hashed_cache))
+    {
       goto no_join_cache;
+    }
 
     if ((rows != HA_POS_ERROR) && !(flags & HA_MRR_USE_DEFAULT_IMPL))
     {
-      if (cache_level <= 6 || no_hashed_cache)
+      if (cache_level <= Join_cache_level::BKA_INCR || no_hashed_cache)
       {
-        if (cache_level == 5)
+        if (cache_level == Join_cache_level::BKA_NON_INCR)
           prev_cache= 0;
         if ((tab->cache= new (root) JOIN_CACHE_BKA(join, tab, flags, prev_cache)))
-          return (6 - MY_TEST(!prev_cache));
+        {
+          return Join_cache_level(prev_cache ? Join_cache_level::BKA_INCR :
+                                               Join_cache_level::BKA_NON_INCR);
+        }
         goto no_join_cache;
       }
       else
       {
-        if (cache_level == 7)
+        if (cache_level == Join_cache_level::BKAH_NON_INCR)
           prev_cache= 0;
         if ((tab->cache= new (root) JOIN_CACHE_BKAH(join, tab, flags, prev_cache)))
 	{
           tab->idx_cond_fact_out= FALSE;
-          return (8 - MY_TEST(!prev_cache));
+          return Join_cache_level(prev_cache ? Join_cache_level::BKAH_INCR :
+                                               Join_cache_level::BKAH_NON_INCR);
         }
         goto no_join_cache;
       }
@@ -15889,7 +15914,7 @@ no_join_cache:
     tab->ref.key_parts= 0;
   }
   revise_cache_usage(tab); 
-  return 0;
+  return Join_cache_level::NO_JOIN_CACHE;
 }
 
 
@@ -15983,7 +16008,7 @@ restart:
       }
       break; 
     default:
-      tab->used_join_cache_level= 0;
+      tab->used_join_cache_level= Join_cache_level::NO_JOIN_CACHE;
     }
     if (!tab->bush_children)
       idx++;
@@ -16158,7 +16183,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     }
 
     TABLE *table=tab->table;
-    uint jcl= tab->used_join_cache_level;
+    Join_cache_level jcl= tab->used_join_cache_level;
     tab->read_record.table= table;
     tab->read_record.unlock_row= rr_unlock_row;
     tab->read_record.print_error= true;
@@ -16198,14 +16223,18 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
                                                      : join_read_const;
       tab->read_record.unlock_row= join_const_unlock_row;
       if (!(table->covering_keys.is_set(tab->ref.key) && !table->no_keyread) &&
-          (!jcl || jcl > 4) && !tab->ref.is_access_triggered())
+          (jcl == Join_cache_level::NO_JOIN_CACHE ||
+           jcl >= Join_cache_level::BKA_NON_INCR) &&
+          !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
     case JT_EQ_REF:
       tab->read_record.unlock_row= join_read_key_unlock_row;
       /* fall through */
       if (!(table->covering_keys.is_set(tab->ref.key) && !table->no_keyread) &&
-          (!jcl || jcl > 4) && !tab->ref.is_access_triggered())
+          (jcl == Join_cache_level::NO_JOIN_CACHE ||
+           jcl >= Join_cache_level::BKA_NON_INCR) &&
+          !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
     case JT_REF_OR_NULL:
@@ -16218,7 +16247,9 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       delete tab->quick;
       tab->quick=0;
       if (!(table->covering_keys.is_set(tab->ref.key) && !table->no_keyread) &&
-          (!jcl || jcl > 4) && !tab->ref.is_access_triggered())
+          (jcl == Join_cache_level::NO_JOIN_CACHE ||
+           jcl >= Join_cache_level::BKA_NON_INCR) &&
+          !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
     case JT_NEXT:                               // Index scan
@@ -32326,13 +32357,14 @@ void JOIN::set_allowed_join_cache_types()
     optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE);
   allowed_outer_join_with_cache=
     optimizer_flag(thd, OPTIMIZER_SWITCH_OUTER_JOIN_WITH_CACHE);
-  max_allowed_join_cache_level= thd->variables.join_cache_level;
+  max_allowed_join_cache_level=
+      (Join_cache_level::Value)thd->variables.join_cache_level;
 }
 
 bool JOIN::is_allowed_hash_join_access(const TABLE *table)
 {
   return allowed_join_cache_types & JOIN_CACHE_HASHED_BIT &&
-         (max_allowed_join_cache_level > JOIN_CACHE_HASHED_BIT ||
+         (max_allowed_join_cache_level >= Join_cache_level::BNLH_NON_INCR ||
            hint_table_state(thd, table, BNL_HINT_ENUM, false) ||
            hint_table_state(thd, table, BKA_HINT_ENUM, false));
 }
