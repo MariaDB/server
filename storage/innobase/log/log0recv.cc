@@ -3977,9 +3977,12 @@ static void log_sort_flush_list() noexcept
     {
       os_aio_wait_until_no_pending_writes(false);
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      if (buf_pool.page_cleaner_active())
+      if (buf_pool.page_cleaner_active()) {
+        ++buf_pool.done_flush_list_waiters_count;
         my_cond_wait(&buf_pool.done_flush_list,
                      &buf_pool.flush_list_mutex.m_mutex);
+        --buf_pool.done_flush_list_waiters_count;
+      }
       else if (!os_aio_pending_writes())
         break;
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);

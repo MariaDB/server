@@ -47,8 +47,10 @@ The caller must hold buf_pool.mutex.
 @param zip        whether to remove both copies of a ROW_FORMAT=COMPRESSED page
 @retval true if freed and buf_pool.mutex may have been temporarily released
 @retval false if the page was not freed */
-bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
-  MY_ATTRIBUTE((nonnull));
+bool buf_LRU_free_page(buf_page_t *bpage/* TODO: use reference instead of
+                                           pointer */,
+                       bool zip,
+                       ext_buf_page_t *ext_buf_page= nullptr);
 
 /** Try to free a replaceable block.
 @param limit  maximum number of blocks to scan

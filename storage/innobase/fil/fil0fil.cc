@@ -81,7 +81,7 @@ bool fil_space_t::try_to_close(fil_space_t *ignore_space, bool print_info)
   {
     if (&space == ignore_space || space.is_being_imported() ||
         space.id == TRX_SYS_SPACE || space.id == SRV_TMP_SPACE_ID ||
-        srv_is_undo_tablespace(space.id))
+        space.id == SRV_EXT_BP_SPACE_ID || srv_is_undo_tablespace(space.id))
       continue;
     ut_ad(!space.is_temporary());
 
@@ -497,12 +497,14 @@ pfs_os_file_t fil_node_t::detach() noexcept
 void fil_node_t::prepare_to_close_or_detach() noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_ad(space->is_ready_to_close() || srv_operation == SRV_OPERATION_BACKUP ||
+  ut_ad(space == fil_system.ext_bp_space || space->is_ready_to_close() ||
+        srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_RESTORE_DELTA);
   ut_a(is_open());
   ut_a(!being_extended);
   ut_a(space->is_ready_to_close() || space->is_temporary() ||
-       srv_fast_shutdown == 2 || !srv_was_started);
+       srv_fast_shutdown == 2 || !srv_was_started ||
+       space == fil_system.ext_bp_space);
 
   ut_a(fil_system.n_open > 0);
   fil_system.n_open--;
@@ -660,6 +662,10 @@ fil_space_extend_must_retry(
 		space->flush_low();
 		space->release();
 		mysql_mutex_lock(&fil_system.mutex);
+		break;
+	case SRV_EXT_BP_SPACE_ID:
+		ut_ad(!fil_system.temp_space);
+		fil_system.ext_bp_space = space;
 		break;
 	default:
 		ut_ad(!space->is_temporary());
@@ -1005,6 +1011,10 @@ fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
     ut_ad(!fil_system.temp_space);
     fil_system.temp_space= space;
     return space;
+  case SRV_EXT_BP_SPACE_ID:
+    ut_ad(!fil_system.ext_bp_space);
+    fil_system.ext_bp_space= space;
+    return space;
   default:
     if (UNIV_LIKELY(id <= fil_system.max_assigned_id))
       break;
@@ -1189,6 +1199,7 @@ void fil_space_t::close()
 
 	mysql_mutex_lock(&fil_system.mutex);
 	ut_ad(this == fil_system.temp_space
+	      || this == fil_system.ext_bp_space
 	      || srv_operation == SRV_OPERATION_BACKUP
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
@@ -1295,6 +1306,11 @@ void fil_system_t::close() noexcept
 
   if (is_initialised())
   {
+    if (ext_bp_space)
+    {
+      fil_system.ext_bp_space->close();
+      fil_system.ext_bp_space->remove_file_low();
+    }
     spaces.free();
     mysql_mutex_destroy(&mutex);
     fil_space_crypt_cleanup();
@@ -1620,7 +1636,7 @@ inline size_t mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
 
 fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
 {
-  ut_a(!is_system_tablespace(id));
+  ut_a(!is_system_tablespace(id) || id == SRV_EXT_BP_SPACE_ID);
   ut_ad(id != SRV_TMP_SPACE_ID);
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
@@ -1742,6 +1758,14 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
   return space;
 }
 
+void fil_space_t::remove_file_low()
+{
+  fil_node_t *node= chain.start;
+  ut_ad(node);
+  ut_ad(!node->is_open());
+  os_file_delete(innodb_data_file_key, node->name);
+}
+
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
 The tablespace must be cached in the memory cache.
 Free all pages used by the tablespace. */
@@ -1773,7 +1797,7 @@ void fil_close_tablespace(uint32_t id) noexcept
 @return	OS_FILE_CLOSED if no file existed */
 pfs_os_file_t fil_delete_tablespace(uint32_t id) noexcept
 {
-  ut_ad(!is_system_tablespace(id));
+  ut_ad(!is_system_tablespace(id) || id == SRV_EXT_BP_SPACE_ID);
   pfs_os_file_t handle= OS_FILE_CLOSED;
   if (fil_space_t *space= fil_space_t::drop(id, &handle))
     fil_space_free_low(space);
@@ -2896,8 +2920,8 @@ io_error:
 		goto release_sync_write;
 	} else {
 		/* Queue the aio request */
-		err = os_aio(IORequest{bpage, type.slot, node, type.type},
-			     buf, offset, len);
+		err = os_aio(IORequest{bpage, type.slot, node, type.type,
+			     type.ext_buf_page}, buf, offset, len);
 	}
 
 	if (!type.is_async()) {
@@ -2942,7 +2966,8 @@ void IORequest::write_complete(int io_error) const noexcept
   else
     buf_page_write_complete(*this, io_error);
 
-  space->complete_write();
+  if (space != fil_system.ext_bp_space)
+    space->complete_write();
  func_exit:
   space->release();
 }
@@ -2957,14 +2982,46 @@ void IORequest::read_complete(int io_error) const noexcept
   ut_ad(s > buf_page_t::READ_FIX);
   ut_ad(s <= buf_page_t::WRITE_FIX);
 
+  fil_node_t *node_local;
+  if (ext_buf_page) {
+    ut_ad(ext_buf_page->id_ == bpage->id());
+    mysql_mutex_lock(&buf_pool.mutex);
+    buf_pool.free_ext_page(*ext_buf_page);
+    mysql_mutex_unlock(&buf_pool.mutex);
+    ut_ad(node->space == fil_system.ext_bp_space);
+    node->space->release();
+    /* The space will be released at the end of this function */
+    fil_space_t *space= fil_space_t::get(bpage->id().space());
+    if (!space) {
+      bpage->lock.x_unlock(true);
+      return;
+    }
+    ut_d(if (DBUG_IF("ib_ext_bp_count_io_only_for_t")) {
+      auto space_name= space->name();
+      if (fil_page_get_type(bpage->frame) == FIL_PAGE_INDEX &&
+          space_name.data() &&
+          !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
+      {
+        ++buf_pool.stat.n_pages_read_from_ebp;
+      }
+    } else)
+      ++ buf_pool.stat.n_pages_read_from_ebp;
+    /* We don't need to get the correct node here, because further it will be
+    used only to decrypt and decompress data */
+    node_local= UT_LIST_GET_FIRST(space->chain);
+    ut_ad(node_local);
+  }
+  else
+    node_local= node;
+
   const page_id_t id(bpage->id());
   const bool in_recovery{recv_sys.recovery_on};
 
   if (UNIV_UNLIKELY(io_error != 0))
   {
     sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
-                    io_error, id.page_no(), node->name);
-    recv_sys.free_corrupted_page(id, *node);
+                    io_error, id.page_no(), node_local->name);
+    recv_sys.free_corrupted_page(id, *node_local);
     buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX + 1);
   corrupted:
     if (in_recovery && !srv_force_recovery)
@@ -2974,12 +3031,12 @@ void IORequest::read_complete(int io_error) const noexcept
       mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
-  else if (bpage->read_complete(*node, in_recovery))
+  else if (bpage->read_complete(*node_local, in_recovery))
     goto corrupted;
   else
     bpage->unfix();
 
-  node->space->release();
+  node_local->space->release();
 }
 
 /** Flush to disk the writes in file spaces of the given type
@@ -3269,6 +3326,9 @@ ulint fil_space_get_block_size(const fil_space_t *space, unsigned offset)
 	return block_size;
 }
 
+// TODO: place it to the correct location
+extern const char *ext_buffer_pool_file_name;
+
 /** @return the tablespace name (databasename/tablename) */
 fil_space_t::name_type fil_space_t::name() const noexcept
 {
@@ -3277,6 +3337,9 @@ fil_space_t::name_type fil_space_t::name() const noexcept
     return name_type{"innodb_system", 13};
   case SRV_TMP_SPACE_ID:
     return name_type{"innodb_temporary", 16};
+  case SRV_EXT_BP_SPACE_ID:
+    return name_type{ext_buffer_pool_file_name,
+                     strlen(ext_buffer_pool_file_name)};
   }
 
   if (!UT_LIST_GET_FIRST(chain) || srv_is_undo_tablespace(id))

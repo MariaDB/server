@@ -1,0 +1,183 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+--source ../encryption/include/have_file_key_management_plugin.inc
+#--source include/innodb_page_size.inc
+
+--let $encrypted_row_compressed=6
+--let $unencrypted_row_compressed=5
+--let $unencrypted_uncompressed=4
+--let $encrypted_uncompressed=3
+--let $unencrypted_page_compressed=2
+--let $encrypted_page_compressed=1
+--let $i = $encrypted_row_compressed
+
+--let $page_size=`SELECT @@GLOBAL.innodb_page_size`
+if ($page_size != 16384) {
+  --let $i=$unencrypted_uncompressed
+}
+
+--connect (prevent_purge,localhost,root)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+
+--let $DATADIR = `select @@datadir`
+# Set ext buffer pool file size and check it was created, check it's size
+--list_files $DATADIR ext_buffer_pool
+
+#--let $restart_parameters=--innodb-extended-buffer-pool-size=10M
+#--source include/restart_mysqld.inc
+
+# Set ext buffer pool file size and check it was created, check it's size
+#--list_files $DATADIR ext_buffer_pool
+
+--disable_query_log
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
+SET @old_debug_dbug = @@debug_dbug;
+--enable_query_log
+
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+
+while($i) {
+
+  SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+  if ($i == $unencrypted_uncompressed) {
+    --echo ###################################################################
+    --echo # Testing for unencrypted uncompressed table                      #
+    --echo ###################################################################
+      CREATE TABLE t (
+        `a` INT NOT NULL,
+        PRIMARY KEY (`a`)
+      ) ENGINE=InnoDB;
+  }
+  if ($i == $encrypted_uncompressed) {
+    --echo ###################################################################
+    --echo # Testing for encrypted uncompressed table                        #
+    --echo ###################################################################
+      CREATE TABLE t (
+        `a` INT NOT NULL,
+        PRIMARY KEY (`a`)
+      ) ENGINE=InnoDB encrypted=yes encryption_key_id=1;
+  }
+  if ($i == $unencrypted_page_compressed) {
+    --echo ###################################################################
+    --echo # Testing for unencrypted PAGE_COMPRESSED=1 table                 #
+    --echo ###################################################################
+      CREATE TABLE t (
+        `a` INT NOT NULL,
+        PRIMARY KEY (`a`)
+      ) ENGINE=InnoDB PAGE_COMPRESSED=1;
+  }
+  if ($i == $unencrypted_row_compressed) {
+    --echo ###################################################################
+    --echo # Testing for unencrypted ROW_FORMAT=COMPRESSED table             #
+    --echo ###################################################################
+      CREATE TABLE t (
+        `a` INT NOT NULL,
+        PRIMARY KEY (`a`)
+      ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+  }
+  if ($i == $encrypted_page_compressed) {
+    --echo ###################################################################
+    --echo # Testing for encrypted PAGE_COMPRESSED=1 table                   #
+    --echo ###################################################################
+      CREATE TABLE t (
+        `a` INT NOT NULL,
+        PRIMARY KEY (`a`)
+      ) ENGINE=InnoDB PAGE_COMPRESSED=1 encrypted=yes encryption_key_id=1;
+  }
+  if ($i == $encrypted_row_compressed) {
+    --echo ###################################################################
+    --echo # Testing for encrypted ROW_FORMAT=COMPRESSED table               #
+    --echo ###################################################################
+      CREATE TABLE t (
+        `a` INT NOT NULL,
+        PRIMARY KEY (`a`)
+      ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED encrypted=yes encryption_key_id=1;
+  }
+
+  SELECT variable_value INTO @prev_flushed_gs
+    FROM information_schema.global_status
+    WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+  SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL INTO @prev_written_ps
+    FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+  SELECT variable_value INTO @prev_reads_gs
+    FROM information_schema.global_status
+    WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+  SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL INTO @prev_reads_ps
+    FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+
+  --eval SET @start_val = $i*100
+  INSERT INTO t SET a = @start_val+1;
+  INSERT INTO t SET a = @start_val+2;
+  INSERT INTO t SET a = @start_val+3;
+  INSERT INTO t SET a = @start_val+4;
+  INSERT INTO t SET a = @start_val+5;
+  INSERT INTO t SET a = @start_val+6;
+  INSERT INTO t SET a = @start_val+7;
+  INSERT INTO t SET a = @start_val+8;
+  INSERT INTO t SET a = @start_val+9;
+  INSERT INTO t SET a = @start_val+10;
+  INSERT INTO t SET a = @start_val+11;
+  INSERT INTO t SET a = @start_val+12;
+
+  SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+  SET GLOBAL innodb_force_LRU_eviction = TRUE;
+
+  let $wait_condition =
+  SELECT (variable_value-@prev_flushed_gs) >= 9
+    FROM information_schema.global_status
+    WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+  --source include/wait_condition.inc
+
+  SELECT variable_value-@prev_flushed_gs
+    FROM information_schema.global_status
+    WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+  SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+    FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+  SELECT variable_value-@prev_reads_gs
+    FROM information_schema.global_status
+    WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+  SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+    FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+
+  SELECT * FROM t;
+
+  SELECT variable_value-@prev_flushed_gs
+    FROM information_schema.global_status
+    WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+  SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+    FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+  SELECT variable_value-@prev_reads_gs
+    FROM information_schema.global_status
+    WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+  SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+    FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+
+  DROP TABLE t;
+  --dec $i
+}
+
+--disable_query_log
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
+--enable_query_log
+
+--disconnect prevent_purge
+--source include/wait_until_count_sessions.inc
+
+
+# Restart server with different buffer pool size, check the size is changed
+
+# Restart server with different ext buffer pool location, check it was created
+
+# Restart server with some impossible ext buffer pool location, check on error
+
+# Check extended buffer pool file is not copied during backup and created
+# during backup restoring

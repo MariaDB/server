@@ -3361,6 +3361,12 @@ static ST_FIELD_INFO i_s_innodb_buffer_stats_fields_info[]=
 #define IDX_BUF_STATS_UNZIP_CUR		31
   Column("UNCOMPRESS_CURRENT", ULonglong(), NOT_NULL),
 
+#define IDX_BUF_STATS_PAGE_WRITTEN_TO_EBP	32
+  Column("NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL",ULonglong(), NOT_NULL),
+
+#define IDX_BUF_STATS_PAGE_READ_FROM_EBP	33
+  Column("NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL",ULonglong(), NOT_NULL),
+
   CEnd()
 };
 } // namespace Show
@@ -3428,11 +3434,17 @@ static int i_s_innodb_stats_fill(THD *thd, TABLE_LIST * tables, Item *)
 
 	OK(fields[IDX_BUF_STATS_PAGE_READ]->store(info.n_pages_read, true));
 
+	OK(fields[IDX_BUF_STATS_PAGE_READ_FROM_EBP]->store(
+	      info.n_pages_read_from_ebp, true));
+
 	OK(fields[IDX_BUF_STATS_PAGE_CREATED]->store(
 		   info.n_pages_created, true));
 
 	OK(fields[IDX_BUF_STATS_PAGE_WRITTEN]->store(
 		   info.n_pages_written, true));
+
+	OK(fields[IDX_BUF_STATS_PAGE_WRITTEN_TO_EBP]->store(
+		   info.n_pages_written_to_ebp, true));
 
 	OK(fields[IDX_BUF_STATS_GET]->store(info.n_page_gets, true));
 

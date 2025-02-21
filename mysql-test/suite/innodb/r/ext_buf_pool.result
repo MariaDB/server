@@ -1,0 +1,511 @@
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+ext_buffer_pool
+SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+###################################################################
+# Testing for encrypted ROW_FORMAT=COMPRESSED table               #
+###################################################################
+CREATE TABLE t (
+`a` INT NOT NULL,
+PRIMARY KEY (`a`)
+) ENGINE=InnoDB ROW_FORMAT=COMPRESSED encrypted=yes encryption_key_id=1;
+SELECT variable_value INTO @prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL INTO @prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SELECT variable_value INTO @prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL INTO @prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SET @start_val = 6*100;
+INSERT INTO t SET a = @start_val+1;
+INSERT INTO t SET a = @start_val+2;
+INSERT INTO t SET a = @start_val+3;
+INSERT INTO t SET a = @start_val+4;
+INSERT INTO t SET a = @start_val+5;
+INSERT INTO t SET a = @start_val+6;
+INSERT INTO t SET a = @start_val+7;
+INSERT INTO t SET a = @start_val+8;
+INSERT INTO t SET a = @start_val+9;
+INSERT INTO t SET a = @start_val+10;
+INSERT INTO t SET a = @start_val+11;
+INSERT INTO t SET a = @start_val+12;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+0
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+0
+SELECT * FROM t;
+a
+601
+602
+603
+604
+605
+606
+607
+608
+609
+610
+611
+612
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+7
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+7
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+###################################################################
+# Testing for unencrypted ROW_FORMAT=COMPRESSED table             #
+###################################################################
+CREATE TABLE t (
+`a` INT NOT NULL,
+PRIMARY KEY (`a`)
+) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+SELECT variable_value INTO @prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL INTO @prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SELECT variable_value INTO @prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL INTO @prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SET @start_val = 5*100;
+INSERT INTO t SET a = @start_val+1;
+INSERT INTO t SET a = @start_val+2;
+INSERT INTO t SET a = @start_val+3;
+INSERT INTO t SET a = @start_val+4;
+INSERT INTO t SET a = @start_val+5;
+INSERT INTO t SET a = @start_val+6;
+INSERT INTO t SET a = @start_val+7;
+INSERT INTO t SET a = @start_val+8;
+INSERT INTO t SET a = @start_val+9;
+INSERT INTO t SET a = @start_val+10;
+INSERT INTO t SET a = @start_val+11;
+INSERT INTO t SET a = @start_val+12;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+0
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+0
+SELECT * FROM t;
+a
+501
+502
+503
+504
+505
+506
+507
+508
+509
+510
+511
+512
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+7
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+7
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+###################################################################
+# Testing for unencrypted uncompressed table                      #
+###################################################################
+CREATE TABLE t (
+`a` INT NOT NULL,
+PRIMARY KEY (`a`)
+) ENGINE=InnoDB;
+SELECT variable_value INTO @prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL INTO @prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SELECT variable_value INTO @prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL INTO @prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SET @start_val = 4*100;
+INSERT INTO t SET a = @start_val+1;
+INSERT INTO t SET a = @start_val+2;
+INSERT INTO t SET a = @start_val+3;
+INSERT INTO t SET a = @start_val+4;
+INSERT INTO t SET a = @start_val+5;
+INSERT INTO t SET a = @start_val+6;
+INSERT INTO t SET a = @start_val+7;
+INSERT INTO t SET a = @start_val+8;
+INSERT INTO t SET a = @start_val+9;
+INSERT INTO t SET a = @start_val+10;
+INSERT INTO t SET a = @start_val+11;
+INSERT INTO t SET a = @start_val+12;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+0
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+0
+SELECT * FROM t;
+a
+401
+402
+403
+404
+405
+406
+407
+408
+409
+410
+411
+412
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+7
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+7
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+###################################################################
+# Testing for encrypted uncompressed table                        #
+###################################################################
+CREATE TABLE t (
+`a` INT NOT NULL,
+PRIMARY KEY (`a`)
+) ENGINE=InnoDB encrypted=yes encryption_key_id=1;
+SELECT variable_value INTO @prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL INTO @prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SELECT variable_value INTO @prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL INTO @prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SET @start_val = 3*100;
+INSERT INTO t SET a = @start_val+1;
+INSERT INTO t SET a = @start_val+2;
+INSERT INTO t SET a = @start_val+3;
+INSERT INTO t SET a = @start_val+4;
+INSERT INTO t SET a = @start_val+5;
+INSERT INTO t SET a = @start_val+6;
+INSERT INTO t SET a = @start_val+7;
+INSERT INTO t SET a = @start_val+8;
+INSERT INTO t SET a = @start_val+9;
+INSERT INTO t SET a = @start_val+10;
+INSERT INTO t SET a = @start_val+11;
+INSERT INTO t SET a = @start_val+12;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+0
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+0
+SELECT * FROM t;
+a
+301
+302
+303
+304
+305
+306
+307
+308
+309
+310
+311
+312
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+7
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+7
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+###################################################################
+# Testing for unencrypted PAGE_COMPRESSED=1 table                 #
+###################################################################
+CREATE TABLE t (
+`a` INT NOT NULL,
+PRIMARY KEY (`a`)
+) ENGINE=InnoDB PAGE_COMPRESSED=1;
+SELECT variable_value INTO @prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL INTO @prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SELECT variable_value INTO @prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL INTO @prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SET @start_val = 2*100;
+INSERT INTO t SET a = @start_val+1;
+INSERT INTO t SET a = @start_val+2;
+INSERT INTO t SET a = @start_val+3;
+INSERT INTO t SET a = @start_val+4;
+INSERT INTO t SET a = @start_val+5;
+INSERT INTO t SET a = @start_val+6;
+INSERT INTO t SET a = @start_val+7;
+INSERT INTO t SET a = @start_val+8;
+INSERT INTO t SET a = @start_val+9;
+INSERT INTO t SET a = @start_val+10;
+INSERT INTO t SET a = @start_val+11;
+INSERT INTO t SET a = @start_val+12;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+0
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+0
+SELECT * FROM t;
+a
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+7
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+7
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+###################################################################
+# Testing for encrypted PAGE_COMPRESSED=1 table                   #
+###################################################################
+CREATE TABLE t (
+`a` INT NOT NULL,
+PRIMARY KEY (`a`)
+) ENGINE=InnoDB PAGE_COMPRESSED=1 encrypted=yes encryption_key_id=1;
+SELECT variable_value INTO @prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL INTO @prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SELECT variable_value INTO @prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL INTO @prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+SET @start_val = 1*100;
+INSERT INTO t SET a = @start_val+1;
+INSERT INTO t SET a = @start_val+2;
+INSERT INTO t SET a = @start_val+3;
+INSERT INTO t SET a = @start_val+4;
+INSERT INTO t SET a = @start_val+5;
+INSERT INTO t SET a = @start_val+6;
+INSERT INTO t SET a = @start_val+7;
+INSERT INTO t SET a = @start_val+8;
+INSERT INTO t SET a = @start_val+9;
+INSERT INTO t SET a = @start_val+10;
+INSERT INTO t SET a = @start_val+11;
+INSERT INTO t SET a = @start_val+12;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+0
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+0
+SELECT * FROM t;
+a
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+SELECT variable_value-@prev_flushed_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+variable_value-@prev_flushed_gs
+9
+SELECT NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_WRITTEN_TO_EXTERNAL_BUFFER_POOL-@prev_written_ps
+9
+SELECT variable_value-@prev_reads_gs
+FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_READS';
+variable_value-@prev_reads_gs
+7
+SELECT NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+NUMBER_PAGES_READ_FROM_EXTERNAL_BUFFER_POOL-@prev_reads_ps
+7
+DROP TABLE t;
+disconnect prevent_purge;

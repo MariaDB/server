@@ -1426,9 +1426,17 @@ dberr_t srv_start(bool create_new_db)
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
+	if (!fil_system.is_initialised()) {
+	  return srv_init_abort(DB_ERROR);
+	}
+
 	if (buf_pool.create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
+
+	if (srv_operation == SRV_OPERATION_NORMAL
+	    && buf_pool.extended_size && !buf_pool.create_ext_file())
+		return(srv_init_abort(DB_ERROR));
 
 	log_sys.create();
 	recv_sys.create();
@@ -2088,9 +2096,11 @@ void innodb_shutdown()
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 		while (buf_page_cleaner_is_active) {
+			++buf_pool.done_flush_list_waiters_count;
 			pthread_cond_signal(&buf_pool.do_flush_list);
 			my_cond_wait(&buf_pool.done_flush_list,
 				     &buf_pool.flush_list_mutex.m_mutex);
+			--buf_pool.done_flush_list_waiters_count;
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		break;
