@@ -33743,9 +33743,10 @@ check_rules(MY_CHARSET_LOADER *loader,
             const MY_COLL_RULES *rules,
             const MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
-  const MY_COLL_RULE *r, *rlast;
-  for (r= rules->rule, rlast= rules->rule + rules->nrules; r < rlast; r++)
+  size_t i;
+  for (i= 0; i < rules->nrules; i++)
   {
+    const MY_COLL_RULE *r= &rules->rule[i];
     if (r->curr[0] > dst->maxchar)
     {
       my_snprintf(loader->error, sizeof(loader->error),
@@ -34368,7 +34369,6 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
                   MY_COLL_RULES *rules,
                   MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
-  MY_COLL_RULE *r, *rlast;
   int ncontractions= 0;
   size_t i, npages= (src->maxchar + 1) / 256;
 
@@ -34393,8 +34393,9 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
     Mark pages that will be otherwriten as NULL.
     We'll allocate their own memory.
   */
-  for (r= rules->rule, rlast= rules->rule + rules->nrules; r < rlast; r++)
+  for (i= 0; i < rules->nrules; i++)
   {
+    const MY_COLL_RULE *r= &rules->rule[i];
     if (!r->curr[1]) /* If not a contraction */
     {
       uint pagec= (r->curr[0] >> 8);
@@ -34440,9 +34441,9 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
     Now iterate through the rules, overwrite weights for the characters
     that appear in the rules, and put all contractions into contraction list.
   */
-  for (r= rules->rule; r < rlast;  r++)
+  for (i= 0; i < rules->nrules; i++)
   {
-    if (apply_one_rule(loader, rules, r, dst))
+    if (apply_one_rule(loader, rules, &rules->rule[i], dst))
       return TRUE;
   }
 
@@ -39442,6 +39443,8 @@ LEX_CSTRING my_ci_get_collation_name_uca(CHARSET_INFO *cs,
 
 /*
   Add support for MySQL 8.0 utf8mb4_0900_.. collations
+
+  The collation id's where collected from fprintf() in add_alias_for_collation()
 */
 
 #define mysql_0900_collation_start 255
@@ -39449,73 +39452,77 @@ LEX_CSTRING my_ci_get_collation_name_uca(CHARSET_INFO *cs,
 struct mysql_0900_to_mariadb_1400_mapping
 {
   const char *mysql_col_name, *mariadb_col_name, *case_sensitivity;
+  uint collation_id;
 };
 
 struct mysql_0900_to_mariadb_1400_mapping mysql_0900_mapping[]=
 {
   /* 255 Ascent insensitive, Case insensitive 'ai_ci' */
-  {"", "", "ai_ci"},
-  {"de_pb", "german2", "ai_ci"},
-  {"is", "icelandic", "ai_ci"},
-  {"lv", "latvian", "ai_ci"},
-  {"ro", "romanian", "ai_ci"},
-  {"sl", "slovenian", "ai_ci"},
-  {"pl", "polish", "ai_ci"},
-  {"et", "estonian", "ai_ci"},
-  {"es", "spanish", "ai_ci"},
-  {"sv", "swedish", "ai_ci"},
-  {"tr", "turkish", "ai_ci"},
-  {"cs", "czech", "ai_ci"},
-  {"da", "danish", "ai_ci"},
-  {"lt", "lithuanian", "ai_ci"},
-  {"sk", "slovak", "ai_ci"},
-  {"es_trad", "spanish2", "ai_ci"},
-  {"la", "roman", "ai_ci"},
-  {"fa", NullS, "ai_ci"},                             // Disabled in MySQL
-  {"eo", "esperanto", "ai_ci"},
-  {"hu", "hungarian", "ai_ci"},
-  {"hr", "croatian", "ai_ci"},
-  {"si", NullS, "ai_ci"},                             // Disabled in MySQL
-  {"vi", "vietnamese", "ai_ci"},
+  {"", "", "ai_ci", 2308},
+  {"de_pb", "german2", "ai_ci", 2468},
+  {"is", "icelandic", "ai_ci", 2316},
+  {"lv", "latvian", "ai_ci", 2324},
+  {"ro", "romanian", "ai_ci", 2332},
+  {"sl", "slovenian", "ai_ci", 2340},
+  {"pl", "polish", "ai_ci", 2348},
+  {"et", "estonian", "ai_ci", 2356},
+  {"es", "spanish", "ai_ci", 2364},
+  {"sv", "swedish", "ai_ci", 2372},
+  {"tr", "turkish", "ai_ci", 2380},
+  {"cs", "czech", "ai_ci", 2388},
+  {"da", "danish", "ai_ci", 2396},
+  {"lt", "lithuanian", "ai_ci", 2404},
+  {"sk", "slovak", "ai_ci", 2412},
+  {"es_trad", "spanish2", "ai_ci", 2420},
+  {"la", "roman", "ai_ci", 2428},
+  {"fa", NullS, "ai_ci", 0},                          // Disabled in MySQL
+  {"eo", "esperanto", "ai_ci", 2444},
+  {"hu", "hungarian", "ai_ci", 2452},
+  {"hr", "croatian", "ai_ci", 2500},
+  {"si", NullS, "ai_ci", 0},                          // Disabled in MySQL
+  {"vi", "vietnamese", "ai_ci", 2492},
 
   /* 278 Ascent sensitive, Case sensitive 'as_cs' */
-  {"","", "as_cs"},
-  {"de_pb", "german2", "as_cs"},
-  {"is", "icelandic", "as_cs"},
-  {"lv", "latvian", "as_cs"},
-  {"ro", "romanian", "as_cs"},
-  {"sl", "slovenian", "as_cs"},
-  {"pl", "polish", "as_cs"},
-  {"et", "estonian", "as_cs"},
-  {"es", "spanish", "as_cs"},
-  {"sv", "swedish", "as_cs"},
-  {"tr", "turkish", "as_cs"},
-  {"cs", "czech", "as_cs"},
-  {"da", "danish", "as_cs"},
-  {"lt", "lithuanian", "as_cs"},
-  {"sk", "slovak", "as_cs"},
-  {"es_trad", "spanish2", "as_cs"},
-  {"la", "roman", "as_cs"},
-  {"fa", NullS, "as_cs"},                             // Disabled in MySQL
-  {"eo", "esperanto", "as_cs"},
-  {"hu", "hungarian", "as_cs"},
-  {"hr", "croatian", "as_cs"},
-  {"si", NullS, "as_cs"},                             // Disabled in MySQL
-  {"vi", "vietnamese", "as_cs"},
+  {"","", "as_cs", 2311},
+  {"de_pb", "german2", "as_cs", 2471},
+  {"is", "icelandic", "as_cs", 2319},
+  {"lv", "latvian", "as_cs", 2327},
+  {"ro", "romanian", "as_cs", 2335},
+  {"sl", "slovenian", "as_cs", 2343},
+  {"pl", "polish", "as_cs", 2351},
+  {"et", "estonian", "as_cs", 2359},
+  {"es", "spanish", "as_cs", 2367},
+  {"sv", "swedish", "as_cs", 2375},
+  {"tr", "turkish", "as_cs", 2383},
+  {"cs", "czech", "as_cs", 2391},
+  {"da", "danish", "as_cs", 2399},
+  {"lt", "lithuanian", "as_cs", 2407},
+  {"sk", "slovak", "as_cs", 2415},
+  {"es_trad", "spanish2", "as_cs", 2423},
+  {"la", "roman", "as_cs", 2431},
+  {"fa", NullS, "as_cs", 0},                          // Disabled in MySQL
+  {"eo", "esperanto", "as_cs", 2447},
+  {"hu", "hungarian", "as_cs", 2455},
+  {"hr", "croatian", "as_cs", 2503},
+  {"si", NullS, "as_cs", 0},                          // Disabled in MySQL
+  {"vi", "vietnamese", "as_cs", 2495},
 
-  {"", NullS, "as_cs"},                               // Missing
-  {"", NullS, "as_cs"},                               // Missing
-  {"_ja_0900_as_cs", NullS, "as_cs"},                 // Not supported
-  {"_ja_0900_as_cs_ks", NullS, "as_cs"},              // Not supported
+  {"", NullS, "as_cs", 0},                            // Missing
+  {"", NullS, "as_cs", 0},                            // Missing
+  {"_ja_0900_as_cs", NullS, "as_cs", 0},              // Not supported
+  {"_ja_0900_as_cs_ks", NullS, "as_cs", 0},           // Not supported
 
   /* 305 Ascent-sensitive, Case insensitive 'as_ci' */
-  {"","", "as_ci"},
-  {"ru", NullS, "ai_ci"},                             // Not supported
-  {"ru", NullS, "as_cs"},                             // Not supported
-  {"zh", NullS, "as_cs"},                             // Not supported
-  {NullS, NullS, ""}
+  {"","", "as_ci", 2310},
+  {"ru", NullS, "ai_ci", 0},                          // Not supported
+  {"ru", NullS, "as_cs", 0},                          // Not supported
+  {"zh", NullS, "as_cs", 0},                          // Not supported
+  {NullS, NullS, "", 0}
 };
 
+
+static LEX_CSTRING mysql_utf8_bin= { STRING_WITH_LEN("utf8mb4_0900_bin") };
+static LEX_CSTRING mariadb_utf8_bin= { STRING_WITH_LEN("utf8mb4_bin") };
 
 /*
   Map mysql character sets to MariaDB using the same definition but with
@@ -39526,8 +39533,6 @@ my_bool mysql_utf8mb4_0900_collation_definitions_add()
 {
   uint id= mysql_0900_collation_start;
   struct mysql_0900_to_mariadb_1400_mapping *map;
-  LEX_CSTRING mysql_utf8_bin= { STRING_WITH_LEN("utf8mb4_0900_bin") };
-  LEX_CSTRING mariadb_utf8_bin= { STRING_WITH_LEN("utf8mb4_bin") };
 
   for (map= mysql_0900_mapping; map->mysql_col_name ; map++, id++)
   {
@@ -39555,12 +39560,13 @@ my_bool mysql_utf8mb4_0900_collation_definitions_add()
       alias_name.str=    alias;
       alias_name.length= ali_length;
 
-      if (add_alias_for_collation(&org_name, &alias_name, id))
+      if (add_alias_for_collation(&org_name, map->collation_id, &alias_name,
+                                  id))
         return 1;
     }
   }
 
-  if (add_alias_for_collation(&mariadb_utf8_bin, &mysql_utf8_bin, 309))
+  if (add_alias_for_collation(&mariadb_utf8_bin, 46, &mysql_utf8_bin, 309))
     return 1;
   return 0;
 }

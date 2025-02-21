@@ -39,6 +39,7 @@
 
 --connection node_1
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 
 CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
 INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
@@ -69,7 +70,7 @@ SET SESSION wsrep_sync_wait=0;
 --source include/wait_condition.inc
 
 # replicate the DDL to be tested
---eval $table_admin_command TABLE c1 $table_admin_command_end
+--eval $table_admin_command c1 $table_admin_command_end
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
@@ -81,6 +82,12 @@ SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 --connection node_2
 SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+
+--connection node_1
+--disable_warnings
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
+--enable_warnings
 
 --echo ######################################################################
 --echo #
@@ -97,11 +104,12 @@ BEGIN;
 --source include/galera_set_sync_point.inc
 
 --connection node_2
---eval $table_admin_command TABLE c1 $table_admin_command_end
+--eval $table_admin_command c1 $table_admin_command_end
 
 --connection node_1a
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
+
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE+1 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 --connection node_1
@@ -110,7 +118,8 @@ UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 
 --connection node_1a
 --let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition_with_debug.inc
 
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
@@ -128,6 +137,11 @@ SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 
+--connection node_1
+--disable_warnings
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
+--enable_warnings
 
 --echo ######################################################################
 --echo #
@@ -149,12 +163,14 @@ BEGIN;
 --source include/galera_set_sync_point.inc
 
 --connection node_2
---eval $table_admin_command TABLE c2 $table_admin_command_end
+--eval $table_admin_command c2 $table_admin_command_end
 
 --connection node_1a
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE+2 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
+--let $wait_condition_on_error_output = SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition_with_debug.inc
 
 --connection node_1
 UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
@@ -166,7 +182,8 @@ UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
 
 --connection node_1a
 --let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition_with_debug.inc
 
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
@@ -188,5 +205,5 @@ SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 
-DROP TABLE c1, c2;
+DROP TABLE IF EXISTS c1, c2;
 DROP TABLE p1, p2;

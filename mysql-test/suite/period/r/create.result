@@ -20,10 +20,10 @@ Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 select * from information_schema.key_period_usage;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
 Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 drop view v;
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
 period for mytime(s,e));
@@ -145,11 +145,11 @@ create table t (a date) engine=myisam;
 create table  t1 (a int) engine=merge union = (t) ;
 select 1 from information_schema.key_period_usage;
 1
+Warnings:
 Warning	1168	Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
-Warnings:
 drop table t1;
 drop table t;
 create view v1 as select 1;
@@ -157,9 +157,9 @@ create view v2 as select * from v1;
 drop view v1;
 select * from information_schema.key_period_usage;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1356	View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
-Warnings:
 drop view v2;

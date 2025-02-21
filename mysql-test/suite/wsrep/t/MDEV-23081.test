@@ -7,6 +7,11 @@
 --source include/have_wsrep_provider.inc
 --source include/have_debug_sync.inc
 
+--let $log_bin=1
+if (`select not @@log_bin`) {
+--let $log_bin=0
+}
+
 CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
 
 #
@@ -40,7 +45,14 @@ SET DEBUG_SYNC = "now WAIT_FOR before_commit_order_reached_1";
 # and restart it with wsrep-on=OFF
 #
 let $restart_noprint=2;
---let $restart_parameters=--wsrep-on=OFF
+if ($log_bin == 0) {
+# The database could have been created with --log-bin
+# and so let's add this parameter explicitly:
+--let $restart_parameters=--wsrep-on=OFF --loose-innodb --loose-log-bin
+}
+if ($log_bin == 1) {
+--let $restart_parameters=--wsrep-on=OFF --loose-innodb
+}
 --source include/start_mysqld.inc
 
 #

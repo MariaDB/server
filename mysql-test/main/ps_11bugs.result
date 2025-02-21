@@ -245,4 +245,39 @@ NULL
 DEALLOCATE PREPARE stmt;
 SET timestamp=DEFAULT;
 SET time_zone=DEFAULT;
+#
+# MDEV-35596 Assertion `type_handler()->result_type() == value.type_handler()->result_type()' failed in virtual bool Item_param::get_date(THD*, MYSQL_TIME*, date_mode_t)
+#
+CREATE TABLE t (c TIMESTAMP);
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+INSERT INTO t (c) VALUES (now());
+EXECUTE s USING NULL;
+DROP TABLE t;
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+EXECUTE s USING NULL;
+DROP TABLE t;
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+EXECUTE s USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t;
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+EXECUTE s USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t;
 # End of 10.5 tests

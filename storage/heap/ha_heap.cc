@@ -140,8 +140,6 @@ int ha_heap::open(const char *name, int mode, uint test_if_locked)
   }
 
   ref_length= sizeof(HEAP_PTR);
-  /* Initialize variables for the opened table */
-  set_keys_for_scanning();
   /*
     We cannot run update_key_stats() here because we do not have a
     lock on the table. The 'records' count might just be changed
@@ -182,22 +180,24 @@ handler *ha_heap::clone(const char *name, MEM_ROOT *mem_root)
 
 
 /*
-  Compute which keys to use for scanning
+  Return set of keys usable for scanning
 
   SYNOPSIS
-    set_keys_for_scanning()
-    no parameter
+    keys_to_use_for_scanning()
+    (no parameters)
 
   DESCRIPTION
-    Set the bitmap btree_keys, which is used when the upper layers ask
-    which keys to use for scanning. For each btree index the
-    corresponding bit is set.
+    This function populates the bitmap `btree_keys`, where each bit represents
+    a key that can be used for scanning the table. The bitmap is dynamically
+    updated on every call, ensuring it reflects the current state of the
+    table's keys. Caching is avoided because the set of usable keys for
+    MEMORY tables may change during optimization or execution.
 
   RETURN
-    void
+    Pointer to the updated bitmap of keys (`btree_keys`)
 */
 
-void ha_heap::set_keys_for_scanning(void)
+const key_map *ha_heap::keys_to_use_for_scanning()
 {
   btree_keys.clear_all();
   for (uint i= 0 ; i < table->s->keys ; i++)
@@ -205,8 +205,8 @@ void ha_heap::set_keys_for_scanning(void)
     if (table->key_info[i].algorithm == HA_KEY_ALG_BTREE)
       btree_keys.set_bit(i);
   }
+  return &btree_keys;
 }
-
 
 int ha_heap::can_continue_handler_scan()
 {
@@ -513,8 +513,7 @@ int ha_heap::disable_indexes(key_map map, bool persist)
   if (!persist)
   {
     DBUG_ASSERT(map.is_clear_all());
-    if (!(error= heap_disable_indexes(file)))
-      set_keys_for_scanning();
+    error= heap_disable_indexes(file);
   }
   else
   {
@@ -532,8 +531,7 @@ int ha_heap::disable_indexes(key_map map, bool persist)
     enable_indexes()
 
   DESCRIPTION
-    Enable indexes and set keys to use for scanning.
-    The indexes might have been disabled by disable_index() before.
+    Enable indexes taht might have been disabled by disable_index() before.
     The function works only if both data and indexes are empty,
     since the heap storage engine cannot repair the indexes.
     To be sure, call handler::delete_all_rows() before.
@@ -553,8 +551,7 @@ int ha_heap::enable_indexes(key_map map, bool persist)
   if (!persist)
   {
     DBUG_ASSERT(map.is_prefix(table->s->keys));
-    if (!(error= heap_enable_indexes(file)))
-      set_keys_for_scanning();
+    error= heap_enable_indexes(file);
   }
   else
   {

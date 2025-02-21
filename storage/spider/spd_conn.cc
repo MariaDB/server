@@ -874,17 +874,12 @@ int spider_check_and_get_casual_read_conn(
     if (conn->casual_read_current_id > 63)
       conn->casual_read_current_id = 2;
   }
-  char first_byte_bak = *spider->conn_keys[link_idx];
-  *spider->conn_keys[link_idx] =
-    '0' + spider->result_list.casual_read[link_idx];
   if (!(spider->conns[link_idx]= spider_get_conn(
           spider->share, link_idx, spider->conn_keys[link_idx],
           spider->wide_handler->trx, spider, FALSE, TRUE, &error_num)))
   {
-    *spider->conn_keys[link_idx] = first_byte_bak;
     DBUG_RETURN(error_num);
   }
-  *spider->conn_keys[link_idx] = first_byte_bak;
   spider->conns[link_idx]->casual_read_base_conn = conn;
   spider_check_and_set_autocommit(thd, spider->conns[link_idx], NULL);
   DBUG_RETURN(0);

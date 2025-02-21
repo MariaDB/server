@@ -276,13 +276,9 @@ Field::Copy_func *Field_vector::get_copy_func(const Field *from) const
 
 int Field_vector::report_wrong_value(const ErrConv &val)
 {
-  THD *thd= table->in_use;
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
-                      ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                      "vector", val.ptr(), table->s->db.str,
-                      table->s->table_name.str, field_name.str,
-                      thd->get_stmt_da()->current_row_for_warning());
+  get_thd()->push_warning_truncated_value_for_field(
+    Sql_condition::WARN_LEVEL_WARN, "vector", val.ptr(),
+    table->s->db.str, table->s->table_name.str, field_name.str);
   reset();
   return 1;
 }

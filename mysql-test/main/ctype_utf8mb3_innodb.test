@@ -1,0 +1,39 @@
+--source include/have_innodb.inc
+
+--echo # Start of 10.5 tests
+
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+CREATE TABLE t (
+  a INT,
+  b VARCHAR(16),
+  c CHAR(8),
+  PRIMARY KEY (b,c),
+  KEY(c)
+) ENGINE=InnoDB CHARACTER SET utf8mb3 COLLATE utf8mb3_general_nopad_ci;
+INSERT INTO t VALUES (1,UNHEX('0001050001'),''),(2,UNHEX('0000'),'x');
+UPDATE t SET a = 0;
+INSERT INTO t VALUES (0,'','');
+CHECK TABLE t EXTENDED;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-32190 Index corruption with unique key and nopad collation (without DESC or HASH keys)
+--echo #
+
+CREATE TABLE t (
+  id INT,
+  b TEXT,
+  KEY(id),
+  PRIMARY KEY (b(2),id)
+) ENGINE=InnoDB COLLATE utf8mb3_general_nopad_ci;
+INSERT INTO t VALUES
+ (1,''),(2,'x'),(3,'x'),(4,UNHEX('0010')),(5,'x'),(6,'x'),(7,'x'),(8,'x'),
+ (9,UNHEX('00')),(10,'x'),(11,''),(12,UNHEX('73')),(13,'+'),(14,'N');
+CHECK TABLE t EXTENDED;
+SELECT id FROM t WHERE id IN (4,8);
+DROP TABLE t;
+
+--echo # End of 10.5 tests

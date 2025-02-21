@@ -281,6 +281,7 @@ public:
       m_lex_resp= false;
       /* Prevent endless recursion. */
       m_lex->sphead= nullptr;
+      delete m_lex->result;
       lex_end(m_lex);
       delete m_lex;
     }

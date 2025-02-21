@@ -581,7 +581,7 @@ CREATE TRIGGER t1_au AFTER  UPDATE OF a ON t1 FOR EACH ROW SET @a = NEW.a;
 # for triggers t1_bu, t1_au.
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL

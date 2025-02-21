@@ -1342,6 +1342,7 @@ my_caseup_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -1400,6 +1401,7 @@ my_casedn_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
 
   while ((src < srcend) &&
@@ -2177,6 +2179,7 @@ my_caseup_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -2234,6 +2237,7 @@ my_casedn_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)
@@ -3016,6 +3020,7 @@ static size_t my_caseup_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -3068,6 +3073,7 @@ static size_t my_casedn_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   DBUG_ASSERT(srclen <= dstlen);
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
 
   while ((src < srcend) &&
          (res= my_ucs2_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)

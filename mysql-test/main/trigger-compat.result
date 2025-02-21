@@ -15,6 +15,14 @@ CREATE TABLE t2(user_str TEXT);
 CREATE TRIGGER wl2818_trg1 BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES(CURRENT_USER());
 
 ---> patching t1.TRG...
+connection default;
+CREATE TABLE patch (a blob);
+LOAD DATA LOCAL INFILE '$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' INTO TABLE patch;
+SELECT SUBSTRING_INDEX(a,'definers=',1) INTO OUTFILE
+'$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' 
+FROM patch;
+DROP TABLE patch;
+connection wl2818_definer_con;
 
 CREATE TRIGGER wl2818_trg2 AFTER INSERT ON t1
 FOR EACH ROW

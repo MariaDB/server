@@ -877,3 +877,17 @@ drop table t1;
 create table t1(v vector(5) not null, vector index(v));
 alter table t1 add column a int;
 drop table t1;
+#
+# MDEV-35292 - ALTER TABLE re-creating vector key is no-op with
+#              non-copying alter algorithms (default)
+#
+create table t (v vector(1) not null, vector(v) distance=euclidean);
+insert into t values (0x31313131);
+alter table t drop index v, add vector(v) distance=cosine;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `v` vector(1) NOT NULL,
+  VECTOR KEY `v` (`v`) `distance`=cosine
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;

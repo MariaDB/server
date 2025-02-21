@@ -940,9 +940,9 @@ update_begin:
     goto update_end;
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE) &&
-      !table->prepare_triggers_for_update_stmt_or_event() &&
-      !thd->lex->with_rownum)
+  if (!table->prepare_triggers_for_update_stmt_or_event() &&
+      !thd->lex->with_rownum &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE)
     will_batch= !table->file->start_bulk_update();
 
   /*
@@ -1916,6 +1916,8 @@ int multi_update::prepare(List<Item> &not_used_values,
                           *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
              TABLE::check_assignability_explicit_fields(*fields, *values,
                                                         ignore);
+  if (unlikely(error))
+    DBUG_RETURN(1);
 
   /*
     Restore TABLE::tmp_set as we promised just before setup_tables.
@@ -1929,8 +1931,6 @@ int multi_update::prepare(List<Item> &not_used_values,
     if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
       table->file->prepare_for_modify(true, true);
   }
-  if (unlikely(error))
-    DBUG_RETURN(1);    
 
   /*
     Save tables that we will update into update_list.
@@ -2531,6 +2531,13 @@ void multi_update::abort_result_set()
                (!thd->transaction->stmt.modified_non_trans_table && !updated)))
     return;
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_update::send_eof().
+
+  ***************************************************************************/
+
   /* Something already updated so we have to invalidate cache */
   if (updated)
     query_cache_invalidate3(thd, update_tables, 1);
@@ -2871,6 +2878,13 @@ bool multi_update::send_eof()
   */
   killed_status= (local_error == 0) ? NOT_KILLED : thd->killed;
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_update::abort_result_set().
+
+  ***************************************************************************/
 
   /* We must invalidate the query cache before binlog writing and
   ha_autocommit_... */

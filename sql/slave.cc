@@ -2955,8 +2955,8 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
 
   store_string_or_null(field++, mi->host);
   store_string_or_null(field++, mi->user);
-  (*field++)->store((uint32) mi->port);
-  (*field++)->store((uint32) mi->connect_retry);
+  (*field++)->store((uint32) mi->port, true);
+  (*field++)->store((uint32) mi->connect_retry, true);
   (*field++)->store(mi->master_log_name, strlen(mi->master_log_name),
                     &my_charset_bin);
   (*field++)->store((ulonglong) mi->master_log_pos, true);
@@ -2979,9 +2979,9 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   rpl_filter->get_wild_ignore_table(&tmp);
   (*field++)->store(tmp.ptr(), tmp.length(), &my_charset_bin);
 
-  (*field++)->store(mi->rli.last_error().number);
+  (*field++)->store(mi->rli.last_error().number, true);
   store_string_or_null(field++, mi->rli.last_error().message);
-  (*field++)->store((uint32) mi->rli.slave_skip_counter);
+  (*field++)->store((uint32) mi->rli.slave_skip_counter, true);
   (*field++)->store((ulonglong) mi->rli.group_master_log_pos, true);
   (*field++)->store((ulonglong) mi->rli.log_space_total, true);
 
@@ -3069,17 +3069,17 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
                     &my_charset_bin);
 
   // Last_IO_Errno
-  (*field++)->store(mi->last_error().number);
+  (*field++)->store(mi->last_error().number, true);
   // Last_IO_Error
   store_string_or_null(field++, mi->last_error().message);
   // Last_SQL_Errno
-  (*field++)->store(mi->rli.last_error().number);
+  (*field++)->store(mi->rli.last_error().number, true);
   // Last_SQL_Error
   store_string_or_null(field++, mi->rli.last_error().message);
   // Replicate_Ignore_Server_Ids
   field_store_ids((*field++), &mi->ignore_server_ids);
   // Master_Server_id
-  (*field++)->store((uint32) mi->master_id);
+  (*field++)->store((uint32) mi->master_id, true);
   // SQL_Delay
   // Master_Ssl_Crl
   store_string_or_null(field++, mi->ssl_crl);
@@ -3103,7 +3103,8 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
     (*field++)->store(mode_name, strlen(mode_name), &my_charset_bin);
   }
 
-  (*field++)->store((uint32) mi->rli.get_sql_delay());
+  // int32 on paper, unsigned in practice
+  (*field++)->store((uint32) mi->rli.get_sql_delay(), true);
   // SQL_Remaining_Delay
   // THD::proc_info is not protected by any lock, so we read it once
   // to ensure that we use the same value throughout this function.
@@ -3112,7 +3113,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
   {
     time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
-    (*field++)->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0));
+    (*field++)->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0), true);
   }
   else
     (*field++)->set_null();
@@ -7227,7 +7228,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       MYSQL_BIN_LOG::open() will write the buffered description event.
     */
     old_pos= rli->event_relay_log_pos;
-    if ((ev= Log_event::read_log_event(cur_log,
+    int error;
+    if ((ev= Log_event::read_log_event(cur_log, &error,
                                        rli->relay_log.description_event_for_exec,
                                        opt_slave_sql_verify_checksum)))
 
@@ -7244,8 +7246,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       DBUG_RETURN(ev);
     }
     if (opt_reckless_slave)                     // For mysql-test
-      cur_log->error = 0;
-    if (unlikely(cur_log->error < 0))
+      error = 0;
+    if (unlikely(error))
     {
       errmsg = "slave SQL thread aborted because of I/O error";
       if (hot_log)

@@ -11,10 +11,6 @@ START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 START SLAVE UNTIL Master_log_file='master-bin.000001', Master_log_pos= 1178;
 SELECT MASTER_POS_WAIT('master-bin.000001', 1178, 60);
-MASTER_POS_WAIT('master-bin.000001', 1178, 60)
-NULL
-Warnings:
-Note	1105	master_pos_wait() was aborted because slave is not running
 SELECT * FROM t1 ORDER BY a;
 a	b	c
 1	0	

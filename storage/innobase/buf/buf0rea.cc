@@ -46,6 +46,7 @@ Created 11/5/1995 Heikki Tuuri
 
 TRANSACTIONAL_TARGET
 bool buf_pool_t::page_hash_contains(const page_id_t page_id, hash_chain &chain)
+	noexcept
 {
   transactional_shared_lock_guard<page_hash_latch> g
     {page_hash.lock_get(chain)};
@@ -219,7 +220,7 @@ buf_read_page_low(
 	buf_pool_t::hash_chain&	chain,
 	fil_space_t*		space,
 	buf_block_t*&		block,
-	bool			sync = false)
+	bool			sync = false) noexcept
 {
 	buf_page_t*	bpage;
 
@@ -303,7 +304,7 @@ end up waiting for these latches!
 wants to access
 @return number of page read requests issued */
 TRANSACTIONAL_TARGET
-ulint buf_read_ahead_random(const page_id_t page_id)
+ulint buf_read_ahead_random(const page_id_t page_id) noexcept
 {
   if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
     /* Disable the read-ahead for temporary tablespace */
@@ -444,7 +445,7 @@ released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size)
+                              ulint zip_size) noexcept
 {
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   if (buf_pool.page_hash_contains(page_id, chain))
@@ -503,7 +504,7 @@ latches!
 @param[in]	page_id		page id; see NOTE 3 above
 @return number of page read requests issued */
 TRANSACTIONAL_TARGET
-ulint buf_read_ahead_linear(const page_id_t page_id)
+ulint buf_read_ahead_linear(const page_id_t page_id) noexcept
 {
   /* check if readahead is disabled.
   Disable the read ahead logic for temporary tablespace */
@@ -697,7 +698,7 @@ failed:
 @param recs     log records
 @param init_lsn page initialization, or 0 if the page needs to be read */
 void buf_read_recover(fil_space_t *space, const page_id_t page_id,
-                      page_recv_t &recs, lsn_t init_lsn)
+                      page_recv_t &recs, lsn_t init_lsn) noexcept
 {
   ut_ad(space->id == page_id.space());
   space->reacquire();

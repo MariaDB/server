@@ -2269,3 +2269,35 @@ reap;
 disconnect con2;
 connection default;
 SET DEBUG_SYNC= 'RESET';
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-35417 InnoDB crashes under ... AND DISABLE CHECKPOINT
+--echo #
+
+# case 1
+set global innodb_stats_persistent=0;
+create table t (a int) engine=innodb;
+set global innodb_stats_persistent=1;
+alter table t add column b int;
+flush tables with read lock and disable checkpoint;
+--error ER_CANT_UPDATE_WITH_READLOCK
+insert into t values (1,2) ;
+unlock tables;
+drop table t;
+
+# case 2
+flush tables with read lock and disable checkpoint;
+create temporary table t(a int) engine=innodb;
+unlock tables;
+drop table t;
+
+# case 3
+--let $restart_parameters=--innodb-read-only
+--source include/restart_mysqld.inc
+flush tables with read lock and disable checkpoint;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--echo # End of 11.7 tests

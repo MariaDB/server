@@ -2070,3 +2070,62 @@ SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭�
 ERROR 42000: Incorrect database name '#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
 SET NAMES DEFAULT;
 # End of 10.5 Test
+#
+# MDEV-35318 Assertion `tl->jtbm_subselect' failed in JOIN::calc_allowed_top_level_tables on 2nd execution of PS
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+PREPARE stmt FROM 'CREATE TABLE tmp AS SELECT * FROM (select t1.* from t t1 join t t2 on(t1.a = t2.a)) sq WHERE "x"=0';
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DECIMAL value: 'x'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DECIMAL value: 'x'
+DEALLOCATE PREPARE stmt;
+# Now, run the same in SP:
+create procedure sp1()
+begin
+declare i int unsigned default 1;
+declare continue handler for SQLEXCEPTION
+begin
+select 'In Continue handler' as printf;
+end;
+while i <= 3 do
+begin
+select concat('Iteration ', i) as printf;
+CREATE temporary TABLE tmp AS
+SELECT * FROM (select t1.* from t t1 join t t2 on(t1.a = t2.a)) sq WHERE "x"=0 ;
+drop temporary table if exists tmp;
+set i=i+1;
+end;
+end while;
+end|
+call sp1();
+printf
+Iteration 1
+printf
+In Continue handler
+printf
+Iteration 2
+printf
+In Continue handler
+printf
+Iteration 3
+printf
+In Continue handler
+Warnings:
+Note	1051	Unknown table 'test.tmp'
+DROP PROCEDURE sp1;
+DROP TABLE t;
+#
+# MDEV-36057: Assertion failure or unexpected outcome upon 2nd execution
+#             of parameterized PS (continues the above)
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+PREPARE stmt FROM 'UPDATE t SET a = 3 WHERE a IN (SELECT "" UNION SELECT ?)';
+EXECUTE stmt USING 4;
+ERROR 22007: Truncated incorrect DECIMAL value: ''
+EXECUTE stmt USING 4;
+ERROR 22007: Truncated incorrect DECIMAL value: ''
+DROP TABLE t;
+# End of 11.7 Test

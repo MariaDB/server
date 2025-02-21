@@ -46,7 +46,7 @@ int heap_rnext(HP_INFO *info, uchar *record)
                               &info->last_pos, offsetof(TREE_ELEMENT, left));
       }
     }
-    else if (info->last_pos)
+    else if (info->last_pos && info->key_version == info->s->key_version)
     {
       /*
         We enter this branch for non-DELETE queries after heap_rkey()
@@ -72,6 +72,7 @@ int heap_rnext(HP_INFO *info, uchar *record)
       */
       pos= tree_search_edge(&keyinfo->rb_tree, info->parents,
                             &info->last_pos, offsetof(TREE_ELEMENT, left));
+      info->key_version= info->s->key_version;
     }
     else
     {
@@ -87,6 +88,7 @@ int heap_rnext(HP_INFO *info, uchar *record)
       info->last_find_flag= HA_READ_KEY_OR_NEXT;
       pos = tree_search_key(&keyinfo->rb_tree, info->lastkey, info->parents, 
                            &info->last_pos, info->last_find_flag, &custom_arg);
+      info->key_version= info->s->key_version;
     }
     if (pos)
     {

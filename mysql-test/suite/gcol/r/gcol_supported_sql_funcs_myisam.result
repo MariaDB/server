@@ -279,8 +279,8 @@ select * from t1;
 a	b
 -2	NULL
 2	0.693147
-Warning	1365	Division by 0
 Warnings:
+Warning	1365	Division by 0
 drop table t1;
 set sql_warnings = 0;
 # LOG()
@@ -303,8 +303,8 @@ a	b	c
 1	100	NULL
 10	100	2
 2	65536	16
-Warning	1365	Division by 0
 Warnings:
+Warning	1365	Division by 0
 drop table t1;
 set sql_warnings = 0;
 set sql_warnings = 1;
@@ -323,8 +323,8 @@ select * from t1;
 a	b
 -2	NULL
 2	0.693147
-Warning	1365	Division by 0
 Warnings:
+Warning	1365	Division by 0
 drop table t1;
 set sql_warnings = 0;
 # LOG2()
@@ -344,8 +344,8 @@ select * from t1;
 a	b
 -100	NULL
 65536	16
-Warning	1365	Division by 0
 Warnings:
+Warning	1365	Division by 0
 drop table t1;
 set sql_warnings = 0;
 # LOG10()
@@ -367,8 +367,8 @@ a	b
 -100	NULL
 100	2
 2	0.30103
-Warning	1365	Division by 0
 Warnings:
+Warning	1365	Division by 0
 drop table t1;
 set sql_warnings = 0;
 # -
@@ -2722,8 +2722,8 @@ select * from t1;
 a	b
 -1	18446744073709551615
 1	1
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
 Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
 drop table t1;
 set sql_warnings = 0;
 # Convert()
@@ -2743,8 +2743,8 @@ select * from t1;
 a	b
 -1	18446744073709551615
 1	1
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
 Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
 drop table t1;
 set sql_warnings = 0;
 #

@@ -74,6 +74,7 @@ ATTRIBUTE_COLD bool fil_space_t::set_corrupted() const noexcept
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
 bool fil_space_t::try_to_close(fil_space_t *ignore_space, bool print_info)
+  noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   for (fil_space_t &space : fil_system.space_list)
@@ -204,10 +205,7 @@ extern uint srv_fil_crypt_rotate_key_age;
 /******************************************************************//**
 Checks the consistency of the tablespace cache some of the time.
 @return true if ok or the check was skipped */
-static
-bool
-fil_validate_skip(void)
-/*===================*/
+static bool fil_validate_skip() noexcept
 {
 	/** The fil_validate() call skip counter. */
 	static Atomic_counter<uint32_t> fil_validate_count;
@@ -234,7 +232,7 @@ or the caller should be in single-threaded crash recovery mode
 Normally, fil_space_t::get() should be used instead.
 @param[in]	id	tablespace ID
 @return tablespace, or NULL if not found */
-fil_space_t *fil_space_get(uint32_t id)
+fil_space_t *fil_space_get(uint32_t id) noexcept
 {
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
@@ -245,7 +243,7 @@ fil_space_t *fil_space_get(uint32_t id)
 /** Check if the compression algorithm is loaded
 @param[in]	comp_algo ulint compression algorithm
 @return whether the compression algorithm is loaded */
-bool fil_comp_algo_loaded(ulint comp_algo)
+bool fil_comp_algo_loaded(ulint comp_algo) noexcept
 {
 	switch (comp_algo) {
 	case PAGE_UNCOMPRESSED:
@@ -282,7 +280,7 @@ or UINT32_MAX for unlimited
 @return file object */
 fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 			     uint32_t size, bool is_raw, bool atomic_write,
-			     uint32_t max_pages)
+			     uint32_t max_pages) noexcept
 {
 	mysql_mutex_assert_owner(&fil_system.mutex);
 
@@ -464,7 +462,7 @@ static bool fil_node_open_file(fil_node_t *node, const byte *page, bool no_lsn)
 }
 
 /** Close the file handle. */
-void fil_node_t::close()
+void fil_node_t::close() noexcept
 {
   prepare_to_close_or_detach();
 
@@ -474,7 +472,7 @@ void fil_node_t::close()
   handle= OS_FILE_CLOSED;
 }
 
-pfs_os_file_t fil_node_t::detach()
+pfs_os_file_t fil_node_t::detach() noexcept
 {
   prepare_to_close_or_detach();
 
@@ -483,7 +481,7 @@ pfs_os_file_t fil_node_t::detach()
   return result;
 }
 
-void fil_node_t::prepare_to_close_or_detach()
+void fil_node_t::prepare_to_close_or_detach() noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   ut_ad(space->is_ready_to_close() || srv_operation == SRV_OPERATION_BACKUP ||
@@ -498,7 +496,7 @@ void fil_node_t::prepare_to_close_or_detach()
 }
 
 /** Flush any writes cached by the file system. */
-void fil_space_t::flush_low()
+void fil_space_t::flush_low() noexcept
 {
   mysql_mutex_assert_not_owner(&fil_system.mutex);
 
@@ -558,7 +556,7 @@ fil_space_extend_must_retry(
 	fil_space_t*	space,
 	fil_node_t*	node,
 	uint32_t	size,
-	bool*		success)
+	bool*		success) noexcept
 {
 	mysql_mutex_assert_owner(&fil_system.mutex);
 	ut_ad(UT_LIST_GET_LAST(space->chain) == node);
@@ -679,7 +677,7 @@ bool recv_sys_t::check_sys_truncate()
 }
 
 /** @return whether the file is usable for io() */
-ATTRIBUTE_COLD bool fil_space_t::prepare_acquired()
+ATTRIBUTE_COLD bool fil_space_t::prepare_acquired() noexcept
 {
   ut_ad(referenced());
   mysql_mutex_assert_owner(&fil_system.mutex);
@@ -733,7 +731,7 @@ clear:
 }
 
 /** @return whether the file is usable for io() */
-ATTRIBUTE_COLD bool fil_space_t::acquire_and_prepare()
+ATTRIBUTE_COLD bool fil_space_t::acquire_and_prepare() noexcept
 {
   mysql_mutex_lock(&fil_system.mutex);
   const auto flags= acquire_low() & (STOPPING | CLOSING);
@@ -746,7 +744,7 @@ ATTRIBUTE_COLD bool fil_space_t::acquire_and_prepare()
 @param[in,out]	space	tablespace
 @param[in]	size	desired size in pages
 @return whether the tablespace is at least as big as requested */
-bool fil_space_extend(fil_space_t *space, uint32_t size)
+bool fil_space_extend(fil_space_t *space, uint32_t size) noexcept
 {
   ut_ad(!srv_read_only_mode || space->is_temporary());
   bool success= false;
@@ -763,7 +761,7 @@ bool fil_space_extend(fil_space_t *space, uint32_t size)
 }
 
 /** Prepare to free a file from fil_system. */
-inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
+inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle) noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   ut_a(!being_extended);
@@ -809,6 +807,7 @@ inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
 @return detached handle
 @retval OS_FILE_CLOSED if no handle was detached */
 pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
+  noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   spaces.cell_get(space->id)->remove(*space, &fil_space_t::hash);
@@ -873,10 +872,7 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
 /** Free a tablespace object on which fil_system_t::detach() was invoked.
 There must not be any pending i/o's or flushes on the files.
 @param[in,out]	space		tablespace */
-static
-void
-fil_space_free_low(
-	fil_space_t*	space)
+static void fil_space_free_low(fil_space_t *space) noexcept
 {
 	/* The tablespace must not be in fil_system.named_spaces. */
 	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
@@ -912,7 +908,7 @@ There must not be any pending i/o's or flushes on the files.
 @param id          tablespace identifier
 @param x_latched   whether the caller holds exclusive fil_space_t::latch
 @return true if success */
-bool fil_space_free(uint32_t id, bool x_latched)
+bool fil_space_free(uint32_t id, bool x_latched) noexcept
 {
 	ut_ad(id != TRX_SYS_SPACE);
 
@@ -1039,7 +1035,7 @@ Assigns a new space id for a new single-table tablespace. This works simply by
 incrementing the global counter. If 4 billion id's is not enough, we may need
 to recycle id's.
 @return true if assigned, false if not */
-bool fil_assign_new_space_id(uint32_t *space_id)
+bool fil_assign_new_space_id(uint32_t *space_id) noexcept
 {
 	uint32_t id = *space_id;
 	bool	success;
@@ -1106,7 +1102,7 @@ bool fil_space_t::read_page0(const byte *dpage, bool no_lsn) noexcept
 }
 
 void fil_space_set_recv_size_and_flags(uint32_t id, uint32_t size,
-                                       uint32_t flags)
+                                       uint32_t flags) noexcept
 {
   ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
   mysql_mutex_assert_owner(&recv_sys.mutex);
@@ -1284,7 +1280,7 @@ void fil_system_t::create(ulint hash_size)
 #endif
 }
 
-void fil_system_t::close()
+void fil_system_t::close() noexcept
 {
   ut_ad(this == &fil_system);
   ut_a(unflushed_spaces.empty());
@@ -1307,7 +1303,7 @@ void fil_system_t::close()
 #endif /* __linux__ */
 }
 
-void fil_system_t::add_opened_last_to_space_list(fil_space_t *space)
+void fil_system_t::add_opened_last_to_space_list(fil_space_t *space) noexcept
 {
   if (UNIV_LIKELY(space_list_last_opened != nullptr))
     space_list.insert(++space_list_t::iterator(space_list_last_opened), *space);
@@ -1317,7 +1313,7 @@ void fil_system_t::add_opened_last_to_space_list(fil_space_t *space)
 }
 
 /** Extend all open data files to the recovered size */
-ATTRIBUTE_COLD void fil_system_t::extend_to_recv_size()
+ATTRIBUTE_COLD void fil_system_t::extend_to_recv_size() noexcept
 {
   ut_ad(is_initialised());
   mysql_mutex_lock(&mutex);
@@ -1460,7 +1456,7 @@ void fil_system_t::set_buffered(bool buffered)
 }
 
 /** Close all tablespace files at shutdown */
-void fil_space_t::close_all()
+void fil_space_t::close_all() noexcept
 {
   if (!fil_system.is_initialised())
     return;
@@ -1519,7 +1515,7 @@ void fil_space_t::close_all()
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
-void fil_set_max_space_id_if_bigger(uint32_t max_id)
+void fil_set_max_space_id_if_bigger(uint32_t max_id) noexcept
 {
 	ut_a(max_id < SRV_SPACE_ID_UPPER_BOUND);
 
@@ -1537,7 +1533,7 @@ void fil_set_max_space_id_if_bigger(uint32_t max_id)
 @param id      tablespace identifier
 @return tablespace
 @retval nullptr if the tablespace is missing or inaccessible */
-fil_space_t *fil_space_t::get(uint32_t id)
+fil_space_t *fil_space_t::get(uint32_t id) noexcept
 {
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
@@ -1736,7 +1732,7 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
 The tablespace must be cached in the memory cache.
 Free all pages used by the tablespace. */
-void fil_close_tablespace(uint32_t id)
+void fil_close_tablespace(uint32_t id) noexcept
 {
 	ut_ad(!is_system_tablespace(id));
 	fil_space_t* space = fil_space_t::drop(id, nullptr);
@@ -1768,7 +1764,7 @@ void fil_close_tablespace(uint32_t id)
 @param id    tablespace identifier
 @return detached file handle (to be closed by the caller)
 @return	OS_FILE_CLOSED if no file existed */
-pfs_os_file_t fil_delete_tablespace(uint32_t id)
+pfs_os_file_t fil_delete_tablespace(uint32_t id) noexcept
 {
   ut_ad(!is_system_tablespace(id));
   pfs_os_file_t handle= OS_FILE_CLOSED;
@@ -1777,17 +1773,9 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
   return handle;
 }
 
-/*******************************************************************//**
-Allocates and builds a file name from a path, a table or tablespace name
-and a suffix. The string must be freed by caller with ut_free().
-@param[in] path nullptr or the directory path or the full path and filename
-@param[in] name {} if path is full, or Table/Tablespace name
-@param[in] extension the file extension to use
-@param[in] trim_name true if the last name on the path should be trimmed
-@return own: file name */
 char* fil_make_filepath_low(const char *path,
                             const fil_space_t::name_type &name,
-                            ib_extention extension, bool trim_name)
+                            ib_extention extension, bool trim_name) noexcept
 {
 	/* The path may contain the basename of the file, if so we do not
 	need the name.  If the path is NULL, we can use the default path,
@@ -1881,7 +1869,7 @@ char* fil_make_filepath_low(const char *path,
 }
 
 char *fil_make_filepath(const char* path, const table_name_t name,
-                        ib_extention suffix, bool strip_name)
+                        ib_extention suffix, bool strip_name) noexcept
 {
   return fil_make_filepath_low(path, {name.m_name, strlen(name.m_name)},
                                suffix, strip_name);
@@ -1890,12 +1878,12 @@ char *fil_make_filepath(const char* path, const table_name_t name,
 /** Wrapper function over fil_make_filepath_low() to build directory name.
 @param path the directory path or the full path and filename
 @return own: directory name */
-static inline char *fil_make_dirpath(const char *path)
+static inline char *fil_make_dirpath(const char *path) noexcept
 {
   return fil_make_filepath_low(path, fil_space_t::name_type{}, NO_EXT, true);
 }
 
-dberr_t fil_space_t::rename(const char *path, bool log, bool replace)
+dberr_t fil_space_t::rename(const char *path, bool log, bool replace) noexcept
 {
   ut_ad(UT_LIST_GET_LEN(chain) == 1);
   ut_ad(!is_predefined_tablespace(id));
@@ -2500,6 +2488,7 @@ fil_ibd_discover(
 }
 
 bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
+  noexcept
 {
   if (crypt_data->is_key_found())
     return true;
@@ -2523,7 +2512,7 @@ of the file in validate_for_recovery().
 @param[out]	space		the tablespace, or NULL on error
 @return status of the operation */
 enum fil_load_status
-fil_ibd_load(uint32_t space_id, const char *filename, fil_space_t *&space)
+fil_ibd_load(uint32_t space_id, const char *filename, fil_space_t *&space) noexcept
 {
 	/* If the a space is already in the file system cache with this
 	space ID, then there is nothing to do. */
@@ -2728,7 +2717,7 @@ startup, there may be many tablespaces which are not yet in the memory cache.
 @return the tablespace
 @retval	NULL	if no matching tablespace exists in the memory cache */
 fil_space_t *fil_space_for_table_exists_in_mem(uint32_t id,
-                                               uint32_t table_flags)
+                                               uint32_t table_flags) noexcept
 {
 	const uint32_t expected_flags = dict_tf_to_fsp_flags(table_flags);
 
@@ -2765,7 +2754,7 @@ func_exit:
 ATTRIBUTE_COLD
 static void fil_invalid_page_access_msg(const char *name,
                                         os_offset_t offset, ulint len,
-                                        bool is_read)
+                                        bool is_read) noexcept
 {
   sql_print_error("%s %zu bytes at " UINT64PF
                   " outside the bounds of the file: %s",
@@ -2777,7 +2766,7 @@ static void fil_invalid_page_access_msg(const char *name,
 }
 
 /** Update the data structures on write completion */
-void fil_space_t::complete_write()
+void fil_space_t::complete_write() noexcept
 {
   mysql_mutex_assert_not_owner(&fil_system.mutex);
 
@@ -2802,7 +2791,7 @@ void fil_space_t::complete_write()
 @param bpage    buffer block (for type.is_async() completion callback)
 @return status and file descriptor */
 fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
-                         void *buf, buf_page_t *bpage)
+                         void *buf, buf_page_t *bpage) noexcept
 {
 	ut_ad(referenced());
 	ut_ad(offset % UNIV_ZIP_SIZE_MIN == 0);
@@ -2904,7 +2893,7 @@ func_exit:
 
 #include <tpool.h>
 
-void IORequest::write_complete(int io_error) const
+void IORequest::write_complete(int io_error) const noexcept
 {
   ut_ad(fil_validate_skip());
   ut_ad(node);
@@ -2932,7 +2921,7 @@ void IORequest::write_complete(int io_error) const
   space->release();
 }
 
-void IORequest::read_complete(int io_error) const
+void IORequest::read_complete(int io_error) const noexcept
 {
   ut_ad(fil_validate_skip());
   ut_ad(node);
@@ -2963,7 +2952,7 @@ void IORequest::read_complete(int io_error) const
 
 /** Flush to disk the writes in file spaces of the given type
 possibly cached by the OS. */
-void fil_flush_file_spaces()
+void fil_flush_file_spaces() noexcept
 {
 rescan:
   mysql_mutex_lock(&fil_system.mutex);
@@ -2995,7 +2984,7 @@ struct	Check {
 
 	/** Visit a file node
 	@param[in]	elem	file node to visit */
-	void	operator()(const fil_node_t* elem)
+	void	operator()(const fil_node_t* elem) noexcept
 	{
 		n_open += elem->is_open();
 		size += elem->size;
@@ -3004,7 +2993,7 @@ struct	Check {
 	/** Validate a tablespace.
 	@param[in]	space	tablespace to validate
 	@return		number of open file nodes */
-	static ulint validate(const fil_space_t* space)
+	static ulint validate(const fil_space_t* space) noexcept
 	{
 		mysql_mutex_assert_owner(&fil_system.mutex);
 		Check	check;
@@ -3031,7 +3020,7 @@ struct	Check {
 /******************************************************************//**
 Checks the consistency of the tablespace cache.
 @return true if ok */
-bool fil_validate()
+bool fil_validate() noexcept
 {
 	ulint		n_open		= 0;
 
@@ -3048,24 +3037,11 @@ bool fil_validate()
 	return(true);
 }
 
-/*********************************************************************//**
-Sets the file page type. */
-void
-fil_page_set_type(
-/*==============*/
-	byte*	page,	/*!< in/out: file page */
-	ulint	type)	/*!< in: type */
-{
-	ut_ad(page);
-
-	mach_write_to_2(page + FIL_PAGE_TYPE, type);
-}
-
 /********************************************************************//**
 Delete the tablespace file and any related files like .cfg.
 This should not be called for temporary tables.
 @param[in] ibd_filepath File path of the IBD tablespace */
-void fil_delete_file(const char *ibd_filepath)
+void fil_delete_file(const char *ibd_filepath) noexcept
 {
   ib::info() << "Deleting " << ibd_filepath;
   os_file_delete_if_exists(innodb_data_file_key, ibd_filepath, nullptr);
@@ -3083,9 +3059,7 @@ void fil_delete_file(const char *ibd_filepath)
 /** Check that a tablespace is valid for mtr_commit().
 @param[in]	space	persistent tablespace that has been changed */
 static
-void
-fil_space_validate_for_mtr_commit(
-	const fil_space_t*	space)
+void fil_space_validate_for_mtr_commit(const fil_space_t *space) noexcept
 {
 	mysql_mutex_assert_not_owner(&fil_system.mutex);
 	ut_ad(space != NULL);
@@ -3102,9 +3076,7 @@ fil_space_validate_for_mtr_commit(
 /** Note that a non-predefined persistent tablespace has been modified
 by redo log.
 @param[in,out]	space	tablespace */
-void
-fil_names_dirty(
-	fil_space_t*	space)
+void fil_names_dirty(fil_space_t *space) noexcept
 {
 	ut_ad(log_sys.latch_have_wr());
 	ut_ad(recv_recovery_is_on());
@@ -3118,7 +3090,7 @@ fil_names_dirty(
 
 /** Write a FILE_MODIFY record when a non-predefined persistent
 tablespace was modified for the first time since fil_names_clear(). */
-ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
+ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write() noexcept
 {
   ut_ad(log_sys.latch_have_wr());
   ut_d(fil_space_validate_for_mtr_commit(m_user_space));
@@ -3140,7 +3112,7 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @param lsn  checkpoint LSN
 @return current LSN */
-ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn)
+ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 {
 	mtr_t	mtr;
 
@@ -3237,6 +3209,7 @@ test_make_filepath()
 @param[in]	offset		page number
 @return	block size */
 ulint fil_space_get_block_size(const fil_space_t *space, unsigned offset)
+  noexcept
 {
 	ulint block_size = 512;
 
@@ -3261,7 +3234,7 @@ ulint fil_space_get_block_size(const fil_space_t *space, unsigned offset)
 }
 
 /** @return the tablespace name (databasename/tablename) */
-fil_space_t::name_type fil_space_t::name() const
+fil_space_t::name_type fil_space_t::name() const noexcept
 {
   switch (id) {
   case 0:
@@ -3299,7 +3272,7 @@ fil_space_t::name_type fil_space_t::name() const
 
 #ifdef UNIV_DEBUG
 
-fil_space_t *fil_space_t::next_in_space_list()
+fil_space_t *fil_space_t::next_in_space_list() noexcept
 {
   space_list_t::iterator it(this);
   auto end= fil_system.space_list.end();
@@ -3309,7 +3282,7 @@ fil_space_t *fil_space_t::next_in_space_list()
   return it == end ? nullptr : &*it;
 }
 
-fil_space_t *fil_space_t::prev_in_space_list()
+fil_space_t *fil_space_t::prev_in_space_list() noexcept
 {
   space_list_t::iterator it(this);
   if (it == fil_system.space_list.begin())
@@ -3318,7 +3291,7 @@ fil_space_t *fil_space_t::prev_in_space_list()
   return &*it;
 }
 
-fil_space_t *fil_space_t::next_in_unflushed_spaces()
+fil_space_t *fil_space_t::next_in_unflushed_spaces() noexcept
 {
   sized_ilist<fil_space_t, unflushed_spaces_tag_t>::iterator it(this);
   auto end= fil_system.unflushed_spaces.end();
@@ -3328,7 +3301,7 @@ fil_space_t *fil_space_t::next_in_unflushed_spaces()
   return it == end ? nullptr : &*it;
 }
 
-fil_space_t *fil_space_t::prev_in_unflushed_spaces()
+fil_space_t *fil_space_t::prev_in_unflushed_spaces() noexcept
 {
   sized_ilist<fil_space_t, unflushed_spaces_tag_t>::iterator it(this);
   if (it == fil_system.unflushed_spaces.begin())

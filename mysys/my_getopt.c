@@ -86,6 +86,7 @@ my_bool my_handle_options_init_variables = 1;
 
 my_getopt_value my_getopt_get_addr= 0;
 
+ATTRIBUTE_FORMAT(printf, 2, 3)
 static void default_reporter(enum loglevel level, const char *format, ...)
 {
   va_list args;

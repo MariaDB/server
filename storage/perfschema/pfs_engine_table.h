@@ -348,8 +348,8 @@ public:
 
   ~PFS_readonly_acl() = default;
 
-    ACL_internal_access_result check(privilege_t want_access,
-                                     privilege_t *save_priv) const override;
+  ACL_internal_access_result check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const override;
 };
 
 /** Singleton instance of PFS_readonly_acl. */
@@ -367,7 +367,7 @@ public:
   ~PFS_truncatable_acl() = default;
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const override;
+    privilege_t *save_priv, bool any_combination_will_do) const override;
 };
 
 /** Singleton instance of PFS_truncatable_acl. */
@@ -385,7 +385,7 @@ public:
   ~PFS_updatable_acl() = default;
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const override;
+    privilege_t *save_priv, bool any_combination_will_do) const override;
 };
 
 /** Singleton instance of PFS_updatable_acl. */
@@ -403,7 +403,7 @@ public:
   ~PFS_editable_acl() = default;
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const override;
+    privilege_t *save_priv, bool any_combination_will_do) const override;
 };
 
 /** Singleton instance of PFS_editable_acl. */
@@ -420,7 +420,7 @@ public:
   ~PFS_unknown_acl() = default;
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const override;
+    privilege_t *save_priv, bool any_combination_will_do) const override;
 };
 
 /** Singleton instance of PFS_unknown_acl. */
@@ -438,7 +438,8 @@ public:
 
   ~PFS_readonly_world_acl()
   {}
-  ACL_internal_access_result check(privilege_t want_access, privilege_t *save_priv) const override;
+  ACL_internal_access_result check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const override;
 };
 
 
@@ -457,7 +458,8 @@ public:
 
   ~PFS_truncatable_world_acl()
   {}
-  ACL_internal_access_result check(privilege_t want_access, privilege_t *save_priv) const override;
+  ACL_internal_access_result check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const override;
 };
 
 
@@ -477,7 +479,7 @@ class PFS_readonly_processlist_acl : public PFS_readonly_acl {
   {}
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const override;
+    privilege_t *save_priv, bool any_combination_will_do) const override;
 };
 
 /** Singleton instance of PFS_readonly_processlist_acl */

@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 --source include/count_sessions.inc
+--source include/maybe_debug.inc
 
 let $ID= `SELECT @id := CONNECTION_ID()`;
 
@@ -17,7 +18,6 @@ let $wait_condition=
   and info = 'CREATE TABLE t1 ENGINE=InnoDB SELECT * FROM seq_1_to_100000000';
 --source include/wait_condition.inc
 KILL QUERY @id;
-disconnect con1;
 
 connection default;
 --error ER_QUERY_INTERRUPTED
@@ -25,7 +25,6 @@ reap;
 
 CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB;
 DROP TABLE t1;
---source include/wait_until_count_sessions.inc
 
 --echo # End of 10.2 tests
 
@@ -39,3 +38,38 @@ execute stmt;
 drop table t;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-35647 Possible hang during CREATE TABLE…SELECT error handling
+--echo #
+call mtr.add_suppression("InnoDB: DROP TABLE `test`\\.`t4`: Record changed");
+
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET @save_debug= @@GLOBAL.innodb_evict_tables_on_commit_debug;
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_evict_tables_on_commit_debug=on;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_evict_tables_on_commit_debug=@save_debug;
+
+connection con1;
+CREATE TABLE t2 (b BLOB) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),('2025-01-21 00:00:00');
+--send
+SET STATEMENT innodb_snapshot_isolation=ON FOR
+CREATE TABLE t3 ENGINE=InnoDB AS SELECT * FROM t1;
+
+connection default;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+--error ER_TRUNCATED_WRONG_VALUE
+SET STATEMENT innodb_snapshot_isolation=ON FOR
+CREATE TABLE t4 (b BLOB CHECK (b)) ENGINE=InnoDB AS SELECT b FROM t2;
+connection con1;
+reap;
+disconnect con1;
+connection default;
+DROP TABLE t3,t2,t1;
+
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 10.6 tests

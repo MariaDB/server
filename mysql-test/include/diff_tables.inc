@@ -170,13 +170,9 @@ while ($_dt_tables)
 
   # Now that we have the comma-separated list of columns, we can write
   # the table to a file.
-  --disable_ps2_protocol
   --let $_dt_outfile= `SELECT @@datadir`
   --let $_dt_outfile= $_dt_outfile/diff_table-$_dt_connection-$_dt_database-$_dt_table
-  --disable_cursor_protocol
   eval SELECT * INTO OUTFILE '$_dt_outfile' FROM $_dt_database.$_dt_table ORDER BY `$_dt_column_list`;
-  --enable_cursor_protocol
-  --enable_ps2_protocol
   # Restore sorting buffers.
   --eval SET SESSION max_sort_length = $_dt_old_max_sort_length;
   --eval SET SESSION sort_buffer_size = $_dt_old_sort_buffer_size;

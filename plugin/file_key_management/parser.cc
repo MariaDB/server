@@ -180,7 +180,7 @@ bool Parser::read_filekey(const char *filekey, char *secret)
   {
     my_printf_error(EE_READ,
                     "Cannot read %s, the filekey is too long, "
-                    "max secret size is %dB ",
+                    "max secret size is %d bytes",
                     ME_ERROR_LOG, filekey, MAX_SECRET_SIZE);
     return 1;
   }
@@ -314,6 +314,7 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
 char* Parser::read_and_decrypt_file(const char *secret)
 {
   int f;
+  size_t file_size= 0;
   if (!filename || !filename[0])
   {
     my_printf_error(EE_CANT_OPEN_STREAM, "file-key-management-filename is not set",
@@ -328,46 +329,46 @@ char* Parser::read_and_decrypt_file(const char *secret)
     goto err0;
   }
 
-  my_off_t file_size;
-  file_size= lseek(f, 0, SEEK_END);
-
-  if (file_size == MY_FILEPOS_ERROR || (my_off_t)lseek(f, 0, SEEK_SET) == MY_FILEPOS_ERROR)
-  {
-    my_error(EE_CANT_SEEK, MYF(0), filename, errno);
-    goto err1;
-  }
-
-  if (file_size > MAX_KEY_FILE_SIZE)
-  {
-    my_error(EE_READ, MYF(0), filename, EFBIG);
-    goto err1;
-  }
-
   //Read file into buffer
-  uchar *buffer;
-  buffer= (uchar*)malloc((size_t)file_size + 1);
+  uchar *buffer, *dst, *end;
+  buffer= (uchar *) malloc((size_t) MAX_KEY_FILE_SIZE+1 );
   if (!buffer)
   {
-    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG| ME_FATAL, file_size);
+    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
     goto err1;
   }
 
-  if (read(f, buffer, (int)file_size) != (int)file_size)
+  /* read loop in case fifo buffer size is too small */
+  dst= buffer;
+  end= buffer + MAX_KEY_FILE_SIZE + 1;
+  for (ssize_t len= 1; len && dst < end; dst+= len)
   {
-    my_printf_error(EE_READ,
-      "read from %s failed, errno %d",
-      MYF(ME_ERROR_LOG|ME_FATAL), filename, errno);
+    if ((len= read(f, dst, (uint)(end - dst))) < 0)
+    {
+      my_printf_error(EE_READ, "Read from %s failed, errno %d",
+                     ME_ERROR_LOG, filename, errno);
+      goto err2;
+    }
+  }
+  file_size= dst - buffer;
+  if (file_size > MAX_KEY_FILE_SIZE)
+  {
+    my_printf_error(EE_READ, "File %s too large, must be less than %d bytes",
+                   ME_ERROR_LOG, filename, MAX_KEY_FILE_SIZE);
     goto err2;
   }
-
-// Check for file encryption
+  my_printf_error(EE_ERROR_FIRST,
+                  "Read from %s, read bytes: %zd, max key file size: %d bytes",
+                  ME_ERROR_LOG | ME_NOTE, filename, file_size,
+                  MAX_KEY_FILE_SIZE);
+  // Check for file encryption
   uchar *decrypted;
   if (file_size > OpenSSL_prefix_len && strncmp((char*)buffer, OpenSSL_prefix, OpenSSL_prefix_len) == 0)
   {
     uchar key[OpenSSL_key_len];
     uchar iv[OpenSSL_iv_len];
 
-    decrypted= (uchar*)malloc((size_t)file_size);
+    decrypted= (uchar*)malloc(file_size+1);
     if (!decrypted)
     {
       my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);

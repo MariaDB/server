@@ -510,6 +510,7 @@ static size_t my_caseup_utf8mb3(CHARSET_INFO *cs,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen, *dst0= dst;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(src != dst || cs->cset->caseup_multiply(cs) == 1);
 
   while ((src < srcend) &&
@@ -598,6 +599,7 @@ static size_t my_casedn_utf8mb3(CHARSET_INFO *cs,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen, *dst0= dst;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(src != dst || cs->cset->casedn_multiply(cs) == 1);
 
   while ((src < srcend) &&
@@ -2867,6 +2869,7 @@ my_caseup_utf8mb4(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen, *dst0= dst;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(src != dst || cs->cset->caseup_multiply(cs) == 1);
 
   while ((src < srcend) &&
@@ -2938,6 +2941,7 @@ my_casedn_utf8mb4(CHARSET_INFO *cs,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen, *dst0= dst;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(src != dst || cs->cset->casedn_multiply(cs) == 1);
 
   while ((src < srcend) &&

@@ -1,0 +1,27 @@
+INSTALL SONAME 'ha_spider';
+SET spider_same_server_link= ON;
+create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_1_MYPORT);
+#
+# MDEV-35317 Server crashes in mhnsw_insert upon using vector key on a Spider table
+#
+CREATE TABLE t (v VECTOR(1) NOT NULL, VECTOR(v));
+CREATE TABLE t_spider (v VECTOR(1) NOT NULL, VECTOR(v)) ENGINE=Spider WRAPPER=mysql REMOTE_TABLE=t REMOTE_SERVER=s;
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'VECTOR'
+INSERT INTO t_spider (v) VALUES (0x30303030);
+ERROR 42S02: Table 'test.t_spider' doesn't exist
+DROP TABLE t;
+DROP FUNCTION IF EXISTS spider_flush_table_mon_cache;
+DROP FUNCTION IF EXISTS spider_copy_tables;
+DROP FUNCTION IF EXISTS spider_ping_table;
+DROP FUNCTION IF EXISTS spider_bg_direct_sql;
+DROP FUNCTION IF EXISTS spider_direct_sql;
+UNINSTALL SONAME IF EXISTS 'ha_spider';
+DROP TABLE IF EXISTS mysql.spider_xa;
+DROP TABLE IF EXISTS mysql.spider_xa_member;
+DROP TABLE IF EXISTS mysql.spider_xa_failed_log;
+DROP TABLE IF EXISTS mysql.spider_tables;
+DROP TABLE IF EXISTS mysql.spider_link_mon_servers;
+DROP TABLE IF EXISTS mysql.spider_link_failed_log;
+DROP TABLE IF EXISTS mysql.spider_table_position_for_recovery;
+DROP TABLE IF EXISTS mysql.spider_table_sts;
+DROP TABLE IF EXISTS mysql.spider_table_crd;

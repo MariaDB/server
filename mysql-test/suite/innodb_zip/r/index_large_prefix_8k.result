@@ -171,9 +171,11 @@ Note	1071	Specified key was too long; max key length is 1536 bytes
 create index idx3 on worklog5743_8(a2(3072));
 Warnings:
 Note	1071	Specified key was too long; max key length is 1536 bytes
+Note	1831	Duplicate index `idx3`. This is deprecated and will be disallowed in a future release
 show warnings;
 Level	Code	Message
 Note	1071	Specified key was too long; max key length is 1536 bytes
+Note	1831	Duplicate index `idx3`. This is deprecated and will be disallowed in a future release
 create index idx4 on worklog5743_8(a1, a2(1533));
 ERROR 42000: Specified key was too long; max key length is 1536 bytes
 show warnings;
@@ -355,6 +357,7 @@ Note	1071	Specified key was too long; max key length is 1536 bytes
 create index idx2 on worklog5743(a(3072));
 Warnings:
 Note	1071	Specified key was too long; max key length is 1536 bytes
+Note	1831	Duplicate index `idx2`. This is deprecated and will be disallowed in a future release
 SET sql_mode= default;
 show create table worklog5743;
 Table	Create Table
