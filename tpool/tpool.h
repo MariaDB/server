@@ -197,9 +197,11 @@ public:
     On completion, cb->m_callback is executed.
   */
   virtual int submit_io(aiocb *cb)= 0;
-  /** "Bind" file to AIO handler (used on Windows only) */
+  /** "Bind" file to AIO handler. Used at least with Windows and liburing.
+  @param fd file handle
+  @return 0 on success and error code on error */
   virtual int bind(native_file_handle &fd)= 0;
-  /** "Unind" file to AIO handler (used on Windows only) */
+  /** "Unbind" file to AIO handler. Used at least with Windows and liburing. */
   virtual int unbind(const native_file_handle &fd)= 0;
   virtual const char *get_implementation() const=0;
   virtual ~aio(){};
