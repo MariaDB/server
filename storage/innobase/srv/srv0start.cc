@@ -1380,9 +1380,21 @@ dberr_t srv_start(bool create_new_db)
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
+	if (!fil_system.is_initialised()) {
+	  return srv_init_abort(DB_ERROR);
+	}
+
 	if (buf_pool.create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
+
+	if (srv_operation == SRV_OPERATION_NORMAL
+	    && !opt_bootstrap && fil_system.ext_buf_pool_enabled()
+	    && !fil_system.create_ext_file())
+		return(srv_init_abort(DB_ERROR));
+
+	size_t saved_ext_bp_size= fil_system.ext_bp_size;
+	fil_system.ext_buf_pool_disable();
 
 	srv_start_periodic_timer(buf_pool_clock_timer,
 				 buf_pool_clock_callback, 1000);
@@ -2057,6 +2069,9 @@ skip_monitors:
 
 		srv_started_redo = true;
 	}
+
+	if (!opt_bootstrap)
+	  fil_system.ext_bp_size= saved_ext_bp_size;
 
 	return(DB_SUCCESS);
 }
