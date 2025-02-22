@@ -2122,6 +2122,10 @@ convert_error_code_to_mysql(
 	ulint	flags,  /*!< in: InnoDB table flags, or 0 */
 	THD*	thd)	/*!< in: user thread handle or NULL */
 {
+  trx_t* trx;
+  if (thd != nullptr)
+    trx = thd_to_trx(thd);
+
 	switch (error) {
 	case DB_SUCCESS:
 		return(0);
@@ -2298,145 +2302,12 @@ convert_error_code_to_mysql(
 		return(HA_ERR_TABLE_CORRUPT);
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE);
+  case DB_SQL_ERROR:
+    return(trx->sql_error);
 	case DB_COMPUTE_VALUE_FAILED:
 		return(HA_ERR_GENERIC); // impossible
 	}
 }
-
-/********************************************************************//**
-Converts a MySQL error code to an InnoDB error code.
-@return InnoDB error code */
-static dberr_t
-convert_mysql_error_to_dberr(int mysql_error)
-{
-    switch (mysql_error) {
-				case 0:
-        	return DB_SUCCESS;
-
-        case HA_ERR_KEY_NOT_FOUND:
-            return DB_RECORD_NOT_FOUND;
-
-        case HA_ERR_FOUND_DUPP_KEY:
-        case HA_ERR_FOUND_DUPP_UNIQUE:
-            return DB_DUPLICATE_KEY;
-
-        case HA_ERR_RECORD_CHANGED:
-            return DB_RECORD_CHANGED;
-
-        case HA_ERR_CRASHED:
-            return DB_TABLE_CORRUPT;
-
-        case HA_ERR_OUT_OF_MEM:
-            return DB_OUT_OF_MEMORY;
-
-        case HA_ERR_NOT_A_TABLE:
-            return DB_TABLE_NOT_FOUND;
-
-        case HA_ERR_RECORD_DELETED:
-            return DB_RECORD_NOT_FOUND;
-
-        case HA_ERR_RECORD_FILE_FULL:
-        case HA_ERR_INDEX_FILE_FULL:
-            return DB_OUT_OF_FILE_SPACE;
-
-        case HA_ERR_UNSUPPORTED:
-            return DB_UNSUPPORTED;
-
-        case HA_ERR_TO_BIG_ROW:
-            return DB_TOO_BIG_RECORD;
-
-        case HA_ERR_CRASHED_ON_REPAIR:
-            return DB_TABLE_CORRUPT;
-
-        case HA_ERR_CRASHED_ON_USAGE:
-            return DB_TABLE_CORRUPT;
-
-        case HA_ERR_LOCK_WAIT_TIMEOUT:
-            return DB_LOCK_WAIT_TIMEOUT;
-
-        case HA_ERR_LOCK_TABLE_FULL:
-            return DB_LOCK_TABLE_FULL;
-
-        case HA_ERR_READ_ONLY_TRANSACTION:
-            return DB_READ_ONLY;
-
-        case HA_ERR_LOCK_DEADLOCK:
-            return DB_DEADLOCK;
-
-        case HA_ERR_CANNOT_ADD_FOREIGN:
-            return DB_CANNOT_ADD_CONSTRAINT;
-
-        case HA_ERR_NO_REFERENCED_ROW:
-            return DB_NO_REFERENCED_ROW;
-
-        case HA_ERR_ROW_IS_REFERENCED:
-            return DB_ROW_IS_REFERENCED;
-
-        case HA_ERR_NO_SAVEPOINT:
-            return DB_NO_SAVEPOINT;
-
-        case HA_ERR_NO_SUCH_TABLE:
-            return DB_TABLE_NOT_FOUND;
-
-        case HA_ERR_TABLE_EXIST:
-            return DB_TABLESPACE_EXISTS;
-
-        case HA_ERR_DROP_INDEX_FK:
-            return DB_CANNOT_DROP_CONSTRAINT;
-
-        case HA_ERR_FOREIGN_DUPLICATE_KEY:
-            return DB_FOREIGN_DUPLICATE_KEY;
-
-        case HA_ERR_TABLE_NEEDS_UPGRADE:
-            return DB_TABLE_CORRUPT;
-
-        case HA_ERR_TABLE_READONLY:
-            return DB_READ_ONLY;
-
-        case HA_ERR_TOO_MANY_CONCURRENT_TRXS:
-            return DB_TOO_MANY_CONCURRENT_TRXS;
-
-        case HA_ERR_INDEX_COL_TOO_LONG:
-            return DB_TOO_BIG_INDEX_COL;
-
-        case HA_ERR_INDEX_CORRUPT:
-            return DB_INDEX_CORRUPT;
-
-        case HA_ERR_UNDO_REC_TOO_BIG:
-            return DB_UNDO_RECORD_TOO_BIG;
-
-        case HA_FTS_INVALID_DOCID:
-            return DB_FTS_INVALID_DOCID;
-
-        case HA_ERR_TABLESPACE_EXISTS:
-            return DB_TABLESPACE_EXISTS;
-
-        case HA_ERR_DISK_FULL:
-            return DB_IO_ERROR;
-
-        case HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE:
-            return DB_FTS_TOO_MANY_WORDS_IN_PHRASE;
-
-        case HA_ERR_DECRYPTION_FAILED:
-            return DB_DECRYPTION_FAILED;
-
-        case HA_ERR_FK_DEPTH_EXCEEDED:
-            return DB_FOREIGN_EXCEED_MAX_CASCADE;
-
-        case HA_ERR_TABLESPACE_MISSING:
-            return DB_TABLESPACE_NOT_FOUND;
-
-        case HA_ERR_LOCAL_TMP_SPACE_FULL:
-            return DB_TEMP_FILE_WRITE_FAIL;
-
-        case HA_ERR_GLOBAL_TMP_SPACE_FULL:
-            return DB_TEMP_FILE_WRITE_FAIL;
-
-        default:
-            return DB_ERROR;
-    }
-}
-
 
 /*************************************************************//**
 Prints info of a THD object (== user session thread) to the given file. */
@@ -21564,121 +21435,10 @@ ulint buf_pool_size_align(ulint size) noexcept
   }
 }
 
-bool innodb_execute_triggers(upd_node_t *node, bool after) 
-{
-	bool is_delete = (node->is_delete == PLAIN_DELETE);
-  btr_pcur_t	*pcur = node->pcur;
-  char db_buf[NAME_LEN + 1];
-  char tbl_buf[NAME_LEN + 1];
-  ulint db_buf_len, tbl_buf_len;
-  dict_table_t *table = node->table;
-  dict_index_t *clust_index = dict_table_get_first_index(table);
-  if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
-    return false;
-  }
-
-  THD *thd = current_thd;
-  TABLE *maria_table = find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, 
-                                          tbl_buf_len);
-
-
-  trg_event_type trigger_event = is_delete ? TRG_EVENT_DELETE : TRG_EVENT_UPDATE;
-  trg_action_time_type trigger_time = after ? TRG_ACTION_AFTER: TRG_ACTION_BEFORE; 
-
-  if (!maria_table->triggers ||  
-      !maria_table->triggers->has_triggers(trigger_event, trigger_time)) 
-      return true;
-  
-  ha_innobase *handler = (ha_innobase*)maria_table->file;
-  row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
-
-  prebuilt->upd_node = node;
-  prebuilt->upd_graph = static_cast<que_fork_t*>(
-      que_node_get_parent(
-        pars_complete_graph_for_exec(
-        prebuilt->upd_node,
-        prebuilt->trx, prebuilt->heap,
-        prebuilt)));
-  prebuilt->upd_graph->state = QUE_FORK_ACTIVE; // ?
-
-
-  const rec_t* rec = btr_pcur_get_rec(pcur); 
-  const rec_offs*	offsets = rec_get_offsets(
-    rec, 
-    clust_index, 
-    nullptr, 
-    clust_index->n_core_fields, 
-    ULINT_UNDEFINED, 
-    &node->heap
-  );
-
-  if (!is_delete) {
-  if (node->upd_row == NULL) {
-    node->row = row_build(ROW_COPY_DATA, clust_index, rec,
-            offsets, NULL,
-            NULL, NULL, &node->upd_ext, node->heap);
-
-    node->upd_row = dtuple_copy(node->row, node->heap);
-    row_upd_replace(node->upd_row, &node->upd_ext,
-      clust_index, node->update, node->heap);
-  }
-
-  dtuple_t* entry = row_build_index_entry(node->upd_row, NULL, 
-                                          clust_index, 
-                                          node->heap);
-
-  ulint n_ext = dtuple_get_n_ext(node->upd_row);
-  
-  ulint size = rec_get_converted_size(clust_index, entry, n_ext);
-  byte *buf = static_cast<byte*>(mem_heap_alloc(node->heap, size));
-
-  rec_t *rec_upd = rec_convert_dtuple_to_rec(buf, clust_index, entry, n_ext);
-  const rec_offs* upd_offsets = rec_get_offsets(
-    rec_upd, clust_index, nullptr, 
-    clust_index->n_core_fields, 
-    ULINT_UNDEFINED, &node->heap);
-
-  //FIXME:Check return value
-  row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec_upd, 
-                          NULL, false, clust_index, upd_offsets); 
-  }
-
-  //FIXME: Check return value
-  row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec, NULL, 
-                          false, clust_index, offsets); 
-
-  maria_table->column_bitmaps_set(&maria_table->s->all_set, &maria_table->s->all_set);
-  //FIXME: Check return value
-  maria_table->triggers->process_triggers(thd, trigger_event, trigger_time, true); 
-
-  if (handler->update_prebuilt_upd_buf())
-    return false; // TODO: DB_OUT_OF_MEMORY
-
-
-  if (maria_table->vfield) {
-    maria_table->update_virtual_fields(handler, VCOL_UPDATE_FOR_WRITE);
-    maria_table->move_fields(maria_table->field, maria_table->record[1], maria_table->record[0]);
-    maria_table->update_virtual_fields(handler, VCOL_UPDATE_FOR_WRITE);
-    maria_table->move_fields(maria_table->field, maria_table->record[0], maria_table->record[1]);
-	}	
-  
-  ib_uint64_t autoinc;
-  dberr_t error= calc_row_difference(node->update, maria_table->record[1],
-                maria_table->record[0], maria_table,
-                handler->m_upd_buf,
-                handler->m_upd_buf_size,
-                prebuilt, autoinc);
-  if (error)
-    return false;
-
-  return true;
-}
 
 /********************************************************************//**
 Fetches the MySQL TABLE object corresponding to the InnoDB table 
 referenced in the given update node. 
-
-// FIXME: add error handling instead of returning nullptr
 @return Pointer to the TABLE object if found, or nullptr on error. */
 static
 TABLE *find_sql_table_for_update_node(upd_node_t* node) {
@@ -21688,7 +21448,7 @@ TABLE *find_sql_table_for_update_node(upd_node_t* node) {
   ulint db_buf_len, tbl_buf_len;
   dict_table_t *table= node->table;
   if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
-    return nullptr; // TODO: handle error
+    return nullptr;
   }
 
   return find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, 
@@ -21710,13 +21470,11 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
   TABLE *maria_table= find_sql_table_for_update_node(node);
   ha_innobase *handler= (ha_innobase*)maria_table->file;
 
-
-  //---FILL REC--- TODO: separate function
   row_prebuilt_t *prebuilt= handler->get_prebuilt(node->table);
-  btr_pcur_t	*pcur = node->pcur;
-  const rec_t* rec = btr_pcur_get_rec(pcur); 
-  dict_index_t *clust_index = dict_table_get_first_index(node->table);
-  const rec_offs*	offsets = rec_get_offsets(
+  btr_pcur_t	*pcur= node->pcur;
+  const rec_t* rec= btr_pcur_get_rec(pcur); 
+  dict_index_t *clust_index= dict_table_get_first_index(node->table);
+  const rec_offs*	offsets= rec_get_offsets(
     rec, 
     clust_index, 
     nullptr, 
@@ -21725,69 +21483,70 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
     &node->heap
   );
 
-	if (is_delete)
-  	row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, 
+  if (is_delete)
+    row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, 
                          true, clust_index, offsets);
-  //---END FILL REC---
-
 
   auto *upd_node= prebuilt->upd_node;
   auto *upd_graph= prebuilt->upd_graph;
   prebuilt->upd_node= node;
   prebuilt->upd_graph= static_cast<que_fork_t*>(que_node_get_parent(thr));
 
-	btr_pcur_copy_stored_position(prebuilt->pcur, pcur);
-	prebuilt->sql_stat_start = 0; // a parent table is already locked correctly
+  btr_pcur_copy_stored_position(prebuilt->pcur, pcur);
+  prebuilt->sql_stat_start = 0; // a parent table is already locked correctly
 
 
-	if (!is_delete) {
-		row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec, NULL, 
+  if (!is_delete) {
+    row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec, NULL, 
                          true, clust_index, offsets);
 
-		if (node->upd_row == NULL) {
-			node->row = row_build(ROW_COPY_DATA, clust_index, rec,
-							offsets, NULL,
-							NULL, NULL, &node->upd_ext, node->heap);
+    if (node->upd_row == NULL) {
+      node->row= row_build(ROW_COPY_DATA, clust_index, rec,
+              offsets, NULL,
+              NULL, NULL, &node->upd_ext, node->heap);
 
-			node->upd_row = dtuple_copy(node->row, node->heap);
-			row_upd_replace(node->upd_row, &node->upd_ext,
-				clust_index, node->update, node->heap);
-  	}
+      node->upd_row= dtuple_copy(node->row, node->heap);
+      row_upd_replace(node->upd_row, &node->upd_ext,
+        clust_index, node->update, node->heap);
+    }
 
-		dtuple_t* entry = row_build_index_entry(node->upd_row, NULL, 
-																						clust_index, 
-																						node->heap);
+    dtuple_t* entry= row_build_index_entry(node->upd_row, 
+                                            NULL, 
+                                            clust_index, 
+                                            node->heap);
 
-		ulint n_ext = dtuple_get_n_ext(node->upd_row);
-		
-		ulint size = rec_get_converted_size(clust_index, entry, n_ext);
-		byte *buf = static_cast<byte*>(mem_heap_alloc(node->heap, size));
+    ulint n_ext= dtuple_get_n_ext(node->upd_row);
 
-		rec_t *rec_upd = rec_convert_dtuple_to_rec(buf, clust_index, entry, n_ext);
-		const rec_offs* upd_offsets = rec_get_offsets(
-			rec_upd, clust_index, nullptr, 
-			clust_index->n_core_fields, 
-			ULINT_UNDEFINED, &node->heap);
+    ulint size= rec_get_converted_size(clust_index, entry, n_ext);
+    byte *buf= static_cast<byte*>(mem_heap_alloc(node->heap, size));
 
-		//FIXME:Check return value
-		row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec_upd, 
-														NULL, false, clust_index, upd_offsets); 
+    rec_t *rec_upd= rec_convert_dtuple_to_rec(buf, clust_index, entry, n_ext);
+    const rec_offs* upd_offsets= rec_get_offsets(
+      rec_upd, clust_index, nullptr, 
+      clust_index->n_core_fields, 
+      ULINT_UNDEFINED, &node->heap);
+
+    row_sel_store_mysql_rec_no_blob_free(maria_table->record[0], prebuilt, rec_upd, 
+                            NULL, false, clust_index, upd_offsets);
   }
 
-	//// TODO: Refactor to remove the use of the following handler methods:
-	// handler->position(maria_table->record[0]);
-	// handler->ha_rnd_init(false);
-	// handler->rnd_pos(maria_table->record[0], handler->ref);
-	// handler->ha_rnd_end();
-	//**
+  if (handler->update_prebuilt_upd_buf())
+    return DB_ERROR;
 
-	if (handler->update_prebuilt_upd_buf())
-    return DB_ERROR; // TODO: DB_OUT_OF_MEMORY
+  int err = is_delete ? sql_delete_row(maria_table)
+                      : sql_update_row(maria_table);
 
-	int err = is_delete ? sql_delete_row(maria_table)
-											: sql_update_row(maria_table);
+  prebuilt->upd_node= upd_node;
+  prebuilt->upd_graph= upd_graph;
 
-	prebuilt->upd_node = upd_node;
-	prebuilt->upd_graph = upd_graph;
-	return convert_mysql_error_to_dberr(err);
+  if (err != 0) {
+    if (err == HA_ERR_FOUND_DUPP_KEY || err == HA_ERR_FOUND_DUPP_UNIQUE) 
+        return DB_FOREIGN_DUPLICATE_KEY;    
+
+    trx_t* trx= thr_get_trx(thr);
+    trx->sql_error= err;
+    return DB_SQL_ERROR;
+  }
+
+  return DB_SUCCESS;
 }

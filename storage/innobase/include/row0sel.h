@@ -464,3 +464,13 @@ bool row_sel_store_mysql_rec(
 	bool		rec_clust,
 	const dict_index_t* index,
 	const rec_offs*	offsets);
+
+bool
+row_sel_store_mysql_rec_no_blob_free(
+	byte*             mysql_rec,
+	row_prebuilt_t*   prebuilt,
+	const rec_t*      rec,
+	const dtuple_t*   vrow,
+	bool              rec_clust,
+	const dict_index_t* index,
+	const rec_offs*   offsets);

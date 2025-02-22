@@ -13689,15 +13689,15 @@ int sql_delete_row(TABLE *table)
 {
   THD *thd= current_thd;
   int error= 0;
-
+  bool trg_skip_row= false;
   // This ensures that triggers can correctly read virtual field values
   if (table->vfield) 
     table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
-
+  
   table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
   if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                     TRG_ACTION_BEFORE, FALSE)))
+                                                     TRG_ACTION_BEFORE, FALSE, &trg_skip_row)))
     return HA_ERR_GENERIC;
       
 
@@ -13707,7 +13707,7 @@ int sql_delete_row(TABLE *table)
 
   if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                     TRG_ACTION_AFTER, FALSE)))
+                                                     TRG_ACTION_AFTER, FALSE, nullptr)))
     return HA_ERR_GENERIC;
 
   return 0;
@@ -13724,7 +13724,7 @@ int sql_delete_row(TABLE *table)
 int sql_update_row(TABLE *table) 
 {
   THD *thd= current_thd;
-
+  bool trg_skip_row= false;
   table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
 
   // This ensures that triggers can correctly read virtual field values
@@ -13734,7 +13734,7 @@ int sql_update_row(TABLE *table)
         table->triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE)) 
   {
       if (unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                     TRG_ACTION_BEFORE, TRUE)))
+                                                     TRG_ACTION_BEFORE, TRUE, &trg_skip_row)))
         return HA_ERR_GENERIC;
       // This is necessary for indexes that depend on virtual fields
       update_virtual_fields_for_rows(table);
@@ -13746,7 +13746,7 @@ int sql_update_row(TABLE *table)
 
   if (table->triggers &&
       unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                     TRG_ACTION_AFTER, TRUE)))
+                                                     TRG_ACTION_AFTER, TRUE, nullptr)))
     return HA_ERR_GENERIC;
 
   return 0;
