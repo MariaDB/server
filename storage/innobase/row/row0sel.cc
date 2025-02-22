@@ -3115,38 +3115,24 @@ row_sel_store_mysql_field(
 	DBUG_RETURN(TRUE);
 }
 
-/** Convert a row in the Innobase format to a row in the MySQL format.
-Note that the template in prebuilt may advise us to copy only a few
-columns to mysql_rec, other columns are left blank. All columns may not
-be needed in the query.
-@param[out]	mysql_rec	row in the MySQL format
-@param[in]	prebuilt	cursor
-@param[in]	rec		Innobase record in the index
-				which was described in prebuilt's
-				template, or in the clustered index;
-				must be protected by a page latch
-@param[in]	vrow		virtual columns
-@param[in]	rec_clust	whether index must be the clustered index
-@param[in]	index		index of rec
-@param[in]	offsets		array returned by rec_get_offsets(rec)
-@retval true on success
-@retval false if not all columns could be retrieved */
 MY_ATTRIBUTE((warn_unused_result))
-bool row_sel_store_mysql_rec(
-	byte*		mysql_rec,
-	row_prebuilt_t*	prebuilt,
-	const rec_t*	rec,
-	const dtuple_t*	vrow,
-	bool		rec_clust,
-	const dict_index_t* index,
-	const rec_offs*	offsets)
+static bool
+row_sel_store_mysql_rec_internal(
+    byte*             mysql_rec,
+    row_prebuilt_t*   prebuilt,
+    const rec_t*      rec,
+    const dtuple_t*   vrow,
+    bool              rec_clust,
+    const dict_index_t* index,
+    const rec_offs*   offsets,
+    bool              free_blob)
 {
 	DBUG_ENTER("row_sel_store_mysql_rec");
 
 	ut_ad(rec_clust || index == prebuilt->index);
 	ut_ad(!rec_clust || dict_index_is_clust(index));
 
-	if (UNIV_LIKELY_NULL(prebuilt->blob_heap)) {
+	if (free_blob && UNIV_LIKELY_NULL(prebuilt->blob_heap)) {
 		row_mysql_prebuilt_free_blob_heap(prebuilt);
 	}
 
@@ -3256,6 +3242,51 @@ bool row_sel_store_mysql_rec(
 	}
 
 	DBUG_RETURN(true);
+}
+
+/** Convert a row in the Innobase format to a row in the MySQL format.
+Note that the template in prebuilt may advise us to copy only a few
+columns to mysql_rec, other columns are left blank. All columns may not
+be needed in the query.
+@param[out]	mysql_rec	row in the MySQL format
+@param[in]	prebuilt	cursor
+@param[in]	rec		Innobase record in the index
+				which was described in prebuilt's
+				template, or in the clustered index;
+				must be protected by a page latch
+@param[in]	vrow		virtual columns
+@param[in]	rec_clust	whether index must be the clustered index
+@param[in]	index		index of rec
+@param[in]	offsets		array returned by rec_get_offsets(rec)
+@retval true on success
+@retval false if not all columns could be retrieved */
+MY_ATTRIBUTE((warn_unused_result))
+bool row_sel_store_mysql_rec(
+	byte*		mysql_rec,
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	const dtuple_t*	vrow,
+	bool		rec_clust,
+	const dict_index_t* index,
+	const rec_offs*	offsets)
+{
+  return row_sel_store_mysql_rec_internal(mysql_rec, prebuilt, rec, vrow,
+    rec_clust, index, offsets, true);
+}
+
+MY_ATTRIBUTE((warn_unused_result))
+bool
+row_sel_store_mysql_rec_no_blob_free(
+    byte*             mysql_rec,
+    row_prebuilt_t*   prebuilt,
+    const rec_t*      rec,
+    const dtuple_t*   vrow,
+    bool              rec_clust,
+    const dict_index_t* index,
+    const rec_offs*   offsets)
+{
+    return row_sel_store_mysql_rec_internal(mysql_rec, prebuilt, rec, vrow,
+                                              rec_clust, index, offsets, false);
 }
 
 static void row_sel_reset_old_vers_heap(row_prebuilt_t *prebuilt)
