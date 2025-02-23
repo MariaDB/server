@@ -693,7 +693,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    protocol_text(this), protocol_binary(this), initial_status_var(0),
-   m_current_stage_key(0), m_psi(0),
+   m_current_stage_key(0), m_psi(0), start_time(0), start_time_sec_part(0),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
    current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
@@ -1357,7 +1357,7 @@ void THD::init()
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
-  user_time.val= start_time= start_time_sec_part= 0;
+  user_time.val= 0;
 
   server_status= 0;
   if (variables.option_bits & OPTION_AUTOCOMMIT)
@@ -1386,6 +1386,7 @@ void THD::init()
   status_var.max_local_memory_used= status_var.local_memory_used;
   bzero((char *) &org_status_var, sizeof(org_status_var));
   status_in_global= 0;
+  bytes_sent_old= 0;
   start_bytes_received= 0;
   m_last_commit_gtid.seq_no= 0;
   last_stmt= NULL;
@@ -1571,6 +1572,8 @@ void THD::change_user(void)
     get_stmt_da()->clear_warning_info(0);
 
   init();
+  /* cannot clear map if it'll free the currently executing statement */
+  DBUG_ASSERT(stmt_arena->is_conventional());
   stmt_map.reset();
   my_hash_init(key_memory_user_var_entry, &user_vars,
                Lex_ident_user_var::charset_info(),
@@ -1580,6 +1583,8 @@ void THD::change_user(void)
                Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
+  /* cannot clear caches if it'll free the currently running routine */
+  DBUG_ASSERT(!spcont);
   sp_caches_clear();
   statement_rcontext_reinit();
   opt_trace.delete_traces();

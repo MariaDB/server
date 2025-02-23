@@ -363,6 +363,17 @@ public:
   int update(THD *thd) override;
 };
 
+/* For SET SESSION AUTHORIZATION */
+
+class set_var_authorization: public set_var_base
+{
+  LEX_USER *user;
+public:
+  set_var_authorization(LEX_USER *user_arg) : user(user_arg) {}
+  int check(THD *thd) override;
+  int update(THD *thd) override;
+};
+
 /* For SET ROLE */
 
 class set_var_role: public set_var_base

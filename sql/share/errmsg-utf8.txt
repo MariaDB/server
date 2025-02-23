@@ -10102,11 +10102,11 @@ ER_SLAVE_RLI_INIT_REPOSITORY
         sw "Mtumwa alishindwa kuanzisha muundo wa habari ya relay wa logi kutoka kwa hazina"
 
 ER_ACCESS_DENIED_CHANGE_USER_ERROR 28000 
-        bgn "Отказан достъп при опит за смяна към потребител %-.48s'@'%-.64s' (използвана парола: %s). Затваряне на връзката"
-        chi "访问拒绝尝试更改为用户'%-.48s'@'%-.64s'（使用密码：%s）。断开连接"
-        eng "Access denied trying to change to user '%-.48s'@'%-.64s' (using password: %s). Disconnecting"
-        spa "Acceso denegado intentando cambiar a usuario '%-.48s'@'%-.64s' (usando contraseña: %s). Desconectando"
-        sw "Ufikiaji umekataliwa kujaribu kubadilisha hadi mtumiaji '%-.48s'@'%-.64s' (kwa kutumia nenosiri: %s). Inatenganisha"
+        bgn "Отказан достъп при опит за смяна към потребител %-.48s'@'%-.64s'"
+        chi "访问拒绝尝试更改为用户'%-.48s'@'%-.64s'"
+        eng "Access denied trying to change to user '%-.48s'@'%-.64s'"
+        spa "Acceso denegado intentando cambiar a usuario '%-.48s'@'%-.64s'"
+        sw "Ufikiaji umekataliwa kujaribu kubadilisha hadi mtumiaji '%-.48s'@'%-.64s'"
 
 ER_INNODB_READ_ONLY
         chi "innodb是只读模式"

@@ -1,0 +1,119 @@
+source include/not_embedded.inc;
+source include/no_protocol.inc;
+
+--echo #
+--echo # MDEV-20299 SET SESSION AUTHORIZATION
+--echo #
+
+# simple tests
+create user foo@bar identified via mysql_native_password using password('foo');
+connect con1, localhost, root;
+select user(), current_user(), database();
+# sudo, with SET USER privilege, nonexistent user
+--error ER_NO_SUCH_USER
+set session authorization bar@foo;
+select user(), current_user(), database();
+# sudo, with SET USER privilege
+set session authorization foo@bar;
+select user(), current_user(), database();
+set @a:='not changed';
+# sudo without SET USER privilege
+--error ER_ACCESS_DENIED_CHANGE_USER_ERROR
+set session authorization bar@foo;
+select @a;
+# to self, no privileges needed
+set session authorization foo@bar;
+select @a;
+disconnect con1;
+connection default;
+drop user foo@bar;
+
+# user() != current_user() (w/ wildcards)
+create user ''@'l%t' identified via mysql_native_password using password('foo');
+connect con1, localhost, root;
+select user(), current_user(), database();
+# sudo, with SET USER privilege
+set session authorization fist@list;
+select user(), current_user(), database();
+set @a:='not changed';
+# sudo without SET USER privilege (note, same CURRENT_USER)
+--error ER_ACCESS_DENIED_CHANGE_USER_ERROR
+set session authorization first@last;
+select @a;
+# to self, no privileges needed
+set session authorization fist@list;
+select @a;
+disconnect con1;
+connection default;
+drop user ''@'l%t';
+
+create user ''@'%' identified via mysql_native_password using password('foo');
+connect con1, localhost, root;
+select user(), current_user(), database();
+# empty username
+--error ER_NO_SUCH_USER
+set session authorization ''@last;
+# empty hostname
+--error ER_NO_SUCH_USER
+set session authorization foo@'';
+# in a transaction - an error
+start transaction;
+select user(), current_user(), database(), @@in_transaction;
+--error ER_CANT_SET_IN_TRANSACTION
+set session authorization foo@bar;
+select user(), current_user(), database(), @@in_transaction;
+disconnect con1;
+connection default;
+
+# cannot be prepared
+--error ER_UNSUPPORTED_PS
+prepare s from 'set session authorization foo@bar';
+
+# cannot be in a stored routine
+--error ER_SP_BADSTATEMENT
+create procedure sudo_foobar() set session authorization foo@bar;
+
+create procedure sudo_foobar()
+  execute immediate 'set session authorization foo@bar';
+--error ER_UNSUPPORTED_PS
+call sudo_foobar();
+drop procedure sudo_foobar;
+
+drop user ''@'%';
+
+--echo #
+--echo # MDEV-36399 SET SESSION AUTHORIZATION allows an unrpivileged user to bypass resource limits
+--echo #
+
+create user u1 with max_queries_per_hour 2;
+connect u1,localhost,u1;
+
+set session authorization u1@localhost;
+select 1;
+--error ER_USER_LIMIT_REACHED
+select 2;
+disconnect u1;
+connection default;
+drop user u1;
+
+--echo #
+--echo # MDEV-36401 Access denied errors produced by SET SESSION AUTHORIZATION not reflected in status values
+--echo #
+flush global status;
+
+--error ER_NO_SUCH_USER
+set session authorization u1@localhost;
+
+create user u1;
+
+connect u1,localhost,u1;
+--error ER_ACCESS_DENIED_CHANGE_USER_ERROR
+set session authorization root@localhost;
+--error ER_ACCESS_DENIED_CHANGE_USER_ERROR
+set session authorization foo@bar;
+disconnect u1;
+connection default;
+show global status like 'access_denied_errors';
+drop user u1;
+
+--echo # End of 11.8 tests
