@@ -81,7 +81,9 @@ START SLAVE IO_THREAD;
 # The position 1178 is the start of: INSERT INTO t1 VALUES (4, 0, 'skip');
 # After that comes unknown MySQL 8.0 events, which we test error for below.
 START SLAVE UNTIL Master_log_file='master-bin.000001', Master_log_pos= 1178;
+--disable_result_log
 SELECT MASTER_POS_WAIT('master-bin.000001', 1178, 60);
+--enable_result_log
 SELECT * FROM t1 ORDER BY a;
 
 --source include/wait_for_slave_sql_to_stop.inc

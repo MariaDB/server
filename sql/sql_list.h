@@ -61,7 +61,7 @@ public:
     next= &first;
   }
 
-  inline void link_in_list(T *element, T **next_ptr)
+  inline void insert(T *element, T **next_ptr)
   {
     elements++;
     (*next)= element;

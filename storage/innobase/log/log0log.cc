@@ -186,7 +186,6 @@ void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
   abort();
 }
 
-#ifdef HAVE_INNODB_MMAP
 # ifdef HAVE_PMEM
 #  include "cache.h"
 # endif
@@ -202,6 +201,10 @@ static void *log_mmap(os_file_t file,
 # endif
                       os_offset_t size)
 {
+#if SIZEOF_SIZE_T < 8
+  if (size != os_offset_t(size_t(size)))
+    return MAP_FAILED;
+#endif
   if (my_system_page_size > 4096)
     return MAP_FAILED;
 # ifndef HAVE_PMEM
@@ -299,20 +302,17 @@ remap:
 # endif
   return ptr;
 }
-#endif
 
 #if defined __linux__ || defined _WIN32
 /** Display a message about opening the log */
 ATTRIBUTE_COLD static void log_file_message()
 {
   sql_print_information("InnoDB: %s (block size=%u bytes)",
-# ifdef HAVE_INNODB_MMAP
                         log_sys.log_mmap
                         ? (log_sys.log_buffered
                            ? "Memory-mapped log"
                            : "Memory-mapped unbuffered log")
                         :
-# endif
                         log_sys.log_buffered
                         ? "Buffered log writes"
                         : "File system buffers for log disabled",
@@ -331,7 +331,6 @@ bool log_t::attach(log_file_t file, os_offset_t size)
   ut_ad(!buf);
   ut_ad(!flush_buf);
   ut_ad(!writer);
-#ifdef HAVE_INNODB_MMAP
   if (size)
   {
 # ifdef HAVE_PMEM
@@ -362,7 +361,6 @@ bool log_t::attach(log_file_t file, os_offset_t size)
     }
   }
   log_mmap= false;
-#endif
   buf= static_cast<byte*>(ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME));
   if (!buf)
   {
@@ -399,9 +397,7 @@ bool log_t::attach(log_file_t file, os_offset_t size)
   writer_update();
   memset_aligned<512>(checkpoint_buf, 0, write_size);
 
-#ifdef HAVE_INNODB_MMAP
  func_exit:
-#endif
   log_file_message();
   return true;
 }
@@ -476,25 +472,19 @@ ATTRIBUTE_COLD static void log_close_failed(dberr_t err)
   ib::fatal() << "closing ib_logfile0 failed: " << err;
 }
 
-#ifdef HAVE_INNODB_MMAP
 void log_t::close_file(bool really_close)
-#else
-void log_t::close_file()
-#endif
 {
-#ifdef HAVE_INNODB_MMAP
   if (is_mmap())
   {
     ut_ad(!checkpoint_buf);
     ut_ad(!flush_buf);
     if (buf)
     {
-      my_munmap(buf, file_size);
+      my_munmap(buf, size_t(file_size));
       buf= nullptr;
     }
   }
   else
-#endif
   {
     ut_ad(!buf == !flush_buf);
     ut_ad(!buf == !checkpoint_buf);
@@ -511,9 +501,7 @@ void log_t::close_file()
 
   writer= nullptr;
 
-#ifdef HAVE_INNODB_MMAP
   if (really_close)
-#endif
     if (is_opened())
       if (const dberr_t err= log.close())
         log_close_failed(err);
@@ -645,14 +633,10 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
       void *ptr= nullptr, *ptr2= nullptr;
       success= os_file_set_size(path.c_str(), resize_log.m_file, size);
       if (!success);
-#ifdef HAVE_INNODB_MMAP
+#ifdef HAVE_PMEM
       else if (is_mmap())
       {
-        ptr= ::log_mmap(resize_log.m_file,
-#ifdef HAVE_PMEM
-                        is_pmem,
-#endif
-                        size);
+        ptr= ::log_mmap(resize_log.m_file, is_pmem, size);
 
         if (ptr == MAP_FAILED)
           goto alloc_fail;
@@ -660,6 +644,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
 #endif
       else
       {
+        ut_ad(!is_mmap());
         ptr= ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME);
         if (ptr)
         {
@@ -702,9 +687,9 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
 
         writer_update();
       }
-      resize_lsn.store(start_lsn, std::memory_order_relaxed);
       status= success ? RESIZE_STARTED : RESIZE_FAILED;
     }
+    resize_lsn.store(start_lsn, std::memory_order_relaxed);
   }
 
   log_resize_release();
@@ -729,26 +714,33 @@ void log_t::resize_abort() noexcept
 
   if (resize_in_progress() > 1)
   {
-    if (!is_mmap())
+#ifdef HAVE_PMEM
+    const bool is_mmap{this->is_mmap()};
+#else
+    constexpr bool is_mmap{false};
+#endif
+    if (!is_mmap)
     {
       ut_free_dodump(resize_buf, buf_size);
       ut_free_dodump(resize_flush_buf, buf_size);
       resize_flush_buf= nullptr;
     }
-#ifdef HAVE_INNODB_MMAP
     else
     {
       ut_ad(!resize_log.is_opened());
       ut_ad(!resize_flush_buf);
+#ifdef HAVE_PMEM
       if (resize_buf)
         my_munmap(resize_buf, resize_target);
+#endif /* HAVE_PMEM */
     }
-#endif
     if (resize_log.is_opened())
       resize_log.close();
     resize_buf= nullptr;
     resize_target= 0;
     resize_lsn.store(0, std::memory_order_relaxed);
+    std::string path{get_log_file_path("ib_logfile101")};
+    IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
   }
 
   writer_update();
@@ -909,13 +901,13 @@ static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 #endif
 
 #ifdef HAVE_PMEM
-void log_t::persist(lsn_t lsn, bool holding_latch) noexcept
+void log_t::persist(lsn_t lsn) noexcept
 {
   ut_ad(!is_opened());
   ut_ad(!write_lock.is_owner());
   ut_ad(!flush_lock.is_owner());
 #ifdef LOG_LATCH_DEBUG
-  ut_ad(holding_latch == latch_have_wr());
+  ut_ad(latch_have_any());
 #endif
 
   lsn_t old= flushed_to_disk_lsn.load(std::memory_order_relaxed);
@@ -923,9 +915,6 @@ void log_t::persist(lsn_t lsn, bool holding_latch) noexcept
   if (old >= lsn)
     return;
 
-  const bool latching{!holding_latch && resize_in_progress()};
-  if (UNIV_UNLIKELY(latching))
-    latch.rd_lock(SRW_LOCK_CALL);
   const size_t start(calc_lsn_offset(old));
   const size_t end(calc_lsn_offset(lsn));
 
@@ -949,9 +938,14 @@ void log_t::persist(lsn_t lsn, bool holding_latch) noexcept
     log_flush_notify(lsn);
     DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
   }
+}
 
-  if (UNIV_UNLIKELY(latching))
-    latch.rd_unlock();
+ATTRIBUTE_NOINLINE
+static void log_write_persist(lsn_t lsn) noexcept
+{
+  log_sys.latch.rd_lock(SRW_LOCK_CALL);
+  log_sys.persist(lsn);
+  log_sys.latch.rd_unlock();
 }
 #endif
 
@@ -1159,7 +1153,7 @@ void log_write_up_to(lsn_t lsn, bool durable,
   if (log_sys.is_mmap())
   {
     if (durable)
-      log_sys.persist(lsn, false);
+      log_write_persist(lsn);
     else
       ut_ad(!callback);
     return;
@@ -1241,7 +1235,6 @@ ATTRIBUTE_COLD void log_write_and_flush_prepare()
          group_commit_lock::ACQUIRED);
 }
 
-#ifdef HAVE_INNODB_MMAP
 void log_t::clear_mmap()
 {
   if (!is_mmap() ||
@@ -1275,7 +1268,6 @@ void log_t::clear_mmap()
   }
   log_resize_release();
 }
-#endif
 
 /** Durably write the log up to log_sys.get_lsn(). */
 ATTRIBUTE_COLD void log_write_and_flush()
@@ -1283,7 +1275,7 @@ ATTRIBUTE_COLD void log_write_and_flush()
   ut_ad(!srv_read_only_mode);
 #ifdef HAVE_PMEM
   if (log_sys.is_mmap())
-    log_sys.persist(log_sys.get_lsn(), true);
+    log_sys.persist(log_sys.get_lsn());
   else
 #endif
   {

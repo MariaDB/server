@@ -153,16 +153,6 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO t1 VALUES (1);
-SET SESSION debug_dbug="+d,ib_export_io_write_failure_9";
-FLUSH TABLES t1 FOR EXPORT;
-Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
-UNLOCK TABLES;
-SET SESSION debug_dbug=@saved_debug_dbug;
-DROP TABLE t1;
-CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
-INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_10";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:

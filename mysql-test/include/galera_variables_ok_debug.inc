@@ -1,9 +1,5 @@
---disable_query_log
+# Now the number of variables for the release and debug versions
+# of the library is equal to each other...
+--let $galera_variables_delta=0
 
---let $galera_variables_ok = `SELECT COUNT(*) = 51 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep%'`
-
---if (!$galera_variables_ok) {
-	--skip Galera number of variables has changed!
-}
-
---enable_query_log
+--source include/galera_variables_ok.inc

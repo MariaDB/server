@@ -37,6 +37,7 @@ $$
 call recursion(0,2,@s1);
 call recursion(0,3,@s2);
 call recursion(0,4,@s3);
+$$
 select @s1 > 0 && @s2 > 0 && @s3 > 0;
 @s1 > 0 && @s2 > 0 && @s3 > 0
 1

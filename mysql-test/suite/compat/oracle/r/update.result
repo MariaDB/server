@@ -1,0 +1,16 @@
+SET @save_sql_mode=@@global.sql_mode;
+SET sql_mode=ORACLE;
+SET GLOBAL sql_mode='ORACLE';
+# MDEV-27769 Assertion failed in Field::ptr_in_record upon UPDATE
+CREATE TABLE t (s geometry, t text) engine innodb;
+Warnings:
+Warning	1286	Unknown storage engine 'innodb'
+Warning	1266	Using storage engine MyISAM for table 't'
+INSERT IGNORE INTO t () VALUES ();
+UPDATE IGNORE t SET t= '', s = 0;
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+UPDATE IGNORE t SET t= '', s = 0;
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ALTER TABLE t force;
+DROP TABLE t;
+SET GLOBAL sql_mode=@save_sql_mode;

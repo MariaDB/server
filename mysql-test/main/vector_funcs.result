@@ -155,6 +155,12 @@ select vec_totext(`null`) from (values (null),(0x00000000)) x;
 vec_totext(`null`)
 NULL
 [0]
+#
+# MDEV-36011 Server crashes in Charset::mbminlen / Item_func_vec_fromtext::val_str upon mixing vector type with string
+#
+select 0x31313131 in ('1111', vec_fromtext('[1]'));
+0x31313131 in ('1111', vec_fromtext('[1]'))
+1
 # End of 11.7 tests
 #
 # MDEV-35450 VEC_DISTANCE() function to autouse the available index type
@@ -254,4 +260,9 @@ x
 2222
 drop view v;
 drop table t;
+#
+# MDEV-35919 Server crashes in Item_func_vec_distance::fix_length_and_dec upon reading from I_S table
+#
+select vec_distance(value(key_cache_name), 0x30303030) from information_schema.key_caches;
+ERROR HY000: Cannot determine distance type for VEC_DISTANCE, index is not found
 # End of 11.8 tests

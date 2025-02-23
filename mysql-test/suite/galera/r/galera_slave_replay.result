@@ -94,3 +94,6 @@ DROP TABLE t1;
 connection node_3;
 DROP TABLE t1;
 RESET MASTER;
+connection node_1;
+disconnect node_2a;
+disconnect node_3;

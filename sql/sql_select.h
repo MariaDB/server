@@ -556,6 +556,13 @@ typedef struct st_join_table {
   /** HAVING condition for checking prior saving a record into tmp table*/
   Item *having;
 
+  /**
+    Ordering to be produced when doing full index scan.
+    Important for vector indexes, set by test_if_skip_sort_order() when it
+    decides to use full index to produce rows in order.
+  */
+  ORDER *full_index_scan_order;
+
   /** TRUE <=> remove duplicates on this table. */
   bool distinct;
 

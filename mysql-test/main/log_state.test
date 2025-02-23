@@ -328,7 +328,9 @@ SET GLOBAL general_log_file = @old_general_log_file;
 connect (con2,localhost,root,,);
 set @s1=(select variable_value from information_schema.session_status where
 variable_name='query_time');
+--disable_cursor_protocol
 select sleep(3) into @a;
+--enable_cursor_protocol
 set @s2=(select variable_value from information_schema.session_status where
 variable_name='query_time');
 set @s3=(select variable_value from information_schema.global_status where
@@ -358,7 +360,6 @@ select @s1 > 2.00 and @s1 < 10.00 as "should be true";
 
 # select @s1;
 disconnect con2;
-connection default;
 
 #
 # Cleanup
@@ -367,6 +368,7 @@ connection default;
 disconnect con1;
 # set back the saved default values
 connection default;
+drop procedure p1;
 
 # Reset global system variables to initial values if forgotten somewhere above.
 SET GLOBAL long_query_time = @save_long_query_time;

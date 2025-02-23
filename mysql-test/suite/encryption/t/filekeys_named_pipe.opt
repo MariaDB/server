@@ -1,0 +1,1 @@
+--loose-file-key-management-filename=$MYSQLTEST_VARDIR/tmp/fifo.key

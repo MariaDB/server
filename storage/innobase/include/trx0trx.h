@@ -32,10 +32,10 @@ Created 3/26/1996 Heikki Tuuri
 #include "que0types.h"
 #include "mem0mem.h"
 #include "trx0xa.h"
-#include "ut0vec.h"
 #include "fts0fts.h"
 #include "read0types.h"
 #include "ilist.h"
+#include "small_vector.h"
 #include "row0merge.h"
 
 #include <vector>
@@ -211,9 +211,6 @@ trx_print_low(
 			/*!< in: output stream */
 	const trx_t*	trx,
 			/*!< in: transaction */
-	ulint		max_query_len,
-			/*!< in: max query length to print,
-			or 0 to use the default max length */
 	ulint		n_rec_locks,
 			/*!< in: trx->lock.n_rec_locks */
 	ulint		n_trx_locks,
@@ -228,9 +225,7 @@ void
 trx_print_latched(
 /*==============*/
 	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len);	/*!< in: max query length to print,
-					or 0 to use the default max length */
+	const trx_t*	trx);		/*!< in: transaction */
 
 /**********************************************************************//**
 Prints info about a transaction.
@@ -239,9 +234,7 @@ void
 trx_print(
 /*======*/
 	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len);	/*!< in: max query length to print,
-					or 0 to use the default max length */
+	const trx_t*	trx);		/*!< in: transaction */
 
 /**********************************************************************//**
 Determines if a transaction is in the given state.
@@ -458,12 +451,13 @@ public:
   }
 
   /** Notify the start of a bulk insert operation
-  @param table table to do bulk operation */
-  void start_bulk_insert(dict_table_t *table)
+  @param table table to do bulk operation
+  @param also_primary start bulk insert operation for primary index */
+  void start_bulk_insert(dict_table_t *table, bool also_primary)
   {
     first|= BULK;
     if (!table->is_temporary())
-      bulk_store= new row_merge_bulk_t(table);
+      bulk_store= new row_merge_bulk_t(table, also_primary);
   }
 
   /** Notify the end of a bulk insert operation */
@@ -516,6 +510,12 @@ public:
   bool bulk_buffer_exist() const
   {
     return bulk_store && is_bulk_insert();
+  }
+
+  /** @return whether InnoDB has to skip sort for clustered index */
+  bool skip_sort_pk() const
+  {
+    return bulk_store && !bulk_store->m_sort_primary_key;
   }
 
   /** Free bulk insert operation */
@@ -671,14 +671,14 @@ public:
   {
     ut_ad(!mutex_is_owner());
     mutex.wr_lock();
-    ut_ad(!mutex_owner.exchange(pthread_self(),
-                                std::memory_order_relaxed));
+    assert(!mutex_owner.exchange(pthread_self(),
+                                 std::memory_order_relaxed));
   }
   /** Release the mutex */
   void mutex_unlock()
   {
-    ut_ad(mutex_owner.exchange(0, std::memory_order_relaxed)
-	  == pthread_self());
+    assert(mutex_owner.exchange(0, std::memory_order_relaxed) ==
+           pthread_self());
     mutex.wr_unlock();
   }
 #ifndef SUX_LOCK_GENERIC
@@ -911,12 +911,10 @@ public:
 	ulint		n_autoinc_rows;	/*!< no. of AUTO-INC rows required for
 					an SQL statement. This is useful for
 					multi-row INSERTs */
-	ib_vector_t*    autoinc_locks;  /* AUTOINC locks held by this
-					transaction. Note that these are
-					also in the lock list trx_locks. This
-					vector needs to be freed explicitly
-					when the trx instance is destroyed.
-					Protected by lock_sys.latch. */
+  typedef small_vector<lock_t*, 4> autoinc_lock_vector;
+  /** AUTO_INCREMENT locks held by this transaction; a subset of trx_locks,
+  protected by lock_sys.latch. */
+  autoinc_lock_vector autoinc_locks;
 	/*------------------------------*/
 	bool		read_only;	/*!< true if transaction is flagged
 					as a READ-ONLY transaction.
@@ -1113,7 +1111,7 @@ public:
     ut_ad(!lock.wait_lock);
     ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
     ut_ad(lock.table_locks.empty());
-    ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
+    ut_ad(autoinc_locks.empty());
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(!dict_operation);
     ut_ad(!apply_online_log);
@@ -1160,16 +1158,21 @@ public:
     return false;
   }
 
-  /** @return logical modification time of a table only
-  if the table has bulk buffer exist in the transaction */
-  trx_mod_table_time_t *check_bulk_buffer(dict_table_t *table)
+  /**
+  @return logical modification time of a table
+  @retval nullptr if the table doesn't have bulk buffer or
+  can skip sorting for primary key */
+  trx_mod_table_time_t *use_bulk_buffer(dict_index_t *index) noexcept
   {
     if (UNIV_LIKELY(!bulk_insert))
       return nullptr;
-    ut_ad(table->skip_alter_undo || !check_unique_secondary);
-    ut_ad(table->skip_alter_undo || !check_foreigns);
-    auto it= mod_tables.find(table);
+    ut_ad(index->table->skip_alter_undo || !check_unique_secondary);
+    ut_ad(index->table->skip_alter_undo || !check_foreigns);
+    auto it= mod_tables.find(index->table);
     if (it == mod_tables.end() || !it->second.bulk_buffer_exist())
+      return nullptr;
+    /* Avoid using bulk buffer for load statement */
+    if (index->is_clust() && it->second.skip_sort_pk())
       return nullptr;
     return &it->second;
   }

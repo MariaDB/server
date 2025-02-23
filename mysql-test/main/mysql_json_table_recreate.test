@@ -43,6 +43,9 @@ show create table tempty;
 --error ER_TABLE_NEEDS_REBUILD
 select * from tempty;
 
+--sorted_result
+select table_name, table_comment from information_schema.tables where table_schema='test' and table_comment!='VIEW';
+
 alter table tempty force;
 show create table tempty;
 

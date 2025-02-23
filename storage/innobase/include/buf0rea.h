@@ -51,7 +51,7 @@ released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size)
+                              ulint zip_size) noexcept
   MY_ATTRIBUTE((nonnull));
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
@@ -63,7 +63,7 @@ end up waiting for these latches!
 @param[in]	page_id		page id of a page which the current thread
 wants to access
 @return number of page read requests issued */
-ulint buf_read_ahead_random(const page_id_t page_id);
+ulint buf_read_ahead_random(const page_id_t page_id) noexcept;
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
@@ -86,7 +86,7 @@ function must be written such that it cannot end up waiting for these
 latches!
 @param[in]	page_id		page id; see NOTE 3 above
 @return number of page read requests issued */
-ulint buf_read_ahead_linear(const page_id_t page_id);
+ulint buf_read_ahead_linear(const page_id_t page_id) noexcept;
 
 /** Schedule a page for recovery.
 @param space    tablespace
@@ -94,4 +94,4 @@ ulint buf_read_ahead_linear(const page_id_t page_id);
 @param recs     log records
 @param init_lsn page initialization, or 0 if the page needs to be read */
 void buf_read_recover(fil_space_t *space, const page_id_t page_id,
-                      page_recv_t &recs, lsn_t init_lsn);
+                      page_recv_t &recs, lsn_t init_lsn) noexcept;

@@ -2469,7 +2469,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.023260307,
+    "cost": 0.020930975,
     "nested_loop": [
       {
         "table": {
@@ -2477,7 +2477,7 @@ EXPLAIN
           "access_type": "ALL",
           "loops": 1,
           "rows": 2,
-          "cost": 0.012418701,
+          "cost": 0.010089369,
           "filtered": 100,
           "attached_condition": "d2.e1 = 1",
           "materialized": {
@@ -3226,7 +3226,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.012418701,
+    "cost": 0.010089369,
     "nested_loop": [
       {
         "table": {
@@ -3234,7 +3234,7 @@ EXPLAIN
           "access_type": "ALL",
           "loops": 1,
           "rows": 2,
-          "cost": 0.012418701,
+          "cost": 0.010089369,
           "filtered": 100,
           "attached_condition": "f.c3 + 1 > 10 and f.c1 > 1 and f.c2 > 123",
           "materialized": {

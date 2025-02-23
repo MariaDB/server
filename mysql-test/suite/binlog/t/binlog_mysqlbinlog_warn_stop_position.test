@@ -1,0 +1,83 @@
+#
+# Test ensures that --stop-position work correctly for mysqlbinlog. This high
+# level test sets up the binary log (and tags certain locations for comparison),
+# and the helper file binlog_mysqlbinlog_warn_stop_position.inc performs the
+# actual tests.
+#
+# References:
+#   MDEV-27037: mysqlbinlog emits a warning when reaching EOF before
+#               stop-condition
+#
+--source include/have_log_bin.inc
+
+--let $binlog_out_relpath= tmp/warn_position_test_file.out
+--let $binlog_out= $MYSQLTEST_VARDIR/$binlog_out_relpath
+
+--echo #
+--echo # Clear the existing binary log state.
+--echo #
+RESET MASTER;
+
+--let $binlog_f1= query_get_value(SHOW MASTER STATUS, File, 1)
+create table t1 (a int);
+insert into t1 values (1);
+insert into t1 values (2);
+--let $binlog_f1_pre_rotate= query_get_value(SHOW MASTER STATUS, Position, 1)
+flush binary logs;
+--let $binlog_f2= query_get_value(SHOW MASTER STATUS, File, 1)
+insert into t1 values (3);
+--echo # Tag binlog_f2_mid
+--let $binlog_f2_mid= query_get_value(SHOW MASTER STATUS, Position, 1)
+insert into t1 values (4);
+--let $binlog_f2_gtid_after_midpoint= `SELECT @@GLOBAL.gtid_binlog_pos`
+insert into t1 values (5);
+insert into t1 values (6);
+insert into t1 values (7);
+--let $binlog_f2_last_gtid= `SELECT @@GLOBAL.gtid_binlog_pos`
+--let $binlog_f2_pre_rot= query_get_value(SHOW MASTER STATUS, Position, 1)
+flush binary logs;
+drop table t1;
+
+--echo # Ensuring binary log order is correct
+--let $binlog_f1_show= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+--let $binlog_f1_end= query_get_value(SHOW BINARY LOGS, File_size, 1)
+if (`SELECT strcmp('$binlog_f1','$binlog_f1_show') != 0`)
+{
+  --echo # Real binlog_f1: $binlog_f1
+  --echo # First binlog in SHOW BINLOG FILES: $binlog_f1_show
+  --die Wrong order of binary log files in SHOW BINARY LOGS
+}
+--let $binlog_f2_show= query_get_value(SHOW BINARY LOGS, Log_name, 2)
+--let $binlog_f2_end= query_get_value(SHOW BINARY LOGS, File_size, 2)
+if (`SELECT strcmp('$binlog_f2','$binlog_f2_show') != 0`)
+{
+  --echo # Real binlog_f2: $binlog_f2
+  --echo # First binlog in SHOW BINLOG FILES: $binlog_f2_show
+  --die Wrong order of binary log files in SHOW BINARY LOGS
+}
+
+--echo # Ensuring file offset of binlog_f2_mid < binlog_f1_end
+if ($binlog_f2_mid > $binlog_f1_end)
+{
+  --echo # Binlog 1 end: $binlog_f1:$binlog_f1_end
+  --echo # Binlog 2 stop point: $binlog_f2:$binlog_f2_mid
+  --die Mid point chosen to end in binlog 2 does not exist in earlier binlog
+}
+
+#--echo #
+#--echo #
+#--echo # Test using --read-from-remote-server
+#--echo #
+#--let $read_from_remote_server= 1
+#--emit warning is not supported by --read-from-remote-server now
+#--source binlog_mysqlbinlog_warn_stop_position.inc
+
+--echo #
+--echo #
+--echo # Test using local binlog files
+--echo #
+--let $read_from_remote_server= 0
+--source binlog_mysqlbinlog_warn_stop_position.inc
+
+--echo #
+--echo # End of binlog_mysqlbinlog_warn_stop_position.test

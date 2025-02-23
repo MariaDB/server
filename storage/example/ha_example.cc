@@ -970,7 +970,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
       if (f_new)
       {
         push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
-                            ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %`s COMPLEX '%s' -> '%s'",
+                            ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %sQ COMPLEX '%s' -> '%s'",
                             table->s->field[i]->field_name.str,
                             f_old->complex_param_to_parse_it_in_engine,
                             f_new->complex_param_to_parse_it_in_engine);
@@ -1070,7 +1070,7 @@ static int show_func_example(MYSQL_THD thd, struct st_mysql_show_var *var,
   var->value= buf; // it's of SHOW_VAR_FUNC_BUFF_SIZE bytes
   my_snprintf(buf, SHOW_VAR_FUNC_BUFF_SIZE,
               "enum_var is %lu, ulong_var is %lu, int_var is %d, "
-              "double_var is %f, %.6b", // %b is a MariaDB/MySQL extension
+              "double_var is %f, %.6sB", // %sB is a MariaDB extension
               srv_enum_var, srv_ulong_var, THDVAR(thd, int_var),
               srv_double_var, "really");
   return 0;

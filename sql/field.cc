@@ -988,14 +988,14 @@ bool Field::check_assignability_from(const Type_handler *from,
     */
     if (table->s->db.str && table->s->table_name.str)
       my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
-                      "Cannot cast '%s' as '%s' in assignment of %`s.%`s.%`s",
+                      "Cannot cast '%s' as '%s' in assignment of %sQ.%sQ.%sQ",
                       MYF(error ? 0 : ME_WARNING),
                       from->name().ptr(), type_handler()->name().ptr(),
                       table->s->db.str, table->s->table_name.str,
                       field_name.str);
     else
       my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
-                      "Cannot cast '%s' as '%s' in assignment of %`s",
+                      "Cannot cast '%s' as '%s' in assignment of %sQ",
                       MYF(error ? 0 : ME_WARNING),
                       from->name().ptr(), type_handler()->name().ptr(),
                       field_name.str);
@@ -9732,8 +9732,7 @@ String *Field_set::val_str(String *val_buffer,
   ulonglong tmp=(ulonglong) Field_enum::val_int();
   uint bitnr=0;
 
-  val_buffer->set_charset(field_charset());
-  val_buffer->length(0);
+  val_buffer->copy("", 0, field_charset());
 
   while (tmp && bitnr < (uint) m_typelib->count)
   {
@@ -11491,9 +11490,9 @@ void Field::raise_note_cannot_use_key_part(THD *thd,
       const LEX_CSTRING colv(op_collation->coll_name);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_UNKNOWN_ERROR,
-                          "Cannot use key %`.*s part[%u] for lookup: "
-                          "%`.*s.%`.*s.%`.*s of collation %`.*s "
-                          "%.*s \"%.*T\" of collation %`.*s",
+                          "Cannot use key %.*sQ part[%u] for lookup: "
+                          "%.*sQ.%.*sQ.%.*sQ of collation %.*sQ "
+                          "%.*s \"%.*sT\" of collation %.*sQ",
                           (int) keyname.length, keyname.str,
                           part,
                           (int) table->s->db.length, table->s->db.str,
@@ -11515,9 +11514,9 @@ void Field::raise_note_cannot_use_key_part(THD *thd,
       const LEX_CSTRING dtypev(value->type_handler()->name().lex_cstring());
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_UNKNOWN_ERROR,
-                          "Cannot use key %`.*s part[%u] for lookup: "
-                          "%`.*s.%`.*s.%`.*s of type %`.*s "
-                          "%.*s \"%.*T\" of type %`.*s",
+                          "Cannot use key %.*sQ part[%u] for lookup: "
+                          "%.*sQ.%.*sQ.%.*sQ of type %.*sQ "
+                          "%.*s \"%.*sT\" of type %.*sQ",
                           (int) keyname.length, keyname.str,
                           part,
                           (int) table->s->db.length, table->s->db.str,
@@ -11545,8 +11544,8 @@ void Field::raise_note_key_become_unused(THD *thd, const String &expr) const
 {
   push_warning_printf(thd,
     Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-    "Cannot use key parts with %`.*s.%`.*s.%`.*s "
-    "in the rewritten condition: %`.*s",
+    "Cannot use key parts with %.*sQ.%.*sQ.%.*sQ "
+    "in the rewritten condition: %.*sQ",
     (int) table->s->db.length, table->s->db.str,
     (int) table->s->table_name.length, table->s->table_name.str,
     (int) field_name.length, field_name.str,

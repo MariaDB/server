@@ -484,6 +484,11 @@ public:
      m_part_info= part_info;
      m_is_sub_partitioned= part_info->is_sub_partitioned();
   }
+  Compare_keys compare_key_parts(
+    const Field &old_field,
+    const Column_definition &new_field,
+    const KEY_PART_INFO &old_part,
+    const KEY_PART_INFO &new_part) const override;
 
   void return_record_by_parent() override;
 

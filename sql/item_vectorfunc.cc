@@ -64,6 +64,8 @@ bool Item_func_vec_distance::fix_length_and_dec(THD *thd)
       if (auto *item= dynamic_cast<Item_field*>(args[i]->real_item()))
       {
         TABLE_SHARE *share= item->field->orig_table->s;
+        if (share->tmp_table)
+          break;
         Field *f= share->field[item->field->field_index];
         KEY *kinfo= share->key_info;
         for (uint j= share->keys; j < share->total_keys; j++)
@@ -88,7 +90,8 @@ key_map Item_func_vec_distance::part_of_sortkey() const
     Field *f= item->field;
     KEY *keyinfo= f->table->s->key_info;
     for (uint i= f->table->s->keys; i < f->table->s->total_keys; i++)
-      if (keyinfo[i].algorithm == HA_KEY_ALG_VECTOR && f->key_start.is_set(i)
+      if (!keyinfo[i].is_ignored && keyinfo[i].algorithm == HA_KEY_ALG_VECTOR
+          && f->key_start.is_set(i)
           && mhnsw_uses_distance(f->table, keyinfo + i) == kind)
         map.set_bit(i);
   }
@@ -128,9 +131,9 @@ String *Item_func_vec_totext::val_str_ascii(String *str)
   if (r1->length() % 4)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_VECTOR_BINARY_FORMAT_INVALID,
-                        ER_THD(thd, ER_VECTOR_BINARY_FORMAT_INVALID));
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_VECTOR_BINARY_FORMAT_INVALID,
+                 ER_THD(thd, ER_VECTOR_BINARY_FORMAT_INVALID));
     null_value= true;
     return nullptr;
   }
@@ -198,6 +201,7 @@ String *Item_func_vec_fromtext::val_str(String *buf)
     return nullptr;
 
   buf->length(0);
+  buf->set_charset(&my_charset_bin);
   CHARSET_INFO *cs= value->charset();
   const uchar *start= reinterpret_cast<const uchar *>(value->ptr());
   const uchar *end= start + value->length();

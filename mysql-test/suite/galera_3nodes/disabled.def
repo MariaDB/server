@@ -11,6 +11,4 @@
 ##############################################################################
 
 galera_2_cluster : MDEV-32631 galera_2_cluster: before_rollback(): Assertion `0' failed
-galera_ipv6_rsync : MDEV-34842 Can't connect to server on '::1' (115)
-galera_ipv6_rsync_section : MDEV-34842 Can't connect to server on '::1' (115)
-galera_ipv6_mariabackup_section : MDEV-34842 Can't connect to server on '::1' (115)
+galera_nbo_master_phase_two_crash : MENT-2215 Test failure on galera_3nodes.galera_nbo_master_non_prim_failure

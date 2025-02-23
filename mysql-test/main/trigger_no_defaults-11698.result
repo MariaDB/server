@@ -15,10 +15,10 @@ insert t1 (b) values (10);
 insert t1 (b) values (20);
 ERROR HY000: Field 'a' doesn't have a default value
 insert t1 (b) values (30);
+ERROR 23000: Column 'a' cannot be null
 select * from t1;
 a	b
 10	10
-0	30
 drop table t1;
 set sql_mode=default;
 set sql_mode='';

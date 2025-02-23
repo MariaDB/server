@@ -439,7 +439,6 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask)
   case SQLCOM_DROP_TABLE:
   case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_CREATE_TABLE:
-  case SQLCOM_CREATE_SEQUENCE:
     /*
       If CREATE TABLE of non-temporary table and the table is not part
       if a BEGIN GTID ... COMMIT group, do a implicit commit.
@@ -2065,7 +2064,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     */
     table_list.select_lex= thd->lex->first_select_lex();
     thd->lex->
-      first_select_lex()->table_list.link_in_list(&table_list,
+      first_select_lex()->table_list.insert(&table_list,
                                                   &table_list.next_local);
     thd->lex->add_to_query_tables(&table_list);
 
@@ -4778,17 +4777,18 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && !lex->tmp_table() && wsrep_thd_is_local(thd) &&
+        (!thd->is_current_stmt_binlog_format_row() ||
+         wsrep_table_list_has_non_temp_tables(thd, all_tables)))
     {
-      for (TABLE_LIST *table= all_tables; table; table= table->next_global)
+      wsrep::key_array keys;
+      if (wsrep_append_fk_parent_table(thd, all_tables, &keys))
       {
-        if (!lex->tmp_table() &&
-           (!thd->is_current_stmt_binlog_format_row() ||
-	    !is_temporary_table(table)))
-        {
-          WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
-          break;
-        }
+        goto wsrep_error_label;
+      }
+      if (wsrep_to_isolation_begin(thd, NULL, NULL, all_tables, NULL, &keys))
+      {
+        goto wsrep_error_label;
       }
     }
 #endif /* WITH_WSREP */
@@ -8003,7 +8003,7 @@ add_proc_to_list(THD* thd, Item *item)
   item_ptr = (Item**) (order+1);
   *item_ptr= item;
   order->item=item_ptr;
-  thd->lex->proc_list.link_in_list(order, &order->next);
+  thd->lex->proc_list.insert(order, &order->next);
   return 0;
 }
 
@@ -8024,7 +8024,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->used=0;
   order->counter_used= 0;
   order->fast_field_copier_setup= 0; 
-  list.link_in_list(order, &order->next);
+  list.insert(order, &order->next);
   DBUG_RETURN(0);
 }
 
@@ -8202,7 +8202,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     and SELECT.
   */
   if (likely(!ptr->sequence))
-    table_list.link_in_list(ptr, &ptr->next_local);
+    table_list.insert(ptr, &ptr->next_local);
   ptr->next_name_resolution_table= NULL;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   ptr->partition_names= partition_names;

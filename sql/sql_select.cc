@@ -2316,6 +2316,12 @@ JOIN::optimize_inner()
     if (thd->is_error() ||
         (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
     {
+      /*
+        If there was an error above, the data structures may have been left in
+        some undefined state. If this is a PS/SP statement, it might not be
+        safe to run it again. Note that it needs to be re-prepared.
+      */
+      thd->lex->needs_reprepare= true;
       if (arena)
         thd->restore_active_arena(arena, &backup);
       DBUG_RETURN(1);
@@ -3649,7 +3655,14 @@ bool JOIN::add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *table_fields)
       continue;
     Item *item= new (thd->mem_root) Item_temptable_rowid(tab->table);
     item->fix_fields(thd, 0);
-    table_fields->push_back(item, thd->mem_root);
+    /*
+      table_fields points to JOIN::all_fields or JOIN::tmp_all_fields_*.
+      These lists start with "added" fields and then their suffix is shared
+      with JOIN::fields_list or JOIN::tmp_fields_list*.
+      Because of that, new elements can only be added to the front of the list,
+      not to the back.
+    */
+    table_fields->push_front(item, thd->mem_root);
     cur->tmp_table_param->func_count++;
   }
   return 0;
@@ -3689,7 +3702,8 @@ bool JOIN::make_aggr_tables_info()
   bool is_having_added_as_table_cond= false;
   DBUG_ENTER("JOIN::make_aggr_tables_info");
 
-  
+  DBUG_ASSERT(current_ref_ptrs == items0);
+
   sort_and_group_aggr_tab= NULL;
 
   if (group_optimized_away)
@@ -3796,7 +3810,6 @@ bool JOIN::make_aggr_tables_info()
         */
         init_items_ref_array();
         items1= ref_ptr_array_slice(2);
-        //items1= items0 + all_fields.elements;
         if (change_to_use_tmp_fields(thd, items1,
                                      tmp_fields_list1, tmp_all_fields1,
                                      fields_list.elements, all_fields))
@@ -16591,24 +16604,62 @@ void JOIN_TAB::estimate_scan_time()
   }
   else
   {
+    bool using_heap= 0;
+    TABLE_SHARE *share= table->s;
+    handler *tmp_file= file;
+    records= table->stat_records();
+
+    if (share->db_type() == heap_hton)
+    {
+      /* Check that the rows will fit into the heap table */
+      ha_rows max_rows;
+      max_rows= (ha_rows) (MY_MIN(thd->variables.tmp_memory_table_size,
+                                  thd->variables.max_heap_table_size) /
+                           MY_ALIGN(share->reclength, sizeof(char*)));
+      if (records <= max_rows)
+      {
+        /* The rows will fit into the heap table */
+        using_heap= 1;
+      }
+      else if (likely((tmp_file= get_new_handler(share, &table->mem_root,
+                                                 TMP_ENGINE_HTON))))
+      {
+        tmp_file->costs= &tmp_table_optimizer_costs;
+      }
+      else
+        tmp_file= file;                         // Fallback for OOM
+    }
+
     /*
       The following is same as calling
       TABLE_SHARE::update_optimizer_costs, but without locks
     */
-    if (table->s->db_type() == heap_hton)
-      memcpy(&table->s->optimizer_costs, &heap_optimizer_costs,
+    if (using_heap)
+      memcpy(&share->optimizer_costs, &heap_optimizer_costs,
              sizeof(heap_optimizer_costs));
     else
-      memcpy(&table->s->optimizer_costs, &tmp_table_optimizer_costs,
+    {
+      memcpy(&share->optimizer_costs, &tmp_table_optimizer_costs,
              sizeof(tmp_table_optimizer_costs));
-    file->set_optimizer_costs(thd);
-    table->s->optimizer_costs_inited=1;
+      /* Set data_file_length in case of Aria tmp table */
+      tmp_file->stats.data_file_length= share->reclength * records;
+    }
 
-    records= table->stat_records();
+    table->s->optimizer_costs_inited=1;
+    /* Add current WHERE and SCAN SETUP cost to tmp file */
+    tmp_file->set_optimizer_costs(thd);
+
     DBUG_ASSERT(table->opt_range_condition_rows == records);
-    cost->row_cost= table->file->ha_scan_time(MY_MAX(records, 1000));
-    read_time= file->cost(cost->row_cost);
+    cost->row_cost= tmp_file->ha_scan_time(records);
+    tmp_file->stats.data_file_length= 0;
+    read_time= tmp_file->cost(cost->row_cost);
     row_copy_cost= table->s->optimizer_costs.row_copy_cost;
+
+    if (file != tmp_file)
+    {
+      delete tmp_file;
+      file->set_optimizer_costs(thd);
+    }
   }
 
   found_records= records;
@@ -25236,12 +25287,13 @@ join_read_first(JOIN_TAB *tab)
   tab->read_record.table=table;
   if (tab->index >= table->s->keys)
   {
-    ORDER *order= tab->join->order ? tab->join->order : tab->join->group_list;
+    ORDER *order= tab->full_index_scan_order;
     DBUG_ASSERT(tab->index < table->s->total_keys);
     DBUG_ASSERT(tab->index == table->s->keys);
     DBUG_ASSERT(tab->sorted);
     DBUG_ASSERT(order);
     DBUG_ASSERT(order->next == NULL);
+    DBUG_ASSERT(order->item[0]->real_item()->type() == Item::FUNC_ITEM);
     tab->read_record.read_record_func= join_hlindex_read_next;
     error= tab->table->hlindex_read_first(tab->index, *order->item,
                                           tab->join->select_limit);
@@ -27147,6 +27199,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   int best_key= -1;
   bool changed_key= false;
   THD *thd= tab->join->thd;
+  ORDER *best_key_order= 0;
   Json_writer_object trace_wrapper(thd);
   Json_writer_array  trace_arr(thd, "test_if_skip_sort_order");
   DBUG_ENTER("test_if_skip_sort_order");
@@ -27379,6 +27432,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
          !table->is_clustering_key(best_key)))
       goto use_filesort;
 
+    best_key_order= order;
     if (select && table->opt_range_keys.is_set(best_key) && best_key != ref_key)
     {
       key_map tmp_map;
@@ -27478,6 +27532,7 @@ check_reverse_order:
                                  join_read_first:
                                  join_read_last);
         tab->type=JT_NEXT;           // Read with index_first(), index_next()
+        tab->full_index_scan_order= best_key_order;
 
         /*
           Currently usage of rowid filters is not supported in InnoDB

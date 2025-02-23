@@ -1854,3 +1854,24 @@ connection con2;
 disconnect con2;
 connection default;
 SET DEBUG_SYNC= 'RESET';
+# End of 10.4 tests
+#
+# MDEV-35417 InnoDB crashes under ... AND DISABLE CHECKPOINT
+#
+set global innodb_stats_persistent=0;
+create table t (a int) engine=innodb;
+set global innodb_stats_persistent=1;
+alter table t add column b int;
+flush tables with read lock and disable checkpoint;
+insert into t values (1,2) ;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
+drop table t;
+flush tables with read lock and disable checkpoint;
+create temporary table t(a int) engine=innodb;
+unlock tables;
+drop table t;
+# restart: --innodb-read-only
+flush tables with read lock and disable checkpoint;
+# restart
+# End of 11.7 tests

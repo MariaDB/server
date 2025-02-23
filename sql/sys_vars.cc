@@ -1256,10 +1256,14 @@ static bool update_binlog_space_limit(sys_var *, THD *,
 {
 #ifdef HAVE_REPLICATION
   /* Refresh summary of binlog sizes */
-  mysql_bin_log.lock_index();
-  binlog_space_limit= internal_binlog_space_limit;
-  slave_connections_needed_for_purge=
+  ulonglong loc_binlog_space_limit= internal_binlog_space_limit;
+  uint loc_slave_connections_needed_for_purge=
     internal_slave_connections_needed_for_purge;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_bin_log.lock_index();
+  binlog_space_limit= loc_binlog_space_limit;
+  slave_connections_needed_for_purge=
+    loc_slave_connections_needed_for_purge;
 
   if (opt_bin_log)
   {
@@ -1269,9 +1273,11 @@ static bool update_binlog_space_limit(sys_var *, THD *,
     sending_new_binlog_file++;
     mysql_bin_log.unlock_index();
     mysql_bin_log.purge(1);
+    mysql_mutex_lock(&LOCK_global_system_variables);
     return 0;
   }
   mysql_bin_log.unlock_index();
+  mysql_mutex_lock(&LOCK_global_system_variables);
 #endif
   return 0;
 }
@@ -1812,7 +1818,10 @@ Sys_max_binlog_stmt_cache_size(
 
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
 {
-  mysql_bin_log.set_max_size(max_binlog_size);
+  ulong saved= max_binlog_size;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_bin_log.set_max_size(saved);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
 static Sys_var_on_access_global<Sys_var_ulong,
@@ -1951,7 +1960,7 @@ Sys_pseudo_thread_id(
        "pseudo_thread_id",
        "This variable is for internal server use",
        SESSION_ONLY(pseudo_thread_id),
-       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
+       NO_CMD_LINE, VALID_RANGE(0, MY_THREAD_ID_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG);
 
 static bool

@@ -5398,7 +5398,6 @@ bool spider_init_share(
   const bool new_share
 )
 {
-  char first_byte;
   char *tmp_name;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   int search_link_idx;
@@ -5417,14 +5416,6 @@ bool spider_init_share(
       DBUG_RETURN(TRUE);
     spider_unlock_udf_table_mon_mutexes(share);
   }
-
-  const int semi_table_lock_conn =
-    spider_param_semi_table_lock_connection(thd, share->semi_table_lock_conn);
-  if (semi_table_lock_conn)
-    first_byte = '0' +
-      spider_param_semi_table_lock(thd, share->semi_table_lock);
-  else
-    first_byte = '0';
 
   if (!(spider->wide_handler->trx = spider_get_trx(thd, TRUE, error_num)))
   {
@@ -5465,7 +5456,6 @@ bool spider_init_share(
   for (int link_idx = 0; link_idx < (int) share->link_count; link_idx++)
   {
     spider->conn_keys[link_idx] = tmp_name;
-    *tmp_name = first_byte;
     tmp_name += share->conn_keys_lengths[link_idx] + 1;
     result_list->upd_tmp_tbl_prms[link_idx].init();
     result_list->upd_tmp_tbl_prms[link_idx].field_count = 1;

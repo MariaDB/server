@@ -1,0 +1,24 @@
+#
+# MDEV-34849 SIGSEGV in server_mysql_real_connect, spider_db_connect, __strcmp_evex and __strnlen_evex, ASAN heap-use-after-free in spider_db_connect on INSERT
+#
+INSTALL SONAME 'ha_spider';
+CREATE TABLE t1 (c INT) ENGINE=Spider;
+CREATE TABLE t2 (c INT) ENGINE=Spider;
+SELECT * FROM t2;
+ERROR HY000: Unable to connect to foreign data source: localhost
+set @old_table_open_cache=@@global.table_open_cache;
+SET GLOBAL table_open_cache=0;
+Warnings:
+Warning	1292	Truncated incorrect table_open_cache value: '0'
+set autocommit=0;
+/* 1 */ INSERT INTO t1 VALUES (0);
+ERROR HY000: Unable to connect to foreign data source: localhost
+/* 2 */ INSERT INTO t2 VALUES (0);
+ERROR HY000: Unable to connect to foreign data source: localhost
+set global spider_connect_error_interval=0;
+/* 3 */ INSERT INTO t1 VALUES (0);
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t1, t2;
+set global table_open_cache=@old_table_open_cache;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown

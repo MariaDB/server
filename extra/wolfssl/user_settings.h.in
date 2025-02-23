@@ -3,7 +3,21 @@
 
 #define HAVE_CRL
 #define WOLFSSL_HAVE_ERROR_QUEUE
+
+/*
+ Workaround bug in 5.7.6
+ WOLFSSL_MYSQL_COMPATIBLE breaks building wolfssl
+
+ But it is needed to avoid redefinition of protocol_version
+ when its public header ssl.h is included
+*/
+#ifndef BUILDING_WOLFSSL
 #define WOLFSSL_MYSQL_COMPATIBLE
+#endif
+
+#define SP_INT_BITS 8192
+#define HAVE_EMPTY_AGGREGATES 0
+
 #define HAVE_ECC
 #define ECC_TIMING_RESISTANT
 #define HAVE_HASHDRBG
@@ -24,7 +38,8 @@
 #define HAVE_THREAD_LS
 #define WOLFSSL_AES_COUNTER
 #define NO_WOLFSSL_STUB
-#define OPENSSL_ALL
+// #define OPENSSL_ALL
+#define OPENSSL_EXTRA
 #define WOLFSSL_ALLOW_TLSV10
 #define NO_OLD_TIMEVAL_NAME
 #define HAVE_SECURE_RENEGOTIATION

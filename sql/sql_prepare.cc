@@ -2837,8 +2837,8 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
     DBUG_VOID_RETURN;                           // out of memory
 
   // See comments on thd->free_list in mysql_sql_stmt_execute()
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL;
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_immediate()
     with an empty THD::change_list. It can be non empty as the above
@@ -2861,8 +2861,6 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_immediate(query.str, (uint) query.length);
   change_list_savepoint.rollback(thd);
-  thd->free_items();
-  thd->free_list= free_list_backup;
 
   /*
     stmt->execute_immediately() sets thd->query_string with the executed
@@ -3038,7 +3036,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 
   if (lex->result)
   {
-    lex->result->cleanup();
+    lex->result->reset_for_next_ps_execution();
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func.clear_all();
@@ -3431,8 +3429,13 @@ void mysql_sql_stmt_execute(THD *thd)
     so they don't get freed in case of re-prepare.
     See MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
   */
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+  /*
+    Hide and restore at scope exit the "external" (e.g. "SET STATEMENT") Item list.
+    It will be freed normally in THD::cleanup_after_query().
+  */
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  // Free items created by execute_loop() at scope exit
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_loop() with an empty
     THD::change_list. It can be non-empty because the above
@@ -3456,12 +3459,6 @@ void mysql_sql_stmt_execute(THD *thd)
 
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
   change_list_savepoint.rollback(thd);
-  thd->free_items();    // Free items created by execute_loop()
-  /*
-    Now restore the "external" (e.g. "SET STATEMENT") Item list.
-    It will be freed normally in THD::cleanup_after_query().
-  */
-  thd->free_list= free_list_backup;
 
   stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
@@ -4393,6 +4390,7 @@ Prepared_statement::execute_loop(String *expanded_query,
   Reprepare_observer reprepare_observer;
   bool error;
   iterations= FALSE;
+  bool params_are_set= false;
 
   /*
     - In mysql_sql_stmt_execute() we hide all "external" Items
@@ -4401,6 +4399,16 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
+  if (lex->needs_reprepare)
+  {
+    /*
+      Something has happened on previous execution that requires us to
+      re-prepare before we try to execute.
+    */
+    lex->needs_reprepare= false;
+    goto start_with_reprepare;
+  }
+
   /* Check if we got an error when sending long data */
   if (unlikely(state == Query_arena::STMT_ERROR))
   {
@@ -4408,8 +4416,10 @@ Prepared_statement::execute_loop(String *expanded_query,
     return TRUE;
   }
 
-  if (set_parameters(expanded_query, packet, packet_end))
+reexecute:
+  if (!params_are_set && set_parameters(expanded_query, packet, packet_end))
     return TRUE;
+  params_are_set= true;
 #ifdef WITH_WSREP
   if (thd->wsrep_delayed_BF_abort)
   {
@@ -4417,7 +4427,7 @@ Prepared_statement::execute_loop(String *expanded_query,
     return TRUE;
   }
 #endif /* WITH_WSREP */
-reexecute:
+
   // Make sure that reprepare() did not create any new Items.
   DBUG_ASSERT(thd->free_list == NULL);
 
@@ -4448,6 +4458,7 @@ reexecute:
     DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
     thd->clear_error();
 
+start_with_reprepare:
     error= reprepare();
 
     if (likely(!error))                         /* Success */

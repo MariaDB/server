@@ -1,0 +1,19 @@
+SET @save_sql_mode=@@global.sql_mode;
+SET sql_mode=ORACLE;
+SET GLOBAL sql_mode='ORACLE';
+
+
+--echo # MDEV-27769 Assertion failed in Field::ptr_in_record upon UPDATE
+CREATE TABLE t (s geometry, t text) engine innodb;
+INSERT IGNORE INTO t () VALUES ();
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+UPDATE IGNORE t SET t= '', s = 0;
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+UPDATE IGNORE t SET t= '', s = 0;
+
+ALTER TABLE t force;
+
+DROP TABLE t;
+
+# Test cleanup
+SET GLOBAL sql_mode=@save_sql_mode;

@@ -1236,8 +1236,8 @@ HANDLER_READ_FIRST	1
 HANDLER_READ_KEY	2
 HANDLER_READ_NEXT	2
 HANDLER_READ_RND	4
-HANDLER_READ_RND_NEXT	16
-HANDLER_TMP_WRITE	24
+HANDLER_READ_RND_NEXT	22
+HANDLER_TMP_WRITE	28
 # 4 delete (2 in t2 + 2 in t3)
 # 12 locks (3 in t2, 1 in t3, 2 in t1) x 2 (lock + unlock)
 # 3 read first (1 in t1 + 1 in t3 + 1 in t3, for second row in t1)

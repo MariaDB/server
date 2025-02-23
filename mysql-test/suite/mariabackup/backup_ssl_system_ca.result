@@ -1,0 +1,8 @@
+#
+# MDEV-35368 Validation of SSL certificate fails for mariadb-backup
+#
+GRANT ALL PRIVILEGES on *.* TO backup_user IDENTIFIED by 'x' REQUIRE SSL;
+# localhost, not self-signed cert with a wrong hostname: ok
+# tcp, not self-signed cert with a wrong hostname: fails
+# tcp, not self-signed cert with a wrong hostname: fails even with a password (no auto-verification)
+DROP USER backup_user;

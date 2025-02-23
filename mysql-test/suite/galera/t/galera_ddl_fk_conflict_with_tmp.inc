@@ -35,9 +35,9 @@ BEGIN;
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 1  FROM c1
 --source include/wait_condition.inc
-CREATE TEMPORARY TABLE tmp (i int);
---eval $table_admin_command TABLE c1, tmp $table_admin_command_end
-DROP TABLE tmp;
+CREATE TEMPORARY TABLE tmp1 (i int);
+CREATE TEMPORARY TABLE tmp2 (i int);
+--eval $table_admin_command tmp1, c1, tmp2 $table_admin_command_end
 
 --connection node_1a
 --source include/galera_wait_sync_point.inc
@@ -45,7 +45,7 @@ DROP TABLE tmp;
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE+1 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 --connection node_1
-UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+INSERT INTO p1 VALUES (10, 'TO DEADLOCK');
 --send COMMIT
 
 --connection node_1a
@@ -65,5 +65,6 @@ SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
 --connection node_2
 SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
 
-DROP TABLE c1;
+DROP TABLE IF EXISTS c1;
 DROP TABLE p1;
+DROP TABLE IF EXISTS tmp1, tmp2;

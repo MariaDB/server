@@ -1,0 +1,6 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+# We want both nodes to restart before this test,
+# so let's add a dummy parameter here:
+loose-MDEV-26266

@@ -1,0 +1,39 @@
+SET GLOBAL innodb_undo_log_truncate = 0;
+create table t1 (keyc int primary key default 0, c char(6)) engine=innodb;
+create table t2 (keyc int primary key default 0, c char(6)) engine=innodb;
+CREATE PROCEDURE p(t VARCHAR(64))
+BEGIN
+DECLARE i TEXT DEFAULT 'insert into t1 select seq,repeat(chr(48),6)
+    from seq_1_to_20000';
+DECLARE u1 TEXT DEFAULT 'update t1 set c=repeat(chr(32),6)';
+DECLARE u2 TEXT DEFAULT 'update t1 set c=repeat(chr(64),6)';
+EXECUTE IMMEDIATE REPLACE(i,'t1', t);
+EXECUTE IMMEDIATE REPLACE(u1,'t1', t);
+EXECUTE IMMEDIATE REPLACE(u2,'t1', t);
+END;
+$$
+connect  con1,localhost,root,,;
+begin;
+call p('t1');
+connection default;
+call p('t2');
+connection con1;
+commit;
+disconnect con1;
+connection default;
+DROP PROCEDURE p;
+SET GLOBAL innodb_undo_log_truncate = 1;
+SET GLOBAL innodb_max_undo_log_size=DEFAULT;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+# Prepare full backup
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+select count(*) from t1;
+count(*)
+20000
+select count(*) from t2;
+count(*)
+20000
+DROP TABLE t1,t2;

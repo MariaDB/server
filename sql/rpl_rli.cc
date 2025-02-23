@@ -247,7 +247,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     {
       mysql_mutex_unlock(log_lock);
       mysql_mutex_unlock(&data_lock);
-      sql_print_error("Failed when trying to open logs for '%s' in Relay_log_info::init(). Error: %M", ln, my_errno);
+      sql_print_error("Failed when trying to open logs for '%s' in Relay_log_info::init(). Error: %iE", ln, my_errno);
       DBUG_RETURN(1);
     }
     mysql_mutex_unlock(log_lock);
@@ -541,12 +541,13 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
     if (my_b_tell(cur_log) >= start_pos)
       break;
 
-    if (!(ev= Log_event::read_log_event(cur_log, fdev,
+    int read_error;
+    if (!(ev= Log_event::read_log_event(cur_log, &read_error, fdev,
                                         opt_slave_sql_verify_checksum)))
     {
-      DBUG_PRINT("info",("could not read event, cur_log->error=%d",
-                         cur_log->error));
-      if (cur_log->error) /* not EOF */
+      DBUG_PRINT("info",("could not read event, read_error=%d",
+                         read_error));
+      if (read_error) /* not EOF */
       {
         *errmsg= "I/O error reading event at position 4";
         delete fdev;

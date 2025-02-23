@@ -230,6 +230,7 @@ void encryption_plugin_prepare_init(int argc, char **argv)
   char **new_argv = new char *[argc + 2];
   new_argv[0] = XTRABACKUP_EXE;
   memcpy(&new_argv[1], argv, argc*sizeof(char *));
+  new_argv[argc+1]= 0;
 
   encryption_plugin_init(argc+1, new_argv);
 

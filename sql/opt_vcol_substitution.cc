@@ -287,7 +287,7 @@ void print_vcol_subst_warning(THD *thd, Field *field, Item *expr,
                       ER_UNKNOWN_ERROR,
                       "Cannot substitute virtual column expression %*s -> %*s "
                       "due to %s",
-                      expr_length, expr_buffer.c_ptr_safe(),
+                      (int) expr_length, expr_buffer.c_ptr_safe(),
                       (int) field->field_name.length, field->field_name.str,
                       cause);
 }

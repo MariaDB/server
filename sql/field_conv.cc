@@ -126,7 +126,7 @@ static int set_bad_null_error(Field *field, int err)
     return 0;
   case CHECK_FIELD_ERROR_FOR_NULL:
     if (!field->table->in_use->no_errors)
-      my_error(ER_BAD_NULL_ERROR, MYF(0), field->field_name.str);
+      my_error(err, MYF(0), field->field_name.str);
     return -1;
   }
   DBUG_ASSERT(0); // impossible
@@ -164,7 +164,7 @@ int set_field_to_null(Field *field)
     If no_conversion was not set, an error message is printed
 */
 
-int convert_null_to_field_value_or_error(Field *field)
+int convert_null_to_field_value_or_error(Field *field, uint err)
 {
   if (field->type() == MYSQL_TYPE_TIMESTAMP)
   {
@@ -172,14 +172,16 @@ int convert_null_to_field_value_or_error(Field *field)
     return 0;
   }
 
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table, &field->table->write_set);
   field->reset(); // Note: we ignore any potential failure of reset() here.
+  dbug_tmp_restore_column_map(&field->table->write_set, old_map);
 
   if (field == field->table->next_number_field)
   {
     field->table->auto_increment_field_not_null= FALSE;
     return 0;                             // field is set in fill_record()
   }
-  return set_bad_null_error(field, ER_BAD_NULL_ERROR);
+  return set_bad_null_error(field, err);
 }
 
 /**
@@ -216,7 +218,7 @@ set_field_to_null_with_conversions(Field *field, bool no_conversions)
   if (no_conversions)
     return -1;
 
-  return convert_null_to_field_value_or_error(field);
+  return convert_null_to_field_value_or_error(field, ER_BAD_NULL_ERROR);
 }
 
 

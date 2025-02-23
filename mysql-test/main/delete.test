@@ -744,3 +744,87 @@ explain delete from t1  where    b <= 3 and a not in (select b from t2);
 drop table t1, t2;
 
 --echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-30469: Add support of ORDER BY and LIMIT to multidelete query.
+--echo #
+
+--echo # Check that limits work with hints
+
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+select * from t2 ORDER BY (id);
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) DESC LIMIT 3;
+select * from t2;
+--echo # Check some useles syntax
+DELETE t2.* FROM t2 FORCE INDEX FOR GROUP BY (xid) ORDER BY (id) LIMIT 1;
+
+drop table t2;
+
+
+--echo # Check that hints work with limit
+
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+--echo # default primary index
+explain
+DELETE t2.* FROM t2 ORDER BY (id) LIMIT 2;
+--echo # make it use other undex
+explain
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+explain
+DELETE t2.* FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+--echo # prohibit primary index
+explain
+DELETE t2.* FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+
+drop table t2;
+
+--echo # Check that limits work with hints & PS protocol
+
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+prepare stmt from
+"DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT ?";
+set @lim= 2;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+set @lim= 1;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+set @lim= 3;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+
+drop table t2;
+
+--echo # Check that hints work with limit in normal DELETE syntax
+
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+--echo # default primary index
+explain
+DELETE FROM t2 ORDER BY (id) LIMIT 2;
+--echo # make it use other undex
+explain
+DELETE FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+explain
+DELETE FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+--echo # prohibit primary index
+explain
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+
+--echo # should issue warnings becaouse we can not switch it internally
+--echo # to multiupdate due to RETURNING
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2 RETURNING id;
+
+drop table t2;
+
+--echo #
+--echo # End of 11.4 test
+--echo #

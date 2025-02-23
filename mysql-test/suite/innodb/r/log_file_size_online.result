@@ -25,8 +25,14 @@ SET GLOBAL innodb_log_file_buffering=ON;
 SET GLOBAL innodb_log_file_buffering=@save;
 SET GLOBAL innodb_log_file_mmap=OFF;
 Got one of the listed errors
-SET GLOBAL innodb_log_file_size=5242880;
 connect con1,localhost,root;
+SET GLOBAL innodb_log_file_size=7340032;
+connection default;
+KILL QUERY @id;
+connection con1;
+connection default;
+SET GLOBAL innodb_log_file_size=5242880;
+connection con1;
 UPDATE t SET b='' WHERE a<10;
 connection default;
 SHOW VARIABLES LIKE 'innodb_log_file_size';

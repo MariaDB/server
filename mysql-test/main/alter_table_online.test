@@ -266,7 +266,7 @@ send alter table t1 add b int NULL, algorithm= copy, lock= none;
 --connection con2
 evalp set @con= $con;
 
-let $wait_condition= select stage = 4 and progress = 100
+let $wait_condition= select stage = 4
                               and state= "Waiting for table metadata lock"
                        from information_schema.processlist where id = @con;
 --source include/wait_condition.inc
