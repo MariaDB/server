@@ -358,9 +358,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 62
-%else
 %expect 63
+%else
+%expect 64
 %endif
 
 /*
@@ -764,6 +764,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  AT_SYM                        /* SQL-2003-R */
 %token  <kwd>  ATOMIC_SYM                    /* SQL-2003-R */
 %token  <kwd>  AUTHORS_SYM
+%token  <kwd>  AUTHORIZATION_SYM             /* SQL-2003-R */
 %token  <kwd>  AUTO_INC
 %token  <kwd>  AUTO_SYM
 %token  <kwd>  AVG_ROW_LENGTH
@@ -16328,6 +16329,7 @@ keyword_verb_clause:
 
 keyword_set_special_case:
           NAMES_SYM
+        | AUTHORIZATION_SYM
         | ROLE_SYM
         | PASSWORD_SYM
         ;
@@ -16998,6 +17000,20 @@ set_param:
           transaction_characteristics
           {
             if (unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
+              MYSQL_YYABORT;
+          }
+        | SESSION_SYM AUTHORIZATION_SYM user_name
+          {
+            if (Lex->sphead)
+            {
+              my_error(ER_SP_BADSTATEMENT, MYF(0), "SET SESSION AUTHORIZATION");
+              MYSQL_YYABORT;
+            }
+            if (sp_create_assignment_lex(thd, $1.pos()))
+              MYSQL_YYABORT;
+            auto var= new (thd->mem_root) set_var_authorization($3);
+            if (var == NULL || Lex->var_list.push_back(var, thd->mem_root) ||
+                sp_create_assignment_instr(thd, yychar == YYEMPTY))
               MYSQL_YYABORT;
           }
         | option_type

@@ -53,6 +53,7 @@
 #include "sql_db.h"
 #include "sql_array.h"
 #include "sql_hset.h"
+#include "sql_audit.h"
 #include "password.h"
 #include "scope.h"
 
@@ -12607,6 +12608,87 @@ bool Sql_cmd_grant_table::execute(THD *thd)
                  execute_table_mask(thd);
 }
 
+
+int acl_setauthorization(THD *thd, const LEX_USER *user)
+{
+  if (!initialized)
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
+    return 1;
+  }
+
+  Security_context *sctx= thd->security_ctx, save_security_ctx= *sctx;
+
+  DBUG_ASSERT(*user->host.str); // guaranteed by the parser
+
+  if (user->host.str == host_not_specified.str)
+  {
+    my_error(ER_NO_SUCH_USER, MYF(0), user->user.str, "");
+    return 1;
+  }
+
+  if (!user->user.length)
+  {
+    my_error(ER_NO_SUCH_USER, MYF(0), "", user->host.str);
+    return 1;
+  }
+
+  mysql_mutex_lock(&acl_cache->lock);
+  ACL_USER *acl_user= find_user_or_anon(user->host.str, user->user.str, user->host.str);
+  if (acl_user)
+    acl_user= acl_user->copy(thd->mem_root);
+  mysql_mutex_unlock(&acl_cache->lock);
+
+  if (!acl_user)
+  {
+    if (!(sctx->master_access & PRIV_SUDO_CHANGE_USER))
+      goto access_denied;
+    my_error(ER_NO_SUCH_USER, MYF(0), user->user.str, user->host.str);
+    return 1;
+  }
+
+  if (!(sctx->master_access & PRIV_SUDO_CHANGE_USER) &&
+      (strcmp(user->user.str, sctx->user) ||
+       strcmp(user->host.str, sctx->host_or_ip) ||
+       strcmp(acl_user->user.str, sctx->priv_user) ||
+       strcmp(acl_user->host.hostname, sctx->priv_host)))
+    goto access_denied;
+
+  thd->change_user();
+  thd->clear_error();                         // if errors from rollback
+  my_free(const_cast<char*>(thd->db.str));
+  thd->reset_db(&null_clex_str);
+
+  sctx->init();
+  sctx->user= *user->user.str
+              ? my_strndup(key_memory_MPVIO_EXT_auth_info, user->user.str,
+                           user->user.length, MYF(MY_WME))
+              : NULL;
+  if (strcmp(user->host.str, my_localhost) == 0)
+    sctx->host= my_localhost;
+  else
+    sctx->host= my_strndup(PSI_INSTRUMENT_ME, user->host.str,
+                           user->host.length, MYF(MY_WME));
+  sctx->host_or_ip= sctx->host;
+  sctx->ip= 0;
+
+  if (set_privs_on_login(thd, acl_user))
+  {
+    sctx->destroy();
+    *sctx= save_security_ctx;
+    return 1;
+  }
+
+  mysql_audit_notify_connection_change_user(thd, &save_security_ctx);
+  save_security_ctx.destroy();
+  return 0;
+
+access_denied:
+  my_error(ER_ACCESS_DENIED_CHANGE_USER_ERROR, MYF(0),
+           user->user.str, user->host.str);
+  status_var_increment(thd->status_var.access_denied_errors);
+  return 1;
+}
 
 #endif // NO_EMBEDDED_ACCESS_CHECKS
 

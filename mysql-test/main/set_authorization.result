@@ -1,0 +1,136 @@
+#
+# MDEV-20299 SET SESSION AUTHORIZATION
+#
+create user foo@bar identified via mysql_native_password using password('foo');
+connect con1, localhost, root;
+select user(), current_user(), database();
+user()	current_user()	database()
+root@localhost	root@localhost	test
+set session authorization bar@foo;
+ERROR HY000: The user 'bar'@'foo' does not exist
+select user(), current_user(), database();
+user()	current_user()	database()
+root@localhost	root@localhost	test
+set session authorization foo@bar;
+select user(), current_user(), database();
+user()	current_user()	database()
+foo@bar	foo@bar	NULL
+set @a:='not changed';
+set session authorization bar@foo;
+ERROR 28000: Access denied trying to change to user 'bar'@'foo'
+select @a;
+@a
+not changed
+set session authorization foo@bar;
+select @a;
+@a
+NULL
+disconnect con1;
+connection default;
+drop user foo@bar;
+create user ''@'l%t' identified via mysql_native_password using password('foo');
+connect con1, localhost, root;
+select user(), current_user(), database();
+user()	current_user()	database()
+root@localhost	root@localhost	test
+set session authorization fist@list;
+select user(), current_user(), database();
+user()	current_user()	database()
+fist@list	@l%t	NULL
+set @a:='not changed';
+set session authorization first@last;
+ERROR 28000: Access denied trying to change to user 'first'@'last'
+select @a;
+@a
+not changed
+set session authorization fist@list;
+select @a;
+@a
+NULL
+disconnect con1;
+connection default;
+drop user ''@'l%t';
+create user ''@'%' identified via mysql_native_password using password('foo');
+connect con1, localhost, root;
+select user(), current_user(), database();
+user()	current_user()	database()
+root@localhost	root@localhost	test
+set session authorization ''@last;
+ERROR HY000: The user ''@'last' does not exist
+set session authorization foo@'';
+ERROR HY000: The user 'foo'@'' does not exist
+start transaction;
+select user(), current_user(), database(), @@in_transaction;
+user()	current_user()	database()	@@in_transaction
+root@localhost	root@localhost	test	1
+set session authorization foo@bar;
+ERROR 25001: SESSION AUTHORIZATION can't be set while a transaction is in progress
+select user(), current_user(), database(), @@in_transaction;
+user()	current_user()	database()	@@in_transaction
+root@localhost	root@localhost	test	1
+disconnect con1;
+connection default;
+prepare s from 'set session authorization foo@bar';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+create procedure sudo_foobar() set session authorization foo@bar;
+ERROR 0A000: SET SESSION AUTHORIZATION is not allowed in stored procedures
+create procedure sudo_foobar()
+execute immediate 'set session authorization foo@bar';
+call sudo_foobar();
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+drop procedure sudo_foobar;
+drop user ''@'%';
+# restart: --skip-grant-tables
+set session authorization u@localhost;
+ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
+flush privileges;
+create user u1@localhost with max_statement_time 1;
+connect u1,localhost,u1;
+select @@max_statement_time;
+@@max_statement_time
+1.000000
+disconnect u1;
+connect u1,localhost,root;
+select @@max_statement_time;
+@@max_statement_time
+0.000000
+set session authorization u1@localhost;
+select @@max_statement_time;
+@@max_statement_time
+1.000000
+disconnect u1;
+connection default;
+drop user u1@localhost;
+#
+# MDEV-36399 SET SESSION AUTHORIZATION allows an unrpivileged user to bypass resource limits
+#
+create user u1 with max_queries_per_hour 2;
+connect u1,localhost,u1;
+set session authorization u1@localhost;
+select 1;
+1
+1
+select 2;
+ERROR 42000: User 'u1' has exceeded the 'max_queries_per_hour' resource (current value: 2)
+disconnect u1;
+connection default;
+drop user u1;
+#
+# MDEV-36401 Access denied errors produced by SET SESSION AUTHORIZATION not reflected in status values
+#
+flush global status;
+set session authorization u1@localhost;
+ERROR HY000: The user 'u1'@'localhost' does not exist
+create user u1;
+connect u1,localhost,u1;
+set session authorization root@localhost;
+ERROR 28000: Access denied trying to change to user 'root'@'localhost'
+set session authorization foo@bar;
+ERROR 28000: Access denied trying to change to user 'foo'@'bar'
+disconnect u1;
+connection default;
+show global status like 'access_denied_errors';
+Variable_name	Value
+Access_denied_errors	2
+drop user u1;
+# End of 11.8 tests
