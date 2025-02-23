@@ -1728,18 +1728,6 @@ err:
   if (non_temp_tables_count)
     query_cache_invalidate3(thd, tables, 0);
 
-  /*
-    We are always logging drop of temporary tables.
-    The reason is to handle the following case:
-    - Use statement based replication
-    - CREATE TEMPORARY TABLE foo (logged)
-    - set row based replication
-    - DROP TEMPORARY TABLE foo   (needs to be logged)
-    This should be fixed so that we remember if creation of the
-    temporary table was logged and only log it if the creation was
-    logged.
-  */
-
   if (non_trans_tmp_table_deleted ||
       trans_tmp_table_deleted || non_tmp_table_deleted)
   {
