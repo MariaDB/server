@@ -1,21 +1,21 @@
 #
-# MDEV-20228 `mysql_upgrade` fails on every version upgrade: "ERROR 1267 (HY000) at line 7: Illegal mix of collations (utf8mb4_unicode_ci,COERCIBLE) and (utf8mb4_general_ci,COERCIBLE) for operation 'like'"
+# MDEV-23962 Remove arc directory support - Verify normal operations
 #
-SET sql_mode="";
-SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-#
-# Changing character_set_client and collation_connection
-# for the VIEW mysql.user to utf8mb4/utf8mb4_unicode_ci,
-# to emulate that mysql.user was created by 'mysqld --bootstrap'
-# using mysqld compiled with
-# -DDEFAULT_CHARSET=utf8mb4 -DDEFAULT_COLLATION=utf8mb4_unicode_ci
-#
-SELECT CHARACTER_SET_CLIENT, COLLATION_CONNECTION
-FROM INFORMATION_SCHEMA.VIEWS
-WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
-CHARACTER_SET_CLIENT	COLLATION_CONNECTION
-utf8mb4	utf8mb4_unicode_ci
-# Running mysql_upgrade
+CREATE DATABASE test_arc_verify;
+USE test_arc_verify;
+CREATE TABLE normal_table (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data VARCHAR(100)
+) ENGINE=InnoDB;
+INSERT INTO normal_table (data) VALUES 
+('test data 1'),
+('test data 2'),
+('test data 3');
+CREATE TABLE arc_table (id INT);
+# Files before mysql_upgrade:
+arc_table.frm-001
+arc_table.frm-002
+normal.txt
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -163,12 +163,27 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
+test_arc_verify
+test_arc_verify.arc_table                          OK
+test_arc_verify.normal_table                       OK
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
-No archive files found to remove
-#
-# Restoring character_set_client and collation_connection back
-# so post-check returns the expected check-mysqld_1.result
-#
-SET NAMES latin1;
+Successfully removed 2 archive files
+SELECT * FROM normal_table ORDER BY id;
+id	data
+1	test data 1
+2	test data 2
+3	test data 3
+INSERT INTO normal_table (data) VALUES ('test data 4');
+SELECT * FROM normal_table WHERE id = 4;
+id	data
+4	test data 4
+CREATE TABLE new_table (id INT);
+INSERT INTO new_table VALUES (1), (2), (3);
+SELECT * FROM new_table ORDER BY id;
+id
+1
+2
+3
+DROP DATABASE test_arc_verify;
