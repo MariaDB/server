@@ -6,7 +6,6 @@ USE test_arc;
 CREATE TABLE t1 (id INT);
 t1.frm-001
 t1.frm-002
-# Running mysql_upgrade
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -159,6 +158,5 @@ test_arc.t1                                        OK
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
-Processing archive directory: /home/buildbot/amd64-ubuntu-2004-debug/build/mysql-test/var/4/mysqld.1/data/test_arc_verify/arc
 Successfully removed 2 archive files
 DROP DATABASE test_arc;

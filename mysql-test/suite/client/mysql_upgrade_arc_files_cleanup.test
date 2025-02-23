@@ -44,7 +44,6 @@ EOF
 --file_exists $ARC_PATH/t1.frm-001
 --file_exists $ARC_PATH/t1.frm-002
 
---echo # Running mysql_upgrade
 --exec $MYSQL_UPGRADE --force
 
 

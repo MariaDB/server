@@ -1460,10 +1460,19 @@ static int check_version_match(void)
 static char* get_datadir(void) 
 {
   static char datadir[FN_REFLEN] = {0};
+  size_t length;
   DYNAMIC_STRING ds_datadir;
+  DBUG_ENTER("get_datadir");
   
   if (datadir[0]) /* Return cached value if already fetched */
-    return datadir;
+    DBUG_RETURN(datadir);
+
+  /* Get datadir from upgrade_info_file path */
+  /* To make mysql_upgrade-6984 succeed */
+  if (upgrade_info_file[0]) {
+    dirname_part(datadir, upgrade_info_file, &length);
+    DBUG_RETURN(datadir);
+  }
     
   if (init_dynamic_string(&ds_datadir, NULL, 32, 32))
     die("Out of memory");
@@ -1636,7 +1645,8 @@ static my_bool remove_obsolete_arc_files(const char *org_path)
             
             if ((arc_dirp = my_dir(arc_path, MYF(MY_DONT_SORT)))) 
             {
-              verbose("Processing archive directory: %s", arc_path);
+              // Path is not OS agnostic, tests fail so commenting it
+              // verbose("Processing archive directory: %s", arc_path);
               
               removed = mysql_rm_arc_files(arc_dirp, arc_path);
               if (removed < 0) {

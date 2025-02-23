@@ -28,15 +28,9 @@ CREATE TABLE arc_table (id INT);
 --let $DB_PATH= $MYSQLD_DATADIR/test_arc_verify
 --let $ARC_PATH= $DB_PATH/arc
 
-# Show paths for debugging
---echo # Datadir: $MYSQLD_DATADIR
---echo # Database path: $DB_PATH
---echo # Arc path: $ARC_PATH
 
 # Create arc directory
---echo # Creating arc directory
 --mkdir $ARC_PATH
---echo # Verifying arc directory creation
 --file_exists $ARC_PATH
 
 # Create archive files
@@ -61,7 +55,6 @@ EOF
 --list_files $ARC_PATH
 
 # Run mysql_upgrade
---echo # Running mysql_upgrade
 --let $MYSQL_UPGRADE_PARAMS= --user=root --host=localhost --port=$MASTER_MYPORT
 --exec $MYSQL_UPGRADE $MYSQL_UPGRADE_PARAMS --force
 
