@@ -1571,6 +1571,8 @@ void THD::change_user(void)
     get_stmt_da()->clear_warning_info(0);
 
   init();
+  /* cannot clear map if it'll free the currently executing statement */
+  DBUG_ASSERT(stmt_arena->is_conventional());
   stmt_map.reset();
   my_hash_init(key_memory_user_var_entry, &user_vars,
                Lex_ident_user_var::charset_info(),
@@ -1580,6 +1582,8 @@ void THD::change_user(void)
                Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
+  /* cannot clear caches if it'll free the currently running routine */
+  DBUG_ASSERT(!spcont);
   sp_caches_clear();
   opt_trace.delete_traces();
 #ifdef WITH_WSREP

@@ -284,6 +284,7 @@ bool acl_check_proxy_grant_access (THD *thd,
                                    const LEX_CSTRING &host,
                                    const LEX_CSTRING &user,
                                    bool with_grant);
+int acl_setauthorization(THD *thd, const LEX_USER *user);
 int acl_setrole(THD *thd, const LEX_CSTRING &rolename, privilege_t access);
 int acl_check_setrole(THD *thd,
                       const LEX_CSTRING &rolename,

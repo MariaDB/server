@@ -974,6 +974,34 @@ int set_var_password::update(THD *thd)
 }
 
 /*****************************************************************************
+  Functions to handle SET SESSION AUTHORIZATION
+*****************************************************************************/
+
+int set_var_authorization::check(THD *thd)
+{
+  /*
+    SET SESSION AUTHORIZATION cannot be combined with other variables,
+    so most of the checks are only done in update.
+  */
+  if (thd->stmt_arena->is_conventional())
+    return 0;
+  my_error(ER_UNSUPPORTED_PS, MYF(0));
+  return 1;
+}
+
+int set_var_authorization::update(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  int res= acl_setauthorization(thd, user);
+  if (!res)
+    thd->session_tracker.state_change.mark_as_changed(thd);
+  return res;
+#else
+  return 0;
+#endif
+}
+
+/*****************************************************************************
   Functions to handle SET ROLE
 *****************************************************************************/
 
