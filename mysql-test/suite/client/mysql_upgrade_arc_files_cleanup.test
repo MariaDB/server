@@ -14,19 +14,10 @@ CREATE TABLE t1 (id INT);
 --let $DB_PATH= $MYSQLD_DATADIR/test_arc
 --let $ARC_PATH= $DB_PATH/arc
 
-# Show paths for debugging
---echo # Datadir: $MYSQLD_DATADIR
---echo # Database path: $DB_PATH
---echo # Arc path: $ARC_PATH
-
-# Ensure database directory exists
---echo # Checking database directory
 --file_exists $DB_PATH
 
 # Create arc directory
---echo # Creating arc directory
 --mkdir $ARC_PATH
---echo # Verifying arc directory creation
 --file_exists $ARC_PATH
 
 # Sleep briefly to ensure directory is fully created
