@@ -106,6 +106,7 @@ enum opt_hints_enum
   MAX_EXEC_TIME_HINT_ENUM,
   SEMIJOIN_HINT_ENUM,
   SUBQUERY_HINT_ENUM,
+  DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
 

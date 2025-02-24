@@ -41,6 +41,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, true},
   {{STRING_WITH_LEN("SEMIJOIN")}, false, true},
   {{STRING_WITH_LEN("SUBQUERY")}, false, true},
+  {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false},
   {null_clex_str, 0, 0}
 };
 
@@ -590,6 +591,14 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
      break;
   case TokenID::keyword_NO_BKA:
      hint_type= BKA_HINT_ENUM;
+     hint_state= false;
+     break;
+  case TokenID::keyword_DERIVED_CONDITION_PUSHDOWN:
+     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+     hint_state= true;
+     break;
+  case TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN:
+     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
      hint_state= false;
      break;
   default:

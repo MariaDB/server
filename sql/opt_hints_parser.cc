@@ -97,6 +97,16 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
     if ("NO_RANGE_OPTIMIZATION"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_RANGE_OPTIMIZATION;
     break;
+
+  case 26:
+    if ("DERIVED_CONDITION_PUSHDOWN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_DERIVED_CONDITION_PUSHDOWN;
+    break;
+
+  case 29:
+    if ("NO_DERIVED_CONDITION_PUSHDOWN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN;
+    break;
   }
 
   if (str.length > 0 && (str.str[0] >= '0' && str.str[0] <= '9'))
