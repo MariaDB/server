@@ -1107,7 +1107,23 @@ static int execute_rename_table(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
 {
   uint to_length=0, fr_length=0;
   int error= 0, err2;
+  MDL_request mdl_request[2];
   DBUG_ENTER("execute_rename_table");
+
+  MDL_REQUEST_INIT(&mdl_request[0], MDL_key::TABLE,
+                   from_db->str,
+                   from_table->str,
+                   MDL_EXCLUSIVE, MDL_EXPLICIT);
+  MDL_REQUEST_INIT(&mdl_request[1], MDL_key::TABLE,
+                   to_db->str,
+                   to_table->str,
+                   MDL_EXCLUSIVE, MDL_EXPLICIT);
+
+  /* There should never be a conflict. The timeout is there for security */
+  error=  thd->mdl_context.acquire_lock(&mdl_request[0], 60);
+  error|= (int) thd->mdl_context.acquire_lock(&mdl_request[1], 60);
+
+  DBUG_ASSERT(error == 0);
 
   thd->lex->part_info= 0;
   if (file->needs_lower_case_filenames())
@@ -1171,6 +1187,12 @@ static int execute_rename_table(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
     if ((err2= mysql_file_rename(key_file_frm, from_path, to_path,
                                  MYF(MY_WME))) && !error)
       error= err2;
+
+  if (mdl_request[0].ticket)
+    thd->mdl_context.release_lock(mdl_request[0].ticket);
+  if (mdl_request[1].ticket)
+    thd->mdl_context.release_lock(mdl_request[1].ticket);
+
   DBUG_RETURN(error);
 }
 
@@ -1180,7 +1202,15 @@ static int execute_drop_table(THD *thd, handlerton *hton, const LEX_CSTRING *db,
 {
   uint keys, total_keys;
   int error, first_error= 0;
+  MDL_request mdl_request;
   DBUG_ENTER("execute_drop_table");
+
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+                   db->str,
+                   table->str,
+                   MDL_EXCLUSIVE, MDL_EXPLICIT);
+  error= thd->mdl_context.acquire_lock(&mdl_request, 60);
+  DBUG_ASSERT(error == 0);
 
   if (get_hlindex_keys_by_open(thd, db, table, path, &keys, &total_keys) == 0)
   {
@@ -1202,6 +1232,8 @@ static int execute_drop_table(THD *thd, handlerton *hton, const LEX_CSTRING *db,
       first_error= error;
   }
   DBUG_ASSERT(!tdc_share_is_cached(thd, db->str, table->str));
+  if (mdl_request.ticket)
+    thd->mdl_context.release_lock(mdl_request.ticket);
   DBUG_RETURN(first_error);
 }
 
@@ -1294,7 +1326,7 @@ static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
                      from_db.str,
                      from_converted_name.str,
                      MDL_EXCLUSIVE, MDL_EXPLICIT);
-    error= thd->mdl_context.acquire_lock(&mdl_request, 1);
+    error= thd->mdl_context.acquire_lock(&mdl_request, 60);
     /* acquire_locks() should never fail during recovery */
     DBUG_ASSERT(error == 0);
 
@@ -1312,7 +1344,8 @@ static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
                                                   &from_converted_name,
                                                   &to_db,
                                                   &to_table);
-    thd->mdl_context.release_lock(mdl_request.ticket);
+    if (mdl_request.ticket)
+      thd->mdl_context.release_lock(mdl_request.ticket);
   }
   DBUG_VOID_RETURN;
 }
