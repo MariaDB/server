@@ -57,6 +57,7 @@
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
 #include "sql_class.h"
+#include "opt_hints.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -10105,6 +10106,19 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     bool forced_no_merge_for_update_delete=
            belong_to_view ? belong_to_view->updating :
                            !unit->outer_select()->outer_select();
+
+    /*
+       In the case where a table merge operation moves a derived table from
+       one select to another, table hints may be adjusted already.
+    */
+    if (select_lex->opt_hints_qb &&    // QB hints initialized
+        !this->opt_hints_table)        // Table hints are not adjusted yet
+      select_lex->opt_hints_qb->fix_hints_for_derived_table(this);
+
+    bool is_derived_merge_allowed=
+        hint_table_state(thd, this, MERGE_HINT_ENUM,
+            optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE));
+
     if (!is_materialized_derived() && unit->can_be_merged() &&
         /*
           Following is special case of
@@ -10121,7 +10135,7 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
          (!first_select->group_list.elements &&
           !first_select->order_list.elements)) &&
         (is_view() ||
-         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)) &&
+         is_derived_merge_allowed) &&
           !thd->lex->can_not_use_merged() &&
         !(!is_view() && forced_no_merge_for_update_delete &&
           (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||

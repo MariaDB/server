@@ -2513,42 +2513,41 @@ JOIN::optimize_inner()
       DBUG_RETURN(TRUE);
   }
 
-  if (optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
+  TABLE_LIST *tbl;
+  List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+  while ((tbl= li++))
   {
-    TABLE_LIST *tbl;
-    List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
-    while ((tbl= li++))
+    const bool is_derived_pushdown_allowed= hint_table_state(
+      thd, tbl->table, DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
+      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED));
+    if (!is_derived_pushdown_allowed)
     {
-      /* 
+      /* Run optimize phase on this derived table/view. */
+      if (tbl->is_view_or_derived() &&
+          tbl->handle_derived(thd->lex, DT_OPTIMIZE))
+        DBUG_RETURN(1);
+      continue;
+    }
+
+    if (tbl->is_materialized_derived())
+    {
+      JOIN *join= tbl->get_unit()->first_select()->join;
+      if (join &&
+          join->optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE &&
+          join->with_two_phase_optimization)
+        continue;
+      /*
         Do not push conditions from where into materialized inner tables
         of outer joins: this is not valid.
       */
-      if (tbl->is_materialized_derived())
+      if (!tbl->is_inner_table_of_outer_join())
       {
-        JOIN *join= tbl->get_unit()->first_select()->join;
-        if (join &&
-            join->optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE &&
-            join->with_two_phase_optimization)
-          continue;
-        /*
-          Do not push conditions from where into materialized inner tables
-          of outer joins: this is not valid.
-        */
-        if (!tbl->is_inner_table_of_outer_join())
-	{
-          if (pushdown_cond_for_derived(thd, conds, tbl))
-	    DBUG_RETURN(1);
-        }
-	if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
-	  DBUG_RETURN(1);
+        if (pushdown_cond_for_derived(thd, conds, tbl))
+          DBUG_RETURN(1);
       }
+      if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
+        DBUG_RETURN(1);
     }
-  }
-  else
-  {
-    /* Run optimize phase for all derived tables/views used in this SELECT. */
-    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
-      DBUG_RETURN(1);
   }
   {
     if (select_lex->where)
