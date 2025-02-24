@@ -45,6 +45,8 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_SUFFIX")}, false, true, true},
   {{STRING_WITH_LEN("JOIN_ORDER")}, false, true, true},
   {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
+  {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false, false},
+  {{STRING_WITH_LEN("MERGE")}, false, false, false},
   {null_clex_str, 0, 0, 0}
 };
 
@@ -199,6 +201,7 @@ Opt_hints_qb *get_qb_hints(Parse_context *pc)
     /*
       Mark the query block as resolved as we know which SELECT_LEX it is
       attached to.
+
       Note that children (indexes, tables) are probably not resolved, yet.
     */
     qb->set_fixed();
@@ -398,10 +401,52 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
 }
 
 
+/**
+  fix_hints_for_derived_table allows early hint fixing for
+  derived tables by linking both *this and the Opt_hints_table
+  object to the passed TABLE_LIST instance.
+
+  @param table_list Pointer to TABLE_LIST object
+*/
+
+void Opt_hints_qb::fix_hints_for_derived_table(TABLE_LIST *table_list)
+{
+  Opt_hints_table *tab=
+    static_cast<Opt_hints_table *>(find_by_name(table_list->alias));
+
+  /*
+    If this is fixed and the corresponding Opt_hints_table doesn't exist (or it
+    exists and is fixed) then there's nothing to do, so return early.
+  */
+  if (is_fixed() && (!tab || tab->is_fixed()))
+    return;
+
+  /*
+    This instance will have been marked as fixed on the basis of its
+    attachment to a SELECT_LEX (during get_qb_hints) but that is
+    insufficient to consider it fixed for the case where a TABLE
+    instance is required but not yet available.  If the associated
+    table isn't yet fixed, then fix this hint as though it were unfixed.
+
+    We mark the Opt_hints_table as 'fixed' here and this means we
+    won't try to fix the child hints again later.  They will remain
+    unfixed and will eventually produce "Unresolved index name" error
+    in opt_hints_qb->check_unfixed().  This is acceptable because
+    no child hints apply to derived tables.
+  */
+  DBUG_ASSERT(!table_list->opt_hints_table);
+  DBUG_ASSERT(tab);
+  table_list->opt_hints_qb= this;
+  table_list->opt_hints_table= tab;
+  tab->set_fixed();
+}
+
+
 Opt_hints_table *Opt_hints_qb::fix_hints_for_table(TABLE *table,
                                                    const Lex_ident_table &alias)
 {
-  Opt_hints_table *tab= static_cast<Opt_hints_table *>(find_by_name(alias));
+  Opt_hints_table *tab=
+    static_cast<Opt_hints_table *>(find_by_name(alias));
 
   table->pos_in_table_list->opt_hints_qb= this;
 
@@ -591,11 +636,9 @@ bool hint_key_state(const THD *thd, const TABLE *table,
 }
 
 
-bool hint_table_state(const THD *thd, const TABLE *table,
-                                  opt_hints_enum type_arg,
-                                  bool fallback_value)
+bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
+                      opt_hints_enum type_arg, bool fallback_value)
 {
-  TABLE_LIST *table_list= table->pos_in_table_list;
   if (table_list->opt_hints_qb)
   {
     bool ret_val= false;
@@ -606,6 +649,15 @@ bool hint_table_state(const THD *thd, const TABLE *table,
   }
 
   return fallback_value;
+}
+
+
+bool hint_table_state(const THD *thd, const TABLE *table,
+                                  opt_hints_enum type_arg,
+                                  bool fallback_value)
+{
+  return hint_table_state(thd, table->pos_in_table_list, type_arg,
+                          fallback_value);
 }
 
 
