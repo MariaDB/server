@@ -787,6 +787,7 @@ char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
 my_bool opt_binlog_legacy_event_pos= FALSE;
+uint32 opt_binlog_partial_rows_event_fragment_size= MAX_MAX_ALLOWED_PACKET;
 
 /*
   Flag if the METADATA_LOCK_INFO is used. In this case we store the time

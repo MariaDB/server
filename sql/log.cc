@@ -6936,6 +6936,9 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
                         clear_dbug= true;
                       }
                     });
+
+    pending->is_too_big();
+
     if (writer.write(pending))
     {
       set_write_error(thd, is_transactional);

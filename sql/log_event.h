@@ -226,6 +226,7 @@ class String;
 #define GTID_LIST_HEADER_LEN   4
 #define START_ENCRYPTION_HEADER_LEN 0
 #define XA_PREPARE_HEADER_LEN 0
+#define CONTAINER_HEADER_LEN 4
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -589,8 +590,11 @@ class String;
 /* MariaDB >= 10.0.1, which knows about global transaction id events. */
 #define MARIA_SLAVE_CAPABILITY_GTID 4
 
+/* MariaDB >= 12.0, which know about container log events. */
+#define MARIA_SLAVE_CAPABILITY_PARTIAL_ROW_DATA 5
+
 /* Our capability. */
-#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
+#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_PARTIAL_ROW_DATA
 
 
 /*
@@ -745,6 +749,11 @@ enum Log_event_type
   WRITE_ROWS_COMPRESSED_EVENT = 169,
   UPDATE_ROWS_COMPRESSED_EVENT = 170,
   DELETE_ROWS_COMPRESSED_EVENT = 171,
+
+  /*
+    Partial Row Data Event
+  */
+  PARTIAL_ROW_DATA_EVENT = 172,
 
   /* Add new MariaDB events here - right above this comment!  */
 
@@ -1658,6 +1667,13 @@ public:
     case TABLE_MAP_EVENT:
     case ANNOTATE_ROWS_EVENT:
       return true;
+    case PARTIAL_ROW_DATA_EVENT:
+      /*
+        TODO: This is circumstantial, if it is the last chunk, then true,
+        otherwise false. The arg list needs to be extended
+      */
+      return false;
+
     case DELETE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT:
     case WRITE_ROWS_EVENT:
@@ -4671,6 +4687,16 @@ public:
 
   virtual ~Rows_log_event();
 
+  void is_too_big()
+  {
+    //if (m_curr_row - m_)
+    my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
+    if (data_size > MAX_MAX_ALLOWED_PACKET)
+    {
+      fprintf(stderr, "\n\tData size of row event is too big %lld (max %lld)\n", data_size, (long long) MAX_MAX_ALLOWED_PACKET);
+    }
+  }
+
   void set_flags(flag_set flags_arg) { m_flags |= flags_arg; }
   void clear_flags(flag_set flags_arg) { m_flags &= ~flags_arg; }
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
@@ -5282,6 +5308,59 @@ private:
 #if defined(MYSQL_CLIENT)
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
+};
+
+/**
+  @class Partial_rows_log_event
+
+  TODO
+
+  @section Partial_rows_log_event Binary Format
+
+  <table>
+  <caption>Post-Header</caption>
+
+  TODO
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>count</td>
+    <td>4 byte unsigned integer</td>
+    <td>The lower 28 bits are the number of elements. The upper 4 bits are
+        flags bits.</td>
+  </tr>
+  </table>
+
+  All derivations of @c List_log_events have COUNT elements in the list.
+*/
+template <typename T> class Partial_rows_log_event: public Log_event
+{
+public:
+  uint32 flags;
+
+  uint32 num_fragments;
+  uint32 fragment_seq_no;
+
+  size_t fragment_len;
+  const uchar *fragment_data;
+
+  Partial_rows_log_event(uint32 num_fragments, uint32 fragment_seq_no,
+                         size_t fragment_len, const uchar *fragment_data)
+      : num_fragments(num_fragments), fragment_seq_no(fragment_seq_no),
+        fragment_len(fragment_len), fragment_data(fragment_data){};
+
+  Partial_rows_log_event(const uchar *buf, uint event_len,
+                         const Format_description_log_event *description_event,
+                         Log_event_type type_code,
+                         void (*reader_func)(T *dst, const uchar *src,
+                                             uint32 *read_size));
+
+  ~Partial_rows_log_event() {}
 };
 
 /**
