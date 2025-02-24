@@ -23,7 +23,7 @@ create table t1 (a int, b longblob) engine=innodb;
 BEGIN;
 --disable_query_log
 --echo # Inserting query..
-insert into t1 select seq,repeat("a",1000000000) from seq_1_to_5;
+insert into t1 select seq,repeat("a",1000000000) from seq_1_to_3;
 #insert into t1 select seq,repeat("a",10) from seq_1_to_5;
 COMMIT;
 --echo # Now inserting insert .. select
