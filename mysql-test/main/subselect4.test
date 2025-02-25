@@ -2684,3 +2684,32 @@ show status like 'Handler_read_rnd_next%';
 drop table t1,t2,t3;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-32866: Debug assertion failure in Item_subselect::val_bool()
+--echo #
+CREATE TABLE t1(a INT);
+INSERT INTO t1(a) VALUES (1);
+
+SELECT a FROM t1 WHERE (SELECT a,a) IN (SELECT a,a);
+SELECT a FROM t1 WHERE (SELECT a,a UNION SELECT 1,a FROM t1) IN (SELECT 1,1);
+SELECT a FROM t1 WHERE (SELECT a,a UNION SELECT 1,a FROM t1) IN (SELECT a,a);
+DROP TABLE t1;
+
+--echo # Test case from duplicating MDEV-22375
+CREATE TABLE t1 (a INT KEY,b CHAR(1));
+INSERT INTO t1 VALUES (0,'1');
+SELECT a FROM t1 WHERE '' IN (SELECT 'x' LIKE a HAVING a LIKE a);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35654: Re-evaluation of constant subquery triggers debug assertion
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (
+  a IN (SELECT a IN (
+    SELECT 1 FROM (SELECT 1 AS a) AS dt WHERE a IN (SELECT a HAVING a=0)
+  )));
+DROP TABLE t1;
+
+--echo # End of 10.5 tests
