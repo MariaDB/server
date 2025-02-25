@@ -184,7 +184,8 @@ static DYNAMIC_STRING dynamic_where;
 static MYSQL_RES *get_table_name_result= NULL;
 static MEM_ROOT glob_root;
 static MYSQL_RES *routine_res, *routine_list_res;
-
+static size_t n_stopped_replicas= 0;
+static char (*stopped_replicas)[NAME_CHAR_LEN]= NULL;
 
 #include <sslopt-vars.h>
 FILE *md_result_file= 0;
@@ -1854,6 +1855,7 @@ static void free_resources()
     mysql_close(mysql);
     mysql= 0;
   }
+  my_free(stopped_replicas);
   my_free(order_by);
   my_free(opt_password);
   my_free(current_host);
@@ -6097,12 +6099,22 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
 {
   MYSQL_RES *slave;
   MYSQL_ROW row;
+  // do_stop_slave_sql() should only be called once
+  DBUG_ASSERT(!stopped_replicas);
 
   if (mysql_query_with_error_report(mysql_con, &slave,
                                     multi_source ?
                                     "SHOW ALL SLAVES STATUS" :
                                     "SHOW SLAVE STATUS"))
     return(1);
+  stopped_replicas= my_malloc(PSI_NOT_INSTRUMENTED,
+                              slave->row_count*NAME_CHAR_LEN + 1, MYF(MY_WME));
+  if (!stopped_replicas)
+  {
+    mysql_free_result(slave);
+    fputs("Error: Not enough memory to store current replica status\n", stderr);
+    return 1;
+  }
 
   /* Loop over all slaves */
   while ((row= mysql_fetch_row(slave)))
@@ -6123,6 +6135,8 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
           mysql_free_result(slave);
           return 1;
         }
+        strmov(stopped_replicas[n_stopped_replicas++],
+               multi_source ? row[0] : "");
       }
     }
   }
@@ -6250,43 +6264,29 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
 
 static int do_start_slave_sql(MYSQL *mysql_con)
 {
-  MYSQL_RES *slave;
-  MYSQL_ROW row;
   int error= 0;
   DBUG_ENTER("do_start_slave_sql");
-
-  /* We need to check if the slave sql is stopped in the first place */
-  if (mysql_query_with_error_report(mysql_con, &slave,
-                                    multi_source ?
-                                    "SHOW ALL SLAVES STATUS" :
-                                    "SHOW SLAVE STATUS"))
-    DBUG_RETURN(1);
-
-  while ((row= mysql_fetch_row(slave)))
+  for (; n_stopped_replicas--;)
   {
-    DBUG_PRINT("info", ("Connection: '%s'  status: '%s'",
-                        multi_source ? row[0] : "", row[11 + multi_source]));
-    if (row[11 + multi_source])
-    {
-      /* if SLAVE SQL is not running, we don't start it */
-      if (strcmp(row[11 + multi_source], "Yes"))
-      {
-        char query[160];
-        if (multi_source)
-          sprintf(query, "START SLAVE '%.80s'", row[0]);
-        else
-          strmov(query, "START SLAVE");
+    /*
+      do_start_slave_sql() should only be called
+      sometime after do_stop_slave_sql() suceeds
+    */
+    char* stopped_replica= stopped_replicas[n_stopped_replicas];
+    char query[sizeof("START SLAVE ''") + NAME_CHAR_LEN];
+    DBUG_PRINT("info", ("Connection: '%.*s'", NAME_CHAR_LEN, stopped_replica));
+    // if SLAVE SQL is running, start it anyway to warn unexpected state change
+    if (multi_source)
+      sprintf(query, "START SLAVE '%.*s'", NAME_CHAR_LEN, stopped_replica);
 
-        if (mysql_query_with_error_report(mysql_con, 0, query))
-        {
-          fprintf(stderr, "%s: Error: Unable to start slave '%s'\n",
-                  my_progname_short, multi_source ? row[0] : "");
-          error= 1;
-        }
-      }
+    if (mysql_query_with_error_report(mysql_con, 0,
+                                      multi_source ? query : "START SLAVE"))
+    {
+      fprintf(stderr, "%s: Error: Unable to start slave '%.*s'\n",
+              my_progname_short, NAME_CHAR_LEN, stopped_replica);
+      error= 1;
     }
   }
-  mysql_free_result(slave);
   DBUG_RETURN(error);
 }
 

@@ -1,0 +1,47 @@
+connect  replica,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  active_primary,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  inactive_primary,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connection replica;
+CHANGE MASTER 'active_repl' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
+START REPLICA 'active_repl';
+CHANGE MASTER 'inactive_repl' TO master_port=MYPORT_3, master_host='127.0.0.1', master_user='root';
+STOP REPLICA 'inactive_repl';
+Warnings:
+Note	1255	Slave already has been stopped
+# Basic
+MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+/*M!999999\- enable the sandbox mode */ 
+CHANGE MASTER 'active_repl' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MYPORT_2, MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+CHANGE MASTER 'inactive_repl' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MYPORT_3, MASTER_LOG_FILE='', MASTER_LOG_POS=BINLOG_START;
+
+-- SET GLOBAL gtid_slave_pos='';
+# MDEV-7611 mysqldump --dump-slave always starts stopped slave
+MYSQL_DUMP --compact --dump-slave test
+/*M!999999\- enable the sandbox mode */ 
+CHANGE MASTER 'active_repl' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+CHANGE MASTER 'inactive_repl' TO MASTER_LOG_FILE='', MASTER_LOG_POS=BINLOG_START;
+
+-- SET GLOBAL gtid_slave_pos='';
+START REPLICA 'active_repl';
+Warnings:
+Note	1254	Slave is already running
+STOP REPLICA 'inactive_repl';
+Warnings:
+Note	1255	Slave already has been stopped
+# MDEV-5624 mysqldump --dump-slave option does not restart the replication if the dump has failed
+MYSQL_DUMP --compact --dump-slave no_such_db
+/*M!999999\- enable the sandbox mode */ 
+CHANGE MASTER 'active_repl' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+CHANGE MASTER 'inactive_repl' TO MASTER_LOG_FILE='', MASTER_LOG_POS=BINLOG_START;
+
+START REPLICA 'active_repl';
+Warnings:
+Note	1254	Slave is already running
+STOP REPLICA 'inactive_repl';
+Warnings:
+Note	1255	Slave already has been stopped
+# Cleanup
+include/reset_master_slave.inc
+disconnect replica;
+disconnect active_primary;
+disconnect inactive_primary;
