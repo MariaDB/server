@@ -1435,7 +1435,14 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
       DBUG_RETURN(TRUE);
     }
 
-    load_db_opt_by_name(thd, dbname->str, &create);
+    if (load_db_opt_by_name(thd, dbname->str, &create) < 0)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR,
+                          "Database '%.192s' does not have a db.opt file. "
+                          "You can create one with ALTER DATABASE if needed",
+                          dbname->str);
+    }
   }
 
   mysqld_show_create_db_get_fields(thd, &field_list);
