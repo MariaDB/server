@@ -86,7 +86,11 @@ static_assert(FSP_BINLOG_TYPE_END <= 8*sizeof(ALLOWED_NESTED_RECORDS),
 struct fsp_binlog_page_entry {
   fsp_binlog_page_entry *next;
   byte *page_buf;
+  uint64_t file_no;
+  uint32_t page_no;
   uint32_t latched;
+  /* Flag set for the last page in a file. */
+  bool last_page;
   /*
     Flag set when the page has been filled, no more data will be added and
     it is safe to write out to disk and remove from the FIFO.
@@ -155,8 +159,8 @@ public:
   void release_tablespace(uint64_t file_no);
   fsp_binlog_page_entry *create_page(uint64_t file_no, uint32_t page_no);
   fsp_binlog_page_entry *get_page(uint64_t file_no, uint32_t page_no);
-  void release_page(uint64_t file_no, uint32_t page_no,
-                    fsp_binlog_page_entry *page);
+  void release_page(fsp_binlog_page_entry *page);
+  void release_page_mtr(fsp_binlog_page_entry *page, mtr_t *mtr);
   bool flush_one_page(uint64_t file_no, bool force);
   void flush_up_to(uint64_t file_no, uint32_t page_no);
   void do_fdatasync(uint64_t file_no);
@@ -281,7 +285,7 @@ public:
 };
 
 
-extern uint64_t current_binlog_state_interval;
+extern uint32_t current_binlog_state_interval;
 extern mysql_mutex_t active_binlog_mutex;
 extern pthread_cond_t active_binlog_cond;
 extern std::atomic<uint64_t> active_binlog_file_no;
@@ -291,9 +295,15 @@ extern std::atomic<uint64_t> binlog_cur_written_offset[2];
 extern std::atomic<uint64_t> binlog_cur_end_offset[2];
 extern fsp_binlog_page_fifo *binlog_page_fifo;
 
+
+static inline void
+fsp_binlog_release(fsp_binlog_page_entry *page)
+{
+  binlog_page_fifo->release_page(page);
+}
+
 extern void binlog_write_up_to_now() noexcept;
-extern void fsp_log_binlog_write(mtr_t *mtr, uint64_t file_no, uint32_t page_no,
-                                 fsp_binlog_page_entry *page,
+extern void fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
                                  uint32_t page_offset, uint32_t len);
 extern void fsp_binlog_init();
 extern void fsp_binlog_shutdown();

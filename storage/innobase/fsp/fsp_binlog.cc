@@ -33,7 +33,7 @@ InnoDB implementation of binlog.
 
 
 /*
-  How often (in terms of bytes written) to dump a (differential) binlog state
+  How often (in terms of pages written) to dump a (differential) binlog state
   at the start of the page, to speed up finding the initial GTID position for
   a connecting slave.
 
@@ -42,7 +42,7 @@ InnoDB implementation of binlog.
   setting prior to the restart; the new value of the setting (if different)
   will be used for newly created binlog files.
 */
-uint64_t current_binlog_state_interval;
+uint32_t current_binlog_state_interval;
 
 /*
   Mutex protecting active_binlog_file_no.
@@ -112,6 +112,9 @@ fsp_binlog_page_fifo::create_page(uint64_t file_no, uint32_t page_no)
   e->page_buf= static_cast<byte*>(aligned_malloc(srv_page_size, srv_page_size));
   ut_a(e->page_buf);
   memset(e->page_buf, 0, srv_page_size);
+  e->file_no= file_no;
+  e->page_no= page_no;
+  e->last_page= (page_no + 1 == size_in_pages(file_no));
   e->latched= 1;
   e->complete= false;
   e->flushed_clean= false;
@@ -145,6 +148,8 @@ fsp_binlog_page_fifo::get_page(uint64_t file_no, uint32_t page_no)
     if (page_no == entry_page_no)
     {
       /* Found the page. */
+      ut_ad(p->file_no == file_no);
+      ut_ad(p->page_no == page_no);
       ++p->latched;
       res= p;
       break;
@@ -160,14 +165,41 @@ end:
 
 
 void
-fsp_binlog_page_fifo::release_page(uint64_t file_no, uint32_t page_no,
-                                   fsp_binlog_page_entry *page)
+fsp_binlog_page_fifo::release_page(fsp_binlog_page_entry *page)
 {
   mysql_mutex_lock(&m_mutex);
   ut_a(page->latched > 0);
   if (--page->latched == 0)
     pthread_cond_signal(&m_cond);
   mysql_mutex_unlock(&m_mutex);
+}
+
+
+/*
+  Release a page that is part of an mtr, except that if this is the last page
+  of a binlog tablespace, then delay release until mtr commit.
+
+  This is used to make sure that a tablespace is not closed until any mtr that
+  modified it has been committed and the modification redo logged. This way, a
+  closed tablespace never needs recovery and at most the two most recent binlog
+  tablespaces need to be considered during recovery.
+*/
+void
+fsp_binlog_page_fifo::release_page_mtr(fsp_binlog_page_entry *page, mtr_t *mtr)
+{
+  if (!page->last_page)
+    return release_page(page);
+
+  fsp_binlog_page_entry *old_page= mtr->get_binlog_page();
+  ut_ad(!old_page);
+  if (UNIV_UNLIKELY(old_page != nullptr))
+  {
+    sql_print_error("InnoDB: Internal inconsistency with mini-transaction that "
+                    "spans more than two binlog files. Recovery may be "
+                    "affected until the next checkpoint.");
+    release_page(old_page);
+  }
+  mtr->set_binlog_page(page);
 }
 
 
@@ -363,6 +395,9 @@ fsp_binlog_page_fifo::create_tablespace(uint64_t file_no,
         static_cast<byte*>(aligned_malloc(srv_page_size, srv_page_size));
       ut_a(e->page_buf);
       memcpy(e->page_buf, partial_page, srv_page_size);
+      e->file_no= file_no;
+      e->page_no= init_page;
+      e->last_page= (init_page + 1 == size_in_pages);
       e->latched= 0;
       e->complete= false;
       e->flushed_clean= true;
@@ -564,10 +599,11 @@ binlog_write_up_to_now() noexcept
 
 
 void
-fsp_log_binlog_write(mtr_t *mtr, uint64_t file_no, uint32_t page_no,
-                     fsp_binlog_page_entry *page, uint32_t page_offset,
-                     uint32_t len)
+fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
+                     uint32_t page_offset, uint32_t len)
 {
+  uint64_t file_no= page->file_no;
+  uint32_t page_no= page->page_no;
   if (page_offset + len >= srv_page_size - FIL_PAGE_DATA_END)
     page->complete= true;
   if (page->flushed_clean)
@@ -621,6 +657,12 @@ fsp_binlog_tablespace_close(uint64_t file_no)
   binlog_page_fifo->flush_up_to(file_no, ~(uint32_t)0);
   /* release_tablespace() will fdatasync() the file first. */
   binlog_page_fifo->release_tablespace(file_no);
+  /*
+    Durably sync the redo log. This simplifies things a bit, as then we know
+    that we will not need to discard any data from an old binlog file during
+    recovery, at most from the latest two existing files.
+  */
+  log_buffer_flush_to_disk(true);
   return DB_SUCCESS;
 }
 
@@ -708,7 +750,7 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages)
 	if (!os_file_set_size(name, fh,
 			      os_offset_t{size_in_pages} << srv_page_size_shift)
             ) {
-		sql_print_error("Unable to allocate file %s", name);
+		sql_print_error("InnoDB: Unable to allocate file %s", name);
 		os_file_close(fh);
 		os_file_delete(innodb_data_file_key, name);
 		return DB_ERROR;
@@ -752,7 +794,8 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
   byte cont_flag= 0;
   for (;;) {
     if (page_offset == FIL_PAGE_DATA) {
-      if (UNIV_UNLIKELY(page_no >= binlog_page_fifo->size_in_pages(file_no))) {
+      uint32_t file_size_in_pages= binlog_page_fifo->size_in_pages(file_no);
+      if (UNIV_UNLIKELY(page_no >= file_size_in_pages)) {
         /*
           Signal to the pre-allocation thread that this tablespace has been
           written full, so that it can be closed and a new one pre-allocated
@@ -789,18 +832,16 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
         mysql_mutex_unlock(&active_binlog_mutex);
         binlog_cur_page_no= page_no= 0;
         /* ToDo: Here we must use the value from the file, if this file was pre-allocated before a server restart where the value of innodb_binlog_state_interval changed. Maybe just make innodb_binlog_state_interval dynamic and make the prealloc thread (and discover code at startup) supply the correct value to use for each file. */
-        current_binlog_state_interval= innodb_binlog_state_interval;
+        current_binlog_state_interval=
+          (uint32_t)(innodb_binlog_state_interval >> page_size_shift);
       }
 
-      /* Must be a power of two and larger than page size. */
-      ut_ad(current_binlog_state_interval == 0 ||
-            current_binlog_state_interval > page_size);
+      /* Must be a power of two. */
       ut_ad(current_binlog_state_interval == 0 ||
             current_binlog_state_interval ==
             (uint64_t)1 << (63 - nlz(current_binlog_state_interval)));
 
-      if (0 == (page_no &
-                ((current_binlog_state_interval >> page_size_shift) - 1))) {
+      if (0 == (page_no & (current_binlog_state_interval - 1))) {
         if (page_no == 0) {
           rpl_binlog_state_base full_state;
           bool err;
@@ -844,14 +885,14 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
             }
           }
           err= binlog_gtid_state(&full_state, mtr, block, page_no,
-                                 page_offset, file_no);
+                                 page_offset, file_no, file_size_in_pages);
           ut_a(!err /* ToDo error handling */);
           ut_ad(block);
           full_state.free();
           binlog_diff_state.reset_nolock();
         } else {
           bool err= binlog_gtid_state(&binlog_diff_state, mtr, block, page_no,
-                                      page_offset, file_no);
+                                      page_offset, file_no, file_size_in_pages);
           ut_a(!err /* ToDo error handling */);
         }
       } else
@@ -869,10 +910,9 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
       if (UNIV_LIKELY(page_remain > 0))
       {
         memset(ptr, FSP_BINLOG_TYPE_FILLER,  page_remain);
-        fsp_log_binlog_write(mtr, file_no, page_no, block, page_offset,
-                             page_remain);
+        fsp_log_binlog_write(mtr, block, page_offset, page_remain);
       }
-      binlog_page_fifo->release_page(file_no, page_no, block);
+      binlog_page_fifo->release_page_mtr(block, mtr);
       block= nullptr;
       ++page_no;
       page_offset= FIL_PAGE_DATA;
@@ -906,10 +946,10 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
     ptr[2]= (byte)(size >> 8);
     ut_ad(size <= 0xffff);
 
-    fsp_log_binlog_write(mtr, file_no, page_no, block, page_offset, size + 3);
+    fsp_log_binlog_write(mtr, block, page_offset, size + 3);
     cont_flag= FSP_BINLOG_FLAG_CONT;
     if (page_remain == 0) {
-      binlog_page_fifo->release_page(file_no, page_no, block);
+      binlog_page_fifo->release_page_mtr(block, mtr);
       block= nullptr;
       page_offset= FIL_PAGE_DATA;
       ++page_no;
@@ -920,7 +960,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
       break;
   }
   if (block)
-    binlog_page_fifo->release_page(file_no, page_no, block);
+    binlog_page_fifo->release_page_mtr(block, mtr);
   binlog_cur_page_no= page_no;
   binlog_cur_page_offset= page_offset;
   if (UNIV_UNLIKELY(pending_prev_end_offset != 0))
@@ -1043,7 +1083,7 @@ fsp_binlog_flush()
 
 
 binlog_chunk_reader::binlog_chunk_reader()
-  : s { 0, 0,0, 0, 0, FSP_BINLOG_TYPE_FILLER, false, false },
+  : s { 0, 0, 0, 0, 0, FSP_BINLOG_TYPE_FILLER, false, false },
     page_ptr(0), cur_block(0), page_buffer(nullptr),
     cur_file_handle((File)-1), skipping_partial(false)
 {
@@ -1063,8 +1103,8 @@ int
 binlog_chunk_reader::read_error_corruption(uint64_t file_no, uint64_t page_no,
                                            const char *msg)
 {
-  sql_print_error("Corrupt binlog found on page %llu in binlog number %llu: "
-                  "%s", page_no, file_no, msg);
+  sql_print_error("InnoDB: Corrupt binlog found on page %llu in binlog number "
+                  "%llu: %s", page_no, file_no, msg);
   return -1;
 }
 
@@ -1351,12 +1391,11 @@ skip_chunk:
   {
 go_next_page:
     /* End of page reached, move to the next page. */
-    uint32_t block_page_no= s.page_no;
     ++s.page_no;
     page_ptr= nullptr;
     if (cur_block)
     {
-      binlog_page_fifo->release_page(s.file_no, block_page_no, cur_block);
+      binlog_page_fifo->release_page(cur_block);
       cur_block= nullptr;
     }
     s.in_page_offset= 0;
@@ -1396,7 +1435,7 @@ binlog_chunk_reader::restore_pos(binlog_chunk_reader::saved_position *pos)
     /* Seek to a different page, release any current page. */
     if (cur_block)
     {
-      binlog_page_fifo->release_page(s.file_no, s.page_no, cur_block);
+      binlog_page_fifo->release_page(cur_block);
       cur_block= nullptr;
     }
     page_ptr= nullptr;
@@ -1427,7 +1466,7 @@ void binlog_chunk_reader::release(bool release_file_page)
 {
   if (cur_block)
   {
-    binlog_page_fifo->release_page(s.file_no, s.page_no, cur_block);
+    binlog_page_fifo->release_page(cur_block);
     cur_block= nullptr;
     page_ptr= nullptr;
   }
