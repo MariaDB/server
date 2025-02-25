@@ -2159,11 +2159,9 @@ row_create_index_for_mysql(
 
 		index = node->index;
 
-		ut_ad(!index == (err != DB_SUCCESS));
-
 		que_graph_free((que_t*) que_node_get_parent(thr));
 
-		if (index && (index->type & DICT_FTS)) {
+		if (err == DB_SUCCESS && (index->type & DICT_FTS)) {
 			err = fts_create_index_tables(trx, index, table->id);
 		}
 
