@@ -25,9 +25,7 @@ CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
 # corresponding to the 51 characters below: 5*51=255.
 let $d255=###################################################;
 let $d250=##################################################;
-let $d245=#####################;
-# FIXME: MDEV-29258
-# let $d245=#################################################;
+let $d245=#################################################;
 --replace_result $d255 d255
 eval CREATE DATABASE `$d255`;
 
