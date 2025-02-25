@@ -78,5 +78,5 @@ hello from dir1/file1.sql
 hello from file2.sql
 hello from file2.sql
 #test 6: script-dir file has source command that references script-dir
-hello from dir1/file2.sql
-hello from dir1/file2.sql
+hello from file2.sql
+hello from file2.sql
