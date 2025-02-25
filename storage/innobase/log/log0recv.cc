@@ -2891,7 +2891,7 @@ restart:
 #endif
       if (storing == YES)
       {
-        if (space_id >= 0xfffffffe)
+        if (space_id >= LOG_BINLOG_ID_0 && space_id <= LOG_BINLOG_ID_1)
         {
           if ((b & 0xf0) != WRITE)
             goto record_corrupted;

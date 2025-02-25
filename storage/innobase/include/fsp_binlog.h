@@ -291,6 +291,7 @@ extern std::atomic<uint64_t> binlog_cur_written_offset[2];
 extern std::atomic<uint64_t> binlog_cur_end_offset[2];
 extern fsp_binlog_page_fifo *binlog_page_fifo;
 
+extern void binlog_write_up_to_now() noexcept;
 extern void fsp_log_binlog_write(mtr_t *mtr, uint64_t file_no, uint32_t page_no,
                                  fsp_binlog_page_entry *page,
                                  uint32_t page_offset, uint32_t len);
