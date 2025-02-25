@@ -39,12 +39,16 @@ extern mysql_pfs_key_t btr_search_latch_key;
 #define btr_search_sys_create() btr_search_sys.create()
 #define btr_search_sys_free() btr_search_sys.free()
 
-/** Disable the adaptive hash search system and empty the index. */
-void btr_search_disable();
+/** Lazily free detached metadata when removing the last reference. */
+ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index);
+
+/** Disable the adaptive hash search system and empty the index.
+@return whether the adaptive hash index was enabled */
+ATTRIBUTE_COLD bool btr_search_disable();
 
 /** Enable the adaptive hash search system.
 @param resize whether buf_pool_t::resize() is the caller */
-void btr_search_enable(bool resize= false);
+ATTRIBUTE_COLD void btr_search_enable(bool resize= false);
 
 /*********************************************************************//**
 Updates the search info. */

@@ -958,8 +958,6 @@ void log_free_check()
     log_check_margins();
 }
 
-extern void buf_resize_shutdown();
-
 /** Make a checkpoint at the latest lsn on shutdown. */
 ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 {
@@ -976,8 +974,6 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 		srv_master_timer.reset();
 	}
 
-	/* Wait for the end of the buffer resize task.*/
-	buf_resize_shutdown();
 	dict_stats_shutdown();
 	btr_defragment_shutdown();
 
