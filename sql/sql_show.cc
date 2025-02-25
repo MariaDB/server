@@ -6787,6 +6787,7 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           table->field[2]->set_null(); // ID
           table->field[3]->set_null(); // IS_DEFAULT
           table->field[6]->set_null(); // Comment
+          table->field[7]->set_null(); // Tailoring
         }
         else
         {
@@ -6804,7 +6805,21 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
             comment.length= strlen(comment.str);
             table->field[6]->store(&comment, scs);
           }
+          // Adding Tailoring column
+          if (tmp_cl->tailoring)
+          {
+            table->field[7]->store(tmp_cl->tailoring, strlen(tmp_cl->tailoring), scs);
+          }
+          else if (tmp_cl->is_tailorable)
+          {
+            table->field[7]->store("", 0, scs);
+          }
+          else
+          {
+            table->field[7]->set_null();
+          }
         }
+
         table->field[4]->store(
           Show::Yes_or_empty::value(tmp_cl->compiled_flag()), scs);
         table->field[5]->store((longlong) tmp_cl->strxfrm_multiply, TRUE);
