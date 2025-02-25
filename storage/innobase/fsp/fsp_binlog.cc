@@ -259,6 +259,9 @@ fsp_binlog_page_fifo::flush_up_to(uint64_t file_no, uint32_t page_no)
     if (file_no < first_file_no ||
         (file_no == first_file_no && fifos[file_no & 1].first_page_no > page_no))
       break;
+    /* Guard against simultaneous RESET MASTER. */
+    if (file_no > first_file_no + 1)
+      break;
     uint64_t file_no_to_flush= file_no;
     /* Flush the prior file to completion first. */
     if (file_no == first_file_no + 1 && fifos[(file_no - 1) & 1].first_page)
@@ -517,7 +520,12 @@ fsp_binlog_page_fifo::flush_thread_run()
     if (first_file_no != ~(uint64_t)0)
     {
       all_flushed= flush_one_page(file_no, false);
-      if (all_flushed)
+      /*
+        flush_one_page() can release the m_mutex temporarily, so do an
+        extra check against first_file_no to guard against a RESET MASTER
+        running in parallel.
+      */
+      if (all_flushed && file_no <= first_file_no)
         all_flushed= flush_one_page(file_no + 1, false);
     }
     if (all_flushed)
@@ -527,6 +535,31 @@ fsp_binlog_page_fifo::flush_thread_run()
   flush_thread_started= false;
   pthread_cond_signal(&m_cond);
   mysql_mutex_unlock(&m_mutex);
+}
+
+void
+binlog_write_up_to_now() noexcept
+{
+  fsp_binlog_page_fifo *fifo= binlog_page_fifo;
+  if (!fifo)
+    return;    /* Startup eg. */
+
+  uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+  uint64_t active2;
+  uint32_t page_no;
+  do
+  {
+    active2= active;
+    /* ToDo: What kind of locking or std::memory_order is needed for page_no? */
+    page_no= binlog_cur_page_no;
+    active= active_binlog_file_no.load(std::memory_order_relaxed);
+  } while (UNIV_UNLIKELY(active != active2));
+
+  if (active != ~(uint64_t)0)
+  {
+    fifo->flush_up_to(active, page_no);
+    fifo->do_fdatasync(active);
+  }
 }
 
 
