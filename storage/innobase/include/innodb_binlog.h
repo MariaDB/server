@@ -59,6 +59,34 @@ struct chunk_data_base {
 };
 
 
+/*
+  Data stored at the start of each binlog file.
+  (The data is stored in the file as compressed integers; this is just a
+  struct to pass around the values in-memory).
+*/
+struct binlog_header_data {
+  /*
+    The LSN corresponding to the start of the binlog file. Any redo record
+    with smaller start (or end) LSN than this should be ignored during recovery
+    and not applied to this file.
+  */
+  lsn_t start_lsn;
+  /*
+    The length of this binlog file, in pages. Used during recovery to know
+    what length to create the binlog file with (in the case where we need to
+    recover the whole file).
+  */
+  uint32_t page_count;
+  /*
+    The interval (in pages) at which the (differential) binlog GTID state is
+    written into the binlog file, for faster GTID position search. This
+    corresponds to the value of --innodb-binlog-state-interval at the time the
+    binlog file was created.
+  */
+  uint32_t diff_state_interval;
+};
+
+
 #define BINLOG_NAME_BASE "binlog-"
 #define BINLOG_NAME_EXT ".ibb"
 /* '/' + "binlog-" + (<=20 digits) + '.' + "ibb" + '\0'. */
@@ -96,7 +124,8 @@ extern bool innodb_binlog_init(size_t binlog_size, const char *directory);
 extern void innodb_binlog_close(bool shutdown);
 extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                               fsp_binlog_page_entry * &block, uint32_t &page_no,
-                              uint32_t &page_offset, uint64_t file_no);
+                              uint32_t &page_offset, uint64_t file_no,
+                              uint32_t file_size_in_pages);
 extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
 extern void innodb_free_oob(THD *thd, void *engine_data);
