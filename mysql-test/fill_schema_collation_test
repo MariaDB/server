@@ -1,0 +1,34 @@
+step 1 : Added temporary table.
+step 2 : Inserted test data into the table.
+step 3 : Select and validate against the expected output.
+
+CREATE TABLE test_collations (
+    id INT PRIMARY KEY,
+    name VARCHAR(255),
+    tailoring VARCHAR(512)
+);
+
+-- Insert test cases
+INSERT INTO test_collations (id, name, tailoring) VALUES (199, 'utf8_general_ci', '& N < \u00F1 <<< \u00D1');
+INSERT INTO test_collations (id, name, tailoring) VALUES (45, 'latin1_swedish_ci', '');
+INSERT INTO test_collations (id, name, tailoring) VALUES (10, 'ascii_general_ci', NULL);
+
+-- Validation queries
+SELECT TAILORING FROM test_collations WHERE ID=199;
+SELECT TAILORING FROM test_collations WHERE ID=45;
+SELECT TAILORING FROM test_collations WHERE ID=10;
+
+-- Validation Step
+DO $$
+DECLARE result RECORD;
+BEGIN
+    FOR result IN (SELECT id, tailoring FROM test_collations) LOOP
+        IF result.id = 199 AND result.tailoring != '& N < \u00F1 <<< \u00D1' THEN
+            RAISE EXCEPTION 'Validation failed for ID 199';
+        ELSIF result.id = 45 AND result.tailoring IS DISTINCT FROM '' THEN
+            RAISE EXCEPTION 'Validation failed for ID 45';
+        ELSIF result.id = 10 AND result.tailoring IS NOT NULL THEN
+            RAISE EXCEPTION 'Validation failed for ID 10';
+        END IF;
+    END LOOP;
+END $$;
