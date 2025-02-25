@@ -143,6 +143,7 @@ static uint verbose= 0;
 
 static ulonglong start_position, stop_position;
 static const longlong stop_position_default= (longlong)(~(my_off_t)0);
+static ulonglong last_processed_position= 0;
 #define start_position_mot ((my_off_t)start_position)
 #define stop_position_mot  ((my_off_t)stop_position)
 
@@ -997,6 +998,8 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   determining how to print.
   @param[in] ev Log_event to process.
   @param[in] pos Offset from beginning of binlog file.
+  @param[in] ev_end_pos Offset that represents the end of the event in the
+                        binlog file.
   @param[in] logname Name of input binlog.
 
   @retval ERROR_STOP An error occurred - the program should terminate.
@@ -1005,7 +1008,8 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   events to process has been reached and the program should terminate.
 */
 Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
-                          my_off_t pos, const char *logname)
+                          my_off_t pos, my_off_t ev_end_pos,
+                          const char *logname)
 {
   char ll_buff[21];
   Log_event_type ev_type= ev->get_type_code();
@@ -1462,6 +1466,7 @@ err:
 end:
   rec_count++;
   last_processed_datetime= ev_when;
+  last_processed_position= ev_end_pos;
 
   DBUG_PRINT("info", ("end event processing"));
   /*
@@ -2379,7 +2384,8 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
       if (old_off != BIN_LOG_HEADER_SIZE)
         *len= 1;         // fake event, don't increment old_off
     }
-    Exit_status retval= process_event(print_event_info, ev, old_off, logname);
+    Exit_status retval= process_event(print_event_info, ev, old_off,
+                                      old_off + (*len - 1), logname);
     if (retval != OK_CONTINUE)
       DBUG_RETURN(retval);
   }
@@ -2397,7 +2403,8 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
       DBUG_RETURN(ERROR_STOP);
     }
 
-    retval= process_event(print_event_info, ev, old_off, logname);
+    retval= process_event(print_event_info, ev, old_off, old_off + (*len - 1),
+                          logname);
     if (retval != OK_CONTINUE)
     {
       my_close(file,MYF(MY_WME));
@@ -2794,9 +2801,9 @@ static Exit_status check_header(IO_CACHE* file,
             the new one, so we should not do it ourselves in this
             case.
           */
-          Exit_status retval= process_event(print_event_info,
-                                            new_description_event, tmp_pos,
-                                            logname);
+          Exit_status retval=
+              process_event(print_event_info, new_description_event, tmp_pos,
+                            my_b_tell(file), logname);
           if (retval != OK_CONTINUE)
             return retval;
         }
@@ -2944,22 +2951,10 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       }
       // else file->error == 0 means EOF, that's OK, we break in this case
 
-      /*
-        Emit a warning in the event that we finished processing input
-        before reaching the boundary indicated by --stop-position.
-      */
-      if (((longlong)stop_position != stop_position_default) &&
-          stop_position > my_b_tell(file))
-      {
-          retval = OK_STOP;
-          warning("Did not reach stop position %llu before "
-                  "end of input", stop_position);
-      }
-
       goto end;
     }
-    if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
-        OK_CONTINUE)
+    if ((retval= process_event(print_event_info, ev, old_off, my_b_tell(file),
+                               logname)) != OK_CONTINUE)
       goto end;
   }
 
@@ -3137,6 +3132,15 @@ int main(int argc, char** argv)
       stop_datetime > last_processed_datetime)
     warning("Did not reach stop datetime '%s' before end of input",
             stop_datetime_str);
+
+  /*
+    Emit a warning in the event that we finished processing input
+    before reaching the boundary indicated by --stop-position.
+  */
+  if ((static_cast<longlong>(stop_position) != stop_position_default) &&
+      stop_position > last_processed_position)
+    warning("Did not reach stop position %llu before end of input",
+            stop_position);
 
   /*
     If enable flashback, need to print the events from the end to the
