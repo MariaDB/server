@@ -52,6 +52,9 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
 NAME
 innodb_system
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE SPACE=4294967294;
+COUNT(*)
+0
 # Success!
 # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
 # restart: --innodb_encrypt_tables=0 --innodb_encryption_threads=0
