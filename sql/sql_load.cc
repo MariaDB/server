@@ -799,8 +799,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;
-  thd->transaction->all.m_unsafe_rollback_flags|=
-    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 #ifndef EMBEDDED_LIBRARY
   if (mysql_bin_log.is_open())
   {
