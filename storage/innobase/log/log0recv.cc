@@ -3188,7 +3188,7 @@ restart:
       }
 #endif
       if (storing != YES);
-      else if (!ENC_10_8 && space_id >= 0xfffffffe)
+      else if (!ENC_10_8 && space_id >= LOG_BINLOG_ID_0 && space_id <= LOG_BINLOG_ID_1)
       {
         if ((b & 0xf0) != WRITE)
           goto record_corrupted;
