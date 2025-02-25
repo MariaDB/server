@@ -26,6 +26,7 @@ InnoDB implementation of binlog.
 #include "mtr0log.h"
 #include "fsp0fsp.h"
 #include "trx0trx.h"
+#include "log0log.h"
 #include "small_vector.h"
 
 #include "rpl_gtid_base.h"
@@ -387,7 +388,7 @@ public:
   enum Read_Result read_gtid_state_file_no(rpl_binlog_state_base *state,
                                            uint64_t file_no, uint32_t page_no,
                                            uint64_t *out_file_end,
-                                           uint64_t *out_diff_state_interval);
+                                           uint32_t *out_diff_state_interval);
   int find_gtid_pos(slave_connection_state *pos,
                     rpl_binlog_state_base *out_state, uint64_t *out_file_no,
                     uint64_t *out_offset);
@@ -463,7 +464,10 @@ innodb_binlog_init_state()
   active_binlog_file_no.store(~(uint64_t)0, std::memory_order_release);
   binlog_cur_page_no= 0;
   binlog_cur_page_offset= FIL_PAGE_DATA;
-  current_binlog_state_interval= innodb_binlog_state_interval;
+  current_binlog_state_interval=
+    (uint32_t)(innodb_binlog_state_interval >> srv_page_size_shift);
+  ut_a(innodb_binlog_state_interval ==
+       (current_binlog_state_interval << srv_page_size_shift));
 }
 
 
@@ -754,7 +758,7 @@ innodb_binlog_discover()
       active_binlog_file_no.store(file_no, std::memory_order_release);
       sql_print_warning("Binlog number %llu could no be opened. Starting a new "
                         "binlog file from number %llu",
-                        binlog_files.last_file_no,(file_no + 1));
+                        binlog_files.last_file_no, (file_no + 1));
       return 0;
     }
 
@@ -938,21 +942,29 @@ innodb_binlog_prealloc_thread()
 __attribute__((noinline))
 static ssize_t
 serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
-                     bool is_first_page)
+                     uint32_t file_size_in_pages, bool is_first_page)
 {
   unsigned char *p= (unsigned char *)buf;
   /*
-    1 uint64_t for the innodb_binlog_state_interval.
+    1 uint64_t for the current LSN at start of binlog file.
+    1 uint32_t for the file length in pages.
+    1 uint32_t for the innodb_binlog_state_interval in pages.
     1 uint64_t for the number of entries in the state stored.
     2 uint32_t + 1 uint64_t for at least one GTID.
   */
-  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 3*COMPR_INT_MAX64);
+  ut_ad(buf_size >= 4*COMPR_INT_MAX32 + 2*COMPR_INT_MAX64);
   if (is_first_page) {
     /*
       In the first page where we put the full state, include the value of the
       setting for the interval at which differential states are binlogged, so
       we know how to search them independent of how the setting changes.
+
+      We also include the current LSN for recovery purposes; and the file
+      length, which is also useful if we have to recover the whole file from
+      the redo log after a crash.
     */
+    p= compr_int_write(p, log_get_lsn());
+    p= compr_int_write(p, file_size_in_pages);
     /* ToDo: Check that this current_binlog_state_interval is the correct value! */
     p= compr_int_write(p, current_binlog_state_interval);
   }
@@ -978,7 +990,8 @@ serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
 bool
 binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                   fsp_binlog_page_entry * &block, uint32_t &page_no,
-                  uint32_t &page_offset, uint64_t file_no)
+                  uint32_t &page_offset, uint64_t file_no,
+                  uint32_t file_size_in_pages)
 {
   /*
     Use a small, efficient stack-allocated buffer by default, falling back to
@@ -990,7 +1003,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   block= nullptr;
 
   ssize_t used_bytes= serialize_gtid_state(state, small_buf, sizeof(small_buf),
-                                           page_no==0);
+                                           file_size_in_pages, page_no==0);
   if (used_bytes >= 0)
   {
     buf= small_buf;
@@ -1004,7 +1017,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     if (UNIV_UNLIKELY(!alloced_buf))
       return true;
     buf= alloced_buf;
-    used_bytes= serialize_gtid_state(state, buf, buf_size, page_no==0);
+    used_bytes= serialize_gtid_state(state, buf, buf_size,
+                                     file_size_in_pages, page_no==0);
     if (UNIV_UNLIKELY(used_bytes < 0))
     {
       ut_ad(0 /* Shouldn't happen, as we allocated maximum needed size. */);
@@ -1032,7 +1046,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     {
       ut_ad(page_no < binlog_page_fifo->size_in_pages(file_no));
       if (block)
-        binlog_page_fifo->release_page(file_no, block_page_no, block);
+        binlog_page_fifo->release_page_mtr(block, mtr);
       block_page_no= page_no;
       block= binlog_page_fifo->create_page(file_no, block_page_no);
       ut_a(block /* ToDo: error handling? */);
@@ -1050,8 +1064,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       ptr[2] = (byte)(chunk >> 8);
       ut_ad(chunk <= 0xffff);
       memcpy(ptr+3, buf, chunk);
-      fsp_log_binlog_write(mtr, file_no, block_page_no, block, page_offset,
-                           (uint32)(chunk+3));
+      fsp_log_binlog_write(mtr, block, page_offset, (uint32)(chunk+3));
       page_offset+= (uint32_t)(chunk+3);
       buf+= chunk;
       used_bytes-= chunk;
@@ -1060,7 +1073,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 
     if (page_offset == page_size - FIL_PAGE_DATA_END) {
       if (block)
-        binlog_page_fifo->release_page(file_no, block_page_no, block);
+        binlog_page_fifo->release_page_mtr(block, mtr);
       block= nullptr;
       block_page_no= ~(uint32_t)0;
       page_offset= FIL_PAGE_DATA;
@@ -1090,7 +1103,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 */
 static int
 read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
-                          uint32_t page_no, uint64_t *out_diff_state_interval)
+                          uint32_t page_no, binlog_header_data *out_header_data)
 {
   const byte *p= page + FIL_PAGE_DATA;
   byte t= *p;
@@ -1108,17 +1121,32 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
   if (page_no == 0)
   {
     /*
-      The state in the first page has an extra word, the offset between
-      differential binlog states logged regularly in the binlog tablespace.
+      The state in the first page has three extra words: The start LSN of the
+      file; length of the file in pages; and the offset between differential
+      binlog states logged regularly in the binlog tablespace.
     */
-    *out_diff_state_interval= v_and_p.first;
     if (UNIV_UNLIKELY(p >= p_end))
       return -1;
+    out_header_data->start_lsn= (uint32_t)v_and_p.first;
+    v_and_p= compr_int_read(p);
+    p= v_and_p.second;
+    if (UNIV_UNLIKELY(p >= p_end) || UNIV_UNLIKELY(v_and_p.first >= UINT32_MAX))
+      return -1;
+    out_header_data->page_count= (uint32_t)v_and_p.first;
+    v_and_p= compr_int_read(p);
+    p= v_and_p.second;
+    if (UNIV_UNLIKELY(p >= p_end) || UNIV_UNLIKELY(v_and_p.first >= UINT32_MAX))
+      return -1;
+    out_header_data->diff_state_interval= (uint32_t)v_and_p.first;
     v_and_p= compr_int_read(p);
     p= v_and_p.second;
   }
   else
-    *out_diff_state_interval= 0;
+  {
+    out_header_data->start_lsn= 0;
+    out_header_data->page_count= 0;
+    out_header_data->diff_state_interval= 0;
+  }
 
   if (UNIV_UNLIKELY(p > p_end))
     return -1;
@@ -1172,7 +1200,7 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
 */
 static int
 read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
-                uint64_t *out_diff_state_interval)
+                binlog_header_data *out_header_data)
 {
   std::unique_ptr<byte [], void (*)(void *)> page_buf
     ((byte *)my_malloc(PSI_NOT_INSTRUMENTED, srv_page_size, MYF(MY_WME)),
@@ -1187,7 +1215,7 @@ read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
     return -1;
 
   return read_gtid_state_from_page(state, page_buf.get(), page_no,
-                                   out_diff_state_interval);
+                                   out_header_data);
 }
 
 
@@ -1202,9 +1230,10 @@ read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
 static bool
 binlog_state_recover()
 {
+  binlog_header_data header_data;
   rpl_binlog_state_base state;
   state.init();
-  uint64_t diff_state_interval= 0;
+  uint32_t diff_state_interval= 0;
   uint32_t page_no= 0;
   char filename[OS_FILE_MAX_PATH];
 
@@ -1214,13 +1243,14 @@ binlog_state_recover()
   if (UNIV_UNLIKELY(file < (File)0))
     return true;
 
-  int res= read_gtid_state(&state, file, page_no, &diff_state_interval);
+  int res= read_gtid_state(&state, file, page_no, &header_data);
   if (res < 0)
   {
     my_close(file, MYF(0));
     return true;
   }
-  if (diff_state_interval == 0 || diff_state_interval % srv_page_size != 0)
+  diff_state_interval= header_data.diff_state_interval;
+  if (diff_state_interval == 0)
   {
     sql_print_warning("Invalid differential binlog state interval %llu found "
                       "in binlog file, ignoring", diff_state_interval);
@@ -1229,13 +1259,11 @@ binlog_state_recover()
   else
   {
     current_binlog_state_interval= diff_state_interval;
-    diff_state_interval>>= srv_page_size_shift;
     page_no= (uint32_t)(binlog_cur_page_no -
                         (binlog_cur_page_no % diff_state_interval));
     while (page_no > 0)
     {
-      uint64_t dummy_interval;
-      res= read_gtid_state(&state, file, page_no, &dummy_interval);
+      res= read_gtid_state(&state, file, page_no, &header_data);
       if (res > 0)
         break;
       page_no-= (uint32_t)diff_state_interval;
@@ -1891,8 +1919,9 @@ enum gtid_search::Read_Result
 gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
                                      uint64_t file_no, uint32_t page_no,
                                      uint64_t *out_file_end,
-                                     uint64_t *out_diff_state_interval)
+                                     uint32_t *out_diff_state_interval)
 {
+  binlog_header_data header_data;
   *out_file_end= 0;
   uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
   if (file_no > active2)
@@ -1925,7 +1954,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
     {
       /* Active moved ahead while we were reading, try again. */
       if (block)
-        binlog_page_fifo->release_page(file_no, page_no, block);
+        binlog_page_fifo->release_page(block);
       continue;
     }
     if (file_no + 1 >= active)
@@ -1948,8 +1977,9 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
     {
       ut_ad(end_offset != ~(uint64_t)0);
       int res= read_gtid_state_from_page(state, block->page_buf, page_no,
-                                         out_diff_state_interval);
-      binlog_page_fifo->release_page(file_no, page_no, block);
+                                         &header_data);
+      *out_diff_state_interval= header_data.diff_state_interval;
+      binlog_page_fifo->release_page(block);
       return (Read_Result)res;
     }
     else
@@ -1987,8 +2017,9 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
       }
       if (!*out_file_end)
         *out_file_end= cur_open_file_length;
-      return (Read_Result)read_gtid_state(state, cur_open_file, page_no,
-                                          out_diff_state_interval);
+      int res= read_gtid_state(state, cur_open_file, page_no, &header_data);
+      *out_diff_state_interval= header_data.diff_state_interval;
+      return (Read_Result)res;
     }
   }
 }
@@ -2020,14 +2051,14 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
 
   /* First search backwards for the right file to start from. */
   uint64_t file_end= 0;
-  uint64_t diff_state_interval= 0;
+  uint32_t diff_state_page_interval= 0;
   rpl_binlog_state_base base_state, page0_diff_state, tmp_diff_state;
   base_state.init();
   for (;;)
   {
     enum Read_Result res=
       read_gtid_state_file_no(&base_state, file_no, 0, &file_end,
-                              &diff_state_interval);
+                              &diff_state_page_interval);
     if (res == READ_ENOENT)
       return 0;
     if (res == READ_ERROR)
@@ -2060,15 +2091,10 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     The invariant is that page2 is known to be after the target page, and page0
     is known to be a valid position to start (but possibly earlier than needed).
   */
-  uint32_t diff_state_page_interval=
-    (uint32_t)(diff_state_interval >> srv_page_size_shift);
-  ut_ad(diff_state_interval % srv_page_size == 0);
-  if (diff_state_interval % srv_page_size != 0)
-    return -1;  // Corrupt tablespace
   uint32_t page0= 0;
   uint32_t page2= (uint32_t)
-    ((file_end + diff_state_interval - 1) >> srv_page_size_shift);
-  /* Round to the next diff_state_interval after file_end. */
+    (diff_state_page_interval + ((file_end - 1) >> srv_page_size_shift));
+  /* Round to the next diff_state_page_interval after file_end. */
   page2-= page2 % diff_state_page_interval;
   uint32_t page1= (page0 + page2) / 2;
   page0_diff_state.init();
@@ -2079,9 +2105,10 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     ut_ad((page1 - page0) % diff_state_page_interval == 0);
     tmp_diff_state.reset_nolock();
     tmp_diff_state.load_nolock(&base_state);
+    uint32_t dummy;
     enum Read_Result res=
       read_gtid_state_file_no(&tmp_diff_state, file_no, page1, &file_end,
-                              &diff_state_interval);
+                              &dummy);
     if (res == READ_ENOENT)
       return 0;  /* File purged while we are reading from it? */
     if (res == READ_ERROR)
@@ -2196,7 +2223,8 @@ bool
 innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 {
   gtid_search search_obj;
-  uint64_t dummy_file_end, dummy_diff_state_interval;
+  uint64_t dummy_file_end;
+  uint32_t dummy_diff_state_interval;
   bool err= false;
 
   mysql_mutex_lock(&purge_binlog_mutex);
