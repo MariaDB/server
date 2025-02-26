@@ -64,7 +64,7 @@ drop table t1;
 
 
 create global temporary table t (x int) on commit delete rows;
---if (0) {
+
 insert into t values (1);
 select * from t;
 begin;
@@ -72,7 +72,7 @@ insert into t values (1);
 select * from t;
 commit;
 select * from t;
---}
+
 --connect (con1,localhost,root,,)
 select * from t;
 insert into t values (1);
