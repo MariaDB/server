@@ -416,9 +416,25 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     break;
   case HA_EXTRA_FLUSH:
     if (!share->temporary)
-      error= _ma_flush_table_files(info, MARIA_FLUSH_DATA | MARIA_FLUSH_INDEX,
-                                   FLUSH_KEEP, FLUSH_KEEP);
-
+    {
+      if (_ma_flush_table_files(info, MARIA_FLUSH_DATA | MARIA_FLUSH_INDEX,
+                                FLUSH_KEEP, FLUSH_KEEP))
+        error= my_errno;
+      if (!error && share->changed)
+      {
+        mysql_mutex_lock(&share->intern_lock);
+        if (_ma_state_info_write(share,
+                                 MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET |
+                                 MA_STATE_INFO_WRITE_FULL_INFO))
+          error= my_errno;
+        mysql_mutex_unlock(&share->intern_lock);
+      }
+      if (info->opt_flag & WRITE_CACHE_USED)
+      {
+        if ((my_b_flush_io_cache(&info->rec_cache, 0)))
+          error= my_errno;
+      }
+    }
     mysql_mutex_lock(&share->intern_lock);
     /* Tell maria_lock_database() that we locked the intern_lock mutex */
     info->intern_lock_locked= 1;
@@ -429,12 +445,12 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       share->not_flushed= 0;
       if (_ma_sync_table_files(info))
 	error= my_errno;
-      if (error)
-      {
-	/* Fatal error found */
-	share->changed= 1;
-        _ma_set_fatal_error(info, HA_ERR_CRASHED);
-      }
+    }
+    if (error)
+    {
+      /* Fatal error found */
+      share->changed= 1;
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
     }
     mysql_mutex_unlock(&share->intern_lock);
     break;
