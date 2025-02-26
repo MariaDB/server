@@ -1435,7 +1435,14 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
       DBUG_RETURN(TRUE);
     }
 
-    load_db_opt_by_name(thd, dbname->str, &create);
+    if (load_db_opt_by_name(thd, dbname->str, &create) < 0)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR,
+                          "Database '%.192s' does not have a db.opt file. "
+                          "You can create one with ALTER DATABASE if needed",
+                          dbname->str);
+    }
   }
 
   mysqld_show_create_db_get_fields(thd, &field_list);
@@ -2943,25 +2950,27 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 
   while (thread_info *thd_info= arg.thread_infos.get())
   {
+    const char *str;
+    ulonglong start_time;
+    CSET_STRING query;
+
     protocol->prepare_for_resend();
     protocol->store(thd_info->thread_id);
     protocol->store(thd_info->user, strlen(thd_info->user), system_charset_info);
     protocol->store(thd_info->host, strlen(thd_info->host), system_charset_info);
     protocol->store_string_or_null(thd_info->db, system_charset_info);
-    if (thd_info->proc_info)
-      protocol->store(thd_info->proc_info, strlen(thd_info->proc_info),
-                      system_charset_info);
+    if ((str= thd_info->proc_info))
+      protocol->store(str, strlen(str), system_charset_info);
     else
       protocol->store(&command_name[thd_info->command], system_charset_info);
-    if (thd_info->start_time && now > thd_info->start_time)
-      protocol->store_long((now - thd_info->start_time) / HRTIME_RESOLUTION);
+    if ((start_time= thd_info->start_time) && now > start_time)
+      protocol->store_long((now - start_time) / HRTIME_RESOLUTION);
     else
       protocol->store_null();
     protocol->store_string_or_null(thd_info->state_info, system_charset_info);
-    if (thd_info->query_string.length())
-      protocol->store(thd_info->query_string.str(),
-                      thd_info->query_string.length(),
-                      thd_info->query_string.charset());
+    query= thd_info->query_string;
+    if (query.length() && query.str())
+      protocol->store(query.str(), query.length(), query.charset());
     else
       protocol->store_null();
     if (!(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
