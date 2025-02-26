@@ -12297,3 +12297,17 @@ WARN_INDEX_HINTS_IGNORED
         ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
+ER_INVALID_USE_OF_ORA_JOIN
+        eng "Invalid usage of (+) operator"
+ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+        eng "Invalid usage of (+) operator: cycle dependencies"
+ER_INVALID_USE_OF_ORA_JOIN_OUTER
+        eng "Invalid usage of (+) operator with outer reference %s"
+ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE
+        eng "Invalid usage of (+) operator: both tables %s and %s are of %s type in the relation"
+ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+        eng "Invalid usage of (+) operator: used in OR or IN"
+ER_INVALID_USE_OF_ORA_JOIN_MIX
+        eng "Invalid usage of (+) operator: mixed with other type of join"
+WARN_ORA_JOIN_IGNORED
+        eng "Oracle outer join operator (+) ignored in '%-.100s'"
