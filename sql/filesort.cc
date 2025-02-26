@@ -745,11 +745,8 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
 const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
 {
   Field **pfield;
-  const size_t alloc_size= 512;
-  char *row_buff= (char *) alloc_root(&table->mem_root, alloc_size);
-  char *row_buff_tmp= (char *) alloc_root(&table->mem_root, alloc_size);
-  String tmp(row_buff_tmp, alloc_size, &my_charset_bin);
-  String output(row_buff, alloc_size, &my_charset_bin);
+  String tmp;
+  String output;
 
   auto move_back_lambda= [table, rec]() mutable {
     table->move_fields(table->field, table->record[0], rec);
@@ -814,7 +811,10 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
   }
   output.append(')');
 
-  return output.c_ptr_safe();
+  char *row_src= output.c_ptr_safe();
+  char *row_dst= (char *) alloc_root(&table->mem_root, output.length() + 1);
+  memcpy(row_dst, row_src, output.length() + 1);
+  return row_dst;
 }
 
 
