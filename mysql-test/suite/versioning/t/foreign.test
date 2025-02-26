@@ -304,6 +304,9 @@ eval create or replace table child (
     on update cascade
 ) engine = innodb with system versioning;
 
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
 create or replace table subchild (
   id int not null auto_increment primary key,
   parent_id smallint unsigned not null,
@@ -313,6 +316,9 @@ create or replace table subchild (
     on delete cascade
     on update cascade
 ) engine=innodb;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
 
 insert into parent (value) values (23);
 --disable_cursor_protocol

@@ -3274,6 +3274,7 @@ notfound:
     DBUG_RETURN(0);
   }
   *part_id= 0;
+  part_info->err_value= part_func_value;
   DBUG_RETURN(HA_ERR_NO_PARTITION_FOUND);
 }
 
@@ -4894,13 +4895,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
 {
   DBUG_ENTER("prep_alter_part_table");
 
-  /* Foreign keys on partitioned tables are not supported, waits for WL#148 */
-  if (table->part_info && (alter_info->flags & (ALTER_ADD_FOREIGN_KEY |
-                                                ALTER_DROP_FOREIGN_KEY)))
-  {
-    my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "FOREIGN KEY");
-    DBUG_RETURN(TRUE);
-  }
+// Allow partitioning for ALTER
+
   /* Remove partitioning on a not partitioned table is not possible */
   if (!table->part_info && (alter_info->partition_flags &
                             ALTER_PARTITION_REMOVE))
@@ -5530,11 +5526,6 @@ that are reorganised.
       if (num_parts_found != num_parts_dropped)
       {
         my_error(ER_PARTITION_DOES_NOT_EXIST, MYF(0));
-        goto err;
-      }
-      if (table->file->is_fk_defined_on_table_or_index(MAX_KEY))
-      {
-        my_error(ER_ROW_IS_REFERENCED, MYF(0));
         goto err;
       }
       DBUG_ASSERT(!(alter_info->partition_flags & ALTER_PARTITION_CONVERT_OUT) ||

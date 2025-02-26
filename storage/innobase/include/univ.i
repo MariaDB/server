@@ -252,6 +252,10 @@ terminating '\0'. InnoDB can handle longer names internally */
 the MySQL's NAME_LEN, see check_and_convert_db_name(). */
 #define MAX_DATABASE_NAME_LEN	MAX_TABLE_NAME_LEN
 
+/** The maximum length of foreign key ID including trailing zero */
+/* "db/constraint_name\x255#P#part_name#SP#subpart_name\0" */
+#define MAX_FOREIGN_ID_LEN (MAX_TABLE_NAME_LEN * 4 + 1 + 1 + 3 + 4 + 1)
+
 /** MAX_FULL_NAME_LEN defines the full name path including the
 database name and table name. In addition, 14 bytes is added for:
 	2 for surrounding quotes around table name

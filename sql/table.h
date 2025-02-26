@@ -1890,6 +1890,18 @@ public:
     return s->versioned == type;
   }
 
+// Interface for CREATE/ALTER to create FKs only in current partition
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  /* These are for InnoDB, so they cannot be inline */
+  bool vers_system_time_partitioned() const;
+  bool is_vers_current_partition(handler *file) const;
+  bool is_first_partition(handler *file) const;
+#else
+  bool vers_system_time_partitioned() const { return false; }
+  bool is_vers_current_partition(handler *file) const { return false; }
+  bool is_first_partition(handler *file) const { return false; }
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
+
   bool versioned_write() const
   {
     DBUG_ASSERT(versioned() || !vers_write);
