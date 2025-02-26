@@ -8675,6 +8675,27 @@ Item *LEX::create_item_ident(THD *thd,
 }
 
 
+bool LEX::mark_item_ident_for_ora_join(THD *thd, Item *item)
+{
+  DBUG_ASSERT(item);
+
+  if (thd->variables.sql_mode & MODE_ORACLE)
+  {
+    if (current_select && current_select->parsing_place == IN_WHERE)
+    {
+      if (Item_field *item_field= dynamic_cast<Item_field*>(item))
+      {
+        item_field->with_flags|= item_with_t::ORA_JOIN;
+        return false;
+      }
+    }
+  }
+
+  thd->parse_error(ER_SYNTAX_ERROR);
+  return true;
+}
+
+
 Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
 {
   DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
@@ -9983,10 +10004,89 @@ Item *Lex_trim_st::make_item_func_trim_oracle(THD *thd) const
 
 
 Item *LEX::make_item_func_call_generic(THD *thd,
+                                       const Lex_ident_cli_st &name_cli,
+                                       udf_func *udf,
+                                       List<Item> *args)
+{
+  if (args && args->elements == 1 &&
+      dynamic_cast<Item_join_operator_plus*>(args->head()))
+  {
+    Item *item= create_item_ident(thd, &name_cli);
+    if (!item || mark_item_ident_for_ora_join(thd, item))
+      return nullptr;
+    return item;
+  }
+
+  const Lex_ident_sys name(thd, &name_cli);
+  if (name.is_null())
+    return nullptr;
+
+  if (unlikely(Lex_ident_routine::check_name_with_error(name)))
+    return nullptr;
+
+  const Type_handler *h;
+  Create_func *builder;
+  Item *item= NULL;
+  sp_record* rec= NULL;
+
+  /*
+    Implementation note:
+    names are resolved with the following order:
+    - MySQL native functions,
+    - User Defined Functions,
+    - Constructors, like POINT(1,1)
+    - Stored Functions (assuming the current <use> database)
+
+    This will be revised with WL#2128 (SQL PATH)
+  */
+  builder= Schema::find_implied(thd)->find_native_function_builder(thd, name);
+  if (builder)
+    return builder->create_func(thd, &name, args);
+
+  if ((h= Type_handler::handler_by_name(thd, name)) &&
+           (item= h->make_constructor_item(thd, args)))
+  {
+    // Found a constructor with a proper argument count
+    return item;
+  }
+
+  if (spcont && (rec= spcont->find_record(&name, false)))
+  {
+    // Make a constructor for "TYPE t IS RECORD(...)"
+    return new (thd->mem_root) Item_row(thd, *args);
+  }
+
+#ifdef HAVE_DLOPEN
+  if (udf)
+  {
+    if (udf->type == UDFTYPE_AGGREGATE)
+    {
+      current_select->in_sum_expr--;
+    }
+    return Create_udf_func::s_singleton.create(thd, udf, args);
+  }
+#endif
+
+  builder= find_qualified_function_builder(thd);
+  DBUG_ASSERT(builder);
+  return builder->create_func(thd, &name, args);
+}
+
+
+Item *LEX::make_item_func_call_generic(THD *thd,
                                        const Lex_ident_cli_st *cdb,
                                        const Lex_ident_cli_st *cname,
                                        List<Item> *args)
 {
+  if (args && args->elements == 1 &&
+      dynamic_cast<Item_join_operator_plus*>(args->head()))
+  {
+    Item *item= create_item_ident(thd, cdb, cname);
+    if (!item || mark_item_ident_for_ora_join(thd, item))
+      return nullptr;
+    return item;
+  }
+
   Lex_ident_sys db(thd, cdb), name(thd, cname);
   if (db.is_null() || name.is_null())
     return NULL; // EOM
@@ -10051,6 +10151,15 @@ Item *LEX::make_item_func_call_generic(THD *thd,
                                        Lex_ident_cli_st *cfunc,
                                        List<Item> *args)
 {
+  if (args && args->elements == 1 &&
+      dynamic_cast<Item_join_operator_plus*>(args->head()))
+  {
+    Item *item= create_item_ident(thd, cdb, cpkg, cfunc);
+    if (!item || mark_item_ident_for_ora_join(thd, item))
+      return nullptr;
+    return item;
+  }
+
   Lex_ident_sys db(thd, cdb), pkg(thd, cpkg), func(thd, cfunc);
   Identifier_chain2 q_pkg_func(pkg, func);
   sp_name *qname;

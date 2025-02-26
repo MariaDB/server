@@ -2569,6 +2569,7 @@ struct TABLE_LIST
   Item_in_subselect  *jtbm_subselect;
   /* TODO: check if this can be joined with tablenr_exec */
   uint jtbm_table_no;
+  uint ora_join_table_no;
 
   SJ_MATERIALIZATION_INFO *sj_mat_info;
 

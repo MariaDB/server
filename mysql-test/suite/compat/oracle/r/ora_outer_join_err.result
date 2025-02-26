@@ -1,0 +1,85 @@
+SET sql_mode=ORACLE;
+#
+# Cycles
+#
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+# b - cyrcle
+select * from t1, t2, t3
+where t1.a = t2.b(+) AND t2.b = t3.c(+) AND
+t3.c = t2.b(+);
+ERROR HY000: Invalid usage of (+) operator: cycle dependencies
+# O - cyrcle
+select * from t1, t2, t3
+where t1.a = t2.b(+) AND t2.b = t3.c(+) AND
+t3.c = t1.a(+);
+ERROR HY000: Invalid usage of (+) operator: cycle dependencies
+# self-reference cyrcle
+select * from t1, t2, t3
+where t1.a = t2.b(+) AND t2.b = t3.c(+) AND
+t3.c = t3.c(+);
+ERROR HY000: Invalid usage of (+) operator: cycle dependencies
+DROP TABLE t1,t2,t3;
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d int);
+create table t5 (e int);
+# complex case
+select * from t1, t2, t3, t4, t5
+where
+t3.c = t4.d(+) AND t4.d = t3.c(+) AND
+t1.a = t5.e(+) AND t2.b = t5.e(+) AND
+t2.b = t3.c(+)
+;
+ERROR HY000: Invalid usage of (+) operator: cycle dependencies
+DROP TABLE t1,t2,t3,t4,t5;
+#
+# mix with other join operatirs
+#
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+# mixing with left join
+select * from t1, t2 left join t3 on (t2.a = t3.a)
+where t1.a = t2.a(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+# mixing with right join
+select * from t1, t2 right join t3 on (t2.a = t3.a)
+where t1.a = t2.a(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+# mixing with natural join
+select * from t1, t2 natural join t3
+where t1.a = t2.a(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+# mixing with nested join
+select * from t1, t2 join t3
+where t1.a = t2.a(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+# mixing with nested join
+select * from t1, (t2, t3)
+where t1.a = t2.a(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+DROP TABLE t1,t2,t3;
+#
+# misplaced usage of (+)
+#
+create table t1 (a int);
+create table t2 (a int);
+select t1.a(+), t2.a from t1,t2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '), t2.a from t1,t2' at line 1
+select t1.a, t2.a from t1,t2 HAVING t1.a(+) = t2.a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') = t2.a' at line 1
+select t1.a, t2.a from t1 join t2 on (t1.a(+) = t2.a);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') = t2.a)' at line 1
+DROP TABLE t1,t2;
+#
+# outer reference
+#
+create table t1 (a int);
+create table t2 (a int);
+select u2.a, (select t1.a, t2.a from t1,t2 where u1.a(+) = t2.a)
+from t1 as u1, t2 as u2 where  u1.a(+) = u2.a;
+ERROR HY000: Invalid usage of (+) operator with outer reference a
+DROP TABLE t1,t2;

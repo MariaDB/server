@@ -3478,6 +3478,11 @@ void Item_ident::print(String *str, enum_query_type query_type)
     str->append('.');
   }
   append_identifier(thd, str, &field_name);
+
+  if (with_ora_join())
+  {
+    str->append(STRING_WITH_LEN(" (+)"));
+  }
 }
 
 /* ARGSUSED */
@@ -6235,6 +6240,22 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   return 1;
 }
 
+bool Item_field::check_ora_join(Item **reference, bool outer_fixed)
+{
+  if(with_ora_join())
+  {
+    if (outer_fixed) // Oracle join operator is local
+    {
+      my_error(ER_INVALID_USE_OF_ORA_JOIN_OUTER, MYF(0), name.str);
+      return TRUE;
+    }
+    // Keep flag about oracle join if view fied was resolved
+    if (reference[0] != this) // resolved to a new field
+      reference[0]->copy_flags(this, item_with_t::ORA_JOIN);
+  }
+  return FALSE;
+}
+
 
 /**
   Resolve the name of a column reference.
@@ -6369,7 +6390,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
             set_max_sum_func_level(thd, select);
             set_field(new_field);
             depended_from= (*((Item_field**)res))->depended_from;
-            return 0;
+            return check_ora_join(reference, false);
           }
           else
           {
@@ -6396,7 +6417,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               its arguments are not defined.
             */
             set_max_sum_func_level(thd, select);
-            return FALSE;
+            return check_ora_join(reference, false);
           }
         }
       }
@@ -6451,7 +6472,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       Also we suppose that view can't be changed during PS/SP life.
     */
     if (from_field == view_ref_found)
-      return FALSE;
+      return check_ora_join(reference, outer_fixed);
 
     set_field(from_field);
   }
@@ -6499,6 +6520,17 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   base_flags|= item_base_t::FIXED;
+  if(with_ora_join())
+  {
+    if (outer_fixed) // Oracle join operator is local
+    {
+      my_error(ER_INVALID_USE_OF_ORA_JOIN_OUTER, MYF(0), name.str);
+      goto error;
+    }
+    // Keep flag about oracle join if view fied was resolved
+    if (reference[0] != this) // resolved to a new field
+      reference[0]->copy_flags(this, item_with_t::ORA_JOIN);
+  }
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       select &&
@@ -6547,7 +6579,7 @@ mark_non_agg_field:
         select_lex->set_non_agg_field_used(true);
     }
   }
-  return FALSE;
+  return check_ora_join(reference, outer_fixed);
 
 error:
   context->process_error(thd);
@@ -7706,6 +7738,17 @@ bool Item_time_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzyd
 bool Item_null::send(Protocol *protocol, st_value *buffer)
 {
   return protocol->store_null();
+}
+
+
+/*
+  Create a List<Item> consisting of one element -
+  a single Item_join_operator_plus instance.
+*/
+List<Item> *Item_join_operator_plus::make_as_item_list(THD *thd)
+{
+  Item *item= new (thd->mem_root) Item_join_operator_plus(thd);
+  return item ? List<Item>::make(thd->mem_root, item) : nullptr;
 }
 
 
@@ -10077,6 +10120,96 @@ bool Item_default_value::val_native_result(THD *thd, Native *to)
   return Item_field::val_native_result(thd, to);
 }
 
+
+bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
+                                           TABLE_LIST *table)
+{
+  DBUG_ASSERT(fixed());
+  TABLE_LIST *err_table= NULL;
+
+  if (with_ora_join())
+  {
+    // OUTER table
+    if (arg->outer == NULL)
+    {
+      arg->outer= table;
+      List_iterator_fast<TABLE_LIST> it(arg->inner);
+      TABLE_LIST *t;
+      while ((t= it++))
+        if (t == table)
+        {
+          err_table= t;
+          goto err;
+        }
+    }
+    else
+    {
+      if (arg->outer != table)
+      {
+        err_table= arg->outer;
+        goto err;
+      }
+    }
+  }
+  else
+  {
+    // INNER table
+    List_iterator_fast<TABLE_LIST> it(arg->inner);
+    TABLE_LIST *t;
+    while ((t= it++))
+      if (t == table)
+        break;
+    if (t == NULL)
+    {
+      if (table == arg->outer)
+      {
+        err_table= arg->outer;
+        goto err;
+      }
+      arg->inner.push_back(table);
+    }
+  }
+  return FALSE;
+err:
+  // it is not marked all tables as outer or several inner or outer tables
+  if (table == err_table)
+    // self reference (simple case of cyclic reference)
+    my_error(ER_INVALID_USE_OF_ORA_JOIN_CYCLE, MYF(0));
+  else
+    my_error(ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE, MYF(0),
+             err_table->alias.str,
+             table->alias.str,
+             (with_ora_join()?"OUTER":"INNER"));
+  return TRUE;
+}
+
+
+bool Item_field::ora_join_processor(void *arg)
+{
+  DBUG_ASSERT(cached_table);
+  return Item_ident::ora_join_processor_helper((ora_join_processor_param *)arg,
+                                               cached_table);
+}
+
+
+bool Item_direct_view_ref::ora_join_processor(void *arg)
+{
+  DBUG_ASSERT(view);
+  return Item_ident::ora_join_processor_helper((ora_join_processor_param *)arg,
+                                               view);
+}
+
+
+bool Item_ref::ora_join_processor(void *arg)
+{
+  if (with_ora_join())
+  {
+    // It should not happened
+    my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+    return TRUE;
+  }
+  return FALSE;
+}
 
 table_map Item_default_value::used_tables() const
 {
