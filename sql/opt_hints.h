@@ -107,6 +107,7 @@ enum opt_hints_enum
   SEMIJOIN_HINT_ENUM,
   SUBQUERY_HINT_ENUM,
   DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
+  MERGE_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
 
@@ -470,6 +471,15 @@ public:
     table alias in the query block and attaches corresponding
     key hint objects to appropriate KEY structures.
 
+    @param table_list Pointer to TABLE_LIST object
+  */
+  void fix_hints_for_table(TABLE_LIST *table_list);
+
+  /**
+    Function finds Opt_hints_table object corresponding to
+    table alias in the query block and attaches corresponding
+    key hint objects to appropriate KEY structures.
+
     @param table      Pointer to TABLE object
     @param alias      Table alias
 
@@ -631,6 +641,20 @@ bool hint_key_state(const THD *thd, const TABLE *table,
                     uint keyno, opt_hints_enum type_arg,
                     uint optimizer_switch);
 
+/**
+  Returns table hint value if hint is specified, returns
+  fallback value if hint is not specified.
+
+  @param thd                Pointer to THD object
+  @param table_lsit         Pointer to TABLE_LIST object
+  @param type_arg           Hint type
+  @param fallback_value     Value to be returned if the hint is not set
+
+  @return table hint value if hint is specified,
+          otherwise fallback value.
+*/
+bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
+                      opt_hints_enum type_arg, bool fallback_value);
 
 /**
   Returns table hint value if hint is specified, returns
