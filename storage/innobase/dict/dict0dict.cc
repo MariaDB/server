@@ -585,12 +585,12 @@ dict_index_get_nth_field_pos(
 @param[in,out] db_name      database name buffer
 @param[in,out] tbl_name     table name buffer
 @param[out] db_name_len     database name length
-@param[out] tbl_name_len    table name length
-@return whether the table name is visible to SQL */
+@param[out] tbl_name_len    table name length */
 template<bool dict_frozen>
-bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
+void dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
                               char (&tbl_name)[NAME_LEN + 1],
-                              size_t *db_name_len, size_t *tbl_name_len) const
+                              size_t *db_name_len, size_t *tbl_name_len)
+  const noexcept
 {
   char db_buf[MAX_DATABASE_NAME_LEN + 1];
   char tbl_buf[MAX_TABLE_NAME_LEN + 1];
@@ -601,18 +601,16 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   const size_t db_len= name.dblen();
   ut_ad(db_len <= MAX_DATABASE_NAME_LEN);
 
-  memcpy(db_buf, mdl_name.m_name, db_len);
+  memcpy(db_buf, name.m_name, db_len);
   db_buf[db_len]= 0;
 
-  size_t tbl_len= strlen(mdl_name.m_name + db_len + 1);
-  const bool is_temp= mdl_name.is_temporary();
+  size_t tbl_len= strlen(name.m_name + db_len + 1);
 
-  if (is_temp);
-  else if (const char *is_part= static_cast<const char*>
-           (memchr(mdl_name.m_name + db_len + 1, '#', tbl_len)))
-    tbl_len= static_cast<size_t>(is_part - &mdl_name.m_name[db_len + 1]);
+  if (const char *is_part= static_cast<const char*>
+      (memchr(name.m_name + db_len + 1, '#', tbl_len)))
+    tbl_len= static_cast<size_t>(is_part - &name.m_name[db_len + 1]);
 
-  memcpy(tbl_buf, mdl_name.m_name + db_len + 1, tbl_len);
+  memcpy(tbl_buf, name.m_name + db_len + 1, tbl_len);
   tbl_buf[tbl_len]= 0;
 
   if (!dict_frozen)
@@ -621,17 +619,13 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   *db_name_len= filename_to_tablename(db_buf, db_name,
                                       MAX_DATABASE_NAME_LEN + 1, true);
 
-  if (is_temp)
-    return false;
-
   *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
                                        MAX_TABLE_NAME_LEN + 1, true);
-  return true;
 }
 
-template bool
+template void
 dict_table_t::parse_name<>(char(&)[NAME_LEN + 1], char(&)[NAME_LEN + 1],
-                           size_t*, size_t*) const;
+                           size_t*, size_t*) const noexcept;
 
 dict_table_t *dict_sys_t::acquire_temporary_table(table_id_t id) const noexcept
 {
@@ -694,9 +688,7 @@ dict_acquire_mdl_shared(dict_table_t *table,
   size_t db_len, tbl_len;
   bool unaccessible= false;
 
-  if (!table->parse_name<!trylock>(db_buf, tbl_buf, &db_len, &tbl_len))
-    /* The name of an intermediate table starts with #sql */
-    return table;
+  table->parse_name<!trylock>(db_buf, tbl_buf, &db_len, &tbl_len);
 
 retry:
   if (!unaccessible && (!table->is_readable() || table->corrupted))
@@ -762,7 +754,6 @@ retry:
 
   if (!table || !table->is_accessible())
   {
-return_without_mdl:
     if (trylock)
       dict_sys.unfreeze();
     if (*mdl)
@@ -775,12 +766,7 @@ return_without_mdl:
 
   size_t db1_len, tbl1_len;
 
-  if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
-  {
-    /* The table was renamed to #sql prefix.
-    Release MDL (if any) for the old name and return. */
-    goto return_without_mdl;
-  }
+  table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len);
 
   if (*mdl)
   {
@@ -1532,22 +1518,6 @@ dict_table_rename_in_cache(
 					       old_name_len))
 		->remove(*table, &dict_table_t::name_hash);
 
-	bool keep_mdl_name = !table->name.is_temporary();
-
-	if (!keep_mdl_name) {
-	} else if (const char* s = static_cast<const char*>
-		   (memchr(new_name.data(), '/', new_name.size()))) {
-		keep_mdl_name = new_name.end() - s >= 5
-			&& !memcmp(s, "/#sql", 5);
-	}
-
-	if (keep_mdl_name) {
-		/* Preserve the original table name for
-		dict_table_t::parse_name() and dict_acquire_mdl_shared(). */
-		table->mdl_name.m_name = mem_heap_strdup(table->heap,
-							 table->name.m_name);
-	}
-
 	if (new_name.size() > strlen(table->name.m_name)) {
 		/* We allocate MAX_FULL_NAME_LEN + 1 bytes here to avoid
 		memory fragmentation, we assume a repeated calls of
@@ -1559,10 +1529,6 @@ dict_table_rename_in_cache(
 	}
 	memcpy(table->name.m_name, new_name.data(), new_name.size());
 	table->name.m_name[new_name.size()] = '\0';
-
-	if (!keep_mdl_name) {
-		table->mdl_name.m_name = table->name.m_name;
-	}
 
 	/* Add table to hash table of tables */
 	ut_ad(!table->name_hash);
