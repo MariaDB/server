@@ -14769,7 +14769,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       }
       goto no_join_cache;
     }
-    if (cache_level > 4 && no_bka_cache)
+    if (cache_level < 5 || no_bka_cache)
       goto no_join_cache;
     
     if ((flags & HA_MRR_NO_ASSOCIATION) &&
