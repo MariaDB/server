@@ -1,11 +1,16 @@
 #
 # Test bugs in the MyISAM code that require more space/time
 --source include/big_test.inc
+--source include/have_debug.inc
 
 # Initialise
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
+
+call mtr.add_suppression("Index.*try to repair it");
+call mtr.add_suppression("Disk got full");
+call mtr.add_suppression("Got an error from thread_id");
 
 #
 # BUG#925377:
@@ -61,4 +66,12 @@ connection con2;
 reap;
 disconnect con2;
 connection default;
+
+#
+# Test error message from disk full
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,simulate_file_pwrite_error';
+--error ER_DISK_FULL
+insert into t1 select * from t2;
+SET debug_dbug= @saved_dbug;
 drop table t1,t2;

@@ -499,7 +499,7 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_INDEX_COL_TOO_LONG,	ER_DEFAULT(ER_INDEX_COLUMN_TOO_LONG));
   SETMSG(HA_ERR_INDEX_CORRUPT,		ER_DEFAULT(ER_INDEX_CORRUPT));
   SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
-  SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
+  SETMSG(HA_ERR_DISK_FULL,              "Disk got full writing '%s'");
   SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
   SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      "Foreign key cascade delete/update exceeds");
   SETMSG(HA_ERR_TABLESPACE_MISSING,     ER_DEFAULT(ER_TABLESPACE_MISSING));
@@ -4456,8 +4456,12 @@ void handler::print_error(int error, myf errflag)
     break;
   case ENOSPC:
   case HA_ERR_DISK_FULL:
-    textno= ER_DISK_FULL;
     SET_FATAL_ERROR;                            // Ensure error is logged
+    my_printf_error(ER_DISK_FULL, "Disk got full writing '%s.%s' (Errcode: %M)",
+                    MYF(errflag | ME_ERROR_LOG),
+                    table_share->db.str, table_share->table_name.str,
+                    error);
+    DBUG_VOID_RETURN;
     break;
   case HA_ERR_KEY_NOT_FOUND:
   case HA_ERR_NO_ACTIVE_RECORD:
