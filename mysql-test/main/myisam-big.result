@@ -1,4 +1,7 @@
 drop table if exists t1,t2;
+call mtr.add_suppression("Index.*try to repair it");
+call mtr.add_suppression("Disk got full");
+call mtr.add_suppression("Got an error from thread_id");
 create table t1 (id int, sometext varchar(100)) engine=myisam;
 insert into t1 values (1, "hello"),(2, "hello2"),(4, "hello3"),(4, "hello4");
 create table t2 like t1;
@@ -43,4 +46,9 @@ connection default;
 connection con2;
 disconnect con2;
 connection default;
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,simulate_file_pwrite_error';
+insert into t1 select * from t2;
+ERROR HY000: Disk got full writing 'test.t1' (Errcode: 28 "No space left on device")
+SET debug_dbug= @saved_dbug;
 drop table t1,t2;
