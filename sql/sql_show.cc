@@ -1331,6 +1331,20 @@ exit:
   DBUG_RETURN(error);
 }
 
+std::string get_triggers(const std::string& current_table_name) 
+{
+  std::ostringstream query;
+
+  //get trigger related informationfrom information_schema.triggers table
+  query << "SELECT trigger_name, action_statement FROM information_schema.triggers "
+          << "WHERE event_object_table = '" << current_table_name << "'";
+
+  //now the query should run to get definitions of all triggers present
+  //for this code needs to be written.
+  //may be mysql_execute_command() needs to be used which is in sql_parse.cc to execute query
+  
+}
+
 
 /*
   Return CREATE command for table or view
@@ -1407,6 +1421,15 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     goto exit;
 
   error= FALSE;
+
+  std::string alltriggers = get_triggers(table_list->table_name);
+
+  if (!alltriggers.empty()) 
+  {
+    buffer += "\n\n-- Triggers:\n" + alltriggers;
+  }
+
+  
   my_eof(thd);
 
 exit:
