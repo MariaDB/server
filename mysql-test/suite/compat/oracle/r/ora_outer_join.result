@@ -1,0 +1,651 @@
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+create table t3 (c int, e int);
+insert into t3 values (3,2),(10,3),(2,20);
+create table t4 (d int);
+insert into t4 values (3),(1),(20);
+set SQL_MODE= oracle;
+select t1.a, t4.d, t2.b, t3.c
+from t1, t2, t3, t4
+where
+t1.a = t2.b(+) and
+t1.a = t3.c(+) and
+t4.d = t2.b(+) and
+t4.d = t3.c(+);
+a	d	b	c
+3	3	NULL	3
+1	1	1	NULL
+1	3	NULL	NULL
+2	3	NULL	NULL
+2	1	NULL	NULL
+3	1	NULL	NULL
+1	20	NULL	NULL
+2	20	NULL	NULL
+3	20	NULL	NULL
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+from t1, t2, t3, t4
+where
+t1.a = t2.b(+) and
+t1.a = t3.c(+) and
+t4.d = t2.b(+) and
+t4.d = t3.c(+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select "test"."t1"."a" AS "a","test"."t4"."d" AS "d","test"."t2"."b" AS "b","test"."t3"."c" AS "c" from "test"."t1" join "test"."t4" left join "test"."t2" on("test"."t4"."d" = "test"."t1"."a" and "test"."t2"."b" = "test"."t1"."a") left join "test"."t3" on("test"."t4"."d" = "test"."t1"."a" and "test"."t3"."c" = "test"."t1"."a") where 1
+select t1.a, t4.d, t2.b, t3.c
+from t4, t3, t2, t1
+where
+t1.a = t2.b(+) and
+t1.a = t3.c(+) and
+t4.d = t2.b(+) and
+t4.d = t3.c(+);
+a	d	b	c
+1	1	1	NULL
+3	3	NULL	3
+1	3	NULL	NULL
+1	20	NULL	NULL
+2	3	NULL	NULL
+2	1	NULL	NULL
+2	20	NULL	NULL
+3	1	NULL	NULL
+3	20	NULL	NULL
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+from t4, t3, t2, t1
+where
+t1.a = t2.b(+) and
+t1.a = t3.c(+) and
+t4.d = t2.b(+) and
+t4.d = t3.c(+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select "test"."t1"."a" AS "a","test"."t4"."d" AS "d","test"."t2"."b" AS "b","test"."t3"."c" AS "c" from "test"."t4" join "test"."t1" left join "test"."t3" on("test"."t1"."a" = "test"."t4"."d" and "test"."t3"."c" = "test"."t4"."d") left join "test"."t2" on("test"."t1"."a" = "test"."t4"."d" and "test"."t2"."b" = "test"."t4"."d") where 1
+select t1.a, t4.d, t2.b, t3.c
+from t2, t1, t4, t3
+where
+t1.a = t2.b(+) and
+t1.a = t3.c(+) and
+t4.d = t2.b(+) and
+t4.d = t3.c(+);
+a	d	b	c
+3	3	NULL	3
+1	1	1	NULL
+1	3	NULL	NULL
+2	3	NULL	NULL
+2	1	NULL	NULL
+3	1	NULL	NULL
+1	20	NULL	NULL
+2	20	NULL	NULL
+3	20	NULL	NULL
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+from t2, t1, t4, t3
+where
+t1.a = t2.b(+) and
+t1.a = t3.c(+) and
+t4.d = t2.b(+) and
+t4.d = t3.c(+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select "test"."t1"."a" AS "a","test"."t4"."d" AS "d","test"."t2"."b" AS "b","test"."t3"."c" AS "c" from "test"."t1" join "test"."t4" left join "test"."t2" on("test"."t4"."d" = "test"."t1"."a" and "test"."t2"."b" = "test"."t1"."a") left join "test"."t3" on("test"."t4"."d" = "test"."t1"."a" and "test"."t3"."c" = "test"."t1"."a") where 1
+select t1.a, t4.d, t2.b, t3.c
+from t3, t4, t1, t2
+where
+t1.a = t2.b(+) and
+t1.a = t3.c(+) and
+t4.d = t2.b(+) and
+t4.d = t3.c(+);
+a	d	b	c
+1	1	1	NULL
+3	3	NULL	3
+1	3	NULL	NULL
+1	20	NULL	NULL
+2	3	NULL	NULL
+2	1	NULL	NULL
+2	20	NULL	NULL
+3	1	NULL	NULL
+3	20	NULL	NULL
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+from t3, t4, t1, t2
+where
+t1.a = t2.b(+) and
+t1.a = t3.c(+) and
+t4.d = t2.b(+) and
+t4.d = t3.c(+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select "test"."t1"."a" AS "a","test"."t4"."d" AS "d","test"."t2"."b" AS "b","test"."t3"."c" AS "c" from "test"."t4" join "test"."t1" left join "test"."t3" on("test"."t1"."a" = "test"."t4"."d" and "test"."t3"."c" = "test"."t4"."d") left join "test"."t2" on("test"."t1"."a" = "test"."t4"."d" and "test"."t2"."b" = "test"."t4"."d") where 1
+drop table t1, t2, t3, t4;
+#
+# tests of Iqbal Hassan <iqbal@hasprime.com>
+# (with 2 fixes)
+#
+CREATE TABLE tj1(a int, b int);
+CREATE TABLE tj2(c int, d int);
+CREATE TABLE tj3(e int, f int);
+CREATE TABLE tj4(b int, c int);
+INSERT INTO tj1 VALUES (1, 1);
+INSERT INTO tj1 VALUES (2, 2);
+INSERT INTO tj2 VALUES (2, 3);
+INSERT INTO tj3 VALUES (1, 4);
+#
+# Basic test
+#
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+);
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+#
+# Compare marked with literal
+#
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d(+) > 4;
+a	b	c	d
+1	1	NULL	NULL
+2	2	NULL	NULL
+explain extended
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d(+) > 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tj1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	tj2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select "test"."tj1"."a" AS "a","test"."tj1"."b" AS "b","test"."tj2"."c" AS "c","test"."tj2"."d" AS "d" from "test"."tj1" left join "test"."tj2" on("test"."tj2"."c" = "test"."tj1"."a" and "test"."tj2"."d" > 4) where 1
+#
+# Use both marked and unmarked field in the same condition
+#
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d = 3;
+a	b	c	d
+2	2	2	3
+#
+# Use both marked and unmarked field in OR condition
+#
+SELECT * FROM tj2,tj1 WHERE tj1.a = tj2.c(+) OR tj2.d=4;
+ERROR HY000: Invalid usage of (+) operator: cycle dependencies
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj3.e(+) AND (tj1.a = tj2.c(+) OR tj2.d=4);
+ERROR HY000: Invalid usage of (+) operator: cycle dependencies
+#
+# Use unmarked fields in OR condition
+#
+SELECT * FROM tj2,tj1 WHERE tj1.a = tj2.c(+) AND (tj2.d=3 OR tj2.d * 2=3);
+c	d	a	b
+2	3	2	2
+#
+# Use marked fields in OR condition when all fields are marked
+#
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND (tj2.d(+)=3 OR tj2.c(+)=1);
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+#
+# Use more than one marked table per condition
+#
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) + tj3.e(+);
+ERROR HY000: Invalid usage of (+) operator: both tables tj2 and tj3 are of OUTER type in the relation
+#
+# Use different tables per `AND` operand
+#
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj1.a = tj3.e(+);
+a	b	c	d	e	f
+1	1	NULL	NULL	1	4
+2	2	2	3	NULL	NULL
+#
+# Ensure table dependencies are properly resolved
+#
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj3.e AND tj1.a + 1 = tj2.c(+);
+a	b	c	d	e	f
+1	1	2	3	1	4
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj2.c = tj3.e(+) + 1;
+a	b	c	d	e	f
+2	2	2	3	1	4
+1	1	NULL	NULL	NULL	NULL
+SELECT * FROM tj1, tj2, tj3 WHERE tj1.a + tj3.e = tj2.c(+);
+a	b	c	d	e	f
+1	1	2	3	1	4
+2	2	NULL	NULL	1	4
+#
+# Cyclic dependency of tables
+# ORA-01416 two tables cannot be outer-joined to each other
+#
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj2.c = tj3.e(+) + 1 AND tj3.e = tj1.a(+);
+ERROR HY000: Invalid usage of (+) operator: cycle dependencies
+#
+# Table not referenced in where condition (must be cross-joined)
+#
+SELECT * FROM tj1, tj2, tj3 WHERE tj1.a + 1 = tj2.c(+);
+a	b	c	d	e	f
+1	1	2	3	1	4
+2	2	NULL	NULL	1	4
+#
+# Alias
+#
+SELECT * FROM tj1, tj2 b WHERE tj1.a + 1 = b.c(+);
+a	b	c	d
+1	1	2	3
+2	2	NULL	NULL
+#
+# Subselect
+#
+SELECT * FROM tj1, (SELECT * from tj2) b WHERE tj1.a + 1 = b.c(+);
+a	b	c	d
+1	1	2	3
+2	2	NULL	NULL
+SELECT * FROM tj1, (SELECT * FROM tj1, tj2 d WHERE tj1.a = d.c(+)) b WHERE tj1.a + 1 = b.c(+);
+a	b	a	b	c	d
+1	1	2	2	2	3
+2	2	NULL	NULL	NULL	NULL
+#
+# Single table
+#
+SELECT * FROM tj1 WHERE tj1.a(+) = 1;
+a	b
+1	1
+Warnings:
+Warning	4215	Oracle outer join operator (+) ignored in '"test"."tj1"."a" = 1'
+#
+# Self outer join
+#
+SELECT * FROM tj1 a, tj1 b WHERE a.a + 1 = b.a(+);
+a	b	a	b
+1	1	2	2
+2	2	NULL	NULL
+#
+# Self outer join without alias
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a + 1 = tj1.a(+);
+ERROR HY000: Invalid usage of (+) operator: cycle dependencies
+#
+# Outer join condition is independent of other tables
+# In this case we need to restrict the marked table(s) to appear
+# after the unmarked table(s) during topological sort. This test
+# ensures that the topological sort is working correctly.
+#
+# correct result in is empty result set (tj2.c = 1 filters all out)
+SELECT * FROM tj1, tj2 WHERE tj2.c(+) = 1;
+a	b	c	d
+Warnings:
+Warning	4215	Oracle outer join operator (+) ignored in '"test"."tj2"."c" = 1'
+# one row (there is tj1.a = 1)
+SELECT * FROM tj1, tj2 WHERE tj1.a(+) = 1;
+a	b	c	d
+1	1	2	3
+Warnings:
+Warning	4215	Oracle outer join operator (+) ignored in '"test"."tj1"."a" = 1'
+#
+# Outer join in 'IN' condition
+# ORA-01719
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+), tj2.d(+));
+ERROR HY000: Invalid usage of (+) operator: used in OR or IN
+SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+), tj2.d(+));
+ERROR HY000: Invalid usage of (+) operator: used in OR or IN
+#
+# Outer join in 'IN' condition with a single expression
+# This is also allowed in oracle since the expression is
+# can be simplified to 'equal' or 'not equal' condition
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+));
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+));
+a	b	c	d
+1	1	2	3
+2	2	NULL	NULL
+#
+# Oracle outer join not in WHERE clause
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c GROUP BY tj2.c(+);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c GROUP BY tj2.c HAVING tj2.c(+) > 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') > 1' at line 1
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c ORDER BY tj2.c(+);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT tj2.c(+) FROM tj2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') FROM tj2' at line 1
+#
+# Mix ANSI and Oracle outer join
+# ORA-25156
+SELECT * FROM tj1 LEFT JOIN tj2 ON tj2.c = 1 WHERE tj1.a = tj2.c(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+SELECT * FROM tj1 INNER JOIN tj2 ON tj2.c = 1 WHERE tj1.a = tj2.c(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+SELECT * FROM tj1 NATURAL JOIN tj2 WHERE tj1.a = tj2.c(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+#
+# View with oracle outer join
+#
+CREATE VIEW v1 AS SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c(+);
+SELECT * FROM v1;
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+#
+# Cursor with oracle outer join
+#
+DECLARE
+CURSOR c1 IS SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c(+);
+BEGIN
+FOR r1 IN c1 LOOP
+SELECT r1.a || ' ' || r1.c;
+END LOOP;
+END
+$$
+r1.a || ' ' || r1.c
+2 2
+r1.a || ' ' || r1.c
+1 
+#
+# Marking ROW type
+#
+DECLARE
+v1 ROW (a INT, b INT);
+BEGIN
+SELECT * FROM tj1 WHERE tj1.a = v1.a(+);
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ');
+END' at line 4
+#
+# Unspecified table used in WHERE clause that contains (+)
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj3.c(+);
+ERROR 42S22: Unknown column 'tj3.c' in 'WHERE'
+#
+# '.' prefixed table name
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a = .tj2.c(+);
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE tj1(a int, b int);
+INSERT INTO tj1 VALUES (3, 3);
+INSERT INTO tj1 VALUES (4, 4);
+#
+# DB qualifed ident with oracle outer join (aliased)
+#
+SELECT * FROM test.tj2 a, tj1 WHERE a.c(+) = tj1.a - 1;
+c	d	a	b
+2	3	3	3
+NULL	NULL	4	4
+#
+# DB qualifed ident with oracle outer join (non-aliased)
+#
+SELECT * FROM test.tj2, tj1 WHERE test.tj2.c(+) = tj1.a - 1;
+c	d	a	b
+2	3	3	3
+NULL	NULL	4	4
+#
+# DB qualifed ident with oracle outer join (aliased but use table name)
+#
+SELECT * FROM test.tj2 a, tj1 WHERE test.tj2.c(+) = tj1.a - 1;
+ERROR 42S22: Unknown column 'test.tj2.c' in 'WHERE'
+USE test;
+#
+# UPDATE with oracle outer join
+#
+UPDATE tj1, tj2 SET tj1.a = tj2.c WHERE tj1.a = tj2.c(+);
+SELECT * FROM tj1;
+a	b
+NULL	1
+2	2
+#
+# DELETE with oracle outer join
+#
+DELETE tj1 FROM tj1, tj2 WHERE tj1.b(+) = tj2.c;
+SELECT * FROM tj1;
+a	b
+NULL	1
+DROP DATABASE db1;
+DROP VIEW v1;
+DROP TABLE tj4;
+DROP TABLE tj3;
+DROP TABLE tj2;
+DROP TABLE tj1;
+#
+# End of iqbal-rsec tests
+#
+#
+# Test from the MDEV comments
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+create table t3 (c int, e int);
+insert into t3 values (3,2),(10,3),(2,20);
+create table t4 (d int);
+insert into t4 values (3),(1),(20);
+select t1.a, t4.d, t2.b, t3.c from t1, t2, t3, t4 where t1.a = t2.b(+) and t1.a = t3.c(+) and t4.d = t2.b(+) and t4.d = t3.c(+);
+a	d	b	c
+3	3	NULL	3
+1	1	1	NULL
+1	3	NULL	NULL
+2	3	NULL	NULL
+2	1	NULL	NULL
+3	1	NULL	NULL
+1	20	NULL	NULL
+2	20	NULL	NULL
+3	20	NULL	NULL
+select t1.a, t4.d, t2.b, t3.c from t1, t2, t3, t4 where t1.a + t3.c = t2.b(+) and t1.a = t3.c(+) and t4.d = t2.b(+) and t4.d = t3.c(+);
+a	d	b	c
+3	3	NULL	3
+1	3	NULL	NULL
+2	3	NULL	NULL
+1	1	NULL	NULL
+2	1	NULL	NULL
+3	1	NULL	NULL
+1	20	NULL	NULL
+2	20	NULL	NULL
+3	20	NULL	NULL
+select t1.a, t4.d, t2.b, t3.c from t1, t2, t3, t4 where (t2.b(+) in (t1.a, t1.a+1)) and t1.a = t3.c(+) and t4.d = t2.b(+) and t4.d = t3.c(+);
+a	d	b	c
+3	3	NULL	3
+1	1	1	NULL
+1	3	NULL	NULL
+2	3	NULL	NULL
+2	1	NULL	NULL
+3	1	NULL	NULL
+1	20	NULL	NULL
+2	20	NULL	NULL
+3	20	NULL	NULL
+drop tables t1, t2, t3, t4;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+create table t3 (c int, f int);
+insert into t3 values (3,2),(10,3),(2,20);
+create table t4 (d int);
+insert into t4 values (3),(1),(20);
+create table t5 (e int);
+insert into t5 values (3),(2),(20);
+select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and t3.c=t5.e(+);
+a	b	c	d	e
+2	2	2	NULL	NULL
+3	NULL	NULL	3	NULL
+1	1	NULL	1	NULL
+select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and 1=t5.e(+);
+a	b	c	d	e
+3	NULL	NULL	3	NULL
+1	1	NULL	1	NULL
+2	2	2	NULL	NULL
+select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and 3=t5.e(+);
+a	b	c	d	e
+3	NULL	NULL	3	3
+1	1	NULL	1	NULL
+2	2	2	NULL	NULL
+select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, (t2, t3), t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and 3=t5.e(+);
+ERROR HY000: Invalid usage of (+) operator: mixed with other type of join
+drop tables t1, t2, t3, t4, t5;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+select t1.a, t2.b  from t1, t2 where 1 = t2.b(+);
+a	b
+1	1
+2	1
+3	1
+Warnings:
+Warning	4215	Oracle outer join operator (+) ignored in '1 = "test"."t2"."b"'
+select t1.a, t2.b  from t2, t1 where 1 = t2.b(+);
+a	b
+1	1
+2	1
+3	1
+Warnings:
+Warning	4215	Oracle outer join operator (+) ignored in '1 = "test"."t2"."b"'
+select t1.a,t2.b  from t2,t1 where t2.b(+) in (1,2);
+a	b
+1	2
+1	1
+2	2
+2	1
+3	2
+3	1
+Warnings:
+Warning	4215	Oracle outer join operator (+) ignored in '"test"."t2"."b" in (1,2)'
+select t2.b  from t2 where 1 = t2.b(+);
+b
+1
+Warnings:
+Warning	4215	Oracle outer join operator (+) ignored in '1 = "test"."t2"."b"'
+drop tables t1, t2;
+create table t1 (a int);
+insert into t1 values (1),(2),(4),(5),(20),(21),(23);
+create table t2 (b int);
+insert into t2 values (1),(4),(6),(7),(8),(23);
+create table t3 (c int);
+insert into t3 values (4),(7),(9),(4),(6),(10),(11),(1);
+create table t4 (d int);
+insert into t4 values (1),(4),(10),(12),(20),(21),(23);
+SELECT * FROM t1,t2,t3,t4 WHERE  t1.a = t2.b(+) AND t1.a = t3.c(+) AND t2.b=t4.d(+) AND t3.c=t4.d(+);
+a	b	c	d
+1	1	1	1
+4	4	4	4
+4	4	4	4
+23	23	NULL	NULL
+2	NULL	NULL	NULL
+5	NULL	NULL	NULL
+20	NULL	NULL	NULL
+21	NULL	NULL	NULL
+select * from t1, t2, t3 where  (t1.a + t2.b = t3.c(+));
+a	b	c
+1	6	7
+1	8	9
+2	7	9
+5	4	9
+2	4	6
+5	1	6
+2	8	10
+4	6	10
+4	7	11
+5	6	11
+1	1	NULL
+1	4	NULL
+1	7	NULL
+1	23	NULL
+2	1	NULL
+2	6	NULL
+2	23	NULL
+4	1	NULL
+4	4	NULL
+4	8	NULL
+4	23	NULL
+5	7	NULL
+5	8	NULL
+5	23	NULL
+20	1	NULL
+20	4	NULL
+20	6	NULL
+20	7	NULL
+20	8	NULL
+20	23	NULL
+21	1	NULL
+21	4	NULL
+21	6	NULL
+21	7	NULL
+21	8	NULL
+21	23	NULL
+23	1	NULL
+23	4	NULL
+23	6	NULL
+23	7	NULL
+23	8	NULL
+23	23	NULL
+# no tables mentioned
+select * from t2, t3 where  b = c(+);
+b	c
+4	4
+7	7
+4	4
+6	6
+1	1
+8	NULL
+23	NULL
+# should be the same as above
+select * from t2, t3 where  t2.b = t3.c(+);
+b	c
+4	4
+7	7
+4	4
+6	6
+1	1
+8	NULL
+23	NULL
+drop tables t1, t2, t3, t4;
+#
+# View creation and usage
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+create view v1 as
+select t1.a, t2.b from t1, t2 where t1.a = t2.b(+);
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select "t1"."a" AS "a","t2"."b" AS "b" from ("t1" left join "t2" on("t1"."a" = "t2"."b"))	latin1	latin1_swedish_ci
+select * from v1;
+a	b
+2	2
+1	1
+3	NULL
+select t1.a, t2.b from t1, t2 where t1.a = t2.b(+);
+a	b
+2	2
+1	1
+3	NULL
+usage without oracle sql mode
+set SQL_MODE= '';
+select * from v1;
+a	b
+2	2
+1	1
+3	NULL
+select t1.a, t2.b from t1, t2 where t1.a = t2.b(+);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+set SQL_MODE= oracle;
+drop view v1;
+drop table t1,t2;

@@ -2719,6 +2719,7 @@ public:
   Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
+  bool ora_join_processor(void *arg) override;
 };
 
 class cmp_item_row :public cmp_item
@@ -3702,6 +3703,15 @@ public:
   table_map not_null_tables() const override { return and_tables_cache; }
   Item *copy_andor_structure(THD *thd) override;
   Item *neg_transformer(THD *thd) override;
+  bool ora_join_processor(void *arg) override
+  {
+    if (with_ora_join())
+    {
+      // oracle join used in OR
+      ((ora_join_processor_param *) arg)->or_present= true;
+    }
+    return (FALSE);
+  }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cond_or>(thd, this); }
 };
