@@ -1044,12 +1044,13 @@ lsn_t log_t::write_buf() noexcept
         the current LSN are generated. */
         MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - new_buf_free);
         buf[length]= 0; /* allow recovery to catch EOF faster */
+        if (UNIV_LIKELY_NULL(re_write_buf))
+          MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) -
+                           new_buf_free);
         length&= ~write_size_1;
         memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
         if (UNIV_LIKELY_NULL(re_write_buf))
         {
-          MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) -
-                           new_buf_free);
           memcpy_aligned<16>(resize_flush_buf, re_write_buf + length,
                              (new_buf_free + 15) & ~15);
           re_write_buf[length + new_buf_free]= 0;
