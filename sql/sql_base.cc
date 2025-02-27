@@ -2195,7 +2195,6 @@ retry_share:
       goto retry_share;
     }
 
-    // TODO test!
     if (thd->open_tables && thd->open_tables->s->tdc->flushed)
     {
       /*

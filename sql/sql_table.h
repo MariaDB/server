@@ -36,6 +36,7 @@ struct TABLE;
 struct handlerton;
 class handler;
 class String;
+class MDL_ticket;
 typedef struct st_ha_check_opt HA_CHECK_OPT;
 struct HA_CREATE_INFO;
 struct Table_specification_st;

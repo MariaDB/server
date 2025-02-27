@@ -547,7 +547,7 @@ enum enum_table_category
     The server implementation perform writes.
     Performance tables are cached in the table cache.
   */
-  TABLE_CATEGORY_PERFORMANCE=8,
+  TABLE_CATEGORY_PERFORMANCE=8
 };
 
 typedef enum enum_table_category TABLE_CATEGORY;

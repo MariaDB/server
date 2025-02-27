@@ -5966,12 +5966,11 @@ void THD::use_global_tmp_table_tp()
   }
 }
 
-
-struct Closefrm_context
+static my_bool open_gtt_on_error(TABLE *table)
 {
-  TABLE *table;
-  ~Closefrm_context() { closefrm(table); }
-};
+  closefrm(table);
+  return TRUE;
+}
 
 my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                                     TABLE_LIST *out_table,
@@ -5979,13 +5978,14 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
 {
   DBUG_ASSERT(!thd->rgi_slave); // slave won't use global temporary tables
 
-  // First, lookup in tmp tables list for cases like "t join t"
-  // This also could happen if tl->open_type is OT_BASE_ONLY
+  /*
+    First, lookup in tmp tables list for cases like "t join t"
+    This also could happen if tl->open_type is OT_BASE_ONLY
+  */
   TABLE *table= NULL;
   if (thd->temporary_tables
       && thd->temporary_tables->global_temporary_tables_count)
   {
-    // TODO test table reopen (see "Can't reopen" in main.reopen_temp_table)
     TMP_TABLE_SHARE *share= NULL;
     if (thd->internal_open_temporary_table(out_table, &table, &share))
       return TRUE;
@@ -6000,6 +6000,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
 
   if (!table)
   {
+    /* User had not an open copy of the global temporary table */
     TABLE global_table;
     if (open_table_from_share(thd, source, &empty_clex_str,
                               HA_OPEN_KEYFILE, READ_ALL, 0,
@@ -6008,10 +6009,8 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
 
     DBUG_ASSERT(!global_table.versioned());
 
-    Closefrm_context closefrm_context{&global_table};
-
-    if (global_table.file->discover_check_version()) // TODO test (S3)!
-      return TRUE;
+    if (global_table.file->discover_check_version())
+      return open_gtt_on_error(&global_table);
 
     Alter_info alter_info;
     Alter_table_ctx alter_ctx;
@@ -6023,7 +6022,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
 
     if (mysql_prepare_alter_table(thd, &global_table, &create_info,
                                   &alter_info, &alter_ctx))
-      return TRUE;
+      return open_gtt_on_error(&global_table);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     thd->work_part_info= 0;
@@ -6035,12 +6034,10 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                                         NULL, C_ORDINARY_CREATE,
                                         out_table);
     if (res > 0)
-      return TRUE;
+      return open_gtt_on_error(&global_table);
 
     ++thd->temporary_tables->global_temporary_tables_count;
     table= create_info.table;
-
-    // TODO pos_in_locked_tables??
 
     TMP_TABLE_SHARE *share= (TMP_TABLE_SHARE*)table->s;
     share->from_share= source;
@@ -6050,9 +6047,10 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                             MDL_SHARED, MDL_EXPLICIT);
     share->mdl_request.ticket= mdl_ticket; // It'll be cloned.
     if (thd->mdl_context.clone_ticket(&share->mdl_request))
-      return TRUE;
+      return open_gtt_on_error(&global_table);
     table->reginfo.lock_type= TL_IGNORE;
     share->table_creation_was_logged= 1;
+    closefrm(&global_table);
   }
 
   thd->used|= Sql_used::THREAD_SPECIFIC_USED;
@@ -10645,8 +10643,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 #endif
   TRIGGER_RENAME_PARAM trigger_param;
   uint lock_wait_timeout= thd->variables.lock_wait_timeout;
-
-  // TMP_TABLE_SHARE *global_tmp_ref= NULL;
 
   /*
     Callback function that an engine can request to be called after executing

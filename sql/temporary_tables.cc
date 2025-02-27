@@ -329,7 +329,9 @@ bool THD::internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
   {
     if (tmp_share->from_share && sql_command_flags() & (CF_ADMIN_COMMAND
                                                         |CF_SCHEMA_CHANGE))
-      DBUG_RETURN(false);
+      DBUG_RETURN(false); /* We want to use real global temporary table
+                             when ALTER/DROP is executed.
+                           */
 
     *share= tmp_share;
     *table= open_temporary_table(*share, tl->get_table_name());
@@ -1559,7 +1561,7 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
     {
       mdl_context.release_lock(share->mdl_request.ticket);
       tdc_release_share(share->from_share);
-      temporary_tables->global_temporary_tables_count--;
+      --temporary_tables->global_temporary_tables_count;
       share->from_share= NULL;
     }
   }
