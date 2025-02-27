@@ -879,7 +879,6 @@ struct TABLE_SHARE
   uint open_errno;                      /* error from open_table_def() */
   uint column_bitmap_size;
   uchar frm_version;
-  bool on_commit_delete;
 
   enum enum_v_keys { NOT_INITIALIZED=0, NO_V_KEYS, V_KEYS };
   enum_v_keys check_set_initialized;
@@ -1233,6 +1232,8 @@ struct TABLE_SHARE
   void update_optimizer_costs(handlerton *hton);
   void update_engine_independent_stats(TABLE_STATISTICS_CB *stat);
   bool histograms_exists();
+  bool on_commit_delete() const
+  { return db_create_options & HA_OPTION_ON_COMMIT_DELETE_ROWS; }
 };
 
 /* not NULL, but cannot be dereferenced */

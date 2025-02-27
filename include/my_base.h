@@ -366,6 +366,11 @@ enum ha_base_keytype {
 #define HA_OPTION_NO_CHECKSUM           (1U << 17)
 #define HA_OPTION_NO_DELAY_KEY_WRITE    (1U << 18)
 
+/** GLOBAL TEMPORARY TABLE */
+#define HA_OPTION_GLOBAL_TEMPORARY_TABLE (1U << 19)
+
+#define HA_OPTION_ON_COMMIT_DELETE_ROWS (1U << 20)
+
 	/* Bits in flag to create() */
 
 #define HA_DONT_TOUCH_DATA	1U	/* Don't empty datafile (isamchk) */

@@ -1324,10 +1324,10 @@ int THD::commit_global_tmp_tables()
     All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
     TABLE *table= tables_it++;
     DBUG_ASSERT(table);
-    if (!share->on_commit_delete)
+    if (!share->on_commit_delete())
       table->file->info(HA_STATUS_VARIABLE); // update records() stat
 
-    if (share->on_commit_delete || table->file->records() == 0)
+    if (share->on_commit_delete() || table->file->records() == 0)
       error= drop_tmp_table_share(share, NULL, true);
   }
   return error;

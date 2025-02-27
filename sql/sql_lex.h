@@ -4477,7 +4477,12 @@ public:
     create_info.options|= scope; // HA_LEX_CREATE_TMP_TABLE or 0
 
     if (scope & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE)
-      create_info.on_commit_delete= true; // default (implicit) vaule
+    {
+      create_info.table_options|= HA_OPTION_GLOBAL_TEMPORARY_TABLE;
+
+      // default (implicit) value
+      create_info.table_options|= HA_OPTION_ON_COMMIT_DELETE_ROWS;
+    }
   }
   bool check_create_options(DDL_options_st options)
   {

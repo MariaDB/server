@@ -2146,7 +2146,7 @@ end_options:
 
   if (global_tmp_share)
   {
-    LEX_CSTRING on_commit= table->s->on_commit_delete
+    LEX_CSTRING on_commit= table->s->on_commit_delete()
                      ? LEX_CSTRING{STRING_WITH_LEN(" ON COMMIT DELETE ROWS")}
                      : LEX_CSTRING{STRING_WITH_LEN(" ON COMMIT PRESERVE ROWS")};
 

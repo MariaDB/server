@@ -2287,7 +2287,6 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
     as the original.
   */
   bool recreate_identical_table;
-  bool on_commit_delete;
 
   List<Virtual_column_info> *check_constraint_list;
 

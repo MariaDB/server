@@ -5915,11 +5915,8 @@ create_table_option:
         | versioning_option
         | ON
           {
-            // Let's allow this statement for (local) temporary tables for
-            // compatibility since SQL standard allows them
             if (unlikely(!(Lex->create_info.options
-                           & (HA_LEX_CREATE_TMP_TABLE
-                              | HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE))))
+                           & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE)))
             {
               thd->parse_error();
               MYSQL_YYABORT;
@@ -5931,7 +5928,7 @@ create_table_option:
 create_on_commit_action:
           DELETE_SYM ROWS_SYM
         | PRESERVE_SYM ROWS_SYM
-          { Lex->create_info.on_commit_delete= false; }
+          { Lex->create_info.table_options&= ~HA_OPTION_ON_COMMIT_DELETE_ROWS; }
         ;
 
 engine_defined_option:
@@ -13573,7 +13570,8 @@ opt_if_exists:
 opt_global_or_temporary:
         GLOBAL_SYM TEMPORARY
         {
-          $$= HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE; }
+          $$= HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE;
+        }
       | opt_temporary;
 
 opt_temporary:

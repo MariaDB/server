@@ -6028,8 +6028,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     thd->work_part_info= 0;
 #endif
-    create_info.options|= HA_LEX_CREATE_TMP_TABLE
-                          | HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE;
+    create_info.options|= HA_LEX_CREATE_TMP_TABLE;
     int res= mysql_create_table_no_lock(thd,
                                         NULL, NULL,
                                         &create_info, &alter_info,
@@ -8571,8 +8570,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   if (!(used_fields & HA_CREATE_USED_SEQUENCE))
     create_info->sequence= table->s->table_type == TABLE_TYPE_SEQUENCE;
-
-  create_info->on_commit_delete= table->s->on_commit_delete;
 
   column_rename_param.db_name=       table->s->db;
   column_rename_param.table_name=    table->s->table_name;

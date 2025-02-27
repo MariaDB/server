@@ -417,11 +417,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     extra2_size+= 1 + extra2_str_size(create_fields.elements);
   }
 
-  if (create_info->options & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE)
-  {
-    extra2_size+= 3;
-  }
-
 
   /*
     To store the ignorability flag for each key.
@@ -546,13 +541,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (has_extra2_field_flags_)
     pos= extra2_write_field_properties(pos, create_fields);
-
-  if (create_info->options & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE)
-  {
-    *pos++= EXTRA2_GLOBAL_TEMPORARY;
-    pos= extra2_write_len(pos, 1);
-    *pos++= create_info->on_commit_delete;
-  }
 
 
 
