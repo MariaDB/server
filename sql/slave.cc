@@ -5404,6 +5404,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   THD *thd;                     /* needs to be first for thread_stack */
   char saved_log_name[FN_REFLEN];
   char saved_master_log_name[FN_REFLEN];
+  bool thd_initialized= 0;
   my_off_t UNINIT_VAR(saved_log_pos);
   my_off_t UNINIT_VAR(saved_master_log_pos);
   String saved_skip_gtid_pos;
@@ -5506,6 +5507,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   thd->variables.alter_algorithm= (ulong) Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
 
   server_threads.insert(thd);
+  thd_initialized= 1;
   /*
     We are going to set slave_running to 1. Assuming slave I/O thread is
     alive and connected, this is going to make Seconds_Behind_Master be 0
@@ -5883,7 +5885,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
   thd->add_status_to_global();
-  server_threads.erase(thd);
+  THD_STAGE_INFO(thd, stage_slave_sql_cleanup);
   mysql_mutex_lock(&rli->run_lock);
 
 err_during_init:
@@ -5954,6 +5956,8 @@ err_during_init:
   rpl_parallel_resize_pool_if_no_slaves();
 
   delete serial_rgi;
+  if (thd_initialized)
+    server_threads.erase(thd);
   delete thd;
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()

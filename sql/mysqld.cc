@@ -9209,6 +9209,7 @@ PSI_stage_info stage_preparing= { 0, "Preparing", 0};
 PSI_stage_info stage_purging_old_relay_logs= { 0, "Purging old relay logs", 0};
 PSI_stage_info stage_query_end= { 0, "Query end", 0};
 PSI_stage_info stage_starting_cleanup= { 0, "Starting cleanup", 0};
+PSI_stage_info stage_slave_sql_cleanup= { 0, "Slave SQL thread ending", 0};
 PSI_stage_info stage_rollback= { 0, "Rollback", 0};
 PSI_stage_info stage_rollback_implicit= { 0, "Rollback_implicit", 0};
 PSI_stage_info stage_commit= { 0, "Commit", 0};
@@ -9442,6 +9443,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_preparing,
   & stage_purging_old_relay_logs,
   & stage_starting_cleanup,
+  & stage_slave_sql_cleanup,
   & stage_query_end,
   & stage_queueing_master_event_to_the_relay_log,
   & stage_reading_event_from_the_relay_log,
