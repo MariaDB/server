@@ -33,8 +33,8 @@ SELECT COUNT(*) = 1 FROM t1;
 
 # Perform --wsrep-recover and preserve the positions into variables by placing them in $MYSQL_TMP_DIR/galera_wsrep_start_position.inc and then --source'ing it
 
---exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --innodb --wsrep-recover --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.1.log > $MYSQL_TMP_DIR/galera_wsrep_recover.1.log 2>&1
---exec $MYSQLD --defaults-group-suffix=.2 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --innodb --wsrep-recover --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.2.log > $MYSQL_TMP_DIR/galera_wsrep_recover.2.log 2>&1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-recover --loose-innodb --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.1.log > $MYSQL_TMP_DIR/galera_wsrep_recover.1.log 2>&1
+--exec $MYSQLD --defaults-group-suffix=.2 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-recover --loose-innodb --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.2.log > $MYSQL_TMP_DIR/galera_wsrep_recover.2.log 2>&1
 
 --perl
         use strict;

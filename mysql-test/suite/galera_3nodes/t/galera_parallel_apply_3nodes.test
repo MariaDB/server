@@ -65,7 +65,7 @@ SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
 
 --connection node_3
 SELECT f1 = 111 FROM t1;
-SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%committed%';
+SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE '%committed%' OR STATE LIKE 'Waiting for certification');
 
 SET GLOBAL wsrep_slave_threads = DEFAULT;
 

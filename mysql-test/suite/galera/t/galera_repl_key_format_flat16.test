@@ -25,7 +25,6 @@ UPDATE t2 SET f1 = REPEAT('b', 256);
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 234;
 SELECT COUNT(*) = 1 FROM t2 WHERE f1 = REPEAT('b', 256);
 
-
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
 --enable_query_log

@@ -18,5 +18,6 @@ connection node_1b;
 connection node_1;
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;
+disconnect node_1b;
 CALL mtr.add_suppression("WSREP: .* conflict state after post commit ");
 set global innodb_status_output=Default;

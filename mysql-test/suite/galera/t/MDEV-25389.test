@@ -7,6 +7,8 @@
 --source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_2
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+
 call mtr.add_suppression("WSREP: Failed to create/initialize system thread");
 SET GLOBAL debug_dbug='+d,wsrep_simulate_failed_connection_1';
 --error ER_WRONG_ARGUMENTS
@@ -20,5 +22,10 @@ SELECT @@wsrep_slave_threads;
 # during shutdown. Do a restart here, to make sure the
 # issue is fixed.
 --source include/restart_mysqld.inc
+
+--connection node_2
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
+--enable_query_log
 
 --source ../galera/include/auto_increment_offset_restore.inc

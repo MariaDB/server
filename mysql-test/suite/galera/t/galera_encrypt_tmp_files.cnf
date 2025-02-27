@@ -1,6 +1,6 @@
 !include ../galera_2nodes.cnf
-[mysqld]
 
+[mysqld]
 encrypt-tmp-files = 1
 plugin-load-add= @ENV.FILE_KEY_MANAGEMENT_SO
 file-key-management

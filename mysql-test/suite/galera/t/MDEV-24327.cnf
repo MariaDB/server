@@ -3,4 +3,3 @@
 [mysqld.1]
 log-bin=mariadb-bin
 log-slave-updates=OFF
-

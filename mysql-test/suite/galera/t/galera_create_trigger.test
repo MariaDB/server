@@ -40,4 +40,3 @@ DROP TABLE definer_root;
 DROP TABLE definer_default;
 
 DROP USER 'user1';
-

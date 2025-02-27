@@ -94,6 +94,9 @@ public:
   /* For ALTER ONLINE TABLE */
   bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
                                   uint table_changes) override;
+  enum_alter_inplace_result
+  check_if_supported_inplace_alter(TABLE *altered_table,
+                                   Alter_inplace_info *ai) override;
   void write_lock() { write_locked= 1;}
   void unlock() { write_locked= 0; }
   bool is_locked() { return write_locked; }

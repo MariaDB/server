@@ -87,5 +87,6 @@ SELECT COUNT(*) FROM t1;
 --source include/wait_condition.inc
 
 DROP TABLE t1;
+
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc

@@ -397,4 +397,3 @@ SELECT data_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_t
 --connection node_1
 use test;
 drop database cardtest02;
-

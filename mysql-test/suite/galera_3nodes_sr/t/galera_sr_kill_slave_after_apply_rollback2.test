@@ -65,4 +65,5 @@ SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 --connection node_1
 --disconnect node_1a
 DROP TABLE t1;
+
 --source ../galera/include/auto_increment_offset_restore.inc
