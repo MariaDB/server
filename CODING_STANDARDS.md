@@ -360,21 +360,20 @@ For example:
 my_function(thd, db_name);
 ```
 
-### Types
+### Integer types
 
-In general the usage of types such as `char`, `int` and `long` should be discouraged but there are shortened versions of the unsigned variants available for these in `my_global.h`.
-They can be different sizes across platforms and `char` can be either unsigned or signed depending on platform, and therefore are not portable.
-Instead these should be used as appropriate:
+The usage of types `long`  and `unsigned long` (and its `ulong` alias)
+in new code is *strongly* discouraged. Its use brings no advantages,
+only portability problems between Windows and Unixes.
 
-* 8-bit signed / unsigned int -> `int8` / `uint8`
-* 16-bit signed / unsigned int -> `int16` / `uint16`
-* 32-bit signed / unsigned int -> `int32` / `uint32`
-* 64-bit signed / unsigned int -> `int64` / `uint64`
-* Integer file descriptor -> `File`
-* Integer socket descriptor -> `my_socket`
+Instead of using `long`, use `size_t` and `ptrdiff_t` where appropriate,
+buffer sizes for example. For integer socket descriptor use `my_socket`.
 
-`size_t` and `ptrdiff_t` are used in the source where appropriate, buffer sizes for example.
-It should be noted that these are implementation dependent but are useful when used in the correct context.
+You may use types with fixed length, int32_t and similar, too. Yet, on all platforms we currently support,
+* `char` is 8 bit
+* `short` is 16 bit
+* `int` is 32bit
+* `long long` is 64bit
 
-Further types can be found in the `include/` directory files.
-There are also general utility functions in `mysys`.
+and the above is not likely to change for the decades to come. Those types are safe to use. When using `char`
+though, be aware that its signdness can depend on compiler flags, so do not assume it can take negative values.
