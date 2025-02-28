@@ -3895,6 +3895,7 @@ void select_max_min_finder_subselect::set_op(const Type_handler *th)
       op= &select_max_min_finder_subselect::cmp_str;
     break;
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     // This case should never be chosen
     DBUG_ASSERT(0);
     op= 0;
@@ -4057,15 +4058,27 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
   m_var_sp_row= NULL;
 
   if (var_list.elements == 1 &&
-      (mvsp= var_list.head()->get_my_var_sp()) &&
-      mvsp->type_handler() == &type_handler_row)
+      (mvsp= var_list.head()->get_my_var_sp()))
   {
-    // SELECT INTO row_type_sp_variable
-    if (mvsp->get_rcontext(thd->spcont)->get_variable(mvsp->offset)->cols() !=
-        list.elements)
-      goto error;
-    m_var_sp_row= mvsp;
-    return 0;
+    Item *item= mvsp->get_rcontext(thd->spcont)->get_variable(mvsp->offset);
+    if (mvsp->type_handler() == &type_handler_row)
+    {
+      // SELECT INTO row_type_sp_variable
+      if (item->cols() != list.elements)
+        goto error;
+      m_var_sp_row= mvsp;
+      return 0;
+    }
+    else if (mvsp->type_handler() == &type_handler_assoc_array &&
+            item->cols_for_elements() != 0)
+    {
+      // SELECT INTO assoc_array_sp_variable
+      if (item->cols_for_elements() != list.elements)
+        goto error;
+      
+      m_var_sp_assoc_array= mvsp;
+      return 0;
+    }
   }
 
   // SELECT INTO variable list
@@ -4466,6 +4479,13 @@ bool my_var_sp_row_field::set(THD *thd, Item *item)
 }
 
 
+bool my_var_sp_assoc_array_element::set(THD *thd, Item *item)
+{
+  return get_rcontext(thd->spcont)->
+            set_variable_assoc_array_by_key(thd, offset, m_key, &item);
+}
+
+
 bool select_dumpvar::send_data_to_var_list(List<Item> &items)
 {
   DBUG_ENTER("select_dumpvar::send_data_to_var_list");
@@ -4491,10 +4511,19 @@ int select_dumpvar::send_data(List<Item> &items)
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
     DBUG_RETURN(1);
   }
-  if (m_var_sp_row ?
-      m_var_sp_row->get_rcontext(thd->spcont)->
-        set_variable_row(thd, m_var_sp_row->offset, items) :
-      send_data_to_var_list(items))
+  if (m_var_sp_row)
+  {
+    if (m_var_sp_row->get_rcontext(thd->spcont)->
+      set_variable_row(thd, m_var_sp_row->offset, items))
+      DBUG_RETURN(1);
+  }
+  else if (m_var_sp_assoc_array)
+  {
+    Item_row *item_row= new (thd->mem_root) Item_row(thd, items);  
+    if (var_list.begin()->set(thd, item_row))
+      DBUG_RETURN(1);
+  }
+  else if (send_data_to_var_list(items))
     DBUG_RETURN(1);
 
   DBUG_RETURN(thd->is_error());
@@ -8766,6 +8795,34 @@ bool Qualified_column_ident::append_to(THD *thd, String *str) const
 {
   return Table_ident::append_to(thd, str) || str->append('.') ||
          append_identifier(thd, str, m_column.str, m_column.length);
+}
+
+
+Qualified_ident::Qualified_ident(THD *thd, Lex_ident_cli_st *a)
+  :ident(*a)
+{
+  parts[0].length= parts[1].length= 0;
+  parts[0].str= parts[1].str= NULL;
+}
+
+
+Qualified_ident::Qualified_ident(THD *thd, Lex_ident_cli_st *a,
+                                 Lex_ident_sys_st *b)
+  :ident(*a)
+{
+  parts[0]= *b;
+  parts[1].length= 0;
+  parts[1].str= NULL;
+}
+
+
+Qualified_ident::Qualified_ident(THD *thd, Lex_ident_cli_st *a,
+                                 Lex_ident_sys_st *b,
+                                 Lex_ident_sys_st *c)
+  :ident(*a)
+{
+  parts[0]= *b;
+  parts[1]= *c;
 }
 
 

@@ -764,6 +764,76 @@ public:
 }; // class sp_instr_set_field_by_name : public sp_instr_set
 
 
+/*
+  This class handles assignments of an associative array
+    TYPE t IS TABLE OF rec_t INDEX BY VARCHAR2(20);
+    arr t;
+    arr('key'):= rec_t(10, 20);
+*/
+
+class sp_instr_set_assoc_array_by_key : public sp_instr_set
+{
+  sp_instr_set_assoc_array_by_key(const sp_instr_set_assoc_array_by_key &);
+  void operator=(sp_instr_set_assoc_array_by_key &);
+  Item* m_key;
+
+public:
+  sp_instr_set_assoc_array_by_key(uint ip, sp_pcontext *ctx,
+                         const Sp_rcontext_handler *rh,
+                         uint offset, Item* key,
+                         Item *val,
+                         LEX *lex, bool lex_resp,
+                         const LEX_CSTRING &value_query)
+    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp, value_query),
+      m_key(key)
+  {}
+
+  virtual ~sp_instr_set_assoc_array_by_key() = default;
+
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+}; // class sp_instr_set_assoc_array_by_key : public sp_instr_set
+
+
+/*
+  This class handles assignments of an associative array
+    TYPE t IS TABLE OF rec_t INDEX BY VARCHAR2(20);
+    arr t;
+    arr('key'):= rec_t(10, 20);
+    arr('key').field:= 30;
+*/
+class sp_instr_set_assoc_array_field_by_key : public sp_instr_set
+{
+  sp_instr_set_assoc_array_field_by_key(const sp_instr_set_assoc_array_field_by_key &);
+  void operator=(sp_instr_set_assoc_array_field_by_key &);
+  const LEX_CSTRING m_var_name;
+  Item* m_key;
+  const LEX_CSTRING m_field_name;
+
+public:
+  sp_instr_set_assoc_array_field_by_key(uint ip, sp_pcontext *ctx,
+                                        const Sp_rcontext_handler *rh,
+                                        const LEX_CSTRING &var_name,
+                                        uint offset, Item* key,
+                                        const LEX_CSTRING &field_name,
+                                        Item *val,
+                                        LEX *lex, bool lex_resp,
+                                        const LEX_CSTRING &value_query)
+    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp, value_query),
+      m_var_name(var_name),
+      m_key(key),
+      m_field_name(field_name)
+  {}
+
+  virtual ~sp_instr_set_assoc_array_field_by_key() = default;
+
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+}; // class sp_instr_set_assoc_array_field_by_key : public sp_instr_set
+
+
 /**
   Set NEW/OLD row field value instruction. Used in triggers.
 */

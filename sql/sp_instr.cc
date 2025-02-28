@@ -1268,6 +1268,88 @@ sp_instr_set_row_field_by_name::print(String *str)
 
 
 /*
+  sp_instr_set_assoc_array_by_key class functions
+*/
+
+int
+sp_instr_set_assoc_array_by_key::exec_core(THD *thd, uint *nextp)
+{
+  int res= get_rcontext(thd)->set_variable_assoc_array_by_key(thd, m_offset,
+                                                              m_key,
+                                                              &m_value);
+  *nextp= m_ip + 1;
+  return res;
+}
+
+
+void
+sp_instr_set_assoc_array_by_key::print(String *str)
+{
+  sp_variable *var= m_ctx->find_variable(m_offset);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  DBUG_ASSERT(var);
+  DBUG_ASSERT(var->field_def.is_assoc_array());
+
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+  str->append('@');
+  str->append_ulonglong(m_offset);
+  str->append('[');
+  m_key->print(str, enum_query_type(QT_ORDINARY |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF)); 
+  str->append(']');
+  str->append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+/*
+  sp_instr_set_assoc_array_field_by_key class functions
+*/
+
+int
+sp_instr_set_assoc_array_field_by_key::exec_core(THD *thd, uint *nextp)
+{
+  int res= get_rcontext(thd)->set_variable_assoc_array_field_by_key(thd,
+                                                              m_var_name,
+                                                              m_offset,
+                                                              m_key,
+                                                              m_field_name,
+                                                              &m_value);
+  *nextp= m_ip + 1;
+  return res;
+}
+
+
+void
+sp_instr_set_assoc_array_field_by_key::print(String *str)
+{
+  sp_variable *var= m_ctx->find_variable(m_offset);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  DBUG_ASSERT(var);
+  DBUG_ASSERT(var->field_def.is_assoc_array());
+
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+  str->append('@');
+  str->append_ulonglong(m_offset);
+  str->append('[');
+  m_key->print(str, enum_query_type(QT_ORDINARY |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF)); 
+  str->append(']');
+  str->append('.');
+  str->append(&m_field_name);
+  str->append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+
+/*
   sp_instr_set_trigger_field class functions
 */
 

@@ -5040,6 +5040,73 @@ public:
 
 
 /*
+  Special handler associative arrays
+*/
+class Type_handler_assoc_array: public Type_handler_row
+{
+public:
+  const Type_collection *type_collection() const override;
+  protocol_send_type_t protocol_send_type() const override
+  {
+    MY_ASSERT_UNREACHABLE();
+    return PROTOCOL_SEND_STRING;
+  }
+  Item_result result_type() const override
+  {
+    return ASSOC_ARRAY_RESULT;
+  }
+  Item_result cmp_type() const override
+  {
+    return ASSOC_ARRAY_RESULT;
+  }
+  const Type_handler *type_handler_for_comparison() const override;
+  Field *make_table_field_from_def(TABLE_SHARE *share,
+                                   MEM_ROOT *mem_root,
+                                   const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Bit_addr &bit,
+                                   const Column_definition_attributes *attr,
+                                   uint32 flags) const override;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
+    override
+  {
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
+  }
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const override
+  {
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
+  }
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override
+  {
+    MY_ASSERT_UNREACHABLE();
+    return true;
+  }
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override
+  {
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
+  }
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const
+    override
+  {
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
+  }
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const
+    override
+  {
+    MY_ASSERT_UNREACHABLE();
+    return false;
+  }
+  
+  String *print_item_value(THD *thd, Item *item, String *str) const override;
+};
+
+
+/*
   A common parent class for numeric data type handlers
 */
 class Type_handler_numeric: public Type_handler
@@ -7871,6 +7938,7 @@ class Named_type_handler : public TypeHandler
 };
 
 extern Named_type_handler<Type_handler_row>         type_handler_row;
+extern Named_type_handler<Type_handler_assoc_array> type_handler_assoc_array;
 extern Named_type_handler<Type_handler_null>        type_handler_null;
 
 extern Named_type_handler<Type_handler_float>       type_handler_float;
