@@ -2820,42 +2820,43 @@ err:
 
 
 const char str_binlog[]= "\nBINLOG '\n";
-const char fmt_delim[]=   "'%s\n";
-const char fmt_n_delim[]= "\n'%s";
-const char fmt_frag[]= "\nSET @binlog_fragment_%d ='\n";
-const char fmt_binlog2[]= "BINLOG @binlog_fragment_0, @binlog_fragment_1%s\n";
+const char str_frag[]= "\nSET @binlog_fragment_";
+const char str_eq[]= " ='\n";
 
 /**
-  Print an event "body" cache to @c file possibly in two fragments.
-  Each fragement is optionally per @c do_wrap to produce an SQL statement.
+  Print an event "body" cache with `cache_copier` and, if not empty,
+  wrap it using `wrap_writer` with an SQL statement (or multiple fragment
+  statements if it's longer than `opt_binlog_rows_event_max_encoded_size`)
 
-  @param file      a file to print to
-  @param body      the "body" IO_CACHE of event
-  @param do_wrap   whether to wrap base64-encoded strings with
-                   SQL cover.
+  @param body the "body" IO_CACHE of event
+  @param copy_cache a function or lambda to `print(cache, size)` with
+                    that return `true` if error or `false` otherwise.
+  @param print_wrap a function or lambda to `print(string)` with or
+                    an empty `std::function()` to disable wrapping with SQL
   @param delimiter delimiter string
 
-  @param is_verbose  MDEV-10362 workraround parameter to pass
-                   info on presence of verbose printout in cache encoded data
-
-  The function signals on any error through setting @c body->error to -1.
+  @return `true` if error (also sets `body->error` to -1), `false` otherwise
+  @post `body` becomes an empty @ref WRITE_CACHE if success
 */
-bool copy_cache_to_file_wrapped(IO_CACHE *body,
-                                FILE *file,
-                                bool do_wrap,
-                                const char *delimiter,
-                                bool is_verbose /*TODO: remove */)
+static
+bool copy_cache_wrapped(
+  IO_CACHE *body,
+  const std::function<bool(IO_CACHE *, my_off_t)> &copy_cache,
+  const std::function<void(const char *)> &print_wrap,
+  const char *delimiter
+)
 {
   const my_off_t cache_size= my_b_tell(body);
 
   if (reinit_io_cache(body, READ_CACHE, 0L, FALSE, FALSE))
     goto err;
 
-  if (!do_wrap)
+  if (!print_wrap)
   {
-    my_b_copy_to_file(body, file, SIZE_T_MAX);
+    if (copy_cache(body, cache_size))
+      goto err;
   }
-  else if (4 + sizeof(str_binlog) + cache_size + sizeof(fmt_delim) >
+  else if (9 + sizeof(str_binlog) + body->end_of_file >
            opt_binlog_rows_event_max_encoded_size)
   {
     /*
@@ -2869,24 +2870,34 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
       limit. The estimate includes the maximum packet header
       contribution of non-compressed packet.
     */
-    my_fprintf(file, fmt_frag, 0);
-    if (my_b_copy_to_file(body, file, (size_t) cache_size/2 + 1))
+    print_wrap(str_frag);
+    print_wrap("0");
+    print_wrap(str_eq);
+    if (copy_cache(body, (cache_size+1) / 2))
       goto err;
-    my_fprintf(file, fmt_n_delim, delimiter);
+    print_wrap("\n'");
+    print_wrap(delimiter);
 
-    my_fprintf(file, fmt_frag, 1);
-    if (my_b_copy_to_file(body, file, SIZE_T_MAX))
+    print_wrap(str_frag);
+    print_wrap("1");
+    print_wrap(str_eq);
+    if (copy_cache(body, cache_size/2))
       goto err;
-    my_fprintf(file, fmt_delim, delimiter);
+    print_wrap("'");
+    print_wrap(delimiter);
 
-    my_fprintf(file, fmt_binlog2, delimiter);
+    print_wrap("\nBINLOG @binlog_fragment_0, @binlog_fragment_1");
+    print_wrap(delimiter);
+    print_wrap("\n");
   }
   else
   {
-    my_fprintf(file, str_binlog);
-    if (my_b_copy_to_file(body, file, SIZE_T_MAX))
+    print_wrap(str_binlog);
+    if (copy_cache(body, cache_size))
       goto err;
-    my_fprintf(file, fmt_delim, delimiter);
+    print_wrap("'");
+    print_wrap(delimiter);
+    print_wrap("\n");
   }
   reinit_io_cache(body, WRITE_CACHE, 0, FALSE, TRUE);
 
@@ -2897,107 +2908,22 @@ err:
   return true;
 }
 
-
-/**
-  Print an event "body" cache to @c file possibly in two fragments.
-  Each fragement is optionally per @c do_wrap to produce an SQL statement.
-
-  @param file      a file to print to
-  @param body      the "body" IO_CACHE of event
-  @param do_wrap   whether to wrap base64-encoded strings with
-                   SQL cover.
-  @param delimiter delimiter string
-
-  The function signals on any error through setting @c body->error to -1.
-*/
-bool copy_cache_to_string_wrapped(IO_CACHE *cache,
-                                  LEX_STRING *to,
-                                  bool do_wrap,
-                                  const char *delimiter,
-                                  bool is_verbose)
+bool copy_cache_to_file_wrapped(IO_CACHE *body,
+                                FILE *file,
+                                bool do_wrap,
+                                const char *delimiter,
+                                bool is_verbose __attribute__((unused)))
 {
-  const my_off_t cache_size= my_b_tell(cache);
-  // contribution to total size estimate of formating
-  const size_t fmt_size=
-    sizeof(str_binlog) + 2*(sizeof(fmt_frag) + 2 /* %d */) +
-    sizeof(fmt_delim)  + sizeof(fmt_n_delim)               +
-    sizeof(fmt_binlog2) +
-    3*PRINT_EVENT_INFO::max_delimiter_size;
-
-  if (reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE))
-    goto err;
-
-  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, (size_t)cache->end_of_file + fmt_size,
-                                   MYF(0))))
-  {
-    perror("Out of memory: can't allocate memory in "
-           "copy_cache_to_string_wrapped().");
-    goto err;
-  }
-
-  if (!do_wrap)
-  {
-    if (my_b_read(cache, (uchar*) to->str,
-                  (to->length= (size_t)cache->end_of_file)))
-      goto err;
-  }
-  else if (4 + sizeof(str_binlog) + cache_size + sizeof(fmt_delim) >
-           opt_binlog_rows_event_max_encoded_size)
-  {
-    /*
-      2 fragments can always represent near 1GB row-based
-      base64-encoded event as two strings each of size less than
-      max(max_allowed_packet). Greater number of fragments does not
-      save from potential need to tweak (increase) @@max_allowed_packet
-      before to process the fragments. So 2 is safe and enough.
-
-      Split the big query when its packet size's estimation exceeds a
-      limit. The estimate includes the maximum packet header
-      contribution of non-compressed packet.
-    */
-    char *str= to->str;
-    size_t add_to_len;
-
-    str += (to->length= sprintf(str, fmt_frag, 0));
-    if (my_b_read(cache, (uchar*) str, (uint32) (cache_size/2 + 1)))
-      goto err;
-    str += (add_to_len = (uint32) (cache_size/2 + 1));
-    to->length += add_to_len;
-    str += (add_to_len= sprintf(str, fmt_n_delim, delimiter));
-    to->length += add_to_len;
-
-    str += (add_to_len= sprintf(str, fmt_frag, 1));
-    to->length += add_to_len;
-    if (my_b_read(cache, (uchar*) str, uint32(cache->end_of_file - (cache_size/2 + 1))))
-      goto err;
-    str += (add_to_len= uint32(cache->end_of_file - (cache_size/2 + 1)));
-    to->length += add_to_len;
-    {
-      str += (add_to_len= sprintf(str , fmt_delim, delimiter));
-      to->length += add_to_len;
-    }
-    to->length += sprintf(str, fmt_binlog2, delimiter);
-  }
-  else
-  {
-    char *str= to->str;
-
-    str += (to->length= sprintf(str, str_binlog));
-    if (my_b_read(cache, (uchar*) str, (size_t)cache->end_of_file))
-      goto err;
-    str += cache->end_of_file;
-    to->length += (size_t)cache->end_of_file;
-      to->length += sprintf(str , fmt_delim, delimiter);
-  }
-
-  reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
-
-  return false;
-
-err:
-  cache->error= -1;
-  return true;
+  return copy_cache_wrapped(body,
+                            [file] (IO_CACHE *cache, my_off_t size) -> bool
+                            { return my_b_copy_to_file(cache, file, size); },
+                            do_wrap ? (
+                              [file] (const char *string) -> void
+                              { fputs(string, file); }
+                            ) : std::function<void(const char *)>(),
+                            delimiter);
 }
+
 
 /**
   The function invokes base64 encoder to run on the current
@@ -3078,12 +3004,15 @@ bool Rows_log_event::print_helper(FILE *file,
     output_buf.append(tmp_str.str, tmp_str.length);  // Not \0 terminated);
     my_free(tmp_str.str);
 
-    if (copy_cache_to_string_wrapped(body, &tmp_str, do_print_encoded,
-                                     print_event_info->delimiter,
-                                     print_event_info->verbose))
+    if (copy_cache_wrapped(body,
+                          [this] (IO_CACHE *cache, my_off_t size) -> bool
+                          { return output_buf.append(cache, size); },
+                          do_print_encoded ? (
+                            [this] (const char *string) -> void
+                            { output_buf.append(string, strlen(string)); }
+                          ) : std::function<void(const char *)>(),
+                          print_event_info->delimiter))
       return 1;
-    output_buf.append(tmp_str.str, tmp_str.length);
-    my_free(tmp_str.str);
     if (copy_event_cache_to_string_and_reinit(tail, &tmp_str))
       return 1;
     output_buf.append(tmp_str.str, tmp_str.length);
