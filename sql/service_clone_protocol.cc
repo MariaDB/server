@@ -89,17 +89,13 @@ void destroy_background_thd(MYSQL_THD thd);
 THD* clone_start_statement(THD *thd, PSI_thread_key thread_key,
                            PSI_statement_key statement_key)
 {
-  PSI_thread *psi= nullptr;
-
   if (!thd) {
-    /* Initialize Session */
-    my_thread_init();
-
     /* Create thread with input key for PFS */
-    thd = create_background_thd();
-    psi= PSI_CALL_new_thread(thread_key, NULL, 0);
+    thd= create_background_thd();
+    auto psi= PSI_CALL_new_thread(thread_key, NULL, 0);
     PSI_CALL_set_thread_os_id(psi);
     PSI_CALL_set_thread(psi);
+    my_thread_set_name("clone_task");
   }
 
   /* Create and set PFS statement key */
@@ -109,7 +105,7 @@ THD* clone_start_statement(THD *thd, PSI_thread_key thread_key,
           &thd->m_statement_state, statement_key, thd->get_db(),
           thd->db.length, thd->charset(), nullptr);
     } else {
-      thd->m_statement_psi =
+      thd->m_statement_psi=
           MYSQL_REFINE_STATEMENT(thd->m_statement_psi, statement_key);
     }
   }

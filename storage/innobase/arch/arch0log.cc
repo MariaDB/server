@@ -56,7 +56,7 @@ int Log_Arch_Client_Ctx::start(byte *header, uint len)
 {
   ut_ad(len >= log_t::START_OFFSET);
 
-  auto err= arch_log_sys->start(m_group, m_begin_lsn, header, false);
+  auto err= arch_sys->log_sys()->start(m_group, m_begin_lsn, header, false);
 
   if (err != 0)
     return err;
@@ -80,7 +80,7 @@ int Log_Arch_Client_Ctx::stop(byte *trailer, uint32_t &len, uint64_t &offset)
   ut_ad(m_state == ARCH_CLIENT_STATE_STARTED);
   ut_ad(trailer == nullptr || len >= OS_FILE_LOG_BLOCK_SIZE);
 
-  auto err= arch_log_sys->stop(m_group, m_end_lsn, trailer, len);
+  auto err= arch_sys->log_sys()->stop(m_group, m_end_lsn, trailer, len);
 
   lsn_t start_lsn= m_group->get_begin_lsn();
 
@@ -192,7 +192,7 @@ void Log_Arch_Client_Ctx::release()
 
   ut_ad(m_state == ARCH_CLIENT_STATE_STOPPED);
 
-  arch_log_sys->release(m_group, false);
+  arch_sys->log_sys()->release(m_group, false);
 
   m_group= nullptr;
 
@@ -283,13 +283,13 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   {
     arch_mutex_exit();
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
-    return (ER_QUERY_INTERRUPTED);
+    return ER_QUERY_INTERRUPTED;
   }
 
   /* Start archiver task, if needed. */
   if (m_state == ARCH_STATE_INIT)
   {
-    auto err= start_log_archiver_background();
+    auto err= arch_sys->start_archiver();
 
     if (err != 0)
     {
@@ -321,7 +321,7 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
     m_state= ARCH_STATE_ACTIVE;
     /* TODO: Prevent over-writing log before being archived. */
     // log_consumer_register(log, &m_log_consumer);
-    signal_log_archiver();
+    arch_sys->signal_archiver();
   }
 
   log_sys.latch.rd_unlock();
@@ -465,7 +465,7 @@ int Arch_Log_Sys::stop(Arch_Group *group, lsn_t &stop_lsn, byte *log_blk,
       /* The active group must be the current group. */
       ut_ad(group == m_current_group);
       m_state= ARCH_STATE_PREPARE_IDLE;
-      signal_log_archiver();
+      arch_sys->signal_archiver();
     }
   }
   arch_mutex_exit();
@@ -628,7 +628,7 @@ dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn,
   }
 
   uint write_size= 0;
-  Arch_Group *curr_group = arch_log_sys->get_arch_group();
+  Arch_Group *curr_group = arch_sys->log_sys()->get_arch_group();
 
   /* Copy log data into one or more files in archiver group. */
   while (length > 0)
@@ -678,7 +678,7 @@ bool Arch_Log_Sys::wait_idle() {
   mysql_mutex_assert_owner(&m_mutex);
 
   if (m_state == ARCH_STATE_PREPARE_IDLE) {
-    signal_log_archiver();
+    arch_sys->signal_archiver();
     bool is_timeout= false;
     int alert_count= 0;
     auto thd= current_thd;
@@ -697,7 +697,7 @@ bool Arch_Log_Sys::wait_idle() {
 
           if (result)
           {
-            signal_log_archiver();
+            arch_sys->signal_archiver();
             /* Print messages every 1 minute - default is 5 seconds. */
             if (alert && ++alert_count == 12)
             {
@@ -733,7 +733,7 @@ int Arch_Log_Sys::wait_archive_complete(lsn_t target_lsn)
   /* Check and wait for archiver thread if needed. */
   if (m_archived_lsn.load() < target_lsn)
   {
-    signal_log_archiver();
+    arch_sys->signal_archiver();
 
     bool is_timeout= false;
     int alert_count= 0;
@@ -774,7 +774,7 @@ int Arch_Log_Sys::wait_archive_complete(lsn_t target_lsn)
           if (result)
           {
             /* More data needs to be archived. */
-            signal_log_archiver();
+            arch_sys->signal_archiver();
 
             /* Write system redo log if needed. */
             if (flush)

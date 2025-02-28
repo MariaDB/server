@@ -88,17 +88,6 @@ const uint MAX_ARCH_PAGE_FILE_NAME_LEN =
 const uint MAX_ARCH_DIR_NAME_LEN =
     sizeof(ARCH_DIR) + 1 + sizeof(ARCH_PAGE_DIR) + MAX_LSN_DECIMAL_DIGIT + 1;
 
-/** Wake up log archiver */
-void signal_log_archiver();
-
-/** Log archiver background thread */
-void log_archiver_thread();
-
-/** Archiver thread event to signal that data is available */
-extern mysql_mutex_t log_archiver_task_mutex;
-extern mysql_cond_t log_archiver_task_cond;
-extern bool log_archiver_signalled;
-
 /** Memory block size */
 constexpr uint ARCH_PAGE_BLK_SIZE = UNIV_PAGE_SIZE_DEF;
 
@@ -123,7 +112,8 @@ till the time client object is destroyed.
   ARCH_CLIENT_STATE_STOPPED -down-> [*] : Detach client
 
 @enduml */
-enum Arch_Client_State {
+enum Arch_Client_State
+{
   /** Client is initialized */
   ARCH_CLIENT_STATE_INIT = 0,
 
@@ -133,16 +123,6 @@ enum Arch_Client_State {
   /** Archiving stopped by client */
   ARCH_CLIENT_STATE_STOPPED
 };
-
-/** Remove files related to page and log archiving.
-@param[in]      file_path       path to the file
-@param[in]      file_name       name of the file */
-void arch_remove_file(const char *file_path, const char *file_name);
-
-/** Remove group directory and the files related to page and log archiving.
-@param[in]      dir_path        path to the directory
-@param[in]      dir_name        directory name */
-void arch_remove_dir(const char *dir_path, const char *dir_name);
 
 /** Archiver system state.
 Archiver state changes are triggered by client request to start or
@@ -168,7 +148,8 @@ Following diagram shows the state transfer.
   ARCH_STATE_ABORT -down-> [*]
 
 @enduml */
-enum Arch_State {
+enum Arch_State
+{
   /** Archiver is initialized */
   ARCH_STATE_INIT = 0,
 
@@ -207,7 +188,8 @@ into disk. Shown below is the state transfer diagram for a data block.
   ARCH_BLOCK_FLUSHED -down-> [*]
 
 @enduml */
-enum Arch_Blk_State {
+enum Arch_Blk_State
+{
   /** Data block is initialized */
   ARCH_BLOCK_INIT = 0,
 
@@ -222,7 +204,8 @@ enum Arch_Blk_State {
 };
 
 /** Archiver block type */
-enum Arch_Blk_Type {
+enum Arch_Blk_Type
+{
   /* Block which holds reset information */
   ARCH_RESET_BLOCK = 0,
 
@@ -231,7 +214,8 @@ enum Arch_Blk_Type {
 };
 
 /** Archiver block flush type */
-enum Arch_Blk_Flush_Type {
+enum Arch_Blk_Flush_Type
+{
   /** Flush when block is full */
   ARCH_FLUSH_NORMAL = 0,
 
@@ -241,7 +225,8 @@ enum Arch_Blk_Flush_Type {
 };
 
 /** Page Archive doublewrite buffer block offsets */
-enum Arch_Page_Dblwr_Offset {
+enum Arch_Page_Dblwr_Offset
+{
   /** Archive doublewrite buffer page offset for RESET page. */
   ARCH_PAGE_DBLWR_RESET_PAGE = 0,
 
@@ -252,36 +237,6 @@ enum Arch_Page_Dblwr_Offset {
   ARCH_PAGE_DBLWR_PARTIAL_FLUSH_PAGE
 };
 
-/** Initialize Page and Log archiver system
-@return error code */
-dberr_t arch_init();
-
-/** Free Page and Log archiver system */
-void arch_free();
-
-/** Start log archiver background thread.
-@return error code */
-int start_log_archiver_background();
-
-/** Start page archiver background thread.
-@return error code */
-int start_page_archiver_background();
-
-/** Archiver thread event to signal that data is available */
-extern mysql_mutex_t page_archiver_task_mutex;
-extern mysql_cond_t page_archiver_task_cond;
-extern bool page_archiver_signalled;
-
-/** Wake up page archiver */
-void signal_page_archiver();
-
-/** Page archiver background thread */
-void page_archiver_thread();
-
-/** Wakes up archiver threads.
-@return true iff any thread was still alive */
-bool arch_wake_threads();
-
 /** Forward declarations */
 class Arch_Group;
 class Arch_Log_Sys;
@@ -289,20 +244,22 @@ class Arch_Dblwr_Ctx;
 class Arch_Recv_Group_Info;
 
 /** Guard to release resources safely */
-class Arch_scope_guard {
+class Arch_scope_guard
+{
  public:
   /** Attach a function to the guard which releases some resource. */
   Arch_scope_guard(std::function<void()> function) { m_cleanup = function; }
 
   /** Release the resources automatically at the time of destruction. */
-  ~Arch_scope_guard() {
-    if (m_cleanup) {
+  ~Arch_scope_guard()
+  {
+    if (m_cleanup)
       m_cleanup();
-    }
   }
 
   /** Manually release the resource. */
-  void cleanup() {
+  void cleanup()
+  {
     m_cleanup();
     m_cleanup = nullptr;
   }
@@ -313,7 +270,8 @@ class Arch_scope_guard {
 };
 
 /** Position in page ID archiving system */
-struct Arch_Page_Pos {
+struct Arch_Page_Pos
+{
   /** Initialize a position */
   void init();
 
@@ -326,17 +284,16 @@ struct Arch_Page_Pos {
   /** Offset within a block */
   uint m_offset;
 
-  bool operator<(Arch_Page_Pos pos) {
-    if (m_block_num < pos.m_block_num ||
-        (m_block_num == pos.m_block_num && m_offset <= pos.m_offset)) {
-      return (true);
-    }
-    return (false);
+  bool operator<(Arch_Page_Pos pos)
+  {
+    return (m_block_num < pos.m_block_num ||
+            (m_block_num == pos.m_block_num && m_offset <= pos.m_offset));
   }
 };
 
 /** Structure which represents a point in a file. */
-struct Arch_Point {
+struct Arch_Point
+{
   /** LSN of the point */
   lsn_t lsn{LSN_MAX};
 
@@ -345,7 +302,8 @@ struct Arch_Point {
 };
 
 /* Structure which represents a file in a group and its reset points. */
-struct Arch_Reset_File {
+struct Arch_Reset_File
+{
   /* Initialize the structure. */
   void init();
 
@@ -364,7 +322,8 @@ struct Arch_Reset_File {
 using Arch_Reset = std::deque<Arch_Reset_File>;
 
 /** In memory data block in Page ID archiving system */
-class Arch_Block {
+class Arch_Block
+{
  public:
   /** Constructor: Initialize elements
   @param[in]    blk_buf buffer for data block
@@ -552,7 +511,8 @@ class Arch_Block {
 
 /** Archiver file context.
 Represents a set of fixed size files within a group */
-class Arch_File_Ctx {
+class Arch_File_Ctx
+{
  public:
   class Recovery;
 
@@ -560,12 +520,11 @@ class Arch_File_Ctx {
   Arch_File_Ctx() { m_file.m_file = OS_FILE_CLOSED; }
 
   /** Destructor: Close open file and free resources */
-  ~Arch_File_Ctx() {
+  ~Arch_File_Ctx()
+  {
     close();
-
-    if (m_name_buf != nullptr) {
+    if (m_name_buf)
       ut_free(m_name_buf);
-    }
   }
 
   /** Initializes archiver file context.
@@ -642,17 +601,19 @@ class Arch_File_Ctx {
   dberr_t write(Arch_File_Ctx *from_file, byte *from_buffer, uint size);
 
   /** Flush file. */
-  void flush() {
-    if (m_file.m_file != OS_FILE_CLOSED) {
+  void flush()
+  {
+    if (m_file.m_file != OS_FILE_CLOSED)
       os_file_flush(m_file);
-    }
   }
 
   /** Close file, if open */
-  void close() {
-    if (m_file.m_file != OS_FILE_CLOSED) {
+  void close()
+  {
+    if (m_file.m_file != OS_FILE_CLOSED)
+    {
       os_file_close(m_file);
-      m_file.m_file = OS_FILE_CLOSED;
+      m_file.m_file= OS_FILE_CLOSED;
     }
   }
 
@@ -662,7 +623,8 @@ class Arch_File_Ctx {
 
   /** Check how much is left in current file
   @return length left in bytes */
-  uint64_t bytes_left() const {
+  uint64_t bytes_left() const
+  {
     ut_ad(m_size >= m_offset);
     return (m_size - m_offset);
   }
@@ -700,7 +662,8 @@ class Arch_File_Ctx {
 
   /** Get the physical size of a file that is open in this context.
   @return physical file size */
-  uint64_t get_phy_size() const {
+  uint64_t get_phy_size() const
+  {
     ut_ad(m_name_buf != nullptr);
     os_file_size_t file_size = os_file_get_size(m_name_buf);
     return (file_size.m_total_size);
@@ -769,11 +732,12 @@ class Arch_File_Ctx {
   /** Fetch the status of the page tracking system.
   @param[out]   status  vector of a pair of (ID, bool) where ID is the
   start/stop point and bool is true if the ID is a start point else false */
-  void get_status(std::vector<std::pair<lsn_t, bool>> &status) {
-    for (auto reset_file : m_reset) {
-      for (auto reset_point : reset_file.m_start_point) {
+  void get_status(std::vector<std::pair<lsn_t, bool>> &status)
+  {
+    for (auto reset_file : m_reset)
+    {
+      for (auto reset_point : reset_file.m_start_point)
         status.push_back(std::make_pair(reset_point.lsn, true));
-      }
     }
   }
 
@@ -864,7 +828,8 @@ typedef uint32_t Arch_group_uuid;
 /** Contiguous archived data for redo log or page tracking.
 If there is a gap, that is if archiving is stopped and started, a new
 group is created. */
-class Arch_Group {
+class Arch_Group
+{
  public:
   /** Function responsible to format the header of a new file which is
   created, when the stream of data is written to a sequence of new files.
@@ -881,9 +846,10 @@ class Arch_Group {
   @param[in]    mutex           archive system mutex from caller */
   Arch_Group(lsn_t start_lsn, uint header_len, mysql_mutex_t *mutex)
       : m_begin_lsn(start_lsn),
-        m_header_len(header_len) IF_DEBUG(, m_arch_mutex(mutex)) {
-    m_active_file.m_file = OS_FILE_CLOSED;
-    m_durable_file.m_file = OS_FILE_CLOSED;
+        m_header_len(header_len) IF_DEBUG(, m_arch_mutex(mutex))
+  {
+    m_active_file.m_file= OS_FILE_CLOSED;
+    m_durable_file.m_file= OS_FILE_CLOSED;
     m_stop_pos.init();
   }
 
@@ -911,17 +877,20 @@ class Arch_Group {
   @return error code. */
   dberr_t init_file_ctx(const char *path, const char *base_dir,
                         const char *base_file, uint num_files,
-                        uint64_t file_size, Arch_group_uuid uuid) {
-    m_uuid = uuid;
-    m_file_size = file_size;
+                        uint64_t file_size, Arch_group_uuid uuid)
+  {
+    m_uuid= uuid;
+    m_file_size= file_size;
     return (m_file_ctx.init(path, base_dir, base_file, num_files));
   }
 
   /* Close the file contexts when they're not required anymore. */
-  void close_file_ctxs() {
+  void close_file_ctxs()
+  {
     m_file_ctx.close();
 
-    if (m_durable_file.m_file != OS_FILE_CLOSED) {
+    if (m_durable_file.m_file != OS_FILE_CLOSED)
+    {
       os_file_close(m_durable_file);
       m_durable_file.m_file = OS_FILE_CLOSED;
     }
@@ -932,26 +901,26 @@ class Arch_Group {
   into idle state ARCH_STATE_IDLE.
   @param[in]    end_lsn lsn where redo archiving is stopped */
   void disable(lsn_t end_lsn) {
-    m_is_active = false;
+    m_is_active= false;
 
-    if (end_lsn != LSN_MAX) {
-      m_end_lsn = end_lsn;
-    }
+    if (end_lsn != LSN_MAX)
+      m_end_lsn= end_lsn;
   }
 
   /** Attach a client to the archive group.
   @param[in]    is_durable      true, if durable tracking is requested */
-  void attach(bool is_durable) {
+  void attach(bool is_durable)
+  {
     mysql_mutex_assert_owner(m_arch_mutex);
     ++m_num_active;
 
-    if (is_durable) {
+    if (is_durable)
       ++m_dur_ref_count;
-    } else {
+    else
+    {
       ut_ad(m_ref_count < std::numeric_limits<decltype(m_ref_count)>::max());
-      if (m_ref_count < std::numeric_limits<decltype(m_ref_count)>::max()) {
+      if (m_ref_count < std::numeric_limits<decltype(m_ref_count)>::max())
         ++m_ref_count;
-      }
     }
   }
 
@@ -963,19 +932,19 @@ class Arch_Group {
   @param[in]    stop_pos        archive stop position for client. Used only by
   the page_archiver.
   @return number of active clients */
-  uint detach(lsn_t stop_lsn, Arch_Page_Pos *stop_pos) {
+  uint detach(lsn_t stop_lsn, Arch_Page_Pos *stop_pos)
+  {
     ut_ad(m_num_active > 0);
     mysql_mutex_assert_owner(m_arch_mutex);
     --m_num_active;
 
-    if (m_num_active == 0) {
+    if (m_num_active == 0)
+    {
       m_end_lsn = stop_lsn;
-      if (stop_pos != nullptr) {
+      if (stop_pos != nullptr)
         m_stop_pos = *stop_pos;
-      }
     }
-
-    return (m_num_active);
+    return m_num_active;
   }
 
   /** Release the archive group from a client.
@@ -983,13 +952,13 @@ class Arch_Group {
   the reference count falls down to zero. The function would then
   return zero and the caller can remove the group.
   @param[in]    is_durable      the client needs durable archiving */
-  void release(bool is_durable) {
+  void release(bool is_durable)
+  {
     mysql_mutex_assert_owner(m_arch_mutex);
     ut_ad(!is_durable);
-    if (is_durable) {
+    if (is_durable)
       /* For durable, m_ref_count was not incremented. */
       return;
-    }
 
     ut_ad(m_ref_count > 0);
     --m_ref_count;
@@ -1079,7 +1048,8 @@ class Arch_Group {
   @param[in]    check_lsn       LSN to be searched against
   @param[out]   reset_point     reset position of the fetched reset point
   @return true if the search was successful. */
-  bool find_reset_point(lsn_t check_lsn, Arch_Point &reset_point) {
+  bool find_reset_point(lsn_t check_lsn, Arch_Point &reset_point)
+  {
     return (m_file_ctx.find_reset_point(check_lsn, reset_point));
   }
 
@@ -1090,9 +1060,10 @@ class Arch_Group {
   @param[in]    write_pos       latest write_pos
   @return true if the search was successful. */
   bool find_stop_point(lsn_t check_lsn, Arch_Point &stop_point,
-                       Arch_Page_Pos write_pos) {
+                       Arch_Page_Pos write_pos)
+  {
     ut_ad(validate_info_in_files());
-    Arch_Page_Pos last_pos = is_active() ? write_pos : m_stop_pos;
+    Arch_Page_Pos last_pos= is_active() ? write_pos : m_stop_pos;
     return (m_file_ctx.find_stop_point(this, check_lsn, stop_point, last_pos));
   }
 
@@ -1121,13 +1092,15 @@ class Arch_Group {
 
   /** Check if any client (durable or not) is attached to the archiver.
   @return true if any client is attached, else false */
-  bool is_referenced() const {
+  bool is_referenced() const
+  {
     return (m_ref_count > 0) || (m_dur_ref_count > 0);
   }
 
   /** Check if any client requiring durable archiving is active.
   @return true if any durable client is still attached, else false */
-  bool is_durable_client_active() const {
+  bool is_durable_client_active() const
+  {
     return (m_num_active != m_ref_count);
   }
 
@@ -1150,14 +1123,16 @@ class Arch_Group {
   for faster access.
   @param[in]    lsn     lsn at the time of reset
   @param[in]    pos     pos at the time of reset */
-  void save_reset_point_in_mem(lsn_t lsn, Arch_Page_Pos pos) {
+  void save_reset_point_in_mem(lsn_t lsn, Arch_Page_Pos pos)
+  {
     m_file_ctx.save_reset_point_in_mem(lsn, pos);
   }
 
   /** Update stop lsn of a file in the group.
   @param[in]    pos             stop position
   @param[in]    stop_lsn        stop point */
-  void update_stop_point(Arch_Page_Pos pos, lsn_t stop_lsn) {
+  void update_stop_point(Arch_Page_Pos pos, lsn_t stop_lsn)
+  {
     m_file_ctx.update_stop_point(
         Arch_Block::get_file_index(pos.m_block_num, ARCH_DATA_BLOCK), stop_lsn);
   }
@@ -1182,7 +1157,8 @@ class Arch_Group {
   @param[out]   name_buf        file name and path. Caller must
                                   allocate the buffer.
   @param[in]    buf_len         allocated buffer length */
-  void get_file_name(uint idx, char *name_buf, uint buf_len) {
+  void get_file_name(uint idx, char *name_buf, uint buf_len)
+  {
     ut_ad(name_buf != nullptr);
 
     /* Build name from the file context. */
@@ -1210,12 +1186,12 @@ class Arch_Group {
   /** Fetch the status of the page tracking system.
   @param[out]   status  vector of a pair of (ID, bool) where ID is the
   start/stop point and bool is true if the ID is a start point else false */
-  void get_status(std::vector<std::pair<lsn_t, bool>> &status) {
+  void get_status(std::vector<std::pair<lsn_t, bool>> &status)
+  {
     m_file_ctx.get_status(status);
 
-    if (!is_active()) {
+    if (!is_active())
       status.push_back(std::make_pair(m_end_lsn, false));
-    }
   }
 
   /** Open the file which was open at the time of a crash, during crash
@@ -1246,7 +1222,8 @@ class Arch_Group {
   @param[out]   name_buf        directory name and path. Caller must
                                   allocate the buffer.
   @param[in]    buf_len         buffer length */
-  void get_dir_name(char *name_buf, uint buf_len) {
+  void get_dir_name(char *name_buf, uint buf_len)
+  {
     m_file_ctx.build_dir_name(m_begin_lsn, name_buf, buf_len);
   }
 
@@ -1328,19 +1305,22 @@ using Arch_Grp_List = std::list<Arch_Group *, ut_allocator<Arch_Group *>>;
 using Arch_Grp_List_Iter = Arch_Grp_List::iterator;
 
 /** Redo log archiving system */
-class Arch_Log_Sys {
+class Arch_Log_Sys
+{
  public:
   /** Constructor: Initialize members */
   Arch_Log_Sys()
       : m_state(ARCH_STATE_INIT),
         m_archived_lsn(LSN_MAX),
         m_group_list(),
-        m_current_group() {
+        m_current_group()
+  {
     mysql_mutex_init(0, &m_mutex, nullptr);
   }
 
   /** Destructor: Free mutex */
-  ~Arch_Log_Sys() {
+  ~Arch_Log_Sys()
+  {
     ut_ad(m_state == ARCH_STATE_INIT || m_state == ARCH_STATE_ABORT);
     ut_ad(m_current_group == nullptr);
     ut_ad(m_group_list.empty());
@@ -1352,8 +1332,10 @@ class Arch_Log_Sys {
   In #ARCH_STATE_PREPARE_IDLE state, all clients have already detached
   but archiver background task is yet to finish.
   @return true, if archiving is active */
-  bool is_active() const {
-    return (m_state == ARCH_STATE_ACTIVE || m_state == ARCH_STATE_PREPARE_IDLE);
+  bool is_active() const
+  {
+    return (m_state == ARCH_STATE_ACTIVE ||
+            m_state == ARCH_STATE_PREPARE_IDLE);
   }
 
   /** Check if archiver system is in initial state
@@ -1362,13 +1344,13 @@ class Arch_Log_Sys {
 
   /** Get LSN up to which redo is archived
   @return last archived redo LSN */
-  lsn_t get_archived_lsn() const {
+  lsn_t get_archived_lsn() const
+  {
     lsn_t archived_lsn = m_archived_lsn.load();
     ut_ad(archived_lsn == LSN_MAX ||
           archived_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
-    if (archived_lsn != LSN_MAX && archived_lsn % OS_FILE_LOG_BLOCK_SIZE != 0) {
+    if (archived_lsn != LSN_MAX && archived_lsn % OS_FILE_LOG_BLOCK_SIZE != 0)
       archived_lsn = ut_uint64_align_down(archived_lsn, OS_FILE_LOG_BLOCK_SIZE);
-    }
     return archived_lsn;
   }
 
@@ -1505,7 +1487,8 @@ class Arch_Log_Sys {
 using Arch_Block_Vec = std::vector<Arch_Block *, ut_allocator<Arch_Block *>>;
 
 /** Page archiver in memory data */
-struct ArchPageData {
+struct ArchPageData
+{
   /** Constructor */
   ArchPageData() = default;
 
@@ -1523,7 +1506,8 @@ struct ArchPageData {
   Arch_Block *get_block(Arch_Page_Pos *pos, Arch_Blk_Type type);
 
   /** @return temporary block used to copy active block for partial flush. */
-  Arch_Block *get_partial_flush_block() const {
+  Arch_Block *get_partial_flush_block() const
+  {
     return (m_partial_flush_block);
   }
 
@@ -1666,10 +1650,10 @@ class Arch_Page_Sys
   /** Fetch the status of the page tracking system.
   @param[out]   status  vector of a pair of (ID, bool) where ID is the
   start/stop point and bool is true if the ID is a start point else false */
-  void get_status(std::vector<std::pair<lsn_t, bool>> &status) {
-    for (auto group : m_group_list) {
+  void get_status(std::vector<std::pair<lsn_t, bool>> &status)
+  {
+    for (auto group : m_group_list)
       group->get_status(status);
-    }
   }
 
   /** Given start and stop position find number of pages tracked between them
@@ -1890,10 +1874,80 @@ class Arch_Page_Sys
   Page_Arch_Client_Ctx *m_ctx;
 };
 
-/** Redo log archiver system global */
-extern Arch_Log_Sys *arch_log_sys;
+/** Archiver System */
+class Arch_Sys
+{
+ public:
+  /** Initialize Page and Log archiver system. */
+  Arch_Sys();
 
-/** Dirty page ID archiver system global */
-extern Arch_Page_Sys *arch_page_sys;
+  /** Free Page and Log archiver system */
+  ~Arch_Sys();
+
+  /** Archiver background thread */
+  static void archiver();
+
+  /** Initialize Page and Log archiver system
+  @return error code */
+  static dberr_t init();
+
+  /** Free Page and Log archiver system */
+  static void free();
+
+  /** Wait for archiver to stop during shutdown. */
+  static void stop();
+
+  /** Remove files related to page and log archiving.
+  @param[in]      file_path       path to the file
+  @param[in]      file_name       name of the file */
+  static void remove_file(const char *file_path, const char *file_name);
+
+  /** Remove group directory and the files related to page and log archiving.
+  @param[in]      dir_path        path to the directory
+  @param[in]      dir_name        directory name */
+  static void remove_dir(const char *dir_path, const char *dir_name);
+
+  /** Start archiver background thread.
+  @return error code */
+  int start_archiver();
+
+  /** Wake up archiver thread.
+  @return true iff still alive */
+  bool signal_archiver();
+
+  /** Wait in archiver thread till signalled. */
+  void archiver_wait();
+
+  /** Mark archiver stopped. */
+  void archiver_stopped();
+
+  /** @return Log archiver system. */
+  Arch_Log_Sys *log_sys() { return &m_log_sys; }
+
+  /** @return Page archiver system. */
+  Arch_Page_Sys *page_sys() { return &m_page_sys; }
+
+ private:
+  /** Log archiver */
+  Arch_Log_Sys m_log_sys;
+
+  /** Page archiver */
+  Arch_Page_Sys m_page_sys;
+
+  /** Protect concurrent signal and thread operation. */
+  mysql_mutex_t m_mutex;
+
+  /** Archiver background thread wait condition. */
+  mysql_cond_t m_cond;
+
+  /** Archiver background thread is signalled. */
+  bool m_signalled;
+
+  /* Archiver background thread is running. */
+  bool m_archiver_active;
+};
+
+/** Redo log and Dirty page ID archiver system global */
+extern Arch_Sys *arch_sys;
 
 #endif /* ARCH_ARCH_INCLUDE */

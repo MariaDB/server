@@ -50,52 +50,6 @@ uint ARCH_PAGE_FILE_DATA_CAPACITY=
     ARCH_PAGE_FILE_CAPACITY - ARCH_PAGE_FILE_NUM_RESET_PAGE;
 #endif
 
-/** Event to signal the page archiver thread. */
-mysql_mutex_t page_archiver_task_mutex;
-mysql_cond_t page_archiver_task_cond;
-bool page_archiver_signalled= false;
-
-/** Signal page archiver */
-void signal_page_archiver()
-{
-  mysql_mutex_lock(&page_archiver_task_mutex);
-  mysql_cond_signal(&page_archiver_task_cond);
-  page_archiver_signalled= true;
-  mysql_mutex_unlock(&page_archiver_task_mutex);
-}
-
-/** Archiver background thread */
-void page_archiver_thread()
-{
-  bool page_wait= false;
-
-  Arch_Group::init_dblwr_file_ctx(
-      ARCH_DBLWR_DIR, ARCH_DBLWR_FILE, ARCH_DBLWR_NUM_FILES,
-      static_cast<uint64_t>(ARCH_PAGE_BLK_SIZE) * ARCH_DBLWR_FILE_CAPACITY);
-
-  while (true)
-  {
-    /* Archive in memory data blocks to disk. */
-    auto page_abort= arch_page_sys->archive(&page_wait);
-
-    if (page_abort)
-    {
-      sql_print_information("Exiting Page Archiver");
-      break;
-    }
-
-    mysql_mutex_lock(&page_archiver_task_mutex);
-    if (page_wait)
-    {
-      /* Nothing to archive. Wait until next trigger. */
-      while(!page_archiver_signalled)
-        mysql_cond_wait(&page_archiver_task_cond, &page_archiver_task_mutex);
-    }
-    page_archiver_signalled= false;
-    mysql_mutex_unlock(&page_archiver_task_mutex);
-  }
-}
-
 void Arch_Reset_File::init()
 {
   m_file_index= 0;
@@ -494,6 +448,7 @@ bool Arch_File_Ctx::find_stop_point(Arch_Group *group, lsn_t check_lsn,
 {
   stop_point.lsn= LSN_MAX;
   stop_point.pos.init();
+  auto arch_page_sys= arch_sys->page_sys();
 
   arch_page_sys->arch_oper_mutex_enter();
 
@@ -920,9 +875,8 @@ int Page_Arch_Client_Ctx::start(bool recovery, uint64_t *start_id)
   }
 
   /* Start archiving. */
-  err= arch_page_sys->start(&m_group, &m_last_reset_lsn, &m_start_pos,
-                            m_is_durable, reset, recovery);
-
+  err= arch_sys->page_sys()->start(&m_group, &m_last_reset_lsn, &m_start_pos,
+                                   m_is_durable, reset, recovery);
   if (err != 0)
   {
     arch_client_mutex_exit();
@@ -988,9 +942,8 @@ int Page_Arch_Client_Ctx::stop(lsn_t *stop_id)
   ut_ad(m_group != nullptr);
 
   /* Stop archiving. */
-  auto err=
-      arch_page_sys->stop(m_group, &m_stop_lsn, &m_stop_pos, m_is_durable);
-
+  auto err= arch_sys->page_sys()->stop(m_group, &m_stop_lsn, &m_stop_pos,
+                                       m_is_durable);
   ut_d(print());
 
   /* We stop the client even in cases of an error. */
@@ -1101,8 +1054,7 @@ void Page_Arch_Client_Ctx::release()
   }
 
   ut_ad(m_group != nullptr);
-
-  arch_page_sys->release(m_group, m_is_durable, m_start_pos);
+  arch_sys->page_sys()->release(m_group, m_is_durable, m_start_pos);
 
   m_state= ARCH_CLIENT_STATE_INIT;
   m_group= nullptr;
@@ -1117,6 +1069,7 @@ void Page_Arch_Client_Ctx::release()
 
 bool wait_flush_archiver(Page_Wait_Flush_Archiver_Cbk cbk_func)
 {
+  auto arch_page_sys= arch_sys->page_sys();
   mysql_mutex_assert_owner(arch_page_sys->get_oper_mutex());
 
   while (cbk_func())
@@ -1124,7 +1077,7 @@ bool wait_flush_archiver(Page_Wait_Flush_Archiver_Cbk cbk_func)
     /* Need to wait for flush. We don't expect it
     to happen normally. With no duplicate page ID
     dirty page growth should be very slow. */
-    signal_page_archiver();
+    arch_sys->signal_archiver();
     bool is_timeout= false;
     int alert_count= 0;
     auto thd= current_thd;
@@ -1146,7 +1099,7 @@ bool wait_flush_archiver(Page_Wait_Flush_Archiver_Cbk cbk_func)
           }
           else if (result)
           {
-            signal_page_archiver();
+            arch_sys->signal_archiver();
             if (alert && ++alert_count == 12)
             {
               alert_count= 0;
@@ -1307,7 +1260,7 @@ void Arch_Block::begin_write(Arch_Page_Pos pos)
   m_reset_lsn= LSN_MAX;
 
   if (m_type == ARCH_DATA_BLOCK)
-    arch_page_sys->update_stop_info(this);
+    arch_sys->page_sys()->update_stop_info(this);
 }
 
 /** End writing to a block.
@@ -1349,7 +1302,7 @@ bool Arch_Block::add_page(buf_page_t *page, Arch_Page_Pos *pos)
   m_data_len+= ARCH_BLK_PAGE_ID_SIZE;
 
   /* Update oldest LSN from page. */
-  if (arch_page_sys->get_latest_stop_lsn() > m_oldest_lsn ||
+  if (arch_sys->page_sys()->get_latest_stop_lsn() > m_oldest_lsn ||
       m_oldest_lsn > page->oldest_modification())
     m_oldest_lsn = page->oldest_modification();
 
@@ -1571,7 +1524,7 @@ void ArchPageData::clean()
     UT_DELETE(m_partial_flush_block);
     m_partial_flush_block= nullptr;
   }
-  aligned_free(m_buffer);
+  ut_free(m_buffer);
 }
 
 /** Get the block for a position
@@ -1781,7 +1734,7 @@ void Arch_Page_Sys::track_page(buf_page_t *bpage, lsn_t track_lsn,
         reset_block->end_write();
         m_reset_pos.set_next();
       }
-      signal_page_archiver();
+      arch_sys->signal_archiver();
 
       ++count;
       continue;
@@ -2110,7 +2063,7 @@ bool Arch_Page_Sys::wait_idle()
 
   if (m_state == ARCH_STATE_PREPARE_IDLE)
   {
-    signal_page_archiver();
+    arch_sys->signal_archiver();
     bool is_timeout= false;
     int alert_count= 0;
     auto thd= current_thd;
@@ -2129,7 +2082,7 @@ bool Arch_Page_Sys::wait_idle()
           }
           if (result)
           {
-            signal_page_archiver();
+            arch_sys->signal_archiver();
             /* Print messages every 1 minute - default is 5 seconds. */
             if (alert && ++alert_count == 12)
             {
@@ -2393,7 +2346,7 @@ int Arch_Page_Sys::start(Arch_Group **group, lsn_t *start_lsn,
   if (start_archiver)
   {
     ut_ad(!attach_to_current);
-    auto err= start_page_archiver_background();
+    auto err= arch_sys->start_archiver();
 
     if (err != 0)
     {
@@ -2587,7 +2540,7 @@ int Arch_Page_Sys::stop(Arch_Group *group, lsn_t *stop_lsn,
     m_request_flush_pos= m_write_pos;
     m_write_pos.set_next();
 
-    signal_page_archiver();
+    arch_sys->signal_archiver();
     wait_for_block_flush= m_current_group->is_durable() ? true : false;
 
   }
@@ -2914,7 +2867,8 @@ int Arch_Group::read_data(Arch_Page_Pos cur_pos, byte *buff, uint buff_len)
   int err= 0;
 
   /* Attempt to read from in memory buffer. */
-  auto success = arch_page_sys->get_pages(this, &cur_pos, buff_len, buff);
+  auto success= arch_sys->page_sys()->get_pages(this, &cur_pos, buff_len,
+                                                buff);
   if (!success)
     /* The buffer is overwritten. Read from file. */
     err= read_from_file(&cur_pos, buff_len, buff);
