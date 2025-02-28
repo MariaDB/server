@@ -5866,11 +5866,7 @@ public:
 };
 
 #ifdef MYSQL_CLIENT
-bool copy_cache_to_string_wrapped(IO_CACHE *body,
-                                  LEX_STRING *to,
-                                  bool do_wrap,
-                                  const char *delimiter,
-                                  bool is_verbose);
+/** @deprecated compatibility with `log_event_old.cc`; inlineable in 11.0+ */
 bool copy_cache_to_file_wrapped(IO_CACHE *body,
                                 FILE *file,
                                 bool do_wrap,
