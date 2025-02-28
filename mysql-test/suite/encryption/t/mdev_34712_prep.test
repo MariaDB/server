@@ -18,7 +18,7 @@ EOF
 
 # exec openssl enc -aes-256-cbc -md sha1 -pass pass:secret -in $plain_keyfile -out $enc_keyfile;
 # goal:
-# exec openssl enc -aes-256-cbc -md sha256 -pbkdf2 -pass pass:secret -in $plain_keyfile -out $enc_keyfile;
-exec openssl enc -aes-256-cbc -md sha256 -pass pass:secret -in $plain_keyfile -out $enc_keyfile;
+exec openssl enc -aes-256-cbc -md sha256 -pbkdf2 -pass pass:secret -in $plain_keyfile -out $enc_keyfile;
+# exec openssl enc -aes-256-cbc -md sha256 -pass pass:secret -in $plain_keyfile -out $enc_keyfile;
 
 echo Done;

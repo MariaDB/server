@@ -389,8 +389,14 @@ void my_bytes_to_key(const unsigned char *salt, const unsigned char *input,
     EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha1(), salt,
                    input, input_len, 1, key, iv);
    */
-  EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha256(), salt,
-                 input, input_len, 1, key, iv);
+  /*
+    EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha256(), salt,
+                   input, input_len, 1, key, iv);
+   */
+  uchar keyiv[32 + 16];
+  PKCS5_PBKDF2_HMAC((const char*) input, input_len, salt, 8, 10000, EVP_sha256(), 32 + 16, keyiv);
+  memcpy(key, keyiv, 32);
+  memcpy(iv, keyiv + 32, 16);
 }
 
 }
