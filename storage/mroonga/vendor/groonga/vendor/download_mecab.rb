@@ -42,7 +42,7 @@ def download(url, base)
 
   tar = "#{base}.tar"
   tar_gz = "#{tar}.gz"
-  open(url, :ssl_verify_mode => ssl_verify_mode) do |remote_tar_gz|
+  URI.open(url, :ssl_verify_mode => ssl_verify_mode) do |remote_tar_gz|
     File.open(tar_gz, "wb") do |local_tar_gz|
       local_tar_gz.print(remote_tar_gz.read)
     end
