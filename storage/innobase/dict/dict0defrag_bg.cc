@@ -217,47 +217,17 @@ dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
   if (index->is_ibuf())
     return DB_SUCCESS;
 
-  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  dict_table_t *table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
-                                                     DICT_ERR_IGNORE_NONE);
-  if (table_stats)
-  {
-    dict_sys.freeze(SRW_LOCK_CALL);
-    table_stats= dict_acquire_mdl_shared<false>(table_stats, thd, &mdl_table);
-    dict_sys.unfreeze();
-  }
-  if (!table_stats || strcmp(table_stats->name.m_name, TABLE_STATS_NAME))
-  {
-release_and_exit:
-    if (table_stats)
-      dict_table_close(table_stats, false, thd, mdl_table);
+  dict_stats stats;
+  if (stats.open(thd))
     return DB_STATS_DO_NOT_EXIST;
-  }
-
-  dict_table_t *index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
-                                                     DICT_ERR_IGNORE_NONE);
-  if (index_stats)
-  {
-    dict_sys.freeze(SRW_LOCK_CALL);
-    index_stats= dict_acquire_mdl_shared<false>(index_stats, thd, &mdl_index);
-    dict_sys.unfreeze();
-  }
-  if (!index_stats)
-    goto release_and_exit;
-  if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME))
-  {
-    dict_table_close(index_stats, false, thd, mdl_index);
-    goto release_and_exit;
-  }
-
   trx_t *trx= trx_create();
   trx->mysql_thd= thd;
   trx_start_internal(trx);
   dberr_t ret= trx->read_only
     ? DB_READ_ONLY
-    : lock_table_for_trx(table_stats, trx, LOCK_X);
+    : lock_table_for_trx(stats.table(), trx, LOCK_X);
   if (ret == DB_SUCCESS)
-    ret= lock_table_for_trx(index_stats, trx, LOCK_X);
+    ret= lock_table_for_trx(stats.index(), trx, LOCK_X);
   row_mysql_lock_data_dictionary(trx);
   if (ret == DB_SUCCESS)
     ret= dict_stats_save_index_stat(index, time(nullptr), "n_pages_freed",
@@ -271,13 +241,9 @@ release_and_exit:
   else
     trx->rollback();
 
-  if (table_stats)
-    dict_table_close(table_stats, true, thd, mdl_table);
-  if (index_stats)
-    dict_table_close(index_stats, true, thd, mdl_index);
-
   row_mysql_unlock_data_dictionary(trx);
   trx->free();
+  stats.close();
 
   return ret;
 }
@@ -353,49 +319,18 @@ dict_stats_save_defrag_stats(
   if (n_leaf_reserved == ULINT_UNDEFINED)
     return DB_SUCCESS;
 
-  THD *thd= current_thd;
-  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  dict_table_t* table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
-                                                     DICT_ERR_IGNORE_NONE);
-  if (table_stats)
-  {
-    dict_sys.freeze(SRW_LOCK_CALL);
-    table_stats= dict_acquire_mdl_shared<false>(table_stats, thd, &mdl_table);
-    dict_sys.unfreeze();
-  }
-  if (!table_stats || strcmp(table_stats->name.m_name, TABLE_STATS_NAME))
-  {
-release_and_exit:
-    if (table_stats)
-      dict_table_close(table_stats, false, thd, mdl_table);
+  THD *const thd= current_thd;
+  dict_stats stats;
+  if (stats.open(thd))
     return DB_STATS_DO_NOT_EXIST;
-  }
-
-  dict_table_t *index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
-                                                     DICT_ERR_IGNORE_NONE);
-  if (index_stats)
-  {
-    dict_sys.freeze(SRW_LOCK_CALL);
-    index_stats= dict_acquire_mdl_shared<false>(index_stats, thd, &mdl_index);
-    dict_sys.unfreeze();
-  }
-  if (!index_stats)
-    goto release_and_exit;
-
-  if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME))
-  {
-    dict_table_close(index_stats, false, thd, mdl_index);
-    goto release_and_exit;
-  }
-
   trx_t *trx= trx_create();
   trx->mysql_thd= thd;
   trx_start_internal(trx);
   dberr_t ret= trx->read_only
     ? DB_READ_ONLY
-    : lock_table_for_trx(table_stats, trx, LOCK_X);
+    : lock_table_for_trx(stats.table(), trx, LOCK_X);
   if (ret == DB_SUCCESS)
-    ret= lock_table_for_trx(index_stats, trx, LOCK_X);
+    ret= lock_table_for_trx(stats.index(), trx, LOCK_X);
 
   row_mysql_lock_data_dictionary(trx);
 
@@ -423,12 +358,9 @@ release_and_exit:
   else
     trx->rollback();
 
-  if (table_stats)
-    dict_table_close(table_stats, true, thd, mdl_table);
-  if (index_stats)
-    dict_table_close(index_stats, true, thd, mdl_index);
   row_mysql_unlock_data_dictionary(trx);
   trx->free();
+  stats.close();
 
   return ret;
 }
