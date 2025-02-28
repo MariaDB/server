@@ -3778,16 +3778,30 @@ ANALYZE
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "b",
+              "used_key_parts": ["b"]
+            },
+            "rows": 252,
+            "selectivity_pct": 4.799085888,
+            "r_rows": 250,
+            "r_lookups": 5251,
+            "r_selectivity_pct": 4.760997905,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
           "loops": 1,
           "r_loops": 1,
           "rows": 250,
+          "r_index_rows": 5251,
           "r_rows": 250,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 4.799086094,
-          "r_total_filtered": 100,
+          "r_total_filtered": 4.760997905,
           "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102)",
           "r_filtered": 100
         }
