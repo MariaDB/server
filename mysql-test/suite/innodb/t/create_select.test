@@ -14,7 +14,7 @@ send CREATE TABLE t1 ENGINE=InnoDB SELECT * FROM seq_1_to_100000000;
 connection con1;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = 'Sending data'
+  where state = 'Executing'
   and info = 'CREATE TABLE t1 ENGINE=InnoDB SELECT * FROM seq_1_to_100000000';
 --source include/wait_condition.inc
 KILL QUERY @id;
