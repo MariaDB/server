@@ -1259,7 +1259,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked);
+		node->table->release();
 		node->table = NULL;
 		return false;
 	}
@@ -1418,8 +1418,7 @@ rollback_clust:
 		}
 	}
 
-	dict_table_close(node->table, dict_locked);
-
+	node->table->release();
 	node->table = NULL;
 
 	return(err);

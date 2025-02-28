@@ -196,7 +196,7 @@ static void dict_stats_process_entry_from_defrag_pool(THD *thd)
         ? dict_table_find_index_on_id(table, index_id) : nullptr)
       if (index->is_btree())
         dict_stats_save_defrag_stats(index);
-    dict_table_close(table, false, thd, mdl);
+    dict_table_close(table, thd, mdl);
   }
 }
 
@@ -230,7 +230,7 @@ dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
   {
 release_and_exit:
     if (table_stats)
-      dict_table_close(table_stats, false, thd, mdl_table);
+      dict_table_close(table_stats, thd, mdl_table);
     return DB_STATS_DO_NOT_EXIST;
   }
 
@@ -246,7 +246,7 @@ release_and_exit:
     goto release_and_exit;
   if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME))
   {
-    dict_table_close(index_stats, false, thd, mdl_index);
+    dict_table_close(index_stats, thd, mdl_index);
     goto release_and_exit;
   }
 
@@ -272,9 +272,9 @@ release_and_exit:
     trx->rollback();
 
   if (table_stats)
-    dict_table_close(table_stats, true, thd, mdl_table);
+    dict_table_close(table_stats, thd, mdl_table);
   if (index_stats)
-    dict_table_close(index_stats, true, thd, mdl_index);
+    dict_table_close(index_stats, thd, mdl_index);
 
   row_mysql_unlock_data_dictionary(trx);
   trx->free();
@@ -367,7 +367,7 @@ dict_stats_save_defrag_stats(
   {
 release_and_exit:
     if (table_stats)
-      dict_table_close(table_stats, false, thd, mdl_table);
+      dict_table_close(table_stats, thd, mdl_table);
     return DB_STATS_DO_NOT_EXIST;
   }
 
@@ -384,7 +384,7 @@ release_and_exit:
 
   if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME))
   {
-    dict_table_close(index_stats, false, thd, mdl_index);
+    dict_table_close(index_stats, thd, mdl_index);
     goto release_and_exit;
   }
 
@@ -424,9 +424,9 @@ release_and_exit:
     trx->rollback();
 
   if (table_stats)
-    dict_table_close(table_stats, true, thd, mdl_table);
+    dict_table_close(table_stats, thd, mdl_table);
   if (index_stats)
-    dict_table_close(index_stats, true, thd, mdl_index);
+    dict_table_close(index_stats, thd, mdl_index);
   row_mysql_unlock_data_dictionary(trx);
   trx->free();
 

@@ -195,70 +195,6 @@ dict_tables_have_same_db(
 	return(FALSE);
 }
 
-/** Decrement the count of open handles */
-void dict_table_close(dict_table_t *table)
-{
-  if (table->get_ref_count() == 1 && table->stats_is_persistent() &&
-      strchr(table->name.m_name, '/'))
-  {
-    /* It looks like we are closing the last handle. The user could
-    have executed FLUSH TABLES in order to have the statistics reloaded
-    from the InnoDB persistent statistics tables. We must acquire
-    exclusive dict_sys.latch to prevent a race condition with another
-    thread concurrently acquiring a handle on the table. */
-    dict_sys.lock(SRW_LOCK_CALL);
-    if (table->release())
-    {
-      table->stats_mutex_lock();
-      if (table->get_ref_count() == 0)
-        dict_stats_deinit(table);
-      table->stats_mutex_unlock();
-    }
-    dict_sys.unlock();
-  }
-  else
-    table->release();
-}
-
-/** Decrements the count of open handles of a table.
-@param[in,out]	table		table
-@param[in]	dict_locked	whether dict_sys.latch is being held
-@param[in]	thd		thread to release MDL
-@param[in]	mdl		metadata lock or NULL if the thread
-				is a foreground one. */
-void
-dict_table_close(
-	dict_table_t*	table,
-	bool		dict_locked,
-	THD*		thd,
-	MDL_ticket*	mdl)
-{
-  if (!dict_locked)
-    dict_table_close(table);
-  else
-  {
-    if (table->release() && table->stats_is_persistent() &&
-	strchr(table->name.m_name, '/'))
-    {
-      /* Force persistent stats re-read upon next open of the table so
-      that FLUSH TABLE can be used to forcibly fetch stats from disk if
-      they have been manually modified. */
-      table->stats_mutex_lock();
-      if (table->get_ref_count() == 0)
-        dict_stats_deinit(table);
-      table->stats_mutex_unlock();
-    }
-
-    ut_ad(dict_lru_validate());
-    ut_ad(dict_sys.find(table));
-  }
-
-  if (!thd || !mdl);
-  else if (MDL_context *mdl_context= static_cast<MDL_context*>
-           (thd_mdl_context(thd)))
-    mdl_context->release_lock(mdl);
-}
-
 /** Check if the table has a given (non_virtual) column.
 @param[in]	table		table object
 @param[in]	col_name	column name
@@ -583,6 +519,14 @@ dict_index_get_nth_field_pos(
 	}
 
 	return(ULINT_UNDEFINED);
+}
+
+void mdl_release(THD *thd, MDL_ticket *mdl) noexcept
+{
+  if (!thd || !mdl);
+  else if (MDL_context *mdl_context= static_cast<MDL_context*>
+           (thd_mdl_context(thd)))
+    mdl_context->release_lock(mdl);
 }
 
 /** Parse the table file name into table name and database name.
