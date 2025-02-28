@@ -599,7 +599,7 @@ void dict_stats_empty_table(
 	table->stat_clustered_index_size = 1;
 	/* 1 page for each index, not counting the clustered */
 	table->stat_sum_of_other_index_sizes
-		= UT_LIST_GET_LEN(table->indexes) - 1;
+		= uint32_t(UT_LIST_GET_LEN(table->indexes) - 1);
 	table->stat_modified_counter = 0;
 
 	dict_index_t*	index;
@@ -617,7 +617,7 @@ void dict_stats_empty_table(
 		dict_stats_empty_index(index, empty_defrag_stats);
 	}
 
-	table->stat_initialized = TRUE;
+	table->stat = table->stat | dict_table_t::STATS_INITIALIZED;
 	table->stats_mutex_unlock();
 }
 
@@ -658,16 +658,10 @@ dict_stats_assert_initialized(
 /*==========================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_a(table->stat_initialized);
-
 	MEM_CHECK_DEFINED(&table->stats_last_recalc,
 			  sizeof table->stats_last_recalc);
 
-	MEM_CHECK_DEFINED(&table->stat_persistent,
-			  sizeof table->stat_persistent);
-
-	MEM_CHECK_DEFINED(&table->stats_auto_recalc,
-			  sizeof table->stats_auto_recalc);
+	MEM_CHECK_DEFINED(&table->stat, sizeof table->stat);
 
 	MEM_CHECK_DEFINED(&table->stats_sample_pages,
 			  sizeof table->stats_sample_pages);
@@ -844,8 +838,8 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	ulint		n_cols;
 	ib_uint64_t*	n_diff;
 	ib_uint64_t*	n_not_null;
-	ibool		stats_null_not_equal;
-	uintmax_t	n_sample_pages=1; /* number of pages to sample */
+	bool		stats_null_not_equal;
+	uint32_t	n_sample_pages=1; /* number of pages to sample */
 	ulint		not_empty_flag	= 0;
 	ulint		total_external_size = 0;
 	uintmax_t	add_on;
@@ -883,11 +877,11 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	case SRV_STATS_NULLS_UNEQUAL:
 		/* for both SRV_STATS_NULLS_IGNORED and SRV_STATS_NULLS_UNEQUAL
 		case, we will treat NULLs as unequal value */
-		stats_null_not_equal = TRUE;
+		stats_null_not_equal = true;
 		break;
 
 	case SRV_STATS_NULLS_EQUAL:
-		stats_null_not_equal = FALSE;
+		stats_null_not_equal = false;
 		break;
 
 	default:
@@ -938,19 +932,21 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 
 		so taking all case2 paths is I, our expression is:
 		n_pages = S < I? min(I,L) : I
-                */
-		if (index->stat_index_size > 1) {
-			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size)
-				? ut_min(index->stat_index_size,
-					 static_cast<ulint>(
-						 log2(double(index->stat_index_size))
-						 * double(srv_stats_transient_sample_pages)))
-				: index->stat_index_size;
+		*/
+		if (uint32_t I = index->stat_index_size) {
+			const uint32_t S{srv_stats_transient_sample_pages};
+			n_sample_pages = S < I
+				? std::min(I,
+					   uint32_t(log2(double(I))
+						    * double(S)))
+				: I;
 		}
 	}
 
 	/* Sanity check */
-	ut_ad(n_sample_pages > 0 && n_sample_pages <= (index->stat_index_size <= 1 ? 1 : index->stat_index_size));
+	ut_ad(n_sample_pages);
+	ut_ad(n_sample_pages <= (index->stat_index_size <= 1
+				 ? 1 : index->stat_index_size));
 
 	/* We sample some pages in the index to get an estimate */
 	btr_cur_t cursor;
@@ -1169,7 +1165,7 @@ invalid:
 
 		mtr.x_lock_space(index->table->space);
 
-		ulint dummy, size;
+		uint32_t dummy, size;
 		index->stat_index_size
 			= fseg_n_reserved_pages(*root, PAGE_HEADER
 						+ PAGE_BTR_SEG_LEAF
@@ -1226,7 +1222,7 @@ dict_stats_update_transient(
 	ut_ad(!table->stats_mutex_is_owner());
 
 	dict_index_t*	index;
-	ulint		sum_of_index_sizes	= 0;
+	uint32_t	sum_of_index_sizes	= 0;
 	dberr_t		err = DB_SUCCESS;
 
 	/* Find out the sizes of the indexes and how many different values
@@ -1285,7 +1281,7 @@ empty_table:
 
 	table->stat_modified_counter = 0;
 
-	table->stat_initialized = TRUE;
+	table->stat = table->stat | dict_table_t::STATS_INITIALIZED;
 
 	table->stats_mutex_unlock();
 
@@ -2225,8 +2221,8 @@ dict_stats_analyze_index_for_n_prefix(
 struct index_stats_t
 {
   std::vector<index_field_stats_t> stats;
-  ulint index_size;
-  ulint n_leaf_pages;
+  uint32_t index_size;
+  uint32_t n_leaf_pages;
 
   index_stats_t(ulint n_uniq) : index_size(1), n_leaf_pages(1)
   {
@@ -2365,7 +2361,7 @@ empty_index:
 
 	uint16_t root_level = btr_page_get_level(root->page.frame);
 	mtr.x_lock_space(index->table->space);
-	ulint dummy, size;
+	uint32_t dummy, size;
 	result.index_size
 		= fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					+ root->page.frame, &size, &mtr)
@@ -2742,7 +2738,7 @@ dict_stats_update_persistent(
 
 	table->stat_modified_counter = 0;
 
-	table->stat_initialized = TRUE;
+	table->stat = table->stat | dict_table_t::STATS_INITIALIZED;
 
 	dict_stats_assert_initialized(table);
 
@@ -3164,8 +3160,7 @@ dict_stats_fetch_table_stats_step(
 			ut_a(len == 8);
 
 			table->stat_clustered_index_size
-				= std::max<ulint>(
-				      (ulint) mach_read_from_8(data), 1);
+				= std::max(mach_read_from_4(data + 4), 1U);
 			break;
 		}
 
@@ -3174,18 +3169,9 @@ dict_stats_fetch_table_stats_step(
 			ut_a(dtype_get_mtype(type) == DATA_INT);
 			ut_a(len == 8);
 
-			ulint stat_other_idx_size
-				= (ulint) mach_read_from_8(data);
-			if (!stat_other_idx_size
-			    && UT_LIST_GET_LEN(table->indexes) > 1) {
-				stat_other_idx_size
-					= UT_LIST_GET_LEN(table->indexes) - 1;
-			}
-			table->stat_sum_of_other_index_sizes
-				= std::max<ulint>(
-				    (ulint) mach_read_from_8(data),
-				    UT_LIST_GET_LEN(table->indexes) - 1);
-
+			table->stat_sum_of_other_index_sizes = std::max(
+				mach_read_from_4(data + 4),
+				uint32_t(UT_LIST_GET_LEN(table->indexes) - 1));
 			break;
 		}
 		default:
@@ -3370,14 +3356,12 @@ dict_stats_fetch_index_stats_step(
 
 	if (stat_name_len == 4 /* strlen("size") */
 	    && strncasecmp("size", stat_name, stat_name_len) == 0) {
-		index->stat_index_size
-			= std::max<ulint>((ulint) stat_value, 1);
+		index->stat_index_size = std::max(uint32_t(stat_value), 1U);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_leaf_pages") */
 		   && strncasecmp("n_leaf_pages", stat_name, stat_name_len)
 		   == 0) {
-		index->stat_n_leaf_pages
-			= std::max<ulint>((ulint) stat_value, 1);
+		index->stat_n_leaf_pages = std::max(uint32_t(stat_value), 1U);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_page_split") */
 		   && strncasecmp("n_page_split", stat_name, stat_name_len)
@@ -3648,7 +3632,9 @@ dict_stats_update_for_index(
 {
 	DBUG_ENTER("dict_stats_update_for_index");
 
-	if (dict_stats_is_persistent_enabled(index->table)) {
+	ut_ad(index->table->stat_initialized());
+
+	if (index->table->stats_is_persistent()) {
 
 		if (dict_stats_persistent_storage_check(false)) {
 			index_stats_t stats = dict_stats_analyze_index(index);
@@ -3789,7 +3775,7 @@ dict_stats_update(
 		/* If table is using persistent stats,
 		then save the stats on disk */
 
-		if (dict_stats_is_persistent_enabled(table)) {
+		if (table->stats_is_persistent()) {
 
 			if (dict_stats_persistent_storage_check(false)) {
 
@@ -3806,7 +3792,7 @@ dict_stats_update(
 		/* fetch requested, either fetch from persistent statistics
 		storage or use the old method */
 
-		if (table->stat_initialized) {
+		if (table->stat_initialized()) {
 			return(DB_SUCCESS);
 		}
 
@@ -3850,7 +3836,7 @@ dict_stats_update(
 				goto transient;
 			}
 #endif
-			if (dict_stats_auto_recalc_is_enabled(table)) {
+			if (table->stats_is_auto_recalc()) {
 				return(dict_stats_update(
 						table,
 						DICT_STATS_RECALC_PERSISTENT));

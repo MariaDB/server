@@ -11180,7 +11180,7 @@ alter_stats_norebuild(
 	DBUG_ENTER("alter_stats_norebuild");
 	DBUG_ASSERT(!ctx->need_rebuild());
 
-	if (!dict_stats_is_persistent_enabled(ctx->new_table)) {
+	if (!ctx->new_table->stats_is_persistent()) {
 		DBUG_VOID_RETURN;
 	}
 
@@ -11214,8 +11214,7 @@ alter_stats_rebuild(
 {
 	DBUG_ENTER("alter_stats_rebuild");
 
-	if (!table->space
-	    || !dict_stats_is_persistent_enabled(table)) {
+	if (!table->space || !table->stats_is_persistent()) {
 		DBUG_VOID_RETURN;
 	}
 

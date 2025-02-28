@@ -614,7 +614,7 @@ row_undo_ins(
 			err = row_undo_ins_remove_clust_rec(node);
 		}
 
-		if (err == DB_SUCCESS && node->table->stat_initialized) {
+		if (err == DB_SUCCESS && node->table->stat_initialized()) {
 			/* Not protected by dict_sys.latch
 			or table->stats_mutex_lock() for
 			performance reasons, we would rather get garbage
