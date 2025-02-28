@@ -379,7 +379,7 @@ dberr_t Arch_Group::Recovery::cleanup_if_required(Arch_Recv_Group_Info &info)
 
   file_ctx_guard.cleanup();
 
-  arch_remove_file(dir_path, file_name.c_str());
+  Arch_Sys::remove_file(dir_path, file_name.c_str());
 
   --info.m_num_files;
 
@@ -396,7 +396,7 @@ dberr_t Arch_Group::Recovery::cleanup_if_required(Arch_Recv_Group_Info &info)
     auto dir_name= std::string(dir_path).substr(found);
 
     info.m_num_files= 0;
-    arch_remove_dir(path.c_str(), dir_name.c_str());
+    Arch_Sys::remove_dir(path.c_str(), dir_name.c_str());
 
     return err;
   }

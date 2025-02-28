@@ -801,7 +801,7 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
   in buf_flush_init_for_writing(). */
   if (buf_pool.is_tracking() && !fsp_is_system_temporary(id().space()))
     // arch_page_sys->track_page(bpage, buf_pool.track_page_lsn, frame_lsn, false);
-    arch_page_sys->track_page(this, 0, 0, false);
+    arch_sys->page_sys()->track_page(this, 0, 0, false);
 
   /* Increment the I/O operation count used for selecting LRU policy. */
   buf_LRU_stat_inc_io();

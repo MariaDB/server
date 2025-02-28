@@ -1454,7 +1454,7 @@ dberr_t srv_start(bool create_new_db)
 		Datafile::validate_first_page() */
 		return srv_init_abort(err);
 	}
-	arch_init();
+	Arch_Sys::init();
 
 	if (create_new_db) {
 		lsn_t flushed_lsn = log_sys.init_lsn();
@@ -1582,7 +1582,7 @@ dberr_t srv_start(bool create_new_db)
 		switch (srv_operation) {
                 case SRV_OPERATION_NORMAL:
 			if (err == DB_SUCCESS) {
-				arch_page_sys->post_recovery_init();
+				arch_sys->page_sys()->post_recovery_init();
 			}
 			[[fallthrough]];
 		case SRV_OPERATION_EXPORT_RESTORED:
@@ -2090,6 +2090,8 @@ void innodb_shutdown()
 		/* Shut down the persistent files. */
 		logs_empty_and_mark_files_at_shutdown();
 	}
+	/* Copy all log data to archive and stop archiver threads. */
+	Arch_Sys::stop();
 
 	os_aio_free();
 	fil_space_t::close_all();
@@ -2131,7 +2133,6 @@ void innodb_shutdown()
 
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */
-
 #ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys.is_initialised()) {
 		btr_search.disable();
@@ -2178,7 +2179,7 @@ void innodb_shutdown()
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
 	clone_free();
-	arch_free();
+	Arch_Sys::free();
 	srv_thread_pool_end();
 	srv_started_redo = false;
 	srv_was_started = false;

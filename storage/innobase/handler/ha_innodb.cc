@@ -618,7 +618,8 @@ static PSI_thread_info	all_innodb_threads[] = {
   {&page_cleaner_thread_key, "page_cleaner", 0},
   {&trx_rollback_clean_thread_key, "trx_rollback", 0},
   {&page_encrypt_thread_key, "page_encrypt", 0},
-  {&thread_pool_thread_key,"ib_tpool_worker", 0}
+  {&thread_pool_thread_key,"ib_tpool_worker", 0},
+  {&archiver_thread_key,"ib_archiver", 0}
 };
 # endif /* UNIV_PFS_THREAD */
 

@@ -2300,11 +2300,6 @@ int Clone_Handle::open_file(Clone_Task *task, const Clone_file_ctx *file_ctx,
     task->m_file_cache= fil_system.is_buffered();
     DBUG_EXECUTE_IF("clone_no_zero_copy", task->m_file_cache= false;);
   }
-  #if defined __linux__ || defined _WIN32
-  else if (file_type == OS_CLONE_LOG_FILE)
-    task->m_file_cache= log_sys.log_buffered;
-  #endif
-
   auto file_meta= file_ctx->get_file_meta_read();
 
   /* If the task has pinned file, the index should be set. */
