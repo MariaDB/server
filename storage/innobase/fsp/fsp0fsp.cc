@@ -3095,7 +3095,7 @@ acquire the extent descriptor page.
 @param err      error code
 @return block descriptor */
 static
-buf_block_t *fsp_get_latched_xdes_page(
+buf_block_t *fsp_get_latched_page(
   page_id_t page_id, mtr_t *mtr, dberr_t *err)
 {
   buf_block_t *block= nullptr;
@@ -3108,10 +3108,1655 @@ buf_block_t *fsp_get_latched_xdes_page(
     BUF_GET_POSSIBLY_FREED, mtr, err);
 }
 
+class spaceDefragmenter;
+
+/** Validate the file list node for the system tablespace.
+@param addr file space address
+@return true if validation successful or false */
+bool flst_node_offset_validate(const fil_addr_t *addr) noexcept
+{
+  return addr->boffset >= FIL_PAGE_DATA &&
+         addr->boffset < (srv_page_size - FIL_PAGE_DATA_END);
+}
+
+/** Prepare the steps for removing the file list node
+@param descr      descriptor to be removed
+@param free_limit maximum free limit in the tablespace
+@param prev_block previous block in the list
+@param next_block next block in the list
+@param mtr        mini-transaction
+@return error code */
+dberr_t flst_remove_prepare(xdes_t *descr, uint32_t free_limit,
+                            buf_block_t **prev_block,
+                            buf_block_t **next_block, mtr_t *mtr) noexcept
+{
+  fil_addr_t next_addr= flst_get_next_addr(descr + XDES_FLST_NODE);
+  fil_addr_t prev_addr= flst_get_prev_addr(descr + XDES_FLST_NODE);
+  dberr_t err= DB_SUCCESS;
+
+  if (next_addr.page != FIL_NULL)
+  {
+    *next_block= fsp_get_latched_page(page_id_t{0, next_addr.page}, mtr, &err);
+    if (err) return err;
+    if (!flst_node_offset_validate(&next_addr))
+      return DB_CORRUPTION;
+  }
+
+  if (prev_addr.page >= free_limit)
+  {
+    if (prev_addr.page != FIL_NULL)
+      return DB_CORRUPTION;
+  }
+
+  if (prev_addr.page != FIL_NULL && !flst_node_offset_validate(&prev_addr))
+    return DB_CORRUPTION;
+
+  if (prev_addr.page != FIL_NULL)
+  {
+    *prev_block= fsp_get_latched_page(page_id_t{0, prev_addr.page}, mtr, &err);
+    if (err) return err;
+  }
+
+  return DB_SUCCESS;
+}
+
+/** Complete the steps for removing the file list node
+@param base       base block where free list starts
+@param boffset    offset where list starts
+@param descr      descriptor to be removed
+@param mtr        mini-transaction */
+void flst_remove_complete(buf_block_t *base, uint16_t boffset,
+                          xdes_t *descr, mtr_t *mtr) noexcept
+{
+  fil_addr_t next_addr= flst_get_next_addr(descr + XDES_FLST_NODE);
+
+  fil_addr_t prev_addr= flst_get_prev_addr(descr + XDES_FLST_NODE);
+
+  byte *list= base->page.frame + boffset;
+
+  buf_block_t *prev_block= nullptr;
+  buf_block_t *next_block= nullptr;
+
+  if (prev_addr.page != FIL_NULL)
+  {
+    prev_block= mtr->get_already_latched(page_id_t{0, prev_addr.page},
+                                         MTR_MEMO_PAGE_SX_FIX);
+    ut_ad(prev_block);
+  }
+
+  if (next_addr.page != FIL_NULL)
+  {
+    next_block= mtr->get_already_latched(page_id_t{0, next_addr.page},
+                                         MTR_MEMO_PAGE_SX_FIX);
+    ut_ad(next_block);
+  }
+
+  if (!prev_block)
+    flst_write_addr(*base, list + FLST_FIRST,
+                    next_addr.page, next_addr.boffset, mtr);
+  else
+    flst_write_addr(*prev_block,
+                    prev_block->page.frame
+                      + prev_addr.boffset + FLST_NEXT,
+                    next_addr.page, next_addr.boffset, mtr);
+
+  if (next_addr.page == FIL_NULL)
+    flst_write_addr(*base, list + FLST_LAST,
+                    prev_addr.page, prev_addr.boffset, mtr);
+  else
+    flst_write_addr(*next_block,
+                    next_block->page.frame
+		      + next_addr.boffset + FLST_PREV,
+                    prev_addr.page, prev_addr.boffset, mtr);
+
+  /* Decrement the FSP_FREE length in FSP_HEADER */
+  byte *len= list + FLST_LEN;
+  mtr->write<4>(*base, len, mach_read_from_4(len) - 1);
+}
+
+/** Prepare the steps for adding the block into last of the list
+@param base             block where list starts
+@param boffset          offset to find the list
+@param free_limit       maximum free limit in the tablespace
+@param last_block_list  last block in the list
+@param mtr              mini-transaction
+@return error code */
+dberr_t flst_add_last_prepare(buf_block_t *base, uint16_t boffset,
+                              uint32_t free_limit,
+                              buf_block_t **last_block_list,
+                              mtr_t *mtr) noexcept
+{
+  if (!flst_get_len(base->page.frame + boffset))
+    return DB_SUCCESS;
+
+  fil_addr_t addr= flst_get_last(base->page.frame + boffset);
+
+  if (addr.page >= free_limit)
+    return DB_CORRUPTION;
+
+  if (!flst_node_offset_validate(&addr))
+    return DB_CORRUPTION;
+
+  dberr_t err= DB_SUCCESS;
+  *last_block_list= fsp_get_latched_page(page_id_t{0, addr.page},
+                                         mtr, &err);
+  return err;
+}
+
+/** Complete the steps for adding the block into last of the list
+@param base       base block where free list starts
+@param boffset    offset where list starts
+@param curr       extent descriptor block
+@param coffset    offset to point the descriptor
+@param mtr        mini-transaction */
+void flst_add_last_complete(buf_block_t *base, uint16_t boffset,
+                            buf_block_t *curr, uint16_t coffset,
+                            mtr_t *mtr) noexcept
+{
+  fil_addr_t last_addr= flst_get_last(base->page.frame + boffset);
+  buf_block_t *last_block_list= nullptr;
+  if (last_addr.page != FIL_NULL)
+  {
+    last_block_list= mtr->get_already_latched(page_id_t{0, last_addr.page},
+                                             MTR_MEMO_PAGE_SX_FIX);
+    ut_ad(last_block_list);
+  }
+
+  if (last_block_list == nullptr)
+  {
+    flst_write_addr(*curr,
+                    curr->page.frame + coffset + FLST_PREV,
+                    FIL_NULL, 0, mtr);
+    flst_write_addr(*base, base->page.frame + boffset + FLST_FIRST,
+                    curr->page.id().page_no(), coffset, mtr);
+    memcpy(base->page.frame + boffset + FLST_LAST,
+           base->page.frame + boffset + FLST_FIRST, FIL_ADDR_SIZE);
+    mtr->memmove(*base, boffset + FLST_LAST,
+		 boffset + FLST_FIRST, FIL_ADDR_SIZE);
+  }
+  else
+  {
+    fil_addr_t addr= flst_get_last(base->page.frame + boffset);
+
+    flst_write_addr(*last_block_list,
+                    last_block_list->page.frame + addr.boffset
+		      + FLST_NEXT,
+                    curr->page.id().page_no(), coffset, mtr);
+    flst_write_addr(*curr,
+                    curr->page.frame + coffset + FLST_PREV,
+                    addr.page, addr.boffset, mtr);
+    flst_write_addr(*base, base->page.frame + boffset + FLST_LAST,
+                    curr->page.id().page_no(), coffset, mtr);
+  }
+
+  flst_write_addr(*curr,
+                  curr->page.frame + coffset + FLST_NEXT,
+                  FIL_NULL, 0, mtr);
+
+  byte *len= base->page.frame + boffset + FLST_LEN;
+  mtr->write<4>(*base, len, mach_read_from_4(len) + 1);
+}
+
+/** Prepare the associate pages of the current block and modify
+the associated pages */
+class associatedPages
+{
+  buf_block_t *m_left_block= nullptr;
+  buf_block_t *m_right_block= nullptr;
+  buf_block_t *m_parent_block= nullptr;
+  buf_block_t *m_cur_block= nullptr;
+  mtr_t *m_mtr;
+
+public:
+  associatedPages(buf_block_t *cur_block, mtr_t *mtr)
+    : m_cur_block(cur_block), m_mtr(mtr) {}
+
+  /** Fetch the left, right and parent page for the respective
+  current block and make sure that there is no issue exist */
+  dberr_t prepare(uint32_t parent_page) noexcept
+  {
+    uint32_t left_page_no= btr_page_get_prev(m_cur_block->page.frame);
+    dberr_t err= DB_SUCCESS;
+    if (left_page_no != FIL_NULL)
+    {
+      m_left_block= fsp_get_latched_page(page_id_t{0, left_page_no},
+                                         m_mtr, &err);
+      if (!m_left_block)
+        return err;
+    }
+
+    uint32_t right_page_no= btr_page_get_next(m_cur_block->page.frame);
+    if (right_page_no != FIL_NULL)
+    {
+      m_right_block= fsp_get_latched_page(page_id_t{0, right_page_no},
+                                          m_mtr, &err);
+      if (!m_right_block)
+        return err;
+    }
+
+    m_parent_block= fsp_get_latched_page(page_id_t{0, parent_page},
+                                         m_mtr, &err);
+    return err;
+  }
+
+  /** Modify the FIL_PAGE_NEXT, FIL_PAGE_PREV, CHILD_PAGE of
+  respective left, right and parent block to new page number */
+  void complete(uint32_t new_page_no, uint32_t parent_offset) noexcept
+  {
+    if (m_left_block)
+      m_mtr->write<4>(*m_left_block,
+                      m_left_block->page.frame + FIL_PAGE_NEXT,
+                      new_page_no);
+
+    if (m_right_block)
+      m_mtr->write<4>(*m_right_block,
+                      m_right_block->page.frame + FIL_PAGE_PREV,
+                      new_page_no);
+
+    m_mtr->write<4>(*m_parent_block,
+                    m_parent_block->page.frame + parent_offset,
+                    new_page_no);
+  }
+};
+
+/** page allocator for the system tablespace.
+It covers the following scenario:
+1) Initializing the free extent
+2) Assigning the free extent to fseg_not_full segment list
+3) Assigning the free extent to free_frag list
+4) Allocate a page from file segment extent
+5) Allocate a page from free frag extent
+6) Add the free fragment extent to full_frag list
+7) Add the fseg_not_full extent to fseg_full list
+
+Above all scenario done by 2 steps.
+1) prepare - Basically validates the necessary condition
+and make sure that pages are being latched
+2) Complete - Completes the action by using the latched
+pages in prepare step */
+class pageAllocator
+{
+private:
+  /* System tablespace */
+  fil_space_t *m_space=  fil_system.sys_space;
+  /* Header block for the tablespace */
+  buf_block_t *m_header_block= nullptr;
+  /* Index node block */
+  buf_block_t *m_iblock= nullptr;
+  /* Index node */
+  fseg_inode_t *m_inode= nullptr;
+  /* offset of index node within index node page*/
+  uint16_t m_ioffset= 0;
+  /* Maximum free limit of the tablespace */
+  uint32_t m_free_limit= 0;
+  /* Segment id */
+  uint64_t m_seg_id= 0;
+  /* Extent size */
+  uint32_t m_extent_size= 0;
+
+  /* New page */
+  uint32_t m_new_page= 0;
+  /* New block to be allocated */
+  buf_block_t *m_new_block= nullptr;
+  /* New block extent descriptor */
+  buf_block_t *m_new_xdes= nullptr;
+  /* New block descriptor */
+  xdes_t *m_new_descr= nullptr;
+  /* New block descriptor offset within xdes page */
+  uint16_t m_xoffset= 0;
+  /* New extent descriptor state */
+  uint32_t m_new_state= 0;
+  /* Need segment allocation */
+  bool m_need_segment= false;
+  /* Old pages during allocation to be saved */
+  std::map<uint32_t, buf_block_t*> m_old_pages;
+  /* Mini-transaction to allocate a page */
+  mtr_t *m_mtr;
+
+  /** Save the old page state of the block before
+  allocating a page
+  @param block   block to be stored
+  @return error code */
+  dberr_t save_old_page(buf_block_t *block) noexcept
+  {
+    if (!block) return DB_SUCCESS;
+    uint32_t page_no= page_get_page_no(block->page.frame);
+    if (m_old_pages.find(page_no) != m_old_pages.end())
+      return DB_SUCCESS;
+
+    buf_block_t *old= buf_LRU_get_free_block(have_no_mutex_soft);
+    if (!old) return DB_OUT_OF_MEMORY;
+    memcpy_aligned<UNIV_PAGE_SIZE_MIN>(
+      old->page.frame, block->page.frame, srv_page_size);
+
+    m_old_pages[page_no]= old;
+    return DB_SUCCESS;
+  }
+
+  /** Prepare the free extent allocation by validating
+  FLST_PREV, FLST_NEXT of choosen extent descriptor
+  and their FLST_LEN of FSP_FREE list in FSP_HEADER_PAGE
+  @return error code or DB_SUCCESS */
+  dberr_t free_extent_prepare() noexcept
+  {
+    /* At least there should be 1 element in FSP_FREE list */
+    byte *len=
+      &m_header_block->page.frame[FSP_HEADER_OFFSET + FSP_FREE
+                                  + FLST_LEN];
+    if (mach_read_from_4(len) == 0)
+      return DB_CORRUPTION;
+
+    buf_block_t *prev_free_lst= nullptr;
+    buf_block_t *next_free_lst= nullptr;
+    dberr_t err= flst_remove_prepare(m_new_descr, m_free_limit, &prev_free_lst,
+                                     &next_free_lst, m_mtr);
+    if (err == DB_SUCCESS)
+    {
+      save_old_page(next_free_lst);
+      save_old_page(prev_free_lst);
+    }
+    return err;
+  }
+
+  /** Complete the free extent allocation */
+  void free_extent_complete() noexcept
+  {
+    flst_remove_complete(m_header_block, FSP_HEADER_OFFSET + FSP_FREE,
+                         m_new_descr, m_mtr);
+    m_space->free_len--;
+  }
+
+  /** Prepare the free extent and segment allocation for the extent
+  and validate the last block in FSEG_NOT_FULL
+  @return error code */
+  dberr_t initialize_segment_prepare() noexcept
+  {
+    dberr_t err= free_extent_prepare();
+    if (err) return err;
+    buf_block_t *fseg_not_full_last= nullptr;
+    err= flst_add_last_prepare(m_iblock,
+                               uint16_t(m_ioffset + FSEG_NOT_FULL),
+                               m_free_limit, &fseg_not_full_last, m_mtr);
+    if (err == DB_SUCCESS)
+      save_old_page(fseg_not_full_last);
+    return err;
+  }
+
+  /** Complete the free extent allocation and assign the state
+  of the extent and add the extent to FSEG_NOT_FULL list */
+  void initialize_segment_complete() noexcept
+  {
+    free_extent_complete();
+    flst_add_last_complete(m_iblock,
+                           uint16_t(m_ioffset + FSEG_NOT_FULL),
+                           m_new_xdes, m_xoffset, m_mtr);
+
+    xdes_set_state(*m_new_xdes, m_new_descr, XDES_FSEG, m_mtr);
+    m_mtr->write<8,mtr_t::MAYBE_NOP>(*m_new_xdes,
+                                     m_new_descr + XDES_ID,
+                                     m_seg_id);
+    xdes_set_free<false>(*m_new_xdes, m_new_descr,
+                         m_new_page % m_extent_size, m_mtr);
+
+    /* Update the FSEG_NOT_FULL_N_USED in inode */
+    byte *p_not_full= m_inode + FSEG_NOT_FULL_N_USED;
+    m_mtr->write<4>(*m_iblock, p_not_full,
+                    mach_read_from_4(p_not_full) + 1);
+  }
+
+  /** Prepare the free extent and validate the last block
+  in FSP_FREE_FRAG list of FSP_HEADER block
+  @return error code */
+  dberr_t initialize_free_frag_prepare() noexcept
+  {
+    dberr_t err= free_extent_prepare();
+    if (err) return err;
+    buf_block_t *fsp_free_frag_last= nullptr;
+    err= flst_add_last_prepare(m_header_block,
+                               FSP_HEADER_OFFSET + FSP_FREE_FRAG,
+                               m_free_limit, &fsp_free_frag_last, m_mtr);
+    if (err == DB_SUCCESS)
+      save_old_page(fsp_free_frag_last);
+    return err;
+  }
+
+  /** Complete the free extent and assign the descriptor state
+  to XDES_FREE_FRAG and add the extent to last of FSP_FREE_FRAG
+  list in header block */
+  void initialize_free_frag_complete() noexcept
+  {
+    free_extent_complete();
+    flst_add_last_complete(m_header_block,
+                           FSP_HEADER_OFFSET + FSP_FREE_FRAG,
+                           m_new_xdes, m_xoffset, m_mtr);
+
+    /* Allocate the extent state to FREE_FRAG & update FSP_FRAG_N_USED */
+    xdes_set_state(*m_new_xdes, m_new_descr, XDES_FREE_FRAG, m_mtr);
+    xdes_set_free<false>(*m_new_xdes, m_new_descr,
+                         m_new_page % m_extent_size, m_mtr);
+    byte *n_frag_used= m_header_block->page.frame
+                         + FSP_HEADER_OFFSET + FSP_FRAG_N_USED;
+    m_mtr->write<4>(*m_header_block, n_frag_used,
+                    mach_read_from_4(n_frag_used) + 1);
+  }
+
+  /** Prepare the page to be allocated from file segment extent.
+  If the extent is going to be full then prepare the extent
+  to move from FSEG_NOT_FULL to FSEG_FULL list in index node
+  @return error code */
+  dberr_t alloc_from_fseg_prepare() noexcept
+  {
+    uint32_t n_used= xdes_get_n_used(m_new_descr);
+    if (n_used < m_extent_size - 1)
+      return DB_SUCCESS;
+
+    buf_block_t *fseg_not_full_prev= nullptr;
+    buf_block_t *fseg_not_full_next= nullptr;
+    dberr_t err= flst_remove_prepare(m_new_descr, m_free_limit,
+				     &fseg_not_full_prev,
+                                     &fseg_not_full_next, m_mtr);
+    if (err) return err;
+
+    buf_block_t *fseg_full_last= nullptr;
+    err= flst_add_last_prepare(m_iblock,
+                               uint16_t(m_ioffset + FSEG_FULL),
+                               m_free_limit, &fseg_full_last,
+                               m_mtr);
+    if (err == DB_SUCCESS)
+    {
+      save_old_page(fseg_not_full_prev);
+      save_old_page(fseg_not_full_next);
+      save_old_page(fseg_full_last);
+    }
+    return err;
+  }
+
+  /** Complete the page allocation from file segment.
+  If the extent is full then remove the extent from
+  FSEG_NOT_FULL to FSEG_FULL */
+  void alloc_from_fseg_complete() noexcept
+  {
+    xdes_set_free<false>(*m_new_xdes, m_new_descr,
+                         m_new_page % m_extent_size, m_mtr);
+
+    byte *p_not_full= m_inode + FSEG_NOT_FULL_N_USED;
+    uint32_t n_used_val= mach_read_from_4(p_not_full) + 1;
+
+    if (xdes_get_n_used(m_new_descr) == m_extent_size)
+    {
+      flst_remove_complete(m_iblock,
+                           uint16_t(m_ioffset + FSEG_NOT_FULL),
+                           m_new_descr, m_mtr);
+
+      flst_add_last_complete(m_iblock, uint16_t(m_ioffset + FSEG_FULL),
+                             m_new_xdes, m_xoffset, m_mtr);
+      n_used_val-= FSP_EXTENT_SIZE;
+    }
+    m_mtr->write<4>(*m_iblock, p_not_full, n_used_val);
+  }
+
+  /** Prepare the steps to allocate the page from free fragment
+  extent. If the extent is full then prepare the steps to
+  add the extent to last of FSP_FULL_FRAG
+  @return error code */
+  dberr_t alloc_from_free_frag_prepare()
+  {
+    uint32_t n_used= xdes_get_n_used(m_new_descr);
+    if (n_used < m_extent_size - 1)
+      return DB_SUCCESS;
+
+    buf_block_t *fsp_full_frag_prev= nullptr;
+    buf_block_t *fsp_full_frag_next= nullptr;
+    dberr_t err= flst_remove_prepare(m_new_descr, m_free_limit,
+                                     &fsp_full_frag_prev,
+                                     &fsp_full_frag_next, m_mtr);
+    if (err) return err;
+
+    buf_block_t *fsp_full_frag_last= nullptr;
+    err= flst_add_last_prepare(m_header_block,
+                               FSP_HEADER_OFFSET + FSP_FULL_FRAG,
+                               m_free_limit,
+                               &fsp_full_frag_last, m_mtr);
+    if (err == DB_SUCCESS)
+    {
+      save_old_page(fsp_full_frag_prev);
+      save_old_page(fsp_full_frag_next);
+      save_old_page(fsp_full_frag_last);
+    }
+    return err;
+  }
+
+  /** Complete the page allocation from fragment extent
+  If the extent is full then remove the extent from
+  FSP_FREE_FRAG to FSEG_FULL */
+  void alloc_from_free_frag_complete()
+  {
+    xdes_set_free<false>(*m_new_xdes, m_new_descr,
+                         m_new_page % m_extent_size, m_mtr);
+
+    byte *frag_n_used= m_header_block->page.frame + FSP_HEADER_OFFSET
+      + FSP_FRAG_N_USED;
+    uint32_t n_used_frag= mach_read_from_4(frag_n_used) + 1;
+
+    if (xdes_get_n_used(m_new_descr) == m_extent_size)
+    {
+      flst_remove_complete(m_header_block,
+                           FSP_HEADER_OFFSET + FSP_FREE_FRAG,
+			   m_new_descr, m_mtr);
+
+      flst_add_last_complete(m_header_block, FSP_HEADER_OFFSET + FSP_FULL_FRAG,
+                             m_new_xdes, m_xoffset, m_mtr);
+      n_used_frag-= FSP_EXTENT_SIZE;
+    }
+    m_mtr->write<4>(*m_header_block, frag_n_used, n_used_frag);
+  }
+
+public:
+  pageAllocator(buf_block_t *header_block, buf_block_t *iblock,
+                fseg_inode_t *inode,
+                uint32_t extent_size, mtr_t *mtr) :
+  m_space(fil_system.sys_space), m_header_block(header_block),
+  m_iblock(iblock), m_inode(inode), m_extent_size(extent_size),
+  m_mtr(mtr)
+  {
+    m_free_limit= mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
+                                   + m_header_block->page.frame);
+    m_seg_id= mach_read_from_8(m_inode + FSEG_ID);
+  }
+
+  ~pageAllocator()
+  {
+    for (auto &page : m_old_pages)
+       buf_block_free(page.second);
+  }
+
+  /** Get allocated new block */
+  buf_block_t* get_new_block() { return m_new_block; }
+
+  /** Get allocate new page */
+  uint32_t get_new_page_no() { return m_new_page; }
+
+  /** Prepare the new page allocation from the new given extent
+  @param new_extent starting page of new extent
+  @param segment    segment allocation
+  @return error code */
+  dberr_t prepare(uint32_t new_extent, bool segment)
+  {
+    dberr_t err= DB_SUCCESS;
+    uint32_t size= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE
+                                    + m_header_block->page.frame);
+    if (new_extent >= size || new_extent >= m_free_limit)
+      return DB_CORRUPTION;
+
+    uint32_t new_descr_page_no= xdes_calc_descriptor_page(0, new_extent);
+    m_new_xdes= fsp_get_latched_page(page_id_t{0, new_descr_page_no},
+                                     m_mtr, &err);
+    if (!m_new_xdes)
+      return err;
+
+    m_ioffset= uint16_t(m_inode - m_iblock->page.frame);
+    m_need_segment= segment;
+    m_xoffset= uint16_t(xdes_calc_descriptor_index(0, new_extent) * XDES_SIZE
+                          + XDES_ARR_OFFSET + XDES_FLST_NODE);
+    m_new_descr= m_new_xdes->page.frame + m_xoffset - XDES_FLST_NODE;
+    m_new_state= uint32_t(xdes_get_state(m_new_descr));
+
+    /* Allocate the new extent and initialize the extent state
+    with XDES_FSEG/XDES_FREE_FRAG */
+    if (m_new_state == XDES_FREE)
+    {
+      if (segment) err= initialize_segment_prepare();
+      else err= initialize_free_frag_prepare();
+
+      if (err) return err;
+new_page:
+      m_new_page= xdes_find_free(m_new_descr);
+      if (m_new_page == FIL_NULL)
+        return DB_CORRUPTION;
+
+      m_new_page += new_extent;
+      m_new_block= fsp_get_latched_page(page_id_t{0, m_new_page},
+                                        m_mtr, &err);
+      if (err == DB_SUCCESS)
+      {
+        save_old_page(m_header_block);
+        save_old_page(m_iblock);
+        save_old_page(m_new_xdes);
+        save_old_page(m_new_block);
+      }
+
+      return err;
+    }
+
+    uint32_t  n_used= xdes_get_n_used(m_new_descr);
+    if (n_used == 0 || n_used >= m_extent_size)
+      return DB_CORRUPTION;
+
+    /* Allocate the page from file segment */
+    if (m_seg_id != FIL_NULL && m_new_state == XDES_FSEG &&
+        mach_read_from_8(m_new_descr + XDES_ID) == m_seg_id)
+      err= alloc_from_fseg_prepare();
+    /* Allocate the page from free frag */
+    else if (m_new_state == XDES_FREE_FRAG || m_new_state == XDES_FULL_FRAG)
+      err= alloc_from_free_frag_prepare();
+    else return DB_CORRUPTION;
+
+    if (err) return err;
+    goto new_page;
+  }
+
+  /** Complete the page allocation from FREE extent descriptor
+  or XDES_FSEG/XDES_FREE_FRAG extent list */
+  void complete()
+  {
+    if (m_new_state == XDES_FREE)
+    {
+      if (m_need_segment)
+        return initialize_segment_complete();
+      return initialize_free_frag_complete();
+    }
+    if (m_new_state == XDES_FSEG)
+      return alloc_from_fseg_complete();
+    return alloc_from_free_frag_complete();
+  }
+
+  /** Assign the fragment slot of the index node.
+  This step should be done after removing the old page
+  because there is a possiblity that FRAGMENT ARRAY
+  could be full. */
+  void assign_frag_slot()
+  {
+    if ((!m_need_segment && m_new_state == XDES_FREE) ||
+	m_new_state == XDES_FULL_FRAG ||
+        m_new_state == XDES_FREE_FRAG)
+      fseg_set_nth_frag_page_no(m_inode, m_iblock,
+                                fseg_find_free_frag_page_slot(m_inode),
+				m_new_page, m_mtr);
+  }
+
+  /** Restore the page modified during page allocation */
+  void restore_old_pages()
+  {
+    for (auto &it : m_old_pages)
+    {
+      buf_block_t *block=
+	m_mtr->get_already_latched(page_id_t{0, it.first},
+                                   MTR_MEMO_PAGE_SX_FIX);
+      ut_ad(block);
+      memcpy_aligned<UNIV_PAGE_SIZE_MIN>(
+        block->page.frame, it.second->page.frame, srv_page_size);
+    }
+  }
+};
+
+/** Remove the page from system tablespace
+It does following actions :
+1) Removes the page from extent descriptor
+2) If the extent is from FSEG_FULL then move the extent
+from FSEG_FULL to FSEG_NOT_FULL list
+3) If the extent is from FSP_FULL_FRAG then move the extent
+from FSP_FULL_FRAG to FSP_FREE_FRAG
+4) If the extent is empty then add the extent to FSP_FREE
+list in FSP_HEADER page */
+class pageRemover
+{
+private:
+  /* System tablespace */
+  fil_space_t *m_space=  fil_system.sys_space;
+  /* Header block for the tablespace */
+  buf_block_t *m_header_block= nullptr;
+  /* Index node block */
+  buf_block_t *m_iblock= nullptr;
+  /* Index node */
+  fseg_inode_t *m_inode= nullptr;
+  /* offset of index node within index node page*/
+  uint16_t m_ioffset= 0;
+  /* Maximum free limit of the tablespace */
+  uint32_t m_free_limit= 0;
+  /* Extent size */
+  uint32_t m_extent_size= 0;
+
+  /* Page to be removed */
+  uint32_t m_page_no= 0;
+  /* Old block extent descriptor page */
+  buf_block_t *m_old_xdes= nullptr;
+  /* Old block descriptor */
+  xdes_t *m_old_descr= nullptr;
+  /* Old block descriptor offset with descriptor page */
+  uint16_t m_xoffset= 0;
+  /* Old descriptor state */
+  uint32_t m_old_state= 0;
+  /* Mini-transaction for removal of pages */
+  mtr_t *m_mtr;
+
+  /** Prepare the steps to free the page from fragment pages.
+  1) Check the page exist in segment fragment array
+  2) If the extent is in XDES_FULL_FRAG then prepare the steps
+  to move the extent from XDES_FULL_FRAG to XDES_FREE_FRAG list
+  3) If the extent is about to empty then prepare the steps
+  to move the extent from XDES_FREE_FRAG to FSP_FREE
+  @return error code */
+  dberr_t free_from_frag_prepare()
+  {
+    uint32_t n_arr_slots= m_extent_size / 2;
+    bool page_exist= false;
+    for (ulint i=0; i < n_arr_slots; i++)
+    {
+      if (fseg_get_nth_frag_page_no(m_inode, i) == m_page_no)
+      {
+	page_exist= true;
+        break;
+      }
+    }
+
+    if (!page_exist) return DB_CORRUPTION;
+
+    buf_block_t *fsp_full_frag_prev= nullptr;
+    buf_block_t *fsp_full_frag_next= nullptr;
+    buf_block_t *fsp_full_frag_last= nullptr;
+    dberr_t err= DB_SUCCESS;
+
+    if (m_old_state == XDES_FULL_FRAG)
+    {
+      err= flst_remove_prepare(m_old_descr, m_free_limit,
+                               &fsp_full_frag_prev,
+	                       &fsp_full_frag_next, m_mtr);
+
+      if (err) return err;
+
+      err= flst_add_last_prepare(m_header_block,
+                                 FSP_HEADER_OFFSET + FSP_FREE_FRAG,
+                                 m_free_limit,
+				 &fsp_full_frag_last, m_mtr);
+      return err;
+    }
+
+    buf_block_t *fsp_free_frag_prev= nullptr;
+    buf_block_t *fsp_free_frag_next= nullptr;
+    buf_block_t *fsp_free_last= nullptr;
+
+    if (xdes_get_n_used(m_old_descr) == 1)
+    {
+      err= flst_remove_prepare(m_old_descr, m_free_limit,
+                               &fsp_free_frag_prev,
+                               &fsp_free_frag_next, m_mtr);
+      if (err) return err;
+
+      err= flst_add_last_prepare(m_header_block,
+                                 FSP_HEADER_OFFSET + FSP_FREE,
+                                 m_free_limit,
+                                 &fsp_free_last, m_mtr);
+    }
+    return err;
+  }
+
+  /** Complete the removal of page from FSP_FREE_FRAG
+  (or) FSP_FULL_FRAG list.
+  1) If the extent is from FSP_FULL_FRAG then move the
+  extent from FSP_FULL_FRAG to FSP_FREE_FRAG
+  2) If the extent is from FSP_FREE_FRAG and no pages
+  has been used in that descr then move the extent
+  from FSP_FREE_FRAG to FSP_FREE */
+  void free_from_frag_complete()
+  {
+    m_mtr->free(*m_space, m_page_no);
+    xdes_set_free<true>(*m_old_xdes, m_old_descr,
+                        m_page_no % m_extent_size, m_mtr);
+    uint32_t n_used= xdes_get_n_used(m_old_descr);
+    byte *frag_n_used= m_header_block->page.frame + FSP_HEADER_OFFSET
+                         + FSP_FRAG_N_USED;
+    uint32_t n_frag_used= mach_read_from_4(frag_n_used) - 1;
+
+    for (ulint i=0; i < m_extent_size/2; i++)
+    {
+      if (fseg_get_nth_frag_page_no(m_inode, i) == m_page_no)
+      {
+        m_mtr->memset(m_iblock,
+                      m_ioffset + FSEG_FRAG_ARR +
+		        i * FSEG_FRAG_SLOT_SIZE, 4, 0xff);
+	break;
+      }
+    }
+    if (n_used == m_extent_size - 1)
+    {
+      flst_remove_complete(m_header_block,
+                           FSP_HEADER_OFFSET + FSP_FULL_FRAG,
+                           m_old_descr, m_mtr);
+
+      flst_add_last_complete(m_header_block,
+                             FSP_HEADER_OFFSET + FSP_FREE_FRAG,
+                             m_old_xdes, m_xoffset, m_mtr);
+
+      xdes_set_state(*m_old_xdes, m_old_descr, XDES_FREE_FRAG, m_mtr);
+
+      n_frag_used += m_extent_size;
+    }
+
+    if (n_used == 0)
+    {
+      flst_remove_complete(m_header_block,
+                           FSP_HEADER_OFFSET + FSP_FREE_FRAG,
+                           m_old_descr, m_mtr);
+
+      xdes_set_state(*m_old_xdes, m_old_descr, XDES_FREE, m_mtr);
+
+      flst_add_last_complete(m_header_block,
+                             FSP_HEADER_OFFSET + FSP_FREE,
+			     m_old_xdes, m_xoffset, m_mtr);
+    }
+    m_mtr->write<4>(*m_header_block, frag_n_used, n_frag_used);
+  }
+
+  /** Prepare the removal of page from file segment
+  1) Move the page from FSEG_FULL to FSEG_NOT_FULL
+  2) Move the page from FSEG_NOT_FULL to FSP_FREE incase
+  the extent has no used pages
+  @return error code */
+  dberr_t free_from_fseg_prepare()
+  {
+    if (memcmp(m_old_descr, m_inode + FSEG_ID, 8))
+      return DB_CORRUPTION;
+
+    uint32_t n_used= xdes_get_n_used(m_old_descr);
+    if (n_used == 0 || n_used > m_extent_size)
+      return DB_CORRUPTION;
+
+    buf_block_t *fseg_full_prev= nullptr;
+    buf_block_t *fseg_full_next= nullptr;
+    buf_block_t *fseg_not_full_last= nullptr;
+    buf_block_t *fseg_not_full_prev= nullptr;
+    buf_block_t *fseg_not_full_next= nullptr;
+    buf_block_t *fsp_free_last= nullptr;
+
+    dberr_t err= DB_SUCCESS;
+
+    if (n_used == m_extent_size)
+    {
+      err= flst_remove_prepare(m_old_descr, m_free_limit,
+                               &fseg_full_prev, &fseg_full_next,
+                               m_mtr);
+      if (err) return err;
+
+      err= flst_add_last_prepare(m_iblock,
+                                 uint16_t(FSEG_NOT_FULL + m_ioffset),
+                                 m_free_limit, &fseg_not_full_last,
+                                 m_mtr);
+      if (err) return err;
+    }
+    else
+    {
+      uint32_t not_full_n_used=
+        mach_read_from_4(m_inode + FSEG_NOT_FULL_N_USED);
+      if (!not_full_n_used) return DB_CORRUPTION;
+    }
+
+    if (n_used == 1)
+    {
+      err= flst_remove_prepare(m_old_descr, m_free_limit,
+                               &fseg_not_full_prev,
+                               &fseg_not_full_next, m_mtr);
+      if (err) return err;
+
+      err= flst_add_last_prepare(m_header_block,
+                                 FSP_FREE + FSP_HEADER_OFFSET,
+                                 m_free_limit, &fsp_free_last, m_mtr);
+    }
+    return err;
+  }
+
+  /** Complete the removal of page from file segment
+  1) Move the page from FSEG_FULL to FSEG_NOT_FULL
+  2) Move the page from FSEG_NOT_FULL to FSP_FREE incase
+  the extent has no used pages */
+  void free_from_fseg_complete()
+  {
+    uint32_t n_used= xdes_get_n_used(m_old_descr);
+    m_mtr->free(*m_space, m_page_no);
+    xdes_set_free<true>(*m_old_xdes, m_old_descr,
+                        m_page_no % m_extent_size, m_mtr);
+
+    byte* p_not_full = m_inode + FSEG_NOT_FULL_N_USED;
+    uint32_t not_full_n_used = mach_read_from_4(p_not_full) - 1;
+    if (n_used == m_extent_size)
+    {
+      flst_remove_complete(m_iblock, uint16_t(m_ioffset + FSEG_FULL),
+                           m_old_descr, m_mtr);
+      flst_add_last_complete(m_iblock,
+                             uint16_t(m_ioffset + FSEG_NOT_FULL),
+                             m_old_xdes, m_xoffset, m_mtr);
+      not_full_n_used += m_extent_size;
+    }
+    m_mtr->write<4>(*m_iblock, p_not_full, not_full_n_used);
+
+    if (n_used == 1)
+    {
+      flst_remove_complete(m_iblock,
+                           uint16_t(m_ioffset + FSEG_NOT_FULL),
+                           m_old_descr, m_mtr);
+
+      xdes_set_state(*m_old_xdes, m_old_descr, XDES_FREE, m_mtr);
+      flst_add_last_complete(m_header_block,
+                             FSP_HEADER_OFFSET + FSP_FREE,
+                             m_old_xdes, m_xoffset, m_mtr);
+      m_space->free_len++;
+    }
+  }
+
+public:
+  pageRemover(buf_block_t *header_block, buf_block_t *iblock,
+              fseg_inode_t *inode, uint32_t extent_size,
+              uint32_t page_to_free, mtr_t *mtr)
+    : m_header_block(header_block), m_iblock(iblock), m_inode(inode),
+      m_extent_size(extent_size), m_page_no(page_to_free), m_mtr(mtr)
+   {
+     m_free_limit= mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
+                                   + m_header_block->page.frame);
+   }
+
+  /** Prepare the steps to remove the page from file segment
+  (or) fragment extent.
+  @return error code */
+  dberr_t prepare()
+  {
+    uint32_t old_descr_page_no=
+      xdes_calc_descriptor_page(0, m_page_no);
+    dberr_t err= DB_SUCCESS;
+    m_old_xdes= fsp_get_latched_page(page_id_t{0, old_descr_page_no},
+                                     m_mtr, &err);
+    if (!m_old_xdes)
+      return err;
+
+    m_xoffset=
+      uint16_t(xdes_calc_descriptor_index(0, m_page_no) * XDES_SIZE
+                 + XDES_ARR_OFFSET + XDES_FLST_NODE);
+
+    m_old_descr= m_old_xdes->page.frame + m_xoffset - XDES_FLST_NODE;
+    m_old_state= uint32_t(xdes_get_state(m_old_descr));
+    if (m_old_state == XDES_FREE)
+      return DB_CORRUPTION;
+
+    if (xdes_is_free(m_old_descr, m_page_no & (m_extent_size -1)))
+      return DB_CORRUPTION;
+
+    m_ioffset= uint16_t(m_inode - m_iblock->page.frame);
+    if (m_old_state != XDES_FSEG)
+      err= free_from_frag_prepare();
+    else err= free_from_fseg_prepare();
+    return err;
+  }
+
+  /** Complete the removal of page operation */
+  void complete()
+  {
+    if (m_old_state == XDES_FSEG)
+      return free_from_fseg_complete();
+    return free_from_frag_complete();
+  }
+};
+
+
+class indexDefragmenter
+{
+  /** Parent block and its associate offset where
+  we store the child page number. This is stored
+  in the form of <child_page_no, parent_page_no + parent_offset> */
+  std::map<uint32_t, uint64_t> m_parent_pages;
+
+  dict_index_t *m_index;
+
+  /** Iterate through the page and map the child_page_no
+  with the parent page and their associate offset
+  in m_parent_pages
+  @param block	block to be traversed */
+  void store_child_pages(buf_block_t *block) noexcept;
+
+  /** Get the first block for the given level
+  @param level level
+  @param err   error code
+  @return first page number for the given level
+  @retval FIL_PAGE_NULL when there is a error encountered */
+  uint32_t get_level_block(uint16_t level, dberr_t *err) noexcept;
+
+  /** Defragment the level of the index
+  @param level		level to be defragmented
+  @param space_defrag	space defragmenter information
+                        and also responsible for allocating new
+			segment or page from tablespace
+  @return error code or DB_SUCCESS */
+  dberr_t defragment_level(uint16_t level, spaceDefragmenter *space_defrag) noexcept;
+
+public:
+  indexDefragmenter(dict_index_t *index): m_index(index) {}
+
+  /** Defragment the index with the help of space defragmenter.
+  1) Iterate through each level of the index
+  2) Find out what are the pages/segment
+  to be modified for the index.
+  3) Allocate the page from the new segment/extent
+  4) Copy the to be changed page content to new page
+  5) Change the associative pages in the tree with
+  new page(left, right, parent block)
+  6) Do step (4), (5) within single mini-transaction
+  and commit the mini-transaction
+  @return error code or DB_SUCCESS */
+  dberr_t defragment(spaceDefragmenter *space_defrag) noexcept;
+};
+
+class spaceDefragmenter
+{
+  /* System tablespace */
+  fil_space_t *m_space;
+  /* Store the extent information in the tablespace <extent, state>*/
+  std::map<uint32_t, uint32_t> m_extent_info;
+  /* Map of last used extent with early unused extent within
+  the tablespace */
+  std::map<uint32_t, uint32_t> m_extent_map;
+
+  uint32_t m_extent_size;
+
+  /* Collect the extent information from tablespace */
+  void extract_extent_state() noexcept
+  {
+    mtr_t mtr;
+    dberr_t err= DB_SUCCESS;
+    uint32_t last_descr_page_no= 0;
+
+    mtr.start();
+    mtr.x_lock_space(m_space);
+    buf_block_t *last_descr=
+      buf_page_get_gen(page_id_t{m_space->id, 0}, 0, RW_S_LATCH,
+                       nullptr, BUF_GET_POSSIBLY_FREED, &mtr, &err);
+    for (uint32_t xdes_n= 0; xdes_n < m_space->free_limit;
+         xdes_n+= FSP_EXTENT_SIZE)
+    {
+      /* Ignore doublewrite buffer extent */
+      if (m_space == fil_system.sys_space
+          && buf_dblwr.is_inside(xdes_n))
+        continue;
+      uint32_t descr_page_no=
+        xdes_calc_descriptor_page(m_space->id, xdes_n);
+      if (descr_page_no != last_descr_page_no)
+        last_descr= buf_page_get_gen(page_id_t{m_space->id, xdes_n},
+                                     0, RW_S_LATCH, nullptr,
+                                     BUF_GET_POSSIBLY_FREED, &mtr,
+                                     &err);
+      xdes_t *descr= XDES_ARR_OFFSET + XDES_SIZE
+        * xdes_calc_descriptor_index(0, xdes_n)
+	  + last_descr->page.frame;
+      last_descr_page_no= descr_page_no;
+      if (xdes_n % srv_page_size == 0 && xdes_get_n_used(descr) == 2)
+        continue;
+      m_extent_info[xdes_n]= uint32_t(xdes_get_state(descr));
+    }
+    mtr.commit();
+  }
+
+  /** Find the earlier free extent for the given used extent
+  @param max_limit Find the extent below max limit extent
+  @return value or FIL_NULL if there is no extent */
+  uint32_t find_free_extent(uint32_t max_limit) noexcept
+  {
+    for (auto &extent_info : m_extent_info)
+    {
+      if (max_limit <= extent_info.first)
+        return FIL_NULL;
+
+      /* Ignore the already used extents */
+      if (extent_info.second >> 31)
+        continue;
+      if (extent_info.second == XDES_FREE)
+      {
+        /* Mark the extent as used one */
+        extent_info.second |= (1U << 31);
+        return extent_info.first;
+      }
+    }
+    return FIL_NULL;
+  }
+
+  /** Find the index from the given table for the given index id
+  @param table table to be searched
+  @param index_id index id to be search
+  @return index */
+  dict_index_t *find_index(const dict_table_t *table, uint64_t index_id) noexcept
+  {
+    for (dict_index_t *idx= dict_table_get_first_index(table);
+         idx; idx= dict_table_get_next_index(idx))
+      if (idx->id == index_id)
+        return idx;
+    return nullptr;
+  }
+
+  /** Find the index on the system tables for the given index_id */
+  dict_index_t* find_sys_index(uint64_t index_id) noexcept
+  {
+    dict_index_t *idx= find_index(dict_sys.sys_tables, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_columns, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_indexes, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_fields, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_foreign, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_foreign_cols, index_id);
+    if (!idx)
+      idx= find_index(dict_sys.sys_virtual, index_id);
+    return idx;
+  }
+
+  /** Defragment the indexes */
+  dberr_t defragment_index(dict_index_t *index) noexcept
+  {
+    indexDefragmenter index_defrag(index);
+    return index_defrag.defragment(this);
+  }
+
+  /** Defragment the table */
+  dberr_t defragment_table(const dict_table_t *table) noexcept
+  {
+    for (dict_index_t *index= dict_table_get_first_index(table);
+         index; index= dict_table_get_next_index(index))
+    {
+      dberr_t err= defragment_index(index);
+      if (err) return err;
+    }
+    return DB_SUCCESS;
+  }
+public:
+  spaceDefragmenter(fil_space_t *space) noexcept
+    : m_space(space), m_extent_size(FSP_EXTENT_SIZE) {}
+
+  fil_space_t *space() { return m_space; }
+
+  uint32_t extent_size() { return m_extent_size; }
+
+  /** Find the new extent for the existing last used extent
+  Iterate the tablespace from last and find out the free
+  extent in the beginning of the tablespace */
+  bool find_new_extents() noexcept
+  {
+    extract_extent_state();
+    uint32_t free_limit= m_space->free_limit;
+    uint32_t fixed_size= 0;
+
+    if (m_space == fil_system.sys_space)
+      fixed_size= srv_sys_space.get_min_size();
+    while (free_limit > fixed_size)
+    {
+      uint32_t state= m_extent_info[free_limit];
+      if (state >> 31)
+        goto func_exit;
+
+      switch (state) {
+      case XDES_FREE:
+        goto prev_extent;
+      case XDES_FSEG:
+      case XDES_FULL_FRAG:
+      case XDES_FREE_FRAG:
+        uint32_t dest= find_free_extent(free_limit);
+	if (dest == FIL_NULL)
+	  goto func_exit;
+	m_extent_map[free_limit]= dest;
+	break;
+      }
+prev_extent:
+      free_limit-= FSP_EXTENT_SIZE;
+    }
+func_exit:
+    if (m_extent_map.empty())
+      return false;
+
+    sql_print_information("InnoDB: System tablespace defragmentation "
+                          "process starts");
+    for (const auto &kv : m_extent_map)
+      sql_print_information("InnoDB: Moving the data from old "
+		            "extent %d to %d", kv.first, kv.second);
+    return true;
+  }
+
+  /** Defragment the system tables */
+  dberr_t defragment_system_tables() noexcept
+  {
+    dberr_t err= defragment_table(dict_sys.sys_tables);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_columns);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_indexes);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_fields);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_foreign);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_foreign_cols);
+    if (err == DB_SUCCESS)
+      err= defragment_table(dict_sys.sys_virtual);
+    return err;
+  }
+
+  /** @return extent which replaces the later extent
+  or same extent if there is no replacement exist */
+  uint32_t get_new_extent(uint32_t old_extent) const noexcept
+  {
+    auto it= m_extent_map.find(old_extent);
+    if (it != m_extent_map.end())
+      return it->second;
+    return old_extent;
+  }
+
+  /** @return state for the given extent */
+  uint32_t get_state(uint32_t extent) noexcept
+  {
+    return m_extent_info[extent];
+  }
+};
+
+#ifdef UNIV_DEBUG
+/** Validate the system tablespace list */
+__attribute__((warn_unused_result))
+dberr_t fsp_tablespace_validate(fil_space_t *space)
+{
+  /* Validate all FSP list in system tablespace */
+  mtr_t local_mtr;
+  dberr_t err= DB_SUCCESS;
+  local_mtr.start();
+  if (buf_block_t *header= fsp_get_header(
+        space, &local_mtr, &err))
+  {
+    flst_validate(header, FSP_FREE + FSP_HEADER_OFFSET, &local_mtr);
+    flst_validate(header, FSP_FREE_FRAG + FSP_HEADER_OFFSET,
+                  &local_mtr);
+    flst_validate(header, FSP_HEADER_OFFSET + FSP_FULL_FRAG,
+                  &local_mtr);
+    flst_validate(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL,
+                  &local_mtr);
+    flst_validate(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE,
+                  &local_mtr);
+  }
+  local_mtr.commit();
+  return err;
+}
+
+/** Validate the system tablespace list */
+__attribute__((warn_unused_result))
+dberr_t fseg_validate(fil_space_t *space, dict_index_t *index)
+{
+  /* Validate all FSP list in system tablespace */
+  mtr_t local_mtr;
+  dberr_t err= DB_SUCCESS;
+  local_mtr.start();
+
+  buf_block_t *root= btr_root_block_get(index, RW_SX_LATCH,
+                                        &local_mtr, &err);
+  if (UNIV_UNLIKELY(!root))
+  {
+err_exit:
+    local_mtr.commit();
+    return err;
+  }
+
+  fseg_header_t *seg_header=
+    root->page.frame + PAGE_HEADER + PAGE_BTR_SEG_TOP;
+
+  buf_block_t *iblock;
+  fseg_inode_t *inode= fseg_inode_try_get(seg_header, 0, 0, &local_mtr,
+                                          &iblock, &err);
+  if (!inode)
+    goto err_exit;
+
+  uint16_t i_offset= uint16_t(inode - iblock->page.frame);
+
+  flst_validate(iblock, uint16_t(i_offset + FSEG_FREE), &local_mtr);
+  flst_validate(iblock, uint16_t(i_offset + FSEG_NOT_FULL), &local_mtr);
+  flst_validate(iblock, uint16_t(i_offset + FSEG_FULL), &local_mtr);
+
+  seg_header= root->page.frame + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
+
+  inode= fseg_inode_try_get(seg_header, 0, 0, &local_mtr,
+                            &iblock, &err);
+  if (!inode)
+    goto err_exit;
+
+  i_offset= uint16_t(inode - iblock->page.frame);
+
+  flst_validate(iblock, uint16_t(i_offset + FSEG_FREE), &local_mtr);
+  flst_validate(iblock, uint16_t(i_offset + FSEG_NOT_FULL), &local_mtr);
+  flst_validate(iblock, uint16_t(i_offset + FSEG_FULL), &local_mtr);
+  local_mtr.commit();
+  return err;
+}
+#endif /* UNIV_DEBUG */
+
+void indexDefragmenter::store_child_pages(buf_block_t *block) noexcept
+{
+  rec_t *rec=
+    page_rec_get_next(page_get_infimum_rec(buf_block_get_frame(block)));
+  while (!page_rec_is_supremum(rec))
+  {
+    ulint len;
+    ulint offset=
+      rec_get_nth_field_offs_old(rec, rec_get_n_fields_old(rec) - 1,
+                                 &len);
+    ut_ad(len == 4);
+
+    ut_ad(offset < srv_page_size);
+    byte *field= rec + offset;
+    /* m_parent_pages[child_page_no] =
+       1st 32 bit to indicate offset in parent page
+       2nd 32 bit to indicate parent page number */
+    m_parent_pages[mach_read_from_4(field)]=
+      uint64_t(page_offset(field)) << 32 | block->page.id().page_no();
+    rec= page_rec_get_next(rec);
+  }
+}
+
+uint32_t indexDefragmenter::get_level_block(uint16_t level, dberr_t *err) noexcept
+{
+  mtr_t mtr;
+  mtr.start();
+  mtr_x_lock_index(m_index, &mtr);
+  uint32_t child_page_no= m_index->page;
+  while (1)
+  {
+    dberr_t err= DB_SUCCESS;
+    buf_block_t *block= buf_page_get_gen(page_id_t{0, child_page_no},
+                                         0, RW_S_LATCH, nullptr,
+                                         BUF_GET_POSSIBLY_FREED, &mtr,
+                                         &err);
+    if (!block)
+    {
+      child_page_no= FIL_NULL;
+      break;
+    }
+
+    page_t *page= buf_block_get_frame(block);
+    uint16_t cur_level= btr_page_get_level(page);
+    if (cur_level == level)
+      break;
+    rec_t *rec= page_rec_get_next(page_get_infimum_rec(page));
+    if (rec && !page_rec_is_supremum(rec))
+    {
+      ulint len;
+      ulint offset=
+        rec_get_nth_field_offs_old(rec, rec_get_n_fields_old(rec) - 1,
+                                   &len);
+      ut_ad(len == 4);
+
+      ut_ad(offset < srv_page_size);
+      child_page_no= mach_read_from_4(rec + offset);
+    }
+    else
+    {
+      child_page_no= FIL_NULL;
+      err= DB_CORRUPTION;
+      break;
+    }
+    if (cur_level == level + 1)
+      break;
+  }
+  mtr.commit();
+  return child_page_no;
+}
+
+dberr_t indexDefragmenter::defragment_level(uint16_t level,
+                                            spaceDefragmenter *space_defrag) noexcept
+{
+  dberr_t err= DB_SUCCESS;
+  uint32_t cur_page_no= get_level_block(level, &err);
+  if (cur_page_no == FIL_NULL)
+    return err;
+
+  fil_space_t *space= fil_system.sys_space;
+  uint32_t extent_size= space_defrag->extent_size();
+  mtr_t mtr;
+  mtr.start();
+  mtr.x_lock_space(space);
+  mtr_x_lock_index(m_index, &mtr);
+
+  buf_block_t *block= buf_page_get_gen(page_id_t{0, cur_page_no},
+                                       0, RW_X_LATCH, nullptr,
+                                       BUF_GET_POSSIBLY_FREED, &mtr, &err);
+  if (!block)
+  {
+err_exit:
+    mtr.discard_modifications();
+    mtr.commit();
+    return err;
+  }
+
+  while (block)
+  {
+    page_t *page= buf_block_get_frame(block);
+    uint32_t next_page_no= btr_page_get_next(page);
+    uint32_t cur_extent= (cur_page_no / extent_size) * extent_size;
+    uint32_t old_state= space_defrag->get_state(cur_extent);
+
+    if (old_state == XDES_FREE)
+    {
+fetch_next_page:
+      mtr.commit();
+
+      if (next_page_no == FIL_NULL)
+        break;
+      cur_page_no= next_page_no;
+
+      mtr.start();
+      mtr_x_lock_index(m_index, &mtr);
+      mtr.x_lock_space(fil_system.sys_space);
+      block= fsp_get_latched_page(page_id_t{0, cur_page_no},
+                                  &mtr, &err);
+      continue;
+    }
+
+    uint32_t new_extent= space_defrag->get_new_extent(cur_extent);
+    /* There is no need for extent to be changed */
+    if (new_extent == cur_extent)
+    {
+      if (level)
+        store_child_pages(block);
+      goto fetch_next_page;
+    }
+
+    buf_block_t *header_block=
+      fsp_get_latched_page(page_id_t{0, 0}, &mtr, &err);
+    if (!header_block)
+      goto err_exit;
+
+    buf_block_t *root= btr_root_block_get(m_index, RW_SX_LATCH, &mtr,
+                                          &err);
+    if (UNIV_UNLIKELY(!root))
+      goto err_exit;
+
+    fseg_header_t *seg_header=
+      root->page.frame + (level
+                          ? PAGE_HEADER + PAGE_BTR_SEG_TOP
+                          : PAGE_HEADER + PAGE_BTR_SEG_LEAF);
+
+    buf_block_t *iblock;
+    fseg_inode_t *inode= fseg_inode_try_get(seg_header, 0, 0, &mtr,
+                                            &iblock, &err);
+    if (!inode)
+      goto err_exit;
+
+    auto parent_it= m_parent_pages.find(cur_page_no);
+    if (parent_it == m_parent_pages.end())
+    {
+      err= DB_CORRUPTION;
+      goto err_exit;
+    }
+
+    uint32_t parent_page_no= uint32_t(parent_it->second);
+
+    uint32_t parent_offset= uint32_t(parent_it->second >> 32);
+
+    if (parent_offset > srv_page_size - FIL_PAGE_DATA_END)
+    {
+      err= DB_CORRUPTION;
+      goto err_exit;
+    }
+
+    pageAllocator allocator(header_block, iblock, inode, extent_size,
+                            &mtr);
+
+    associatedPages related_pages(block, &mtr);
+    err= allocator.prepare(new_extent, old_state == XDES_FSEG);
+
+    DBUG_EXECUTE_IF("allocation_prepare_fail", err= DB_CORRUPTION;);
+    if (err) goto err_exit;
+
+    err= related_pages.prepare(parent_page_no);
+    DBUG_EXECUTE_IF("relation_page_prepare_fail", err= DB_CORRUPTION;);
+
+    if (err) goto err_exit;
+
+    allocator.complete();
+
+    /* After allocating the new page, try to prepare the steps
+    of page removal function. Because there is a possiblity that
+    last block in FSEG_NOT_FULL/FSP_FREE_FRAG/FSP_FREE last block
+    could've changed while allocating the new block. */
+    pageRemover remover(header_block, iblock, inode, extent_size,
+                        cur_page_no, &mtr);
+    err= remover.prepare();
+ 
+    DBUG_EXECUTE_IF("remover_prepare_fail", err= DB_CORRUPTION;);
+    if (err)
+    {
+      allocator.restore_old_pages();
+      goto err_exit;
+    }
+
+    /* Copy the data from old block to new block */
+    buf_block_t *new_block= allocator.get_new_block();
+    uint32_t new_page_no= new_block->page.id().page_no();
+    mtr.memcpy(*new_block, new_block->page.frame,
+               block->page.frame, srv_page_size - FIL_PAGE_DATA_END);
+    mtr.write<4,mtr_t::FORCED>(*new_block,
+                               FIL_PAGE_OFFSET + new_block->page.frame,
+                               new_page_no);
+
+    /* Assign the new block page number in left, right
+    and parent block */
+    related_pages.complete(new_page_no, parent_offset);
+
+    /* Complete the page free operation */
+    remover.complete(); 
+    /* Add the new page in inode fragment array */
+    allocator.assign_frag_slot();
+
+    if (level)
+      store_child_pages(new_block);
+    goto fetch_next_page;
+  }
+
+  ut_ad(!fsp_tablespace_validate(fil_system.sys_space));
+  ut_ad(!fseg_validate(fil_system.sys_space, m_index));
+  return DB_SUCCESS;
+}
+
+dberr_t indexDefragmenter::defragment(spaceDefragmenter *space_defrag) noexcept
+{
+  mtr_t mtr;
+  dberr_t err= DB_SUCCESS;
+  mtr.start();
+  mtr.x_lock_space(fil_system.sys_space);
+  buf_block_t *root= buf_page_get_gen(page_id_t{0, m_index->page},
+                                      0, RW_SX_LATCH, nullptr,
+                                      BUF_GET_POSSIBLY_FREED, &mtr,
+                                      &err);
+  if (err)
+  {
+    mtr.commit();
+    return err;
+  }
+  uint16_t level= btr_page_get_level(root->page.frame);
+  mtr.commit();
+  while (1)
+  {
+    err= defragment_level(level, space_defrag);
+    DBUG_EXECUTE_IF("fail_after_level_defragment",
+                    if (level == 1)
+		      err= DB_CORRUPTION;);
+    if (err || !level)
+      break;
+    level--;
+  }
+  return err;
+}
+
+static
+bool is_user_table_exists(fil_space_t *space, dberr_t *err) noexcept
+{
+  mtr_t mtr;
+  btr_pcur_t pcur;
+  mtr.start();
+  dict_sys.lock(SRW_LOCK_CALL);
+  for (const rec_t *rec= dict_startscan_system(&pcur, &mtr,
+			                       dict_sys.sys_tables);
+       rec; rec= dict_getnext_system(&pcur, &mtr))
+  {
+    if (rec_get_deleted_flag(rec, 0))
+    {
+      sql_print_error("InnoDB: Encountered corrupted record in SYS_TABLES");
+      *err= DB_CORRUPTION;
+user_table_found:
+      mtr.commit();
+      dict_sys.unlock();
+      return true;
+    }
+    ulint len;
+    const byte *field=
+      rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__SPACE, &len);
+    ut_ad(len == 4);
+    if (mach_read_from_4(field) != space->id)
+      continue;
+    field= rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__ID, &len);
+    ut_ad(len == 8);
+    ulint table_id= mach_read_from_8(field);
+    if (!dict_sys.is_sys_table(table_id))
+      goto user_table_found;
+  }
+  mtr.commit();
+  dict_sys.unlock();
+  return false;
+}
+
+dberr_t fil_space_t::defragment() noexcept
+{
+  dberr_t err= DB_SUCCESS;
+  if (is_user_table_exists(fil_system.sys_space, &err))
+  {
+    if (err)
+      return err;
+    sql_print_information(
+      "InnoDB: User table exists in the system tablespace."
+      "Please try to move the data from system tablespace "
+      "to separate tablespace before defragment the "
+      "system tablespace.");
+    return DB_SUCCESS;
+  }
+  spaceDefragmenter defragmenter(fil_system.sys_space);
+  if (!defragmenter.find_new_extents())
+    return DB_SUCCESS;
+
+  err= defragmenter.defragment_system_tables();
+  if (err)
+    goto func_exit;
+
+func_exit:
+  if (err)
+    sql_print_error("InnoDB: Defragmentation of system tablespace failed.");
+  else
+    sql_print_information("InnoDB: Defragmentation of system "
+                          "tablespace is successful");
+  return err;
+}
+
 /** Used during system tablespace truncation. Stores
 the "to be modified" extent descriptor page and its
 old page state */
-class fsp_xdes_old_page
+class fsp_xdes_old_page final
 {
   std::vector<buf_block_t*> m_old_xdes_pages;
   const uint32_t m_space;
@@ -3136,8 +4781,8 @@ public:
     DBUG_EXECUTE_IF("shrink_buffer_pool_full",
                     return DB_OUT_OF_MEMORY;);
     dberr_t err= DB_SUCCESS;
-    buf_block_t *block= fsp_get_latched_xdes_page(
-                          page_id_t(m_space, page_no), mtr, &err);
+    buf_block_t *block= fsp_get_latched_page(page_id_t(m_space, page_no),
+                                             mtr, &err);
     if (block)
     {
       buf_block_t *old= buf_LRU_get_free_block(have_no_mutex_soft);
@@ -3201,7 +4846,7 @@ dberr_t fsp_lst_update_skip(
 {
   dberr_t err= DB_SUCCESS;
   uint32_t space_id= header->page.id().space();
-  buf_block_t *cur= fsp_get_latched_xdes_page(
+  buf_block_t *cur= fsp_get_latched_page(
     page_id_t(space_id, cur_addr.page), mtr, &err);
 
   if (!cur) return err;
@@ -3228,7 +4873,7 @@ dberr_t fsp_lst_update_skip(
       prev= cur;
     else
     {
-      prev= fsp_get_latched_xdes_page(
+      prev= fsp_get_latched_page(
               page_id_t(space_id, last_valid_addr.page),
               mtr, &err);
       if (!prev) return err;
@@ -3311,7 +4956,7 @@ func_exit:
       header->page.frame + hdr_offset + FLST_LAST,
       cur_addr.page, cur_addr.boffset, mtr);
 
-    buf_block_t *cur_block= fsp_get_latched_xdes_page(
+    buf_block_t *cur_block= fsp_get_latched_page(
       page_id_t(header->page.id().space(), cur_addr.page),
       mtr, &err);
 
@@ -3361,8 +5006,9 @@ dberr_t fsp_shrink_list(buf_block_t *header, uint16_t hdr_offset,
     ut_ad(!(addr.page & (srv_page_size - 1)));
     if (!descr_block || descr_block->page.id().page_no() != addr.page)
     {
-      descr_block= fsp_get_latched_xdes_page(
-        page_id_t(header->page.id().space(), addr.page), mtr, &err);
+      descr_block=
+        fsp_get_latched_page(page_id_t(header->page.id().space(), addr.page),
+                             mtr, &err);
       if (!descr_block)
         return err;
     }
@@ -3425,8 +5071,8 @@ dberr_t fsp_xdes_reset(uint32_t space_id, uint32_t threshold, mtr_t *mtr)
                0, (cur_descr_page + srv_page_size - 1));
   last_descr_offset+= XDES_SIZE;
   dberr_t err= DB_SUCCESS;
-  buf_block_t *block= fsp_get_latched_xdes_page(
-    page_id_t(space_id, cur_descr_page), mtr, &err);
+  buf_block_t *block= fsp_get_latched_page(page_id_t(space_id, cur_descr_page),
+                                           mtr, &err);
   if (!block)
     return err;
   mtr->memset(
@@ -3477,9 +5123,8 @@ dberr_t fsp_traverse_extents(
   {
     if (!block)
     {
-      block= fsp_get_latched_xdes_page(
-               page_id_t(space->id, last_descr_page_no),
-               mtr, &err);
+      block= fsp_get_latched_page(page_id_t(space->id, last_descr_page_no),
+                                  mtr, &err);
       if (!block) return err;
     }
 
@@ -3544,33 +5189,6 @@ dberr_t fsp_traverse_extents(
   }
   return err;
 }
-
-#ifdef UNIV_DEBUG
-/** Validate the system tablespace list */
-__attribute__((warn_unused_result))
-dberr_t fsp_tablespace_validate(fil_space_t *space)
-{
-  /* Validate all FSP list in system tablespace */
-  mtr_t local_mtr;
-  dberr_t err= DB_SUCCESS;
-  local_mtr.start();
-  if (buf_block_t *header= fsp_get_header(
-        space, &local_mtr, &err))
-  {
-    flst_validate(header, FSP_FREE + FSP_HEADER_OFFSET, &local_mtr);
-    flst_validate(header, FSP_FREE_FRAG + FSP_HEADER_OFFSET,
-                  &local_mtr);
-    flst_validate(header, FSP_HEADER_OFFSET + FSP_FULL_FRAG,
-                  &local_mtr);
-    flst_validate(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL,
-                  &local_mtr);
-    flst_validate(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE,
-                  &local_mtr);
-  }
-  local_mtr.commit();
-  return err;
-}
-#endif /* UNIV_DEBUG */
 
 /** Store the inode information which basically stores
 the page and offset */
@@ -4025,8 +5643,16 @@ void fsp_system_tablespace_truncate(bool shutdown)
   dberr_t err= space->garbage_collect(shutdown);
   if (err)
   {
+early_exit:
     srv_sys_space.set_shrink_fail();
     return;
+  }
+
+  if (!shutdown)
+  {
+    err= space->defragment();
+    if (err)
+      goto early_exit;
   }
 
   mtr_t mtr;
@@ -4089,8 +5715,7 @@ err_exit:
                           UINT32PF " to " UINT32PF " pages", space->size,
                           last_used_extent);
 
-    header= fsp_get_latched_xdes_page(
-              page_id_t(space->id, 0), &mtr, &err);
+    header= fsp_get_latched_page(page_id_t(space->id, 0), &mtr, &err);
     if (!header)
       goto err_exit;
 
@@ -4205,7 +5830,7 @@ func_exit:
                         UINT32PF " to " UINT32PF " pages", space->size,
                         last_used_extent);
 
-  buf_block_t *header= fsp_get_latched_xdes_page(
+  buf_block_t *header= fsp_get_latched_page(
       page_id_t(space->id, 0), &mtr, &err);
   if (!header)
     goto func_exit;
