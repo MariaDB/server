@@ -93,7 +93,7 @@ openssl enc -aes-256-cbc -md sha1 -k "secret" -in keys.txt -out keys.enc
    openssl command-line tool
 
    @param salt   [in]  the given salt as extracted from the encrypted file
-   @param secret [in]  the given secret as String, provided by the user
+   @param input  [in]  the given secret as String, provided by the user
    @param key    [out] 32 Bytes of key are written to this pointer
    @param iv     [out] 16 Bytes of iv are written to this pointer
 */
@@ -101,38 +101,42 @@ openssl enc -aes-256-cbc -md sha1 -k "secret" -in keys.txt -out keys.enc
 void Parser::bytes_to_key(const unsigned char *salt, const char *input,
                           unsigned char *key, unsigned char *iv)
 {
-  unsigned char digest[MY_SHA1_HASH_SIZE];
-  int key_left   = OpenSSL_key_len;
-  int iv_left    = OpenSSL_iv_len;
-  const size_t ilen= strlen(input);
-  const size_t slen= OpenSSL_salt_len; // either this or explicit (size_t) casts below
+  my_bytes_to_key(salt, (const unsigned char*) input, strlen(input), key, iv);
 
-  my_sha1_multi(digest, input, ilen, salt, slen, NullS);
+  /*
+    unsigned char digest[MY_SHA1_HASH_SIZE];
+    int key_left   = OpenSSL_key_len;
+    int iv_left    = OpenSSL_iv_len;
+    const size_t ilen= strlen(input);
+    const size_t slen= OpenSSL_salt_len; // either this or explicit (size_t) casts below
 
-  while (iv_left)
-  {
-    int left= MY_SHA1_HASH_SIZE;
-    if (key_left)
+    my_sha1_multi(digest, input, ilen, salt, slen, NullS);
+
+    while (iv_left)
     {
-      int store = MY_MIN(key_left, MY_SHA1_HASH_SIZE);
-      memcpy(&key[OpenSSL_key_len - key_left], digest, store);
+      int left= MY_SHA1_HASH_SIZE;
+      if (key_left)
+      {
+        int store = MY_MIN(key_left, MY_SHA1_HASH_SIZE);
+        memcpy(&key[OpenSSL_key_len - key_left], digest, store);
 
-      key_left -= store;
-      left     -= store;
+        key_left -= store;
+        left     -= store;
+      }
+
+      if (iv_left && left)
+      {
+        int store= MY_MIN(iv_left, left);
+        memcpy(&iv[OpenSSL_iv_len - iv_left], &digest[MY_SHA1_HASH_SIZE - left], store);
+
+        iv_left    -= store;
+      }
+
+      if (iv_left)
+        my_sha1_multi(digest, digest, MY_SHA1_HASH_SIZE,
+                              input, ilen, salt, slen, NullS);
     }
-
-    if (iv_left && left)
-    {
-      int store= MY_MIN(iv_left, left);
-      memcpy(&iv[OpenSSL_iv_len - iv_left], &digest[MY_SHA1_HASH_SIZE - left], store);
-
-      iv_left    -= store;
-    }
-
-    if (iv_left)
-      my_sha1_multi(digest, digest, MY_SHA1_HASH_SIZE,
-                            input, ilen, salt, slen, NullS);
-  }
+   */
 }
 
 

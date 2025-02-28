@@ -70,6 +70,8 @@ extern struct my_crypt_service_st {
   unsigned int (*my_aes_get_size)(enum my_aes_mode mode, unsigned int source_length);
   unsigned int (*my_aes_ctx_size)(enum my_aes_mode mode);
   int (*my_random_bytes)(unsigned char* buf, int num);
+  void (*my_bytes_to_key)(const unsigned char *salt, const unsigned char *input,
+                          int input_len, unsigned char *key, unsigned char *iv);
 } *my_crypt_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -95,6 +97,9 @@ extern struct my_crypt_service_st {
 #define my_random_bytes(A,B)\
   my_crypt_service->my_random_bytes(A,B)
 
+#define my_bytes_to_key(A, B, C, D, E)\
+  my_crypt_service->my_bytes_to_key(A,B,C,D,E)
+
 #else
 
 int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
@@ -108,6 +113,8 @@ int my_aes_crypt(enum my_aes_mode mode, int flags,
                  const unsigned char *key, unsigned int klen, const unsigned char *iv, unsigned int ivlen);
 
 int my_random_bytes(unsigned char* buf, int num);
+void my_bytes_to_key(const unsigned char *salt, const unsigned char *input,
+                     int input_len, unsigned char *key, unsigned char *iv);
 unsigned int my_aes_get_size(enum my_aes_mode mode, unsigned int source_length);
 unsigned int my_aes_ctx_size(enum my_aes_mode mode);
 #endif

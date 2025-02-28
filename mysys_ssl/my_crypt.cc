@@ -382,4 +382,15 @@ int my_random_bytes(uchar *buf, int num)
   return MY_AES_OK;
 }
 
+void my_bytes_to_key(const unsigned char *salt, const unsigned char *input,
+                     int input_len, unsigned char *key, unsigned char *iv)
+{
+  /*
+    EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha1(), salt,
+                   input, input_len, 1, key, iv);
+   */
+  EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha256(), salt,
+                 input, input_len, 1, key, iv);
+}
+
 }
