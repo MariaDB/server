@@ -7132,7 +7132,7 @@ int handler::read_range_first(const key_range *start_key,
   DBUG_ENTER("handler::read_range_first");
 
   eq_range= eq_range_arg;
-  set_end_range(end_key);
+  set_end_range(end_key, RANGE_SCAN_ASC);
   range_key_part= table->key_info[active_index].key_part;
 
   if (!start_key)			// Read first record
@@ -7208,9 +7208,17 @@ int handler::read_range_next()
 }
 
 
-void handler::set_end_range(const key_range *end_key)
+/*
+  @brief
+    Inform the Storage Engine about the end of range to be scanned.
+    See opt_index_cond_pushdown.cc, "End-of-range checks".
+*/
+
+void handler::set_end_range(const key_range *end_key,
+                            enum_range_scan_direction direction)
 {
   end_range= 0;
+  range_scan_direction= direction;
   if (end_key)
   {
     end_range= &save_end_range;
@@ -7218,6 +7226,7 @@ void handler::set_end_range(const key_range *end_key)
     key_compare_result_on_equal=
       ((end_key->flag == HA_READ_BEFORE_KEY) ? 1 :
        (end_key->flag == HA_READ_AFTER_KEY) ? -1 : 0);
+    range_key_part= table->key_info[active_index].key_part;
   }
 }
 
@@ -7250,8 +7259,11 @@ int handler::compare_key(key_range *range)
 
 
 /*
-  Same as compare_key() but doesn't check have in_range_check_pushed_down.
-  This is used by index condition pushdown implementation.
+  Same as compare_key() but
+  - doesn't check in_range_check_pushed_down,
+  - supports reverse index scans.
+
+  This is used by Index Condition Pushdown implementation.
 */
 
 int handler::compare_key2(key_range *range) const
@@ -7262,6 +7274,8 @@ int handler::compare_key2(key_range *range) const
   cmp= key_cmp(range_key_part, range->key, range->length);
   if (!cmp)
     cmp= key_compare_result_on_equal;
+  if (range_scan_direction == RANGE_SCAN_DESC)
+    cmp= -cmp;
   return cmp;
 }
 
@@ -7286,6 +7300,10 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
     if (killed > abort_at)
       return CHECK_ABORTED_BY_USER;
   }
+  /*
+    Before checking the Pushed Index Condition, check if we went out of range.
+    See opt_index_cond_pushdown.cc, "End-of-range checks".
+  */
   if (unlikely(h->end_range) && h->compare_key2(h->end_range) > 0)
     return CHECK_OUT_OF_RANGE;
   h->increment_statistics(&SSV::ha_icp_attempts);
