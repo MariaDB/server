@@ -1,2 +1,0 @@
-mecab_la_SOURCES =				\
-	mecab.c
