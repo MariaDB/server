@@ -1565,7 +1565,12 @@ struct handlerton
   void (*binlog_oob_free)(THD *thd, void *engine_data);
   /* Obtain an object to allow reading from the binlog. */
   handler_binlog_reader * (*get_binlog_reader)();
-  /* Obtain list of binlog files (SHOw BINARY LOGS). */
+  /*
+    Obtain the current position in the binlog.
+    Used to support legacy SHOW MASTER STATUS.
+  */
+  void (*binlog_status)(char out_filename[FN_REFLEN], ulonglong *out_pos);
+  /* Obtain list of binlog files (SHOW BINARY LOGS). */
   binlog_file_entry * (*get_binlog_file_list)(MEM_ROOT *mem_root);
   /*
     End the current binlog file, and create and switch to a new one.
