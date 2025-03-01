@@ -1,4 +1,0 @@
-SET NAMES UTF8;
-SELECT mroonga_escape('a\"\\\'z' AS script) AS escaped_query;
-escaped_query
-"a\"\\'z"

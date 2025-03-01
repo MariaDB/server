@@ -1,9 +1,0 @@
-diff -ur mariadb-10.0.2.orig/sql/sql_locale.cc mariadb-10.0.2/sql/sql_locale.cc
---- mariadb-10.0.2.orig/sql/sql_locale.cc	2013-04-23 13:13:59.000000000 +0900
-+++ mariadb-10.0.2/sql/sql_locale.cc	2013-05-19 12:55:27.590366542 +0900
-@@ -1,4 +1,4 @@
--/* Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
-+﻿/* Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by

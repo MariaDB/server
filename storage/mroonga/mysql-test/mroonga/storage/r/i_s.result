@@ -1,7 +1,0 @@
-SHOW CREATE TABLE INFORMATION_SCHEMA.MROONGA_STATS;
-Table	Create Table
-Mroonga_stats	CREATE TEMPORARY TABLE `Mroonga_stats` (
-  `VERSION` varchar(40) NOT NULL,
-  `rows_written` int(11) NOT NULL,
-  `rows_read` int(11) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
