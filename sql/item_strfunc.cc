@@ -2985,15 +2985,20 @@ static bool my_uni_isalpha(int wc)
 }
 
 
-String *Item_func_soundex::val_str(String *str)
+String *Item_func_soundex::soundex(String *str, String input_str)
 {
   DBUG_ASSERT(fixed());
-  String *res= args[0]->val_str(&tmp_value);
-  char last_ch,ch;
   CHARSET_INFO *cs= collation.collation;
+  String *res= new String(input_str.c_ptr(), input_str.length(), cs);
+  char last_ch,ch;
   my_wc_t wc;
   uint nchars;
   int rc;
+  if (!input_str.ptr() || input_str.length() == 0) 
+  {
+    str->copy(NULL, 0, collation.collation);  // Set str to empty string
+    return str;
+  }
 
   if ((null_value= args[0]->null_value))
     return 0; /* purecov: inspected */
@@ -3075,9 +3080,10 @@ String *Item_func_soundex::val_str(String *str)
       to+= rc;
       nchars++;
       last_ch= ch;  // save code of last input letter
-    }               // for next double-letter check
+      if (nchars >= 4)
+        break; // Soundex code is 4 characters
+    }
   }
-  
   /* Pad up to 4 characters with DIGIT ZERO, if the string is shorter */
   if (nchars < 4) 
   {
@@ -3090,6 +3096,65 @@ String *Item_func_soundex::val_str(String *str)
   return str;
 }
 
+String *Item_func_soundex::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  String *arg_str= args[0]->val_str(&tmp_value);
+  CHARSET_INFO *cs= collation.collation;
+  String input_string;
+  if (!(null_value= args[0]->null_value))
+    input_string.copy(arg_str->ptr(), arg_str->length(), collation.collation);
+  else
+  {
+    input_string.copy(NULL, 0, collation.collation);
+    return NULL;
+  }
+  // Buffer to hold each word temporarily
+  String word_buffer;
+  String soundex_code;
+  String result;
+  char delimiter= ' ';
+  const char *input_ptr= input_string.ptr();
+  const char *input_end= input_ptr + input_string.length();
+  for (; input_ptr < input_end; ++input_ptr) 
+  {
+    char current_char= *input_ptr;
+    bool is_delimiter= (delimiter != '\0') && 
+                       (current_char == delimiter || 
+                        std::isspace(static_cast<unsigned char>(current_char)));
+    if (is_delimiter) 
+    { 
+      // If a delimiter is found, process the current word
+      if (word_buffer.length() > 0)
+      {
+        // Compute Soundex for the current word
+        String *res= soundex(str, word_buffer);
+        result.append(res->ptr(), res->length());
+        // Reset word buffer
+        word_buffer.length(0);
+        // Append delimiter if needed
+        if (delimiter != '\0')
+          result.append(&delimiter, 1);
+      }
+      else if (delimiter != '\0')
+        result.append(&delimiter, 1);
+    }
+    else 
+    {
+      char upper_char= soundex_toupper(static_cast<unsigned char>(current_char));
+      word_buffer.append(&upper_char, 1);
+    }
+  } 
+  // After the loop, process any remaining word
+  if (word_buffer.length() > 0)
+  {
+    // Compute Soundex for the current word
+    String *res= soundex(str, word_buffer);
+    result.append(res->ptr(), res->length());
+  }
+  str->copy(result.ptr(), result.length(), cs);
+  return str;  
+}
 
 /**
   Change a number to format '3,333,333,333.000'.
