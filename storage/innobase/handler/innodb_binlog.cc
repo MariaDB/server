@@ -243,6 +243,8 @@ public:
   virtual bool data_available() final;
   virtual int init_gtid_pos(slave_connection_state *pos,
                             rpl_binlog_state_base *state) final;
+  virtual int init_legacy_pos(const char *filename, ulonglong offset) final;
+  virtual void get_filename(char name[FN_REFLEN], uint64_t file_no) final;
 };
 
 
@@ -2159,6 +2161,50 @@ ha_innodb_binlog_reader::init_gtid_pos(slave_connection_state *pos,
     cur_file_pos= chunk_rd.current_pos();
   }
   return res;
+}
+
+
+int
+ha_innodb_binlog_reader::init_legacy_pos(const char *filename, ulonglong offset)
+{
+  uint64_t file_no;
+  if (!filename)
+  {
+    mysql_mutex_lock(&purge_binlog_mutex);
+    file_no= earliest_binlog_file_no;
+    mysql_mutex_unlock(&purge_binlog_mutex);
+  }
+  else if (!is_binlog_name(filename, &file_no))
+  {
+    my_error(ER_UNKNOWN_TARGET_BINLOG, MYF(0));
+    return -1;
+  }
+  if ((uint64_t)offset >= (uint64_t)(UINT32_MAX) << srv_page_size_shift)
+  {
+    my_error(ER_BINLOG_POS_INVALID, MYF(0), offset);
+    return -1;
+  }
+
+  /*
+    ToDo: Here, we could start at the beginning of the page containing the
+    requested position. Then read forwards until the requested position is
+    reached. This way we avoid reading garbaga data for invalid request
+    offset.
+  */
+  chunk_rd.seek(file_no, (uint64_t)offset);
+  chunk_rd.skip_partial(true);
+  cur_file_no= chunk_rd.current_file_no();
+  cur_file_pos= chunk_rd.current_pos();
+  return 0;
+}
+
+
+void
+ha_innodb_binlog_reader::get_filename(char name[FN_REFLEN], uint64_t file_no)
+{
+  static_assert(BINLOG_NAME_MAX_LEN <= FN_REFLEN,
+                "FN_REFLEN too shot to hold InnoDB binlog name");
+  binlog_name_make_short(name, file_no);
 }
 
 

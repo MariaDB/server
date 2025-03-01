@@ -4821,6 +4821,88 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
 }
 
 
+/* Version of mysql_show_binlog_events() for --binlog-storage-engine. */
+static bool
+show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
+{
+  bool err= false;
+
+  DBUG_ASSERT(opt_binlog_engine_hton);
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS);
+  handler_binlog_reader *reader= (*opt_binlog_engine_hton->get_binlog_reader)();
+  if (!reader)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+
+  if (reader->init_legacy_pos(lex_mi->log_file_name, lex_mi->pos))
+  {
+    err= true;
+    goto end;
+  }
+
+  {
+    SELECT_LEX_UNIT *unit= &thd->lex->unit;
+    unit->set_limit(thd->lex->current_select);
+    uint64_t file_no= reader->cur_file_no;
+    ha_rows limit= unit->lim.get_select_limit();
+    String packet;
+    Format_description_log_event fd(4);
+    char name_buf[FN_REFLEN];
+    reader->get_filename(name_buf, file_no);
+
+    for (ha_rows event_count= 0;
+         reader->cur_file_no == file_no && event_count < limit;
+         ++event_count)
+    {
+      packet.length(0);
+      int reader_error= reader->read_log_event(&packet, 0,
+            thd->variables.max_allowed_packet + MAX_LOG_EVENT_HEADER);
+      if (reader_error)
+      {
+        if (reader_error != LOG_READ_EOF)
+        {
+          my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0),
+                   "SHOW BINLOG EVENTS", "error reading event data");
+          err= true;
+        }
+        break;
+      }
+
+      if (unit->lim.check_offset(event_count))
+        continue;
+      const char *errmsg;
+      Log_event *ev= Log_event::read_log_event((const uchar *)packet.ptr(),
+                                               (uint)packet.length(),
+                                               &errmsg, &fd, false, false);
+      if (!ev)
+      {
+        my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0),
+                 "SHOW BINLOG EVENTS", errmsg);
+        err= true;
+        break;
+      }
+      int send_err= ev->net_send(protocol, name_buf, 0);
+      delete ev;
+      if (send_err)
+      {
+        my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0),
+                 "SHOW BINLOG EVENTS", "Net error");
+        err= true;
+        break;
+      }
+    }
+  }
+
+end:
+  if (!err)
+    my_eof(thd);
+  delete reader;
+  return err;
+}
+
+
 /**
   Execute a SHOW BINLOG EVENTS statement.
 
@@ -4859,6 +4941,10 @@ bool mysql_show_binlog_events(THD* thd)
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
+
+  if (opt_binlog_engine_hton &&
+      thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS)
+    DBUG_RETURN(show_engine_binlog_events(thd, protocol, lex_mi));
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS ||
               thd->lex->sql_command == SQLCOM_SHOW_RELAYLOG_EVENTS);

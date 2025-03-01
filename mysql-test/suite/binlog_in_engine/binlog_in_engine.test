@@ -28,6 +28,8 @@ SELECT @@GLOBAL.binlog_checksum;
 # checks that the reported file and position is within some reasonable range
 # of the value left by current code.
 SHOW MASTER STATUS;
+SHOW BINLOG EVENTS IN "binlog-000000.ibb";
+SHOW BINLOG EVENTS LIMIT 2, 3;
 
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
 
