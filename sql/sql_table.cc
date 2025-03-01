@@ -11667,7 +11667,8 @@ alter_copy:
   {
     // If EXCLUSIVE lock is requested, upgrade already.
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
-        wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+        wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN,
+                                 lock_wait_timeout))
       goto err_new_table_cleanup;
 
     /*
@@ -11676,7 +11677,7 @@ alter_copy:
     */
     if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
         thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_SHARED_NO_WRITE,
-                                             lock_wait_timeout))
+                                             thd->variables.lock_wait_timeout))
       goto err_new_table_cleanup;
 
     DEBUG_SYNC(thd, "alter_table_copy_after_lock_upgrade");
