@@ -120,7 +120,7 @@ static const LEX_CSTRING trg_action_time_type_names[]=
   { STRING_WITH_LEN("AFTER") }
 };
 
-static const LEX_CSTRING trg_event_type_names[]=
+const LEX_CSTRING trg_event_type_names[]=
 {
   { STRING_WITH_LEN("<invalid>") }, // 0x00
   { STRING_WITH_LEN("INSERT") }, // 0x01

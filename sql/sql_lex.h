@@ -4076,7 +4076,8 @@ public:
   */
 
   Item *create_item_ident_trigger_specific(THD *thd,
-                                           active_dml_stmt stmt_type);
+                                           active_dml_stmt stmt_type,
+                                           bool *throw_error);
 
 
   /**
@@ -4086,17 +4087,23 @@ public:
   */
 
   Item *create_item_ident_trigger_specific(THD *thd,
-                                           const Lex_ident_sys &clause)
+                                           const Lex_ident_sys &clause,
+                                           bool *throw_error)
   {
+    *throw_error= false;
+
     if (Lex_ident_ci(clause).streq("INSERTING"_Lex_ident_column))
       return create_item_ident_trigger_specific(thd,
-                                                active_dml_stmt::INSERTING_STMT);
+                                                active_dml_stmt::INSERTING_STMT,
+                                                throw_error);
     else if (Lex_ident_ci(clause).streq("UPDATING"_Lex_ident_column))
       return create_item_ident_trigger_specific(thd,
-                                                active_dml_stmt::UPDATING_STMT);
+                                                active_dml_stmt::UPDATING_STMT,
+                                                throw_error);
     else if (Lex_ident_ci(clause).streq("DELETING"_Lex_ident_column))
       return create_item_ident_trigger_specific(thd,
-                                                active_dml_stmt::DELETING_STMT);
+                                                active_dml_stmt::DELETING_STMT,
+                                                throw_error);
 
     return nullptr;
   }

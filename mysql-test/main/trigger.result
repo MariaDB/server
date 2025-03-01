@@ -2727,5 +2727,71 @@ Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_clie
 # Clean up
 DROP TABLE t1, t2;
 #
+# Check that event flag in condition must match the event type of a trigger
+#
+CREATE TABLE t1 (a INT);
+# The following CREATE TRIGGER statement must fail since
+# the UPDATING clause can be specified only for UPDATE trigger event
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+IF UPDATING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'UPDATING' in the condition expression is not compatible with the trigger event type 'INSERT'
+# The following CREATE TRIGGER statement must fail since
+# the DELETING clause can be specified only for DELETE trigger event
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+IF DELETING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'DELETING' in the condition expression is not compatible with the trigger event type 'INSERT'
+# The following CREATE TRIGGER statement must fail since
+# the INSERTING clause can be specified only for INSERT trigger event
+CREATE TRIGGER t1_bi BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+IF INSERTING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'INSERTING' in the condition expression is not compatible with the trigger event type 'UPDATE'
+# The following CREATE TRIGGER statement must fail since
+# the INSERTING clause can be specified only for INSERT trigger event
+CREATE TRIGGER t1_bi BEFORE DELETE ON t1 FOR EACH ROW
+BEGIN
+IF INSERTING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'INSERTING' in the condition expression is not compatible with the trigger event type 'DELETE'
+# The following CREATE TRIGGER statement must fail since
+# the DELETING clause can be specified only for DELETE trigger event
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+IF DELETING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'DELETING' in the condition expression is not compatible with the trigger event type 'INSERT'
+# The following CREATE TRIGGER statement must fail since
+# the DELETING clause can be specified only for DELETE trigger event
+CREATE TRIGGER t1_bi BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+IF DELETING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'DELETING' in the condition expression is not compatible with the trigger event type 'UPDATE'
+# Clean up
+DROP TABLE t1;
+#
 # End of 11.8 tests
 #

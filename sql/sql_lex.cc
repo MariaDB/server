@@ -8676,8 +8676,36 @@ Item *LEX::create_item_ident(THD *thd,
 
 
 Item *LEX::create_item_ident_trigger_specific(THD *thd,
-                                              active_dml_stmt stmt_type)
+                                              active_dml_stmt stmt_type,
+                                              bool *throw_error)
 {
+  if (stmt_type == active_dml_stmt::INSERTING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "INSERTING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  if (stmt_type == active_dml_stmt::UPDATING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "UPDATING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  if (stmt_type == active_dml_stmt::DELETING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "DELETING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
   return new (thd->mem_root) Item_trigger_type_of_statement(thd, stmt_type);
 }
 
@@ -8840,15 +8868,22 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
     user's triggers that use local variable names coinciding with the reserved
     values wouldn't be changed
   */
+  bool got_error;
   Item *trigger_specific_item=
     create_item_ident_trigger_specific(thd,
-                                       Lex_ident_sys(thd, name));
+                                       Lex_ident_sys(thd, name), &got_error);
   if (trigger_specific_item)
     /*
       trigger_specific_item != nullptr if the  argument 'name' equals one of
       the following clauses `INSERTING`, `UPDATING`, `DELETING`
     */
     return trigger_specific_item;
+  else if (got_error)
+    /*
+      The supplied clause INSERTING or UPDATING or DELETING isn't compatible
+      with the trigger event type
+    */
+    return NULL;
 
   if (fields_are_impossible() &&
       (current_select->parsing_place != FOR_LOOP_BOUND ||

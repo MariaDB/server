@@ -442,4 +442,6 @@ bool rm_trigname_file(char *path, const LEX_CSTRING *db,
 extern const char * const TRG_EXT;
 extern const char * const TRN_EXT;
 
+extern const LEX_CSTRING trg_event_type_names[];
+
 #endif /* SQL_TRIGGER_INCLUDED */

@@ -3064,6 +3064,75 @@ DROP TRIGGER t1_b_any;
 SHOW TRIGGERS;
 --echo # Clean up
 DROP TABLE t1, t2;
+
+--echo #
+--echo # Check that event flag in condition must match the event type of a trigger
+--echo #
+CREATE TABLE t1 (a INT);
+--delimiter $
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the UPDATING clause can be specified only for UPDATE trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  IF UPDATING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the DELETING clause can be specified only for DELETE trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  IF DELETING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the INSERTING clause can be specified only for INSERT trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the INSERTING clause can be specified only for INSERT trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the DELETING clause can be specified only for DELETE trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  IF DELETING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the DELETING clause can be specified only for DELETE trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  IF DELETING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--delimiter ;
+--echo # Clean up
+DROP TABLE t1;
 --echo #
 --echo # End of 11.8 tests
 --echo #
