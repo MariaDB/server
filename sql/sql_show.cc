@@ -1410,18 +1410,6 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   my_eof(thd);
 
 exit:
-  if (table_list->table && table_list->table->s->tmp_table != NO_TMP_TABLE)
-  {
-    TMP_TABLE_SHARE *share= (TMP_TABLE_SHARE*)table_list->table->s;
-    if (share->from_share)
-    {
-      if (table_list->table->file->info(HA_STATUS_VARIABLE)
-          || (table_list->table->file->records() == 0
-              && thd->drop_temporary_table(table_list->table, NULL, true)))
-        error= TRUE;
-    }
-  }
-
   close_thread_tables(thd);
   /* Release any metadata locks taken during SHOW CREATE. */
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
@@ -1974,7 +1962,6 @@ static void append_create_options(THD *thd, String *packet,
 
 static void add_table_options(THD *thd, TABLE *table,
                               Table_specification_st *create_info_arg,
-                              TABLE_SHARE *global_tmp_share,
                               bool schema_table, bool sequence,
                               String *packet)
 {
@@ -2144,7 +2131,7 @@ end_options:
   append_directory(thd, packet, &DATA_clex_str,  create_info.data_file_name);
   append_directory(thd, packet, &INDEX_clex_str, create_info.index_file_name);
 
-  if (global_tmp_share)
+  if (table->s->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
   {
     LEX_CSTRING on_commit= table->s->on_commit_delete()
                      ? LEX_CSTRING{STRING_WITH_LEN(" ON COMMIT DELETE ROWS")}
@@ -2255,22 +2242,10 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
        create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
 
-  TABLE_SHARE *global_tmp_share= NULL;
-  if (share->tmp_table)
-  {
-    TMP_TABLE_SHARE *tmp_share= (TMP_TABLE_SHARE*)table_list->table->s;
-    if (tmp_share->from_share)
-    {
-      global_tmp_share= tmp_share->from_share;
-      packet->append(STRING_WITH_LEN("GLOBAL TEMPORARY "));
-    }
-    else
-    {
-      packet->append(STRING_WITH_LEN("TEMPORARY "));
-    }
-  }
-
-  DBUG_ASSERT(share->table_type != TABLE_TYPE_GLOBAL_TEMPORARY);
+  if (share->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+    packet->append(STRING_WITH_LEN("GLOBAL TEMPORARY "));
+  else if (share->tmp_table)
+    packet->append(STRING_WITH_LEN("TEMPORARY "));
 
   packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg && create_info_arg->if_not_exists())
@@ -2638,7 +2613,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
 
   packet->append(STRING_WITH_LEN("\n)"));
   if (show_table_options)
-    add_table_options(thd, table, create_info_arg, global_tmp_share,
+    add_table_options(thd, table, create_info_arg,
                       table_list->schema_table != 0, 0, packet);
 
   if (!DBUG_IF("sysvers_hide") && table->versioned())
@@ -2877,7 +2852,7 @@ static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
     packet->append(STRING_WITH_LEN(" nocycle"));
 
   if (show_table_options)
-    add_table_options(thd, table, NULL, 0, 0, 1, packet);
+    add_table_options(thd, table, 0, 0, 1, packet);
   return 0;
 }
 

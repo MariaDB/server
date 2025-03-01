@@ -1,5 +1,5 @@
 --echo # Safety
-set lock_wait_timeout= 0;
+set lock_wait_timeout= 5;
 
 --error ER_PARSE_ERROR
 create table t1 (x int, t text) on commit preserve rows;
@@ -15,9 +15,17 @@ flush tables;
 
 show create table t1;
 
+insert into t1 values(1, 'one');
 let $show = query_get_value('show create table t1', 'Create Table', 1);
+truncate t1;
+let $show1 = query_get_value('show create table t1', 'Create Table', 1);
+
+--if($show != $show1) {
+--die SHOW CREATE output mismatch
+--}
 
 insert into t1 values(1, 'one');
+
 
 select * from t1;
 --connect (con1,localhost,root,,)
@@ -33,7 +41,12 @@ select * from t1 join t1 as t2;
 alter table t1 add y int;
 --error ER_LOCK_WAIT_TIMEOUT
 drop table t1;
+
+--connection con1
+set debug_sync= 'thread_end signal closed';
 --disconnect con1
+--connection default
+set debug_sync= 'now wait_for closed';
 
 --error ER_BAD_TABLE_ERROR
 drop temporary table t1;
@@ -82,8 +95,11 @@ insert into t values (1);
 select * from t;
 commit;
 select * from t;
+
+set debug_sync= 'thread_end signal closed';
 --disconnect con1
 --connection default
+set debug_sync= 'now wait_for closed';
 
 drop table t;
 
@@ -105,10 +121,29 @@ insert into t values (1);
 select * from t;
 commit;
 select * from t;
+
+set debug_sync= 'thread_end signal closed';
 --disconnect con1
 --connection default
+set debug_sync= 'now wait_for closed';
 
 --error ER_LOCK_WAIT_TIMEOUT
 drop table t;
-delete from t;
+truncate t;
+drop table t;
+
+create global temporary table t (x int) on commit PRESERVE rows;
+--connect (con1,localhost,root,,)
+insert t values(1);
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t add j int;
+--error ER_LOCK_WAIT_TIMEOUT
+set statement lock_wait_timeout=0 for drop table t;
+
+--connection con1
+set debug_sync= 'thread_end signal closed';
+--disconnect con1
+--connection default
+set debug_sync= 'now wait_for closed';
 drop table t;

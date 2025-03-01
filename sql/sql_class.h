@@ -5696,6 +5696,8 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
+  bool use_real_global_temporary_share() const;
+
   bool internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
                                      TMP_TABLE_SHARE **share);
   bool open_temporary_table(TABLE_LIST *tl);

@@ -292,6 +292,14 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length)
   DBUG_RETURN(result);
 }
 
+bool THD::use_real_global_temporary_share() const
+{
+  return sql_command_flags() & (CF_ADMIN_COMMAND
+                               | CF_SCHEMA_CHANGE
+                               | CF_STATUS_COMMAND);
+}
+
+
 bool THD::internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
                                         TMP_TABLE_SHARE **share)
 {
@@ -327,8 +335,7 @@ bool THD::internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
   TMP_TABLE_SHARE *tmp_share;
   if (!*table && (tmp_share= find_tmp_table_share(tl)))
   {
-    if (tmp_share->from_share && sql_command_flags() & (CF_ADMIN_COMMAND
-                                                        |CF_SCHEMA_CHANGE))
+    if (tmp_share->from_share && use_real_global_temporary_share())
       DBUG_RETURN(false); /* We want to use real global temporary table
                              when ALTER/DROP is executed.
                            */
@@ -1100,8 +1107,7 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
     {
       /* A matching TMP_TABLE_SHARE is found. */
 
-      if (share->from_share && sql_command_flags() & (CF_ADMIN_COMMAND
-                                                      |CF_SCHEMA_CHANGE))
+      if (share->from_share && use_real_global_temporary_share())
         break; /* We want to use real global temporary table
                   when ALTER/DROP is executed.
                 */
@@ -1320,17 +1326,9 @@ int THD::commit_global_tmp_tables()
   All_tmp_tables_list::Iterator it(*temporary_tables);
   while (TMP_TABLE_SHARE *share= it++)
   {
-    if (!share->from_share)
-      continue;
-
-    All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
-    TABLE *table= tables_it++;
-    DBUG_ASSERT(table);
-    if (!share->on_commit_delete())
-      table->file->info(HA_STATUS_VARIABLE); // update records() stat
-
-    if (share->on_commit_delete() || table->file->records() == 0)
-      error= drop_tmp_table_share(share, NULL, true);
+    if (share->on_commit_delete())
+      if (int local_error= drop_tmp_table_share(share, NULL, true))
+        error= local_error;
   }
   return error;
 }
