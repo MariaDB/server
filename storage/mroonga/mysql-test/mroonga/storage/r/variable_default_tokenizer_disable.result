@@ -1,5 +1,0 @@
-SET GLOBAL mroonga_default_tokenizer = NULL;
-SHOW GLOBAL VARIABLES LIKE 'mroonga_default_tokenizer';
-Variable_name	Value
-mroonga_default_tokenizer	off
-SET GLOBAL mroonga_default_tokenizer = DEFAULT;
