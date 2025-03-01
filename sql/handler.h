@@ -5940,6 +5940,13 @@ public:
   */
   virtual int init_gtid_pos(slave_connection_state *pos,
                             rpl_binlog_state_base *state) = 0;
+  /*
+    Initialize to a legacy-type position (filename, offset). This mostly to
+    support legacy SHOW BINLOG EVENTS.
+  */
+  virtual int init_legacy_pos(const char *filename, ulonglong offset) = 0;
+  /* Get a binlog name from a file_no. */
+  virtual void get_filename(char name[FN_REFLEN], uint64_t file_no) = 0;
 
   int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
 };
