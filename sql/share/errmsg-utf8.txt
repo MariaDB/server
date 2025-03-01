@@ -12302,3 +12302,5 @@ ER_ENGINE_BINLOG_NO_DELETE_DOMAIN
 	eng "The binlog engine does not support DELETE_DOMAIN_ID"
 ER_BINLOG_CANNOT_READ_STATE
 	eng "Error reading GTID state from the binlog"
+ER_BINLOG_POS_INVALID
+	eng "The binlog offset %llu is invalid"
