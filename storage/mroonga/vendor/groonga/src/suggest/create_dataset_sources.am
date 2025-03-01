@@ -1,2 +1,0 @@
-groonga_suggest_create_dataset_SOURCES =	\
-	groonga_suggest_create_dataset.c
