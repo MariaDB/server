@@ -19,6 +19,16 @@ SELECT * FROM t1 ORDER BY a;
 DROP TABLE t1;
 SELECT @@GLOBAL.binlog_checksum;
 
+# This output will depend on exact size of events, which might change over time.
+# If it changes, make the test abort after the SHOW MASTER STATUS, and check
+# that the reported new binlog position is correct, it should be the point
+# where the file starts containing only zero bytes.
+#
+# If this gets too annoying to do, we can replace this with something that
+# checks that the reported file and position is within some reasonable range
+# of the value left by current code.
+SHOW MASTER STATUS;
+
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
 
 SET SESSION binlog_format= ROW;

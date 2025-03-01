@@ -2219,6 +2219,19 @@ innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
 }
 
 
+void
+innodb_binlog_status(char out_filename[FN_REFLEN], ulonglong *out_pos)
+{
+  static_assert(BINLOG_NAME_MAX_LEN <= FN_REFLEN,
+                "FN_REFLEN too shot to hold InnoDB binlog name");
+  uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
+  uint32_t page_no= binlog_cur_page_no;
+  uint32_t in_page_offset= binlog_cur_page_offset;
+  binlog_name_make_short(out_filename, file_no);
+  *out_pos= ((ulonglong)page_no << srv_page_size_shift) | in_page_offset;
+}
+
+
 bool
 innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 {
