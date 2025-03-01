@@ -14,6 +14,9 @@ DROP TABLE t1;
 SELECT @@GLOBAL.binlog_checksum;
 @@GLOBAL.binlog_checksum
 NONE
+SHOW MASTER STATUS;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+binlog-000000.ibb	767		
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
 SET SESSION binlog_format= ROW;
 *** Do 1500 transactions ...
