@@ -8583,8 +8583,9 @@ ha_innobase::update_row(
 		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
 	} else {
     que_thr_t *thr = que_fork_get_first_thr(m_prebuilt->upd_graph);
-    if (table->pos_in_table_list->prelocking_placeholder
-        != TABLE_LIST::PRELOCK_FK) {
+    if (table->pos_in_table_list == nullptr ||
+		table->pos_in_table_list->prelocking_placeholder != TABLE_LIST::PRELOCK_FK
+	) {
       thr->fk_cascade_depth = 0;
     }
 		if (m_prebuilt->upd_node->is_delete) {
@@ -8712,8 +8713,9 @@ ha_innobase::delete_row(
 	}
 
   que_thr_t *thr = que_fork_get_first_thr(m_prebuilt->upd_graph);
-  if (table->pos_in_table_list->prelocking_placeholder
-      != TABLE_LIST::PRELOCK_FK) {
+  if (table->pos_in_table_list == nullptr ||
+	  table->pos_in_table_list->prelocking_placeholder != TABLE_LIST::PRELOCK_FK
+	) {
     thr->fk_cascade_depth = 0;
   }
 
