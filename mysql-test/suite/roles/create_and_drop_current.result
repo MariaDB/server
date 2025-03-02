@@ -17,7 +17,7 @@ drop role current_role;
 ERROR HY000: Operation DROP ROLE failed for CURRENT_ROLE
 show warnings;
 Level	Code	Message
-Error	1446	Invalid definer
+Error	1959	Invalid role specification `NONE`
 Error	1396	Operation DROP ROLE failed for CURRENT_ROLE
 create role r1;
 grant r1 to current_user;

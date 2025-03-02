@@ -139,7 +139,7 @@ PROCEDURE p1;
 END;
 $$
 Warnings:
-Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+Note	1446	The user specified as a definer ('xxx'@'localhost') does not exist
 CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
 PROCEDURE p1 AS
 BEGIN
@@ -148,7 +148,7 @@ END;
 END;
 $$
 Warnings:
-Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+Note	1446	The user specified as a definer ('xxx'@'localhost') does not exist
 SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
 definer	name	security_type	type
 xxx@localhost	p1	DEFINER	PACKAGE
@@ -170,7 +170,7 @@ PROCEDURE p1;
 END;
 $$
 Warnings:
-Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+Note	1446	The user specified as a definer ('xxx'@'localhost') does not exist
 CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
 PROCEDURE p1 AS
 BEGIN
@@ -179,7 +179,7 @@ END;
 END;
 $$
 Warnings:
-Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+Note	1446	The user specified as a definer ('xxx'@'localhost') does not exist
 SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
 definer	name	security_type	type
 xxx@localhost	p1	INVOKER	PACKAGE

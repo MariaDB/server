@@ -1,10 +1,10 @@
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 grant select on *.* to current_role;
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 revoke select on *.* from current_role;
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 revoke all, grant option from current_role;
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 create role r1;
 grant insert on test.* to r1;
 grant r1 to current_user;

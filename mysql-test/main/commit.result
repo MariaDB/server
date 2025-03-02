@@ -13,7 +13,7 @@ INSERT INTO t1 VALUES (1),(2);
 COMMIT;
 START TRANSACTION;
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-ERROR 25001: Transaction characteristics can't be changed while a transaction is in progress
+ERROR 25001: TRANSACTION ISOLATION can't be set while a transaction is in progress
 COMMIT;
 SET @@autocommit=0;
 COMMIT;
@@ -328,7 +328,9 @@ SELECT @@transaction_read_only;
 START TRANSACTION;
 # Not allowed inside a transaction
 SET TRANSACTION READ ONLY;
-ERROR 25001: Transaction characteristics can't be changed while a transaction is in progress
+ERROR 25001: TRANSACTION READ ONLY can't be set while a transaction is in progress
+SET TRANSACTION READ WRITE;
+ERROR 25001: TRANSACTION READ WRITE can't be set while a transaction is in progress
 # But these are allowed.
 SET SESSION TRANSACTION READ ONLY;
 SET GLOBAL TRANSACTION READ ONLY;

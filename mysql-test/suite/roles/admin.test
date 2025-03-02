@@ -9,7 +9,7 @@ grant create user on *.* to foo@localhost;
 
 create role role1;
 create role role2 with admin current_user;
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 create role role3 with admin current_role;
 create role role3 with admin role1;
 create role role4 with admin root@localhost;

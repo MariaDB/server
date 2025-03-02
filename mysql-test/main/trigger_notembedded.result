@@ -128,7 +128,7 @@ CREATE DEFINER='mysqltest_nonexs'@'localhost'
 FOR EACH ROW
 SET @new_sum = 0;
 Warnings:
-Note	1449	The user specified as a definer ('mysqltest_nonexs'@'localhost') does not exist
+Note	1446	The user specified as a definer ('mysqltest_nonexs'@'localhost') does not exist
 INSERT INTO t1 VALUES(6);
 ERROR HY000: The user specified as a definer ('mysqltest_nonexs'@'localhost') does not exist
 SHOW TRIGGERS;
