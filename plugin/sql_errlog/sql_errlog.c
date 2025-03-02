@@ -151,7 +151,7 @@ static int sql_error_log_init(void *p __attribute__((unused)))
 {
   logger_init_mutexes();
 
-  logfile= logger_open(filename, size_limit, rotations);
+  logfile= logger_open(filename, size_limit, rotations, 4096);
   if (logfile == NULL) {
     fprintf(stderr, "Could not create file '%s'\n",
             filename);
