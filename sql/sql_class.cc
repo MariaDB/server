@@ -4960,7 +4960,7 @@ change_security_context(THD *thd,
   {
     if (acl_getroot(this, *definer_user, *definer_host, *definer_host, *db))
     {
-      my_error(ER_NO_SUCH_USER, MYF(0), definer_user->str,
+      my_error(ER_MALFORMED_DEFINER, MYF(0), definer_user->str,
                definer_host->str);
       DBUG_RETURN(TRUE);
     }

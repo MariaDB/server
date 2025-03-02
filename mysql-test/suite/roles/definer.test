@@ -45,7 +45,7 @@ grant select on test.* to role4;
 ##################################################
 
 # no current role = error
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 create definer=current_role view test.v1 as select a+b,c from t1;
 
 # definer=current_role, but it has doesn't have enough privileges
@@ -105,13 +105,13 @@ connection default;
 drop role role4;
 
 show create view test.v5;
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 select * from test.v5;
 
 create user role4;
 grant select on mysqltest1.t1 to role4;
 show create view test.v5;
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 select * from test.v5;
 
 # pretend it's an old view from before 10.0.5
@@ -138,7 +138,7 @@ drop user role4;
 create table t2 select * from t1;
 
 # no current role = error
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 create definer=current_role trigger tr1 before insert on t2 for each row
   insert t1 values (111, 222, 333);
 
@@ -170,7 +170,7 @@ create definer=role3 trigger tr3 before update on t2 for each row
   insert t1 values (111, 222, 333);
 --replace_column 7 #
 show create trigger tr3;
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 update t2 set b=2 where a=2;
 select * from t1;
 select * from t2;
@@ -191,7 +191,7 @@ EOF
 
 --replace_column 7 #
 show create trigger tr2;
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 delete from t2 where a=2;
 select * from t1;
 select * from t2;
@@ -201,7 +201,7 @@ select * from t2;
 ##################################################
 
 # no current role = error
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 create definer=current_role procedure pr1() insert t1 values (111, 222, 333);
 
 # definer=current_role, but it has doesn't have enough privileges
@@ -224,13 +224,13 @@ delete from t1 where a=111;
 # definer=non_existent_role
 create definer=role3 procedure pr3() insert t1 values (111, 222, 333);
 show create procedure pr3;
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 call pr3();
 select * from t1;
 
 # change a procedure to use pre-10.0.5 definer with an empty hostname
 update mysql.proc set definer='role2@' where definer='role2';
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 call pr2();
 
 ##################################################
@@ -238,7 +238,7 @@ call pr2();
 ##################################################
 
 # no current role = error
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 create definer=current_role function fn1() returns int return (select sum(a+b) from t1);
 
 # definer=current_role, but it has doesn't have enough privileges
@@ -259,7 +259,7 @@ select fn2();
 # definer=non_existent_role
 create definer=role3 function fn3() returns int return (select sum(a+b) from t1);
 show create function fn3;
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 select fn3();
 
 ##################################################
@@ -269,7 +269,7 @@ select fn3();
 set global event_scheduler=on;
 
 # no current role = error
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 create definer=current_role event e1 on schedule every 1 second starts '2000-01-01' do
   insert t1 values (111, 1, 0);
 

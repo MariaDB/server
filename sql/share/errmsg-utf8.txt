@@ -7176,12 +7176,13 @@ ER_SP_CANT_SET_AUTOCOMMIT
         geo "შენახული ფუნქციიდან და ტრიგერიდან ავტოკომიტის დაყენება დაშვებული არაა"
         spa "No permitido usar auto acometida (autocommit) desde una función almacenada o disparador"
         sw "Hairuhusiwi kuweka ahadi otomatiki kutoka kwa kitendaji iliyohifadhiwa au kichochezi"
-ER_MALFORMED_DEFINER 0L000
-        chi "无效的定义"
-        eng "Invalid definer"
-        geo "არასწორი აღმწერი"
-        spa "Definidor inválido"
-        sw "Kibainisha batili"
+ER_MALFORMED_DEFINER
+        chi "指定为定义的用户（'%-.64s'@'%-.64s'）不存在"
+        eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
+        ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
+        geo "('%-.64s'@'%-.64s')-ის აღმწერად მითითებული მომხმარებელი არ არსებობს"
+        spa "El usuario especificado como definidor ('%-.64s'@'%-.64s') no existe"
+        sw "Mtumiaji aliyebainishwa kama kibainishaji ('%-.64s'@'%-.64s') hayupo"
 ER_VIEW_FRM_NO_USER
         chi "VIEW'%-.192s'。'%-.192s'没有绝定的信息（旧表格式）。当前用户用作定义。请重新创建视图！"
         eng "View '%-.192s'.'%-.192s' has no definer information (old table format). Current user is used as definer. Please recreate the view!"
@@ -7194,8 +7195,8 @@ ER_UNUSED_30
         sw "Hupaswi kuiona kamwe"
 ER_NO_SUCH_USER
         chi "指定为定义的用户（'%-.64s'@'%-.64s'）不存在"
-        eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
-        ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
+        eng "The user '%-.64s'@'%-.64s' does not exist"
+        ger "Der Benutzer '%-.64s'@'%-.64s' existiert nicht"
         geo "('%-.64s'@'%-.64s')-ის აღმწერად მითითებული მომხმარებელი არ არსებობს"
         spa "El usuario especificado como definidor ('%-.64s'@'%-.64s') no existe"
         sw "Mtumiaji aliyebainishwa kama kibainishaji ('%-.64s'@'%-.64s') hayupo"
@@ -8080,12 +8081,8 @@ ER_WRONG_PARTITION_NAME
         spa "Nombre incorrecto de partición"
         sw "Jina lisilo sahihi la kizigeu"
         swe "Felaktigt partitionsnamn"
-ER_CANT_CHANGE_TX_CHARACTERISTICS 25001
-        chi "交易正在进行，无法更改事务特性"
-        eng "Transaction characteristics can't be changed while a transaction is in progress"
-        geo "ტრანზაქციის მიმდინარეობისას მისი მახასიათებლების შეცვლა შეუძლებელია"
-        spa "No se pueden cambiar las característias de transacción mientras que una transacción se ecuentre en proceso"
-        sw "Sifa za muamala haziwezi kubadilishwa wakati shughuli inaendelea"
+ER_CANT_SET_IN_TRANSACTION 25001
+        eng "%s can't be set while a transaction is in progress"
 ER_DUP_ENTRY_AUTOINCREMENT_CASE
         chi "ALTER TABLE表会导致AUTO_INCREMENT重建，导致重复的条目'%-.192sT'用于索引'%-.192s'"
         eng "ALTER TABLE causes auto_increment resequencing, resulting in duplicate entry '%-.192sT' for key '%-.192s'"
