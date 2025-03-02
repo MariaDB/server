@@ -1,0 +1,59 @@
+--source include/not_embedded.inc
+--source include/not_valgrind.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+--let $datadir= `SELECT @@datadir`
+RESET MASTER;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+--let $gtid_pos= `SELECT @@last_gtid`
+INSERT INTO t1 VALUES (1);
+
+--let $no_checkpoint_flush= 1
+--let $no_checkpoint_kill= 1
+--source ../../suite/innodb/include/no_checkpoint_start.inc
+SHOW MASTER STATUS;
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+
+BEGIN;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+# Crash the server
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait-recovery.test
+EOF
+
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+--source include/wait_until_disconnected.inc
+
+--source ../../suite/innodb/include/no_checkpoint_end.inc
+
+# Overwrite the binlog file past the last checkpoint
+--let BINLOG_FILE= $datadir/$file
+--let OFFSET= $pos
+--let LEN=5000
+perl;
+open F, '+<', $ENV{BINLOG_FILE} or die $!;
+sysseek F, $ENV{OFFSET}, 0 or die $!;
+my $x= chr(0) x $ENV{LEN};
+syswrite F, $x, $ENV{LEN} or die $!;
+EOF
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+SHOW MASTER STATUS;
+SHOW BINLOG EVENTS;
