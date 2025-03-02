@@ -275,7 +275,7 @@ CREATE DEFINER='mysqltest_nonexs'@'localhost'
 
 # Check that trg2 will not be activated.
 
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 INSERT INTO t1 VALUES(6);
 
 #

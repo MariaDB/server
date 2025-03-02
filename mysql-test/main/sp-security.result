@@ -439,10 +439,10 @@ connection mysqltest_2_con;
 use mysqltest;
 CREATE DEFINER='a @ b @ c'@localhost PROCEDURE wl2897_p3() SELECT 3;
 Warnings:
-Note	1449	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
+Note	1446	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
 CREATE DEFINER='a @ b @ c'@localhost FUNCTION wl2897_f3() RETURNS INT RETURN 3;
 Warnings:
-Note	1449	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
+Note	1446	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
 connection con1root;
 USE mysqltest;
 SHOW CREATE PROCEDURE wl2897_p1;
@@ -836,7 +836,7 @@ set @cmd:="create definer=u function f(i int) returns char binary reads sql data
 prepare s from @cmd;
 execute s;
 Warnings:
-Note	1449	The user specified as a definer ('u'@'%') does not exist
+Note	1446	The user specified as a definer ('u'@'%') does not exist
 execute s;
 ERROR 42000: FUNCTION f already exists
 drop function f;
