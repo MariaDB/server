@@ -2854,7 +2854,7 @@ bool sp_process_definer(THD *thd)
   if (!is_acl_user(lex->definer->host, lex->definer->user))
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_NO_SUCH_USER, ER_THD(thd, ER_NO_SUCH_USER),
+                        ER_MALFORMED_DEFINER, ER_THD(thd, ER_MALFORMED_DEFINER),
                         lex->definer->user.str, lex->definer->host.str);
   }
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
@@ -10001,7 +10001,7 @@ LEX_USER *create_default_definer(THD *thd, bool role)
 
   if (role && definer->user.length == 0)
   {
-    my_error(ER_MALFORMED_DEFINER, MYF(0));
+    my_error(ER_INVALID_ROLE, MYF(0), "NONE");
     return 0;
   }
   else

@@ -38,20 +38,20 @@ sync_slave_with_master;
 # End of 4.1 tests
 
 connection master;
---error 1141
+--error ER_NONEXISTING_GRANT
 show grants for rpl_do_grant@localhost;
 connection slave;
---error 1141
+--error ER_NONEXISTING_GRANT
 show grants for rpl_do_grant@localhost;
 
 connection master;
 create user rpl_do_grant@localhost;
 show grants for rpl_do_grant@localhost;
---error 1141
+--error ER_NONEXISTING_GRANT
 show grants for rpl_do_grant2@localhost;
 sync_slave_with_master;
 show grants for rpl_do_grant@localhost;
---error 1141
+--error ER_NONEXISTING_GRANT
 show grants for rpl_do_grant2@localhost;
 
 connection master;
@@ -80,10 +80,10 @@ show grants for rpl_do_grant2@localhost;
 
 connection master;
 drop user rpl_do_grant2@localhost;
---error 1141
+--error ER_NONEXISTING_GRANT
 show grants for rpl_do_grant2@localhost;
 sync_slave_with_master;
---error 1141
+--error ER_NONEXISTING_GRANT
 show grants for rpl_do_grant2@localhost;
 
 #####################################################
@@ -151,7 +151,7 @@ DELETE FROM mysql.procs_priv;
 FLUSH PRIVILEGES;
 USE bug42217_db;
 --echo "Can't execute the replicated routine on slave like before after procs privilege is deleted "
---error 1370
+--error ER_PROCACCESS_DENIED_ERROR
 SELECT upgrade_del_func();
 
 --echo "Test the user who creates a function on master doesn't exist on slave."
@@ -174,7 +174,7 @@ SHOW CREATE FUNCTION upgrade_alter_func;
 --echo "Should no privilege record for upgrade_alter_func in mysql.procs_priv"
 --replace_column 8 #
 SELECT * FROM mysql.procs_priv;
---error 1449
+--error ER_MALFORMED_DEFINER
 SELECT upgrade_alter_func();
 
 ###### CLEAN UP SECTION ##############

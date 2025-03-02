@@ -6964,15 +6964,15 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd, bool upgrade_check)
           (thd->lex->sql_command == SQLCOM_SHOW_FIELDS))
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, 
-                            ER_NO_SUCH_USER, 
-                            ER_THD(thd, ER_NO_SUCH_USER),
+                            ER_MALFORMED_DEFINER,
+                            ER_THD(thd, ER_MALFORMED_DEFINER),
                             definer.user.str, definer.host.str);
       }
       else
       {
         if (thd->security_ctx->master_access & PRIV_REVEAL_MISSING_DEFINER)
         {
-          my_error(ER_NO_SUCH_USER, MYF(upgrade_check ? ME_WARNING: 0),
+          my_error(ER_MALFORMED_DEFINER, MYF(upgrade_check ? ME_WARNING: 0),
                    definer.user.str, definer.host.str);
         }
         else

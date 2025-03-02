@@ -4511,7 +4511,7 @@ static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
   {
     DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
-    my_error(ER_CANT_CHANGE_TX_CHARACTERISTICS, MYF(0));
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0), "TRANSACTION ISOLATION");
     return TRUE;
   }
   return FALSE;
@@ -4542,7 +4542,9 @@ static bool check_tx_read_only(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
   {
     DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
-    my_error(ER_CANT_CHANGE_TX_CHARACTERISTICS, MYF(0));
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0),
+             var->save_result.ulonglong_value ? "TRANSACTION READ ONLY"
+             : "TRANSACTION READ WRITE");
     return true;
   }
   return false;

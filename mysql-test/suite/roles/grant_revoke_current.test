@@ -4,11 +4,11 @@
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 --enable_cursor_protocol
 
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 grant select on *.* to current_role;
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 revoke select on *.* from current_role;
---error ER_MALFORMED_DEFINER
+--error ER_INVALID_ROLE
 revoke all, grant option from current_role;
 
 create role r1;
