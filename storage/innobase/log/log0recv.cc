@@ -2441,8 +2441,15 @@ static void binlog_recover_write_data(bool space_id, uint32_t page_no,
                                       uint16_t offset,
                                       lsn_t start_lsn, lsn_t lsn,
                                       const byte *buf, size_t size) noexcept
-{}
-static void binlog_recover_end(lsn_t lsn) noexcept {}
+{
+  sql_print_information("ToDo1: binlog_recover_write_data(space_id=%d page_no=%u offset=%u start_lsn=%lu lsn=%lu size=%lu)", (int)space_id, (unsigned)page_no, (unsigned)offset, (ulong)start_lsn, (ulong)lsn, (ulong)size);
+  for (size_t i= offset; i < offset+size; i+=8)
+    sql_print_information("ToDo1:   0x%04x  %02X %02X %02X %02X %02X %02X %02X %02X", i, buf[i], buf[i+1], buf[i+2], buf[i+3], buf[i+4], buf[i+5], buf[i+6], buf[i+7]);
+}
+static void binlog_recover_end(lsn_t lsn) noexcept
+{
+  sql_print_information("ToDo1: binlog_recover_end(lsn=%lu)]", (ulong)lsn);
+}
 
 
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
