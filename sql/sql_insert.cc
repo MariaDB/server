@@ -4638,8 +4638,9 @@ void select_insert::abort_result_set()
       query_cache_invalidate3(thd, table, 1);
     }
     transactional_table= table->file->has_transactions_and_rollback();
-    if (thd->transaction->stmt.modified_non_trans_table ||
-        thd->log_current_statement())
+    if (!create_info &&
+        (thd->transaction->stmt.modified_non_trans_table ||
+         thd->log_current_statement()))
     {
         if (!can_rollback_data())
           thd->transaction->all.modified_non_trans_table= TRUE;
@@ -4659,7 +4660,7 @@ void select_insert::abort_result_set()
 	if (changed)
 	  query_cache_invalidate3(thd, table, 1);
     }
-    DBUG_ASSERT(transactional_table || !changed ||
+    DBUG_ASSERT(transactional_table || !changed || create_info ||
 		thd->transaction->stmt.modified_non_trans_table);
 
     table->s->table_creation_was_logged|= binary_logged;
@@ -5344,7 +5345,12 @@ bool select_create::send_eof()
       If are using statement based replication the table will be deleted here
       in case of a crash as we can't use xid to check if the query was logged
     */
-    create_info->finalize_create_table(thd, table_list, NullS, 0, 0);
+    if (create_info->finalize_create_table(thd, table_list, NullS, 0, 0))
+    {
+      abort_result_set();
+      DBUG_RETURN(true);
+    }
+    create_info->end_create_table(thd, table_list, 0);
 
 #ifdef WITH_WSREP
     if (WSREP(thd))
@@ -5431,7 +5437,10 @@ void select_create::abort_result_set()
   ulonglong save_option_bits;
   DBUG_ENTER("select_create::abort_result_set");
 
-  /* Avoid double calls, could happen in case of out of memory on cleanup */
+  /*
+    Avoid double calls, could happen in case of out of memory on cleanup
+    or if binary logging fails.
+  */
   if (exit_done)
     DBUG_VOID_RETURN;
   exit_done= 1;
@@ -5483,7 +5492,7 @@ void select_create::abort_result_set()
 
     if (m_plock)
     {
-      /* Unlock the new created table */
+      /* Unlock the original table */
       mysql_unlock_tables(thd, *m_plock);
       *m_plock= NULL;
       m_plock= NULL;

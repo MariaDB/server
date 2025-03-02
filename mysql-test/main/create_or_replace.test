@@ -129,7 +129,7 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --disable_service_connection
-# Using lock tables with CREATE OR REPLACE
+--echo # Using lock tables with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
 CREATE OR REPLACE TABLE t1 (a int, b int);
@@ -138,12 +138,14 @@ SELECT * FROM t1;
 INSERT INTO t1 values(1,1);
 CREATE OR REPLACE TABLE t1 (a int, b int, c int);
 INSERT INTO t1 values(1,1,1);
+# End checks that locking is still in effect
+SELECT count(*) from t2;
 --error ER_TABLE_NOT_LOCKED
 CREATE OR REPLACE TABLE t3 (a int);
 UNLOCK TABLES;
 DROP TABLE t1;
 
-# Using lock tables with CREATE OR REPLACE ... SELECT
+--echo # Using lock tables with CREATE OR REPLACE ... SELECT
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
 CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;
@@ -154,11 +156,32 @@ SELECT * FROM t1;
 INSERT INTO t1 values(1,1,1);
 CREATE OR REPLACE TABLE t1 (a int, b int, c int, d int);
 INSERT INTO t1 values(1,1,1,1);
+
+CREATE OR REPLACE TABLE t1 SELECT * from t2;
+SELECT * from t1;
+INSERT INTO t1 values(4);
+set @@drop_before_create_or_replace=0;
+--error ER_DUP_ENTRY
+CREATE OR REPLACE TABLE t1 (a int primary key) SELECT 1 as a from t2;
+# Should have original content
+SELECT * from t1;
+set @@drop_before_create_or_replace=1;
+--error ER_DUP_ENTRY
+CREATE OR REPLACE TABLE t1 (a int primary key) SELECT 1 as a from t2;
+--error ER_TABLE_NOT_LOCKED
+SELECT * from t1;
+set @@drop_before_create_or_replace=default;
+
+# End checks that locking is still in effect
+SELECT count(*) from t2;
 --error ER_TABLE_NOT_LOCKED
 CREATE OR REPLACE TABLE t3 (a int);
 UNLOCK TABLES;
-DROP TABLE t1;
+# The last CREATE OR REPLACE removed table t1
+--error ER_NO_SUCH_TABLE
+SELECT * from t1;
 
+--echo # Testing write and read locks with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write, t1 as t1_read read;
 CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;

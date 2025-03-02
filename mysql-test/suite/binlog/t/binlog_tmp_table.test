@@ -117,6 +117,7 @@ create temporary table t1(i int);
 # 
 -- connection con2
 -- eval use $dbname
+set @@binlog_format="statement";
 create temporary table t1(i int);
 
 # action: at this point, the last event binlogged contains the
@@ -131,14 +132,16 @@ create temporary table t1(i int);
 #         in its header).
 
 -- connection con1
-set @@binlog_format="statement";
 -- error 1050
 create temporary table t1(i int);
 -- disconnect con1
 
 -- connection default
+if (`SELECT FIND_IN_SET(@@BINLOG_FORMAT,@@CREATE_TEMPORARY_TABLE_BINLOG_FORMATS) > 0`)
+{
 -- let $wait_binlog_event= DROP
 -- source include/wait_for_binlog_event.inc
+}
 
 # action: insert in the t1. This would cause the the test to fail,
 #         because when replaying the binlog the previous implicit drop
@@ -149,8 +152,11 @@ insert into t1 values(1);
 -- disconnect con2
 
 -- connection default
+if (`SELECT FIND_IN_SET(@@BINLOG_FORMAT,@@CREATE_TEMPORARY_TABLE_BINLOG_FORMATS) > 0`)
+{
 -- let $wait_binlog_event= DROP
 -- source include/wait_for_binlog_event.inc
+}
 
 -- eval DROP DATABASE $dbname
 FLUSH LOGS;

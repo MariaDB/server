@@ -146,6 +146,7 @@ t1	CREATE TABLE `t1` (
   `1` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
+# Using lock tables with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
 CREATE OR REPLACE TABLE t1 (a int, b int);
@@ -154,10 +155,14 @@ a	b
 INSERT INTO t1 values(1,1);
 CREATE OR REPLACE TABLE t1 (a int, b int, c int);
 INSERT INTO t1 values(1,1,1);
+SELECT count(*) from t2;
+count(*)
+3
 CREATE OR REPLACE TABLE t3 (a int);
 ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP TABLE t1;
+# Using lock tables with CREATE OR REPLACE ... SELECT
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
 CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;
@@ -179,10 +184,37 @@ NULL	3	1
 INSERT INTO t1 values(1,1,1);
 CREATE OR REPLACE TABLE t1 (a int, b int, c int, d int);
 INSERT INTO t1 values(1,1,1,1);
+CREATE OR REPLACE TABLE t1 SELECT * from t2;
+SELECT * from t1;
+a
+1
+2
+3
+INSERT INTO t1 values(4);
+set @@drop_before_create_or_replace=0;
+CREATE OR REPLACE TABLE t1 (a int primary key) SELECT 1 as a from t2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT * from t1;
+a
+1
+2
+3
+4
+set @@drop_before_create_or_replace=1;
+CREATE OR REPLACE TABLE t1 (a int primary key) SELECT 1 as a from t2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT * from t1;
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+set @@drop_before_create_or_replace=default;
+SELECT count(*) from t2;
+count(*)
+3
 CREATE OR REPLACE TABLE t3 (a int);
 ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
-DROP TABLE t1;
+SELECT * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+# Testing write and read locks with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write, t1 as t1_read read;
 CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;

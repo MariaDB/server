@@ -2387,7 +2387,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
   DDL_LOG_STATE *ddl_log_state_rm;
   handlerton *org_hton;
   backup_log_info drop_entry;
-  bool table_was_deleted, table_was_renamed;
+  bool table_was_deleted, table_was_renamed, table_was_created;
 
   void init()
   {
@@ -2398,7 +2398,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     ddl_log_state_rm= ddl_log_state_create= 0;
     org_hton= 0;
     repair= 0;
-    table_was_deleted= table_was_renamed= 0;
+    table_was_deleted= table_was_renamed= table_was_created= 0;
   }
   ulong table_options_with_row_type()
   {
@@ -2507,6 +2507,7 @@ struct Table_specification_st: public HA_CREATE_INFO,
   bool finalize_create_table(THD *thd, TABLE_LIST *orig_table,
                              const char *query, size_t query_length,
                              bool is_trans);
+  void end_create_table(THD *thd, TABLE_LIST *orig_table, bool rollback);
   bool revert_create_table(THD *thd, TABLE_LIST *orig_table);
   bool finalize_locked_tables(THD *thd, bool operation_failed);
 };

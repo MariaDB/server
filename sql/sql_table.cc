@@ -4633,11 +4633,14 @@ bool Table_specification_st::
 finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
                       size_t query_length, bool is_trans)
 {
-  bool res= 0;
+  bool res= 0, wrote_to_binlog= 0, writing_to_binlog= 0;
 
   debug_crash_here("ddl_log_finalize_create");
 
   thd->binlog_xid= thd->query_id;
+  if (tmp_table())
+    thd->transaction->stmt.mark_created_temp_table();
+
   if (table_was_renamed)
   {
     TABLE_LIST tmp_table;
@@ -4665,6 +4668,7 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
       /* Tell non transactional engine to flush all data to disk */
       res= orig_table->table->file->extra(HA_EXTRA_FLUSH);
     }
+
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       thd->binlog_xid= thd->query_id;
@@ -4673,10 +4677,11 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
       query= thd->query();
       query_length=thd->query_length();
 
+      writing_to_binlog= 1;
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             query, query_length,
                             FALSE, FALSE, FALSE, 0) > 0)
-        res= 1;
+        wrote_to_binlog= 1;
     }
 
     /* This was a "CREATE OR REPLACE ... SELECT". Commit statement */
@@ -4685,7 +4690,10 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
       res|= trans_commit_implicit(thd);
   }
   else if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
-    res= write_bin_log(thd, TRUE, query, query_length, is_trans);
+  {
+    writing_to_binlog= 1;
+    wrote_to_binlog= write_bin_log(thd, TRUE, query, query_length, is_trans);
+  }
   else
   {
     /*
@@ -4696,16 +4704,57 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
     */
     ddl_log_disable(ddl_log_state_create);
   }
+  if (tmp_table() && writing_to_binlog && !wrote_to_binlog)
+  {
+    /*
+      Remember that temporary table creation was logged so that we know
+      that we should log a delete of it.
+    */
+    table->s->table_creation_was_logged= 1;
+  }
 
+  thd->binlog_xid= 0;
   /*
-    The new table is accepted and in case of the crash only the backup
+    The there was no problem with writing to the binlog, then
+    the new table is accepted and in case of the crash only the backup
     table would be deleted if it exists. ddl_log_state_create will not
     be used.
   */
 
   debug_crash_here("ddl_log_create_after_binlog");
 
-  thd->binlog_xid= 0;
+  return (res || wrote_to_binlog);
+}
+
+
+void Table_specification_st::end_create_table(THD *thd,
+                                              TABLE_LIST *orig_table,
+                                              bool rollback)
+{
+  if (unlikely(rollback))
+  {
+    /*
+      Could not write to binlog.
+      Remove the new table and reinstate the old one if it was a real
+      table and delete it if it was a temporary table
+    */
+    if (!tmp_table() || table_was_deleted)
+    {
+      revert_create_table(thd, orig_table);
+      /* revert_create_table() has cleanup up things */
+      table_was_deleted= 0;
+    }
+
+    if (tmp_table() && table_was_created)
+    {
+      DBUG_ASSERT(!table->s->table_creation_was_logged);
+      thd->drop_temporary_table(table, NULL, true);
+      table= 0;
+    }
+    return;
+  }
+
+  debug_crash_here("ddl_log_create_after_binlog");
 
   if (table_was_renamed)
   {
@@ -4718,7 +4767,6 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
   debug_crash_here("ddl_log_create_middle_complete");
   ddl_log_complete(ddl_log_state_rm);
   debug_crash_here("ddl_log_create_complete");
-  return res;
 }
 
 
@@ -4732,7 +4780,9 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
 bool Table_specification_st::finalize_locked_tables(THD *thd,
                                                     bool operation_failed)
 {
+  TABLE *table= 0;
   DBUG_ASSERT(thd->locked_tables_mode);
+  DBUG_ASSERT(pos_in_locked_tables);
 
   if (table_was_deleted && operation_failed)
   {
@@ -4744,20 +4794,8 @@ bool Table_specification_st::finalize_locked_tables(THD *thd,
     return false;
   }
 
-  if (table_was_renamed || table_was_deleted)
+  if (table_was_renamed)
   {
-    TABLE *table= 0;
-
-    DBUG_ASSERT(pos_in_locked_tables);
-    /*
-      Add back the deleted table and re-created table as a locked table
-     */
-    if (table_was_deleted)
-    {
-      DBUG_ASSERT(!operation_failed);           // Ensured above
-      thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-    }
-
     /* The following is true if it was not a CREATE ... SELECT */
     if (!pos_in_locked_tables->table)
     {
@@ -5261,6 +5299,8 @@ int create_table_impl(THD *thd,
   }
 
   error= 0;
+  create_info->table_was_created= 1;
+
 err:
   if (unlikely(error))
   {
@@ -5356,10 +5396,12 @@ int mysql_create_table_no_lock(THD *thd,
 
       /* Drop the new table and rename back old renamed table if used */
       ddl_log_revert(thd, ddl_log_state_create);
+      create_info->table_was_created= 0;
     }
   }
   return res;
 }
+
 
 #ifdef WITH_WSREP
 /** Additional sequence checks for Galera cluster.
@@ -5481,7 +5523,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   DDL_LOG_STATE ddl_log_state_create, ddl_log_state_rm;
   int create_table_mode;
   uint save_thd_create_info_options;
-  bool is_trans= FALSE, table_was_created= false;
+  bool is_trans= FALSE;
   bool result;
   DBUG_ENTER("mysql_create_table");
 
@@ -5541,64 +5583,43 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   /* We can abort create table for any table type */
   thd->abort_on_warning= thd->is_strict_mode();
 
-  if (mysql_create_table_no_lock(thd, &ddl_log_state_create, &ddl_log_state_rm,
-                                 create_info, alter_info, &is_trans,
-                                 create_table_mode, create_table) > 0)
-  {
-    result= 1;
-    goto err;
-  }
-  table_was_created= 1;
-
-err:
+  result= mysql_create_table_no_lock(thd, &ddl_log_state_create,
+                                     &ddl_log_state_rm,
+                                     create_info, alter_info, &is_trans,
+                                     create_table_mode, create_table) > 0;
   thd->abort_on_warning= 0;
 
+err:
   /* In RBR or readonly server we don't need to log CREATE TEMPORARY TABLE */
   if (!result && create_info->tmp_table() && !thd->binlog_create_tmp_table())
   {
-    /* Note that table->s->table_creation_was_logged is not set! */
+    /*
+      The newly created temporary table is not logged.
+      Note that table->s->table_creation_was_logged is not set!
+    */
     goto end;
   }
 
-  if (result)
-  {
-    if (!create_info->tmp_table() || create_info->table_was_deleted)
-      create_info->revert_create_table(thd, create_table);
-    table_was_created= 0;
-  }
-  else
-  {
-    if (create_info->tmp_table())
-    {
-      thd->transaction->stmt.mark_created_temp_table();
-      if (create_info->table)
-      {
-        /*
-          Remember that table creation was logged so that we know if
-          we should log a delete of it.
-          If create_info->table was not set, it's a normal table and
-          table_creation_was_logged will be set when the share is created.
-        */
-        create_info->table->s->table_creation_was_logged= 1;
-      }
-    }
+  if (!result)
     result= create_info->finalize_create_table(thd, create_table,
                                                thd->query(),
                                                thd->query_length(),
                                                is_trans);
-  }
-
-  if (table_was_created && !create_info->tmp_table())
+  create_info->end_create_table(thd, create_table, result);
+  if (!result)
   {
-    backup_log_info ddl_log;
-    bzero(&ddl_log, sizeof(ddl_log));
-    ddl_log.query= { C_STRING_WITH_LEN("CREATE") };
-    ddl_log.org_partitioned= (create_info->db_type == partition_hton);
-    ddl_log.org_storage_engine_name= create_info->new_storage_engine_name;
-    ddl_log.org_database=     create_table->db;
-    ddl_log.org_table=        create_table->table_name;
-    ddl_log.org_table_id=     create_info->tabledef_version;
-    backup_log_ddl(&ddl_log);
+    if (!create_info->tmp_table())
+    {
+      backup_log_info ddl_log;
+      bzero(&ddl_log, sizeof(ddl_log));
+      ddl_log.query= { C_STRING_WITH_LEN("CREATE") };
+      ddl_log.org_partitioned= (create_info->db_type == partition_hton);
+      ddl_log.org_storage_engine_name= create_info->new_storage_engine_name;
+      ddl_log.org_database=     create_table->db;
+      ddl_log.org_table=        create_table->table_name;
+      ddl_log.org_table_id=     create_info->tabledef_version;
+      backup_log_ddl(&ddl_log);
+    }
   }
 
 end:
@@ -6276,14 +6297,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
       thd->transaction->stmt.mark_created_temp_table();
       if (!res && local_create_info.table &&
           thd->variables.binlog_format == BINLOG_FORMAT_STMT)
-      {
-        /*
-          Remember that tmp table creation was logged so that we know if
-          we should log a delete of it.
-        */
-        local_create_info.table->s->table_creation_was_logged= 1;
         do_logging= TRUE;
-      }
     }
     else
       do_logging= TRUE;
@@ -6292,13 +6306,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 err:
   if (do_logging)
   {
-    if (res)
-    {
-      if (!create_info->tmp_table())
-        local_create_info.revert_create_table(thd, table);
-      table_was_created= 0;
-    }
-    else
+    if (!res)
     {
       LEX_CSTRING bin_query;
       if (!query.length())
@@ -6311,11 +6319,12 @@ err:
                                                    bin_query.length,
                                                    is_trans);
     }
+    local_create_info.end_create_table(thd, table, res);
   }
   ddl_log_complete(&ddl_log_state_create);
   ddl_log_complete(&ddl_log_state_rm);
 
-  if (table_was_created && !create_info->tmp_table())
+  if (!res && table_was_created && !create_info->tmp_table())
   {
     backup_log_info ddl_log;
     bzero(&ddl_log, sizeof(ddl_log));

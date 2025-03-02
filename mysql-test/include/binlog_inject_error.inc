@@ -14,8 +14,7 @@
 # source include/binlog_inject_error.inc;
 #
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
---echo $query;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 --replace_regex /(errno: .*)/(errno: #)/
 --error ER_ERROR_ON_WRITE
 --eval $query
