@@ -1,9 +1,4 @@
 !include ../galera_2nodes.cnf
 
-[mysqld.1]
+[mysqld]
 log-bin
-wsrep-debug=1
-
-[mysqld.1]
-log-bin
-wsrep-debug=1

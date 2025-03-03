@@ -7542,10 +7542,11 @@ error_handled:
 		}
 	}
 
-	/* n_ref_count must be 1, because background threads cannot
+	/* n_ref_count must be 1 (+ InnoDB_share),
+	because background threads cannot
 	be executing on this very table as we are
 	holding MDL_EXCLUSIVE. */
-	ut_ad(ctx->online || user_table->get_ref_count() == 1);
+	ut_ad(ctx->online || ((user_table->get_ref_count() - 1) <= 1));
 
 	if (new_clustered) {
 		online_retry_drop_indexes_low(user_table, ctx->trx);
@@ -11190,7 +11191,10 @@ alter_stats_norebuild(
 	DBUG_ENTER("alter_stats_norebuild");
 	DBUG_ASSERT(!ctx->need_rebuild());
 
-	if (!dict_stats_is_persistent_enabled(ctx->new_table)) {
+	auto stat = ctx->new_table->stat;
+
+	if (!dict_table_t::stat_initialized(stat)
+	    || !dict_table_t::stats_is_persistent(stat)) {
 		DBUG_VOID_RETURN;
 	}
 
@@ -11199,7 +11203,6 @@ alter_stats_norebuild(
 		DBUG_ASSERT(index->table == ctx->new_table);
 
 		if (!(index->type & DICT_FTS)) {
-			dict_stats_init(ctx->new_table);
 			dict_stats_update_for_index(index);
 		}
 	}
@@ -11224,12 +11227,15 @@ alter_stats_rebuild(
 {
 	DBUG_ENTER("alter_stats_rebuild");
 
-	if (!table->space
-	    || !dict_stats_is_persistent_enabled(table)) {
+	if (!table->space || !table->stats_is_persistent()
+	    || dict_stats_persistent_storage_check(false) != SCHEMA_OK) {
 		DBUG_VOID_RETURN;
 	}
 
-	dberr_t	ret = dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
+	dberr_t	ret = dict_stats_update_persistent(table);
+	if (ret == DB_SUCCESS) {
+		ret = dict_stats_save(table);
+	}
 
 	if (ret != DB_SUCCESS) {
 		push_warning_printf(
@@ -11342,6 +11348,13 @@ ha_innobase::commit_inplace_alter_table(
 		/* A rollback is being requested. So far we may at
 		most have created stubs for ADD INDEX or a copy of the
 		table for rebuild. */
+#if 0 /* FIXME: is there a better way for innodb.innodb-index-online? */
+		lock_shared_ha_data();
+		auto share = static_cast<InnoDB_share*>(get_ha_share_ptr());
+		set_ha_share_ptr(nullptr);
+		unlock_shared_ha_data();
+		delete share;
+#endif
 		DBUG_RETURN(rollback_inplace_alter_table(
 				    ha_alter_info, table, m_prebuilt));
 	}
@@ -11611,12 +11624,10 @@ err_index:
 	}
 	if (error != DB_SUCCESS) {
 		if (table_stats) {
-			dict_table_close(table_stats, false, m_user_thd,
-					 mdl_table);
+			dict_table_close(table_stats, m_user_thd, mdl_table);
 		}
 		if (index_stats) {
-			dict_table_close(index_stats, false, m_user_thd,
-					 mdl_index);
+			dict_table_close(index_stats, m_user_thd, mdl_index);
 		}
 		my_error_innodb(error, table_share->table_name.str, 0);
 		if (fts_exist) {
@@ -11652,11 +11663,11 @@ fail:
 			trx->rollback();
 			ut_ad(!trx->fts_trx);
 			if (table_stats) {
-				dict_table_close(table_stats, true, m_user_thd,
+				dict_table_close(table_stats, m_user_thd,
 						 mdl_table);
 			}
 			if (index_stats) {
-				dict_table_close(index_stats, true, m_user_thd,
+				dict_table_close(index_stats, m_user_thd,
 						 mdl_index);
 			}
 			row_mysql_unlock_data_dictionary(trx);
@@ -11710,10 +11721,10 @@ fail:
 	}
 
 	if (table_stats) {
-		dict_table_close(table_stats, true, m_user_thd, mdl_table);
+		dict_table_close(table_stats, m_user_thd, mdl_table);
 	}
 	if (index_stats) {
-		dict_table_close(index_stats, true, m_user_thd, mdl_index);
+		dict_table_close(index_stats, m_user_thd, mdl_index);
 	}
 
 	/* Commit or roll back the changes to the data dictionary. */

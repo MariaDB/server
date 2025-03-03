@@ -63,3 +63,11 @@ SELECT * FROM information_schema.schemata
 WHERE schema_name='comment';
 DROP DATABASE comment;
 --enable_service_connection
+
+CREATE DATABASE db1;
+--remove_file $MARIADB_DATADIR/db1/db.opt
+--source include/restart_mysqld.inc
+# We need to call this two times to ensure all code paths are used
+SHOW CREATE DATABASE db1;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;

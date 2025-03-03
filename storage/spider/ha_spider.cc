@@ -468,6 +468,28 @@ static void spider_update_current_trx_ha_with_freed_share(SPIDER_SHARE *share)
   }
 }
 
+/*
+  Given an ha_spider that is being closed, reset the queued ping info
+  of SPIDER_CONN of the current spider trx that has the given
+  ha_spider as the queued_ping_spider.
+*/
+static void spider_reset_conn_queued_ping(ha_spider *spider)
+{
+  SPIDER_TRX *trx= spider_current_trx;
+  if (trx)
+  {
+    for (uint i= 0; i < trx->trx_conn_hash.records; i++)
+    {
+      SPIDER_CONN *conn= (SPIDER_CONN *) my_hash_element(&trx->trx_conn_hash, i);
+      if (conn->queued_ping_spider == spider)
+      {
+        conn->queued_ping= FALSE;
+        conn->queued_ping_spider= NULL;
+      }
+    }
+  }
+}
+
 int ha_spider::close()
 {
   int error_num= 0, roop_count;
@@ -562,6 +584,7 @@ int ha_spider::close()
     result_list.tmp_sqls = NULL;
   }
 
+  spider_reset_conn_queued_ping(this);
   spider_update_current_trx_ha_with_freed_share(share);
   spider_free_share(share);
   is_clone = FALSE;

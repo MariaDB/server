@@ -3652,7 +3652,14 @@ bool JOIN::add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *table_fields)
       continue;
     Item *item= new (thd->mem_root) Item_temptable_rowid(tab->table);
     item->fix_fields(thd, 0);
-    table_fields->push_back(item, thd->mem_root);
+    /*
+      table_fields points to JOIN::all_fields or JOIN::tmp_all_fields_*.
+      These lists start with "added" fields and then their suffix is shared
+      with JOIN::fields_list or JOIN::tmp_fields_list*.
+      Because of that, new elements can only be added to the front of the list,
+      not to the back.
+    */
+    table_fields->push_front(item, thd->mem_root);
     cur->tmp_table_param->func_count++;
   }
   return 0;
@@ -15781,7 +15788,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       }
       goto no_join_cache;
     }
-    if (cache_level > 4 && no_bka_cache)
+    if (cache_level < 5 || no_bka_cache)
       goto no_join_cache;
     
     if ((flags & HA_MRR_NO_ASSOCIATION) &&

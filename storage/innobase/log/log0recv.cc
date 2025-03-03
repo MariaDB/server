@@ -2416,9 +2416,11 @@ restart:
   ut_ad(log_sys.is_latest());
 
   alignas(8) byte iv[MY_AES_BLOCK_SIZE];
-  byte *decrypt_buf= storing != BACKUP
-    ? static_cast<byte*>(alloca(srv_page_size)) : nullptr;
-
+  byte *decrypt_buf=
+    static_cast<byte*>(alloca(storing == BACKUP
+                              ? 1/*type,length*/ + 5/*space_id*/ +
+                              5/*page_no*/ + 1/*rlen*/
+                              : srv_page_size));
   const lsn_t start_lsn{lsn};
 
   /* Check that the entire mini-transaction is included within the buffer */
@@ -2508,7 +2510,10 @@ restart:
   ut_d(std::set<page_id_t> modified);
 #endif
 
-  uint32_t space_id= 0, page_no= 0, last_offset= 0;
+  uint32_t space_id= 0, page_no= 0;
+  /* The end offset the last write (always 0 in storing==BACKUP).
+  The value 1 means that no "same page" record is allowed. */
+  uint last_offset= 0;
   bool got_page_op= false;
 
   for (l= begin;; l+= rlen)
@@ -2621,8 +2626,7 @@ restart:
         {
           mach_write_to_4(iv + 8, space_id);
           mach_write_to_4(iv + 12, page_no);
-          byte eb[1/*type,length*/ + 5/*space_id*/ + 5/*page_no*/ + 1/*rlen*/];
-          if (*l.copy_if_needed(iv, eb, recs, 1) == TRIM_PAGES)
+          if (*l.copy_if_needed(iv, decrypt_buf, recs, 1) == TRIM_PAGES)
             undo_space_trunc(space_id);
         }
         continue;
@@ -2671,10 +2675,10 @@ restart:
       case FREE_PAGE:
         ut_ad(freed.emplace(id).second);
         /* the next record must not be same_page */
-        last_offset= 1;
+        if (storing != BACKUP) last_offset= 1;
         goto free_or_init_page;
       case INIT_PAGE:
-        last_offset= FIL_PAGE_TYPE;
+        if (storing != BACKUP) last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
@@ -2706,7 +2710,8 @@ restart:
           erase(r);
           continue;
         }
-        cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
+        if (storing == YES)
+          cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         break;
       case EXTENDED:
         if (storing == NO)
@@ -2720,7 +2725,8 @@ restart:
           continue;
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
-        cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
+        if (storing == YES || rlen == 1)
+          cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         if (rlen == 1 && *cl == TRIM_PAGES)
         {
           if (srv_is_undo_tablespace(space_id))
@@ -2744,13 +2750,13 @@ restart:
           static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
           /* the next record must not be same_page */
-          last_offset= 1;
+          if (storing != BACKUP) last_offset= 1;
           continue;
         }
         /* This record applies to an undo log or index page, and it
         may be followed by subsequent WRITE or similar records for the
         same page in the same mini-transaction. */
-        last_offset= FIL_PAGE_TYPE;
+        if (storing != BACKUP) last_offset= FIL_PAGE_TYPE;
         break;
       case OPTION:
         /* OPTION records can be safely ignored in recovery */
@@ -2767,6 +2773,8 @@ restart:
       case WRITE:
       case MEMMOVE:
       case MEMSET:
+        if (storing == BACKUP)
+          continue;
         if (storing == NO && UNIV_LIKELY(page_no != 0))
           /* fil_space_set_recv_size_and_flags() is mandatory for storing==NO.
           It is only applicable to page_no == 0. Other than that, we can just
