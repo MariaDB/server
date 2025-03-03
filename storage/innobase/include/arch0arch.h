@@ -1582,10 +1582,10 @@ class Arch_Page_Sys
   Check for duplicate page.
   @param[in]    bpage           page to track
   @param[in]    track_lsn       LSN when tracking started
-  @param[in]    frame_lsn       current LSN of the page
-  @param[in]    force           if true, add page ID without check */
-  void track_page(buf_page_t *bpage, lsn_t track_lsn, lsn_t frame_lsn,
-                  bool force);
+  @param[in]    oldest_lsn      oldest LSN of the page
+  @param[in]    track_mark      if the page is marked for tracking */
+  void track_page(buf_page_t *bpage, lsn_t track_lsn, lsn_t oldest_lsn,
+                  bool track_mark);
 
   /** Flush all the unflushed inactive blocks and flush the active block if
   required.

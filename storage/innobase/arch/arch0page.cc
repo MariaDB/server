@@ -1672,20 +1672,14 @@ void Arch_Page_Sys::flush_at_checkpoint(lsn_t checkpoint_lsn)
   arch_oper_mutex_exit();
 }
 
-/** Check and add page ID to archived data.
-Check for duplicate page.
-@param[in]      bpage           page to track
-@param[in]      track_lsn       LSN when tracking started
-@param[in]      frame_lsn       current LSN of the page
-@param[in]      force           if true, add page ID without check */
 void Arch_Page_Sys::track_page(buf_page_t *bpage, lsn_t track_lsn,
-                               lsn_t frame_lsn, bool force)
+                               lsn_t oldest_lsn, bool track_mark)
 {
   Arch_Block *cur_blk;
   uint count= 0;
 
-  if (!force && frame_lsn > track_lsn)
-    /* If the frame LSN is bigger than track LSN, it
+  if (oldest_lsn > track_lsn && !track_mark)
+    /* If the LSN is bigger than track LSNand track mark is not set, it
     is already added to tracking list. */
     return;
 
@@ -2135,10 +2129,10 @@ bool Arch_Page_Sys::is_gap_small()
 /** Track pages for which IO is already started. */
 void Arch_Page_Sys::track_initial_pages()
 {
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
-
   /* Page tracking must already be active. */
-  ut_ad(buf_pool.is_tracking());
+  ut_ad(buf_pool.is_tracking().first);
+
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
   buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
 
   /* Add all pages for which IO is already started. */
@@ -2159,7 +2153,7 @@ void Arch_Page_Sys::track_initial_pages()
     if (bpage->is_write_fixed())
       /* IO has already started. Must add the page */
       track_page(bpage, LSN_MAX, LSN_MAX, true);
-    bpage = UT_LIST_GET_PREV(list, bpage);
+    bpage= UT_LIST_GET_PREV(list, bpage);
   }
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
