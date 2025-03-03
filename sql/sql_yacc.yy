@@ -1702,6 +1702,7 @@ rule:
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role role_name
+                 user_name
 
 %type <user_auth> opt_auth_str auth_expression auth_token
                   text_or_password
@@ -16078,30 +16079,7 @@ user_maybe_role:
                                                   system_charset_info, 0)))
               MYSQL_YYABORT;
           }
-        | ident_or_text '@' ident_or_text
-          {
-            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
-              MYSQL_YYABORT;
-            $$->user = $1; $$->host=$3;
-
-            if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
-                                                  username_char_length,
-                                                 system_charset_info, 0)) ||
-                unlikely(check_host_name(&$$->host)))
-              MYSQL_YYABORT;
-            if ($$->host.str[0])
-            {
-              $$->host= thd->make_ident_casedn($$->host);
-            }
-            else
-            {
-              /*
-                fix historical undocumented convention that empty host is the
-                same as '%'
-              */
-              $$->host= host_not_specified;
-            }
-          }
+        | user_name { $$= $1; }
         | CURRENT_USER optional_braces
           {
             if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
@@ -16110,6 +16088,24 @@ user_maybe_role:
             $$->auth= new (thd->mem_root) USER_AUTH();
           }
         ;
+
+user_name:
+          ident_or_text '@' ident_or_text
+          {
+            if (!($$= thd->calloc<LEX_USER>(1)))
+              MYSQL_YYABORT;
+            $$->user = $1;
+            $$->host=$3;
+
+            if (check_string_char_length(&$$->user, ER_USERNAME,
+                  username_char_length, system_charset_info, 0) ||
+                check_host_name(&$$->host))
+              MYSQL_YYABORT;
+            if ($$->host.str[0])
+              $$->host= thd->make_ident_casedn($$->host);
+            else
+              $$->host= host_not_specified;
+          }
 
 user_or_role: user_maybe_role | current_role;
 
