@@ -8477,12 +8477,7 @@ ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &ta
   char tbl_buf[NAME_LEN + 1];
   ulint db_buf_len, tbl_buf_len;
 
-  if (!table.parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len))
-  {
-    WSREP_ERROR("Parse_name for table key append failed: %s",
-                wsrep_thd_query(thd));
-    return true;
-  }
+  table.parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len);
 
   /* Append table-level exclusive key */
   const int rcode = wsrep_thd_append_table_key(thd, db_buf,
@@ -20314,9 +20309,7 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	char	tbl_buf[NAME_LEN + 1];
 	ulint	db_buf_len, tbl_buf_len;
 
-	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
-		return NULL;
-	}
+	table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len);
 
 	if (bg_thread) {
 		return open_purge_table(thd, db_buf, db_buf_len,

@@ -1108,9 +1108,7 @@ static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
   char tbl_buf[NAME_LEN + 1];
   size_t tbl_len;
 
-  if (!table->parse_name<true>(db_buf, tbl_buf, &db_len, &tbl_len))
-    /* The name of an intermediate table starts with #sql */
-    return table;
+  table->parse_name<true>(db_buf, tbl_buf, &db_len, &tbl_len);
 
   {
     MDL_request request;

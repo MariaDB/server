@@ -2127,12 +2127,11 @@ struct dict_table_t {
   @param[in,out] db_name      database name buffer
   @param[in,out] tbl_name     table name buffer
   @param[out] db_name_len     database name length
-  @param[out] tbl_name_len    table name length
-  @return whether the table name is visible to SQL */
+  @param[out] tbl_name_len    table name length */
   template<bool dict_frozen= false>
-  bool parse_name(char (&db_name)[NAME_LEN + 1],
+  void parse_name(char (&db_name)[NAME_LEN + 1],
                   char (&tbl_name)[NAME_LEN + 1],
-                  size_t *db_name_len, size_t *tbl_name_len) const;
+                  size_t *db_name_len, size_t *tbl_name_len) const noexcept;
 
   /** Clear the table when rolling back TRX_UNDO_EMPTY
   @return error code */
@@ -2365,11 +2364,6 @@ public:
   latch on the clustered index root page (which must also be
   an empty leaf page), and an ahi_latch (if btr_search_enabled). */
   Atomic_relaxed<trx_id_t> bulk_trx_id;
-
-  /** Original table name, for MDL acquisition in purge. Normally,
-  this points to the same as name. When is_temporary_name(name.m_name) holds,
-  this should be a copy of the original table name, allocated from heap. */
-  table_name_t mdl_name;
 
 	/*!< set of foreign key constraints in the table; these refer to
 	columns in other tables */
