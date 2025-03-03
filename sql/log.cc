@@ -6937,7 +6937,21 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
                       }
                     });
 
-    pending->is_too_big();
+    /*
+      Here we should have some function of Rows_log_event -> List<Partial_rows_log_event>, and potentially
+      the following writing/error checking should be abstracted.
+    */
+    if (pending->is_too_big())
+    {
+      Rows_log_event_fragmenter::Indirect_partial_rows_log_event* fraggers[11];
+      Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(256, pending);
+      fragmenter.fragment(fraggers);
+      for (int i= 0; i < 11; i++)
+      {
+        writer.write(fraggers[i]);
+      }
+    }
+
 
     if (writer.write(pending))
     {

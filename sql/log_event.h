@@ -594,7 +594,8 @@ class String;
 #define MARIA_SLAVE_CAPABILITY_PARTIAL_ROW_DATA 5
 
 /* Our capability. */
-#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_PARTIAL_ROW_DATA
+//#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_PARTIAL_ROW_DATA
+#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
 
 
 /*
@@ -1667,13 +1668,13 @@ public:
     case TABLE_MAP_EVENT:
     case ANNOTATE_ROWS_EVENT:
       return true;
-    case PARTIAL_ROW_DATA_EVENT:
-      /*
-        TODO: This is circumstantial, if it is the last chunk, then true,
-        otherwise false. The arg list needs to be extended
-      */
-      return false;
-
+//    case PARTIAL_ROW_DATA_EVENT:
+//      /*
+//        TODO: This is circumstantial, if it is the last chunk, then true,
+//        otherwise false. The arg list needs to be extended
+//      */
+//      return false;
+//
     case DELETE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT:
     case WRITE_ROWS_EVENT:
@@ -4687,14 +4688,16 @@ public:
 
   virtual ~Rows_log_event();
 
-  void is_too_big()
+  my_bool is_too_big()
   {
     //if (m_curr_row - m_)
     my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
-    if (data_size > MAX_MAX_ALLOWED_PACKET)
+    if (data_size > 256)
     {
       fprintf(stderr, "\n\tData size of row event is too big %lld (max %lld)\n", data_size, (long long) MAX_MAX_ALLOWED_PACKET);
     }
+
+    return m_rows_cur && m_rows_buf;
   }
 
   void set_flags(flag_set flags_arg) { m_flags |= flags_arg; }
@@ -4800,6 +4803,9 @@ public:
 #ifdef MYSQL_SERVER
   bool write_data_header(Log_event_writer *writer) override;
   bool write_data_body(Log_event_writer *writer) override;
+  bool write_data_body_metadata(Log_event_writer *writer, uint64_t *len_written= nullptr);
+  bool write_data_body_rows(Log_event_writer *writer, uint64_t from_offset= 0,
+                            uint64_t len_to_write= 0);
   virtual bool write_compressed(Log_event_writer *writer);
   const char *get_db() override { return m_table->s->db.str; }
 #ifdef HAVE_REPLICATION
@@ -5049,6 +5055,8 @@ private:
   */
   virtual int do_exec_row(rpl_group_info *rli) = 0;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
+
+  friend class Rows_log_event_fragmenter;
 };
 
 /**
@@ -5310,58 +5318,6 @@ private:
 #endif
 };
 
-/**
-  @class Partial_rows_log_event
-
-  TODO
-
-  @section Partial_rows_log_event Binary Format
-
-  <table>
-  <caption>Post-Header</caption>
-
-  TODO
-
-  <tr>
-    <th>Name</th>
-    <th>Format</th>
-    <th>Description</th>
-  </tr>
-
-  <tr>
-    <td>count</td>
-    <td>4 byte unsigned integer</td>
-    <td>The lower 28 bits are the number of elements. The upper 4 bits are
-        flags bits.</td>
-  </tr>
-  </table>
-
-  All derivations of @c List_log_events have COUNT elements in the list.
-*/
-template <typename T> class Partial_rows_log_event: public Log_event
-{
-public:
-  uint32 flags;
-
-  uint32 num_fragments;
-  uint32 fragment_seq_no;
-
-  size_t fragment_len;
-  const uchar *fragment_data;
-
-  Partial_rows_log_event(uint32 num_fragments, uint32 fragment_seq_no,
-                         size_t fragment_len, const uchar *fragment_data)
-      : num_fragments(num_fragments), fragment_seq_no(fragment_seq_no),
-        fragment_len(fragment_len), fragment_data(fragment_data){};
-
-  Partial_rows_log_event(const uchar *buf, uint event_len,
-                         const Format_description_log_event *description_event,
-                         Log_event_type type_code,
-                         void (*reader_func)(T *dst, const uchar *src,
-                                             uint32 *read_size));
-
-  ~Partial_rows_log_event() {}
-};
 
 /**
   @class Incident_log_event
@@ -5585,6 +5541,194 @@ inline int Log_event_writer::write(Log_event *ev)
   add_status(ev->logged_status());
   return res;
 }
+class Rows_log_event_fragmenter
+{
+private:
+  uint32_t fragment_size;
+  Rows_log_event *rows_event;
+  uint32_t width_size;
+  uint32_t cols_size;
+
+public:
+  Rows_log_event_fragmenter(uint32_t fragment_size, Rows_log_event *rows_event)
+      : fragment_size(fragment_size), rows_event(rows_event)
+  {
+  }
+  ~Rows_log_event_fragmenter() {}
+
+  /**
+    @class Indirect_partial_rows_log_event
+ 
+    TODO
+
+    @section General
+
+    This class is an alias for the Partial_rows_log_event to write it from an
+    existing Rows_log_event.
+
+    @section Partial_rows_log_event Binary Format
+
+    <table>
+    <caption>Post-Header</caption>
+
+    TODO
+
+    <tr>
+      <th>Name</th>
+      <th>Format</th>
+      <th>Description</th>
+    </tr>
+
+    <tr>
+      <td>count</td>
+      <td>4 byte unsigned integer</td>
+      <td>The lower 28 bits are the number of elements. The upper 4 bits are
+          flags bits.</td>
+    </tr>
+    </table>
+
+    All derivations of @c List_log_events have COUNT elements in the list.
+  */
+  /*
+    References a chunk of a large Rows_log_event (ie with the original event
+    row data larger than <TODO>), where the content is to be written in a
+    Partial_rows_log_event. These Partial_rows_log_events re-build the data of
+    the original Rows_log_event.
+
+    TODO extend this description once everything works.
+  */
+  class Indirect_partial_rows_log_event : public Log_event
+  {
+  public:
+    uint32_t flags;
+
+    /*
+      Starts at 1 for consistency with GTID seq_no
+    */
+    uint32_t seq_no;
+    uint32_t total_fragments;
+    uint64_t start_offset;
+    uint64_t end_offset;
+
+  private:
+    Rows_log_event *rows_event;
+
+  public:
+    Indirect_partial_rows_log_event(uint32 seq_no, uint32 total_fragments,
+                                    uint64_t start_offset, uint64_t end_offset,
+                                    Rows_log_event *rows_event)
+        : seq_no(seq_no), total_fragments(total_fragments),
+          start_offset(start_offset), end_offset(end_offset),
+          rows_event(rows_event){};
+
+    Indirect_partial_rows_log_event(
+        const uchar *buf, uint event_len,
+        const Format_description_log_event *description_event,
+        Log_event_type type_code)
+    {
+      /* This class is write only, Partial_rows_log_event is read-in */
+      DBUG_ASSERT(0);
+    };
+
+    ~Indirect_partial_rows_log_event() {}
+
+    /* TODO */
+    bool is_valid() const override {
+      return true;
+    }
+
+    Log_event_type get_type_code() override {
+      return PARTIAL_ROW_DATA_EVENT;
+    }
+
+#ifdef MYSQL_SERVER
+    bool write_data_header(Log_event_writer *writer) override;
+    bool write_data_body(Log_event_writer *writer) override;
+#endif
+  };
+
+
+  /* TODO Hardcoded to length of 11*/
+  void fragment(Rows_log_event_fragmenter::Indirect_partial_rows_log_event **outs)
+  {
+    uchar width_tmp_buf[MAX_INT_WIDTH];
+    uchar *const width_tmp_buf_end= net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
+    width_size= (width_tmp_buf_end - width_tmp_buf);
+
+    /*
+      Update row events write another bitmap
+    */
+    cols_size=
+        no_bytes_in_export_map(&rows_event->m_cols) *
+        ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
+
+    uint64_t const data_size=
+        static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
+
+    // TODO Update rows size
+    uint64_t const total_size= width_size + cols_size + data_size;
+
+    uint64_t size_per_chunk= get_size_per_chunk();
+
+    uint32_t last_chunk_size= (total_size % size_per_chunk);
+    uint32_t last_chunk= last_chunk_size ? 1 : 0;
+    uint32_t num_chunks= (total_size / size_per_chunk) + last_chunk;
+
+    for (uint32 i= 0; i < num_chunks; i++)
+    {
+      my_bool is_last_chunk= (i == (num_chunks - 1));
+      uint64_t chunk_start= i * size_per_chunk;
+      uint64_t chunk_end= (is_last_chunk)
+                              ? chunk_start + last_chunk_size
+                              : (chunk_start) + (size_per_chunk - 1);
+
+      Indirect_partial_rows_log_event *fragment=
+          new Indirect_partial_rows_log_event(i + 1, num_chunks, chunk_start,
+                                              chunk_end, rows_event);
+      outs[i]= fragment;
+      /*
+TODO I forget how to call a constructor on existing zeroed memory
+*/
+      //          Indirect_partial_rows_log_event *out=
+      //              Indirect_partial_rows_log_event[outs{i}] out(
+      //                  i + 1, num_chunks, chunk_start, chunk_end,
+      //                  rows_event);
+
+      fprintf(stderr,
+              "creating fragment %" PRIu32 "/ %" PRIu32 " from %" PRIu64
+              " to %" PRIu64 "\n",
+              fragment->seq_no, fragment->total_fragments, fragment->start_offset,
+              fragment->end_offset);
+      //insert_dynamic(fragments_out, &fragment);
+    }
+
+
+
+    fprintf(stderr, "\n\tfragmenter: data_size is %" PRIu64 "\n", total_size);
+    fprintf(stderr, "\n\tfragmenter:chunks %" PRIu32 " with last %" PRIu32 "(size %" PRIu32 "\n", num_chunks, last_chunk, last_chunk_size);
+  }
+
+  uint64_t get_size_per_chunk()
+  {
+    //return opt_binlog_rows_event_max_size;
+    /*
+      TODO Debug is 256, switch post-debug
+    */
+    return fragment_size - LOG_EVENT_HEADER_LEN;
+  }
+
+  uint32 get_num_fragments()
+  {
+    // TODO
+    return 0;
+  }
+
+  uint32 get_fragment_at(int index)
+  {
+    // TODO
+    return 0;
+  }
+};
 
 /**
    The function is called by slave applier in case there are

@@ -5527,14 +5527,14 @@ bool Rows_log_event::write_data_header(Log_event_writer *writer)
   return write_data(writer, buf, ROWS_HEADER_LEN_V1);
 }
 
-bool Rows_log_event::write_data_body(Log_event_writer *writer)
+bool Rows_log_event::write_data_body_metadata(Log_event_writer *writer, uint64_t *len_written)
 {
+  fprintf(stderr, "\t\tWriting metadata\n");
   /*
      Note that this should be the number of *bits*, not the number of
      bytes.
   */
   uchar sbuf[MAX_INT_WIDTH];
-  my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
   bool res= false;
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
   uint bitmap_size= no_bytes_in_export_map(&m_cols);
@@ -5543,12 +5543,16 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
   res= res || write_data(writer, sbuf, (size_t) (sbuf_end - sbuf));
+  if (!res && len_written)
+    *len_written+= (size_t) (sbuf_end - sbuf);
 
   bitmap= (uchar*) my_alloca(bitmap_size);
   bitmap_export(bitmap, &m_cols);
 
   DBUG_DUMP("m_cols", bitmap, bitmap_size);
   res= res || write_data(writer, bitmap, bitmap_size);
+  if (!res && len_written)
+    *len_written+= bitmap_size;
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
@@ -5559,12 +5563,74 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
 
     DBUG_DUMP("m_cols_ai", bitmap, bitmap_size);
     res= res || write_data(writer, bitmap, bitmap_size);
+    if (!res && len_written)
+      *len_written+= bitmap_size;
   }
-  DBUG_DUMP("rows", m_rows_buf, data_size);
-  res= res || write_data(writer, m_rows_buf, (size_t) data_size);
   my_afree(bitmap);
 
   return res;
+}
+
+bool Rows_log_event::write_data_body_rows(Log_event_writer *writer,
+                                          uint64_t from_offset,
+                                          uint64_t len_to_write)
+{
+  /*
+     Note that this should be the number of *bits*, not the number of
+     bytes.
+  */
+  DBUG_ASSERT(from_offset <= len_to_write);
+  uchar *from_ptr= m_rows_buf + from_offset;
+  my_ptrdiff_t const data_size= len_to_write ? len_to_write : m_rows_cur - m_rows_buf;
+  DBUG_DUMP("rows", from_ptr, data_size);
+  fprintf(stderr, "\t\tWriting %" PRIu64 " row data: %.*s\n",
+          (uint64_t) data_size, (int) data_size, from_ptr);
+  return write_data(writer, from_ptr, (size_t) data_size);
+}
+
+bool Rows_log_event::write_data_body(Log_event_writer *writer)
+{
+  bool res= write_data_body_metadata(writer);
+  res= res || write_data_body_rows(writer);
+  return res;
+}
+
+bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
+    write_data_body(Log_event_writer *writer)
+{
+  uint64_t cur_offset= start_offset;
+  /*
+     Note that this should be the number of *bits*, not the number of
+     bytes.
+  */
+  uint64_t row_data_len_to_write= end_offset - start_offset;
+
+  fprintf(stderr, "\n\tWriting Fragment %" PRIu32 " / %" PRIu32 "\n", seq_no,
+          total_fragments);
+  /*
+    Write the width and cols bitmap for the first event. This shouldn't ever
+    extend beyond one fragment, so don't add checks to split these.
+  */
+  my_bool first_fragment= !cur_offset;
+  if (first_fragment)
+  {
+    /*
+      TODO Error handling
+    */
+    uint64_t metadata_size= 0;
+    rows_event->write_data_body_metadata(writer, &metadata_size);
+    DBUG_ASSERT(metadata_size < row_data_len_to_write);
+    row_data_len_to_write-= metadata_size;
+  }
+
+  return rows_event->write_data_body_rows(writer, start_offset,
+                                          row_data_len_to_write);
+}
+
+bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
+    write_data_header(Log_event_writer *writer)
+{
+  return rows_event->write_data_header(writer);
 }
 
 
