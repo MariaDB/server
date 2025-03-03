@@ -364,7 +364,8 @@ my_function(thd, db_name);
 
 The usage of types `long`  and `unsigned long` (and its `ulong` alias)
 in new code is *strongly* discouraged. Its use brings no advantages,
-only portability problems between Windows and Unixes.
+only portability problems between Windows and Unixes. The reason for it is that `long`
+appears to be the only standard C/C++ datatype, with [size that differs between mainstream 64bit OSes](https://en.wikipedia.org/wiki/64-bit_computing#64-bit_data_models)
 
 Instead of using `long`, use `size_t` and `ptrdiff_t` where appropriate,
 buffer sizes for example. For integer socket descriptor use `my_socket`.
@@ -376,4 +377,4 @@ You may use types with fixed length, int32_t and similar, too. Yet, on all platf
 * `long long` is 64bit
 
 and the above is not likely to change for the decades to come. Those types are safe to use. When using `char`
-though, be aware that its signdness can depend on compiler flags, so do not assume it can take negative values.
+though, be aware that its signed-ness can depend on compiler flags, so do not assume it can take negative values.
