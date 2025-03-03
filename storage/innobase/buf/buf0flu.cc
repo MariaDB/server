@@ -793,16 +793,17 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
         ? oldest_modification() == 2
         : oldest_modification() > 2);
 
-  buf_pool.set_max_lsn_io(oldest_modification());
+  if (!fsp_is_system_temporary(id().space()))
+  {
+    auto oldest_lsn= oldest_modification();
+    ut_ad(oldest_lsn > 2);
+    buf_pool.set_max_lsn_io(oldest_lsn);
 
-  /* TODO: Since the old frame LSN is already over-written, the optimization
-  to skip logging a page multiple times is disabled. To enable it, we would
-  require to bring back newest LSN in page and overwrite frame LSN later
-  in buf_flush_init_for_writing(). */
-  if (buf_pool.is_tracking() && !fsp_is_system_temporary(id().space()))
-    // arch_page_sys->track_page(bpage, buf_pool.track_page_lsn, frame_lsn, false);
-    arch_sys->page_sys()->track_page(this, 0, 0, false);
-
+    auto [tracking, track_lsn]= buf_pool.is_tracking();
+    if (tracking)
+      arch_sys->page_sys()->track_page(this, track_lsn, oldest_lsn,
+                                       marked_tracking());
+  }
   /* Increment the I/O operation count used for selecting LRU policy. */
   buf_LRU_stat_inc_io();
   mysql_mutex_unlock(&buf_pool.mutex);

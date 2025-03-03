@@ -474,6 +474,10 @@ public: // FIXME: fix fil_iterate()
     };
   };
 private:
+  /** Highest BIT in oldest_modification_ is set to indicate that the dirty
+  page is required to be tracked before flush. */
+  static constexpr lsn_t S_PAGE_TRACK_BIT= 1ULL << 63;
+
   /** log sequence number of the START of the log entry written of the
   oldest modification to this block which has not yet been written
   to the data file;
@@ -682,16 +686,27 @@ public:
   @retval 1 if the block is in buf_pool.flush_list but not modified
   @retval 2 if the block belongs to the temporary tablespace and
   has unwritten changes */
-  lsn_t oldest_modification() const noexcept { return oldest_modification_; }
+  lsn_t oldest_modification() const noexcept
+  {
+    return oldest_modification_ & ~S_PAGE_TRACK_BIT;
+  }
+  /** @return true iff page is set for tracking. */
+  bool marked_tracking() const noexcept
+  {
+    return oldest_modification_ & S_PAGE_TRACK_BIT;
+  }
   /** @return the log sequence number of the oldest pending modification,
   @retval 0 if the block is definitely not in buf_pool.flush_list
   @retval 1 if the block is in buf_pool.flush_list but not modified
   @retval 2 if the block belongs to the temporary tablespace and
   has unwritten changes */
   lsn_t oldest_modification_acquire() const noexcept
-  { return oldest_modification_.load(std::memory_order_acquire); }
+  {
+    lsn_t oldest_lsn= oldest_modification_.load(std::memory_order_acquire);
+    return oldest_lsn & ~S_PAGE_TRACK_BIT;
+  }
   /** Set oldest_modification when adding to buf_pool.flush_list */
-  inline void set_oldest_modification(lsn_t lsn) noexcept;
+  inline void set_oldest_modification(lsn_t lsn, bool track) noexcept;
   /** Clear oldest_modification after removing from buf_pool.flush_list */
   inline void clear_oldest_modification() noexcept;
   /** Reset the oldest_modification when marking a persistent page freed */
@@ -1712,9 +1727,10 @@ public:
   /** Insert a modified block into the flush list.
   @param prev     insert position (from prepare_insert_into_flush_list())
   @param block    modified block
-  @param lsn      start LSN of the mini-transaction that modified the block */
+  @param lsn      start LSN of the mini-transaction that modified the block
+  @param mark_tracking mark the page for tracking */
   inline void insert_into_flush_list(buf_page_t *prev, buf_block_t *block,
-                                     lsn_t lsn) noexcept;
+                                     lsn_t lsn, bool mark_tracking) noexcept;
 
   /** Free a page whose underlying file page has been freed. */
   ATTRIBUTE_COLD void release_freed_page(buf_page_t *bpage) noexcept;
@@ -1730,13 +1746,17 @@ public:
   void get_info(buf_pool_info_t *pool_info) noexcept;
 
   /** Check if the page modifications are tracked.
-  @return true if page modifications are tracked, false otherwise. */
-  bool is_tracking() const { return track_page_lsn != LSN_MAX; }
+  @return true iff tracking is enabled and tracking lsn */
+  std::pair<bool, lsn_t> is_tracking() const
+  {
+    auto track_lsn= track_page_lsn.load();
+    return std::make_pair(track_lsn != LSN_MAX, track_lsn);
+  }
 
   /** Enable or Disable page tracking and set tracking LSN.
   @param  tracking_lsn  Start LSN for tracking. LSN_MAX disables tracking. */
   void set_tracking(lsn_t tracking_lsn) {
-    ut_ad(tracking_lsn == LSN_MAX || !is_tracking() ||
+    ut_ad(tracking_lsn == LSN_MAX || track_page_lsn == LSN_MAX ||
           track_page_lsn <= tracking_lsn);
     track_page_lsn= tracking_lsn;
   }
@@ -1776,8 +1796,9 @@ private:
     buf_tmp_buffer_t *reserve(bool wait_for_reads) noexcept;
   } io_buf;
 
-  /** Page Tracking start LSN. Read-Write is protected by buffer pool mutex. */
-  lsn_t track_page_lsn;
+  /** Page Tracking start LSN. Read-Write is protected by buffer pool mutex.
+  During mtr commit we do atomic access to set tracking flag. */
+  Atomic_relaxed<lsn_t> track_page_lsn;
 
   /** Maximum LSN for which write io has already started. Read-Write is
   protected by buffer pool mutex. */
@@ -1855,11 +1876,12 @@ inline void buf_page_t::set_corrupt_id() noexcept
 }
 
 /** Set oldest_modification when adding to buf_pool.flush_list */
-inline void buf_page_t::set_oldest_modification(lsn_t lsn) noexcept
+inline void buf_page_t::set_oldest_modification(lsn_t lsn, bool track) noexcept
 {
   mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
   ut_ad(oldest_modification() <= 1);
   ut_ad(lsn > 2);
+  if (track) lsn|= S_PAGE_TRACK_BIT;
   oldest_modification_= lsn;
 }
 
