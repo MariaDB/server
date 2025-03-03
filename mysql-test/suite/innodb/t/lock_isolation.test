@@ -172,7 +172,7 @@ SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 --connection default
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = 'Sending data'
+  where state = 'Executing'
   and info LIKE 'SELECT * FROM t %';
 --source include/wait_condition.inc
 ROLLBACK;
