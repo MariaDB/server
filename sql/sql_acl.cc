@@ -3370,6 +3370,25 @@ bool acl_getroot(Security_context *sctx,
   DBUG_RETURN(res);
 }
 
+static void set_privs_on_login(THD *thd, const ACL_USER *acl_user)
+{
+  strmake_buf(thd->security_ctx->priv_user, acl_user->user.str);
+
+  if (acl_user->host.hostname)
+    strmake_buf(thd->security_ctx->priv_host, acl_user->host.hostname);
+
+  thd->security_ctx->master_access= acl_user->access | public_access();
+
+  if (acl_user->default_rolename.length)
+  {
+    privilege_t access(NO_ACL);
+    int result= acl_check_setrole(thd, acl_user->default_rolename, &access);
+    if (!result)
+      result= acl_setrole(thd, acl_user->default_rolename, access);
+    thd->clear_error();
+  }
+}
+
 static int check_role_is_granted_callback(ACL_USER_BASE *grantee, void *data)
 {
   LEX_CSTRING *rolename= static_cast<LEX_CSTRING *>(data);
@@ -14984,14 +15003,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     }
 #endif
 
-    sctx->master_access= (acl_user->access | public_access());
-    strmake_buf(sctx->priv_user, acl_user->user.str);
-
-    if (acl_user->host.hostname)
-      strmake_buf(sctx->priv_host, acl_user->host.hostname);
-    else
-      *sctx->priv_host= 0;
-
+    set_privs_on_login(thd, acl_user);
 
     /*
       Don't allow the user to connect if he has done too many queries.
@@ -15052,29 +15064,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       DBUG_RETURN(1);
     }
   }
-
-  /*
-    This is the default access rights for the current database.  It's
-    set to 0 here because we don't have an active database yet (and we
-    may not have an active database to set.
-  */
-  sctx->db_access= NO_ACL;
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  /*
-    In case the user has a default role set, attempt to set that role
-  */
-  if (initialized && acl_user->default_rolename.length) {
-    privilege_t access(NO_ACL);
-    int result;
-    result= acl_check_setrole(thd, acl_user->default_rolename, &access);
-    if (!result)
-      result= acl_setrole(thd, acl_user->default_rolename, access);
-    if (result)
-      thd->clear_error(); // even if the default role was not granted, do not
-                          // close the connection
-  }
-#endif
 
   /* Change a database if necessary */
   if (mpvio.db.length)
