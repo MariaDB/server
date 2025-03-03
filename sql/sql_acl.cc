@@ -12341,7 +12341,56 @@ inline privilege_t public_access()
 privilege_t get_column_grant(THD *, GRANT_INFO *, const char *, const char *,
                              const Lex_ident_column &)
 { return ALL_KNOWN_ACL; }
+int acl_check_setrole(THD *, const LEX_CSTRING &, privilege_t *) { return 0; }
+int acl_setrole(THD *, const LEX_CSTRING &, privilege_t) { return 0; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
+
+static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
+{
+  Security_context *sctx= thd->security_ctx;
+  strmake_buf(sctx->priv_user, acl_user->user.str);
+
+  if (acl_user->host.hostname)
+    strmake_buf(sctx->priv_host, acl_user->host.hostname);
+
+  sctx->master_access= acl_user->access | public_access();
+
+  if (acl_user->default_rolename.length)
+  {
+    privilege_t access(NO_ACL);
+    int result= acl_check_setrole(thd, acl_user->default_rolename, &access);
+    if (!result)
+      result= acl_setrole(thd, acl_user->default_rolename, access);
+    thd->clear_error();
+  }
+
+  /*
+    Don't allow the user to connect if he has done too many queries.
+    As we are testing max_user_connections == 0 here, it means that we
+    can't let the user change max_user_connections from 0 in the server
+    without a restart as it would lead to wrong connect counting.
+  */
+  if ((acl_user->user_resource.questions ||
+       acl_user->user_resource.updates ||
+       acl_user->user_resource.conn_per_hour ||
+       acl_user->user_resource.user_conn ||
+       acl_user->user_resource.max_statement_time != 0.0 ||
+       max_user_connections_checking) &&
+       get_or_create_user_conn(thd,
+         (opt_old_style_user_limits ? sctx->user : sctx->priv_user),
+         (opt_old_style_user_limits ? sctx->host_or_ip : sctx->priv_host),
+         &acl_user->user_resource))
+    return 1; // The error is set by get_or_create_user_conn()
+
+  if (acl_user->user_resource.max_statement_time != 0.0)
+  {
+    thd->variables.max_statement_time_double=
+      acl_user->user_resource.max_statement_time;
+    thd->variables.max_statement_time=
+      (ulonglong) (thd->variables.max_statement_time_double * 1e6 + 0.1);
+  }
+  return 0;
+}
 
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
@@ -14992,40 +15041,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     }
 #endif
 
-    sctx->master_access= (acl_user->access | public_access());
-    strmake_buf(sctx->priv_user, acl_user->user.str);
-
-    if (acl_user->host.hostname)
-      strmake_buf(sctx->priv_host, acl_user->host.hostname);
-    else
-      *sctx->priv_host= 0;
-
-
-    /*
-      Don't allow the user to connect if he has done too many queries.
-      As we are testing max_user_connections == 0 here, it means that we
-      can't let the user change max_user_connections from 0 in the server
-      without a restart as it would lead to wrong connect counting.
-    */
-    if ((acl_user->user_resource.questions ||
-         acl_user->user_resource.updates ||
-         acl_user->user_resource.conn_per_hour ||
-         acl_user->user_resource.user_conn ||
-         acl_user->user_resource.max_statement_time != 0.0 ||
-         max_user_connections_checking) &&
-         get_or_create_user_conn(thd,
-           (opt_old_style_user_limits ? sctx->user : sctx->priv_user),
-           (opt_old_style_user_limits ? sctx->host_or_ip : sctx->priv_host),
-           &acl_user->user_resource))
-      DBUG_RETURN(1); // The error is set by get_or_create_user_conn()
-
-    if (acl_user->user_resource.max_statement_time != 0.0)
-    {
-      thd->variables.max_statement_time_double=
-        acl_user->user_resource.max_statement_time;
-      thd->variables.max_statement_time=
-        (ulonglong) (thd->variables.max_statement_time_double * 1e6 + 0.1);
-    }
+    if (set_privs_on_login(thd, acl_user))
+      DBUG_RETURN(1);
   }
   else
     sctx->skip_grants();
@@ -15060,29 +15077,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       DBUG_RETURN(1);
     }
   }
-
-  /*
-    This is the default access rights for the current database.  It's
-    set to 0 here because we don't have an active database yet (and we
-    may not have an active database to set.
-  */
-  sctx->db_access= NO_ACL;
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  /*
-    In case the user has a default role set, attempt to set that role
-  */
-  if (initialized && acl_user->default_rolename.length) {
-    privilege_t access(NO_ACL);
-    int result;
-    result= acl_check_setrole(thd, acl_user->default_rolename, &access);
-    if (!result)
-      result= acl_setrole(thd, acl_user->default_rolename, access);
-    if (result)
-      thd->clear_error(); // even if the default role was not granted, do not
-                          // close the connection
-  }
-#endif
 
   /* Change a database if necessary */
   if (mpvio.db.length)
