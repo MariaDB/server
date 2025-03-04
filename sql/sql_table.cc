@@ -5983,8 +5983,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
     This also could happen if tl->open_type is OT_BASE_ONLY
   */
   TABLE *table= NULL;
-  if (thd->temporary_tables
-      && thd->temporary_tables->global_temporary_tables_count)
+  if (thd->has_open_global_temporary_tables())
   {
     TMP_TABLE_SHARE *share= NULL;
     if (thd->internal_open_temporary_table(out_table, &table, &share))

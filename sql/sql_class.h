@@ -5718,6 +5718,8 @@ public:
   void close_unused_temporary_table_instances(const TABLE_LIST *tl);
   int commit_global_tmp_tables();
   void use_global_tmp_table_tp();
+  inline bool has_open_global_temporary_tables() const
+  {return temporary_tables && temporary_tables->global_temporary_tables_count;}
 
 private:
   /* Whether a lock has been acquired? */

@@ -1319,7 +1319,7 @@ void THD::close_temporary_table(TABLE *table)
 int THD::commit_global_tmp_tables()
 {
   DBUG_ASSERT(!rgi_slave);
-  if (!temporary_tables || !temporary_tables->global_temporary_tables_count)
+  if (!has_open_global_temporary_tables())
     return 0;
 
   int error= 0;
