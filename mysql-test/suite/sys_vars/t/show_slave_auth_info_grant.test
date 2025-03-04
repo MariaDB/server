@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-30189 Add remaining mariadbd replication command line options as system variables
+--echo #
+
+--let var = show_slave_auth_info
+--let grant = REPLICATION MASTER ADMIN
+--let value = TRUE
+
+--source suite/sys_vars/inc/sysvar_global_and_session_grant.inc

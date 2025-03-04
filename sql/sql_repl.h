@@ -23,7 +23,6 @@
 
 struct slave_connection_state;
 
-extern my_bool opt_show_slave_auth_info;
 extern char *master_host, *master_info_file;
 
 extern int max_binlog_dump_events;

@@ -1,0 +1,32 @@
+--source include/not_embedded.inc
+# MDEV-30189: Test minimal correctness of `@@show_slave_auth_info` itself
+
+--echo # SESSION scope
+# Expect different from default (OFF) as configured by `.opt`
+SELECT @@SESSION.show_slave_auth_info;
+SET @@SESSION.show_slave_auth_info= OFF;
+SELECT @@SESSION.show_slave_auth_info;
+SET @@SESSION.show_slave_auth_info= ON;
+SELECT @@SESSION.show_slave_auth_info;
+
+--echo # GLOBAL scope
+# Expect not changed from `.opt` configuration by `SET @@SESSION`
+SELECT @@GLOBAL.show_slave_auth_info;
+SET @@GLOBAL.show_slave_auth_info= OFF;
+SELECT @@GLOBAL.show_slave_auth_info;
+SET @@GLOBAL.show_slave_auth_info= ON;
+SELECT @@GLOBAL.show_slave_auth_info;
+
+--echo # Alternate types
+SET @@show_slave_auth_info= 0;
+SELECT @@show_slave_auth_info;
+SET @@show_slave_auth_info= TRUE;
+SELECT @@show_slave_auth_info;
+
+--echo # Incorrect types
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@show_slave_auth_info= 0.0;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@show_slave_auth_info= 2;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@show_slave_auth_info= 'lorem';

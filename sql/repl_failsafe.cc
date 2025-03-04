@@ -183,7 +183,7 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
     protocol->prepare_for_resend();
     protocol->store(si->server_id);
     protocol->store(si->host, strlen(si->host), &my_charset_bin);
-    if (opt_show_slave_auth_info)
+    if (thd->variables.show_slave_auth_info)
     {
       protocol->store(si->user, safe_strlen(si->user), &my_charset_bin);
       protocol->store(si->password, safe_strlen(si->password), &my_charset_bin);
@@ -220,7 +220,7 @@ bool show_slave_hosts(THD* thd)
   field_list.push_back(new (mem_root)
                        Item_empty_string(thd, "Host", 20),
                        thd->mem_root);
-  if (opt_show_slave_auth_info)
+  if (thd->variables.show_slave_auth_info)
   {
     field_list.push_back(new (mem_root) Item_empty_string(thd, "User", 20),
                          thd->mem_root);

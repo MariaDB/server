@@ -1,0 +1,40 @@
+# SESSION scope
+SELECT @@SESSION.show_slave_auth_info;
+@@SESSION.show_slave_auth_info
+1
+SET @@SESSION.show_slave_auth_info= OFF;
+SELECT @@SESSION.show_slave_auth_info;
+@@SESSION.show_slave_auth_info
+0
+SET @@SESSION.show_slave_auth_info= ON;
+SELECT @@SESSION.show_slave_auth_info;
+@@SESSION.show_slave_auth_info
+1
+# GLOBAL scope
+SELECT @@GLOBAL.show_slave_auth_info;
+@@GLOBAL.show_slave_auth_info
+1
+SET @@GLOBAL.show_slave_auth_info= OFF;
+SELECT @@GLOBAL.show_slave_auth_info;
+@@GLOBAL.show_slave_auth_info
+0
+SET @@GLOBAL.show_slave_auth_info= ON;
+SELECT @@GLOBAL.show_slave_auth_info;
+@@GLOBAL.show_slave_auth_info
+1
+# Alternate types
+SET @@show_slave_auth_info= 0;
+SELECT @@show_slave_auth_info;
+@@show_slave_auth_info
+0
+SET @@show_slave_auth_info= TRUE;
+SELECT @@show_slave_auth_info;
+@@show_slave_auth_info
+1
+# Incorrect types
+SET @@show_slave_auth_info= 0.0;
+ERROR 42000: Incorrect argument type to variable 'show_slave_auth_info'
+SET @@show_slave_auth_info= 2;
+ERROR 42000: Variable 'show_slave_auth_info' can't be set to the value of '2'
+SET @@show_slave_auth_info= 'lorem';
+ERROR 42000: Variable 'show_slave_auth_info' can't be set to the value of 'lorem'
