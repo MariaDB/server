@@ -294,7 +294,7 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length)
 
 bool THD::use_real_global_temporary_share() const
 {
-  return sql_command_flags() & (CF_ADMIN_COMMAND
+  return sql_command_flags() & (CF_ALTER_TABLE
                                | CF_SCHEMA_CHANGE
                                | CF_STATUS_COMMAND);
 }

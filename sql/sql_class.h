@@ -7886,6 +7886,10 @@ public:
   If command creates or drops a database
 */
 #define CF_DB_CHANGE (1U << 23)
+/**
+  ALTER TABLE, CREATE/DROP INDEX, etc
+*/
+#define CF_ALTER_TABLE (1U << 24)
 
 #ifdef WITH_WSREP
 /**

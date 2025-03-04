@@ -534,10 +534,12 @@ void init_update_queries(void)
                                             CF_AUTO_COMMIT_TRANS |
                                             CF_SCHEMA_CHANGE);
   sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
-                                            CF_ADMIN_COMMAND | CF_REPORT_PROGRESS;
+                                            CF_ADMIN_COMMAND | CF_REPORT_PROGRESS |
+                                            CF_ALTER_TABLE;
   sql_command_flags[SQLCOM_ALTER_TABLE]=    CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
-                                            CF_INSERTS_DATA | CF_ADMIN_COMMAND;
+                                            CF_INSERTS_DATA | CF_ADMIN_COMMAND |
+                                            CF_ALTER_TABLE;
   sql_command_flags[SQLCOM_ALTER_SEQUENCE]= CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS | CF_SCHEMA_CHANGE |
                                             CF_ADMIN_COMMAND;
@@ -558,7 +560,8 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_DB]=       CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_DB_CHANGE;
   sql_command_flags[SQLCOM_RENAME_TABLE]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_ADMIN_COMMAND;
   sql_command_flags[SQLCOM_DROP_INDEX]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
-                                            CF_REPORT_PROGRESS | CF_ADMIN_COMMAND;
+                                            CF_REPORT_PROGRESS | CF_ADMIN_COMMAND |
+                                            CF_ALTER_TABLE;
   sql_command_flags[SQLCOM_CREATE_VIEW]=    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_VIEW]=      CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
