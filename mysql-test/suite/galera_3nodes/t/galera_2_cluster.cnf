@@ -1,25 +1,34 @@
 !include ../galera_2x3nodes.cnf
 
+[mysqld]
+wsrep-debug=1
+
 [mysqld.1]
 wsrep_gtid_domain_id=1
 server-id=11
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT20S;evs.inactive_timeout=PT30S;evs.install_timeout=PT25S;pc.wait_prim_timeout=PT60S;gcache.size=128M;pc.weight=2'
 
 [mysqld.2]
 wsrep_gtid_domain_id=1
 server-id=12
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT20S;evs.inactive_timeout=PT30S;evs.install_timeout=PT25S;pc.wait_prim_timeout=PT60S;gcache.size=128M'
 
 [mysqld.3]
 wsrep_gtid_domain_id=1
 server-id=13
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#galera_port;evs.suspect_timeout=PT20S;evs.inactive_timeout=PT30S;evs.install_timeout=PT25S;pc.wait_prim_timeout=PT60S;gcache.size=128M'
 
 [mysqld.4]
 wsrep_gtid_domain_id=2
 server-id=21
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.4.#galera_port;evs.suspect_timeout=PT20S;evs.inactive_timeout=PT30S;evs.install_timeout=PT25S;pc.wait_prim_timeout=PT60S;gcache.size=128M'
 
 [mysqld.5]
 wsrep_gtid_domain_id=2
 server-id=22
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.5.#galera_port;evs.suspect_timeout=PT20S;evs.inactive_timeout=PT30S;evs.install_timeout=PT25S;pc.wait_prim_timeout=PT60S;gcache.size=128M'
 
 [mysqld.6]
 wsrep_gtid_domain_id=2
 server-id=23
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.6.#galera_port;evs.suspect_timeout=PT20S;evs.inactive_timeout=PT30S;evs.install_timeout=PT25S;pc.wait_prim_timeout=PT60S;gcache.size=128M'

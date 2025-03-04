@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-CALL mtr.add_suppression("WSREP: discarding established.*");
+CALL mtr.add_suppression("WSREP: discarding established");
 connection node_1;
 connection node_2;
 connection node_2;

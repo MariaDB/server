@@ -834,7 +834,8 @@ void wsrep_init_globals()
     wsrep_server_gtid_t new_gtid;
     new_gtid.domain_id= wsrep_gtid_domain_id;
     new_gtid.server_id= global_system_variables.server_id;
-    new_gtid.seqno= 0;
+    /* Use seqno which was recovered in wsrep_init_gtid() */
+    new_gtid.seqno= wsrep_gtid_server.seqno();
     /* Try to search for domain_id and server_id combination in binlog if found continue from last seqno */
     wsrep_get_binlog_gtid_seqno(new_gtid);
     wsrep_gtid_server.gtid(new_gtid);
@@ -2506,13 +2507,14 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
   if (!wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
     return true;
 
-  if (!hton)
-    return true;
-
   DBUG_ASSERT(hton != nullptr);
 
   switch (hton->db_type)
   {
+    case DB_TYPE_UNKNOWN:
+      /* Special pseudo-handlertons (such as 10.6+ JSON tables). */
+      return true;
+      break;
     case DB_TYPE_INNODB:
       return true;
       break;
@@ -2552,7 +2554,7 @@ bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
 {
   for (const TABLE_LIST* it= table_list; it; it= it->next_global)
   {
-    if (it->table)
+    if (it->table && !it->table_function)
     {
       /* If this is partitioned table we need to find out
          implementing storage engine handlerton.

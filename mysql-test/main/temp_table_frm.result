@@ -25,3 +25,9 @@ OPENED_VIEWS	0
 set @@use_stat_tables= @save_use_stat_tables;
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t1;
+#
+# MDEV-36138 Server null-pointer crash at startup when tmptables left in --tmpdir
+#
+create table t1 (c int);
+drop table t1;
+# restart

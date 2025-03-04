@@ -4,6 +4,7 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_sequence.inc
 
 CREATE SEQUENCE SEQ NOCACHE ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size=1;

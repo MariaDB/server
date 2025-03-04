@@ -2800,6 +2800,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         }
         if (IF_WSREP((wsrep_emulate_bin_log &&
                       wsrep_is_wsrep_xid(info->list + i) &&
+                      !wsrep_is_xid_gtid_undefined(info->list + i) &&
                       x <= wsrep_limit), false) ||
             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
         {

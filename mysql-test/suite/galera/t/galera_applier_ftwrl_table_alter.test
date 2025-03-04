@@ -27,16 +27,16 @@ ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 --connection node_1
 SELECT 1 FROM DUAL;
 # Wait
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock';
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'Waiting to execute in isolation%');
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock';
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'Waiting to execute in isolation%');
 
 UNLOCK TABLES;
 
 SET SESSION wsrep_sync_wait = 15;
 
 SHOW CREATE TABLE t1;
-SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock';
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'Waiting to execute in isolation%');
 
 DROP TABLE t1;

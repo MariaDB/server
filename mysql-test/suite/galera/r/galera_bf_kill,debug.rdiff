@@ -1,5 +1,5 @@
---- a/home/panda/mariadb-10.5/mysql-test/suite/galera/r/galera_bf_kill.result
-+++ b/home/panda/mariadb-10.5/mysql-test/suite/galera/r/galera_bf_kill.reject
+--- r/galera_bf_kill.result
++++ r/galera_bf_kill,debug.reject
 @@ -77,4 +77,34 @@ a	b
  5	2
  disconnect node_2a;

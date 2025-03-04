@@ -2241,6 +2241,12 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
+	if (ha_alter_info->create_info->used_fields
+	    & HA_CREATE_USED_SEQUENCE) {
+		ha_alter_info->unsupported_reason = "SEQUENCE";
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
+
 	update_thd();
 
 	if (!m_prebuilt->table->space) {
@@ -6512,6 +6518,8 @@ prepare_inplace_alter_table_dict(
 	DBUG_ASSERT(!ctx->add_index);
 	DBUG_ASSERT(!ctx->add_key_numbers);
 	DBUG_ASSERT(!ctx->num_to_add_index);
+	DBUG_ASSERT(!(ha_alter_info->create_info->used_fields
+		      & HA_CREATE_USED_SEQUENCE));
 
 	user_table = ctx->new_table;
 

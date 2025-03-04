@@ -279,6 +279,9 @@ NEXTVAL(t)
 connection node_1;
 DROP TABLE t1;
 DROP SEQUENCE t;
+connection node_2;
+SET SESSION wsrep_sync_wait=15;
+connection node_1;
 CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
 BEGIN;
@@ -324,4 +327,14 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 ALTER SEQUENCE IF EXISTS t MINVALUE=1;
 ERROR 42000: This version of MariaDB doesn't yet support 'CACHE without INCREMENT BY 0 in Galera cluster'
 DROP TABLE t;
+
+MDEV-32631:
+
+CREATE OR REPLACE TABLE t1(c INT ) ENGINE=ARIA;
+SET SESSION WSREP_OSU_METHOD=RSU;
+INSERT INTO t1 SELECT seq,concat(seq,1) FROM seq_1_to_100;
+ERROR 42000: This version of MariaDB doesn't yet support 'RSU on this table engine'
+SET SESSION WSREP_OSU_METHOD=TOI;
+DROP TABLE t1;
+
 End of 10.5 tests

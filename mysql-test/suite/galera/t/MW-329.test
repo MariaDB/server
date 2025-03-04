@@ -1,5 +1,5 @@
 #
-# #MW-329 Fix incorrect affected rows count after replay
+# MW-329 Fix incorrect affected rows count after replay.
 #
 
 --source include/galera_cluster.inc
@@ -11,7 +11,7 @@ CREATE TABLE t1 (f1 INTEGER, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
 INSERT INTO t1 (f1) VALUES (1),(65535);
 
 #
-# Run concurrent INSERTs 
+# Run concurrent INSERTs
 #
 
 DELIMITER |;
@@ -86,6 +86,10 @@ while ($count)
 --eval KILL CONNECTION $connection_id
 --enable_query_log
 
+#
+# getting execution results for --send
+#
+
 --connection node_1b
 --error 0,1317,2013,2026
 --reap
@@ -95,6 +99,8 @@ while ($count)
 --connection node_1
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;
+
+--disconnect node_1b
 
 # Due to MW-330, Multiple "conflict state 3 after post commit" warnings if table is dropped while SP is running
 CALL mtr.add_suppression("WSREP: .* conflict state after post commit ");

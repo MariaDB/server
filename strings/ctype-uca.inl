@@ -636,6 +636,7 @@ MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
   my_uca_scanner_param param;
   int space_weight= my_space_weight(&cs->uca->level[0]);
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
   my_uca_scanner_init_any(&scanner, s, slen);
@@ -691,6 +692,7 @@ MY_FUNCTION_NAME(hash_sort_nopad)(CHARSET_INFO *cs,
   my_uca_scanner scanner;
   my_uca_scanner_param param;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
   my_uca_scanner_init_any(&scanner, s, slen);

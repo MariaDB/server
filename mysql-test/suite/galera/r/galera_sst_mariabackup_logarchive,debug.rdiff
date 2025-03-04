@@ -1,5 +1,5 @@
 --- r/galera_sst_mariabackup_logarchive.result
-+++ r/galera_sst_mariabackup_logarchive.reject
++++ r/galera_sst_mariabackup_logarchive,debug.reject
 @@ -516,5 +516,189 @@
  1
  DROP TABLE t1;

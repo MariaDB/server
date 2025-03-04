@@ -4227,6 +4227,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 int select_insert::prepare2(JOIN *)
 {
   DBUG_ENTER("select_insert::prepare2");
+  switch_to_nullable_trigger_fields(*fields, table);
   if (table->validate_default_values_of_unset_fields(thd))
     DBUG_RETURN(1);
   if (thd->lex->describe)

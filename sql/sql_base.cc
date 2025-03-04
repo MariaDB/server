@@ -781,6 +781,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   }
 }
 
+#ifdef DBUG_ASSERT_EXISTS
 static inline bool check_field_pointers(const TABLE *table)
 {
   for (Field **pf= table->field; *pf; pf++)
@@ -796,6 +797,7 @@ static inline bool check_field_pointers(const TABLE *table)
   }
   return true;
 }
+#endif
 
 
 int close_thread_tables_for_query(THD *thd)
@@ -9407,9 +9409,11 @@ my_bool mysql_rm_tmp_tables(void)
           memcpy(path_copy, path, path_len - ext_len);
           path_copy[path_len - ext_len]= 0;
           init_tmp_table_share(thd, &share, "", 0, "", path_copy);
-          handlerton *ht= share.db_type();
           if (!open_table_def(thd, &share))
-            ht->drop_table(share.db_type(), path_copy);
+          {
+            handlerton *ht= share.db_type();
+            ht->drop_table(ht, path_copy);
+          }
           free_table_share(&share);
         }
         /*

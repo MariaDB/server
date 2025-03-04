@@ -164,5 +164,6 @@ SET GLOBAL wsrep_slave_threads = DEFAULT;
 
 DROP TABLE t1;
 DROP TABLE t2;
+
 --connection node_2
 SET GLOBAL wsrep_slave_threads = DEFAULT;

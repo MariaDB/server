@@ -1,6 +1,13 @@
 --source include/galera_cluster.inc
 --source include/have_sequence.inc
 
+--connection node_2
+let $restore_wsrep_ignore_apply_errors=`SELECT @@GLOBAL.wsrep_ignore_apply_errors`;
+SET GLOBAL wsrep_ignore_apply_errors=0;
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_sync_wait=0;
 SET GLOBAL wsrep_ignore_apply_errors=0;
 SET SESSION AUTOCOMMIT=0;
 SET SESSION max_error_count=0;
@@ -11,6 +18,8 @@ CREATE TABLE t0 (id GEOMETRY,parent_id GEOMETRY)ENGINE=SEQUENCE;
 --error ER_NO_SUCH_TABLE
 SHOW CREATE TABLE t0;
 
---connection node_1
-SET GLOBAL wsrep_ignore_apply_errors=DEFAULT;
+--disable_query_log
+--eval SET GLOBAL wsrep_ignore_apply_errors=$restore_wsrep_ignore_apply_errors
+--enable_query_log
 
+--disconnect node_2a

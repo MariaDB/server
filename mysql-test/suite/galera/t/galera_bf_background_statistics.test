@@ -46,4 +46,3 @@ ALTER TABLE t1 CHANGE f2 f2 INTEGER NOT NULL DEFAULT 1;
 --enable_query_log
 
 DROP TABLE t1;
-

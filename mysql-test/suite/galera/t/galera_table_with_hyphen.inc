@@ -45,4 +45,3 @@ SET GLOBAL wsrep_slave_threads=DEFAULT;
 --connection node_2
 --eval drop table `$fk_child`
 --eval drop table `$fk_parent`
-

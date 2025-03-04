@@ -49,4 +49,3 @@ DROP DATABASE testdb_9401;
 
 #--source include/galera_end.inc
 --echo # End of tests
-
