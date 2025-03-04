@@ -72,6 +72,8 @@ DROP TABLE t1;
 connection node_4;
 STOP SLAVE;
 RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
