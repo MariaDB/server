@@ -654,10 +654,10 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
     *is_trans= table->file->has_transactions();
 
   share= tmp_table_share(table);
-  DBUG_RETURN(drop_tmp_table_share(share, table, delete_table));
+  DBUG_RETURN(drop_tmp_table_share(table, share, delete_table));
 }
 
-bool THD::drop_tmp_table_share(TMP_TABLE_SHARE *share, TABLE *table,
+bool THD::drop_tmp_table_share(TABLE *table, TMP_TABLE_SHARE *share,
                                bool delete_table)
 {
   DBUG_ENTER("THD::drop_tmp_table_share");
@@ -666,16 +666,19 @@ bool THD::drop_tmp_table_share(TMP_TABLE_SHARE *share, TABLE *table,
 
   bool locked= lock_temporary_tables();
 
-  /* Table might be in use by some outer statement. */
-  All_share_tables_list::Iterator it(share->all_tmp_tables);
-  while ((tab= it++))
+  if (table)
   {
-    if (table && tab != table && tab->query_id != 0)
+    /* Table might be in use by some outer statement. */
+    All_share_tables_list::Iterator it(share->all_tmp_tables);
+    while ((tab= it++))
     {
-      /* Found a table instance in use. This table cannot be be dropped. */
-      my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
-      result= true;
-      goto end;
+      if (tab != table && tab->query_id != 0)
+      {
+        /* Found a table instance in use. This table cannot be dropped. */
+        my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
+        result= true;
+        goto end;
+      }
     }
   }
 
@@ -1327,7 +1330,7 @@ int THD::commit_global_tmp_tables()
   while (TMP_TABLE_SHARE *share= it++)
   {
     if (share->on_commit_delete())
-      if (int local_error= drop_tmp_table_share(share, NULL, true))
+      if (int local_error= drop_tmp_table_share(NULL, share, true))
         error= local_error;
   }
   return error;

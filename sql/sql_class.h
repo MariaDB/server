@@ -5706,7 +5706,7 @@ public:
   bool close_temporary_tables();
   bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
                               const LEX_CSTRING *table_name);
-  bool drop_tmp_table_share(TMP_TABLE_SHARE *share, TABLE *table,
+  bool drop_tmp_table_share(TABLE *table, TMP_TABLE_SHARE *share,
                             bool delete_table);
   bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
   bool rm_temporary_table(handlerton *hton, const char *path);
