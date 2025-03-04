@@ -1685,3 +1685,62 @@ void THD::close_unused_temporary_table_instances(const TABLE_LIST *tl)
      }
   }
 }
+
+static int commit_global_tmp_table(THD *thd, bool all)
+{
+  if (ending_trans(thd, all))
+    return thd->commit_global_tmp_tables();
+  return 0;
+}
+
+static transaction_participant global_temporary_tp=
+{
+  0, 0,  HTON_NO_ROLLBACK,
+  [](THD *) { return 0; },
+  NULL, NULL, NULL, NULL,
+  commit_global_tmp_table,       // commit
+  commit_global_tmp_table,       // rollback
+  NULL,                          // prepare
+  [](XID*, uint){ return 0; },   // recover
+  NULL, // xa_commit
+  NULL, // xa_rollback
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
+void THD::use_global_tmp_table_tp()
+{
+  if (!(sql_command_flags() & CF_STATUS_COMMAND))
+  {
+    trans_register_ha(this, false, &global_temporary_tp, 0);
+    if (in_multi_stmt_transaction_mode())
+      trans_register_ha(this, true, &global_temporary_tp, 0);
+  }
+}
+
+static int init_global_tmp_table(void *p)
+{
+  st_plugin_int *plugin= (st_plugin_int *)p;
+  plugin->data= &global_temporary_tp;
+  return setup_transaction_participant(plugin);
+}
+
+struct st_mysql_daemon global_temporary_tables_plugin=
+{ MYSQL_DAEMON_INTERFACE_VERSION  };
+
+maria_declare_plugin(global_temporary_tables)
+{
+  MYSQL_DAEMON_PLUGIN,
+  &global_temporary_tables_plugin,
+  "global_temporary_tables",
+  "MariaDB Corp.",
+  "This is a plugin to represent the global temporary tables in a transaction",
+  PLUGIN_LICENSE_GPL,
+  init_global_tmp_table, // Plugin Init
+  NULL,   // Plugin Deinit
+  0x0200, // 2.0
+  NULL,   // no status vars
+  NULL,   // no sysvars
+  "2.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
+}
+maria_declare_plugin_end;
