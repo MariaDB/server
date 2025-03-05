@@ -177,3 +177,15 @@ disconnect con1;
 connection default;
 set debug_sync= 'now wait_for closed';
 drop table t;
+create global temporary table t (x int) partition by hash(x);
+ERROR HY000: Clause PARTITION can't be used with GLOBAL TEMPORARY TABLE
+create global temporary table t (x int) with system versioning;
+ERROR HY000: Clause SYSTEM VERSIONING can't be used with GLOBAL TEMPORARY TABLE
+create global temporary table t (x int, y int, foreign key (x) references t(y));
+ERROR HY000: Clause FOREIGN KEY can't be used with GLOBAL TEMPORARY TABLE
+create global temporary table t (x int);
+alter table t force, lock=none, algorithm=copy;
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=EXCLUSIVE
+alter table t rename column x to y, lock=none, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+drop table t;

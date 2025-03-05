@@ -1,3 +1,5 @@
+--source include/have_partition.inc
+
 --echo # Safety
 set lock_wait_timeout= 5;
 
@@ -146,4 +148,17 @@ set debug_sync= 'thread_end signal closed';
 --disconnect con1
 --connection default
 set debug_sync= 'now wait_for closed';
+drop table t;
+
+--error ER_CANT_USE_WITH_GLOBAL_TEMPORARY_TABLE
+create global temporary table t (x int) partition by hash(x);
+--error ER_CANT_USE_WITH_GLOBAL_TEMPORARY_TABLE
+create global temporary table t (x int) with system versioning;
+--error ER_CANT_USE_WITH_GLOBAL_TEMPORARY_TABLE
+create global temporary table t (x int, y int, foreign key (x) references t(y));
+create global temporary table t (x int);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t force, lock=none, algorithm=copy;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t rename column x to y, lock=none, algorithm=inplace;
 drop table t;

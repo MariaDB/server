@@ -3954,6 +3954,28 @@ without_overlaps_err:
                           *key_info_buffer, *key_count);
   );
 
+  if (create_info->table_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+  {
+    const char *error= NULL;
+    for (const Key &fk: create_info->alter_info->key_list)
+      if (fk.type == Key::FOREIGN_KEY)
+      {
+        error= "FOREIGN KEY";
+        break;
+      }
+    if (thd->lex->part_info)
+      error= "PARTITION";
+    else if (alter_info->flags & (ALTER_ADD_SYSTEM_VERSIONING))
+      error= "SYSTEM VERSIONING";
+
+    if (error)
+    {
+      my_error(ER_CANT_USE_WITH_GLOBAL_TEMPORARY_TABLE, MYF(0), error);
+      DBUG_RETURN(TRUE);
+    }
+  }
+
+
   DBUG_RETURN(FALSE);
 }
 
@@ -7431,6 +7453,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
       ha_alter_info->key_count= table->s->keys;
   }
 
+  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+    ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+
   DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
   DBUG_RETURN(false);
 }
@@ -10510,6 +10535,10 @@ const char *online_alter_check_supported(THD *thd,
   if (!*online)
     return "CHANGE COLUMN ... AUTO_INCREMENT";
 
+  *online= table->s->table_type != TABLE_TYPE_GLOBAL_TEMPORARY;
+  if (!*online)
+    return "GLOBAL TEMPORARY TABLE";
+
   return NULL;
 }
 
@@ -11622,11 +11651,17 @@ alter_copy:
       my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
       goto err_new_table_cleanup;
     }
-    lock_wait_timeout= 0; // Oracle compatibility
+    if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_DEFAULT)
+      alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
 
-    // wait_while_table_is_used will first acquire exclusive table lock.
-    // See the `if` branch below.
-    alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
+    if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+    {
+      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
+               alter_info->lock(), "LOCK=EXCLUSIVE");
+      goto err_new_table_cleanup;
+    }
+
+    lock_wait_timeout= 0; // Oracle compatibility
   }
 
   if (!table->s->tmp_table)
