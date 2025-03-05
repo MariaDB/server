@@ -5953,13 +5953,12 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
   TABLE *table= NULL;
   if (thd->has_open_global_temporary_tables())
   {
-    TMP_TABLE_SHARE *share= NULL;
-    if (thd->internal_open_temporary_table(out_table, &table, &share))
+    if (thd->open_temporary_table_impl(out_table, &table))
       return TRUE;
 
     if (table)
     {
-      DBUG_ASSERT(share->from_share == source);
+      DBUG_ASSERT(((TMP_TABLE_SHARE*)table->s)->from_share == source);
       tdc_release_share(source);
       table->query_id= thd->query_id;
     }

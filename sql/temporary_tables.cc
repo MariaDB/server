@@ -299,9 +299,14 @@ bool THD::use_real_global_temporary_share() const
                                | CF_STATUS_COMMAND);
 }
 
+/**
+  Find a temporary table specified by TABLE_LIST instance in the open table
+  list, and open a TABLE handle, without initializing it.
 
-bool THD::internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
-                                        TMP_TABLE_SHARE **share)
+  @param tl [IN]                      TABLE_LIST
+  @param table [out]                  TABLE handle found/opened
+*/
+bool THD::open_temporary_table_impl(TABLE_LIST *tl, TABLE **table)
 {
   DBUG_ENTER("THD::internal_open_temporary_table");
   /*
@@ -340,8 +345,7 @@ bool THD::internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
                              when ALTER/DROP is executed.
                            */
 
-    *share= tmp_share;
-    *table= open_temporary_table(*share, tl->get_table_name());
+    *table= open_temporary_table(tmp_share, tl->get_table_name());
     /*
        Temporary tables are not safe for parallel replication. They were
        designed to be visible to one thread only, so have no table locking.
@@ -393,7 +397,6 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   DBUG_ENTER("THD::open_temporary_table");
   DBUG_PRINT("enter", ("table: '%s'.'%s'", tl->db.str, tl->table_name.str));
 
-  TMP_TABLE_SHARE *share;
   TABLE *table= NULL;
 
   /*
@@ -426,7 +429,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     DBUG_RETURN(false);
   }
 
-  if (unlikely(internal_open_temporary_table(tl, &table, &share)))
+  if (unlikely(open_temporary_table_impl(tl, &table)))
     DBUG_RETURN(true);
 
   if (!table)

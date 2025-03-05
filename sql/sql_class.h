@@ -5698,8 +5698,7 @@ public:
 
   bool use_real_global_temporary_share() const;
 
-  bool internal_open_temporary_table(TABLE_LIST *tl, TABLE **table,
-                                     TMP_TABLE_SHARE **share);
+  bool open_temporary_table_impl(TABLE_LIST *tl, TABLE **table);
   bool open_temporary_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
