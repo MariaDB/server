@@ -191,8 +191,7 @@ a
 100000000000
 100000000006
 CREATE TABLE t11(a FLOAT AUTO_INCREMENT KEY) ENGINE = InnoDB;
-INSERT INTO t11 VALUES(0), (0), (0), (0), (-1), (-10), (0),
-(20), (30), (31);
+INSERT INTO t11 VALUES(0), (0), (0), (0), (-1), (-10), (0), (20), (30), (31);
 SELECT * FROM t11;
 a
 -10
@@ -205,9 +204,22 @@ a
 20
 30
 31
+CREATE TABLE t11u(a FLOAT UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
+INSERT INTO t11u VALUES(0), (0), (0), (0), (-1), (-10), (0), (20), (30), (31);
+ERROR 22003: Out of range value for column 'a' at row 5
+INSERT INTO t11u VALUES(0), (0), (0), (0), (0), (20), (30), (31);
+SELECT * FROM t11u;
+a
+11
+12
+13
+14
+15
+20
+30
+31
 CREATE TABLE t12(a DOUBLE AUTO_INCREMENT KEY) ENGINE = InnoDB;
-INSERT INTO t12 VALUES(0), (0), (0), (0), (-1), (-10), (0),
-(20), (30), (31);
+INSERT INTO t12 VALUES(0), (0), (0), (0), (-1), (-10), (0), (20), (30), (31);
 SELECT * FROM t12;
 a
 -10
@@ -217,6 +229,20 @@ a
 3
 4
 5
+20
+30
+31
+CREATE TABLE t12u(a DOUBLE UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
+INSERT INTO t12u VALUES(0), (0), (0), (0), (-1), (-10), (0), (20), (30), (31);
+ERROR 22003: Out of range value for column 'a' at row 5
+INSERT INTO t12u VALUES(0), (0), (0), (0), (0), (20), (30), (31);
+SELECT * FROM t12u;
+a
+11
+12
+13
+14
+15
 20
 30
 31
@@ -979,5 +1005,6 @@ a	b
 10	1
 2	2
 3	4
-DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t30, t32, t33;
+DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t11u, t12u,
+t30, t32, t33;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -497,12 +497,12 @@ CREATE TABLE federated.t3 (a INT);
 INSERT INTO federated.t3 VALUES (1),(2),(3);
 CREATE TABLE federated.t4 (a INT);
 connection master;
-CREATE SERVER fedlink FOREIGN DATA WRAPPER mysql 
+CREATE SERVER fedlink FOREIGN DATA WRAPPER mariadb
 OPTIONS (USER 'root', HOST '127.0.0.1', DATABASE 'federated',
 PORT SLAVE_PORT);
 CREATE TABLE federated.t3 (a INT)
 ENGINE=FEDERATED
-CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
+CONNECTION='mariadb://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
   PARTITION BY list (a)
 (PARTITION p1 VALUES IN (1) CONNECTION='fedlink/t3',
 PARTITION p2 VALUES IN (2) CONNECTION='fedlink/t4');

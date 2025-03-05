@@ -296,11 +296,11 @@ db2.locations: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
 Adding secondary indexes to table `locations`
 show index from vec;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-vec	0	PRIMARY	1	id	A	10	NULL	NULL		BTREE			NO
+vec	0	PRIMARY	1	id	A	1	NULL	NULL		BTREE			NO
 vec	1	v	1	v	A	NULL	NULL	NULL		VECTOR			NO
 show index from locations;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-locations	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+locations	0	PRIMARY	1	id	A	1	NULL	NULL		BTREE			NO
 locations	1	idx_geom	1	geom	A	NULL	32	NULL		SPATIAL			NO
 show index from ft;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored

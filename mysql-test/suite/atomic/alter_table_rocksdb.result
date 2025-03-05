@@ -1,4 +1,5 @@
 set global rocksdb_flush_log_at_trx_commit=1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create database test2;
 RESET MASTER;
 
@@ -14,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -24,7 +25,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -36,7 +37,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -47,7 +48,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -59,7 +60,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -71,7 +72,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -85,7 +86,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -101,7 +102,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -113,7 +114,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -127,7 +128,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -137,7 +138,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -149,7 +150,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -159,7 +160,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
@@ -170,7 +171,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
@@ -181,7 +182,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
@@ -194,7 +195,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
@@ -209,7 +210,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
@@ -220,7 +221,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
@@ -234,7 +235,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -244,7 +245,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -256,7 +257,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -266,7 +267,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
@@ -277,7 +278,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
@@ -288,7 +289,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
@@ -301,7 +302,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
@@ -316,7 +317,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
@@ -327,7 +328,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
@@ -341,7 +342,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -351,7 +352,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -363,7 +364,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -374,7 +375,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -386,7 +387,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -398,7 +399,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -412,7 +413,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -424,7 +425,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -436,7 +437,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -448,7 +449,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -460,7 +461,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -529,7 +530,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -539,7 +540,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -551,7 +552,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -562,7 +563,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -574,7 +575,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -586,7 +587,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -600,7 +601,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -616,7 +617,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -628,7 +629,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -660,7 +661,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_rename_triggers
@@ -670,7 +671,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_delete_backup
@@ -687,7 +688,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -697,7 +698,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -709,7 +710,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -719,7 +720,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -730,7 +731,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -741,7 +742,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -754,7 +755,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -765,7 +766,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -776,7 +777,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -787,7 +788,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -798,7 +799,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -812,7 +813,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -822,7 +823,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -834,7 +835,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -844,7 +845,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -855,7 +856,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -866,7 +867,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -879,7 +880,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -890,7 +891,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -901,7 +902,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -912,7 +913,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -923,7 +924,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -937,7 +938,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -947,7 +948,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -959,7 +960,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -971,7 +972,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
@@ -984,7 +985,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
@@ -997,7 +998,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
@@ -1012,7 +1013,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
@@ -1029,7 +1030,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
@@ -1042,7 +1043,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
@@ -1056,7 +1057,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1066,7 +1067,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1078,7 +1079,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1090,7 +1091,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
@@ -1103,7 +1104,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
@@ -1116,7 +1117,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
@@ -1131,7 +1132,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
@@ -1148,7 +1149,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
@@ -1161,7 +1162,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
@@ -1175,7 +1176,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1185,7 +1186,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1197,7 +1198,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1210,7 +1211,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
@@ -1224,7 +1225,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
@@ -1238,7 +1239,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
@@ -1254,7 +1255,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
@@ -1268,7 +1269,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
@@ -1282,7 +1283,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
@@ -1296,7 +1297,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
@@ -1310,7 +1311,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
@@ -1324,7 +1325,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1334,7 +1335,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1346,7 +1347,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1358,7 +1359,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1371,7 +1372,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1384,7 +1385,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1399,7 +1400,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1412,7 +1413,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1425,7 +1426,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1438,7 +1439,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1451,7 +1452,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1465,7 +1466,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1475,7 +1476,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1487,7 +1488,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1498,7 +1499,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1510,7 +1511,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1522,7 +1523,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1536,7 +1537,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1548,7 +1549,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1560,7 +1561,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1572,7 +1573,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1584,7 +1585,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1598,7 +1599,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1608,7 +1609,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1620,7 +1621,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1631,7 +1632,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1643,7 +1644,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1655,7 +1656,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1669,7 +1670,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1685,7 +1686,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1697,7 +1698,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1711,7 +1712,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1723,7 +1724,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
@@ -1733,7 +1734,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1742,7 +1743,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
@@ -1762,3 +1763,4 @@ crash point: ddl_log_alter_after_delete_backup
 "No crash!"
 crash point: ddl_log_alter_after_drop_original_table
 "No crash!"
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
