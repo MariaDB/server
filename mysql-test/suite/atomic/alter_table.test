@@ -5,7 +5,6 @@
 if (!$BIG_TEST)
 {
   --source include/not_valgrind.inc
-  --source include/not_msan.inc
 }
 
 #
