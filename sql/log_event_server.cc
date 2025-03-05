@@ -843,6 +843,7 @@ bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
                        (longlong) writer->pos(), event_data_length,
                        (int) get_type_code()));
 
+  fprintf(stderr, "\n\tWriting header of len %zu\n", event_data_length);
   /* Store number of bytes that will be written by this event */
   data_written= event_data_length + sizeof(header) + writer->checksum_len;
 
@@ -5575,11 +5576,11 @@ bool Rows_log_event::write_data_body_rows(Log_event_writer *writer,
                                           uint64_t from_offset,
                                           uint64_t len_to_write)
 {
+  fprintf(stderr, "\n\tWriting from offset %" PRIu64 " of len %" PRIu64 "\n", from_offset, len_to_write);
   /*
      Note that this should be the number of *bits*, not the number of
      bytes.
   */
-  DBUG_ASSERT(from_offset <= len_to_write);
   uchar *from_ptr= m_rows_buf + from_offset;
   my_ptrdiff_t const data_size= len_to_write ? len_to_write : m_rows_cur - m_rows_buf;
   DBUG_DUMP("rows", from_ptr, data_size);

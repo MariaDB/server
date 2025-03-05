@@ -2336,6 +2336,52 @@ public:        /* !!! Public in this patch to allow old usage */
   virtual bool is_rollback() { return !strcmp(query, "ROLLBACK"); }
 };
 
+class Partial_rows_log_event : public Log_event
+{
+public:
+  uint32_t flags;
+
+  /*
+    Starts at 1 for consistency with GTID seq_no
+  */
+  uint32_t seq_no;
+  uint32_t total_fragments;
+
+  Partial_rows_log_event(uint32 seq_no, uint32 total_fragments)
+      : seq_no(seq_no), total_fragments(total_fragments){}
+
+  Partial_rows_log_event() {};
+  Partial_rows_log_event(
+      const uchar *buf, uint event_len,
+      const Format_description_log_event *description_event);
+  //{
+  //  /* TODO */
+  //}
+
+  ~Partial_rows_log_event() {}
+
+  /* TODO */
+  bool is_valid() const override { return true; }
+
+  Log_event_type get_type_code() override { return PARTIAL_ROW_DATA_EVENT; }
+
+#ifdef MYSQL_SERVER
+    //bool write_data_header(Log_event_writer *writer) override;
+    //bool write_data_body(Log_event_writer *writer) override;
+  //bool write(Log_event_writer *writer) override;
+#ifdef HAVE_REPLICATION
+  //void pack_info(Protocol* protocol) override;
+#endif /* HAVE_REPLICATION */
+#else
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override
+  {
+    fprintf(stderr, "\n\tPrinting some partial rows log event\n");
+    return 0;
+  }
+#endif
+};
+
+
 class Query_compressed_log_event:public Query_log_event{
 protected:
   Log_event::Byte* query_buf;  // point to the uncompressed query
@@ -5641,12 +5687,14 @@ public:
       return PARTIAL_ROW_DATA_EVENT;
     }
 
+    int get_data_size() override { return (int) end_offset - start_offset;}
+
+
 #ifdef MYSQL_SERVER
     bool write_data_header(Log_event_writer *writer) override;
     bool write_data_body(Log_event_writer *writer) override;
 #endif
   };
-
 
   /* TODO Hardcoded to length of 11*/
   void fragment(Rows_log_event_fragmenter::Indirect_partial_rows_log_event **outs)

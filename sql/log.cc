@@ -6941,6 +6941,7 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
       Here we should have some function of Rows_log_event -> List<Partial_rows_log_event>, and potentially
       the following writing/error checking should be abstracted.
     */
+    bool skip= false;
     if (pending->is_too_big())
     {
       Rows_log_event_fragmenter::Indirect_partial_rows_log_event* fraggers[11];
@@ -6950,10 +6951,12 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
       {
         writer.write(fraggers[i]);
       }
+
+      skip= true;
     }
 
 
-    if (writer.write(pending))
+    if (!skip && writer.write(pending))
     {
       set_write_error(thd, is_transactional);
       if (check_cache_error(thd, cache_data) &&

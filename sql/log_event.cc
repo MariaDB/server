@@ -1195,6 +1195,10 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       ev= new Table_map_log_event(buf, event_len, fdle);
       break;
 #endif
+    case PARTIAL_ROW_DATA_EVENT:
+      ev= new Partial_rows_log_event(buf, event_len, fdle);
+      fprintf(stderr, "\n\tFound Partial in read_log_event\n");
+      break;
     case BEGIN_LOAD_QUERY_EVENT:
       ev= new Begin_load_query_log_event(buf, event_len, fdle);
       break;
@@ -3931,6 +3935,17 @@ Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
   DBUG_PRINT("info", ("m_incident: %d", m_incident));
   DBUG_VOID_RETURN;
 }
+
+
+#ifdef HAVE_REPLICATION
+Partial_rows_log_event::Partial_rows_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event)
+    : Log_event(buf, description_event), flags(0), seq_no(0),
+      total_fragments(0)
+{
+}
+#endif
 
 
 Incident_log_event::~Incident_log_event()
