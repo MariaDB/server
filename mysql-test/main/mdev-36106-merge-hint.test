@@ -1,0 +1,27 @@
+--source include/have_sequence.inc
+--disable_view_protocol
+create table t1 select seq as i, 10*seq as j from seq_1_to_10;
+
+set @save_optimizer_trace=@@optimizer_trace;
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_trace='enabled=on';
+
+set session optimizer_switch='derived_merge=on';
+
+SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+select json_extract(trace, '$.steps[0].join_preparation.steps[0].derived.algorithm') from information_schema.optimizer_trace;
+
+SELECT /*+ NO_MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+select json_extract(trace, '$.steps[0].join_preparation.steps[0].derived.algorithm') from information_schema.optimizer_trace;
+
+set session optimizer_switch='derived_merge=off';
+SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+select json_extract(trace, '$.steps[0].join_preparation.steps[0].derived.algorithm') from information_schema.optimizer_trace;
+
+SELECT /*+ MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+select json_extract(trace, '$.steps[0].join_preparation.steps[0].derived.algorithm') from information_schema.optimizer_trace;
+
+set optimizer_switch=@save_optimizer_switch;
+set optimizer_trace=@save_optimizer_trace;
+drop table t1;
+--enable_view_protocol

@@ -41,6 +41,8 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, true},
   {{STRING_WITH_LEN("SEMIJOIN")}, false, true},
   {{STRING_WITH_LEN("SUBQUERY")}, false, true},
+  {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false},
+  {{STRING_WITH_LEN("MERGE")}, false, false},
   {null_clex_str, 0, 0}
 };
 
@@ -369,6 +371,16 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
 }
 
 
+void Opt_hints_qb::fix_hints_for_table(TABLE_LIST *table_list)
+{
+  Opt_hints_table *tab= static_cast<Opt_hints_table *>(find_by_name(table_list->alias));
+  table_list->opt_hints_qb= this;
+  table_list->opt_hints_table= tab;
+  set_fixed();
+  incr_fully_fixed_children();
+}
+
+
 Opt_hints_table *Opt_hints_qb::fix_hints_for_table(TABLE *table,
                                                    const Lex_ident_table &alias)
 {
@@ -542,11 +554,9 @@ bool hint_key_state(const THD *thd, const TABLE *table,
 }
 
 
-bool hint_table_state(const THD *thd, const TABLE *table,
-                                  opt_hints_enum type_arg,
-                                  bool fallback_value)
+bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
+                      opt_hints_enum type_arg, bool fallback_value)
 {
-  TABLE_LIST *table_list= table->pos_in_table_list;
   if (table_list->opt_hints_qb)
   {
     bool ret_val= false;
@@ -557,6 +567,15 @@ bool hint_table_state(const THD *thd, const TABLE *table,
   }
 
   return fallback_value;
+}
+
+
+bool hint_table_state(const THD *thd, const TABLE *table,
+                                  opt_hints_enum type_arg,
+                                  bool fallback_value)
+{
+  return hint_table_state(thd, table->pos_in_table_list, type_arg,
+                          fallback_value);
 }
 
 /*
@@ -590,6 +609,22 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
      break;
   case TokenID::keyword_NO_BKA:
      hint_type= BKA_HINT_ENUM;
+     hint_state= false;
+     break;
+  case TokenID::keyword_DERIVED_CONDITION_PUSHDOWN:
+     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+     hint_state= true;
+     break;
+  case TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN:
+     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+     hint_state= false;
+     break;
+  case TokenID::keyword_MERGE:
+     hint_type= MERGE_HINT_ENUM;
+     hint_state= true;
+     break;
+  case TokenID::keyword_NO_MERGE:
+     hint_type= MERGE_HINT_ENUM;
      hint_state= false;
      break;
   default:
