@@ -386,13 +386,50 @@ bool sp_rcontext::init_var_items(THD *thd,
   for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
     Field *field= m_var_table->field[idx];
-    Field_row *field_row= dynamic_cast<Field_row*>(field);
-    if (!(m_var_items[idx]= field_row ?
-                            def->make_item_field_row(thd, field_row) :
-                            new (thd->mem_root) Item_field(thd, field)))
-      return true;
+
+    if (def->is_assoc_array())
+    {
+      Item_field_assoc_array *item= new (thd->mem_root)
+                                      Item_field_assoc_array(thd, field);
+      if (!(m_var_items[idx]= item) ||
+          item->set_array_def(thd, def->assoc_array_definition()))
+        return true;
+    }
+    else
+    {
+      Field_row *field_row= dynamic_cast<Field_row*>(field);
+      if (!(m_var_items[idx]= field_row ?
+                              def->make_item_field_row(thd, field_row) :
+                              new (thd->mem_root) Item_field(thd, field)))
+        return true;
+    }
   }
   return false;
+}
+
+
+bool Item_field_assoc_array::set_array_def(THD *thd,
+                                           Assoc_array_definition *def)
+{
+  DBUG_ASSERT(field);
+
+  m_def= def;
+  Field_assoc_array *field_assoc_array= dynamic_cast<Field_assoc_array*>(field);
+  if (!field_assoc_array)
+    return true;
+
+  field_assoc_array->m_def= def;
+  return false;
+}
+
+
+uint Item_field_assoc_array::cols_for_elements() const
+{
+  if (m_def->m_value_def->is_row())
+  {
+    return m_def->m_value_def->row_field_definitions()->elements;
+  }
+  return 0;
 }
 
 
@@ -645,6 +682,93 @@ Virtual_tmp_table *sp_rcontext::virtual_tmp_table_for_row(uint var_idx)
   Field *field= m_var_table->field[var_idx];
   DBUG_ASSERT(field->virtual_tmp_table());
   return field->virtual_tmp_table();
+}
+
+
+int sp_rcontext::set_variable_assoc_array_by_key(THD *thd,
+                                                 uint var_idx,
+                                                 Item* key,
+                                                 Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_assoc_array_by_key");
+  DBUG_ASSERT(value);
+  DBUG_ASSERT(key);
+  
+  DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
+  DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ASSOC_ARRAY_RESULT);
+
+  if (key->fix_fields_if_needed(thd, &key))
+    DBUG_RETURN(1);
+  
+  if (key->null_value)
+  {
+    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX,
+             MYF(0),
+             get_variable(var_idx)->name.str);
+    DBUG_RETURN(1);
+  }
+
+  auto field_assoc_array= m_var_table->field[var_idx];
+  Item *item= field_assoc_array->element_by_key(thd, key->val_str());
+  if (!item)
+  {
+    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
+             key->val_str()->c_ptr());
+    DBUG_RETURN(1);
+  }
+
+  Field *field= item->field_for_view_update()->field;
+  DBUG_ASSERT(field);
+
+  DBUG_RETURN(thd->sp_eval_expr(field, value));
+}
+
+
+int
+sp_rcontext::set_variable_assoc_array_field_by_key(THD *thd,
+                                                   const LEX_CSTRING &var_name,
+                                                   uint var_idx,
+                                                   Item *key,
+                                                   const LEX_CSTRING &field_name,
+                                                   Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_assoc_array_field_by_key");
+  DBUG_ASSERT(value);
+  DBUG_ASSERT(key);
+
+  DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
+  DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ASSOC_ARRAY_RESULT);
+
+  if (key->fix_fields_if_needed(thd, &key))
+    DBUG_RETURN(1);
+
+  if (key->null_value)
+  {
+    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX,
+             MYF(0),
+             get_variable(var_idx)->name.str);
+    DBUG_RETURN(1);
+  }
+
+  auto field_assoc_array= m_var_table->field[var_idx];
+  Item *item= ((const Field *)field_assoc_array)->
+                                  element_by_key(thd,
+                                                 key->val_str());
+  if (!item)
+  {
+    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
+             key->val_str()->ptr());
+    DBUG_RETURN(1);
+  }
+
+  Field *field= field_assoc_array->get_field_by_key_and_name(thd,
+                                                             var_name,
+                                                             key->val_str(),
+                                                             field_name);
+  if (!field)
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(thd->sp_eval_expr(field, value));
 }
 
 

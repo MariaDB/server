@@ -4373,6 +4373,182 @@ public:
   { return get_item_copy<Item_func_setval>(thd, this); }
 };
 
+
+/* Item_funcs for associative array methods */
+
+class Item_func_assoc_array_first :public Item_handled_func
+{
+public:
+  Item_func_assoc_array_first(THD *thd, Item *array)
+    :Item_handled_func(thd, array) {}
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("first") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_assoc_array_first>(thd, this); }
+};
+
+
+class Item_func_assoc_array_last :public Item_handled_func
+{
+public:
+  Item_func_assoc_array_last(THD *thd, Item *array)
+    :Item_handled_func(thd, array) {}
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("last") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_assoc_array_last>(thd, this); }
+};
+
+
+class Item_func_assoc_array_next :public Item_handled_func
+{
+public:
+  Item_func_assoc_array_next(THD *thd, Item *array, Item *curr_key)
+    :Item_handled_func(thd, array, curr_key) {}
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("next") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_assoc_array_next>(thd, this); }
+};
+
+
+class Item_func_assoc_array_prior :public Item_handled_func
+{
+public:
+  Item_func_assoc_array_prior(THD *thd, Item *array, Item *curr_key)
+    :Item_handled_func(thd, array, curr_key) {}
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("prior") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_assoc_array_prior>(thd, this); }
+};
+
+
+class Item_func_assoc_array_count :public Item_long_func
+{
+  bool check_arguments() const override
+  { return arg_count != 1; }
+public:
+  Item_func_assoc_array_count(THD *thd, Item *array)
+    :Item_long_func(thd, array) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("count") };
+    return name;
+  }
+  longlong val_int() override;
+  bool fix_length_and_dec(THD *thd) override
+  {
+    decimals=0;
+    max_length=1;
+    set_maybe_null();
+    return FALSE;
+  }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_assoc_array_count>(thd, this); }
+};
+
+
+class Item_func_assoc_array_exists :public Item_long_func
+{
+  bool check_arguments() const override
+  { return arg_count != 2; }
+  
+public:
+  Item_func_assoc_array_exists(THD *thd, Item *array, Item *key)
+    :Item_long_func(thd, array, key) {}
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("exists") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    decimals=0;
+    max_length=1;
+    set_maybe_null();
+    return FALSE;
+  }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_assoc_array_exists>(thd, this); }
+};
+
+
+class Item_func_assoc_array_delete :public Item_long_func
+{
+  bool check_arguments() const override
+  { return arg_count < 1 || arg_count > 2; }
+  
+public:
+  Item_func_assoc_array_delete(THD *thd, Item *array)
+    :Item_long_func(thd, array)
+  {}
+  Item_func_assoc_array_delete(THD *thd, Item *array, Item *key)
+    :Item_long_func(thd, array, key)
+  {}
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("exists") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    decimals=0;
+    max_length=1;
+    set_maybe_null();
+    return FALSE;
+  }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_assoc_array_delete>(thd, this); }
+};
+
+
 class Interruptible_wait;
 
 Item *get_system_var(THD *thd, enum_var_type var_type,

@@ -122,6 +122,7 @@ bool DTCollation::merge_collation(Sql_used *used,
 
 
 Named_type_handler<Type_handler_row> type_handler_row("row");
+Named_type_handler<Type_handler_assoc_array> type_handler_assoc_array("associative array");
 
 Named_type_handler<Type_handler_null> type_handler_null("null");
 
@@ -256,6 +257,50 @@ static Type_collection_row type_collection_row;
 const Type_collection *Type_handler_row::type_collection() const
 {
   return &type_collection_row;
+}
+
+
+class Type_collection_assoc_array: public Type_collection
+{
+public:
+  bool init(Type_handler_data *data) override
+  {
+    return false;
+  }
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return NULL;
+  }
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override
+  {
+    DBUG_ASSERT(a == &type_handler_assoc_array);
+    DBUG_ASSERT(b == &type_handler_assoc_array);
+    return &type_handler_assoc_array;
+  }
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override
+  {
+    return NULL;
+  }
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return NULL;
+  }
+};
+
+
+static Type_collection_assoc_array type_collection_assoc_array;
+
+const Type_collection *Type_handler_assoc_array::type_collection() const
+{
+  return &type_collection_assoc_array;
 }
 
 
@@ -690,6 +735,7 @@ Interval_DDhhmmssff::Interval_DDhhmmssff(THD *thd, Status *st,
 {
   switch (item->cmp_type()) {
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     time_type= MYSQL_TIMESTAMP_NONE;
     break;
@@ -779,6 +825,7 @@ uint Interval_DDhhmmssff::fsp(THD *thd, Item *item)
   case DECIMAL_RESULT:
     return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     return 0;
   case STRING_RESULT:
@@ -1769,6 +1816,13 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
   return &type_handler_row;
 }
 
+
+const Type_handler *Type_handler_assoc_array::type_handler_for_comparison() const
+{
+  return &type_handler_assoc_array;
+}
+
+
 /***************************************************************************/
 
 const Type_handler *
@@ -1894,7 +1948,8 @@ aggregate_for_result(const LEX_CSTRING &funcname, Item **items, uint nitems,
 {
   bool bit_and_non_bit_mixture_found= false;
   uint32 max_display_length;
-  if (!nitems || items[0]->result_type() == ROW_RESULT)
+  if (!nitems || items[0]->result_type() == ROW_RESULT ||
+                 items[0]->result_type() == ASSOC_ARRAY_RESULT)
   {
     DBUG_ASSERT(0);
     set_handler(&type_handler_null);
@@ -1970,6 +2025,8 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
     return &type_handler_slonglong;
   if (a == ROW_RESULT || b == ROW_RESULT)
     return &type_handler_row;
+  if (a == ASSOC_ARRAY_RESULT || b == ASSOC_ARRAY_RESULT)
+    return &type_handler_assoc_array;
   if (a == TIME_RESULT || b == TIME_RESULT)
   {
     if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
@@ -2062,6 +2119,8 @@ Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
   Item_result b= hb->cmp_type();
   DBUG_ASSERT(a != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
   DBUG_ASSERT(b != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
+  DBUG_ASSERT(a != ASSOC_ARRAY_RESULT);
+  DBUG_ASSERT(b != ASSOC_ARRAY_RESULT);
 
   if (a == STRING_RESULT && b == STRING_RESULT)
     return Type_collection_std::aggregate_for_result(ha, hb);
@@ -2313,6 +2372,7 @@ Type_handler::handler_by_log_event_data_type(THD *thd,
   case STRING_RESULT:
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     break;
   case REAL_RESULT:
     return &type_handler_double;
@@ -6388,6 +6448,40 @@ String *Type_handler_row::
 }
 
 
+String *Type_handler_assoc_array::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  CHARSET_INFO *cs= thd->variables.character_set_client;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> val(cs);
+  String key;
+  str->append(STRING_WITH_LEN("ASSOC_ARRAY("));
+
+  uint i= 0;
+  if (!item->get_key(&key, true))
+  {
+    do
+    {
+      if (i > 0)
+        str->append(',');
+      
+      Item *elem= item->element_by_key(thd, &key);
+      String *tmp= elem->type_handler()->print_item_value(thd, elem, &val);
+      if (tmp)
+        str->append(*tmp);
+      else
+        str->append(NULL_clex_str);
+      
+      i++;
+    } while (!item->get_next_key(&key, &key));
+  }
+  else
+    str->append(NULL_clex_str);
+
+  str->append(')');
+  return str;
+}
+
+
 /**
   Get a string representation of the Item value,
   using the character string format with its charset and collation, e.g.
@@ -8326,6 +8420,19 @@ Field *Type_handler_row::
   DBUG_ASSERT(attr->length == 0);
   DBUG_ASSERT(f_maybe_null(attr->pack_flag));
   return new (mem_root) Field_row(rec.ptr(), name);
+}
+
+
+Field *Type_handler_assoc_array::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  DBUG_ASSERT(attr->length == 0);
+  DBUG_ASSERT(f_maybe_null(attr->pack_flag));
+  return new (mem_root) Field_assoc_array(rec.ptr(), name);
 }
 
 
