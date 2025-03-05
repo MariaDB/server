@@ -68,6 +68,8 @@ SET @@collation_database=DEFAULT;
 SHOW CREATE DATABASE db1;
 Database	Create Database
 db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
+Warnings:
+Note	1105	Database 'db1' does not have a db.opt file. You can create one with ALTER DATABASE if needed
 USE db1;
 SELECT @@collation_database, 'taken from defaults' AS comment;
 @@collation_database	comment

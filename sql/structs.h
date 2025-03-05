@@ -1103,4 +1103,29 @@ public:
 };
 
 
+/*
+  A run-time address of an SP variable. Consists of:
+  - The rcontext type (LOCAL, PACKAGE BODY),
+    controlled by m_rcontext_handler
+  - The frame offset
+*/
+class sp_rcontext_addr
+{
+public:
+  sp_rcontext_addr(const class Sp_rcontext_handler *h, uint offset)
+   :m_rcontext_handler(h), m_offset(offset)
+  { }
+  const Sp_rcontext_handler *rcontext_handler() const
+  {
+    return m_rcontext_handler;
+  }
+  uint offset() const
+  {
+    return m_offset;
+  }
+protected:
+  const class Sp_rcontext_handler *m_rcontext_handler;
+  uint m_offset;               ///< Frame offset
+};
+
 #endif /* STRUCTS_INCLUDED */

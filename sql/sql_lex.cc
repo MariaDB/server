@@ -6697,6 +6697,21 @@ LEX::find_variable(const LEX_CSTRING *name,
 }
 
 
+sp_fetch_target *LEX::make_fetch_target(THD *thd, const Lex_ident_sys_st &name)
+{
+  sp_pcontext *spc;
+  const Sp_rcontext_handler *rha;
+  sp_variable *spv= find_variable(&name, &spc, &rha);
+  if (unlikely(!spv))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+    return nullptr;
+  }
+  return new (thd->mem_root) sp_fetch_target(name,
+                               sp_rcontext_addr(rha, spv->offset));
+}
+
+
 static bool is_new(const char *str)
 {
   return (str[0] == 'n' || str[0] == 'N') &&
@@ -7414,8 +7429,11 @@ bool LEX::sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &loop)
                                         spcont, loop.m_cursor_offset, false);
   if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
     return true;
-  instr->add_to_varlist(loop.m_index);
-  return false;
+  const sp_rcontext_addr raddr(&sp_rcontext_handler_local,
+                               loop.m_index->offset);
+  sp_fetch_target *trg=
+    new (thd->mem_root) sp_fetch_target(loop.m_index->name, raddr);
+  return !trg || instr->add_to_fetch_target_list(trg);
 }
 
 
@@ -9494,7 +9512,7 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
-bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
+sp_instr_cfetch *LEX::sp_add_instr_cfetch(THD *thd, const LEX_CSTRING *name)
 {
   uint offset;
   sp_instr_cfetch *i;
@@ -9502,14 +9520,14 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
   if (!spcont->find_cursor(name, &offset, false))
   {
     my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
-    return true;
+    return nullptr;
   }
   i= new (thd->mem_root)
     sp_instr_cfetch(sphead->instructions(), spcont, offset,
                     !(thd->variables.sql_mode & MODE_ORACLE));
   if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
-    return true;
-  return false;
+    return nullptr;
+  return i;
 }
 
 

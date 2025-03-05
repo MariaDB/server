@@ -1,0 +1,31 @@
+connection node_2;
+connection node_1;
+connection node_1;
+INSTALL PLUGIN IF NOT EXISTS connect SONAME 'ha_connect';
+CREATE TABLE t1 (f INT) ENGINE=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
+CREATE TABLE t2 (f INT) ENGINE=ROCKSDB;
+CREATE TABLE t3 (f INT) ENGINE=SEQUENCE;
+ERROR 42000: This version of MariaDB doesn't yet support 'non-InnoDB sequences in Galera cluster'
+show warnings;
+Level	Code	Message
+Error	1235	This version of MariaDB doesn't yet support 'non-InnoDB sequences in Galera cluster'
+Note	1235	ENGINE=SEQUENCE not supported by Galera
+connection node_2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+show create table t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
+connection node_1;
+DROP TABLE t1, t2;
+UNINSTALL PLUGIN IF EXISTS connect;

@@ -1475,9 +1475,9 @@ static void innodb_drop_database(handlerton*, char *path)
     trx->commit();
 
   if (table_stats)
-    dict_table_close(table_stats, true, thd, mdl_table);
+    dict_table_close(table_stats, thd, mdl_table);
   if (index_stats)
-    dict_table_close(index_stats, true, thd, mdl_index);
+    dict_table_close(index_stats, thd, mdl_index);
   row_mysql_unlock_data_dictionary(trx);
 
   trx->free();
@@ -1625,9 +1625,9 @@ inline void ha_innobase::reload_statistics()
   if (dict_table_t *table= m_prebuilt ? m_prebuilt->table : nullptr)
   {
     if (table->is_readable())
-      dict_stats_init(table);
+      statistics_init(table, true);
     else
-      table->stat_initialized= 1;
+      table->stat.fetch_or(dict_table_t::STATS_INITIALIZED);
   }
 }
 
@@ -1952,7 +1952,7 @@ static int innodb_check_version(handlerton *hton, const char *path,
   {
     const trx_id_t trx_id= table->def_trx_id;
     DBUG_ASSERT(trx_id <= create_id);
-    dict_table_close(table);
+    table->release();
     DBUG_PRINT("info", ("create_id: %llu  trx_id: %" PRIu64, create_id, trx_id));
     DBUG_RETURN(create_id != trx_id);
   }
@@ -2991,6 +2991,44 @@ static int innobase_rollback_by_xid(XID *xid) noexcept
   return XAER_NOTA;
 }
 
+/** Initialize the InnoDB persistent statistics attributes.
+@param table           InnoDB table
+@param table_options   MariaDB table options
+@param sar             the value of STATS_AUTO_RECALC
+@param initialized     whether the InnoDB statistics were already initialized
+@return whether table->stats_sample_pages needs to be initialized */
+static bool innodb_copy_stat_flags(dict_table_t *table,
+                                   ulong table_options,
+                                   enum_stats_auto_recalc sar,
+                                   bool initialized) noexcept
+{
+  if (table->is_temporary() || table->no_rollback())
+  {
+    table->stat= dict_table_t::STATS_INITIALIZED |
+      dict_table_t::STATS_PERSISTENT_OFF | dict_table_t::STATS_AUTO_RECALC_OFF;
+    table->stats_sample_pages= 1;
+    return false;
+  }
+
+  static_assert(HA_OPTION_STATS_PERSISTENT ==
+                dict_table_t::STATS_PERSISTENT_ON << 11, "");
+  static_assert(HA_OPTION_NO_STATS_PERSISTENT ==
+                dict_table_t::STATS_PERSISTENT_OFF << 11, "");
+  uint32_t stat=
+    (table_options &
+     (HA_OPTION_STATS_PERSISTENT | HA_OPTION_NO_STATS_PERSISTENT)) >> 11;
+  static_assert(uint32_t{HA_STATS_AUTO_RECALC_ON} << 3 ==
+                dict_table_t::STATS_AUTO_RECALC_ON, "");
+  static_assert(uint32_t{HA_STATS_AUTO_RECALC_OFF} << 3 ==
+                dict_table_t::STATS_AUTO_RECALC_OFF, "");
+  static_assert(true == dict_table_t::STATS_INITIALIZED, "");
+  stat|= (sar & (HA_STATS_AUTO_RECALC_ON | HA_STATS_AUTO_RECALC_OFF)) << 3 |
+    uint32_t(initialized);
+
+  table->stat= stat;
+  return true;
+}
+
 /*********************************************************************//**
 Copy table flags from MySQL's HA_CREATE_INFO into an InnoDB table object.
 Those flags are stored in .frm file and end up in the MySQL table object,
@@ -3003,29 +3041,9 @@ innobase_copy_frm_flags_from_create_info(
 	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
 	const HA_CREATE_INFO*	create_info)	/*!< in: create info */
 {
-	ibool	ps_on;
-	ibool	ps_off;
-
-	if (innodb_table->is_temporary()
-	    || innodb_table->no_rollback()) {
-		/* Temp tables do not use persistent stats. */
-		ps_on = FALSE;
-		ps_off = TRUE;
-	} else {
-		ps_on = create_info->table_options
-			& HA_OPTION_STATS_PERSISTENT;
-		ps_off = create_info->table_options
-			& HA_OPTION_NO_STATS_PERSISTENT;
-	}
-
-	dict_stats_set_persistent(innodb_table, ps_on, ps_off);
-
-	dict_stats_auto_recalc_set(
-		innodb_table,
-		create_info->stats_auto_recalc == HA_STATS_AUTO_RECALC_ON,
-		create_info->stats_auto_recalc == HA_STATS_AUTO_RECALC_OFF);
-
-	innodb_table->stats_sample_pages = create_info->stats_sample_pages;
+  if (innodb_copy_stat_flags(innodb_table, create_info->table_options,
+                             create_info->stats_auto_recalc, false))
+    innodb_table->stats_sample_pages= create_info->stats_sample_pages;
 }
 
 /*********************************************************************//**
@@ -3039,28 +3057,10 @@ innobase_copy_frm_flags_from_table_share(
 	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
 	const TABLE_SHARE*	table_share)	/*!< in: table share */
 {
-	ibool	ps_on;
-	ibool	ps_off;
-
-	if (innodb_table->is_temporary()) {
-		/* Temp tables do not use persistent stats */
-		ps_on = FALSE;
-		ps_off = TRUE;
-	} else {
-		ps_on = table_share->db_create_options
-			& HA_OPTION_STATS_PERSISTENT;
-		ps_off = table_share->db_create_options
-			& HA_OPTION_NO_STATS_PERSISTENT;
-	}
-
-	dict_stats_set_persistent(innodb_table, ps_on, ps_off);
-
-	dict_stats_auto_recalc_set(
-		innodb_table,
-		table_share->stats_auto_recalc == HA_STATS_AUTO_RECALC_ON,
-		table_share->stats_auto_recalc == HA_STATS_AUTO_RECALC_OFF);
-
-	innodb_table->stats_sample_pages = table_share->stats_sample_pages;
+  if (innodb_copy_stat_flags(innodb_table, table_share->db_create_options,
+                             table_share->stats_auto_recalc,
+                             innodb_table->stat_initialized()))
+    innodb_table->stats_sample_pages= table_share->stats_sample_pages;
 }
 
 /*********************************************************************//**
@@ -3300,7 +3300,7 @@ static bool innobase_query_caching_table_check(
 
 	bool allow = innobase_query_caching_table_check_low(table, trx);
 
-	dict_table_close(table);
+	table->release();
 
 	if (allow) {
 		/* If the isolation level is high, assign a read view for the
@@ -5820,6 +5820,70 @@ static void initialize_auto_increment(dict_table_t *table, const Field& field,
   }
 
   table->autoinc_mutex.wr_unlock();
+}
+
+dberr_t ha_innobase::statistics_init(dict_table_t *table, bool recalc)
+{
+  ut_ad(table->is_readable());
+  ut_ad(!table->stats_mutex_is_owner());
+
+  uint32_t stat= table->stat;
+  dberr_t err= DB_SUCCESS;
+
+  if (!recalc && dict_table_t::stat_initialized(stat));
+  else if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN)
+    dict_stats_empty_table(table);
+  else
+  {
+    if (dict_table_t::stats_is_persistent(stat) && !srv_read_only_mode
+#ifdef WITH_WSREP
+        && !wsrep_thd_skip_locking(m_user_thd)
+#endif
+    )
+    {
+      switch (dict_stats_persistent_storage_check(false)) {
+      case SCHEMA_OK:
+        if (recalc)
+        {
+        recalc:
+          err= dict_stats_update_persistent(table);
+          if (err == DB_SUCCESS)
+            err= dict_stats_save(table);
+        }
+        else
+        {
+          err= dict_stats_fetch_from_ps(table);
+          if (err == DB_STATS_DO_NOT_EXIST && table->stats_is_auto_recalc())
+            goto recalc;
+        }
+        if (err == DB_SUCCESS)
+          return err;
+        if (!recalc)
+          break;
+        /* fall through */
+      case SCHEMA_INVALID:
+        if (table->stats_error_printed)
+          break;
+        table->stats_error_printed = true;
+        if (opt_bootstrap)
+          break;
+        sql_print_warning("InnoDB: %s of persistent statistics requested"
+                          " for table %.*sQ.%sQ"
+                          " but the required persistent statistics storage"
+                          " is corrupted.",
+                          recalc ? "Recalculation" : "Fetch",
+                          int(table->name.dblen()), table->name.m_name,
+                          table->name.basename());
+        /* fall through */
+      case SCHEMA_NOT_EXIST:
+        err= DB_STATS_DO_NOT_EXIST;
+      }
+    }
+
+    dict_stats_update_transient(table);
+  }
+
+  return err;
 }
 
 /** Open an InnoDB table
@@ -13313,7 +13377,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
         as it is not needed and would report error due to the table
         not being readable yet. */
         if (!info.creating_stub())
-          dict_stats_update(info.table(), DICT_STATS_EMPTY_TABLE);
+          dict_stats_empty_table_and_save(info.table());
         if (!info.table()->is_temporary())
           log_write_up_to(trx->commit_lsn, true);
         info.table()->release();
@@ -13366,6 +13430,8 @@ ha_innobase::discard_or_import_tablespace(
 
 		DBUG_RETURN(HA_ERR_TABLE_NEEDS_UPGRADE);
 	}
+
+	ut_ad(m_prebuilt->table->stat_initialized());
 
 	if (m_prebuilt->table->space == fil_system.sys_space) {
 		ib_senderrf(
@@ -13440,23 +13506,17 @@ ha_innobase::discard_or_import_tablespace(
 				    err, m_prebuilt->table->flags, NULL));
 	}
 
-	if (dict_stats_is_persistent_enabled(m_prebuilt->table)) {
-		dberr_t		ret;
+	dict_table_t* t = m_prebuilt->table;
 
-		/* Adjust the persistent statistics. */
-		ret = dict_stats_update(m_prebuilt->table,
-					DICT_STATS_RECALC_PERSISTENT);
-
-		if (ret != DB_SUCCESS) {
-			push_warning_printf(
-				ha_thd(),
-				Sql_condition::WARN_LEVEL_WARN,
-				ER_ALTER_INFO,
-				"Error updating stats for table '%s'"
-				" after table rebuild: %s",
-				m_prebuilt->table->name.m_name,
-				ut_strerr(ret));
-		}
+	if (dberr_t ret = dict_stats_update_persistent_try(t)) {
+		push_warning_printf(
+			ha_thd(),
+			Sql_condition::WARN_LEVEL_WARN,
+			ER_ALTER_INFO,
+			"Error updating stats after"
+			" ALTER TABLE %.*sQ.%sQ IMPORT TABLESPACE: %s",
+			int(t->name.dblen()), t->name.m_name,
+			t->name.basename(), ut_strerr(ret));
 	}
 
 	DBUG_RETURN(0);
@@ -13627,7 +13687,7 @@ int ha_innobase::delete_table(const char *name)
     /* This looks like the rollback of ALTER TABLE...ADD PARTITION
     that was caused by MDL timeout. We could have written undo log
     for inserting the data into the new partitions. */
-    if (table->stat_persistent != DICT_STATS_PERSISTENT_OFF)
+    if (!(table->stat & dict_table_t::STATS_PERSISTENT_OFF))
     {
       /* We do not really know if we are holding MDL_EXCLUSIVE. Even
       though this code is handling the case that we are not holding
@@ -13642,7 +13702,7 @@ int ha_innobase::delete_table(const char *name)
 
   DEBUG_SYNC(thd, "before_delete_table_stats");
 
-  if (err == DB_SUCCESS && dict_stats_is_persistent_enabled(table) &&
+  if (err == DB_SUCCESS && table->stats_is_persistent() &&
       !table->is_stats_table())
   {
     table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
@@ -13680,8 +13740,8 @@ int ha_innobase::delete_table(const char *name)
       ut_ad(err == DB_LOCK_WAIT);
       ut_ad(trx->error_state == DB_SUCCESS);
       err= DB_SUCCESS;
-      dict_table_close(table_stats, false, thd, mdl_table);
-      dict_table_close(index_stats, false, thd, mdl_index);
+      dict_table_close(table_stats, thd, mdl_table);
+      dict_table_close(index_stats, thd, mdl_index);
       table_stats= nullptr;
       index_stats= nullptr;
     }
@@ -13755,9 +13815,9 @@ err_exit:
       purge_sys.resume_FTS();
 #endif
     if (table_stats)
-      dict_table_close(table_stats, true, thd, mdl_table);
+      dict_table_close(table_stats, thd, mdl_table);
     if (index_stats)
-      dict_table_close(index_stats, true, thd, mdl_index);
+      dict_table_close(index_stats, thd, mdl_index);
     row_mysql_unlock_data_dictionary(trx);
     if (trx != parent_trx)
       trx->free();
@@ -13787,9 +13847,9 @@ err_exit:
   std::vector<pfs_os_file_t> deleted;
   trx->commit(deleted);
   if (table_stats)
-    dict_table_close(table_stats, true, thd, mdl_table);
+    dict_table_close(table_stats, thd, mdl_table);
   if (index_stats)
-    dict_table_close(index_stats, true, thd, mdl_index);
+    dict_table_close(index_stats, thd, mdl_index);
   row_mysql_unlock_data_dictionary(trx);
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
@@ -14005,18 +14065,21 @@ int ha_innobase::truncate()
     error= fts_lock_tables(trx, *ib_table);
   }
 
-  /* Wait for purge threads to stop using the table. */
-  for (uint n = 15; ib_table->get_ref_count() > 1; )
+  if (error == DB_SUCCESS)
   {
-    if (!--n)
+    /* Wait for purge threads to stop using the table. */
+    for (uint n = 15; ib_table->get_ref_count() > 1; )
     {
-      error= DB_LOCK_WAIT_TIMEOUT;
-      break;
+      if (!--n)
+      {
+        error= DB_LOCK_WAIT_TIMEOUT;
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
-  if (error == DB_SUCCESS && dict_stats_is_persistent_enabled(ib_table) &&
+  if (error == DB_SUCCESS && ib_table->stats_is_persistent() &&
       !ib_table->is_stats_table())
   {
     table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
@@ -14106,7 +14169,7 @@ int ha_innobase::truncate()
 
   if (!err)
   {
-    dict_stats_update(m_prebuilt->table, DICT_STATS_EMPTY_TABLE);
+    dict_stats_empty_table_and_save(m_prebuilt->table);
     log_write_up_to(trx->commit_lsn, true);
     row_prebuilt_t *prebuilt= m_prebuilt;
     uchar *upd_buf= m_upd_buf;
@@ -14138,11 +14201,47 @@ int ha_innobase::truncate()
   mem_heap_free(heap);
 
   if (table_stats)
-    dict_table_close(table_stats, false, m_user_thd, mdl_table);
+    dict_table_close(table_stats, m_user_thd, mdl_table);
   if (index_stats)
-    dict_table_close(index_stats, false, m_user_thd, mdl_index);
+    dict_table_close(index_stats, m_user_thd, mdl_index);
 
   DBUG_RETURN(err);
+}
+
+/** Deinitialize InnoDB persistent statistics, forcing them
+to be reloaded on subsequent ha_innobase::open().
+@param t  table for which the cached STATS_PERSISTENT are to be evicted */
+static void stats_deinit(dict_table_t *t) noexcept
+{
+  ut_ad(dict_sys.frozen());
+  ut_ad(t->get_ref_count() == 0);
+
+  if (t->is_temporary() || t->no_rollback())
+    return;
+
+  t->stats_mutex_lock();
+  t->stat= t->stat & ~dict_table_t::STATS_INITIALIZED;
+  MEM_UNDEFINED(&t->stat_n_rows, sizeof t->stat_n_rows);
+  MEM_UNDEFINED(&t->stat_clustered_index_size,
+                sizeof t->stat_clustered_index_size);
+  MEM_UNDEFINED(&t->stat_sum_of_other_index_sizes,
+                sizeof t->stat_sum_of_other_index_sizes);
+  MEM_UNDEFINED(&t->stat_modified_counter, sizeof t->stat_modified_counter);
+#ifdef HAVE_valgrind
+  for (dict_index_t *i= dict_table_get_first_index(t); i;
+       i= dict_table_get_next_index(i))
+  {
+    MEM_UNDEFINED(i->stat_n_diff_key_vals,
+                  i->n_uniq * sizeof *i->stat_n_diff_key_vals);
+    MEM_UNDEFINED(i->stat_n_sample_sizes,
+                  i->n_uniq * sizeof *i->stat_n_sample_sizes);
+    MEM_UNDEFINED(i->stat_n_non_null_key_vals,
+                  i->n_uniq * sizeof *i->stat_n_non_null_key_vals);
+    MEM_UNDEFINED(&i->stat_index_size, sizeof i->stat_index_size);
+    MEM_UNDEFINED(&i->stat_n_leaf_pages, sizeof i->stat_n_leaf_pages);
+  }
+#endif /* HAVE_valgrind */
+  t->stats_mutex_unlock();
 }
 
 /*********************************************************************//**
@@ -14178,15 +14277,20 @@ ha_innobase::rename_table(
 	dberr_t error = DB_SUCCESS;
 	const bool from_temp = dict_table_t::is_temporary_name(norm_from);
 
+	dict_table_t* t;
+
 	if (from_temp) {
 		/* There is no need to lock any FOREIGN KEY child tables. */
-	} else if (dict_table_t *table = dict_table_open_on_name(
-		    norm_from, false, DICT_ERR_IGNORE_FK_NOKEY)) {
-		error = lock_table_children(table, trx);
-		if (error == DB_SUCCESS) {
-			error = lock_table_for_trx(table, trx, LOCK_X);
+		t = nullptr;
+	} else {
+		t = dict_table_open_on_name(
+			norm_from, false, DICT_ERR_IGNORE_FK_NOKEY);
+		if (t) {
+			error = lock_table_children(t, trx);
+			if (error == DB_SUCCESS) {
+				error = lock_table_for_trx(t, trx, LOCK_X);
+			}
 		}
-		table->release();
 	}
 
 	if (strcmp(norm_from, TABLE_STATS_NAME)
@@ -14227,10 +14331,8 @@ ha_innobase::rename_table(
 				we cannot lock the tables, when the
 				table is being renamed from from a
 				temporary name. */
-				dict_table_close(table_stats, false, thd,
-						 mdl_table);
-				dict_table_close(index_stats, false, thd,
-						 mdl_index);
+				dict_table_close(table_stats, thd, mdl_table);
+				dict_table_close(index_stats, thd, mdl_index);
 				table_stats = nullptr;
 				index_stats = nullptr;
 			}
@@ -14272,16 +14374,27 @@ ha_innobase::rename_table(
 
 	if (error == DB_SUCCESS) {
 		trx->flush_log_later = true;
+		if (t) {
+			ut_ad(dict_sys.frozen());
+			if (UNIV_LIKELY(t->release())) {
+				stats_deinit(t);
+			} else {
+				ut_ad("unexpected references" == 0);
+			}
+		}
 		innobase_commit_low(trx);
 	} else {
+		if (t) {
+			t->release();
+		}
 		trx->rollback();
 	}
 
 	if (table_stats) {
-		dict_table_close(table_stats, true, thd, mdl_table);
+		dict_table_close(table_stats, thd, mdl_table);
 	}
 	if (index_stats) {
-		dict_table_close(index_stats, true, thd, mdl_index);
+		dict_table_close(index_stats, thd, mdl_index);
 	}
 	row_mysql_unlock_data_dictionary(trx);
 	if (error == DB_SUCCESS) {
@@ -14295,10 +14408,10 @@ ha_innobase::rename_table(
 		during DDL operations, because the duplicate key would
 		exist in metadata tables, not in the user table. */
 		my_error(ER_TABLE_EXISTS_ERROR, MYF(0), to);
-		error = DB_ERROR;
+		DBUG_RETURN(HA_ERR_GENERIC);
 	} else if (error == DB_LOCK_WAIT_TIMEOUT) {
 		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
-		error = DB_LOCK_WAIT;
+		DBUG_RETURN(HA_ERR_GENERIC);
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
@@ -14514,7 +14627,7 @@ ha_innobase::scan_time()
 
 	ulint	stat_clustered_index_size;
         IO_AND_CPU_COST cost;
-	ut_a(m_prebuilt->table->stat_initialized);
+	ut_ad(m_prebuilt->table->stat_initialized());
 
 	stat_clustered_index_size =
 		m_prebuilt->table->stat_clustered_index_size;
@@ -14670,7 +14783,7 @@ innodb_rec_per_key(
 	rec_per_key_t	rec_per_key;
 	ib_uint64_t	n_diff;
 
-	ut_a(index->table->stat_initialized);
+	ut_ad(index->table->stat_initialized());
 
 	ut_ad(i < dict_index_get_n_unique(index));
 	ut_ad(!dict_index_is_spatial(index));
@@ -14808,57 +14921,75 @@ ha_innobase::info_low(
 	ib_table = m_prebuilt->table;
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
-	if (!ib_table->is_readable()) {
+	if (!ib_table->is_readable()
+	    || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		dict_stats_empty_table(ib_table);
-	}
+        } else if (flag & HA_STATUS_TIME) {
+		stats.update_time = ib_table->update_time;
+		if (!is_analyze && !innobase_stats_on_metadata) {
+			goto stats_fetch;
+		}
 
-	if (flag & HA_STATUS_TIME) {
-		if (is_analyze || innobase_stats_on_metadata) {
+		dberr_t ret;
+		m_prebuilt->trx->op_info = "updating table statistics";
 
-			dict_stats_upd_option_t	opt;
-			dberr_t			ret;
-
-			m_prebuilt->trx->op_info = "updating table statistics";
-
-			if (dict_stats_is_persistent_enabled(ib_table)) {
-				if (is_analyze) {
-					if (!srv_read_only_mode) {
-						dict_stats_recalc_pool_del(
-							ib_table->id, false);
-					}
-					opt = DICT_STATS_RECALC_PERSISTENT;
-				} else {
-					/* This is e.g. 'SHOW INDEXES', fetch
-					the persistent stats from disk. */
-					opt = DICT_STATS_FETCH_ONLY_IF_NOT_IN_MEMORY;
-				}
+		if (ib_table->stats_is_persistent()
+		    && !srv_read_only_mode
+		    && dict_stats_persistent_storage_check(false)
+		    == SCHEMA_OK) {
+			if (is_analyze) {
+				dict_stats_recalc_pool_del(ib_table->id,
+							   false);
+recalc:
+				ret = statistics_init(ib_table, is_analyze);
 			} else {
-				opt = DICT_STATS_RECALC_TRANSIENT;
+				/* This is e.g. 'SHOW INDEXES' */
+				ret = statistics_init(ib_table, is_analyze);
+				switch (ret) {
+				case DB_SUCCESS:
+					break;
+				default:
+					goto error;
+				case DB_STATS_DO_NOT_EXIST:
+					if (!ib_table
+					    ->stats_is_auto_recalc()) {
+						break;
+					}
+
+					if (opt_bootstrap) {
+						break;
+					}
+#ifdef WITH_WSREP
+					if (wsrep_thd_skip_locking(
+						    m_user_thd)) {
+						break;
+					}
+#endif
+					is_analyze = true;
+					goto recalc;
+				}
 			}
-
-			ret = dict_stats_update(ib_table, opt);
-
+		} else {
+			ret = dict_stats_update_transient(ib_table);
 			if (ret != DB_SUCCESS) {
+error:
 				m_prebuilt->trx->op_info = "";
 				DBUG_RETURN(HA_ERR_GENERIC);
 			}
-
-			m_prebuilt->trx->op_info =
-				"returning various info to MariaDB";
 		}
 
-
-		stats.update_time = (ulong) ib_table->update_time;
+		m_prebuilt->trx->op_info = "returning various info to MariaDB";
+	} else {
+stats_fetch:
+		statistics_init(ib_table, false);
 	}
-
-	dict_stats_init(ib_table);
 
 	if (flag & HA_STATUS_VARIABLE) {
 
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		ut_a(ib_table->stat_initialized);
+		ut_ad(ib_table->stat_initialized());
 
 #if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
 		if (xbegin()) {
@@ -15012,7 +15143,7 @@ ha_innobase::info_low(
 		auto _ = make_scope_exit([ib_table]() {
 			ib_table->stats_shared_unlock(); });
 
-		ut_a(ib_table->stat_initialized);
+		ut_ad(ib_table->stat_initialized());
 
 		for (uint i = 0; i < table->s->keys; i++) {
 			ulong	j;
@@ -15629,7 +15760,7 @@ get_foreign_key_info(
 					<< foreign->foreign_table_name;
  			}
 		} else {
-			dict_table_close(ref_table, true);
+			ref_table->release();
 		}
 	}
 
@@ -15860,8 +15991,7 @@ ha_innobase::extra(
 			/* During copy alter operation, InnoDB
 			updates the stats only for non-persistent
 			tables. */
-			if (!dict_stats_is_persistent_enabled(
-					m_prebuilt->table)) {
+			if (!m_prebuilt->table->stats_is_persistent()) {
 				dict_stats_update_if_needed(
 					m_prebuilt->table, *trx);
 			}
@@ -17591,7 +17721,7 @@ static int innodb_ft_aux_table_validate(THD *thd, st_mysql_sys_var*,
 			    table_name, false, DICT_ERR_IGNORE_NONE)) {
 			const table_id_t id = dict_table_has_fts_index(table)
 				? table->id : 0;
-			dict_table_close(table);
+			table->release();
 			if (id) {
 				innodb_ft_aux_table_id = id;
 				if (table_name == buf) {
@@ -18624,7 +18754,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                     " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
-    switch (log_sys.resize_start(*static_cast<const ulonglong*>(save))) {
+    switch (log_sys.resize_start(*static_cast<const ulonglong*>(save), thd)) {
     case log_t::RESIZE_NO_CHANGE:
       break;
     case log_t::RESIZE_IN_PROGRESS:
@@ -18636,12 +18766,11 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
       ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_CANT_CREATE_HANDLER_FILE);
       break;
     case log_t::RESIZE_STARTED:
-      const lsn_t start{log_sys.resize_in_progress()};
       for (timespec abstime;;)
       {
         if (thd_kill_level(thd))
         {
-          log_sys.resize_abort();
+          log_sys.resize_abort(thd);
           break;
         }
 
@@ -18656,13 +18785,15 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
           resizing= log_sys.resize_in_progress();
         }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        if (start > log_sys.get_lsn())
+        if (!resizing || !log_sys.resize_running(thd))
+          break;
+        if (resizing > log_sys.get_lsn())
         {
           ut_ad(!log_sys.is_mmap());
           /* The server is almost idle. Write dummy FILE_CHECKPOINT records
           to ensure that the log resizing will complete. */
           log_sys.latch.wr_lock(SRW_LOCK_CALL);
-          while (start > log_sys.get_lsn())
+          while (resizing > log_sys.get_lsn())
           {
             mtr_t mtr;
             mtr.start();
@@ -18670,8 +18801,6 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
           }
           log_sys.latch.wr_unlock();
         }
-        if (!resizing || resizing > start /* only wait for our resize */)
-          break;
       }
     }
   }
@@ -19193,12 +19322,12 @@ static MYSQL_SYSVAR_BOOL(stats_on_metadata, innobase_stats_on_metadata,
   " SHOW TABLE STATUS for tables that use transient statistics (off by default)",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_ULONGLONG(stats_transient_sample_pages,
+static MYSQL_SYSVAR_UINT(stats_transient_sample_pages,
   srv_stats_transient_sample_pages,
   PLUGIN_VAR_RQCMDARG,
   "The number of leaf index pages to sample when calculating transient"
   " statistics (if persistent statistics are not used, default 8)",
-  NULL, NULL, 8, 1, ~0ULL, 0);
+  NULL, NULL, 8, 1, ~0U, 0);
 
 static MYSQL_SYSVAR_BOOL(stats_persistent, srv_stats_persistent,
   PLUGIN_VAR_OPCMDARG,
@@ -19214,12 +19343,12 @@ static MYSQL_SYSVAR_BOOL(stats_auto_recalc, srv_stats_auto_recalc,
   " new statistics)",
   NULL, NULL, TRUE);
 
-static MYSQL_SYSVAR_ULONGLONG(stats_persistent_sample_pages,
+static MYSQL_SYSVAR_UINT(stats_persistent_sample_pages,
   srv_stats_persistent_sample_pages,
   PLUGIN_VAR_RQCMDARG,
   "The number of leaf index pages to sample when calculating persistent"
   " statistics (by ANALYZE, default 20)",
-  NULL, NULL, 20, 1, ~0ULL, 0);
+  NULL, NULL, 20, 1, ~0U, 0);
 
 static MYSQL_SYSVAR_ULONGLONG(stats_modified_counter, srv_stats_modified_counter,
   PLUGIN_VAR_RQCMDARG,

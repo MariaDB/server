@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create database test2;
 RESET MASTER;
 
@@ -15,7 +16,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -27,7 +28,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -41,7 +42,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -54,7 +55,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -68,7 +69,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -82,7 +83,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -98,7 +99,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -116,7 +117,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -130,7 +131,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
@@ -146,7 +147,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -160,7 +161,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_copy
@@ -172,7 +173,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
@@ -185,7 +186,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
@@ -217,7 +218,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -231,7 +232,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_copy
@@ -243,7 +244,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
@@ -256,7 +257,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
@@ -288,7 +289,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -300,7 +301,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -314,7 +315,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -327,7 +328,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -341,7 +342,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -355,7 +356,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -371,7 +372,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -385,7 +386,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -399,7 +400,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -413,7 +414,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -427,7 +428,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
@@ -472,7 +473,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -484,7 +485,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -498,7 +499,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -511,7 +512,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -525,7 +526,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -539,7 +540,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -555,7 +556,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -573,7 +574,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -587,7 +588,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
@@ -621,7 +622,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_rename_triggers
@@ -633,7 +634,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_delete_backup
@@ -652,7 +653,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -666,7 +667,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_copy
@@ -678,7 +679,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -691,7 +692,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -712,7 +713,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -725,7 +726,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
@@ -745,7 +746,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -759,7 +760,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_copy
@@ -771,7 +772,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -784,7 +785,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -805,7 +806,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -818,7 +819,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
@@ -838,7 +839,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -850,7 +851,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -864,7 +865,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -876,7 +877,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
@@ -889,7 +890,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
@@ -902,7 +903,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
@@ -917,7 +918,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
@@ -934,7 +935,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
@@ -947,7 +948,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
@@ -963,7 +964,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -975,7 +976,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -989,7 +990,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1001,7 +1002,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
@@ -1014,7 +1015,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
@@ -1027,7 +1028,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
@@ -1042,7 +1043,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
@@ -1059,7 +1060,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
@@ -1072,7 +1073,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
   KEY `a` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
@@ -1088,7 +1089,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1100,7 +1101,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1114,7 +1115,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1127,7 +1128,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
@@ -1141,7 +1142,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
@@ -1155,7 +1156,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
@@ -1171,7 +1172,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
@@ -1185,7 +1186,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
@@ -1199,7 +1200,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
@@ -1213,7 +1214,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
@@ -1227,7 +1228,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
@@ -1243,7 +1244,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1255,7 +1256,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1269,7 +1270,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1283,7 +1284,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1298,7 +1299,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1313,7 +1314,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1330,7 +1331,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1345,7 +1346,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1360,7 +1361,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1375,7 +1376,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1390,7 +1391,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
@@ -1406,7 +1407,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1420,7 +1421,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_copy
@@ -1432,7 +1433,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1445,7 +1446,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1467,7 +1468,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1481,7 +1482,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
@@ -1501,7 +1502,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1513,7 +1514,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1527,7 +1528,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1540,7 +1541,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1554,7 +1555,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1568,7 +1569,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1584,7 +1585,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1602,7 +1603,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1616,7 +1617,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
@@ -1632,7 +1633,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1644,7 +1645,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1658,7 +1659,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1669,7 +1670,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
@@ -1681,7 +1682,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
@@ -1693,7 +1694,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
@@ -1707,7 +1708,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
@@ -1723,7 +1724,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
@@ -1735,7 +1736,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
@@ -1751,7 +1752,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1763,7 +1764,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1777,7 +1778,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1793,7 +1794,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
@@ -1810,7 +1811,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
@@ -1827,7 +1828,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
@@ -1846,7 +1847,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
@@ -1867,7 +1868,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
@@ -1884,7 +1885,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
@@ -1900,7 +1901,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -1912,7 +1913,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -1926,7 +1927,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -1942,7 +1943,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
@@ -1959,7 +1960,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
@@ -1976,7 +1977,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
@@ -1995,7 +1996,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
@@ -2012,7 +2013,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
@@ -2029,7 +2030,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
@@ -2046,7 +2047,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
@@ -2063,7 +2064,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
@@ -2079,7 +2080,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -2091,7 +2092,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -2105,7 +2106,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -2121,7 +2122,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=myisam
@@ -2138,7 +2139,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=myisam
@@ -2155,7 +2156,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=myisam
@@ -2174,7 +2175,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=myisam
@@ -2195,7 +2196,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=myisam
@@ -2212,7 +2213,7 @@ t1	CREATE TABLE `t1` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=myisam
@@ -2228,7 +2229,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -2240,7 +2241,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -2254,7 +2255,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -2270,7 +2271,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=myisam
@@ -2287,7 +2288,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=myisam
@@ -2304,7 +2305,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=myisam
@@ -2323,7 +2324,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=myisam
@@ -2340,7 +2341,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=myisam
@@ -2357,7 +2358,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=myisam
@@ -2374,7 +2375,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=myisam
@@ -2391,7 +2392,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=myisam
@@ -2407,7 +2408,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
@@ -2419,7 +2420,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
@@ -2433,7 +2434,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 crash point: ddl_log_alter_after_log
@@ -2450,7 +2451,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
@@ -2468,7 +2469,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
@@ -2486,7 +2487,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
@@ -2506,7 +2507,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
@@ -2524,7 +2525,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
@@ -2542,7 +2543,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
@@ -2560,7 +2561,7 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
@@ -2578,7 +2579,8 @@ t2	CREATE TABLE `t2` (
   `v` vector(5) NOT NULL,
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

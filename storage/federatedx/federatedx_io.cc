@@ -47,6 +47,7 @@ struct io_schemes_st
 static const io_schemes_st federated_io_schemes[] =
 {
   { "mysql", &instantiate_io_mysql },
+  { "mariadb", &instantiate_io_mysql },
   { "null", instantiate_io_null } /* must be last element */
 };
 

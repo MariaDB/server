@@ -3868,8 +3868,10 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
                                         spcont, coffset, false);
   if (instr_cfetch == NULL || add_instr(instr_cfetch))
     return true;
-  instr_cfetch->add_to_varlist(index);
-  return false;
+  const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
+  sp_fetch_target *target=
+    new (thd->mem_root) sp_fetch_target(index->name, raddr);
+  return !target || instr_cfetch->add_to_fetch_target_list(target);
 }
 
 

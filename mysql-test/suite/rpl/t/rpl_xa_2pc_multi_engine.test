@@ -1,0 +1,63 @@
+#
+# This test ensures binlog order is correct for multi-engine, two-phase XA
+# transactions. MDEV-26652 exposed a race condition which would allow
+# concurrent transactions which modify the same table record to binlog in
+# the "opposite" order, i.e. what _should_ be:
+#   T1 XA PREPARE
+#   T1 XA COMMIT
+#   T2
+#
+# was binlogged as
+#   T1 XA PREPARE
+#   T2
+#   T1 XA COMMIT
+#
+# which would break replication.
+#
+# Note that the actual fix for this issue was done with MDEV-21117.
+#
+# References:
+#   MDEV-26652: xa transactions binlogged in wrong order
+#   MDEV-21117: refine the server binlog-based recovery for semisync
+#
+source include/have_binlog_format_row.inc;
+source include/have_innodb.inc;
+source include/master-slave.inc;
+
+--connection master
+create table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1,1),(3,3),(5,5),(7,7);
+create table t2 (m int) engine=aria;
+
+
+--echo # Create multi-engine, two-phase XA transaction (T1)
+xa start '1';
+insert t2 values (1);
+update t1 set b=50 where b=5;
+xa end '1';
+
+# Aria doesn't support XA PREPARE, so disable warnings
+--disable_warnings
+xa prepare '1';
+--enable_warnings
+
+--echo # Create T2
+--connection server_1
+--send update t1 set b=10 where a=5
+
+--connection master
+xa commit '1';
+
+--connection server_1
+--reap
+--source include/save_master_gtid.inc
+
+--echo # This would hang prior to MDEV-21117
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+drop table t1, t2;
+
+--source include/rpl_end.inc
+--echo # End of rpl_xa_2pc_multi_engine.test

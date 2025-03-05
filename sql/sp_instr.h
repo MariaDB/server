@@ -591,7 +591,8 @@ public:
 }; // class sp_instr_stmt : public sp_lex_instr
 
 
-class sp_instr_set : public sp_lex_instr
+class sp_instr_set : public sp_lex_instr,
+                     public sp_rcontext_addr
 {
   sp_instr_set(const sp_instr_set &);	/**< Prevent use of these */
   void operator=(sp_instr_set &);
@@ -603,8 +604,7 @@ public:
                LEX *lex, bool lex_resp,
 	       const LEX_CSTRING &expr_str)
     : sp_lex_instr(ip, ctx, lex, lex_resp),
-      m_rcontext_handler(rh),
-      m_offset(offset),
+      sp_rcontext_addr(rh, offset),
       m_value(val),
       m_expr_str(expr_str)
   {}
@@ -651,8 +651,6 @@ protected:
   }
 
   sp_rcontext *get_rcontext(THD *thd) const;
-  const Sp_rcontext_handler *m_rcontext_handler;
-  uint m_offset;		///< Frame offset
   Item *m_value;
 
 private:
@@ -1515,7 +1513,7 @@ public:
       m_cursor(c),
       m_error_on_no_data(error_on_no_data)
   {
-    m_varlist.empty();
+    m_fetch_target_list.empty();
   }
 
   virtual ~sp_instr_cfetch() = default;
@@ -1524,14 +1522,19 @@ public:
 
   void print(String *str) override;
 
-  void add_to_varlist(sp_variable *var)
+  bool add_to_fetch_target_list(sp_fetch_target *target)
   {
-    m_varlist.push_back(var);
+    return m_fetch_target_list.push_back(target);
+  }
+
+  void set_fetch_target_list(List<sp_fetch_target> *list)
+  {
+    m_fetch_target_list= *list;
   }
 
 private:
   uint m_cursor;
-  List<sp_variable> m_varlist;
+  List<sp_fetch_target> m_fetch_target_list;
   bool m_error_on_no_data;
 
 public:

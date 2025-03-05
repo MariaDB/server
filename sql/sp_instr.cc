@@ -1985,7 +1985,7 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
   Query_arena backup_arena;
   DBUG_ENTER("sp_instr_cfetch::execute");
 
-  res= c ? c->fetch(thd, &m_varlist, m_error_on_no_data) : -1;
+  res= c ? c->fetch(thd, &m_fetch_target_list, m_error_on_no_data) : -1;
 
   *nextp= m_ip+1;
   DBUG_RETURN(res);
@@ -1995,8 +1995,8 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
 void
 sp_instr_cfetch::print(String *str)
 {
-  List_iterator_fast<sp_variable> li(m_varlist);
-  sp_variable *pv;
+  List_iterator_fast<sp_fetch_target> li(m_fetch_target_list);
+  sp_fetch_target *pv;
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cfetch name@offset vars... */
@@ -2015,12 +2015,14 @@ sp_instr_cfetch::print(String *str)
   str->qs_append(m_cursor);
   while ((pv= li++))
   {
-    if (str->reserve(pv->name.length+SP_INSTR_UINT_MAXLEN+2))
+    const LEX_CSTRING *prefix= pv->rcontext_handler()->get_name_prefix();
+    if (str->reserve(pv->name.length+prefix->length+SP_INSTR_UINT_MAXLEN+2))
       return;
     str->qs_append(' ');
+    str->qs_append(prefix);
     str->qs_append(&pv->name);
     str->qs_append('@');
-    str->qs_append(pv->offset);
+    str->qs_append(pv->offset());
   }
 }
 
