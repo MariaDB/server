@@ -1840,7 +1840,7 @@ disjoint
 #
 select ST_IsRing(NULL);
 ST_IsRing(NULL)
--1
+NULL
 #
 # MDEV-8675 Different results of GIS functions on NULL vs NOT NULL columns
 #
@@ -4398,7 +4398,7 @@ ST_NUMPOINTS(POINT(1,1)),
 ST_SRID(POINT(1,1));
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					ST_ISSIMPLE(POINT(1,1))	3	2	1	Y	32896	0	63
-def					ST_ISRING(POINT(1,1))	3	2	2	Y	32896	0	63
+def					ST_ISRING(POINT(1,1))	3	2	1	Y	32896	0	63
 def					ST_ISCLOSED(POINT(1,1))	3	2	2	Y	32896	0	63
 def					ST_DIMENSION(POINT(1,1))	3	10	1	Y	32896	0	63
 def					ST_NUMGEOMETRIES(POINT(1,1))	3	10	0	Y	32896	0	63
@@ -4406,7 +4406,7 @@ def					ST_NUMINTERIORRINGS(POINT(1,1))	3	10	0	Y	32896	0	63
 def					ST_NUMPOINTS(POINT(1,1))	3	10	0	Y	32896	0	63
 def					ST_SRID(POINT(1,1))	3	10	1	Y	32896	0	63
 ST_ISSIMPLE(POINT(1,1))	ST_ISRING(POINT(1,1))	ST_ISCLOSED(POINT(1,1))	ST_DIMENSION(POINT(1,1))	ST_NUMGEOMETRIES(POINT(1,1))	ST_NUMINTERIORRINGS(POINT(1,1))	ST_NUMPOINTS(POINT(1,1))	ST_SRID(POINT(1,1))
-1	-1	-1	0	NULL	NULL	NULL	0
+1	0	-1	0	NULL	NULL	NULL	0
 #
 # MDEV-12803 Improve function parameter data type control
 #
