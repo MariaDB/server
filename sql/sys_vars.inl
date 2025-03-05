@@ -755,18 +755,24 @@ protected:
 };
 
 class Master_info;
+
 class Sys_var_rpl_filter: public sys_var
 {
 private:
-  int opt_id;
+  void (Rpl_filter::*get_filter_value)(String *str);
+  int  (Rpl_filter::*set_filter_value)(const char *spec);
   privilege_t m_access_global;
 
 public:
-  Sys_var_rpl_filter(const char *name, int getopt_id, const char *comment,
+  Sys_var_rpl_filter(const char *name,
+                     decltype(get_filter_value) get_filter_value,
+                     decltype(set_filter_value) set_filter_value,
+                     const char *comment,
                      privilege_t access_global)
     : sys_var(&all_sys_vars, name, comment, sys_var::GLOBAL, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
-              NULL, NULL, NULL), opt_id(getopt_id),
+              NULL, NULL, NULL),
+      get_filter_value(get_filter_value), set_filter_value(set_filter_value),
       m_access_global(access_global)
   {
     option.var_type|= GET_STR | GET_ASK_ADDR;
@@ -802,21 +808,22 @@ public:
 protected:
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
     const override;
-  bool set_filter_value(const char *value, Master_info *mi);
 };
 
 class Sys_var_binlog_filter: public sys_var
 {
 private:
-  int opt_id;
+  void (Rpl_filter::*get_filter_value)(String *str);
   privilege_t m_access_global;
 
 public:
-  Sys_var_binlog_filter(const char *name, int getopt_id, const char *comment,
-                     privilege_t access_global)
+  Sys_var_binlog_filter(const char *name,
+                        decltype(get_filter_value) get_filter_value,
+                        const char *comment,
+                        privilege_t access_global)
     : sys_var(&all_sys_vars, name, comment, sys_var::READONLY+sys_var::GLOBAL, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
-              NULL, NULL, NULL), opt_id(getopt_id),
+              NULL, NULL, NULL), get_filter_value(get_filter_value),
       m_access_global(access_global)
   {
     option.var_type|= GET_STR;
