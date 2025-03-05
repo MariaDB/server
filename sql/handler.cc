@@ -682,6 +682,8 @@ int ha_initialize_handlerton(void *plugin_)
 
   DBUG_EXECUTE_IF("unstable_db_type", {
                     static int i= (int) DB_TYPE_FIRST_DYNAMIC;
+                    while (installed_htons[i])
+                      i++;
                     hton->db_type= (enum legacy_db_type)++i;
                   });
 
@@ -2292,7 +2294,7 @@ int ha_rollback_trans(THD *thd, bool all)
                      "conf %d wsrep_err %s SQL %s",
                      thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
                      wsrep::to_c_string(thd->wsrep_cs().current_error()),
-                     thd->query());
+                     wsrep_thd_query(thd));
         }
 #endif /* WITH_WSREP */
       }
@@ -2308,7 +2310,7 @@ int ha_rollback_trans(THD *thd, bool all)
   if (WSREP(thd) && thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: msg %s is_real %d wsrep_err %s",
-                thd->thread_id, all? "TRUE" : "FALSE",
+                thd->thread_id, all ? "TRUE" : "FALSE",
                 thd->get_stmt_da()->message(), is_real_trans,
                 wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
