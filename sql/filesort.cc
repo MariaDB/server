@@ -649,7 +649,7 @@ static char dbug_row_print_buf[4096];
   Only columns in table->read_set are printed
 */
 
-const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
+String dbug_format_row(TABLE *table, const uchar *rec, bool print_names)
 {
   Field **pfield;
   char row_buff_tmp[512];
@@ -717,13 +717,25 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
       output.append(tmp.ptr(), tmp.length());
     }
   }
-  output.append(")");
-  if (output.c_ptr() == dbug_row_print_buf)
-    return dbug_row_print_buf;
-  else
-    return "Couldn't fit into buffer";
+  output.append(')');
+
+  return output;
 }
 
+/**
+  A function to display a row in debugger.
+
+  Example usage:
+  (gdb) p dbug_print_row(table, table->record[1])
+*/
+const char *dbug_print_row(TABLE *table, const uchar *rec)
+{
+  String row= dbug_format_row(table, table->record[0]);
+  if (row.length() > sizeof dbug_row_print_buf - 1)
+    return "Couldn't fit into buffer";
+  memcpy(dbug_row_print_buf, row.c_ptr(), row.length());
+  return dbug_row_print_buf;
+}
 
 const char* dbug_print_table_row(TABLE *table)
 {
