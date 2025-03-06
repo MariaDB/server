@@ -4359,5 +4359,17 @@ MAX(b)
 3
 drop table t1;
 #
+# MDEV-36220 ASAN unknown-crash in loose index scan of MIN with IS NULL
+#
+CREATE TABLE t1 (a int, b int, KEY (a, b));
+insert into t1 values (4, NULL), (1, 14), (4, 3);
+SELECT MIN(b) FROM t1 WHERE b = 3 OR b IS NULL GROUP BY a;
+MIN(b)
+3
+SELECT MIN(b) FROM t1 WHERE b IS NULL GROUP BY a;
+MIN(b)
+NULL
+drop table t1;
+#
 # End of 10.11 tests
 #

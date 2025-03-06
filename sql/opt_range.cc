@@ -16017,7 +16017,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
         Remember this key, and continue looking for a non-NULL key that
         satisfies some other condition.
       */
-      memcpy(tmp_record, record, head->s->rec_buff_length);
+      memcpy(tmp_record, record, head->s->reclength);
       found_null= TRUE;
       continue;
     }
@@ -16057,7 +16057,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
   */
   if (found_null && result)
   {
-    memcpy(record, tmp_record, head->s->rec_buff_length);
+    memcpy(record, tmp_record, head->s->reclength);
     result= 0;
   }
   return result;

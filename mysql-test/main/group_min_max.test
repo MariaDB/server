@@ -2031,5 +2031,15 @@ if ($have_debug) {
 drop table t1;
 
 --echo #
+--echo # MDEV-36220 ASAN unknown-crash in loose index scan of MIN with IS NULL
+--echo #
+
+CREATE TABLE t1 (a int, b int, KEY (a, b));
+insert into t1 values (4, NULL), (1, 14), (4, 3);
+SELECT MIN(b) FROM t1 WHERE b = 3 OR b IS NULL GROUP BY a;
+SELECT MIN(b) FROM t1 WHERE b IS NULL GROUP BY a;
+drop table t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
