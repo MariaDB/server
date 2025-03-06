@@ -626,9 +626,9 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
     start_alter_info *info= thd->rgi_slave->sa_info;
     bool is_shutdown= false;
 
-    info->gtid.domain_id= thd->variables.gtid_domain_id;
-    info->gtid.server_id= thd->variables.server_id;
-    info->gtid.seq_no= start_alter_id;
+    info->gtid= {thd->variables.gtid_domain_id,
+                 static_cast<uint32>(thd->variables.server_id),
+                 start_alter_id};
     mysql_mutex_lock(&mi->start_alter_list_lock);
     // possible stop-slave's marking of the whole alter state list is checked
     is_shutdown= mi->is_shutdown;

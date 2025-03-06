@@ -12,8 +12,10 @@ set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
 start slave;
 connection master;
-SET @@session.server_id= 11;
-call mtr.add_suppression("ALTER query started at 0-11-\\d+ could not be completed");
+SET @@SESSION.server_id= 11;
+SET @search_pattern= CONCAT('ALTER query started at 0-', @@SESSION.server_id,
+'-\\d++ could not be completed');
+CALL mtr.add_suppression(@search_pattern);
 SET @old_debug_master= @@global.debug;
 set binlog_alter_two_phase=true;
 create table t3( a int primary key, b int) engine=innodb;
@@ -38,7 +40,7 @@ t3	CREATE TABLE `t3` (
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'ALTER query started at 0-11-\\d+ could not be completed' COLLATE 'latin1_swedish_ci'))
+master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'ALTER query started at 0-11-\\d++ could not be completed' COLLATE 'latin1_swedish_ci'))
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; create table t3( a int primary key, b int) engine=innodb
@@ -57,7 +59,7 @@ connection slave;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-slave-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'ALTER query started at 0-11-\\d+ could not be completed' COLLATE 'latin1_swedish_ci'))
+slave-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'ALTER query started at 0-11-\\d++ could not be completed' COLLATE 'latin1_swedish_ci'))
 slave-bin.000001	#	Query	#	#	COMMIT
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; create table t3( a int primary key, b int) engine=innodb
@@ -75,6 +77,7 @@ t3	CREATE TABLE `t3` (
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+FOUND 1 /ALTER query started at 0-11-\d++ could not be completed/ in mysqld.2.err
 connection master;
 SET GLOBAL debug_dbug= @old_debug_master;
 drop table t3;

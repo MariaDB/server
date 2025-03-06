@@ -28,10 +28,13 @@ start slave;
 --connection master
 # MDEV-35474 Start Alter GTID Error Message Can Use Wrong Server_Id
 #
-# When replicating, the GTID the slave warns should be of this sessional
-# server_id rather than 1 from reconnecting to the restarted master.
-SET @@session.server_id= 11;
-call mtr.add_suppression("ALTER query started at 0-11-\\d+ could not be completed");
+# When replicating, the GTID the slave warns should be of this
+# `@@SESSION.server_id` rather than `1` of the restarted master.
+SET @@SESSION.server_id= 11;
+SET @search_pattern= CONCAT('ALTER query started at 0-', @@SESSION.server_id,
+                            '-\\d++ could not be completed');
+CALL mtr.add_suppression(@search_pattern);
+--let SEARCH_PATTERN= `SELECT @search_pattern`
 
 SET @old_debug_master= @@global.debug;
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
@@ -66,6 +69,9 @@ show create table t3;
 --sync_slave_with_master
 --source include/show_binlog_events.inc
 show create table t3;
+# MDEV-35474: Assert the appearance of the warning
+--let SEARCH_FILE= `SELECT @@log_error`
+--source include/search_pattern_in_file.inc
 
 
 --connection master
