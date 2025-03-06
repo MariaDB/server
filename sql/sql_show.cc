@@ -5547,6 +5547,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         if (cmp_table(share_temp->table_name, plan->lookup_field_vals.table_value))
           continue;
       }
+      if (thd->use_real_global_temporary_share())
+        continue;
 
       TABLE *tmp_tbl= share_temp->all_tmp_tables.front();
       if (schema_table_idx == SCH_TABLE_NAMES)
@@ -5896,6 +5898,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       table->field[3]->store(STRING_WITH_LEN("TEMPORARY SEQUENCE"), cs);
     else if (share->table_type == TABLE_TYPE_SEQUENCE)
       table->field[3]->store(STRING_WITH_LEN("SEQUENCE"), cs);
+    else if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+      table->field[3]->store(STRING_WITH_LEN("GLOBAL TEMPORARY"), cs);
     else if (share->tmp_table)
       table->field[3]->store(STRING_WITH_LEN("TEMPORARY"), cs);
     else

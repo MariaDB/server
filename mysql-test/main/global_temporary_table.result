@@ -3,6 +3,9 @@ set lock_wait_timeout= 5;
 create table t1 (x int, t text) on commit preserve rows;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'on commit preserve rows' at line 1
 create global temporary table t1 (x int, t text) on commit preserve rows;
+select TABLE_TYPE from information_schema.tables where table_name = 't1';
+TABLE_TYPE
+GLOBAL TEMPORARY
 drop temporary table t1;
 ERROR 42S02: Unknown table 'test.t1'
 show create table t1;
@@ -19,6 +22,12 @@ t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
   `t` text DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
 insert into t1 values(1, 'one');
+select TABLE_TYPE from information_schema.tables where table_name = 't1';
+TABLE_TYPE
+TEMPORARY
+GLOBAL TEMPORARY
+show table status where temporary='Y';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 truncate t1;
 insert into t1 values(1, 'one');
 select * from t1;
