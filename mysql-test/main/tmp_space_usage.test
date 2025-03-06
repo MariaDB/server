@@ -48,7 +48,7 @@ set @@tmp_memory_table_size=32*1024;
 --echo # The following queries should fail because of tmp_space_usage
 --error 41
 select * from t1 order by a,v;
---error 201
+--error HA_ERR_LOCAL_TMP_SPACE_FULL
 select v,count(*) from t1 group by v limit 2;
 --error 41
 update t1 set v=right(v,2);
@@ -56,7 +56,7 @@ update t1 set v=right(v,2);
 set @@binlog_format="statement";
 set @@max_tmp_session_space_usage=65536;
 set @@tmp_memory_table_size=0;
---error 201
+--error HA_ERR_LOCAL_TMP_SPACE_FULL
 update t1,t2 set t1.c=t2.a, t2.b=1 where t1.a=t2.a;
 set @@binlog_format="row";
 set @@max_tmp_session_space_usage=default;
@@ -205,7 +205,7 @@ DROP TABLE t1;
 --echo #
 
 set max_tmp_session_space_usage = 1024*1024;
---error 202
+--error HA_ERR_GLOBAL_TMP_SPACE_FULL
 select count(distinct concat(seq,repeat('x',1000))) from seq_1_to_1000;
 
 --echo #
@@ -226,7 +226,7 @@ set @@max_heap_table_size=16777216;
 CREATE TABLE t1 (a CHAR(255),b INT,INDEX (b));
 INSERT INTO t1 SELECT SEQ,SEQ FROM seq_1_to_100000;
 set @@max_tmp_session_space_usage=1179648;
---error 201
+--error HA_ERR_LOCAL_TMP_SPACE_FULL
 SELECT * FROM t1 UNION SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -258,7 +258,7 @@ set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
 --echo # "temporary space limit reached" error
 
 SET max_tmp_session_space_usage= 64*1024;
---error 201
+--error HA_ERR_LOCAL_TMP_SPACE_FULL
 SELECT MIN(VARIABLE_VALUE) OVER (), NTILE(1) OVER (), MAX(VARIABLE_NAME) OVER () FROM information_schema.SESSION_STATUS;
 
 --echo #
@@ -275,7 +275,7 @@ BEGIN;
 INSERT INTO t1 SELECT NOW() FROM seq_1_to_6000;
 
 SET max_tmp_session_space_usage = 64*1024;
---error 201
+--error HA_ERR_LOCAL_TMP_SPACE_FULL
 SELECT * FROM information_schema.ALL_PLUGINS LIMIT 2;
 ROLLBACK;
 drop table t1;
@@ -290,7 +290,7 @@ disconnect c1;
 SET MAX_TMP_SESSION_SPACE_USAGE = 128*1024, MAX_HEAP_TABLE_SIZE= 16*1024*1024;
 CREATE TABLE t1 (a varchar(1024)) DEFAULT CHARACTER SET utf8mb3;
 INSERT INTO t1 SELECT 'x' FROM seq_1_to_50;
---error 201
+--error HA_ERR_LOCAL_TMP_SPACE_FULL
 SELECT * FROM t1 JOIN seq_1_to_200 INTERSECT ALL SELECT * FROM t1 JOIN seq_1_to_200;
 drop table t1;
 
@@ -300,7 +300,7 @@ drop table t1;
 --echo #
 
 SET MAX_TMP_SESSION_SPACE_USAGE = 400*1024;
---error 201
+--error HA_ERR_LOCAL_TMP_SPACE_FULL
 SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_VARIABLES JOIN seq_1_to_100
 INTERSECT ALL
 SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_VARIABLES JOIN seq_1_to_100;
