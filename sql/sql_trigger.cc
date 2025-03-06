@@ -622,7 +622,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   table= tables->table;
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && !wsrep_should_replicate_ddl(thd, table->s->db_type()))
+  /* Resolve should we replicate creation of the trigger.
+     It should be replicated if storage engine(s) associated
+     to trigger are replicated by Galera.
+  */
+  if (WSREP(thd) &&
+      !wsrep_should_replicate_ddl_iterate(thd, tables))
     goto end;
 #endif
 

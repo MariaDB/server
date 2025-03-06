@@ -4466,6 +4466,18 @@ bool my_var_sp_row_field::set(THD *thd, Item *item)
 }
 
 
+sp_rcontext *THD::get_rcontext(const sp_rcontext_addr &addr)
+{
+  return addr.rcontext_handler()->get_rcontext(spcont);
+}
+
+
+Item_field *THD::get_variable(const sp_rcontext_addr &addr)
+{
+  return get_rcontext(addr)->get_variable(addr.offset());
+}
+
+
 bool select_dumpvar::send_data_to_var_list(List<Item> &items)
 {
   DBUG_ENTER("select_dumpvar::send_data_to_var_list");

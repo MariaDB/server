@@ -37,6 +37,7 @@ Full Text Search interface
 #include "fts0plugin.h"
 #include "dict0stats.h"
 #include "btr0pcur.h"
+#include "log.h"
 
 static const ulint FTS_MAX_ID_LEN = 32;
 
@@ -1870,8 +1871,10 @@ fts_create_one_common_table(
 		}
 	}
 
-	ib::warn() << "Failed to create FTS common table " << fts_table_name;
-	trx->error_state = error;
+	ut_ad(trx->state == TRX_STATE_NOT_STARTED
+	      || trx->error_state == error);
+	sql_print_warning("InnoDB: Failed to create FTS common table %s: %s",
+			  fts_table_name, ut_strerr(error));
 	return NULL;
 }
 
@@ -2057,8 +2060,10 @@ fts_create_one_index_table(
 		}
 	}
 
-	ib::warn() << "Failed to create FTS index table " << table_name;
-	trx->error_state = error;
+	ut_ad(trx->state == TRX_STATE_NOT_STARTED
+	      || trx->error_state == error);
+	sql_print_warning("InnoDB: Failed to create FTS index table %s: %s",
+			  table_name, ut_strerr(error));
 	return NULL;
 }
 

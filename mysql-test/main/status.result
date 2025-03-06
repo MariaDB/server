@@ -481,7 +481,7 @@ flush session status;
 select $new_global_flush_status >= $global_flush_status as "1";
 1
 1
-select $new_local_flush_status < $global_flush_status as "1";
+select $new_local_flush_status < $new_global_flush_status as "1";
 1
 1
 flush global status;

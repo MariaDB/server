@@ -5,10 +5,25 @@ CREATE TABLE `t`(`id` INT, PRIMARY KEY(`id`)) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 INSERT INTO t VALUES (1);
 
-SET GLOBAL innodb_monitor_reset = "module_innodb";
+SET GLOBAL innodb_monitor_disable="lock_row_lock_time";
+SET GLOBAL innodb_monitor_disable="lock_row_lock_time_max";
+SET GLOBAL innodb_monitor_reset_all='lock_row_lock_time';
+SET GLOBAL innodb_monitor_reset_all='lock_row_lock_time_max';
+SET GLOBAL innodb_monitor_enable="lock_row_lock_time";
+SET GLOBAL innodb_monitor_enable="lock_row_lock_time_max";
 
 BEGIN;
 SELECT * FROM t FOR UPDATE;
+
+# We can't predict (innodb/lock)_row_lock_time_avg value, because it's counted
+# as the whole waiting time divided by the amount of waits. The
+# corresponding counters in lock_sys can't be reset with any query.
+
+--disable_result_log
+SELECT @innodb_row_lock_time_before := variable_value
+  FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_row_lock_time';
+--enable_result_log
 
 --connect(con1,localhost,root,,)
 SET innodb_lock_wait_timeout = 1;
@@ -19,24 +34,28 @@ SELECT * FROM t FOR UPDATE;
 --connection default
 COMMIT;
 
-SELECT variable_value > 100 FROM information_schema.global_status
+SELECT variable_value - @innodb_row_lock_time_before > 100
+  FROM information_schema.global_status
   WHERE LOWER(variable_name) = 'innodb_row_lock_time';
-SELECT variable_value > 100 FROM information_schema.global_status
+# We can't use 'variable_value - @innodb_row_lock_time_max_before' trick for
+# innodb_row_lock_time_max, because we can't reset it, and we don't know the
+# initial value at the moment of the test execution.
+SELECT  variable_value > 100
+  FROM information_schema.global_status
   WHERE LOWER(variable_name) = 'innodb_row_lock_time_max';
-SELECT variable_value > 100 FROM information_schema.global_status
-  WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg';
-
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
-  WHERE NAME="lock_row_lock_time";
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
-  WHERE NAME="lock_row_lock_time_max";
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
-  WHERE NAME="lock_row_lock_time_avg";
+SELECT count_reset > 100
+  FROM INFORMATION_SCHEMA.INNODB_METRICS
+  WHERE NAME='lock_row_lock_time';
+SELECT count_reset > 100
+  FROM INFORMATION_SCHEMA.INNODB_METRICS
+  WHERE NAME='lock_row_lock_time_max';
 
 DROP TABLE t;
 
 --disable_warnings
-SET GLOBAL innodb_monitor_reset=default;
+SET GLOBAL innodb_monitor_enable=default;
+SET GLOBAL innodb_monitor_disable=default;
+SET GLOBAL innodb_monitor_reset_all=default;
 --enable_warnings
 
 --source include/wait_until_count_sessions.inc

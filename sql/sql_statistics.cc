@@ -2079,12 +2079,9 @@ public:
 
     for (i= 0, state= calc_state; i < prefixes; i++, state++)
     {
-      if (i < prefixes)
-      {
-        double val= state->prefix_count == 0 ?
-	            0 : (double) state->entry_count / state->prefix_count;                     
-        index_info->collected_stats->set_avg_frequency(i, val);
-      }
+      double val= state->prefix_count == 0 ?
+                  0 : (double) state->entry_count / state->prefix_count;
+      index_info->collected_stats->set_avg_frequency(i, val);
     }
   }       
 };

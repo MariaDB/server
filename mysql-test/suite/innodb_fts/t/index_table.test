@@ -3,6 +3,9 @@
 
 -- source include/have_innodb.inc
 -- source include/have_debug.inc
+--disable_query_log
+call mtr.add_suppression("InnoDB: \\(Deadlock\\) writing `use_stopword'");
+--enable_query_log
 
 SET @optimize=@@GLOBAL.INNODB_OPTIMIZE_FULLTEXT_ONLY;
 SET GLOBAL INNODB_OPTIMIZE_FULLTEXT_ONLY=1;
@@ -14,6 +17,9 @@ CREATE TABLE articles (
 	content TEXT
 	) ENGINE= InnoDB;
 
+--error ER_GET_ERRNO
+SET STATEMENT debug_dbug='+d,innodb_report_deadlock' FOR
+CREATE FULLTEXT INDEX idx ON articles (title, content);
 CREATE FULLTEXT INDEX idx ON articles (title, content);
 
 INSERT INTO articles (title, content) VALUES

@@ -6371,6 +6371,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       for (i= 0; i < join->table_count ; i++)
         if (double rr= join->best_positions[i].records_read)
           records= COST_MULT(records, rr);
+
+      if (join->group_list)
+        records= estimate_post_group_cardinality(join, records);
+
       rows= double_to_rows(records);
       set_if_smaller(rows, unit->lim.get_select_limit());
       join->select_lex->increase_derived_records(rows);
@@ -15813,7 +15817,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       }
       goto no_join_cache;
     }
-    if (cache_level > 4 && no_bka_cache)
+    if (cache_level < 5 || no_bka_cache)
       goto no_join_cache;
     
     if ((flags & HA_MRR_NO_ASSOCIATION) &&

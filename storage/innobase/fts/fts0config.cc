@@ -231,7 +231,7 @@ fts_config_set_value(
 	n_rows_updated = trx->undo_no - undo_no;
 
 	/* Check if we need to do an insert. */
-	if (n_rows_updated == 0) {
+	if (error == DB_SUCCESS && n_rows_updated == 0) {
 		info = pars_info_create();
 
 		pars_info_bind_varchar_literal(

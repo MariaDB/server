@@ -22888,6 +22888,88 @@ void test_mdev_10075()
   mysql_free_result(result);
 }
 
+
+#ifndef EMBEDDED_LIBRARY
+/*
+  MDEV-36080: Run a Prepared Statement that hits a failure when the query
+    optimizer is doing once-per-statement-life optimization. The server should
+    re-prepare the statement. Make sure the re-prepare happens when the
+    statement parameters are supplied through Array Binding.
+*/
+static void test_mdev_36080()
+{
+  MYSQL_STMT *stmt;
+  int rc;
+  const char *stmt_text;
+  MYSQL_BIND bind[1];
+  char       indicator[]= {0, STMT_INDICATOR_NULL, 0/*STMT_INDICATOR_IGNORE*/};
+  my_bool    error[1];
+  int        id[]= {2, 3, 777}, count= sizeof(id)/sizeof(id[0]);
+
+  myheader("mdev_36080");
+  rc= mysql_query(mysql, "SET SQL_MODE=DEFAULT");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "drop table if exists t0");
+  myquery(rc);
+  rc= mysql_query(mysql, "create table t0(z int);");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t0 values (1);");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "drop table if exists t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "create table t1 (a int, b int)");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t1 values (1,1)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "drop table if exists t2");
+  myquery(rc);
+  rc= mysql_query(mysql, "create table t2 (a int)");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t2 values (1),(2)");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  stmt_text=
+    "update t0,t1 set a = a +? "
+    "  where b = (SELECT * "
+    "             FROM (select t_10.* from t2 t_10 join t2 t_11 on(t_10.a = t_11.a)) sq "
+    "             WHERE 'x'=0 LIMIT 1"
+    "            )";
+
+  rc= mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+  bind[0].is_null = NULL;
+  bind[0].length = NULL;
+  bind[0].error = error;
+  bind[0].u.indicator= indicator;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute_r(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute_r(stmt, rc);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "drop table t0, t1, t2");
+  myquery(rc);
+}
+#endif
+
+
 static struct my_tests_st my_tests[]= {
   { "test_mdev_20516", test_mdev_20516 },
   { "test_mdev24827", test_mdev24827 },
@@ -23206,6 +23288,9 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34958", test_mdev_34958 },
 #endif
   { "test_mdev_10075", test_mdev_10075},
+#ifndef EMBEDDED_LIBRARY
+  { "test_mdev_36080", test_mdev_36080},
+#endif
   { 0, 0 }
 };
 

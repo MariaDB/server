@@ -4574,6 +4574,18 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     goto err;
   }
 
+  if (lex->needs_reprepare)
+  {
+    /*
+      Something has happened on previous execution that requires us to
+      re-prepare before we try to execute.
+    */
+    lex->needs_reprepare= false;
+    error= reprepare();
+    if (error)
+      goto err;
+  }
+
   if (send_unit_results && thd->init_collecting_unit_results())
   {
     DBUG_PRINT("error", ("Error initializing array."));

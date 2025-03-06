@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2023 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2022, MariaDB
+/* Copyright (c) 2008, 2024, Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1614,7 +1614,12 @@ bool wsrep_sync_wait (THD* thd, uint mask)
       This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
       TODO: modify to check if thd has locked any rows.
     */
-    return thd->wsrep_cs().sync_wait(-1);
+    if (thd->wsrep_cs().sync_wait(-1))
+    {
+      wsrep_override_error(thd, thd->wsrep_cs().current_error(),
+                           thd->wsrep_cs().current_error_status());
+      return true;
+    }
   }
 
   return false;
@@ -2498,19 +2503,12 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
 /* Forward declarations. */
 int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 
-bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
-{
-  if (WSREP(thd))
-  {
-    for (const TABLE_LIST* it= table_list; it; it= it->next_global)
-    {
-      if (it->table &&
-          !wsrep_should_replicate_ddl(thd, it->table->s->db_type()))
-        return false;
-    }
-  }
-  return true;
-}
+/*! Should DDL be replicated by Galera
+ *
+ * @param thd            thread handle
+ * @param hton           real storage engine handlerton
+ *
+ * @retval true if we should replicate DDL, false if not */
 
 bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
 {
@@ -2519,6 +2517,8 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
 
   if (!hton)
     return true;
+
+  DBUG_ASSERT(hton != nullptr);
 
   switch (hton->db_type)
   {
@@ -2530,6 +2530,11 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
         return true;
       else
         WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
+      break;
+    case DB_TYPE_PARTITION_DB:
+      /* In most cases this means we could not find out
+         table->file->partition_ht() */
+      return true;
       break;
     case DB_TYPE_ARIA:
       if (wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
@@ -2551,6 +2556,27 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
                       ha_resolve_storage_engine_name(hton));
   return false;
 }
+
+bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
+{
+  for (const TABLE_LIST* it= table_list; it; it= it->next_global)
+  {
+    if (it->table)
+    {
+      /* If this is partitioned table we need to find out
+         implementing storage engine handlerton.
+      */
+      const handlerton *ht= it->table->file->partition_ht() ?
+                              it->table->file->partition_ht() :
+                              it->table->s->db_type();
+
+      if (!wsrep_should_replicate_ddl(thd, ht))
+        return false;
+    }
+  }
+  return true;
+}
+
 /*
   Decide if statement should run in TOI.
 
@@ -2659,9 +2685,8 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     if (create_info)
     {
       const handlerton *hton= create_info->db_type;
-
       if (!hton)
-	hton= ha_default_handlerton(thd);
+        hton= ha_default_handlerton(thd);
       if (!wsrep_should_replicate_ddl(thd, hton))
         return false;
     }
@@ -3227,11 +3252,9 @@ void wsrep_to_isolation_end(THD *thd)
 
   @param  requestor_ctx        The MDL context of the requestor
   @param  ticket               MDL ticket for the requested lock
+  @param  key                  The key of the object (data) being protected
 
-  @retval TRUE   Lock request can be granted
-  @retval FALSE  Lock request cannot be granted
 */
-
 void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_ticket *ticket,
                                const MDL_key *key)
@@ -3313,15 +3336,20 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
             (granted_thd->system_thread != NON_SYSTEM_THREAD &&
              granted_thd->mdl_context.has_explicit_locks()))
     {
-      WSREP_DEBUG("BF thread waiting for FLUSH for %s",
-                  wsrep_thd_query(request_thd));
-      THD_STAGE_INFO(request_thd, stage_waiting_ddl);
+      WSREP_DEBUG("BF thread waiting for %s",
+                  granted_thd->lex->sql_command == SQLCOM_FLUSH ? "FLUSH" : "BACKUP");
       ticket->wsrep_report(wsrep_debug);
+
       if (granted_thd->current_backup_stage != BACKUP_FINISHED &&
 	  wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
       {
 	wsrep_abort_thd(request_thd, granted_thd, 1);
       }
+    }
+    else if (granted_thd->lex->sql_command == SQLCOM_LOCK_TABLES)
+    {
+      WSREP_DEBUG("BF thread waiting for LOCK TABLES");
+      ticket->wsrep_report(wsrep_debug);
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {

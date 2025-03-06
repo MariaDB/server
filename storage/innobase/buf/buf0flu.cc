@@ -1910,7 +1910,8 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     resize_flush_buf= nullptr;
     resize_target= 0;
     resize_lsn.store(0, std::memory_order_relaxed);
-    writer_update();
+    resize_initiator= nullptr;
+    writer_update(false);
   }
 
   log_resize_release();

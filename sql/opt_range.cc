@@ -8793,6 +8793,11 @@ SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   SEL_TREE *tree= li.ref()[0]->get_mm_tree(param, li.ref());
   if (param->statement_should_be_aborted())
     DBUG_RETURN(NULL);
+  bool orig_disable_index_merge= param->disable_index_merge_plans;
+
+  if (list.elements > MAX_OR_ELEMENTS_FOR_INDEX_MERGE)
+    param->disable_index_merge_plans= true;
+
   if (tree)
   {
     if (tree->type == SEL_TREE::IMPOSSIBLE &&
@@ -8809,7 +8814,10 @@ SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
     {
       SEL_TREE *new_tree= li.ref()[0]->get_mm_tree(param, li.ref());
       if (new_tree == NULL || param->statement_should_be_aborted())
+      {
+        param->disable_index_merge_plans= orig_disable_index_merge;
         DBUG_RETURN(NULL);
+      }
       tree= tree_or(param, tree, new_tree);
       if (tree == NULL || tree->type == SEL_TREE::ALWAYS)
       {
@@ -8841,6 +8849,7 @@ SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
     if (replace_cond)
       *cond_ptr= replacement_item;
   }
+  param->disable_index_merge_plans= orig_disable_index_merge;
   DBUG_RETURN(tree);
 }
 
@@ -10397,6 +10406,8 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   {
     bool must_be_ored= sel_trees_must_be_ored(param, tree1, tree2, ored_keys);
     no_imerge_from_ranges= must_be_ored;
+    if (param->disable_index_merge_plans)
+      no_imerge_from_ranges= true;
 
     if (no_imerge_from_ranges && no_merges1 && no_merges2)
     {
