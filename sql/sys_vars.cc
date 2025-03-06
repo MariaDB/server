@@ -5657,7 +5657,11 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
     }
     else
     {
-      result= set_filter_value(var->save_result.string_value.str, mi);
+      // Proctect against other threads
+      mysql_mutex_lock(&LOCK_active_mi);
+      result=
+        (mi->rpl_filter->*set_filter_value)(var->save_result.string_value.str);
+      mysql_mutex_unlock(&LOCK_active_mi);
     }
     mi->release();
   }
@@ -5666,49 +5670,13 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
   return result;
 }
 
-bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
-{
-  bool status= true;
-  Rpl_filter* rpl_filter= mi->rpl_filter;
-
-  /* Proctect against other threads */
-  mysql_mutex_lock(&LOCK_active_mi);
-  switch (opt_id) {
-  case OPT_REPLICATE_REWRITE_DB:
-    status= rpl_filter->set_rewrite_db(value);
-    break;
-  case OPT_REPLICATE_DO_DB:
-    status= rpl_filter->set_do_db(value);
-    break;
-  case OPT_REPLICATE_DO_TABLE:
-    status= rpl_filter->set_do_table(value);
-    break;
-  case OPT_REPLICATE_IGNORE_DB:
-    status= rpl_filter->set_ignore_db(value);
-    break;
-  case OPT_REPLICATE_IGNORE_TABLE:
-    status= rpl_filter->set_ignore_table(value);
-    break;
-  case OPT_REPLICATE_WILD_DO_TABLE:
-    status= rpl_filter->set_wild_do_table(value);
-    break;
-  case OPT_REPLICATE_WILD_IGNORE_TABLE:
-    status= rpl_filter->set_wild_ignore_table(value);
-    break;
-  }
-  mysql_mutex_unlock(&LOCK_active_mi);
-  return status;
-}
-
 const uchar *
 Sys_var_rpl_filter::global_value_ptr(THD *thd,
                                      const LEX_CSTRING *base_name) const
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
-  uchar *ret;
   Master_info *mi;
-  Rpl_filter *rpl_filter;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mi= get_master_info(base_name, !base_name->length ?
@@ -5721,40 +5689,13 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
     return 0;
   }
 
-  rpl_filter= mi->rpl_filter;
-
   mysql_mutex_lock(&LOCK_active_mi);
-  switch (opt_id) {
-  case OPT_REPLICATE_REWRITE_DB:
-    rpl_filter->get_rewrite_db(&tmp);
-    break;
-  case OPT_REPLICATE_DO_DB:
-    rpl_filter->get_do_db(&tmp);
-    break;
-  case OPT_REPLICATE_DO_TABLE:
-    rpl_filter->get_do_table(&tmp);
-    break;
-  case OPT_REPLICATE_IGNORE_DB:
-    rpl_filter->get_ignore_db(&tmp);
-    break;
-  case OPT_REPLICATE_IGNORE_TABLE:
-    rpl_filter->get_ignore_table(&tmp);
-    break;
-  case OPT_REPLICATE_WILD_DO_TABLE:
-    rpl_filter->get_wild_do_table(&tmp);
-    break;
-  case OPT_REPLICATE_WILD_IGNORE_TABLE:
-    rpl_filter->get_wild_ignore_table(&tmp);
-    break;
-  }
+  (mi->rpl_filter->*get_filter_value)(&tmp);
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
   mi->release();
-
-  ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
-
-  return ret;
+  return (uchar *) thd->strmake(tmp.ptr(), tmp.length());
 }
 
 const uchar *
@@ -5763,26 +5704,15 @@ Sys_var_binlog_filter::global_value_ptr(THD *thd,
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
-  uchar *ret;
 
   tmp.length(0);
-
-  switch (opt_id) {
-  case OPT_BINLOG_DO_DB:
-    binlog_filter->get_do_db(&tmp);
-    break;
-  case OPT_BINLOG_IGNORE_DB:
-    binlog_filter->get_ignore_db(&tmp);
-    break;
-  }
-
-  ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
-
-  return ret;
+  (binlog_filter->*get_filter_value)(&tmp);
+  return (uchar *) thd->strmake(tmp.ptr(), tmp.length());
 }
 
 static Sys_var_rpl_filter Sys_replicate_do_db(
-       "replicate_do_db", OPT_REPLICATE_DO_DB,
+       "replicate_do_db",
+       &Rpl_filter::get_do_db, &Rpl_filter::set_do_db,
        "Tell the slave to restrict replication to updates of tables "
        "whose names appear in the comma-separated list. For "
        "statement-based replication, only the default database (that "
@@ -5792,26 +5722,29 @@ static Sys_var_rpl_filter Sys_replicate_do_db(
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_DB);
 
 static Sys_var_binlog_filter Sys_binlog_do_db(
-      "binlog_do_db", OPT_BINLOG_DO_DB,
+      "binlog_do_db", &Rpl_filter::get_do_db,
       "Tells the primary it should log updates for the specified database, "
       "and exclude all others not explicitly mentioned",
       PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DO_DB);
 
 static Sys_var_rpl_filter Sys_replicate_rewrite_db(
-       "replicate_rewrite_db", OPT_REPLICATE_REWRITE_DB,
+       "replicate_rewrite_db",
+       &Rpl_filter::get_rewrite_db, &Rpl_filter::set_rewrite_db,
        "Tells the slave to replicate binlog events "
        "into a different database than their original target on the master. "
        "Example: replicate-rewrite-db=master_db_name->slave_db_name",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_REWRITE_DB);
 
 static Sys_var_rpl_filter Sys_replicate_do_table(
-       "replicate_do_table", OPT_REPLICATE_DO_TABLE,
+       "replicate_do_table",
+       &Rpl_filter::get_do_table, &Rpl_filter::set_do_table,
        "Tells the slave to restrict replication to tables in the "
        "comma-separated list",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_TABLE);
 
 static Sys_var_rpl_filter Sys_replicate_ignore_db(
-       "replicate_ignore_db", OPT_REPLICATE_IGNORE_DB,
+       "replicate_ignore_db",
+       &Rpl_filter::get_ignore_db, &Rpl_filter::set_ignore_db,
        "Tell the slave to restrict replication to updates of tables "
        "whose names do not appear in the comma-separated list. For "
        "statement-based replication, only the default database (that "
@@ -5821,26 +5754,29 @@ static Sys_var_rpl_filter Sys_replicate_ignore_db(
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_IGNORE_DB);
 
 static Sys_var_binlog_filter Sys_binlog_ignore_db(
-      "binlog_ignore_db", OPT_BINLOG_IGNORE_DB,
+      "binlog_ignore_db", &Rpl_filter::get_ignore_db,
       "Tells the primary that updates to the given database should not be logged to the binary log",
       PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_IGNORE_DB);
 
 static Sys_var_rpl_filter Sys_replicate_ignore_table(
-       "replicate_ignore_table", OPT_REPLICATE_IGNORE_TABLE,
+       "replicate_ignore_table",
+       &Rpl_filter::get_ignore_table, &Rpl_filter::set_ignore_table,
        "Tells the slave thread not to replicate any statement that "
        "updates the specified table, even if any other tables might be "
        "updated by the same statement",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_IGNORE_TABLE);
 
 static Sys_var_rpl_filter Sys_replicate_wild_do_table(
-       "replicate_wild_do_table", OPT_REPLICATE_WILD_DO_TABLE,
+       "replicate_wild_do_table",
+       &Rpl_filter::get_wild_do_table, &Rpl_filter::set_wild_do_table,
        "Tells the slave thread to restrict replication to statements "
        "where any of the updated tables match the specified database "
        "and table name patterns",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_WILD_DO_TABLE);
 
 static Sys_var_rpl_filter Sys_replicate_wild_ignore_table(
-       "replicate_wild_ignore_table", OPT_REPLICATE_WILD_IGNORE_TABLE,
+       "replicate_wild_ignore_table",
+       &Rpl_filter::get_wild_ignore_table, &Rpl_filter::set_wild_ignore_table,
        "Tells the slave thread to not replicate to the tables that "
        "match the given wildcard pattern",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_WILD_IGNORE_TABLE);
