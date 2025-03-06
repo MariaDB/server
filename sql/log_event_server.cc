@@ -4993,7 +4993,33 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       /* remove trigger's tables */
       goto err;
     }
-
+#ifdef WITH_WSREP
+    DBUG_EXECUTE_IF("apply_event_fail_once", {
+        if (WSREP(thd)) {
+	  RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(rgi->tables_to_lock);
+	  error= HA_ERR_LOCK_WAIT_TIMEOUT;
+          slave_rows_error_report(
+            INFORMATION_LEVEL, error, rgi, thd, ptr->table,
+	    get_type_str(), RPL_LOG_NAME, log_pos);
+	  my_error(error, MYF(0));
+	  thd->is_slave_error= 1;
+	  DBUG_SET("-d,apply_event_fail_once");
+	  goto err;
+        }
+      };);
+    DBUG_EXECUTE_IF("apply_event_fail_always", {
+        if (WSREP(thd)) {
+	  RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(rgi->tables_to_lock);
+	  error= HA_ERR_LOCK_WAIT_TIMEOUT;
+          slave_rows_error_report(
+            INFORMATION_LEVEL, error, rgi, thd, ptr->table,
+	    get_type_str(), RPL_LOG_NAME, log_pos);
+	  my_error(error, MYF(0));
+	  thd->is_slave_error= 1;
+	  goto err;
+        }
+      };);
+#endif /* WITH_WSREP */
     /*
       When the open and locking succeeded, we check all tables to
       ensure that they still have the correct type.
