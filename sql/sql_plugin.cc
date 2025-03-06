@@ -315,6 +315,7 @@ public:
                     st_plugin_int *p, st_mysql_sys_var *plugin_var_arg,
                     const char *substitute);
   sys_var_pluginvar *cast_pluginvar() override { return this; }
+  virtual const struct st_mysql_sys_var *cast_mysql_sys_var() const override { return plugin_var; }
   uchar* real_value_ptr(THD *thd, enum_var_type type) const;
   TYPELIB* plugin_var_typelib(void) const;
   const uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
@@ -3683,14 +3684,22 @@ bool sys_var_pluginvar::global_update(THD *thd, set_var *var)
 
 #define OPTION_SET_LIMITS(type, options, opt) \
   options->var_type= type; \
+  assert((opt)->def_val >= (opt)->min_val); \
+  assert((opt)->def_val <= (opt)->max_val); \
   options->def_value= (opt)->def_val; \
+  assert((opt)->min_val <= (opt)->max_val); \
   options->min_value= (opt)->min_val; \
   options->max_value= (opt)->max_val; \
+  assert((opt)->blk_sz == 0 || ((opt)->min_val % (opt)->blk_sz) == 0); \
+  assert((opt)->blk_sz == 0 || ((opt)->max_val % (opt)->blk_sz) == 0); \
   options->block_size= (long) (opt)->blk_sz
 
 #define OPTION_SET_LIMITS_DOUBLE(options, opt) \
   options->var_type= GET_DOUBLE; \
+  assert((opt)->def_val >= (opt)->min_val); \
+  assert((opt)->def_val <= (opt)->max_val); \
   options->def_value= (longlong) getopt_double2ulonglong((opt)->def_val); \
+  assert((opt)->min_val <= (opt)->max_val); \
   options->min_value= (longlong) getopt_double2ulonglong((opt)->min_val); \
   options->max_value= getopt_double2ulonglong((opt)->max_val); \
   options->block_size= (long) (opt)->blk_sz;
