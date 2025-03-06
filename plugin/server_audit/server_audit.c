@@ -2839,8 +2839,12 @@ static void update_file_path(MYSQL_THD thd,
   if (strlen(new_name) + 4  > FN_REFLEN)
   {
     error_header();
-    fprintf(stderr, "server_audit_file_path can't exceed %d characters.\n", FN_REFLEN - 4);
-    CLIENT_ERROR(1, "server_audit_file_path can't exceed %d characters.\n", MYF(ME_WARNING), FN_REFLEN - 4);
+    fprintf(stderr,
+            "server_audit_file_path can't exceed %d characters.\n",
+            FN_REFLEN - 4);
+    fprintf(stderr, "Log filename remains unchanged '%s'.\n", file_path);
+    CLIENT_ERROR(1, "server_audit_file_path can't exceed %d characters.",
+                 MYF(ME_WARNING), FN_REFLEN - 4);
     return;
   }
 
