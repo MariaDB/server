@@ -782,3 +782,13 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
 
   DBUG_RETURN(MY_TEST(res));
 }
+
+#ifdef WITH_WSREP
+/* check if a named savepoint exists for the current transaction */
+bool trans_savepoint_exists(THD *thd, LEX_CSTRING name)
+{
+  SAVEPOINT **sv = find_savepoint(thd, Lex_ident_savepoint(name));
+
+  return (*sv != NULL);
+}
+#endif /* WITH_WSREP */
