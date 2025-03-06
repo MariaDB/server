@@ -20428,6 +20428,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   TABLE_SHARE share;
   const char *save_proc_info;
   int write_err= 0;
+  bool in_batch_mode= false;
   DBUG_ENTER("create_internal_tmp_table_from_heap");
   if (is_duplicate)
     *is_duplicate= FALSE;
@@ -20514,6 +20515,9 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 
   /* remove heap table and change to use myisam table */
   (void) table->file->ha_rnd_end();
+  in_batch_mode= table->file->is_in_psi_batch_mode();
+  if (in_batch_mode)
+    table->file->end_psi_batch_mode();
   (void) table->file->ha_close();          // This deletes the table !
   delete table->file;
   table->file=0;
@@ -20522,9 +20526,11 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   new_table.s= table->s;                       // Keep old share
   *table= new_table;
   *table->s= share;
-  
+
   table->file->change_table_ptr(table, table->s);
   table->use_all_columns();
+  if (in_batch_mode)
+    table->file->start_psi_batch_mode();
   if (save_proc_info)
     thd_proc_info(thd, (!strcmp(save_proc_info,"Copying to tmp table") ?
                   "Copying to tmp table on disk" : save_proc_info));
