@@ -198,3 +198,28 @@ ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=EXCLUSIVE
 alter table t rename column x to y, lock=none, algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 drop table t;
+### VIEWS
+create global temporary table t (x int);
+connect  con1,localhost,root,,;
+begin;
+insert into t values(1);
+connection default;
+create view v as select * from t;
+begin;
+insert into t values(2);
+select * from v;
+x
+2
+connection con1;
+select * from v;
+x
+1
+commit;
+# Now table was truncated
+select * from v;
+x
+connection default;
+commit;
+drop view v;
+drop table t;
+disconnect con1;

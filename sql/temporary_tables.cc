@@ -296,7 +296,8 @@ bool THD::use_real_global_temporary_share() const
 {
   return sql_command_flags() & (CF_ALTER_TABLE
                                | CF_SCHEMA_CHANGE
-                               | CF_STATUS_COMMAND);
+                               | CF_STATUS_COMMAND)
+      || lex->sql_command == SQLCOM_CREATE_VIEW ;
 }
 
 /**

@@ -167,3 +167,27 @@ alter table t force, lock=none, algorithm=copy;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t rename column x to y, lock=none, algorithm=inplace;
 drop table t;
+
+
+--echo ### VIEWS
+create global temporary table t (x int);
+
+--connect (con1,localhost,root,,)
+begin;
+insert into t values(1);
+--connection default
+create view v as select * from t;
+begin;
+insert into t values(2);
+select * from v;
+--connection con1
+select * from v;
+commit;
+--echo # Now table was truncated
+select * from v;
+--connection default
+commit;
+
+drop view v;
+drop table t;
+--disconnect con1
