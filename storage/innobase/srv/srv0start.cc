@@ -1393,7 +1393,7 @@ dberr_t srv_start(bool create_new_db)
 
 		ib::info() << "Small buffer pool size ("
 			<< ib::bytes_iec{srv_buf_pool_size}
-			<< "), the flst_validate() debug function can cause a"
+			<< "), the flst_validate() function can cause a"
 			<< " deadlock if the buffer pool fills up.";
 	}
 #endif /* UNIV_DEBUG */
