@@ -53,9 +53,9 @@ SOFTWARE.
 #define NEON_IMPLEMENTATION
 #endif
 #endif
-#if defined __powerpc64__
+#if defined __powerpc64__ && defined __VSX__
 #include <altivec.h>
-#define POWER_IMPLEMENTATION
+#define POWER_IMPLEMENTATION __attribute__ ((target ("cpu=power8,cpu=power9,cpu=power10")))
 #endif
 
 template <typename T>
