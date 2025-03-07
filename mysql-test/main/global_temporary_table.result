@@ -222,4 +222,40 @@ connection default;
 commit;
 drop view v;
 drop table t;
+### AS SELECT
+create global temporary table t1(x int) on commit preserve rows
+as select 1 as 'x';
+select * from t1;
+x
+1
+create global temporary table t2 on commit preserve rows
+as values(5),(6),(7);
+select * from t2;
+5
+5
+6
+7
+connection con1;
+select * from t1;
+x
+select `5` as 'empty' from t2;
+empty
+truncate t1;
+truncate t2;
+connection default;
+truncate t1;
+truncate t2;
+drop table t1;
+drop table t2;
+create global temporary table t(x int) on commit delete rows
+as select 1 as 'x';
+# Implicit commit deletes data
+select * from t;
+x
+drop table t;
+create global temporary table t2(`5` int primary key) as values(5),(5),(5);
+ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+select `5` as col from t2;
+col
+drop table t2;
 disconnect con1;

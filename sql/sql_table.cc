@@ -13409,7 +13409,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   }
 #endif /* WITH_WSREP */
 
-  if (select_lex->item_list.elements || select_lex->tvc) // With select or TVC
+  if (select_lex->is_select_or_tvc()) // With select or TVC
   {
     select_result *result;
 
