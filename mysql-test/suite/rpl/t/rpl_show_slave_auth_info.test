@@ -1,0 +1,25 @@
+# MDEV-36238: Test `--show-slave-auth-info` (and `--report-user`/`password`)
+#
+# `rpl_show_slave_hosts` and `rpl_slave_alias_replica` (and several others) test
+# SHOW SLAVE HOSTS without `--show-slave-auth-info`. This test supplements them.
+
+# SHOW SLAVE HOSTS is agnostic of binlog formats
+--source include/have_binlog_format_mixed.inc
+--let $rpl_topology= 1->2, 1->3
+--source include/rpl_init.inc
+
+# Make sure the master's synced up
+--let $show_statement= SHOW SLAVE HOSTS
+--let $field= Server_id
+--let $condition= =2
+--source include/wait_show_condition.inc
+--let $condition= =3
+--source include/wait_show_condition.inc
+
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2 $SERVER_MYPORT_3 SERVER_MYPORT_3
+SHOW SLAVE HOSTS;
+# MDEV-20601 Make REPLICA a synonym for SLAVE in SQL statements
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2 $SERVER_MYPORT_3 SERVER_MYPORT_3
+SHOW REPLICA HOSTS;
+
+--source include/rpl_end.inc
