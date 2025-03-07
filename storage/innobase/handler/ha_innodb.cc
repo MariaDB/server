@@ -17424,7 +17424,12 @@ ha_innobase::check_if_incompatible_data(
 	param_new = info->option_struct;
 	param_old = table->s->option_struct;
 
-	innobase_copy_frm_flags_from_create_info(m_prebuilt->table, info);
+	m_prebuilt->table->stats_mutex_lock();
+	if (!m_prebuilt->table->stat_initialized()) {
+		innobase_copy_frm_flags_from_create_info(
+			m_prebuilt->table, info);
+	}
+	m_prebuilt->table->stats_mutex_unlock();
 
 	if (table_changes != IS_EQUAL_YES) {
 
