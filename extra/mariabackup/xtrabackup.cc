@@ -5405,6 +5405,14 @@ static bool xtrabackup_backup_func()
 	}
 	msg("cd to %s", mysql_real_data_home);
 	encryption_plugin_backup_init(mysql_connection);
+	if (mysql_send_query(
+		    mysql_connection,
+		    C_STRING_WITH_LEN("SET GLOBAL "
+				      "innodb_log_checkpoint_now=ON;"))) {
+		msg("initiating checkpoint failed");
+		return(false);
+	}
+
 	msg("open files limit requested %lu, set to %lu",
 	    xb_open_files_limit,
 	    xb_set_max_open_files(xb_open_files_limit));
@@ -5517,6 +5525,9 @@ fail:
 		goto fail;
 	}
 
+	/* try to wait for a log checkpoint, but do not fail if the
+	server does not support this */
+	mysql_read_query_result(mysql_connection);
 	/* label it */
 	recv_sys.file_checkpoint = log_sys.next_checkpoint_lsn;
 	log_hdr_init();

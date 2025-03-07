@@ -22,8 +22,8 @@ CREATE TABLE t2(i int) ENGINE INNODB;
 ALTER TABLE t21 FORCE, ALGORITHM=INPLACE;
 # Create partial backup (excluding table t21), Ignore the
 # unsupported redo log for the table t21.
-t1.new
-t2.new
+t1.ibd
+t2.ibd
 # Prepare the full backup
 t1.ibd
 t2.ibd
