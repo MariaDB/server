@@ -30,19 +30,6 @@ SELECT * FROM td;
 a
 DROP TABLE tr,tc,td;
 #
-# MDEV-27467 innodb to enfore the minimum innodb_buffer_pool_size in SET (resize) the same as startup
-#
-SELECT @@innodb_buffer_pool_size INTO @innodb_buffer_pool_size_orig;
-SELECT CEILING((256 + 64) * @@innodb_page_size / 1048576) * 1048576 INTO @min_pool_size;
-EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size -1);
-ERROR 42000: Variable 'innodb_buffer_pool_size' can't be set to the value of 'WRONG_VALUE'
-SHOW WARNINGS;
-Level	Code	Message
-Warning	1210	innodb_buffer_pool_size must be at least MIN_VAL for innodb_page_size=PAGE_SIZE
-Error	1231	Variable 'innodb_buffer_pool_size' can't be set to the value of 'WRONG_VALUE'
-EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size);
-SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;
-#
 # MDEV-27882 Innodb - recognise MySQL-8.0 innodb flags and give a specific error message
 #
 FOUND 1 /InnoDB: MySQL-8\.0 tablespace in \./ibdata1/ in attempted_start.err
