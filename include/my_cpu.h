@@ -97,7 +97,12 @@ static inline void MY_RELAX_CPU(void)
   /* Changed from __ppc_get_timebase for musl and clang compatibility */
   __builtin_ppc_get_timebase();
 #elif defined __GNUC__ && defined __riscv
-  __builtin_riscv_pause();
+  /* The GCC-only __builtin_riscv_pause() or the pause instruction is
+  encoded like a fence instruction with special parameters. On RISC-V
+  implementations that do not support arch=+zihintpause this
+  instruction could be interpreted as a more expensive memory fence;
+  it should not be an illegal instruction. */
+  __asm__ volatile(".long 0x0100000f" ::: "memory");
 #elif defined __GNUC__
   /* Mainly, prevent the compiler from optimizing away delay loops */
   __asm__ __volatile__ ("":::"memory");
