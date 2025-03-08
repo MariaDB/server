@@ -810,7 +810,6 @@ from
 insert into t1 (a,b,f1) values ( 110, 100, 12345);
 analyze table t1;
 
---echo # The following must NOT use Rowid Filter:
 --source include/analyze-format.inc
 analyze format=json select * from t1
 where

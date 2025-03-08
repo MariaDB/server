@@ -3752,7 +3752,6 @@ analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
-# The following must NOT use Rowid Filter:
 analyze format=json select * from t1
 where
 a =30100 and b in (30100,30101,30102)
@@ -3778,9 +3777,23 @@ ANALYZE
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "b",
+              "used_key_parts": ["b"]
+            },
+            "rows": 252,
+            "selectivity_pct": 4.799085888,
+            "r_rows": 250,
+            "r_lookups": 250,
+            "r_selectivity_pct": 100,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
           "loops": 1,
           "r_loops": 1,
           "rows": 250,
+          "r_index_rows": 250,
           "r_rows": 250,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
@@ -3870,6 +3883,19 @@ ANALYZE
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "b",
+              "used_key_parts": ["b"]
+            },
+            "rows": 252,
+            "selectivity_pct": 4.799085888,
+            "r_rows": 250,
+            "r_lookups": 2,
+            "r_selectivity_pct": 100,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
           "loops": 1,
           "r_loops": 1,
           "rows": 250,
