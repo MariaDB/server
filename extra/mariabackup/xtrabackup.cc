@@ -2119,7 +2119,7 @@ static int prepare_export()
   if (strncmp(orig_argv1,"--defaults-file=", 16) == 0)
   {
     snprintf(cmdline, sizeof cmdline,
-      IF_WIN("\"","") "\"%s\" --mysqld \"%s\""
+      IF_WIN("\"","") "\"%s\" --mariadbd \"%s\""
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb-buffer-pool-size=%llu"
@@ -2133,7 +2133,7 @@ static int prepare_export()
   else
   {
     snprintf(cmdline, sizeof cmdline,
-      IF_WIN("\"","") "\"%s\" --mysqld"
+      IF_WIN("\"","") "\"%s\" --mariadbd"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb-buffer-pool-size=%llu"
@@ -7528,9 +7528,9 @@ int main(int argc, char **argv)
 	{
 		/* In "prepare export", we need  to start mysqld 
 		Since it is not always be installed on the machine,
-		we start "mariabackup --mysqld", which acts as mysqld
+		we start "mariabackup --mariadbd", which acts as mysqld
 		*/
-		if (strcmp(argv[1], "--mysqld") == 0)
+		if (strcmp(argv[1], "--mariadbd") == 0)
 		{
 			srv_operation= SRV_OPERATION_EXPORT_RESTORED;
 			extern int mysqld_main(int argc, char **argv);
