@@ -23,6 +23,8 @@ INSERT INTO t1 VALUES (1, 0);
 --sync_with_master
 SET sql_log_bin=0;
 call mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
+call mtr.add_suppression('Slave I/O: .*Lost connection to server during query');
+call mtr.add_suppression("Slave I/O thread couldn't register on master");
 SET sql_log_bin=1;
 --source include/stop_slave.inc
 --replace_result $MASTER_MYPORT MASTER_PORT
