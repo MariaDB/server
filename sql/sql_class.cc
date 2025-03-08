@@ -8365,6 +8365,18 @@ end:
 }
 
 
+void
+wait_for_commit::prior_commit_error(THD *thd)
+{
+  /*
+    Only raise a "prior commit failed" error if we didn't already raise
+    an error.
+  */
+  if (!thd->get_stmt_da()->is_set())
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+}
+
+
 /*
   Wakeup anyone waiting for us to have committed.
 

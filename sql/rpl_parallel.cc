@@ -157,8 +157,6 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   wait_for_commit *wfc= &rgi->commit_orderer;
   int err;
 
-  thd->get_stmt_da()->set_overwrite_status(true);
-
   if (unlikely(rgi->worker_error))
   {
     /*
@@ -317,10 +315,6 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     wait_for_pending_deadlock_kill(thd, rgi);
   thd->clear_error();
   thd->reset_killed();
-  /*
-    Would do thd->get_stmt_da()->set_overwrite_status(false) here, but
-    reset_diagnostics_area() already does that.
-  */
   thd->get_stmt_da()->reset_diagnostics_area();
   wfc->wakeup_subsequent_commits(rgi->worker_error);
 }
@@ -1567,9 +1561,7 @@ handle_rpl_parallel_thread(void *arg)
       else
       {
         delete qev->ev;
-        thd->get_stmt_da()->set_overwrite_status(true);
         err= thd->wait_for_prior_commit();
-        thd->get_stmt_da()->set_overwrite_status(false);
       }
 
       end_of_group=
