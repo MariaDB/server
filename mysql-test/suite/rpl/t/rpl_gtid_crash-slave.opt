@@ -1,1 +1,1 @@
---master-retry-count=100 --slave-net-timeout=10
+--master-retry-count=500 --slave-net-timeout=10
