@@ -694,6 +694,13 @@ static uchar *get_charset_key(const uchar *object,
   return (uchar*) cs->cs_name.str;
 }
 
+static uchar* get_collation_name_key(const uchar *object, size_t *length, my_bool dummy)
+{
+  CHARSET_INFO *cs = (CHARSET_INFO*)object;
+  *length = cs->coll_name.length;
+  return (uchar*)cs->coll_name.str;
+}
+
 static void init_available_charsets(void)
 {
   char fname[FN_REFLEN + sizeof(MY_CHARSET_INDEX)];
@@ -710,13 +717,8 @@ static void init_available_charsets(void)
   
   /* Initialize collation name hash */
   my_hash_init2(key_memory_charsets, &collation_name_hash, 16,
-                &my_charset_latin1, 64, 0, 0,
-                [](const uchar *object, size_t *length, my_bool) -> uchar* {
-                  CHARSET_INFO *cs = (CHARSET_INFO*) object;
-                  *length = cs->coll_name.length;
-                  return (uchar*) cs->coll_name.str;
-                },
-                0, 0, HASH_UNIQUE);
+              &my_charset_latin1, 64, 0, 0, get_collation_name_key,
+              0, 0, HASH_UNIQUE);
 
   init_compiled_charsets(MYF(0));
 
