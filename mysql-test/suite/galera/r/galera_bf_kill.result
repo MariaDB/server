@@ -1,10 +1,12 @@
 connection node_2;
 connection node_1;
 connection node_2;
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 CREATE TABLE t1(a int not null primary key auto_increment,b int) engine=InnoDB;
 insert into t1 values (NULL,1);
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 begin;
 update t1 set a = 5;
 connection node_2;

@@ -1,7 +1,6 @@
 connection node_2;
 connection node_1;
 connection node_1;
-connection node_1;
 SET GLOBAL wsrep_replicate_myisam = TRUE;
 connection node_2;
 SET GLOBAL wsrep_replicate_myisam = TRUE;
@@ -11,9 +10,9 @@ INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2), (3);
 INSERT INTO t1 SELECT 4 FROM DUAL UNION ALL SELECT 5 FROM DUAL;
 connection node_2;
-SELECT COUNT(*) = 5 FROM t1;
-COUNT(*) = 5
-1
+SELECT COUNT(*) AS EXPECT_5 FROM t1;
+EXPECT_5
+5
 DROP TABLE t1;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(100)) ENGINE=MyISAM;
@@ -21,36 +20,36 @@ INSERT INTO t1 VALUES (1, 'abc'),(2,'abc'), (3, 'xxx');
 REPLACE INTO t1 VALUES (1, 'klm'), (2,'xyz');
 REPLACE INTO t1 SELECT 3, 'yyy' FROM DUAL;
 connection node_2;
-SELECT COUNT(*) = 3 FROM t1;
-COUNT(*) = 3
+SELECT COUNT(*) AS EXPECT_3 FROM t1;
+EXPECT_3
+3
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 1 AND f2 = 'klm';
+EXPECT_1
 1
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1 AND f2 = 'klm';
-COUNT(*) = 1
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 2 AND f2 = 'xyz';
+EXPECT_1
 1
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2 AND f2 = 'xyz';
-COUNT(*) = 1
-1
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
-COUNT(*) = 1
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
+EXPECT_1
 1
 connection node_1;
 UPDATE t1 SET f2 = 'zzz' WHERE f2 = 'yyy';
 connection node_2;
-SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'zzz';
-COUNT(*) = 1
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f2 = 'zzz';
+EXPECT_1
 1
 connection node_1;
 DELETE FROM t1 WHERE f2 = 'zzz';
 connection node_2;
-SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'zzz';
-COUNT(*) = 0
-1
+SELECT COUNT(*) AS EXPECT_0 FROM t1 WHERE f2 = 'zzz';
+EXPECT_0
+0
 connection node_1;
 TRUNCATE TABLE t1;
 connection node_2;
-SELECT COUNT(*) = 0 FROM t1;
-COUNT(*) = 0
-1
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
 DROP TABLE t1;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=MyISAM;
@@ -61,11 +60,11 @@ INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 COMMIT;
 connection node_2;
-SELECT COUNT(*) = 1 FROM t1;
-COUNT(*) = 1
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
 1
-SELECT COUNT(*) = 1 FROM t2;
-COUNT(*) = 1
+SELECT COUNT(*) AS EXPECT_1 FROM t2;
+EXPECT_1
 1
 connection node_1;
 START TRANSACTION;
@@ -75,14 +74,13 @@ ROLLBACK;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 connection node_2;
-SELECT COUNT(*) = 2 FROM t1;
-COUNT(*) = 2
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_1 FROM t2;
+EXPECT_1
 1
-SELECT COUNT(*) = 1 FROM t2;
-COUNT(*) = 1
-1
-DROP TABLE t1;
-DROP TABLE t2;
+DROP TABLE t1, t2;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=MyISAM;
 CREATE TABLE t2 (f2 INTEGER PRIMARY KEY) ENGINE=InnoDB;
@@ -94,18 +92,7 @@ INSERT INTO t1 VALUES (1);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 connection node_1;
 COMMIT;
-DROP TABLE t1;
-DROP TABLE t2;
-#
-# MDEV-11152: wsrep_replicate_myisam: SELECT gets replicated using TO
-#
-connection node_1;
-CREATE TABLE t1 (i INT NOT NULL PRIMARY KEY) ENGINE=INNODB;
-INSERT INTO t1 VALUES(1);
-SELECT * FROM t1;
-i
-1
-DROP TABLE t1;
+DROP TABLE t1, t2;
 connection node_1;
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
 INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
@@ -236,15 +223,24 @@ id	b
 DROP TRIGGER tr1;
 DROP TRIGGER tr2;
 DROP TRIGGER tr3;
-DROP TABLE t1,t2;
+DROP TABLE t1, t2;
 CREATE TABLE t1 (a INT, b INT, UNIQUE(a)) ENGINE=MyISAM;
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=1;
-SET GLOBAL wsrep_replicate_myisam=ON;
 INSERT INTO t1  (a,b) VALUES (10,20);
 connection node_2;
 SELECT * from t1;
 a	b
 1	20
 connection node_1;
+DROP TABLE t1;
+#
+# MDEV-11152: wsrep_replicate_myisam: SELECT gets replicated using TO
+#
+connection node_1;
+CREATE TABLE t1 (i INT NOT NULL PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+i
+1
 DROP TABLE t1;
 connection node_2;

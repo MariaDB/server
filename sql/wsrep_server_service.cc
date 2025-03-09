@@ -93,7 +93,8 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
      streaming transaction is BF aborted and streaming applier
      is created from BF aborter context. */
   Wsrep_threadvars saved_threadvars(wsrep_save_threadvars());
-  wsrep_reset_threadvars(saved_threadvars.cur_thd);
+  if (saved_threadvars.cur_thd)
+    wsrep_reset_threadvars(saved_threadvars.cur_thd);
   THD *thd= 0;
   Wsrep_applier_service *ret= 0;
   if (!wsrep_create_threadvars() &&
@@ -110,7 +111,8 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
   }
   /* Restore original thread local storage state before returning. */
   wsrep_restore_threadvars(saved_threadvars);
-  wsrep_store_threadvars(saved_threadvars.cur_thd);
+  if (saved_threadvars.cur_thd)
+    wsrep_store_threadvars(saved_threadvars.cur_thd);
   return ret;
 }
 
@@ -187,6 +189,7 @@ void Wsrep_server_service::log_message(enum wsrep::log::level level,
     break;
   case wsrep::log::unknown:
     WSREP_UNKNOWN("%s", message);
+    assert(0);
     break;
   }
 }
