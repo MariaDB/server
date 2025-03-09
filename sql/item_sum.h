@@ -304,7 +304,7 @@ class Window_spec;
   The implementation takes into account the used strategy:
   - Items resolved at optimization phase return 0 from Item_sum::used_tables().
   - Items that depend on the number of join output records, but not columns of
-  any particular table (like COUNT(*)), returm 0 from Item_sum::used_tables(),
+  any particular table (like COUNT(*)), return 0 from Item_sum::used_tables(),
   but still return false from Item_sum::const_item().
 */
 

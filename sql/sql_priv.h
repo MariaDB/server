@@ -268,7 +268,7 @@
 
 
 /*
-  Uncachable causes:
+  Uncacheable causes:
 */
 /* This subquery has fields from outer query (put by user) */
 #define UNCACHEABLE_DEPENDENT_GENERATED   1

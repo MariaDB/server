@@ -765,7 +765,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
   /*
     recording checksum of FD event computed with dropped
     possibly active LOG_EVENT_BINLOG_IN_USE_F flag.
-    Similar step at verication: the active flag is dropped before
+    Similar step at verification: the active flag is dropped before
     checksum computing.
   */
   if (checksum_len)
@@ -1666,7 +1666,7 @@ int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
     if (is_CA)
     {
       /*
-        error handeling, direct_commit_alter is turned on, so that we dont
+        error handling, direct_commit_alter is turned on, so that we dont
         wait for master reply in mysql_alter_table (in wait_for_master)
       */
       rgi->direct_commit_alter= true;
@@ -2217,7 +2217,7 @@ compare_errors:
     else if (actual_error == ER_XAER_NOTA && !rpl_filter->db_ok(get_db()))
     {
       /*
-        If there is an XA query whos XID cannot be found, if the replication
+        If there is an XA query whose XID cannot be found, if the replication
         filter is active and filters the target database, assume that the XID
         cache has been cleared (e.g. by server restart) since it was prepared,
         so we can just ignore this event.
@@ -2930,7 +2930,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 
 /*
   Used to record GTID while sending binlog to slave, without having to
-  fully contruct every Gtid_log_event() needlessly.
+  fully construct every Gtid_log_event() needlessly.
 */
 bool
 Gtid_log_event::peek(const uchar *event_start, size_t event_len,
@@ -5468,7 +5468,7 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
 /**
    The method either increments the relay log position or
    commits the current statement and increments the master group 
-   possition if the event is STMT_END_F flagged and
+   position if the event is STMT_END_F flagged and
    the statement corresponds to the autocommit query (i.e replicated
    without wrapping in BEGIN/COMMIT)
 
@@ -6620,7 +6620,7 @@ Write_rows_log_event::do_before_row_operations(const rpl_group_info *)
   /*
    * Fixed Bug#45999, In RBR, Store engine of Slave auto-generates new
    * sequence numbers for auto_increment fields if the values of them are 0.
-   * If generateing a sequence number is decided by the values of
+   * If generating a sequence number is decided by the values of
    * table->auto_increment_field_not_null and SQL_MODE(if includes
    * MODE_NO_AUTO_VALUE_ON_ZERO) in update_auto_increment function.
    * SQL_MODE of slave sql thread is always consistency with master's.
@@ -6806,7 +6806,7 @@ is_duplicate_key_error(int errcode)
 
   The row to be inserted can contain values only for selected columns. The 
   missing columns are filled with default values using @c prepare_record() 
-  function. If a matching record is found in the table and @c overwritte is
+  function. If a matching record is found in the table and @c overwrite is
   true, the missing columns are taken from it.
 
   @param  rli   Relay log info (needed for row unpacking).
@@ -7374,7 +7374,7 @@ uint Rows_log_event::find_key_parts(const KEY *key) const
   Find the best key to use when locating the row in @c find_row().
 
   A primary key is preferred if it exists; otherwise a unique index is
-  preferred. Else we pick the index with the smalles rec_per_key value.
+  preferred. Else we pick the index with the smallest rec_per_key value.
 
   If a suitable key is found, set @c m_key, @c m_key_nr, @c m_key_info,
   and @c m_usable_key_parts member fields appropriately.

@@ -110,10 +110,10 @@
   @detail
     'foo' here can be any constant we can compute during optimization,
     Only equality conditions are supported.
-    See SargableLeft above for detals.
+    See SargableLeft above for details.
 
   @param  field      The first argument of LEFT or SUBSTRING if sargable,
-                     otherwise deferenced to NULL
+                     otherwise dereferenced to NULL
   @param  value_idx  The index of argument that is the prefix string
                      if sargable, otherwise dereferenced to -1
 */

@@ -156,7 +156,7 @@ static int fix_and_check_datadir(mysqld_service_properties *props)
   Note that this function carefully avoids using mysql libraries (e.g dbug),
   since it is  used in unusual environments (windows installer, MFC), where we
   do not have much control over how threads are created and destroyed, so we
-  cannot assume MySQL thread initilization here.
+  cannot assume MySQL thread initialization here.
 */
 int get_mysql_service_properties(const wchar_t *bin_path,
   mysqld_service_properties *props)

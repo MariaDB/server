@@ -1074,7 +1074,7 @@ public:
     This implementation of a purely virtual method sets the value of the
     columns 'min_value', 'max_value', 'nulls_ratio', 'avg_length',
     'avg_frequency', 'hist_size', 'hist_type' and 'histogram'  of the 
-    stistical table columns_stat according to the contents of the bitmap
+    statistical table columns_stat according to the contents of the bitmap
     write_stat.column_stat_nulls and the values of the fields min_value,
     max_value, nulls_ratio, avg_length, avg_frequency, hist_size, hist_type
     and histogram of the structure write_stat from the Field structure
@@ -1569,7 +1569,7 @@ public:
 
   /*
     Initialize the iterator. It will return rows with n_keyparts matching the
-    curernt values.
+    current values.
 
     @return  false - OK
              true  - Error
@@ -2928,7 +2928,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   }
    
   /*
-    Ensure that no one is reading satistics while we are writing them
+    Ensure that no one is reading statistics while we are writing them
     This ensures that statistics is always read consistently
   */
   mysql_mutex_lock(&table->s->LOCK_statistics);
@@ -2944,7 +2944,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   if (err)
     rc= 1;
 
-  /* Update the statistical table colum_stats */
+  /* Update the statistical table column_stats */
   stat_table= tables[COLUMN_STAT].table;
   Column_stat column_stat(stat_table, table);
   for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
@@ -3306,7 +3306,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
   DEBUG_SYNC(thd, "statistics_read_start");
 
   /*
-    Do not read statistics for any query that explicity involves
+    Do not read statistics for any query that explicitly involves
     statistical tables, failure to to do so we may end up
     in a deadlock.
   */
@@ -4340,7 +4340,7 @@ double get_column_range_cardinality(Field *field,
   @param endpoint The constant
 
   @param avg_sel  Average selectivity of condition "col=const" in this table.
-                  It is calcuated as (#non_null_values / #distinct_values).
+                  It is calculated as (#non_null_values / #distinct_values).
   
   @return
      Expected condition selectivity (a number between 0 and 1)
@@ -4388,7 +4388,7 @@ double Histogram_binary::point_selectivity(Field *field, key_range *endpoint,
   /*
     A special case: we're looking at a single bucket, and that bucket has
     zero value-length. Use the multi-bucket formula (attempt to use
-    single-bucket formula will cause divison by zero).
+    single-bucket formula will cause division by zero).
 
     For more details see [re_zero_length_buckets] above.
   */
@@ -4476,7 +4476,7 @@ bool is_stat_table(const Lex_ident_db &db, const Lex_ident_table &table)
 }
 
 /*
-  Check wheter we can use EITS statistics for a field or not
+  Check whether we can use EITS statistics for a field or not
 
   TRUE : Use EITS for the columns
   FALSE: Otherwise
@@ -4494,7 +4494,7 @@ bool is_eits_usable(Field *field)
     (1): checks if we have EITS statistics for a particular column
     (2): Don't use EITS for GEOMETRY columns
     (3): Disabling reading EITS statistics for columns involved in the
-         partition list of a table. We assume the selecticivity for
+         partition list of a table. We assume the selectivity for
          such columns would be handled during partition pruning.
   */
 

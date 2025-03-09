@@ -201,7 +201,7 @@ public:
 
 /*
   class Sql_user_condition_identity.
-  Instances of this class uniquely idetify user defined conditions (EXCEPTION).
+  Instances of this class uniquely identify user defined conditions (EXCEPTION).
 
     SET sql_mode=ORACLE;
     CREATE PROCEDURE p1
@@ -403,7 +403,7 @@ private:
 
   /**
     Default constructor.
-    This constructor is usefull when allocating arrays.
+    This constructor is useful when allocating arrays.
     Note that the init() method should be called to complete the Sql_condition.
   */
   Sql_condition()

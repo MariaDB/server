@@ -123,7 +123,7 @@ ulong total_ha_2pc= 0;
 /*
   Number of non-mandatory 2pc handlertons whose initialization failed
   to estimate total_ha_2pc value under supposition of the failures
-  have not occcured.
+  have not occured.
 */
 ulong failed_ha_2pc= 0;
 #endif
@@ -613,7 +613,7 @@ int ha_finalize_handlerton(void *plugin_)
   */
   if (hton->slot != HA_SLOT_UNDEF)
   {
-    /* Make sure we are not unpluging another plugin */
+    /* Make sure we are not unplugging another plugin */
     DBUG_ASSERT(hton2plugin[hton->slot] == plugin);
     DBUG_ASSERT(hton->slot < MAX_HA);
     hton2plugin[hton->slot]= NULL;
@@ -2088,7 +2088,7 @@ err:
   {
     /*
       We are not really doing a rollback here, but the code in trans_commit()
-      requres that m_transaction_psi is 0 when we return from this function.
+      requires that m_transaction_psi is 0 when we return from this function.
     */
     MYSQL_ROLLBACK_TRANSACTION(thd->m_transaction_psi);
     thd->m_transaction_psi= NULL;
@@ -3418,7 +3418,7 @@ LEX_CSTRING *handler::engine_name()
 
 
 /*
-  Calclate the number of index blocks we are going to access when
+  Calculate the number of index blocks we are going to access when
   doing 'ranges' index dives reading a total of 'rows' rows.
 */
 
@@ -5379,7 +5379,7 @@ bool non_existing_table_error(int error)
   @retval
     HA_ADMIN_NEEDS_DATA_CONVERSION
                               Table has structures requiring
-                              ALTER TABLE FORCE, algortithm=COPY to
+                              ALTER TABLE FORCE, algorithm=COPY to
                               recreate data.
   @retval
     HA_ADMIN_NOT_IMPLEMENTED
@@ -5465,7 +5465,7 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
               ha_table_flags() & HA_CAN_REPAIR);
 
   /*
-    Update frm version if no errors and there are no version incompatibiltes
+    Update frm version if there are no errors and no version incompatibilities
     in the data (as these are not fixed by repair).
   */
   if (result == HA_ADMIN_OK && !opt_readonly &&
@@ -7904,7 +7904,7 @@ int handler::check_duplicate_long_entries(const uchar *new_rec)
 /** @brief
     check whether updated records breaks the
     unique constraint on long columns.
-    In the case of update we just need to check the specic key
+    In the case of update we just need to check the specific key
     reason for that is consider case
     create table t1(a blob , b blob , x blob , y blob ,unique(a,b)
                                                     ,unique(x,y))

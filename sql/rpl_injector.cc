@@ -55,7 +55,7 @@ injector::transaction::~transaction()
 
   /*
     We set the first character to null just to give all the copies of the
-    start position a (minimal) chance of seening that the memory is lost.
+    start position a (minimal) chance of seeing that the memory is lost.
     All assuming the my_free does not step over the memory, of course.
   */
   *the_memory= '\0';

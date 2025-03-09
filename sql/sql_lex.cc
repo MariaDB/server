@@ -332,7 +332,7 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
     should be re-interpreted as an Item_in_subselect, which corresponds
     to a <table subquery> when used inside an <in predicate>.
 
-    Our reading of Note 184 is reccursive, so that all:
+    Our reading of Note 184 is recursive, so that all:
     - IN (( <subquery> ))
     - IN ((( <subquery> )))
     - IN '('^N <subquery> ')'^N
@@ -435,7 +435,7 @@ bool sp_create_assignment_lex(THD *thd, const char *pos)
   @param no_lookahead     - True if the parser has no lookahead
   @param rhs_value_str    - a string value for right hand side of assignment
   @param need_set_keyword - if a SET statement "SET a=10",
-                            or a direct assignment overwise "a:=10"
+                            or a direct assignment otherwise "a:=10"
   @return false if success, true otherwise.
 */
 
@@ -503,7 +503,7 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
     if (lex->check_main_unit_semantics())
     {
       /*
-        "lex" can be referrenced by:
+        "lex" can be referenced by:
         - sp_instr_set                          SET a= expr;
         - sp_instr_set_row_field                SET r.a= expr;
         - sp_instr_stmt (just generated above)  SET @a= expr;
@@ -3223,7 +3223,7 @@ void st_select_lex_node::substitute_in_tree(st_select_lex_node *subst)
 
   SYNOPSYS
     st_select_lex_node::include_standalone()
-    upper - reference on node underr which this node should be included
+    upper - reference on node under which this node should be included
     ref - references on reference on this node
 */
 void st_select_lex_node::include_standalone(st_select_lex_node *upper,
@@ -3362,7 +3362,7 @@ void st_select_lex_node::exclude()
     st_select_lex_unit::exclude_level()
 
   NOTE: units which belong to current will be brought up on level of
-  currernt unit 
+  current unit
 */
 void st_select_lex_unit::exclude_level()
 {
@@ -3431,7 +3431,7 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
     found table as depended (of select where was found table)
 
     We move by name resolution context, bacause during merge can some select
-    be excleded from SELECT tree
+    be excluded from SELECT tree
   */
   Name_resolution_context *c= &this->context;
   do
@@ -3691,7 +3691,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   @detail
     The intent is to allow to eventually print back any query.
 
-    This is useful e.g. for storage engines that take over diferrent kinds of
+    This is useful e.g. for storage engines that take over different kinds of
     queries
 */
 
@@ -3942,7 +3942,7 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
     Here the variable 'i' references to the instruction that could be deleted
     by sp_head's destructor and it would result in server abnormal termination.
     This use case can theoretically happen in case the current stored routine's
-    instruction causes re-compilation of a SP intruction's statement and
+    instruction causes re-compilation of a SP instruction's statement and
     internal parse error happens during this process.
 
     Rather, just restore the original LEX object used before parser has been
@@ -4278,7 +4278,7 @@ bool LEX::need_correct_ident()
     view    given view
 
   NOTE
-    It have not sense to set CHECK OPTION for SELECT satement or subqueries,
+    It have not sense to set CHECK OPTION for SELECT statement or subqueries,
     so we do not.
 
   RETURN
@@ -4449,7 +4449,7 @@ void LEX::set_trg_event_type_for_tables()
                        trg2bit(TRG_EVENT_DELETE);
     break;
   /*
-    Basic INSERT. If there is an additional ON DUPLIATE KEY UPDATE
+    Basic INSERT. If there is an additional ON DUPLICATE KEY UPDATE
     clause, it will be handled later in this method.
   */
   case SQLCOM_INSERT:                           /* fall through */
@@ -4719,7 +4719,7 @@ void LEX::cleanup_after_one_table_open()
   {
     derived_tables= 0;
     first_select_lex()->exclude_from_table_unique_test= false;
-    /* cleunup underlying units (units of VIEW) */
+    /* cleanup underlying units (units of VIEW) */
     for (SELECT_LEX_UNIT *un= first_select_lex()->first_inner_unit();
          un;
          un= un->next_unit())
@@ -4734,7 +4734,7 @@ void LEX::cleanup_after_one_table_open()
 
 /*
   Save current state of Query_tables_list for this LEX, and prepare it
-  for processing of new statemnt.
+  for processing of new statement.
 
   SYNOPSIS
     reset_n_backup_query_tables_list()
@@ -5076,7 +5076,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         {
           /*
             If at least one subquery in a union is non-empty, the UNION result
-            is non-empty. If there is no UNION, the only subquery is non-empy.
+            is non-empty. If there is no UNION, the only subquery is non-empty.
           */
           empty_union_result= inner_join->empty_result();
         }
@@ -5192,7 +5192,7 @@ void st_select_lex::append_table_to_list(TABLE_LIST *TABLE_LIST::*link,
   Replace given table from the leaf_tables list for a list of tables 
 
   @param table Table to replace
-  @param list  List to substititute the table for
+  @param list  List to substitute the table for
 
   @details
   Replace 'table' from the leaf_tables list for a list of tables 'tbl_list'.
@@ -5847,7 +5847,7 @@ bool LEX::save_prep_leaf_tables()
 
   Query_arena *arena= thd->stmt_arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
-  //It is used for DETETE/UPDATE so top level has only one SELECT
+  //It is used for DELETE/UPDATE so top level has only one SELECT
   DBUG_ASSERT(first_select_lex()->next_select() == NULL);
   bool res= first_select_lex()->save_prep_leaf_tables(thd);
 
@@ -8979,7 +8979,7 @@ uint binlog_unsafe_map[256];
   Sets the combination given by "a" and "b" and automatically combinations
   given by other types of access, i.e. 2^(8 - 2), as unsafe.
 
-  It may happen a colision when automatically defining a combination as unsafe.
+  It may make a collision when automatically defining a combination as unsafe.
   For that reason, a combination has its unsafe condition redefined only when
   the new_condition is greater then the old. For instance,
   
@@ -9113,7 +9113,7 @@ void binlog_unsafe_map_init()
 
 /**
   @brief
-    Collect fiels that are used in the GROUP BY of this st_select_lex
+    Collect fields that are used in the GROUP BY of this st_select_lex
     
   @param thd  The thread handle
 
@@ -9175,7 +9175,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
 
 /**
   @brief
-   For a condition check possibility of exraction a formula over grouping fields 
+   For a condition check possibility of extraction a formula over grouping fields
 
   @param thd      The thread handle
   @param cond     The condition whose subformulas are to be analyzed
@@ -9189,7 +9189,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     the call-back parameter checker to check whether a primary formula
     depends only on grouping fields.
     The subformulas that are not usable are marked with the flag MARKER_NO_EXTRACTION.
-    The subformulas that can be entierly extracted are marked with the flag 
+    The subformulas that can be entirely extracted are marked with the flag
     MARKER_FULL_EXTRACTION.
   @note
     This method is called before any call of extract_cond_for_grouping_fields.
@@ -9269,7 +9269,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
     to figure out whether a subformula depends only on these fields or not.
   @note
     The built condition C is always implied by the condition cond
-    (cond => C). The method tries to build the least restictive such
+    (cond => C). The method tries to build the least restrictive such
     condition (i.e. for any other condition C' such that cond => C'
     we have C => C').
   @note
@@ -10713,7 +10713,7 @@ LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
 
 /**
   Add query primary to a parenthesized query primary
-  pruducing a new query expression body
+  producing a new query expression body
 */
 
 SELECT_LEX_UNIT *
@@ -11302,7 +11302,7 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
     (dt.a>2) OR (dt.a<3) condition from or1 again and push it into WHERE.
     This will cause duplicate conditions in WHERE of dt.
 
-    To avoid repeatable pushdown such OR conditions as or1 describen
+    To avoid repeatable pushdown such OR conditions as or1 described
     above are marked with MARKER_NO_EXTRACTION.
 
   @note
@@ -12510,7 +12510,7 @@ bool LEX::sp_create_set_password_instr(THD *thd,
   @param pos          - The position of the keyword `NAMES` inside the query
   @param cs           - The character set part, or nullptr if DEFAULT
   @param cl           - The collation (explicit or contextually typed)
-  @param no_lookahead - The tokinizer lookahead state
+  @param no_lookahead - The tokenizer lookahead state
 */
 bool LEX::set_names(const char *pos,
                     CHARSET_INFO *cs,

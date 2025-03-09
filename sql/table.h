@@ -770,7 +770,7 @@ struct TABLE_SHARE
   LEX_CSTRING comment;			/* Comment about table */
   CHARSET_INFO *table_charset;		/* Default charset of string fields */
 
-  MY_BITMAP *check_set;                 /* Fields used by check constrant */
+  MY_BITMAP *check_set;                 /* Fields used by check constraint */
   MY_BITMAP all_set;
   /*
     Key which is used for looking-up table in table cache and in the list
@@ -1270,7 +1270,7 @@ public:
     truncated_value= false;
   }
   /**
-     Fuction creates duplicate of 'from'
+     Function creates duplicate of 'from'
      string in 'storage' MEM_ROOT.
 
      @param from           string to copy
@@ -1488,7 +1488,7 @@ public:
        select max(col1), col2 from t1. In this case, the query produces
        one row with all columns having NULL values.
 
-    Interpetation: If maybe_null!=0, all fields of the table are considered
+    Interpretation: If maybe_null!=0, all fields of the table are considered
     NULLable (and have NULL values when null_row=true)
   */
   uint maybe_null;
@@ -2665,7 +2665,7 @@ struct TABLE_LIST
      
      For the @c TABLE_LIST representing the derived table @c b, @c derived
      points to the SELECT_LEX_UNIT representing the result of the query within
-     parenteses.
+     parentheses.
      
      - Views. This is set for views with @verbatim ALGORITHM = TEMPTABLE
      @endverbatim by mysql_make_view().
@@ -2823,7 +2823,7 @@ struct TABLE_LIST
   bool          updating;               /* for replicate-do/ignore table */
   bool          ignore_leaves;          /* preload only non-leaf nodes */
   bool          crashed;                /* Table was found crashed */
-  bool          skip_locked;            /* Skip locked in view defination */
+  bool          skip_locked;            /* Skip locked in view definition */
   table_map     dep_tables;             /* tables the table depends on      */
   table_map     on_expr_dep_tables;     /* tables on expression depends on  */
   struct st_nested_join *nested_join;   /* if the element is a nested join  */
@@ -3712,7 +3712,7 @@ public:
    */
   enum_tx_isolation iso_level() const;
   /**
-     Stores transactioin isolation level to internal TABLE object.
+     Stores transaction isolation level to internal TABLE object.
    */
   void store_iso_level(enum_tx_isolation iso_level)
   {

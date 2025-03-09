@@ -395,7 +395,7 @@ class Master_info : public Slave_reporting_capability
     Flag is raised at the parallel worker slave stop. Its purpose
     is to mark the whole start_alter_list when slave stops.
     The flag is read by Start Alter event to self-mark its state accordingly
-    at time its alter info struct is about to be appened to the list.
+    at time its alter info struct is about to be appended to the list.
   */
   bool is_shutdown= false;
 

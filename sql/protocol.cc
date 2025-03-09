@@ -18,7 +18,7 @@
   @file
 
   Low level functions for storing data to be send to the MySQL client.
-  The actual communction is handled by the net_xxx functions in net_serv.cc
+  The actual communication is handled by the net_xxx functions in net_serv.cc
 */
 
 #include "mariadb.h"
@@ -64,7 +64,7 @@ bool Protocol_binary::net_store_data(const uchar *from, size_t length)
   net_store_data_cs() - extended version with character set conversion.
   
   It is optimized for short strings whose length after
-  conversion is garanteed to be less than 251, which accupies
+  conversion is guaranteed to be less than 251, which occupies
   exactly one byte to store length. It allows not to use
   the "convert" member as a temporary buffer, conversion
   is done directly to the "packet" member.
@@ -81,7 +81,7 @@ bool Protocol_binary::net_store_data_cs(const uchar *from, size_t length,
 #endif
 {
   uint dummy_errors;
-  /* Calculate maxumum possible result length */
+  /* Calculate maximum possible result length */
   size_t conv_length= to_cs->mbmaxlen * length / from_cs->mbminlen;
 
   if (conv_length > 250)
@@ -482,7 +482,7 @@ bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   We keep a separate version for that range because it's widely used in
   libmysql.
 
-  uint is used as agrument type because of MySQL type conventions:
+  uint is used as argument type because of MySQL type conventions:
   - uint for 0..65536
   - ulong for 0..4294967296
   - ulonglong for bigger numbers.

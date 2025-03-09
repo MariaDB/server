@@ -1038,7 +1038,7 @@ public:
 /*
   The class JOIN_TAB_SCAN is a companion class for the classes JOIN_CACHE_BNL
   and JOIN_CACHE_BNLH. Actually the class implements the iterator over the
-  table joinded by BNL/BNLH join algorithm.
+  table joined by BNL/BNLH join algorithm.
   The virtual functions open, next and close are called for any iteration over
   the table. The function open is called to initiate the process of the 
   iteration. The function next shall read the next record from the joined
@@ -1377,7 +1377,7 @@ private:
     This flag is set to TRUE if the implementation of the MRR interface cannot
     handle range association labels and does not return them to the caller of
     the multi_range_read_next handler function. E.g. the implementation of
-    the MRR inteface for the Falcon engine could not return association
+    the MRR interface for the Falcon engine could not return association
     labels to the caller of multi_range_read_next.
     The flag is set by JOIN_CACHE_BKA::init() and is not ever changed.
   */       
