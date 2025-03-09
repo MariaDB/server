@@ -2154,7 +2154,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
 
 
 /**
-  Apply transformation max/min  transwormation to ALL/ANY subquery if it is
+  Apply transformation max/min transformation to ALL/ANY subquery if it is
   possible.
 
   @param join  Join object of the subquery (i.e. 'child' join).
@@ -3150,13 +3150,13 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     DBUG_RETURN(FALSE);
 
   /*
-    EXISTS-to-IN coversion and ORDER BY ... LIMIT clause:
+    EXISTS-to-IN conversion and ORDER BY ... LIMIT clause:
 
     - "[ORDER BY ...] LIMIT n" clause with a non-zero n does not affect
       the result of the EXISTS(...) predicate, and so we can discard
       it during the conversion.
     - "[ORDER BY ...] LIMIT m, n" can turn a non-empty resultset into empty
-      one, so it affects tthe EXISTS(...) result and cannot be discarded.
+      one, so it affects the EXISTS(...) result and cannot be discarded.
 
     Disallow exists-to-in conversion if
     (1). three is a LIMIT which is not a basic constant
@@ -3270,7 +3270,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     }
   }
 
-  /* make EXISTS->IN permanet (see Item_subselect::init()) */
+  /* make EXISTS->IN permanent (see Item_subselect::init()) */
   set_exists_transformed();
 
   first_select->limit_params.select_limit= NULL;
@@ -3583,7 +3583,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     test for each Item happens later in
     Item_in_subselect::row_value_in_to_exists_transformer.
     The reason for this mess is that our JOIN::prepare phase works top-down
-    instead of bottom-up, so we first do name resoluton and semantic checks
+    instead of bottom-up, so we first do name resolution and semantic checks
     for the outer selects, then for the inner.
   */
   if (engine &&
@@ -3713,7 +3713,7 @@ bool Item_in_subselect::init_left_expr_cache()
   outer_join= unit->outer_select()->join;
   /*
     An IN predicate might be evaluated in a query for which all tables have
-    been optimzied away.
+    been optimized away.
   */ 
   if (!outer_join || !outer_join->table_count || !outer_join->tables_list)
     return TRUE;
@@ -4029,7 +4029,7 @@ bool subselect_single_select_engine::no_rows()
 
 
 /**
- Makes storage for the output values for the subquery and calcuates
+ Makes storage for the output values for the subquery and calculates
  their data and column types and their nullability.
 */
 bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
@@ -5338,7 +5338,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     the extra key part created when s->uniques > 0.
 
     NOTE: item have to be Item_in_subselect, because class constructor
-    accept Item_in_subselect as the parmeter.
+    accepts Item_in_subselect as the parameter.
   */
   DBUG_ASSERT(tmp_table->s->keys == 1 &&
               item->get_IN_subquery()->left_expr->cols() ==
@@ -5438,7 +5438,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
 
 
 /**
-  Create a new uniquesubquery engine for the execution of an IN predicate.
+  Create a new unique subquery engine for the execution of an IN predicate.
 
   @details
   Create and initialize a new JOIN_TAB, and Table_ref objects to perform
@@ -5754,8 +5754,8 @@ double get_post_group_estimate(JOIN* join, double join_op_rows)
   Execute a subquery IN predicate via materialization.
 
   @details
-  If needed materialize the subquery into a temporary table, then
-  copmpute the predicate via a lookup into this table.
+  If needed to materialize the subquery into a temporary table, then
+  compute the predicate via a lookup into this table.
 
   @retval TRUE  if error
   @retval FALSE otherwise
@@ -6292,7 +6292,7 @@ bool Ordered_key::lookup()
     mid= lo + (hi - lo) / 2;
     cmp_res= cmp_key_with_search_key(key_buff[mid]);
     /*
-      In order to find the minimum match, check if the pevious element is
+      In order to find the minimum match, check if the previous element is
       equal or smaller than the found one. If equal, we need to search further
       to the left.
     */
@@ -6855,7 +6855,7 @@ bool subselect_rowid_merge_engine::partial_match()
 
   /* If there is a non-NULL key, it must be the first key in the keys array. */
   DBUG_ASSERT(!non_null_key || (non_null_key && merge_keys[0] == non_null_key));
-  /* The prioryty queue for keys must be empty. */
+  /* The priority queue for keys must be empty. */
   DBUG_ASSERT(pq.is_empty());
 
   /* All data accesses during execution are via handler::ha_rnd_pos() */

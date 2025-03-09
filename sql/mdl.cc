@@ -538,7 +538,7 @@ public:
 
     /*
       In backup namespace DML/DDL may starve because of concurrent FTWRL or
-      BACKUP statements. This scenario is partically useless in real world,
+      BACKUP statements. This scenario is practically useless in real world,
       so we just return 0 here.
     */
     bitmap_t hog_lock_types_bitmap() const override

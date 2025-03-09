@@ -216,7 +216,7 @@
 #define MIN_ROWS_AFTER_FILTERING 1.0
 
 /**
-  Number of rows in a reference table when refered through a not unique key.
+  Number of rows in a reference table when referred through a not unique key.
   This value is only used when we don't know anything about the key
   distribution.
 */

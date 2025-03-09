@@ -236,7 +236,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
   {
     /*
       Table open failed, maybe because we run out of memory.
-      Close all open tables and relaese all MDL locks
+      Close all open tables and release all MDL locks
     */
     tdc_release_share(share);
     share->tdc->flush(thd, true);
@@ -755,7 +755,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     /*
       CHECK/REPAIR TABLE command is only command where VIEW allowed here and
       this command use only temporary table method for VIEWs resolving =>
-      there can't be VIEW tree substitition of join view => if opening table
+      there can't be VIEW tree substitution of join view => if opening table
       succeed then table->table will have real TABLE pointer as value (in
       case of join view substitution table->table can be 0, but here it is
       impossible)
@@ -1005,7 +1005,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             /*
               Note that type() always return MYSQL_TYPE_BLOB for
               all blob types. Another function needs to be added
-              if we in the future want to distingush between blob
+              if we in the future want to distinguish between blob
               types here.
             */
             enum enum_field_types type= field->type();

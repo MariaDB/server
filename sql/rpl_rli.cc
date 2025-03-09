@@ -1073,7 +1073,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     value which would lead to badly broken replication.
     Even the relay_log_pos will be corrupted in this case, because the len is
     the relay log is not "val".
-    With the end_log_pos solution, we avoid computations involving lengthes.
+    With the end_log_pos solution, we avoid computations involving length.
   */
   mysql_cond_broadcast(&data_cond);
   if (!skip_lock)
@@ -1286,7 +1286,7 @@ err:
      compare them each time this function is called, we only need to do this
      when current log name changes. If we have UNTIL_MASTER_POS condition we
      need to do this only after Rotate_log_event::do_apply_event() (which is
-     rare, so caching gives real benifit), and if we have UNTIL_RELAY_POS
+     rare, so caching gives real benefit), and if we have UNTIL_RELAY_POS
      condition then we should invalidate cached comarison value after
      inc_group_relay_log_pos() which called for each group of events (so we
      have some benefit if we have something like queries that use

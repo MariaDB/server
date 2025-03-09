@@ -38,8 +38,8 @@ struct TABLE;
    Only fixed layout is supported now.
    Null bit maps for the appended values is placed before the values 
    themselves. Offsets are from the last sorted field, that is from the
-   record referefence, which is still last component of sorted records.
-   It is preserved for backward compatiblility.
+   record reference, which is still last component of sorted records.
+   It is preserved for backward compatibility.
    The structure is used tp store values of the additional fields 
    in the sort buffer. It is used also when these values are read
    from a temporary file/buffer. As the reading procedures are beyond the

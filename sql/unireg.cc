@@ -20,7 +20,7 @@
   Functions to create a unireg form-file from a FIELD and a fieldname-fieldinfo
   struct.
   In the following functions FIELD * is an ordinary field-structure with
-  the following exeptions:
+  the following exceptions:
     sc_length,typepos,row,kol,dtype,regnr and field need not to be set.
     str is a (long) to record position where 0 is the first position.
 */

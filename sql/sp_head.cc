@@ -722,7 +722,7 @@ bool sp_package::validate_public_routines(THD *thd, sp_package *spec)
 bool sp_package::validate_private_routines(THD *thd)
 {
   /*
-    Check that all forwad declarations in
+    Check that all forward declarations in
     CREATE PACKAGE BODY have implementations.
   */
   List_iterator<LEX> it(m_routine_declarations);
@@ -1639,7 +1639,7 @@ bool sp_head::check_execute_access(THD *thd) const
 
   @param thd
   @param ret_value
-  @retval           NULL - error (access denided or EOM)
+  @retval           NULL - error (access denied or EOM)
   @retval          !NULL - success (the invoker has rights to all %TYPE tables)
 */
 
@@ -2027,7 +2027,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       we have separate union for each such event and hence can't use
       query_id of real calling statement as the start of all these
       unions (this will break logic of replication of user-defined
-      variables). So we use artifical value which is guaranteed to
+      variables). So we use artificial value which is guaranteed to
       be greater than all query_id's of all statements belonging
       to previous events/unions.
       Possible alternative to this is logging of all function invocations
@@ -2317,7 +2317,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
   /*
     In the case when we weren't able to employ reuse mechanism for
-    OUT/INOUT paranmeters, we should reallocate memory. This
+    OUT/INOUT parameters, we should reallocate memory. This
     allocation should be done on the arena which will live through
     all execution of calling routine.
   */

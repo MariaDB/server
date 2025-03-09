@@ -1113,7 +1113,7 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
 #ifdef WITH_WSREP
   /*
     Suppress warnings/errors if the wsrep THD is going to replay. The
-    deadlock/interrupted errors may be transitient and should not be
+    deadlock/interrupted errors may be transient and should not be
     reported to the client.
   */
   if (wsrep_must_replay(this))
@@ -3389,7 +3389,7 @@ select_export::~select_export()
     create_file()
     thd			Thread handle
     path		File name
-    exchange		Excange class
+    exchange		Exchange class
     cache		IO cache
 
   RETURN
@@ -5195,7 +5195,7 @@ TABLE *get_purge_table(THD *thd)
   return thd->open_tables;
 }
 
-/** Find an open table in the list of prelocked tabled
+/** Find an open table in the list of prelocked tables
 
   Used for foreign key actions, for example, in UPDATE t1 SET a=1;
   where a child table t2 has a KB on t1.a.
@@ -5237,7 +5237,7 @@ void destroy_thd(MYSQL_THD thd)
 }
 
 /**
-  Create a THD that only has auxilliary functions
+  Create a THD that only has auxiliary functions
   It will never be added to the global connection list
   server_threads. It does not represent any client connection.
 
@@ -5758,17 +5758,17 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
 /*
   If the storage engine detects a deadlock, and needs to choose a victim
   transaction to roll back, it can call this function to ask the upper
-  server layer for which of two possible transactions is prefered to be
+  server layer for which of two possible transactions is preferred to be
   aborted and rolled back.
 
   In parallel replication, if two transactions are running in parallel and
   one is fixed to commit before the other, then the one that commits later
-  will be prefered as the victim - chosing the early transaction as a victim
+  will be preferred as the victim - choosing the early transaction as a victim
   will not resolve the deadlock anyway, as the later transaction still needs
   to wait for the earlier to commit.
 
-  The return value is -1 if the first transaction is prefered as a deadlock
-  victim, 1 if the second transaction is prefered, or 0 for no preference (in
+  The return value is -1 if the first transaction is preferred as a deadlock
+  victim, 1 if the second transaction is preferred, or 0 for no preference (in
   which case the storage engine can make the choice as it prefers).
 */
 extern "C" int
@@ -5831,7 +5831,7 @@ extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 }
 
 /*
-  This is similar to sqlcom_can_generate_row_events, with the expection
+  This is similar to sqlcom_can_generate_row_events, with the expectation
   that we only return 1 if we are going to generate row events in a
   transaction.
   CREATE OR REPLACE is always safe to do as this will run in it's own
@@ -8018,7 +8018,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
 
     Besides, we should not try to print these warnings if it is not
     possible to write statements to the binary log as it happens when
-    the execution is inside a function, or generaly speaking, when
+    the execution is inside a function, or generally speaking, when
     the variables.option_bits & OPTION_BIN_LOG is false.
     
   */
@@ -8720,7 +8720,7 @@ void AUTHID::copy(MEM_ROOT *mem_root, const LEX_CSTRING *user_name,
 
 /*
   Set from a string in 'user@host' format.
-  This method resebmles parse_user(),
+  This method resembles parse_user(),
   but does not need temporary buffers.
 */
 void AUTHID::parse(const char *str, size_t length)

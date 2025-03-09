@@ -83,7 +83,7 @@
   are evaluated then the optimizer should consider pushing t.a = t1.a,
   t.b = t2.b and (t.a = t1.a AND t.b = t2.b) to choose the best condition
   for splitting. Apparently here last condition is the best one because
-  it provides the miximum possible number of partitions.
+  it provides the minimum possible number of partitions.
 
   If we dropped the index on t3(a,b) and created the index on t3(a) instead
   then we would have two options for splitting: to push t.a = t1.a or to
@@ -160,7 +160,7 @@
   The set of all rows belonging to the union of several partitions is called
   here superpartition. If a grouping operation is defined by the list
   e_1,...,e_n then any set S = {e_i1,...,e_ik} can be used to devide all rows
-  into superpartions such that for any two rows r1, r2  the following holds:
+  into superpartitions such that for any two rows r1, r2  the following holds:
   e_ij(r1) = e_ij(r2) for each e_ij from S. We use the splitting technique
   only if S consists of references to colums  of the joined tables.
   For example if the GROUP BY list looks like this a, g(b), c we can consider

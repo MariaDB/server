@@ -27,7 +27,7 @@
   The problem here is that mysql_parse calls free_item to free all the
   items allocated at the end of every query. The workaround would to
   keep two item lists per THD - normal free_list and handler_items.
-  The second is to be freeed only on thread end. mysql_ha_open should
+  The second is to be freed only on thread end. mysql_ha_open should
   then do { handler_items=concat(handler_items, free_list); free_list=0; }
 
   But !!! do_command calls free_root at the end of every query and frees up
@@ -102,7 +102,7 @@ SQL_HANDLER::~SQL_HANDLER()
     The hash object is an TABLE_LIST struct.
     The hash key is the alias name.
     The hash key length is the alias name length plus one for the
-    terminateing NUL character.
+    terminating NULL character.
 
   RETURN
     Pointer to the TABLE_LIST struct.
@@ -186,7 +186,7 @@ static void mysql_ha_close_childs(THD *thd, TABLE_LIST *current_table_list,
 
   @note Though this function takes a list of tables, only the first list entry
   will be closed.
-  @mote handler_object is not deleted!
+  @note handler_object is not deleted!
   @note Broadcasts refresh if it closed a table with old version.
 */
 
@@ -601,7 +601,7 @@ static SQL_HANDLER *mysql_ha_find_handler(THD *thd, const LEX_CSTRING *name)
    @param keyname	Key to use.
    @param key_expr      List of key column values
    @param cond		Where clause
-   @param in_prepare	If we are in prepare phase (we can't evalute items yet)
+   @param in_prepare	If we are in prepare phase (we can't evaluate items yet)
 
    @return 0 ok
    @return 1 error

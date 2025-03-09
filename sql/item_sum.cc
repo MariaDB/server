@@ -180,7 +180,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
 
   /*
      Window functions can not be used as arguments to sum functions.
-     Aggregation happes before window function computation, so there
+     Aggregation happens before window function computation, so there
      are no values to aggregate over.
   */
   if (with_window_func())
@@ -472,7 +472,7 @@ Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list)
 
 
 /**
-  Constructor used in processing select with temporary tebles.
+  Constructor used in processing select with temporary tables.
 */
 
 Item_sum::Item_sum(THD *thd, Item_sum *item):
@@ -1246,7 +1246,7 @@ bool Item_sum_min_max::fix_length_and_dec(THD *thd)
 {
   DBUG_ASSERT(args[0]->field_type() == args[0]->real_item()->field_type());
   DBUG_ASSERT(args[0]->result_type() == args[0]->real_item()->result_type());
-  /* MIN/MAX can return NULL for empty set indepedent of the used column */
+  /* MIN/MAX can return NULL for empty set independent of the used column */
   set_maybe_null();
   null_value= true;
   return args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
@@ -4483,7 +4483,7 @@ String* Item_func_group_concat::val_str(String* str)
 
 /*
   @brief
-    Get the comparator function for DISTINT clause
+    Get the comparator function for DISTINCT clause
 */
 
 qsort_cmp2 Item_func_group_concat::get_comparator_function_for_distinct()

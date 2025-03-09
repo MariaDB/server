@@ -3565,7 +3565,7 @@ public:
 
 /*
   This item represents user variable used as out parameter (e.g in LOAD DATA),
-  and it is supposed to be used only for this purprose. So it is simplified
+  and it is supposed to be used only for this purpose. So it is simplified
   a lot. Actually you should never obtain its value.
 
   The only two reasons for this thing being an Item is possibility to store it

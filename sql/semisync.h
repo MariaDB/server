@@ -58,7 +58,7 @@ public:
 
 /* The layout of a semisync slave reply packet:
    1 byte for the magic num
-   8 bytes for the binlog positon
+   8 bytes for the binlog position
    n bytes for the binlog filename, terminated with a '\0'
 */
 #define REPLY_MAGIC_NUM_LEN 1

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2017, MariaDB Corporation, Alibaba Corporation
-   Copyrgiht (c) 2020, MariaDB Corporation.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -566,7 +566,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
 }
 
 
-/* Create a SQUENCE object */
+/* Create a SEQUENCE object */
 
 SEQUENCE::SEQUENCE() :all_values_used(0), initialized(SEQ_UNINTIALIZED)
 {

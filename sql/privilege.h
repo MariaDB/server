@@ -213,7 +213,7 @@ static inline constexpr privilege_t operator|(privilege_t a, privilege_t b)
 }
 
 
-// Dyadyc bitwise assignment operators
+// Dyadic bitwise assignment operators
 static inline privilege_t& operator&=(privilege_t &a, privilege_t b)
 {
   return a= a & b;

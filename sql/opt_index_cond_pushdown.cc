@@ -58,7 +58,7 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
   /* 
     Don't push down the triggered conditions. Nested outer joins execution 
     code may need to evaluate a condition several times (both triggered and
-    untriggered), and there is no way to put thi
+    untriggered), and there is no way to put this
     TODO: Consider cloning the triggered condition and using the copies for:
       1. push the first copy down, to have most restrictive index condition
          possible

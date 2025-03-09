@@ -144,7 +144,7 @@
 
   The algorithm starts with equality nodes that don't have any incoming edges
   (their expressions are either constant or depend only on tables that are
-  outside of the outer join in question) and performns a breadth-first
+  outside of the outer join in question) and performs a breadth-first
   traversal. If we reach the outer join nest node, it means outer join is
   functionally dependent and can be eliminated. Otherwise it cannot be
   eliminated.
@@ -332,7 +332,7 @@ private:
   public:
     /* Space for field iterator */
     char buf[Dep_value_field::iterator_size];
-    /* !NULL <=> iterating over depdenent modules of this field */
+    /* !NULL <=> iterating over dependent modules of this field */
     Dep_value_field *field_dep; 
     bool returned_goal;
   };
@@ -383,7 +383,7 @@ protected:
   uint unbound_args;
   
   Dep_module() : unbound_args(0) {}
-  /* to bump unbound_args when constructing depedendencies */
+  /* to bump unbound_args when constructing dependencies */
   friend class Field_dependency_recorder; 
   friend class Dep_analysis_context;
 };
@@ -877,7 +877,7 @@ eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
 
   SYNOPSIS
     check_func_dependency()
-      join         Join we're procesing
+      join         Join we're processing
       dep_tables   Tables that we check to be functionally dependent (on
                    everything else)
       it           Iterator that enumerates these tables, or NULL if we're 
@@ -1334,8 +1334,8 @@ void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
       multiple-equality. Do two things:
        - Collect List<Dep_value_field> of tblX.colY where tblX is one of the
          tables we're trying to eliminate.
-       - rembember if there was a bound value, either const_expr or tblY.colZ
-         swher tblY is not a table that we're trying to eliminate.
+       - remember if there was a bound value, either const_expr or tblY.colZ
+         where tblY is not a table that we're trying to eliminate.
       Store all collected information in a Dep_module_expr object.
     */
     Item_equal *item_equal= (Item_equal*)cond;
@@ -1400,7 +1400,7 @@ void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
   
     $LEFT_PART OR $RIGHT_PART
   
-  condition. This is achieved as follows: First, we apply distrubutive law:
+  condition. This is achieved as follows: First, we apply distributive law:
   
     (fdep_A_1 AND fdep_A_2 AND ...)  OR  (fdep_B_1 AND fdep_B_2 AND ...) =
 
@@ -1846,7 +1846,7 @@ Dep_value_field *Dep_analysis_context::get_field_value(Field *field)
 /* 
   Iteration over unbound modules that are our dependencies.
   for those we have:
-    - dependendencies of our fields
+    - dependencies of our fields
     - outer join we're in 
 */
 char *Dep_value_table::init_unbound_modules_iter(char *buf)

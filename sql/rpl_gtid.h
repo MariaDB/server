@@ -932,7 +932,7 @@ public:
   ~Intersecting_gtid_event_filter();
 
   /*
-    Returns TRUE if any filers exclude the gtid, returns FALSE otherwise, i.e.
+    Returns TRUE if any filters exclude the gtid, returns FALSE otherwise, i.e.
     all filters must allow the GTID.
   */
   my_bool exclude(rpl_gtid *gtid) override;

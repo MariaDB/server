@@ -19,7 +19,7 @@
   are always included first.
   It can also be used to speed up compilation by using precompiled headers.
 
-  This file should include a minum set of header files used by all files
+  This file should include a minimum set of header files used by all files
   and header files that are very seldom changed.
   It can also include some defines that all files should be aware of.
 */

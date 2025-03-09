@@ -317,7 +317,7 @@ end:
 
 /*
   Forget current servers cache and read new servers 
-  from the conneciton table.
+  from the connection table.
 
   SYNOPSIS
     servers_reload()
@@ -941,7 +941,7 @@ end:
       FOREIGN_SERVER *altered
 
   NOTES
-    This function takes as an argument the FOREIGN_SERVER structi pointer
+    This function takes as an argument the FOREIGN_SERVER struct pointer
     for the existing server and the FOREIGN_SERVER struct populated with only 
     the members which have been updated. It then "merges" the "altered" struct
     members to the existing server, the existing server then represents an

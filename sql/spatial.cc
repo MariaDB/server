@@ -53,7 +53,7 @@ int MBR::within(const MBR *mbr)
   /*
     We have to take into account the 'dimension' of
     the MBR, where the dimension of a single point is 0,
-    the dimesion of an vertical or horizontal line is 1,
+    the dimension of a vertical or horizontal line is 1,
     and finally the dimension of the solid rectangle is 2.
   */
     
@@ -1070,7 +1070,7 @@ const Geometry::Class_info *Gis_point::get_class_info() const
   @param    r      sphere radius
   @param    error  pointer describing the error in case of the boundary conditions
 
-  @return distance in case without error, it is caclulcated distance (non-negative),
+  @return distance in case without error, it is calculated distance (non-negative),
                    in case error exist, negative value.
 */
 double Gis_point::calculate_haversine(const Geometry *g,
