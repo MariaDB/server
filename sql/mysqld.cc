@@ -6162,8 +6162,8 @@ int mysqld_main(int argc, char **argv)
   (void)MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
 
   /* Memory used when everything is setup */
-  start_memory_used= global_status_var.global_memory_used;
-
+  start_memory_used= (global_status_var.global_memory_used +
+                      my_malloc_init_memory_allocated);
   run_main_loop();
 
   /* Shutdown requested */
@@ -7445,7 +7445,7 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
   if (scope == OPT_GLOBAL)
   {
     calc_sum_of_all_status_if_needed(status_var);
-    *(longlong*) buff= (status_var->global_memory_used +
+    *(longlong*) buff= (status_var->global_memory_used + my_malloc_init_memory_allocated +
                         status_var->local_memory_used);
   }
   else
