@@ -2070,7 +2070,7 @@ public:
   4. m_cmp_item - the pointer to a cmp_item instance to handle comparison
      for this pair. Only unique type handlers have m_cmp_item!=NULL.
      Non-unique type handlers share the same cmp_item instance.
-     For all m_comparators[] elements the following assersion it true:
+     For all m_comparators[] elements the following assertion is true:
        (m_handler_index==i) == (m_cmp_item!=NULL)
 */
 class Predicant_to_list_comparator

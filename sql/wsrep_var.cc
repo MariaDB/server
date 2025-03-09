@@ -782,7 +782,7 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
     res= wsrep_create_appliers(wsrep_slave_count_change, true);
     mysql_mutex_unlock(&LOCK_global_system_variables);
     mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
-    // Thread creation and execution is asyncronous, therefore we need
+    // Thread creation and execution is asynchronous, therefore we need
     // wait them to be started or error produced
     while (wsrep_running_applier_threads != (ulong)wsrep_slave_threads &&
            !wsrep_thread_create_failed.load(std::memory_order_relaxed))

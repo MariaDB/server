@@ -632,11 +632,11 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
                         binlog_format_names[var->save_result.ulonglong_value]);
     /*
       We allow setting up binlog_format other then ROW for session scope when
-      wsrep/flasback is enabled.This is done because of 2 reasons
+      wsrep/flashback is enabled. This is done because of 2 reasons
       1. User might want to run pt-table-checksum.
       2. SuperUser knows what is doing :-)
 
-      For refrence:- MDEV-7322
+      For reference:- MDEV-7322
     */
     if (var->type == OPT_GLOBAL)
     {
@@ -1165,7 +1165,7 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
     start/stop, there is a possibility that the server variable
     can become out of sync with the real event scheduler state.
 
-    This can happen with two concurrent statments if the first gets
+    This can happen with two concurrent statements if the first gets
     interrupted after start/stop but before retaking
     LOCK_global_system_variables. However, this problem should be quite
     rare and it's difficult to avoid it without opening up possibilities
@@ -5671,7 +5671,7 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   bool status= true;
   Rpl_filter* rpl_filter= mi->rpl_filter;
 
-  /* Proctect against other threads */
+  /* Protect against other threads */
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {
   case OPT_REPLICATE_REWRITE_DB:
@@ -6761,7 +6761,7 @@ static const char *default_regex_flags_names[]=
   "DOTALL",    // (?s)  . matches anything including NL
   "DUPNAMES",  // (?J)  Allow duplicate names for subpatterns
   "EXTENDED",  // (?x)  Ignore white space and # comments
-  "EXTENDED_MORE",//(?xx)  Ignore white space and # comments inside cheracter
+  "EXTENDED_MORE",//(?xx)  Ignore white space and # comments inside character
   "EXTRA",     // means nothing since PCRE2
   "MULTILINE", // (?m)  ^ and $ match newlines within data
   "UNGREEDY",  // (?U)  Invert greediness of quantifiers
@@ -6817,7 +6817,7 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
 
 /*
   Full is not needed below anymore as one can set all bits with '= ALL', but
-  we need it for compatiblity with earlier versions.
+  we need it for compatibility with earlier versions.
 */
 static const char *log_slow_verbosity_names[]=
 { "innodb", "query_plan", "explain", "engine", "warnings", "full", 0};

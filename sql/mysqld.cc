@@ -1909,7 +1909,7 @@ extern "C" void unireg_abort(int exit_code)
   {
     /*
       This is an abort situation, we cannot expect to gracefully close all
-      wsrep threads here, we can only diconnect from service
+      wsrep threads here, we can only disconnect from service
     */
     wsrep_close_client_connections(FALSE);
     Wsrep_server_state::instance().disconnect();
@@ -3897,7 +3897,7 @@ static const char *rpl_make_log_name(PSI_memory_key key, const char *opt,
     MY_REPLACE_EXT | MY_UNPACK_FILENAME | MY_SAFE_PATH;
 
   /* mysql_real_data_home_ptr  may be null if no value of datadir has been
-     specified through command-line or througha cnf file. If that is the
+     specified through command-line or through a cnf file. If that is the
      case we make mysql_real_data_home_ptr point to mysql_real_data_home
      which, in that case holds the default path for data-dir.
   */
@@ -4251,7 +4251,7 @@ static int init_common_variables()
     SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
   }
 
-  unireg_init(opt_specialflag); /* Set up extern variabels */
+  unireg_init(opt_specialflag); /* Set up extern variables */
   if (!(my_default_lc_messages=
         my_locale_by_name(Lex_cstring_strlen(lc_messages))))
   {
@@ -4341,7 +4341,7 @@ static int init_common_variables()
     }
     default_charset_info= default_collation;
   }
-  /* Set collactions that depends on the default collation */
+  /* Set collations that depend on the default collation */
   global_system_variables.collation_server= default_charset_info;
   global_system_variables.collation_database= default_charset_info;
   if (is_supported_parser_charset(default_charset_info))
@@ -5193,7 +5193,7 @@ static int init_server_components()
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
-    if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
+    if (opt_bootstrap) // bootstrap option given - disable wsrep functionality
     {
       wsrep_provider_init(WSREP_NONE);
       if (wsrep_init())
@@ -5749,7 +5749,7 @@ static void run_main_loop()
 int mysqld_main(int argc, char **argv)
 {
 #ifndef _WIN32
-  /* We can't close stdin just now, because it may be booststrap mode. */
+  /* We can't close stdin just now, because it may be in bootstrap mode. */
   bool please_close_stdin= fcntl(STDIN_FILENO, F_GETFD) >= 0;
 #endif
 
@@ -8791,7 +8791,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   /*
     Options have been parsed. Now some of them need additional special
-    handling, like custom value checking, checking of incompatibilites
+    handling, like custom value checking, checking of incompatibilities
     between options, setting of multiple variables, etc.
     Do them here.
   */
@@ -8956,7 +8956,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /*
     It looks like extra_connection_count should be passed here but
     its been using connection_count for the last 10+ years and
-    no-one was requested a change so lets not suprise anyone.
+    no-one has requested a change so lets not surprise anyone.
   */
   one_thread_scheduler(extra_thread_scheduler, &connection_count);
 #else
@@ -9345,7 +9345,7 @@ void refresh_global_status()
   */
   reset_status_vars();
   /*
-    Reset accoumulated thread's status variables.
+    Reset accumulated thread's status variables.
     These are the variables in 'status_vars[]' with the prefix _STATUS.
  */
   bzero(&global_status_var, clear_for_flush_status);
@@ -9393,7 +9393,7 @@ void refresh_status_legacy(THD *thd)
   reset_pfs_status_stats();
 #endif
 
-  /* Add thread's status variabes to global status */
+  /* Add thread's status variables to global status */
   add_to_status(&global_status_var, &thd->status_var);
 
   /* Reset thread's status variables */

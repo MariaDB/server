@@ -261,7 +261,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     }
     /*
        For  "win_func() OVER (ORDER BY order_list RANGE BETWEEN ...)",
-       - ORDER BY order_list must not be ommitted
+       - ORDER BY order_list must not be omitted
        - the list must have a single element.
        But it really only matters if the frame is bounded.
     */
@@ -985,7 +985,7 @@ public:
   }
 
 private:
-  /* The table that is acccesed by this cursor. */
+  /* The table that is accessed by this cursor. */
   TABLE *table;
   /* Buffer where to store the table's record data. */
   uchar *record;
@@ -3335,7 +3335,7 @@ bool st_select_lex::add_window_func(Item_window_func *win_func)
       // over (partition by a, order by x) && over (order by x).
       //
       // The first function requires an ordering by a first and then by x,
-      // while the seond function requires an ordering by x first.
+      // while the second function requires an ordering by x first.
       // The same restriction is not required for the order by clause.
       if (largest_partition.elements && !spec->partition_list.elements)
       {

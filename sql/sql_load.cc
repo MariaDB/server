@@ -191,7 +191,7 @@ class READ_INFO: public Load_data_param
     For example, suppose we have an ujis file with bytes 0x8FA10A, where:
     - 0x8FA1 is an incomplete prefix of a 3-byte character
       (it should be [8F][A1-FE][A1-FE] to make a full 3-byte character)
-    - 0x0A is a line demiliter
+    - 0x0A is a line delimiter
     This file has some broken data, the trailing [A1-FE] is missing.
 
     In this example it works as follows:
@@ -421,7 +421,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                                     INSERT_ACL | UPDATE_ACL,
                                     INSERT_ACL | UPDATE_ACL, FALSE))
      DBUG_RETURN(-1);
-  if (!table_list->table ||               // do not suport join view
+  if (!table_list->table ||               // do not support join view
       !table_list->single_table_updatable() || // and derived tables
       check_key_in_view(thd, table_list))
   {
@@ -1008,7 +1008,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
 #endif
 
 /****************************************************************************
-** Read of rows of fixed size + optional garage + optonal newline
+** Read of rows of fixed size + optional garage + optional newline
 ****************************************************************************/
 
 static int
@@ -1080,7 +1080,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         uchar save_chr;
         if ((length=(uint) (read_info.row_end - pos)) > fixed_length)
           length= fixed_length;
-        save_chr= pos[length]; pos[length]= '\0'; // Safeguard aganst malloc
+        save_chr= pos[length]; pos[length]= '\0'; // Safeguard against malloc
         dst->load_data_set_value(thd, (const char *) pos, length, &read_info);
         pos[length]= save_chr;
         if ((pos+= length) > read_info.row_end)
@@ -1420,7 +1420,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 char
 READ_INFO::unescape(char chr)
 {
-  /* keep this switch synchornous with the ESCAPE_CHARS macro */
+  /* keep this switch synchronous with the ESCAPE_CHARS macro */
   switch(chr) {
   case 'n': return '\n';
   case 't': return '\t';

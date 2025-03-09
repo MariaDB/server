@@ -699,7 +699,7 @@ int ha_json_table::info(uint)
 
   @param thd                  thread handle
   @param param                a description used as input to create the table
-  @param jt                   json_table specificaion
+  @param jt                   json_table specification
   @param table_alias          alias
 */
 
@@ -910,7 +910,7 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
   /*
     This is done so the ::print function can just print the path string.
     Can be removed if we redo that function to print the path using it's
-    anctual content. Not sure though if we should.
+    actual content. Not sure though if we should.
   */
   m_path.s.c_str= (const uchar *) path.str;
 

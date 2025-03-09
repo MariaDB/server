@@ -30,7 +30,7 @@
     Walk through all VALUES items.
   @param
      @param processor      - the processor to call for each Item
-     @param walk_qubquery  - if should dive into subquery items
+     @param walk_subquery  - if should dive into subquery items
      @param argument       - the argument to pass recursively
   @retval
     true   on error
@@ -118,8 +118,8 @@ bool fix_fields_for_tvc(THD *thd, List_iterator_fast<List_item> &li)
     types and aggregates them with the previous ones stored in holders. If
     list_a is the first one in the list of lists its elements types are put in
     holders. The errors can be reported when count of list_a elements is
-    different from the first_list_el_count. Also error can be reported whe
-    n aggregation can't be made.
+    different from the first_list_el_count. Also error can be reported when
+    aggregation can't be made.
 
   @retval
     true    if an error was reported
@@ -1171,7 +1171,7 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
   @details
     For each IN predicate from AND parts of the WHERE condition and/or
     ON expressions of the SELECT for this join the method performs
-    the intransformation into an equivalent IN sunquery if it's needed.
+    the intransformation into an equivalent IN subquery if it's needed.
 
   @retval
     false     always

@@ -290,7 +290,7 @@ int initialize_audit_plugin(void *plugin_)
   mysql_mutex_unlock(&LOCK_audit_mask);
 
   /*
-    Pre-acquire the newly inslalled audit plugin for events that
+    Pre-acquire the newly installed audit plugin for events that
     may potentially occur further during INSTALL PLUGIN.
 
     When audit event is triggered, audit subsystem acquires interested

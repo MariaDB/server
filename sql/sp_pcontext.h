@@ -407,12 +407,12 @@ public:
   {
   public:
     /*
-      The label poiting to the body start,
+      The label pointing to the body start,
       either explicit or automatically generated.
       Used during generation of "ITERATE loop_label"
       to check if "loop_label" is a FOR loop label.
       - In case of a FOR loop, some additional code
-        (cursor fetch or iteger increment) is generated before
+        (cursor fetch or integer increment) is generated before
         the backward jump to the beginning of the loop body.
       - In case of other loop types (WHILE, REPEAT)
         only the jump is generated.

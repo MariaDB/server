@@ -1204,7 +1204,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
     {
       if (!bi_fields)
       {
-        // Both bi and ai inclues all columns, Swap WHERE and SET Part
+        // Both bi and ai include all columns, Swap WHERE and SET Part
         memcpy(one_row.str, start_pos + length1, length2);
         memcpy(one_row.str+length2, start_pos, length1);
       }
@@ -2748,7 +2748,7 @@ const char fmt_binlog2[]= "BINLOG @binlog_fragment_0, @binlog_fragment_1%s\n";
                    SQL cover.
   @param delimiter delimiter string
 
-  @param is_verbose  MDEV-10362 workraround parameter to pass
+  @param is_verbose  MDEV-10362 workaround parameter to pass
                    info on presence of verbose printout in cache encoded data
 
   The function signals on any error through setting @c body->error to -1.
@@ -3291,7 +3291,7 @@ Table_map_log_event::Charset_iterator::create_charset_iterator(
    @param[in|out] meta_ptr  the meta_ptr of the column. If the type doesn't have
                             metadata, it will not change  meta_ptr, otherwise
                             meta_ptr will be moved to the end of the column's
-                            metadat.
+                            metadata.
    @param[in] cs charset of the column if it is a character column.
    @param[out] typestr  buffer to storing the string name of the type
    @param[in] typestr_length  length of typestr

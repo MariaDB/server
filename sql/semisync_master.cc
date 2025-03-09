@@ -691,7 +691,7 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
     /* If the requested position is behind the sending binlog position,
      * would not adjust sending binlog position.
      * We based on the assumption that there are multiple semi-sync slave,
-     * and at least one of them shou/ld be up to date.
+     * and at least one of them should be up to date.
      * If all semi-sync slaves are behind, at least initially, the primary
      * can find the situation after the waiting timeout.  After that, some
      * slaves should catch up quickly.
@@ -1502,7 +1502,7 @@ void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
 /* Get the waiting time given the wait's staring time.
  *
  * Return:
- *  >= 0: the waiting time in microsecons(us)
+ *  >= 0: the waiting time in microseconds(us)
  *   < 0: error in get time or time back traverse
  */
 static int get_wait_time(const struct timespec& start_ts)

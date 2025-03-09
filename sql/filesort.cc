@@ -339,7 +339,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   if (costs.fastest_sort == PQ_SORT_ALL_FIELDS ||
       costs.fastest_sort == PQ_SORT_ORDER_BY_FIELDS)
   {
-    /* We are going to use priorty queue */
+    /* We are going to use priority queue */
     thd->query_plan_flags|= QPLAN_FILESORT_PRIORITY_QUEUE;
     status_var_increment(thd->status_var.filesort_pq_sorts_);
     tracker->incr_pq_used();
@@ -359,7 +359,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
       param.res_length= param.ref_length;
       /*
         Add the ref (rowid which is stored last in the sort key) to the sort,
-        as we want to retrive rows in id order, if possible.
+        as we want to retrieve rows in id order, if possible.
       */
       param.sort_length+= param.ref_length;
       param.rec_length= param.sort_length;
