@@ -684,6 +684,7 @@ const char *my_collation_get_tailoring(uint id)
 
 
 HASH charset_name_hash;
+HASH collation_name_hash;
 
 static uchar *get_charset_key(const uchar *object,
                               size_t *size,
