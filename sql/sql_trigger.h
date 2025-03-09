@@ -32,6 +32,7 @@ typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 #include <sql_list.h>
 
+static const uint8 TRG_EVENT_UNKNOWN= 0;
 /** Event on which trigger is invoked. */
 enum trg_event_type
 {
@@ -41,8 +42,39 @@ enum trg_event_type
   TRG_EVENT_MAX
 };
 
+typedef uint8 trg_event_set;
+
 static inline uint8 trg2bit(enum trg_event_type trg)
 { return static_cast<uint8>(1 << static_cast<int>(trg)); }
+
+/**
+  Check whether the specified trigger event type is set in
+  the trigger's event mask
+*/
+static inline bool is_trg_event_on(uint8 trg_event_mask,
+                                   enum trg_event_type event_type)
+{
+  return (trg_event_mask & trg2bit(event_type)) != 0;
+}
+
+/**
+  Check whether the specified trigger event type is the right most event bit
+  that is set in the trigger's event mask
+*/
+static inline bool is_the_right_most_event_bit(trg_event_set events,
+                                               trg_event_type event_type)
+{
+  return (1 << event_type) == (events & ~((events - 1) & events));
+}
+
+/**
+  Check whether trg_events_mask includes all bits of trg_events
+*/
+static inline bool is_subset_of_trg_events(trg_event_set trg_events_mask,
+                                           trg_event_set trg_events)
+{
+  return (trg_events_mask & trg_events) == trg_events;
+}
 
 #include "table.h"                              /* GRANT_INFO */
 
@@ -111,26 +143,38 @@ class Table_triggers_list;
 
 /**
    The trigger object
+   One instance of the Trigger class can handle several trigger events.
+   E.g., one object of the Trigger class can be instantiated to handle
+   every of events INSERT, UPDATE, DELETE.
+   Since one instance of the Trigger class can be associated with several
+   trigger events, the data member `action_order` and `next` are represented
+   as an array of TRG_EVENT_MAX elements.
 */
 
 class Trigger :public Sql_alloc
 {
 public:
     Trigger(Table_triggers_list *base_arg, sp_head *code):
-    base(base_arg), body(code), next(0),
+    base(base_arg), body(code),
     sql_mode{0},
     hr_create_time{(unsigned long long)-1},
-    event{TRG_EVENT_MAX},
+    events{0},
     action_time{TRG_ACTION_MAX},
-    action_order{0},
     updatable_columns{nullptr}
   {
     bzero((char *)&subject_table_grants, sizeof(subject_table_grants));
+    bzero(next, sizeof(next));
+    bzero(action_order, sizeof(action_order));
   }
+
   ~Trigger();
+
   Table_triggers_list *base;
   sp_head *body;
-  Trigger *next;                                /* Next trigger of same type */
+  /**
+    Next trigger of the same type in every of the event groups
+  */
+  Trigger *next[TRG_EVENT_MAX];
 
   Lex_ident_trigger name;
   LEX_CSTRING on_table_name;                     /* Raw table name */
@@ -146,9 +190,14 @@ public:
   sql_mode_t sql_mode;
   /* Store create time. Can't be mysql_time_t as this holds also sub seconds */
   my_hrtime_t hr_create_time; // Create time timestamp in microseconds
-  trg_event_type event;
+  /* Set of events this trigger object assigned to */
+  trg_event_set events;
   trg_action_time_type action_time;
-  uint action_order;
+
+  /**
+    action order of the trigger for every of supplied event type
+  */
+  uint action_order[TRG_EVENT_MAX];
   List<LEX_CSTRING> *updatable_columns;
 
   void get_trigger_info(LEX_CSTRING *stmt, LEX_CSTRING *body,
@@ -282,6 +331,11 @@ public:
                                 const LEX_CSTRING *old_table,
                                 const LEX_CSTRING *new_db,
                                 const LEX_CSTRING *new_table);
+  void add_trigger(trg_event_set trg_events,
+                   trg_action_time_type action_time,
+                   trigger_order_type ordering_clause,
+                   const Lex_ident_trigger &anchor_trigger_name,
+                   Trigger *trigger);
   void add_trigger(trg_event_type event_type, 
                    trg_action_time_type action_time,
                    trigger_order_type ordering_clause,
@@ -387,5 +441,7 @@ bool rm_trigname_file(char *path, const LEX_CSTRING *db,
 
 extern const char * const TRG_EXT;
 extern const char * const TRN_EXT;
+
+extern const LEX_CSTRING trg_event_type_names[];
 
 #endif /* SQL_TRIGGER_INCLUDED */

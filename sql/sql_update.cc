@@ -3195,6 +3195,7 @@ err:
 bool Sql_cmd_update::execute_inner(THD *thd)
 {
   bool res= 0;
+  Running_stmt_guard guard(thd, active_dml_stmt::UPDATING_STMT);
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   if (!multitable)
