@@ -11,6 +11,8 @@
 --let $node_2=node_2
 --source ../../galera/include/auto_increment_offset_save.inc
 
+--connection node_1
+
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
@@ -25,7 +27,6 @@ INSERT INTO t1 VALUES (5);
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
-
 
 #
 # Kill the entire cluster and restart

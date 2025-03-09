@@ -3,7 +3,7 @@
 [mysqld.1]
 max_allowed_packet=10M
 innodb_log_file_size=220M
-wsrep_provider_options='gcache.recover=yes;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+wsrep_provider_options='gcache.recover=yes;gcache.size=10M;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;pc.wait_prim_timeout=PT60S'
 
 [mysqld.2]
-wsrep_provider_options='gcache.recover=yes;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+wsrep_provider_options='gcache.recover=yes;gcache.size=10M;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;pc.wait_prim_timeout=PT60S'

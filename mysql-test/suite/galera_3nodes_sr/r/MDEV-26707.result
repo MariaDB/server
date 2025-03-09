@@ -2,7 +2,7 @@ connection node_2;
 connection node_1;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect node_3,  127.0.0.1, root, , test, $NODE_MYPORT_3;
 connect node_3a, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_1;
 connection node_2;
@@ -74,15 +74,15 @@ connection node_3a;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_sync_wait = DEFAULT;
 connection node_1a;
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
 0
 connection node_2a;
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
 0
 connection node_3a;
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
 0
 connection node_1;

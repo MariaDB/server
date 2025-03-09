@@ -4,4 +4,3 @@
 * As these tests are specific to wsrep-related functionalities, they must skip
   on server built without wsrep patch (vanilla). (-DWITH_WSREP=OFF)
   See : include/have_wsrep.inc, include/have_wsrep_enabled.inc, not_wsrep.inc
-

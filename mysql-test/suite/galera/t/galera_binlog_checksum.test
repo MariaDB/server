@@ -38,6 +38,9 @@ SELECT * FROM t1;
 
 --connection node_1
 DROP TABLE t1;
+
+--disable_query_log
 eval SET @@global.wsrep_replicate_myisam=$wsrep_replicate_myisam_saved;
+--enable_query_log
 
 --echo # End of tests.

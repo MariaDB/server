@@ -12,6 +12,7 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 connection replica1;
 connection node_2;
 connection primary2;
+connection primary1;
 connection replica1;
 # Galera replica changing master to primary1
 START SLAVE;

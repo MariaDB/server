@@ -464,7 +464,7 @@ bool wsrep_sst_received (THD*                thd,
     if (WSREP_ON)
     {
       int const rcode(seqno < 0 ? seqno : 0);
-      error= wsrep_sst_complete(thd,rcode, sst_gtid);
+      error= wsrep_sst_complete(thd, rcode, sst_gtid);
     }
 
     return error;

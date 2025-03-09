@@ -14,7 +14,6 @@
 --let $node_1 = node_1
 --let $node_2 = node_2
 --let $node_3 = node_3
-
 --source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_1

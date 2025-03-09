@@ -1,8 +1,10 @@
 connection node_2;
 connection node_1;
 connection node_2;
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 call mtr.add_suppression("WSREP: Trying to continue unpaused monitor");
 connection node_1;
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 call mtr.add_suppression("WSREP: Trying to continue unpaused monitor");
 CREATE TABLE t1 ENGINE=InnoDB select 1 as a, 1 as b union select 2, 2;
 ALTER TABLE t1 add primary key(a);

@@ -27,5 +27,4 @@ i
 1
 connection node_1;
 DROP TABLE t1;
-SET @@global.wsrep_replicate_myisam=0;
 # End of tests.
