@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2024, Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2024, MariaDB
+/* Copyright (c) 2008, 2025, Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2025, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,6 +50,7 @@
 #include "log_event.h"
 #include "sql_connect.h"
 #include "thread_cache.h"
+#include "debug_sync.h"
 
 #include <sstream>
 
@@ -851,12 +852,13 @@ int wsrep_init()
   wsrep_init_position();
   wsrep_sst_auth_init();
 
-  if (strlen(wsrep_provider)== 0 ||
-      !strcmp(wsrep_provider, WSREP_NONE))
+  if (!*wsrep_provider ||
+      !strcasecmp(wsrep_provider, WSREP_NONE))
   {
     // enable normal operation in case no provider is specified
     global_system_variables.wsrep_on= 0;
-    int err= Wsrep_server_state::instance().load_provider(wsrep_provider, wsrep_provider_options ? wsrep_provider_options : "");
+    int err= Wsrep_server_state::instance().load_provider(
+        wsrep_provider, wsrep_provider_options ? wsrep_provider_options : "");
     if (err)
     {
       DBUG_PRINT("wsrep",("wsrep::init() failed: %d", err));
@@ -2398,7 +2400,6 @@ fail:
   unireg_abort(1);
 }
 
-
 /*
   returns:
    0: statement was replicated as TOI
@@ -2414,6 +2415,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_TOI);
 
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
+  DEBUG_SYNC(thd, "wsrep_before_toi_begin");
 
   if (wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
   {
@@ -2793,19 +2795,28 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
   if (!WSREP_ON) return;
 
   THD *request_thd= requestor_ctx->get_thd();
-  THD *granted_thd= ticket->get_ctx()->get_thd();
-
-  const char* schema= key->db_name();
-  int schema_len= key->db_name_length();
 
   mysql_mutex_lock(&request_thd->LOCK_thd_data);
   if (wsrep_thd_is_toi(request_thd) ||
-      wsrep_thd_is_applying(request_thd)) {
+      wsrep_thd_is_applying(request_thd))
+  {
+    THD *granted_thd= ticket->get_ctx()->get_thd();
+
+    const char* schema= key->db_name();
+    int schema_len= key->db_name_length();
 
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
     WSREP_MDL_LOG(DEBUG, "MDL conflict ", schema, schema_len,
                   request_thd, granted_thd);
     ticket->wsrep_report(wsrep_debug);
+
+    DEBUG_SYNC(request_thd, "before_wsrep_thd_abort");
+    DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort", {
+      const char act[]= "now "
+                        "SIGNAL sync.before_wsrep_thd_abort_reached "
+                        "WAIT_FOR signal.before_wsrep_thd_abort";
+      DBUG_ASSERT(!debug_sync_set_action(request_thd, STRING_WITH_LEN(act)));
+    };);
 
     /* Here we will call wsrep_abort_transaction so we should hold
     THD::LOCK_thd_data to protect victim from concurrent usage
@@ -2905,13 +2916,12 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
         }
       }
     }
+    DEBUG_SYNC(request_thd, "after_wsrep_thd_abort");
   }
   else
   {
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
   }
-
-  DEBUG_SYNC(request_thd, "after_wsrep_thd_abort");
 }
 
 /**/
