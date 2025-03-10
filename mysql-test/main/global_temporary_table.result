@@ -337,4 +337,18 @@ tx	CREATE GLOBAL TEMPORARY TABLE `tx` (
   PRIMARY KEY (`x`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
 drop table tx;
+### FLUSH, LOCK
+create global temporary table t(x int primary key) on commit preserve rows;
+flush table t;
+insert t values (1);
+flush table t;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+select * from t;
+x
+1
+truncate t;
+flush table t;
+lock table t write;
+ERROR 42S02: Unknown table 't'
+drop table t;
 disconnect con1;
