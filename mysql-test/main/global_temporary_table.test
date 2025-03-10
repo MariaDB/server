@@ -220,4 +220,31 @@ create global temporary table t2(`5` int primary key) as values(5),(5),(5);
 select `5` as col from t2;
 drop table t2;
 
+--echo ### CREATE TABLE ... LIKE
+create table t1(x int primary key);
+create global temporary table t2 like t1;
+show create table t2;
+drop table t1;
+create table t1 like t2;
+show create table t1;
+drop table t1;
+create global temporary table t3 like t2;
+show create table t3;
+drop table t2;
+drop table t3;
+
+create global temporary table t2(x int primary key) on commit preserve rows;
+create table t1 like t2;
+show create table t1;
+create global temporary table t3 like t2;
+show create table t3;
+create temporary table t4 like t2;
+show create table t4;
+
+truncate t2; # Unfortunately, we should do this
+
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
 --disconnect con1

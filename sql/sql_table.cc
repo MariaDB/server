@@ -5678,6 +5678,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   /* Replace type of source table with one specified in the statement. */
   local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
   local_create_info.options|= create_info->options;
+  local_create_info.table_options&= ~HA_OPTIONS_TO_RESET_CREATE_LIKE;
+  local_create_info.table_options|= create_info->table_options;
   /* Reset auto-increment counter for the new table. */
   local_create_info.auto_increment_value= 0;
   /*
