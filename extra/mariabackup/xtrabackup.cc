@@ -201,8 +201,6 @@ struct xb_filter_entry_t{
 	xb_filter_entry_t *name_hash;
 };
 
-lsn_t checkpoint_lsn_start;
-lsn_t checkpoint_no_start;
 /** whether log_copying_thread() is active; protected by recv_sys.mutex */
 static bool log_copying_running;
 /** for --backup, target LSN to copy the log to; protected by recv_sys.mutex */
