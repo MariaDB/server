@@ -247,4 +247,27 @@ drop table t1;
 drop table t2;
 drop table t3;
 drop table t4;
+
+--echo ### RENAME
+create global temporary table t2(x int primary key) on commit preserve rows;
+--connection con1
+insert t2 values (1);
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+rename table t2 NOWAIT to tx;
+--connection con1
+truncate t2;
+--connection default
+select * from t2;
+--error ER_LOCK_WAIT_TIMEOUT
+rename table t2 to tx;
+
+truncate t2;
+rename table t2 to tx;
+--error ER_NO_SUCH_TABLE
+show create table t2;
+show create table tx;
+
+drop table tx;
+
 --disconnect con1

@@ -312,4 +312,29 @@ drop table t1;
 drop table t2;
 drop table t3;
 drop table t4;
+### RENAME
+create global temporary table t2(x int primary key) on commit preserve rows;
+connection con1;
+insert t2 values (1);
+connection default;
+rename table t2 NOWAIT to tx;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+truncate t2;
+connection default;
+select * from t2;
+x
+rename table t2 to tx;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t2;
+rename table t2 to tx;
+show create table t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+show create table tx;
+Table	Create Table
+tx	CREATE GLOBAL TEMPORARY TABLE `tx` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+drop table tx;
 disconnect con1;

@@ -6351,6 +6351,13 @@ check_rename_table(THD *thd, TABLE_LIST *first_table,
         check_grant(thd, INSERT_ACL | CREATE_ACL, &new_list, FALSE, 1,
                     FALSE)))
       return 1;
+
+    if (table->table &&
+        table->table->s->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+    {
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      return 1;
+    }
   }
 
   return 0;
