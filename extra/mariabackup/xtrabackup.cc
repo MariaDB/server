@@ -1381,6 +1381,7 @@ enum options_xtrabackup
   OPT_XTRA_MYSQLD_ARGS,
   OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
   OPT_INNODB_FORCE_RECOVERY,
+  OPT_INNODB_CHECKPOINT,
   OPT_ARIA_LOG_DIR_PATH
 };
 
@@ -1790,6 +1791,8 @@ extern const char *io_uring_may_be_unsafe;
 bool innodb_use_native_aio_default();
 #endif
 
+static my_bool innodb_log_checkpoint_now;
+
 struct my_option xb_server_options[] =
 {
   {"datadir", 'h', "Path to the database root.", (G_PTR*) &mysql_data_home,
@@ -2016,6 +2019,12 @@ struct my_option xb_server_options[] =
    (G_PTR*)&srv_force_recovery,
    (G_PTR*)&srv_force_recovery,
    0, GET_ULONG, OPT_ARG, 0, 0, SRV_FORCE_IGNORE_CORRUPT, 0, 0, 0},
+
+  {"innodb_log_checkpoint_now", OPT_INNODB_CHECKPOINT,
+   "(for --backup): Force an InnoDB checkpoint",
+   (G_PTR*)&innodb_log_checkpoint_now,
+   (G_PTR*)&innodb_log_checkpoint_now,
+   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
 
     {"mysqld-args", OPT_XTRA_MYSQLD_ARGS,
      "All arguments that follow this argument are considered as server "
@@ -5403,6 +5412,14 @@ static bool xtrabackup_backup_func()
 	}
 	msg("cd to %s", mysql_real_data_home);
 	encryption_plugin_backup_init(mysql_connection);
+	if (innodb_log_checkpoint_now != false && mysql_send_query(
+		    mysql_connection,
+		    C_STRING_WITH_LEN("SET GLOBAL "
+				      "innodb_log_checkpoint_now=ON;"))) {
+		msg("initiating checkpoint failed");
+		return(false);
+	}
+
 	msg("open files limit requested %lu, set to %lu",
 	    xb_open_files_limit,
 	    xb_set_max_open_files(xb_open_files_limit));
@@ -5515,6 +5532,11 @@ fail:
 		goto fail;
 	}
 
+	/* try to wait for a log checkpoint, but do not fail if the
+	server does not support this */
+	if (innodb_log_checkpoint_now != false) {
+		mysql_read_query_result(mysql_connection);
+	}
 	/* label it */
 	recv_sys.file_checkpoint = log_sys.next_checkpoint_lsn;
 	log_hdr_init();

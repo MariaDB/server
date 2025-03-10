@@ -18520,13 +18520,13 @@ static void innodb_buf_pool_update(THD *thd, st_mysql_sys_var *,
   mysql_mutex_unlock(&buf_pool.mutex);
 }
 
+static my_bool innodb_log_checkpoint_now;
 #ifdef UNIV_DEBUG
-static my_bool	innodb_log_checkpoint_now = TRUE;
 static my_bool	innodb_buf_flush_list_now = TRUE;
 static uint	innodb_merge_threshold_set_all_debug
 	= DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
+#endif
 
-/** Force an InnoDB log checkpoint. */
 /** Force an InnoDB log checkpoint. */
 static
 void
@@ -18552,13 +18552,15 @@ checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
     ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
   mysql_mutex_unlock(&LOCK_global_system_variables);
   lsn_t lsn;
-  while (log_sys.last_checkpoint_lsn.load(std::memory_order_acquire) + size <
+  while (!thd_kill_level(thd) &&
+         log_sys.last_checkpoint_lsn.load(std::memory_order_acquire) + size <
          (lsn= log_sys.get_lsn(std::memory_order_acquire)))
     log_make_checkpoint();
 
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
+#ifdef UNIV_DEBUG
 /****************************************************************//**
 Force a dirty pages flush now. */
 static
@@ -19130,12 +19132,12 @@ static MYSQL_SYSVAR_ULONG(io_capacity_max, srv_max_io_capacity,
   SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT, 100,
   SRV_MAX_IO_CAPACITY_LIMIT, 0);
 
-#ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_BOOL(log_checkpoint_now, innodb_log_checkpoint_now,
   PLUGIN_VAR_OPCMDARG,
-  "Force checkpoint now",
+  "Write back dirty pages from the buffer pool and update the log checkpoint",
   NULL, checkpoint_now_set, FALSE);
 
+#ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_BOOL(buf_flush_list_now, innodb_buf_flush_list_now,
   PLUGIN_VAR_OPCMDARG,
   "Force dirty page flush now",
@@ -20213,8 +20215,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(monitor_reset_all),
   MYSQL_SYSVAR(purge_threads),
   MYSQL_SYSVAR(purge_batch_size),
-#ifdef UNIV_DEBUG
   MYSQL_SYSVAR(log_checkpoint_now),
+#ifdef UNIV_DEBUG
   MYSQL_SYSVAR(buf_flush_list_now),
   MYSQL_SYSVAR(merge_threshold_set_all_debug),
 #endif /* UNIV_DEBUG */
