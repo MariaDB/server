@@ -1,0 +1,9 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+		f3 INT, KEY(f1, f3), key(f3)) STATS_PERSISTENT=1,ENGINE=INNODB;
+INSERT INTO t1 SELECT seq, seq, NULL from seq_1_to_16384;
+ANALYZE TABLE t1;
+SELECT stat_name, stat_value, stat_description FROM mysql.innodb_index_stats where table_name="t1";
+DROP TABLE t1;

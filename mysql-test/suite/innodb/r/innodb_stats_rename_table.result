@@ -24,6 +24,10 @@ stat_name	n_leaf_pages
 stat_value	1
 table_name	stats_rename_old
 index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	0
+table_name	stats_rename_old
+index_name	PRIMARY
 stat_name	size
 stat_value	1
 RENAME TABLE stats_rename_old TO stats_rename_new;
@@ -43,6 +47,10 @@ table_name	stats_rename_new
 index_name	PRIMARY
 stat_name	n_leaf_pages
 stat_value	1
+table_name	stats_rename_new
+index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	0
 table_name	stats_rename_new
 index_name	PRIMARY
 stat_name	size

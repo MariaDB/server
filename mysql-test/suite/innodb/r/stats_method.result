@@ -1,0 +1,28 @@
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 INT, KEY(f1, f3), key(f3)) STATS_PERSISTENT=1,ENGINE=INNODB;
+INSERT INTO t1 SELECT seq, seq, NULL from seq_1_to_16384;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT stat_name, stat_value, stat_description FROM mysql.innodb_index_stats where table_name="t1";
+stat_name	stat_value	stat_description
+n_diff_pfx01	16341	DB_ROW_ID
+n_leaf_pages	37	Number of leaf pages in the index
+n_nonnull_pfx01	0	DB_ROW_ID
+size	97	Number of pages in the index
+n_diff_pfx01	16384	f1
+n_diff_pfx02	16384	f1,f3
+n_diff_pfx03	16384	f1,f3,DB_ROW_ID
+n_leaf_pages	1	Number of leaf pages in the index
+n_nonnull_pfx01	0	f1
+n_nonnull_pfx02	0	f1,f3
+n_nonnull_pfx03	0	f1,f3,DB_ROW_ID
+size	19	Number of pages in the index
+n_diff_pfx01	16384	f3
+n_diff_pfx02	16384	f3,DB_ROW_ID
+n_leaf_pages	1	Number of leaf pages in the index
+n_nonnull_pfx01	0	f3
+n_nonnull_pfx02	0	f3,DB_ROW_ID
+size	15	Number of pages in the index
+DROP TABLE t1;
