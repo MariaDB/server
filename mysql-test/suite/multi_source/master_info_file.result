@@ -1,5 +1,5 @@
-CHANGE MASTER TO master_host='127.0.0.1', master_user='root';
-CHANGE MASTER 'named' TO master_host='localhost', master_user='test';
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=SERVER_MYPORT_1;
+CHANGE MASTER 'named' TO master_host='localhost', master_user='test', master_port=SERVER_MYPORT_2;
 --list_files @@datadir *.info
 relay-log-named.info
 relay-log.info
@@ -9,8 +9,10 @@ master_info_file.txt
 multi-master_info_file.txt
 --cat_file MYSQL_TMP_DIR/multi-master_info_file.txt
 named
-FOUND 1 /\n127.0.0.1\n/ in master_info_file.txt
-FOUND 1 /\nroot\n/ in master_info_file.txt
-FOUND 1 /\nlocalhost\n/ in master_info_file-named.txt
-FOUND 1 /\ntest\n/ in master_info_file-named.txt
+FOUND 1 matches in master_info_file.txt
+FOUND 1 matches in master_info_file.txt
+FOUND 1 matches in master_info_file.txt
+FOUND 1 matches in master_info_file-named.txt
+FOUND 1 matches in master_info_file-named.txt
+FOUND 1 matches in master_info_file-named.txt
 RESET REPLICA 'named' ALL;
