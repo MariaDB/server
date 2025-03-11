@@ -5547,7 +5547,9 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         if (cmp_table(share_temp->table_name, plan->lookup_field_vals.table_value))
           continue;
       }
-      if (thd->use_real_global_temporary_share())
+
+      // We should skip it to hide the local table, with Temporary='Y'
+      if (share_temp->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
         continue;
 
       TABLE *tmp_tbl= share_temp->all_tmp_tables.front();

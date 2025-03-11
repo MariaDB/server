@@ -24,7 +24,6 @@ t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
 insert into t1 values(1, 'one');
 select TABLE_TYPE from information_schema.tables where table_name = 't1';
 TABLE_TYPE
-TEMPORARY
 GLOBAL TEMPORARY
 show table status where temporary='Y';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
