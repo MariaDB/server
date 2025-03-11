@@ -609,7 +609,10 @@ int init_slave()
 
   /* If server id is not set, start_slave_thread() will say it */
 
-  if (active_mi->host[0] && !opt_skip_slave_start)
+  if (opt_skip_slave_start)
+    sql_print_information("Replication not automatically started: "
+                          "--skip-slave-start was specified");
+  else if (active_mi->host[0])
   {
     int error;
     THD *thd= new THD(next_thread_id());
