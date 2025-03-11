@@ -5248,7 +5248,7 @@ bool select_create::send_eof()
 
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
-        table->file->ht->db_type == DB_TYPE_INNODB)
+        table && table->file->ht->db_type == DB_TYPE_INNODB)
     {
       if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
       {

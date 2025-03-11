@@ -3957,13 +3957,9 @@ without_overlaps_err:
   if (create_info->table_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
   {
     const char *error= NULL;
-    for (const Key &fk: create_info->alter_info->key_list)
-      if (fk.type == Key::FOREIGN_KEY)
-      {
-        error= "FOREIGN KEY";
-        break;
-      }
-    if (thd->lex->part_info)
+    if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
+      error= "FOREIGN KEY";
+    else if (thd->lex->part_info)
       error= "PARTITION";
     else if (alter_info->flags & (ALTER_ADD_SYSTEM_VERSIONING))
       error= "SYSTEM VERSIONING";
@@ -5965,10 +5961,9 @@ err:
   DBUG_RETURN(res != 0);
 }
 
-static my_bool open_gtt_on_error(TABLE *table)
+static void open_gtt_on_error(TABLE *table)
 {
   closefrm(table);
-  return TRUE;
 }
 
 my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
@@ -6013,7 +6008,10 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
     DBUG_ASSERT(!global_table.versioned());
 
     if (global_table.file->discover_check_version())
-      return open_gtt_on_error(&global_table);
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
 
     Alter_info alter_info;
     Alter_table_ctx alter_ctx;
@@ -6025,7 +6023,10 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
 
     if (mysql_prepare_alter_table(thd, &global_table, &create_info,
                                   &alter_info, &alter_ctx))
-      return open_gtt_on_error(&global_table);
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     thd->work_part_info= 0;
@@ -6037,7 +6038,10 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                                         NULL, C_ORDINARY_CREATE,
                                         out_table);
     if (res > 0)
-      return open_gtt_on_error(&global_table);
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
 
     ++thd->temporary_tables->global_temporary_tables_count;
     table= create_info.table;
@@ -6050,7 +6054,10 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                             MDL_SHARED, MDL_EXPLICIT);
     share->mdl_request.ticket= mdl_ticket; // It'll be cloned.
     if (thd->mdl_context.clone_ticket(&share->mdl_request))
-      return open_gtt_on_error(&global_table);
+    {
+      open_gtt_on_error(&global_table);
+      return TRUE;
+    }
     table->reginfo.lock_type= TL_IGNORE;
     share->table_creation_was_logged= 0;
     closefrm(&global_table);
@@ -11690,6 +11697,9 @@ alter_copy:
     /*
       Otherwise upgrade to SHARED_NO_WRITE.
       Note that under LOCK TABLES, we will already have SHARED_NO_READ_WRITE.
+
+      No need to use local lock_wait_timeout variable here: it's only important
+      for GLOBAL TEMPORARY tables, which should take exclusive lock
     */
     if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
         thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_SHARED_NO_WRITE,

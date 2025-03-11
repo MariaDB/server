@@ -32,9 +32,18 @@
 bool is_user_tmp_table(TMP_TABLE_SHARE *share)
 {
   if (share->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+  {
+    /*
+      This is either a global temporary table (GTT) definition table or
+      local GTT table created from the GTT definition.
+      If (share->tmp_table != NO_TMP_TABLE) then this is local GTT table.
+      In this case share->from_share is also set and points to the global
+      GTT definition.
+    */
     return false;
-  return share->tmp_table == TRANSACTIONAL_TMP_TABLE ||
-         share->tmp_table == NON_TRANSACTIONAL_TMP_TABLE;
+  }
+  /* Return true of the table is non GTT temporary table */
+  return share->tmp_table != NO_TMP_TABLE;
 }
 
 /**
@@ -350,9 +359,10 @@ bool THD::open_temporary_table_impl(TABLE_LIST *tl, TABLE **table)
   if (!*table && (tmp_share= find_tmp_table_share(tl)))
   {
     if (tmp_share->from_share && use_real_global_temporary_share())
-      DBUG_RETURN(false); /* We want to use real global temporary table
-                             when ALTER/DROP is executed.
-                           */
+    {
+      // We want to use real global temporary table when ALTER/DROP is executed.
+      DBUG_RETURN(false);
+    }
 
     *table= open_temporary_table(tmp_share, tl->get_table_name());
     /*
@@ -1716,7 +1726,7 @@ static transaction_participant global_temporary_tp=
   commit_global_tmp_table,       // commit
   commit_global_tmp_table,       // rollback
   NULL,                          // prepare
-  [](XID*, uint){ return 0; },   // recover
+  NULL, // recover
   NULL, // xa_commit
   NULL, // xa_rollback
   NULL, NULL, NULL, NULL, NULL, NULL, NULL
@@ -1756,6 +1766,6 @@ maria_declare_plugin(global_temporary_tables)
   NULL,   // no status vars
   NULL,   // no sysvars
   "2.0",
-  MariaDB_PLUGIN_MATURITY_STABLE
+  MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;
