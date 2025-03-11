@@ -6,5 +6,6 @@ set session binlog_annotate_row_events= OFF;
 
 source ../../main/global_temporary_table.test;
 
+--replace_column 2 # 5 #
 show binlog events;
 set global binlog_annotate_row_events= @old_binlog_annotate_row_events;
