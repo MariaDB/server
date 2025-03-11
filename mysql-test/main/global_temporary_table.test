@@ -283,4 +283,27 @@ flush table t;
 --error ER_BAD_TABLE_ERROR
 lock table t write;
 drop table t;
+
+--echo # Multi-table DML
+create table t(x int, txt text);
+create global temporary table gtt(x int) on commit preserve rows;
+
+insert t values (1, 'one'), (2,'two'), (3, 'three'), (4, 'four');
+insert gtt values (2),(3),(5);
+--connection con1
+insert gtt values (4),(6);
+--connection default
+
+update t, gtt set t.txt= CONCAT(t.txt, ' tables') where t.x = gtt.x;
+
+--connection con1
+update t, gtt set t.txt= CONCAT(t.txt, ' databases') where t.x = gtt.x;
+truncate gtt;
+--connection default
+select * from t;
+truncate gtt;
+
+drop table t;
+drop table gtt;
+
 --disconnect con1

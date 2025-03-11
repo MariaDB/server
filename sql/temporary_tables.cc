@@ -28,8 +28,14 @@
 #include "sql_handler.h"                        /* mysql_ha_rm_temporary_tables */
 #include "rpl_rli.h"                            /* rpl_group_info */
 
-#define IS_USER_TABLE(A) ((A->tmp_table == TRANSACTIONAL_TMP_TABLE) || \
-                          (A->tmp_table == NON_TRANSACTIONAL_TMP_TABLE))
+
+bool is_user_tmp_table(TMP_TABLE_SHARE *share)
+{
+  if (share->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+    return false;
+  return share->tmp_table == TRANSACTIONAL_TMP_TABLE ||
+         share->tmp_table == NON_TRANSACTIONAL_TMP_TABLE;
+}
 
 /**
   Check whether temporary tables exist. The decision is made based on the
@@ -1379,7 +1385,7 @@ bool THD::log_events_and_free_tmp_shares()
   uint sorted_count= 0;
   while((share= it_unsorted++))
   {
-    if (IS_USER_TABLE(share))
+    if (is_user_tmp_table(share))
     {
       prev_sorted= NULL;
 
@@ -1389,7 +1395,7 @@ bool THD::log_events_and_free_tmp_shares()
       {
         sorted= it_sorted ++;
 
-        if (!IS_USER_TABLE(sorted) ||
+        if (!is_user_tmp_table(sorted) ||
             (tmpkeyval(sorted) > tmpkeyval(share)))
         {
           /*
@@ -1431,7 +1437,7 @@ bool THD::log_events_and_free_tmp_shares()
   share= temporary_tables->pop_front();
   while (share)
   {
-    if (IS_USER_TABLE(share))
+    if (is_user_tmp_table(share))
     {
       used_t save_thread_specific_used= used & THREAD_SPECIFIC_USED;
       my_thread_id save_pseudo_thread_id= variables.pseudo_thread_id;
@@ -1456,7 +1462,7 @@ bool THD::log_events_and_free_tmp_shares()
         DROP query.
       */
       for (at_least_one_create_logged= false;
-           share && IS_USER_TABLE(share) &&
+           share && is_user_tmp_table(share) &&
            tmpkeyval(share) == variables.pseudo_thread_id &&
            share->db.length == db.length() &&
            memcmp(share->db.str, db.ptr(), db.length()) == 0;
