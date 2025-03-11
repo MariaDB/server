@@ -556,9 +556,6 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
 
   table->use_all_columns();
 
-  if (table->s->fields < 9)
-    return ER_CANT_FIND_SYSTEM_REC;
-
   /*
     "server" has already been prepped by prepare_server_struct_for_<>
     so, all we need to do is check if the value is set (> -1 for port)
@@ -637,6 +634,8 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
   DBUG_ASSERT(!table->file->row_logging);
 
   table->use_all_columns();
+  if (table->s->fields < 9)
+    return ER_CANT_FIND_SYSTEM_REC;
   empty_record(table);
 
   /* set the field that's the PK to the value we're looking for */
