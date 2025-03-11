@@ -1385,19 +1385,6 @@ dberr_t srv_start(bool create_new_db)
 
 	ib::info() << "Completed initialization of buffer pool";
 
-#ifdef UNIV_DEBUG
-	/* We have observed deadlocks with a 5MB buffer pool but
-	the actual lower limit could very well be a little higher. */
-
-	if (srv_buf_pool_size <= 5 * 1024 * 1024) {
-
-		ib::info() << "Small buffer pool size ("
-			<< ib::bytes_iec{srv_buf_pool_size}
-			<< "), the flst_validate() debug function can cause a"
-			<< " deadlock if the buffer pool fills up.";
-	}
-#endif /* UNIV_DEBUG */
-
 	log_sys.create();
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
