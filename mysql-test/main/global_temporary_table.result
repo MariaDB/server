@@ -372,4 +372,11 @@ x	txt
 truncate gtt;
 drop table t;
 drop table gtt;
+create table t(x int);
+lock table t write;
+create or replace table t(x int);
+create or replace global temporary table t(t text);
+ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not system error)")
+unlock table;
+drop table t;
 disconnect con1;

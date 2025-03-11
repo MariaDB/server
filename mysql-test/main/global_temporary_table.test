@@ -306,4 +306,12 @@ truncate gtt;
 drop table t;
 drop table gtt;
 
+create table t(x int);
+lock table t write;
+create or replace table t(x int);
+--error ER_CANT_CREATE_TABLE
+create or replace global temporary table t(t text);
+unlock table;
+drop table t;
+
 --disconnect con1
