@@ -4178,10 +4178,8 @@ static Sys_var_charptr Sys_ssl_passphrase(
   opt_ssl_passphrase.
 
   If system variable ssl_passphrase is set, this function
-  saves the original value of, then resets system variable,
-  to avoid  showing ssl_passphrase in SHOW VARIABLES.
-  We do not want this value to be shown, because of possible
-  security implications.
+  saves the original value of, then changes system variable,
+  hiding security sensitive info in SHOW VARIABLES.
 
   We store original value internally, it will be needed in
   FLUSH SSL
@@ -4189,20 +4187,42 @@ static Sys_var_charptr Sys_ssl_passphrase(
 const char *get_ssl_passphrase()
 {
   static std::string saved_ssl_passphrase;
-  if (opt_ssl_passphrase && opt_ssl_passphrase[0])
-  {
-    saved_ssl_passphrase= opt_ssl_passphrase;
-    /*
-      The following memset hide --ssl_passphrase argument
-      from "ps" command on Linux and BSD.
-    */
-    memset(opt_ssl_passphrase, 0, saved_ssl_passphrase.size());
-    if (Sys_ssl_passphrase.get_flags() & sys_var::ALLOCATED)
-      my_free(opt_ssl_passphrase);
 
-    opt_ssl_passphrase= NULL;
+  if (!saved_ssl_passphrase.empty())
+    return saved_ssl_passphrase.c_str();
+
+  if (!opt_ssl_passphrase)
+    return NULL;
+
+  /*
+    Reject file-based passphrase, if it is readable by LOAD_FILE()
+    or LOAD DATA INFILE.
+  */
+  if (!strncmp(opt_ssl_passphrase, STRING_WITH_LEN("file:")))
+  {
+    char *file= opt_ssl_passphrase + 5;
+    if (is_secure_file_path(file))
+    {
+      sql_print_warning("ssl passphrase file '%s' is not secure, can be read "
+        "by LOAD_FILE() or LOAD DATA. Define secure-file-dir, and place "
+        "passphrase file outside of this directory, to avoid this warning",
+        file);
+    }
   }
-  return saved_ssl_passphrase.empty() ? NULL : saved_ssl_passphrase.c_str();
+  saved_ssl_passphrase= opt_ssl_passphrase;
+  /*
+    Modify opt_ssl_passphrase to wipe everything after prefix ending
+    in colon char.It will just leave just one of "file:", "env:", or "pass:"
+    at the end.
+  */
+  char *p= strchr(opt_ssl_passphrase, ':');
+  if (p)
+  {
+    p++;
+    while (*p)
+      *p++= 0;
+  }
+  return saved_ssl_passphrase.c_str();
 }
 
 static const char *tls_version_names[]=
