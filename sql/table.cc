@@ -10316,6 +10316,16 @@ bool TABLE_LIST::is_with_table()
 
 bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
 {
+  if (s->tmp_table != NO_TMP_TABLE &&
+      s->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+  {
+    /*
+      For Global temporary tables, let's compare the global share,
+      from which this local share is built
+    */
+    s= ((TMP_TABLE_SHARE*)s)->from_share;
+  }
+
   enum enum_table_ref_type tp= s->get_table_ref_type();
   if (m_table_ref_type == tp)
   {
@@ -10367,14 +10377,6 @@ bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
     {
       set_table_ref_id(s);
       return TRUE;
-    }
-
-    if (s->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
-    {
-      bool ok= m_table_ref_type == TABLE_REF_BASE_TABLE &&
-               s->get_table_ref_type() == TABLE_REF_TMP_TABLE;
-      set_table_ref_id(s);
-      return ok;
     }
   }
   return FALSE;

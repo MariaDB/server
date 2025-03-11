@@ -379,4 +379,80 @@ create or replace global temporary table t(t text);
 ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not system error)")
 unlock table;
 drop table t;
+### PS Second execution
+create global temporary table t(x int) on commit preserve rows;
+insert into t values (1),(2),(3);
+prepare stmt from 'update t set x = x + 1 where x > 2';
+prepare ins_stmt from 'insert into t values (1),(2),(3)';
+execute stmt;
+execute stmt;
+select * from t;
+x
+1
+2
+5
+truncate table t;
+insert into t values (1),(2),(3);
+execute ins_stmt;
+execute ins_stmt;
+select * from t;
+x
+1
+2
+3
+1
+2
+3
+1
+2
+3
+deallocate prepare stmt;
+connection con1;
+select * from t;
+x
+truncate t;
+connection default;
+truncate t;
+drop table t;
+create global temporary table t(x int) on commit preserve rows;
+execute ins_stmt;
+select * from t;
+x
+1
+2
+3
+deallocate prepare ins_stmt;
+prepare stmt from 'update t set x = x + 1 where x > 2';
+prepare ins_stmt from 'insert into t values (1),(2),(3)';
+insert into t values (1),(2),(3);
+execute stmt;
+execute stmt;
+select * from t;
+x
+1
+2
+5
+1
+2
+5
+truncate table t;
+execute ins_stmt;
+execute ins_stmt;
+select * from t;
+x
+1
+2
+3
+1
+2
+3
+connection con1;
+select * from t;
+x
+truncate t;
+connection default;
+deallocate prepare stmt;
+deallocate prepare ins_stmt;
+truncate t;
+drop table t;
 disconnect con1;
