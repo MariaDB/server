@@ -169,6 +169,8 @@ extern "C" {
 enum my_aes_mode {
     MY_AES_ECB, MY_AES_CBC
 };
+enum my_digest { MY_DIGEST_SHA1, MY_DIGEST_SHA224, MY_DIGEST_SHA256,
+                 MY_DIGEST_SHA384, MY_DIGEST_SHA512 };
 extern struct my_crypt_service_st {
   int (*my_aes_crypt_init)(void *ctx, enum my_aes_mode mode, int flags,
                       const unsigned char* key, unsigned int klen,
@@ -182,6 +184,10 @@ extern struct my_crypt_service_st {
   unsigned int (*my_aes_get_size)(enum my_aes_mode mode, unsigned int source_length);
   unsigned int (*my_aes_ctx_size)(enum my_aes_mode mode);
   int (*my_random_bytes)(unsigned char* buf, int num);
+  void (*my_bytes_to_key)(const unsigned char *salt, const unsigned char *input,
+                          unsigned int input_len, unsigned char *key,
+                          unsigned char *iv, enum my_digest digest,
+                          unsigned int use_pbkdf2);
 } *my_crypt_service;
 int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
                       const unsigned char* key, unsigned int klen,
@@ -193,6 +199,10 @@ int my_aes_crypt(enum my_aes_mode mode, int flags,
                  const unsigned char *src, unsigned int slen, unsigned char *dst, unsigned int *dlen,
                  const unsigned char *key, unsigned int klen, const unsigned char *iv, unsigned int ivlen);
 int my_random_bytes(unsigned char* buf, int num);
+void my_bytes_to_key(const unsigned char *salt, const unsigned char *input,
+                     unsigned int input_len, unsigned char *key,
+                     unsigned char *iv, enum my_digest digest,
+                     unsigned int use_pbkdf2);
 unsigned int my_aes_get_size(enum my_aes_mode mode, unsigned int source_length);
 unsigned int my_aes_ctx_size(enum my_aes_mode mode);
 }
