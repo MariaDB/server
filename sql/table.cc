@@ -10368,6 +10368,14 @@ bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
       set_table_ref_id(s);
       return TRUE;
     }
+
+    if (s->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+    {
+      bool ok= m_table_ref_type == TABLE_REF_BASE_TABLE &&
+               s->get_table_ref_type() == TABLE_REF_TMP_TABLE;
+      set_table_ref_id(s);
+      return ok;
+    }
   }
   return FALSE;
 }

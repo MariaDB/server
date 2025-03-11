@@ -304,7 +304,8 @@ bool THD::use_real_global_temporary_share() const
                                | CF_SCHEMA_CHANGE
                                | CF_STATUS_COMMAND)
         && lex->sql_command != SQLCOM_CREATE_TABLE)
-      || lex->sql_command == SQLCOM_CREATE_VIEW;
+      || lex->sql_command == SQLCOM_CREATE_VIEW
+      || stmt_arena->is_stmt_prepare();
 }
 
 /**
