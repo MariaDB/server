@@ -176,21 +176,21 @@ UNLOCK TABLES;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 DELIMITER |
-/*M!100101 IF current_user()="'mariadb.sys'@'localhost'" THEN
+/*M!100101 IF current_user()='''mariadb.sys''@''localhost''' THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'mariadb.sys'@'localhost''";
 END IF */|
 DELIMITER ;
 /*!50701 DROP USER IF EXISTS 'mariadb.sys'@'localhost' */;
 CREATE /*M!100103 OR REPLACE */ USER `mariadb.sys`@`localhost` PASSWORD EXPIRE;
 DELIMITER |
-/*M!100101 IF current_user()="'root'@'localhost'" THEN
+/*M!100101 IF current_user()='''root''@''localhost''' THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'root'@'localhost''";
 END IF */|
 DELIMITER ;
 /*!50701 DROP USER IF EXISTS 'root'@'localhost' */;
 CREATE /*M!100103 OR REPLACE */ USER `root`@`localhost`;
 DELIMITER |
-/*M!100101 IF current_user()="'USER'@'%'" THEN
+/*M!100101 IF current_user()='''USER''@''%''' THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'USER'@'%''";
 END IF */|
 DELIMITER ;
