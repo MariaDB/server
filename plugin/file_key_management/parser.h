@@ -35,13 +35,13 @@ class Parser
 {
   const char *filename;
   const char *filekey;
+  const enum my_digest digest;
+  const uint use_pbkdf2;
   unsigned int line_number;
 
   unsigned int from_hex(char c)
   { return c <= '9' ? c - '0' : tolower(c) - 'a' + 10; }
 
-  void bytes_to_key(const unsigned char *salt, const char *secret,
-                    unsigned char *key, unsigned char *iv);
   bool read_filekey(const char *filekey, char *secret);
   bool parse_file(std::map<unsigned int ,keyentry> *keys, const char *secret);
   void report_error(const char *reason, size_t position);
@@ -49,7 +49,9 @@ class Parser
   char* read_and_decrypt_file(const char *secret);
 
 public:
-  Parser(const char* fn, const char *fk) :
-    filename(fn), filekey(fk), line_number(0) { }
+  Parser(const char* fn, const char *fk, enum my_digest digest,
+         uint use_pbkdf2) :
+  filename(fn), filekey(fk), digest(digest), use_pbkdf2(use_pbkdf2),
+  line_number(0) { }
   bool parse(std::map<unsigned int ,keyentry> *keys);
 };

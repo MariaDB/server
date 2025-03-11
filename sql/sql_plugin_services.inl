@@ -210,7 +210,8 @@ static struct my_crypt_service_st crypt_handler=
   my_aes_crypt,
   my_aes_get_size,
   my_aes_ctx_size,
-  my_random_bytes
+  my_random_bytes,
+  my_bytes_to_key,
 };
 
 static struct my_print_error_service_st my_print_error_handler=
