@@ -3612,7 +3612,7 @@ static void dump_trigger_old(FILE *sql_file, MYSQL_RES *show_triggers_rs,
 
   fprintf(sql_file,
           "DELIMITER ;;\n"
-          "/*!50003 SET SESSION SQL_MODE=\"%s\" */;;\n"
+          "/*!50003 SET SESSION SQL_MODE='%s' */;;\n"
           "/*!50003 CREATE */ ",
           (*show_trigger_row)[6]);
 
@@ -4583,7 +4583,7 @@ static int dump_all_users_roles_and_grants()
       /* MySQL-8.0 export capability */
       fprintf(md_result_file,
         "DELIMITER |\n"
-        "/*M!100101 IF current_user()=\"%s\" THEN\n"
+        "/*M!100101 IF current_user()='%s' THEN\n"
         "  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001,"
         " MESSAGE_TEXT=\"Don't remove current user %s'\";\n"
         "END IF */|\n"
@@ -6698,6 +6698,7 @@ static my_bool get_view_structure(char *table, char* db)
   char       *result_table, *opt_quoted_table;
   char       table_buff[NAME_LEN*2+3];
   char       table_buff2[NAME_LEN*2+3];
+  char       temp_buff[NAME_LEN*2 + 3], temp_buff2[NAME_LEN*2 + 3];
   char       query[QUERY_LENGTH];
   FILE       *sql_file= md_result_file;
   DBUG_ENTER("get_view_structure");
@@ -6758,7 +6759,9 @@ static my_bool get_view_structure(char *table, char* db)
               "SELECT CHECK_OPTION, DEFINER, SECURITY_TYPE, "
               "       CHARACTER_SET_CLIENT, COLLATION_CONNECTION "
               "FROM information_schema.views "
-              "WHERE table_name=\"%s\" AND table_schema=\"%s\"", table, db);
+              "WHERE table_name=%s AND table_schema=%s",
+              quote_for_equal(table, temp_buff2),
+              quote_for_equal(db, temp_buff));
 
   if (mysql_query(mysql, query))
   {
