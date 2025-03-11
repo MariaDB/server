@@ -31,6 +31,8 @@
 #include <random>
 
 #define CTX_ALIGN 16
+#define KEY_LENGTH 32
+#define IV_LENGTH 16
 
 class MyCTX
 {
@@ -380,6 +382,41 @@ int my_random_bytes(uchar *buf, int num)
     return MY_AES_OPENSSL_ERROR;
   }
   return MY_AES_OK;
+}
+
+static inline const EVP_MD *get_digest(enum my_digest digest)
+{
+  switch (digest)
+  {
+  case MY_DIGEST_SHA1: return EVP_sha1();
+  case MY_DIGEST_SHA224: return EVP_sha224();
+  case MY_DIGEST_SHA256: return EVP_sha256();
+  case MY_DIGEST_SHA384: return EVP_sha384();
+  case MY_DIGEST_SHA512: return EVP_sha512();
+  default:
+  {
+    assert(0);
+    return NULL;
+  }
+  }
+}
+
+void my_bytes_to_key(const unsigned char *salt, const unsigned char *input,
+                     uint input_len, unsigned char *key, unsigned char *iv,
+                     enum my_digest digest, uint use_pbkdf2)
+{
+  if (use_pbkdf2 == 0)
+    EVP_BytesToKey(EVP_aes_256_cbc(), get_digest(digest), salt,
+                   input, input_len, 1, key, iv);
+  else
+  {
+    uchar keyiv[KEY_LENGTH + IV_LENGTH];
+    PKCS5_PBKDF2_HMAC((const char*) input, input_len, salt, 8,
+                      use_pbkdf2, get_digest(digest),
+                      KEY_LENGTH + IV_LENGTH, keyiv);
+    memcpy(key, keyiv, KEY_LENGTH);
+    memcpy(iv, keyiv + KEY_LENGTH, IV_LENGTH);
+  }
 }
 
 }

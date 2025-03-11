@@ -22,6 +22,8 @@
 static char* filename;
 static char* filekey;
 static unsigned long encryption_algorithm;
+static unsigned long digest;
+static uint use_pbkdf2;
 
 static const char *encryption_algorithm_names[]=
 {
@@ -32,7 +34,19 @@ static const char *encryption_algorithm_names[]=
   0
 };
 
+static const char *digest_names[]=
+{
+  "sha1",
+  "sha224",
+  "sha256",
+  "sha384",
+  "sha512",
+  0
+};
+
 static TYPELIB encryption_algorithm_typelib=CREATE_TYPELIB_FOR(encryption_algorithm_names);
+
+static TYPELIB digest_typelib=CREATE_TYPELIB_FOR(digest_names);
 
 static MYSQL_SYSVAR_STR(filename, filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -54,10 +68,24 @@ static MYSQL_SYSVAR_ENUM(encryption_algorithm, encryption_algorithm,
   "Encryption algorithm to use" recommendation,
   NULL, NULL, 0, &encryption_algorithm_typelib);
 
+static MYSQL_SYSVAR_ENUM(digest, digest,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Digest algorithm used for decrypting the key file. The value of the "
+  "openssl enc -md option",
+  NULL, NULL, 0, &digest_typelib);
+
+static MYSQL_SYSVAR_UINT(use_pbkdf2, use_pbkdf2,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Number of PBKDF2 iteration used for decrypting the key file. Use 0 to "
+  "disable PBKDF2, otherwise it's a value of the openssl enc -iter option",
+  NULL, NULL, 0, 0, UINT_MAX, 0);
+
 static struct st_mysql_sys_var* settings[] = {
   MYSQL_SYSVAR(filename),
   MYSQL_SYSVAR(filekey),
   MYSQL_SYSVAR(encryption_algorithm),
+  MYSQL_SYSVAR(digest),
+  MYSQL_SYSVAR(use_pbkdf2),
   NULL
 };
 
@@ -127,6 +155,23 @@ static inline enum my_aes_mode mode(int flags)
     return MY_AES_CBC;
 }
 
+static inline enum my_digest get_digest()
+{
+  switch (digest)
+  {
+  case 0: return MY_DIGEST_SHA1;
+  case 1: return MY_DIGEST_SHA224;
+  case 2: return MY_DIGEST_SHA256;
+  case 3: return MY_DIGEST_SHA384;
+  case 4: return MY_DIGEST_SHA512;
+  default:
+  {
+    assert(0);
+    return MY_DIGEST_SHA1;
+  }
+  }
+}
+
 static int ctx_init(void *ctx, const unsigned char* key, unsigned int klen,
                     const unsigned char* iv, unsigned int ivlen, int flags,
                     unsigned int key_id, unsigned int key_version)
@@ -170,7 +215,7 @@ struct st_mariadb_encryption file_key_management_plugin= {
 
 static int file_key_management_plugin_init(void *p)
 {
-  Parser parser(filename, filekey);
+  Parser parser(filename, filekey, get_digest(), use_pbkdf2);
   return parser.parse(&keys);
 }
 
