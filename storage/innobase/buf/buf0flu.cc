@@ -2310,13 +2310,23 @@ static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
 	if (!prev_lsn || !pct_for_lsn) {
 		prev_time = curr_time;
 		prev_lsn = cur_lsn;
-		if (max_pct > 0.0) {
-			dirty_pct /= max_pct;
-		}
 
-		n_pages = ulint(dirty_pct * double(srv_io_capacity));
-		if (n_pages < dirty_blocks) {
-			n_pages= std::min<ulint>(srv_io_capacity, dirty_blocks);
+		if (srv_io_capacity >= dirty_blocks) {
+			n_pages = dirty_blocks;
+		} else {
+			if (max_pct > 1.0) {
+				dirty_pct/= max_pct;
+			}
+			n_pages= ulint(dirty_pct * double(srv_io_capacity));
+
+			if (n_pages < dirty_blocks) {
+				n_pages= srv_io_capacity;
+
+			} else {
+				/* Set maximum IO capacity upper bound. */
+				n_pages= std::min<ulint>(srv_max_io_capacity,
+							 dirty_blocks);
+			}
 		}
 
 func_exit:
