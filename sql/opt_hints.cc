@@ -624,7 +624,7 @@ void Opt_hints_qb::apply_join_order_hints(JOIN *join)
       print_warn(join->thd, ER_WARN_CONFLICTING_HINT, hint->hint_type, true,
                  nullptr, nullptr, nullptr, hint);
     }
-    else if (set_join_hint_deps(join, hint, hint->hint_type))
+    else if (set_join_hint_deps(join, hint))
     {
       // Mark as ignored
       join_order_hints_ignored |= 1ULL << hint_idx;
@@ -634,21 +634,39 @@ void Opt_hints_qb::apply_join_order_hints(JOIN *join)
 
 
 /**
-  Function resolves hint tables, checks and sets table dependencies
-  according to the hint. If the hint is ignored due to circular table
-  dependencies, original dependencies are restored.
-  Function generates warnings if the hint cannot be applied.
+  @brief
+    Resolve hint tables, check and set table dependencies according to one 
+    JOIN_ORDER, JOIN_PREFIX, or JOIN_SUFFIX hint.
 
-@param join             pointer to JOIN object
-@param hint_table_list  hint table list
-@param type             hint type
+  @param join  pointer to JOIN object
+  @param hint  The hint
 
-@return false if hint is applied, true otherwise.
+  @detail
+    If the hint is ignored due to circular table dependencies, original
+    dependencies are restored and a warning is generated.
+
+    == Dependencies that we add ==
+    For any JOIN_HINT(t1, t2, t3, t4) we add the these dependencies:
+
+    t2.dependent|= {t1}
+    t3.dependent|= {t1,t2}
+    t4.dependent|= {t1,t2,t3}
+      and so forth.
+
+    This makes sure that the listed tables occur in the join order in the order
+    they are listed in the hint.
+
+    For JOIN_ORDER, this is all what we need.
+    For JOIN_PREFIX(t1, t2, ...) we also add dependencies on {t1,t2,...}
+       for all tables not listed in the hint.
+    For JOIN_SUFFIX(t1, t2, ...) dependencies on all tables that are NOT listed
+       in the hint are added to all tables LISTED in the hint: {t1, t2, ...}
+
+  @return false if hint is applied, true otherwise.
 */
 
-bool Opt_hints_qb::
-    set_join_hint_deps(JOIN *join, const Parser::Join_order_hint *hint,
-                       opt_hints_enum type)
+bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
+                                      const Parser::Join_order_hint *hint)
 {
   /*
     Make a copy of original table dependencies. If an error occurs
@@ -687,7 +705,7 @@ bool Opt_hints_qb::
 
     if (!hint_table_found)
     {
-      print_join_order_warn(join->thd, type, tbl_name_and_qb);
+      print_join_order_warn(join->thd, hint->hint_type, tbl_name_and_qb);
       join->restore_table_dependencies(orig_dep_array);
       return true;
     }
@@ -698,12 +716,13 @@ bool Opt_hints_qb::
   {
     JOIN_TAB *join_tab= &join->join_tab[i];
     const table_map dependent_tables=
-        get_other_dep(type, hint_tab_map, join_tab->tab_list->get_map());
+        get_other_dep(hint->hint_type, hint_tab_map,
+                      join_tab->tab_list->get_map());
     update_nested_join_deps(join, join_tab, dependent_tables);
     join_tab->dependent |= dependent_tables;
   }
 
-  if (join->propagate_dependencies())
+  if (join->propagate_dependencies(join->join_tab))
   {
     join->restore_table_dependencies(orig_dep_array);
     print_warn(join->thd, ER_WARN_CONFLICTING_HINT, hint->hint_type, true,
@@ -722,9 +741,23 @@ bool Opt_hints_qb::
   necessary to update all tables of the nested joins this table
   is part of.
 
-@param join             pointer to JOIN object
-@param hint_tab         pointer to JOIN_TAB object
-@param hint_tab_map     map of the tables, specified in the hint
+  @param join             pointer to JOIN object
+  @param hint_tab         pointer to JOIN_TAB object
+  @param hint_tab_map     map of the tables, specified in the hint
+
+
+  @TODO: why do we go just one level up?  What if there is a deep 
+  embedding structure, like
+
+   t1
+   LEFT JOIN ( 
+     t2 
+     LEFT JOIN (
+       t3, t4, t5
+     )ON cond
+   )ON  cond
+
+   and hint_tab points to t4.  Should we walk up the 'embedding' chain?
 */
 
 void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
@@ -753,9 +786,21 @@ void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
   particular table of a JOIN, according to the join order hint
 
   @param type          hint type
-  @param hint_tab_map  hint table map
-  @param table_map     bitmap with a single bit set for identification of
-                       the particular table of a JOIN
+  @param hint_tab_map  Bitmap of all tables listed in the hint.
+  @param table_map     Bit of the table that we're setting extra dependencies
+                       for.
+
+  @detail
+  This returns extra dependencies between tables listed in the Hint and tables
+  that are not listed. Depending on hint type, these are:
+
+  JOIN_PREFIX(t1, t2, ...) - all not listed tables depend on {t1,t2,...}.
+
+  JOIN_SUFFIX(t1, t2, ...) - all tables listed in the hint depend on all tables
+                             that are not listed in the hint
+                             (TODO: but this inverts the bitmap? is it ok to
+                              return bits that do not refer to any table?)
+  JOIN_ORDER(t1, t2, ...)  - No extra dependencies needed.
 
   @return bitmap of dependencies to apply
 */
@@ -789,10 +834,10 @@ table_map Opt_hints_qb::
   Function compares hint table name and TABLE_LIST table name.
   Query block name is taken into account also.
 
-@param hint_table_and_qb         table/query block names given in the hint
-@param table                     pointer to TABLE_LIST object
+  @param hint_table_and_qb         table/query block names given in the hint
+  @param table                     pointer to TABLE_LIST object
 
-@return false if table names are equal, true otherwise.
+  @return false if table names are equal, true otherwise.
 */
 
 bool Opt_hints_qb::compare_table_name(

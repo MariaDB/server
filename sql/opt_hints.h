@@ -550,8 +550,7 @@ public:
   }
 
 private:
-  bool set_join_hint_deps(JOIN *join, const Parser::Join_order_hint *hint,
-                          opt_hints_enum type);
+  bool set_join_hint_deps(JOIN *join, const Parser::Join_order_hint *hint);
   void update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
                                table_map hint_tab_map);
   table_map get_other_dep(opt_hints_enum type, table_map hint_tab_map,

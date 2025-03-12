@@ -5594,7 +5594,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   key_map const_ref, eq_part;
   bool has_expensive_keyparts;
   TABLE **table_vector;
-  JOIN_TAB *s,**stat_ref, **stat_vector;
+  JOIN_TAB *stat,*stat_end,*s,**stat_ref, **stat_vector;
   KEYUSE *keyuse,*start_keyuse;
   table_map outer_join=0;
   table_map no_rows_const_tables= 0;
@@ -5620,7 +5620,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   */
 
   if (!multi_alloc_root(join->thd->mem_root,
-                        &join->join_tab, sizeof(JOIN_TAB)*(table_count),
+                        &stat, sizeof(JOIN_TAB)*(table_count),
                         &stat_ref, sizeof(JOIN_TAB*)* MAX_TABLES,
                         &stat_vector, sizeof(JOIN_TAB*)* (table_count +1),
                         &table_vector, sizeof(TABLE*)*(table_count*2),
@@ -5632,7 +5632,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(1);
 
   /* The following should be optimized to only clear critical things */
-  bzero((void*)join->join_tab, sizeof(JOIN_TAB)* table_count);
+  bzero((void*)stat, sizeof(JOIN_TAB)* table_count);
   join->top_join_tab_count= table_count;
 
   /* Initialize POSITION objects */
@@ -5643,11 +5643,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   join->best_ref= stat_vector;
 
+  stat_end=stat+table_count;
   found_const_table_map= all_table_map=0;
   const_count=0;
-  JOIN_TAB *join_tab_end= join->join_tab + join->table_count;
 
-  for (s= join->join_tab, i= 0; (tables= ti++); s++, i++)
+  for (s= stat, i= 0; (tables= ti++); s++, i++)
   {
     TABLE_LIST *embedding= tables->embedding;
     TABLE *table= tables->table;
@@ -5768,17 +5768,17 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   if (join->outer_join)
   {
-    if (join->propagate_dependencies())
+    if (join->propagate_dependencies(stat))
     {
       // Illegal cross-references found
       table_count= 0;
       my_message(ER_WRONG_OUTER_JOIN, ER_THD(thd, ER_WRONG_OUTER_JOIN), MYF(0));
-      return true;
+      goto error;
     }
-    join->init_key_dependencies();
+    join->init_key_dependencies(stat);
   }
 
-  for (JOIN_TAB *s= join->join_tab; s < join_tab_end; s++)
+  for (JOIN_TAB *s= stat; s < stat_end; s++)
   {
     TABLE_LIST *tl= s->table->pos_in_table_list;
     if (tl->embedding && tl->embedding->sj_subq_pred)
@@ -5789,7 +5789,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   if (join->conds || outer_join)
   {
-    if (update_ref_and_keys(thd, keyuse_array, join->join_tab, join->table_count,
+    if (update_ref_and_keys(thd, keyuse_array, stat, join->table_count,
                             join->conds, ~outer_join, join->select_lex, &sargables))
       goto error;
     /*
@@ -6092,6 +6092,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
+  join->join_tab= stat;
   join->make_notnull_conds_for_range_scans();
 
   /* Calc how many (possible) matched records in each table */
@@ -6105,7 +6106,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     Json_writer_object rows_estimation_wrapper(thd);
     Json_writer_array rows_estimation(thd, "rows_estimation");
 
-    for (s= join->join_tab ; s < join_tab_end; s++)
+    for (s= stat ; s < stat_end; s++)
     {
       s->startup_cost= 0;
       if (s->type == JT_SYSTEM || s->type == JT_CONST)
@@ -6270,6 +6271,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   if (pull_out_semijoin_tables(join))
     DBUG_RETURN(TRUE);
 
+  join->join_tab=stat;
   join->top_join_tab_count= table_count;
   join->map2table=stat_ref;
   join->table= table_vector;
@@ -6402,10 +6404,9 @@ error:
    }
 */
 
-bool JOIN::propagate_dependencies()
+bool JOIN::propagate_dependencies(JOIN_TAB *stat)
 {
-  JOIN_TAB *join_tab_end= join_tab + table_count;
-  for (JOIN_TAB *s= join_tab; s < join_tab_end; s++)
+  for (JOIN_TAB *s= stat; s < stat + table_count; s++)
   {
     TABLE *table= s->table;
     if (outer_join & s->table->map)
@@ -6414,27 +6415,26 @@ bool JOIN::propagate_dependencies()
     if (!table->reginfo.join_tab->dependent)
       continue;
     // Add my dependencies to other tables depending on me
-    for (JOIN_TAB *t= join_tab; t < join_tab_end ; t++)
+    for (JOIN_TAB *t= stat; t < stat + table_count; t++)
     {
       if (t->dependent & table->map)
         t->dependent |= table->reginfo.join_tab->dependent;
     }
   }
   // Catch illegal cross references
-  for (JOIN_TAB *tab= join_tab; tab < join_tab_end; tab++)
+  for (JOIN_TAB *s= stat; s < stat + table_count; s++)
   {
-    if (tab->dependent & tab->table->map)
+    if (s->dependent & s->table->map)
       return true;
   }
   return false;
 }
 
 
-void JOIN::init_key_dependencies()
+void JOIN::init_key_dependencies(JOIN_TAB *stat)
 {
-  JOIN_TAB *const tab_end = join_tab + table_count;
-  for (JOIN_TAB *tab = join_tab; tab < tab_end; tab++)
-    tab->key_dependent = tab->dependent;
+  for (JOIN_TAB *s= stat; s < stat + table_count; s++)
+    s->key_dependent = s->dependent;
 }
 
 
@@ -32480,6 +32480,15 @@ void JOIN::set_allowed_join_cache_types()
 
 bool JOIN::is_allowed_hash_join_access(const TABLE *table)
 {
+  /*
+    If both NO_BNL() and NO_BKA() hints are specified then
+    hash join is not allowed
+  */
+  if (!hint_table_state(thd, table, BNL_HINT_ENUM, true) &&
+      !hint_table_state(thd, table, BKA_HINT_ENUM, true))
+  {
+    return false;
+  }
   return allowed_join_cache_types & JOIN_CACHE_HASHED_BIT &&
          (max_allowed_join_cache_level > JOIN_CACHE_HASHED_BIT ||
            hint_table_state(thd, table, BNL_HINT_ENUM, false) ||
