@@ -25,9 +25,6 @@ ANALYZE TABLE t1, t2, t3, t4, t5, t6;
 
 set join_cache_level = 8;
 
-EXPLAIN EXTENDED
-  SELECT /*+ JOIN_FIXED_ORDER()*/ STRAIGHT_JOIN count(*) FROM t1, t2;
-
 --echo # Warning expected: hint must be ignored as malformed (no table names)
 EXPLAIN EXTENDED
   SELECT /*+ JOIN_PREFIX()*/ count(*) FROM t1, t2;
@@ -46,6 +43,9 @@ EXPLAIN EXTENDED
 --echo # Invalid QB name for the fixed order
 EXPLAIN EXTENDED
   SELECT /*+ QB_NAME(qb1) JOIN_FIXED_ORDER(@qb3)*/ count(*) FROM t2, t1;
+
+EXPLAIN EXTENDED
+  SELECT /*+ JOIN_FIXED_ORDER()*/ STRAIGHT_JOIN count(*) FROM t1, t2;
 
 --echo # JOIN_FIXED_ORDER() cannot be combined with other join order hints
 EXPLAIN EXTENDED
@@ -96,6 +96,12 @@ EXPLAIN EXTENDED
 
 EXPLAIN EXTENDED
   SELECT /*+ QB_NAME(qb1) JOIN_FIXED_ORDER(@qbXXX)*/ count(*) FROM t2, t1;
+
+--echo # Warning expected as the hint must not confuse `t2` in the subquery
+--echo # with `t2` in the join
+EXPLAIN EXTENDED
+  SELECT /*+ JOIN_PREFIX(t2@subq)*/ (SELECT /*+ QB_NAME(subq)*/ max(f1) FROM t2) as SQ, f1
+  FROM t2;
 
 --echo # No more than 64 join order hints are allowed. It is hard to construct
 --echo # a test case where 64 hints will be applicable and only one, exceeding
@@ -158,13 +164,14 @@ eval $query;
 eval explain extended $query;
 
 --echo # Both JOIN_ORDERs applicable
-let $query= SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5) */ count(*) FROM t1 JOIN t2 JOIN t3
+let $query= SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5@subq2) */ count(*)
+              FROM t1 JOIN t2 JOIN t3
               WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
                 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 eval $query;
 eval explain extended $query;
 
---echo # Unresoled table name t7 in JOIN_ORDER hint, hint ignored
+--echo # Unresolved table name t7 in JOIN_ORDER hint, hint ignored
 let $query= SELECT /*+ JOIN_ORDER(t1, t7, t5) */ count(*) FROM t1 JOIN t2 JOIN t3
               WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
                 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);

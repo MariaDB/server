@@ -799,13 +799,21 @@ bool Opt_hints_qb::compare_table_name(
     const Parser::Table_name_and_Qb *hint_table_and_qb,
     const TABLE_LIST *table)
 {
-  const LEX_CSTRING &table_qb_name=
+  const LEX_CSTRING &join_tab_qb_name=
       table->opt_hints_qb ? table->opt_hints_qb->get_name() : Lex_ident_sys();
 
+  /*
+    If QB name is not specified explicitly for a table name int hint,
+    for example `JOIN_PREFIX(t2)` or `JOIN_SUFFIX(@q1 t3)` then QB name is
+    considered to be equal to `Opt_hints_qb::get_name()`
+  */
+  const LEX_CSTRING &hint_tab_qb_name=
+      hint_table_and_qb->qb_name.length > 0 ? hint_table_and_qb->qb_name :
+                                              this->get_name();
+
   CHARSET_INFO *cs= charset_info();
-  // Compare QB names if present
-  if (table_qb_name.length > 0 && hint_table_and_qb->qb_name.length > 0 &&
-        cs->strnncollsp(table_qb_name, hint_table_and_qb->qb_name))
+  // Compare QB names
+  if (cs->strnncollsp(join_tab_qb_name, hint_tab_qb_name))
       return true;
   // Compare table names
   return cs->strnncollsp(table->alias, hint_table_and_qb->table_name);
@@ -833,13 +841,13 @@ void Opt_hints_qb::print_irregular_hints(THD *thd, String *str)
 void Opt_hints_qb::print_join_order_warn(THD *thd, opt_hints_enum type,
                                   const Parser::Table_name_and_Qb &tbl_name)
 {
-  String hint_name_str, hint_type_str;
+  String tbl_name_str, hint_type_str;
   hint_type_str.append(opt_hint_info[type].hint_type);
-  append_table_name(thd, &hint_name_str, tbl_name.table_name, tbl_name.qb_name);
+  append_table_name(thd, &tbl_name_str, tbl_name.table_name, tbl_name.qb_name);
   uint err_code= ER_UNRESOLVED_TABLE_HINT_NAME;
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       err_code, ER_THD(thd, err_code),
-                      hint_name_str.c_ptr_safe(), hint_type_str.c_ptr_safe());
+                      tbl_name_str.c_ptr_safe(), hint_type_str.c_ptr_safe());
 }
 
 

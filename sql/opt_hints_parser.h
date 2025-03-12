@@ -954,7 +954,7 @@ private:
   public:
     using LIST::LIST;
     
-    bool resolve(Parse_context *pc);
+    bool resolve(Parse_context *pc) const;
   };
 
 public:

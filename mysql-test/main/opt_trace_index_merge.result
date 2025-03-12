@@ -54,16 +54,6 @@ explain select * from t1 where a=1 or b=1	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -202,6 +192,16 @@ explain select * from t1 where a=1 or b=1	{
                 ],
                 "selectivity_for_columns": [],
                 "cond_selectivity": 0.002
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },

@@ -27,13 +27,6 @@ test.t5	analyze	status	OK
 test.t6	analyze	status	Engine-independent statistics collected
 test.t6	analyze	status	OK
 set join_cache_level = 8;
-EXPLAIN EXTENDED
-SELECT /*+ JOIN_FIXED_ORDER()*/ STRAIGHT_JOIN count(*) FROM t1, t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
-Warnings:
-Note	1003	select /*+ JOIN_FIXED_ORDER(@`select#1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 # Warning expected: hint must be ignored as malformed (no table names)
 EXPLAIN EXTENDED
 SELECT /*+ JOIN_PREFIX()*/ count(*) FROM t1, t2;
@@ -77,6 +70,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Warning	4208	Query block name `qb3` is not found for JOIN_FIXED_ORDER hint
 Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t2` join `test`.`t1`
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_FIXED_ORDER()*/ STRAIGHT_JOIN count(*) FROM t1, t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ JOIN_FIXED_ORDER(@`select#1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 # JOIN_FIXED_ORDER() cannot be combined with other join order hints
 EXPLAIN EXTENDED
 SELECT /*+ JOIN_PREFIX(t2) JOIN_FIXED_ORDER()*/ count(*) FROM t1, t2;
@@ -193,6 +193,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Warning	4208	Query block name `qbXXX` is not found for JOIN_FIXED_ORDER hint
 Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t2` join `test`.`t1`
+# Warning expected as the hint must not confuse `t2` in the subquery
+# with `t2` in the join
+EXPLAIN EXTENDED
+SELECT /*+ JOIN_PREFIX(t2@subq)*/ (SELECT /*+ QB_NAME(subq)*/ max(f1) FROM t2) as SQ, f1
+FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
+Warnings:
+Warning	4209	Unresolved table name `t2`@`subq` for JOIN_PREFIX hint
+Note	1003	/* select#1 */ select (/* select#2 */ select /*+ QB_NAME(`subq`) */ max(`test`.`t2`.`f1`) from `test`.`t2`) AS `SQ`,`test`.`t2`.`f1` AS `f1` from `test`.`t2`
 # No more than 64 join order hints are allowed. It is hard to construct
 # a test case where 64 hints will be applicable and only one, exceeding
 # the maximum, will produce a warning. Usually so many hints will conflict
@@ -339,12 +350,14 @@ Warnings:
 Warning	4207	Hint JOIN_SUFFIX(`t2`,`t1`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
 # Both JOIN_ORDERs applicable
-SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5) */ count(*) FROM t1 JOIN t2 JOIN t3
+SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5@subq2) */ count(*)
+FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 count(*)
 10
-explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5) */ count(*) FROM t1 JOIN t2 JOIN t3
+explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5@subq2) */ count(*)
+FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -354,8 +367,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (incremental, BNL join)
 1	PRIMARY	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) JOIN_ORDER(@`select#1` `t1`,`t2`,`t5`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
-# Unresoled table name t7 in JOIN_ORDER hint, hint ignored
+Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) JOIN_ORDER(@`select#1` `t1`,`t2`,`t5`@`subq2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`f1` = `test`.`t4`.`f1` and `test`.`t5`.`f1` = `test`.`t2`.`f1`
+# Unresolved table name t7 in JOIN_ORDER hint, hint ignored
 SELECT /*+ JOIN_ORDER(t1, t7, t5) */ count(*) FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
