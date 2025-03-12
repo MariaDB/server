@@ -1003,7 +1003,7 @@ ulonglong Parser::Max_execution_time_hint::get_milliseconds() const
 }
 
 
-bool Parser::Hint_list::resolve(Parse_context *pc)
+bool Parser::Hint_list::resolve(Parse_context *pc) const
 {
   if (pc->thd->lex->create_view)
   {

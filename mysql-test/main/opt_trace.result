@@ -89,16 +89,6 @@ select * from v1	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -121,6 +111,16 @@ select * from v1	{
                   "read_cost": 0.01028441,
                   "read_and_compare_cost": 0.01034841
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -260,16 +260,6 @@ select * from (select * from t1 where t1.a=1)q	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -292,6 +282,16 @@ select * from (select * from t1 where t1.a=1)q	{
                   "read_cost": 0.01028441,
                   "read_and_compare_cost": 0.01034841
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -436,16 +436,6 @@ select * from v2	{
                   }
                 },
                 {
-                  "table_dependencies": [
-                    {
-                      "table": "t1",
-                      "row_may_be_null": false,
-                      "map_bit": 0,
-                      "depends_on_map_bits": []
-                    }
-                  ]
-                },
-                {
                   "ref_optimizer_key_uses": []
                 },
                 {
@@ -468,6 +458,16 @@ select * from v2	{
                         "read_cost": 0.01028441,
                         "read_and_compare_cost": 0.01034841
                       }
+                    }
+                  ]
+                },
+                {
+                  "table_dependencies": [
+                    {
+                      "table": "t1",
+                      "row_may_be_null": false,
+                      "map_bit": 0,
+                      "depends_on_map_bits": []
                     }
                   ]
                 },
@@ -551,16 +551,6 @@ select * from v2	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "<derived2>",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "rows_estimation": [
               {
                 "table": "<derived2>",
@@ -569,6 +559,16 @@ select * from v2	{
                   "read_cost": 0.012350033,
                   "read_and_compare_cost": 0.012418701
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "<derived2>",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -708,16 +708,6 @@ explain select * from v2	{
         "select_id": 1,
         "steps": [
           {
-            "table_dependencies": [
-              {
-                "table": "t2",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "rows_estimation": [
               {
                 "table": "t2",
@@ -726,6 +716,16 @@ explain select * from v2	{
                   "read_cost": 0.01127965,
                   "read_and_compare_cost": 0.01159965
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t2",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -844,16 +844,6 @@ explain select * from v1	{
               "select_id": 2,
               "steps": [
                 {
-                  "table_dependencies": [
-                    {
-                      "table": "t1",
-                      "row_may_be_null": false,
-                      "map_bit": 0,
-                      "depends_on_map_bits": []
-                    }
-                  ]
-                },
-                {
                   "rows_estimation": [
                     {
                       "table": "t1",
@@ -862,6 +852,16 @@ explain select * from v1	{
                         "read_cost": 0.01127965,
                         "read_and_compare_cost": 0.01159965
                       }
+                    }
+                  ]
+                },
+                {
+                  "table_dependencies": [
+                    {
+                      "table": "t1",
+                      "row_may_be_null": false,
+                      "map_bit": 0,
+                      "depends_on_map_bits": []
                     }
                   ]
                 },
@@ -939,16 +939,6 @@ explain select * from v1	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "<derived2>",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "rows_estimation": [
               {
                 "table": "<derived2>",
@@ -957,6 +947,16 @@ explain select * from v1	{
                   "read_cost": 0.012414166,
                   "read_and_compare_cost": 0.012757506
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "<derived2>",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -1100,22 +1100,6 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t2",
-                "row_may_be_null": false,
-                "map_bit": 1,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t1",
@@ -1150,6 +1134,22 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                   "read_cost": 0.0224761,
                   "read_and_compare_cost": 0.0256761
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t2",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -1399,16 +1399,6 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
         "select_id": 1,
         "steps": [
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "rows_estimation": [
               {
                 "table": "t1",
@@ -1476,6 +1466,16 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                     "chosen": true
                   }
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -1607,16 +1607,6 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -1691,6 +1681,16 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
                   }
                 ],
                 "cond_selectivity": 0.081632653
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -1861,16 +1861,6 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -1944,6 +1934,16 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                     "chosen": true
                   }
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -2082,16 +2082,6 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -2165,6 +2155,16 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                     "chosen": true
                   }
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -2317,16 +2317,6 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t1",
@@ -2459,6 +2449,16 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   }
                 ],
                 "cond_selectivity": 0.041
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -2704,22 +2704,6 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t2",
-                "row_may_be_null": true,
-                "map_bit": 1,
-                "depends_on_map_bits": ["0"]
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t2",
@@ -2748,6 +2732,22 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
                 "rows": 1,
                 "cost": 1,
                 "table_type": "const"
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t2",
+                "row_may_be_null": true,
+                "map_bit": 1,
+                "depends_on_map_bits": ["0"]
               }
             ]
           },
@@ -2864,22 +2864,6 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t2",
-                "row_may_be_null": true,
-                "map_bit": 1,
-                "depends_on_map_bits": ["0"]
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t2",
@@ -2910,6 +2894,22 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                   "read_cost": 0.01028441,
                   "read_and_compare_cost": 0.01034841
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t2",
+                "row_may_be_null": true,
+                "map_bit": 1,
+                "depends_on_map_bits": ["0"]
               }
             ]
           },
@@ -3078,28 +3078,6 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t2",
-                "row_may_be_null": true,
-                "map_bit": 1,
-                "depends_on_map_bits": ["0"]
-              },
-              {
-                "table": "t3",
-                "row_may_be_null": true,
-                "map_bit": 2,
-                "depends_on_map_bits": ["0"]
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t2",
@@ -3155,6 +3133,28 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
                 "rows": 1,
                 "cost": 1,
                 "table_type": "const"
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t2",
+                "row_may_be_null": true,
+                "map_bit": 1,
+                "depends_on_map_bits": ["0"]
+              },
+              {
+                "table": "t3",
+                "row_may_be_null": true,
+                "map_bit": 2,
+                "depends_on_map_bits": ["0"]
               }
             ]
           },
@@ -3336,22 +3336,6 @@ explain extended select * from t1 where a in (select p from t2)	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t2",
-                "row_may_be_null": false,
-                "map_bit": 1,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -3378,6 +3362,22 @@ explain extended select * from t1 where a in (select p from t2)	{
             "semijoin_table_pullout": {
               "pulled_out_tables": []
             }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t2",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
+              }
+            ]
           },
           {
             "execution_plan_for_potential_materialization": {
@@ -3686,16 +3686,6 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t1",
@@ -3901,6 +3891,16 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
             ]
           },
           {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
             "considered_execution_plans": [
               {
                 "plan_prefix": "",
@@ -4047,16 +4047,6 @@ select f1(a) from t1	{
         "select_id": 1,
         "steps": [
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "rows_estimation": [
               {
                 "table": "t1",
@@ -4065,6 +4055,16 @@ select f1(a) from t1	{
                   "read_cost": 0.01053322,
                   "read_and_compare_cost": 0.01066122
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -4164,16 +4164,6 @@ select f2(a) from t1	{
         "select_id": 1,
         "steps": [
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "rows_estimation": [
               {
                 "table": "t1",
@@ -4182,6 +4172,16 @@ select f2(a) from t1	{
                   "read_cost": 0.01053322,
                   "read_and_compare_cost": 0.01066122
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -4430,22 +4430,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t0",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 1,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t0",
@@ -4614,6 +4598,22 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 ],
                 "selectivity_for_columns": [],
                 "cond_selectivity": 0.3
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t0",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -4874,16 +4874,6 @@ explain select * from (select rand() from t1)q	{
               "select_id": 2,
               "steps": [
                 {
-                  "table_dependencies": [
-                    {
-                      "table": "t1",
-                      "row_may_be_null": false,
-                      "map_bit": 0,
-                      "depends_on_map_bits": []
-                    }
-                  ]
-                },
-                {
                   "rows_estimation": [
                     {
                       "table": "t1",
@@ -4892,6 +4882,16 @@ explain select * from (select rand() from t1)q	{
                         "read_cost": 0.010408815,
                         "read_and_compare_cost": 0.010504815
                       }
+                    }
+                  ]
+                },
+                {
+                  "table_dependencies": [
+                    {
+                      "table": "t1",
+                      "row_may_be_null": false,
+                      "map_bit": 0,
+                      "depends_on_map_bits": []
                     }
                   ]
                 },
@@ -4959,16 +4959,6 @@ explain select * from (select rand() from t1)q	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "<derived2>",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "rows_estimation": [
               {
                 "table": "<derived2>",
@@ -4977,6 +4967,16 @@ explain select * from (select rand() from t1)q	{
                   "read_cost": 0.01235805,
                   "read_and_compare_cost": 0.012461052
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "<derived2>",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -5149,28 +5149,6 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_1",
-                "row_may_be_null": false,
-                "map_bit": 1,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_2",
-                "row_may_be_null": false,
-                "map_bit": 2,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -5205,6 +5183,28 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             "semijoin_table_pullout": {
               "pulled_out_tables": []
             }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_1",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_2",
+                "row_may_be_null": false,
+                "map_bit": 2,
+                "depends_on_map_bits": []
+              }
+            ]
           },
           {
             "execution_plan_for_potential_materialization": {
@@ -5770,46 +5770,6 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t_outer_1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_outer_2",
-                "row_may_be_null": false,
-                "map_bit": 1,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_2",
-                "row_may_be_null": false,
-                "map_bit": 2,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_1",
-                "row_may_be_null": false,
-                "map_bit": 3,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_3",
-                "row_may_be_null": false,
-                "map_bit": 4,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_4",
-                "row_may_be_null": false,
-                "map_bit": 5,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -5873,6 +5833,46 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             "semijoin_table_pullout": {
               "pulled_out_tables": []
             }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t_outer_1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_outer_2",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_2",
+                "row_may_be_null": false,
+                "map_bit": 2,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_1",
+                "row_may_be_null": false,
+                "map_bit": 3,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_3",
+                "row_may_be_null": false,
+                "map_bit": 4,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_4",
+                "row_may_be_null": false,
+                "map_bit": 5,
+                "depends_on_map_bits": []
+              }
+            ]
           },
           {
             "execution_plan_for_potential_materialization": {
@@ -8178,46 +8178,6 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t_outer_1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_outer_2",
-                "row_may_be_null": false,
-                "map_bit": 1,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_2",
-                "row_may_be_null": false,
-                "map_bit": 2,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_1",
-                "row_may_be_null": false,
-                "map_bit": 3,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_3",
-                "row_may_be_null": false,
-                "map_bit": 4,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t_inner_4",
-                "row_may_be_null": false,
-                "map_bit": 5,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -8281,6 +8241,46 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             "semijoin_table_pullout": {
               "pulled_out_tables": []
             }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t_outer_1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_outer_2",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_2",
+                "row_may_be_null": false,
+                "map_bit": 2,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_1",
+                "row_may_be_null": false,
+                "map_bit": 3,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_3",
+                "row_may_be_null": false,
+                "map_bit": 4,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t_inner_4",
+                "row_may_be_null": false,
+                "map_bit": 5,
+                "depends_on_map_bits": []
+              }
+            ]
           },
           {
             "execution_plan_for_potential_materialization": {
@@ -11868,22 +11868,6 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "<derived2>",
-                "row_may_be_null": false,
-                "map_bit": 1,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -11903,6 +11887,22 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                   "read_cost": 0.012350033,
                   "read_and_compare_cost": 0.012418701
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "<derived2>",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -12073,16 +12073,6 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
               "select_id": "fake",
               "steps": [
                 {
-                  "table_dependencies": [
-                    {
-                      "table": "union",
-                      "row_may_be_null": false,
-                      "map_bit": 0,
-                      "depends_on_map_bits": []
-                    }
-                  ]
-                },
-                {
                   "rows_estimation": [
                     {
                       "table": "union",
@@ -12091,6 +12081,16 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                         "read_cost": 0.010020701,
                         "read_and_compare_cost": 0.010084701
                       }
+                    }
+                  ]
+                },
+                {
+                  "table_dependencies": [
+                    {
+                      "table": "union",
+                      "row_may_be_null": false,
+                      "map_bit": 0,
+                      "depends_on_map_bits": []
                     }
                   ]
                 },
@@ -12333,16 +12333,6 @@ select count(*) from seq_1_to_10000000	{
         "select_id": 1,
         "steps": [
           {
-            "table_dependencies": [
-              {
-                "table": "seq_1_to_10000000",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "rows_estimation": [
               {
                 "table": "seq_1_to_10000000",
@@ -12351,6 +12341,16 @@ select count(*) from seq_1_to_10000000	{
                   "read_cost": 124.7880673,
                   "read_and_compare_cost": 444.7880673
                 }
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "seq_1_to_10000000",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -12967,16 +12967,6 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -13081,6 +13071,16 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                   }
                 ],
                 "cond_selectivity": 0.000017766
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
               }
             ]
           },
@@ -13362,22 +13362,6 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "three",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              },
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 1,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t1",
@@ -13468,6 +13452,22 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                   }
                 ],
                 "cond_selectivity": 0.04307688
+              }
+            ]
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "three",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              },
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 1,
+                "depends_on_map_bits": []
               }
             ]
           },

@@ -5767,9 +5767,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
-  if (unlikely(thd->trace_started()))
-    trace_table_dependencies(thd, join->join_tab, join->table_count);
-
   if (join->conds || outer_join)
   {
     if (update_ref_and_keys(thd, keyuse_array, join->join_tab, join->table_count,
@@ -6261,6 +6258,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   if (join->select_lex->opt_hints_qb)
     join->select_lex->opt_hints_qb->apply_join_order_hints(join);
+
+  if (unlikely(thd->trace_started()))
+    trace_table_dependencies(thd, join->join_tab, join->table_count);
 
   if (sj_nests)
     join->select_lex->update_available_semijoin_strategies(thd);

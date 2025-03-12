@@ -39,6 +39,8 @@
   Currently, this process is done at the parser stage. (This is one of the
   causes why hints do not work across VIEW bounds, here or in MySQL).
 
+  Query-block level hints can be reached through SELECT_LEX::opt_hints_qb.
+
   == Hint "fixing" ==
 
   During Name Resolution, hints are attached the real objects they control:
@@ -64,10 +66,17 @@
 
   == API for checking hints ==
 
-  The optimizer checks hints' instructions using these calls:
+  The optimizer checks hints' instructions using these calls for table/index
+  level hints:
     hint_table_state()
     hint_table_state_or_fallback()
     hint_key_state()
+  For query block-level hints:
+    opt_hints_qb->semijoin_enabled()
+    opt_hints_qb->sj_enabled_strategies()
+    opt_hints_qb->apply_join_order_hints(join) - This adds extra dependencies
+      between tables that ensure that the optimizer picks a join order
+      prescribed by the hints.
 */
 
 
@@ -392,7 +401,7 @@ class Opt_hints_table;
     - JOIN_PREFIX
     - JOIN_SUFFIX
     - JOIN_ORDER
-    - JOIN_FIXED_ORDER_HINT_ENUM
+    - JOIN_FIXED_ORDER
 */
 
 class Opt_hints_qb : public Opt_hints
@@ -523,8 +532,6 @@ public:
     return false;
   }
 
-  void print_irregular_hints(THD *thd, String *str) override;
-
   const Parser::Join_order_hint *join_prefix= nullptr;
   const Parser::Join_order_hint *join_suffix= nullptr;
   const Parser::Join_order_hint *join_fixed_order= nullptr;
@@ -551,6 +558,7 @@ private:
                           table_map table_map);
   bool compare_table_name(const Parser::Table_name_and_Qb *hint_table_and_qb,
                           const TABLE_LIST *table);
+  void print_irregular_hints(THD *thd, String *str) override;
   void print_join_order_warn(THD *thd, opt_hints_enum type,
                              const Parser::Table_name_and_Qb &tbl_name);
 };
