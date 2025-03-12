@@ -66,6 +66,7 @@ TRUNCATE TABLE mysql.general_log;
 --connection child2_2
 TRUNCATE TABLE mysql.general_log;
 
+--disable_view_protocol
 --disable_ps2_protocol
 --connection master_1
 set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
@@ -83,6 +84,7 @@ eval $CHILD2_1_SELECT_TABLES;
 eval $CHILD2_2_SELECT_ARGUMENT1;
 eval $CHILD2_2_SELECT_TABLES;
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo deinit

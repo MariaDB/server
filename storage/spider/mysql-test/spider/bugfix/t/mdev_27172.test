@@ -48,6 +48,7 @@ eval CREATE TABLE tbl_a (
   KEY k (greeting)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
 
+--disable_view_protocol
 --disable_ps2_protocol
 INSERT INTO tbl_a VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
 SELECT * FROM tbl_a WHERE greeting = "Aloha!"
@@ -78,6 +79,7 @@ SELECT * FROM tbl_c WHERE greeting = "Aloha!"
 --connection child2_1
 SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
 --enable_ps2_protocol
+--enable_view_protocol
 
 --connection child2_1
 SET @@global.general_log = @general_log_backup;

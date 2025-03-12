@@ -144,6 +144,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT * FROM tbl_a;
 if ($USE_CHILD_GROUP2)
@@ -166,6 +167,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo deinit

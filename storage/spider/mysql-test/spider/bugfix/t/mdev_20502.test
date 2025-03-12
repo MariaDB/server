@@ -47,6 +47,7 @@ INSERT INTO tbl_a (val) VALUES (1);
 --connection child2_1
 TRUNCATE TABLE mysql.general_log;
 
+--disable_view_protocol
 --disable_ps2_protocol
 --connection master_1
 SELECT id, 0 AS const, val FROM tbl_a;
@@ -62,6 +63,7 @@ FROM tbl_a GROUP BY val;
 eval $CHILD2_1_SELECT_ARGUMENT1;
 eval $CHILD2_1_SELECT_TABLES;
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo deinit

@@ -82,6 +82,7 @@ eval LOAD DATA $OPTION_LOCAL INFILE '$MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' $
 --enable_query_log
 --remove_file $MYSQLTEST_VARDIR/tmp/spider_outfile.tsv
 
+--disable_view_protocol
 --disable_ps2_protocol
 --connection child2_1
 eval $CHILD2_1_SELECT_ARGUMENT1;
@@ -91,6 +92,7 @@ eval $CHILD2_1_SELECT_TABLES;
 eval $CHILD2_2_SELECT_ARGUMENT1;
 eval $CHILD2_2_SELECT_TABLES;
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo deinit

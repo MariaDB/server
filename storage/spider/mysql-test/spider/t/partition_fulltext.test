@@ -158,6 +158,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT pkey, words FROM tbl_a WHERE match(words) against('+ghi' in boolean mode);
 if ($USE_CHILD_GROUP2)
@@ -192,6 +193,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo deinit

@@ -171,6 +171,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
 if ($USE_CHILD_GROUP2)
@@ -193,6 +194,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo DELETEs
@@ -216,6 +218,7 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 DELETE FROM tbl_a WHERE col_ts='1970-01-01 01:00:01';
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
 if ($USE_CHILD_GROUP2)
@@ -238,6 +241,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -260,6 +264,7 @@ if ($USE_CHILD_GROUP2)
 SET @@timestamp=1;
 INSERT INTO tbl_a VALUES (1, now(), now());
 SET @@timestamp=0;
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
 if ($USE_CHILD_GROUP2)
@@ -282,6 +287,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo UPDATEs
@@ -305,6 +311,7 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 UPDATE tbl_a SET col_ts=col_dt;
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
 if ($USE_CHILD_GROUP2)
@@ -327,6 +334,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo Lookups
@@ -349,6 +357,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > '2018-01-01';
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts < '2018-10-28 02:30:00';
@@ -377,6 +386,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo Drop the index on the timestamp column
@@ -429,6 +439,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > '2018-01-01';
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts < '2018-10-28 02:30:00';
@@ -457,6 +468,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo Test the TIMESTAMP function
@@ -483,6 +495,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT * FROM tbl_f;
 SELECT TIMESTAMP(col_d, col_t) FROM tbl_f;
@@ -509,6 +522,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo Restore Time Zone settings
