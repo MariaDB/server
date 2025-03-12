@@ -60,6 +60,21 @@ struct chunk_data_base {
 
 
 /*
+  Empty chunk data, used to pass a dummy record to fsp_binlog_write_rec()
+  in fsp_binlog_flush().
+*/
+struct chunk_data_flush : public chunk_data_base {
+  ~chunk_data_flush() { }
+
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
+  {
+    memset(p, 0xff, max_len);
+    return {max_len, true};
+  }
+};
+
+
+/*
   Data stored at the start of each binlog file.
   (The data is stored in the file as compressed integers; this is just a
   struct to pass around the values in-memory).
@@ -72,10 +87,12 @@ struct binlog_header_data {
   */
   lsn_t start_lsn;
   /*
-    The length of this binlog file, in pages. Used during recovery to know
-    what length to create the binlog file with (in the case where we need to
-    recover the whole file).
+    The file_no of the binlog file. This is written into the header to be able
+    to recover it in the case where no binlog files are present at server
+    start (could be due to FLUSH BINARY LOGS or RESET MASTER).
   */
+  uint64_t file_no;
+  /* The length of this binlog file, in pages. */
   uint32_t page_count;
   /*
     The interval (in pages) at which the (differential) binlog GTID state is
@@ -84,6 +101,8 @@ struct binlog_header_data {
     binlog file was created.
   */
   uint32_t diff_state_interval;
+  /* Whether the page was found empty. */
+  bool is_empty;
 };
 
 
@@ -104,11 +123,19 @@ extern size_t total_binlog_used_size;
 
 
 static inline void
-binlog_name_make(char name_buf[OS_FILE_MAX_PATH], uint64_t file_no)
+binlog_name_make(char name_buf[OS_FILE_MAX_PATH], uint64_t file_no,
+                 const char *binlog_dir)
 {
   snprintf(name_buf, OS_FILE_MAX_PATH,
            "%s/" BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT,
-           innodb_binlog_directory, file_no);
+           binlog_dir, file_no);
+}
+
+
+static inline void
+binlog_name_make(char name_buf[OS_FILE_MAX_PATH], uint64_t file_no)
+{
+  binlog_name_make(name_buf, file_no, innodb_binlog_directory);
 }
 
 
@@ -125,7 +152,7 @@ extern void innodb_binlog_close(bool shutdown);
 extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                               fsp_binlog_page_entry * &block, uint32_t &page_no,
                               uint32_t &page_offset, uint64_t file_no,
-                              uint32_t file_size_in_pages);
+                               uint32_t file_size_in_pages);
 extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
 extern void innodb_free_oob(THD *thd, void *engine_data);
@@ -140,5 +167,10 @@ extern void innodb_binlog_status(char out_filename[FN_REFLEN],
 extern bool innodb_binlog_get_init_state(rpl_binlog_state_base *out_state);
 extern bool innodb_reset_binlogs();
 extern int innodb_binlog_purge(handler_binlog_purge_info *purge_info);
+extern bool binlog_recover_write_data(bool space_id, uint32_t page_no,
+                                      uint16_t offset,
+                                      lsn_t start_lsn, lsn_t lsn,
+                                      const byte *buf, size_t size) noexcept;
+extern void binlog_recover_end(lsn_t lsn) noexcept;
 
 #endif /* innodb_binlog_h */
