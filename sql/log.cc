@@ -4886,11 +4886,11 @@ MYSQL_BIN_LOG::reset_engine_binlogs(THD *thd, rpl_gtid *init_state,
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_index);
 
-  err= (*opt_binlog_engine_hton->reset_binlogs)();
   if (init_state)
     rpl_global_gtid_binlog_state.load(init_state, init_state_len);
   else
     rpl_global_gtid_binlog_state.reset();
+  err= (*opt_binlog_engine_hton->reset_binlogs)();
 
   mysql_mutex_unlock(&LOCK_index);
   mysql_mutex_unlock(&LOCK_log);
