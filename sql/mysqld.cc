@@ -6818,12 +6818,6 @@ struct my_option my_long_options[]=
    "more than one storage engine, when binary log is disabled)",
    &opt_tc_log_file, &opt_tc_log_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"master-info-file", 0,
-   "The location and name of the file that remembers the master and where "
-   "the I/O replication thread is in the master's binlogs. Defaults to "
-   "master.info",
-   &master_info_file, &master_info_file, 0, GET_STR,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"master-retry-count", 0,
    "The number of tries the slave will make to connect to the master before giving up",
    &master_retry_count, &master_retry_count, 0, GET_ULONG,
@@ -6874,14 +6868,6 @@ struct my_option my_long_options[]=
    "Updates to a database with a different name than the original. Example: "
    "replicate-rewrite-db=master_db_name->slave_db_name",
    0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_REPLICATION
-  {"replicate-same-server-id", 0,
-   "In replication, if set to 1, do not skip events having our server id. "
-   "Default value is 0 (to break infinite loops in circular replication). "
-   "Can't be set to 1 if --log-slave-updates is used",
-   &replicate_same_server_id, &replicate_same_server_id,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"replicate-wild-do-table", OPT_REPLICATE_WILD_DO_TABLE,
    "Tells the slave thread to restrict replication to the tables that match "
    "the specified wildcard pattern. To specify more than one table, use the "
@@ -6904,10 +6890,6 @@ struct my_option my_long_options[]=
    "Don't allow new user creation by the user who has no write privileges to the mysql.user table",
    &opt_safe_user_create, &opt_safe_user_create, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"show-slave-auth-info", 0,
-   "Show user and password in SHOW SLAVE HOSTS on this master",
-   &opt_show_slave_auth_info, &opt_show_slave_auth_info, 0,
-   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"silent-startup", OPT_SILENT, "Don't print [Note] to the error log during startup",
    &opt_silent_startup, &opt_silent_startup, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names", 0, 0, 0,

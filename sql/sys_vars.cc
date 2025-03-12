@@ -5306,6 +5306,12 @@ static Sys_var_uint Sys_repl_report_port(
        "to the slave. If not sure, leave this option unset",
        READ_ONLY GLOBAL_VAR(report_port), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_show_slave_auth_info(
+       "show_slave_auth_info",
+       "Show user and password in SHOW SLAVE HOSTS on this master",
+       READ_ONLY GLOBAL_VAR(opt_show_slave_auth_info), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
 #endif
 
 static Sys_var_mybool Sys_keep_files_on_create(
@@ -5704,6 +5710,13 @@ static Sys_var_charptr_fscs Sys_relay_log_info_file(
        "relay_log_info_file", "The location and name of the file that "
        "remembers where the SQL replication thread is in the relay logs",
        READ_ONLY GLOBAL_VAR(relay_log_info_file), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+static Sys_var_charptr_fscs Sys_master_info_file(
+       "master_info_file", "The location and name of the file that "
+       "remembers the master and where the I/O replication thread "
+       "is in the master's binlogs. Defaults to master.info",
+       READ_ONLY GLOBAL_VAR(master_info_file), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
 static Sys_var_on_access_global<Sys_var_mybool,
@@ -6979,6 +6992,14 @@ static Sys_var_mybool Sys_replicate_annotate_row_events(
        "to its own binary log. Ignored if log_slave_updates is not set",
        READ_ONLY GLOBAL_VAR(opt_replicate_annotate_row_events),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_replicate_same_server_id(
+       "replicate_same_server_id",
+       "In replication, if set to 1, do not skip events having our server id. "
+       "Default value is 0 (to break infinite loops in circular replication). "
+       "Can't be set to 1 if --log-slave-updates is used",
+       READ_ONLY GLOBAL_VAR(replicate_same_server_id),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 #endif
 
 static Sys_var_ulonglong Sys_join_buffer_space_limit(
