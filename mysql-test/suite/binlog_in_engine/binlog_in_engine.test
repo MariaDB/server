@@ -27,9 +27,14 @@ SELECT @@GLOBAL.binlog_checksum;
 # If this gets too annoying to do, we can replace this with something that
 # checks that the reported file and position is within some reasonable range
 # of the value left by current code.
+--replace_column 2 #
 SHOW MASTER STATUS;
-SHOW BINLOG EVENTS IN "binlog-000000.ibb";
-SHOW BINLOG EVENTS LIMIT 2, 3;
+--let $binlog_file= binlog-000000.ibb
+--let $binlog_start= 0
+--source include/show_binlog_events.inc
+--let $binlog_file=
+--let $binlog_limit= 2, 3
+--source include/show_binlog_events.inc
 
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
 

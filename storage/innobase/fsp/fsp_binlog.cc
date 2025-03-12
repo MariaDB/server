@@ -618,12 +618,8 @@ fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
     page_offset= 0;
     page->flushed_clean= false;
   }
-  mtr->write_binlog(LOG_BINLOG_ID_0 + (file_no & 1), page_no,
-                    (uint16_t)page_offset, page_offset + &page->page_buf[0],
-                    len);
-  sql_print_information("ToDo2: %d, page=%u, off=%u, len=%u)", (int)(file_no & 1), page_no, page_offset, len);
-  for (uint32_t i= page_offset; i < page_offset+len; i+=8)
-    sql_print_information("ToDo2:   0x%04x  %02X %02X %02X %02X %02X %02X %02X %02X", i, page->page_buf[i], page->page_buf[i+1], page->page_buf[i+2], page->page_buf[i+3], page->page_buf[i+4], page->page_buf[i+5], page->page_buf[i+6], page->page_buf[i+7]);
+  mtr->write_binlog((file_no & 1), page_no, (uint16_t)page_offset,
+                    page_offset + &page->page_buf[0], len);
 }
 
 /*
@@ -809,14 +805,6 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
           and available; binlog tablespace N is active while (N+1) is being
           pre-allocated. Only under extreme I/O pressure should be need to
           stall here.
-
-          ToDo: Handle recovery. Idea: write the current LSN at the start of
-          the binlog tablespace when we create it. At recovery, we should open
-          the (at most) 2 most recent binlog tablespaces. Whenever we have a
-          redo record, skip it if its LSN is smaller than the one stored in the
-          tablespace corresponding to its space_id. This way, it should be safe
-          to re-use tablespace ids between just two, SRV_SPACE_ID_BINLOG0 and
-          SRV_SPACE_ID_BINLOG1.
         */
         ut_ad(!pending_prev_end_offset);
         pending_prev_end_offset= page_no << page_size_shift;
@@ -982,21 +970,6 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
 
 
 /*
-  Empty chunk data, used to pass a dummy record to fsp_binlog_write_rec()
-  in fsp_binlog_flush().
-*/
-struct chunk_data_flush : public chunk_data_base {
-  ~chunk_data_flush() { }
-
-  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
-  {
-    memset(p, 0xff, max_len);
-    return {max_len, true};
-  }
-};
-
-
-/*
   Implementation of FLUSH BINARY LOGS.
   Truncate the current binlog tablespace, fill up the last page with dummy data
   (if needed), write the current GTID state to the first page in the next
@@ -1080,6 +1053,7 @@ fsp_binlog_flush()
   mtr.start();
   fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_FILLER);
   mtr.commit();
+  log_buffer_flush_to_disk(srv_flush_log_at_trx_commit & 1);
 
   return false;
 }
