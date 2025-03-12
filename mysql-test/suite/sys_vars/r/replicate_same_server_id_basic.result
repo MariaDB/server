@@ -1,0 +1,17 @@
+# GLOBAL scope
+SELECT @@GLOBAL.replicate_same_server_id;
+@@GLOBAL.replicate_same_server_id
+1
+SELECT @@replicate_same_server_id;
+@@replicate_same_server_id
+1
+# Not SESSION scope
+SELECT @@SESSION.replicate_same_server_id;
+ERROR HY000: Variable 'replicate_same_server_id' is a GLOBAL variable
+# Read-only
+SET @@replicate_same_server_id= OFF;
+ERROR HY000: Variable 'replicate_same_server_id' is a read only variable
+SET @@GLOBAL.replicate_same_server_id= OFF;
+ERROR HY000: Variable 'replicate_same_server_id' is a read only variable
+SET @@SESSION.replicate_same_server_id= OFF;
+ERROR HY000: Variable 'replicate_same_server_id' is a read only variable

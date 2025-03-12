@@ -1,0 +1,19 @@
+--source include/not_embedded.inc
+# MDEV-30189: Test minimal correctness of `@@show_slave_auth_info` itself
+
+--echo # GLOBAL scope
+# Expect different from default (OFF) as configured by `.opt`
+SELECT @@GLOBAL.show_slave_auth_info;
+SELECT @@show_slave_auth_info;
+
+--echo # Not SESSION scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.show_slave_auth_info;
+
+--echo # Read-only
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@show_slave_auth_info= OFF;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.show_slave_auth_info= OFF;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@SESSION.show_slave_auth_info= OFF;
