@@ -12929,6 +12929,12 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
 
   if (user->host.str == NULL) // Possibly a role
   {
+    if (!initialized)
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
+      return nullptr;
+    }
+
     // to be reexecution friendly we have to make a copy
     LEX_USER *dup= (LEX_USER*) thd->memdup(user, sizeof(*user));
     if (!dup)
