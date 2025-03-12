@@ -1,0 +1,17 @@
+# GLOBAL scope
+SELECT @@GLOBAL.show_slave_auth_info;
+@@GLOBAL.show_slave_auth_info
+1
+SELECT @@show_slave_auth_info;
+@@show_slave_auth_info
+1
+# Not SESSION scope
+SELECT @@SESSION.show_slave_auth_info;
+ERROR HY000: Variable 'show_slave_auth_info' is a GLOBAL variable
+# Read-only
+SET @@show_slave_auth_info= OFF;
+ERROR HY000: Variable 'show_slave_auth_info' is a read only variable
+SET @@GLOBAL.show_slave_auth_info= OFF;
+ERROR HY000: Variable 'show_slave_auth_info' is a read only variable
+SET @@SESSION.show_slave_auth_info= OFF;
+ERROR HY000: Variable 'show_slave_auth_info' is a read only variable

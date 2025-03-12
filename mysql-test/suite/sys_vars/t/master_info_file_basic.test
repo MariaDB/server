@@ -1,0 +1,19 @@
+--source include/not_embedded.inc
+# MDEV-30189: Test minimal correctness of `@@master_info_file` itself
+
+--echo # GLOBAL scope
+# Expect different from default ('master.info') as configured by `.opt`
+SELECT @@GLOBAL.master_info_file;
+SELECT @@master_info_file;
+
+--echo # Not SESSION scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.master_info_file;
+
+--echo # Read-only
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@master_info_file= 'master.info';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.master_info_file= 'master.info';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@SESSION.master_info_file= 'master.info';
