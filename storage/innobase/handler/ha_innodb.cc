@@ -17518,7 +17518,8 @@ innodb_io_capacity_update(
 				    " higher than innodb_io_capacity_max %lu",
 				    in_val, srv_max_io_capacity);
 
-		srv_max_io_capacity = (in_val & ~(~0UL >> 1))
+		/* Avoid overflow. */
+		srv_max_io_capacity = (in_val >= SRV_MAX_IO_CAPACITY_LIMIT / 2)
 			? in_val : in_val * 2;
 
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -19123,7 +19124,7 @@ static MYSQL_SYSVAR_ENUM(instant_alter_column_allowed,
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the server can do. Tunes the background IO rate",
-  NULL, innodb_io_capacity_update, 200, 100, ~0UL, 0);
+  NULL, innodb_io_capacity_update, 200, 100, SRV_MAX_IO_CAPACITY_LIMIT, 0);
 
 static MYSQL_SYSVAR_ULONG(io_capacity_max, srv_max_io_capacity,
   PLUGIN_VAR_RQCMDARG,
