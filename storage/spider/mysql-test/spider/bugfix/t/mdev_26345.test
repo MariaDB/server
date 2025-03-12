@@ -11,6 +11,7 @@
 --echo
 
 set spider_same_server_link= 1;
+set global spider_same_server_link= 1;
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 
