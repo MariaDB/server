@@ -25,6 +25,207 @@ routine_type	PACKAGE
 routine_definition	AS
 FUNCTION f1() RETURN INT;
 END
+routine_name	UTL_I18N
+routine_type	PACKAGE
+routine_definition	AS
+    FUNCTION transliterate(val VARCHAR2(255) CHARACTER SET ANY_CS, name VARCHAR2(255)) RETURN VARCHAR2(255) CHARACTER SET ANY_CS
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function performs script transliteration.\n              Parameters\n              val (VARCHAR2):\n                Specifies the data to be converted.\n              name (VARCHAR2):\n                Specifies the transliteration name string.\n              Returns\n                The converted string.\n              '
+    ;
+    FUNCTION raw_to_char(jc RAW, charset_or_collation VARCHAR(255)) RETURN VARCHAR2
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function converts RAW data from a valid character set to a\n              VARCHAR2 string in the database character set.\n              Parameters\n              jc (RAW):\n                Specifies the RAW data to be converted to a VARCHAR2 string\n              charset_or_collation (VARCHAR):\n                Specifies the character set that the RAW data was derived from.\n              Returns\n                the VARCHAR2 string equivalent in the database character set of\n                the RAW data.\n              '
+    ;
+    FUNCTION string_to_raw(jc VARCHAR2, charset_or_collation VARCHAR(255)) RETURN RAW
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function converts a VARCHAR2 string to another valid\n              character set and returns the result as RAW data.\n              Parameters\n              jc (VARCHAR2):\n                Specifies the VARCHAR2 or NVARCHAR2 string to convert.\n              charset_or_collation (VARCHAR):\n                Specifies the destination character set.\n              Returns\n                RAW data representation of the input string in the new character set\n              '
+    ;
+END
+routine_name	dbms_random
+routine_type	PACKAGE BODY
+routine_definition	AS
+    FUNCTION get_seed_from_session() RETURN INTEGER
+    AS
+      v_user_hash INTEGER;
+      v_time_num INTEGER;
+      v_process_id INTEGER;
+      v_seed INTEGER;
+      v_username VARCHAR(128);
+      v_i INTEGER;
+    BEGIN
+      v_username := USER();
+      v_user_hash := 0;
+      FOR v_i IN 1..LENGTH(v_username) LOOP
+        v_user_hash := v_user_hash + (ASCII(SUBSTR(v_username, v_i, 1)) * v_i);
+      END LOOP;
+      v_time_num := UNIX_TIMESTAMP();
+      v_process_id := CONNECTION_ID();
+      v_seed := MOD(
+        (v_user_hash * 31) +
+        (v_time_num * 17) +
+        (v_process_id * 13),
+        2147483647  -- Max 32-bit signed integer
+      );
+      RETURN v_seed;
+    END;
+    PROCEDURE initialize (input INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Initializes the seed\n          Raises\n      '
+    IS
+    BEGIN
+      SET @@rand_seed1 = input * 0x10001 + 55555555;
+      SET @@rand_seed2 = input * 0x10000001;
+    END;
+    PROCEDURE terminate
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Terminates package\n          Raises\n      '
+    IS
+    BEGIN
+    END;
+    FUNCTION value RETURN DECIMAL(65,38)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Gets a random number greater than or equal to 0 and less than 1, with\n          38 digits to the right of the decimal point (38-digit precision)\n          Raises\n      '
+    IS
+    BEGIN
+      RETURN CAST(RAND() AS DECIMAL(65, 38));
+    END;
+    FUNCTION random RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Generates a random number\n          Raises\n      '
+    IS
+    BEGIN
+      RETURN CONVERT(RAND() * (POW(2, 31) - 1 + POW(2, 31)) - POW(2, 31), DECIMAL(65, 0));
+    END;
+    PROCEDURE set_seed
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Terminates package\n          Raises\n      '
+    IS
+    BEGIN
+      SET @seed = get_seed_from_session();
+      SET @@rand_seed1 = @seed * 0x10001 + 55555555;
+      SET @@rand_seed2 = @seed * 0x10001;
+    END;
+BEGIN
+  set_seed;
+END
+routine_name	dbms_sql
+routine_type	PACKAGE BODY
+routine_definition	AS
+    FUNCTION open_cursor RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This function opens a new cursor.\n          Raises\n      '
+    AS
+    BEGIN
+      DECLARE
+        cursor_id INT;
+      BEGIN
+        SET cursor_id = dbms_sql_open_cursor();
+        RETURN cursor_id;
+      END;
+    END;
+    PROCEDURE parse (cursor_id INT, input VARCHAR2(65511), language_flag INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This procedure parses the given statement in the given cursor. All statements are parsed immediately. In addition, DDL statements are run immediately when parsed.\n          Raises\n      '
+    AS
+    BEGIN
+      DECLARE
+        first_word VARCHAR2(64);
+        second_word VARCHAR2(64);
+        final_ps VARCHAR2(256);
+        first_word_id INT;
+        parse_result INT;
+      BEGIN
+        SET first_word = LOWER(SUBSTRING_INDEX(LTRIM(input), ' ', 1));
+        SET second_word = SUBSTRING_INDEX(SUBSTRING_INDEX(input, ' ', 2), ' ', -1);
+        IF first_word IN ('create', 'alter', 'drop', 'insert', 'update', 'delete') OR
+            (first_word = 'rename' AND second_word IN ('table', 'tables')) THEN
+          IF first_word IN ('create', 'alter', 'drop') OR
+              (first_word = 'rename' AND second_word IN ('table', 'tables')) THEN
+            SET final_ps = CONCAT('CREATE PROCEDURE final_NESTED_PROC() AS BEGIN PREPARE s', cursor_id, ' FROM ''', input, '''; EXECUTE s', cursor_id, '; END');
+            CASE first_word
+              WHEN 'create' THEN
+                SET first_word_id = 0;
+              WHEN 'alter' THEN
+                SET first_word_id = 1;
+              WHEN 'drop' THEN
+                SET first_word_id = 2;
+              WHEN 'rename' THEN
+                SET first_word_id = 3;
+            END CASE;
+          ELSIF first_word IN ('insert', 'update', 'delete') THEN
+            SET final_ps = CONCAT('CREATE PROCEDURE final_NESTED_PROC() AS BEGIN PREPARE s', cursor_id, ' FROM ''', input, '''; END');CASE first_word
+              WHEN 'insert' THEN
+                SET first_word_id = 4;
+              WHEN 'update' THEN
+                SET first_word_id = 5;
+              WHEN 'delete' THEN
+                SET first_word_id = 6;
+            END CASE;
+          END IF;
+          EXECUTE IMMEDIATE final_ps;
+          EXECUTE IMMEDIATE 'CALL final_NESTED_PROC()';
+          EXECUTE IMMEDIATE 'DROP PROCEDURE final_NESTED_PROC';
+          SET parse_result = dbms_sql_parse(cursor_id, first_word_id);
+        ELSE
+          SIGNAL SQLSTATE 'HY000' set mysql_errno=3047, message_text='missing or invalid option';
+        END IF;
+      END;
+    END;
+    FUNCTION execute (cursor_id INT) RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This function executes a given cursor. This function accepts the ID number of the cursor and returns the number of rows processed.\n          Raises\n      '
+    AS
+    BEGIN
+      DECLARE
+        element VARCHAR2(32);
+      BEGIN
+        SET element = CONCAT('s', cursor_id);
+        CALL dbmssql_execute (element);
+        RETURN ROW_COUNT();
+      END;
+    END;
+    PROCEDURE close_cursor (cursor_id INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          When you no longer need a cursor for a session, close the cursor by calling the CLOSE_CURSOR Procedure.\n          Raises\n      '
+    AS
+    BEGIN
+      DECLARE
+        final_ps VARCHAR2(256);
+        res INT;
+      BEGIN
+        set res = dbms_sql_close_cursor(cursor_id);
+        SET final_ps = CONCAT('CREATE PROCEDURE NESTED_PROC() AS BEGIN DEALLOCATE PREPARE s', cursor_id, '; END');
+        EXECUTE IMMEDIATE final_ps;
+        EXECUTE IMMEDIATE 'CALL NESTED_PROC()';
+        EXECUTE IMMEDIATE 'DROP PROCEDURE NESTED_PROC';
+      END;
+    END;
+END
+routine_name	dbms_utility
+routine_type	PACKAGE BODY
+routine_definition	AS
+    FUNCTION format_error_backtrace RETURN VARCHAR(65532)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This procedure displays the call stack at the point where an exception was raised, even if the procedure is called from an exception handler in an outer scope.\n          Raises\n      '
+    IS
+    BEGIN
+      RETURN @@backtrace_str;
+    END;
+    FUNCTION format_error_stack RETURN VARCHAR(65532)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This function formats the current error stack. It can be used in exception handlers to look at the full error stack\n          Raises\n      '
+    AS
+    BEGIN
+      RETURN @@errstack_str;
+    END;
+    FUNCTION get_time RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This function returns a measure of current time in hundredths of a second\n          Raises\n      '
+    IS
+    BEGIN
+      RETURN UNIX_TIMESTAMP(CURRENT_TIMESTAMP(2));
+    END;
+END
 routine_name	pkg1
 routine_type	PACKAGE BODY
 routine_definition	AS
@@ -57,6 +258,207 @@ routine_name	pkg1
 routine_type	PACKAGE
 routine_definition	AS
 FUNCTION f1() RETURN INT;
+END
+routine_name	UTL_I18N
+routine_type	PACKAGE
+routine_definition	AS
+    FUNCTION transliterate(val VARCHAR2(255) CHARACTER SET ANY_CS, name VARCHAR2(255)) RETURN VARCHAR2(255) CHARACTER SET ANY_CS
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function performs script transliteration.\n              Parameters\n              val (VARCHAR2):\n                Specifies the data to be converted.\n              name (VARCHAR2):\n                Specifies the transliteration name string.\n              Returns\n                The converted string.\n              '
+    ;
+    FUNCTION raw_to_char(jc RAW, charset_or_collation VARCHAR(255)) RETURN VARCHAR2
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function converts RAW data from a valid character set to a\n              VARCHAR2 string in the database character set.\n              Parameters\n              jc (RAW):\n                Specifies the RAW data to be converted to a VARCHAR2 string\n              charset_or_collation (VARCHAR):\n                Specifies the character set that the RAW data was derived from.\n              Returns\n                the VARCHAR2 string equivalent in the database character set of\n                the RAW data.\n              '
+    ;
+    FUNCTION string_to_raw(jc VARCHAR2, charset_or_collation VARCHAR(255)) RETURN RAW
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function converts a VARCHAR2 string to another valid\n              character set and returns the result as RAW data.\n              Parameters\n              jc (VARCHAR2):\n                Specifies the VARCHAR2 or NVARCHAR2 string to convert.\n              charset_or_collation (VARCHAR):\n                Specifies the destination character set.\n              Returns\n                RAW data representation of the input string in the new character set\n              '
+    ;
+END
+routine_name	dbms_random
+routine_type	PACKAGE BODY
+routine_definition	AS
+    FUNCTION get_seed_from_session() RETURN INTEGER
+    AS
+      v_user_hash INTEGER;
+      v_time_num INTEGER;
+      v_process_id INTEGER;
+      v_seed INTEGER;
+      v_username VARCHAR(128);
+      v_i INTEGER;
+    BEGIN
+      v_username := USER();
+      v_user_hash := 0;
+      FOR v_i IN 1..LENGTH(v_username) LOOP
+        v_user_hash := v_user_hash + (ASCII(SUBSTR(v_username, v_i, 1)) * v_i);
+      END LOOP;
+      v_time_num := UNIX_TIMESTAMP();
+      v_process_id := CONNECTION_ID();
+      v_seed := MOD(
+        (v_user_hash * 31) +
+        (v_time_num * 17) +
+        (v_process_id * 13),
+        2147483647  -- Max 32-bit signed integer
+      );
+      RETURN v_seed;
+    END;
+    PROCEDURE initialize (input INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Initializes the seed\n          Raises\n      '
+    IS
+    BEGIN
+      SET @@rand_seed1 = input * 0x10001 + 55555555;
+      SET @@rand_seed2 = input * 0x10000001;
+    END;
+    PROCEDURE terminate
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Terminates package\n          Raises\n      '
+    IS
+    BEGIN
+    END;
+    FUNCTION value RETURN DECIMAL(65,38)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Gets a random number greater than or equal to 0 and less than 1, with\n          38 digits to the right of the decimal point (38-digit precision)\n          Raises\n      '
+    IS
+    BEGIN
+      RETURN CAST(RAND() AS DECIMAL(65, 38));
+    END;
+    FUNCTION random RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Generates a random number\n          Raises\n      '
+    IS
+    BEGIN
+      RETURN CONVERT(RAND() * (POW(2, 31) - 1 + POW(2, 31)) - POW(2, 31), DECIMAL(65, 0));
+    END;
+    PROCEDURE set_seed
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          Terminates package\n          Raises\n      '
+    IS
+    BEGIN
+      SET @seed = get_seed_from_session();
+      SET @@rand_seed1 = @seed * 0x10001 + 55555555;
+      SET @@rand_seed2 = @seed * 0x10001;
+    END;
+BEGIN
+  set_seed;
+END
+routine_name	dbms_sql
+routine_type	PACKAGE BODY
+routine_definition	AS
+    FUNCTION open_cursor RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This function opens a new cursor.\n          Raises\n      '
+    AS
+    BEGIN
+      DECLARE
+        cursor_id INT;
+      BEGIN
+        SET cursor_id = dbms_sql_open_cursor();
+        RETURN cursor_id;
+      END;
+    END;
+    PROCEDURE parse (cursor_id INT, input VARCHAR2(65511), language_flag INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This procedure parses the given statement in the given cursor. All statements are parsed immediately. In addition, DDL statements are run immediately when parsed.\n          Raises\n      '
+    AS
+    BEGIN
+      DECLARE
+        first_word VARCHAR2(64);
+        second_word VARCHAR2(64);
+        final_ps VARCHAR2(256);
+        first_word_id INT;
+        parse_result INT;
+      BEGIN
+        SET first_word = LOWER(SUBSTRING_INDEX(LTRIM(input), ' ', 1));
+        SET second_word = SUBSTRING_INDEX(SUBSTRING_INDEX(input, ' ', 2), ' ', -1);
+        IF first_word IN ('create', 'alter', 'drop', 'insert', 'update', 'delete') OR
+            (first_word = 'rename' AND second_word IN ('table', 'tables')) THEN
+          IF first_word IN ('create', 'alter', 'drop') OR
+              (first_word = 'rename' AND second_word IN ('table', 'tables')) THEN
+            SET final_ps = CONCAT('CREATE PROCEDURE final_NESTED_PROC() AS BEGIN PREPARE s', cursor_id, ' FROM ''', input, '''; EXECUTE s', cursor_id, '; END');
+            CASE first_word
+              WHEN 'create' THEN
+                SET first_word_id = 0;
+              WHEN 'alter' THEN
+                SET first_word_id = 1;
+              WHEN 'drop' THEN
+                SET first_word_id = 2;
+              WHEN 'rename' THEN
+                SET first_word_id = 3;
+            END CASE;
+          ELSIF first_word IN ('insert', 'update', 'delete') THEN
+            SET final_ps = CONCAT('CREATE PROCEDURE final_NESTED_PROC() AS BEGIN PREPARE s', cursor_id, ' FROM ''', input, '''; END');CASE first_word
+              WHEN 'insert' THEN
+                SET first_word_id = 4;
+              WHEN 'update' THEN
+                SET first_word_id = 5;
+              WHEN 'delete' THEN
+                SET first_word_id = 6;
+            END CASE;
+          END IF;
+          EXECUTE IMMEDIATE final_ps;
+          EXECUTE IMMEDIATE 'CALL final_NESTED_PROC()';
+          EXECUTE IMMEDIATE 'DROP PROCEDURE final_NESTED_PROC';
+          SET parse_result = dbms_sql_parse(cursor_id, first_word_id);
+        ELSE
+          SIGNAL SQLSTATE 'HY000' set mysql_errno=3047, message_text='missing or invalid option';
+        END IF;
+      END;
+    END;
+    FUNCTION execute (cursor_id INT) RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This function executes a given cursor. This function accepts the ID number of the cursor and returns the number of rows processed.\n          Raises\n      '
+    AS
+    BEGIN
+      DECLARE
+        element VARCHAR2(32);
+      BEGIN
+        SET element = CONCAT('s', cursor_id);
+        CALL dbmssql_execute (element);
+        RETURN ROW_COUNT();
+      END;
+    END;
+    PROCEDURE close_cursor (cursor_id INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          When you no longer need a cursor for a session, close the cursor by calling the CLOSE_CURSOR Procedure.\n          Raises\n      '
+    AS
+    BEGIN
+      DECLARE
+        final_ps VARCHAR2(256);
+        res INT;
+      BEGIN
+        set res = dbms_sql_close_cursor(cursor_id);
+        SET final_ps = CONCAT('CREATE PROCEDURE NESTED_PROC() AS BEGIN DEALLOCATE PREPARE s', cursor_id, '; END');
+        EXECUTE IMMEDIATE final_ps;
+        EXECUTE IMMEDIATE 'CALL NESTED_PROC()';
+        EXECUTE IMMEDIATE 'DROP PROCEDURE NESTED_PROC';
+      END;
+    END;
+END
+routine_name	dbms_utility
+routine_type	PACKAGE BODY
+routine_definition	AS
+    FUNCTION format_error_backtrace RETURN VARCHAR(65532)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This procedure displays the call stack at the point where an exception was raised, even if the procedure is called from an exception handler in an outer scope.\n          Raises\n      '
+    IS
+    BEGIN
+      RETURN @@backtrace_str;
+    END;
+    FUNCTION format_error_stack RETURN VARCHAR(65532)
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This function formats the current error stack. It can be used in exception handlers to look at the full error stack\n          Raises\n      '
+    AS
+    BEGIN
+      RETURN @@errstack_str;
+    END;
+    FUNCTION get_time RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n          Description\n          This function returns a measure of current time in hundredths of a second\n          Raises\n      '
+    IS
+    BEGIN
+      RETURN UNIX_TIMESTAMP(CURRENT_TIMESTAMP(2));
+    END;
 END
 routine_name	pkg1
 routine_type	PACKAGE BODY
