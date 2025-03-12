@@ -408,10 +408,635 @@ struct found_binlogs {
 };
 
 
+/*
+  This structure holds the state needed during InnoDB recovery for recovering
+  binlog tablespace files.
+*/
+class binlog_recovery {
+public:
+  struct found_binlogs scan_result;
+  byte *page_buf;
+  const char *binlog_dir;
+  /*
+    The current file number being recovered.
+    This starts out as the most recent existing non-empty binlog that has a
+    starting LSN no bigger than the recovery starting LSN. This should always be
+    one of the two most recent binlog files found at startup.
+  */
+  uint64_t cur_file_no;
+  /* The physical length of cur_file_no file. */
+  uint64_t cur_phys_size;
+  /*
+    The starting LSN (as stored in the header of the binlog tablespace file).
+    No redo prior to this LSN should be applied to this file.
+  */
+  lsn_t start_file_lsn;
+  /* Open file for cur_file_no, or -1 if not open. */
+  File cur_file_fh;
+  /* The sofar position of redo in cur_file_no (end point of previous redo). */
+  uint32_t cur_page_no;
+  uint32_t cur_page_offset;
+
+  /* The path to cur_file_no. */
+  char full_path[OS_FILE_MAX_PATH];
+
+  bool inited;
+  /*
+    Flag set in case of severe error and --innodb-force_recovery to completely
+    skip any binlog recovery.
+  */
+  bool skip_recovery;
+  /*
+    Special case, if we start from completely empty (no non-empty binlog files).
+    This should recover into an empty binlog state.
+  */
+  bool start_empty;
+  /*
+    Special case: The last two files are empty. Then we ignore the last empty
+    file and use the 2 previous files instead. The ignored file is deleted only
+    after successful recovery, to try to avoid destroying data in case of
+    recovery problems.
+  */
+  bool ignore_last;
+  /*
+    Mark the case where the first binlog tablespace file we need to consider for
+    recovery has file LSN that is later than the first redo record; in this case
+    we need to skip records until the first one that applies to this file.
+  */
+  bool skipping_early_lsn;
+  /*
+    Skip any initial records until the start of a page. We are guaranteed that
+    any page that needs to be recovered will have recovery data for the whole
+    page, and this way we never need to read-modify-write pages during recovery.
+  */
+  bool skipping_partial_page;
+
+  bool init_recovery(bool space_id, uint32_t page_no, uint16_t offset,
+                     lsn_t start_lsn, lsn_t lsn,
+                     const byte *buf, size_t size) noexcept;
+  bool apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
+                  lsn_t start_lsn, lsn_t lsn,
+                  const byte *buf, size_t size) noexcept;
+  int get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty) noexcept;
+  bool init_recovery_from(uint64_t file_no, lsn_t file_lsn, uint32_t page_no,
+                           uint16_t offset, lsn_t lsn,
+                           const byte *buf, size_t size) noexcept;
+  void init_recovery_empty() noexcept;
+  void init_recovery_skip_all() noexcept;
+  void end_actions(bool recovery_successful) noexcept;
+  void release() noexcept;
+  bool open_cur_file() noexcept;
+  bool flush_page() noexcept;
+  void zero_out_cur_file();
+  bool close_file() noexcept;
+  bool next_file() noexcept;
+  bool next_page() noexcept;
+  void update_page_from_record(uint16_t offset,
+                               const byte *buf, size_t size) noexcept;
+};
+
+
+static binlog_recovery recover_obj;
+
+
 static void innodb_binlog_prealloc_thread();
+static int scan_for_binlogs(const char *binlog_dir, found_binlogs *binlog_files,
+                            bool error_if_missing) noexcept;
 static int innodb_binlog_discover();
 static bool binlog_state_recover();
 static void innodb_binlog_autopurge(uint64_t first_open_file_no);
+static int read_gtid_state_from_page(rpl_binlog_state_base *state,
+                                     const byte *page, uint32_t page_no,
+                                     binlog_header_data *out_header_data);
+
+
+/*
+  Read the header of a binlog tablespace file identified by file_no.
+  Sets the out_empty false if the file is empty or has checksum error (or
+  is missing).
+  Else sets out_empty true and sets out_lsn from the header.
+
+  Returns:
+   -1  error
+    0  File is missing (ENOENT)
+    1  File found (but may be empty according to out_empty).
+*/
+int
+binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
+  noexcept
+{
+  char full_path[OS_FILE_MAX_PATH];
+  rpl_binlog_state_base dummy_state;
+  binlog_header_data header;
+
+  out_empty= true;
+  out_lsn= 0;
+
+  binlog_name_make(full_path, file_no, binlog_dir);
+  File fh= my_open(full_path, O_RDONLY | O_BINARY, MYF(0));
+  if (fh < (File)0)
+    return (my_errno == ENOENT ? 0 : -1);
+  size_t read= my_pread(fh, page_buf, srv_page_size, 0, MYF(0));
+  my_close(fh, MYF(0));
+  if (UNIV_UNLIKELY(read == (size_t)-1))
+    return -1;
+  if (read == 0)
+    return 0;
+  dummy_state.init();
+  int res= read_gtid_state_from_page(&dummy_state, page_buf, 0, &header);
+  if (res <= 0)
+    return res;
+  if (!header.is_empty)
+  {
+    out_empty= false;
+    out_lsn= header.start_lsn;
+  }
+  return 1;
+}
+
+
+bool binlog_recovery::init_recovery(bool space_id, uint32_t page_no,
+                                    uint16_t offset,
+                                    lsn_t start_lsn, lsn_t end_lsn,
+                                    const byte *buf, size_t size) noexcept
+{
+  /* Start by initializing resource pointers so we are safe to releaes(). */
+  cur_file_fh= (File)-1;
+  if (!(page_buf= (byte *)ut_malloc(srv_page_size, mem_key_binlog)))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(MY_WME), srv_page_size);
+    return true;
+  }
+  memset(page_buf, 0, srv_page_size);
+  inited= true;
+  /*
+    ToDo: It would be good to find a way to not duplicate this logic for
+    where the binlog tablespace filess are stored with the code in
+    innodb_binlog_init(). But it's a bit awkward, because InnoDB recovery
+    runs during plugin init, so not even available for the server to call
+    into until after recovery is done.
+  */
+  binlog_dir= opt_binlog_directory;
+  if (!binlog_dir || !binlog_dir[0])
+    binlog_dir= ".";
+  if (scan_for_binlogs(binlog_dir, &scan_result, true) <= 0)
+    return true;
+
+  /*
+    Here we find the two most recent, non-empty binlogs to do recovery on.
+    Before we allocate binlog tablespace file N+2, we flush and fsync file N
+    to disk. This ensures that we only ever need to apply redo records to the
+    two most recent files during recovery.
+
+    A special case however arises if the two most recent binlog files are
+    both completely empty. Then we do not have any LSN to match against to
+    know if a redo record applies to one of these two files, or to an earlier
+    file with same value of bit 0 of the file_no. In this case, we ignore the
+    most recent file (deleting it later after successful recovery), and
+    consider instead the two prior files, the first of which is guaranteed to
+    have durably saved a starting LSN to use.
+
+    Hence the loop, which can only ever have one or two iterations.
+
+    A further special case is if there are fewer than two (or three if last
+    two are empty) files. If there are no files, or only empty files, then the
+    server must have stopped just after RESET MASTER (or just after
+    initializing the binlogs at first startup), and we should just start the
+    binlogs from scratch.
+  */
+  ignore_last= false;
+  uint64_t file_no2= scan_result.last_file_no;
+  uint64_t file_no1= scan_result.prev_file_no;
+  int num_binlogs= scan_result.found_binlogs;
+  for (;;)
+  {
+    lsn_t lsn1= 0, lsn2= 0;
+    bool is_empty1= true, is_empty2= true;
+    int res2= get_header(file_no2, lsn2, is_empty2);
+
+    if (num_binlogs == 0 ||
+        (num_binlogs == 1 && is_empty2))
+    {
+      init_recovery_empty();
+      return false;
+    }
+    if (num_binlogs == 1)
+      return init_recovery_from(file_no2 + (space_id != (file_no2 & 1)), lsn2,
+                                page_no, offset, start_lsn, buf, size);
+
+    int res1= get_header(file_no1, lsn1, is_empty1);
+
+    if (res2 < 0 && !srv_force_recovery)
+    {
+      sql_print_error("InnoDB: I/O error reading binlog file number " PRIu64,
+                      file_no2);
+      return true;
+    }
+    if (res1 < 0 && !srv_force_recovery)
+    {
+      sql_print_error("InnoDB: I/O error reading binlog file number " PRIu64,
+                      file_no1);
+      return true;
+    }
+    if (is_empty1 && is_empty2)
+    {
+      if (!ignore_last)
+      {
+        ignore_last= true;
+        if (file_no2 > scan_result.earliest_file_no)
+        {
+          --file_no2;
+          if (file_no1 > scan_result.earliest_file_no)
+            --file_no1;
+          else
+            --num_binlogs;
+        }
+        else
+          --num_binlogs;
+        continue;
+      }
+      if (srv_force_recovery)
+      {
+        /*
+          If the last 3 files are empty, we cannot get an LSN to know which
+          records apply to each file. This should not happen unless there is
+          damage to the file system. If force recovery is requested, we must
+          simply do no recovery at all on the binlog files.
+        */
+        sql_print_warning("InnoDB: Binlog tablespace file recovery is not "
+                          "possible. Recovery is skipped due to "
+                          "--innodb-force-recovery");
+        init_recovery_skip_all();
+        return false;
+      }
+      sql_print_error("InnoDB: Last 3 binlog tablespace files are all empty. "
+                      "Recovery is not possible");
+      return true;
+    }
+    if (is_empty2)
+      lsn2= lsn1;
+    if (space_id == (file_no2 & 1) && start_lsn >= lsn1)
+    {
+      if (start_lsn < lsn2 && !srv_force_recovery)
+      {
+        sql_print_error("InnoDB: inconsistent space_id %d for lsn=%" LSN_PF,
+                        (int)space_id, start_lsn);
+        return true;
+      }
+      return init_recovery_from(file_no2, lsn2,
+                                page_no, offset, start_lsn, buf, size);
+    }
+    else
+      return init_recovery_from(file_no1, lsn1,
+                                page_no, offset, start_lsn, buf, size);
+    /* NotReached. */
+  }
+}
+
+
+bool
+binlog_recovery::init_recovery_from(uint64_t file_no, lsn_t file_lsn,
+                                    uint32_t page_no, uint16_t offset,
+                                    lsn_t lsn, const byte *buf, size_t size)
+  noexcept
+{
+  cur_file_no= file_no;
+  cur_phys_size= 0;
+  start_file_lsn= file_lsn;
+  cur_page_no= page_no;
+  cur_page_offset= 0;
+  skip_recovery= false;
+  start_empty= false;
+  skipping_partial_page= true;
+  if (lsn < start_file_lsn)
+    skipping_early_lsn= true;
+  else
+  {
+    skipping_early_lsn= false;
+    if (offset <= FIL_PAGE_DATA)
+    {
+      update_page_from_record(offset, buf, size);
+      skipping_partial_page= false;
+    }
+  }
+  return false;
+}
+
+
+/*
+  Initialize recovery from the state where there are no binlog files, or only
+  completely empty binlog files. In this case we have no file LSN to compare
+  redo records against.
+
+  This can only happen if we crash immediately after RESET MASTER (or fresh
+  server installation) as an initial file header is durably written to disk
+  before binlogging new data. Therefore we should skip _all_ redo records and
+  recover into a completely empty state.
+*/
+void
+binlog_recovery::init_recovery_empty() noexcept
+{
+  cur_file_no= 0;
+  cur_phys_size= 0;
+  start_file_lsn= (lsn_t)0;
+  cur_page_no= 0;
+  cur_page_offset= 0;
+  skip_recovery= false;
+  start_empty= true;
+  ignore_last= false;
+  skipping_early_lsn= false;
+  skipping_partial_page= true;
+}
+
+
+void
+binlog_recovery::init_recovery_skip_all() noexcept
+{
+  skip_recovery= true;
+}
+
+
+void
+binlog_recovery::end_actions(bool recovery_successful) noexcept
+{
+  char full_path[OS_FILE_MAX_PATH];
+  if (recovery_successful && !skip_recovery)
+  {
+    if (!start_empty)
+    {
+      if (cur_page_offset)
+        flush_page();
+      if (cur_file_fh > (File)-1)
+        zero_out_cur_file();
+      close_file();
+      ++cur_file_no;
+    }
+
+    /*
+      Delete any binlog tablespace files following the last recovered file.
+      These files could be pre-allocated but never used files, or they could be
+      files that were written with data that was eventually not recovered due
+      to --innodb-flush-log-at-trx-commit=0|2.
+    */
+    for (uint64_t i= cur_file_no;
+         scan_result.found_binlogs >= 1 && i <= scan_result.last_file_no;
+         ++i)
+    {
+      binlog_name_make(full_path, i, binlog_dir);
+      if (my_delete(full_path, MYF(MY_WME)))
+        sql_print_warning("InnoDB: Could not delete empty file '%s' ("
+                          "error: %d)", full_path, my_errno);
+    }
+  }
+  release();
+}
+
+
+void
+binlog_recovery::release() noexcept
+{
+  if (cur_file_fh >= (File)0)
+  {
+    my_close(cur_file_fh, MYF(0));
+    cur_file_fh= (File)-1;
+  }
+  ut_free(page_buf);
+  page_buf= nullptr;
+  inited= false;
+}
+
+
+bool
+binlog_recovery::open_cur_file() noexcept
+{
+  if (cur_file_fh >= (File)0)
+    my_close(cur_file_fh, MYF(0));
+  binlog_name_make(full_path, cur_file_no, binlog_dir);
+  cur_file_fh= my_open(full_path, O_RDWR | O_BINARY, MYF(MY_WME));
+  if (cur_file_fh < (File)0)
+    return true;
+  cur_phys_size= (uint64_t)my_seek(cur_file_fh, 0, MY_SEEK_END, MYF(0));
+  return false;
+}
+
+
+bool
+binlog_recovery::flush_page() noexcept
+{
+  if (cur_file_fh < (File)0 &&
+      open_cur_file())
+    return true;
+  size_t res= my_pwrite(cur_file_fh, page_buf, srv_page_size,
+                          (uint64_t)cur_page_no << srv_page_size_shift,
+                          MYF(MY_WME));
+  if (res != srv_page_size)
+    return true;
+  cur_page_offset= 0;
+  memset(page_buf, 0, srv_page_size);
+  return false;
+}
+
+
+void
+binlog_recovery::zero_out_cur_file()
+{
+  if (cur_file_fh < (File)0)
+    return;
+
+  /* Recover the original size from the current file. */
+  size_t read= my_pread(cur_file_fh, page_buf, srv_page_size, 0, MYF(0));
+  if (read != (size_t)srv_page_size)
+  {
+    sql_print_warning("InnoDB: Could not read last binlog file during recovery");
+    return;
+  }
+  binlog_header_data header;
+  rpl_binlog_state_base dummy_state;
+  dummy_state.init();
+  int res= read_gtid_state_from_page(&dummy_state, page_buf, 0, &header);
+  if (res <= 0)
+  {
+    if (res < 0)
+      sql_print_warning("InnoDB: Could not read last binlog file during recovery");
+    else
+      sql_print_warning("InnoDB: Empty binlog file header found during recovery");
+    ut_ad(0);
+    return;
+  }
+
+  /* Fill up or truncate the file to its original size. */
+  if (my_chsize(cur_file_fh, (my_off_t)header.page_count << srv_page_size_shift,
+                0, MYF(0)))
+    sql_print_warning("InnoDB: Could not change the size of last binlog file "
+                      "during recovery (error: %d)", my_errno);
+  for (uint32_t i= cur_page_no + 1; i < header.page_count; ++i)
+  {
+    if (my_pread(cur_file_fh, page_buf, srv_page_size,
+                 (my_off_t)i << srv_page_size_shift, MYF(0)) <
+        (size_t)srv_page_size)
+      break;
+    /* Check if page already zeroed out. */
+    if (page_buf[0] == 0 && !memcmp(page_buf, page_buf+1, srv_page_size - 1))
+      continue;
+    memset(page_buf, 0, srv_page_size);
+    if (my_pwrite(cur_file_fh, page_buf, srv_page_size,
+                  (uint64_t)i << srv_page_size_shift, MYF(MY_WME)) <
+        (size_t)srv_page_size)
+    {
+      sql_print_warning("InnoDB: Error writing to last binlog file during "
+                        "recovery (error code: %d)", my_errno);
+      break;
+    }
+  }
+}
+
+
+bool
+binlog_recovery::close_file() noexcept
+{
+  if (cur_file_fh >= (File)0)
+  {
+    if (my_sync(cur_file_fh, MYF(MY_WME)))
+      return true;
+    my_close(cur_file_fh, (File)0);
+    cur_file_fh= (File)-1;
+    cur_phys_size= 0;
+  }
+  return false;
+}
+
+
+bool
+binlog_recovery::next_file() noexcept
+{
+  if (flush_page())
+    return true;
+  if (close_file())
+    return true;
+  ++cur_file_no;
+  cur_page_no= 0;
+  cur_page_offset= 0;
+  return false;
+}
+
+
+bool
+binlog_recovery::next_page() noexcept
+{
+  if (flush_page())
+    return true;
+  ++cur_page_no;
+  return false;
+}
+
+
+bool
+binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
+                            lsn_t start_lsn, lsn_t end_lsn,
+                            const byte *buf, size_t size) noexcept
+{
+  if (UNIV_UNLIKELY(skip_recovery) || start_empty)
+    return false;
+
+  if (skipping_partial_page)
+  {
+    if (offset > FIL_PAGE_DATA)
+      return false;
+    skipping_partial_page= false;
+  }
+
+  if (start_lsn < start_file_lsn)
+  {
+    if (skipping_early_lsn)
+      return false;  /* Skip record for earlier file that's already durable. */
+    if (!srv_force_recovery)
+    {
+      sql_print_error("InnoDB: Unexpected LSN " LSN_PF " during recovery, "
+                      "expected at least " LSN_PF, start_lsn, start_file_lsn);
+      return true;
+    }
+    sql_print_warning("InnoDB: Ignoring unexpected LSN " LSN_PF " during "
+                      "recovery, ", start_lsn);
+    return false;
+  }
+  skipping_early_lsn= false;
+
+  /* Test for moving to the next file. */
+  if (space_id != (cur_file_no & 1))
+  {
+    /* Check that we recovered all of this file. */
+    if ( ( (cur_page_offset > FIL_PAGE_DATA &&
+            cur_page_offset < srv_page_size - FIL_PAGE_DATA_END) ||
+           cur_page_no + (cur_page_offset > FIL_PAGE_DATA) <
+           cur_phys_size >> srv_page_size_shift) &&
+         !srv_force_recovery)
+    {
+      sql_print_error("InnoDB: Missing recovery record at end of file_no="
+                      PRIu64 ", LSN " LSN_PF, cur_file_no, start_lsn);
+      return true;
+    }
+
+    /* Check that we recover from the start of the next file. */
+    if ((page_no > 0 || offset > FIL_PAGE_DATA) && !srv_force_recovery)
+    {
+      sql_print_error("InnoDB: Missing recovery record at start of file_no="
+                      PRIu64 ", LSN " LSN_PF, cur_file_no+1, start_lsn);
+      return true;
+    }
+
+    if (next_file())
+      return true;
+  }
+  /* Test for moving to the next page. */
+  else if (page_no != cur_page_no)
+  {
+    if (cur_page_offset < srv_page_size - FIL_PAGE_DATA_END &&
+        !srv_force_recovery)
+    {
+      sql_print_error("InnoDB: Missing recovery record in file_no="
+                      PRIu64 ", page_no=%u, LSN " LSN_PF,
+                      cur_file_no, cur_page_no, start_lsn);
+      return true;
+    }
+
+    if ((page_no != cur_page_no + 1 || offset > FIL_PAGE_DATA) &&
+        !srv_force_recovery)
+    {
+      sql_print_error("InnoDB: Missing recovery record in file_no="
+                      PRIu64 ", page_no=%u, LSN " LSN_PF,
+                      cur_file_no, cur_page_no + 1, start_lsn);
+      return true;
+    }
+
+    if (next_page())
+      return true;
+  }
+  /* Test no gaps in offset. */
+  else if (offset != cur_page_offset &&
+           offset > FIL_PAGE_DATA &&
+           !srv_force_recovery)
+  {
+      sql_print_error("InnoDB: Missing recovery record in file_no="
+                      PRIu64 ", page_no=%u, LSN " LSN_PF,
+                      cur_file_no, cur_page_no, start_lsn);
+      return true;
+  }
+
+  if (offset + size >= srv_page_size)
+    return !srv_force_recovery;
+
+  update_page_from_record(offset, buf, size);
+  return false;
+}
+
+
+void
+binlog_recovery::update_page_from_record(uint16_t offset,
+                                         const byte *buf, size_t size) noexcept
+{
+  memcpy(page_buf + offset, buf, size);
+  cur_page_offset= offset + (uint32_t)size;
+}
 
 
 /*
@@ -490,6 +1115,29 @@ start_binlog_prealloc_thread()
 
 
 /*
+  Write the initial header record to the file and durably sync it to disk in
+  the binlog tablespace file and in the redo log.
+
+  This is to ensure recovery can work correctly. This way, recovery will
+  always find a non-empty file with an initial lsn to start recovery from.
+  Except in the case where we crash right here; in this case recovery will
+  find no binlog files at all and will know to recover to the empty state
+  with no binlog files present.
+*/
+static void
+binlog_sync_initial()
+{
+  chunk_data_flush dummy_data;
+  mtr_t mtr;
+  mtr.start();
+  fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_FILLER);
+  mtr.commit();
+  log_buffer_flush_to_disk(true);
+  binlog_page_fifo->flush_up_to(0, 0);
+}
+
+
+/*
   Open the InnoDB binlog implementation.
   This is called from server binlog layer if the user configured the binlog to
   use the innodb implementation (with --binlog-storage-engine=innodb).
@@ -539,6 +1187,7 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   }
 
   start_binlog_prealloc_thread();
+  binlog_sync_initial();
 
   return false;
 }
@@ -576,6 +1225,42 @@ process_binlog_name(found_binlogs *bls, uint64_t idx, size_t size)
       bls->earliest_file_no= idx;
     bls->total_size+= size;
   }
+}
+
+
+/*
+  Scan the binlog directory for binlog files.
+  Returns:
+    1 Success
+    0 Binlog directory not found
+   -1 Other error
+*/
+static int
+scan_for_binlogs(const char *binlog_dir, found_binlogs *binlog_files,
+                 bool error_if_missing) noexcept
+{
+  MY_DIR *dir= my_dir(binlog_dir, MYF(MY_WANT_STAT));
+  if (!dir)
+  {
+    if (my_errno != ENOENT || error_if_missing)
+      sql_print_error("Could not read the binlog directory '%s', error code %d",
+                      binlog_dir, my_errno);
+    return (my_errno == ENOENT ? 0 : -1);
+  }
+
+  binlog_files->found_binlogs= 0;
+  size_t num_entries= dir->number_of_files;
+  fileinfo *entries= dir->dir_entry;
+  for (size_t i= 0; i < num_entries; ++i) {
+    const char *name= entries[i].name;
+    uint64_t idx;
+    if (!is_binlog_name(name, &idx))
+      continue;
+    process_binlog_name(binlog_files, idx, entries[i].mystat->st_size);
+  }
+  my_dirend(dir);
+
+  return 1;  /* Success */
 }
 
 
@@ -715,28 +1400,11 @@ innodb_binlog_discover()
   uint64_t file_no;
   const uint32_t page_size= (uint32_t)srv_page_size;
   const uint32_t page_size_shift= (uint32_t)srv_page_size_shift;
-  MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(MY_WANT_STAT));
-  if (!dir)
-  {
-    if (my_errno == ENOENT)
-      return 0;
-    sql_print_error("Could not read the binlog directory '%s', error code %d",
-                    innodb_binlog_directory, my_errno);
-    return -1;
-  }
-
   struct found_binlogs UNINIT_VAR(binlog_files);
-  binlog_files.found_binlogs= 0;
-  size_t num_entries= dir->number_of_files;
-  fileinfo *entries= dir->dir_entry;
-  for (size_t i= 0; i < num_entries; ++i) {
-    const char *name= entries[i].name;
-    uint64_t idx;
-    if (!is_binlog_name(name, &idx))
-      continue;
-    process_binlog_name(&binlog_files, idx, entries[i].mystat->st_size);
-  }
-  my_dirend(dir);
+
+  int res= scan_for_binlogs(innodb_binlog_directory, &binlog_files, false);
+  if (res <= 0)
+    return res;
 
   /*
     Now, if we found any binlog files, locate the point in one of them where
@@ -752,9 +1420,9 @@ innodb_binlog_discover()
     earliest_binlog_file_no= binlog_files.earliest_file_no;
     total_binlog_used_size= binlog_files.total_size;
 
-    int res= find_pos_in_binlog(binlog_files.last_file_no,
-                                binlog_files.last_size,
-                                page_buf.get(), &page_no, &pos_in_page);
+    res= find_pos_in_binlog(binlog_files.last_file_no,
+                            binlog_files.last_size,
+                            page_buf.get(), &page_no, &pos_in_page);
     if (res < 0) {
       file_no= binlog_files.last_file_no;
       active_binlog_file_no.store(file_no, std::memory_order_release);
@@ -944,17 +1612,19 @@ innodb_binlog_prealloc_thread()
 __attribute__((noinline))
 static ssize_t
 serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
-                     uint32_t file_size_in_pages, bool is_first_page)
+                     uint32_t file_size_in_pages, uint64_t file_no,
+                     bool is_first_page)
 {
   unsigned char *p= (unsigned char *)buf;
   /*
     1 uint64_t for the current LSN at start of binlog file.
-    1 uint32_t for the file length in pages.
+    1 uint64_t for the file_no.
+    1 uint32_t for the file size in pages.
     1 uint32_t for the innodb_binlog_state_interval in pages.
     1 uint64_t for the number of entries in the state stored.
     2 uint32_t + 1 uint64_t for at least one GTID.
   */
-  ut_ad(buf_size >= 4*COMPR_INT_MAX32 + 2*COMPR_INT_MAX64);
+  ut_ad(buf_size >= 4*COMPR_INT_MAX32 + 4*COMPR_INT_MAX64);
   if (is_first_page) {
     /*
       In the first page where we put the full state, include the value of the
@@ -962,10 +1632,11 @@ serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
       we know how to search them independent of how the setting changes.
 
       We also include the current LSN for recovery purposes; and the file
-      length, which is also useful if we have to recover the whole file from
-      the redo log after a crash.
+      length and file_no, which is also useful if we have to recover the whole
+      file from the redo log after a crash.
     */
     p= compr_int_write(p, log_get_lsn());
+    p= compr_int_write(p, file_no);
     p= compr_int_write(p, file_size_in_pages);
     /* ToDo: Check that this current_binlog_state_interval is the correct value! */
     p= compr_int_write(p, current_binlog_state_interval);
@@ -1005,7 +1676,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   block= nullptr;
 
   ssize_t used_bytes= serialize_gtid_state(state, small_buf, sizeof(small_buf),
-                                           file_size_in_pages, page_no==0);
+                                           file_size_in_pages, file_no,
+                                           page_no==0);
   if (used_bytes >= 0)
   {
     buf= small_buf;
@@ -1019,8 +1691,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     if (UNIV_UNLIKELY(!alloced_buf))
       return true;
     buf= alloced_buf;
-    used_bytes= serialize_gtid_state(state, buf, buf_size,
-                                     file_size_in_pages, page_no==0);
+    used_bytes= serialize_gtid_state(state, buf, buf_size, file_size_in_pages,
+                                     file_no, page_no==0);
     if (UNIV_UNLIKELY(used_bytes < 0))
     {
       ut_ad(0 /* Shouldn't happen, as we allocated maximum needed size. */);
@@ -1110,7 +1782,11 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
   const byte *p= page + FIL_PAGE_DATA;
   byte t= *p;
   if (UNIV_UNLIKELY((t & FSP_BINLOG_TYPE_MASK) != FSP_BINLOG_TYPE_GTID_STATE))
+  {
+    out_header_data->is_empty= binlog_page_empty(page);
     return 0;
+  }
+  out_header_data->is_empty= false;
   /* ToDo: Handle reading a state that spans multiple pages. For now, we assume the state fits in a single page. */
   ut_a(t & FSP_BINLOG_FLAG_LAST);
 
@@ -1123,13 +1799,19 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
   if (page_no == 0)
   {
     /*
-      The state in the first page has three extra words: The start LSN of the
-      file; length of the file in pages; and the offset between differential
-      binlog states logged regularly in the binlog tablespace.
+      The state in the first page has four extra words: The start LSN of the
+      file; the file_no of the file; the file length, in pages; and the offset
+      between differential binlog states logged regularly in the binlog
+      tablespace.
     */
     if (UNIV_UNLIKELY(p >= p_end))
       return -1;
     out_header_data->start_lsn= (uint32_t)v_and_p.first;
+    v_and_p= compr_int_read(p);
+    p= v_and_p.second;
+    if (UNIV_UNLIKELY(p >= p_end))
+      return -1;
+    out_header_data->file_no= v_and_p.first;
     v_and_p= compr_int_read(p);
     p= v_and_p.second;
     if (UNIV_UNLIKELY(p >= p_end) || UNIV_UNLIKELY(v_and_p.first >= UINT32_MAX))
@@ -1146,6 +1828,7 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
   else
   {
     out_header_data->start_lsn= 0;
+    out_header_data->file_no= ~(uint64_t)0;
     out_header_data->page_count= 0;
     out_header_data->diff_state_interval= 0;
   }
@@ -2298,6 +2981,7 @@ innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 
 }
 
+
 bool
 innodb_reset_binlogs()
 {
@@ -2307,6 +2991,15 @@ innodb_reset_binlogs()
 
   /* Close existing binlog tablespaces and stop the pre-alloc thread. */
   innodb_binlog_close(false);
+
+  /*
+    Durably flush the redo log to disk. This is mostly to simplify
+    conceptually (RESET MASTER is not performance critical). This way, we will
+    never see a state where recovery stops at an LSN prior to the RESET
+    MASTER, so we do not have any question around truncating the binlog to a
+    point before the RESET MASTER.
+  */
+ log_buffer_flush_to_disk(true);
 
   /* Prevent any flushing activity while resetting. */
   binlog_page_fifo->lock_wait_for_idle();
@@ -2346,6 +3039,7 @@ innodb_reset_binlogs()
   innodb_binlog_init_state();
   binlog_page_fifo->unlock();
   start_binlog_prealloc_thread();
+  binlog_sync_initial();
 
   return err;
 }
@@ -2384,8 +3078,10 @@ innodb_binlog_purge_low(uint64_t limit_file_no,
                         bool by_name, uint64_t limit_name_file_no,
                         uint64_t *out_file_no)
 {
+  uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+  bool need_active_flush= (active <= limit_file_no + 2);
   ut_ad(by_date || by_size || by_name);
-  ut_a(limit_file_no <= active_binlog_file_no.load(std::memory_order_relaxed));
+  ut_a(limit_file_no <= active);
   ut_a(limit_file_no <= first_open_binlog_file_no);
 
   mysql_mutex_assert_owner(&purge_binlog_mutex);
@@ -2431,6 +3127,19 @@ innodb_binlog_purge_low(uint64_t limit_file_no,
     }
     else
       loc_total_size-= stat_buf.st_size;
+
+    /*
+      Make sure that we always leave at least one binlog file durably non-empty,
+      by fsync()'ing the first page of the active file before deleting file
+      (active-2). This way, recovery will always have at least one file header
+      from which to determine the LSN at which to start applying redo records.
+    */
+    if (file_no + 2 >= active && need_active_flush)
+    {
+      binlog_page_fifo->flush_up_to(active, 0);
+      need_active_flush= false;
+    }
+
     if (my_delete(filename, MYF(0)))
     {
       if (my_errno == ENOENT)
@@ -2577,4 +3286,26 @@ innodb_binlog_purge(handler_binlog_purge_info *purge_info)
     purge_warning_given= false;
 
   return res;
+}
+
+
+bool
+binlog_recover_write_data(bool space_id, uint32_t page_no,
+                          uint16_t offset,
+                          lsn_t start_lsn, lsn_t lsn,
+                          const byte *buf, size_t size) noexcept
+{
+  if (!recover_obj.inited)
+    return recover_obj.init_recovery(space_id, page_no, offset, start_lsn, lsn,
+                                     buf, size);
+  return recover_obj.apply_redo(space_id, page_no, offset, start_lsn, lsn,
+                                     buf, size);
+}
+
+
+void
+binlog_recover_end(lsn_t lsn) noexcept
+{
+  if (recover_obj.inited)
+    recover_obj.end_actions(true);
 }
