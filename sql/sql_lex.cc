@@ -8979,9 +8979,9 @@ uint binlog_unsafe_map[256];
   Sets the combination given by "a" and "b" and automatically combinations
   given by other types of access, i.e. 2^(8 - 2), as unsafe.
 
-  It may make a collision when automatically defining a combination as unsafe.
+  Collision may happen when a combination is marked unsafe automatically.
   For that reason, a combination has its unsafe condition redefined only when
-  the new_condition is greater then the old. For instance,
+  the new_condition is greater than the old. For instance,
   
      . (BINLOG_DIRECT_ON & TRX_CACHE_NOT_EMPTY) is never overwritten by 
      . (BINLOG_DIRECT_ON | BINLOG_DIRECT_OFF).

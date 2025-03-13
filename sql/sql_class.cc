@@ -5831,7 +5831,7 @@ extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 }
 
 /*
-  This is similar to sqlcom_can_generate_row_events, with the expectation
+  This is similar to sqlcom_can_generate_row_events, with the exception
   that we only return 1 if we are going to generate row events in a
   transaction.
   CREATE OR REPLACE is always safe to do as this will run in it's own

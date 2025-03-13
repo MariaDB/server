@@ -1073,7 +1073,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     value which would lead to badly broken replication.
     Even the relay_log_pos will be corrupted in this case, because the len is
     the relay log is not "val".
-    With the end_log_pos solution, we avoid computations involving length.
+    With the end_log_pos solution, we avoid computations involving lengthes.
   */
   mysql_cond_broadcast(&data_cond);
   if (!skip_lock)

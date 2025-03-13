@@ -5241,7 +5241,7 @@ bool Type_handler_int_result::Item_val_bool(Item *item) const
     and we need to evaluate the boolean value from the integer value
     as a fall-back method. To avoid the assert, let's hide the IS_COND flag.
     Eventually we'll need to implement val_bool() in all Item descendants and
-    remove the trick with flags. This change would be too tricky for 10.6.
+    remove the trick with flags. This change would be too risky for 10.6.
     Let's do it in a later version.
   */
   item_base_t flags= item->base_flags;
