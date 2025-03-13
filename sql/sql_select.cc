@@ -5766,16 +5766,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   stat_vector[i]=0;
   join->outer_join=outer_join;
 
-  if (join->outer_join)
+  if (join->propagate_dependencies(stat))
   {
-    if (join->propagate_dependencies(stat))
-    {
-      // Illegal cross-references found
-      table_count= 0;
-      my_message(ER_WRONG_OUTER_JOIN, ER_THD(thd, ER_WRONG_OUTER_JOIN), MYF(0));
-      goto error;
-    }
-    join->init_key_dependencies(stat);
+    // Illegal cross-references found
+    table_count= 0;
+    my_message(ER_WRONG_OUTER_JOIN, ER_THD(thd, ER_WRONG_OUTER_JOIN), MYF(0));
+    goto error;
   }
 
   for (JOIN_TAB *s= stat; s < stat_end; s++)
@@ -6280,6 +6276,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   if (join->select_lex->opt_hints_qb)
     join->select_lex->opt_hints_qb->apply_join_order_hints(join);
+  join->update_key_dependencies();
 
   if (unlikely(thd->trace_started()))
     trace_table_dependencies(thd, join->join_tab, join->table_count);
@@ -6431,10 +6428,10 @@ bool JOIN::propagate_dependencies(JOIN_TAB *stat)
 }
 
 
-void JOIN::init_key_dependencies(JOIN_TAB *stat)
+void JOIN::update_key_dependencies()
 {
-  for (JOIN_TAB *s= stat; s < stat + table_count; s++)
-    s->key_dependent = s->dependent;
+  for (JOIN_TAB *tab= join_tab; tab < join_tab + table_count; tab++)
+    tab->key_dependent |= tab->dependent;
 }
 
 
