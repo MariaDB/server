@@ -4,6 +4,7 @@
 # Please check all dependent tests after modifying it
 #
 
+source include/long_test.inc;
 source include/not_embedded.inc;
 source include/have_innodb.inc;
 source include/master-slave.inc;
