@@ -173,6 +173,7 @@ static uint opt_slave_data;
 static uint opt_use_gtid;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
+static char * opt_partition_separator=0;
 static int   first_error=0;
 /*
   multi_source is 0 if old server or 2 if server that support multi source 
@@ -270,6 +271,12 @@ static struct my_option my_long_options[] =
   {"no-tablespaces", 'y',
    "Do not dump any tablespace information.",
    &opt_notspcs, &opt_notspcs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"partition-separator", 0,
+    "Defines a string used to separate partition name from table name."
+    "Defining separator as @ and then doing sometable@p1 will only"
+    "process partition named p1."
+    "Defaults to none, partition processing is off by default.",
+    &opt_partition_separator, &opt_partition_separator, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0 ,0, 0},
   {"add-drop-database", 0, "Add a DROP DATABASE before each create.",
    &opt_drop_database, &opt_drop_database, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
@@ -4209,7 +4216,7 @@ static void send_query_completion_func(MYSQL* mysql, const char* query,
 */
 
 
-static void dump_table(const char *table, const char *db, const uchar *hash_key, size_t len)
+static void dump_table(const char *table, const char *db, const uchar *hash_key, size_t len, const char * partition = NULL)
 {
   char ignore_flag;
   char buf[200], table_buff[NAME_LEN+3];
@@ -4360,6 +4367,11 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     dynstr_append_checked(&query_string, qdatabase);
     dynstr_append_checked(&query_string, ".");
     dynstr_append_checked(&query_string, result_table);
+    if (partition != NULL) {
+      dynstr_append_checked(&query_string, " PARTITION (");
+      dynstr_append_checked(&query_string, partition);
+      dynstr_append_checked(&query_string, ") ");
+    }
 
     if (versioned)
       vers_append_system_time(&query_string);
@@ -4400,14 +4412,29 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   }
   else
   {
-    print_comment(md_result_file, 0,
-                  "\n--\n-- Dumping data for table %s\n--\n",
-                  fix_for_comment(result_table));
+    if (partition == NULL)
+    {
+      print_comment(md_result_file, 0,
+                    "\n--\n-- Dumping data for table %s\n--\n",
+                    fix_for_comment(result_table));
+    }
+    else
+    {
+      print_comment(md_result_file, 0,
+        "\n--\n-- Dumping data for table %s, partition %s\n--\n",
+        fix_for_comment(result_table), partition);
+    }
     
     dynstr_append_checked(&query_string, "SELECT /*!40001 SQL_NO_CACHE */ ");
     dynstr_append_checked(&query_string, select_field_names.str);
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
+    if (partition != NULL) {
+      dynstr_append_checked(&query_string, " PARTITION (");
+      dynstr_append_checked(&query_string, partition);
+      dynstr_append_checked(&query_string, ") ");
+    }
+
     if (versioned)
       vers_append_system_time(&query_string);
 
@@ -6156,6 +6183,22 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   int lower_case_table_names;
   DBUG_ENTER("dump_selected_tables");
 
+  // remove partition names from table names, if we have separator defined
+  // put all partition names into **partition names variable, NULL = none
+  char **partition_names = NULL;
+  if (opt_partition_separator != NULL)
+  {
+    partition_names = (char **)my_malloc(PSI_NOT_INSTRUMENTED, tables * sizeof (char *), MYF(MY_WME));
+    for (int i=0; i<tables; i++) {
+      char *seppos = strstr(table_names[i], opt_partition_separator);
+      if (seppos != NULL) {
+        *seppos = 0;
+        partition_names[i] = seppos+strlen(opt_partition_separator);
+      } else 
+        partition_names[i] = NULL;
+    }
+  }
+
   if (init_dumping(db, init_dumping_tables))
     DBUG_RETURN(1);
 
@@ -6171,7 +6214,9 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   lower_case_table_names = get_sys_var_lower_case_table_names();
 
   init_dynamic_string_checked(&lock_tables_query, "LOCK TABLES ", 256, 1024);
-  for (; tables > 0 ; tables-- , table_names++)
+  
+  char ** partition_names_pos = partition_names;
+  for (int table_num=0; table_num<tables; table_num++, table_names++)
   {
     /* the table name passed on commandline may be wrong case */
     if ((*pos= get_actual_table_name(*table_names, lower_case_table_names,
@@ -6184,6 +6229,12 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
         dynstr_append_checked(&lock_tables_query, " READ /*!32311 LOCAL */,");
       }
       pos++;
+
+      // move partition name, if we're skipping a table
+      if (partition_names != NULL) {
+        *partition_names_pos = partition_names[table_num];
+        partition_names_pos++;
+      }
     }
     else
     {
@@ -6197,6 +6248,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
     }
   }
   end= pos;
+  partition_names_pos= partition_names;
 
   /* Can't LOCK TABLES in I_S / P_S, so don't try. */
   if (lock_tables && !is_IS_or_PS(db))
@@ -6262,8 +6314,14 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   {
     if (check_if_ignore_table(*pos, table_type) & IGNORE_SEQUENCE_TABLE)
       continue;
-    DBUG_PRINT("info",("Dumping table %s", *pos));
-    dump_table(*pos, db, NULL, 0);
+
+    char * partition = partition_names_pos == NULL ? NULL : (*partition_names_pos++);
+    if (partition == NULL)
+      DBUG_PRINT("info",("Dumping table %s", *pos));
+    else
+      DBUG_PRINT("info",("Dumping table %s, partition %s", *pos, part));
+
+    dump_table(*pos, db, NULL, 0, partition);
     if (opt_dump_triggers &&
         mysql_get_server_version(mysql) >= 50009)
     {
