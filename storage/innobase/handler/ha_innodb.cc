@@ -7814,7 +7814,7 @@ int ha_innobase::is_valid_trx(bool altering_to_supported) const noexcept
         !innodb_read_only_compressed)
       return 0;
 
-    ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_UNSUPPORTED_COMPRESSED_TABLE);
+    ib_senderrf(m_user_thd, IB_LOG_LEVEL_ERROR, ER_UNSUPPORTED_COMPRESSED_TABLE);
     return HA_ERR_TABLE_READONLY;
   }
   return HA_ERR_ROLLBACK;

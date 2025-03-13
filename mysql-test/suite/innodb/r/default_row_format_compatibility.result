@@ -103,3 +103,26 @@ Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	I
 tab	InnoDB	#	Dynamic	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	row_format=DYNAMIC		0	N
 DROP TABLE tab;
 SET GLOBAL innodb_default_row_format =  @row_format;
+#
+# MDEV-25099: Inconsistent error upon updating read-only table with
+# ROW_FORMAT=COMPRESSED
+#
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed= off;
+CREATE TABLE t (a INT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+INSERT INTO t VALUES (1),(2),(3);
+SET GLOBAL innodb_read_only_compressed= on;
+INSERT INTO t VALUES (4);
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	1036	Table 't' is read only
+DELETE FROM t WHERE a = 2;
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	1036	Table 't' is read only
+DROP TABLE t;
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
