@@ -6319,7 +6319,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
     if (partition == NULL)
       DBUG_PRINT("info",("Dumping table %s", *pos));
     else
-      DBUG_PRINT("info",("Dumping table %s, partition %s", *pos, part));
+      DBUG_PRINT("info",("Dumping table %s, partition %s", *pos, partition));
 
     dump_table(*pos, db, NULL, 0, partition);
     if (opt_dump_triggers &&
