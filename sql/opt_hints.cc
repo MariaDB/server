@@ -746,18 +746,38 @@ bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
   @param hint_tab_map     map of the tables, specified in the hint
 
 
-  @TODO: why do we go just one level up?  What if there is a deep 
-  embedding structure, like
+  @detail
+   This function is called when the caller has added a dependency:
 
-   t1
-   LEFT JOIN ( 
-     t2 
-     LEFT JOIN (
-       t3, t4, t5
-     )ON cond
-   )ON  cond
+      hint_tab now also depends on hint_tab_map.
 
-   and hint_tab points to t4.  Should we walk up the 'embedding' chain?
+   For example:
+
+      FROM t0 ... LEFT JOIN ( ... t1 ... t2 ... ) ON ...
+
+   hint_tab=t1,  hint_tab_map={t0}.
+
+   We want to avoid the situation where the optimizer has constructed a join
+   prefix with table t2 and without table t0:
+
+    ... t2
+
+   and now it needs to add t1 to the join prefix (it must do so, see
+   add_table_function_dependencies, check_interleaving_with_nj) but it can't
+   do that because t0 is not in the join prefix, and it's not possible to add
+   t0 as that would break the NO-INTERLEAVING rule (see mentioned functions)
+
+   In order to avoid this situation, we make t2 also depend t0 (that is, also
+   depend on any tables outside the join nest that we've made t1 to depend on)
+
+   Note that inside the join nest
+
+      LEFT JOIN  ( ... t1 ... t2 ... )
+
+   t1 and t2 may not be direct children but rather occur inside children join
+   nests:
+
+      LEFT JOIN  ( ... LEFT JOIN (...t1...) ... LEFT JOIN (...t2...) ... )
 */
 
 void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
@@ -769,12 +789,26 @@ void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
     for (uint i= 0; i < join->table_count; i++)
     {
       JOIN_TAB *tab= &join->join_tab[i];
-      if (tab->tab_list->embedding)
+      /* Walk up the nested joins that tab->table is a part of */
+      for (TABLE_LIST *emb= tab->tab_list->embedding; emb; emb=emb->embedding)
       {
-        const NESTED_JOIN *const nested_join=
-            tab->tab_list->embedding->nested_join;
-        if (hint_tab->embedding_map & nested_join->nj_map)
-          tab->dependent |= (hint_tab_map & ~nested_join->used_tables);
+        /*
+          Apply the rule only for outer joins. Semi-joins do not impose such
+          limitation
+        */
+        if (emb->on_expr)
+        {
+          const NESTED_JOIN *const nested_join= emb->nested_join;
+          /* Is hint_tab somewhere inside this nested join, too? */
+          if (hint_tab->embedding_map & nested_join->nj_map)
+          {
+            /*
+              Yes, it is. Then, tab->table be also dependent on all outside
+              tables that hint_tab is dependent on:
+            */
+            tab->dependent |= (hint_tab_map & ~nested_join->used_tables);
+          }
+        }
       }
     }
   }
