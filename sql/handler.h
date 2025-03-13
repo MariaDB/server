@@ -2644,7 +2644,7 @@ public:
   */
   alter_table_operations handler_flags= 0;
 
-  /* Alter operations involving partitons are stored here */
+  /* Alter operations involving partitions are stored here */
   ulong partition_flags;
 
   /**
@@ -5491,7 +5491,7 @@ public:
     @param record        record to find (also will be fillded with
                          actual record fields)
     @param unique_ref    index or unique constraint number (depends
-                         on what was used in the engine
+                         on how it is implemented by the engine)
 
     @retval -1 Error
     @retval  1 Not found

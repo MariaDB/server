@@ -5749,7 +5749,7 @@ static void run_main_loop()
 int mysqld_main(int argc, char **argv)
 {
 #ifndef _WIN32
-  /* We can't close stdin just now, because it may be in bootstrap mode. */
+  /* We can't close stdin until we know we're not in bootstrap mode. */
   bool please_close_stdin= fcntl(STDIN_FILENO, F_GETFD) >= 0;
 #endif
 

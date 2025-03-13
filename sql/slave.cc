@@ -1049,7 +1049,7 @@ terminate_slave_thread(THD *thd,
 
   /*
     Is is critical to test if the slave is running. Otherwise, we might
-    be refreeing freed memory trying to kick it
+    be referencing freed memory trying to kick it
   */
 
   while (*slave_running)                        // Should always be true
@@ -4096,7 +4096,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
          The following failure injecion works in cooperation with tests 
          setting @@global.debug= 'd,incomplete_group_in_relay_log'.
          Xid or Commit events are not executed to force the slave sql
-         read hanging if the real log does not have any more events.
+         read hanging if the relay log does not have any more events.
       */
       DBUG_EXECUTE_IF("incomplete_group_in_relay_log",
                       if ((typ == XID_EVENT) ||
@@ -6143,7 +6143,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
 
        Slave can have lower coordinates, if some event from master was omitted.
 
-       TODO: handling `when' for SHOW SLAVE STATUS' sends behind
+       TODO: handling `when' for SHOW SLAVE STATUS' seconds behind
     */
     if (memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len()) ||
         mi->master_log_pos > hb.log_pos) {

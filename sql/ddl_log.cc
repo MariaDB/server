@@ -876,7 +876,7 @@ static bool ddl_log_increment_phase_no_lock(uint entry_pos)
     else
     {
       /*
-        Trying to deactivate an execute entry or already deactive entry.
+        Trying to deactivate an execute entry or already inactive entry.
         This should not happen
       */
       DBUG_ASSERT(0);
@@ -1017,7 +1017,7 @@ static void ddl_log_to_binary_log(THD *thd, String *query)
      table name to the query
 
    When we log, we always log all found tables and views at the same time. This
-   is done to simply execute the code as otherwise we would have to keep
+   is done to simplify the execute code as otherwise we would have to keep
    information of what was logged.
 */
 

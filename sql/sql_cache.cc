@@ -296,7 +296,7 @@ functions:
          cache block by block.
  6. Query_cache::resize
        - Used to change the available memory used by the query cache. This
-         will also invalidate the entries query cache in one free operation.
+         will also invalidate the entire query cache in one free operation.
  7. Query_cache::pack
        - Used when a FLUSH QUERY CACHE is issued. This changes the order of
          the used memory blocks in physical memory order and move all avail-
