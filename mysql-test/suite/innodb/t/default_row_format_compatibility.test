@@ -172,3 +172,27 @@ SHOW TABLE STATUS LIKE 'tab';
 DROP TABLE tab;
 
 SET GLOBAL innodb_default_row_format =  @row_format;
+
+--echo #
+--echo # MDEV-25099: Inconsistent error upon updating read-only table with
+--echo # ROW_FORMAT=COMPRESSED
+--echo #
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed= off;
+
+CREATE TABLE t (a INT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+INSERT INTO t VALUES (1),(2),(3);
+
+SET GLOBAL innodb_read_only_compressed= on;
+
+--error ER_UNSUPPORTED_COMPRESSED_TABLE
+INSERT INTO t VALUES (4);
+SHOW WARNINGS;
+
+--error ER_UNSUPPORTED_COMPRESSED_TABLE
+DELETE FROM t WHERE a = 2;
+SHOW WARNINGS;
+
+DROP TABLE t;
+
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
