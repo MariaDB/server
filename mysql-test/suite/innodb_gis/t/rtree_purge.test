@@ -1,5 +1,6 @@
 # This test case will test R-tree purge.
 
+--source include/long_test.inc
 --source include/innodb_page_size.inc
 --source include/have_sequence.inc
 --source include/not_valgrind.inc
