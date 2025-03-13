@@ -3,6 +3,7 @@
 --source include/have_sequence.inc
 --source include/have_aria.inc
 
+--disable_ps2_protocol
 #
 # MDEV-19353 : Alter Sequence do not replicate to another nodes with in Galera Cluster
 #
@@ -47,6 +48,7 @@ SHOW CREATE SEQUENCE Seq1_1;
 select NEXT VALUE FOR Seq1_1;
 
 --connection node_1
+SHOW CREATE SEQUENCE Seq1_1;
 DROP SEQUENCE Seq1_1;
 
 #
