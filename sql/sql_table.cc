@@ -11135,7 +11135,7 @@ do_continue:;
 
   debug_crash_here("ddl_log_alter_after_copy");      // Use old table
   /*
-    We are new ready to use the new table. Update the state in the
+    We are now ready to use the new table. Update the state in the
     ddl log so that we recovery know that the new table is ready and
     in case of crash it should use the new one and log the query
     to the binary log.

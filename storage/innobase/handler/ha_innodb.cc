@@ -15958,9 +15958,22 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		trx = check_trx_exists(ha_thd());
+		if (!m_prebuilt->table->skip_alter_undo) {
+			/* This could be invoked inside INSERT...SELECT.
+			We do not want any extra log writes, because
+			they could cause a severe performance regression. */
+			break;
+		}
 		m_prebuilt->table->skip_alter_undo = 0;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
+			/* The extra log write is necessary for
+			ALTER TABLE...ALGORITHM=COPY, because
+			a normal transaction commit would be a no-op
+			because no undo log records were generated.
+			This log write will also be unnecessarily executed
+			during CREATE...SELECT, which is the other caller of
+			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
 		break;
