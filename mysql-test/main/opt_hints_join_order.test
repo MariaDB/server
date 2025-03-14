@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+--enable_prepare_warnings
+--disable_view_protocol # Since optimizer hints are not supported inside views
 
 set default_storage_engine=innodb;
 
@@ -540,6 +542,10 @@ CREATE TABLE t3
   f4 INT
 ) ENGINE=myisam;
 
+# Warning "Field or reference 'test.als2.f2' of SELECT #2 was resolved in SELECT #1"
+# is generated during both PREPARE and EXECUTE of a prepared statement, so disable
+# the PS protocol for this test
+--disable_ps_protocol
 EXPLAIN EXTENDED
 UPDATE /*+ JOIN_ORDER(t2, als1, als3) JOIN_FIXED_ORDER() */ t3 AS als1
    JOIN t1 AS als2 ON (als1.f3 = als2 .f1)
@@ -547,6 +553,7 @@ UPDATE /*+ JOIN_ORDER(t2, als1, als3) JOIN_FIXED_ORDER() */ t3 AS als1
        RIGHT OUTER JOIN t3 AS als4 ON (als1.f3 = als4.f2)
 SET als1.f4 = 'eogqjvbhzodzimqahyzlktkbexkhdwxwgifikhcgblhgswxyutepc'
 WHERE ('i','b') IN (SELECT f3, f1 FROM t2 WHERE f2 <> f2 AND als2.f2 IS NULL);
+--enable_ps_protocol
 
 DROP TABLE t1, t2, t3;
 
@@ -607,10 +614,15 @@ CREATE TABLE t3 (
 ) ENGINE=InnoDB;
 
 
+# Warning "Field or reference 'test.ta2.f3' of SELECT #2 was resolved in SELECT #1"
+# is generated during both PREPARE and EXECUTE of a prepared statement, so disable
+# the PS protocol for this test
+--disable_ps_protocol
 EXPLAIN EXTENDED UPDATE /*+ JOIN_SUFFIX(ta1, t2) */
   t1 AS ta1 JOIN t1 AS ta2 ON ta1.f1 = ta2.f1 RIGHT JOIN t2 ON (ta1.f1 = t2.f1)
 SET ta1.f2 = '', ta2.f3 = ''
 WHERE ('n', 'r') IN (SELECT f2, f1 FROM t3 WHERE f1 <> f2 XOR ta2.f3 IS NULL);
+--enable_ps_protocol
 
 DROP TABLE t1, t2, t3;
 
