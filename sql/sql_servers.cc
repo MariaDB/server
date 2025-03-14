@@ -317,7 +317,7 @@ end:
 
 /*
   Forget current servers cache and read new servers 
-  from the conneciton table.
+  from the connection table.
 
   SYNOPSIS
     servers_reload()
@@ -473,7 +473,7 @@ get_server_from_table_to_cache(TABLE *table)
   server->scheme= ptr ? ptr : blank;
   ptr= get_field(&mem, table->field[8]);
   server->owner= ptr ? ptr : blank;
-  ptr= get_field(&mem, table->field[9]);
+  ptr= table->field[9] ? get_field(&mem, table->field[9]) : NULL;
   server->option_list= NULL;
   if (ptr && parse_server_options_json(server, ptr))
     DBUG_RETURN(TRUE);
@@ -941,7 +941,7 @@ end:
       FOREIGN_SERVER *altered
 
   NOTES
-    This function takes as an argument the FOREIGN_SERVER structi pointer
+    This function takes as an argument the FOREIGN_SERVER struct pointer
     for the existing server and the FOREIGN_SERVER struct populated with only 
     the members which have been updated. It then "merges" the "altered" struct
     members to the existing server, the existing server then represents an

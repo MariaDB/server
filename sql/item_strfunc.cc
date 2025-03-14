@@ -80,7 +80,7 @@ static uint32 max_length_for_string(Item *item, bool *neg)
   }
   if (length > (ulonglong) INT_MAX32)
   {
-    /* Limit string length to maxium string length in MariaDB (2G) */
+    /* Limit string length to maximum string length in MariaDB (2G) */
     length= (ulonglong) INT_MAX32;
   }
   return (uint32) length;
@@ -3701,7 +3701,7 @@ bool Item_func_pad::fix_length_and_dec(THD *thd)
 /*
   PAD(expr,length,' ')
   removes argument's soft dependency on PAD_CHAR_TO_FULL_LENGTH if the result
-  is longer than the argument's maximim possible length.
+  is longer than the argument's maximum possible length.
 */
 Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
 {
@@ -4044,7 +4044,7 @@ String *Item_func_set_collation::val_str(String *str)
 
     But for a non-NULL result SCS and TCS must be compatible:
     1. Either SCS==TCS
-    2. Or SCS can be can be reinterpeted to TCS.
+    2. Or SCS can be reinterpreted to TCS.
        This scenario is possible when args[0] is numeric and TCS->mbmaxlen==1.
 
     If SCS and TCS are not compatible here, then something went wrong during
@@ -4714,7 +4714,7 @@ longlong Item_func_uncompressed_length::val_int()
     5 bytes long.
     res->c_ptr() is not used because:
       - we do not need \0 terminated string to get first 4 bytes
-      - c_ptr() tests simbol after string end (uninitialized memory) which
+      - c_ptr() tests symbol after string end (uninitialized memory) which
         confuse valgrind
   */
   return uint4korr(res->ptr()) & 0x3FFFFFFF;

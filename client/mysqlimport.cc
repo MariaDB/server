@@ -984,6 +984,8 @@ static void fatal_error(const char *format, ...)
 
 static void db_error(MYSQL *mysql)
 {
+  if (aborting)
+    return;
   const char *info= mysql_info(mysql);
   auto err= mysql_errno(mysql);
   auto err_text = mysql_error(mysql);

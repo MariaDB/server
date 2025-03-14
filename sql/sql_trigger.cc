@@ -622,7 +622,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   table= tables->table;
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && !wsrep_should_replicate_ddl(thd, table->s->db_type()))
+  /* Resolve should we replicate creation of the trigger.
+     It should be replicated if storage engine(s) associated
+     to trigger are replicated by Galera.
+  */
+  if (WSREP(thd) &&
+      !wsrep_should_replicate_ddl_iterate(thd, tables))
     goto end;
 #endif
 
@@ -783,7 +788,7 @@ drop_orphan_trn:
                             well-formed statement for creation this trigger.
   @param[out] trigger_def  query to be stored in trigger file. As stmt_query,
 		           but without "OR REPLACE" and no FOLLOWS/PRECEDES.
-  @param[out] trg_definer         The triggger definer.
+  @param[out] trg_definer         The trigger definer.
   @param[out] trg_definer_holder  Used as a buffer for definer.
 
   @note
@@ -3003,7 +3008,7 @@ process_unknown_string(const char *&unknown_key, uchar* base,
 
 
 /**
-  Contruct path to TRN-file.
+  Construct path to TRN-file.
 
   @param thd[in]        Thread context.
   @param trg_name[in]   Trigger name.

@@ -1162,7 +1162,7 @@ public:
     Iterates registered threads.
 
     @param action      called for every element
-    @param argument    opque argument passed to action
+    @param argument    opaque argument passed to action
 
     @return
       @retval 0 iteration completed successfully
@@ -1226,7 +1226,7 @@ public:
   bool is_reprepared;
 #endif
   /*
-    The states relfects three diffrent life cycles for three
+    The state reflects three different life cycles for three
     different types of statements:
     Prepared statement: STMT_INITIALIZED -> STMT_PREPARED -> STMT_EXECUTED.
     Stored procedure:   STMT_INITIALIZED_FOR_SP -> STMT_EXECUTED.
@@ -2225,7 +2225,7 @@ public:
     - mask a warning/error and throw another one instead.
     When this method returns true, the sql condition is considered
     'handled', and will not be propagated to upper layers.
-    It is the responsability of the code installing an internal handler
+    It is the responsibility of the code installing an internal handler
     to then check for trapped conditions, and implement logic to recover
     from the anticipated conditions trapped during runtime.
 
@@ -3197,7 +3197,7 @@ public:
     chapter 'Miscellaneous functions', for functions GET_LOCK, RELEASE_LOCK.
   */
   HASH ull_hash;
-  /* Hash of used seqeunces (for PREVIOUS value) */
+  /* Hash of used sequences (for PREVIOUS value) */
   HASH sequences;
 #ifdef DBUG_ASSERT_EXISTS
   uint dbug_sentry; // watch out for memory corruption
@@ -3991,7 +3991,7 @@ public:
 
   /*
     If this is a slave, the name of the connection stored here.
-    This is used for taging error messages in the log files.
+    This is used for tagging error messages in the log files.
   */
   LEX_CSTRING connection_name;
   uint8      password; /* 0, 1 or 2 */
@@ -4080,6 +4080,9 @@ public:
   enum_sql_command last_sql_command;  // Last sql_command executed in mysql_execute_command()
 
   sp_rcontext *spcont;		// SP runtime context
+
+  sp_rcontext *get_rcontext(const sp_rcontext_addr &addr);
+  Item_field *get_variable(const sp_rcontext_addr &addr);
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
@@ -5458,7 +5461,7 @@ public:
     locked_tables_mode= mode_arg;
   }
   void leave_locked_tables_mode();
-  /* Relesae transactional locks if there are no active transactions */
+  /* Release transactional locks if there are no active transactions */
   void release_transactional_locks()
   {
     if (!in_active_multi_stmt_transaction())
@@ -6259,7 +6262,7 @@ class select_result_interceptor;
 /*
   Interface for sending tabular data, together with some other stuff:
 
-  - Primary purpose seems to be seding typed tabular data:
+  - Primary purpose seems to be sending typed tabular data:
      = the DDL is sent with send_fields()
      = the rows are sent with send_data()
   Besides that,
@@ -6411,7 +6414,7 @@ private:
 
 
 /*
-  Base class for select_result descendands which intercept and
+  Base class for select_result descendants which intercept and
   transform result set rows. As the rows are not sent to the client,
   sending of result set metadata should be suppressed as well.
 */
@@ -6480,10 +6483,11 @@ private:
   /// FETCH <cname> INTO <varlist>.
   class Select_fetch_into_spvars: public select_result_interceptor
   {
-    List<sp_variable> *spvar_list;
+    List<sp_fetch_target> *m_fetch_target_list;
     uint field_count;
     bool m_view_structure_only;
-    bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
+    bool send_data_to_variable_list(List<sp_fetch_target> &vars,
+                                    List<Item> &items);
   public:
     Select_fetch_into_spvars(THD *thd_arg, bool view_structure_only)
      :select_result_interceptor(thd_arg),
@@ -6492,11 +6496,14 @@ private:
     void reset(THD *thd_arg)
     {
       select_result_interceptor::reinit(thd_arg);
-      spvar_list= NULL;
+      m_fetch_target_list= NULL;
       field_count= 0;
     }
     uint get_field_count() { return field_count; }
-    void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
+    void set_spvar_list(List<sp_fetch_target> *vars)
+    {
+      m_fetch_target_list= vars;
+    }
 
     bool send_eof() override { return FALSE; }
     int send_data(List<Item> &items) override;
@@ -6526,7 +6533,7 @@ public:
   my_bool is_open()
   { return MY_TEST(server_side_cursor); }
 
-  int fetch(THD *, List<sp_variable> *vars, bool error_on_no_data);
+  int fetch(THD *, List<sp_fetch_target> *vars, bool error_on_no_data);
 
   bool export_structure(THD *thd, Row_definition_list *list);
 
@@ -6717,7 +6724,7 @@ public:
   void abort_result_set() override;
   bool can_rollback_data() override { return 1; }
 
-  // Needed for access from local class MY_HOOKS in prepare(), since thd is proteted.
+  // Needed for access from local class MY_HOOKS in prepare(), since thd is protected.
   const THD *get_thd(void) { return thd; }
   const HA_CREATE_INFO *get_create_info() { return create_info; };
   int prepare2(JOIN *join) override { return 0; }
@@ -7107,7 +7114,7 @@ class select_union_recursive :public select_unit
 
   Function calls are forwarded to the wrapped select_result, but some
   functions are expected to be called only once for each query, so
-  they are only executed for the first SELECT in the union (execept
+  they are only executed for the first SELECT in the union (except
   for send_eof(), which is executed only for the last SELECT).
 
   This select_result is used when a UNION is not DISTINCT and doesn't
@@ -7223,7 +7230,7 @@ public:
 
 /*
   This class specializes select_union to collect statistics about the
-  data stored in the temp table. Currently the class collects statistcs
+  data stored in the temp table. Currently the class collects statistics
   about NULLs.
 */
 
@@ -7250,9 +7257,9 @@ protected:
   */
   uint max_nulls_in_row;
   /*
-    Count of rows writtent to the temp table. This is redundant as it is
+    Count of rows written to the temp table. This is redundant as it is
     already stored in handler::stats.records, however that one is relatively
-    expensive to compute (given we need that for evry row).
+    expensive to compute (given we need that for every row).
   */
   ha_rows count_rows;
 

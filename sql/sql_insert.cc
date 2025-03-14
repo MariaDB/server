@@ -656,7 +656,7 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
 
 /**
   Create a new query string for removing DELAYED keyword for
-  multi INSERT DEALAYED statement.
+  multi INSERT DELAYED statement.
 
   @param[in] thd                 Thread handler
   @param[in] buf                 Query string
@@ -820,7 +820,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     {
       /*
         It is RETURNING which needs network buffer to write result set and
-        it is array binfing which need network buffer to read parameters.
+        it is array binding which needs network buffer to read parameters.
         So we allocate yet another network buffer.
         The old buffer will be freed at the end of operation.
       */
@@ -1465,7 +1465,7 @@ abort:
     fields  - fields used in insert
 
   IMPLEMENTATION
-    A view is insertable if the folloings are true:
+    A view is insertable if the followings are true:
     - All columns in the view are columns from a table
     - All not used columns in table have a default values
     - All field in view are unique (not referring to the same column)
@@ -1568,7 +1568,7 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view,
 
   @return
   0 if no error
-  ER_NOT_SUPPORTED_YET if the above condidion was met
+  ER_NOT_SUPPORTED_YET if the above condition was met
  */
 int check_duplic_insert_without_overlaps(THD *thd, TABLE *table,
                                          enum_duplicates duplic)
@@ -3597,7 +3597,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
     /*
       Protect against mdl_locks trying to access open tables
       We use KILL_CONNECTION_HARD here to ensure that
-      THD::notify_shared_lock() dosn't try to access open tables after
+      THD::notify_shared_lock() doesn't try to access open tables after
       this.
     */
     mysql_mutex_lock(&thd->LOCK_thd_data);
@@ -4125,7 +4125,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
       When we are not using GROUP BY and there are no ungrouped
       aggregate functions we can refer to other tables in the ON
       DUPLICATE KEY part.  We use next_name_resolution_table
-      descructively, so check it first (views?)
+      destructively, so check it first (views?)
     */
     DBUG_ASSERT (!table_list->next_name_resolution_table);
     if (lex->first_select_lex()->group_list.elements == 0 &&
@@ -4262,7 +4262,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   DESCRIPTION
     If the result table is the same as one of the source tables
     (INSERT SELECT), the result table is not finally prepared at the
-    join prepair phase.  Do the final preparation now.
+    join prepare phase.  Do the final preparation now.
 
   RETURN
     0   OK
@@ -4350,7 +4350,7 @@ int select_insert::send_data(List<Item> &values)
         Restore fields of the record since it is possible that they were
         changed by ON DUPLICATE KEY UPDATE clause.
     
-        If triggers exist then whey can modify some fields which were not
+        If triggers exist then they can modify some fields which were not
         originally touched by INSERT ... SELECT, so we have to restore
         their original values for the next row.
       */

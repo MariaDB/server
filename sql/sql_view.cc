@@ -452,8 +452,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-
   /*
     ignore lock specs for CREATE statement
   */
@@ -471,12 +469,19 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 
 #ifdef WITH_WSREP
-  if(!wsrep_should_replicate_ddl_iterate(thd, static_cast<const TABLE_LIST *>(tables)))
+  /* Resolve should we replicate creation of the view.
+     It should be replicated if storage engine(s) associated
+     to view are replicated by Galera.
+  */
+  if (WSREP(thd) &&
+      !wsrep_should_replicate_ddl_iterate(thd, tables))
   {
     res= TRUE;
     goto err_no_relink;
   }
 #endif
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   view= lex->unlink_first_table(&link_to_local);
 
@@ -2215,10 +2220,10 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
 
   SINOPSYS
     view_checksum()
-    thd     threar handler
+    thd     thread handler
     view    view for check
 
-  RETUIRN
+  RETURN
     HA_ADMIN_OK               OK
     HA_ADMIN_NOT_IMPLEMENTED  it is not VIEW
     HA_ADMIN_WRONG_CHECKSUM   check sum is wrong

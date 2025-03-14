@@ -1414,7 +1414,7 @@ std::string wsrep_sst_prepare()
 
   if (is_ipv6)
   {
-    /* wsrep_sst_*.sh scripts requite ipv6 addreses to be in square breackets */
+    /* wsrep_sst_*.sh scripts require ipv6 addresses to be in square brackets */
     ip_buf[0] = '[';
     /* the length (len) already includes the null byte: */
     memcpy(ip_buf + 1, address, len - 1);
@@ -1467,7 +1467,7 @@ std::string wsrep_sst_prepare()
                     "replaced by %s", method, WSREP_SST_MARIABACKUP);
          method = WSREP_SST_MARIABACKUP;
       }
-      // we already did SST at initializaiton, now engines are running
+      // we already did SST at initialization, now engines are running
       // sql_print_information() is here because the message is too long
       // for WSREP_INFO.
       sql_print_information ("WSREP: "
@@ -2338,7 +2338,7 @@ int wsrep_sst_donate(const std::string& msg,
   sst_auth auth;
   if (sst_auth_real)
   {
-    /* User supplied non-trivial wsre_sst_auth, use it */
+    /* User supplied non-trivial wsrep_sst_auth, use it */
     const char* col= sst_strchrnul(sst_auth_real, ':');
     auth.name_ = std::string(sst_auth_real, col - sst_auth_real);
     auth.pswd_ = std::string(':' == *col ? col + 1 : "");

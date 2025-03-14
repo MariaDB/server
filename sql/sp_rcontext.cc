@@ -749,7 +749,8 @@ void sp_cursor::destroy()
 }
 
 
-int sp_cursor::fetch(THD *thd, List<sp_variable> *vars, bool error_on_no_data)
+int sp_cursor::fetch(THD *thd, List<sp_fetch_target> *vars,
+                     bool error_on_no_data)
 {
   if (! server_side_cursor)
   {
@@ -759,8 +760,7 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars, bool error_on_no_data)
   }
   if (vars->elements != result.get_field_count() &&
       (vars->elements != 1 ||
-       result.get_field_count() !=
-       thd->spcont->get_variable(vars->head()->offset)->cols()))
+       result.get_field_count() != thd->get_variable(*vars->head())->cols()))
   {
     my_message(ER_SP_WRONG_NO_OF_FETCH_ARGS,
                ER_THD(thd, ER_SP_WRONG_NO_OF_FETCH_ARGS), MYF(0));
@@ -827,11 +827,12 @@ int sp_cursor::Select_fetch_into_spvars::prepare(List<Item> &fields,
 
 
 bool sp_cursor::Select_fetch_into_spvars::
-       send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items)
+       send_data_to_variable_list(List<sp_fetch_target> &vars,
+                                  List<Item> &items)
 {
-  List_iterator_fast<sp_variable> spvar_iter(vars);
+  List_iterator_fast<sp_fetch_target> spvar_iter(vars);
   List_iterator_fast<Item> item_iter(items);
-  sp_variable *spvar;
+  sp_fetch_target *spvar;
   Item *item;
 
   /* Must be ensured by the caller */
@@ -843,7 +844,7 @@ bool sp_cursor::Select_fetch_into_spvars::
   */
   for (; spvar= spvar_iter++, item= item_iter++; )
   {
-    if (thd->spcont->set_variable(thd, spvar->offset, &item))
+    if (thd->get_rcontext(*spvar)->set_variable(thd, spvar->offset(), &item))
       return true;
   }
   return false;
@@ -852,7 +853,6 @@ bool sp_cursor::Select_fetch_into_spvars::
 
 int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
 {
-  Item *item;
   /*
     If we have only one variable in spvar_list, and this is a ROW variable,
     and the number of fields in the ROW variable matches the number of
@@ -863,10 +863,15 @@ int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
     we go through send_data_to_variable_list(). It will report an error
     on attempt to assign a scalar value to a ROW variable.
   */
-  return spvar_list->elements == 1 &&
-         (item= thd->spcont->get_variable(spvar_list->head()->offset)) &&
-         item->type_handler() == &type_handler_row &&
-         item->cols() == items.elements ?
-    thd->spcont->set_variable_row(thd, spvar_list->head()->offset, items) :
-    send_data_to_variable_list(*spvar_list, items);
+  if (m_fetch_target_list->elements == 1)
+  {
+    const sp_fetch_target *target= m_fetch_target_list->head();
+    sp_rcontext *rctx= thd->get_rcontext(*target);
+    Item *item;
+    if ((item= rctx->get_variable(target->offset())) &&
+        item->type_handler() == &type_handler_row &&
+        item->cols() == items.elements)
+    return rctx->set_variable_row(thd, target->offset(), items);
+  }
+  return send_data_to_variable_list(*m_fetch_target_list, items);
 }

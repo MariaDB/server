@@ -1,0 +1,26 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1,1),(3,3),(5,5),(7,7);
+create table t2 (m int) engine=aria;
+# Create multi-engine, two-phase XA transaction (T1)
+xa start '1';
+insert t2 values (1);
+update t1 set b=50 where b=5;
+xa end '1';
+xa prepare '1';
+# Create T2
+connection server_1;
+update t1 set b=10 where a=5;
+connection master;
+xa commit '1';
+connection server_1;
+include/save_master_gtid.inc
+# This would hang prior to MDEV-21117
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+drop table t1, t2;
+include/rpl_end.inc
+# End of rpl_xa_2pc_multi_engine.test

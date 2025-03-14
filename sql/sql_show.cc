@@ -1361,7 +1361,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   /*
     Metadata locks taken during SHOW CREATE should be released when
-    the statmement completes as it is an information statement.
+    the statement completes as it is an information statement.
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
@@ -1475,7 +1475,14 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
       DBUG_RETURN(TRUE);
     }
 
-    load_db_opt_by_name(thd, dbname->str, &create);
+    if (load_db_opt_by_name(thd, dbname->str, &create) < 0)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR,
+                          "Database '%.192s' does not have a db.opt file. "
+                          "You can create one with ALTER DATABASE if needed",
+                          dbname->str);
+    }
   }
 
   mysqld_show_create_db_get_fields(thd, &field_list);
@@ -3059,25 +3066,27 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 
   while (thread_info *thd_info= arg.thread_infos.get())
   {
+    const char *str;
+    ulonglong start_time;
+    CSET_STRING query;
+
     protocol->prepare_for_resend();
     protocol->store(thd_info->thread_id);
     protocol->store(thd_info->user, strlen(thd_info->user), system_charset_info);
     protocol->store(thd_info->host, strlen(thd_info->host), system_charset_info);
     protocol->store_string_or_null(thd_info->db, system_charset_info);
-    if (thd_info->proc_info)
-      protocol->store(thd_info->proc_info, strlen(thd_info->proc_info),
-                      system_charset_info);
+    if ((str= thd_info->proc_info))
+      protocol->store(str, strlen(str), system_charset_info);
     else
       protocol->store(&command_name[thd_info->command], system_charset_info);
-    if (thd_info->start_time && now > thd_info->start_time)
-      protocol->store_long((now - thd_info->start_time) / HRTIME_RESOLUTION);
+    if ((start_time= thd_info->start_time) && now > start_time)
+      protocol->store_long((now - start_time) / HRTIME_RESOLUTION);
     else
       protocol->store_null();
     protocol->store_string_or_null(thd_info->state_info, system_charset_info);
-    if (thd_info->query_string.length())
-      protocol->store(thd_info->query_string.str(),
-                      thd_info->query_string.length(),
-                      thd_info->query_string.charset());
+    query= thd_info->query_string;
+    if (query.length() && query.str())
+      protocol->store(query.str(), query.length(), query.charset());
     else
       protocol->store_null();
     if (!(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
@@ -3621,7 +3630,7 @@ int add_status_vars(SHOW_VAR *list)
   while (list->name)
     res|= insert_dynamic(&all_status_vars, (uchar*)list++);
   res|= insert_dynamic(&all_status_vars, (uchar*)list); // appending NULL-element
-  all_status_vars.elements--; // but next insert_dynamic should overwite it
+  all_status_vars.elements--; // but next insert_dynamic should overwrite it
   if (status_vars_inited)
     sort_dynamic(&all_status_vars, show_var_cmp);
   status_var_array_version++;
@@ -6172,7 +6181,7 @@ err:
  @brief           Fill IS.table with temporary tables
  @param[in]       thd              thread handler
  @param[in]       table            I_S table (TABLE)
- @param[in]       tmp_tbl          temporary table to be represetned by IS.table
+ @param[in]       tmp_tbl          temporary table to be represented by IS.table
  @return          Operation status
    @retval        0   - success
    @retval        1   - failure
@@ -6219,7 +6228,7 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
   tmp_buff= strchr(column_type.c_ptr_safe(), '(');
   if (!tmp_buff)
     /*
-      if there is no dimention part then check the presence of
+      if there is no dimension part then check the presence of
       [unsigned] [zerofill] attributes and cut them of if exist.
     */
     tmp_buff= strchr(column_type.c_ptr_safe(), ' ');
@@ -8815,7 +8824,7 @@ struct schema_table_ref
 };
 
 /*
-  Find schema_tables elment by name
+  Find schema_tables element by name
 
   SYNOPSIS
     find_schema_table_in_plugin()
@@ -9207,14 +9216,14 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   Constants for columns that are present in
   SHOW ALL SLAVES STATUS
   that are not in SHOW SLAVE STATUS. Specifically, columns 0 and 1, and
-  everything at and above 56.
+  everything at and above 58.
     0: Connection_name
     1: Slave_SQL_State
-    56: Retried_transactions
+    58: Retried_transactions
 */
 #define SLAVE_STATUS_COL_CONNECTION_NAME 0
 #define SLAVE_STATUS_COL_SLAVE_SQL_STATE 1
-#define SLAVE_STATUS_COL_RETRIED_TRANSACTIONS 56
+#define SLAVE_STATUS_COL_RETRIED_TRANSACTIONS 58
 
 static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
@@ -9226,18 +9235,12 @@ static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (uint i=0; !field_info->end_marker(); field_info++, i++)
   {
     if (all_slaves ||
-        // not SLAVE_STATUS_COL_CONNECTION_NAME,
-        // SLAVE_STATUS_COL_SLAVE_SQL_STATE
-        // and less
-        // SLAVE_STATUS_COL_RETRIED_TRANSACTIONS
-        !(i <= SLAVE_STATUS_COL_SLAVE_SQL_STATE ||
-          i >= SLAVE_STATUS_COL_RETRIED_TRANSACTIONS))
+        (i > SLAVE_STATUS_COL_SLAVE_SQL_STATE &&
+         i < SLAVE_STATUS_COL_RETRIED_TRANSACTIONS))
     {
       LEX_CSTRING field_name= field_info->name();
       Item_field *field= new (thd->mem_root)
         Item_field(thd, context, field_name);
-      DBUG_ASSERT(all_slaves || (i > SLAVE_STATUS_COL_SLAVE_SQL_STATE &&
-                                 i < SLAVE_STATUS_COL_RETRIED_TRANSACTIONS));
       if (!field || add_item_to_list(thd, field))
         return 1;
     }
@@ -9655,7 +9658,7 @@ bool get_schema_tables_result(JOIN *join,
         continue;
 
       /*
-        Do not fill in tables thare are marked as JT_CONST as these will never
+        Do not fill in tables marked as JT_CONST as these will never
         be read and they also don't have a tab->read_record.table set!
         This can happen with queries like
         SELECT * FROM t1 LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.ROUTINES)
@@ -9728,7 +9731,7 @@ bool get_schema_tables_result(JOIN *join,
     /*
       This hack is here, because I_S code uses thd->clear_error() a lot.
       Which means, a Warnings_only_error_handler cannot handle the error
-      corectly as it does not know whether an error is real (e.g. caused
+      correctly as it does not know whether an error is real (e.g. caused
       by tab->select_cond->val_int()) or will be cleared later.
       Thus it ignores all errors, and the real one (that is, the error
       that was not cleared) is pushed now.
@@ -10708,6 +10711,8 @@ ST_FIELD_INFO slave_status_info[]=
   Column("Slave_Non_Transactional_Groups", ULonglong(20), NOT_NULL),
   Column("Slave_Transactional_Groups", ULonglong(20), NOT_NULL),
   Column("Replicate_Rewrite_DB", Varchar(), NOT_NULL),
+  Column("Connects_Tried", ULonglong(20), NOT_NULL),
+  Column("Master_Retry_Count", ULonglong(20), NOT_NULL),
   Column("Retried_transactions", ULong(10), NOT_NULL),
   Column("Max_relay_log_size", ULong(10), NOT_NULL),
   Column("Executed_log_entries", ULong(10), NOT_NULL),
@@ -11084,7 +11089,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 
 /**
   Read TRN and TRG files to obtain base table name for the specified
-  trigger name and construct TABE_LIST object for the base table.
+  trigger name and construct TABLE_LIST object for the base table.
 
   @param thd      Thread context.
   @param trg_name Trigger name.

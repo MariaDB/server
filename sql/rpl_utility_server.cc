@@ -497,7 +497,7 @@ Field_int::rpl_conv_type_from(const Conv_source &source,
       max_dispay_length() when the table field and the binlog field
       are of the same type.
       This code should eventually be rewritten not to use
-      compare_lengths(), to detect subtype/supetype relations
+      compare_lengths(), to detect subtype/supertype relations
       just using the type codes.
     */
     DBUG_ASSERT(source.real_field_type() != real_type());
@@ -535,7 +535,7 @@ Field_longstr::rpl_conv_type_from(const Conv_source &source,
   /**
     @todo
       Implement Field_varstring_compressed::real_type() and
-      Field_blob_compressed::real_type() properly. All occurencies
+      Field_blob_compressed::real_type() properly. All occurrences
       of Field::real_type() have to be inspected and adjusted if needed.
 
       Until it is not ready we have to compare source_type against

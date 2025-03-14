@@ -201,7 +201,7 @@ class Explain_aggr_node;
   1. A degenerate case. In this case, message!=NULL, and it contains a 
      description of what kind of degenerate case it is (e.g. "Impossible 
      WHERE").
-  2. a non-degenrate join. In this case, join_tabs describes the join.
+  2. a non-degenerate join. In this case, join_tabs describes the join.
 
   In the non-degenerate case, a SELECT may have a GROUP BY/ORDER BY operation.
 
@@ -620,7 +620,7 @@ public:
   bool incremental;
 
   /* 
-    NULL if no join buferring used.
+    NULL if no join buffering used.
     Other values: BNL, BNLH, BKA, BKAH.
   */
   const char *join_alg;

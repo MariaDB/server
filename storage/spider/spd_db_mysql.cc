@@ -2102,6 +2102,10 @@ int spider_db_mbase::exec_query(
     general_log_write(current_thd, COM_QUERY, tmp_query_str.ptr(),
       tmp_query_str.length());
   }
+  /* There should be a live connection to the data node */
+  DBUG_ASSERT(db_conn);
+  if (!db_conn)
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   if (!spider_param_dry_access())
   {
     error_num = mysql_real_query(db_conn, query, length);

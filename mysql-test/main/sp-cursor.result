@@ -852,3 +852,75 @@ ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor param
 #
 # End of 10.8 tests
 #
+# Start of 11.4 tests
+#
+# MDEV-36047 Package body variables are not allowed as FETCH targets
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc INT DEFAULT 0;
+FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc; -- SHOW CODE should display vc with a "PACKAGE_BODY" prefix
+CLOSE cur;
+RETURN vc;
+END;
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc; -- SHOW CODE should display vc without a prefix
+CLOSE cur;
+END;
+END;
+$$
+SELECT pkg.f1();
+pkg.f1()
+1
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc1 INT DEFAULT 0;
+FUNCTION f1() RETURNS TEXT
+BEGIN
+DECLARE vc2 INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc1, vc2;
+CLOSE cur;
+RETURN CONCAT(vc1, ' ', vc2);
+END;
+END;
+$$
+SELECT pkg.f1();
+pkg.f1()
+1 2
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc ROW(p1 INT, p2 INT);
+FUNCTION f1() RETURNS TEXT
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc;
+CLOSE cur;
+RETURN CONCAT(vc.p1, ' ', vc.p2);
+END;
+END;
+$$
+SELECT pkg.f1();
+pkg.f1()
+1 2
+DROP PACKAGE pkg;
+# End of 11.4 tests

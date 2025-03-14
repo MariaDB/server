@@ -166,7 +166,7 @@ int  wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
 void wsrep_free_status(THD *thd);
 void wsrep_update_cluster_state_uuid(const char* str);
 
-/* Filters out --wsrep-new-cluster oprtion from argv[]
+/* Filters out --wsrep-new-cluster option from argv[]
  * should be called in the very beginning of main() */
 void wsrep_filter_new_cluster (int* argc, char* argv[]);
 
@@ -356,7 +356,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables= nullptr,
                              const HA_CREATE_INFO* create_info= nullptr);
 
-bool wsrep_should_replicate_ddl(THD* thd, const handlerton *db_type);
+bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton);
 bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list);
 
 void wsrep_to_isolation_end(THD *thd);
@@ -615,7 +615,6 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_init_globals() do {} while(0)
 #define wsrep_create_appliers(X) do {} while(0)
-#define wsrep_should_replicate_ddl(X,Y) (1)
 #define wsrep_cluster_address_exists() (false)
 #define WSREP_MYSQL_DB (0)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)

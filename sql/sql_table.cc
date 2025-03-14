@@ -1172,7 +1172,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
             locks for temporary tables: they are local to the session.
 
             Later in this function we release the MDL lock only if
-            table->mdl_requeset.ticket is not NULL. Thus here we
+            table->mdl_request.ticket is not NULL. Thus here we
             ensure that we won't release the metadata lock on the base
             table locked with LOCK TABLES as a side effect of temporary
             table drop.
@@ -1233,7 +1233,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
   @param  comment_start   returns the beginning of the comment if found.
 
   @retval  0  no comment found
-  @retval  >0 the lenght of the comment found
+  @retval  >0 the length of the comment found
 
 */
 static uint32 get_comment(THD *thd, uint32 comment_pos,
@@ -1618,12 +1618,19 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     else
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton))
+      if (WSREP(thd) && hton)
       {
-        error= 1;
-        goto err;
+        handlerton *ht= hton;
+        // For partitioned tables resolve underlying handlerton
+        if (table->table && table->table->file->partition_ht())
+          ht= table->table->file->partition_ht();
+        if (!wsrep_should_replicate_ddl(thd, ht))
+        {
+          error= 1;
+          goto err;
+        }
       }
-#endif
+#endif /* WITH_WSREP */
 
       error= -1;
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
@@ -1898,18 +1905,6 @@ err:
 
   if (non_temp_tables_count)
     query_cache_invalidate3(thd, tables, 0);
-
-  /*
-    We are always logging drop of temporary tables.
-    The reason is to handle the following case:
-    - Use statement based replication
-    - CREATE TEMPORARY TABLE foo (logged)
-    - set row based replication
-    - DROP TEMPORARY TABLE foo   (needs to be logged)
-    This should be fixed so that we remember if creation of the
-    temporary table was logged and only log it if the creation was
-    logged.
-  */
 
   if (non_trans_tmp_table_deleted ||
       trans_tmp_table_deleted || non_tmp_table_deleted)
@@ -3289,7 +3284,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 
           field_no < select_field_pos: both field and dup are table fields;
           dup_no >= select_field_pos: both field and dup are select fields or
-            field is implicit systrem field and dup is select field.
+            field is implicit system field and dup is select field.
 
           We are not allowed to put row_start/row_end into SELECT expression.
 	*/
@@ -3420,7 +3415,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   if (init_key_info(thd, alter_info, create_info, file))
     DBUG_RETURN(TRUE);
 
-  /* Calculate number of key segements */
+  /* Calculate number of key segments */
   *key_count= 0;
 
   while ((key=key_iterator++))
@@ -4951,7 +4946,7 @@ warn:
   in various version of CREATE TABLE statement.
 
   @result
-    1 unspecifed error
+    1 unspecified error
     2 error; Don't log create statement
     0 ok
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
@@ -5071,9 +5066,26 @@ bool wsrep_check_sequence(THD* thd,
     // In Galera cluster we support only InnoDB sequences
     if (db_type != DB_TYPE_INNODB)
     {
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "non-InnoDB sequences in Galera cluster");
-      return(true);
+      // Currently any dynamic storage engine is not possible to identify
+      // using DB_TYPE_XXXX and ENGINE=SEQUENCE is one of them.
+      // Therefore, we get storage engine name from lex.
+      const LEX_CSTRING *tb_name= thd->lex->m_sql_cmd->option_storage_engine_name()->name();
+      // (1) CREATE TABLE ... ENGINE=SEQUENCE  OR
+      // (2) ALTER TABLE ... ENGINE=           OR
+      //     Note in ALTER TABLE table->s->sequence != nullptr
+      // (3) CREATE SEQUENCE ... ENGINE=
+      if ((thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+           lex_string_eq(tb_name, STRING_WITH_LEN("SEQUENCE"))) ||
+          (thd->lex->sql_command == SQLCOM_ALTER_TABLE) ||
+          (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE))
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                 "non-InnoDB sequences in Galera cluster");
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_NOT_SUPPORTED_YET,
+                            "ENGINE=%s not supported by Galera", tb_name->str);
+	return(true);
+      }
     }
 
     // In Galera cluster it is best to use INCREMENT BY 0 with CACHE
@@ -5861,7 +5873,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     /*
        Since temporary tables are not replicated under row-based
        replication, CREATE TABLE ... LIKE ... needs special
-       treatement.  We have some cases to consider, according to the
+       treatment.  We have some cases to consider, according to the
        following decision table:
 
            ==== ========= ========= ==============================
@@ -6953,7 +6965,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     ALTER_RENAME_COLUMN is replaced by ALTER_COLUMN_NAME.
     ALTER_CHANGE_COLUMN_DEFAULT is replaced by ALTER_CHANGE_COLUMN
     ALTER_PARSE_ADD_COLUMN, ALTER_PARSE_DROP_COLUMN, ALTER_ADD_INDEX and
-    ALTER_DROP_INDEX are replaced with versions that have higher granuality.
+    ALTER_DROP_INDEX are replaced with versions that have higher granularity.
   */
 
   alter_table_operations flags_to_remove=
@@ -8622,7 +8634,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         break;
     }
     /*
-      DROP COLULMN xxx
+      DROP COLUMN xxx
       1. it does not see INVISIBLE_SYSTEM columns
       2. otherwise, normally a column is dropped
       3. unless it's a system versioning column (but see below).
@@ -9687,7 +9699,7 @@ fk_check_column_changes(THD *thd, const TABLE *table,
       {
         /*
           Column in a FK has changed significantly and it
-          may break referential intergrity.
+          may break referential integrity.
         */
         result= FK_COLUMN_DATA_CHANGE;
         goto func_exit;
@@ -10331,7 +10343,7 @@ static bool wait_for_master(THD *thd)
   here is finished.
 
   @param thd                Thread handle
-  @param start_alter_state  ALTER replicaton execution context
+  @param start_alter_state  ALTER replication execution context
   @param mi                 Master_info of the replication source
 */
 static void alter_committed(THD *thd, start_alter_info* info, Master_info *mi)
@@ -10806,10 +10818,21 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   if (WSREP(thd) && table &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
-       thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !wsrep_should_replicate_ddl(thd, table->s->db_type()))
-    DBUG_RETURN(true);
-#endif /* WITH_WSREP */
+       thd->lex->sql_command == SQLCOM_DROP_INDEX))
+  {
+    handlerton *ht= table->s->db_type();
+
+    // If alter used ENGINE= we use that
+    if (create_info->used_fields & HA_CREATE_USED_ENGINE)
+      ht= create_info->db_type;
+    // For partitioned tables resolve underlying handlerton
+    else if (table->file->partition_ht())
+      ht= table->file->partition_ht();
+
+    if (!wsrep_should_replicate_ddl(thd, ht))
+      DBUG_RETURN(true);
+  }
+#endif
 
   DEBUG_SYNC(thd, "alter_table_after_open_tables");
 
@@ -11335,7 +11358,7 @@ do_continue:;
       is updated without data transformations and the table would be
       corrupted without any way for MariaDB to notice this during
       check/upgrade).
-      This logic ensurses that ALTER TABLE ... FORCE (no other
+      This logic ensures that ALTER TABLE ... FORCE (no other
       options) will always be be able to repair a table structure and
       convert data from any old format.
     - In-place is impossible for given operation.

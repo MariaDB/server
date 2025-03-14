@@ -83,6 +83,27 @@ public:
                                          uint *row_field_offset);
 };
 
+
+/*
+  This class stores FETCH statement target variables:
+    FETCH cur INTO t1, t2, t2;
+  Targets can be:
+  - Local SP variables
+  - PACKAGE BODY variables
+*/
+class sp_fetch_target: public Sql_alloc,
+                       public sp_rcontext_addr
+{
+public:
+  LEX_CSTRING name;
+
+  sp_fetch_target(const LEX_CSTRING &name_arg, const sp_rcontext_addr &addr)
+   :sp_rcontext_addr(addr),
+    name(name_arg)
+  { }
+};
+
+
 ///////////////////////////////////////////////////////////////////////////
 
 /// This class represents an SQL/PSM label. Can refer to the identifier
@@ -386,12 +407,12 @@ public:
   {
   public:
     /*
-      The label poiting to the body start,
+      The label pointing to the body start,
       either explicit or automatically generated.
       Used during generation of "ITERATE loop_label"
       to check if "loop_label" is a FOR loop label.
       - In case of a FOR loop, some additional code
-        (cursor fetch or iteger increment) is generated before
+        (cursor fetch or integer increment) is generated before
         the backward jump to the beginning of the loop body.
       - In case of other loop types (WHILE, REPEAT)
         only the jump is generated.
