@@ -44,6 +44,10 @@ stat_name	n_leaf_pages
 stat_value	1
 table_name	stats_rename1
 index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	0
+table_name	stats_rename1
+index_name	PRIMARY
 stat_name	size
 stat_value	1
 table_name	stats_rename1
@@ -56,6 +60,10 @@ stat_name	n_leaf_pages
 stat_value	1
 table_name	stats_rename1
 index_name	b
+stat_name	n_nonnull_pfx01
+stat_value	0
+table_name	stats_rename1
+index_name	b
 stat_name	size
 stat_value	1
 table_name	stats_rename2
@@ -68,6 +76,10 @@ stat_name	n_leaf_pages
 stat_value	567
 table_name	stats_rename2
 index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	567
+table_name	stats_rename2
+index_name	PRIMARY
 stat_name	size
 stat_value	567
 table_name	stats_rename2
@@ -77,6 +89,10 @@ stat_value	567
 table_name	stats_rename2
 index_name	b
 stat_name	n_leaf_pages
+stat_value	567
+table_name	stats_rename2
+index_name	b
+stat_name	n_nonnull_pfx01
 stat_value	567
 table_name	stats_rename2
 index_name	b
@@ -114,6 +130,10 @@ stat_name	n_leaf_pages
 stat_value	1
 table_name	stats_rename2
 index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	0
+table_name	stats_rename2
+index_name	PRIMARY
 stat_name	size
 stat_value	1
 table_name	stats_rename2
@@ -124,6 +144,10 @@ table_name	stats_rename2
 index_name	c
 stat_name	n_leaf_pages
 stat_value	1
+table_name	stats_rename2
+index_name	c
+stat_name	n_nonnull_pfx01
+stat_value	0
 table_name	stats_rename2
 index_name	c
 stat_name	size

@@ -36,6 +36,16 @@ stat_value	1
 sample_size	NULL
 stat_description	Number of leaf pages in the index
 index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	0
+sample_size	1
+stat_description	a
+index_name	PRIMARY
+stat_name	n_nonnull_pfx02
+stat_value	0
+sample_size	1
+stat_description	a,b
+index_name	PRIMARY
 stat_name	size
 stat_value	1
 sample_size	NULL
@@ -65,6 +75,26 @@ stat_name	n_leaf_pages
 stat_value	1
 sample_size	NULL
 stat_description	Number of leaf pages in the index
+index_name	idx
+stat_name	n_nonnull_pfx01
+stat_value	0
+sample_size	1
+stat_description	c
+index_name	idx
+stat_name	n_nonnull_pfx02
+stat_value	0
+sample_size	1
+stat_description	c,d
+index_name	idx
+stat_name	n_nonnull_pfx03
+stat_value	0
+sample_size	1
+stat_description	c,d,a
+index_name	idx
+stat_name	n_nonnull_pfx04
+stat_value	0
+sample_size	1
+stat_description	c,d,a,b
 index_name	idx
 stat_name	size
 stat_value	1

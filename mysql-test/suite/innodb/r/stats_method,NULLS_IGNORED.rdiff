@@ -1,0 +1,18 @@
+--- stats_method.result	2025-03-10 15:30:38.087625820 +0530
++++ stats_method.reject	2025-03-10 15:35:21.741953192 +0530
+@@ -9,13 +9,13 @@
+ stat_name	stat_value	stat_description
+ n_diff_pfx01	16341	DB_ROW_ID
+ n_leaf_pages	37	Number of leaf pages in the index
+-n_nonnull_pfx01	0	DB_ROW_ID
++n_nonnull_pfx01	16378	DB_ROW_ID
+ size	97	Number of pages in the index
+ n_diff_pfx01	16384	f1
+ n_diff_pfx02	16384	f1,f3
+ n_diff_pfx03	16384	f1,f3,DB_ROW_ID
+ n_leaf_pages	1	Number of leaf pages in the index
+-n_nonnull_pfx01	0	f1
++n_nonnull_pfx01	16384	f1
+ n_nonnull_pfx02	0	f1,f3
+ n_nonnull_pfx03	0	f1,f3,DB_ROW_ID
+ size	19	Number of pages in the index

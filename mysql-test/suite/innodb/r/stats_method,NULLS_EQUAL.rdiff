@@ -1,0 +1,11 @@
+--- stats_method.result	2025-03-10 15:30:38.087625820 +0530
++++ stats_method.reject	2025-03-10 15:34:26.697129924 +0530
+@@ -19,7 +19,7 @@
+ n_nonnull_pfx02	0	f1,f3
+ n_nonnull_pfx03	0	f1,f3,DB_ROW_ID
+ size	19	Number of pages in the index
+-n_diff_pfx01	16384	f3
++n_diff_pfx01	1	f3
+ n_diff_pfx02	16384	f3,DB_ROW_ID
+ n_leaf_pages	1	Number of leaf pages in the index
+ n_nonnull_pfx01	0	f3

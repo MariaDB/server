@@ -10,6 +10,9 @@ index_name	PRIMARY
 stat_name	n_leaf_pages
 stat_value	1
 index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	0
+index_name	PRIMARY
 stat_name	size
 stat_value	1
 INSERT INTO autorecalc VALUES (1);
@@ -25,6 +28,9 @@ index_name	PRIMARY
 stat_name	n_leaf_pages
 stat_value	1
 index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	0
+index_name	PRIMARY
 stat_name	size
 stat_value	1
 DELETE FROM autorecalc;
@@ -38,6 +44,9 @@ stat_value	0
 index_name	PRIMARY
 stat_name	n_leaf_pages
 stat_value	1
+index_name	PRIMARY
+stat_name	n_nonnull_pfx01
+stat_value	0
 index_name	PRIMARY
 stat_name	size
 stat_value	1
