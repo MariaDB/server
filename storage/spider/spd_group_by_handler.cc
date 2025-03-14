@@ -1573,8 +1573,13 @@ group_by_handler *spider_create_group_by_handler(
 
             TODO: find an example covering this case or determine it
             never happens and remove this consideration.
+
+            Also, do not handle if the first table belongs to a view
+
+            TODO: try changing this condition to check that item
+            belongs to a table belonging to a view
           */
-          if (n_aux >= 0)
+          if (n_aux >= 0 || query->from->belong_to_view)
           {
             spider_clear_bit(dbton_bitmap, roop_count);
             keep_going= FALSE;
