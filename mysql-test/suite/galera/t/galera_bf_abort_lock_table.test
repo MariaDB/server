@@ -16,13 +16,16 @@ LOCK TABLE t1 WRITE;
 INSERT INTO t1 VALUES (2);
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock'
---source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'Waiting to execute in isolation%');
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug.inc
 
 UNLOCK TABLES;
 
---let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock'
---source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'Waiting to execute in isolation%');
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug.inc
 
 COMMIT;
 SELECT COUNT(*) = 1 FROM t1;

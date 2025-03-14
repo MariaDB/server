@@ -2534,7 +2534,7 @@ idx_found:
   if(flags_extra & (Gtid_log_event::FL_COMMIT_ALTER_E1 |
                     Gtid_log_event::FL_ROLLBACK_ALTER_E1 ))
   {
-    //Free the corrosponding rpt current_start_alter_id
+    //Free the corresponding rpt current_start_alter_id
     for(uint i= 0; i < e->rpl_thread_max; i++)
     {
       if(e->rpl_threads[i].thr &&

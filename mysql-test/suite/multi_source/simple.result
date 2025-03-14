@@ -74,6 +74,8 @@ Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
+Connects_Tried	1
+Master_Retry_Count	100000
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -139,6 +141,8 @@ Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
+Connects_Tried	1
+Master_Retry_Count	100000
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -269,6 +273,8 @@ Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
+Connects_Tried	1
+Master_Retry_Count	100000
 reset slave 'slave1';
 show all slaves status;
 Connection_name	slave1
@@ -327,6 +333,8 @@ Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
+Connects_Tried	0
+Master_Retry_Count	100000
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -392,6 +400,8 @@ Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
+Connects_Tried	1
+Master_Retry_Count	100000
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -459,6 +469,8 @@ Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
+Connects_Tried	1
+Master_Retry_Count	100000
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -528,6 +540,8 @@ Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
+Connects_Tried	1
+Master_Retry_Count	100000
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7

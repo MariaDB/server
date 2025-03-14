@@ -280,6 +280,7 @@ static STATUS status;
 static ulong select_limit,max_join_size,opt_connect_timeout=0;
 static char mysql_charsets_dir[FN_REFLEN+1];
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+static char *script_dir = NULL;
 static const char *xmlmeta[] = {
   "&", "&amp;",
   "<", "&lt;",
@@ -1838,6 +1839,8 @@ static struct my_option my_long_options[] =
    &safe_updates, &safe_updates, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"sandbox", 0, "Disallow commands that access the file system (except \\P without an argument and \\e).",
    &status.sandbox, &status.sandbox, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"script-dir", 0, "Set an alternative directory path for searching scripts invoked via the source command.",
+   &script_dir, &script_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"secure-auth", 0, "Refuse client connecting to server if it"
     " uses old (pre-4.1.1) protocol.", &opt_secure_auth,
     &opt_secure_auth, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -4692,6 +4695,7 @@ static int com_connect(String *buffer, char *line)
 static int com_source(String *, char *line)
 {
   char source_name[FN_REFLEN], *end, *param;
+  char full_path[FN_REFLEN];
   LINE_BUFFER *line_buff;
   int error;
   STATUS old_status;
@@ -4718,8 +4722,17 @@ static int com_source(String *, char *line)
   /* open file name */
   if (!(sql_file = my_fopen(source_name, O_RDONLY | O_BINARY,MYF(0))))
   {
-    char buff[FN_REFLEN+60];
-    sprintf(buff,"Failed to open file '%s', error: %d", source_name,errno);
+    if (script_dir)
+    {
+      snprintf(full_path, sizeof(full_path), "%s/%s", script_dir, source_name);
+      sql_file = my_fopen(full_path, O_RDONLY | O_BINARY, MYF(0));
+    }
+  }
+
+  if (!sql_file)
+  {
+    char buff[FN_REFLEN + 60];
+    sprintf(buff, "Failed to open file '%s', error: %d", source_name, errno);
     return put_info(buff, INFO_ERROR, 0);
   }
 

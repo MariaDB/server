@@ -980,7 +980,7 @@ void row_prebuilt_free(row_prebuilt_t *prebuilt)
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}
 	if (prebuilt->table) {
-		dict_table_close(prebuilt->table);
+		prebuilt->table->release();
 	}
 
 	mem_heap_free(prebuilt->heap);
@@ -1598,7 +1598,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	ut_ad(table->stat_initialized);
+	ut_ad(table->stat_initialized());
 
 	if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
@@ -2158,11 +2158,9 @@ row_create_index_for_mysql(
 
 		index = node->index;
 
-		ut_ad(!index == (err != DB_SUCCESS));
-
 		que_graph_free((que_t*) que_node_get_parent(thr));
 
-		if (index && (index->type & DICT_FTS)) {
+		if (err == DB_SUCCESS && (index->type & DICT_FTS)) {
 			err = fts_create_index_tables(trx, index, table->id);
 		}
 

@@ -1480,8 +1480,8 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
 Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   /*
-    Return "this" if in prepare. result_type may change at execition time,
-    to it's possible that the converter will not be needed at all:
+    Return "this" if in prepare. result_type may change at execution time,
+    though it's possible that the converter will not be needed at all:
 
     PREPARE stmt FROM 'SELECT * FROM t1 WHERE field = ?';
     SET @arg= 1;
@@ -2212,7 +2212,7 @@ Item::Type Item_name_const::type() const
 {
   /*
 
-    We are guarenteed that value_item->basic_const_item(), if not
+    We are guaranteed that value_item->basic_const_item(), if not
     an error is thrown that WRONG ARGUMENTS are supplied to
     NAME_CONST function.
     If type is FUNC_ITEM, then we have a fudged item_func_neg()
@@ -2370,7 +2370,7 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     /*
       Skip the else part, window functions are very special functions: 
       they need to have their own fields in the temp. table, but they
-      need to be proceessed differently than regular aggregate functions
+      need to be processed differently than regular aggregate functions
 
       Call split_sum_func here so that each argument gets its fields to
       point to the temporary table.
@@ -2828,7 +2828,7 @@ Item_func_or_sum
 
   @details
     This method first builds clones of the arguments. If it is successful with
-    buiding the clones then it constructs a copy of this Item_func_or_sum object
+    building the clones then it constructs a copy of this Item_func_or_sum object
     and attaches to it the built clones of the arguments.
 
    @return clone of the item
@@ -3085,7 +3085,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   @brief Initialize the result field by creating a temporary dummy table
     and assign it to a newly created field object. Meta data used to
     create the field is fetched from the sp_head belonging to the stored
-    proceedure found in the stored procedure functon cache.
+    procedure found in the stored procedure functon cache.
 
   @note This function should be called from fix_fields to init the result
     field. It is some what related to Item_field.
@@ -3793,7 +3793,7 @@ void Item_field::set_refers_to_temp_table()
 {
   /*
     Derived temp. tables have non-zero derived_select_number.
-    We don't need to distingish between other kinds of temp.tables currently.
+    We don't need to distinguish between other kinds of temp.tables currently.
   */
   refers_to_temp_table= (field->table->derived_select_number != 0)?
                         REFERS_TO_DERIVED_TMP : REFERS_TO_OTHER_TMP;
@@ -5914,7 +5914,7 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   @endcode
 
   @retval
-    1   column succefully resolved and fix_fields() should continue.
+    1   column successfully resolved and fix_fields() should continue.
   @retval
     0   column fully fixed and fix_fields() should return FALSE
   @retval
@@ -6440,7 +6440,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     /*
       if it is not expression from merged VIEW we will set this field.
 
-      We can leave expression substituted from view for next PS/SP rexecution
+      We can leave expression substituted from view for next PS/SP reexecution
       (i.e. do not register this substitution for reverting on cleanup()
       (register_item_tree_changing())), because this subtree will be
       fix_field'ed during setup_tables()->setup_underlying() (i.e. before

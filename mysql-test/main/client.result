@@ -60,3 +60,23 @@ drop table t1;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-23818: mysql option --script-dir
+#
+# test 1: can't find the file at all
+ERROR at line 1: Failed to open file 'file1', error: 2
+# test 2: file in the current working directory
+1
+1
+# test 3: file is present in CWD and also in script-dir
+hello from file1
+hello from file1
+# test 4: file is only present in the script-dir
+hello from dir1/file1.sql
+hello from dir1/file1.sql
+# test 5: script-dir file has source command that references CWD
+hello from file2.sql
+hello from file2.sql
+# test 6: script-dir file has source command that references script-dir
+hello from file2.sql
+hello from file2.sql

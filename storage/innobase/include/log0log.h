@@ -328,6 +328,8 @@ public:
 	/* @} */
 
 private:
+  /** the thread that initiated resize_lsn() */
+  Atomic_relaxed<void*> resize_initiator;
   /** A lock when the spin-only lock_lsn() is not being used */
   log_lsn_lock lsn_lock;
 public:
@@ -369,11 +371,17 @@ public:
 
   /** Start resizing the log and release the exclusive latch.
   @param size  requested new file_size
+  @param thd   the current thread identifier
   @return whether the resizing was started successfully */
-  resize_start_status resize_start(os_offset_t size) noexcept;
+  resize_start_status resize_start(os_offset_t size, void *thd) noexcept;
 
-  /** Abort any resize_start(). */
-  void resize_abort() noexcept;
+  /** Abort a resize_start() that we started.
+  @param thd  thread identifier that had been passed to resize_start() */
+  void resize_abort(void *thd) noexcept;
+
+  /** @return whether a particular resize_start() is in progress */
+  bool resize_running(void *thd) const noexcept
+  { return thd == resize_initiator; }
 
   /** Replicate a write to the log.
   @param lsn  start LSN
@@ -485,7 +493,7 @@ public:
 
 private:
   /** Update writer and mtr_t::finisher */
-  void writer_update() noexcept;
+  void writer_update(bool resizing) noexcept;
 
   /** Wait in append_prepare() for buffer to become available
   @tparam spin  whether to use the spin-only lock_lsn()

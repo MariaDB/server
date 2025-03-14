@@ -834,7 +834,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   /*
     From SQL2016, Part 2, 15.7 <Effect of deleting rows from base table>,
-    General Rules, 8), we can conclude that DELETE FOR PORTTION OF time performs
+    General Rules, 8), we can conclude that DELETE FOR PORTION OF time performs
     0-2 INSERTS + DELETE. We can substitute INSERT+DELETE with one UPDATE, with
     a condition of no side effects. The side effect is possible if there is a
     BEFORE INSERT trigger, since it is the only one splitting DELETE and INSERT
@@ -1214,7 +1214,7 @@ multi_delete::initialize_tables(JOIN *join)
       /*
         If the table we are going to delete from appears
         in join, we need to defer delete. So the delete
-        doesn't interfers with the scaning of results.
+        doesn't interfere with the scanning of results.
       */
       delete_while_scanning= false;
     }
@@ -1999,7 +1999,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
     }
 
     /*
-      Reset the exclude flag to false so it doesn't interfare
+      Reset the exclude flag to false so it doesn't interfere
       with further calls to unique_table
     */
     lex->first_select_lex()->exclude_from_table_unique_test= FALSE;

@@ -131,7 +131,9 @@ schedule new estimates for table and index statistics to be calculated.
 void dict_stats_update_if_needed_func(dict_table_t *table)
 #endif
 {
-	if (UNIV_UNLIKELY(!table->stat_initialized)) {
+        uint32_t stat{table->stat};
+
+	if (UNIV_UNLIKELY(!table->stat_initialized(stat))) {
 		/* The table may have been evicted from dict_sys
 		and reloaded internally by InnoDB for FOREIGN KEY
 		processing, but not reloaded by the SQL layer.
@@ -150,13 +152,9 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 	ulonglong	counter = table->stat_modified_counter++;
 	ulonglong	n_rows = dict_table_get_n_rows(table);
 
-	if (dict_stats_is_persistent_enabled(table)) {
-		if (table->name.is_temporary()) {
-			return;
-		}
-		if (counter > n_rows / 10 /* 10% */
-		    && dict_stats_auto_recalc_is_enabled(table)) {
-
+	if (table->stats_is_persistent(stat)) {
+		if (table->stats_is_auto_recalc(stat)
+		    && counter > n_rows / 10 && !table->name.is_temporary()) {
 #ifdef WITH_WSREP
 			/* Do not add table to background
 			statistic calculation if this thread is not a
@@ -199,7 +197,7 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 
 	if (counter > threshold) {
 		/* this will reset table->stat_modified_counter to 0 */
-		dict_stats_update(table, DICT_STATS_RECALC_TRANSIENT);
+		dict_stats_update_transient(table);
 	}
 }
 
@@ -325,7 +323,7 @@ invalid_table_id:
 
   if (!mdl || !table->is_accessible())
   {
-    dict_table_close(table, false, thd, mdl);
+    dict_table_close(table, thd, mdl);
     goto invalid_table_id;
   }
 
@@ -339,10 +337,10 @@ invalid_table_id:
     difftime(time(nullptr), table->stats_last_recalc) >= MIN_RECALC_INTERVAL;
 
   const dberr_t err= update_now
-    ? dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT)
+    ? dict_stats_update_persistent_try(table)
     : DB_SUCCESS_LOCKED_REC;
 
-  dict_table_close(table, false, thd, mdl);
+  dict_table_close(table, thd, mdl);
 
   mysql_mutex_lock(&recalc_pool_mutex);
   auto i= std::find_if(recalc_pool.begin(), recalc_pool.end(),

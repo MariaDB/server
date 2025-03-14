@@ -133,7 +133,7 @@ public:
   {
     /*
       Use FRAC_NONE when the value needs no rounding nor truncation,
-      because it is already known not to haveany fractional digits outside
+      because it is already known not to have any fractional digits outside
       of the requested precision.
     */
     FRAC_NONE= 0,

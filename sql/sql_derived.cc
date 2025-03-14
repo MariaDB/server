@@ -702,7 +702,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     /* 
       Here 'derived' is either a non-recursive table reference to a recursive
-      with table or a recursive table reference to a recursvive table whose
+      with table or a recursive table reference to a recursive table whose
       specification has been already prepared (a secondary recursive table
       reference.
     */ 

@@ -86,6 +86,15 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
   {
     String *str_ret= args[0]->val_str(str);
     null_value= args[0]->null_value;
+    if (!null_value && arg_count == 2 && !args[1]->null_value) {
+      srid= (uint32)args[1]->val_int();
+
+      if (str->copy(*str_ret))
+        return 0;
+
+      int4store(str->ptr(), srid);
+      return str;
+    }
     return str_ret;
   }
 
@@ -2761,7 +2770,7 @@ mem_error:
 #ifndef DBUG_OFF
 longlong Item_func_gis_debug::val_int()
 {
-  /* For now this is just a stub. TODO: implement the internal GIS debuggign */
+  /* For now this is just a stub. TODO: implement the internal GIS debugging */
   return 0;
 }
 #endif

@@ -148,8 +148,10 @@ class LEX_COLUMN;
 class sp_head;
 class sp_name;
 class sp_instr;
+class sp_instr_cfetch;
 class sp_pcontext;
 class sp_variable;
+class sp_fetch_target;
 class sp_expr_lex;
 class sp_assignment_lex;
 class partition_info;
@@ -351,6 +353,7 @@ struct LEX_MASTER_INFO
   ulong relay_log_pos;
   ulong server_id;
   uint port, connect_retry;
+  ulong retry_count;
   float heartbeat_period;
   int sql_delay;
   bool is_demotion_opt;
@@ -391,7 +394,7 @@ struct LEX_MASTER_INFO
 
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
-    pos= relay_log_pos= server_id= port= connect_retry= 0;
+    pos= relay_log_pos= server_id= port= connect_retry= retry_count= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
       repl_ignore_server_ids_opt= repl_do_domain_ids_opt=
@@ -953,7 +956,7 @@ class st_select_lex: public st_select_lex_node
 public:
   /*
     Currently the field first_nested is used only by parser.
-    It containa either a reference to the first select
+    It contains either a reference to the first select
     of the nest of selects to which 'this' belongs to, or
     in the case of priority jump it contains a reference to
     the select to which the priority nest has to be attached to.
@@ -3337,7 +3340,7 @@ public:
   bool next_is_down:1; // use "main" SELECT_LEX for nrxt allocation;
   /*
     field_list was created for view and should be removed before PS/SP
-    rexecuton
+    reexecution
   */
   bool empty_field_list_on_rset:1;
   /**
@@ -3439,7 +3442,7 @@ public:
 
   Event_parse_data *event_parse_data;
 
-  /* Characterstics of trigger being created */
+  /* Characteristics of trigger being created */
   st_trg_chistics trg_chistics;
 
   /*
@@ -3872,6 +3875,7 @@ public:
     sp_pcontext *not_used_ctx;
     return find_variable(name, &not_used_ctx, rh);
   }
+  sp_fetch_target *make_fetch_target(THD *thd, const Lex_ident_sys_st &name);
   bool set_variable(const Lex_ident_sys_st *name, Item *item,
                     const LEX_CSTRING &expr_str);
   bool set_variable(const Lex_ident_sys_st *name1,
@@ -4006,7 +4010,7 @@ public:
                                   const Lex_ident_sys_st *a,
                                   const Lex_ident_sys_st *b);
   /*
-    Create an Item corresponding to a ROW field valiable:  var.field
+    Create an Item corresponding to a ROW field variable:  var.field
       @param THD        - THD, for mem_root
       @param rh [OUT]   - the rcontext handler (local vs package variables)
       @param var        - the ROW variable name
@@ -4502,7 +4506,7 @@ public:
     create_info.add(options);
     return check_create_options(create_info);
   }
-  bool sp_add_cfetch(THD *thd, const LEX_CSTRING *name);
+  sp_instr_cfetch *sp_add_instr_cfetch(THD *thd, const LEX_CSTRING *name);
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,
@@ -4678,7 +4682,7 @@ public:
     @retval
       0 ok
     @retval
-      1 error   ; In this case the error messege is sent to the client
+      1 error   ; In this case the error message is sent to the client
   */
   bool check_simple_select(const LEX_CSTRING *option)
   {

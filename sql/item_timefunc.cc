@@ -2059,7 +2059,7 @@ static uint parse_special(char cfmt, const char *ptr, const char *end,
 
   /*
    * '&' with text is used for variable input, but '&' with other
-   * special charaters like '|'. '*' is used as separator
+   * special characters like '|'. '*' is used as separator
    */
   if (cfmt == '&' && ptr + 1 < end)
   {

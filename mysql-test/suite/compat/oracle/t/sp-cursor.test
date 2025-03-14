@@ -1042,3 +1042,24 @@ DELIMITER ;$$
 --echo #
 --echo # End of 10.8 tests
 --echo #
+
+
+--echo # Start of 11.4 tests
+
+--echo #
+--echo # MDEV-36047 Package body variables are not allowed as FETCH targets
+--echo #
+
+--source sp-cursor-pkg-01.inc
+SELECT pkg.f1() FROM DUAL;
+DROP PACKAGE pkg;
+
+--source sp-cursor-pkg-02.inc
+SELECT pkg.f1() FROM DUAL;
+DROP PACKAGE pkg;
+
+--source sp-cursor-pkg-03.inc
+SELECT pkg.f1() FROM DUAL;
+DROP PACKAGE pkg;
+
+--echo # End of 11.4 tests

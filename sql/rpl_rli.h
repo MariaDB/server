@@ -378,7 +378,7 @@ public:
   slave_connection_state ign_gtids;
 
   /* 
-    Indentifies where the SQL Thread should create temporary files for the
+    Identifies where the SQL Thread should create temporary files for the
     LOAD DATA INFILE. This is used for security reasons.
    */ 
   char slave_patternload_file[FN_REFLEN]; 
@@ -396,7 +396,7 @@ public:
   /*
     The restart_gtid_state is used when the SQL thread restarts on a relay log
     in GTID mode. In multi-domain parallel replication, each domain may have a
-    separat position, so some events in more progressed domains may need to be
+    separate position, so some events in more progressed domains may need to be
     skipped. This keeps track of the domains that have not yet reached their
     starting event.
   */
@@ -917,7 +917,7 @@ struct rpl_group_info
   void reinit(Relay_log_info *rli);
 
   /* 
-     Returns true if the argument event resides in the containter;
+     Returns true if the argument event resides in the container;
      more specifically, the checking is done against the last added event.
   */
   bool is_deferred_event(Log_event * ev)
