@@ -1,0 +1,87 @@
+include/master-slave.inc
+[connection master]
+connection master;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL slave_parallel_mode= optimistic;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0), (2,0), (3,0), (4,0), (5,0);
+INSERT INTO t2 SELECT * FROM t1;
+connection slave;
+connection slave1;
+BEGIN;
+UPDATE t2 SET b=20 WHERE a=2;
+connection slave;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= "+d,hold_worker_on_schedule";
+connection master;
+SET SESSION gtid_domain_id= 0;
+SET SESSION gtid_seq_no= 100;
+ALTER TABLE t1 ADD INDEX b_idx(b);
+connection slave;
+SET debug_sync="now WAIT_FOR reached_pause";
+SET GLOBAL debug_dbug= @old_dbug;
+connection master;
+SET SESSION gtid_domain_id= 1;
+BEGIN;
+UPDATE t2 SET b=2 WHERE a=2;
+UPDATE t1 SET b=2 WHERE a=3;
+COMMIT;
+SET SESSION gtid_domain_id= 1;
+BEGIN;
+UPDATE t1 SET b=3 WHERE a=5;
+COMMIT;
+SET SESSION gtid_domain_id= 0;
+connection slave;
+SET debug_sync="now SIGNAL continue_worker";
+connection slave1;
+ROLLBACK;
+connection master;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+2	0
+3	2
+4	0
+5	3
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	2
+3	0
+4	0
+5	0
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SET debug_sync="RESET";
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+2	0
+3	2
+4	0
+5	3
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	2
+3	0
+4	0
+5	0
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL slave_parallel_mode= @old_mode;
+include/start_slave.inc
+connection master;
+DROP TABLE t1, t2;
+include/rpl_end.inc

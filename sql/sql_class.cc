@@ -2017,6 +2017,23 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
   DBUG_ENTER("THD::notify_shared_lock");
   DBUG_PRINT("enter",("needs_thr_lock_abort: %d", needs_thr_lock_abort));
 
+#ifdef HAVE_REPLICATION
+  rpl_group_info *rgi= this->rgi_slave, *other_rgi= in_use->rgi_slave;
+  /*
+    If there is an metadata lock conflict (eg. blocked DDL) from a GTID in one
+    domain on a later GTID in a different domain, then we could get a
+    deadlock, where DDL1 waits for DML3 waits for DML2 waits for DDL1. Break
+    such deadlock by killing DML3.
+  */
+  if (rgi && other_rgi && rgi->is_parallel_exec &&
+      rgi->rli == other_rgi->rli &&
+      rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id &&
+      rgi->gtid_sub_id && rgi->gtid_sub_id < other_rgi->gtid_sub_id)
+  {
+    slave_background_kill_request(in_use);
+  }
+#endif
+
   if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
       !in_use->killed)
   {
