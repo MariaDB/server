@@ -2241,9 +2241,9 @@ generate_stats(conclusions *con, option_string *eng, stats *sptr)
 
   /* Safety check to prevent division by zero */
   if (iterations == 0)
-    con->avg_timing = 0;
+    con->avg_timing= 0;
   else
-    con->avg_timing = con->avg_timing/iterations;
+    con->avg_timing= con->avg_timing/iterations;
 
   if (eng && eng->string)
     con->engine= eng->string;
