@@ -16,12 +16,18 @@ CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 
 ALTER TABLE t PARTITION BY KEY(pk);
 
+--echo # Incremental backup
 --exec $XTRABACKUP --backup --target-dir=$incremental_dir --incremental-basedir=$basedir --protocol=tcp --port=$MASTER_MYPORT --user=root > $incremental_dir.log 2>&1
+--echo # Prepare fullbackup
 --exec $XTRABACKUP --prepare --target-dir=$basedir --user=root > $MYSQL_TMP_DIR/backup_prepare_0.log 2>&1
---exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir --user=root >  $MYSQL_TMP_DIR/backup_prepare_1.log
---cat_file $MYSQL_TMP_DIR/backup_prepare_1.log
+--echo # Prepare incremental backup
+--exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir --user=root >  $MYSQL_TMP_DIR/backup_prepare_1.log 2>&1
 let $targetdir=$basedir;
 -- source include/restart_and_restore.inc
-
 SHOW CREATE TABLE t;
 DROP TABLE t;
+remove_file $incremental_dir.log;
+remove_file $MYSQL_TMP_DIR/backup_prepare_0.log;
+remove_file $MYSQL_TMP_DIR/backup_prepare_1.log;
+rmdir $basedir;
+rmdir $incremental_dir;
