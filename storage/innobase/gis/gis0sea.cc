@@ -495,10 +495,10 @@ rtr_pcur_move_to_next(
 		rtr_rec_t	rec;
 		rec = rtr_info->matches->matched_recs->back();
 		rtr_info->matches->matched_recs->pop_back();
+		cursor->btr_cur.page_cur.block = rtr_info->matches->block;
 		mutex_exit(&rtr_info->matches->rtr_match_mutex);
 
 		cursor->btr_cur.page_cur.rec = rec.r_rec;
-		cursor->btr_cur.page_cur.block = rtr_info->matches->block;
 
 		DEBUG_SYNC_C("rtr_pcur_move_to_next_return");
 		return(true);
@@ -1204,8 +1204,11 @@ rtr_check_discard_page(
 		if (rtr_info->matches) {
 			mutex_enter(&rtr_info->matches->rtr_match_mutex);
 
-			if (rtr_info->matches->block->page.id().page_no()
-			     == pageno) {
+			/* matches->block could be nullptr when cursor
+			encounters empty table */
+			if (rtr_info->matches->block
+			    && rtr_info->matches->block->page.id().page_no()
+			    == pageno) {
 				if (!rtr_info->matches->matched_recs->empty()) {
 					rtr_info->matches->matched_recs->clear();
 				}
@@ -1849,6 +1852,15 @@ rtr_cur_search_with_match(
 					ut_ad(orig_mode
 					      != PAGE_CUR_RTREE_LOCATE);
 
+					/* Collect matched records on page */
+					offsets = rec_get_offsets(
+						rec, index, offsets,
+						index->n_fields,
+						ULINT_UNDEFINED, &heap);
+
+					mutex_enter(
+					  &rtr_info->matches->rtr_match_mutex);
+
 					if (!match_init) {
 						rtr_init_match(
 							rtr_info->matches,
@@ -1856,14 +1868,12 @@ rtr_cur_search_with_match(
 						match_init = true;
 					}
 
-					/* Collect matched records on page */
-					offsets = rec_get_offsets(
-						rec, index, offsets,
-						index->n_fields,
-						ULINT_UNDEFINED, &heap);
 					rtr_leaf_push_match_rec(
 						rec, rtr_info, offsets,
 						page_is_comp(page));
+
+					mutex_exit(
+					  &rtr_info->matches->rtr_match_mutex);
 				}
 
 				last_match_rec = rec;
