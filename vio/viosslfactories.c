@@ -16,6 +16,9 @@
 
 #include "vio_priv.h"
 #include <ssl_compat.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 #ifdef HAVE_OPENSSL
 #include <openssl/dh.h>
@@ -304,6 +307,124 @@ static long vio_tls_protocol_options(ulonglong tls_version)
   return (disabled_tls_protocols | disabled_ssl_protocols);
 }
 
+/* Passphrase handlers */
+
+/**
+  Read a passphrase from a file
+  @param buf      Buffer to store the passphrase
+  @param size     Size of the buffer
+  @param filename Name of the file to read the passphrase from
+  @retval Length of the passphrase
+*/
+static int passwd_from_file(char* buf, int size, const char* filename)
+{
+  char *passwd= NULL;
+  FILE *fp= fopen(filename, "r");
+  if (fp)
+  {
+    passwd= fgets(buf, size, fp);
+    fclose(fp);
+  }
+  else
+  {
+    fprintf(stderr,
+        "SSL passphrase error: failed to open file '%s': %s (errno %d)\n ",
+        filename, strerror(errno), errno);
+  }
+  return passwd?(int)strlen(passwd):0;
+}
+
+/**
+  Read a passphrase from a given string
+  @param buf      Buffer to store the passphrase
+  @param size     Size of the buffer
+  @param pass     clear text passphrase
+  @retval Length of the passphrase
+*/
+static int passwd_from_string(char *buf, int size, const char *pass)
+{
+  int len= (int) (strmake(buf, pass, size) - buf);
+  return MY_MIN(len, size - 1);
+}
+
+/**
+  Read a passphrase from an environment variable
+  @param buf      Buffer to store the passphrase
+  @param size     Size of the buffer
+  @param var      Name of the environment variable
+  @retval Length of the passphrase
+*/
+static int passwd_from_env(char *buf, int size, const char *var)
+{
+  char *val= getenv(var);
+  if (!val)
+  {
+    fprintf(stderr,
+        "SSL passphrase error: environment variable '%s' not found\n", var);
+    return 0;
+  }
+  return passwd_from_string(buf, size, val);
+}
+
+/**
+  Passphrase callback for SSL_CTX_set_default_passwd_cb
+
+  Depending on the prefix in the command string, it will call the appropriate
+  handler to get the passphrase
+
+  Currently supported prefixes are:
+  - pass:  - passphrase is given as a string
+  - file:  - passphrase is read from a file
+  - env:   - passphrase is read from an environment variable
+
+  The meaning is the same as passphrase parameter for openssl command line
+  utility (see https://docs.openssl.org/3.4/man1/openssl-passphrase-options/#synopsis)
+  Some prefixes are not supported, e.g stdin: or fd:
+
+  @param buf      Buffer to store the passphrase
+  @retval length of the passphrase
+*/
+static int ssl_external_passwd_cb(char *buf, int size, int rw, void *userdata)
+{
+  /* Prefixes and their handlers */
+  struct Handler
+  {
+    const char *prefix;
+    size_t prefix_len;
+    int (*handler)(char *, int, const char *);
+  };
+
+  static const struct Handler handlers[]=
+  {
+    {STRING_WITH_LEN("pass:"), passwd_from_string},
+    {STRING_WITH_LEN("file:"), passwd_from_file},
+    {STRING_WITH_LEN("env:"), passwd_from_env}
+  };
+  const char *strdata= (const char *) userdata;
+  (void) rw; /* unused */
+  DBUG_ASSERT(buf);
+  DBUG_ASSERT(size > 0);
+  DBUG_ASSERT(userdata);
+
+  for (size_t i= 0; i < array_elements(handlers); i++)
+  {
+    const struct Handler *h= &handlers[i];
+    if (strncmp(strdata, h->prefix, h->prefix_len) == 0)
+    {
+      int len= h->handler(buf, size, strdata + h->prefix_len);
+      // Trim trailing newlines
+      while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+      {
+        buf[--len]= 0;
+      }
+      return len;
+    }
+  }
+  fprintf(stderr, "SSL passphrase error: ssl-passphrase value must be "
+         "prefixed with 'file:', 'env:', or 'pass:'\n");
+  return 0; // No matching prefix found
+}
+
 /*
   If some optional parameters indicate empty strings, then
   for compatibility with SSL libraries, replace them with NULL,
@@ -318,7 +439,7 @@ static struct st_VioSSLFd *
 new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
              const char *ca_path, const char *cipher, my_bool is_client_method,
              enum enum_ssl_init_error *error, const char *crl_file,
-             const char *crl_path, ulonglong tls_version)
+             const char *crl_path, ulonglong tls_version, const char *passphrase)
 {
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options;
@@ -350,6 +471,12 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
     *error= SSL_INITERR_MEMFAIL;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
     goto err1;
+  }
+
+  if (passphrase)
+  {
+    SSL_CTX_set_default_passwd_cb_userdata(ssl_fd->ssl_context, (void *)passphrase);
+    SSL_CTX_set_default_passwd_cb(ssl_fd->ssl_context, ssl_external_passwd_cb);
   }
 
   ssl_ctx_options= vio_tls_protocol_options(tls_version);
@@ -494,7 +621,7 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
 
   /* Init the VioSSLFd as a "connector" ie. the client side */
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
-                             TRUE, error, crl_file, crl_path, 0)))
+                             TRUE, error, crl_file, crl_path, 0, NULL)))
   {
     return 0;
   }
@@ -510,14 +637,14 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 		     const char *ca_file, const char *ca_path,
 		     const char *cipher, enum enum_ssl_init_error* error,
                      const char *crl_file, const char *crl_path,
-                     ulonglong tls_version)
+                     ulonglong tls_version, const char *passphrase)
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE;
 
   /* Init the the VioSSLFd as a "acceptor" ie. the server side */
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
-                             FALSE, error, crl_file, crl_path, tls_version)))
+                             FALSE, error, crl_file, crl_path, tls_version, passphrase)))
   {
     return 0;
   }
