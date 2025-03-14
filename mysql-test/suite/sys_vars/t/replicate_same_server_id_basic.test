@@ -1,0 +1,19 @@
+--source include/not_embedded.inc
+# MDEV-30189: Test minimal correctness of `@@replicate_same_server_id` itself
+
+--echo # GLOBAL scope
+# Expect different from default (OFF) as configured by `.opt`
+SELECT @@GLOBAL.replicate_same_server_id;
+SELECT @@replicate_same_server_id;
+
+--echo # Not SESSION scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.replicate_same_server_id;
+
+--echo # Read-only
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@replicate_same_server_id= OFF;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.replicate_same_server_id= OFF;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@SESSION.replicate_same_server_id= OFF;
