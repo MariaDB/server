@@ -798,12 +798,12 @@ static const uchar *get_charset_key(const void *object, size_t *size,
   return (const uchar*) cs->cs_name.str;
 }
 
-static uchar *get_collation_name_key(const uchar *object, size_t *length,
+static const uchar *get_collation_name_key(const void *object, size_t *length,
                                      my_bool not_used __attribute__((unused)))
 {
   CHARSET_INFO *cs= (CHARSET_INFO*) object;
   *length= cs->coll_name.length;
-  return (uchar*) cs->coll_name.str;
+  return (const uchar*) cs->coll_name.str;
 }
 
 static void init_available_charsets(void)
