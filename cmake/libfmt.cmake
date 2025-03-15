@@ -1,5 +1,6 @@
 INCLUDE (CheckCXXSourceRuns)
 INCLUDE (ExternalProject)
+FIND_PACKAGE(fmt QUIET)
 
 SET(WITH_LIBFMT "auto" CACHE STRING
    "Which libfmt to use (possible values are 'bundled', 'system', or 'auto')")
@@ -24,23 +25,33 @@ MACRO(BUNDLE_LIBFMT)
   )
 ENDMACRO()
 
-MACRO (CHECK_LIBFMT)
-  IF(WITH_LIBFMT STREQUAL "system" OR WITH_LIBFMT STREQUAL "auto")
-    SET(CMAKE_REQUIRED_INCLUDES ${LIBFMT_INCLUDE_DIR})
-    CHECK_CXX_SOURCE_RUNS(
-    "#define FMT_STATIC_THOUSANDS_SEPARATOR ','
-     #define FMT_HEADER_ONLY 1
-     #include <fmt/args.h>
-     int main() {
-       using ArgStore= fmt::dynamic_format_arg_store<fmt::format_context>;
-       ArgStore arg_store;
-       int answer= 4321;
-       arg_store.push_back(answer);
-       return fmt::vformat(\"{:L}\", arg_store).compare(\"4,321\");
-     }" HAVE_SYSTEM_LIBFMT)
-    SET(CMAKE_REQUIRED_INCLUDES)
+MACRO(CHECK_LIBFMT)
+  IF (WITH_LIBFMT STREQUAL "system" OR WITH_LIBFMT STREQUAL "auto")
+    IF (fmt_FOUND)
+      MESSAGE(STATUS "Found system libfmt: ${fmt_VERSION}")
+      SET(HAVE_SYSTEM_LIBFMT 1)
+    ELSE()
+      MESSAGE(STATUS "Could NOT find system libfmt via config; trying compile test.")
+
+      SET(CMAKE_REQUIRED_INCLUDES "${LIBFMT_INCLUDE_DIR}")
+      CHECK_CXX_SOURCE_RUNS(
+        "#define FMT_STATIC_THOUSANDS_SEPARATOR ','
+         #define FMT_HEADER_ONLY 1
+         #include <fmt/args.h>
+         int main() {
+           using ArgStore= fmt::dynamic_format_arg_store<fmt::format_context>;
+           ArgStore arg_store;
+           int answer= 4321;
+           arg_store.push_back(answer);
+           return fmt::vformat(\"{:L}\", arg_store).compare(\"4,321\");
+         }"
+        HAVE_SYSTEM_LIBFMT
+      )
+      SET(CMAKE_REQUIRED_INCLUDES)
+    ENDIF()
   ENDIF()
-  IF(NOT HAVE_SYSTEM_LIBFMT OR WITH_LIBFMT STREQUAL "bundled")
+
+  IF (NOT HAVE_SYSTEM_LIBFMT OR WITH_LIBFMT STREQUAL "bundled")
     IF (WITH_LIBFMT STREQUAL "system")
       MESSAGE(FATAL_ERROR "system libfmt library is not found or unusable")
     ENDIF()
