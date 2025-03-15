@@ -2725,10 +2725,12 @@ static bool check_if_packing_possible(THD *thd,
     and we have a complex collation because cutting a prefix is not safe in
     such a case
   */
+  /*
   if (cs->state & MY_CS_NON1TO1)
   {
     return false;
   }
+  */
   return true;
 }
 
@@ -2898,7 +2900,8 @@ bool SORT_FIELD::setup_sort_field_length(THD *thd)
   {
     // TODO(cvicentiu) This is a sketchy use of original_field_length...
     allow_packing= check_if_packing_possible(thd, cs, original_field_length);
-    //set_if_smaller(original_length, thd->variables.max_sort_length);
+    // We only need to store max_sort_length bytes anyway.
+    set_if_smaller(field_length, thd->variables.max_sort_length);
     length_bytes= number_storage_requirement(field_length);
   }
   // size_t field_length instead of uint32 prevent overflows from strnxfrmlen
@@ -2928,27 +2931,48 @@ int SORT_FIELD::compare_packed_varstrings(const SORT_FIELD *sort_field,
   *a_len= length_bytes + a_length;
   *b_len= length_bytes + b_length;
 
-  /*
-  if (use_strnxfrm(sort_field->cs))
+  if (use_strnxfrm(sort_field->cs) && false)
   {
-    size_t max_len= std::max(a_length, b_length) * sort_field->cs->strxfrm_multiply * 10000;
-    char *buf1= new char[max_len];
-    char *buf2= new char[max_len];
+    if (a_length == b_length)
+      return memcmp(a + length_bytes, b + length_bytes, a_length);
 
-    sort_field->cs->strnxfrm(buf1, max_len, max_len,
-                         (const char *) a + length_bytes, a_length - suffix_length,
-                         MY_STRXFRM_PAD_WITH_SPACE |
-                         MY_STRXFRM_PAD_TO_MAXLEN);
-    sort_field->cs->strnxfrm(buf2, max_len, max_len,
-                         (const char *) b + length_bytes, b_length - suffix_length,
-                         MY_STRXFRM_PAD_WITH_SPACE |
-                         MY_STRXFRM_PAD_TO_MAXLEN);
-    retval= memcmp(buf1, buf2, max_len);
-    delete[] buf1;
-    delete[] buf2;
+    size_t min_len= std::min(a_length - suffix_length, b_length - suffix_length);
+    retval= memcmp(a + length_bytes, b + length_bytes, min_len);
+
+    char buf[20];
+    memset(buf, 0x00, sizeof(char) * 20);
+    my_strnxfrm_ret_t rc=
+      sort_field->cs->strnxfrm(buf, 20, 1 * sort_field->cs->strxfrm_multiply,
+                               (const char *)&sort_field->cs->pad_char, 1, 0);
+    size_t pad_len = rc.m_result_length;
+    const uchar *ptr;
+    int rev = 1;
+    if (a_length < b_length)
+    {
+      ptr = b + length_bytes + min_len;
+      rev = -1;
+    }
+    else
+      ptr = a + length_bytes + min_len;
+    if (!retval)
+    {
+      size_t end = std::max(a_length, b_length) - suffix_length - min_len;
+
+      for (size_t i = 0; i < end; i++)
+      {
+        if (ptr[i] < buf[i % pad_len])
+          return -1 * rev;
+        if (ptr[i] > buf[i % pad_len])
+          return 1 * rev;
+      }
+
+      if (a_length < b_length)
+        return -1;
+      DBUG_ASSERT(a_length > b_length);
+      return 1;
+    }
   }
   else
-  */
   {
     retval= sort_field->cs->strnncollsp(a + length_bytes,
                                         a_length - suffix_length,
@@ -3104,24 +3128,39 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const Binary_string *str,
   DBUG_ASSERT(str->length() <= UINT32_MAX);
   uint32 data_length= (uint32) str->length();
 
+  bool truncated= false;
+
   // Keep space for suffix length.
   if (data_length + suffix_length > length)
   {
     data_length= length - suffix_length;
-    current_thd->num_of_strings_sorted_on_truncated_length++;
+    truncated= true;
   }
 
+
+  if (use_strnxfrm(cs))
+  {
+    my_strnxfrm_ret_t rc=
+      cs->strnxfrm(to + length_bytes,  length - suffix_length,
+                   str->length() * cs->strxfrm_multiply,
+                   (uchar*) str->ptr(), str->length(), 0);
+    // DBUG_ASSERT(rc.m_result_length == data_length);
+    data_length = rc.m_result_length;
+  }
+  else
+  {
+    // copying data length bytes to the buffer
+    memcpy(to + length_bytes, (uchar*)str->ptr(), data_length);
+  }
   // length stored in lowendian form
   store_key_part_length(data_length + suffix_length, to, length_bytes);
-  to+= length_bytes;
-  // copying data length bytes to the buffer
-  memcpy(to, (uchar*)str->ptr(), data_length);
-  to+= data_length;
+  to+= length_bytes + data_length;
 
+  if (truncated)
+    current_thd->num_of_strings_sorted_on_truncated_length++;
   if (suffix_length)
   {
     DBUG_ASSERT(cs == &my_charset_bin);
-    DBUG_ASSERT(suffix_length);
     // suffix length stored in bigendian form
     store_bigendian(str->length(), to, suffix_length);
     to+= suffix_length;
