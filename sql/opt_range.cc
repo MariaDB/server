@@ -16090,7 +16090,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
   ha_rkey_function find_flag;
   key_part_map keypart_map;
   QUICK_RANGE *cur_range;
-  int result;
+  int result= HA_ERR_KEY_NOT_FOUND;
 
   DBUG_ASSERT(min_max_ranges.elements > 0);
 
@@ -16099,10 +16099,11 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
     get_dynamic(&min_max_ranges, (uchar*)&cur_range, range_idx - 1);
 
     /*
-      If the current value for the min/max argument is smaller than the left
-      boundary of cur_range, there is no need to check this range.
+      If the key has already been "moved" by a successful call to
+      ha_index_read_map, and the current value for the max argument
+      comes before the range, there is no need to check this range.
     */
-    if (range_idx != min_max_ranges.elements &&
+    if (!result &&
         !(cur_range->flag & NO_MIN_RANGE) &&
         (key_cmp(min_max_arg_part, (const uchar*) cur_range->min_key,
                  min_max_arg_len) == -1))
