@@ -830,6 +830,7 @@ void
 innobase_rename_vc_templ(
 	dict_table_t*	table);
 
+
 #define ROW_PREBUILT_FETCH_MAGIC_N	465765687
 
 #define ROW_MYSQL_WHOLE_ROW	0

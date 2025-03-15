@@ -165,6 +165,7 @@ enum dberr_t {
 	DB_END_OF_INDEX,
 	DB_NOT_FOUND,			/*!< Generic error code for "Not found"
 					type of errors */
+	DB_SQL_ERROR, /*When sql-layer function was called*/
 };
 
 #endif
