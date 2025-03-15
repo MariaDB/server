@@ -231,7 +231,7 @@ stage/sql/Opening tables
 stage/sql/After opening tables
 stage/sql/init
 stage/sql/Optimizing
-stage/sql/Executing
+stage/sql/Preparing for execution
 stage/sql/End of update loop
 stage/sql/Query end
 stage/sql/closing tables
@@ -831,7 +831,7 @@ stage/sql/Opening tables
 stage/sql/After opening tables
 stage/sql/init
 stage/sql/Optimizing
-stage/sql/Executing
+stage/sql/Preparing for execution
 stage/sql/End of update loop
 stage/sql/Query end
 stage/sql/closing tables

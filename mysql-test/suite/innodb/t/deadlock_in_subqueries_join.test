@@ -56,7 +56,7 @@ if ($i == $update) {
 --connection default
 let $wait_condition=
   SELECT count(*) = 1 FROM information_schema.processlist
-  WHERE (state = 'Sending data' OR state = "Updating")
+  WHERE (state = 'Executing' OR state = "Updating")
   AND (info LIKE 'delete from t2 where%' OR
        info LIKE 'UPDATE t2 SET pkey=pkey+10 WHERE%');
 --source include/wait_condition.inc
