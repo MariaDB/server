@@ -1902,6 +1902,8 @@ int ha_commit_trans(THD *thd, bool all)
     }
 #endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
+    if (error)
+      goto err;
 #ifdef WITH_WSREP
     // Here in case of error we must return 2 for inconsistency
     if (run_wsrep_hooks && !error)
@@ -2142,7 +2144,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 
   if (ha_info)
   {
-    int err;
+    int err= 0;
 
     if (has_binlog_hton(ha_info) &&
         (err= binlog_commit(thd, all,
@@ -2150,6 +2152,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     {
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
       error= 1;
+
+      goto err;
     }
     for (; ha_info; ha_info= ha_info_next)
     {
@@ -2185,7 +2189,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
-
+ err:
   DBUG_RETURN(error);
 }
 
