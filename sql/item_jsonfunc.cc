@@ -1819,89 +1819,71 @@ static int append_json_value(String *str, Item *item, String *tmp_val)
   if (item->type_handler()->is_bool_type())
   {
     longlong v_int= item->val_int();
-    const char *t_f;
-    int t_f_len;
-
     if (item->null_value)
-      goto append_null;
-
+      return str->append(STRING_WITH_LEN("null"));
     if (v_int)
-    {
-      t_f= "true";
-      t_f_len= 4;
-    }
-    else
-    {
-      t_f= "false";
-      t_f_len= 5;
-    }
-
-    return str->append(t_f, t_f_len);
+      return str->append(STRING_WITH_LEN("true"));
+    return str->append(STRING_WITH_LEN("false"));
   }
+
+  String *sv= item->val_json(tmp_val);
+  if (item->null_value)
+    return str->append(STRING_WITH_LEN("null"));
+
+  if (is_json_type(item))
+    return str->append(sv->ptr(), sv->length());
+
+  if (item->result_type() == STRING_RESULT)
   {
-    String *sv= item->val_json(tmp_val);
-    if (item->null_value)
-      goto append_null;
-    if (is_json_type(item))
-      return str->append(sv->ptr(), sv->length());
-
-    if (item->result_type() == STRING_RESULT)
-    {
-      return str->append('"') ||
-             st_append_escaped(str, sv) ||
-             str->append('"');
-    }
-    return st_append_escaped(str, sv);
+    return str->append('"') ||
+           st_append_escaped(str, sv) ||
+           str->append('"');
   }
-
-append_null:
-  return str->append(STRING_WITH_LEN("null"));
+  return st_append_escaped(str, sv);
 }
 
 
-static int append_json_value_from_field(String *str,
-  Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val)
+/*
+  @brief
+    Append the value of a field in JSON format
+
+  @param
+    str                  buffer to write the value
+    item                 argument to JSON_ARRAYAGG item
+    field                field whose value needs to be appended
+    tmp_val              temp buffer
+    key                  key pointer to be used instead of field->ptr
+    is_null              whether the field is null or not.
+
+  @retval
+    FALSE   value appended in JSON format
+    TRUE    error
+*/
+static bool append_json_value_from_field(String *str, Item *i, Field *f,
+                                         String *tmp_val, const uchar *key,
+                                         bool is_null)
 {
+  if (is_null)
+    return str->append(STRING_WITH_LEN("null"));
+
   if (i->type_handler()->is_bool_type())
   {
-    longlong v_int= f->val_int(key + offset);
-    const char *t_f;
-    int t_f_len;
-
-    if (f->is_null_in_record(key))
-      goto append_null;
-
-    if (v_int)
-    {
-      t_f= "true";
-      t_f_len= 4;
-    }
-    else
-    {
-      t_f= "false";
-      t_f_len= 5;
-    }
-
-    return str->append(t_f, t_f_len);
+    if (f->val_int())
+      return str->append(STRING_WITH_LEN("true"));
+    return str->append(STRING_WITH_LEN("false"));
   }
+
+  String *sv= f->val_str(tmp_val, key);
+  if (is_json_type(i))
+    return str->append(sv->ptr(), sv->length());
+
+  if (i->result_type() == STRING_RESULT)
   {
-    String *sv= f->val_str(tmp_val, key + offset);
-    if (f->is_null_in_record(key))
-      goto append_null;
-    if (is_json_type(i))
-      return str->append(sv->ptr(), sv->length());
-
-    if (i->result_type() == STRING_RESULT)
-    {
-      return str->append('"') ||
-             st_append_escaped(str, sv) ||
-             str->append('"');
-    }
-    return st_append_escaped(str, sv);
+    return str->append('"') ||
+           st_append_escaped(str, sv) ||
+           str->append('"');
   }
-
-append_null:
-  return str->append(STRING_WITH_LEN("null"));
+  return st_append_escaped(str, sv);
 }
 
 
@@ -4210,12 +4192,12 @@ String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 }
 
 
-String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
-    String *tmp, const uchar *key, size_t offset)
+String *Item_func_json_arrayagg::get_str_from_field(
+  Item *i, Field *f, String *tmp, const uchar* key, bool is_null)
 {
   m_tmp_json.length(0);
 
-  if (append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp))
+  if (append_json_value_from_field(&m_tmp_json, i, f, tmp, key, is_null))
     return NULL;
 
   return &m_tmp_json;

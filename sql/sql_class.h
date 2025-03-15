@@ -7421,6 +7421,7 @@ struct SORT_FIELD_ATTR
 
   /* Max. length of the original value, in bytes */
   uint original_length;
+  bool is_mem_comparable; /* use memcmp or field->cmp for comparison. */
   enum Type { FIXED_SIZE, VARIABLE_SIZE } type;
   /*
     TRUE  : if the item or field is NULLABLE
@@ -7430,13 +7431,10 @@ struct SORT_FIELD_ATTR
   CHARSET_INFO *cs;
   uint pack_sort_string(uchar *to, const Binary_string *str,
                         CHARSET_INFO *cs) const;
-  int compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
-                                     const uchar *b, size_t *b_len);
-  int compare_packed_varstrings(const uchar *a, size_t *a_len,
-                                const uchar *b, size_t *b_len);
   bool check_if_packing_possible(THD *thd) const;
-  bool is_variable_sized() { return type == VARIABLE_SIZE; }
+  bool is_variable_sized() const { return type == VARIABLE_SIZE; }
   void set_length_and_original_length(THD *thd, uint length_arg);
+  void setup_key_part(Field *fld, bool is_mem_comparable);
 };
 
 
@@ -7445,6 +7443,17 @@ struct SORT_FIELD: public SORT_FIELD_ATTR
   Field *field;				/* Field to sort */
   Item	*item;				/* Item if not sorting fields */
   bool reverse;				/* if descending sort */
+  void setup_key_part(Field *fld, bool is_mem_comparable);
+  int compare_keys(const uchar *a, size_t *a_len,
+                   const uchar *b, size_t *b_len) const;
+
+private:
+  int compare_fixed_size_vals(const uchar *a, size_t *a_len,
+                              const uchar *b, size_t *b_len) const;
+  int compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                     const uchar *b, size_t *b_len) const;
+  int compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                const uchar *b, size_t *b_len) const;
 };
 
 

@@ -563,7 +563,7 @@ static int rr_unpack_from_tempfile(READ_RECORD *info)
 #endif
   if (Packed_addon_fields)
   {
-    const uint len_sz= Addon_fields::size_of_length_field;
+    const uint len_sz= Addon_fields::SIZE_OF_LENGTH_FIELD;
 
     // First read length of the record.
     if (my_b_read(info->io_cache, destination, len_sz))

@@ -32,7 +32,6 @@
 */
 
 #include "mariadb.h"
-#include "sql_priv.h"
 #include "unireg.h"
 #include "sql_sort.h"
 #include "queues.h"                             // QUEUE
@@ -40,31 +39,25 @@
 #include "uniques.h"	                        // Unique
 #include "sql_sort.h"
 
-int unique_write_to_file(void* key_, element_count, void *unique_)
+
+int Unique::unique_write_to_file(void *key_, element_count, void *unique_)
 {
   uchar *key= static_cast<uchar *>(key_);
   Unique *unique= static_cast<Unique *>(unique_);
-  /*
-    Use unique->size (size of element stored in the tree) and not
-    unique->tree.size_of_element. The latter is different from unique->size
-    when tree implementation chooses to store pointer to key in TREE_ELEMENT
-    (instead of storing the element itself there)
-  */
-  return my_b_write(&unique->file, key, unique->size) ? 1 : 0;
+  return my_b_write(&unique->file, key,
+                    unique->keys_descriptor->get_length_of_key(key)) ? 1 : 0;
 }
 
-int unique_write_to_file_with_count(void* key_, element_count count, void *unique_)
+int Unique::unique_write_to_file_with_count(void *key_, element_count count,
+                                            void *unique_)
 {
   uchar *key= static_cast<uchar *>(key_);
   Unique *unique= static_cast<Unique *>(unique_);
-  return my_b_write(&unique->file, key, unique->size) ||
-                 my_b_write(&unique->file, reinterpret_cast<uchar *>(&count),
-                            sizeof(element_count))
-             ? 1
-             : 0;
+  return unique_write_to_file(key, count, unique) ||
+         my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
 }
 
-int unique_write_to_ptrs(void* key_, element_count, void *unique_)
+int Unique::unique_write_to_ptrs(void* key_, element_count count, void *unique_)
 {
   uchar *key= static_cast<uchar *>(key_);
   Unique *unique= static_cast<Unique *>(unique_);
@@ -73,7 +66,7 @@ int unique_write_to_ptrs(void* key_, element_count, void *unique_)
   return 0;
 }
 
-int unique_intersect_write_to_ptrs(void* key_, element_count count, void *unique_)
+int Unique::unique_intersect_write_to_ptrs(void* key_, element_count count, void *unique_)
 {
   uchar *key= static_cast<uchar *>(key_);
   Unique *unique= static_cast<Unique *>(unique_);
@@ -88,23 +81,21 @@ int unique_intersect_write_to_ptrs(void* key_, element_count count, void *unique
 }
 
 
-Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
-	       uint size_arg, size_t max_in_memory_size_arg,
+Unique::Unique(Keys_descriptor *desc,
+               size_t max_in_memory_size_arg,
                uint min_dupl_count_arg)
   :max_in_memory_size(max_in_memory_size_arg),
-   size(size_arg),
-   elements(0)
+   size(desc->get_max_key_length()),
+   full_size(min_dupl_count_arg ? size + sizeof(element_count) : size),
+   min_dupl_count(min_dupl_count_arg),
+   with_counters(MY_TEST(min_dupl_count_arg)),
+   memory_used(0),
+   elements(0),
+   keys_descriptor(desc)
 {
   my_b_clear(&file);
-  min_dupl_count= min_dupl_count_arg;
-  full_size= size;
-  if (min_dupl_count_arg)
-    full_size+= sizeof(element_count);
-  with_counters= MY_TEST(min_dupl_count_arg);
-
-  init_tree(&tree, MY_MIN(max_in_memory_size / 16, UINT_MAX32),
-            0, size, comp_func, NULL, comp_func_fixed_arg,
-            MYF(MY_THREAD_SPECIFIC));
+  init_tree(&tree, MY_MIN(max_in_memory_size / 16, UINT32_MAX), 0, 0, unique_compare_keys,
+            NULL, desc, MYF(MY_THREAD_SPECIFIC));
   /* If the following fail's the next add will also fail */
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &file_ptrs, sizeof(Merge_chunk), 16,
                         16, MYF(MY_THREAD_SPECIFIC));
@@ -114,7 +105,14 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   max_elements= (ulong) (max_in_memory_size /
                          ALIGN_SIZE(sizeof(TREE_ELEMENT)+size));
   if (!max_elements)
+  {
     max_elements= 1;
+    /*
+      Need to ensure that we have memory to store atleast one record
+      in the Unique tree
+    */
+    max_in_memory_size= sizeof(TREE_ELEMENT) + size;
+  }
 
   (void) open_cached_file(&file, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
                           MYF(MY_WME | MY_TRACK_WITH_LIMIT));
@@ -319,7 +317,8 @@ static double get_merge_many_buffs_cost(THD *thd,
       these will be random seeks.
 */
 
-double Unique::get_use_cost(THD *thd, uint *buffer, size_t nkeys, uint key_size,
+double Unique::get_use_cost(THD *thd,
+                            uint *buffer, size_t nkeys, uint key_size,
                             size_t max_in_memory_size,
                             double compare_factor,
                             bool intersect_fl, bool *in_memory)
@@ -387,6 +386,7 @@ Unique::~Unique()
   close_cached_file(&file);
   delete_tree(&tree, 0);
   delete_dynamic(&file_ptrs);
+  delete keys_descriptor;
 }
 
 
@@ -405,6 +405,10 @@ bool Unique::flush()
 		(void*) this, left_root_right) ||
       insert_dynamic(&file_ptrs, (uchar*) &file_ptr))
     return 1;
+  /**
+    the tree gets reset so make sure the memory used is reset too
+  */
+  memory_used= 0;
   delete_tree(&tree, 0);
   return 0;
 }
@@ -513,7 +517,8 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
                        uint key_length, Merge_chunk *begin, Merge_chunk *end,
                        tree_walk_action walk_action, void *walk_action_arg,
                        qsort_cmp2 compare, void *compare_arg,
-                       IO_CACHE *file, bool with_counters)
+                       IO_CACHE *file, bool with_counters,
+                       uint min_dupl_count, bool packed)
 {
   BUFFPEK_COMPARE_CONTEXT compare_context = { compare, compare_arg };
   QUEUE queue;
@@ -539,7 +544,11 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   // read_to_buffer() needs only rec_length.
   Sort_param sort_param;
   sort_param.rec_length= key_length;
+  sort_param.sort_length= key_length;
+  sort_param.min_dupl_count= min_dupl_count;
+  DBUG_ASSERT(sort_param.res_length  == 0);
   DBUG_ASSERT(!sort_param.using_addon_fields());
+  sort_param.set_using_packed_keys(packed);
 
   /*
     Invariant: queue must contain top element from each tree, until a tree
@@ -552,7 +561,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
     top->set_buffer(merge_buffer + (top - begin) * piece_size,
                     merge_buffer + (top - begin) * piece_size + piece_size);
     top->set_max_keys(max_key_count_per_piece);
-    bytes_read= read_to_buffer(file, top, &sort_param, false);
+    bytes_read= read_to_buffer(file, top, &sort_param, packed);
     if (unlikely(bytes_read == (ulong) -1))
       goto end;
     DBUG_ASSERT(bytes_read);
@@ -568,11 +577,14 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       elements in each tree are unique. Action is applied only to unique
       elements.
     */
-    void *old_key= top->current_key();
+    uchar *old_key= top->current_key();
     /*
       read next key from the cache or from the file and push it to the
       queue; this gives new top.
     */
+    key_length= sort_param.compute_rec_length_for_unique(old_key);
+
+    cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
     top->advance_current_key(key_length);
     top->decrement_mem_count();
     if (top->mem_count())
@@ -582,7 +594,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       /* save old_key not to overwrite it in read_to_buffer */
       memcpy(save_key_buff, old_key, key_length);
       old_key= save_key_buff;
-      bytes_read= read_to_buffer(file, top, &sort_param, false);
+      bytes_read= read_to_buffer(file, top, &sort_param, packed);
       if (unlikely(bytes_read == (ulong) -1))
         goto end;
       else if (bytes_read)      /* top->key, top->mem_count are reset */
@@ -622,7 +634,8 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   {
     do
     {
-      
+      key_length= sort_param.compute_rec_length_for_unique(top->current_key());
+      cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
       cnt= with_counters ?
            get_counter_from_merged_element(top->current_key(), cnt_ofs) : 1;
       if (walk_action(top->current_key(), cnt, walk_action_arg))
@@ -630,7 +643,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       top->advance_current_key(key_length);
     }
     while (top->decrement_mem_count());
-    bytes_read= read_to_buffer(file, top, &sort_param, false);
+    bytes_read= read_to_buffer(file, top, &sort_param, packed);
     if (unlikely(bytes_read == (ulong) -1))
       goto end;
   }
@@ -696,7 +709,8 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
                     (Merge_chunk *) file_ptrs.buffer,
                     (Merge_chunk *) file_ptrs.buffer + file_ptrs.elements,
                     action, walk_action_arg,
-                    tree.compare, tree.custom_arg, &file, with_counters);
+                    tree.compare, tree.custom_arg, &file, with_counters,
+                    min_dupl_count, is_variable_sized());
   }
   my_free(merge_buffer);
   return res;
@@ -711,7 +725,7 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
   TRUE.
 
   SYNOPSIS
-    Unique:merge()
+    Unique::merge()
   All params are 'IN':
     table               the parameter to access sort context
     buff                merge buffer
@@ -748,9 +762,11 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
   sort_param.max_keys_per_buffer=
     (uint) MY_MAX((max_in_memory_size / sort_param.sort_length), MERGEBUFF2);
   sort_param.not_killable= 1;
+  sort_param.set_using_packed_keys(is_variable_sized());
+  sort_param.set_packed_format(is_variable_sized());
 
   sort_param.unique_buff= buff +(sort_param.max_keys_per_buffer *
-				       sort_param.sort_length);
+                                 sort_param.sort_length);
 
   sort_param.compare= buffpek_compare;
   sort_param.cmp_context.key_compare= tree.compare;
@@ -778,7 +794,8 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
     file_ptrs.elements= maxbuffer+1;
     return 0;
   }
-  if (merge_index(&sort_param, Bounds_checked_array<uchar>(buff, buff_size),
+  if (merge_index(&sort_param,
+                  Bounds_checked_array<uchar>(buff, buff_size),
                   file_ptr, maxbuffer, &file, outfile))
     goto err;
   error= 0;
@@ -807,11 +824,13 @@ bool Unique::get(TABLE *table)
   sort.return_rows= elements+tree.elements_in_tree;
   DBUG_ENTER("Unique::get");
 
+  DBUG_ASSERT(is_variable_sized() == FALSE);
+
   if (my_b_tell(&file) == 0)
   {
     /* Whole tree is in memory;  Don't use disk if you don't need to */
     if ((sort.record_pointers= (uchar*)
-	 my_malloc(key_memory_Filesort_info_record_pointers,
+         my_malloc(key_memory_Filesort_info_record_pointers,
                    size * tree.elements_in_tree, MYF(MY_THREAD_SPECIFIC))))
     {
       uchar *save_record_pointers= sort.record_pointers;
@@ -819,8 +838,7 @@ bool Unique::get(TABLE *table)
 		          unique_intersect_write_to_ptrs :
 		          unique_write_to_ptrs;
       filtered_out_elems= 0;
-      (void) tree_walk(&tree, action,
-		       this, left_root_right);
+      (void) tree_walk(&tree, action, this, TREE_WALK::left_root_right);
       /* Restore record_pointers that was changed in by 'action' above */
       sort.record_pointers= save_record_pointers;
       sort.return_rows-= filtered_out_elems;
@@ -848,4 +866,330 @@ bool Unique::get(TABLE *table)
 err:  
   my_free(sort_buffer);  
   DBUG_RETURN(rc);
+}
+
+
+/*                VARIABLE SIZE KEYS DESCRIPTOR                             */
+
+
+Variable_size_keys_descriptor::Variable_size_keys_descriptor(uint length)
+{
+  max_length= length;
+  keys_type= VARIABLE_SIZED_KEYS;
+  sort_keys= NULL;
+  sortorder= NULL;
+}
+
+
+/*
+  @brief
+    Compare two packed keys inside the Unique tree
+
+  @param a_ptr             packed sort key
+  @param b_ptr             packed sort key
+
+  @retval
+    >0   key a_ptr greater than b_ptr
+    =0   key a_ptr equal to b_ptr
+    <0   key a_ptr less than b_ptr
+
+*/
+int Variable_size_keys_descriptor::compare_keys(const uchar *a, const uchar *b) const
+{
+  return sort_keys->compare_keys(a + SIZE_OF_LENGTH_FIELD,
+                                 b + SIZE_OF_LENGTH_FIELD);
+}
+
+
+/*
+  @brief
+    Create the sortorder and Sort keys structures for a descriptor
+
+  @param thd                   THD structure
+  @param count                 Number of key parts to be allocated
+
+  @retval
+    TRUE                       ERROR
+    FALSE                      structures successfully created
+*/
+
+bool Keys_descriptor::init(THD *thd, uint count)
+{
+  if (sortorder)
+    return false;
+  DBUG_ASSERT(sort_keys == NULL);
+  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * count);
+  if (!sortorder)
+    return true;  // OOM
+  sort_keys= new Sort_keys(sortorder, count);
+  if (!sort_keys)
+    return true;  // OOM
+  return false;
+}
+
+
+bool Variable_size_keys_descriptor::init(THD *thd, uint count)
+{
+  bool result= Keys_descriptor::init(thd, count);
+
+  if (result || tmp_buffer.alloc(max_length))
+    return true;
+  rec_buf= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
+                              max_length,
+                              MYF(MY_WME | MY_THREAD_SPECIFIC));
+  return rec_buf == NULL;
+}
+
+
+/*                   FIXED SIZE KEYS DESCRIPTOR                             */
+
+Fixed_size_keys_descriptor::Fixed_size_keys_descriptor(uint length)
+{
+  max_length= length;
+  keys_type= FIXED_SIZED_KEYS;
+  sort_keys= NULL;
+  sortorder= NULL;
+}
+
+
+int Fixed_size_keys_descriptor::compare_keys(const uchar *a,
+                                             const uchar *b) const
+{
+  DBUG_ASSERT(sort_keys);
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end(); sort_field++)
+  {
+    DBUG_ASSERT(sort_field->field);
+    Field *field= sort_field->field;
+    int res = field->cmp(a, b);
+    if (res)
+      return res;
+    a += sort_field->length;
+    b += sort_field->length;
+  }
+  return 0;
+}
+
+
+bool
+Keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
+                                uint non_const_args,
+                                uint arg_count)
+{
+  return setup_for_item_impl(thd, item, non_const_args, arg_count, true);
+}
+
+
+bool Keys_descriptor::setup_for_field(THD *thd, Field *field)
+{
+  return setup_for_field_impl(thd, field, true);
+}
+
+
+bool
+Keys_descriptor::setup_for_item_impl(THD *thd, Item_sum *item,
+                                     uint non_const_args,
+                                     uint arg_count,
+                                     bool is_mem_comparable)
+{
+  if (init(thd, non_const_args))
+    return true;
+  SORT_FIELD *pos;
+  pos= sortorder;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *arg= item->get_arg(i);
+    if (arg->const_item())
+      continue;
+
+    Field *field= arg->get_tmp_table_field();
+
+    DBUG_ASSERT(field);
+    pos->setup_key_part(field, is_mem_comparable);
+    pos++;
+  }
+  return false;
+}
+
+
+bool Keys_descriptor::setup_for_field_impl(THD *thd, Field *field,
+                                           bool is_mem_comparable)
+{
+  if (init(thd, 1))
+    return true;
+  sortorder->setup_key_part(field, true);
+
+  return false;
+}
+
+bool Variable_size_key_desc_for_gconcat::setup_for_field(THD *thd, Field *field)
+{
+  if (init(thd, 1))
+    return true;
+
+  sortorder->setup_key_part(field, false);
+
+  return false;
+}
+
+
+bool
+Variable_size_key_desc_for_gconcat::setup_for_item(THD *thd, Item_sum *item,
+                                                    uint non_const_args,
+                                                    uint arg_count)
+{
+  return Keys_descriptor::setup_for_item_impl(thd, item, non_const_args,
+                                              arg_count, false);
+}
+
+
+int Fixed_size_keys_mem_comparable::compare_keys(const uchar *key1,
+                                                 const uchar *key2) const
+{
+  return memcmp(key1, key2, max_length);
+}
+
+
+int Fixed_size_keys_for_rowids::compare_keys(const uchar *key1,
+                                             const uchar *key2) const
+{
+  return file->cmp_ref(key1, key2);
+}
+
+
+int
+Fixed_size_keys_descriptor_with_nulls::compare_keys(const uchar *key1_arg,
+                                                    const uchar *key2_arg) const
+{
+
+  /*
+    We have to use get_tmp_table_field() instead of
+    real_item()->get_tmp_table_field() because we want the field in
+    the temporary table, not the original field
+  */
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end(); sort_field++)
+  {
+    Field *field= sort_field->field;
+    if (field->is_null_in_record(key1_arg) &&
+        field->is_null_in_record(key2_arg))
+      return 0;
+
+    if (field->is_null_in_record(key1_arg))
+      return -1;
+
+    if (field->is_null_in_record(key2_arg))
+      return 1;
+
+    uchar *key1= (uchar*)key1_arg + field->table->s->null_bytes;
+    uchar *key2= (uchar*)key2_arg + field->table->s->null_bytes;
+
+    uint offset= (field->offset(field->table->record[0]) -
+                  field->table->s->null_bytes);
+    int res= field->cmp(key1 + offset, key2 + offset);
+    if (res)
+      return res;
+  }
+  return 0;
+}
+
+
+int Fixed_size_keys_for_gconcat::compare_keys(const uchar *key1,
+                                              const uchar *key2) const
+{
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end(); sort_field++)
+  {
+    Field *field= sort_field->field;
+    uint offset= (field->offset(field->table->record[0]) -
+                  field->table->s->null_bytes);
+    int res= field->cmp(key1 + offset, key2 + offset);
+    if (res)
+      return res;
+  }
+  return 0;
+}
+
+Variable_size_keys_descriptor::~Variable_size_keys_descriptor()
+{
+  my_free(rec_buf);
+}
+
+
+/*
+  @brief
+    Make a record with packed values for a key
+
+  @retval
+    0         NULL value
+    >0        length of the packed record
+*/
+uchar* Variable_size_keys_descriptor::create_keys_record(uchar *orig_record)
+{
+  /*
+    TODO(cvicentiu) orig_record should be used instead of indirectly
+    going through sort_keys->fields|items.
+  */
+  uchar *to= rec_buf + Variable_size_keys_descriptor::SIZE_OF_LENGTH_FIELD;
+
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end();
+       sort_field++)
+  {
+    uint length;
+    if (sort_field->field)
+    { // Field
+      length= sort_field->field->make_packed_sort_key_part(to, sort_field);
+    }
+    else
+    { // Item
+      Item *item= sort_field->item;
+      length= item->type_handler()->make_packed_sort_key_part(to, item,
+                                                              sort_field,
+                                                              &tmp_buffer);
+    }
+
+    if (sort_field->maybe_null)
+      to++;
+    to+= length;
+  }
+
+  Variable_size_keys_descriptor::store_packed_length(
+    rec_buf, static_cast<uint>(to - rec_buf));
+  return rec_buf;
+}
+
+
+Variable_size_key_desc_for_gconcat::
+Variable_size_key_desc_for_gconcat(uint length):
+  Variable_size_keys_descriptor(length) {}
+
+uchar* Variable_size_key_desc_for_gconcat::create_keys_record(
+  uchar *orig_record)
+{
+  uchar *to= rec_buf + Variable_size_keys_descriptor::SIZE_OF_LENGTH_FIELD;
+
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end();
+       sort_field++)
+  {
+    DBUG_ASSERT(sort_field->field);
+    uint length= sort_field->field->make_packed_key_part(to, sort_field);
+
+    if (sort_field->maybe_null)
+      to++;
+    to+= length;
+  }
+
+  Variable_size_keys_descriptor::store_packed_length(
+    rec_buf, static_cast<uint>(to - rec_buf));
+  return rec_buf;
+}
+
+int Unique::unique_compare_keys(void *arg, const void *key1, const void *key2)
+{
+  Keys_descriptor *desc= static_cast<Keys_descriptor *>(arg);
+  return desc->compare_keys(static_cast<const uchar *>(key1),
+                            static_cast<const uchar *>(key2));
 }

@@ -25,6 +25,7 @@
 class Item_sum;
 class Aggregator_distinct;
 class Aggregator_simple;
+class Keys_descriptor;
 
 /**
   The abstract base class for the Aggregator_* classes.
@@ -307,6 +308,7 @@ class Window_spec;
   any particular table (like COUNT(*)), returm 0 from Item_sum::used_tables(),
   but still return false from Item_sum::const_item().
 */
+class Unique;
 
 class Item_sum :public Item_func_or_sum
 {
@@ -594,7 +596,6 @@ public:
   bool is_window_func_sum_expr() { return window_func_sum_expr_flag; }
   virtual void setup_caches(THD *thd) {};
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
-
   /*
     While most Item_sum descendants employ standard aggregators configured
     through Item_sum::set_aggregator() call, there are exceptions like
@@ -605,10 +606,10 @@ public:
   */
   virtual bool uses_non_standard_aggregator_for_distinct() const
   { return false; }
+  virtual Keys_descriptor *get_keys_descriptor(uint orig_key_size) const;
+protected:
+  virtual bool is_packing_allowed(uint *total_length) const;
 };
-
-
-class Unique;
 
 
 /**
@@ -711,7 +712,8 @@ public:
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
-  static int composite_key_cmp(void *arg, const void *key1, const void *key2);
+  int insert_record_to_unique();
+  static int key_cmp(void* arg, const void* key1, const void* key2);
 };
 
 
@@ -1932,14 +1934,12 @@ public:
 #endif /* HAVE_DLOPEN */
 
 C_MODE_START
-int group_concat_key_cmp_with_distinct(void *arg, const void *key1,
-                                       const void *key2);
-int group_concat_key_cmp_with_distinct_with_nulls(void *arg, const void *key1,
-                                                  const void *key2);
-int group_concat_key_cmp_with_order(void *arg, const void *key1,
-                                    const void *key2);
-int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1,
-                                               const void *key2);
+int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
+                                       const void* key2);
+int group_concat_key_cmp_with_order(void* arg, const void* key1,
+                                    const void* key2);
+int json_arrayagg_key_cmp_with_order(void *arg, const void *key1,
+                                     const void *key2);
 int dump_leaf_key(void* key_arg,
                   element_count count __attribute__((unused)),
                   void* item_arg);
@@ -2000,38 +2000,30 @@ protected:
   */
   bool add(bool exclude_nulls);
 
-  friend int group_concat_key_cmp_with_distinct(void *arg, const void *key1,
-                                                const void *key2);
-  friend int group_concat_key_cmp_with_distinct_with_nulls(void *arg,
-                                                           const void *key1,
-                                                           const void *key2);
-  friend int group_concat_key_cmp_with_order(void *arg, const void *key1,
-                                             const void *key2);
-  friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
-                                                        const void *key1,
-                                                        const void *key2);
-  friend int dump_leaf_key(void* key_arg,
-                           element_count count __attribute__((unused)),
-			   void* item_arg);
-
+  friend int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
+                                                const void* key2);
+  friend int group_concat_packed_key_cmp_with_distinct(void *arg,
+                                                       const void *key1,
+                                                       const void *key2);
+  friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
+                                             const void* key2);
   bool repack_tree(THD *thd);
 
-  /*
-    Says whether the function should skip NULL arguments
-    or add them to the result.
-    Redefined in JSON_ARRAYAGG.
-  */
-  virtual bool skip_nulls() const { return true; }
   virtual String *get_str_from_item(Item *i, String *tmp)
-    { return i->val_str(tmp); }
+  { return i->val_str(tmp); }
   virtual String *get_str_from_field(Item *i, Field *f, String *tmp,
-                                     const uchar *key, size_t offset)
-    { return f->val_str(tmp, key + offset); }
+                                     const uchar *key, bool is_null)
+  {
+    // We do not store null values for GROUP_CONCAT.
+    DBUG_ASSERT(!is_null);
+    return f->val_str(tmp, key);
+  }
+
   virtual void cut_max_length(String *result,
                               uint old_length, uint max_length) const;
   bool uses_non_standard_aggregator_for_distinct() const override
-    { return distinct; }
-
+  { return distinct; }
+  bool setup(THD *thd, bool exclude_nulls);
 public:
   // Methods used by ColumnStore
   bool get_distinct() const { return distinct; }
@@ -2065,7 +2057,7 @@ public:
   void clear() override;
   bool add() override
   {
-    return add(skip_nulls());
+    return add(true);
   }
   void reset_field() override { DBUG_ASSERT(0); }        // not used
   void update_field() override { DBUG_ASSERT(0); }       // not used
@@ -2108,11 +2100,34 @@ public:
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_group_concat>(thd, this); }
-  qsort_cmp2 get_comparator_function_for_distinct();
-  qsort_cmp2 get_comparator_function_for_order_by();
-  uchar* get_record_pointer();
-  uint get_null_bytes();
+  virtual qsort_cmp2 get_comparator_function_for_order_by() const
+  { return group_concat_key_cmp_with_order; }
+  bool is_distinct_packed();
+  virtual int insert_record_to_unique(bool exclude_nulls);
+  Keys_descriptor *get_keys_descriptor(uint orig_key_size) const override;
+protected:
+  /*
+    @brief
+      Get the null bytes for the table if required.
 
+    @details
+      This function is used for GROUP_CONCAT (or JSON_ARRAYAGG) implementation
+      where the Unique tree or the ORDER BY tree may store the null values,
+      in such case we also store the null bytes inside each node of the tree.
+  */
+  virtual uint get_null_bytes() const
+  { return 0; }
+  virtual uchar* get_record_pointer() const
+  { return table->record[0] + table->s->null_bytes; }
+
+  int dump_leaf_key_impl(const uchar* key_arg, bool is_variable_sized);
+  static int dump_leaf_key(void* key_arg,
+                           element_count count __attribute__((unused)),
+                           void* item_arg);
+  static int dump_leaf_key_distinct(void *key_arg,
+                                    element_count count __attribute__((unused)),
+                                    void* item_arg);
+  bool is_packing_allowed(uint *total_length) const override;
 };
 
 #endif /* ITEM_SUM_INCLUDED */

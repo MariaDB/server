@@ -1227,7 +1227,7 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
     */
     select->file= filesort->io_cache;
     select->records=(ha_rows) (select->file.end_of_file/
-			       head->file->ref_length);
+                               head->file->ref_length);
     my_b_clear(&filesort->io_cache);
   }
   DBUG_RETURN(select);
@@ -5547,7 +5547,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   }
 
   {
-    const double dup_removal_cost= Unique::get_use_cost(thd,
+    const double dup_removal_cost= Unique::get_use_cost(
+                           thd,
                            param->imerge_cost_buff, (uint)non_cpk_scan_records,
                            param->table->file->ref_length,
                            (size_t)param->thd->variables.sortbuff_size,
@@ -6529,9 +6530,9 @@ bool check_index_intersect_extension(THD *thd,
     */
     ha_rows elems_in_tree= common_info->search_scans[0]->records-
                            common_info->search_scans[0]->filtered_out ;
-    next->in_memory_cost+= Unique::get_search_cost(elems_in_tree,
-                                                   common_info->compare_factor)* 
-                             ext_index_scan_records;
+    next->in_memory_cost+=
+      Unique::get_search_cost(elems_in_tree, common_info->compare_factor) *
+      ext_index_scan_records;
     cost= next->in_memory_cost;
 
   }
@@ -6543,8 +6544,8 @@ bool check_index_intersect_extension(THD *thd,
     size_t max_memory_size= common_info->max_memory_size;
 
     records_sent_to_unique+= ext_index_scan_records;
-    cost= Unique::get_use_cost(thd, buff_elems, (size_t) records_sent_to_unique,
-                               key_size,
+    cost= Unique::get_use_cost(thd, buff_elems,
+                               (size_t) records_sent_to_unique, key_size,
                                max_memory_size, compare_factor, TRUE,
                                &next->in_memory);
     if (records_filtered_out_by_cpk)
@@ -6554,7 +6555,8 @@ bool check_index_intersect_extension(THD *thd,
       double cost2;
       bool in_memory2;
       ha_rows records2= records_sent_to_unique-records_filtered_out_by_cpk;
-      cost2=  Unique::get_use_cost(thd, buff_elems, (size_t) records2, key_size,
+      cost2=  Unique::get_use_cost(thd, buff_elems,
+                                   (size_t) records2, key_size,
                                    max_memory_size, compare_factor, TRUE,
                                    &in_memory2);
       cost2+= get_cpk_filter_cost(ext_index_scan_records, common_info->cpk_scan,
@@ -12990,10 +12992,12 @@ int read_keys_and_merge_scans(THD *thd,
     DBUG_EXECUTE_IF("only_one_Unique_may_be_created", 
                     DBUG_SET("+d,index_merge_may_not_create_a_Unique"); );
 
-    unique= new Unique(refpos_order_cmp, (void *)file,
-                       file->ref_length,
-                       (size_t)thd->variables.sortbuff_size,
-		       intersection ? quick_selects.elements : 0);                     
+    Keys_descriptor *desc= new Fixed_size_keys_for_rowids(file);
+
+    if (!desc)
+      goto err;
+    unique= new Unique(desc, (size_t)thd->variables.sortbuff_size,
+                       intersection ? quick_selects.elements : 0);
     if (!unique)
       goto err;
     *unique_ptr= unique;
@@ -13004,7 +13008,7 @@ int read_keys_and_merge_scans(THD *thd,
   }
 
   DBUG_ASSERT(file->ref_length == unique->get_size());
-  DBUG_ASSERT(thd->variables.sortbuff_size == unique->get_max_in_memory_size());
+  DBUG_ASSERT(thd->variables.sortbuff_size <= unique->get_max_in_memory_size());
 
   for (;;)
   {
@@ -13047,7 +13051,7 @@ int read_keys_and_merge_scans(THD *thd,
       continue;
 
     cur_quick->file->position(cur_quick->record);
-    if (unique->unique_add((char*)cur_quick->file->ref))
+    if (unique->unique_add(cur_quick->file->ref))
       goto err;
   }
 
@@ -13062,7 +13066,7 @@ int read_keys_and_merge_scans(THD *thd,
   */
   head->file->ha_end_keyread();
   if (init_read_record(read_record, thd, head, (SQL_SELECT*) 0,
-                       &unique->sort, 1 , 1, TRUE))
+                       unique->get_sort(), 1 , 1, TRUE))
     result= 1;
  DBUG_RETURN(result);
 
@@ -13105,7 +13109,7 @@ int QUICK_INDEX_MERGE_SELECT::get_next()
     result= HA_ERR_END_OF_FILE;
     end_read_record(&read_record);
     // Free things used by sort early. Shouldn't be strictly necessary
-    unique->sort.reset();
+    unique->get_sort()->reset();
     /* All rows from Unique have been retrieved, do a clustered PK scan */
     if (pk_quick_select)
     {
@@ -13140,7 +13144,7 @@ int QUICK_INDEX_INTERSECT_SELECT::get_next()
   {
     result= HA_ERR_END_OF_FILE;
     end_read_record(&read_record);
-    unique->sort.reset();                       // Free things early
+    unique->get_sort()->reset();                       // Free things early
   }
 
   DBUG_RETURN(result);

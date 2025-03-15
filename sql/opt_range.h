@@ -31,6 +31,7 @@
 */
 #include "sql_class.h"                          // set_var.h: THD
 #include "set_var.h"                            /* Item */
+#include "uniques.h"
 
 class JOIN;
 class Item_sum;
@@ -1395,7 +1396,7 @@ private:
   friend bool quick_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range);
   friend range_seq_t quick_range_seq_init(void *init_param,
                                           uint n_ranges, uint flags);
-  friend 
+  friend
   int read_keys_and_merge_scans(THD *thd, TABLE *head,
                                 List<QUICK_RANGE_SELECT> quick_selects,
                                 QUICK_RANGE_SELECT *pk_quick_select,

@@ -26,6 +26,7 @@
 #include "item_sum.h"
 #include "sql_type_json.h"
 #include "json_schema.h"
+#include "uniques.h"
 
 class json_path_with_flags
 {
@@ -709,14 +710,10 @@ public:
 class Item_func_json_arrayagg : public Item_func_group_concat
 {
 protected:
-  /*
-    Overrides Item_func_group_concat::skip_nulls()
-    NULL-s should be added to the result as JSON null value.
-  */
-  bool skip_nulls() const override { return false; }
   String *get_str_from_item(Item *i, String *tmp) override;
   String *get_str_from_field(Item *i, Field *f, String *tmp,
-                             const uchar *key, size_t offset) override;
+                             const uchar *key,
+                             bool is_null) override;
   void cut_max_length(String *result,
                       uint old_length, uint max_length) const override;
 public:
@@ -749,6 +746,39 @@ public:
   Item *copy_or_same(THD* thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
+
+  bool setup(THD *thd) override
+  { return Item_func_group_concat::setup(thd, false); }
+
+  Keys_descriptor* get_keys_descriptor(uint orig_key_size) const override
+  {
+    uint packed_key_size;
+    if (is_packing_allowed(&packed_key_size))
+      return new Variable_size_keys_descriptor(packed_key_size);
+    return new Fixed_size_keys_descriptor_with_nulls(orig_key_size);
+  }
+
+  qsort_cmp2 get_comparator_function_for_order_by() const override
+  { return json_arrayagg_key_cmp_with_order; }
+
+  friend int json_arrayagg_key_cmp_with_distinct(void* arg,
+                                                 const void* key1,
+                                                 const void* key2);
+  friend int json_arrayagg_key_cmp_with_order(void *arg,
+                                              const void *key1,
+                                              const void *key2);
+  bool add() override
+  {
+    return Item_func_group_concat::add(false);
+  }
+
+protected:
+  uchar* get_record_pointer() const override
+  { return table->record[0]; }
+
+  uint get_null_bytes() const override
+  { return table->s->null_bytes; }
+
 };
 
 
