@@ -1,0 +1,613 @@
+create database dbt3;
+use dbt3;
+SET @save_tmp_table_size= @@tmp_table_size;
+CREATE VIEW v1 AS SELECT DISTINCT p_mfgr, p_brand FROM part;
+#
+# The two queries should return the same result
+#
+SELECT GROUP_CONCAT(p_brand order by p_brand) FROM v1 GROUP BY p_mfgr;
+GROUP_CONCAT(p_brand order by p_brand)
+Brand#11,Brand#12,Brand#13,Brand#14,Brand#15
+Brand#21,Brand#22,Brand#23,Brand#24,Brand#25
+Brand#31,Brand#32,Brand#33,Brand#34,Brand#35
+Brand#41,Brand#42,Brand#43,Brand#44,Brand#45
+Brand#51,Brand#52,Brand#53,Brand#54,Brand#55
+SELECT GROUP_CONCAT(DISTINCT p_brand) FROM part GROUP BY p_mfgr;
+GROUP_CONCAT(DISTINCT p_brand)
+Brand#11,Brand#12,Brand#13,Brand#14,Brand#15
+Brand#21,Brand#22,Brand#23,Brand#24,Brand#25
+Brand#31,Brand#32,Brand#33,Brand#34,Brand#35
+Brand#41,Brand#42,Brand#43,Brand#44,Brand#45
+Brand#51,Brand#52,Brand#53,Brand#54,Brand#55
+#
+# The two queries should return the same result
+#
+SELECT COUNT(*) FROM v1 GROUP BY p_mfgr;
+COUNT(*)
+5
+5
+5
+5
+5
+SELECT COUNT(DISTINCT p_brand) FROM part GROUP BY p_mfgr;
+COUNT(DISTINCT p_brand)
+5
+5
+5
+5
+5
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT DISTINCT p_mfgr, p_name FROM lineitem l, part p
+WHERE l.l_partkey= p.p_partkey;
+SELECT p_mfgr, COUNT(*) FROM v1 GROUP BY p_mfgr;
+p_mfgr	COUNT(*)
+Manufacturer#1	40
+Manufacturer#2	36
+Manufacturer#3	45
+Manufacturer#4	37
+Manufacturer#5	42
+#
+# The two queries should return the same result as the above one
+#
+SELECT p_mfgr, COUNT(DISTINCT p_name) FROM lineitem l, part p
+WHERE l.l_partkey= p.p_partkey
+GROUP BY p.p_mfgr;
+p_mfgr	COUNT(DISTINCT p_name)
+Manufacturer#1	40
+Manufacturer#2	36
+Manufacturer#3	45
+Manufacturer#4	37
+Manufacturer#5	42
+SET tmp_table_size=1024;
+#
+# merge_walk() get called, that is merging of sorted chunks of file happens
+#
+SELECT p_mfgr, COUNT(DISTINCT p_name) FROM lineitem l, part p
+WHERE l.l_partkey= p.p_partkey
+GROUP BY p.p_mfgr;
+p_mfgr	COUNT(DISTINCT p_name)
+Manufacturer#1	40
+Manufacturer#2	36
+Manufacturer#3	45
+Manufacturer#4	37
+Manufacturer#5	42
+SET tmp_table_size = @save_tmp_table_size;
+DROP VIEW v1;
+# The result should be 200
+SELECT COUNT(DISTINCT p_name) FROM lineitem l, part p;
+COUNT(DISTINCT p_name)
+200
+#
+# merge_many_buffers get called, followed by merge_walk()
+#
+SET tmp_table_size=1024;
+SELECT COUNT(DISTINCT p_name) FROM lineitem l, part p;
+COUNT(DISTINCT p_name)
+200
+SET tmp_table_size = @save_tmp_table_size;
+CREATE VIEW v1 AS SELECT DISTINCT n_name, c_name FROM customer, orders, nation
+WHERE o_custkey= c_custkey and c_nationkey= n_nationkey;
+#
+# These 2 queries should return the same result
+#
+SELECT n_name, GROUP_CONCAT(c_name ORDER BY c_name), COUNT(c_name) FROM v1 GROUP BY n_name;
+n_name	GROUP_CONCAT(c_name ORDER BY c_name)	COUNT(c_name)
+ALGERIA	Customer#000000029,Customer#000000073,Customer#000000076,Customer#000000080,Customer#000000086	5
+ARGENTINA	Customer#000000014,Customer#000000059,Customer#000000106	3
+BRAZIL	Customer#000000017,Customer#000000047,Customer#000000092,Customer#000000101	4
+CANADA	Customer#000000005,Customer#000000013,Customer#000000022,Customer#000000023,Customer#000000040,Customer#000000064,Customer#000000122,Customer#000000146	8
+CHINA	Customer#000000007,Customer#000000019,Customer#000000082,Customer#000000118,Customer#000000124	5
+EGYPT	Customer#000000004,Customer#000000074,Customer#000000128,Customer#000000140	4
+ETHIOPIA	Customer#000000010,Customer#000000085	2
+FRANCE	Customer#000000046,Customer#000000050	2
+GERMANY	Customer#000000062,Customer#000000071,Customer#000000119,Customer#000000136	4
+INDIA	Customer#000000028,Customer#000000037,Customer#000000091,Customer#000000115	4
+INDONESIA	Customer#000000067,Customer#000000094,Customer#000000103,Customer#000000130,Customer#000000139,Customer#000000142	6
+IRAN	Customer#000000016,Customer#000000041,Customer#000000049,Customer#000000055,Customer#000000056,Customer#000000104,Customer#000000110	7
+IRAQ	Customer#000000052,Customer#000000131,Customer#000000134,Customer#000000148	4
+JAPAN	Customer#000000025,Customer#000000038,Customer#000000068,Customer#000000098,Customer#000000113	5
+JORDAN	Customer#000000002,Customer#000000058,Customer#000000145	3
+KENYA	Customer#000000089	1
+MOROCCO	Customer#000000001,Customer#000000032,Customer#000000034,Customer#000000053,Customer#000000079,Customer#000000095,Customer#000000107	7
+MOZAMBIQUE	Customer#000000044,Customer#000000088,Customer#000000109,Customer#000000116,Customer#000000137,Customer#000000143	6
+PERU	Customer#000000008,Customer#000000035,Customer#000000061,Customer#000000077,Customer#000000097,Customer#000000121,Customer#000000133	7
+ROMANIA	Customer#000000043,Customer#000000112,Customer#000000125,Customer#000000149	4
+RUSSIA	Customer#000000020,Customer#000000026,Customer#000000070,Customer#000000083	4
+SAUDI ARABIA	Customer#000000100	1
+UNITED KINGDOM	Customer#000000011,Customer#000000031,Customer#000000065	3
+VIETNAM	Customer#000000127	1
+SELECT n_name, GROUP_CONCAT(DISTINCT c_name), COUNT(DISTINCT c_name)
+FROM customer, orders, nation
+WHERE o_custkey= c_custkey and c_nationkey= n_nationkey GROUP BY n_name;
+n_name	GROUP_CONCAT(DISTINCT c_name)	COUNT(DISTINCT c_name)
+ALGERIA	Customer#000000029,Customer#000000073,Customer#000000076,Customer#000000080,Customer#000000086	5
+ARGENTINA	Customer#000000014,Customer#000000059,Customer#000000106	3
+BRAZIL	Customer#000000017,Customer#000000047,Customer#000000092,Customer#000000101	4
+CANADA	Customer#000000005,Customer#000000013,Customer#000000022,Customer#000000023,Customer#000000040,Customer#000000064,Customer#000000122,Customer#000000146	8
+CHINA	Customer#000000007,Customer#000000019,Customer#000000082,Customer#000000118,Customer#000000124	5
+EGYPT	Customer#000000004,Customer#000000074,Customer#000000128,Customer#000000140	4
+ETHIOPIA	Customer#000000010,Customer#000000085	2
+FRANCE	Customer#000000046,Customer#000000050	2
+GERMANY	Customer#000000062,Customer#000000071,Customer#000000119,Customer#000000136	4
+INDIA	Customer#000000028,Customer#000000037,Customer#000000091,Customer#000000115	4
+INDONESIA	Customer#000000067,Customer#000000094,Customer#000000103,Customer#000000130,Customer#000000139,Customer#000000142	6
+IRAN	Customer#000000016,Customer#000000041,Customer#000000049,Customer#000000055,Customer#000000056,Customer#000000104,Customer#000000110	7
+IRAQ	Customer#000000052,Customer#000000131,Customer#000000134,Customer#000000148	4
+JAPAN	Customer#000000025,Customer#000000038,Customer#000000068,Customer#000000098,Customer#000000113	5
+JORDAN	Customer#000000002,Customer#000000058,Customer#000000145	3
+KENYA	Customer#000000089	1
+MOROCCO	Customer#000000001,Customer#000000032,Customer#000000034,Customer#000000053,Customer#000000079,Customer#000000095,Customer#000000107	7
+MOZAMBIQUE	Customer#000000044,Customer#000000088,Customer#000000109,Customer#000000116,Customer#000000137,Customer#000000143	6
+PERU	Customer#000000008,Customer#000000035,Customer#000000061,Customer#000000077,Customer#000000097,Customer#000000121,Customer#000000133	7
+ROMANIA	Customer#000000043,Customer#000000112,Customer#000000125,Customer#000000149	4
+RUSSIA	Customer#000000020,Customer#000000026,Customer#000000070,Customer#000000083	4
+SAUDI ARABIA	Customer#000000100	1
+UNITED KINGDOM	Customer#000000011,Customer#000000031,Customer#000000065	3
+VIETNAM	Customer#000000127	1
+DROP VIEW v1;
+#
+#  Tests for packed unique during EITS collection
+#
+SET @save_histogram_size= @@histogram_size;
+SET histogram_size=0;
+#
+# Testing when histograms are not created, this tests the function count_distinct_single_occurence_walk
+# passed as a callback function to walk
+#
+#
+#  Tests below show the avg_frequency calculated during EITS collection and
+#  we can compare that value by calculating distinct values for the same columns
+#
+#
+# Running ANALYZE for customer table
+#
+ANALYZE TABLE customer PERSISTENT FOR COLUMNS (c_name, c_phone, c_nationkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.customer	analyze	status	Engine-independent statistics collected
+dbt3.customer	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='customer' AND column_name IN ('c_name', 'c_phone', 'c_nationkey');
+column_name	avg_frequency
+c_name	1.0000
+c_nationkey	6.0000
+c_phone	1.0000
+SELECT COUNT(*), COUNT(DISTINCT c_name), COUNT(DISTINCT c_nationkey), COUNT(DISTINCT c_phone)
+FROM customer;
+COUNT(*)	COUNT(DISTINCT c_name)	COUNT(DISTINCT c_nationkey)	COUNT(DISTINCT c_phone)
+150	150	25	150
+#
+# Running ANALYZE for lineitem table
+#
+ANALYZE TABLE lineitem PERSISTENT FOR COLUMNS (l_shipDATE, l_shipinstruct) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.lineitem	analyze	status	Engine-independent statistics collected
+dbt3.lineitem	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='lineitem' AND column_name IN ('l_shipDATE', 'l_shipinstruct');
+column_name	avg_frequency
+l_shipDATE	2.6500
+l_shipinstruct	1501.2500
+SELECT COUNT(*), COUNT(DISTINCT l_shipDATE), COUNT(DISTINCT l_shipinstruct) FROM lineitem;
+COUNT(*)	COUNT(DISTINCT l_shipDATE)	COUNT(DISTINCT l_shipinstruct)
+6005	2266	4
+#
+# Running ANALYZE for nation table
+#
+ANALYZE TABLE nation PERSISTENT FOR COLUMNS (n_name, n_regionkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.nation	analyze	status	Engine-independent statistics collected
+dbt3.nation	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='nation' AND column_name IN ('n_name', 'n_regionkey');
+column_name	avg_frequency
+n_name	1.0000
+n_regionkey	5.0000
+SELECT COUNT(*), COUNT(DISTINCT n_name), COUNT(DISTINCT n_regionkey) FROM nation;
+COUNT(*)	COUNT(DISTINCT n_name)	COUNT(DISTINCT n_regionkey)
+25	25	5
+#
+# Running ANALYZE for part table
+#
+ANALYZE TABLE part PERSISTENT FOR COLUMNS (p_name, p_mfgr) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.part	analyze	status	Engine-independent statistics collected
+dbt3.part	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='part' AND column_name IN ('p_name', 'p_mfgr');
+column_name	avg_frequency
+p_name	1.0000
+p_mfgr	40.0000
+SELECT COUNT(*), COUNT(DISTINCT p_name), COUNT(DISTINCT p_mfgr) FROM part;
+COUNT(*)	COUNT(DISTINCT p_name)	COUNT(DISTINCT p_mfgr)
+200	200	5
+#
+# Running ANALYZE for supplier table
+#
+ANALYZE TABLE supplier PERSISTENT FOR COLUMNS (s_acctbal, s_name, s_phone) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.supplier	analyze	status	Engine-independent statistics collected
+dbt3.supplier	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='supplier' AND column_name IN ('s_acctbal', 's_name', 's_phone');
+column_name	avg_frequency
+s_name	1.0000
+s_phone	1.0000
+s_acctbal	1.0000
+SELECT COUNT(*), COUNT(DISTINCT s_acctbal), COUNT(DISTINCT s_name), COUNT(DISTINCT s_phone)
+FROM supplier;
+COUNT(*)	COUNT(DISTINCT s_acctbal)	COUNT(DISTINCT s_name)	COUNT(DISTINCT s_phone)
+10	10	10	10
+#
+# Testing when histograms are created,this tests the function histogram_build_walk
+# passed as a callback function to walk
+#
+SET histogram_size=255;
+#
+#  Tests below show the avg_frequency calculated during EITS collection and
+#  we can compare that value by calculating distinct values for the same columns
+#
+#
+# Running ANALYZE for customer table
+#
+ANALYZE TABLE customer PERSISTENT FOR COLUMNS (c_name, c_phone, c_nationkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.customer	analyze	status	Engine-independent statistics collected
+dbt3.customer	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='customer' AND column_name IN ('c_name', 'c_phone', 'c_nationkey');
+column_name	avg_frequency
+c_name	1.0000
+c_nationkey	6.0000
+c_phone	1.0000
+SELECT COUNT(*), COUNT(DISTINCT c_name), COUNT(DISTINCT c_nationkey), COUNT(DISTINCT c_phone)
+FROM customer;
+COUNT(*)	COUNT(DISTINCT c_name)	COUNT(DISTINCT c_nationkey)	COUNT(DISTINCT c_phone)
+150	150	25	150
+#
+# Running ANALYZE for lineitem table
+#
+ANALYZE TABLE lineitem PERSISTENT FOR COLUMNS (l_shipDATE, l_shipinstruct) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.lineitem	analyze	status	Engine-independent statistics collected
+dbt3.lineitem	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='lineitem' AND column_name IN ('l_shipDATE', 'l_shipinstruct');
+column_name	avg_frequency
+l_shipDATE	2.6500
+l_shipinstruct	1501.2500
+SELECT COUNT(*), COUNT(DISTINCT l_shipDATE), COUNT(DISTINCT l_shipinstruct) FROM lineitem;
+COUNT(*)	COUNT(DISTINCT l_shipDATE)	COUNT(DISTINCT l_shipinstruct)
+6005	2266	4
+#
+# Running ANALYZE for nation table
+#
+ANALYZE TABLE nation PERSISTENT FOR COLUMNS (n_name, n_regionkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.nation	analyze	status	Engine-independent statistics collected
+dbt3.nation	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='nation' AND column_name IN ('n_name', 'n_regionkey');
+column_name	avg_frequency
+n_name	1.0000
+n_regionkey	5.0000
+SELECT COUNT(*), COUNT(DISTINCT n_name), COUNT(DISTINCT n_regionkey) FROM nation;
+COUNT(*)	COUNT(DISTINCT n_name)	COUNT(DISTINCT n_regionkey)
+25	25	5
+#
+# Running ANALYZE for part table
+#
+ANALYZE TABLE part PERSISTENT FOR COLUMNS (p_name, p_mfgr) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.part	analyze	status	Engine-independent statistics collected
+dbt3.part	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='part' AND column_name IN ('p_name', 'p_mfgr');
+column_name	avg_frequency
+p_name	1.0000
+p_mfgr	40.0000
+SELECT COUNT(*), COUNT(DISTINCT p_name), COUNT(DISTINCT p_mfgr) FROM part;
+COUNT(*)	COUNT(DISTINCT p_name)	COUNT(DISTINCT p_mfgr)
+200	200	5
+#
+# Running ANALYZE for supplier table
+#
+ANALYZE TABLE supplier PERSISTENT FOR COLUMNS (s_acctbal, s_name, s_phone) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.supplier	analyze	status	Engine-independent statistics collected
+dbt3.supplier	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='supplier' AND column_name IN ('s_acctbal', 's_name', 's_phone');
+column_name	avg_frequency
+s_name	1.0000
+s_phone	1.0000
+s_acctbal	1.0000
+SELECT COUNT(*), COUNT(DISTINCT s_acctbal), COUNT(DISTINCT s_name), COUNT(DISTINCT s_phone)
+FROM supplier;
+COUNT(*)	COUNT(DISTINCT s_acctbal)	COUNT(DISTINCT s_name)	COUNT(DISTINCT s_phone)
+10	10	10	10
+#
+#  Testing with very small memory for Unique, will do merging
+#
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size=16384;
+#
+#  Tests below show the avg_frequency calculated during EITS collection and
+#  we can compare that value by calculating distinct values for the same columns
+#
+#
+# Running ANALYZE for customer table
+#
+ANALYZE TABLE customer PERSISTENT FOR COLUMNS (c_name, c_phone, c_nationkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.customer	analyze	status	Engine-independent statistics collected
+dbt3.customer	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='customer' AND column_name IN ('c_name', 'c_phone', 'c_nationkey');
+column_name	avg_frequency
+c_name	1.0000
+c_nationkey	6.0000
+c_phone	1.0000
+SELECT COUNT(*), COUNT(DISTINCT c_name), COUNT(DISTINCT c_nationkey), COUNT(DISTINCT c_phone)
+FROM customer;
+COUNT(*)	COUNT(DISTINCT c_name)	COUNT(DISTINCT c_nationkey)	COUNT(DISTINCT c_phone)
+150	150	25	150
+#
+# Running ANALYZE for lineitem table
+#
+ANALYZE TABLE lineitem PERSISTENT FOR COLUMNS (l_shipDATE, l_shipinstruct) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.lineitem	analyze	status	Engine-independent statistics collected
+dbt3.lineitem	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='lineitem' AND column_name IN ('l_shipDATE', 'l_shipinstruct');
+column_name	avg_frequency
+l_shipDATE	2.6500
+l_shipinstruct	1501.2500
+SELECT COUNT(*), COUNT(DISTINCT l_shipDATE), COUNT(DISTINCT l_shipinstruct) FROM lineitem;
+COUNT(*)	COUNT(DISTINCT l_shipDATE)	COUNT(DISTINCT l_shipinstruct)
+6005	2266	4
+#
+# Running ANALYZE for nation table
+#
+ANALYZE TABLE nation PERSISTENT FOR COLUMNS (n_name, n_regionkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.nation	analyze	status	Engine-independent statistics collected
+dbt3.nation	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='nation' AND column_name IN ('n_name', 'n_regionkey');
+column_name	avg_frequency
+n_name	1.0000
+n_regionkey	5.0000
+SELECT COUNT(*), COUNT(DISTINCT n_name), COUNT(DISTINCT n_regionkey) FROM nation;
+COUNT(*)	COUNT(DISTINCT n_name)	COUNT(DISTINCT n_regionkey)
+25	25	5
+#
+# Running ANALYZE for part table
+#
+ANALYZE TABLE part PERSISTENT FOR COLUMNS (p_name, p_mfgr) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.part	analyze	status	Engine-independent statistics collected
+dbt3.part	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='part' AND column_name IN ('p_name', 'p_mfgr');
+column_name	avg_frequency
+p_name	1.0000
+p_mfgr	40.0000
+SELECT COUNT(*), COUNT(DISTINCT p_name), COUNT(DISTINCT p_mfgr) FROM part;
+COUNT(*)	COUNT(DISTINCT p_name)	COUNT(DISTINCT p_mfgr)
+200	200	5
+#
+# Running ANALYZE for supplier table
+#
+ANALYZE TABLE supplier PERSISTENT FOR COLUMNS (s_acctbal, s_name, s_phone) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.supplier	analyze	status	Engine-independent statistics collected
+dbt3.supplier	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='supplier' AND column_name IN ('s_acctbal', 's_name', 's_phone');
+column_name	avg_frequency
+s_name	1.0000
+s_phone	1.0000
+s_acctbal	1.0000
+SELECT COUNT(*), COUNT(DISTINCT s_acctbal), COUNT(DISTINCT s_name), COUNT(DISTINCT s_phone)
+FROM supplier;
+COUNT(*)	COUNT(DISTINCT s_acctbal)	COUNT(DISTINCT s_name)	COUNT(DISTINCT s_phone)
+10	10	10	10
+SET max_heap_table_size= @save_max_heap_table_size;
+SET histogram_size= @save_histogram_size;
+#
+# Test with CHAR types
+#
+CREATE VIEW v1 AS
+SELECT DISTINCT c_phone FROM customer, orders WHERE c_custkey=o_custkey;
+SELECT COUNT(*) FROM v1;
+COUNT(*)
+100
+SELECT COUNT(DISTINCT c_phone) FROM customer, orders WHERE c_custkey=o_custkey;
+COUNT(DISTINCT c_phone)
+100
+SELECT GROUP_CONCAT(c_phone ORDER BY c_phone) FROM v1;
+GROUP_CONCAT(c_phone ORDER BY c_phone)
+10-267-172-7101,10-349-718-3044,10-473-439-3214,10-677-951-2353,10-773-203-7342,11-355-584-3112,11-751-989-4627,11-845-129-3851,12-427-271-9466,12-446-416-8471,12-514-298-3699,12-970-682-3487,13-312-472-8245,13-558-731-7204,13-652-915-8939,13-702-694-4520,13-750-942-6364,13-761-547-5974,13-806-545-9701,13-835-723-3223,14-128-190-5944,14-199-862-7209,14-273-885-6505,14-280-874-8044,15-741-346-9870,15-745-585-8219,16-357-681-2007,16-658-112-3221,17-361-978-7059,17-501-210-4726,17-697-919-8406,17-710-812-5403,18-239-400-3677,18-385-235-7162,18-774-241-1462,18-971-699-1843,19-140-352-1403,19-190-993-9281,19-216-107-2107,19-403-114-4356,19-407-425-2584,19-953-499-8833,20-180-440-8525,20-781-609-3107,20-893-536-2069,20-895-685-6920,20-908-631-4424,20-917-711-4011,20-966-284-8065,21-186-284-5998,21-200-159-5932,21-562-498-6636,21-840-210-3572,22-302-930-4756,22-306-880-7212,22-603-468-3533,22-885-845-6889,22-918-832-2411,23-244-493-2508,23-562-444-8454,23-768-687-3665,24-394-451-5404,25-147-850-4166,25-168-852-5363,25-336-529-9919,25-344-968-5422,25-430-914-2194,25-923-255-2929,25-989-741-2988,26-190-260-5375,26-314-406-7725,26-516-273-2566,26-632-309-5792,26-777-409-5654,26-992-422-8153,27-147-574-9335,27-269-357-4674,27-408-997-8430,27-411-990-2959,27-566-888-7431,27-588-919-5638,27-626-559-8599,28-159-442-5305,28-183-750-7809,28-190-982-9759,28-396-526-5053,28-639-943-7051,29-233-262-8382,29-261-996-3120,29-316-665-2897,29-797-439-6760,30-749-445-4907,31-101-672-2951,32-363-455-4837,32-817-154-4122,32-828-107-2832,32-957-234-8742,33-197-837-7094,33-464-151-3439,33-733-623-5267
+SELECT GROUP_CONCAT(DISTINCT c_phone) FROM customer, orders WHERE c_custkey=o_custkey;
+GROUP_CONCAT(DISTINCT c_phone)
+10-267-172-7101,10-349-718-3044,10-473-439-3214,10-677-951-2353,10-773-203-7342,11-355-584-3112,11-751-989-4627,11-845-129-3851,12-427-271-9466,12-446-416-8471,12-514-298-3699,12-970-682-3487,13-312-472-8245,13-558-731-7204,13-652-915-8939,13-702-694-4520,13-750-942-6364,13-761-547-5974,13-806-545-9701,13-835-723-3223,14-128-190-5944,14-199-862-7209,14-273-885-6505,14-280-874-8044,15-741-346-9870,15-745-585-8219,16-357-681-2007,16-658-112-3221,17-361-978-7059,17-501-210-4726,17-697-919-8406,17-710-812-5403,18-239-400-3677,18-385-235-7162,18-774-241-1462,18-971-699-1843,19-140-352-1403,19-190-993-9281,19-216-107-2107,19-403-114-4356,19-407-425-2584,19-953-499-8833,20-180-440-8525,20-781-609-3107,20-893-536-2069,20-895-685-6920,20-908-631-4424,20-917-711-4011,20-966-284-8065,21-186-284-5998,21-200-159-5932,21-562-498-6636,21-840-210-3572,22-302-930-4756,22-306-880-7212,22-603-468-3533,22-885-845-6889,22-918-832-2411,23-244-493-2508,23-562-444-8454,23-768-687-3665,24-394-451-5404,25-147-850-4166,25-168-852-5363,25-336-529-9919,25-344-968-5422,25-430-914-2194,25-923-255-2929,25-989-741-2988,26-190-260-5375,26-314-406-7725,26-516-273-2566,26-632-309-5792,26-777-409-5654,26-992-422-8153,27-147-574-9335,27-269-357-4674,27-408-997-8430,27-411-990-2959,27-566-888-7431,27-588-919-5638,27-626-559-8599,28-159-442-5305,28-183-750-7809,28-190-982-9759,28-396-526-5053,28-639-943-7051,29-233-262-8382,29-261-996-3120,29-316-665-2897,29-797-439-6760,30-749-445-4907,31-101-672-2951,32-363-455-4837,32-817-154-4122,32-828-107-2832,32-957-234-8742,33-197-837-7094,33-464-151-3439,33-733-623-5267
+SELECT JSON_ARRAYAGG(DISTINCT c_phone) FROM customer, orders WHERE c_custkey=o_custkey;
+JSON_ARRAYAGG(DISTINCT c_phone)
+["10-267-172-7101","10-349-718-3044","10-473-439-3214","10-677-951-2353","10-773-203-7342","11-355-584-3112","11-751-989-4627","11-845-129-3851","12-427-271-9466","12-446-416-8471","12-514-298-3699","12-970-682-3487","13-312-472-8245","13-558-731-7204","13-652-915-8939","13-702-694-4520","13-750-942-6364","13-761-547-5974","13-806-545-9701","13-835-723-3223","14-128-190-5944","14-199-862-7209","14-273-885-6505","14-280-874-8044","15-741-346-9870","15-745-585-8219","16-357-681-2007","16-658-112-3221","17-361-978-7059","17-501-210-4726","17-697-919-8406","17-710-812-5403","18-239-400-3677","18-385-235-7162","18-774-241-1462","18-971-699-1843","19-140-352-1403","19-190-993-9281","19-216-107-2107","19-403-114-4356","19-407-425-2584","19-953-499-8833","20-180-440-8525","20-781-609-3107","20-893-536-2069","20-895-685-6920","20-908-631-4424","20-917-711-4011","20-966-284-8065","21-186-284-5998","21-200-159-5932","21-562-498-6636","21-840-210-3572","22-302-930-4756","22-306-880-7212","22-603-468-3533","22-885-845-6889","22-918-832-2411","23-244-493-2508","23-562-444-8454","23-768-687-3665","24-394-451-5404","25-147-850-4166","25-168-852-5363","25-336-529-9919","25-344-968-5422","25-430-914-2194","25-923-255-2929","25-989-741-2988","26-190-260-5375","26-314-406-7725","26-516-273-2566","26-632-309-5792","26-777-409-5654","26-992-422-8153","27-147-574-9335","27-269-357-4674","27-408-997-8430","27-411-990-2959","27-566-888-7431","27-588-919-5638","27-626-559-8599","28-159-442-5305","28-183-750-7809","28-190-982-9759","28-396-526-5053","28-639-943-7051","29-233-262-8382","29-261-996-3120","29-316-665-2897","29-797-439-6760","30-749-445-4907","31-101-672-2951","32-363-455-4837","32-817-154-4122","32-828-107-2832","32-957-234-8742","33-197-837-7094","33-464-151-3439","33-733-623-5267"]
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT DISTINCT c_name FROM customer, orders WHERE c_custkey=o_custkey;
+#
+# Test with VARCHAR types
+#
+SELECT GROUP_CONCAT(c_name ORDER BY c_name) FROM v1;
+GROUP_CONCAT(c_name ORDER BY c_name)
+Customer#000000001,Customer#000000002,Customer#000000004,Customer#000000005,Customer#000000007,Customer#000000008,Customer#000000010,Customer#000000011,Customer#000000013,Customer#000000014,Customer#000000016,Customer#000000017,Customer#000000019,Customer#000000020,Customer#000000022,Customer#000000023,Customer#000000025,Customer#000000026,Customer#000000028,Customer#000000029,Customer#000000031,Customer#000000032,Customer#000000034,Customer#000000035,Customer#000000037,Customer#000000038,Customer#000000040,Customer#000000041,Customer#000000043,Customer#000000044,Customer#000000046,Customer#000000047,Customer#000000049,Customer#000000050,Customer#000000052,Customer#000000053,Customer#000000055,Customer#000000056,Customer#000000058,Customer#000000059,Customer#000000061,Customer#000000062,Customer#000000064,Customer#000000065,Customer#000000067,Customer#000000068,Customer#000000070,Customer#000000071,Customer#000000073,Customer#000000074,Customer#000000076,Customer#000000077,Customer#000000079,Customer#000000080,Customer#000000082,Customer#000000083,Customer#000000085,Customer#000000086,Customer#000000088,Customer#000000089,Customer#000000091,Customer#000000092,Customer#000000094,Customer#000000095,Customer#000000097,Customer#000000098,Customer#000000100,Customer#000000101,Customer#000000103,Customer#000000104,Customer#000000106,Customer#000000107,Customer#000000109,Customer#000000110,Customer#000000112,Customer#000000113,Customer#000000115,Customer#000000116,Customer#000000118,Customer#000000119,Customer#000000121,Customer#000000122,Customer#000000124,Customer#000000125,Customer#000000127,Customer#000000128,Customer#000000130,Customer#000000131,Customer#000000133,Customer#000000134,Customer#000000136,Customer#000000137,Customer#000000139,Customer#000000140,Customer#000000142,Customer#000000143,Customer#000000145,Customer#000000146,Customer#000000148,Customer#000000149
+SELECT GROUP_CONCAT(DISTINCT c_name) FROM customer, orders WHERE c_custkey=o_custkey;
+GROUP_CONCAT(DISTINCT c_name)
+Customer#000000001,Customer#000000002,Customer#000000004,Customer#000000005,Customer#000000007,Customer#000000008,Customer#000000010,Customer#000000011,Customer#000000013,Customer#000000014,Customer#000000016,Customer#000000017,Customer#000000019,Customer#000000020,Customer#000000022,Customer#000000023,Customer#000000025,Customer#000000026,Customer#000000028,Customer#000000029,Customer#000000031,Customer#000000032,Customer#000000034,Customer#000000035,Customer#000000037,Customer#000000038,Customer#000000040,Customer#000000041,Customer#000000043,Customer#000000044,Customer#000000046,Customer#000000047,Customer#000000049,Customer#000000050,Customer#000000052,Customer#000000053,Customer#000000055,Customer#000000056,Customer#000000058,Customer#000000059,Customer#000000061,Customer#000000062,Customer#000000064,Customer#000000065,Customer#000000067,Customer#000000068,Customer#000000070,Customer#000000071,Customer#000000073,Customer#000000074,Customer#000000076,Customer#000000077,Customer#000000079,Customer#000000080,Customer#000000082,Customer#000000083,Customer#000000085,Customer#000000086,Customer#000000088,Customer#000000089,Customer#000000091,Customer#000000092,Customer#000000094,Customer#000000095,Customer#000000097,Customer#000000098,Customer#000000100,Customer#000000101,Customer#000000103,Customer#000000104,Customer#000000106,Customer#000000107,Customer#000000109,Customer#000000110,Customer#000000112,Customer#000000113,Customer#000000115,Customer#000000116,Customer#000000118,Customer#000000119,Customer#000000121,Customer#000000122,Customer#000000124,Customer#000000125,Customer#000000127,Customer#000000128,Customer#000000130,Customer#000000131,Customer#000000133,Customer#000000134,Customer#000000136,Customer#000000137,Customer#000000139,Customer#000000140,Customer#000000142,Customer#000000143,Customer#000000145,Customer#000000146,Customer#000000148,Customer#000000149
+SELECT JSON_ARRAYAGG(DISTINCT c_name) FROM customer, orders WHERE c_custkey=o_custkey;
+JSON_ARRAYAGG(DISTINCT c_name)
+["Customer#000000001","Customer#000000002","Customer#000000004","Customer#000000005","Customer#000000007","Customer#000000008","Customer#000000010","Customer#000000011","Customer#000000013","Customer#000000014","Customer#000000016","Customer#000000017","Customer#000000019","Customer#000000020","Customer#000000022","Customer#000000023","Customer#000000025","Customer#000000026","Customer#000000028","Customer#000000029","Customer#000000031","Customer#000000032","Customer#000000034","Customer#000000035","Customer#000000037","Customer#000000038","Customer#000000040","Customer#000000041","Customer#000000043","Customer#000000044","Customer#000000046","Customer#000000047","Customer#000000049","Customer#000000050","Customer#000000052","Customer#000000053","Customer#000000055","Customer#000000056","Customer#000000058","Customer#000000059","Customer#000000061","Customer#000000062","Customer#000000064","Customer#000000065","Customer#000000067","Customer#000000068","Customer#000000070","Customer#000000071","Customer#000000073","Customer#000000074","Customer#000000076","Customer#000000077","Customer#000000079","Customer#000000080","Customer#000000082","Customer#000000083","Customer#000000085","Customer#000000086","Customer#000000088","Customer#000000089","Customer#000000091","Customer#000000092","Customer#000000094","Customer#000000095","Customer#000000097","Customer#000000098","Customer#000000100","Customer#000000101","Customer#000000103","Customer#000000104","Customer#000000106","Customer#000000107","Customer#000000109","Customer#000000110","Customer#000000112","Customer#000000113","Customer#000000115","Customer#000000116","Customer#000000118","Customer#000000119","Customer#000000121","Customer#000000122","Customer#000000124","Customer#000000125","Customer#000000127","Customer#000000128","Customer#000000130","Customer#000000131","Customer#000000133","Customer#000000134","Customer#000000136","Customer#000000137","Customer#000000139","Customer#000000140","Customer#000000142","Customer#000000143","Customer#000000145","Customer#000000146","Customer#000000148","Customer#000000149"]
+DROP VIEW v1;
+#
+# Test with FIXED TYPES
+#
+CREATE VIEW v1 AS
+SELECT DISTINCT c_nationkey FROM customer, orders WHERE c_custkey=o_custkey;
+SELECT GROUP_CONCAT(c_nationkey ORDER BY c_nationkey) FROM v1;
+GROUP_CONCAT(c_nationkey ORDER BY c_nationkey)
+0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23
+SELECT GROUP_CONCAT(DISTINCT c_nationkey) FROM customer, orders WHERE c_custkey=o_custkey;
+GROUP_CONCAT(DISTINCT c_nationkey)
+0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23
+SELECT JSON_ARRAYAGG(DISTINCT c_nationkey) FROM customer, orders WHERE c_custkey=o_custkey;
+JSON_ARRAYAGG(DISTINCT c_nationkey)
+[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+DROP VIEW v1;
+DROP DATABASE dbt3;
+USE test;
+#
+#  Testing for merge_buffers when Unique is packed
+#
+CREATE TABLE t1 (a VARCHAR(1500));
+INSERT INTO t1 SELECT repeat('a', seq+100) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+100) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+200) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+200) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+300) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+300) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+400) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+400) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+500) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+500) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+600) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+600) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+700) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+700) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+800) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+800) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+900) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+900) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1000) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1000) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1100) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1100) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1200) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1200) FROM seq_1_to_100;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size=16384;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (a) INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT column_name, avg_frequency FROM mysql.column_stats where table_name='t1' AND column_name='a';
+column_name	avg_frequency
+a	2.0000
+SELECT COUNT(*), COUNT(DISTINCT a) FROM t1;
+COUNT(*)	COUNT(DISTINCT a)
+2400	1200
+SET max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1;
+#
+#  Simple test for DISTINCT with VARCHAR, CHAR and BLOBS
+#
+#
+# Test with VARCHAR types
+#
+CREATE TABLE t1 (a VARCHAR(2056), b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+GROUP_CONCAT(DISTINCT a)
+a,b,c
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[null,"a","b","c"]
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(2056) NOT NULL, b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+GROUP_CONCAT(DISTINCT a)
+a,b,c
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+["a","b","c"]
+DROP TABLE t1;
+#
+# Test with CHAR types
+#
+CREATE TABLE t1 (a CHAR(255), b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+GROUP_CONCAT(DISTINCT a)
+a,b,c
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[null,"a","b","c"]
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(255) NOT NULL, b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+GROUP_CONCAT(DISTINCT a)
+a,b,c
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+["a","b","c"]
+#
+# Test with INT types (fixed size datatypes)
+#
+SELECT GROUP_CONCAT(DISTINCT b)  FROM t1;
+GROUP_CONCAT(DISTINCT b)
+1,2,3,4
+SELECT JSON_ARRAYAGG(DISTINCT b) FROM t1;
+JSON_ARRAYAGG(DISTINCT b)
+[1,2,3,4]
+DROP TABLE t1;
+#
+# Test with BLOB types
+#
+CREATE TABLE t1 (a BLOB, b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+GROUP_CONCAT(DISTINCT a)
+a,b,c
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+JSON_ARRAYAGG(DISTINCT a)
+[null,"a","b","c"]
+DROP TABLE t1;
+#
+# Multiple arguments to GROUP_CONCAT
+#
+CREATE TABLE t1 (a VARCHAR(10) NOT NULL, b INT);
+INSERT INTO t1 VALUES ('a',259),('a',11);
+INSERT INTO t1 VALUES ('a',259),('a',11);
+INSERT INTO t1 VALUES ('b',259),('c',11);
+SELECT GROUP_CONCAT(DISTINCT a, b)  FROM t1;
+GROUP_CONCAT(DISTINCT a, b)
+a11,a259,b259,c11
+SELECT GROUP_CONCAT(DISTINCT a, b+1)  FROM t1;
+GROUP_CONCAT(DISTINCT a, b+1)
+a12,a260,b260,c12
+DROP TABLE t1;

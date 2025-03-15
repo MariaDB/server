@@ -1,0 +1,264 @@
+--source include/have_sequence.inc
+create database dbt3;
+use dbt3;
+
+--disable_result_log
+--disable_query_log
+--source include/dbt3_s001.inc
+--enable_result_log
+--enable_query_log
+
+SET @save_tmp_table_size= @@tmp_table_size;
+
+CREATE VIEW v1 AS SELECT DISTINCT p_mfgr, p_brand FROM part;
+
+--echo #
+--echo # The two queries should return the same result
+--echo #
+SELECT GROUP_CONCAT(p_brand order by p_brand) FROM v1 GROUP BY p_mfgr;
+SELECT GROUP_CONCAT(DISTINCT p_brand) FROM part GROUP BY p_mfgr;
+
+--echo #
+--echo # The two queries should return the same result
+--echo #
+SELECT COUNT(*) FROM v1 GROUP BY p_mfgr;
+SELECT COUNT(DISTINCT p_brand) FROM part GROUP BY p_mfgr;
+
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT DISTINCT p_mfgr, p_name FROM lineitem l, part p
+WHERE l.l_partkey= p.p_partkey;
+
+SELECT p_mfgr, COUNT(*) FROM v1 GROUP BY p_mfgr;
+
+--echo #
+--echo # The two queries should return the same result as the above one
+--echo #
+
+LET $query= SELECT p_mfgr, COUNT(DISTINCT p_name) FROM lineitem l, part p
+WHERE l.l_partkey= p.p_partkey
+GROUP BY p.p_mfgr;
+
+eval $query;
+
+SET tmp_table_size=1024;
+--echo #
+--echo # merge_walk() get called, that is merging of sorted chunks of file happens
+--echo #
+eval $query;
+SET tmp_table_size = @save_tmp_table_size;
+DROP VIEW v1;
+
+--echo # The result should be 200
+SELECT COUNT(DISTINCT p_name) FROM lineitem l, part p;
+--echo #
+--echo # merge_many_buffers get called, followed by merge_walk()
+--echo #
+SET tmp_table_size=1024;
+SELECT COUNT(DISTINCT p_name) FROM lineitem l, part p;
+SET tmp_table_size = @save_tmp_table_size;
+
+CREATE VIEW v1 AS SELECT DISTINCT n_name, c_name FROM customer, orders, nation
+WHERE o_custkey= c_custkey and c_nationkey= n_nationkey;
+
+--echo #
+--echo # These 2 queries should return the same result
+--echo #
+
+SELECT n_name, GROUP_CONCAT(c_name ORDER BY c_name), COUNT(c_name) FROM v1 GROUP BY n_name;
+
+SELECT n_name, GROUP_CONCAT(DISTINCT c_name), COUNT(DISTINCT c_name)
+FROM customer, orders, nation
+WHERE o_custkey= c_custkey and c_nationkey= n_nationkey GROUP BY n_name;
+
+DROP VIEW v1;
+
+--echo #
+--echo #  Tests for packed unique during EITS collection
+--echo #
+
+SET @save_histogram_size= @@histogram_size;
+SET histogram_size=0;
+--echo #
+--echo # Testing when histograms are not created, this tests the function count_distinct_single_occurence_walk
+--echo # passed as a callback function to walk
+--echo #
+
+--source include/unique_packed_eits.inc
+
+--echo #
+--echo # Testing when histograms are created,this tests the function histogram_build_walk
+--echo # passed as a callback function to walk
+--echo #
+
+SET histogram_size=255;
+--source include/unique_packed_eits.inc
+
+
+--echo #
+--echo #  Testing with very small memory for Unique, will do merging
+--echo #
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size=16384;
+--source include/unique_packed_eits.inc
+SET max_heap_table_size= @save_max_heap_table_size;
+
+SET histogram_size= @save_histogram_size;
+
+--echo #
+--echo # Test with CHAR types
+--echo #
+
+CREATE VIEW v1 AS
+SELECT DISTINCT c_phone FROM customer, orders WHERE c_custkey=o_custkey;
+
+SELECT COUNT(*) FROM v1;
+SELECT COUNT(DISTINCT c_phone) FROM customer, orders WHERE c_custkey=o_custkey;
+
+SELECT GROUP_CONCAT(c_phone ORDER BY c_phone) FROM v1;
+SELECT GROUP_CONCAT(DISTINCT c_phone) FROM customer, orders WHERE c_custkey=o_custkey;
+SELECT JSON_ARRAYAGG(DISTINCT c_phone) FROM customer, orders WHERE c_custkey=o_custkey;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT DISTINCT c_name FROM customer, orders WHERE c_custkey=o_custkey;
+
+--echo #
+--echo # Test with VARCHAR types
+--echo #
+
+SELECT GROUP_CONCAT(c_name ORDER BY c_name) FROM v1;
+SELECT GROUP_CONCAT(DISTINCT c_name) FROM customer, orders WHERE c_custkey=o_custkey;
+SELECT JSON_ARRAYAGG(DISTINCT c_name) FROM customer, orders WHERE c_custkey=o_custkey;
+DROP VIEW v1;
+
+--echo #
+--echo # Test with FIXED TYPES
+--echo #
+
+CREATE VIEW v1 AS
+SELECT DISTINCT c_nationkey FROM customer, orders WHERE c_custkey=o_custkey;
+
+SELECT GROUP_CONCAT(c_nationkey ORDER BY c_nationkey) FROM v1;
+SELECT GROUP_CONCAT(DISTINCT c_nationkey) FROM customer, orders WHERE c_custkey=o_custkey;
+SELECT JSON_ARRAYAGG(DISTINCT c_nationkey) FROM customer, orders WHERE c_custkey=o_custkey;
+
+DROP VIEW v1;
+
+DROP DATABASE dbt3;
+
+USE test;
+
+--echo #
+--echo #  Testing for merge_buffers when Unique is packed
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1500));
+INSERT INTO t1 SELECT repeat('a', seq+100) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+100) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+200) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+200) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+300) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+300) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+400) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+400) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+500) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+500) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+600) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+600) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+700) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+700) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+800) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+800) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+900) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+900) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1000) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1000) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1100) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1100) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1200) FROM seq_1_to_100;
+INSERT INTO t1 SELECT repeat('a', seq+1200) FROM seq_1_to_100;
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size=16384;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (a) INDEXES();
+
+SELECT column_name, avg_frequency FROM mysql.column_stats where table_name='t1' AND column_name='a';
+SELECT COUNT(*), COUNT(DISTINCT a) FROM t1;
+SET max_heap_table_size= @save_max_heap_table_size;
+
+DROP TABLE t1;
+
+--echo #
+--echo #  Simple test for DISTINCT with VARCHAR, CHAR and BLOBS
+--echo #
+
+--echo #
+--echo # Test with VARCHAR types
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(2056), b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(2056) NOT NULL, b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Test with CHAR types
+--echo #
+
+CREATE TABLE t1 (a CHAR(255), b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR(255) NOT NULL, b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+
+
+--echo #
+--echo # Test with INT types (fixed size datatypes)
+--echo #
+
+SELECT GROUP_CONCAT(DISTINCT b)  FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT b) FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test with BLOB types
+--echo #
+
+CREATE TABLE t1 (a BLOB, b INT NOT NULL);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+INSERT INTO t1 VALUES ('a',2),('b',2),('c',1),('a',3),('b',4),('c',4), (NULL, 5), (NULL, 6);
+SELECT GROUP_CONCAT(DISTINCT a)  FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Multiple arguments to GROUP_CONCAT
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) NOT NULL, b INT);
+INSERT INTO t1 VALUES ('a',259),('a',11);
+INSERT INTO t1 VALUES ('a',259),('a',11);
+INSERT INTO t1 VALUES ('b',259),('c',11);
+SELECT GROUP_CONCAT(DISTINCT a, b)  FROM t1;
+SELECT GROUP_CONCAT(DISTINCT a, b+1)  FROM t1;
+DROP TABLE t1;

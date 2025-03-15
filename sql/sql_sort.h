@@ -219,9 +219,9 @@ public:
     @returns Total number of bytes used for packed addon fields.
     the size of the length field + size of null bits + sum of field sizes.
    */
-  static uint read_addon_length(uchar *p)
+  static uint read_addon_length(const uchar *p)
   {
-    return size_of_length_field + uint2korr(p);
+    return SIZE_OF_LENGTH_FIELD + uint2korr(p);
   }
 
   /**
@@ -230,10 +230,10 @@ public:
   static void store_addon_length(uchar *p, uint sz)
   {
     // We actually store the length of everything *after* the length field.
-    int2store(p, sz - size_of_length_field);
+    int2store(p, sz - SIZE_OF_LENGTH_FIELD);
   }
 
-  static const uint size_of_length_field= 2;
+  static const uint SIZE_OF_LENGTH_FIELD= 2;
 
 private:
   Addon_fields_array m_field_descriptors;
@@ -278,7 +278,7 @@ public:
     size_of_packable_fields= len;
   }
 
-  uint get_size_of_packable_fields()
+  uint get_size_of_packable_fields() const
   {
     return size_of_packable_fields;
   }
@@ -288,7 +288,7 @@ public:
     sort_length_with_original_values= len;
   }
 
-  uint get_sort_length_with_original_values()
+  uint get_sort_length_with_original_values() const
   {
     return sort_length_with_original_values;
   }
@@ -298,19 +298,19 @@ public:
     sort_length_with_memcmp_values= len;
   }
 
-  uint get_sort_length_with_memcmp_values()
+  uint get_sort_length_with_memcmp_values() const
   {
     return sort_length_with_memcmp_values;
   }
 
   static void store_sortkey_length(uchar *p, uint sz)
   {
-    int4store(p, sz - size_of_length_field);
+    int4store(p, sz - SIZE_OF_LENGTH_FIELD);
   }
 
-  static uint read_sortkey_length(uchar *p)
+  static uint read_sortkey_length(const uchar *p)
   {
-    return size_of_length_field + uint4korr(p);
+    return SIZE_OF_LENGTH_FIELD + uint4korr(p);
   }
 
   void increment_size_of_packable_fields(uint len)
@@ -323,10 +323,12 @@ public:
     sort_length_with_original_values+= len;
   }
 
-  bool is_parameters_computed() { return parameters_computed; }
-  void set_parameters_computed(bool val) { parameters_computed= val; }
+  uint compute_sort_length(THD *thd, bool *allow_packing_for_sortkeys);
 
-  static const uint size_of_length_field= 4;
+  bool is_parameters_computed() const { return parameters_computed; }
+  int compare_keys(const uchar *a, const uchar *b) const;
+
+  static const uint SIZE_OF_LENGTH_FIELD= 4;
 
 private:
   bool m_using_packed_sortkeys;     // Are we packing sort keys
@@ -613,8 +615,8 @@ public:
 
   bool using_packed_sortkeys() const
   {
-    DBUG_ASSERT(m_using_packed_sortkeys ==
-                (sort_keys != NULL && sort_keys->using_packed_sortkeys()));
+    DBUG_ASSERT(sort_keys == NULL ||
+                (m_using_packed_sortkeys == sort_keys->using_packed_sortkeys()));
     return m_using_packed_sortkeys;
   }
 
@@ -624,14 +626,19 @@ public:
     return addon_fields != NULL;
   }
 
-  uint32 get_result_length(uchar *plen)
+  void set_using_packed_keys(bool val)
+  {
+    m_using_packed_sortkeys= val;
+  }
+
+  uint32 get_result_length(const uchar *plen) const
   {
     if (!m_using_packed_addons)
       return res_length;
     return Addon_fields::read_addon_length(plen);
   }
 
-  uint32 get_addon_length(uchar *plen)
+  uint32 get_addon_length(const uchar *plen) const
   {
     if (using_packed_addons())
       return Addon_fields::read_addon_length(plen);
@@ -639,7 +646,7 @@ public:
       return addon_length;
   }
 
-  uint32 get_sort_length(uchar *plen)
+  uint32 get_sort_length(const uchar *plen) const
   {
     if (using_packed_sortkeys())
       return Sort_keys::read_sortkey_length(plen) +
@@ -653,7 +660,7 @@ public:
       return sort_length;
   }
 
-  uint get_record_length(uchar *plen)
+  uint get_record_length(uchar *plen) const
   {
     if (m_packed_format)
     {
@@ -705,6 +712,12 @@ public:
   {
     return m_packed_format;
   }
+  void set_packed_format(bool val)
+  {
+    m_packed_format= val;
+  }
+
+  uint32 compute_rec_length_for_unique(const uchar *key) const;
 
 private:
   uint m_packable_length;

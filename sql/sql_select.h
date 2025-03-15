@@ -2033,6 +2033,8 @@ int opt_sum_query(THD* thd,
 /* from sql_delete.cc, used by opt_range.cc */
 extern "C" int refpos_order_cmp(void *arg, const void *a,const void *b);
 
+extern "C" int refpos_cmp(void* arg, const void *a, const void *b);
+
 /** class to copying an field/item to a key struct */
 
 class store_key :public Sql_alloc
