@@ -469,7 +469,7 @@ static void test_prepare_simple()
   strmov(query, "SHOW SLAVE STATUS");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
-  DIE_UNLESS(mysql_stmt_field_count(stmt) == 56);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 57);
   mysql_stmt_close(stmt);
 
   /* show master status */
