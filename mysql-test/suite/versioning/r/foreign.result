@@ -263,6 +263,13 @@ constraint `fk_child_parent`
 on delete cascade
 on update cascade
 ) engine = innodb with system versioning;
+select * from information_schema.innodb_sys_foreign;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk_child_parent	test/child	test/parent	2	5
+select * from information_schema.innodb_sys_foreign_cols;
+ID	FOR_COL_NAME	REF_COL_NAME	POS
+test/fk_child_parent	parent_id	id	0
+test/fk_child_parent	parent_value	value	1
 create or replace table subchild (
 id int not null auto_increment primary key,
 parent_id smallint unsigned not null,
@@ -272,6 +279,16 @@ constraint `fk_subchild_child_parent`
 on delete cascade
 on update cascade
 ) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk_child_parent	test/child	test/parent	2	5
+test/fk_subchild_child_parent	test/subchild	test/child	2	5
+select * from information_schema.innodb_sys_foreign_cols;
+ID	FOR_COL_NAME	REF_COL_NAME	POS
+test/fk_child_parent	parent_id	id	0
+test/fk_child_parent	parent_value	value	1
+test/fk_subchild_child_parent	parent_id	parent_id	0
+test/fk_subchild_child_parent	parent_value	parent_value	1
 insert into parent (value) values (23);
 select id, value from parent into @id, @value;
 insert into child values (default, @id, @value);

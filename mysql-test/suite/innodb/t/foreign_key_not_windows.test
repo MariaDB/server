@@ -25,19 +25,40 @@ CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
 # corresponding to the 51 characters below: 5*51=255.
 let $d255=###################################################;
 let $d250=##################################################;
+let $d245=#################################################;
 --replace_result $d255 d255
 eval CREATE DATABASE `$d255`;
+
 --replace_result $d255 d255
 --error ER_IDENT_CAUSES_TOO_LONG_PATH
 eval CREATE TABLE `$d255`.`$d255`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+
+--replace_result $d255 d255
+--error ER_IDENT_CAUSES_TOO_LONG_PATH
+eval CREATE OR REPLACE TABLE `$d255`.`$d255`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+
 --replace_result $d255 d255
 --error ER_IDENT_CAUSES_TOO_LONG_PATH
 eval CREATE TABLE `$d255`.`_$d250`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+
+--replace_result $d255 d255
+--error ER_IDENT_CAUSES_TOO_LONG_PATH
+eval CREATE OR REPLACE TABLE `$d255`.`_$d250`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+
 --replace_result $d255 d255
 eval CREATE TABLE `$d255`.`$d250`
 (a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+
+--replace_result $d255 d255 $d245 d245
+eval CREATE OR REPLACE TABLE `$d255`.`$d245`
+(a INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES test.t(a)) ENGINE=InnoDB;
+
+--replace_result $d255 d255 $d245 d245
+eval DROP TABLE `$d255`.`$d245`;
 
 --echo #
 --echo # MDEV-29258 Failing assertion for name length on RENAME TABLE
@@ -53,7 +74,6 @@ eval DROP TABLE `$d255`.`$d250`;
 eval RENAME TABLE `$d255`.`$d245` TO `$d255`.`$d250`;
 --replace_result $d250 d250 $d255 d255
 eval RENAME TABLE `$d255`.`$d250` TO a;
---replace_result $d255 d255
 DROP TABLE a,t;
 
 --echo #
@@ -75,3 +95,28 @@ DROP TABLE u;
 eval DROP DATABASE `$d255`;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-28933 CREATE OR REPLACE fails to recreate same constraint name
+--echo #
+set names utf8;
+let $d= `select repeat('❎', 45)`;
+let $t= `select repeat('❎', 64)`;
+eval create database `$d`;
+eval use `$d`;
+create table t (a int primary key) engine=innodb;
+eval create table u (
+  a int primary key,
+  constraint `$t` foreign key d (a) references t (a)) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+eval create or replace table u (
+  a int primary key,
+  constraint `$t` foreign key d (a) references t (a)) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+show create table u;
+use test;
+eval drop database `$d`;
+
+--echo # End of 11.x tests
