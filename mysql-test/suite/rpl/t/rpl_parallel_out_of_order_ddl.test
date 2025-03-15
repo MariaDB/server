@@ -1,0 +1,118 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--sync_slave_with_master
+
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL slave_parallel_mode= optimistic;
+--source include/start_slave.inc
+
+# Set up 3 event groups in two domains T and U:
+#
+# U1: DDL in domain 2
+# T2: DML in domain 1
+# T3: DML in domain 1
+#
+# Setup a deadlock wait-for -> graph T2 -> U1 -> T3 -> T2.
+# Where T2->U1->T3 are metadata lock waits and T3->T2 is
+# wait-for-prior-commit.
+#
+# Test that the deadlock is broken.
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0), (2,0), (3,0), (4,0), (5,0);
+INSERT INTO t2 SELECT * FROM t1;
+--sync_slave_with_master
+
+# Setup a temporary block for T2, after it has locked table t1.
+--connection slave1
+BEGIN;
+UPDATE t2 SET b=20 WHERE a=2;
+
+--connection slave
+# Set the DDL U1 (GTID 0-1-100) to not start until we release it.
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= "+d,hold_worker_on_schedule";
+
+--connection master
+# U1: DDL on t1.
+SET SESSION gtid_domain_id= 0;
+SET SESSION gtid_seq_no= 100;
+ALTER TABLE t1 ADD INDEX b_idx(b);
+
+--connection slave
+# Wait until U1 is running and temporarily blocked.
+SET debug_sync="now WAIT_FOR reached_pause";
+SET GLOBAL debug_dbug= @old_dbug;
+
+--connection master
+# T2: DML on table t2 and t1.
+SET SESSION gtid_domain_id= 1;
+BEGIN;
+UPDATE t2 SET b=2 WHERE a=2;
+UPDATE t1 SET b=2 WHERE a=3;
+COMMIT;
+
+# T3: DML on table t1.
+SET SESSION gtid_domain_id= 1;
+BEGIN;
+UPDATE t1 SET b=3 WHERE a=5;
+COMMIT;
+
+SET SESSION gtid_domain_id= 0;
+
+--connection slave
+# Wait until T3 is waiting for prior commit T3->T2.
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE command="Slave_worker" AND state="Waiting for prior transaction to commit";
+--source include/wait_condition.inc
+
+# Now unblock the DDL U1, and let it run until it is waiting for metadata lock
+# on T3, U1->T3.
+SET debug_sync="now SIGNAL continue_worker";
+# A small sleep to increase the chance for the DDL U1 to actually start its
+# wait on T3. When the bug was there, we could wait for the DDL to hang like
+# below. But with the bug fixed, the deadlock will be resolved.
+#
+#--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE command="Slave_worker" AND state="Waiting for table metadata lock" AND info LIKE "%ALTER TABLE%";
+#--source include/wait_condition.inc
+#
+--sleep 0.2
+
+--connection slave1
+# Unblock T2.
+# At this point we get the state T2->U1->T3->T1 when the bug was unfixed.
+ROLLBACK;
+
+--connection master
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SET debug_sync="RESET";
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL slave_parallel_mode= @old_mode;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1, t2;
+
+--source include/rpl_end.inc

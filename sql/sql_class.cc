@@ -39,6 +39,7 @@
                                               // acl_getroot_no_password
 #include "sql_base.h"
 #include "sql_handler.h"                      // mysql_ha_cleanup
+#include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "rpl_filter.h"
 #include "rpl_record.h"
@@ -2104,6 +2105,40 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
   bool signalled= FALSE;
   DBUG_ENTER("THD::notify_shared_lock");
   DBUG_PRINT("enter",("needs_thr_lock_abort: %d", needs_thr_lock_abort));
+
+#ifdef HAVE_REPLICATION
+  rpl_group_info *rgi= this->rgi_slave, *other_rgi= in_use->rgi_slave;
+  if (rgi && other_rgi && rgi->is_parallel_exec)
+  {
+    if (rgi->rli == other_rgi->rli &&
+        (rgi->rli->mi->using_gtid == Master_info::USE_GTID_NO ||
+         rgi->current_gtid.domain_id == other_rgi->current_gtid.domain_id))
+    {
+      /*
+        Within the same ordered-commit replication stream, deadlock kill any
+        event group that blocks an earlier event group on MDL lock conflict.
+        Otherwise we would deadlock when the blocking event group calls
+        wait_for_prior_commit().
+      */
+      if (rgi->gtid_sub_id && rgi->gtid_sub_id < other_rgi->gtid_sub_id)
+        slave_background_kill_request(in_use);
+    }
+    else
+    {
+      /*
+        In different replication streams (multi-source or domain based),
+        commits are out-of-order and not determined by sub_id sequence.
+        In this case use a more conservative approach, where we deadlock
+        kill any _optimistically_ applied event group. This prevents an
+        event group being killed more than once, and makes sure such event
+        group will no longer be holding locks while waiting in
+        wait_for_prior_commit().
+      */
+      if (other_rgi->speculation == rpl_group_info::SPECULATE_OPTIMISTIC)
+        slave_background_kill_request(in_use);
+    }
+  }
+#endif
 
   if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
       !in_use->killed)
