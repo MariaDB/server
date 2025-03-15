@@ -20,6 +20,14 @@
 # along with this program; if not, write to the Free Software Foundation,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
+# Clang UBSAN incompatiblity unfixed - MDEV-22940
+IF(PLUGIN_PERFSCHEMA STREQUAL "NO" OR
+  (WITH_UBSAN AND
+    (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")))
+  ADD_FEATURE_INFO(PERFSCHEMA "OFF" "Storage Engine")
+  RETURN()
+ENDIF()
+
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_BINARY_DIR}/sql
