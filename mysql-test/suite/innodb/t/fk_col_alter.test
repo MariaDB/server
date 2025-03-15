@@ -168,3 +168,21 @@ ALTER TABLE t2 CHANGE COLUMN f2 f3 VARCHAR(20) NOT NULL,
 DROP TABLE t2, t1;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 --echo # End of 10.4 tests
+
+--echo #
+--echo #  MDEV-33927 Wrong error message while altering the table with
+--echo #                foreign key relationship
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+		f3 INT NOT NULL, PRIMARY KEY(f1),
+		INDEX(f2))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1, 2), (2, 2, 2);
+CREATE TABLE t2 (f1 INT NOT NULL, f2 INT NOT NULL,
+		 PRIMARY KEY(f1), INDEX(f2)) ENGINE=INNODB;
+INSERT INTO t2 VALUES(1, 1), (2, 2);
+ALTER TABLE t1 ADD FOREIGN KEY(f1) REFERENCES t1(f1);
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t2 (f2),
+               ADD UNIQUE INDEX(f3), ALGORITHM=COPY;
+DROP TABLE t1, t2;
+--echo # End of 10.5 tests
