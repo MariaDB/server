@@ -1951,6 +1951,9 @@ public:
   /** Issue a warning that we could not free up buffer pool pages. */
   ATTRIBUTE_COLD void LRU_warn() noexcept;
 
+  /** Print buffer pool flush state information. */
+  ATTRIBUTE_COLD void print_flush_info() const noexcept;
+
 private:
   /** Temporary memory for page_compressed and encrypted I/O */
   struct io_buf_t

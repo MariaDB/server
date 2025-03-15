@@ -1021,6 +1021,8 @@ size_t os_aio_pending_reads() noexcept;
 size_t os_aio_pending_reads_approx() noexcept;
 /** @return number of pending writes */
 size_t os_aio_pending_writes() noexcept;
+/** @return approximate number of pending writes */
+size_t os_aio_pending_writes_approx() noexcept;
 
 /** Wait until there are no pending asynchronous writes.
 @param declare  whether the wait will be declared in tpool */
