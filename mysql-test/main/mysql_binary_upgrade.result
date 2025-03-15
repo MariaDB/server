@@ -1,0 +1,11 @@
+# Running mysql_upgrade
+# Checking that mysql.columns_priv is accessible
+SELECT * FROM mysql.columns_priv;
+Host	Db	User	Table_name	Column_name	Timestamp	Column_priv
+# Checking that mysql.db is accessible
+SELECT * FROM mysql.db;
+Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv	Show_create_routine_priv
+# Checking that mysql.user is accessible
+SELECT COUNT(*) > 0 as 'mysql.user has data' FROM mysql.user;
+mysql.user has data
+1
