@@ -479,7 +479,7 @@ btr_defragment_merge_pages(
 		free it. */
 		lock_update_merge_left(*to_block, orig_pred,
 				       from_block->page.id());
-		btr_search_drop_page_hash_index(from_block, false);
+		btr_search_drop_page_hash_index(from_block, nullptr);
 		if (btr_level_list_remove(*from_block, *index, mtr)
 		    != DB_SUCCESS
 		    || btr_cur_node_ptr_delete(&parent, mtr) != DB_SUCCESS
