@@ -240,6 +240,20 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
 static const TABLE_FIELD_DEF
 proc_table_def= {MYSQL_PROC_FIELD_COUNT, proc_table_fields, 0, (uint*) 0 };
 
+const char *SP_ERROR_STRING[]={
+	"Ok, no error",
+	"Key not found",
+	"Open table failed",
+	"Write row failed",
+	"Delete row failed",
+	"Get field failed",
+	"Parser error",
+	"Internal error",
+	"No DB error",
+	"Bad identifier",
+	"Body too long",
+	"Field store failed",
+};
 /*************************************************************************/
 
 /**
@@ -443,22 +457,18 @@ protected:
 void Proc_table_intact::report_error(uint code, const char *fmt, ...)
 {
   va_list args;
-  char buf[512];
-
-  va_start(args, fmt);
-  my_vsnprintf(buf, sizeof(buf), fmt, args);
-  va_end(args);
-
-  if (code)
-    my_message(code, buf, MYF(0));
-  else
-    my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0), "mysql", "proc");
 
   if (m_print_once)
-  {
     m_print_once= FALSE;
-    sql_print_error("%s", buf);
+  else
+  {
+    if (!code)
+      return;
   }
+
+  va_start(args, fmt);
+  my_printv_error(code, fmt, MYF(0), args);
+  va_end(args);
 };
 
 
@@ -2854,7 +2864,7 @@ int Sp_handler::sp_cache_routine(THD *thd,
       if (!thd->is_error())
       {
         my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0),
-                 ErrConvDQName(name).ptr(), ret);
+                 ErrConvDQName(name).ptr(), SP_ERROR_STRING[-ret]);
       }
       break;
   }
