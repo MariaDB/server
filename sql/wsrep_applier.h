@@ -20,10 +20,11 @@
 #include "rpl_rli.h"   // Relay_log_info
 #include "log_event.h" // Format_description_log_event
 
-int wsrep_apply_events(THD*        thd,
-                       Relay_log_info* rli,
-                       const void* events_buf,
-                       size_t      buf_len);
+int wsrep_apply_events(THD*                       thd,
+		       Relay_log_info*            rli,
+		       const wsrep::const_buffer& data,
+		       wsrep::mutable_buffer&     err,
+		       bool const                 include_msg);
 
 /* Applier error codes, when nothing better is available. */
 #define WSREP_RET_SUCCESS      0 // Success
