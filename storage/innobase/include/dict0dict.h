@@ -1657,6 +1657,27 @@ bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
 
+/** Helper for opening the InnoDB persistent statistics tables */
+class dict_stats final
+{
+  MDL_context *mdl_context= nullptr;
+  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
+  dict_table_t *table_stats= nullptr, *index_stats= nullptr;
+
+public:
+  dict_stats()= default;
+
+  /** Open the statistics tables.
+  @return whether the operation failed */
+  bool open(THD *thd) noexcept;
+
+  /** Close the statistics tables after !open_tables(thd). */
+  void close() noexcept;
+
+  dict_table_t *table() const noexcept { return table_stats; }
+  dict_table_t *index() const noexcept { return index_stats; }
+};
+
 #include "dict0dict.inl"
 
 #endif
