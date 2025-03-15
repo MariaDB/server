@@ -570,3 +570,38 @@ show grants for foo@bar;
 drop user foo@bar;
 
 --echo # End of 11.3 tests
+
+
+--echo #
+--echo # MDEV-23962 Remove arc directory support
+--echo #
+
+USE test;
+CREATE TABLE arc_test_table (id INT);
+
+# Get datadir path and construct paths
+--let $MYSQLD_DATADIR= `SELECT @@datadir`
+--let $DB_PATH= $MYSQLD_DATADIR/test
+--let $ARC_PATH= $DB_PATH/arc
+
+# Create arc directory
+--mkdir $ARC_PATH
+
+
+# Create archive files manually with error checking
+--write_file $ARC_PATH/arc_test_table.frm-001
+dummy content
+EOF
+
+--write_file $ARC_PATH/arc_test_table.frm-002
+dummy content
+EOF
+
+
+--exec $MYSQL_UPGRADE --force
+
+# Verify files are gone (should produce an error)
+--error 1
+--list_files $ARC_PATH
+
+DROP TABLE arc_test_table;

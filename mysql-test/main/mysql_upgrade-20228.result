@@ -166,6 +166,7 @@ test
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 #
 # Restoring character_set_client and collation_connection back
 # so post-check returns the expected check-mysqld_1.result
