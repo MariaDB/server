@@ -15,3 +15,6 @@
 
 SET(EXAMPLE_SOURCES ha_example.cc)
 MYSQL_ADD_PLUGIN(example ${EXAMPLE_SOURCES} STORAGE_ENGINE MODULE_ONLY COMPONENT Test)
+
+# Unresolved symbols need be extern - same list as ha_test_sql_discover
+SET_TARGET_PROPERTIES(example PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
