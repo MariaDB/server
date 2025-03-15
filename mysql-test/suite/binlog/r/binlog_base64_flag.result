@@ -104,3 +104,13 @@ BINLOG '-2079193929';
 ERROR HY000: Decoding of base64 string failed
 BINLOG 'xç↓%~∙D╒ƒ╡';
 ERROR HY000: Decoding of base64 string failed
+#
+# MDEV-27952 Improve error log messages with descriptive text already present in the code
+#
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Column 0 of table");
+CREATE TABLE t1(a CHAR);
+BINLOG ' O1ZVRw8BAAAAZgAAAGoAAAAAAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAA7VlVHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC ';
+BINLOG 'wlZOTxMBAAAAKgAAADwCAAAAACkAAAAAAAEABHRlc3QAAnQxAAIDAwAC wlZOTxcBAAAAJgAAAGICAAAAACkAAAAAAAEAAv/8AgAAAAgAAAA=';
+ERROR HY000: Column 0 of table 'test.t1' cannot be converted from type 'int' to type 'char(1 octets) character set latin1'
+DROP TABLE t1;
+# End of 11.4 tests

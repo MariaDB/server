@@ -8,6 +8,7 @@
 
 --disable_query_log
 call mtr.add_suppression("Flagged corruption of.* in table .* in .*");
+call mtr.add_suppression("Index ./test/corrupt_bit_test_@1s is corrupted");
 --enable_query_log
 
 set names utf8;
