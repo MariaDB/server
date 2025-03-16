@@ -716,7 +716,7 @@ bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
   {
     JOIN_TAB *join_tab= &join->join_tab[i];
     const table_map dependent_tables=
-        get_other_dep(hint->hint_type, hint_tab_map,
+        get_other_dep(join, hint->hint_type, hint_tab_map,
                       join_tab->tab_list->get_map());
     update_nested_join_deps(join, join_tab, dependent_tables);
     join_tab->dependent |= dependent_tables;
@@ -819,6 +819,7 @@ void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
   Function returns a map of dependencies which must be applied to the
   particular table of a JOIN, according to the join order hint
 
+  @param join          JOIN to which the hints are being applied
   @param type          hint type
   @param hint_tab_map  Bitmap of all tables listed in the hint.
   @param table_map     Bit of the table that we're setting extra dependencies
@@ -832,15 +833,13 @@ void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
 
   JOIN_SUFFIX(t1, t2, ...) - all tables listed in the hint depend on all tables
                              that are not listed in the hint
-                             (TODO: but this inverts the bitmap? is it ok to
-                              return bits that do not refer to any table?)
   JOIN_ORDER(t1, t2, ...)  - No extra dependencies needed.
 
   @return bitmap of dependencies to apply
 */
 
 table_map Opt_hints_qb::
-    get_other_dep(opt_hints_enum type, table_map hint_tab_map,
+    get_other_dep(JOIN *join, opt_hints_enum type, table_map hint_tab_map,
                   table_map table_map)
 {
   switch (type)
@@ -852,7 +851,7 @@ table_map Opt_hints_qb::
       return hint_tab_map;
     case JOIN_SUFFIX_HINT_ENUM:
       if (hint_tab_map & table_map)  // Hint table: depends on all other tables
-        return ~hint_tab_map;
+        return join->all_tables_map() & ~hint_tab_map;
       return 0;
     case JOIN_ORDER_HINT_ENUM:
       return 0;  // No additional dependencies

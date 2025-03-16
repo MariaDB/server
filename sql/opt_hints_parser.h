@@ -900,7 +900,7 @@ public:
   public:
     using AND4::AND4;
 
-    opt_hints_enum hint_type;
+    opt_hints_enum hint_type= MAX_HINT_ENUM;
 
     bool resolve(Parse_context *pc);
 

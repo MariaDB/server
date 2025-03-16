@@ -5774,12 +5774,14 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     goto error;
   }
 
-  for (JOIN_TAB *s= stat; s < stat_end; s++)
   {
-    TABLE_LIST *tl= s->table->pos_in_table_list;
-    if (tl->embedding && tl->embedding->sj_subq_pred)
+    for (JOIN_TAB *s= stat ; s < stat_end ; s++)
     {
-      s->embedded_dependent= tl->embedding->original_subq_pred_used_tables;
+      TABLE_LIST *tl= s->table->pos_in_table_list;
+      if (tl->embedding && tl->embedding->sj_subq_pred)
+      {
+        s->embedded_dependent= tl->embedding->original_subq_pred_used_tables;
+      }
     }
   }
 
@@ -6102,7 +6104,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     Json_writer_object rows_estimation_wrapper(thd);
     Json_writer_array rows_estimation(thd, "rows_estimation");
 
-    for (s= stat ; s < stat_end; s++)
+    for (s=stat ; s < stat_end ; s++)
     {
       s->startup_cost= 0;
       if (s->type == JT_SYSTEM || s->type == JT_CONST)
@@ -15748,15 +15750,15 @@ uint check_join_cache_usage(JOIN_TAB *tab,
          !(join->allowed_join_cache_types & JOIN_CACHE_INCREMENTAL_BIT);
   bool no_hashed_cache=
          !(join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT);
-  bool no_bnl_cache= !hint_table_state(join->thd, tab->tab_list->table,
-                                       BNL_HINT_ENUM, true);
+  bool hint_disables_bnl= !hint_table_state(join->thd, tab->tab_list->table,
+                                            BNL_HINT_ENUM, true);
   bool no_bka_cache= !hint_table_state(join->thd, tab->tab_list->table,
           BKA_HINT_ENUM, join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
   bool hint_forces_bka= hint_table_state(join->thd, tab->tab_list->table,
                                          BKA_HINT_ENUM, false);
   join->return_tab= 0;
 
-  if (tab->no_forced_join_cache || (no_bnl_cache && no_bka_cache))
+  if (tab->no_forced_join_cache || (hint_disables_bnl && no_bka_cache))
     goto no_join_cache;
 
   if (cache_level < 4 && hint_table_state(join->thd, tab->tab_list->table,
@@ -15900,7 +15902,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_NEXT:
   case JT_ALL:
   case JT_RANGE:
-    if (no_bnl_cache)
+    if (hint_disables_bnl)
       goto no_join_cache;
     if (cache_level == 1)
       prev_cache= 0;
@@ -15940,7 +15942,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         tab->is_ref_for_hash_join() ||
 	((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6))
     {
-      if (no_bnl_cache)
+      if (hint_disables_bnl)
         goto no_join_cache;
       if (!tab->hash_join_is_possible() ||
           tab->make_scan_filter())

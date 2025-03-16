@@ -553,8 +553,8 @@ private:
   bool set_join_hint_deps(JOIN *join, const Parser::Join_order_hint *hint);
   void update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
                                table_map hint_tab_map);
-  table_map get_other_dep(opt_hints_enum type, table_map hint_tab_map,
-                          table_map table_map);
+  table_map get_other_dep(JOIN *join, opt_hints_enum type,
+                           table_map hint_tab_map, table_map table_map);
   bool compare_table_name(const Parser::Table_name_and_Qb *hint_table_and_qb,
                           const TABLE_LIST *table);
   void print_irregular_hints(THD *thd, String *str) override;
