@@ -4509,8 +4509,7 @@ bool Item_sum::is_packing_allowed(uint *total_length) const
       tot_length+= field->sort_length();
       if (field->is_packable())
       {
-        size_of_packable_fields+=
-            number_storage_requirement(field->sort_length());
+        size_of_packable_fields+= number_storage_requirement(field->sort_length());
       }
     }
   }
