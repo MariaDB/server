@@ -246,7 +246,7 @@ sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
   - p0 has frame offset 0 and run-time offset 1
   - p1 has frame offset 1 and run-time offset 2
 
-  Run-time offsets on a frame can have holes, but offsets monotonocally grow,
+  Run-time offsets on a frame can have holes, but offsets monotonically grow,
   so run-time offsets of all variables are not greater than the run-time offset
   of the very last variable in this frame.
 */

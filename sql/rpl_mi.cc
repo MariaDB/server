@@ -1508,7 +1508,7 @@ bool Master_info_index::remove_master_info(Master_info *mi, bool clear_log_files
   {
     File index_file_nr;
 
-    // Close IO_CACHE and FILE handler fisrt
+    // Close IO_CACHE and FILE handler first
     end_io_cache(&index_file);
     my_close(index_file.file, MYF(MY_WME));
 

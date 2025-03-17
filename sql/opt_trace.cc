@@ -84,7 +84,7 @@ ST_FIELD_INFO optimizer_trace_info[]=
 
 
 /*
-  TODO: one-line needs to be implemented seperately
+  TODO: one-line needs to be implemented separately
 */
 const char *Opt_trace_context::flag_names[]= {"enabled", "default",
                                                NullS};

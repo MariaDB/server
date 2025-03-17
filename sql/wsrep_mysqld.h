@@ -166,7 +166,7 @@ int  wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
 void wsrep_free_status(THD *thd);
 void wsrep_update_cluster_state_uuid(const char* str);
 
-/* Filters out --wsrep-new-cluster oprtion from argv[]
+/* Filters out --wsrep-new-cluster option from argv[]
  * should be called in the very beginning of main() */
 void wsrep_filter_new_cluster (int* argc, char* argv[]);
 

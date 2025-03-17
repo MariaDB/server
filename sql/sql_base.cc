@@ -675,7 +675,7 @@ err:
 
     Clear 'check_table_binlog_row_based_done' flag. For tables which were used
     by current substatement the flag is cleared as part of 'ha_reset()' call.
-    For the rest of the open tables not used by current substament if this
+    For the rest of the open tables not used by current substatement if this
     flag is enabled as part of current substatement execution,
     (for example when THD::binlog_write_table_maps() calls
     prepare_for_row_logging()), clear the flag explicitly.
@@ -2321,7 +2321,7 @@ retry_share:
             slightly increases probability of deadlock.
             This problem will be solved once Alik pushes his
             temporary table refactoring patch and we can start
-            pre-acquiring metadata locks at the beggining of
+            pre-acquiring metadata locks at the beginning of
             open_tables() call.
     */
     enum enum_mdl_type mdl_type= MDL_BACKUP_DML;
@@ -2836,7 +2836,7 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
     /*
       We have to rollback any open transactions here.
       This is required in the case where the server has been killed
-      but some transations are still open (as part of locked tables).
+      but some transactions are still open (as part of locked tables).
       If we don't do this, we will get an assert in unlock_locked_tables().
     */
     ha_rollback_trans(thd, FALSE);
@@ -4210,7 +4210,7 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     We can't rely on simple check for TABLE_LIST::view to determine
     that this is a view since during re-execution we might reopen
     ordinary table in place of view and thus have TABLE_LIST::view
-    set from repvious execution and TABLE_LIST::table set from
+    set from previous execution and TABLE_LIST::table set from
     current.
   */
   if (!tables->table && tables->view)
@@ -4941,7 +4941,7 @@ bool DML_prelocking_strategy::handle_routine(THD *thd,
   /*
     We assume that for any "CALL proc(...)" statement sroutines_list will
     have 'proc' as first element (it may have several, consider e.g.
-    "proc(sp_func(...)))". This property is currently guaranted by the
+    "proc(sp_func(...)))". This property is currently guaranteed by the
     parser.
   */
 
@@ -6491,7 +6491,7 @@ find_field_in_table(THD *thd, TABLE *table, const Lex_ident_column &name,
     This procedure detects the type of the table reference 'table_list'
     and calls the corresponding search routine.
 
-    The routine checks column-level privieleges for the found field.
+    The routine checks column-level privileges for the found field.
 
   RETURN
     0			field is not found
@@ -7269,7 +7269,7 @@ test_if_string_in_list(const Lex_ident_column &find, List<String> *str_list)
     set_new_item_local_context()
     thd        pointer to current thread
     item       item for which new context is created and set
-    table_ref  table ref where an item showld be resolved
+    table_ref  table ref where an item should be resolved
 
   DESCRIPTION
     Create a new name resolution context for an item, so that the item
@@ -7867,7 +7867,7 @@ err:
 
   DESCRIPTION
     Apply the procedure 'store_top_level_join_columns' to each of the
-    top-level table referencs of the FROM clause. Adjust the list of tables
+    top-level table references of the FROM clause. Adjust the list of tables
     for name resolution - context->first_name_resolution_table to the
     top-most, lef-most NATURAL/USING join.
 
@@ -8054,10 +8054,10 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->column_usage= column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   /*
-    Followimg 2 condition always should be true (but they was added
+    Following 2 conditions always should be true (but they were added
     due to an error present only in 10.3):
     1) nest_level shoud be 0 or positive;
-    2) nest level of all SELECTs on the same level shoud be equal first
+    2) nest level of all SELECTs on the same level shoud be equal to first
        SELECT on this level (and each other).
   */
   DBUG_ASSERT(lex->current_select->nest_level >= 0);
@@ -8393,7 +8393,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     tables	  Table list (select_lex->table_list)
     conds	  Condition of current SELECT (can be changed by VIEW)
     leaves        List of join table leaves list (select_lex->leaf_tables)
-    refresh       It is onle refresh for subquery
+    refresh       It is only refresh for subquery
     select_insert It is SELECT ... INSERT command
     want_access   what access is needed
     full_table_list a parameter to pass to the make_leaves_list function
@@ -9499,7 +9499,7 @@ my_bool mysql_rm_tmp_tables(void)
         }
         /*
           File can be already deleted by tmp_table.file->delete_table().
-          So we hide error messages which happnes during deleting of these
+          So we hide error messages which happen during deleting of these
           files(MYF(0)).
         */
         (void) mysql_file_delete(key_file_misc, path, MYF(0));

@@ -124,7 +124,7 @@ class Wsrep_schema
 
   /**
      Recover streaming transactions from SR table.
-     This method should be called after storage enignes are initialized.
+     This method should be called after storage engines are initialized.
      It will scan SR table and replay found streaming transactions.
 
      @param orig_thd The THD object of the calling thread.

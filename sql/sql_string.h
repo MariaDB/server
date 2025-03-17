@@ -278,7 +278,7 @@ public:
   }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
-    contructors need the size of memory for STR to be at least LEN+1 (to make
+    constructors need the size of memory for STR to be at least LEN+1 (to make
     room for zero termination).
   */
   Binary_string(const char *str, size_t len)
@@ -686,14 +686,14 @@ public:
     if (unlikely(!Ptr))
       return (char*) "";
     /*
-      Here we assume that any buffer used to initalize String has
+      Here we assume that any buffer used to initialize String has
       an end \0 or have at least an accessable character at end.
       This is to handle the case of String("Hello",5) and
       String("hello",5) efficiently.
 
       We have two options here. To test for !Alloced_length or !alloced.
       Using "Alloced_length" is slightly safer so that we do not read
-      from potentially unintialized memory (normally not dangerous but
+      from potentially uninitialized memory (normally not dangerous but
       may give warnings in valgrind), but "alloced" is safer as there
       are less change to get memory loss from code that is using
       String((char*), length) or String.set((char*), length) and does
@@ -713,7 +713,7 @@ public:
   }
   /*
     One should use c_ptr() instead for most cases. This will be deleted soon,
-    kept for compatiblity.
+    kept for compatibility.
   */
   inline char *c_ptr_quick()
   {
@@ -723,7 +723,7 @@ public:
     This is to be used only in the case when one cannot use c_ptr().
     The cases are:
     - When one initializes String with an external buffer and length and
-      buffer[length] could be uninitalized when c_ptr() is called.
+      buffer[length] could be uninitialized when c_ptr() is called.
     - When valgrind gives warnings about uninitialized memory with c_ptr().
   */
   inline char *c_ptr_safe()
@@ -857,7 +857,7 @@ public:
   { }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
-    contructors need the size of memory for STR to be at least LEN+1 (to make
+    constructors need the size of memory for STR to be at least LEN+1 (to make
     room for zero termination).
   */
   String(const char *str, size_t len, CHARSET_INFO *cs)

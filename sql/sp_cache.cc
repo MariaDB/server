@@ -177,7 +177,7 @@ void sp_cache_insert(sp_cache **cp, sp_head *sp)
   SYNOPSIS
     sp_cache_lookup()
       cp    Cache to look into
-      name  Name of rutine to find
+      name  Name of routine to find
 
   NOTE
     An obsolete (but not more obsolete then since last

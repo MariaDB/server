@@ -1045,7 +1045,7 @@ public:
   /**
     Mark unused memory in the field as defined. Mainly used to ensure
     that if we write full field to disk (for example in
-    Count_distinct_field::add(), we don't write unitalized data to
+    Count_distinct_field::add(), we don't write uninitialized data to
     disk which would confuse valgrind or MSAN.
   */
   virtual void mark_unused_memory_as_defined() {}
@@ -1786,7 +1786,7 @@ protected:
   /*
     Make a leaf tree when an INT value was stored into a field of INT type,
     and some truncation happened. Tries to adjust the range search condition
-    when possible, e.g. "tinytint < 300" -> "tinyint <= 127".
+    when possible, e.g. "tinyint < 300" -> "tinyint <= 127".
     Can also return SEL_ARG_IMPOSSIBLE(), and NULL (not sargable).
   */
   SEL_ARG *stored_field_make_mm_leaf_bounded_int(RANGE_OPT_PARAM *param,

@@ -1259,7 +1259,7 @@ public:
   };
 
 public:
-  // Contructors for Item
+  // Constructors for Item
   Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate);
   Temporal_hybrid(THD *thd, Item *item)
    :Temporal_hybrid(thd, item, Options(thd))
@@ -1315,7 +1315,7 @@ public:
     else
       make_from_decimal(thd, warn, nr, mode);
   }
-  // End of constuctors
+  // End of constructors
 
   bool copy_valid_value_to_mysql_time(MYSQL_TIME *ltime) const
   {
@@ -3072,7 +3072,7 @@ enum Derivation
     - BINARY(expr) and CAST(expr AS BINARY)
   */
   DERIVATION_IMPLICIT= 2,
-  DERIVATION_NONE= 1,      // A mix (e.g. CONCAT) of two differrent collations
+  DERIVATION_NONE= 1,      // A mix (e.g. CONCAT) of two different collations
   DERIVATION_EXPLICIT= 0   // An explicit COLLATE clause
 };
 
@@ -3470,7 +3470,7 @@ public:
 
 /*
   A container for very specific data type attributes.
-  For now it prodives space for:
+  For now it provides space for:
   - one const pointer attributes
   - one unt32 attribute
 */

@@ -2220,10 +2220,10 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
 
   SINOPSYS
     view_checksum()
-    thd     threar handler
+    thd     thread handler
     view    view for check
 
-  RETUIRN
+  RETURN
     HA_ADMIN_OK               OK
     HA_ADMIN_NOT_IMPLEMENTED  it is not VIEW
     HA_ADMIN_WRONG_CHECKSUM   check sum is wrong

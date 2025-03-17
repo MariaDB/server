@@ -18,7 +18,7 @@
   @file
 
   @brief
-  Read language depeneded messagefile
+  Read language depended messagefile
 */
 
 #include "mariadb.h"

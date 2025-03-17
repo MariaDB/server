@@ -17,7 +17,7 @@
 */
 
 /*
-  Functions to autenticate and handle reqests for a connection
+  Functions to authenticate and handle requests for a connection
 */
 
 #include "mariadb.h"
@@ -800,7 +800,7 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
       b. preserve non-default collations as is
 
       Perhaps eventually we should change (b) also to resolve non-default
-      collations accoding to @@character_set_collations. Clients that used to
+      collations according to @@character_set_collations. Clients that used to
       send a non-default collation ID in the handshake packet will have to set
       @@character_set_collations instead.
     */
@@ -1126,7 +1126,7 @@ void setup_connection_thread_globals(THD *thd)
 
 
 /*
-  Autenticate user, with error reporting
+  Authenticate user, with error reporting
 
   SYNOPSIS
    login_connection()
@@ -1465,7 +1465,7 @@ end_thread:
   This and close_with_error are only called if we didn't manage to
   create a new thd object.
 
-  Note: err can be 0 if unknown/not inportant
+  Note: err can be 0 if unknown/not important
 */
 
 void CONNECT::close_and_delete(uint err)
@@ -1495,7 +1495,7 @@ void CONNECT::close_and_delete(uint err)
 
 /*
   Close a connection with a possible error to the end user
-  Alse deletes the connection object, like close_and_delete()
+  Else deletes the connection object, like close_and_delete()
 */
 
 void CONNECT::close_with_error(uint sql_errno,
