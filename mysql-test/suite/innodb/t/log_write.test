@@ -1,0 +1,12 @@
+--source include/have_innodb.inc
+
+--echo # MDEV-35813 Unnecessary InnoDB log writes in INSERT…SELECT
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SELECT variable_value INTO @log_writes FROM information_schema.global_status
+WHERE variable_name='innodb_log_writes';
+INSERT INTO t1 SELECT * FROM t1;
+SELECT variable_value-@log_writes FROM information_schema.global_status
+WHERE variable_name='innodb_log_writes';
+DROP TABLE t1;
