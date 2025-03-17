@@ -243,7 +243,7 @@ f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_
 BEGIN
 DECLARE c0 SYS_REFCURSOR;
 RETURN c0;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION f1;
 #
 # Procedure with a SYS_REFCURSOR parameter and mysql.proc
@@ -263,7 +263,7 @@ p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_
 BEGIN
 DECLARE c0 SYS_REFCURSOR;
 SET a0= c0;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 #
 # Returning a open cursor from a function

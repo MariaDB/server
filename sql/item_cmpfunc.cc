@@ -1147,12 +1147,6 @@ int Arg_comparator::compare_row()
   (*a)->bring_value();
   (*b)->bring_value();
 
-  if ((*a)->null_value || (*b)->null_value)
-  {
-    owner->null_value= 1;
-    return -1;
-  }
-
   uint n= (*a)->cols();
   for (uint i= 0; i<n; i++)
   {

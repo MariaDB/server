@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
   `worker` varchar(32) DEFAULT '',
   `ts` timestamp(6) NOT NULL DEFAULT current_timestamp(6),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 (a VARCHAR(128)) ENGINE=MEMORY;
 CREATE PROCEDURE p2(for_update BOOL, do_fetch BOOL)
 BEGIN

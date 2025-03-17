@@ -21,9 +21,9 @@ col0	col1
 0	1
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `col0` varchar(6) DEFAULT NULL,
-  `col1` varchar(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `col0` varchar(6) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `col1` varchar(6) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 col0	col1
 0	1
 #

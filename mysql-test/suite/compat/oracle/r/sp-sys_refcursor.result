@@ -398,7 +398,7 @@ AS
 c0 SYS_REFCURSOR;
 BEGIN
 RETURN c0;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION f1;
 #
 # Procedure with a SYS_REFCURSOR parameter and mysql.proc
@@ -419,7 +419,7 @@ AS
 c0 SYS_REFCURSOR;
 BEGIN
 a0:= c0;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 #
 # NULL predicate

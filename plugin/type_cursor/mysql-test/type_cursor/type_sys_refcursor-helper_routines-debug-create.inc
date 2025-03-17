@@ -2,6 +2,8 @@
 --echo # Helper routines
 --echo #
 
+set names utf8mb4;
+
 # Return a string with ref counters for cursors in the given range,
 # with format '[ cnt0 cnt1 cnt2 cnt 3 cnt4 cnt5 ]', for example:
 #  '[  2  1  NULL NULL NULL]'

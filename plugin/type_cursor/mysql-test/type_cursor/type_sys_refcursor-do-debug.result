@@ -4,6 +4,7 @@
 #
 # Helper routines
 #
+set names utf8mb4;
 CREATE FUNCTION refs(first INT, last INT) RETURNS TEXT
 BEGIN
 DECLARE res TEXT DEFAULT '[';
