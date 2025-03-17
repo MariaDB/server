@@ -10,3 +10,41 @@ system_default = system_default_section
 
 [system_default_section]
 CipherString = ALL:@SECLEVEL=0
+
+[ca]
+default_ca = demoCA
+
+[demoCA]
+database= demoCA/index.txt
+serial= demoCA/serial
+default_md=sha3-512
+x509_extensions	= usr_cert
+
+[req]
+x509_extensions	= v3_ca	# The extensions to add to the self signed cert
+
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+
+[ v3_ca ]
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer
+basicConstraints = critical,CA:true
+
+
+[ usr_cert ]
+
+basicConstraints=CA:FALSE
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+
+[ policy_anything ]
+countryName             = optional
+stateOrProvinceName     = optional
+localityName            = optional
+organizationName        = optional
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
