@@ -85,7 +85,11 @@ public:
     keyword_FIRSTMATCH,
     keyword_LOOSESCAN,
     keyword_DUPSWEEDOUT,
-    keyword_INTOEXISTS
+    keyword_INTOEXISTS,
+    keyword_DERIVED_CONDITION_PUSHDOWN,
+    keyword_NO_DERIVED_CONDITION_PUSHDOWN,
+    keyword_MERGE,
+    keyword_NO_MERGE
   };
 
   class Token: public Lex_cstring
@@ -336,7 +340,11 @@ private:
       return id == TokenID::keyword_BKA ||
              id == TokenID::keyword_BNL ||
              id == TokenID::keyword_NO_BKA ||
-             id == TokenID::keyword_NO_BNL;
+             id == TokenID::keyword_NO_BNL ||
+             id == TokenID::keyword_DERIVED_CONDITION_PUSHDOWN ||
+             id == TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN ||
+             id == TokenID::keyword_MERGE ||
+             id == TokenID::keyword_NO_MERGE;
     }
   };
   class Table_level_hint_type: public TokenChoice<Parser,

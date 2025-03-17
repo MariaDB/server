@@ -1,0 +1,80 @@
+--source include/have_sequence.inc
+--disable_ps_protocol
+--disable_view_protocol
+create table t1 select seq as i, 10*seq as j from seq_1_to_10;
+create view v1 as select * from t1 where i % 2 = 0;
+
+set @save_optimizer_switch=@@optimizer_switch;
+
+set session optimizer_switch='derived_merge=on';
+
+--source include/explain-no-costs.inc
+explain format=json SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+
+--source include/explain-no-costs.inc
+explain format=json SELECT /*+ NO_MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+SELECT /*+ NO_MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+
+--source include/explain-no-costs.inc
+explain format=json select * from (select i, j from v1) dt where dt.j % 5 = 0;
+select * from (select i, j from v1) dt where dt.j % 5 = 0;
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ NO_MERGE(dt) */ * from (select /*+ NO_MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+select /*+ NO_MERGE(dt) */ * from (select /*+ NO_MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+
+--source include/explain-no-costs.inc
+explain format=json select * from (select /*+ NO_MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+select * from (select /*+ NO_MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ NO_MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+select /*+ NO_MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+
+set session optimizer_switch='derived_merge=off';
+
+--source include/explain-no-costs.inc
+explain format=json SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+select /*+ MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+
+--source include/explain-no-costs.inc
+explain format=json select * from (select i, j from v1) dt where dt.j % 5 = 0;
+select * from (select i, j from v1) dt where dt.j % 5 = 0;
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ MERGE(dt) */ * from (select /*+ MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+select /*+ MERGE(dt) */ * from (select /*+ MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+
+--source include/explain-no-costs.inc
+explain format=json select * from (select /*+ MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+select * from (select /*+ MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+select /*+ MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+
+set optimizer_switch=@save_optimizer_switch;
+
+# Test warnings
+--enable_warnings
+explain extended select /*+ NO_MERGE(t) */ * from (select * from t1) t;
+explain extended select /*+ MERGE(t) */ * from (select * from t1) t;
+create table t2 select seq as i, 10*seq as j from seq_1_to_10;
+create view v2 as select * from t2;
+set session optimizer_switch='derived_merge=off';
+explain extended
+  SELECT /*+ merge(wrong_name) */a, b FROM
+     (SELECT /*+ merge(wrong_name) */ i as a, j as b FROM
+        (select i*10 as i, j*5 as j from v2) dt_in) AS dt_out
+  WHERE a < 3 AND b > 8;
+--disable_warnings
+
+drop table t1, t2;
+drop view v1, v2;
+--enable_view_protocol
+--enable_ps_protocol

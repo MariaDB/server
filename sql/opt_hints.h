@@ -49,6 +49,11 @@
   each table, as a result TABLE_LIST::opt_hints_table points to the table's
   hints.
 
+  Hints may be fixed before TABLE instances are available, using a
+  TABLE_LIST instance.  In that case, the hints are DELAYED and must be
+  fixed later after their TABLE instances have been created.  This should
+  be done automatically during name resolution as described above.
+
   == Hint hierarchy ==
 
   Hints have this hierarchy, less specific to more specific:
@@ -106,6 +111,8 @@ enum opt_hints_enum
   MAX_EXEC_TIME_HINT_ENUM,
   SEMIJOIN_HINT_ENUM,
   SUBQUERY_HINT_ENUM,
+  DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
+  MERGE_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
 
@@ -205,6 +212,14 @@ protected:
     for key level.
   */
   Lex_ident_sys name;
+
+  /*
+    Hints by default are NOT_FIXED.  Hints which must be
+    created before a TABLE instance exists are DELAYED.
+    When hints are fixed, during hint resolution, they
+    transition from NOT_FIXED or DELAYED to FIXED.
+  */
+  enum class Fixed_state { NOT_FIXED, FIXED, DELAYED };
 private:
   /*
     Parent object. There is no parent for global level,
@@ -220,8 +235,8 @@ private:
   /* Array of child objects. i.e. array of the lower level objects */
   Mem_root_array<Opt_hints*, true> child_array;
 
-  /* true if hint is connected to the real object */
-  bool fixed;
+  /* FIXED if hint is connected to the real object (see above) */
+  Fixed_state fixed;
 
   /*
     Number of child hints that are fully fixed, that is, fixed and
@@ -235,7 +250,7 @@ public:
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
     : name(name_arg), parent(parent_arg), child_array(mem_root_arg),
-      fixed(false), n_fully_fixed_children(0)
+      fixed(Fixed_state::NOT_FIXED), n_fully_fixed_children(0)
   { }
 
   bool is_specified(opt_hints_enum type_arg) const
@@ -287,8 +302,9 @@ public:
   }
   void set_name(const Lex_ident_sys &name_arg) { name= name_arg; }
   Opt_hints *get_parent() const { return parent; }
-  void set_fixed() { fixed= true; }
-  bool is_fixed() const { return fixed; }
+  void set_fixed(Fixed_state fv=Fixed_state::FIXED) { fixed= fv; }
+  bool is_fixed() const { return fixed == Fixed_state::FIXED; }
+  bool is_delayed() const { return fixed == Fixed_state::DELAYED; }
   void incr_fully_fixed_children() { n_fully_fixed_children++; }
   Mem_root_array<Opt_hints*, true> *child_array_ptr() { return &child_array; }
 
@@ -469,6 +485,15 @@ public:
     table alias in the query block and attaches corresponding
     key hint objects to appropriate KEY structures.
 
+    @param table_list Pointer to TABLE_LIST object
+  */
+  void fix_hints_for_table(TABLE_LIST *table_list);
+
+  /**
+    Function finds Opt_hints_table object corresponding to
+    table alias in the query block and attaches corresponding
+    key hint objects to appropriate KEY structures.
+
     @param table      Pointer to TABLE object
     @param alias      Table alias
 
@@ -630,6 +655,20 @@ bool hint_key_state(const THD *thd, const TABLE *table,
                     uint keyno, opt_hints_enum type_arg,
                     uint optimizer_switch);
 
+/**
+  Returns table hint value if hint is specified, returns
+  fallback value if hint is not specified.
+
+  @param thd                Pointer to THD object
+  @param table_lsit         Pointer to TABLE_LIST object
+  @param type_arg           Hint type
+  @param fallback_value     Value to be returned if the hint is not set
+
+  @return table hint value if hint is specified,
+          otherwise fallback value.
+*/
+bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
+                      opt_hints_enum type_arg, bool fallback_value);
 
 /**
   Returns table hint value if hint is specified, returns

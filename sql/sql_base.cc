@@ -8296,8 +8296,11 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         DBUG_RETURN(1);
       }
 
-      if (qb_hints &&                          // QB hints initialized
-          !table_list->opt_hints_table)        // Table hints are not adjusted yet
+      // This is invoked for every table, so we promote DELAYED to FIXED
+      // here.
+      if (qb_hints &&                      // QB hints initialized
+          (!table_list->opt_hints_table || // Table hints not yet adjusted...
+           qb_hints->is_delayed()))        // ...or hints were delayed.
       {
         table_list->opt_hints_table=
             qb_hints->fix_hints_for_table(table_list->table,

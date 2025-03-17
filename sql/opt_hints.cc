@@ -41,6 +41,8 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, true},
   {{STRING_WITH_LEN("SEMIJOIN")}, false, true},
   {{STRING_WITH_LEN("SUBQUERY")}, false, true},
+  {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false},
+  {{STRING_WITH_LEN("MERGE")}, false, false},
   {null_clex_str, 0, 0}
 };
 
@@ -177,7 +179,13 @@ static Opt_hints_qb *get_qb_hints(Parse_context *pc)
     /*
       Mark the query block as resolved as we know which SELECT_LEX it is
       attached to.
+
       Note that children (indexes, tables) are probably not resolved, yet.
+
+      Note also that for early hints (like [NO_]MERGE), there is no TABLE*
+      instance available, so later hint resolution will update the fixed
+      value accordingly, to allow for delayed hint resolution to the time
+      when the TABLE* instance is available.
     */
     qb->set_fixed();
   }
@@ -369,6 +377,46 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
 }
 
 
+void Opt_hints_qb::fix_hints_for_table(TABLE_LIST *table_list)
+{
+  Opt_hints_table *tab= static_cast<Opt_hints_table *>(find_by_name(table_list->alias));
+
+  /*
+    This instance will have been marked as fixed on the basis of its
+    attachment to a SELECT_LEX (during get_qb_hints) but that is
+    insufficient to consider it fixed for the case where a TABLE
+    instance is required but not yet available.  If the associated
+    table isn't yet fixed, then reset this instance's fixed value to
+    DELAYED.  Later, during fix_hints_for_table(TABLE*), the hint and
+    its corresponding TABLE instance will be marked with fixed=FIXED.
+   */
+  if (is_fixed())
+  {
+    if (tab && !tab->is_fixed())
+    {
+      DBUG_ASSERT(!table_list->opt_hints_qb);
+      DBUG_ASSERT(!table_list->opt_hints_table);
+      table_list->opt_hints_qb= this;
+      table_list->opt_hints_table= tab;
+      set_fixed(Opt_hints::Fixed_state::DELAYED);
+    }
+
+    return;
+  }
+
+  table_list->opt_hints_qb= this;
+  table_list->opt_hints_table= tab;
+
+  /*
+    What's delayed here is tab->fix_hint(table) as we don't have
+    a TABLE instance to call fix_hint with.  That will be done later,
+    during setup_tables, when a TABLE instance is available and calls
+    fix_hints_for_table(TABLE*).
+  */
+  set_fixed(Opt_hints::Fixed_state::DELAYED);
+}
+
+
 Opt_hints_table *Opt_hints_qb::fix_hints_for_table(TABLE *table,
                                                    const Lex_ident_table &alias)
 {
@@ -381,6 +429,15 @@ Opt_hints_table *Opt_hints_qb::fix_hints_for_table(TABLE *table,
 
   if (!tab->fix_hint(table))
     incr_fully_fixed_children();
+
+  /*
+    If this was a delayed hint, mark it as fixed now that we were able
+    to fix it with the TABLE instance in hand.
+  */
+  if (is_delayed()) {
+    set_fixed();
+    incr_fully_fixed_children();
+  }
 
   return tab;
 }
@@ -542,11 +599,9 @@ bool hint_key_state(const THD *thd, const TABLE *table,
 }
 
 
-bool hint_table_state(const THD *thd, const TABLE *table,
-                                  opt_hints_enum type_arg,
-                                  bool fallback_value)
+bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
+                      opt_hints_enum type_arg, bool fallback_value)
 {
-  TABLE_LIST *table_list= table->pos_in_table_list;
   if (table_list->opt_hints_qb)
   {
     bool ret_val= false;
@@ -557,6 +612,15 @@ bool hint_table_state(const THD *thd, const TABLE *table,
   }
 
   return fallback_value;
+}
+
+
+bool hint_table_state(const THD *thd, const TABLE *table,
+                                  opt_hints_enum type_arg,
+                                  bool fallback_value)
+{
+  return hint_table_state(thd, table->pos_in_table_list, type_arg,
+                          fallback_value);
 }
 
 /*
@@ -590,6 +654,22 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
      break;
   case TokenID::keyword_NO_BKA:
      hint_type= BKA_HINT_ENUM;
+     hint_state= false;
+     break;
+  case TokenID::keyword_DERIVED_CONDITION_PUSHDOWN:
+     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+     hint_state= true;
+     break;
+  case TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN:
+     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+     hint_state= false;
+     break;
+  case TokenID::keyword_MERGE:
+     hint_type= MERGE_HINT_ENUM;
+     hint_state= true;
+     break;
+  case TokenID::keyword_NO_MERGE:
+     hint_type= MERGE_HINT_ENUM;
      hint_state= false;
      break;
   default:
