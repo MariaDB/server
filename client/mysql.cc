@@ -185,7 +185,7 @@ static char *histfile_tmp;
 static String glob_buffer,old_buffer;
 static String processed_prompt;
 static char *full_username=0,*part_username=0,*default_prompt=0;
-static int wait_time = 5;
+static uint wait_retries = (uint)~0;
 static STATUS status;
 static ulong select_limit,max_join_size,opt_connect_timeout=0;
 static char mysql_charsets_dir[FN_REFLEN+1];
@@ -1733,7 +1733,7 @@ static struct my_option my_long_options[] =
   {"vertical", 'E', "Print the output of a query (rows) vertically.",
    &vertical, &vertical, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"wait", 'w', "Wait and retry if connection is down.", 0, 0, 0, GET_NO_ARG,
-   NO_ARG, 0, 0, 0, 0, 0, 0},
+   OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"xml", 'X', "Produce XML output.", &opt_xml, &opt_xml, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
@@ -1923,6 +1923,16 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
       verbose= 0;
     else
       verbose++;
+    break;
+  case 'w':
+    if (argument == disabled_my_option)
+      wait_flag= 0;
+    else
+    {
+      wait_flag= 1;
+      if (argument)
+        wait_retries= atoi(argument);
+    }
     break;
   case 'B':
     status.batch= 1;
@@ -4892,7 +4902,7 @@ sql_connect(char *host,char *database,char *user,char *password,uint silent)
   bool message=0;
   uint count=0;
   int error;
-  for (;;)
+  for (; wait_retries > 0; --wait_retries)
   {
     if ((error=sql_real_connect(host,database,user,password,wait_flag)) >= 0)
     {
@@ -4910,13 +4920,38 @@ sql_connect(char *host,char *database,char *user,char *password,uint silent)
       message=1;
       tee_fputs("Waiting",stderr); (void) fflush(stderr);
     }
-    (void) sleep(wait_time);
+    (void) sleep(5);
     if (!silent)
     {
       putc('.',stderr); (void) fflush(stderr);
       count++;
     }
   }
+
+  if (!silent)
+  {
+    if (!host)
+      host= (char*) LOCAL_HOST;
+    tee_fprintf(stderr,"\nconnect to server at '%s' failed\nerror: '%s'",
+    		host, mysql_error(&mysql));
+    if (mysql_errno(&mysql) == CR_CONNECTION_ERROR)
+    {
+      tee_fprintf(stderr,
+                  "\nCheck that mysqld is running and that the socket: '%s' exists!\n",
+                  opt_mysql_unix_port ? opt_mysql_unix_port : mysql_unix_port);
+    }
+    else if (mysql_errno(&mysql) == CR_CONN_HOST_ERROR ||
+    	 mysql_errno(&mysql) == CR_UNKNOWN_HOST)
+    {
+      tee_fprintf(stderr,"\nCheck that mysqld is running on %s",host);
+      tee_fprintf(stderr," and that the port is %d.\n",
+    	  opt_mysql_port ? opt_mysql_port: mysql_port);
+      tee_fprintf(stderr,"You can check this by doing 'telnet %s %d'\n",
+    	  host, opt_mysql_port ? opt_mysql_port: mysql_port);
+    }
+  }
+
+  return -1;
 }
 
 
