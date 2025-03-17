@@ -372,7 +372,7 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
       join_order_hints_ignored(0)
 {
   sys_name.str= buff;
-  sys_name.length= my_snprintf(buff, sizeof(buff), "%s%lx",
+  sys_name.length= my_snprintf(buff, sizeof(buff), "%s%x",
                                sys_qb_prefix.str, select_number);
 }
 

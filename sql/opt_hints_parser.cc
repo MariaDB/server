@@ -1010,7 +1010,7 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
     // we're creating or modifying a view, hints are not allowed here
     push_warning_printf(pc->thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED,
-                        ER_THD(pc->thd, ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED));
+                        ER_THD(pc->thd, ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED), 0);
     return false;
   }
 
