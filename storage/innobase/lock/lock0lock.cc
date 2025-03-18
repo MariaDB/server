@@ -2087,8 +2087,7 @@ dberr_t lock_wait(que_thr_t *thr)
   thd_need_wait_reports() will hold even if parallel (or any) replication
   is not being used. We want to be allow the user to skip
   lock_wait_rpl_report(). */
-  const bool rpl= trx->mysql_thd && innodb_deadlock_detect &&
-    trx->need_wait_report;
+  const bool rpl= trx->need_wait_report && innodb_deadlock_detect;
 #endif
   const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
   timespec abstime;

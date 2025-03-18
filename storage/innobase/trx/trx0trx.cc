@@ -350,6 +350,7 @@ trx_t *trx_create()
 	ut_ad(trx->lock.table_cached == 0);
 	ut_ad(trx->lock.rec_cached == 0);
 	ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
+	ut_ad(!trx->need_wait_report);
 
 	trx_sys.register_trx(trx);
 
