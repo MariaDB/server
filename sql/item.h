@@ -755,8 +755,6 @@ public:
 
 /****************************************************************************/
 
-#define STOP_PTR ((void *) 1)
-
 /* Base flags (including IN) for an item */
 
 typedef uint8 item_flags_t;
@@ -849,6 +847,14 @@ static inline item_with_t operator~(const item_with_t a)
 {
   return (item_with_t) ~(item_flags_t) a;
 }
+
+
+/*
+  Flags of walking function
+*/
+typedef uint8 item_walk_flags;
+const item_walk_flags WALK_SUBQUERY=          1;
+const item_walk_flags WALK_NO_CACHE_PROCESS= (1<<1);
 
 
 class Item :public Value_source,
@@ -2197,7 +2203,8 @@ public:
     return type_handler()->charset_for_protocol(this);
   };
 
-  virtual bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  virtual bool walk(Item_processor processor, void *arg,
+                    item_walk_flags flags)
   {
     return (this->*processor)(arg);
   }
@@ -2676,7 +2683,7 @@ public:
   virtual bool is_expensive()
   {
     if (is_expensive_cache < 0)
-      is_expensive_cache= walk(&Item::is_expensive_processor, 0, NULL);
+      is_expensive_cache= walk(&Item::is_expensive_processor, 0, 0);
     return MY_TEST(is_expensive_cache);
   }
   String *check_well_formed_result(String *str, bool send_error= 0);
@@ -2718,7 +2725,7 @@ public:
   table_map view_used_tables(TABLE_LIST *view)
   {
     view->view_used_tables= 0;
-    walk(&Item::view_used_tables_processor, 0, view);
+    walk(&Item::view_used_tables_processor, view, 0);
     return view->view_used_tables;
   }
 
@@ -2872,11 +2879,11 @@ protected:
   Item **args, *tmp_arg[2];
   uint arg_count;
   void set_arguments(THD *thd, List<Item> &list);
-  bool walk_args(Item_processor processor, bool walk_subquery, void *arg)
+  bool walk_args(Item_processor processor, void *arg, item_walk_flags flags)
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      if (args[i]->walk(processor, walk_subquery, arg))
+      if (args[i]->walk(processor, arg, flags))
         return true;
     }
     return false;
@@ -5785,9 +5792,9 @@ public:
     Used_tables_and_const_cache(item) { }
   Item_func_or_sum(THD *thd, List<Item> &list):
     Item_result_field(thd), Item_args(thd, list) { }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg, item_walk_flags flags) override
   {
-    if (walk_args(processor, walk_subquery, arg))
+    if (walk_args(processor, arg, flags))
       return true;
     return (this->*processor)(arg);
   }
@@ -6009,10 +6016,11 @@ public:
     return ref ? (*ref)->part_of_sortkey() : Item::part_of_sortkey();
   }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
     if (ref && *ref)
-      return (*ref)->walk(processor, walk_subquery, arg) ||
+      return (*ref)->walk(processor, arg, flags) ||
              (this->*processor)(arg); 
     else
       return FALSE;
@@ -6293,9 +6301,10 @@ public:
   bool const_item() const override { return orig_item->const_item(); }
   table_map not_null_tables() const override
   { return orig_item->not_null_tables(); }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    return orig_item->walk(processor, walk_subquery, arg) ||
+    return orig_item->walk(processor, arg, flags) ||
       (this->*processor)(arg);
   }
   bool enumerate_field_refs_processor(void *arg) override
@@ -6406,9 +6415,10 @@ public:
     return (*ref)->const_item() && (null_ref_table == NO_NULL_TABLE);
   }
   TABLE *get_null_ref_table() const { return null_ref_table; }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    return (*ref)->walk(processor, walk_subquery, arg) ||
+    return (*ref)->walk(processor, arg, flags) ||
            (this->*processor)(arg);
   }
   bool view_used_tables_processor(void *arg) override
@@ -6788,9 +6798,10 @@ public:
   double val_real() override = 0;
   longlong val_int() override = 0;
   int save_in_field(Field *field, bool no_conversions) override = 0;
-  bool walk(Item_processor processor, bool walk_subquery, void *args) override
+  bool walk(Item_processor processor, void *args,
+            item_walk_flags flags) override
   {
-    return (item->walk(processor, walk_subquery, args)) ||
+    return (item->walk(processor, args, flags)) ||
       (this->*processor)(args);
   }
 };
@@ -7071,9 +7082,10 @@ public:
   bool check_func_default_processor(void *) override { return true; }
   bool update_func_default_processor(void *arg) override;
   bool register_field_in_read_map(void *arg) override;
-  bool walk(Item_processor processor, bool walk_subquery, void *args) override
+  bool walk(Item_processor processor, void *args,
+            item_walk_flags flags) override
   {
-    return (arg && arg->walk(processor, walk_subquery, args)) ||
+    return (arg && arg->walk(processor, args, flags)) ||
       (this->*processor)(args);
   }
   Item *transform(THD *thd, Item_transformer transformer, uchar *args)
@@ -7267,9 +7279,10 @@ public:
 
   Item_field *field_for_view_update() override { return nullptr; }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *args) override
+  bool walk(Item_processor processor, void *args,
+            item_walk_flags flags) override
   {
-    return arg->walk(processor, walk_subquery, args) ||
+    return arg->walk(processor, args, flags) ||
 	    (this->*processor)(args);
   }
   bool check_partition_func_processor(void *) override { return true; }
@@ -7551,11 +7564,12 @@ public:
     return example->is_expensive_processor(arg);
   }
   virtual void set_null();
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    if (arg == STOP_PTR)
+    if (flags & WALK_NO_CACHE_PROCESS)
       return FALSE;
-    if (example && example->walk(processor, walk_subquery, arg))
+    if (example && example->walk(processor, arg, flags))
       return TRUE;
     return (this->*processor)(arg);
   }
@@ -8279,9 +8293,10 @@ public:
   { m_item->update_used_tables(); }
   bool const_item() const override { return m_item->const_item(); }
   table_map not_null_tables() const override { return m_item->not_null_tables(); }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    return m_item->walk(processor, walk_subquery, arg) ||
+    return m_item->walk(processor, arg, flags) ||
       (this->*processor)(arg);
   }
   bool enumerate_field_refs_processor(void *arg) override
@@ -8368,7 +8383,8 @@ inline void TABLE::mark_virtual_column_deps(Field *field)
 {
   DBUG_ASSERT(field->vcol_info);
   DBUG_ASSERT(field->vcol_info->expr);
-  field->vcol_info->expr->walk(&Item::register_field_in_read_map, 1, 0);
+  field->vcol_info->expr->walk(&Item::register_field_in_read_map,
+                               0, WALK_SUBQUERY);
 }
 
 inline void TABLE::use_all_stored_columns()
