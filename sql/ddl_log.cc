@@ -1120,7 +1120,7 @@ static int execute_rename_table(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
 
   /* There should never be a conflict. The timeout is there for security */
   err2=  thd->mdl_context.acquire_lock(&mdl_request[0], 60);
-  err2|= thd->mdl_context.acquire_lock(&mdl_request[1], 60);
+  if (thd->mdl_context.acquire_lock(&mdl_request[1], 60)) err2= TRUE;
   DBUG_ASSERT(err2 == 0);
 
   thd->lex->part_info= 0;

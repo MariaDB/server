@@ -4674,7 +4674,7 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
 
       writing_to_binlog= 1;
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
-                            query, query_length,
+                            query, (ulong)query_length,
                             FALSE, FALSE, FALSE, 0) > 0)
         wrote_to_binlog= 1;
     }
@@ -4687,7 +4687,7 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
   else if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
   {
     writing_to_binlog= 1;
-    wrote_to_binlog= write_bin_log(thd, TRUE, query, query_length, is_trans);
+    wrote_to_binlog= write_bin_log(thd, TRUE, query, (ulong)query_length, is_trans);
   }
   else
   {
@@ -6348,8 +6348,9 @@ err:
     backup_log_ddl(&ddl_log);
   }
 
-  if (local_create_info.pos_in_locked_tables && local_create_info.or_replace())
-    res|= local_create_info.finalize_locked_tables(thd, res);
+  if (local_create_info.pos_in_locked_tables && local_create_info.or_replace()
+      && local_create_info.finalize_locked_tables(thd, res))
+    res= TRUE;
 
   DBUG_RETURN(res != 0);
 }

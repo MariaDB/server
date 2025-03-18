@@ -4523,7 +4523,7 @@ bool select_insert::prepare_eof()
   else if (changed)
     table->mark_as_not_binlogged();
 
-  table->s->table_creation_was_logged|= binary_logged;
+  if (binary_logged) table->s->table_creation_was_logged= true;
   table->file->ha_release_auto_increment();
 
   if (unlikely(error))
@@ -4663,7 +4663,7 @@ void select_insert::abort_result_set()
     DBUG_ASSERT(transactional_table || !changed || create_info ||
 		thd->transaction->stmt.modified_non_trans_table);
 
-    table->s->table_creation_was_logged|= binary_logged;
+    if (binary_logged) table->s->table_creation_was_logged= true;
     table->file->ha_release_auto_increment();
   }
 
