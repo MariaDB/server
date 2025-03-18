@@ -6636,7 +6636,8 @@ longlong Item_func_row_count::val_int()
 
 Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name, const Sp_handler *sph):
-  Item_func(thd), Item_sp(thd, context_arg, name), m_handler(sph)
+  Item_func(thd), Item_sp(thd, context_arg, name), m_handler(sph),
+  m_use_cached_value(false)
 {
   set_maybe_null();
 }
@@ -6645,7 +6646,8 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
 Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name_arg, const Sp_handler *sph,
                            List<Item> &list):
-  Item_func(thd, list), Item_sp(thd, context_arg, name_arg), m_handler(sph)
+  Item_func(thd, list), Item_sp(thd, context_arg, name_arg), m_handler(sph),
+  m_use_cached_value(false)
 {
   set_maybe_null();
 }
@@ -6656,6 +6658,7 @@ Item_func_sp::cleanup()
 {
   Item_sp::cleanup();
   Item_func::cleanup();
+  m_use_cached_value= false;
 }
 
 LEX_CSTRING
@@ -6704,6 +6707,7 @@ bool Item_func_sp::fix_length_and_dec(THD *thd)
   // There is a bug in the line below. See MDEV-11292 for details.
   collation.derivation= DERIVATION_COERCIBLE;
   set_maybe_null();
+  m_use_cached_value= false;
 
   DBUG_RETURN(FALSE);
 }
@@ -6712,6 +6716,8 @@ bool Item_func_sp::fix_length_and_dec(THD *thd)
 bool
 Item_func_sp::execute()
 {
+  if (m_use_cached_value)
+    return null_value;
   /* Execute function and store the return value in the field. */
   return Item_sp::execute(current_thd, &null_value, args, arg_count);
 }

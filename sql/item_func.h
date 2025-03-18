@@ -3988,6 +3988,8 @@ class Item_func_sp :public Item_func,
 private:
   const Sp_handler *m_handler;
 
+  bool m_use_cached_value;
+
   bool execute();
 
 protected:
@@ -4058,7 +4060,9 @@ public:
 
   void bring_value() override
   {
+    m_use_cached_value= false;
     execute();
+    m_use_cached_value= true;
   }
 
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
@@ -4137,6 +4141,8 @@ public:
   {
     if (with_complex_data_types())
       sp_result_field->expr_event_handler(thd, event);
+    if ((bool) (event & expr_event_t::DESTRUCT_ANY))
+      m_use_cached_value= false;
   }
 
   void update_null_value() override
