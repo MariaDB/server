@@ -108,9 +108,10 @@ public:
   table_map not_null_tables() const override { return not_null_tables_cache; }
   void print(String *str, enum_query_type query_type) override;
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    if (walk_args(processor, walk_subquery, arg))
+    if (walk_args(processor, arg, flags))
       return true;
     return (this->*processor)(arg);
   }

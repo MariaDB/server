@@ -1165,8 +1165,8 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
     if (eq_mod->field)
     {
       /* Regular tbl.col=expr(tblX1.col1, tblY1.col2, ...) */
-      eq_mod->expr->walk(&Item::enumerate_field_refs_processor, FALSE, 
-                               &deps_recorder);
+      eq_mod->expr->walk(&Item::enumerate_field_refs_processor,
+                               &deps_recorder, 0);
     }
     else 
     {
@@ -2079,7 +2079,7 @@ static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
   }
 
   if (tbl->on_expr)
-    tbl->on_expr->walk(&Item::mark_as_eliminated_processor, FALSE, NULL);
+    tbl->on_expr->walk(&Item::mark_as_eliminated_processor, 0, 0);
 }
 
 #ifndef DBUG_OFF
