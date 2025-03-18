@@ -4351,7 +4351,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   if (lock_type == F_WRLCK)
   {
     if (m_part_info->part_expr)
-      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+      m_part_info->part_expr->walk(&Item::register_field_in_read_map,
+                                   0, WALK_SUBQUERY);
     need_info_for_auto_inc();
   }
   DBUG_RETURN(0);
@@ -4496,7 +4497,8 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   if (lock_type >= TL_FIRST_WRITE)
   {
     if (m_part_info->part_expr)
-      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+      m_part_info->part_expr->walk(&Item::register_field_in_read_map,
+                                   0, WALK_SUBQUERY);
   }
   DBUG_RETURN(error);
 }

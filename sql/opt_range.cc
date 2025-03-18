@@ -3830,7 +3830,7 @@ end_of_range_loop:
       DBUG_RETURN(TRUE);
     dt->list.empty();
     dt->table= table;
-    if ((*cond)->walk(&Item::find_selective_predicates_list_processor, 0, dt))
+    if ((*cond)->walk(&Item::find_selective_predicates_list_processor, dt, 0))
       DBUG_RETURN(TRUE);
     if (dt->list.elements > 0)
     {
@@ -14869,8 +14869,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         key_part_range[1]= last_part;
 
         /* Check if cur_part is referenced in the WHERE clause. */
-        if (join->conds->walk(&Item::find_item_in_field_list_processor, true,
-                              key_part_range))
+        if (join->conds->walk(&Item::find_item_in_field_list_processor,
+                              key_part_range, WALK_SUBQUERY))
         {
           cause= "keypart reference from where clause";
           goto next_index;

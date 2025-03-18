@@ -235,7 +235,8 @@ public:
   */
   virtual void reset_value_registration() {}
   enum_parsing_place place() { return parsing_place; }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   bool unknown_splocal_processor(void *arg) override;
   bool mark_as_eliminated_processor(void *arg) override;
   bool eliminate_subselect_processor(void *arg) override;
@@ -762,10 +763,11 @@ public:
     DBUG_VOID_RETURN;
   }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    return left_expr->walk(processor, walk_subquery, arg) ||
-           Item_subselect::walk(processor, walk_subquery, arg);
+    return left_expr->walk(processor, arg, flags) ||
+           Item_subselect::walk(processor, arg, flags);
   }
 
   bool exists2in_processor(void *opt_arg __attribute__((unused))) override

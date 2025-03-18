@@ -929,7 +929,8 @@ bool Item_field::register_field_in_read_map(void *arg)
   if (field->vcol_info &&
       !bitmap_fast_test_and_set(field->table->read_set, field->field_index))
   {
-    res= field->vcol_info->expr->walk(&Item::register_field_in_read_map,1,arg);
+    res= field->vcol_info->expr->walk(&Item::register_field_in_read_map,
+                                      arg, WALK_SUBQUERY);
   }
   else
     bitmap_set_bit(field->table->read_set, field->field_index);
@@ -1017,7 +1018,7 @@ bool Item_field::update_vcol_processor(void *arg)
   if (field->vcol_info &&
       !bitmap_fast_test_and_set(map, field->field_index))
   {
-    field->vcol_info->expr->walk(&Item::update_vcol_processor, 0, arg);
+    field->vcol_info->expr->walk(&Item::update_vcol_processor, arg, 0);
     field->vcol_info->expr->save_in_field(field, 0);
   }
   return 0;
@@ -1334,8 +1335,8 @@ Item *Item::multiple_equality_transformer(THD *thd, uchar *arg)
       remove_immutable_flag_processor processor.
     */
     int16 new_flag= MARKER_IMMUTABLE;
-    this->walk(&Item::set_extraction_flag_processor, false,
-               (void*)&new_flag);
+    this->walk(&Item::set_extraction_flag_processor,
+               (void*)&new_flag, 0);
   }
   return this;
 }
@@ -6570,8 +6571,8 @@ bool Item_field::check_valid_arguments_processor(void *bool_arg)
   Virtual_column_info *vcol= field->vcol_info;
   if (!vcol)
     return FALSE;
-  return vcol->expr->walk(&Item::check_partition_func_processor, 0, NULL)
-      || vcol->expr->walk(&Item::check_valid_arguments_processor, 0, NULL);
+  return vcol->expr->walk(&Item::check_partition_func_processor, 0, 0)
+      || vcol->expr->walk(&Item::check_valid_arguments_processor, 0, 0);
 }
 
 void Item_field::cleanup()
@@ -10093,7 +10094,8 @@ bool Item_default_value::register_field_in_read_map(void *arg)
   if (!table || (table && table == field->table))
   {
     if (field->default_value && field->default_value->expr)
-      res= field->default_value->expr->walk(&Item::register_field_in_read_map,1,arg);
+      res= field->default_value->expr->walk(&Item::register_field_in_read_map,
+                                            arg, WALK_SUBQUERY);
   }
   else if (result_field && table == result_field->table)
   {

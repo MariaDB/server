@@ -127,7 +127,7 @@
 bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
                             bool other_tbls_ok)
 {
-  if (item->walk(&Item::limit_index_condition_pushdown_processor, FALSE, NULL))
+  if (item->walk(&Item::limit_index_condition_pushdown_processor, 0, 0))
   {
     return FALSE;
   }
