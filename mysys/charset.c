@@ -606,6 +606,8 @@ void add_compiled_collation(struct charset_info_st *cs)
     DBUG_ASSERT(org->cs_name.length == strlen(cs->cs_name.str));
 #endif
   }
+  if (cs->coll_name.str)
+    my_hash_insert(&collation_name_hash, (uchar*) cs);
 }
 
 
@@ -630,6 +632,8 @@ void add_compiled_extra_collation(struct charset_info_st *cs)
                                                       cs->cs_name.length);
     cs->cs_name= org->cs_name;
   }
+  if (cs->coll_name.str)
+    my_hash_insert(&collation_name_hash, (uchar*) cs);
 }
 
 
@@ -691,6 +695,7 @@ my_bool add_alias_for_collation(LEX_CSTRING *collation_name, uint org_id,
   new_ci->comment= comment;
   new_ci->number= alias_id;
   all_charsets[alias_id]= new_ci;
+  my_hash_insert(&collation_name_hash, (uchar*) new_ci);
   return 0;
 }
 
@@ -844,18 +849,6 @@ static void init_available_charsets(void)
   my_charset_loader_init_mysys(&loader);
   strmov(get_charsets_dir(fname), MY_CHARSET_INDEX);
   my_read_charset_file(&loader, fname, MYF(0));
-
-  /* Populate the collation_name_hash */
-  for (cs= (struct charset_info_st**) all_charsets;
-       cs < (struct charset_info_st**) all_charsets +
-            array_elements(all_charsets);
-       cs++)
-  {
-    CHARSET_INFO *c= *cs;
-    if (c && c->coll_name.str)
-      my_hash_insert(&collation_name_hash, (uchar*) c);
-  }
-
   DBUG_VOID_RETURN;
 }
 
