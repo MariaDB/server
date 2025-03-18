@@ -738,9 +738,10 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
   List_iterator_fast <Item_outer_ref> ref_it(select->inner_refs_list);
   for (ORDER *group= select->join->group_list; group;  group= group->next)
   {
-    (*group->item)->walk(&Item::check_inner_refs_processor, TRUE, &ref_it);
-  } 
-    
+    (*group->item)->walk(&Item::check_inner_refs_processor,
+                         &ref_it, WALK_SUBQUERY);
+  }
+
   while ((ref= ref_it++))
   {
     bool direct_ref= false;
@@ -2241,7 +2242,7 @@ JOIN::optimize_inner()
     conversion happened (which done in the same way.
   */
   if (select_lex->first_cond_optimization &&
-      conds && conds->walk(&Item::exists2in_processor, 0, thd))
+      conds && conds->walk(&Item::exists2in_processor, thd, 0))
     DBUG_RETURN(1);
   /*
     TODO
@@ -2362,10 +2363,10 @@ JOIN::optimize_inner()
 
   if (conds && conds->with_subquery())
     (void) conds->walk(&Item::cleanup_is_expensive_cache_processor,
-                       0, (void *) 0);
+                       0, 0);
   if (having && having->with_subquery())
     (void) having->walk(&Item::cleanup_is_expensive_cache_processor,
-			0, (void *) 0);
+                        0, 0);
 
   List<Item> eq_list;
 
@@ -7623,7 +7624,7 @@ void count_cond_for_nj(SELECT_LEX *sel, TABLE_LIST *nested_join_table)
       count_cond_for_nj(sel, table); 
   }
   if (nested_join_table->on_expr)
-    nested_join_table->on_expr->walk(&Item::count_sargable_conds, 0, sel);
+    nested_join_table->on_expr->walk(&Item::count_sargable_conds, sel, 0);
     
 }
 
@@ -7664,11 +7665,11 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   sel->cond_count= 0;
   sel->between_count= 0; 
   if (cond)
-    cond->walk(&Item::count_sargable_conds, 0, sel);
+    cond->walk(&Item::count_sargable_conds, sel, 0);
   for (i=0 ; i < tables ; i++)
   {
     if (*join_tab[i].on_expr_ref)
-      (*join_tab[i].on_expr_ref)->walk(&Item::count_sargable_conds, 0, sel);
+      (*join_tab[i].on_expr_ref)->walk(&Item::count_sargable_conds, sel, 0);
   }
   {
     List_iterator<TABLE_LIST> li(*join_tab->join->join_list);
@@ -8099,8 +8100,8 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
   if (join->group_list)
   { /* Collect all query fields referenced in the GROUP clause. */
     for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
-      (*cur_group->item)->walk(&Item::collect_item_field_processor, 0,
-                               &indexed_fields);
+      (*cur_group->item)->walk(&Item::collect_item_field_processor,
+                               &indexed_fields, 0);
   }
   else if (join->select_distinct)
   { /* Collect all query fields referenced in the SELECT clause. */
@@ -8108,7 +8109,7 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
     List_iterator<Item> select_items_it(select_items);
     Item *item;
     while ((item= select_items_it++))
-      item->walk(&Item::collect_item_field_processor, 0, &indexed_fields);
+      item->walk(&Item::collect_item_field_processor, &indexed_fields, 0);
   }
   else if (!join->tmp_table_param.sum_func_count ||
            !is_indexed_agg_distinct(join, &indexed_fields))
