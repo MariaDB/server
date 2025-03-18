@@ -81,11 +81,11 @@ CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1);
 SET SESSION gtid_domain_id= 0;
 SET SESSION gtid_domain_id= 204;
-ERROR HY000: Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction
+ERROR HY000: Cannot modify @@session.gtid_domain_id while there are open temporary tables being binlogged
 SET SESSION binlog_format=statement;
 INSERT INTO t2 VALUES (2);
 SET SESSION gtid_domain_id= 205;
-ERROR HY000: Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction
+ERROR HY000: Cannot modify @@session.gtid_domain_id while there are open temporary tables being binlogged
 DROP TEMPORARY TABLE t2;
 SET SESSION gtid_domain_id= @old_domain;
 SET SESSION binlog_format= @old_mode;
