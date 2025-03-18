@@ -4225,9 +4225,12 @@ int Gis_multi_polygon::make_clockwise(String *result) const
         !(polygon= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
       return 1;
 
-    if(polygon->make_clockwise(&clockwise_wkb))
+    if (polygon->make_clockwise(&clockwise_wkb))
       return 1;
 
+    // Reserve space for the byte order and GIS type.
+    if (result->reserve(sizeof(char) + sizeof(uint32)))
+      return 1;
     result->q_append((char) wkb_ndr);
     result->q_append((uint32) wkb_polygon);
     result->append(clockwise_wkb.ptr() + WKB_HEADER_SIZE,
