@@ -180,7 +180,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT ST_LONGFROMGEOHASH("0123456"789);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '789)' at line 1
 SELECT ST_LONGFROMGEOHASH(abcdef);
-ERROR 42S22: Unknown column 'abcdef' in 'field list'
+ERROR 42S22: Unknown column 'abcdef' in 'SELECT'
 # very long geohash
 SELECT ST_LONGFROMGEOHASH("0123456789bcdefghjkmnpqrstuvwxyz0123456789bcdefghjkm"
                           "npqrstuvwxyz0123456789bcdefghjkmnpqrstuvwxyz01234567"
@@ -423,7 +423,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT ST_LATFROMGEOHASH("0123456"789);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '789)' at line 1
 SELECT ST_LATFROMGEOHASH(abcdef);
-ERROR 42S22: Unknown column 'abcdef' in 'field list'
+ERROR 42S22: Unknown column 'abcdef' in 'SELECT'
 # very long geohash
 SELECT ST_LATFROMGEOHASH("0123456789bcdefghjkmnpqrstuvwxyz0123456789bcdefghjkmn"
                          "pqrstuvwxyz0123456789bcdefghjkmnpqrstuvwxyz0123456789"
@@ -1005,11 +1005,11 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT ST_GEOHASH(0,0,*);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '*)' at line 1
 SELECT ST_GEOHASH(a,90,10);
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 SELECT ST_GEOHASH(180,p,10);
-ERROR 42S22: Unknown column 'p' in 'field list'
+ERROR 42S22: Unknown column 'p' in 'SELECT'
 SELECT ST_GEOHASH(180,90,z);
-ERROR 42S22: Unknown column 'z' in 'field list'
+ERROR 42S22: Unknown column 'z' in 'SELECT'
 SELECT ST_GEOHASH((CAST(180 AS DATE)),90,10);
 ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
 SELECT ST_GEOHASH(180,(CAST(90 AS DATE)),10);
@@ -1071,7 +1071,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT ST_GEOHASH(,10);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10)' at line 1
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(0 0)'),a);
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('LINESTRING(0 0,10 10)'),10);
 ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POLYGON((0 0,10 0,10 10,0 10,0 0))'),10);
