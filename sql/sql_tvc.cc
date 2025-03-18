@@ -46,7 +46,7 @@ bool table_value_constr::walk_values(Item_processor processor,
     List_iterator_fast<Item> item_it(*list);
     while (Item *item= item_it++)
     {
-       if (item->walk(&Item::unknown_splocal_processor, false, argument))
+       if (item->walk(&Item::unknown_splocal_processor, argument, 0))
          return true;
     }
   }

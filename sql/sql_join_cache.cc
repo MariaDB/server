@@ -277,8 +277,9 @@ void JOIN_CACHE::collect_info_on_key_args()
       {
         Item *ref_item= ref->items[i]; 
         if (!(tab->table->map & ref_item->used_tables()))
-	  continue;
-	 ref_item->walk(&Item::add_field_to_set_processor, 1, tab->table);
+          continue;
+        ref_item->walk(&Item::add_field_to_set_processor,
+                       tab->table, WALK_SUBQUERY);
       }
       if ((key_args= bitmap_bits_set(&tab->table->tmp_set)))
       {

@@ -2607,7 +2607,8 @@ int multi_update::do_updates()
     if (Field **vf= tbl->vfield)
       for (; *vf; vf++)
         if (bitmap_is_set(tbl->read_set, (*vf)->field_index))
-          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map, 1, 0);
+          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map,
+                                       0, WALK_SUBQUERY);
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {

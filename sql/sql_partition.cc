@@ -831,8 +831,8 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     goto end;
   table->get_fields_in_item_tree= true;
 
-  func_expr->walk(&Item::change_context_processor, 0,
-                  &lex.first_select_lex()->context);
+  func_expr->walk(&Item::change_context_processor,
+                  &lex.first_select_lex()->context, 0);
   thd->where= THD_WHERE::PARTITION_FUNCTION;
   /*
     In execution we must avoid the use of thd->change_item_tree since
@@ -857,7 +857,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     thd->lex->allow_sum_func.clear_all();
 
     if (likely(!(error= func_expr->fix_fields_if_needed(thd, (Item**)&func_expr))))
-      func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, NULL);
+      func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, 0);
 
     /*
       Restore agg_field/agg_func  and allow_sum_func,
@@ -887,7 +887,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     easier maintenance. This exception should be deprecated at some point
     in future so that we always throw an error.
   */
-  if (func_expr->walk(&Item::check_valid_arguments_processor, 0, NULL))
+  if (func_expr->walk(&Item::check_valid_arguments_processor, 0, 0))
   {
     if (is_create_table_ind)
     {

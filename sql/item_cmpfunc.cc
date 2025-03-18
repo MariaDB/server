@@ -1551,17 +1551,17 @@ bool Item_in_optimizer::invisible_mode()
 
 
 bool Item_in_optimizer::walk(Item_processor processor,
-                             bool walk_subquery,
-                             void *arg)
+                             void *arg,
+                             item_walk_flags flags)
 {
   bool res= FALSE;
   if (args[1]->type() == Item::SUBSELECT_ITEM &&
       ((Item_subselect *)args[1])->substype() != Item_subselect::EXISTS_SUBS &&
       !(((Item_subselect *)args[1])->substype() == Item_subselect::IN_SUBS &&
         ((Item_in_subselect *)args[1])->test_strategy(SUBS_IN_TO_EXISTS)))
-    res= args[0]->walk(processor, walk_subquery, arg);
+    res= args[0]->walk(processor, arg,  flags);
   if (!res)
-    res= args[1]->walk(processor, walk_subquery, arg);
+    res= args[1]->walk(processor, arg, flags);
 
   return res || (this->*processor)(arg);
 }
@@ -2669,7 +2669,7 @@ void Item_func_nullif::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 
 bool Item_func_nullif::walk(Item_processor processor,
-                            bool walk_subquery, void *arg)
+                            void *arg, item_walk_flags flags)
 {
   /*
     No needs to iterate through args[2] when it's just a copy of args[0].
@@ -2678,7 +2678,7 @@ bool Item_func_nullif::walk(Item_processor processor,
   uint tmp_count= arg_count == 2 || args[0] == args[2] ? 2 : 3;
   for (uint i= 0; i < tmp_count; i++)
   {
-    if (args[i]->walk(processor, walk_subquery, arg))
+    if (args[i]->walk(processor, arg, flags))
       return true;
   }
   return (this->*processor)(arg);
@@ -5373,14 +5373,15 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 }
 
 
-bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_cond::walk(Item_processor processor,
+                     void *arg, item_walk_flags flags)
 {
   List_iterator_fast<Item> li(list);
   Item *item;
   while ((item= li++))
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, arg, flags))
       return 1;
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, arg,  flags);
 }
 
 /**
@@ -7507,16 +7508,17 @@ bool Item_equal::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_equal::walk(Item_processor processor,
+                      void *arg, item_walk_flags flags)
 {
   Item *item;
   Item_equal_fields_iterator it(*this);
   while ((item= it++))
   {
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, arg, flags))
       return 1;
   }
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, arg, flags);
 }
 
 
@@ -7979,8 +7981,8 @@ bool Item_equal::create_pushable_equalities(THD *thd,
         where a fixed item has non-fixed items inside it.
       */
       int16 new_flag= MARKER_IMMUTABLE;
-      right_item->walk(&Item::set_extraction_flag_processor, false,
-                       (void*)&new_flag);
+      right_item->walk(&Item::set_extraction_flag_processor,
+                       (void*)&new_flag, 0);
     }
   }
 
