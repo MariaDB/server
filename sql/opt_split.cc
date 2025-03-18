@@ -648,7 +648,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   if (left_item && right_item)
   {
     right_item->walk(&Item::set_fields_as_dependent_processor,
-                     false, join->select_lex);
+                     join->select_lex, 0);
     right_item->update_used_tables();
     /*
       We've just pushed right_item down into the child select. It may only

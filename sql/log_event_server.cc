@@ -7296,7 +7296,7 @@ public:
     // Deterministic DEFAULT or vcol expression
     return !(computed->flags & VCOL_NOT_STRICTLY_DETERMINISTIC)
            && !computed->expr->walk(&Item::enumerate_field_refs_processor,
-                                    false, this)
+                                    this, 0)
            && field_usable;
   }
 

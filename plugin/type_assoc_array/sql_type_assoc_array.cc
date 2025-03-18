@@ -2539,7 +2539,7 @@ bool Type_handler_assoc_array::check_key_expression_type(Item *key)
                               item_with_t::SUM_FUNC |
                               item_with_t::SUBQUERY |
                               item_with_t::ROWNUM_FUNC)) ||
-      key->walk(&Item::find_function_processor, FALSE, &func_sp))
+      key->walk(&Item::find_function_processor, &func_sp, 0))
   {
     Item::Print tmp(key, QT_ORDINARY);
     my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), ErrConvString(&tmp).ptr());

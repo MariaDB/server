@@ -10809,7 +10809,7 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
     Walk through the Item tree checking if all items are valid
     to be part of the virtual column
   */
-  ret= vcol->expr->walk(&Item::check_vcol_func_processor, 0, &res);
+  ret= vcol->expr->walk(&Item::check_vcol_func_processor, &res, 0);
   vcol->flags= res.errors;
 
   uint filter= VCOL_IMPOSSIBLE;
@@ -11743,7 +11743,8 @@ void Field::register_field_in_read_map()
   if (vcol_info)
   {
     Item *vcol_item= vcol_info->expr;
-    vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
+    vcol_item->walk(&Item::register_field_in_read_map,
+                    0, WALK_SUBQUERY);
   }
   bitmap_set_bit(table->read_set, field_index);
 }
