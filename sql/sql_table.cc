@@ -8852,14 +8852,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
     {
       if (field->vcol_info)
-        field->vcol_info->expr->walk(&Item::rename_fields_processor, 1,
-                                    &column_rename_param);
+        field->vcol_info->expr->walk(&Item::rename_fields_processor,
+                                    &column_rename_param, WALK_SUBQUERY);
       if (field->check_constraint)
-        field->check_constraint->expr->walk(&Item::rename_fields_processor, 1,
-                                            &column_rename_param);
+        field->check_constraint->expr->walk(&Item::rename_fields_processor,
+                                            &column_rename_param,
+                                            WALK_SUBQUERY);
       if (field->default_value)
-        field->default_value->expr->walk(&Item::rename_fields_processor, 1,
-                                        &column_rename_param);
+        field->default_value->expr->walk(&Item::rename_fields_processor,
+                                        &column_rename_param, WALK_SUBQUERY);
     }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (thd->work_part_info)
@@ -8869,11 +8870,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       const bool part_field_list= !part_info->part_field_list.is_empty();
       const bool subpart_field_list= !part_info->subpart_field_list.is_empty();
       if (part_info->part_expr)
-        part_info->part_expr->walk(&Item::rename_fields_processor, 1,
-                                  &column_rename_param);
+        part_info->part_expr->walk(&Item::rename_fields_processor,
+                                  &column_rename_param, WALK_SUBQUERY);
       if (part_info->subpart_expr)
-        part_info->subpart_expr->walk(&Item::rename_fields_processor, 1,
-                                      &column_rename_param);
+        part_info->subpart_expr->walk(&Item::rename_fields_processor,
+                                      &column_rename_param, WALK_SUBQUERY);
       if (part_field_list || subpart_field_list)
       {
         while (Create_field *def= def_it++)
@@ -9461,7 +9462,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       {
         table->default_column_bitmaps();
         bitmap_clear_all(table->read_set);
-        check->expr->walk(&Item::register_field_in_read_map, 1, 0);
+        check->expr->walk(&Item::register_field_in_read_map,
+                          0, WALK_SUBQUERY);
         if (bitmap_is_subset(table->read_set, dropped_fields))
           keep= false;
         else if (bitmap_is_overlapping(dropped_fields, table->read_set))
@@ -9477,8 +9479,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       {
         if (alter_info->flags & ALTER_RENAME_COLUMN)
         {
-          check->expr->walk(&Item::rename_fields_processor, 1,
-                            &column_rename_param);
+          check->expr->walk(&Item::rename_fields_processor,
+                            &column_rename_param, WALK_SUBQUERY);
           // Force reopen because new column name is on root
           table->mark_table_for_reopen();
         }

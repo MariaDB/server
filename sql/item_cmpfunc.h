@@ -458,7 +458,8 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
                          bool merge) override;
   bool invisible_mode();
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   void reset_cache() { cache= NULL; }
   void print(String *str, enum_query_type query_type) override;
   void restore_first_argument();
@@ -1502,7 +1503,8 @@ public:
     return Type_ref_null();
   }
   bool fix_length_and_dec(THD *thd) override;
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("nullif") };
@@ -3116,10 +3118,11 @@ public:
     return this;
   }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    return (walk_args(processor, walk_subquery, arg) ||
-            escape_item->walk(processor, walk_subquery, arg) ||
+    return (walk_args(processor, arg, flags) ||
+            escape_item->walk(processor, arg, flags) ||
             (this->*processor)(arg));
   }
 
@@ -3339,7 +3342,8 @@ public:
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
                          COND **conds);
   void copy_andor_arguments(THD *thd, Item_cond *item);
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   Item *do_transform(THD *thd, Item_transformer transformer, uchar *arg,
                      bool toplevel);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override
@@ -3548,7 +3552,8 @@ public:
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables) override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   void print(String *str, enum_query_type query_type) override;
   const Type_handler *compare_type_handler() const { return m_compare_handler; }

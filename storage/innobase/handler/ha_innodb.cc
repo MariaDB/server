@@ -10486,8 +10486,8 @@ prepare_vcol_for_base_setup(
 	field->table->read_set = &field->table->tmp_set;
 
 	bitmap_clear_all(&field->table->tmp_set);
-	field->vcol_info->expr->walk(
-		&Item::register_field_in_read_map, 1, field->table);
+	field->vcol_info->expr->walk(&Item::register_field_in_read_map,
+                                     field->table, WALK_SUBQUERY);
 	col->num_base= bitmap_bits_set(&field->table->tmp_set)
 		& dict_index_t::MAX_N_FIELDS;
 	if (col->num_base != 0) {
