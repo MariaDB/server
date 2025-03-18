@@ -12944,6 +12944,9 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
     if (is_invalid_role_name(user->user.str))
       return 0;
 
+    if (!initialized)
+      return dup;
+
     if (lock)
       mysql_mutex_lock(&acl_cache->lock);
     if (find_acl_role(dup->user.str))
