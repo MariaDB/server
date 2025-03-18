@@ -627,7 +627,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
     if (table->query_id != thd->query_id)
       cond->cleanup();                          // File was reopened
 
-    ret= cond->walk(&Item::check_handler_func_processor, 0, &res);
+    ret= cond->walk(&Item::check_handler_func_processor, &res, 0);
     if (ret || res.errors)
     {
       my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,

@@ -1139,7 +1139,7 @@ static void update_vcol_key_covering(Field *vcol_field)
   Item *item= vcol_field->vcol_info->expr;
   key_map part_of_key;
   part_of_key.set_all();
-  item->walk(&Item::intersect_field_part_of_key, 1, &part_of_key);
+  item->walk(&Item::intersect_field_part_of_key, &part_of_key, WALK_SUBQUERY);
   /*
     If no intersection has happened it suggests that the vcol is not
     dependent on any other field, and there is no need to update its
@@ -1186,7 +1186,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     static bool check(Field *field, Virtual_column_info *vcol)
     {
       return vcol &&
-             vcol->expr->walk(&Item::check_field_expression_processor, 0, field);
+             vcol->expr->walk(&Item::check_field_expression_processor,
+                              field, 0);
     }
     static bool check(Field *field)
     {
@@ -1420,7 +1421,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     }
     if ((*field_ptr)->check_constraint)
         (*field_ptr)->check_constraint->expr->
-          walk(&Item::update_func_default_processor, 0, *field_ptr);
+          walk(&Item::update_func_default_processor, *field_ptr, 0);
   }
 
   table->find_constraint_correlated_indexes();
@@ -1599,7 +1600,7 @@ void TABLE::find_constraint_correlated_indexes()
   for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
   {
     constraint_dependent_keys.clear_all();
-    (*chk)->expr->walk(&Item::check_index_dependence, 0, this);
+    (*chk)->expr->walk(&Item::check_index_dependence, this, 0);
 
     if (constraint_dependent_keys.bits_set() <= 1)
       continue;
@@ -3872,7 +3873,7 @@ Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vc
   param.old_table= Lex_ident_table(vcol_share->table_name);
   param.new_db=    Lex_ident_db(share->db);
   param.new_table= Lex_ident_table(share->table_name);
-  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
+  cmp_expr->walk(&Item::rename_table_processor, &param, WALK_SUBQUERY);
 
   error= false;
   return type_handler()  == vcol->type_handler()
@@ -4031,7 +4032,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   */
   Item::vcol_func_processor_result res;
 
-  int error= expr->walk(&Item::check_vcol_func_processor, 0, &res);
+  int error= expr->walk(&Item::check_vcol_func_processor, &res, 0);
   if (unlikely(error || (res.errors & VCOL_IMPOSSIBLE)))
   {
     // this can only happen if the frm was corrupted
@@ -8361,7 +8362,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     read_set= s->check_set;
 
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
-      (*chk)->expr->walk(&Item::register_field_in_read_map, 1, 0);
+      (*chk)->expr->walk(&Item::register_field_in_read_map, 0, WALK_SUBQUERY);
     read_set= save_read_set;
   }
 
@@ -8380,7 +8381,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     {
       if ((*vfield_ptr)->flags & PART_KEY_FLAG)
         (*vfield_ptr)->vcol_info->expr->walk(&Item::add_field_to_set_processor,
-                                             1, this);
+                                             this, WALK_SUBQUERY);
     }
     for (uint i= 0 ; i < s->fields ; i++)
     {
@@ -8419,7 +8420,7 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
     {
       bitmap_set_bit(write_set, field->field_index);
       field->default_value->expr->
-        walk(&Item::register_field_in_read_map, 1, 0);
+        walk(&Item::register_field_in_read_map, 0, WALK_SUBQUERY);
     }
     else if (!is_insert && field->has_update_default_function())
       bitmap_set_bit(write_set, field->field_index);
@@ -9410,7 +9411,7 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
-  vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
+  vf->vcol_info->expr->walk(&Item::update_vcol_processor, &tmp_set, 0);
   DBUG_FIX_WRITE_SET(vf);
   vf->vcol_info->expr->save_in_field(vf, 0);
   DBUG_RESTORE_WRITE_SET(vf);
