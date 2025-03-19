@@ -1620,11 +1620,13 @@ DELIMITER ;/
 SET @counter=0;
 SELECT f1() FROM seq_1_to_5;
 
+--disable_view_protocol
 SET @counter=0;
 SELECT f1() AS f FROM seq_1_to_5 ORDER BY f;
 
 SET @counter=0;
 SELECT f1() AS f FROM seq_1_to_5 ORDER BY f DESC;
+--enable_view_protocol
 
 SET @counter=0;
 SELECT f1()=1 AS eq, @counter AS counter FROM seq_1_to_5;

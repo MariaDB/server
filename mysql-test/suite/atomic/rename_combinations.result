@@ -125,8 +125,8 @@ t1.a+t2.b+t3.c+t4.d
 insert into t1 values(null);
 insert into t2 values(null);
 insert into t3 values(null);
-select (select sum(t1.a) from t1)+ (select sum(t2.b) from t2) + (select sum(t3.c) from t3)+ (select sum(t4.d) from t4);
-(select sum(t1.a) from t1)+ (select sum(t2.b) from t2) + (select sum(t3.c) from t3)+ (select sum(t4.d) from t4)
+select (select sum(t1.a) from t1)+ (select sum(t2.b) from t2) + (select sum(t3.c) from t3)+ (select sum(t4.d) from t4) Total;
+Total
 1120
 drop trigger t1_trg;
 drop trigger t2_trg;
@@ -149,8 +149,8 @@ ERROR 42S01: Table 'v4' already exists
 # Try failed rename using two databases
 rename table test.v1 to test.v5, test.v2 to test.v1, test.v3 to test2.v2, non_existing_view to another_non_existing_view;
 ERROR HY000: Changing schema from 'test' to 'test2' is not allowed
-select (select sum(v1.a) from v1)+ (select sum(v2.b) from v2) + (select sum(v3.c) from v3)+ (select sum(v4.d) from v4);
-(select sum(v1.a) from v1)+ (select sum(v2.b) from v2) + (select sum(v3.c) from v3)+ (select sum(v4.d) from v4)
+select (select sum(v1.a) from v1)+ (select sum(v2.b) from v2) + (select sum(v3.c) from v3)+ (select sum(v4.d) from v4) as total;
+total
 1120
 drop view v1,v2,v3,v4;
 drop table t1, t2, t3, t4;
