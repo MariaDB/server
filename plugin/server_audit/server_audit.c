@@ -15,8 +15,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.5.14"
+#define PLUGIN_VERSION 0x105
+#define PLUGIN_STR_VERSION "1.5.0"
 
 #define _my_thread_var loc_thread_var
 
@@ -1458,10 +1458,9 @@ static size_t log_header(char *message, size_t message_len,
     host= userip;
   }
   if (port == 0) {
-    strncpy(port_str, "unavailable", sizeof(port_str) - 1);
-    port_str[sizeof(port_str) - 1] = '\0'; 
+    port_str[0] = '\0';
   } else {
-    my_snprintf(port_str, sizeof(port_str), "%u", port);
+    my_snprintf(port_str, sizeof(port_str), ":%u", port);
   }
 
   /*
@@ -1476,7 +1475,7 @@ static size_t log_header(char *message, size_t message_len,
 
   if (output_type == OUTPUT_SYSLOG)
     return my_snprintf(message, message_len,
-        "%.*s,%.*s,%.*s:%s,%d,%lld,%s",
+        "%.*s,%.*s,%.*s%s,%d,%lld,%s",
         (int) serverhost_len, serverhost,
         username_len, username,
         host_len, host, port_str,
@@ -1484,7 +1483,7 @@ static size_t log_header(char *message, size_t message_len,
 
   (void) localtime_r(ts, &tm_time);
   return my_snprintf(message, message_len,
-      "%04d%02d%02d %02d:%02d:%02d,%.*s,%.*s,%.*s:%s,%d,%lld,%s",
+      "%04d%02d%02d %02d:%02d:%02d,%.*s,%.*s,%.*s%s,%d,%lld,%s",
       tm_time.tm_year+1900, tm_time.tm_mon+1, tm_time.tm_mday,
       tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec,
       (int) serverhost_len, serverhost,
@@ -2047,8 +2046,6 @@ static int log_table(const struct connection_info *cn,
   size_t csize;
   char message[1024];
   time_t ctime;
-
-
 
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,

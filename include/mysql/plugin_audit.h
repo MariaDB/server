@@ -66,6 +66,7 @@ struct mysql_event_general
   unsigned long long general_rows;
   /* Added in version 0x302 */
   unsigned long long query_id;
+  /* Added in version 0x303 */
   unsigned int port;
   MYSQL_CONST_LEX_STRING database;
 };
