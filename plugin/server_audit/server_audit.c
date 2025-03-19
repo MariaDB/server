@@ -1513,10 +1513,10 @@ static int log_proxy(const struct connection_info *cn,
                     cn->ip, cn->ip_length,
                     event->thread_id, 0, "PROXY_CONNECT");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,`%.*s`@`%.*s`,%d,%.*s", cn->db_length, cn->db,
+    ",%.*s,`%.*s`@`%.*s`,%d", cn->db_length, cn->db,
                      cn->proxy_length, cn->proxy,
                      cn->proxy_host_length, cn->proxy_host,
-                     event->status, cn->tls_version_length, cn->tls_version);
+                     event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1542,7 +1542,8 @@ static int log_connection(const struct connection_info *cn,
 
   obj_len= create_tls_obj(event, tls_obj, sizeof(tls_obj));
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d,%.*s", cn->db_length, cn->db, event->status, (int) obj_len, tls_obj);
+    ",%.*s,%.*s,%d", cn->db_length, cn->db, (int) obj_len, tls_obj,
+    event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1566,8 +1567,8 @@ static int log_connection_event(const struct mysql_event_connection *event,
                     event->thread_id, 0, type);
   obj_len= create_tls_obj(event, tls_obj, sizeof(tls_obj));
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d,%.*s", (int) event->database.length,event->database.str,
-    event->status, (int) obj_len, tls_obj);
+    ",%.*s,%.*s,%d", (int) event->database.length,event->database.str,
+    (int) obj_len, tls_obj, event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }

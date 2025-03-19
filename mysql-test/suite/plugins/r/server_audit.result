@@ -257,10 +257,11 @@ disconnect plug_con;
 DROP USER plug;
 DROP USER plug_dest;
 CREATE USER ssl_user1@localhost require SSL;
-connect  conssl1,localhost,ssl_user1,,,,,SSL;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	CIPHER_NAME
+GRANT ALL ON sa_db TO ssl_user1@localhost;
+connect  conssl1,localhost,ssl_user1,,sa_db,,,SSL;
+select variable_value > '' as 'have_ssl' from information_schema.session_status where variable_name='ssl_cipher';
+have_ssl
+1
 disconnect conssl1;
 connection default;
 DROP USER ssl_user1@localhost;
@@ -326,10 +327,10 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_user
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_incl_users\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_excl_users= repeat("\'root\',", 10000)',ID
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_excl_users\'',0
-TIME,HOSTNAME,root,localhost,ID,0,CONNECT,mysql,,0,
-TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,mysql,,0,
-TIME,HOSTNAME,no_such_user,localhost,ID,0,FAILED_CONNECT,,,ID,
-TIME,HOSTNAME,no_such_user,localhost,ID,0,DISCONNECT,,,0,
+TIME,HOSTNAME,root,localhost,ID,0,CONNECT,mysql,,0
+TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,mysql,,0
+TIME,HOSTNAME,no_such_user,localhost,ID,0,FAILED_CONNECT,,,ID
+TIME,HOSTNAME,no_such_user,localhost,ID,0,DISCONNECT,,,0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, root, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,test,t2,
@@ -368,7 +369,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audi
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_mode=1',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_events=\'\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create database sa_db',0
-TIME,HOSTNAME,root,localhost,ID,0,CONNECT,test,,0,
+TIME,HOSTNAME,root,localhost,ID,0,CONNECT,test,,0
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,test,t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create table t1 (id2 int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,test,t1,
@@ -400,7 +401,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,proc,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proc,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,event,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop database sa_db',0
-TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,,,0,
+TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,,,0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create database sa_db',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'use sa_db',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
@@ -486,15 +487,15 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER plug_dest IDENTIFIED BY *****',0
-TIME,HOSTNAME,plug,localhost,ID,0,FAILED_CONNECT,,,ID,
-TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0,
+TIME,HOSTNAME,plug,localhost,ID,0,FAILED_CONNECT,,,ID
+TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT PROXY ON plug_dest TO plug',0
-TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,,,0,
-TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,,`plug_dest`@`%`,0,
+TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,,,0
+TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,,`plug_dest`@`%`,0
 TIME,HOSTNAME,plug,localhost,ID,ID,QUERY,,'select USER(),CURRENT_USER()',0
-TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0,
+TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
@@ -519,10 +520,13 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER ssl_user1@localhost require SSL',0
-TIME,HOSTNAME,ssl_user1,localhost,ID,0,CONNECT,,,0,TLS_VERSION
-TIME,HOSTNAME,ssl_user1,localhost,ID,ID,QUERY,Access denied for user 'ssl_user1'@'localhost' to database 'test','SHOW STATUS LIKE \'Ssl_version\'',0
-TIME,HOSTNAME,ssl_user1,localhost,ID,ID,QUERY,Access denied for user 'ssl_user1'@'localhost' to database 'test','SHOW STATUS LIKE \'Ssl_cipher\'',0
-TIME,HOSTNAME,ssl_user1,localhost,ID,0,DISCONNECT,,,0,TLS_VERSION
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT ALL ON sa_db TO ssl_user1@localhost',0
+TIME,HOSTNAME,ssl_user1,localhost,ID,0,CONNECT,sa_db,TLS_VERSION,0
+TIME,HOSTNAME,ssl_user1,localhost,ID,ID,QUERY,sa_db,'SHOW STATUS LIKE \'Ssl_version\'',0
+TIME,HOSTNAME,ssl_user1,localhost,ID,ID,QUERY,sa_db,'select variable_value > \'\' as \'have_ssl\' from information_schema.session_status where variable_name=\'ssl_cipher\'',0
+TIME,HOSTNAME,ssl_user1,localhost,ID,0,DISCONNECT,sa_db,TLS_VERSION,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
