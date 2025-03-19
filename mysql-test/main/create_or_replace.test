@@ -578,13 +578,17 @@ create or replace table t1 (b int);
 show create table t1;
 create or replace table t1 (c int);
 show create table t1;
+--disable_service_connection
 select * from t1,t2;
+--enable_service_connection
 --error ER_TABLE_NOT_LOCKED
 select * from t3;
 insert into t1 values (1);
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create or replace table t1;
+--disable_service_connection
 select * from t1;
+--enable_service_connection
 lock tables t1 write, t2 write;
 create or replace table t1 (d int);
 show create table t1;
