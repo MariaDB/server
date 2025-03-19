@@ -1250,31 +1250,34 @@ static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
   Lex_ident_table to_table, from_table, from_converted_name;
   Lex_ident_db to_db, from_db;
   char to_path[FN_REFLEN+1], from_path[FN_REFLEN+1], conv_path[FN_REFLEN+1];
+  uint from_flags, to_flags;
 
   if (!swap_tables)
   {
     from_db=    Lex_ident_db(ddl_log_entry->db);
     from_table= Lex_ident_table(ddl_log_entry->name);
+    from_flags= flags & FN_TO_IS_TMP;
     to_db=      Lex_ident_db(ddl_log_entry->from_db);
     to_table=   Lex_ident_table(ddl_log_entry->from_name);
+    to_flags=   flags & FN_FROM_IS_TMP;
   }
   else
   {
     from_db=    Lex_ident_db(ddl_log_entry->from_db);
     from_table= Lex_ident_table(ddl_log_entry->from_name);
+    from_flags= flags & FN_FROM_IS_TMP;
     to_db=      Lex_ident_db(ddl_log_entry->db);
     to_table=   Lex_ident_table(ddl_log_entry->extra_name);
+    to_flags=   flags & FN_TO_IS_TMP;
   }
 
   build_filename_and_delete_tmp_file(from_path, sizeof(from_path),
                                      &from_db, &from_table,
-                                     TRG_EXT, key_file_trg,
-                                     flags & FN_FROM_IS_TMP);
+                                     TRG_EXT, key_file_trg, from_flags);
   build_filename_and_delete_tmp_file(to_path, sizeof(to_path),
                                      &to_db, &to_table,
-                                     TRG_EXT, key_file_trg,
-                                     flags & FN_TO_IS_TMP);
-  if (flags & FN_IS_TMP)
+                                     TRG_EXT, key_file_trg, to_flags);
+  if (from_flags || to_flags)
   {
     /*
       Trigger file was renamed. No conversion of the content of the

@@ -1302,7 +1302,7 @@ int ddl_log_drop_tmp_table(THD *thd, DDL_LOG_STATE *ddl_log_state,
   size_t path_length;
 
   path_length= build_table_filename(path, sizeof(path) - 1, db->str,
-                                    create_info->tmp_name.str, reg_ext, 0);
+                                    create_info->tmp_name.str, reg_ext, FN_IS_TMP);
   path_end= path + path_length - reg_ext_length;
   cpath= { path, (size_t)(path_end - path) };
 

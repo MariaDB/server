@@ -2,6 +2,7 @@
 --source include/have_sequence.inc
 --source include/have_innodb.inc
 --source include/not_valgrind.inc
+--source include/not_embedded.inc
 
 #
 # Testing of atomic CREATE TABLE with crashes in a lot of different places
