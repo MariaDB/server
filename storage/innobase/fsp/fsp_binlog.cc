@@ -309,9 +309,12 @@ fsp_binlog_page_fifo::flush_up_to(uint64_t file_no, uint32_t page_no)
 void
 fsp_binlog_page_fifo::do_fdatasync(uint64_t file_no)
 {
+  File fh;
   mysql_mutex_lock(&m_mutex);
+  if (file_no < first_file_no)
+    goto done;   /* Old files are already fully synced. */
   ut_a(file_no == first_file_no || file_no == first_file_no + 1);
-  File fh= fifos[file_no & 1].fh;
+  fh= fifos[file_no & 1].fh;
   if (fh != (File)-1)
   {
     while (flushing)
@@ -324,6 +327,7 @@ fsp_binlog_page_fifo::do_fdatasync(uint64_t file_no)
     flushing= false;
     pthread_cond_signal(&m_cond);
   }
+done:
   mysql_mutex_unlock(&m_mutex);
 }
 
