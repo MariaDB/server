@@ -72,10 +72,10 @@ class Log_Arch_Client_Ctx {
   /** Stop redo log archiving. Exact trailer length is returned as out
   parameter which could be less than the redo block size.
   @param[out]   trailer redo trailer. Caller must allocate buffer.
-  @param[in,out]        len     trailer length
+  @param[in]    len     trailer length
   @param[out]   offset  trailer block offset
   @return error code */
-  int stop(byte *trailer, uint32_t &len, uint64_t &offset);
+  int stop(byte *trailer, uint32_t len, uint64_t &offset);
 
   /** Get archived data file details
   @param[in]    cbk_func        callback called for each file

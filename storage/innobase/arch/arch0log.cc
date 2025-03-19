@@ -72,10 +72,10 @@ int Log_Arch_Client_Ctx::start(byte *header, uint len)
 /** Stop redo log archiving. Exact trailer length is returned as out
 parameter which could be less than the redo block size.
 @param[out]     trailer redo trailer. Caller must allocate buffer.
-@param[in,out]  len     trailer length
+@param[in]      len     trailer length
 @param[out]     offset  trailer block offset
 @return error code */
-int Log_Arch_Client_Ctx::stop(byte *trailer, uint32_t &len, uint64_t &offset)
+int Log_Arch_Client_Ctx::stop(byte *trailer, uint32_t len, uint64_t &offset)
 {
   ut_ad(m_state == ARCH_CLIENT_STATE_STARTED);
   ut_ad(trailer == nullptr || len >= OS_FILE_LOG_BLOCK_SIZE);
@@ -222,6 +222,11 @@ void Arch_Log_Sys::update_header(byte *header, lsn_t checkpoint_lsn,
   /* TODO: Synchronize with Key rotation or block it. */
   log_t::header_write(header, checkpoint_lsn, log_sys.is_encrypted());
 
+  /* Update Creator Name. */
+  strncpy(reinterpret_cast<char*>(header) + LOG_HEADER_CREATOR,
+          "MariaDB Clone " PACKAGE_VERSION,
+          LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR);
+
   /* Write checkpoint information */
   for (int i= 0; i < 2; i++)
   {
@@ -300,7 +305,7 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   }
 
   /* Start archiving from checkpoint LSN. */
-  log_sys.latch.rd_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
 
   start_lsn= log_sys.last_checkpoint_lsn;
   lsn_t checkpoint_end_lsn= log_sys.last_checkpoint_end_lsn;
@@ -319,12 +324,10 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   if (m_state != ARCH_STATE_ACTIVE)
   {
     m_state= ARCH_STATE_ACTIVE;
-    /* TODO: Prevent over-writing log before being archived. */
-    // log_consumer_register(log, &m_log_consumer);
     arch_sys->signal_archiver();
   }
 
-  log_sys.latch.rd_unlock();
+  log_sys.latch.wr_unlock();
 
   /* Create a new group. */
   if (create_new_group)
@@ -416,20 +419,21 @@ the current group.
 @param[out]     group           log archive group
 @param[out]     stop_lsn        stop lsn for client
 @param[out]     log_blk         redo log trailer block
-@param[in,out]  blk_len         length in bytes
+@param[in]      blk_len         length in bytes
 @return error code */
 int Arch_Log_Sys::stop(Arch_Group *group, lsn_t &stop_lsn, byte *log_blk,
-                       uint32_t &blk_len)
+                       uint32_t blk_len)
 {
   int err= 0;
-  blk_len= 0;
   stop_lsn= m_archived_lsn.load();
 
   if (log_blk != nullptr)
   {
     /* Get the current LSN and trailer block. */
-    /* TODO: Check if checksum needs to be re-calculated */
-    // log_buffer_get_last_block(*log_sys, stop_lsn, log_blk, blk_len);
+    /* TODO: Log archiving for mmap */
+    /* TODO: Block concurrent log file resize. */
+    /* TODO: Test log archiving across file boundary. */
+    log_sys.get_last_block(stop_lsn, log_blk, blk_len);
 
     DBUG_EXECUTE_IF("clone_arch_log_stop_file_end",
                     group->adjust_end_lsn(stop_lsn, blk_len););
@@ -484,6 +488,71 @@ void Arch_Log_Sys::force_abort()
   arch_mutex_enter();
   wait_idle();
   arch_mutex_exit();
+}
+
+void Arch_Log_Sys::update_state(Arch_State state)
+{
+  mysql_mutex_assert_owner(&m_mutex);
+  log_sys.latch.rd_lock(SRW_LOCK_CALL);
+  m_state= state;
+  log_sys.latch.rd_unlock();
+}
+
+void Arch_Log_Sys::wait_archiver(lsn_t next_write_lsn)
+{
+  ut_ad(log_sys.latch_have_wr());
+  if (!is_active())
+    return;
+
+  lsn_t archiver_lsn= get_archived_lsn();
+  lsn_t limit_lsn= log_sys.log_capacity + archiver_lsn;
+  if (limit_lsn >= next_write_lsn)
+    return;
+
+  log_sys.latch.wr_unlock();
+
+  /* Sleep for 10 millisecond. */
+  Clone_Msec sleep_time(10);
+  /* Generate alert message every 1 second. */
+  Clone_Sec alert_interval(1);
+  /* Wait for 5 second for archiver to catch up then abort archiver. */
+  Clone_Sec time_out(5);
+
+  auto check_fn= [&](bool alert, bool &result)
+  {
+    mysql_mutex_assert_owner(&m_mutex);
+    if (srv_shutdown_state.load() >= SRV_SHUTDOWN_CLEANUP)
+      return ER_QUERY_INTERRUPTED;
+
+    lsn_t archiver_lsn= get_archived_lsn();
+    lsn_t limit_lsn= log_sys.log_capacity + archiver_lsn;
+
+    result= limit_lsn < next_write_lsn;
+    if (result && alert)
+      sql_print_information("Innodb: Log writer waiting for archiver."
+          " Next LSN to write: %" PRIu64 ", Archiver LSN: %" PRIu64 ".",
+          next_write_lsn, archiver_lsn);
+     return 0;
+  };
+
+  /* Need to wait for archiver to catch up. */
+  arch_sys->signal_archiver();
+
+  bool is_timeout= false;
+  arch_mutex_enter();
+  auto err= Clone_Sys::wait(sleep_time, time_out, alert_interval, check_fn,
+                            &m_mutex, is_timeout);
+  arch_mutex_exit();
+
+  if (err == 0 && is_timeout)
+  {
+    force_abort();
+    sql_print_error("Innodb: Log writer waited too long for archiver"
+      " (5 seconds). Next LSN to write: %" PRIu64 ", Archiver LSN: %" PRIu64
+      ". Aborted redo-archiver task. Consider increasing innodb_redo_log_size.",
+      next_write_lsn, archiver_lsn);
+  }
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
 }
 
 /** Release the current group from client.
@@ -565,7 +634,7 @@ Arch_State Arch_Log_Sys::check_set_state(bool is_abort, lsn_t *archived_lsn,
         ut_ad(is_abort);
         /* If caller asked to abort, move to prepare idle state. Archiver
         thread will move to IDLE state eventually. */
-        m_state= ARCH_STATE_PREPARE_IDLE;
+        update_state(ARCH_STATE_PREPARE_IDLE);
         break;
       }
       [[fallthrough]];
@@ -584,9 +653,7 @@ Arch_State Arch_Log_Sys::check_set_state(bool is_abort, lsn_t *archived_lsn,
       }
 
       m_current_group= nullptr;
-      m_state= ARCH_STATE_IDLE;
-      /* TODO: Prevent over-writing log before being archived. */
-      // log_consumer_unregister(log, &m_log_consumer);
+      update_state(ARCH_STATE_IDLE);
     }
       [[fallthrough]];
 
@@ -595,7 +662,7 @@ Arch_State Arch_Log_Sys::check_set_state(bool is_abort, lsn_t *archived_lsn,
 
       /* Abort archiver thread only in case of shutdown. */
       if (is_shutdown)
-        m_state= ARCH_STATE_ABORT;
+        update_state(ARCH_STATE_ABORT);
       break;
 
     case ARCH_STATE_ABORT:

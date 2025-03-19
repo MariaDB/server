@@ -28,6 +28,7 @@ Created 12/9/1995 Heikki Tuuri
 #include <debug_sync.h>
 #include <my_service_manager.h>
 
+#include "arch0arch.h"
 #include "log0log.h"
 #include "log0crypt.h"
 #include "buf0buf.h"
@@ -1094,6 +1095,7 @@ lsn_t log_t::write_buf() noexcept
 
     ut_ad(base + (write_lsn_offset & (WRITE_TO_BUF - 1)) == lsn);
     write_to_log++;
+    arch_sys->log_sys()->wait_archiver(lsn);
 
     if (resizing != RETAIN_LATCH)
       latch.wr_unlock();
@@ -1231,6 +1233,27 @@ void log_t::writer_update(bool resizing) noexcept
 void log_buffer_flush_to_disk(bool durable) noexcept
 {
   log_write_up_to(log_get_lsn(), durable);
+}
+
+void log_t::get_last_block(lsn_t &last_lsn, byte *last_block,
+                           uint32_t block_len)
+{
+  ut_ad(ut_is_2pow(block_len));
+  ut_ad(block_len <= write_size);
+
+  latch.wr_lock(SRW_LOCK_CALL);
+  last_lsn= get_lsn(std::memory_order_relaxed);
+
+  auto block_len_1= static_cast<size_t>(block_len - 1);
+
+  size_t data_len{buf_free.load(std::memory_order_relaxed)};
+  size_t offset= data_len & ~block_len_1;
+
+  data_len&= block_len_1;
+  std::memcpy(last_block, buf + offset, data_len);
+
+  latch.wr_unlock();
+  std::memset(last_block + data_len, 0x00, (size_t)block_len - data_len);
 }
 
 /** Prepare to invoke log_write_and_flush(), before acquiring log_sys.latch. */
