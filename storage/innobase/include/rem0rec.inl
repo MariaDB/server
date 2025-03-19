@@ -156,6 +156,9 @@ rec_set_bit_field_1(
 	ut_ad(((mask >> shift) << shift) == mask);
 	ut_ad(((val << shift) & mask) == (val << shift));
 
+#ifndef DBUG_OFF
+	MEM_MAKE_DEFINED(rec - offs, 1);
+#endif
 	mach_write_to_1(rec - offs,
 			(mach_read_from_1(rec - offs) & ~mask)
 			| (val << shift));
@@ -198,6 +201,9 @@ rec_set_bit_field_2(
 	ut_ad(((mask >> shift) << shift) == mask);
 	ut_ad(((val << shift) & mask) == (val << shift));
 
+#ifndef DBUG_OFF
+	MEM_MAKE_DEFINED(rec - offs, 2);
+#endif
 	mach_write_to_2(rec - offs,
 			(mach_read_from_2(rec - offs) & ~mask)
 			| (val << shift));
