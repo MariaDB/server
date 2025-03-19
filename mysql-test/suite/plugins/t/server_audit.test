@@ -214,10 +214,10 @@ DROP USER plug;
 DROP USER plug_dest;
 
 CREATE USER ssl_user1@localhost require SSL;
-connect (conssl1,localhost,ssl_user1,,,,,SSL);
+GRANT ALL ON sa_db TO ssl_user1@localhost;
+connect (conssl1,localhost,ssl_user1,,sa_db,,,SSL);
 --let $ssl_version = query_get_value(SHOW STATUS LIKE 'Ssl_version', Value, 1)
---replace_column 2 CIPHER_NAME
-SHOW STATUS LIKE 'Ssl_cipher';
+select variable_value > '' as 'have_ssl' from information_schema.session_status where variable_name='ssl_cipher';
 disconnect conssl1;
 connection default;
 --sleep 2
