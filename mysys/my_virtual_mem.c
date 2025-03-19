@@ -38,14 +38,12 @@ char *my_large_mmap(size_t *size, int prot);
 char *my_virtual_mem_reserve(size_t *size)
 {
 #ifdef _WIN32
-  size_t aligned_size= *size;
-  if (my_use_large_pages)
-    aligned_size= MY_ALIGN(aligned_size, GetLargePageMinimum());
-  char* ptr= VirtualAlloc(NULL, aligned_size, MEM_RESERVE, PAGE_READWRITE);
+  DWORD flags= my_use_large_pages ? MEM_LARGE_PAGES|MEM_RESERVE|MEM_COMMIT : MEM_RESERVE;
+  char *ptr= VirtualAlloc(NULL, *size, flags, PAGE_READWRITE);
+  if (!ptr && (flags & MEM_LARGE_PAGES))
+    ptr= VirtualAlloc(NULL, *size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   if (!ptr)
-    my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), aligned_size);
-  else
-    *size= aligned_size;
+    my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), *size);
   return ptr;
 #else
   return my_large_mmap(size, PROT_NONE);
@@ -68,37 +66,42 @@ static my_bool is_memory_committed(char *ptr, size_t size)
 
 char *my_virtual_mem_commit(char *ptr, size_t size)
 {
+  DBUG_ASSERT(ptr);
 #ifdef _WIN32
-  void *p= NULL;
-  DBUG_ASSERT(!is_memory_committed(ptr, size));
-
   if (my_use_large_pages)
-    p= VirtualAlloc(ptr, size, MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
-
-  if (!p)
   {
-    if (!VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE))
+    DBUG_ASSERT(is_memory_committed(ptr, size));
+  }
+  else
+  {
+    void *p= VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
+    DBUG_ASSERT(p == ptr);
+    if (!p)
     {
       my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), size);
       return NULL;
     }
   }
 #else
-  void *p= 0;
-  const int flags=
-# ifdef __linux__
-    MAP_POPULATE |
-# endif
-    MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
-# ifdef __linux__
   if (my_use_large_pages)
-    return ptr;
-# endif
-  p= mmap(ptr, size, PROT_READ | PROT_WRITE, flags, -1, 0);
-  if (p == MAP_FAILED)
   {
-    my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), size);
-    return NULL;
+    /* We assume that pages were physically allocated*/
+    mprotect(ptr, size, PROT_READ|PROT_WRITE);
+  }
+  else
+  {
+    void *p= 0;
+    const int flags=
+#ifdef __linux__
+        MAP_POPULATE |
+#endif
+        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
+    p= mmap(ptr, size, PROT_READ | PROT_WRITE, flags, -1, 0);
+    if (p == MAP_FAILED)
+    {
+      my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), size);
+      return NULL;
+    }
   }
 #endif
   update_malloc_size(size, 0);
@@ -110,31 +113,20 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
 {
 #ifdef _WIN32
   DBUG_ASSERT(is_memory_committed(ptr, size));
-
-  if (!VirtualFree(ptr, size, MEM_DECOMMIT))
+  if (!my_use_large_pages)
   {
-    DBUG_ASSERT(0);
-    my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
-             GetLastError());
-    return;
+    if (!VirtualFree(ptr, size, MEM_DECOMMIT))
+    {
+      DBUG_ASSERT(0);
+      my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
+               GetLastError());
+      return;
+    }
   }
 #else
-# ifdef __linux__
-  if (my_use_large_pages)
-    return;
-# endif
-# ifdef __linux__
-  /* In InnoDB, buf_pool_t::page_guess() may deference a pointer to this area,
-  and according to the documentation of madvise(2) it should read zeroes. */
-  madvise(ptr, size, MADV_DONTNEED);
-  mprotect(ptr, size, PROT_READ);
-# else
-  /* On other systems than Linux, the memory area after madvise(MADV_DONTNEED)
-  is not documented to be accessible. So, buf_pool_t::page_guess()
-  must validate the pointer. */
+  /* Next madvise not work for large pages, but we do the best effort. */
   madvise(ptr, size, MADV_DONTNEED);
   mprotect(ptr, size, PROT_NONE);
-# endif
 #endif
   update_malloc_size(-(longlong) size, 0);
 }
@@ -143,7 +135,7 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
 void my_virtual_mem_release(char *ptr, size_t size)
 {
 #ifdef _WIN32
-  DBUG_ASSERT(!is_memory_committed(ptr, size));
+  DBUG_ASSERT(my_use_large_pages || !is_memory_committed(ptr, size));
   if (!VirtualFree(ptr, 0, MEM_RELEASE))
   {
     DBUG_ASSERT(0);

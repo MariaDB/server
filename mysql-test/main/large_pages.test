@@ -1,11 +1,9 @@
 # Test of large pages (or at least the fallback to conventional allocation)
 
-# Windows needs SeLockMemoryPrivilege
---source include/not_windows.inc
 --source include/have_innodb.inc
 
 call mtr.add_suppression("\\[Warning\\] (mysqld|mariadbd): Couldn't allocate [0-9]+ bytes \\((Large/HugeTLB memory|MEMLOCK) page size [0-9]+\\).*");
-
+call mtr.add_suppression("\\[ERROR\\]*Lock Pages in memory access rights required.*");
 create table t1 (
   a int not null auto_increment,
   b char(16) not null,

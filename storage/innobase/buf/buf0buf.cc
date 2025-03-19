@@ -1867,14 +1867,12 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   ut_ad(this == &buf_pool);
   mysql_mutex_assert_owner(&LOCK_global_system_variables);
   ut_ad(size <= size_in_bytes_max);
-#ifndef _WIN32
   if (my_use_large_pages)
   {
     my_error(ER_VARIABLE_IS_READONLY, MYF(0), "InnoDB",
              "innodb_buffer_pool_size", "large_pages=0");
     return;
   }
-#endif
 
   size_t n_blocks_new= get_n_blocks(size);
 
@@ -2844,32 +2842,14 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
                                 const page_id_t id) noexcept
 {
   transactional_shared_lock_guard<page_hash_latch> g{latch};
-#ifdef __linux__
-  /* On Linux, madvise(MADV_DONTNEED) on an anonymous mapping is
-  documented to retain the addresses as valid but pointing to
-  zero-initialized memory. This may lead to a false positive for
-  b->page.id() == id but not for b->page.state(). */
-#else
-  /* my_virtual_mem_decommit() may make the memory unaccessible. */
   if (UNIV_UNLIKELY(reinterpret_cast<char*>(b) >= memory + size_in_bytes))
     return 0;
-#endif
-  const page_id_t block_id{b->page.id()};
-#ifdef __linux__
-  /* We may be accessing a zero-filled b here if shrink() has
-  succeeded in the past.
 
-  Let us undo the effect of MEM_UNDEFINED() in the callers of
-  shrink(), to suppress any bogus warnings regarding comparing
-  uninitialized memory. */
-  MEM_MAKE_DEFINED(&block_id, sizeof block_id);
-#endif
+  const page_id_t block_id{b->page.id()};
+
   if (id == block_id)
   {
     uint32_t state= b->page.state();
-#ifdef __linux__
-    MEM_MAKE_DEFINED(&state, sizeof state);
-#endif
     /* Ignore guesses that point to read-fixed blocks.  We can only
     avoid a race condition by looking up the block via page_hash. */
     if ((state >= buf_page_t::FREED && state < buf_page_t::READ_FIX) ||

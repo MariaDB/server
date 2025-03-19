@@ -3826,14 +3826,13 @@ static int innodb_init_params()
     (buf_pool.blocks_in_bytes(BUF_LRU_MIN_LEN + BUF_LRU_MIN_LEN / 4),
      1U << 20);
   size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
-  if (!buf_pool.size_in_bytes_max)
+
+  /* With large pages, buffer pool can't grow or shrink. */
+  if (!buf_pool.size_in_bytes_max || my_use_large_pages ||
+      innodb_buffer_pool_size > buf_pool.size_in_bytes_max)
     buf_pool.size_in_bytes_max= ut_calc_align(innodb_buffer_pool_size,
                                               innodb_buffer_pool_extent_size);
-  else if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
-           IF_WIN(false /* On Windows, we may be able to resize huge pages */,
-                  (innodb_buffer_pool_size != buf_pool.size_in_bytes_max &&
-                   my_use_large_pages)))
-    buf_pool.size_in_bytes_requested= buf_pool.size_in_bytes_max;
+
   MYSQL_SYSVAR_NAME(buffer_pool_size).max_val= buf_pool.size_in_bytes_max;
 #ifdef __linux__
   if (!buf_pool.size_in_bytes_auto_min ||
