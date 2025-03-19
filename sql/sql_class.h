@@ -738,6 +738,7 @@ typedef struct system_variables
   ulonglong default_regex_flags;
   ulonglong max_mem_used;
   ulonglong max_rowid_filter_size;
+  ulonglong create_temporary_table_binlog_formats;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -821,7 +822,6 @@ typedef struct system_variables
   /* Flags for slow log filtering */
   ulong log_slow_rate_limit; 
   ulong binlog_format; ///< binlog format for this thd (see enum_binlog_format)
-  ulong create_temporary_table_binlog_formats;
   ulong binlog_row_image;
   ulong progress_report_time;
   ulong completion_type;
@@ -3481,7 +3481,7 @@ public:
   */
   bool binlog_create_tmp_table()
   {
-    return (((1 << variables.binlog_format) &
+    return (((1ULL << variables.binlog_format) &
              variables.create_temporary_table_binlog_formats) &&
             (!opt_readonly || slave_thread));
   }
