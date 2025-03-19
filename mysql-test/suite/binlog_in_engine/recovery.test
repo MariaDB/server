@@ -8,7 +8,6 @@
 RESET MASTER;
 
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
---let $gtid_pos= `SELECT @@last_gtid`
 INSERT INTO t1 VALUES (1);
 
 --let $no_checkpoint_flush= 1

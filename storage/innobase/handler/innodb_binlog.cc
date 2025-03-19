@@ -628,13 +628,13 @@ bool binlog_recovery::init_recovery(bool space_id, uint32_t page_no,
 
     if (res2 < 0 && !srv_force_recovery)
     {
-      sql_print_error("InnoDB: I/O error reading binlog file number " PRIu64,
+      sql_print_error("InnoDB: I/O error reading binlog file number %" PRIu64,
                       file_no2);
       return true;
     }
     if (res1 < 0 && !srv_force_recovery)
     {
-      sql_print_error("InnoDB: I/O error reading binlog file number " PRIu64,
+      sql_print_error("InnoDB: I/O error reading binlog file number %" PRIu64,
                       file_no1);
       return true;
     }
@@ -945,10 +945,17 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
     skipping_partial_page= false;
   }
 
-  if (start_lsn < start_file_lsn)
+  if (skipping_early_lsn)
   {
-    if (skipping_early_lsn)
+    if (start_lsn < start_file_lsn || space_id != (cur_file_no & 1))
       return false;  /* Skip record for earlier file that's already durable. */
+    /* Now reset the current page to match the real starting point. */
+    cur_page_no= page_no;
+  }
+
+  if (UNIV_UNLIKELY(start_lsn < start_file_lsn))
+  {
+    ut_a(!skipping_early_lsn /* Was handled in condition above */);
     if (!srv_force_recovery)
     {
       sql_print_error("InnoDB: Unexpected LSN " LSN_PF " during recovery, "
@@ -971,7 +978,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
            cur_phys_size >> srv_page_size_shift) &&
          !srv_force_recovery)
     {
-      sql_print_error("InnoDB: Missing recovery record at end of file_no="
+      sql_print_error("InnoDB: Missing recovery record at end of file_no=%"
                       PRIu64 ", LSN " LSN_PF, cur_file_no, start_lsn);
       return true;
     }
@@ -979,7 +986,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
     /* Check that we recover from the start of the next file. */
     if ((page_no > 0 || offset > FIL_PAGE_DATA) && !srv_force_recovery)
     {
-      sql_print_error("InnoDB: Missing recovery record at start of file_no="
+      sql_print_error("InnoDB: Missing recovery record at start of file_no=%"
                       PRIu64 ", LSN " LSN_PF, cur_file_no+1, start_lsn);
       return true;
     }
@@ -993,7 +1000,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
     if (cur_page_offset < srv_page_size - FIL_PAGE_DATA_END &&
         !srv_force_recovery)
     {
-      sql_print_error("InnoDB: Missing recovery record in file_no="
+      sql_print_error("InnoDB: Missing recovery record in file_no=%"
                       PRIu64 ", page_no=%u, LSN " LSN_PF,
                       cur_file_no, cur_page_no, start_lsn);
       return true;
@@ -1002,7 +1009,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
     if ((page_no != cur_page_no + 1 || offset > FIL_PAGE_DATA) &&
         !srv_force_recovery)
     {
-      sql_print_error("InnoDB: Missing recovery record in file_no="
+      sql_print_error("InnoDB: Missing recovery record in file_no=%"
                       PRIu64 ", page_no=%u, LSN " LSN_PF,
                       cur_file_no, cur_page_no + 1, start_lsn);
       return true;
@@ -1016,7 +1023,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
            offset > FIL_PAGE_DATA &&
            !srv_force_recovery)
   {
-      sql_print_error("InnoDB: Missing recovery record in file_no="
+      sql_print_error("InnoDB: Missing recovery record in file_no=%"
                       PRIu64 ", page_no=%u, LSN " LSN_PF,
                       cur_file_no, cur_page_no, start_lsn);
       return true;
