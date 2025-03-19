@@ -5453,7 +5453,7 @@ i_s_dict_fill_sys_columns(
 	const char*	col_name,	/*!< in: column name */
 	dict_col_t*	column,		/*!< in: dict_col_t struct holding
 					more column information */
-	ulint		nth_v_col,	/*!< in: virtual column, its
+	ulint*		nth_v_col,	/*!< in: virtual column, its
 					sequence number (nth virtual col) */
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
 {
@@ -5468,7 +5468,7 @@ i_s_dict_fill_sys_columns(
 	OK(field_store_string(fields[SYS_COLUMN_NAME], col_name));
 
 	if (column->is_virtual()) {
-		ulint	pos = dict_create_v_col_pos(nth_v_col, column->ind);
+		ulint	pos = dict_create_v_col_pos(*nth_v_col, column->ind);
 		OK(fields[SYS_COLUMN_POSITION]->store(pos, true));
 	} else {
 		OK(fields[SYS_COLUMN_POSITION]->store(column->ind, true));
@@ -5535,7 +5535,7 @@ i_s_sys_columns_fill_table(
 		if (!err_msg) {
 			err = i_s_dict_fill_sys_columns(
 				thd, table_id, col_name,
-				&column_rec, nth_v_col,
+				&column_rec, &nth_v_col,
 				tables->table);
 			if (err) {
 				err = i_s_sys_error_handling(err, thd);
