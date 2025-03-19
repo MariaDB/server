@@ -1,0 +1,1 @@
+--loose-skip-stack-trace --skip-core-file --max-binlog-size=64K --innodb-log-file-size=64M

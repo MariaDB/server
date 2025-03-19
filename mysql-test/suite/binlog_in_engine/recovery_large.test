@@ -1,0 +1,120 @@
+--source include/not_embedded.inc
+--source include/not_valgrind.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--let $pre_count= 4
+--let $mid_count= 55
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL gtid_slave_pos= '';
+
+--connection master
+--let $datadir= `SELECT @@datadir`
+RESET MASTER;
+
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY AUTO_INCREMENT, b INT, c VARCHAR(4000)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--disable_query_log
+--let $i= 0
+while ($i < $pre_count) {
+  eval INSERT INTO t1 VALUES (100+$i);
+  eval INSERT INTO t2(b, c) VALUES ($i, repeat(chr(65 + ($i MOD 27)), 3500));
+  inc $i;
+}
+--enable_query_log
+
+--let $no_checkpoint_flush= 1
+--let $no_checkpoint_kill= 1
+--source ../../suite/innodb/include/no_checkpoint_start.inc
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+
+--disable_query_log
+--let $i= 0
+while ($i < $mid_count) {
+  eval INSERT INTO t1 VALUES (1000+$i);
+  eval INSERT INTO t2(b, c) VALUES ($i, repeat(chr(65 + ($i MOD 27)), 3500));
+  inc $i;
+}
+--enable_query_log
+
+CHECKSUM TABLE t1, t2;
+
+# Crash the server
+# Set $_expect_file_name for no_checkpoint_end.inc which uses start_mysqld.inc
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_file $_expect_file_name
+wait-recovery.test
+EOF
+
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+--source include/wait_until_disconnected.inc
+--connection default
+--source include/wait_until_disconnected.inc
+
+--source ../../suite/innodb/include/no_checkpoint_end.inc
+
+--echo HULU
+
+# Overwrite the binlog file past the last checkpoint
+# But only in the two most recent files, the prior ones are durably flushed
+# and will not be recovered.
+--let BINLOG_FILE= $datadir/$file
+--let OFFSET= $pos
+--let LEN=5000
+perl;
+my $orig_file= $ENV{BINLOG_FILE};
+my $orig_pos= $ENV{OFFSET};
+$orig_file =~ m/(.*binlog-)([0-9]{6})\.ibb/ or die "Unexpected file name $file";
+my ($base, $seq)= ($1, $2);
+
+for (;;) {
+  my $file= $base . sprintf("%06d", $seq) . ".ibb";
+  last unless -f $file;
+  my $file_plus_2= $base . sprintf("%06d", $seq+2) . ".ibb";
+  ++$seq;
+  next if -f $file_plus_2;
+
+  my $pos= $file eq $orig_file ? $orig_pos : 0;
+  open F, '+<', $file or die $!;
+  sysseek F, $pos, 0 or die $!;
+  my $x= chr(0) x $ENV{LEN};
+  syswrite F, $x, $ENV{LEN} or die $!;
+}
+EOF
+
+--echo BULU
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--connection master
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+CHECKSUM TABLE t1, t2;
+
+--connection master
+DROP TABLE t1, t2;
+
+--source include/rpl_end.inc
