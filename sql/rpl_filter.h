@@ -77,6 +77,7 @@ public:
 
   const class WildIgnoreTable: public IgnoreTable
   {
+  public:
     virtual bool operator[](const Binary_string *key) override;
   } wild_ignore_table;
   const class WildDoTable: public InvertedFilter<WildIgnoreTable>

@@ -74,6 +74,7 @@ Rpl_filter::Rpl_filter() :
 bool 
 Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
 {
+  /*
   bool some_tables_updating= 0;
   DBUG_ENTER("Rpl_filter::tables_ok");
   
@@ -89,16 +90,16 @@ Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
     end= strmov(hash_key, tables->db.str ? tables->db.str : db);
     *end++= '.';
     len= (uint) (strmov(end, tables->table_name.str) - hash_key);
-    if (do_table_inited) // if there are any do's
-    {
-      if (my_hash_search(&do_table, (uchar*) hash_key, len))
-	DBUG_RETURN(1);
-    }
-    if (ignore_table_inited) // if there are any ignores
-    {
-      if (my_hash_search(&ignore_table, (uchar*) hash_key, len))
-	DBUG_RETURN(0); 
-    }
+  //  if (do_table_inited) // if there are any do's
+  //  {
+  //    if (my_hash_search(&do_table, (uchar*) hash_key, len))
+	//DBUG_RETURN(1);
+  //  }
+  //  if (ignore_table_inited) // if there are any ignores
+  //  {
+  //    if (my_hash_search(&ignore_table, (uchar*) hash_key, len))
+	//DBUG_RETURN(0); 
+  //  }
     if (wild_do_table_inited && 
 	find_wild(&wild_do_table, hash_key, len))
       DBUG_RETURN(1);
@@ -113,8 +114,9 @@ Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
     If no explicit rule found and there was a do list, do not replicate.
     If there was no do list, go ahead
   */
-  DBUG_RETURN(some_tables_updating &&
-              !do_table_inited && !wild_do_table_inited);
+  //DBUG_RETURN(some_tables_updating &&
+  //            !do_table_inited && !wild_do_table_inited);
+  return true;
 }
 
 #endif
@@ -134,49 +136,50 @@ Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
 bool
 Rpl_filter::db_ok(const char* db)
 {
-  DBUG_ENTER("Rpl_filter::db_ok");
-
-  if (do_db.is_empty() && ignore_db.is_empty())
-    DBUG_RETURN(1); // Ok to replicate if the user puts no constraints
-
-  /*
-    Previous behaviour "if the user has specified restrictions on which
-    databases to replicate and db was not selected, do not replicate" has
-    been replaced with "do replicate".
-    Since the filtering criteria is not equal to "NULL" the statement should
-    be logged into binlog.
-  */
-  if (!db)
-    DBUG_RETURN(1);
-
-  if (!do_db.is_empty()) // if the do's are not empty
-  {
-    I_List_iterator<i_string> it(do_db);
-    i_string* tmp;
-
-    while ((tmp=it++))
-    {
-      if (!strcmp(tmp->ptr, db))
-	DBUG_RETURN(1); // match
-    }
-    DBUG_PRINT("exit", ("Don't replicate"));
-    DBUG_RETURN(0);
-  }
-  else // there are some elements in the don't, otherwise we cannot get here
-  {
-    I_List_iterator<i_string> it(ignore_db);
-    i_string* tmp;
-
-    while ((tmp=it++))
-    {
-      if (!strcmp(tmp->ptr, db))
-      {
-        DBUG_PRINT("exit", ("Don't replicate"));
-	DBUG_RETURN(0); // match
-      }
-    }
-    DBUG_RETURN(1);
-  }
+  return true;
+//  DBUG_ENTER("Rpl_filter::db_ok");
+//
+//  if (do_db.is_empty() && ignore_db.is_empty())
+//    DBUG_RETURN(1); // Ok to replicate if the user puts no constraints
+//
+//  /*
+//    Previous behaviour "if the user has specified restrictions on which
+//    databases to replicate and db was not selected, do not replicate" has
+//    been replaced with "do replicate".
+//    Since the filtering criteria is not equal to "NULL" the statement should
+//    be logged into binlog.
+//  */
+//  if (!db)
+//    DBUG_RETURN(1);
+//
+//  if (!do_db.is_empty()) // if the do's are not empty
+//  {
+//    I_List_iterator<i_string> it(do_db);
+//    i_string* tmp;
+//
+//    while ((tmp=it++))
+//    {
+//      if (!strcmp(tmp->ptr, db))
+//	DBUG_RETURN(1); // match
+//    }
+//    DBUG_PRINT("exit", ("Don't replicate"));
+//    DBUG_RETURN(0);
+//  }
+//  else // there are some elements in the don't, otherwise we cannot get here
+//  {
+//    I_List_iterator<i_string> it(ignore_db);
+//    i_string* tmp;
+//
+//    while ((tmp=it++))
+//    {
+//      if (!strcmp(tmp->ptr, db))
+//      {
+//        DBUG_PRINT("exit", ("Don't replicate"));
+//	DBUG_RETURN(0); // match
+//      }
+//    }
+//    DBUG_RETURN(1);
+//  }
 }
 
 
@@ -213,34 +216,35 @@ Rpl_filter::db_ok(const char* db)
 bool
 Rpl_filter::db_ok_with_wild_table(const char *db)
 {
-  DBUG_ENTER("Rpl_filter::db_ok_with_wild_table");
-
-  char hash_key[SAFE_NAME_LEN+2];
-  char *end;
-  int len;
-  end= strmov(hash_key, db);
-  *end++= '.';
-  len= (int)(end - hash_key);
-  if (wild_do_table_inited && find_wild(&wild_do_table, hash_key, len))
-  {
-    DBUG_PRINT("return",("1"));
-    DBUG_RETURN(1);
-  }
-  if (wild_ignore_table_inited && find_wild(&wild_ignore_table, hash_key, len))
-  {
-    DBUG_PRINT("return",("0"));
-    DBUG_RETURN(0);
-  }  
-
-  /*
-    If no explicit rule found and there was a do list, do not replicate.
-    If there was no do list, go ahead
-  */
-  DBUG_PRINT("return",("db=%s,retval=%d", db, !wild_do_table_inited));
-  DBUG_RETURN(!wild_do_table_inited);
+  return true;
+//  DBUG_ENTER("Rpl_filter::db_ok_with_wild_table");
+//
+//  char hash_key[SAFE_NAME_LEN+2];
+//  char *end;
+//  int len;
+//  end= strmov(hash_key, db);
+//  *end++= '.';
+//  len= (int)(end - hash_key);
+//  if (wild_do_table_inited && find_wild(&wild_do_table, hash_key, len))
+//  {
+//    DBUG_PRINT("return",("1"));
+//    DBUG_RETURN(1);
+//  }
+//  if (wild_ignore_table_inited && find_wild(&wild_ignore_table, hash_key, len))
+//  {
+//    DBUG_PRINT("return",("0"));
+//    DBUG_RETURN(0);
+//  }  
+//
+//  /*
+//    If no explicit rule found and there was a do list, do not replicate.
+//    If there was no do list, go ahead
+//  */
+//  DBUG_PRINT("return",("db=%s,retval=%d", db, !wild_do_table_inited));
+//  DBUG_RETURN(!wild_do_table_inited);
 }
 
-
+/*
 bool
 Rpl_filter::is_on()
 {

@@ -34,8 +34,8 @@ template<class Filter>
 class InvertedFilter: public Filter
 {
 public:
-  virtual inline bool operator[](auto key) override
-  { return !Filter.operator[](key); }
+  virtual inline bool operator[](const Binary_string *key) override //FIXME: inflexible? what should be its scope?
+  { return !Filter::operator[](key); }
 };
 
 /**
