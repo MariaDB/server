@@ -1379,14 +1379,24 @@ class Arch_Log_Sys
   @param[out]   group           log archive group
   @param[out]   stop_lsn        stop lsn for client
   @param[out]   log_blk         redo log trailer block
-  @param[in,out]        blk_len         length in bytes
+  @param[in]    blk_len         length in bytes
   @return error code */
   int stop(Arch_Group *group, lsn_t &stop_lsn, byte *log_blk,
-           uint32_t &blk_len);
+           uint32_t blk_len);
 
   /** Force to abort the archiver (state becomes ARCH_STATE_IDLE or
   ARCH_STATE_ABORT). */
   void force_abort();
+
+  /** Update archiver log system state under log_sys.latch.rd_lock. Caller is
+  expected to hold log archiver mutex.
+  @param[in]  state   state to assign to m_state */
+  void update_state(Arch_State state);
+
+  /** Waits until the archiver has archived enough for log_writer to proceed
+  or until the archiver becomes aborted. Caller must hold the log_sys.latch.
+  @param[in]  next_write_lsn  LSN up to which the caller is going to write. */
+  void wait_archiver(lsn_t next_write_lsn);
 
   /** Release the current group from client.
   @param[in]    group           group the client is attached to

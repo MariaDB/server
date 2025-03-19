@@ -2032,6 +2032,8 @@ static bool log_checkpoint() noexcept
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+  arch_sys->page_sys()->flush_at_checkpoint(oldest_lsn);
   return log_checkpoint_low(oldest_lsn, end_lsn);
 }
 

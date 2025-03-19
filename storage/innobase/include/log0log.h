@@ -570,6 +570,13 @@ public:
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;
+
+  /** Get last redo block from redo buffer and end LSN.
+  @param  last_lsn    end lsn of last mtr
+  @param  last_block  last redo block
+  @param  block_len   length in bytes */
+  void get_last_block(lsn_t &last_lsn, byte *last_block,
+                      uint32_t block_len);
 };
 
 /** Redo log system */
