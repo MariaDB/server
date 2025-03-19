@@ -82,6 +82,16 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
       return NULL;
     }
   }
+#elif defined _AIX
+  /*
+    Special AIX hack.
+    MAP_FIXED did not work on AIX, no idea why. But we could use
+    mprotect to make previously reserved  area readable/writable.
+
+    The only problem is that out-of-memory condition is not easy
+    to catch.
+  */
+  mprotect(ptr, size, PROT_READ|PROT_WRITE);
 #else
   if (my_use_large_pages)
   {
