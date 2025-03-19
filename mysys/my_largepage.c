@@ -187,6 +187,7 @@ static size_t my_next_large_page_size(size_t sz, int *start)
 
 int my_init_large_pages(void)
 {
+  my_use_large_pages= 1;
 #ifdef _WIN32
   if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
   {
@@ -194,11 +195,11 @@ int my_init_large_pages(void)
                     "Lock Pages in memory access rights required for use with"
                     " large-pages, see https://mariadb.com/kb/en/library/"
                     "mariadb-memory-allocation/#huge-pages", MYF(MY_WME));
+    my_use_large_pages= 0;
   }
   my_large_page_size= GetLargePageMinimum();
 #endif
 
-  my_use_large_pages= 1;
   my_get_large_page_sizes(my_large_page_sizes);
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
