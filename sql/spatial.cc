@@ -4228,6 +4228,7 @@ int Gis_multi_polygon::make_clockwise(String *result) const
     if(polygon->make_clockwise(&clockwise_wkb))
       return 1;
 
+    result->reserve(sizeof(char) + sizeof(uint32));
     result->q_append((char) wkb_ndr);
     result->q_append((uint32) wkb_polygon);
     result->append(clockwise_wkb.ptr() + WKB_HEADER_SIZE,
