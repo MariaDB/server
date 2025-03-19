@@ -466,7 +466,7 @@ public:
     Similar to add(), but uses temporary table field to obtain current value,
     Updated value is then saved in the field.
   */
-  virtual void update_field()=0;
+  virtual void update_field(Item **group_by_items)=0;
   bool fix_length_and_dec(THD *thd) override
   {
     set_maybe_null();
@@ -854,7 +854,7 @@ public:
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
   void reset_field() override;
-  void update_field() override;
+  void update_field(Item **group_by_items) override;
   void no_rows_in_result() override {}
   LEX_CSTRING func_name_cstring() const override
   { 
@@ -930,7 +930,7 @@ public:
   { return &type_handler_slonglong; }
   longlong val_int() override;
   void reset_field() override;
-  void update_field() override;
+  void update_field(Item **group_by_items) override;
   void direct_add(longlong add_count);
   LEX_CSTRING func_name_cstring() const override
   { 
@@ -981,7 +981,7 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   String *val_str(String *str) override;
   void reset_field() override;
-  void update_field() override;
+  void update_field(Item **group_by_items) override;
   Item *result_item(THD *thd, Field *field) override;
   void no_rows_in_result() override {}
   LEX_CSTRING func_name_cstring() const override
@@ -1069,7 +1069,7 @@ public:
   bool add() override final;
   double val_real() override;
   void reset_field() override final;
-  void update_field() override final;
+  void update_field(Item **group_by_items) override final;
   Item *result_item(THD *thd, Field *field) override;
   void no_rows_in_result() override final {}
   LEX_CSTRING func_name_cstring() const override
@@ -1187,7 +1187,7 @@ public:
   {
     return args[0]->type_extra_attributes();
   }
-  void update_field() override;
+  void update_field(Item **group_by_items) override;
   void min_max_update_str_field();
   void min_max_update_real_field();
   void min_max_update_int_field();
@@ -1259,7 +1259,7 @@ public:
   void clear() override;
   longlong val_int() override;
   void reset_field() override;
-  void update_field() override;
+  void update_field(Item **group_by_items) override;
   const Type_handler *type_handler() const override
   { return &type_handler_ulonglong; }
   bool fix_length_and_dec(THD *thd) override
@@ -1502,7 +1502,7 @@ public:
     return str;
   }
   void reset_field() override{DBUG_ASSERT(0);}
-  void update_field() override{DBUG_ASSERT(0);}
+  void update_field(Item **group_by_items) override {DBUG_ASSERT(0);}
   void clear() override;
   void cleanup() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
@@ -1719,7 +1719,7 @@ public:
   bool supports_removal() const override;
   void remove() override;
   void reset_field() override {};
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
   void cleanup() override;
   void print(String *str, enum_query_type query_type) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
@@ -1868,7 +1868,7 @@ class Item_sum_udf_float :public Item_sum_double
   void clear() {}
   bool add() { return 0; }  
   void reset_field() { DBUG_ASSERT(0); };
-  void update_field() {}
+  void update_field(Item **group_by_items) override {}
 };
 
 
@@ -1887,7 +1887,7 @@ public:
   void clear() {}
   bool add() { return 0; }  
   void reset_field() { DBUG_ASSERT(0); };
-  void update_field() {}
+  void update_field(Item **group_by_items) override {}
 };
 
 
@@ -1906,7 +1906,7 @@ class Item_sum_udf_decimal :public Item_sum_double
   void clear() {}
   bool add() { return 0; }
   void reset_field() { DBUG_ASSERT(0); };
-  void update_field() {}
+  void update_field(Item **group_by_items) override {}
 };
 
 
@@ -1929,7 +1929,7 @@ public:
   void clear() {}
   bool add() { return 0; }  
   void reset_field() { DBUG_ASSERT(0); };
-  void update_field() {}
+  void update_field(Item **group_by_items) override {}
 };
 
 #endif /* HAVE_DLOPEN */
@@ -1998,8 +1998,6 @@ public:
   }
 
   void no_rows_in_result() override {}
-  void reset_field() override { DBUG_ASSERT(0); }        // not used
-  void update_field() override { DBUG_ASSERT(0); }       // not used
 
 protected:
   virtual bool fix_fields_impl(THD *, Item **) = 0;
@@ -2116,6 +2114,8 @@ class Item_func_group_concat : public Item_sum_str
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_group_concat>(thd, this); }
+  void reset_field() override {}        // not used
+  void update_field(Item **group_by_items) override {}       // not used
 
 protected:
   virtual void cut_max_length(String *result,
@@ -2146,16 +2146,17 @@ public:
 
 class Item_func_collect : public Item_sum_str
 {
-  uint32 srid;
-  bool has_cached_result;
+  uint32 srid{0};
+  bool has_cached_result{false};
   String cached_result;
-  MEM_ROOT *mem_root;
-  bool is_distinct;
+  MEM_ROOT *mem_root{nullptr};
+  bool is_distinct{false};
   List<String> geometries;
   String value;
   const uint group_collect_max_len;
 
   void clear() override;
+  bool add_impl(String *wkb);
   bool add() override;
   void cleanup() override;
   void remove() override;
@@ -2181,6 +2182,8 @@ class Item_func_collect : public Item_sum_str
   }
 
   bool fix_fields_impl(THD *thd,Item **) override;
+  void reset_field() override;
+  void update_field(Item **group_by_items) override;
 
 public:
   Item_func_collect(THD *thd, bool is_distinct, Item *item_par);

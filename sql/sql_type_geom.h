@@ -468,6 +468,11 @@ public:
     out->append(STRING_WITH_LEN("unprintable_geometry_value"));
   }
   Binlog_type_info binlog_type_info() const override;
+
+  String *get_cached_value()
+  {
+    return &(Field_blob::value);
+  }
 };
 
 #endif // SQL_TYPE_GEOM_H_INCLUDED

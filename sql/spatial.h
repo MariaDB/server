@@ -32,7 +32,8 @@ const uint32 SRID_PLACEHOLDER= 0;
 const uint SIZEOF_STORED_DOUBLE= 8;
 const uint BYTE_ORDER_SIZE= 1;
 const uint POINT_DATA_SIZE= (SIZEOF_STORED_DOUBLE * 2);
-const uint WKB_HEADER_SIZE= BYTE_ORDER_SIZE + 4;
+const uint WKB_TYPE_SIZE= 4;
+const uint WKB_HEADER_SIZE= BYTE_ORDER_SIZE + WKB_TYPE_SIZE;
 const uint32 GET_SIZE_ERROR= ((uint32) -1);
 
 struct st_point_2d

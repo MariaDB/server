@@ -29784,11 +29784,12 @@ init_tmptable_sum_functions(Item_sum **func_ptr)
 
 static void
 update_tmptable_sum_func(Item_sum **func_ptr,
-			 TABLE *tmp_table __attribute__((unused)))
+			 TABLE *tmp_table)
 {
-  Item_sum *func;
+  Item_sum *func= nullptr;
+  Item **group_by_items= tmp_table->group->item;
   while ((func= *(func_ptr++)))
-    func->update_field();
+    func->update_field(group_by_items);
 }
 
 

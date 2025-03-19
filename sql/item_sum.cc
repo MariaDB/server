@@ -2353,7 +2353,7 @@ void Stddev::to_binary(uchar *ptr) const
 }
 
 
-void Item_sum_variance::update_field()
+void Item_sum_variance::update_field(Item **group_by_items)
 {
   uchar *res=result_field->ptr;
 
@@ -2946,7 +2946,7 @@ void Item_sum_bit::reset_field()
   int8store(result_field->ptr, bits);
 }
 
-void Item_sum_bit::update_field()
+void Item_sum_bit::update_field(Item **group_by_items)
 {
   // We never call update_field when computing the function as a window
   // function. Setting bits to a random value invalidates the bits counters and
@@ -2963,7 +2963,7 @@ void Item_sum_bit::update_field()
   calc next value and merge it with field_value.
 */
 
-void Item_sum_sum::update_field()
+void Item_sum_sum::update_field(Item **group_by_items)
 {
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
   if (result_type() == DECIMAL_RESULT)
@@ -3025,7 +3025,7 @@ void Item_sum_sum::update_field()
 }
 
 
-void Item_sum_count::update_field()
+void Item_sum_count::update_field(Item **group_by_items)
 {
   DBUG_ENTER("Item_sum_count::update_field");
   longlong nr;
@@ -3045,7 +3045,7 @@ void Item_sum_count::update_field()
 }
 
 
-void Item_sum_avg::update_field()
+void Item_sum_avg::update_field(Item **group_by_items)
 {
   longlong field_count;
   uchar *res=result_field->ptr;
@@ -3096,7 +3096,7 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 }
 
 
-void Item_sum_min_max::update_field()
+void Item_sum_min_max::update_field(Item **group_by_items)
 {
   DBUG_ENTER("Item_sum_min_max::update_field");
   Item *UNINIT_VAR(tmp_item);
@@ -4615,21 +4615,19 @@ void Item_func_collect::clear() {
 
 
 void Item_func_collect::cleanup() {
-  List_iterator<String> geometries_iterator(geometries);
-  geometries.delete_elements();
+  clear();
   Item_sum_str::cleanup();
 }
 
-
-bool Item_func_collect::add() {
-  String *wkb= args[0]->val_str(&value);
+bool Item_func_collect::add_impl(String *wkb)
+{
   uint current_geometry_srid;
   has_cached_result= false;
 
   if (tmp_arg[0]->null_value)
     return 0;
 
-  if(is_distinct && list_contains_element(wkb))
+  if (is_distinct && list_contains_element(wkb))
     return 0;
 
   current_geometry_srid= uint4korr(wkb->ptr());
@@ -4643,6 +4641,12 @@ bool Item_func_collect::add() {
   buffer->copy(*wkb);
   geometries.push_back(buffer);
   return 0;
+}
+
+bool Item_func_collect::add()
+{
+  String *wkb= args[0]->val_str(&value);
+  return add_impl(wkb);
 }
 
 
@@ -4788,6 +4792,154 @@ const Type_handler *Item_func_collect::type_handler() const
 
 bool Item_func_collect::fix_fields_impl(THD *thd,Item **)
 {
-  max_length= UINT_MAX32;
+  max_length= MAX_FIELD_WIDTH;
   return FALSE;
+}
+
+void Item_func_collect::reset_field()
+{
+  clear();
+
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff,sizeof(buff),result_field->charset());
+  Item *arg0= args[0];
+  String *res= arg0->val_str(&tmp);
+
+  if (arg0->null_value)
+  {
+    result_field->set_null();
+    result_field->reset();
+    return;
+  }
+
+  Geometry_buffer buffer1;
+  Geometry *geometry1;
+  geometry1= Geometry::construct(&buffer1, (const char *) res->ptr(), res->length());
+  auto next_arg_type= geometry1->get_class_info()->m_type_id;
+
+  uint32 new_type= 0;
+  if (next_arg_type == Geometry::wkbType::wkb_point)
+    new_type= Geometry::wkbType::wkb_multipoint;
+  else if (next_arg_type == Geometry::wkbType::wkb_linestring)
+    new_type= Geometry::wkbType::wkb_multilinestring;
+  else if (next_arg_type == Geometry::wkbType::wkb_polygon)
+    new_type= Geometry::wkbType::wkb_multipolygon;
+  else
+    DBUG_ASSERT(0);
+
+
+  String content;
+  String str;
+  content.reserve(WKB_HEADER_SIZE + SRID_SIZE);
+  str.reserve(WKB_HEADER_SIZE + SRID_SIZE);
+
+  content.append(res->ptr() + SRID_SIZE, res->length() - SRID_SIZE);
+
+  // Header:  SRID BYTE_ORDER GEOM_TYPE [NUM_GEOMS data...]
+  str.q_append((uint32) srid);
+  str.q_append((char) Geometry::wkb_ndr);
+  str.q_append(new_type);
+  uint32 g1num= 1;
+  str.q_append((uint32) g1num);
+  str.append(content.ptr(), content.length());
+  null_value= false;
+  result_field->set_notnull();
+  result_field->store(str.ptr(), str.length(), tmp.charset());
+}
+
+void Item_func_collect::update_field(Item **group_by_items)
+{
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff, sizeof(buff), result_field->charset());
+  String *res= args[0]->val_str(&tmp);
+  if (args[0]->null_value)  // val_str has the side-effect of setting null_value
+  {
+    clear();
+    result_field->set_null();
+    result_field->reset();
+    null_value= true;
+    return;
+  }
+  const uint geom_size= geometries.size();
+  add_impl(res);
+  if (is_distinct && geometries.size() == geom_size)
+      return;  // distinct and already present, do nothing
+  Geometry_buffer buffer1;
+  Geometry *geometry1;
+  geometry1= Geometry::construct(&buffer1, (const char *) res->ptr(), res->length());
+  auto next_arg_type= geometry1->get_class_info()->m_type_id;
+
+  const char *rf= ((Field_geom *) result_field)->get_cached_value()->ptr();
+  const auto rflen = ((Field_geom *) result_field)->get_cached_value()->length();
+  Geometry_buffer buffer;
+  Geometry *geometry;
+  geometry= Geometry::construct(&buffer, (const char *) rf, rflen);
+  auto current_result_type= geometry->get_class_info()->m_type_id;
+
+  uint32 new_type= 0;
+  bool same_type= false;
+  if ((current_result_type == Geometry::wkbType::wkb_multipoint &&
+       next_arg_type == Geometry::wkbType::wkb_point) ||
+      (current_result_type == Geometry::wkbType::wkb_multilinestring &&
+       next_arg_type == Geometry::wkbType::wkb_linestring) ||
+      (current_result_type == Geometry::wkbType::wkb_multipolygon &&
+       next_arg_type == Geometry::wkbType::wkb_polygon))
+  {
+    same_type= true;
+    new_type= current_result_type;
+  }
+  if (!same_type)
+  {
+    if (current_result_type == Geometry::wkbType::wkb_point &&
+        next_arg_type == Geometry::wkbType::wkb_point)
+      new_type= Geometry::wkbType::wkb_multipoint;
+    else if (current_result_type == Geometry::wkbType::wkb_linestring &&
+             next_arg_type == Geometry::wkbType::wkb_linestring)
+      new_type= Geometry::wkbType::wkb_multilinestring;
+    else if (current_result_type == Geometry::wkbType::wkb_polygon &&
+             next_arg_type == Geometry::wkbType::wkb_polygon)
+      new_type= Geometry::wkbType::wkb_multipolygon;
+    else if (current_result_type != next_arg_type)
+      new_type= Geometry::wkbType::wkb_geometrycollection;
+  }
+
+  String content;
+  String str;
+  content.reserve(WKB_HEADER_SIZE + SRID_SIZE);
+  str.reserve(WKB_HEADER_SIZE + SRID_SIZE);
+
+  if (same_type)
+  {
+    content.append(rf + SRID_SIZE + WKB_HEADER_SIZE + WKB_TYPE_SIZE,
+                   rflen - (SRID_SIZE + WKB_HEADER_SIZE + WKB_TYPE_SIZE));
+    content.append(res->ptr() + SRID_SIZE, res->length() - SRID_SIZE);
+  }
+  else
+  {
+    content.append(rf + SRID_SIZE, rflen - SRID_SIZE);
+    content.append(res->ptr() + SRID_SIZE, res->length() - SRID_SIZE);
+  }
+
+  // Header:  SRID BYTE_ORDER GEOM_TYPE [NUM_GEOMS data...]
+  str.q_append((uint32) srid);
+  str.q_append((char) Geometry::wkb_ndr);
+  str.q_append(new_type);
+  if (same_type)
+  {
+    uint32 g1num= 1;
+    geometry->num_geometries(&g1num);
+    ++g1num;
+    str.q_append((uint32) g1num);
+  }
+  else
+  {
+    uint32 g1num= 1, g2num= 1; // hack
+    //geometry->num_geometries(&g1num);
+    //geometry1->num_geometries(&g2num);
+    str.q_append((uint32) g1num + g2num);
+  }
+  str.append(content.ptr(), content.length());
+  null_value= false;
+  result_field->set_notnull();
+  result_field->store(str.ptr(), str.length(), tmp.charset());
 }

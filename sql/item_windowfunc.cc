@@ -544,7 +544,7 @@ void Item_sum_hybrid_simple::reset_field()
   }
 }
 
-void Item_sum_hybrid_simple::update_field()
+void Item_sum_hybrid_simple::update_field(Item **group_by_items)
 {
   DBUG_ASSERT(0);
 }

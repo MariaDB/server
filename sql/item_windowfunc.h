@@ -133,7 +133,7 @@ public:
   }
 
   void reset_field() override { DBUG_ASSERT(0); }
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
 
   enum Sumfunctype sum_func() const override
   {
@@ -201,7 +201,7 @@ public:
   }
 
   void reset_field() override { DBUG_ASSERT(0); }
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
 
   enum Sumfunctype sum_func () const override
   {
@@ -266,7 +266,7 @@ class Item_sum_dense_rank: public Item_sum_int
   }
   bool add() override;
   void reset_field() override { DBUG_ASSERT(0); }
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
   longlong val_int() override
   {
     return dense_rank;
@@ -328,7 +328,7 @@ class Item_sum_hybrid_simple : public Item_sum_hybrid
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
-  void update_field() override;
+  void update_field(Item **group_by_items) override;
   Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
   void clear() override
   {
@@ -543,7 +543,7 @@ class Item_sum_percent_rank: public Item_sum_double,
     return name;
   }
 
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
 
   void clear() override
   {
@@ -640,7 +640,7 @@ class Item_sum_cume_dist: public Item_sum_double,
     return name;
   }
 
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
 
@@ -723,7 +723,7 @@ class Item_sum_ntile : public Item_sum_int,
     return name;
   }
 
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
 
   const Type_handler *type_handler() const override
   { return &type_handler_slonglong; }
@@ -881,7 +881,7 @@ public:
     return name;
   }
 
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
   const Type_handler *type_handler() const override
   {return Type_handler_hybrid_field_type::type_handler();}
 
@@ -1020,7 +1020,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("percentile_cont") };
     return name;
   }
-  void update_field() override {}
+  void update_field(Item **group_by_items) override {}
 
   bool fix_length_and_dec(THD *thd) override
   {

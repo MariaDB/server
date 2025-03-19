@@ -779,7 +779,7 @@ public:
   void clear() override;
   bool add() override;
   void reset_field() override { DBUG_ASSERT(0); }        // not used
-  void update_field() override { DBUG_ASSERT(0); }       // not used
+  void update_field(Item **group_by_items) override { DBUG_ASSERT(0); }       // not used
   bool fix_fields(THD *,Item **) override;
 
   double val_real() override { return 0.0; }
