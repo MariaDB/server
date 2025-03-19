@@ -2114,6 +2114,27 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     /* Arguments must be fixed in Item_func_sp::fix_fields */
     DBUG_ASSERT(argp[arg_no]->fixed());
 
+    sp_variable *spvar= m_pcont->find_variable(arg_no);
+
+    if (!spvar)
+      continue;
+
+    /*
+      When you get a merge conflict, please move this code
+      into bind_input_param(). This also applies to the similar
+      code in execute_procedure().
+    */
+    if (!spvar->field_def.type_handler()->is_scalar_type() &&
+        dynamic_cast<Item_param*>(argp[arg_no]))
+    {
+      // Item_param cannot store values of non-scalar data types yet
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               spvar->field_def.type_handler()->name().ptr(),
+               "EXECUTE ... USING ?");
+      err_status= true;
+      goto err_with_cleanup;
+    }
+
     if ((err_status= (*func_ctx)->set_parameter(thd, arg_no, &(argp[arg_no]))))
       goto err_with_cleanup;
   }
@@ -2359,10 +2380,26 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       if (!arg_item)
         break;
 
+      /*
+        When you get a merge conflict, please move this code
+        into bind_input_param(). This also applies to the similar
+        code in execute_function().
+      */
       sp_variable *spvar= m_pcont->find_variable(i);
 
       if (!spvar)
         continue;
+
+      if (!spvar->field_def.type_handler()->is_scalar_type() &&
+          dynamic_cast<Item_param*>(arg_item))
+      {
+        // Item_param cannot store values of non-scalar data types yet
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+                 spvar->field_def.type_handler()->name().ptr(),
+                 "EXECUTE ... USING ?");
+        err_status= true;
+        break;
+      }
 
       if (spvar->mode != sp_variable::MODE_IN)
       {
