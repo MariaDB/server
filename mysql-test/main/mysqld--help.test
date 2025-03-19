@@ -27,7 +27,7 @@ perl;
                large-files-support lower-case-file-system system-time-zone
                collation-server character-set-server log-tc-size table-cache
                table-open-cache table-open-cache-instances max-connections
-               server-uid tls-version version.* analyze-max-length/;
+               server-uid tls-version version.* analyze-max-length thread-stack/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb archive blackhole federated partition s3
