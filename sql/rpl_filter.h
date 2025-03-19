@@ -20,17 +20,12 @@
 #include "mysqld.h"
 #include "sql_list.h"                           /* I_List */
 #include "hash.h"                               /* HASH */
+#include "filter.hpp"
 
 class String;
 struct TABLE_LIST;
 typedef struct st_dynamic_array DYNAMIC_ARRAY;
 
-typedef struct st_table_rule_ent
-{
-  char* db;
-  char* tbl_name;
-  uint key_len;
-} TABLE_RULE_ENT;
 
 /*
   Rpl_filter
@@ -58,27 +53,34 @@ public:
   bool is_on();
   bool is_db_empty();
 
-  /* Setters - add filtering rules */
+  /* Filters */
+  const RewriteDB rewrite_db;
 
-  int add_do_table(const char* table_spec);
-  int add_ignore_table(const char* table_spec);
+  const class IgnoreDB: public HashFilter<const Binary_string *>
+  {
+    inline void
+    hash_element_append_string(uchar *element, String *out_string) override;
+  protected:
+    inline virtual bool
+    add_rule(const char *rule, const char *rule_end) override;
+  public:
+    IgnoreDB();
+    virtual bool operator[](const Binary_string *key) override;
+  } ignore_db;
+  const class DoDB: public InvertedFilter<IgnoreDB> {} do_db;
 
-  int set_do_table(const char* table_spec);
-  int set_ignore_table(const char* table_spec);
+  const class IgnoreTable: public IgnoreDB
+  {
+    inline bool add_rule(const char *rule, const char *rule_end) override;
+  } ignore_table;
+  const class DoTable: public InvertedFilter<IgnoreTable> {} do_table;
 
-  int add_wild_do_table(const char* table_spec);
-  int add_wild_ignore_table(const char* table_spec);
-
-  int set_wild_do_table(const char* table_spec);
-  int set_wild_ignore_table(const char* table_spec);
-
-  int add_rewrite_db(const char* table_spec);
-  int add_do_db(const char* db_spec);
-  int add_ignore_db(const char* db_spec);
-
-  int set_rewrite_db(const char* db_spec);
-  int set_do_db(const char* db_spec);
-  int set_ignore_db(const char* db_spec);
+  const class WildIgnoreTable: public IgnoreTable
+  {
+    virtual bool operator[](const Binary_string *key) override;
+  } wild_ignore_table;
+  const class WildDoTable: public InvertedFilter<WildIgnoreTable>
+  {} wild_do_table;
 
   void set_parallel_mode(enum_slave_parallel_mode mode)
   {
@@ -90,70 +92,10 @@ public:
     return parallel_mode;
   }
 
-  /* Getters - to get information about current rules */
-
-  void get_do_table(String* str);
-  void get_ignore_table(String* str);
-
-  void get_wild_do_table(String* str);
-  void get_wild_ignore_table(String* str);
-
-  bool rewrite_db_is_empty();
-  I_List<i_string_pair>* get_rewrite_db();
-  void get_rewrite_db(String *str);
-  const char* get_rewrite_db(const char* db, size_t *new_len);
-
-  I_List<i_string>* get_do_db();
-  I_List<i_string>* get_ignore_db();
-
-  void get_do_db(String* str);
-  void get_ignore_db(String* str);
-
 private:
-
-  void init_table_rule_hash(HASH* h, bool* h_inited);
-  void init_table_rule_array(DYNAMIC_ARRAY* a, bool* a_inited);
-
-  int add_table_rule(HASH* h, const char* table_spec);
-  int add_wild_table_rule(DYNAMIC_ARRAY* a, const char* table_spec);
-
-  typedef int (Rpl_filter::*Add_filter)(char const*);
-
-  int parse_filter_rule(const char* spec, Add_filter func);
-
-  void free_string_array(DYNAMIC_ARRAY *a);
-  void free_string_list(I_List<i_string> *l);
-  void free_string_pair_list(I_List<i_string_pair> *l);
-
-  void table_rule_ent_hash_to_str(String* s, HASH* h, bool inited);
-  void table_rule_ent_dynamic_array_to_str(String* s, DYNAMIC_ARRAY* a,
-                                           bool inited);
-  void db_rewrite_rule_ent_list_to_str(String*, I_List<i_string_pair>*);
-  void db_rule_ent_list_to_str(String* s, I_List<i_string>* l);
-  TABLE_RULE_ENT* find_wild(DYNAMIC_ARRAY *a, const char* key, int len);
-
-  int add_string_list(I_List<i_string> *list, const char* spec);
-  int add_string_pair_list(const char* my_spec);
-  /*
-    Those 4 structures below are uninitialized memory unless the
-    corresponding *_inited variables are "true".
-  */
-  HASH do_table;
-  HASH ignore_table;
-  DYNAMIC_ARRAY wild_do_table;
-  DYNAMIC_ARRAY wild_ignore_table;
   enum_slave_parallel_mode parallel_mode;
 
   bool table_rules_on;
-  bool do_table_inited;
-  bool ignore_table_inited;
-  bool wild_do_table_inited;
-  bool wild_ignore_table_inited;
-
-  I_List<i_string> do_db;
-  I_List<i_string> ignore_db;
-
-  I_List<i_string_pair> rewrite_db;
 };
 
 extern Rpl_filter *global_rpl_filter;
