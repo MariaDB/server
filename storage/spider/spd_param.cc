@@ -2490,25 +2490,6 @@ static MYSQL_THDVAR_BOOL(
 SPIDER_THDVAR_VALUE_FUNC(bool, sync_sql_mode)
 
 /*
- -1 : fallback to default
-  0 : do not strict
-  1 : do strict
- */
-static MYSQL_THDVAR_INT(
-  strict_group_by, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Use columns in select clause strictly for group by clause",
-  NULL, /* check */
-  NULL, /* update */
-  1, /* def */
-  -1, /* min */
-  1, /* max */
-  0 /* blk */
-);
-
-SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, strict_group_by)
-
-/*
  -1 : use table parameter
   0 : do not strict
   1 : do strict
@@ -2658,7 +2639,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(remote_wait_timeout),
   MYSQL_SYSVAR(wait_timeout),
   MYSQL_SYSVAR(sync_sql_mode),
-  MYSQL_SYSVAR(strict_group_by),
   MYSQL_SYSVAR(direct_aggregate),
   NULL
 };
