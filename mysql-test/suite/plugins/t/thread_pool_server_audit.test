@@ -144,8 +144,11 @@ uninstall plugin server_audit;
 --enable_ps2_protocol
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
+if ($MARIADB_UPGRADE_EXE) { # windows
+  let $replace_port= /localhost:\d+/localhost/;
+}
 # replace the timestamp, hostname, and port number with constant values
---replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/ /,localhost:([0-9]+|unavailable)/,localhost:port/
+--replace_regex /\d* \d\d:\d\d:\d\d\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9]\d*\,/,1,/ /\,[1-9]\d*/,ID/ $replace_port
 cat_file $MYSQLD_DATADIR/server_audit.log;
 remove_file $MYSQLD_DATADIR/server_audit.log;
 
