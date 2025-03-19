@@ -171,8 +171,7 @@ set global server_audit_incl_users='user1';
 create user user1@localhost;
 grant all on sa_db.* to user1@localhost;
 
-connect (cn1,localhost,user1,,sa_db);
-connection cn1;
+connect (cn1,127.0.0.1,user1,,sa_db,$MASTER_MYPORT);
 
 create table t1(id int) engine=myisam;
 insert delayed into t1 values (1);
@@ -204,7 +203,6 @@ connect(plug_con,localhost,plug,plug_dest);
 GRANT PROXY ON plug_dest TO plug;
 --sleep 2
 connect(plug_con,localhost,plug,plug_dest,"*NO-ONE*");
-connection plug_con;
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_con;
@@ -252,7 +250,7 @@ uninstall plugin server_audit;
 # replace stored SSL verison with constant string "TLS_VERSION"
 --replace_result $ssl_version TLS_VERSION
 # replace the timestamp and the hostname with constant values
---replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/
+--replace_regex /\d* \d\d:\d\d:\d\d\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9]\d*\,/,1,/ /\,[1-9]\d*/,ID/ /:\d+,/:PORT,/
 cat_file $MYSQLD_DATADIR/server_audit.log;
 remove_file $MYSQLD_DATADIR/server_audit.log;
 --enable_ps2_protocol
