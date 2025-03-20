@@ -452,7 +452,7 @@ void trx_t::free()
 /** Transition to committed state, to release implicit locks. */
 TRANSACTIONAL_INLINE inline void trx_t::commit_state()
 {
-  ut_d(auto trx_state{state});
+  ut_d(auto trx_state= state);
   ut_ad(trx_state == TRX_STATE_PREPARED ||
         trx_state == TRX_STATE_PREPARED_RECOVERED ||
         trx_state == TRX_STATE_ACTIVE);
