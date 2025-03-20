@@ -25,6 +25,7 @@
 
 use strict;
 use Getopt::Long;
+use JSON;
 
 warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-dumpslow' instead\n"
   if $0 =~ m/mysqldumpslow$/;
@@ -50,6 +51,7 @@ GetOptions(\%opt,
     'h=s',	# hostname/basename of db server for *-slow.log filename (can be wildcard)
     'i=s',	# name of server instance (if using mysql.server startup script)
     'l!',	# don't subtract lock time from total time
+    'json!', # Output JSON format (default: false)
 ) or usage("bad option");
 
 $opt{'help'} and usage();
@@ -181,15 +183,47 @@ my @sorted = sort { $stmt{$b}->{$opt{s}} <=> $stmt{$a}->{$opt{s}} } keys %stmt;
 @sorted = @sorted[0 .. $opt{t}-1] if $opt{t};
 @sorted = reverse @sorted         if $opt{r};
 
-foreach (@sorted) {
-    my $v = $stmt{$_} || die;
-    my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
-    my @users = keys %{$v->{users}};
-    my $user  = (@users==1) ? $users[0] : sprintf "%dusers",scalar @users;
-    my @hosts = keys %{$v->{hosts}};
-    my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts",scalar @hosts;
-    printf "Count: %d  Time=%.2fs (%ds)  Lock=%.2fs (%ds)  Rows_sent=%.1f (%d), Rows_examined=%.1f (%d), Rows_affected=%.1f (%d), $user\@$host\n%s\n\n",
-	    $c, $at,$t, $al,$l, $ar,$r, $ae, $e, $aa, $a, $_;
+if (!$opt{json}) {
+    foreach (@sorted) {
+        my $v = $stmt{$_} || die;
+        my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
+        my @users = keys %{$v->{users}};
+        my $user  = (@users==1) ? $users[0] : sprintf "%dusers",scalar @users;
+        my @hosts = keys %{$v->{hosts}};
+        my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts",scalar @hosts;
+        printf "Count: %d  Time=%.2fs (%ds)  Lock=%.2fs (%ds)  Rows_sent=%.1f (%d), Rows_examined=%.1f (%d), Rows_affected=%.1f (%d), $user\@$host\n%s\n\n",
+                $c, $at,$t, $al,$l, $ar,$r, $ae, $e, $aa, $a, $_;
+    }
+} else {
+    my @result_data;
+    foreach my $query (@sorted) {
+        my $v = $stmt{$query} || die;
+        my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
+        my @users = keys %{$v->{users}};
+        my $user  = (@users==1) ? $users[0] : sprintf "%dusers", scalar @users;
+        my @hosts = keys %{$v->{hosts}};
+        my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts", scalar @hosts;
+
+        # remove leading spaces
+        $query =~ s/^\s+//;
+        push @result_data, {
+            count           => $c,
+            total_time      => $t,
+            avg_time        => $at,
+            total_lock      => $l,
+            avg_lock        => $al,
+            total_rows_sent => $r,
+            avg_rows_sent   => $ar,
+            total_examined  => $e,
+            avg_examined    => $ae,
+            total_affected  => $a,
+            avg_affected    => $aa,
+            user            => $user,
+            host            => $host,
+            query           => $query
+        };
+    }
+    print JSON->new->canonical(1)->pretty(1)->encode(\@result_data);
 }
 
 sub usage {
