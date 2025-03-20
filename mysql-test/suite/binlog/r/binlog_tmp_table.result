@@ -63,7 +63,7 @@ disconnect con1;
 connection default;
 connection con2;
 insert into t1 values(1);
-disconnect con2;
 connection default;
+disconnect con2;
 DROP DATABASE b51226;
 FLUSH LOGS;
