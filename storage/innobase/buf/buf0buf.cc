@@ -3766,14 +3766,21 @@ database_corrupted_compressed:
   if (err == DB_PAGE_CORRUPTED || err == DB_DECRYPTION_FAILED)
   {
 release_page:
-    if (node.space->full_crc32() && node.space->crypt_data &&
-        recv_recovery_is_on() &&
-        recv_sys.dblwr.find_encrypted_page(node, id().page_no(),
-                                           const_cast<byte*>(read_frame)))
+    if (node.space->full_crc32() && recv_recovery_is_on())
     {
-      /* Recover from doublewrite buffer */
-      err= DB_SUCCESS;
-      goto success_page;
+      if (node.space->crypt_data &&
+          recv_sys.dblwr.find_encrypted_page(node, id().page_no(),
+                                             const_cast<byte*>(read_frame)))
+       {
+dblwr_success:
+         /* Recover from doublewrite buffer */
+         err= DB_SUCCESS;
+         goto success_page;
+       }
+       else if (node.space->is_compressed() &&
+                recv_sys.dblwr.find_page_compressed(node, id().page_no(),
+                                                    const_cast<byte*>(read_frame)))
+         goto dblwr_success;
     }
 
     if (recv_sys.free_corrupted_page(expected_id, node));

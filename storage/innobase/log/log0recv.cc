@@ -4854,6 +4854,7 @@ byte *recv_dblwr_t::find_encrypted_page(const fil_node_t &node,
        page_it++)
   {
     if (page_get_page_no(*page_it) != page_no ||
+        mach_read_from_4(*page_it + FIL_PAGE_FCRC32_KEY_VERSION) == 0 ||
         buf_page_is_corrupted(true, *page_it, node.space->flags))
       continue;
     memcpy(buf, *page_it, node.space->physical_size());
@@ -4864,6 +4865,45 @@ byte *recv_dblwr_t::find_encrypted_page(const fil_node_t &node,
       !fil_space_decrypt(node.space, slot->crypt_buf, buf) ||
       (node.space->is_compressed() &&
        !fil_page_decompress(slot->crypt_buf, buf, node.space->flags));
+    slot->release();
+
+    if (invalidate ||
+        mach_read_from_4(buf + FIL_PAGE_SPACE_ID) != node.space->id)
+      continue;
+
+    result_page= *page_it;
+    pages.erase(page_it);
+    break;
+  }
+  mysql_mutex_unlock(&recv_sys.mutex);
+  if (result_page)
+    sql_print_information("InnoDB: Recovered page [page id: space="
+                          UINT32PF ", page number=" UINT32PF "] "
+                          "to '%s' from the doublewrite buffer.",
+                          uint32_t(node.space->id), page_no,
+                          node.name);
+  return result_page;
+}
+
+byte *recv_dblwr_t::find_page_compressed(const fil_node_t &node,
+                                         uint32_t page_no,
+                                         byte *buf) noexcept
+{
+  ut_ad(node.space->full_crc32());
+  mysql_mutex_lock(&recv_sys.mutex);
+  byte *result_page= nullptr;
+  for (list::iterator page_it= pages.begin(); page_it != pages.end();
+       page_it++)
+  {
+    if (page_get_page_no(*page_it) != page_no ||
+        buf_page_is_corrupted(true, *page_it, node.space->flags))
+      continue;
+    memcpy(buf, *page_it, node.space->physical_size());
+    buf_tmp_buffer_t *slot= buf_pool.io_buf_reserve(false);
+    ut_a(slot);
+    slot->allocate();
+    bool invalidate= !fil_page_decompress(slot->crypt_buf, buf,
+                                          node.space->flags);
     slot->release();
 
     if (invalidate ||
