@@ -446,12 +446,17 @@ row_log_online_op(
 		}
 
 		log->tail.blocks++;
+		DBUG_EXECUTE_IF("os_file_write_fail",
+				log->error= DB_TEMP_FILE_WRITE_FAIL;
+				goto write_failed;);
+
 		if (os_file_write(
 			    IORequestWrite,
 			    "(modification log)",
 			    log->fd,
 			    buf, byte_offset, srv_sort_buf_size)
 		    != DB_SUCCESS) {
+			log->error= DB_TEMP_FILE_WRITE_FAIL;
 write_failed:
 			/* We set the flag directly instead of invoking
 			dict_set_corrupted_index_cache_only(index) here,

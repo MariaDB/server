@@ -622,7 +622,7 @@ fil_space_extend_must_retry(
 	*success = os_file_set_size(node->name, node->handle, new_size,
 				    space->is_compressed());
 
-	os_has_said_disk_full = *success;
+	os_has_said_disk_full = !*success;
 	if (*success) {
 		os_file_flush(node->handle);
 		last_page_no = size;
