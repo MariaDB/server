@@ -1574,7 +1574,6 @@ void buf_pool_t::close() noexcept
     owner= nullptr;
 #endif
     os_total_large_mem_allocated-= size;
-    MEM_MAKE_ADDRESSABLE(memory_unaligned, size_unaligned);
     my_virtual_mem_decommit(memory, size);
     my_virtual_mem_release(memory_unaligned, size_unaligned);
     memory= nullptr;
