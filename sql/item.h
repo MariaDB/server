@@ -2530,7 +2530,17 @@ public:
   bool check_type_can_return_time(const LEX_CSTRING &opname) const;
   // It is not row => null inside is impossible
   virtual bool null_inside() { return 0; }
-  // used in row subselects to get value of elements
+  /*
+    bring_value()
+    - For scalar Item types this method does not do anything.
+    - For Items which can be of the ROW data type,
+      this method brings the row, so its component values become available
+      for calling their value methods (such as val_int(), get_date() etc).
+      * Item_singlerow_subselect stores component values in
+        the array of Item_cache in Item_singlerow_subselect::row.
+      * Item_func_sp stores component values in Field_row::m_table
+        of the Field_row instance pointed by Item_func_sp::sp_result_field.
+  */
   virtual void bring_value() {}
 
   const Type_handler *type_handler_long_or_longlong() const
