@@ -10,9 +10,6 @@
 #include "bson.h"
 
 #if 0
-#define UDF_EXEC_ARGS \
-  UDF_INIT*, UDF_ARGS*, char*, unsigned long*, char*, char*
-
 // BSON size should be equal on Linux and Windows
 #define BMX 255
 typedef struct BSON* PBSON;
@@ -205,11 +202,11 @@ extern "C" {
 	DllExport void bson_locate_all_deinit(UDF_INIT*);
 
 	DllExport my_bool bson_contains_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long bson_contains(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long bson_contains(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void bson_contains_deinit(UDF_INIT*);
 
 	DllExport my_bool bsoncontains_path_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long bsoncontains_path(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long bsoncontains_path(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void bsoncontains_path_deinit(UDF_INIT*);
 
 	DllExport my_bool bson_make_object_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -253,34 +250,34 @@ extern "C" {
 	DllExport void bsonget_string_deinit(UDF_INIT*);
 
 	DllExport my_bool bsonget_int_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long bsonget_int(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long bsonget_int(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void bsonget_int_deinit(UDF_INIT*);
 
 	DllExport my_bool bsonget_real_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport double bsonget_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport double bsonget_real(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void bsonget_real_deinit(UDF_INIT*);
 
 	DllExport my_bool bsonset_def_prec_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long bsonset_def_prec(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long bsonset_def_prec(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 
 	DllExport my_bool bsonget_def_prec_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long bsonget_def_prec(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long bsonget_def_prec(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 
 	DllExport my_bool bsonset_grp_size_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long bsonset_grp_size(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long bsonset_grp_size(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 
 	DllExport my_bool bsonget_grp_size_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long bsonget_grp_size(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long bsonget_grp_size(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 
 	DllExport my_bool bson_array_grp_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport void bson_array_grp_clear(UDF_INIT *, char *, char *);
-	DllExport void bson_array_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport void bson_array_grp_clear(UDF_INIT *, uchar *, uchar *);
+	DllExport void bson_array_grp_add(UDF_INIT *, UDF_ARGS *, uchar *, uchar *);
 	DllExport char *bson_array_grp(UDF_EXEC_ARGS);
 	DllExport void bson_array_grp_deinit(UDF_INIT*);
 
 	DllExport my_bool bson_object_grp_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport void bson_object_grp_clear(UDF_INIT *, char *, char *);
-	DllExport void bson_object_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport void bson_object_grp_clear(UDF_INIT *, uchar *, uchar *);
+	DllExport void bson_object_grp_add(UDF_INIT *, UDF_ARGS *, uchar *, uchar *);
 	DllExport char *bson_object_grp(UDF_EXEC_ARGS);
 	DllExport void bson_object_grp_deinit(UDF_INIT*);
 
@@ -337,14 +334,14 @@ extern "C" {
 	DllExport void bbin_array_delete_deinit(UDF_INIT*);
 
 	DllExport my_bool bbin_array_grp_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport void bbin_array_grp_clear(UDF_INIT *, char *, char *);
-	DllExport void bbin_array_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport void bbin_array_grp_clear(UDF_INIT *, uchar *, uchar *);
+	DllExport void bbin_array_grp_add(UDF_INIT *, UDF_ARGS *, uchar *, uchar *);
 	DllExport char *bbin_array_grp(UDF_EXEC_ARGS);
 	DllExport void bbin_array_grp_deinit(UDF_INIT*);
 
 	DllExport my_bool bbin_object_grp_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport void bbin_object_grp_clear(UDF_INIT *, char *, char *);
-	DllExport void bbin_object_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport void bbin_object_grp_clear(UDF_INIT *, uchar *, uchar *);
+	DllExport void bbin_object_grp_add(UDF_INIT *, UDF_ARGS *, uchar *, uchar *);
 	DllExport char *bbin_object_grp(UDF_EXEC_ARGS);
 	DllExport void bbin_object_grp_deinit(UDF_INIT*);
 

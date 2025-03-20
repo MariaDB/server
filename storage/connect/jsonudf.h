@@ -14,7 +14,7 @@
 #include "json.h"
 
 #define UDF_EXEC_ARGS \
-  UDF_INIT*, UDF_ARGS*, char*, unsigned long*, char*, char*
+  UDF_INIT*, UDF_ARGS*, char*, unsigned long*, uchar *, uchar *
 
 // BSON size should be equal on Linux and Windows
 #define BMX 255
@@ -95,15 +95,15 @@ extern "C" {
 	DllExport void json_array_delete_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonsum_int_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsonsum_int(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long jsonsum_int(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void jsonsum_int_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonsum_real_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport double jsonsum_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport double jsonsum_real(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void jsonsum_real_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonavg_real_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport double jsonavg_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport double jsonavg_real(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void jsonavg_real_deinit(UDF_INIT*);
 
 	DllExport my_bool json_make_object_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -135,21 +135,21 @@ extern "C" {
 	DllExport void json_object_values_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonset_grp_size_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsonset_grp_size(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long jsonset_grp_size(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 
 	DllExport my_bool jsonget_grp_size_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsonget_grp_size(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long jsonget_grp_size(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 
 	DllExport my_bool json_array_grp_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport void json_array_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport void json_array_grp_add(UDF_INIT *, UDF_ARGS *, uchar *, uchar *);
 	DllExport char *json_array_grp(UDF_EXEC_ARGS);
-	DllExport void json_array_grp_clear(UDF_INIT *, char *, char *);
+	DllExport void json_array_grp_clear(UDF_INIT *, uchar *, uchar *);
 	DllExport void json_array_grp_deinit(UDF_INIT*);
 
 	DllExport my_bool json_object_grp_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport void json_object_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport void json_object_grp_add(UDF_INIT *, UDF_ARGS *, uchar *, uchar *);
 	DllExport char *json_object_grp(UDF_EXEC_ARGS);
-	DllExport void json_object_grp_clear(UDF_INIT *, char *, char *);
+	DllExport void json_object_grp_clear(UDF_INIT *, uchar *, uchar *);
 	DllExport void json_object_grp_deinit(UDF_INIT*);
 
 	DllExport my_bool json_item_merge_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -165,15 +165,15 @@ extern "C" {
 	DllExport void jsonget_string_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonget_int_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsonget_int(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long jsonget_int(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void jsonget_int_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonget_real_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport double jsonget_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport double jsonget_real(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void jsonget_real_deinit(UDF_INIT*);
 
 	DllExport my_bool jsoncontains_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsoncontains(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long jsoncontains(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void jsoncontains_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonlocate_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -185,7 +185,7 @@ extern "C" {
 	DllExport void json_locate_all_deinit(UDF_INIT*);
 
 	DllExport my_bool jsoncontains_path_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsoncontains_path(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long jsoncontains_path(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 	DllExport void jsoncontains_path_deinit(UDF_INIT*);
 
 	DllExport my_bool json_set_item_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -293,7 +293,7 @@ extern "C" {
 #endif   // DEVELOPMENT
 
 	DllExport my_bool countin_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long countin(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport long long countin(UDF_INIT*, UDF_ARGS*, uchar *, uchar *);
 } // extern "C"																											  
 
 
