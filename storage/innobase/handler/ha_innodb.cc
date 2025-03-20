@@ -3002,8 +3002,9 @@ static bool innodb_copy_stat_flags(dict_table_t *table,
   static_assert(HA_OPTION_NO_STATS_PERSISTENT ==
                 dict_table_t::STATS_PERSISTENT_OFF << 11, "");
   uint32_t stat=
-    (table_options &
-     (HA_OPTION_STATS_PERSISTENT | HA_OPTION_NO_STATS_PERSISTENT)) >> 11;
+    uint32_t(table_options &
+             (HA_OPTION_STATS_PERSISTENT |
+              HA_OPTION_NO_STATS_PERSISTENT)) >> 11;
   static_assert(uint32_t{HA_STATS_AUTO_RECALC_ON} << 3 ==
                 dict_table_t::STATS_AUTO_RECALC_ON, "");
   static_assert(uint32_t{HA_STATS_AUTO_RECALC_OFF} << 3 ==
