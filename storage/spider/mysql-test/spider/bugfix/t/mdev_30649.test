@@ -25,7 +25,9 @@ INSERT INTO dst VALUES (555, '1999-12-12');
 # possibly a bug, e.g. an unnecessary requirement.
 evalp CREATE TABLE t (c INT, d DATE, PRIMARY KEY(c)) ENGINE=SPIDER
 COMMENT='table "src dst", srv "s_2_1 s_1"';
+--disable_view_protocol
 SELECT spider_copy_tables('t', '0', '1');
+--enable_view_protocol
 
 SELECT * FROM dst;
 
