@@ -510,12 +510,32 @@ SET DEBUG_SYNC = 'now SIGNAL inserted';
 
 connection con1;
 reap;
-disconnect con1;
 
 connection default;
 SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-36281 DML aborts during online virtual index
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL,
+		f3 INT NOT NULL, f4 INT AS (f3) VIRTUAL,
+		f5 INT AS (f1) VIRTUAL, INDEX(f4))ENGINE=InnoDB;
+INSERT INTO t1(f1, f2, f3) VALUES(1, 2, 3);
+SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter SIGNAL dml_start WAIT_FOR dml_finish';
+send ALTER TABLE t1 ADD INDEX(f5, f2, f4);
+
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR dml_start";
+UPDATE t1 SET f3= f3 + 1;
+set DEBUG_SYNC="now SIGNAL dml_finish";
+
+connection default;
+reap;
+DROP TABLE t1;
+disconnect con1;
+
 SET DEBUG_SYNC = 'RESET';
 
 # Check that all connections opened by test cases in this file are really
