@@ -94,6 +94,7 @@ void log_t::create()
 
   /* LSN 0 and 1 are reserved; @see buf_page_t::oldest_modification_ */
   lsn.store(FIRST_LSN, std::memory_order_relaxed);
+  buf_start_lsn= 0;
   flushed_to_disk_lsn.store(FIRST_LSN, std::memory_order_relaxed);
   need_checkpoint.store(true, std::memory_order_relaxed);
   write_lsn= FIRST_LSN;
@@ -102,10 +103,9 @@ void log_t::create()
   ut_ad(!buf);
   ut_ad(!flush_buf);
   ut_ad(!writer);
-  max_buf_free= 1;
 
   latch.SRW_LOCK_INIT(log_latch_key);
-  lsn_lock.init();
+  wrap_mutex.init();
 
   last_checkpoint_lsn= FIRST_LSN;
   log_capacity= 0;
@@ -113,8 +113,6 @@ void log_t::create()
   max_checkpoint_age= 0;
   next_checkpoint_lsn= 0;
   checkpoint_pending= false;
-
-  set_buf_free(0);
 
   ut_ad(is_initialised());
 }
@@ -352,7 +350,6 @@ bool log_t::attach(log_file_t file, os_offset_t size)
       }
 # endif
       buf= static_cast<byte*>(ptr);
-      max_buf_free= 1;
       writer_update(false);
 # ifdef HAVE_PMEM
       if (is_pmem)
@@ -366,7 +363,7 @@ bool log_t::attach(log_file_t file, os_offset_t size)
   if (!buf)
   {
   alloc_fail:
-    max_buf_free= 0;
+    lsn.store(0, std::memory_order_relaxed);
     sql_print_error("InnoDB: Cannot allocate memory;"
                     " too large innodb_log_buffer_size?");
     return false;
@@ -394,7 +391,6 @@ bool log_t::attach(log_file_t file, os_offset_t size)
 
   TRASH_ALLOC(buf, buf_size);
   TRASH_ALLOC(flush_buf, buf_size);
-  max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
   writer_update(false);
   memset_aligned<512>(checkpoint_buf, 0, write_size);
 
@@ -452,14 +448,12 @@ void log_t::create(lsn_t lsn) noexcept
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
     memset_aligned<4096>(buf, 0, 4096);
     log_sys.header_write(buf, lsn, is_encrypted());
-    set_buf_free(START_OFFSET);
     pmem_persist(buf, 512);
   }
   else
 #endif
   {
     ut_ad(!is_mmap());
-    set_buf_free(0);
     memset_aligned<4096>(flush_buf, 0, buf_size);
     memset_aligned<4096>(buf, 0, buf_size);
     log_sys.header_write(buf, lsn, is_encrypted());
@@ -509,7 +503,7 @@ void log_t::close_file(bool really_close)
 }
 
 /** Acquire all latches that protect the log. */
-static void log_resize_acquire()
+static void log_resize_acquire() noexcept
 {
 #ifdef HAVE_PMEM
   if (!log_sys.is_mmap())
@@ -525,7 +519,7 @@ static void log_resize_acquire()
 }
 
 /** Release the latches that protect the log. */
-void log_resize_release()
+void log_resize_release() noexcept
 {
   log_sys.latch.wr_unlock();
 
@@ -993,7 +987,7 @@ lsn_t log_t::write_buf() noexcept
     ut_ad(write_lsn >= get_flushed_lsn());
     const size_t write_size_1{write_size - 1};
     ut_ad(ut_is_2pow(write_size));
-    size_t length{buf_free.load(std::memory_order_relaxed)};
+    size_t length{size_t(lsn - buf_start_lsn)};
     lsn_t offset{calc_lsn_offset(write_lsn)};
     ut_ad(length >= (offset & write_size_1));
     ut_ad(write_size_1 >= 511);
@@ -1015,14 +1009,8 @@ lsn_t log_t::write_buf() noexcept
     {
       ut_ad(!((length ^ (size_t(lsn) - size_t(first_lsn))) & write_size_1));
       /* Keep filling the same buffer until we have more than one block. */
-#if 0 /* TODO: Pad the last log block with dummy records. */
-      buf_free= log_pad(lsn, (write_size_1 + 1) - length,
-                        buf + length, flush_buf);
-      ... /* TODO: Update the LSN and adjust other code. */
-#else
       MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - length);
       buf[length]= 0; /* ensure that recovery catches EOF */
-#endif
       if (UNIV_LIKELY_NULL(re_write_buf))
       {
         MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) - length);
@@ -1034,7 +1022,7 @@ lsn_t log_t::write_buf() noexcept
     {
       const size_t new_buf_free{length & write_size_1};
       ut_ad(new_buf_free == ((lsn - first_lsn) & write_size_1));
-      buf_free.store(new_buf_free, std::memory_order_relaxed);
+      buf_start_lsn+= length & ~write_size_1;
 
       if (new_buf_free)
       {
@@ -1126,7 +1114,7 @@ wait and check if an already running write is covering the request.
 void log_write_up_to(lsn_t lsn, bool durable,
                      const completion_callback *callback) noexcept
 {
-  ut_ad(!srv_read_only_mode || log_sys.buf_free_ok());
+  ut_ad(!srv_read_only_mode);
   ut_ad(lsn != LSN_MAX);
   ut_ad(lsn != 0);
   ut_ad(!log_sys.is_mmap() || !callback || durable);
@@ -1242,10 +1230,9 @@ void log_t::clear_mmap()
   {
     alignas(16) byte log_block[4096];
     const size_t bs{write_size};
-    const size_t bf{buf_free.load(std::memory_order_relaxed)};
     {
-      byte *const b= buf;
-      memcpy_aligned<16>(log_block, b + (bf & ~(bs - 1)), bs);
+      const size_t bf= size_t(lsn - buf_start_lsn);
+      memcpy_aligned<16>(log_block, buf + (bf & ~(bs - 1)), bs);
     }
 
     close_file(false);
@@ -1253,8 +1240,10 @@ void log_t::clear_mmap()
     ut_a(attach(log, file_size));
     ut_ad(!is_mmap());
 
-    set_buf_free(bf & (bs - 1));
-    memcpy_aligned<16>(log_sys.buf, log_block, bs);
+    memcpy_aligned<16>(buf, log_block, bs);
+    /* If is_mmap(), the record payload area starts at buf + START_OFFSET.
+    Else, it starts at buf. The buf_start_lsn accommodates this. */
+    buf_start_lsn-= START_OFFSET;
   }
   log_resize_release();
 }
@@ -1320,7 +1309,7 @@ func_exit:
 /** Wait for a log checkpoint if needed.
 NOTE that this function may only be called while not holding
 any synchronization objects except dict_sys.latch. */
-void log_free_check()
+void log_free_check() noexcept
 {
   ut_ad(!lock_sys.is_holder());
   if (log_sys.check_for_checkpoint())
@@ -1546,20 +1535,18 @@ log_print(
 void log_t::close()
 {
   ut_ad(this == &log_sys);
-  ut_ad(!(buf_free & buf_free_LOCK));
   if (!is_initialised()) return;
   close_file();
 
   ut_ad(!checkpoint_buf);
   ut_ad(!buf);
   ut_ad(!flush_buf);
+  lsn.store(0, std::memory_order_relaxed);
 
   latch.destroy();
-  lsn_lock.destroy();
+  wrap_mutex.destroy();
 
   recv_sys.close();
-
-  max_buf_free= 0;
 }
 
 std::string get_log_file_path(const char *filename)

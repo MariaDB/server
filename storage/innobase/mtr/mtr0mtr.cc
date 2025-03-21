@@ -335,24 +335,11 @@ void mtr_t::release()
   m_memo.clear();
 }
 
-inline lsn_t log_t::get_write_target() const
-{
-  ut_ad(latch_have_any());
-  if (UNIV_LIKELY(buf_free_ok()))
-    return 0;
-  /* The LSN corresponding to the end of buf is
-  write_lsn - (first_lsn & 4095) + buf_free,
-  but we use simpler arithmetics to return a smaller write target in
-  order to minimize waiting in log_write_up_to(). */
-  ut_ad(max_buf_free >= 4096 * 4);
-  return write_lsn + max_buf_free / 2;
-}
-
 template<bool mmap>
 void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
+  noexcept
 {
   size_t modified= 0;
-  const lsn_t write_lsn= mmap ? 0 : log_sys.get_write_target();
 
   if (mtr->m_made_dirty)
   {
@@ -471,9 +458,6 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
 
   if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
     buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
-
-  if (!mmap && UNIV_UNLIKELY(write_lsn != 0))
-    log_write_up_to(write_lsn, false);
 }
 
 /** Commit a mini-transaction. */
@@ -893,27 +877,34 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   ? ". Shutdown is in progress" : "");
 }
 
-ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
-  noexcept
+ATTRIBUTE_COLD void log_t::append_prepare_wait(size_t size, bool ex) noexcept
 {
+  wrap_mutex.wr_lock();
   waits++;
-  ut_ad(buf_free.load(std::memory_order_relaxed) == b);
-  lsn_lock.wr_unlock();
+  // FIXME: indicate back-off by flipping the MSB
+  lsn_t l{lsn.load(std::memory_order_relaxed)};
+  lsn_t flip{0}; // FIXME: or 1U<<63
+
+  /* Subtract the LSN that we had overshooted, and flip the "in
+  back-off" flag unless it was already flipped by another backing-off
+  thread that was executing this function. */
+  l= lsn.fetch_sub(size + flip, std::memory_order_relaxed) - size;
+  wrap_mutex.wr_unlock();
+  // FIXME: poll lsn until it is clean (except for the back-off flag),
+  // that is, wait for any concurrent threads to get to this point
 
   if (ex)
     latch.wr_unlock();
   else
     latch.rd_unlock();
 
-  log_write_up_to(lsn, is_mmap());
+  // FIXME: the following will clear the back-off flag
+  log_write_up_to(l, is_mmap());
 
   if (ex)
     latch.wr_lock(SRW_LOCK_CALL);
   else
     latch.rd_lock(SRW_LOCK_CALL);
-
-  lsn_lock.wr_lock();
-  return buf_free.load(std::memory_order_relaxed);
 }
 
 /** Reserve space in the log buffer for appending data.
@@ -927,38 +918,26 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(mmap == is_mmap());
-  lsn_lock.wr_lock();
-  size_t b{buf_free.load(std::memory_order_relaxed)};
-  //write_to_buf++;
-
-  lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
-
-  if (UNIV_UNLIKELY(mmap
-                    ? (end_lsn -
-                       get_flushed_lsn(std::memory_order_relaxed)) > capacity()
-                    : b + size >= buf_size))
+  write_to_buf.fetch_add(1);
+  lsn_t l, end_lsn, buf_start_lsn;
+  for (;;)
   {
-    b= append_prepare_wait(b, ex, l);
-    /* While flushing log, we had released the lsn lock and LSN could have
-    progressed in the meantime. */
-    l= lsn.load(std::memory_order_relaxed);
+    // FIXME: flipped MSB indicates that we must append_prepare_wait()
+    l= lsn.fetch_add(size, std::memory_order_relaxed);
     end_lsn= l + size;
+    buf_start_lsn= this->buf_start_lsn;
+    if (UNIV_LIKELY(mmap
+                    ? (end_lsn - get_flushed_lsn(std::memory_order_relaxed)) <=
+                    capacity()
+                    : end_lsn - buf_start_lsn < buf_size))
+      break;
+    append_prepare_wait(size, ex);
   }
-
-  size_t new_buf_free= b + size;
-  if (mmap && new_buf_free >= file_size)
-    new_buf_free-= size_t(capacity());
-
-  lsn.store(end_lsn, std::memory_order_relaxed);
 
   if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
     set_check_for_checkpoint(true);
 
-  byte *our_buf= buf;
-  buf_free.store(new_buf_free, std::memory_order_relaxed);
-  lsn_lock.wr_unlock();
-
-  return {l, our_buf + b};
+  return {l, buf + size_t(l - buf_start_lsn)};
 }
 
 /** Finish appending data to the log.
@@ -1103,7 +1082,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     if (!resize_flush_buf)
     {
       ut_ad(is_mmap());
-      lsn_lock.wr_lock();
+      wrap_mutex.wr_lock();
       const size_t resize_capacity{resize_target - START_OFFSET};
       {
         const lsn_t resizing{resize_in_progress()};
@@ -1114,7 +1093,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
         if (UNIV_UNLIKELY(lsn < resizing))
         {
           /* This function may execute in multiple concurrent threads
-          that hold a shared log_sys.latch. Before we got lsn_lock,
+          that hold a shared log_sys.latch. Before we acquired wrap_mutex,
           another thread could have executed resize_lsn.store(lsn) below
           with a larger lsn than ours.
 
@@ -1164,7 +1143,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
       ut_ad(resize_buf[s] <= 1);
       resize_buf[s]= 1;
     mmap_done:
-      lsn_lock.wr_unlock();
+      wrap_mutex.wr_unlock();
     }
     else
 #endif

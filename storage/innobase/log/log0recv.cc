@@ -4597,18 +4597,15 @@ inline void log_t::set_recovered() noexcept
 {
   ut_ad(get_flushed_lsn() == get_lsn());
   ut_ad(recv_sys.lsn == get_lsn());
-  size_t offset{recv_sys.offset};
   if (!is_mmap())
   {
     const size_t bs{log_sys.write_size}, bs_1{bs - 1};
-    memmove_aligned<512>(buf, buf + (offset & ~bs_1), bs);
-    offset&= bs_1;
+    memmove_aligned<512>(buf, buf + (recv_sys.offset & ~bs_1), bs);
   }
 #ifndef _WIN32
   else
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
 #endif
-  set_buf_free(offset);
 }
 
 inline bool recv_sys_t::validate_checkpoint() const noexcept

@@ -1890,7 +1890,6 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
         ut_ad(!is_opened());
         my_munmap(buf, file_size);
         buf= resize_buf;
-        set_buf_free(START_OFFSET + (get_lsn() - resizing));
       }
       else
 #endif
