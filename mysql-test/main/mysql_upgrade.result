@@ -47,7 +47,8 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 Run it again - should say already completed
-This installation of MariaDB is already upgraded to VERSION.There is no need to run mysql_upgrade again for VERSION.
+This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
 You can use --force if you still want to run mysql_upgrade
 Force should run it regardless of whether it has been run before
 Phase 1/7: Checking and upgrading mysql database
@@ -776,11 +777,11 @@ FLUSH PRIVILEGES;
 #
 # MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
 #
-This installation of MariaDB is already upgraded to MariaDB .
-There is no need to run mysql_upgrade again for MariaDB .
+This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
 Looking for 'mariadb' as: mariadb
-This installation of MariaDB is already upgraded to MariaDB .
-There is no need to run mysql_upgrade again for MariaDB .
+This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
 #
@@ -790,17 +791,17 @@ Empty or non existent ...mysql_upgrade_info. Assuming mysql_upgrade has to be ru
 # MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
 #
 Looking for 'mariadb' as: mariadb
-This installation of MariaDB is already upgraded to MariaDB .
-There is no need to run mysql_upgrade again for MariaDB .
-This installation of MariaDB is already upgraded to MariaDB .
-There is no need to run mysql_upgrade again for MariaDB .
+This installation of MariaDB is already upgraded to X.Y.0-MariaDB.
+There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
+This installation of MariaDB is already upgraded to X.Y.0-MariaDB.
+There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
 You can use --force if you still want to run mysql_upgrade
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
 #
-Major version upgrade detected from MariaDB  to MariaDB . Check required!
+Major version upgrade detected from X.0.99 to X.Y.Z-MariaDB. Check required!
 Looking for 'mysql' as: mysql
-Major version upgrade detected from MariaDB  to MariaDB . Check required!
+Major version upgrade detected from X.0.99 to X.Y.Z-MariaDB. Check required!
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.2 tests
