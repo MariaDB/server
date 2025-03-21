@@ -141,6 +141,22 @@ public:
   uint size_of() const  override { return sizeof(*this); }
   bool update_min(Field *, bool) override { return false; } // disable EITS
   bool update_max(Field *, bool) override { return false; } // disable EITS
+
+  // Embedding-related methods
+  bool has_embedding_generator() const { return m_embedding_generator_name != nullptr; }
+  const char* embedding_generator_name() const { return m_embedding_generator_name; }
+  const char* embedding_source_field_name() const { return m_embedding_source_field_name; }
+  uint embedding_dimensions() const { return m_embedding_dimensions; }
+  
+  void set_embedding_generator(const char *name);
+  void set_embedding_source_field(const char *name);
+  void set_embedding_dimensions(uint dimensions);
+
+private:
+  // Embedding-related members
+  char *m_embedding_generator_name = nullptr;
+  char *m_embedding_source_field_name = nullptr;
+  uint m_embedding_dimensions = 0;
 };
 
 #endif // SQL_TYPE_VECTOR_INCLUDED

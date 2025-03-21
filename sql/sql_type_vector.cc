@@ -236,6 +236,18 @@ void Field_vector::sql_type(String &res) const
 
 int Field_vector::reset()
 {
+  if (m_embedding_generator_name)
+  {
+    my_free(m_embedding_generator_name);
+    m_embedding_generator_name = nullptr;
+  }
+  
+  if (m_embedding_source_field_name)
+  {
+    my_free(m_embedding_source_field_name);
+    m_embedding_source_field_name = nullptr;
+  }
+
   int res= Field_varstring::reset();
   store_length(field_length);
   return res;
@@ -298,6 +310,7 @@ int Field_vector::store_decimal(const my_decimal *nr)
   return report_wrong_value(ErrConvDecimal(nr));
 }
 
+/* The method for storing data in a vector field */
 int Field_vector::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
   if (table->in_use->count_cuted_fields != CHECK_FIELD_IGNORE)
@@ -313,6 +326,37 @@ int Field_vector::store(const char *from, size_t length, CHARSET_INFO *cs)
   }
 
   return Field_varstring::store(from, length, cs);
+}
+
+Field_vector* Field_vector::embedding_source_field() const
+{
+  if (!m_embedding_source_field_name)
+    return nullptr;
+    
+  for (Field **field = table->field; *field; field++)
+  {
+    if (strcmp((*field)->field_name, m_embedding_source_field_name) == 0)
+      return *field;
+  }
+  
+  return nullptr;
+}
+
+void Field_vector::set_embedding_generator(const char *name)
+{
+  if (name)
+    m_embedding_generator_name = my_strdup(PSI_NOT_INSTRUMENTED, name, MYF(MY_WME));
+}
+
+void Field_vector::set_embedding_source_field(const char *name)
+{
+  if (name)
+    m_embedding_source_field_name = my_strdup(PSI_NOT_INSTRUMENTED, name, MYF(MY_WME));
+}
+
+void Field_vector::set_embedding_dimensions(uint dimensions)
+{
+  m_embedding_dimensions = dimensions;
 }
 
 enum_conv_type Field_vector::rpl_conv_type_from(const Conv_source &src,
