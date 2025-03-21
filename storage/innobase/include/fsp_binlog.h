@@ -37,6 +37,9 @@ struct chunk_data_base;
 /** Store crc32 checksum at the end of the page */
 #define BINLOG_PAGE_CHECKSUM 4
 
+#define BINLOG_PAGE_DATA 0
+#define BINLOG_PAGE_DATA_END BINLOG_PAGE_CHECKSUM
+
 
 enum fsp_binlog_chunk_types {
   /* Zero means no data, effectively EOF. */
