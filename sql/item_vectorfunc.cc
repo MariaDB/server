@@ -274,3 +274,109 @@ error:
   null_value= true;
   return nullptr;
 }
+
+/*
+  EMBED() function implementation
+  
+  This function takes a text string and generates an embedding using
+  the specified embedding generator.
+*/
+bool Item_func_embed::fix_length_and_dec(THD *thd)
+{
+  // Default dimensions for our embeddings
+  uint dimensions = 384; 
+  
+  // For now, use fixed dimensions
+  // In a full implementation, we'd query the plugin for its dimensions
+  max_length = dimensions * sizeof(float);
+  
+  // Binary string result
+  collation.set(&my_charset_bin);
+  maybe_null = true;
+  
+  return false;
+}
+
+String *Item_func_embed::val_str(String *str)
+{
+  DBUG_ENTER("Item_func_embed::val_str");
+  
+  // Get the input text
+  String *input = args[0]->val_str(&tmp_value);
+  if (args[0]->null_value || input == NULL)
+  {
+    null_value = true;
+    DBUG_RETURN(NULL);
+  }
+  
+  // Default generator for now
+  // In a full implementation, we'd allow specifying the generator name
+  const char *generator_name = "simple_embedder";
+  
+  // Get the plugin
+  LEX_STRING plugin_name = { const_cast<char*>(generator_name), strlen(generator_name) };
+  plugin_ref plugin = my_plugin_lock_by_name(current_thd, &plugin_name, MYSQL_EMBEDDING_PLUGIN);
+  if (!plugin)
+  {
+    null_value = true;
+    DBUG_RETURN(NULL);
+  }
+  
+  // Create embedding parameter
+  MYSQL_EMBEDDING_PARAM param;
+  memset(&param, 0, sizeof(param));
+  param.doc = const_cast<char*>(input->c_ptr_safe());
+  param.length = input->length();
+  param.cs = args[0]->collation.collation;
+  param.mode = EMBEDDING_TEXT_MODE;
+  
+  // Reset output string
+  str->length(0);
+  str->set_charset(&my_charset_bin);
+  
+  // Setup callback to receive the embedding
+  param.mysql_add_embedding = [](MYSQL_EMBEDDING_PARAM *p, float *embedding, size_t dimensions) -> int {
+    String *result = static_cast<String*>(p->mysql_embedding_param);
+    if (result->reserve(dimensions * sizeof(float)))
+      return 1; // Out of memory
+    result->q_append(reinterpret_cast<char*>(embedding), dimensions * sizeof(float));
+    return 0;
+  };
+  
+  // Set the result string as the context
+  param.mysql_embedding_param = str;
+  
+  // Get the plugin interface
+  MYSQL_EMBEDDING_PLUGIN *emb_plugin = 
+    (MYSQL_EMBEDDING_PLUGIN*)plugin_decl(plugin)->info;
+  
+  // Initialize the plugin if needed
+  if (emb_plugin->init)
+    emb_plugin->init(&param);
+  
+  // Generate the embedding
+  int result = emb_plugin->generate(&param);
+  
+  // Clean up
+  if (emb_plugin->deinit)
+    emb_plugin->deinit(&param);
+  
+  plugin_unlock(current_thd, plugin);
+  
+  if (result)
+  {
+    null_value = true;
+    DBUG_RETURN(NULL);
+  }
+  
+  null_value = false;
+  DBUG_RETURN(str);
+}
+
+// Parse arguments for the EMBED function
+longlong Item_func_embed::get_explicit_json_func(THD *thd)
+{
+  return (arg_count == 2 && args[1]->type() == STRING_ITEM && 
+          !my_strcasecmp(system_charset_info, args[1]->str_value.ptr(), "json")) ?
+          EXPLICIT_JSON_ENABLE : EXPLICIT_JSON_DISABLE;
+}

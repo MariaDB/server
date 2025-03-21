@@ -1990,6 +1990,20 @@ public:
 #endif
   void find_constraint_correlated_indexes();
 
+  bool has_embedding_fields() const
+  {
+    for (Field **field_ptr = field; *field_ptr; field_ptr++)
+    {
+      if ((*field_ptr)->type_handler()->is_vector_type())
+      {
+        Field_vector *vec_field = static_cast<Field_vector*>(*field_ptr);
+        if (vec_field->has_embedding_generator())
+          return true;
+      }
+    }
+    return false;
+  }
+
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
 };

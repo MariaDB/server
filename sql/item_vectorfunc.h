@@ -102,4 +102,27 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_fromtext>(thd, this); }
 };
+
+// sql/item_vectorfunc.h
+/* 
+  Implement EMBED() function to generate embeddings in queries on-the-fly:
+    1. Take text/image/audio data as input
+    2. Call embedding generator plugin
+    3. Return a binary vector in the same format as VEC_FromText
+*/
+class Item_func_embed: public Item_str_func
+{
+public:
+  Item_func_embed(THD *thd, Item *a) : Item_str_func(thd, a) 
+  { }
+  bool fix_length_and_dec(THD *thd) override;
+  String *val_str(String *buf) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= { STRING_WITH_LEN("EMBED") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_embed>(thd, this); }
+};
 #endif
