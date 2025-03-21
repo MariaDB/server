@@ -642,7 +642,7 @@ fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
 {
   uint64_t file_no= page->file_no;
   uint32_t page_no= page->page_no;
-  if (page_offset + len >= srv_page_size - FIL_PAGE_DATA_END)
+  if (page_offset + len >= srv_page_size - BINLOG_PAGE_DATA_END)
     page->complete= true;
   if (page->flushed_clean)
   {
@@ -814,7 +814,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
 {
   uint32_t page_size= (uint32_t)srv_page_size;
   uint32_t page_size_shift= srv_page_size_shift;
-  const uint32_t page_end= page_size - FIL_PAGE_DATA_END;
+  const uint32_t page_end= page_size - BINLOG_PAGE_DATA_END;
   uint32_t page_no= binlog_cur_page_no;
   uint32_t page_offset= binlog_cur_page_offset;
   /* ToDo: What is the lifetime of what's pointed to by binlog_cur_block, is there some locking needed around it or something? */
@@ -830,7 +830,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
   */
   byte cont_flag= 0;
   for (;;) {
-    if (page_offset == FIL_PAGE_DATA) {
+    if (page_offset == BINLOG_PAGE_DATA) {
       uint32_t file_size_in_pages= binlog_page_fifo->size_in_pages(file_no);
       if (UNIV_UNLIKELY(page_no >= file_size_in_pages)) {
         /*
@@ -944,7 +944,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
       binlog_page_fifo->release_page_mtr(block, mtr);
       block= nullptr;
       ++page_no;
-      page_offset= FIL_PAGE_DATA;
+      page_offset= BINLOG_PAGE_DATA;
       continue;
     }
 
@@ -980,7 +980,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
     if (page_remain == 0) {
       binlog_page_fifo->release_page_mtr(block, mtr);
       block= nullptr;
-      page_offset= FIL_PAGE_DATA;
+      page_offset= BINLOG_PAGE_DATA;
       ++page_no;
     } else {
       page_offset+= size+3;
@@ -1054,8 +1054,8 @@ fsp_binlog_flush()
   binlog_page_fifo->unlock();
 
   uint32_t page_offset= binlog_cur_page_offset;
-  if (page_offset > FIL_PAGE_DATA ||
-      page_offset < srv_page_size - FIL_PAGE_DATA_END)
+  if (page_offset > BINLOG_PAGE_DATA ||
+      page_offset < srv_page_size - BINLOG_PAGE_DATA_END)
   {
   /*
     If we are not precisely the end of a page, fill up that page with a dummy
@@ -1283,12 +1283,23 @@ read_more_data:
   if (s.chunk_len == 0)
   {
     byte type;
-    if (s.in_page_offset < FIL_PAGE_DATA)
-      s.in_page_offset= FIL_PAGE_DATA;
-    else if (s.in_page_offset >= srv_page_size - (FIL_PAGE_DATA_END + 3) ||
+    /*
+      This code gives warning "comparison of unsigned expression in ‘< 0’ is
+      always false" when BINLOG_PAGE_DATA is 0.
+
+      So use a static assert for now; if it ever triggers, replace it with this
+      code:
+
+       if (s.in_page_offset < BINLOG_PAGE_DATA)
+         s.in_page_offset= BINLOG_PAGE_DATA;
+    */
+    if (0)
+      static_assert(BINLOG_PAGE_DATA == 0,
+                    "Replace static_assert with code from above comment");
+    else if (s.in_page_offset >= srv_page_size - (BINLOG_PAGE_DATA_END + 3) ||
              page_ptr[s.in_page_offset] == FSP_BINLOG_TYPE_FILLER)
     {
-      ut_ad(s.in_page_offset >= srv_page_size - FIL_PAGE_DATA_END ||
+      ut_ad(s.in_page_offset >= srv_page_size - BINLOG_PAGE_DATA_END ||
             page_ptr[s.in_page_offset] == FSP_BINLOG_TYPE_FILLER);
       goto go_next_page;
     }
@@ -1402,7 +1413,7 @@ skip_chunk:
     s.skip_current= false;
   }
 
-  if (s.in_page_offset >= srv_page_size - (FIL_PAGE_DATA_END + 3))
+  if (s.in_page_offset >= srv_page_size - (BINLOG_PAGE_DATA_END + 3))
   {
 go_next_page:
     /* End of page reached, move to the next page. */

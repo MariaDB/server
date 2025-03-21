@@ -722,7 +722,7 @@ binlog_recovery::init_recovery_from(uint64_t file_no, lsn_t file_lsn,
   else
   {
     skipping_early_lsn= false;
-    if (offset <= FIL_PAGE_DATA)
+    if (offset <= BINLOG_PAGE_DATA)
     {
       update_page_from_record(offset, buf, size);
       skipping_partial_page= false;
@@ -948,7 +948,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
 
   if (skipping_partial_page)
   {
-    if (offset > FIL_PAGE_DATA)
+    if (offset > BINLOG_PAGE_DATA)
       return false;
     skipping_partial_page= false;
   }
@@ -980,9 +980,9 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
   if (space_id != (cur_file_no & 1))
   {
     /* Check that we recovered all of this file. */
-    if ( ( (cur_page_offset > FIL_PAGE_DATA &&
-            cur_page_offset < srv_page_size - FIL_PAGE_DATA_END) ||
-           cur_page_no + (cur_page_offset > FIL_PAGE_DATA) <
+    if ( ( (cur_page_offset > BINLOG_PAGE_DATA &&
+            cur_page_offset < srv_page_size - BINLOG_PAGE_DATA_END) ||
+           cur_page_no + (cur_page_offset > BINLOG_PAGE_DATA) <
            cur_phys_size >> srv_page_size_shift) &&
          !srv_force_recovery)
     {
@@ -992,7 +992,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
     }
 
     /* Check that we recover from the start of the next file. */
-    if ((page_no > 0 || offset > FIL_PAGE_DATA) && !srv_force_recovery)
+    if ((page_no > 0 || offset > BINLOG_PAGE_DATA) && !srv_force_recovery)
     {
       sql_print_error("InnoDB: Missing recovery record at start of file_no=%"
                       PRIu64 ", LSN " LSN_PF, cur_file_no+1, start_lsn);
@@ -1005,7 +1005,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
   /* Test for moving to the next page. */
   else if (page_no != cur_page_no)
   {
-    if (cur_page_offset < srv_page_size - FIL_PAGE_DATA_END &&
+    if (cur_page_offset < srv_page_size - BINLOG_PAGE_DATA_END &&
         !srv_force_recovery)
     {
       sql_print_error("InnoDB: Missing recovery record in file_no=%"
@@ -1014,7 +1014,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
       return true;
     }
 
-    if ((page_no != cur_page_no + 1 || offset > FIL_PAGE_DATA) &&
+    if ((page_no != cur_page_no + 1 || offset > BINLOG_PAGE_DATA) &&
         !srv_force_recovery)
     {
       sql_print_error("InnoDB: Missing recovery record in file_no=%"
@@ -1028,7 +1028,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
   }
   /* Test no gaps in offset. */
   else if (offset != cur_page_offset &&
-           offset > FIL_PAGE_DATA &&
+           offset > BINLOG_PAGE_DATA &&
            !srv_force_recovery)
   {
       sql_print_error("InnoDB: Missing recovery record in file_no=%"
@@ -1105,7 +1105,7 @@ innodb_binlog_init_state()
   total_binlog_used_size= 0;
   active_binlog_file_no.store(~(uint64_t)0, std::memory_order_release);
   binlog_cur_page_no= 0;
-  binlog_cur_page_offset= FIL_PAGE_DATA;
+  binlog_cur_page_offset= BINLOG_PAGE_DATA;
   current_binlog_state_interval=
     (uint32_t)(innodb_binlog_state_interval >> srv_page_size_shift);
   ut_a(innodb_binlog_state_interval ==
@@ -1283,7 +1283,7 @@ static bool
 binlog_page_empty(const byte *page)
 {
   /* ToDo: Here we also need to see if there is a full state record at the start of the file. If not, we have to delete the file and ignore it, it is an incomplete file. Or can we rely on the innodb crash recovery to make file creation atomic and we will never see a partially pre-allocated file? Also if the gtid state is larger than mtr max size (if there is such max?), or if we crash in the middle of pre-allocation? */
-  return page[FIL_PAGE_DATA] == 0;
+  return page[BINLOG_PAGE_DATA] == 0;
 }
 
 
@@ -1312,7 +1312,7 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   bool ret;
 
   *out_page_no= 0;
-  *out_pos_in_page= FIL_PAGE_DATA;
+  *out_pos_in_page= BINLOG_PAGE_DATA;
 
   binlog_name_make(file_name, file_no);
   pfs_os_file_t fh= os_file_create(innodb_data_file_key, file_name,
@@ -1376,8 +1376,8 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   }
 
   /* Now scan the last page to find the position in it to continue. */
-  p= &page_buf[FIL_PAGE_DATA];
-  page_end= &page_buf[page_size - FIL_PAGE_DATA_END];
+  p= &page_buf[BINLOG_PAGE_DATA];
+  page_end= &page_buf[page_size - BINLOG_PAGE_DATA_END];
   while (*p && p < page_end) {
     if (*p == FSP_BINLOG_TYPE_FILLER) {
       p= page_end;
@@ -1391,7 +1391,7 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   *out_page_no= p_0 - 1;
   *out_pos_in_page= (uint32_t)(p - page_buf);
 
-  if (*out_pos_in_page >= page_size - FIL_PAGE_DATA_END)
+  if (*out_pos_in_page >= page_size - BINLOG_PAGE_DATA_END)
     ret= fsp_binlog_open(file_name, fh, file_no, file_size, p_0, nullptr);
   else
     ret= fsp_binlog_open(file_name, fh, file_no, file_size, p_0 - 1, page_buf);
@@ -1493,7 +1493,7 @@ innodb_binlog_discover()
     binlog_cur_page_no= page_no;
     binlog_cur_page_offset= pos_in_page;
     ib::info() << "Continuing binlog number " << file_no << " from position "
-               << FIL_PAGE_DATA << ".";
+               << BINLOG_PAGE_DATA << ".";
     return binlog_files.found_binlogs;
   }
 
@@ -1717,11 +1717,11 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   }
 
   const uint32_t page_size= (uint32_t)srv_page_size;
-  const uint32_t page_room= page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
+  const uint32_t page_room= page_size - (BINLOG_PAGE_DATA + BINLOG_PAGE_DATA_END);
   uint32_t needed_pages= (uint32_t)((used_bytes + page_room - 1) / page_room);
 
   /* For now, GTID state always at the start of a page. */
-  ut_ad(page_offset == FIL_PAGE_DATA);
+  ut_ad(page_offset == BINLOG_PAGE_DATA);
 
   /*
     Only write the GTID state record if there is room for actual event data
@@ -1739,7 +1739,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       block_page_no= page_no;
       block= binlog_page_fifo->create_page(file_no, block_page_no);
       ut_a(block /* ToDo: error handling? */);
-      page_offset= FIL_PAGE_DATA;
+      page_offset= BINLOG_PAGE_DATA;
       byte *ptr= page_offset + &block->page_buf[0];
       ssize_t chunk= used_bytes;
       byte last_flag= FSP_BINLOG_FLAG_LAST;
@@ -1760,12 +1760,12 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       cont_flag= FSP_BINLOG_FLAG_CONT;
     }
 
-    if (page_offset == page_size - FIL_PAGE_DATA_END) {
+    if (page_offset == page_size - BINLOG_PAGE_DATA_END) {
       if (block)
         binlog_page_fifo->release_page_mtr(block, mtr);
       block= nullptr;
       block_page_no= ~(uint32_t)0;
-      page_offset= FIL_PAGE_DATA;
+      page_offset= BINLOG_PAGE_DATA;
       ++page_no;
     }
   }
@@ -1794,7 +1794,7 @@ static int
 read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
                           uint32_t page_no, binlog_header_data *out_header_data)
 {
-  const byte *p= page + FIL_PAGE_DATA;
+  const byte *p= page + BINLOG_PAGE_DATA;
   byte t= *p;
   if (UNIV_UNLIKELY((t & FSP_BINLOG_TYPE_MASK) != FSP_BINLOG_TYPE_GTID_STATE))
   {

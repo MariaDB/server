@@ -4836,7 +4836,22 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
     return true;
   }
 
-  if (reader->init_legacy_pos(lex_mi->log_file_name, lex_mi->pos))
+  ulonglong pos= lex_mi->pos;
+  /*
+    The positions "0" and "4" are unfortunately traditionally used
+    interchangeably to mean "the start of the binlog". Thus, we might here
+    easily see a starting position of "4", which is probably not valid in
+    the engine, but which really means "start of the file".
+
+    So here we have this ugly hack where "4" means the same as "0". Well,
+    use of offsets is discourated anyway in the new binlog (in favour of
+    GTID), and "4" is not going to be a valid position most likely, or if
+    it is, "0" will be equivalent (at least it is so for the InnoDB binlog
+    implementation.
+  */
+  if (pos == 4)
+    pos= 0;
+  if (reader->init_legacy_pos(lex_mi->log_file_name, pos))
   {
     err= true;
     goto end;
