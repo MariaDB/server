@@ -1,0 +1,43 @@
+# ==== Purpose ====
+#
+# Verify that START SLAVE UNTIL replicates correctly when valid parameters are passed,
+# and that it returns errors when invalid combinations of parameters are used.
+#
+# ==== Method ====
+#
+# On master, create tables and insert rows to generate binlog events.
+# Test START SLAVE UNTIL on the slave with:
+#   Incorrect parameter combinations to verify that errors are raised.
+#
+# ==== Related bugs ====
+# MDEV-35635
+# Testing issues around invalid parameters and START SLAVE UNTIL behavior.
+
+# Include necessary configurations
+source include/have_binlog_format_statement.inc;
+source include/master-slave.inc;
+source include/rpl_reset.inc;
+
+# Test is dependent on binlog positions
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+
+sync_slave_with_master;
+--source include/stop_slave.inc
+
+# Generate binlog events on the master.
+connection master;
+CREATE TABLE t1(n INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2),(3);
+let $master_log_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $master_log_pos_1= query_get_value(SHOW MASTER STATUS, Position, 1);
+
+echo $master_log_file and $master_log_pos_1;
+
+connection slave;
+-- error ER_PARSE_ERROR
+start slave until master_log_file='$master_log_file', master_log_pos=$master_log_pos_1, MASTER_USE_GTID=NO, MASTER_DEMOTE_TO_SLAVE=1;
+
+# Clean up after tests.
+DROP TABLE t1;
+source include/rpl_end.inc;
+# ==== End of test ====
