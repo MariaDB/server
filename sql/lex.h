@@ -474,6 +474,7 @@ SYMBOL symbols[] = {
   { "PAGE",	        SYM(PAGE_SYM)},
   { "PAGE_CHECKSUM",	SYM(PAGE_CHECKSUM_SYM)},
   { "PARSER",           SYM(PARSER_SYM)},
+  { "EMBEDDING",           SYM(EMBEDDING_SYM)},
   { "PARSE_VCOL_EXPR",  SYM(PARSE_VCOL_EXPR_SYM)},
   { "PATH",		SYM(PATH_SYM)},
   { "PERIOD",		SYM(PERIOD_SYM)},
@@ -801,6 +802,7 @@ SYMBOL sql_functions[] = {
   { "VARIANCE",		SYM(VARIANCE_SYM)},
   { "VAR_POP",		SYM(VARIANCE_SYM)},
   { "VAR_SAMP",		SYM(VAR_SAMP_SYM)},
+  { "EMBED",		SYM(EMBED_SYM)},
 };
 
 size_t symbols_length= sizeof(symbols) / sizeof(SYMBOL);

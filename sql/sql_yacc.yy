@@ -1013,6 +1013,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  PACK_KEYS_SYM
 %token  <kwd>  PAGE_SYM
 %token  <kwd>  PARSER_SYM
+%token  <kwd>  EMBEDDING_SYM
+%token  <kwd>  EMBED_SYM
 %token  <kwd>  PARTIAL                       /* SQL-2003-N */
 %token  <kwd>  PARTITIONS_SYM
 %token  <kwd>  PARTITIONING_SYM
@@ -1834,6 +1836,7 @@ rule:
         spatial_key_options fulltext_key_options normal_key_opt 
         fulltext_key_opt spatial_key_opt fulltext_key_opts spatial_key_opts
         explain_for_connection
+        field_vector_opt
 	keep_gcc_happy
         key_using_alg
         part_column_list
@@ -6468,7 +6471,7 @@ field_type_all_builtin:
         | field_type_string
         | field_type_lob
         | field_type_misc
-      ;
+        ;
 
 field_type_all:
           field_type_all_builtin
@@ -6834,6 +6837,7 @@ attribute:
             $$= Lex_exact_charset_extended_collation_attrs($2);
           }
         | serial_attribute { $$.init(); }
+        | field_vector_opt { $$.init(); }
         ;
 
 opt_compression_method:
@@ -7262,9 +7266,11 @@ fulltext_key_options:
         | fulltext_key_opts { Lex->last_key->option_list= Lex->option_list; }
         ;
 
+/* include the vector field embedding options */
 spatial_key_options:
           /* empty */ {}
         | spatial_key_opts { Lex->last_key->option_list= Lex->option_list; }
+        | field_vector_opt { Lex->last_key->option_list= Lex->option_list; }
         ;
 
 normal_key_opts:
@@ -7338,6 +7344,24 @@ fulltext_key_opt:
           {
             if (likely(plugin_is_ready(&$3, MYSQL_FTPARSER_PLUGIN)))
               Lex->last_key->key_create_info.parser_name= $3;
+            else
+              my_yyabort_error((ER_FUNCTION_NOT_DEFINED, MYF(0), $3.str));
+          }
+        ;
+
+/**
+  Also add a rule for CREATE EMBEDDING GENERATOR command.
+*/
+
+field_vector_opt:
+          /* empty */
+        | WITH EMBEDDING_SYM IDENT_sys '(' IDENT_sys ')'
+          {
+            if (likely(plugin_is_ready(&$3, MYSQL_EMBEDDING_PLUGIN)))
+            {
+              Lex->embedding_generator = $3;
+              Lex->embedding_source = $5;
+            }
             else
               my_yyabort_error((ER_FUNCTION_NOT_DEFINED, MYF(0), $3.str));
           }
@@ -10649,6 +10673,12 @@ function_call_nonkeyword:
         | EXTRACT_SYM '(' interval FROM expr ')'
           {
             $$=new (thd->mem_root) Item_extract(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | EMBED_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_embed(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -16248,6 +16278,7 @@ keyword_sp_var_not_label:
         | OTHERS_MARIADB_SYM
         | OWNER_SYM
         | PARSER_SYM
+        | EMBEDDING_SYM
         | PERIOD_SYM
         | PORT_SYM
         | PRECEDING_SYM
