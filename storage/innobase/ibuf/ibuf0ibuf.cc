@@ -500,9 +500,7 @@ ibuf_max_size_update(
 {
 	if (UNIV_UNLIKELY(!ibuf.index)) return;
 	ulint	new_size = std::min<ulint>(
-		(buf_pool_get_curr_size() >> srv_page_size_shift) * new_val
-		/ 100, uint32_t(~0U));
-
+		buf_pool.curr_size() * new_val / 100, uint32_t(~0U));
 	mysql_mutex_lock(&ibuf_mutex);
 	ibuf.max_size = uint32_t(new_size);
 	mysql_mutex_unlock(&ibuf_mutex);
@@ -2056,8 +2054,7 @@ corruption:
 		}
 	}
 
-	limit = ut_min(IBUF_MAX_N_PAGES_MERGED,
-		       buf_pool_get_curr_size() / 4);
+	limit = std::min(IBUF_MAX_N_PAGES_MERGED, buf_pool.curr_size() / 4);
 
 	first_page_no = ibuf_rec_get_page_no(mtr, rec);
 	first_space_id = ibuf_rec_get_space(mtr, rec);

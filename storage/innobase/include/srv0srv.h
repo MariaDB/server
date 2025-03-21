@@ -223,17 +223,6 @@ extern uint	srv_flush_log_at_timeout;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
-/** Requested size in bytes */
-extern ulint		srv_buf_pool_size;
-/** Requested buffer pool chunk size */
-extern size_t		srv_buf_pool_chunk_unit;
-/** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
-/** Previously requested size */
-extern ulint	srv_buf_pool_old_size;
-/** Current size as scaling factor for the other components */
-extern ulint	srv_buf_pool_base_size;
-/** Current size in bytes */
-extern ulint	srv_buf_pool_curr_size;
 /** Dump this % of each buffer pool during BP dump */
 extern ulong	srv_buf_pool_dump_pct;
 #ifdef UNIV_DEBUG
@@ -596,7 +585,7 @@ struct export_var_t{
 #endif /* BTR_CUR_HASH_ADAPT */
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
-	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
+	char  innodb_buffer_pool_resize_status[65];/*!< Buf pool resize status */
 	my_bool innodb_buffer_pool_load_incomplete;/*!< Buf pool load incomplete */
 	ulint innodb_buffer_pool_pages_total;	/*!< Buffer pool size */
 	ulint innodb_buffer_pool_bytes_data;	/*!< File bytes used */

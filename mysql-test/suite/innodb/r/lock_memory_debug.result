@@ -5,7 +5,7 @@ call mtr.add_suppression("\\[Warning\\] InnoDB: Over 67 percent of the buffer po
 CREATE TABLE t1 (col1 INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 SET STATEMENT debug_dbug='+d,innodb_skip_lock_bitmap' FOR
-INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e, t1 f, t1 g LIMIT 45000;
+INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e, t1 f, t1 g;
 ERROR HY000: The total number of locks exceeds the lock table size
 SELECT COUNT(*) FROM t1;
 COUNT(*)

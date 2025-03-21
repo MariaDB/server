@@ -1,5 +1,5 @@
 --loose-innodb-sort-buffer-size=64k
 --loose-innodb-online-alter-log-max-size=128k
---loose-innodb-buffer-pool-size=5M
+--loose-innodb-buffer-pool-size=6M
 --loose-innodb-sys-indexes
 --loose-innodb-sys-fields
