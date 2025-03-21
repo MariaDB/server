@@ -22,7 +22,7 @@ jobs:
           sudo apt-get -y install restic
       - name: Trigger backup export
         run: |
-          ID=$(gh api --method POST /org/MariaDB/migrations \
+          ID=$(gh api --method POST /orgs/MariaDB/migrations \
             --raw-field "repositories[]=$REPO" \
             --field lock_repositories=false \
             --field exclude_git_data=true --jq '.id')
@@ -32,13 +32,13 @@ jobs:
       - name: Wait until backup is finished
         run: |
           while true; do
-            STATE=$(gh api --method GET "/user/migrations/$EXPORT_ID" --jq '.state')
+            STATE=$(gh api --method GET "/orgs/MariaDB/migrations/$EXPORT_ID" --jq '.state')
             [[ $STATE == "exported" ]] && break
             sleep 10
           done
       - name: Download backup
         run: |
-          ARCHIVE_URL=$(gh api --method GET "/org/MariaDB/migrations/$EXPORT_ID" --jq '.archive_url')
+          ARCHIVE_URL=$(gh api --method GET "/orgs/MariaDB/migrations/$EXPORT_ID" --jq '.archive_url')
           curl -L -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
