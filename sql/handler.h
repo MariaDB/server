@@ -3591,6 +3591,7 @@ public:
   */
   int ha_external_lock(THD *thd, int lock_type);
   int ha_external_unlock(THD *thd) { return ha_external_lock(thd, F_UNLCK); }
+  int generate_embeddings_for_row(const uchar *buf);
   int ha_write_row(const uchar * buf);
   int ha_update_row(const uchar * old_data, const uchar * new_data);
   int ha_delete_row(const uchar * buf);

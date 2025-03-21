@@ -8128,6 +8128,91 @@ bool handler::prepare_for_row_logging()
   DBUG_RETURN(row_logging);
 }
 
+/*
+  Generate embeddings for fields that have embedding generators defined
+*/
+int handler::generate_embeddings_for_row(const uchar *buf)
+{
+  THD *thd = ha_thd();
+  
+  for (Field **field_ptr = table->field; *field_ptr; field_ptr++)
+  {
+    Field *field = *field_ptr;
+    // Skip if not a vector field
+    if (!field->type_handler()->is_vector_type())
+      continue;
+      
+    Field_vector *vec_field = static_cast<Field_vector*>(field);
+    // Skip if no embedding generator defined
+    if (!vec_field->has_embedding_generator())
+      continue;
+      
+    // Get source field name and find the field
+    const char *source_name = vec_field->embedding_source_field_name();
+    if (!source_name)
+      continue;
+      
+    LEX_CSTRING source_name_cstr = { source_name, strlen(source_name) };
+    Field *source_field = table->find_field_by_name(&source_name_cstr);
+    
+    if (!source_field || source_field->is_null())
+      continue;
+      
+    // Get the embedding generator name
+    const char *generator_name = vec_field->embedding_generator_name();
+    if (!generator_name)
+      continue;
+      
+    // Extract source data
+    String source_value;
+    source_field->val_str(&source_value);
+    
+    // Create embedding parameter
+    MYSQL_EMBEDDING_PARAM param;
+    memset(&param, 0, sizeof(param));
+    param.doc = const_cast<char*>(source_value.c_ptr_safe());
+    param.length = source_value.length();
+    param.cs = source_field->charset();
+    param.mode = EMBEDDING_TEXT_MODE; // Default mode
+    
+    // Function to store the resulting embedding
+    param.mysql_add_embedding = [](MYSQL_EMBEDDING_PARAM *p, float *embedding, size_t dimensions) -> int {
+      Field_vector *vec_field = static_cast<Field_vector*>(p->mysql_embedding_param);
+      return vec_field->store(reinterpret_cast<char*>(embedding), dimensions * sizeof(float), &my_charset_bin);
+    };
+    
+    // Pass the vector field as the context
+    param.mysql_embedding_param = vec_field;
+    
+    // Find the plugin
+    LEX_STRING plugin_name = { const_cast<char*>(generator_name), strlen(generator_name) };
+    plugin_ref plugin = my_plugin_lock_by_name(thd, &plugin_name, MYSQL_EMBEDDING_PLUGIN);
+    if (!plugin)
+      return HA_ERR_GENERIC; // Plugin not found
+      
+    // Get the plugin interface
+    MYSQL_EMBEDDING_PLUGIN *emb_plugin = 
+      (MYSQL_EMBEDDING_PLUGIN*)plugin_decl(plugin)->info;
+    
+    // Initialize the plugin if needed
+    if (emb_plugin->init)
+      emb_plugin->init(&param);
+      
+    // Generate the embedding
+    int result = emb_plugin->generate(&param);
+    
+    // Clean up
+    if (emb_plugin->deinit)
+      emb_plugin->deinit(&param);
+    
+    plugin_unlock(thd, plugin);
+    
+    if (result)
+      return result; // Error generating embedding
+  }
+  
+  return 0; // Success
+}
 
 /*
   Do all initialization needed for writes: INSERT/UPDATE/DELETE
@@ -8138,6 +8223,12 @@ bool handler::prepare_for_row_logging()
   can_lookup is true if the operation needs to look up rows in the table,
   that is UPDATE/DELETE, and here we need a separate `lookup_handler`
   to avoid disrupting the state of `this`
+*/
+
+/* 
+  1. Check for columns requiring embedding generation during INSERT/UPDATE
+  2. Call the appropriate embedding generator
+  3. Store the generated embedding in the vector field
 */
 
 int handler::prepare_for_modify(bool can_set_fields, bool can_lookup)
@@ -8191,6 +8282,13 @@ int handler::ha_write_row(const uchar *buf)
     }
   }
 
+  // Check for and generate embeddings if needed
+  if (table->has_embedding_fields())
+  {
+    if ((error = generate_embeddings_for_row(buf)))
+      DBUG_RETURN(error);
+  }
+
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
@@ -8240,6 +8338,13 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   if (!error && table->s->long_unique_table && is_root_handler())
     error= check_duplicate_long_entries_update(new_data);
   table->status= saved_status;
+
+  // Check for and generate embeddings if needed
+  if (table->has_embedding_fields())
+  {
+    if ((error = generate_embeddings_for_row(new_data)))
+      return error;
+  }
 
   if (error)
     return error;
