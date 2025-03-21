@@ -14476,8 +14476,8 @@ ha_innobase::records_in_range(
 		n_rows = rtr_estimate_n_rows_in_range(
 			index, range_start, mode1);
 	} else {
-		btr_pos_t tuple1(range_start, mode1, pages->first_page);
-		btr_pos_t tuple2(range_end,   mode2, pages->last_page);
+		btr_pos_t tuple1(range_start, mode1, 0);
+		btr_pos_t tuple2(range_end,   mode2, 0);
 		n_rows = btr_estimate_n_rows_in_range(index, &tuple1, &tuple2);
 		pages->first_page= tuple1.page_id.raw();
 		pages->last_page=  tuple2.page_id.raw();
