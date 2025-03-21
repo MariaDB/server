@@ -1,0 +1,58 @@
+--source include/have_plugin_embedding.inc
+
+# First, load the plugin
+INSTALL PLUGIN simple_embedder SONAME 'ha_simple_embedder';
+
+# Create a table with a vector column using embedded vectors
+CREATE TABLE t1 (
+  id INT AUTO_INCREMENT PRIMARY KEY, 
+  content TEXT, 
+  content_vector VECTOR(384) WITH EMBEDDING simple_embedder(content)
+);
+
+# Insert some test data
+INSERT INTO t1 (content) VALUES ('This is a test document');
+INSERT INTO t1 (content) VALUES ('Another sample text');
+INSERT INTO t1 (content) VALUES ('Vector embeddings are useful for semantic search');
+
+# Check that vectors were generated
+SELECT id, content, 
+       HEX(LEFT(content_vector, 16)) AS vector_sample,
+       LENGTH(content_vector) AS vector_length 
+FROM t1;
+
+# Test updates
+UPDATE t1 SET content = 'Updated content' WHERE id = 1;
+
+# Verify that the embedding was updated
+SELECT id, content, 
+       HEX(LEFT(content_vector, 16)) AS vector_sample,
+       LENGTH(content_vector) AS vector_length 
+FROM t1 WHERE id = 1;
+
+# Test EMBED function
+SELECT id, content, 
+       VEC_DISTANCE(content_vector, 
+                    EMBED('semantic search')) AS distance
+FROM t1
+ORDER BY distance;
+
+# Test edge cases
+INSERT INTO t1 (content) VALUES ('');  # Empty string
+INSERT INTO t1 (content) VALUES (NULL);  # NULL input
+
+SELECT id, content, 
+       LENGTH(content_vector) AS vector_length 
+FROM t1
+WHERE id > 3;
+
+# Test vector similarity search
+SELECT id, content,
+       VEC_DISTANCE(content_vector, 
+                   (SELECT content_vector FROM t1 WHERE id = 3)) AS distance
+FROM t1
+ORDER BY distance;
+
+# Clean up
+DROP TABLE t1;
+UNINSTALL PLUGIN simple_embedder;

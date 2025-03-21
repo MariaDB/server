@@ -4897,6 +4897,21 @@ int create_table_impl(THD *thd,
     }
   }
 
+  if (Lex->embedding_generator.str)
+  {
+    for (Field **field_ptr = table->field; *field_ptr; field_ptr++)
+    {
+      Field *field = *field_ptr;
+      if (field->type_handler()->is_vector_type())
+      {
+        Field_vector *vec_field = static_cast<Field_vector*>(field);
+        vec_field->set_embedding_generator(Lex->embedding_generator.str);
+        vec_field->set_embedding_source_field(Lex->embedding_source.str);
+        vec_field->set_embedding_dimensions(384);
+      }
+    }
+  }
+
   create_info->table= 0;
   if (!frm_only && create_info->tmp_table())
   {
