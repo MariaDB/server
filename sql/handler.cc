@@ -7191,6 +7191,10 @@ int handler::binlog_log_row(TABLE *table,
       thd->binlog_write_table_maps())
     DBUG_RETURN(HA_ERR_RBR_LOGGING_FAILED);
 
+  thd->transaction->stmt.modified_non_trans_table=
+    thd->transaction->stmt.modified_non_trans_table ||
+    (!has_transactions_and_rollback() && rows_changed > 0);
+
   error= (*log_func)(thd, table, row_logging_has_trans,
                      before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
