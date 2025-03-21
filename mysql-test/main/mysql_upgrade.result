@@ -48,7 +48,7 @@ Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 Run it again - should say already completed
 This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
-There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again.
 You can use --force if you still want to run mysql_upgrade
 Force should run it regardless of whether it has been run before
 Phase 1/7: Checking and upgrading mysql database
@@ -778,10 +778,10 @@ FLUSH PRIVILEGES;
 # MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
 #
 This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
-There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again.
 Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
-There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again.
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
 #
@@ -792,9 +792,9 @@ Empty or non existent ...mysql_upgrade_info. Assuming mysql_upgrade has to be ru
 #
 Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to X.Y.0-MariaDB.
-There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again for X.Y.Z-MariaDB, because they're both X.Y.
 This installation of MariaDB is already upgraded to X.Y.0-MariaDB.
-There is no need to run mysql_upgrade again for X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again for X.Y.Z-MariaDB, because they're both X.Y.
 You can use --force if you still want to run mysql_upgrade
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
