@@ -17,6 +17,9 @@
 #include <my_sys.h>
 #include <mysys_err.h>
 #include <my_virtual_mem.h>
+#ifdef _AIX
+# include <sys/shm.h>
+#endif
 
 /*
   Functionality for handling virtual memory
