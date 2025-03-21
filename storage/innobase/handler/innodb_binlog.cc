@@ -518,7 +518,7 @@ static int read_gtid_state_from_page(rpl_binlog_state_base *state,
 
   Returns:
    -1  error
-    0  File is missing (ENOENT)
+    0  File is missing (ENOENT) or has bad checksum on first page.
     1  File found (but may be empty according to out_empty).
 */
 int
@@ -542,6 +542,15 @@ binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
     return -1;
   if (read == 0)
     return 0;
+  /*
+    If the crc32 does not match, the page was not written properly, so treat
+    it as an empty file.
+  */
+  const uint32_t payload= (uint32_t)srv_page_size - BINLOG_PAGE_CHECKSUM;
+  uint32_t crc32= mach_read_from_4(page_buf + payload);
+  if (UNIV_UNLIKELY(crc32 != my_crc32c(0, page_buf, payload)))
+    return 0;
+
   dummy_state.init();
   int res= read_gtid_state_from_page(&dummy_state, page_buf, 0, &header);
   if (res <= 0)
@@ -826,9 +835,8 @@ binlog_recovery::flush_page() noexcept
   if (cur_file_fh < (File)0 &&
       open_cur_file())
     return true;
-  size_t res= my_pwrite(cur_file_fh, page_buf, srv_page_size,
-                          (uint64_t)cur_page_no << srv_page_size_shift,
-                          MYF(MY_WME));
+  size_t res=
+    crc32_pwrite_page(cur_file_fh, page_buf, cur_page_no, MYF(MY_WME));
   if (res != srv_page_size)
     return true;
   cur_page_offset= 0;
@@ -844,7 +852,7 @@ binlog_recovery::zero_out_cur_file()
     return;
 
   /* Recover the original size from the current file. */
-  size_t read= my_pread(cur_file_fh, page_buf, srv_page_size, 0, MYF(0));
+  size_t read= crc32_pread_page(cur_file_fh, page_buf, 0, MYF(0));
   if (read != (size_t)srv_page_size)
   {
     sql_print_warning("InnoDB: Could not read last binlog file during recovery");
@@ -1900,9 +1908,8 @@ read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
   if (UNIV_UNLIKELY(!page_buf))
     return -1;
 
-  /* ToDo: Verify checksum, and handle encryption. */
-  size_t res= my_pread(file, page_buf.get(), srv_page_size,
-                       (uint64_t)page_no << srv_page_size_shift, MYF(MY_WME));
+  /* ToDo: Handle encryption. */
+  size_t res= crc32_pread_page(file, page_buf.get(), page_no, MYF(MY_WME));
   if (UNIV_UNLIKELY(res == (size_t)-1))
     return -1;
 

@@ -34,6 +34,10 @@ InnoDB implementation of binlog.
 struct chunk_data_base;
 
 
+/** Store crc32 checksum at the end of the page */
+#define BINLOG_PAGE_CHECKSUM 4
+
+
 enum fsp_binlog_chunk_types {
   /* Zero means no data, effectively EOF. */
   FSP_BINLOG_TYPE_EMPTY= 0,
@@ -302,6 +306,10 @@ fsp_binlog_release(fsp_binlog_page_entry *page)
   binlog_page_fifo->release_page(page);
 }
 
+extern size_t crc32_pwrite_page(File fd, byte *buf, uint32_t page_no,
+                                myf MyFlags) noexcept;
+extern size_t crc32_pread_page(File fd, byte *buf, uint32_t page_no,
+                               myf MyFlags) noexcept;
 extern void binlog_write_up_to_now() noexcept;
 extern void fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
                                  uint32_t page_offset, uint32_t len);
