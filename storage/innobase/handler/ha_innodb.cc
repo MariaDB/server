@@ -2193,6 +2193,11 @@ convert_error_code_to_mysql(
 		return(HA_ERR_RECORD_FILE_FULL);
 
 	case DB_TEMP_FILE_WRITE_FAIL:
+		/* This error can happen during
+		ALTER TABLE..ALGORITHM=COPY or bulk insert operation */
+		innodb_transaction_abort(thd,
+					 innobase_rollback_on_timeout,
+					 error);
 		my_error(ER_GET_ERRMSG, MYF(0),
                          DB_TEMP_FILE_WRITE_FAIL,
                          ut_strerr(DB_TEMP_FILE_WRITE_FAIL),
