@@ -398,12 +398,17 @@ start_log:
 		}
 
 		log->tail.blocks++;
+		DBUG_EXECUTE_IF("os_file_write_fail",
+				log->error = DB_TEMP_FILE_WRITE_FAIL;
+				goto write_failed;);
+
 		if (os_file_write(
 			    IORequestWrite,
 			    "(modification log)",
 			    log->fd,
 			    buf, byte_offset, srv_sort_buf_size)
 		    != DB_SUCCESS) {
+			log->error = DB_TEMP_FILE_WRITE_FAIL;
 write_failed:
 			index->type |= DICT_CORRUPT;
 		}
