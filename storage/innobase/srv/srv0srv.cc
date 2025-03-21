@@ -314,6 +314,9 @@ enum srv_operation_mode srv_operation;
 /** whether this is the server's first start after mariabackup --prepare */
 bool srv_start_after_restore;
 
+/** Whether mariabackup --prepare working on partial backup target */
+bool srv_prepare_partial_backup;
+
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. Not enabled on the embedded server. */
 ibool	srv_print_verbose_log;
