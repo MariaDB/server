@@ -1,0 +1,1 @@
+--innodb-buffer-pool-size=6M --innodb-extended-buffer-pool-size=6M

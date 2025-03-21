@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+#--source include/innodb_page_size.inc
+
+--let $DATADIR = `select @@datadir`
+
+# Set ext buffer pool file size and check it was created, check it's size
+--list_files $DATADIR ext_buffer_pool
+
+#--let $restart_parameters=--innodb-extended-buffer-pool-size=10M
+#--source include/restart_mysqld.inc
+
+# Set ext buffer pool file size and check it was created, check it's size
+--list_files $DATADIR ext_buffer_pool
+
+CREATE TABLE t ENGINE=InnoDB PAGE_COMPRESSED=1 SELECT * FROM seq_1_to_1000000;
+SELECT * FROM t;
+
+DROP TABLE t;
+
+# Restart server with different buffer pool size, check the size is changed
+
+# Restart server with different ext buffer pool location, check it was created
+
+# Restart server with some impossible ext buffer pool location, check on error
+
+# Check extended buffer pool file is not copied during backup and created
+# during backup restoring
