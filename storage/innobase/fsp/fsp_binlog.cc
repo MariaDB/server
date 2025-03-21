@@ -253,9 +253,7 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
   {
     File fh= get_fh(file_no);
     ut_a(pl->fh >= (File)0);
-    size_t res= my_pwrite(fh, e->page_buf, srv_page_size,
-                          (uint64_t)page_no << srv_page_size_shift,
-                          MYF(MY_WME));
+    size_t res= crc32_pwrite_page(fh, e->page_buf, page_no, MYF(MY_WME));
     ut_a(res == srv_page_size);
     e->flushed_clean= true;
   }
@@ -575,6 +573,42 @@ fsp_binlog_page_fifo::flush_thread_run()
   pthread_cond_signal(&m_cond);
   mysql_mutex_unlock(&m_mutex);
 }
+
+
+size_t
+crc32_pwrite_page(File fd, byte *buf, uint32_t page_no, myf MyFlags) noexcept
+{
+  const uint32_t payload= (uint32_t)srv_page_size - BINLOG_PAGE_CHECKSUM;
+  mach_write_to_4(buf + payload, my_crc32c(0, buf, payload));
+  return my_pwrite(fd, (const uchar *)buf, srv_page_size,
+                   (my_off_t)page_no << srv_page_size_shift, MyFlags);
+}
+
+
+size_t
+crc32_pread_page(File fd, byte *buf, uint32_t page_no, myf MyFlags) noexcept
+{
+  size_t res= my_pread(fd, buf, srv_page_size,
+                       (my_off_t)page_no << srv_page_size_shift, MyFlags);
+  if (UNIV_LIKELY(res == srv_page_size))
+  {
+    const uint32_t payload= (uint32_t)srv_page_size - BINLOG_PAGE_CHECKSUM;
+    uint32_t crc32= mach_read_from_4(buf + payload);
+    /* Allow a completely zero (empty) page as well. */
+    if (UNIV_UNLIKELY(crc32 != my_crc32c(0, buf, payload)) &&
+        (buf[0] != 0 || 0 != memcmp(buf, buf+1, srv_page_size - 1)))
+    {
+      res= -1;
+      my_errno= EIO;
+      if (MyFlags & MY_WME)
+        sql_print_error("InnoDB: Page corruption in binlog tablespace file "
+                        "page number %u (invalid crc32 checksum 0x%08X)",
+                        page_no, crc32);
+    }
+  }
+  return res;
+}
+
 
 void
 binlog_write_up_to_now() noexcept
@@ -1208,8 +1242,8 @@ binlog_chunk_reader::fetch_current_page()
       continue;
     }
 
-    size_t res= my_pread(cur_file_handle, page_buffer, srv_page_size,
-                         s.page_no << srv_page_size_shift, MYF(MY_WME));
+    size_t res= crc32_pread_page(cur_file_handle, page_buffer, s.page_no,
+                                 MYF(MY_WME));
     if (res == (size_t)-1)
       return CHUNK_READER_ERROR;
     if (res == 0 && my_errno == HA_ERR_FILE_TOO_SHORT)

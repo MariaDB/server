@@ -26,6 +26,30 @@ FLUSH BINARY LOGS;
 --source include/wait_for_engine_binlog.inc
 SHOW BINARY LOGS;
 
+# Flush couple logs so we are sure the first file is on disk.
+# Corrupt one bit in the first page of the first file to test that crc32
+# mismatch is caught.
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression("InnoDB: Page corruption in binlog tablespace file page number 0");
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+--let $file= binlog-000000.ibb
+--let $datadir= `SELECT @@datadir`
+--let BINLOG_FILE= $datadir/$file
+perl;
+open F, '+<', $ENV{BINLOG_FILE} or die $!;
+sysseek F, 50, 0 or die $!;
+my $x;
+sysread F, $x, 1 or die $!;
+$x= chr(ord($x) ^ (1 <<3));
+sysseek F, 50, 0 or die $!;
+syswrite F, $x, 1 or die $!;
+EOF
+
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+eval SHOW BINLOG EVENTS IN '$file' LIMIT 1;
+
+
 RESET MASTER;
 --let $binlog_name= binlog-000001.ibb
 --let $binlog_size= 262144
