@@ -37,7 +37,7 @@ inline bool buf_page_peek_if_young(const buf_page_t *bpage)
 	/* FIXME: bpage->freed_page_clock is 31 bits */
 	return((buf_pool.freed_page_clock & ((1UL << 31) - 1))
 	       < (bpage->freed_page_clock
-		  + (buf_pool.curr_size
+		  + (buf_pool.curr_size()
 		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool.LRU_old_ratio)
 		     / (BUF_LRU_OLD_RATIO_DIV * 4))));
 }
