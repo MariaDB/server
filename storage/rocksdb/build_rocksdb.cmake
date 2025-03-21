@@ -176,14 +176,30 @@ set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 #  - *_test.cc
 #  - *_bench.cc
 set(ROCKSDB_SOURCES
+        cache/cache.cc
+        cache/cache_entry_roles.cc
+        cache/cache_key.cc
+        cache/cache_reservation_manager.cc
         cache/clock_cache.cc
         cache/lru_cache.cc
         cache/sharded_cache.cc
         db/arena_wrapped_db_iter.cc
+        db/blob/blob_fetcher.cc
+        db/blob/blob_file_builder.cc
+        db/blob/blob_file_addition.cc
+        db/blob/blob_file_builder.cc
+        db/blob/blob_file_cache.cc
+        db/blob/blob_file_garbage.cc
+        db/blob/blob_file_meta.cc
+        db/blob/blob_file_reader.cc
+        db/blob/blob_log_sequential_reader.cc
+        db/blob/blob_log_writer.cc
+        db/blob/blob_log_format.cc
+        db/blob/prefetch_buffer_collection.cc
         db/builder.cc
         db/c.cc
         db/column_family.cc
-        db/compacted_db_impl.cc
+        db/db_impl/compacted_db_impl.cc
         db/compaction/compaction.cc
         db/compaction/compaction_iterator.cc
         db/compaction/compaction_picker.cc
@@ -223,6 +239,7 @@ set(ROCKSDB_SOURCES
         db/memtable_list.cc
         db/merge_helper.cc
         db/merge_operator.cc
+        db/periodic_work_scheduler.cc
         db/range_del_aggregator.cc
         db/range_tombstone_fragmenter.cc
         db/repair.cc
@@ -233,18 +250,24 @@ set(ROCKSDB_SOURCES
         db/trim_history_scheduler.cc
         db/version_builder.cc
         db/version_edit.cc
+        db/version_edit_handler.cc
         db/version_set.cc
+        db/wal_edit.cc
         db/wal_manager.cc
         db/write_batch.cc
         db/write_batch_base.cc
         db/write_controller.cc
         db/write_thread.cc
+        env/composite_env.cc
         env/env.cc
         env/env_chroot.cc
         env/env_encryption.cc
         env/env_hdfs.cc
         env/file_system.cc
+        env/file_system_tracer.cc
+        env/fs_remap.cc
         env/mock_env.cc
+        env/unique_id_gen.cc
         file/delete_scheduler.cc
         file/file_prefetch_buffer.cc
         file/file_util.cc
@@ -280,14 +303,17 @@ set(ROCKSDB_SOURCES
         monitoring/thread_status_updater.cc
         monitoring/thread_status_util.cc
         monitoring/thread_status_util_debug.cc
+        options/configurable.cc
+        options/customizable.cc
         options/cf_options.cc
         options/db_options.cc
         options/options.cc
         options/options_helper.cc
         options/options_parser.cc
-        options/options_sanity_check.cc
+#        options/options_sanity_check.cc
         port/stack_trace.cc
         table/adaptive/adaptive_table_factory.cc
+        table/block_based/binary_search_index_reader.cc
         table/block_based/block.cc
         table/block_based/block_based_filter_block.cc
         table/block_based/block_based_table_builder.cc
@@ -302,8 +328,11 @@ set(ROCKSDB_SOURCES
         table/block_based/flush_block_policy.cc
         table/block_based/full_filter_block.cc
         table/block_based/index_builder.cc
+        table/block_based/hash_index_reader.cc
         table/block_based/parsed_full_filter_block.cc
         table/block_based/partitioned_filter_block.cc
+        table/block_based/partitioned_index_reader.cc
+        table/block_based/reader_common.cc
         table/block_based/uncompression_dict_reader.cc
         table/block_fetcher.cc
         table/cuckoo/cuckoo_table_builder.cc
@@ -321,10 +350,12 @@ set(ROCKSDB_SOURCES
         table/plain/plain_table_index.cc
         table/plain/plain_table_key_coding.cc
         table/plain/plain_table_reader.cc
+        table/sst_file_dumper.cc
         table/sst_file_reader.cc
         table/sst_file_writer.cc
         table/table_properties.cc
         table/two_level_iterator.cc
+        table/unique_id.cc
         test_util/sync_point.cc
         test_util/sync_point_impl.cc
         test_util/testutil.cc
@@ -337,6 +368,7 @@ set(ROCKSDB_SOURCES
         tools/trace_analyzer_tool.cc
         trace_replay/trace_replay.cc
         trace_replay/block_cache_tracer.cc
+        trace_replay/io_tracer.cc
         util/coding.cc
         util/compaction_job_stats_impl.cc
         util/comparator.cc
@@ -348,6 +380,7 @@ set(ROCKSDB_SOURCES
         util/murmurhash.cc
         util/random.cc
         util/rate_limiter.cc
+        util/ribbon_config.cc
         util/slice.cc
         util/file_checksum_helper.cc
         util/status.cc
@@ -362,11 +395,9 @@ set(ROCKSDB_SOURCES
         utilities/blob_db/blob_db_impl_filesnapshot.cc
         utilities/blob_db/blob_dump_tool.cc
         utilities/blob_db/blob_file.cc
-        utilities/blob_db/blob_log_reader.cc
-        utilities/blob_db/blob_log_writer.cc
-        utilities/blob_db/blob_log_format.cc
         utilities/checkpoint/checkpoint_impl.cc
         utilities/compaction_filters/remove_emptyvalue_compactionfilter.cc
+        utilities/compaction_filters.cc
         utilities/debug.cc
         utilities/env_mirror.cc
         utilities/env_timed.cc
@@ -391,6 +422,7 @@ set(ROCKSDB_SOURCES
         utilities/simulator_cache/sim_cache.cc
         utilities/table_properties_collectors/compact_on_deletion_collector.cc
         utilities/trace/file_trace_reader_writer.cc
+        utilities/transactions/lock/lock_manager.cc
         utilities/transactions/optimistic_transaction_db_impl.cc
         utilities/transactions/optimistic_transaction.cc
         utilities/transactions/pessimistic_transaction.cc
@@ -398,7 +430,6 @@ set(ROCKSDB_SOURCES
         utilities/transactions/snapshot_checker.cc
         utilities/transactions/transaction_base.cc
         utilities/transactions/transaction_db_mutex_impl.cc
-        utilities/transactions/transaction_lock_mgr.cc
         utilities/transactions/transaction_util.cc
         utilities/transactions/write_prepared_txn.cc
         utilities/transactions/write_prepared_txn_db.cc
@@ -407,6 +438,27 @@ set(ROCKSDB_SOURCES
         utilities/ttl/db_ttl_impl.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
+
+        utilities/trace/replayer_impl.cc
+        utilities/merge_operators.cc
+        db/compaction/sst_partitioner.cc
+        file/line_file_reader.cc
+        table/block_based/block_based_table_iterator.cc
+        table/block_based/index_reader_common.cc
+
+        table/block_based/partitioned_index_iterator.cc
+        table/block_based/block_prefetcher.cc
+        table/table_factory.cc
+        trace_replay/trace_record.cc
+        db/output_validator.cc
+        db/blob/blob_garbage_meter.cc
+
+        trace_replay/trace_record_handler.cc
+
+        utilities/wal_filter.cc
+        trace_replay/trace_record_result.cc
+        utilities/transactions/lock/point/point_lock_manager.cc
+        utilities/transactions/lock/point/point_lock_tracker.cc
 )
 
 
@@ -484,7 +536,10 @@ IF(CMAKE_VERSION VERSION_GREATER "2.8.10")
   STRING(TIMESTAMP GIT_DATE_TIME "%Y-%m-%d %H:%M:%S")
 ENDIF()
 
+# psergey-added:
+SET(GIT_MOD 0)
 CONFIGURE_FILE(${ROCKSDB_SOURCE_DIR}/util/build_version.cc.in build_version.cc @ONLY)
+
 INCLUDE_DIRECTORIES(${ROCKSDB_SOURCE_DIR}/util)
 list(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/build_version.cc)
 

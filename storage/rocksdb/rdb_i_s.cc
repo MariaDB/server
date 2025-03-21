@@ -637,7 +637,7 @@ static int rdb_i_s_cfoptions_fill_table(
 
     // get table related options
     std::vector<std::string> table_options =
-        split_into_vector(opts.table_factory->GetPrintableTableOptions(), '\n');
+        split_into_vector(opts.table_factory->GetPrintableOptions(), '\n');
 
     for (auto option : table_options) {
       option.erase(std::remove(option.begin(), option.end(), ' '),
