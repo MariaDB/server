@@ -318,12 +318,6 @@ int main(int argc, char* const argv[] )
     if (nocore)
       setlimit(RLIMIT_CORE, 0, 0);
 
-    /*
-      mysqld defaults depend on that. make test results stable and independent
-      from the environment
-    */
-    setlimit(RLIMIT_NOFILE, 1024, 1024);
-
     // Signal that child is ready
     buf= 37;
     if ((write(pfd[1], &buf, 1)) < 1)

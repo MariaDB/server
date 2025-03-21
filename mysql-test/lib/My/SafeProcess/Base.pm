@@ -29,11 +29,22 @@ package My::SafeProcess::Base;
 
 use Carp;
 use IO::Pipe;
+use BSD::Resource;
 
 use base qw(Exporter);
 our @EXPORT= qw(create_process);
 
 
+  
+# Function to set resource limits (similar to the setrlimit in safe_proces.cc)
+sub setlimit {
+  
+    my ($resource, $soft, $hard) = @_;
+
+    if (!setrlimit($resource, $soft, $hard)) {
+        die "setrlimit failed: $!\n"; 
+    }
+}
 
 #
 # safe_fork
@@ -185,6 +196,19 @@ sub create_process {
 
   $SIG{INT}= 'DEFAULT';
   $SIG{HUP}= 'DEFAULT';
+
+  my $open_files_limit = 1024;
+
+  if ($args && ref($args) eq 'ARRAY') {
+
+      my ($match) = grep { /--open-files-limit=(\d+)/ } @$args;
+
+      # Extract the open files limit value if found
+      $open_files_limit = $1 if defined $match && $match =~ /--open-files-limit=(\d+)/;
+  }
+
+  # Set new file resource limits for the child process
+  setlimit(RLIMIT_NOFILE, $open_files_limit, $open_files_limit);
 
   # Make this process it's own process group to be able to kill
   # it and any childs(that hasn't changed group themself)
