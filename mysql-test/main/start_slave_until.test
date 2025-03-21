@@ -1,0 +1,71 @@
+# ==== Purpose ====
+#
+# Validate parsing and parameter combinations of the `START SLAVE UNTIL` statement:
+#   - Test correct parsing for valid parameter combinations (e.g., MASTER_LOG_FILE and MASTER_LOG_POS).
+#   - Ensure invalid combinations trigger appropriate errors:
+#     - `ER_PARSE_ERROR`: Raised for invalid SQL syntax.
+#     - `ER_BAD_SLAVE`: Dummy error which should be treated as a passing test as this is a parser test not a logical one
+#     - `ER_BAD_SLAVE_UNTIL_COND`: Raised when valid parameters are used in an invalid combination 
+#       (e.g., mixing MASTER_LOG_FILE with RELAY_LOG_POS).
+#
+# ==== Method ====
+#
+# 
+# Test various `START SLAVE UNTIL` combinations on the slave:
+#    a) Invalid parameter mixes (e.g., GTID, LOG_FILE, LOG_POS) to trigger parsing errors.
+#    b) Valid parameter combinations that fail due to incomplete or missing replication setup.
+#
+# ==== Related Bugs ====
+# MDEV-35635 – Issues around parsing and invalid parameter combinations in `START SLAVE UNTIL`.
+
+--source include/not_embedded.inc
+
+#
+# Invalid query options (using slave+master options)
+#  
+--error ER_PARSE_ERROR
+START slave until MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=4, MASTER_USE_GTID=NO, MASTER_DEMOTE_TO_SLAVE=1;
+
+--error ER_PARSE_ERROR
+START slave until RELAY_LOG_FILE='master-bin.000001', RELAY_LOG_POS=4, MASTER_USE_GTID=NO, MASTER_DEMOTE_TO_SLAVE=1;
+
+#
+# Invalid query options combinations (using an invalid mix of slave options)
+# Valid combinations should consist of these options anything else should be invalid:
+#   MASTER_LOG_FILE and MASTER_LOG_POS 
+#   RELAY_LOG_FILE and RELAY_LOG_POS
+#   MASTER_GTID_POS
+--error ER_BAD_SLAVE_UNTIL_COND
+START slave until MASTER_LOG_FILE='master-bin.000001', RELAY_LOG_POS=4;
+
+--error ER_BAD_SLAVE_UNTIL_COND
+START slave until RELAY_LOG_FILE='master-bin.000001', MASTER_LOG_POS=4;
+
+--error ER_BAD_SLAVE_UNTIL_COND
+START slave until MASTER_LOG_FILE='master-bin.000001';
+
+--error ER_BAD_SLAVE_UNTIL_COND
+START slave until RELAY_LOG_FILE='master-bin.000001';
+
+--error ER_BAD_SLAVE_UNTIL_COND
+START slave until RELAY_LOG_POS=4;
+
+--error ER_BAD_SLAVE_UNTIL_COND
+START slave until MASTER_LOG_POS=4;
+
+
+#
+# Valid query options (using only slave options)
+#  
+
+--error ER_BAD_SLAVE
+START slave until MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=4;
+
+--error ER_BAD_SLAVE
+START slave until RELAY_LOG_FILE='master-bin.000001', RELAY_LOG_POS=4;
+
+--error ER_BAD_SLAVE
+START slave UNTIL MASTER_GTID_POS = '0-1-1';
+
+# Clean up after tests.
+--echo ==== End of test ====
