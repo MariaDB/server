@@ -3315,9 +3315,6 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
-  if (thd_arg->transaction->stmt.trans_did_wait() ||
-      thd_arg->transaction->all.trans_did_wait())
-    flags2|= FL_WAITED;
   if (thd_arg->transaction->stmt.trans_did_ddl() ||
       thd_arg->transaction->stmt.has_created_dropped_temp_table() ||
       thd_arg->transaction->stmt.trans_executed_admin_cmd() ||
@@ -3334,7 +3331,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2|= FL_ALLOW_PARALLEL;
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
-    flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
+    flags2|=
+      (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED_NO_LONGER_USED));
 
   XID_STATE &xid_state= thd->transaction->xid_state;
   if (is_transactional)
@@ -5535,7 +5533,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       by THD::reset_for_next_command().
     */
     thd->transaction->stmt.modified_non_trans_table= FALSE;
-    thd->transaction->stmt.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     /*
       This is a row injection, so we flag the "statement" as
       such. Note that this code is called both when the slave does row
@@ -6074,7 +6071,6 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
     if (!thd->in_multi_stmt_transaction_mode())
     {
       thd->transaction->all.modified_non_trans_table= 0;
-      thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     }
 
     rgi->cleanup_context(thd, 0);
