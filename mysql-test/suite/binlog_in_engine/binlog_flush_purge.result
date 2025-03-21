@@ -57,10 +57,10 @@ SET SESSION binlog_format= ROW;
 *** Do 1500 transactions ...
 SHOW BINARY LOGS;
 Log_name	File_size
+binlog-000010.ibb	262144
 binlog-000011.ibb	262144
 binlog-000012.ibb	262144
 binlog-000013.ibb	262144
-binlog-000014.ibb	262144
 *** Test purge by date.
 SET GLOBAL max_binlog_total_size= 0;
 SET @old_expire= @@GLOBAL.binlog_expire_logs_seconds;
@@ -70,6 +70,7 @@ SET GLOBAL binlog_expire_logs_seconds= 0;
 *** Do 1000 transactions ...
 SHOW BINARY LOGS;
 Log_name	File_size
+binlog-000012.ibb	262144
 binlog-000013.ibb	262144
 binlog-000014.ibb	262144
 binlog-000015.ibb	262144
