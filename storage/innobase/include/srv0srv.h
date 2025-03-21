@@ -329,6 +329,8 @@ extern enum srv_operation_mode srv_operation;
 /** whether this is the server's first start after mariabackup --prepare */
 extern bool srv_start_after_restore;
 
+extern bool srv_prepare_partial_backup;
+
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_verbose_log;
