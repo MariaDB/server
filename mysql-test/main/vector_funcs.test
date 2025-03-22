@@ -154,3 +154,8 @@ drop table t;
 select vec_distance(value(key_cache_name), 0x30303030) from information_schema.key_caches;
 
 --echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-36100 Generate embeddings automatically on INSERT / UPDATE
+--echo #
+select embed('semantic search');
