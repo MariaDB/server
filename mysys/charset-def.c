@@ -184,76 +184,10 @@ extern struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci;
 #endif /* HAVE_UCA_COLLATIONS */
 
 
-static my_bool
-my_uca1400_collation_definition_add(MY_CHARSET_LOADER *loader,
-                                    my_cs_encoding_t charset_id,
-                                    uint tailoring_id,
-                                    my_bool nopad,
-                                    my_bool secondary_level,
-                                    my_bool tertiary_level)
-{
-  struct charset_info_st *tmp;
-  uint collation_id= my_uca1400_make_builtin_collation_id(charset_id,
-                                                          tailoring_id,
-                                                          nopad,
-                                                          secondary_level,
-                                                          tertiary_level);
-  if (!collation_id)
-    return FALSE;
-  if (!(tmp= (struct charset_info_st*)
-      my_once_alloc(sizeof(CHARSET_INFO),MYF(0))))
-    return TRUE;
-  if (my_uca1400_collation_definition_init(loader, tmp, collation_id))
-    return TRUE;
-  add_compiled_collation(tmp);
-  return FALSE;
-}
-
-
-static my_bool
-my_uca1400_collation_definitions_add()
-{
-  my_cs_encoding_t charset_id;
-  MY_CHARSET_LOADER loader;
-  my_charset_loader_init_mysys(&loader);
-  for (charset_id= (my_cs_encoding_t) 0;
-       charset_id <= (my_cs_encoding_t) MY_CS_ENCODING_LAST;
-       charset_id++)
-  {
-    uint tailoring_id;
-    for (tailoring_id= 0 ;
-         tailoring_id < MY_UCA1400_COLLATION_DEFINITION_COUNT;
-         tailoring_id++)
-    {
-      uint nopad;
-      for (nopad= 0; nopad < 2; nopad++)
-      {
-        uint secondary_level;
-        for (secondary_level= 0; secondary_level < 2; secondary_level++)
-        {
-          if (my_uca1400_collation_definition_add(&loader,
-                                                  charset_id, tailoring_id,
-                                                  (my_bool) nopad,
-                                                  (my_bool) secondary_level,
-                                                  FALSE))
-            return TRUE;
-          if (my_uca1400_collation_definition_add(&loader,
-                                                  charset_id, tailoring_id,
-                                                  (my_bool) nopad,
-                                                  (my_bool) secondary_level,
-                                                  TRUE))
-            return TRUE;
-        }
-      }
-    }
-  }
-  return FALSE;
-}
-
-
 my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 {
   CHARSET_INFO *cs;
+  MY_CHARSET_LOADER loader;
 
   add_compiled_collation(&my_charset_bin);
   add_compiled_collation(&my_charset_filename);
@@ -541,9 +475,22 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   for (cs=compiled_charsets; cs->coll_name.str; cs++)
     add_compiled_extra_collation((struct charset_info_st *) cs);
 
-  if (my_uca1400_collation_definitions_add())
+  /*
+    my_charset_loader_init_mysys() initializes
+    MY_CHARSET_LOADER::add_collation to the function
+    add_collation() defined in charset.c
+    Let's reset it to add_compiled_collation().
+  */
+  my_charset_loader_init_mysys(&loader);
+  loader.add_collation= add_compiled_collation;
+
+  if (my_uca1400_collation_definitions_add(&loader))
     return TRUE;
-  if (mysql_utf8mb4_0900_collation_definitions_add())
+
+  if (mysql_uca0900_utf8mb4_collation_definitions_add(&loader))
+    return TRUE;
+
+  if (mysql_utf8mb4_0900_bin_add(&loader))
     return TRUE;
 
   return FALSE;
