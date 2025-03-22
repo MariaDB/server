@@ -575,7 +575,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
       tmp_share, name, name_length
     )) ||
     (*error_num = spider_create_conn_keys(tmp_share)) ||
-    /* Pinally, populate `table_mon_list' with newly created
+    /* Finally, populate `table_mon_list' with newly created
     `SPIDER_TABLE_MON's */
     (*error_num = spider_get_ping_table_mon(
       thd, table_mon_list, name, name_length, link_idx, server_id, &mem_root,

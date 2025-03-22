@@ -4509,8 +4509,8 @@ early_not_found:
 		}
 	}
 
-	/* We don't support sequencial scan for Rtree index, because it
-	is no meaning to do so. */
+	/* We don't support sequential scan for Rtree index because it
+	is pointless. */
 	if (dict_index_is_spatial(index) && !RTREE_SEARCH_MODE(mode)) {
 		trx->op_info = "";
 		DBUG_RETURN(DB_END_OF_INDEX);
@@ -4731,7 +4731,7 @@ wait_table_again:
 	if (UNIV_LIKELY(direction != 0)) {
 		if (spatial_search) {
 			/* R-Tree access does not need to do
-			cursor position and resposition */
+			cursor position and reposition */
 			goto next_rec;
 		}
 

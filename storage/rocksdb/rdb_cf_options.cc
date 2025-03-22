@@ -73,7 +73,7 @@ void Rdb_cf_options::get(const std::string &cf_name,
   // Get defaults.
   rocksdb::GetColumnFamilyOptionsFromString(*opts, m_default_config, opts);
 
-  // Get a custom confguration if we have one.
+  // Get a custom configuration if we have one.
   Name_to_config_t::iterator it = m_name_map.find(cf_name);
 
   if (it != m_name_map.end()) {

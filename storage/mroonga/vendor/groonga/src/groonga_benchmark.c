@@ -1382,7 +1382,7 @@ get_sysinfo(const char *path, char *result, int olen)
 
   if (grntest_outtype == OUT_TSV) {
     result[0] = '\0';
-    sprintf(tmpbuf, "sctipt\t%s\n", grntest_scriptname);
+    sprintf(tmpbuf, "script\t%s\n", grntest_scriptname);
     grn_strcat(result, olen, tmpbuf);
     sprintf(tmpbuf, "user\t%s\n", grntest_username);
     grn_strcat(result, olen, tmpbuf);
@@ -2281,7 +2281,7 @@ get_port(char *buf, char *host, int *port)
   ret = sscanf(buf, "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d)",
          &d1, &d2, &d3, &d4, &d5, &d6);
   if (ret != 6) {
-    fprintf(stderr, "Cannot enter passsive mode\n");
+    fprintf(stderr, "Cannot enter passive mode\n");
     return 0;
   }
 
@@ -2581,7 +2581,7 @@ get_scriptname(const char *path, char *name, size_t name_len, const char *suffix
     exit(1);
   }
   if (slen > len) {
-    fprintf(stderr, "too long suffux\n");
+    fprintf(stderr, "too long suffix\n");
     exit(1);
   }
 

@@ -1460,7 +1460,7 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
 }
 
 
-	/* rutines for bit buffer */
+	/* routines for bit buffer */
 	/* Note buffer must be 6 uchar bigger than longest row */
 
 static void init_bit_buffer(MARIA_BIT_BUFF *bit_buff, uchar *buffer,

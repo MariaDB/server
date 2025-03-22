@@ -829,7 +829,7 @@ error:
 
 		if (fixed_len) {
 #ifdef UNIV_DEBUG
-			/* len should be between size calcualted base on
+			/* len should be between size calculated based on
 			mbmaxlen and mbminlen */
 			ut_ad(len <= fixed_len);
 			ut_ad(!col->mbmaxlen || len >= col->mbminlen
@@ -4337,8 +4337,8 @@ void row_merge_drop_temp_indexes()
 }
 
 
-/** Create temporary merge files in the given paramater path, and if
-UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
+/** Create temporary merge files in the given parameter path, and if
+UNIV_PFS_IO is defined, register the file descriptor with Performance Schema.
 @param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
 static pfs_os_file_t row_merge_file_create_mode(const char *path, int mode)

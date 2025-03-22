@@ -1582,7 +1582,7 @@ srv_mon_process_existing_counter(
 			    & MONITOR_DISPLAY_CURRENT) {
 				MONITOR_SET(monitor_id, value);
 			} else {
-				/* Most status counters are montonically
+				/* Most status counters are monotonically
 				increasing, no need to update their
 				minimum values. Only do so
 				if "update_min" set to TRUE */

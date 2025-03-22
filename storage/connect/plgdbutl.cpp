@@ -496,17 +496,17 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
 /*                                                                     */
 /*  The Like predicate is true if:                                     */
 /*                                                                     */
-/*  1- A subtring of M is a sequence of 0 or more contiguous <CR> of M */
+/*  1- A substring of M is a sequence of 0 or more contiguous <CR> of M*/
 /*     and each <CR> of M is part of exactly one substring.            */
 /*                                                                     */
-/*  2- If the i-th <subtring-specifyer> of P is an <arbitrary-char-    */
-/*     specifier>, the i-th subtring of M is any single <CR>.          */
+/*  2- If the i-th <substring-specifier> of P is an <arbitrary-char-   */
+/*     specifier>, the i-th substring of M is any single <CR>.         */
 /*                                                                     */
-/*  3- If the i-th <subtring-specifyer> of P is an <arbitrary-string-  */
-/*     specifier>, then the i-th subtring of M is any sequence of zero */
+/*  3- If the i-th <substring-specifier> of P is an <arbitrary-string- */
+/*     specifier>, then the i-th substring of M is any sequence of zero*/
 /*     or more <CR>.                                                   */
 /*                                                                     */
-/*  4- If the i-th <subtring-specifyer> of P is neither an <arbitrary- */
+/*  4- If the i-th <substring-specifier> of P is neither an <arbitrary-*/
 /*     character-specifier> nor an <arbitrary-string-specifier>, then  */
 /*     the i-th substring of M is equal to that <substring-specifier>  */
 /*     according to the collating sequence of the <like-predicate>,    */
@@ -514,7 +514,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
 /*     length as that <substring-specifier>.                           */
 /*                                                                     */
 /*  5- The number of substrings of M is equal to the number of         */
-/*     <subtring-specifiers> of P.                                     */
+/*     <substring-specifiers> of P.                                    */
 /*                                                                     */
 /*  Otherwise M like P is false.                                       */
 /***********************************************************************/
@@ -572,7 +572,7 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
     b = (t || !*sp);                  /*   true if %  or void strg.    */
   else if (!t) {
     /*******************************************************************/
-    /*  No character to skip, check occurrence of <subtring-specifier>  */
+    /*  No character to skip, check occurrence of <substring-specifier>*/
     /*  at the very beginning of remaining string.                     */
     /*******************************************************************/
     if (p) {
@@ -586,7 +586,7 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
     if (p)
       /*****************************************************************/
       /*  Here is the case explaining why we need a recursive routine. */
-      /*  The test must be done not only against the first occurrence   */
+      /*  The test must be done not only against the first occurrence  */
       /*  of the <substring-specifier> in the remaining string,        */
       /*  but also with all eventual succeeding ones.                  */
       /*****************************************************************/
@@ -1080,7 +1080,7 @@ DllExport PSZ GetIniString(PGLOBAL g, void *mp, LPCSTR sec, LPCSTR key,
 #endif // 0
 
 /***********************************************************************/
-/*  GetAmName: return the name correponding to an AM code.             */
+/*  GetAmName: return the name corresponding to an AM code.            */
 /***********************************************************************/
 char *GetAmName(PGLOBAL g, AMT am, void *memp)
   {

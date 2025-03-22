@@ -257,7 +257,7 @@ int Rdb_value_field_iterator<value_field_decoder>::next() {
     m_field_dec = m_field_iter->m_field_enc;
     bool decode = m_field_iter->m_decode;
     bool maybe_null = m_field_dec->maybe_null();
-    // This is_null value is bind to how stroage format store its value
+    // This is_null value is binded to how storage format stores its value
     m_is_null = maybe_null && ((m_null_bytes[m_field_dec->m_null_offset] &
                                 m_field_dec->m_null_mask) != 0);
 

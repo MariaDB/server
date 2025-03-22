@@ -107,7 +107,7 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
 /*  This class is used when constructing the arrays of constants used  */
 /*  for indexing. Its only purpose is to provide a way to sort, reduce */
 /*  and reorder the arrays of multicolumn indexes as one block. Indeed */
-/*  sorting the arrays independantly would break the correspondance of */
+/*  sorting the arrays independently would break the correspondence of */
 /*  column values.                                                     */
 /***********************************************************************/
 class MULAR : public CSORT, public BLOCK {   // No need to be an XOBJECT

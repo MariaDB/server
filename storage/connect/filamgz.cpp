@@ -339,7 +339,7 @@ int GZFAM::ReadBuffer(PGLOBAL g)
       *p = '\0';              // Eliminate ending new-line character
 
     if (*(--p) == '\r')
-      *p = '\0';              // Eliminate eventuel carriage return
+      *p = '\0';              // Eliminate eventual carriage return
 
     strcpy(Tdbp->GetLine(), To_Buf);
     IsRead = true;

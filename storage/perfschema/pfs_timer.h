@@ -48,7 +48,7 @@ struct time_normalizer
   */
   static time_normalizer* get(enum_timer_name timer_name);
 
-  /** Timer value at server statup. */
+  /** Timer value at server startup. */
   ulonglong m_v0;
   /** Conversion factor from timer values to pico seconds. */
   ulonglong m_factor;

@@ -352,7 +352,7 @@ int TXTFAM::StoreValues(PGLOBAL g, bool upd)
 /*  record are not necessarily updated in sequential order.            */
 /*  Moving intermediate lines cannot be done while making them because */
 /*  this can cause extra wrong records to be included in the new file. */
-/*  What we do here is to reorder the updated records and do all the   */
+/*  What we do here is reorder the updated records and do all the      */
 /*  updates ordered by record position.                                */
 /***********************************************************************/
 int TXTFAM::UpdateSortedRows(PGLOBAL g)
@@ -402,7 +402,7 @@ err:
 /***********************************************************************/
 /*  DeleteSortedRows. When deleting using indexing, the issue is that  */
 /*  record are not necessarily deleted in sequential order. Moving     */
-/*  intermediate lines cannot be done while deleing them because       */
+/*  intermediate lines cannot be done while deleting them because      */
 /*  this can cause extra wrong records to be included in the new file. */
 /*  What we do here is to reorder the deleted record and delete from   */
 /*  the file from the ordered deleted records.                         */

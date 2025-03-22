@@ -1412,7 +1412,7 @@ uint _mi_pack_get_block_info(MI_INFO *myisam, MI_BIT_BUFF *bit_buff,
 
 
 /*
-  Rutines for bit buffer
+  Routines for bit buffer
   Note: buffer must be 6 byte bigger than longest row
 */
 

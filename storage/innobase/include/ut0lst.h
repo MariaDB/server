@@ -117,7 +117,7 @@ Initializes the base node of a two-way list.
 }
 
 /** Functor for accessing the embedded node within a list element. This is
-required because some lists can have the node emebedded inside a nested
+required because some lists can have the node embedded inside a nested
 struct/union. See lock0priv.h (table locks) for an example. It provides a
 specialised functor to grant access to the list node. */
 template <typename Type>

@@ -636,7 +636,7 @@ grn_snip_exec(grn_ctx *ctx, grn_obj *snip, const char *string, unsigned int stri
         if (!cond) {
           break;
         }
-        /* check whether condtion is the first condition in snippet */
+        /* check whether condition is the first condition in snippet */
         if (snip_result->tag_count == 0) {
           /* skip condition if the number of rest snippet field is smaller than */
           /* the number of unfound keywords. */

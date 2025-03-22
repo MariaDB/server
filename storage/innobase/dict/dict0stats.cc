@@ -880,7 +880,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 			n_sample_pages = srv_stats_transient_sample_pages;
 		}
 	} else {
-		/* New logaritmic number of pages that are estimated.
+		/* New logarithmic number of pages that are estimated.
 		Number of pages estimated should be between 1 and
 		index->stat_index_size.
 

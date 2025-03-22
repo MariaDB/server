@@ -492,7 +492,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
               share->state_history.  Create a new history item for this
               commit and add it first in the state_history list. This
               ensures that all history items are stored in the list in
-              decresing trid order.
+              decreasing trid order.
             */
             if (!(history= my_malloc(PSI_INSTRUMENT_ME, sizeof(*history),
                                      MYF(MY_WME))))

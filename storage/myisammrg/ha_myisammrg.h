@@ -196,7 +196,7 @@ public:
 
   /*
     Make an optionally lower-cases filename_to_tablename-decoded identifier
-    in chirdren mem_root.
+    in children mem_root.
   */
   LEX_STRING make_child_ident_filename_to_tablename(const char *src,
                                                     bool casedn)

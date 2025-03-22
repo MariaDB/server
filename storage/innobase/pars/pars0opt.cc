@@ -411,7 +411,7 @@ opt_calc_index_goodness(
 
 /*******************************************************************//**
 Calculates the number of matched fields based on an index goodness.
-@return number of excatly or partially matched fields */
+@return number of exactly or partially matched fields */
 UNIV_INLINE
 ulint
 opt_calc_n_fields_from_goodness(

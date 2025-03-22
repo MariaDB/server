@@ -151,7 +151,7 @@ groongaql_Context_ql_info_get(groongaql_ContextObject *self)
 
   if (self->closed) { return NULL; }
   rc = grn_ctx_info_get(&self->ctx, &info);
-  /* TODO: handling unsigned int properlly */
+  /* TODO: handling unsigned int properly */
   /* TODO: get outbuf */
   return Py_BuildValue("{s:i,s:i,s:i}",
                        "rc", rc,

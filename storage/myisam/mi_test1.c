@@ -380,7 +380,7 @@ static void create_key(uchar *key,uint rownr)
     if (rownr == 0)
     {
       key[0]=1;					/* null key */
-      key[1]=0;					/* Fore easy print of key */
+      key[1]=0;					/* For easy print of key */
       return;
     }
     *key++=0;

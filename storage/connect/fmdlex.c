@@ -845,7 +845,7 @@ static int yy_get_next_buffer()
     { /* Don't try to fill the buffer, so this is an EOF. */
     if ( yy_c_buf_p - yytext_ptr - YY_MORE_ADJ == 1 )
       {
-      /* We matched a singled characater, the EOB, so
+      /* We matched a singled character, the EOB, so
        * treat this as a final EOF.
        */
       return EOB_ACT_END_OF_FILE;

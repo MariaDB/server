@@ -292,7 +292,7 @@ static ulint fil_page_compress_for_non_full_crc32(
 		mach_write_to_2(out_buf + FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED);
 	}
 
-	/* Set up the actual payload lenght */
+	/* Set up the actual payload length */
 	mach_write_to_2(out_buf + FIL_PAGE_DATA + FIL_PAGE_COMP_SIZE,
 			write_size);
 

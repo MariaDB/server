@@ -486,7 +486,7 @@ correct(grn_ctx *ctx, grn_obj *items, grn_obj *items_boost,
               grn_obj_unlink(ctx, expr);
             } else {
               ERR(GRN_UNKNOWN_ERROR,
-                  "error on building expr. for calicurating edit distance");
+                  "error on building expr. for calculating edit distance");
             }
           }
         }

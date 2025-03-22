@@ -698,7 +698,7 @@ inline uint32_t fsp_flags_is_incompatible_mysql(uint32_t flags)
 {
   /*
     MySQL-8.0 SDI flag (bit 14),
-    or MySQL 5.7 Encyption flag (bit 13)
+    or MySQL 5.7 Encryption flag (bit 13)
   */
   return flags >> 13 & 3;
 }
