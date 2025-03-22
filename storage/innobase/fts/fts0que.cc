@@ -199,7 +199,7 @@ struct fts_proximity_t {
 					of the range */
 };
 
-/** The match positions and tokesn to match */
+/** The match positions and tokens to match */
 struct fts_phrase_t {
 	fts_phrase_t(const dict_table_t* table)
 		:
@@ -244,14 +244,14 @@ struct fts_phrase_t {
 	st_mysql_ftparser*	parser;
 };
 
-/** Paramter passed to fts phrase match by parser */
+/** Parameter passed to fts phrase match by parser */
 struct fts_phrase_param_t {
 	fts_phrase_t*	phrase;		/*!< Match phrase instance */
 	ulint		token_index;	/*!< Index of token to match next */
 	mem_heap_t*	heap;		/*!< Heap for word processing */
 };
 
-/** For storing the frequncy of a word/term in a document */
+/** For storing the frequency of a word/term in a document */
 struct fts_doc_freq_t {
 	doc_id_t	doc_id;		/*!< Document id */
 	ulint		freq;		/*!< Frequency of a word in a document */
@@ -433,7 +433,7 @@ fts_query_lcs(
 
 	/* Traverse the table backwards, from the last row to the first and
 	also from the last column to the first. We compute the smaller
-	common subsequeces first, then use the caluclated values to determine
+	common subsequences first, then use the calculated values to determine
 	the longest common subsequence. The result will be in TABLE[0][0]. */
 	for (i = r; i >= 0; --i) {
 		int	j;
@@ -762,7 +762,7 @@ fts_query_remove_doc_id(
 }
 
 /*******************************************************************//**
-Find the doc id in the query set but not in the deleted set, artificialy
+Find the doc id in the query set but not in the deleted set, artificially
 downgrade or upgrade its ranking by a value and make/initialize its ranking
 under or above its normal range 0 to 1. This is used for Boolean Search
 operator such as Negation operator, which makes word's contribution to the
@@ -822,7 +822,7 @@ fts_query_intersect_doc_id(
 	   2. 'a +b': docs match 'a' is in doc_ids, add doc into intersect
 	      if it matches 'b'. if the doc is also in  doc_ids, then change the
 	      doc's rank, and add 'a' in doc's words.
-	   3. '+a +b': docs matching '+a' is in doc_ids, add doc into intsersect
+	   3. '+a +b': docs matching '+a' is in doc_ids, add doc into intersect
 	      if it matches 'b' and it's in doc_ids.(multi_exist = true). */
 
 	/* Check if the doc id is deleted and it's in our set */
@@ -1439,7 +1439,7 @@ fts_query_union(
 		/* The size can't decrease. */
 		ut_a(rbt_size(query->doc_ids) >= n_doc_ids);
 
-		/* Calulate the number of doc ids that were added to
+		/* Calculate the number of doc ids that were added to
 		the current doc id set. */
 		if (query->doc_ids) {
 			n_doc_ids = rbt_size(query->doc_ids) - n_doc_ids;
@@ -2688,7 +2688,7 @@ fts_query_phrase_split(
 			   cache->stopword_info.cached_stopword,
 			   query->fts_index_table.charset)) {
 			/* Add the word to the RB tree so that we can
-			calculate it's frequencey within a document. */
+			calculate its frequency within a document. */
 			fts_query_add_word_freq(query, token);
 		} else {
 			ib_vector_pop(tokens);
@@ -3385,7 +3385,7 @@ fts_query_read_node(
 	/* Start from 1 since the first column has been read by the caller.
 	Also, we rely on the order of the columns projected, to filter
 	out ilists that are out of range and we always want to read
-	the doc_count irrespective of the suitablility of the row. */
+	the doc_count irrespective of the suitability of the row. */
 
 	for (i = 1; exp && !skip; exp = que_node_get_next(exp), ++i) {
 

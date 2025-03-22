@@ -15,4 +15,4 @@
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
-/* mulitingual stem */
+/* multilingual stem */

@@ -472,7 +472,7 @@ row_quiesce_write_cfg(
 		if (fclose(file) != 0) {
 			char	msg[BUFSIZ];
 
-			snprintf(msg, sizeof(msg), "%s flose() failed", name);
+			snprintf(msg, sizeof(msg), "%s fclose() failed", name);
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,

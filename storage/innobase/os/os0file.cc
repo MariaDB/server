@@ -3251,7 +3251,7 @@ more concurrent threads via thread_group setting.
 
 @param[in] n_reader_threads - max number of concurrently
   executing read callbacks
-@param[in] n_writer_thread - max number of cuncurrently
+@param[in] n_writer_thread - max number of concurrently
   executing write callbacks
 @return 0 for success, !=0 for error.
 */

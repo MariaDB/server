@@ -76,7 +76,7 @@ class Rdb_convert_to_record_value_decoder {
 /**
   Class to iterator fields in RocksDB value slice
   A template class instantiation represent a way to decode the data.
-  The reason to use template class instead of normal class is to elimate
+  The reason to use template class instead of normal class is to eliminate
   virtual method call.
 */
 template <typename value_field_decoder>

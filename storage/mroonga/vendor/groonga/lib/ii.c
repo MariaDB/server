@@ -11342,7 +11342,7 @@ typedef struct {
 
   grn_obj  *lexicon;    /* Block lexicon (to be closed) */
   grn_obj  *tokenizer;  /* Lexicon's tokenizer */
-  grn_obj  *normalizer; /* Lexicon's normalzier */
+  grn_obj  *normalizer; /* Lexicon's normalizer */
 
   uint32_t n;   /* Number of integers appended to the current block */
   grn_id   rid; /* Record ID */

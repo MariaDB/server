@@ -456,7 +456,7 @@ static bool fil_node_open_file(fil_node_t *node, const byte *page, bool no_lsn)
     }
   }
 
-  /* The node can be opened beween releasing and acquiring fil_system.mutex
+  /* The node can be opened between releasing and acquiring fil_system.mutex
   in the above code */
   return node->is_open() || fil_node_open_file_low(node, page, no_lsn);
 }
@@ -2162,7 +2162,7 @@ func_exit:
 	df_remote.init(flags);
 
 	/* Discover the correct file by looking in three possible locations
-	while avoiding unecessary effort. */
+	while avoiding unnecessary effort. */
 
 	/* We will always look for an ibd in the default location. */
 	df_default.make_filepath(nullptr, name, IBD);
@@ -2501,7 +2501,7 @@ bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
 /** Open an ibd tablespace and add it to the InnoDB data structures.
 This is similar to fil_ibd_open() except that it is used while processing
 the REDO log, so the data dictionary is not available and very little
-validation is done. The tablespace name is extracred from the
+validation is done. The tablespace name is extracted from the
 dbname/tablename.ibd portion of the filename, which assumes that the file
 is a file-per-table tablespace.  Any name will do for now.  General
 tablespace names will be read from the dictionary after it has been

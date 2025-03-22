@@ -986,7 +986,7 @@ i_s_cmp_fill_low(
 		mutex.  Thus, some operation in page0zip.cc could
 		increment a counter between the time we read it and
 		clear it.  We could introduce mutex protection, but it
-		could cause a measureable performance hit in
+		could cause a measurable performance hit in
 		page0zip.cc. */
 		table->field[1]->store(zip_stat->compressed, true);
 		table->field[2]->store(zip_stat->compressed_ok, true);
@@ -4304,7 +4304,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 		DBUG_RETURN(0);
 	}
 
-	/* Aquire the mutex before allocating info_buffer, since
+	/* Acquire the mutex before allocating info_buffer, since
 	UT_LIST_GET_LEN(buf_pool.LRU) could change */
 	mysql_mutex_lock(&buf_pool.mutex);
 

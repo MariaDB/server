@@ -95,7 +95,7 @@ void seq_storage_rewind(SEQ_STORAGE *seq)
   @brief Writes a number to the sequence file.
 
   @param file            Path to the file where to write the sequence
-  @pagem num             Number to be written
+  @param num             Number to be written
 
   @retval 0 OK
   @retval 1 Error

@@ -36,7 +36,7 @@ class GRN_DAT_API Block {
     return prev_ / BLOCK_SIZE;
   }
 
-  // A level indicates how easyily find_offset() can find a good offset in that
+  // A level indicates how easily find_offset() can find a good offset in that
   // block. It is easier in lower level blocks.
   UInt32 level() const {
     return next_ & BLOCK_MASK;

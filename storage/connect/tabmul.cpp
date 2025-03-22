@@ -676,7 +676,7 @@ char* TDBDIR::Path(PGLOBAL g)
     PlugSetPath(Fpath, To_File, defp ? defp->GetPath() : NULL);
     _splitpath(Fpath, Drive, Direc, Fname, Ftype);
   } else
-    _makepath(Fpath, Drive, Direc, Fname, Ftype); // Usefull for TDBSDR
+    _makepath(Fpath, Drive, Direc, Fname, Ftype); // Useful for TDBSDR
 
   return Fpath;
 #else   // !_WIN32

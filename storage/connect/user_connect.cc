@@ -21,7 +21,7 @@
 
   @details
   To support multi_threading, each query creates and use a PlugDB "user"
-  that is a connection with its personnal memory allocation.
+  that is a connection with its personal memory allocation.
 
   @note
 	Author Olivier Bertrand

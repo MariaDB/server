@@ -389,7 +389,7 @@ private:
   /** Whether the tablespace is being imported */
   bool being_imported= false;
 
-  /** Whether any corrupton of this tablespace has been reported */
+  /** Whether any corruption of this tablespace has been reported */
   mutable std::atomic_flag is_corrupted{false};
 
 public:

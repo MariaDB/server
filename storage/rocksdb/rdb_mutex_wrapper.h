@@ -91,7 +91,7 @@ class Rdb_cond_var : public rocksdb::TransactionDBCondVar {
   virtual rocksdb::Status Wait(
       const std::shared_ptr<rocksdb::TransactionDBMutex> mutex) override;
 
-  // Block current thread until condition variable is notifiesd by a call to
+  // Block current thread until condition variable is notified by a call to
   // Notify() or NotifyAll(), or if the timeout is reached.
   // If timeout is non-negative, operation should be failed after this many
   // microseconds.

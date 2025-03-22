@@ -953,8 +953,8 @@ SysTablespace::open_or_create(
 		}
 	}
 
-	/* Close the curent handles, add space and file info to the
-	fil_system cache and the Data Dictionary, and re-open them
+	/* Close the current handles, add space and file info to the
+	file_system cache and the Data Dictionary, and re-open them
 	in file_system cache so that they stay open until shutdown. */
 	mysql_mutex_lock(&fil_system.mutex);
 	ulint	node_counter = 0;

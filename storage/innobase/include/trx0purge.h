@@ -65,7 +65,7 @@ class purge_sys_t
   {
   public:
     typedef std::vector<uint64_t, ut_allocator<uint64_t>> container_type;
-    /** Number of bits reseved to shift trx_no in purge queue element */
+    /** Number of bits reserved to shift trx_no in purge queue element */
     static constexpr unsigned TRX_NO_SHIFT= 8;
 
     bool empty() const { return m_array.empty(); }

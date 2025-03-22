@@ -1068,7 +1068,7 @@ public:
   /**
     Takes MVCC snapshot.
 
-    To reduce malloc probablility we reserve rw_trx_hash.size() + 32 elements
+    To reduce malloc probability we reserve rw_trx_hash.size() + 32 elements
     in ids.
 
     For details about get_rw_trx_hash_version() != get_max_trx_id() spin

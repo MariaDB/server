@@ -84,7 +84,7 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
 
   if (share.state.header.data_file_type == BLOCK_RECORD)
   {
-    /* Calulate how man pages the row bitmap covers. From _ma_bitmap_init() */
+    /* Calculate how many pages the row bitmap covers. From _ma_bitmap_init() */
     aligned_bit_blocks= (cap->block_size - PAGE_SUFFIX_SIZE) / 6;
     /*
       In each 6 bytes, we have 6*8/3 = 16 pages covered

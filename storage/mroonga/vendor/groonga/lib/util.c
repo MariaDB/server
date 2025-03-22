@@ -989,7 +989,7 @@ grn_table_subrec_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
       GRN_TEXT_PUTS(ctx, buf, "section:none");
       break;
     case GRN_OBJ_UNIT_SECTION_POSITION :
-      GRN_TEXT_PUTS(ctx, buf, "section:popsition");
+      GRN_TEXT_PUTS(ctx, buf, "section:position");
       break;
     case GRN_OBJ_UNIT_POSITION_NONE :
       GRN_TEXT_PUTS(ctx, buf, "section:none");

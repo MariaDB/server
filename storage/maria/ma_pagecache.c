@@ -1067,7 +1067,7 @@ size_t resize_pagecache(PAGECACHE *pagecache,
 
 finish:
   wqueue_unlink_from_queue(wqueue, thread);
-  /* Signal for the next resize request to proceeed if any */
+  /* Signal for the next resize request to proceed if any */
   if (wqueue->last_thread)
   {
     DBUG_PRINT("signal",
@@ -3180,7 +3180,7 @@ static void check_and_set_lsn(PAGECACHE *pagecache,
   @brief Unlock/unpin page and put LSN stamp if it need
 
   @param pagecache      pointer to a page cache data structure
-  @pagam file           handler for the file for the block of data to be read
+  @param file           file handler for the block of data to be read
   @param pageno         number of the block of data in the file
   @param lock           lock change
   @param pin            pin page
@@ -3192,8 +3192,8 @@ static void check_and_set_lsn(PAGECACHE *pagecache,
                         direct link giving and the page was changed
 
   @note
-    Pininig uses requests registration mechanism it works following way:
-                                | beginnig    | ending        |
+    Pinning uses requests registration mechanism that works following way:
+                                | beginning   | ending        |
                                 | of func.    | of func.      |
     ----------------------------+-------------+---------------+
     PAGECACHE_PIN_LEFT_PINNED   |      -      |       -       |
@@ -3294,7 +3294,7 @@ void pagecache_unlock(PAGECACHE *pagecache,
   SYNOPSIS
     pagecache_unpin()
     pagecache           pointer to a page cache data structure
-    file                handler for the file for the block of data to be read
+    file                file handler for the block of data to be read
     pageno              number of the block of data in the file
     lsn                 if it is not LSN_IMPOSSIBLE (0) and it
                         is bigger then LSN on the page it will be written on
@@ -3684,7 +3684,7 @@ static struct rw_pin_change lock_to_pin[2][8]=
   @brief Read a block of data from a cached file into a buffer;
 
   @param pagecache      pointer to a page cache data structure
-  @param file           handler for the file for the block of data to be read
+  @param file           file handler for the block of data to be read
   @param pageno         number of the block of data in the file
   @param level          determines the weight of the data
   @param buff           buffer to where the data must be placed
@@ -3744,7 +3744,7 @@ restart:
 
   /*
    If we use big block than the big block is multiple of blocks and we
-   have enouch blocks in cache
+   have enough blocks in cache
   */
   DBUG_ASSERT(!pagecache->big_block_read ||
               (file->big_block_size != 0 &&
@@ -4168,7 +4168,7 @@ void pagecache_add_level_by_link(PAGECACHE_BLOCK_LINK *block,
   @brief Delete page from the buffer
 
   @param pagecache      pointer to a page cache data structure
-  @param file           handler for the file for the block of data to be read
+  @param file           file handler for the block of data to be read
   @param pageno         number of the block of data in the file
   @param lock           lock change
   @param flush          flush page if it is dirty

@@ -284,7 +284,7 @@
     -------
 
     There is a test for MySQL Federated Storage Handler in ./mysql-test/t,
-    federatedd.test It starts both a slave and master database using
+    federated.test It starts both a slave and master database using
     the same setup that the replication tests use, with the exception that
     it turns off replication, and sets replication to ignore the test tables.
     After ensuring that you actually do have support for the federated storage
@@ -3268,7 +3268,7 @@ bool ha_federated::get_error_message(int error, String* buf)
   @details    Call @c mysql_store_result() to save a result set then
               append it to the stored results array.
 
-  @param[in]  mysql_arg  MySLQ connection structure.
+  @param[in]  mysql_arg  MySQL connection structure.
 
   @return     Stored result set (MYSQL_RES object).
 */

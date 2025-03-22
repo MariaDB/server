@@ -150,7 +150,7 @@ extern mysql_mutex_t srv_monitor_file_mutex;
 extern FILE*	srv_monitor_file;
 /** Mutex for locking srv_misc_tmpfile */
 extern mysql_mutex_t srv_misc_tmpfile_mutex;
-/* Temporary file for miscellanous diagnostic output */
+/* Temporary file for miscellaneous diagnostic output */
 extern FILE*	srv_misc_tmpfile;
 
 /* Server parameters which are read from the initfile */
@@ -584,7 +584,7 @@ struct export_var_t{
 	my_bool innodb_buffer_pool_load_incomplete;/*!< Buf pool load incomplete */
 	ulint innodb_buffer_pool_pages_total;	/*!< Buffer pool size */
 	ulint innodb_buffer_pool_bytes_data;	/*!< File bytes used */
-	ulint innodb_buffer_pool_pages_misc;	/*!< Miscellanous pages */
+	ulint innodb_buffer_pool_pages_misc;	/*!< Miscellaneous pages */
 #ifdef UNIV_DEBUG
 	ulint innodb_buffer_pool_pages_latched;	/*!< Latched pages */
 #endif /* UNIV_DEBUG */

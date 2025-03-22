@@ -1775,7 +1775,7 @@ DECVAL::DECVAL(PGLOBAL g, PSZ s, int n, int prec, bool uns)
 } // end of DECVAL constructor
 
 /***********************************************************************/
-/*  DECIMAL: Check whether the numerica value is equal to 0.           */
+/*  DECIMAL: Check whether the numerical value is equal to 0.          */
 /***********************************************************************/
 bool DECVAL::IsZero(void)
 {

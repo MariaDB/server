@@ -40,7 +40,7 @@ typedef struct index_val : public BLOCK {
   index_val(PXOB xp) {Next = NULL; Xval = xp; Kp = NULL;}
   PIVAL  Next;                    // Next value
   PXOB   Xval;                    // To value or array
-  int   *Kp;                      // The coordonates in a LSTBLK
+  int   *Kp;                      // The coordinates in a LSTBLK
   } IVAL;
 
 typedef struct index_col : public BLOCK {

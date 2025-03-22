@@ -514,10 +514,10 @@ protected:
 	/** the size of upd_buf in bytes */
 	ulint			m_upd_buf_size;
 
-	/** Flags that specificy the handler instance (table) capability. */
+	/** Flags that specify the handler instance (table) capability. */
 	Table_flags		m_int_table_flags;
 
-	/** Index into the server's primkary keye meta-data table->key_info{} */
+	/** Index into the server's primary key meta-data table->key_info{} */
 	uint			m_primary_key;
 
 	/** this is set to 1 when we are starting a table scan but have
@@ -532,7 +532,7 @@ protected:
         bool                    m_mysql_has_locked;
 
 	/** If true, disable the Rowid Filter. It is disabled when
-	the enigne is intialized for making rnd_pos() calls */
+	the engine is intialized for making rnd_pos() calls */
 	bool                    m_disable_rowid_filter;
 };
 
