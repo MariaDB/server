@@ -22886,7 +22886,57 @@ void test_mdev_10075()
   DIE_UNLESS(rc == 1);
 
   mysql_free_result(result);
+  mysql_query(mysql, "drop table t1");
 }
+
+
+static void test_mdev35953()
+{
+#ifndef EMBEDDED_LIBRARY
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1];
+  int        vals[]= {1, 2}, count= array_elements(vals);
+  MYSQL *con= mysql_client_init(NULL);
+  DIE_UNLESS(con);
+  if (!mysql_real_connect(con, opt_host, opt_user, opt_password, current_db,
+                          opt_port, opt_unix_socket, 0))
+  {
+    fprintf(stderr, "Failed to connect to database: Error: %s\n",
+            mysql_error(con));
+    exit(1);
+  }
+  rc= mysql_query(mysql, "create table t1 (a int)");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(con);
+  rc= mysql_stmt_prepare(stmt, "insert into t1 (a) values (?)", -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = vals;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_query(mysql, "alter table t1 add xx int");
+  myquery(rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+  mysql_close(con);
+
+  mysql_query(mysql, "drop table t1");
+#endif
+}
+
 
 static struct my_tests_st my_tests[]= {
   { "test_mdev_20516", test_mdev_20516 },
@@ -23206,6 +23256,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34958", test_mdev_34958 },
 #endif
   { "test_mdev_10075", test_mdev_10075},
+  { "test_mdev35953", test_mdev35953 },
   { 0, 0 }
 };
 
