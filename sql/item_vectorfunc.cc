@@ -274,3 +274,96 @@ error:
   null_value= true;
   return nullptr;
 }
+
+/*
+  Implementation of EMBED function for generating vector embeddings
+  
+  This function takes a text string and returns a vector embedding.
+  Optionally takes a model name to specify which embedding model to use.
+*/
+
+Item_func_embed::Item_func_embed(THD *thd, Item *a)
+    : Item_str_func(thd, a)
+{
+  dimensions = 384;
+}
+
+Item_func_embed::Item_func_embed(THD *thd, Item *a, Item *model_name)
+    : Item_str_func(thd, a, model_name)
+{
+  dimensions = 384;
+}
+
+bool Item_func_embed::fix_length_and_dec(THD *thd)
+{
+  if (arg_count > 1)
+  {
+    String model_buf;
+    String *model = args[1]->val_str(&model_buf);
+    
+    if (model && !args[1]->null_value)
+    {
+      if (strncasecmp(model->ptr(), "small", 5) == 0)
+        dimensions = 384;
+      else if (strncasecmp(model->ptr(), "medium", 6) == 0)
+        dimensions = 768;
+      else if (strncasecmp(model->ptr(), "large", 5) == 0)
+        dimensions = 1536;
+    }
+  }
+  
+  fix_length_and_charset(dimensions * sizeof(float), &my_charset_bin);
+  set_maybe_null();
+  return false;
+}
+
+String *Item_func_embed::val_str(String *str)
+{
+  DBUG_ENTER("Item_func_embed::val_str");
+  String *text = args[0]->val_str(&tmp_str);
+  
+  if ((null_value = args[0]->null_value))
+    DBUG_RETURN(nullptr);
+  
+  // Clear the output buffer
+  str->length(0);
+  str->set_charset(&my_charset_bin);
+  
+  /* 
+   * In a real implementation, we would:
+   * 1. Look up the appropriate embedding generator based on args[1] if provided
+   * 2. Generate a real embedding using that model
+   * 3. Format the embedding as a binary vector
+   *
+   * For now, we'll create a simple deterministic vector based on the input text
+   */
+  
+  float *vector = new (thd->mem_root) float[dimensions];
+  if (!vector)
+  {
+    null_value = true;
+    DBUG_RETURN(nullptr);
+  }
+  
+  // Generate a simple deterministic vector (for demonstration)
+  // In a real implementation, this would call the actual embedding model
+  for (uint i = 0; i < dimensions; i++)
+  {
+    // Simple hash function to generate deterministic values
+    vector[i] = (float)((i + 1) * (text->length() > 0 ? text->ptr()[i % text->length()] : 1)) / 255.0f;
+    
+    // Normalize to range [-1, 1]
+    vector[i] = (vector[i] * 2.0f) - 1.0f;
+  }
+  
+  // Store each float in the buffer
+  str->alloc(dimensions * sizeof(float));
+  for (uint i = 0; i < dimensions; i++)
+  {
+    char f_bin[sizeof(float)];
+    float4store(f_bin, vector[i]);
+    str->append(f_bin, sizeof(float));
+  }
+  
+  DBUG_RETURN(str);
+}

@@ -102,4 +102,23 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_fromtext>(thd, this); }
 };
+
+class Item_func_embed: public Item_str_func
+{
+  String tmp_str;
+  uint dimensions;
+public:
+  Item_func_embed(THD *thd, Item *a);
+  Item_func_embed(THD *thd, Item *a, Item *model_name);
+
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= { STRING_WITH_LEN("EMBED") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *) override;
+  String *val_str(String *str) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_embed>(thd, this); }
+};
 #endif
