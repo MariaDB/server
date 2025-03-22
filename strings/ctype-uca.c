@@ -34,10 +34,10 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
-#include <my_sys.h>
 #include "ctype-uca.h"
 #include "ctype-unidata.h"
 #include "my_bit.h"
+#include "ctype-uca0900.h"
 
 typedef struct
 {
@@ -39415,50 +39415,86 @@ my_uca1400_make_builtin_collation_id(my_cs_encoding_t charset_id,
 }
 
 
-my_bool
-my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
-                                     struct charset_info_st *dst,
-                                     uint id)
+static uca_collation_def_param_t
+my_uca1400_collation_param_by_id(uint id)
 {
-  my_cs_encoding_t cs_id= my_uca1400_collation_id_to_charset_id(id);
-  uint tailoring_id=       my_uca1400_collation_id_to_tailoring_id(id);
-  my_bool nopad=           my_uca1400_collation_id_to_nopad_flag(id);
+  uca_collation_def_param_t res;
   my_bool secondary_level= my_uca1400_collation_id_to_secondary_level_flag(id);
   my_bool tertiary_level=  my_uca1400_collation_id_to_tertiary_level_flag(id);
-  const MY_UCA1400_COLLATION_DEFINITION *def=
-    &my_uca1400_collation_definitions[tailoring_id];
-  char tmp[128], *coll_name;
-  size_t length;
 
+  res.cs_id= my_uca1400_collation_id_to_charset_id(id);
+  res.tailoring_id= my_uca1400_collation_id_to_tailoring_id(id);
+  res.nopad_flags= my_uca1400_collation_id_to_nopad_flag(id);
+  res.level_flags= (1 << MY_CS_LEVEL_BIT_PRIMARY) |
+                   (secondary_level ? 1 << MY_CS_LEVEL_BIT_SECONDARY : 0) |
+                   (tertiary_level  ? 1 << MY_CS_LEVEL_BIT_TERTIARY  : 0);
+  return res;
+}
+
+
+static LEX_CSTRING
+my_uca1400_collation_build_name(char *buffer, size_t buffer_size,
+                                const LEX_CSTRING *cs_name,
+                                const char *tailoring_name,
+                                const uca_collation_def_param_t *prm)
+{
+  LEX_CSTRING res;
+  res.str= buffer;
+  res.length=
+    my_snprintf(buffer, buffer_size, "%.*s_uca1400%s%s%s%s%s",
+         (int) cs_name->length, cs_name->str,
+         tailoring_name[0] ? "_" : "",
+         tailoring_name,
+         prm->nopad_flags ? "_nopad" : "",
+         prm->level_flags & (1<<MY_CS_LEVEL_BIT_SECONDARY) ? "_as" : "_ai",
+         prm->level_flags & (1<<MY_CS_LEVEL_BIT_TERTIARY) ? "_cs" : "_ci");
+  return res;
+}
+
+
+static
+CHARSET_INFO *my_uca1400_collation_source(my_cs_encoding_t cs_id,
+                                          uint nopad_flags)
+{
   switch (cs_id) {
   case MY_CS_ENCODING_UTF8MB3:
-    *dst= nopad ? my_charset_utf8mb3_unicode_520_nopad_ci :
-                  my_charset_utf8mb3_unicode_520_ci;
-    break;
+    return nopad_flags ? &my_charset_utf8mb3_unicode_520_nopad_ci :
+                         &my_charset_utf8mb3_unicode_520_ci;
   case MY_CS_ENCODING_UTF8MB4:
-    *dst= nopad ? my_charset_utf8mb4_unicode_520_nopad_ci :
-                  my_charset_utf8mb4_unicode_520_ci;
-    break;
+    return nopad_flags ? &my_charset_utf8mb4_unicode_520_nopad_ci :
+                         &my_charset_utf8mb4_unicode_520_ci;
 #ifdef HAVE_CHARSET_ucs2
   case MY_CS_ENCODING_UCS2:
-    *dst= nopad ? my_charset_ucs2_unicode_520_nopad_ci :
-                  my_charset_ucs2_unicode_520_ci;
-    break;
+    return nopad_flags ? &my_charset_ucs2_unicode_520_nopad_ci :
+                         &my_charset_ucs2_unicode_520_ci;
 #endif
 #ifdef HAVE_CHARSET_utf16
   case MY_CS_ENCODING_UTF16:
-    *dst= nopad ? my_charset_utf16_unicode_520_nopad_ci :
-                  my_charset_utf16_unicode_520_ci;
-    break;
+    return nopad_flags ? &my_charset_utf16_unicode_520_nopad_ci :
+                         &my_charset_utf16_unicode_520_ci;
 #endif
 #ifdef HAVE_CHARSET_utf32
   case MY_CS_ENCODING_UTF32:
-    *dst= nopad ? my_charset_utf32_unicode_520_nopad_ci :
-                  my_charset_utf32_unicode_520_ci;
-    break;
+    return nopad_flags ? &my_charset_utf32_unicode_520_nopad_ci :
+                         &my_charset_utf32_unicode_520_ci;
 #endif
   }
+  return NULL;
+}
 
+
+static void
+my_uca1400_collation_definition_init_internal(
+                                       MY_CHARSET_LOADER *loader,
+                                       struct charset_info_st *dst,
+                                       const uca_collation_def_param_t *param,
+                                       uint id)
+{
+  my_cs_encoding_t cs_id= my_uca1400_collation_id_to_charset_id(id);
+  const MY_UCA1400_COLLATION_DEFINITION *def=
+    &my_uca1400_collation_definitions[param->tailoring_id];
+
+  *dst= *my_uca1400_collation_source(cs_id, param->nopad_flags);
   dst->number= id;
   dst->uca= &my_uca_v1400;
   dst->tailoring= def->tailoring;
@@ -39466,27 +39502,31 @@ my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
     dst->casefold= &my_casefold_unicode1400tr;
   else
     dst->casefold= &my_casefold_unicode1400;
-  if (nopad)
-    dst->state|= MY_CS_NOPAD;
-  my_ci_set_level_flags(dst, (1 << MY_CS_LEVEL_BIT_PRIMARY) |
-                             (secondary_level ?
-                              1 << MY_CS_LEVEL_BIT_SECONDARY : 0) |
-                             (tertiary_level  ?
-                              1 << MY_CS_LEVEL_BIT_TERTIARY  : 0));
 
-  length= my_snprintf(tmp, sizeof(tmp), "%.*s_uca1400%s%s%s%s%s",
-                      (int) dst->cs_name.length, dst->cs_name.str,
-                      def->name[0] ? "_" : "",
-                      def->name,
-                      nopad ? "_nopad" : "",
-                      secondary_level ? "_as" : "_ai",
-                      tertiary_level ? "_cs" : "_ci");
-  if (!(coll_name= loader->once_alloc(length + 1)))
-    return TRUE;
-  strcpy(coll_name, tmp);
-  dst->coll_name.str= coll_name;
-  dst->coll_name.length= length;
-  return FALSE;
+  dst->state|= param->nopad_flags;
+  my_ci_set_level_flags(dst, param->level_flags);
+}
+
+
+my_bool
+my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
+                                     struct charset_info_st *dst,
+                                     uint id)
+{
+  LEX_CSTRING coll_name;
+  char tmp[128];
+  uca_collation_def_param_t param= my_uca1400_collation_param_by_id(id);
+  const MY_UCA1400_COLLATION_DEFINITION *def=
+    &my_uca1400_collation_definitions[param.tailoring_id];
+
+  my_uca1400_collation_definition_init_internal(loader, dst, &param, id);
+
+  coll_name= my_uca1400_collation_build_name(tmp, sizeof(tmp),
+                                             &dst->cs_name,
+                                             def->name,
+                                             &param);
+  dst->coll_name= my_loader_strcpy_alloc_once(loader, &coll_name);
+  return dst->coll_name.str == NULL;
 }
 
 
@@ -39565,135 +39605,5 @@ LEX_CSTRING my_ci_get_collation_name_uca(CHARSET_INFO *cs,
   return cs->coll_name;
 }
 
-
-/*
-  Add support for MySQL 8.0 utf8mb4_0900_.. collations
-
-  The collation id's where collected from fprintf() in add_alias_for_collation()
-*/
-
-#define mysql_0900_collation_start 255
-
-struct mysql_0900_to_mariadb_1400_mapping
-{
-  const char *mysql_col_name, *mariadb_col_name, *case_sensitivity;
-  uint collation_id;
-};
-
-struct mysql_0900_to_mariadb_1400_mapping mysql_0900_mapping[]=
-{
-  /* 255 Ascent insensitive, Case insensitive 'ai_ci' */
-  {"", "", "ai_ci", 2308},
-  {"de_pb", "german2", "ai_ci", 2468},
-  {"is", "icelandic", "ai_ci", 2316},
-  {"lv", "latvian", "ai_ci", 2324},
-  {"ro", "romanian", "ai_ci", 2332},
-  {"sl", "slovenian", "ai_ci", 2340},
-  {"pl", "polish", "ai_ci", 2348},
-  {"et", "estonian", "ai_ci", 2356},
-  {"es", "spanish", "ai_ci", 2364},
-  {"sv", "swedish", "ai_ci", 2372},
-  {"tr", "turkish", "ai_ci", 2380},
-  {"cs", "czech", "ai_ci", 2388},
-  {"da", "danish", "ai_ci", 2396},
-  {"lt", "lithuanian", "ai_ci", 2404},
-  {"sk", "slovak", "ai_ci", 2412},
-  {"es_trad", "spanish2", "ai_ci", 2420},
-  {"la", "roman", "ai_ci", 2428},
-  {"fa", NullS, "ai_ci", 0},                          // Disabled in MySQL
-  {"eo", "esperanto", "ai_ci", 2444},
-  {"hu", "hungarian", "ai_ci", 2452},
-  {"hr", "croatian", "ai_ci", 2500},
-  {"si", NullS, "ai_ci", 0},                          // Disabled in MySQL
-  {"vi", "vietnamese", "ai_ci", 2492},
-
-  /* 278 Ascent sensitive, Case sensitive 'as_cs' */
-  {"","", "as_cs", 2311},
-  {"de_pb", "german2", "as_cs", 2471},
-  {"is", "icelandic", "as_cs", 2319},
-  {"lv", "latvian", "as_cs", 2327},
-  {"ro", "romanian", "as_cs", 2335},
-  {"sl", "slovenian", "as_cs", 2343},
-  {"pl", "polish", "as_cs", 2351},
-  {"et", "estonian", "as_cs", 2359},
-  {"es", "spanish", "as_cs", 2367},
-  {"sv", "swedish", "as_cs", 2375},
-  {"tr", "turkish", "as_cs", 2383},
-  {"cs", "czech", "as_cs", 2391},
-  {"da", "danish", "as_cs", 2399},
-  {"lt", "lithuanian", "as_cs", 2407},
-  {"sk", "slovak", "as_cs", 2415},
-  {"es_trad", "spanish2", "as_cs", 2423},
-  {"la", "roman", "as_cs", 2431},
-  {"fa", NullS, "as_cs", 0},                          // Disabled in MySQL
-  {"eo", "esperanto", "as_cs", 2447},
-  {"hu", "hungarian", "as_cs", 2455},
-  {"hr", "croatian", "as_cs", 2503},
-  {"si", NullS, "as_cs", 0},                          // Disabled in MySQL
-  {"vi", "vietnamese", "as_cs", 2495},
-
-  {"", NullS, "as_cs", 0},                            // Missing
-  {"", NullS, "as_cs", 0},                            // Missing
-  {"_ja_0900_as_cs", NullS, "as_cs", 0},              // Not supported
-  {"_ja_0900_as_cs_ks", NullS, "as_cs", 0},           // Not supported
-
-  /* 305 Ascent-sensitive, Case insensitive 'as_ci' */
-  {"","", "as_ci", 2310},
-  {"ru", NullS, "ai_ci", 0},                          // Not supported
-  {"ru", NullS, "as_cs", 0},                          // Not supported
-  {"zh", NullS, "as_cs", 0},                          // Not supported
-  {NullS, NullS, "", 0}
-};
-
-
-static LEX_CSTRING mysql_utf8_bin= { STRING_WITH_LEN("utf8mb4_0900_bin") };
-static LEX_CSTRING mariadb_utf8_bin= { STRING_WITH_LEN("utf8mb4_bin") };
-
-/*
-  Map mysql character sets to MariaDB using the same definition but with
-  with the MySQL collation name and id.
-*/
-
-my_bool mysql_utf8mb4_0900_collation_definitions_add()
-{
-  uint id= mysql_0900_collation_start;
-  struct mysql_0900_to_mariadb_1400_mapping *map;
-
-  for (map= mysql_0900_mapping; map->mysql_col_name ; map++, id++)
-  {
-    if (map->mariadb_col_name)               /* Supported collation */
-    {
-      size_t org_length, ali_length;
-      char original[64], alias[64];
-      LEX_CSTRING org_name, alias_name;
-
-      org_length= (strxnmov(original, sizeof(original)-1,
-                            "utf8mb4_uca1400_",
-                            map->mariadb_col_name,
-                            (map->mariadb_col_name[0] ? "_" : ""),
-                            "nopad_",
-                            map->case_sensitivity,
-                            NullS) - original);
-      ali_length= (strxnmov(alias, sizeof(alias)-1,
-                            "utf8mb4_", map->mysql_col_name,
-                            (map->mysql_col_name[0] ? "_" : ""),
-                            "0900_",
-                            map->case_sensitivity,
-                            NullS) - alias);
-      org_name.str=      original;
-      org_name.length=   org_length;
-      alias_name.str=    alias;
-      alias_name.length= ali_length;
-
-      if (add_alias_for_collation(&org_name, map->collation_id, &alias_name,
-                                  id))
-        return 1;
-    }
-  }
-
-  if (add_alias_for_collation(&mariadb_utf8_bin, 46, &mysql_utf8_bin, 309))
-    return 1;
-  return 0;
-}
 
 #endif /* HAVE_UCA_COLLATIONS */

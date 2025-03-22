@@ -466,6 +466,21 @@ typedef struct my_charset_loader_st
 } MY_CHARSET_LOADER;
 
 
+static inline LEX_CSTRING
+my_loader_strcpy_alloc_once(MY_CHARSET_LOADER *loader,
+                            const LEX_CSTRING *src)
+{
+  char *tmp= (char*) loader->once_alloc(src->length + 1);
+  LEX_CSTRING res= {tmp, src->length};
+  DBUG_ASSERT(src->str[src->length] == '\0');
+  if (!tmp)
+    res.length= 0;
+  else
+    strcpy(tmp, src->str);
+  return res;
+}
+
+
 extern int (*my_string_stack_guard)(int);
 
 /* See strings/CHARSET_INFO.txt for information about this structure  */

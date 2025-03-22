@@ -16,6 +16,7 @@
 #include "mysys_priv.h"
 
 #include "../strings/ctype-uca.h"
+#include "../strings/ctype-uca0900.h"
 
 /*
   Include all compiled character sets into the client
@@ -207,6 +208,47 @@ my_uca1400_collation_definition_add(MY_CHARSET_LOADER *loader,
     return TRUE;
   add_compiled_collation(tmp);
   return FALSE;
+}
+
+
+/*
+  Add support for MySQL 8.0 utf8mb4_0900_.. collations
+
+  The collation id's where collected from fprintf() in add_alias_for_collation()
+*/
+
+static LEX_CSTRING mysql_utf8_bin= { STRING_WITH_LEN("utf8mb4_0900_bin") };
+
+
+/*
+  Map mysql character sets to MariaDB using the same definition but with
+  with the MySQL collation name and id.
+*/
+
+my_bool mysql_utf8mb4_0900_collation_definitions_add()
+{
+  uint alias_id= mysql_0900_collation_start;
+  struct mysql_0900_to_mariadb_1400_mapping *map;
+
+  for (map= mysql_0900_mapping; map->mysql_col_name ; map++, alias_id++)
+  {
+    if (map->mariadb_col_name)               /* Supported collation */
+    {
+      char alias[64];
+      LEX_CSTRING alias_name= my_uca0900_collation_build_name(
+                                                    alias, sizeof(alias),
+                                                   "utf8mb4",
+                                                    map->mysql_col_name,
+                                                    map->case_sensitivity);
+
+      if (add_alias_for_collation(map->collation_id, &alias_name, alias_id))
+        return 1;
+    }
+  }
+
+  if (add_alias_for_collation(46, &mysql_utf8_bin, 309))
+    return 1;
+  return 0;
 }
 
 

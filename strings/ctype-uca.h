@@ -118,6 +118,15 @@ typedef enum my_cs_encoding_enum
 #define MY_CS_ENCODING_LAST MY_CS_ENCODING_UTF32
 
 
+typedef struct uca_collation_def_param
+{
+  my_cs_encoding_t cs_id;
+  uint tailoring_id;
+  uint nopad_flags;
+  uint level_flags;
+} uca_collation_def_param_t;
+
+
 #include "ctype-uca1400.h"
 
 

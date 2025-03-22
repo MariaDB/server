@@ -646,8 +646,9 @@ void add_compiled_extra_collation(struct charset_info_st *cs)
   corresponding utf8mb4_1400 collation
 */
 
-my_bool add_alias_for_collation(LEX_CSTRING *collation_name, uint org_id,
-                                LEX_CSTRING *alias, uint alias_id)
+my_bool add_alias_for_collation(uint org_id,
+                                const LEX_CSTRING *alias,
+                                uint alias_id)
 {
   char *coll_name, *comment;
   struct charset_info_st *new_ci;
@@ -660,11 +661,9 @@ my_bool add_alias_for_collation(LEX_CSTRING *collation_name, uint org_id,
   if (!(org= all_charsets[org_id]))
     return 1;
 
-  DBUG_ASSERT(!my_strcasecmp(&my_charset_latin1, org->coll_name.str,
-                             collation_name->str));
 #ifdef DEBUG_PRINT_ALIAS
-  fprintf(stderr, "alias: %s collation: %s org_id: %u\n",
-          alias->str, collation_name->str, org_id);
+  fprintf(stderr, "alias[%u] %-26s -> [%u] %s\n",
+          alias_id, alias->str, org_id, org->coll_name.str);
 #endif
 
   /*
@@ -680,7 +679,7 @@ my_bool add_alias_for_collation(LEX_CSTRING *collation_name, uint org_id,
   ((struct charset_info_st*) org)->state|= MY_CS_READY;
 
   comment_length= strxnmov(comment_buff, sizeof(comment_buff)-1,
-                           "Alias for ", collation_name->str,
+                           "Alias for ", org->coll_name.str,
                            NullS) - comment_buff;
 
   if (!(new_ci= ((struct charset_info_st*)
