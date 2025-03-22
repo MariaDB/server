@@ -101,7 +101,7 @@ _rl_find_next_mbchar_internal (string, seed, count, find_non_zero)
       tmp = mbrtowc (&wc, string+point, strlen(string + point), &ps);
       if (MB_INVALIDCH ((size_t)tmp))
 	{
-	  /* invalid bytes. asume a byte represents a character */
+	  /* invalid bytes. assume a byte represents a character */
 	  point++;
 	  count--;
 	  /* reset states. */
@@ -258,7 +258,7 @@ _rl_compare_chars (buf1, pos1, ps1, buf2, pos2, ps2)
 /* adjust pointed byte and find mbstate of the point of string.
    adjusted point will be point <= adjusted_point, and returns
    differences of the byte(adjusted_point - point).
-   if point is invalied (point < 0 || more than string length),
+   if point is invalid (point < 0 || more than string length),
    it returns -1 */
 int
 _rl_adjust_point(string, point, ps)

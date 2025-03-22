@@ -287,7 +287,7 @@ public:
 
   /*
     Convert in-record representation to binlog representation.
-    We tranfer UUID values in binlog by compressing in-memory representation.
+    We transfer UUID values in binlog by compressing in-memory representation.
     This makes replication between UUID and BINARY(16) simpler:
 
     Transferring by compressing the in-record representation would require

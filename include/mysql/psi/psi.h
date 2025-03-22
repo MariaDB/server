@@ -2374,7 +2374,7 @@ typedef void (*destroy_prepared_stmt_v1_t)
   (PSI_prepared_stmt *prepared_stmt);
 
 /**
-  repreare a prepare statement.
+  reprepare a prepare statement.
   @param prepared_stmt prepared statement.
 */
 typedef void (*reprepare_prepared_stmt_v1_t)

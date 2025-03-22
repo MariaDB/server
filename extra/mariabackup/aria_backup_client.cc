@@ -88,7 +88,7 @@ public:
     Skip all existing log files and find the greatest missing log file.
 
     @param datadir  - Search files in this directory
-    @param start    - Start searching from this log number and go downto 1.
+    @param start    - Start searching from this log number and go down to 1.
     @param kind     - true  - search for an existing file
                       false - search for a missing file.
     @returns        - [1..start] - the greatest found log file

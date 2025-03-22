@@ -370,7 +370,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
 /* There are multiple approaches to calculate crc.
 Approach-1: Process 8 bytes then 4 bytes then 2 bytes and then 1 bytes
 Approach-2: Process 8 bytes and remaining workload using 1 bytes
-Apporach-3: Process 64 bytes at once by issuing 8 crc call and remaining
+Approach-3: Process 64 bytes at once by issuing 8 crc call and remaining
             using 8/1 combination.
 
 Based on micro-benchmark testing we found that Approach-2 works best especially

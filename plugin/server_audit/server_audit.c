@@ -2676,7 +2676,7 @@ static int server_audit_init(void *p __attribute__((unused)))
           PLUGIN_STR_VERSION, PLUGIN_DEBUG_VERSION);
 
   /* The Query Cache shadows TABLE events if the result is taken from it */
-  /* so we warn users if both Query Cashe and TABLE events enabled.      */
+  /* so we warn users if both Query Caсhe and TABLE events enabled.      */
   if (!started_mysql && FILTER(EVENT_TABLE))
   {
     ulonglong *qc_size= (ulonglong *) dlsym(RTLD_DEFAULT, "query_cache_size");

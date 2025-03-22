@@ -36,7 +36,7 @@ void thr_set_sync_wait_callback(void (*before_wait)(void),
 
   SYNOPSIS
     my_sync()
-    fd			File descritor to sync
+    fd			File descriptor to sync
     my_flags		Flags (now only MY_WME is supported)
 
   NOTE

@@ -228,7 +228,7 @@ rl_initialize_funmap ()
 
 /* Produce a NULL terminated array of known function names.  The array
    is sorted.  The array itself is allocated, but not the strings inside.
-   You should free () the array when you done, but not the pointrs. */
+   You should free () the array when you are done, but not the pointers. */
 const char **
 rl_funmap_names ()
 {

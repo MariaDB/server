@@ -1347,7 +1347,7 @@ my_ci_scan(CHARSET_INFO *cs, const char *b, const char *e, int seq)
   @return    1 on a single byte character
   @return   >1 on a multi-byte character
 
-  Note, inlike my_ismbchar(), 1 is returned for a single byte character.
+  Note, unlike my_ismbchar(), 1 is returned for a single byte character.
 */
 
 static inline int

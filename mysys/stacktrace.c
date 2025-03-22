@@ -55,7 +55,7 @@ static sig_handler default_handle_fatal_signal(int sig)
 
 
 /**
-   Initialize priting off stacktrace at signal
+   Initialize printing of stacktrace at signal
 */
 
 void my_setup_stacktrace(void)

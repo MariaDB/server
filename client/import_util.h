@@ -29,7 +29,7 @@ enum class KeyOrConstraintType
 };
 
 /**
- *  Struct representing a table keyor constraint definition
+ *  Struct representing a table key or constraint definition
  */
 struct KeyDefinition
 {

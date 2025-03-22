@@ -233,7 +233,7 @@ rl_replace_line (text, clear_undo)
    this is the same as rl_end.
 
    Any command that is called interactively receives two arguments.
-   The first is a count: the numeric arg pased to this command.
+   The first is a count: the numeric arg passed to this command.
    The second is the key which invoked this command.
 */
 

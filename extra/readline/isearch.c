@@ -211,7 +211,7 @@ _rl_isearch_init (direction)
   cxt->search_terminators = _rl_isearch_terminators ? _rl_isearch_terminators
 						: default_isearch_terminators;
 
-  /* Create an arrary of pointers to the lines that we want to search. */
+  /* Create an array of pointers to the lines that we want to search. */
   hlist = history_list ();
   rl_maybe_replace_line ();
   i = 0;

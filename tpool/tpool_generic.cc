@@ -261,10 +261,10 @@ class thread_pool_generic : public thread_pool
   /** Last time thread was created*/
   std::chrono::system_clock::time_point m_last_thread_creation;
 
-  /** Minimumum number of threads in this pool.*/
+  /** Minimum number of threads in this pool.*/
   unsigned int m_min_threads;
 
-  /** Maximimum number of threads in this pool. */
+  /** Maximum number of threads in this pool. */
   unsigned int m_max_threads;
 
   /* maintenance related statistics (see maintenance()) */
@@ -371,7 +371,7 @@ public:
     {
       if (pool)
       {
-        /* EXecute callback in threadpool*/
+        /* Execute callback in threadpool*/
         thr_timer_init(this, submit_task, this);
       }
       else
@@ -951,7 +951,7 @@ thread_pool_generic::~thread_pool_generic()
   */
   m_aio.reset();
 
-  /* Also stop the maintanence task early. */
+  /* Also stop the maintenance task early. */
   if (m_maintenance_timer)
     m_maintenance_timer->disarm();
 

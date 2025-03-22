@@ -101,7 +101,7 @@ struct cmd_exec_args {
   uint32_t limit;
   uint32_t skip;
   string_ref mod_op;
-  const string_ref *uvals; /* size must be pst->retfieelds.size() */
+  const string_ref *uvals; /* size must be pst->retfields.size() */
   const record_filter *filters;
   int invalues_keypart;
   const string_ref *invalues;

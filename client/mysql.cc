@@ -1475,7 +1475,7 @@ sig_handler mysql_end(int sig)
  User, password, and database are UTF8 encoded, prior to the function,
  this needs to be fixed, in case they contain non-ASCIIs.
 
- Mostly a workaround, to allow existng users with non-ASCII password
+ Mostly a workaround, to allow existing users with non-ASCII password
  to survive upgrade without losing connectivity.
 */
 static void maybe_convert_charset(const char **user, const char **password,
@@ -2415,7 +2415,7 @@ static COMMANDS *find_command(char cmd_char)
 
   /*
     In binary-mode, we disallow all client commands except '\C',
-    DELIMITER (see long comand finding find_command(char *))
+    DELIMITER (see long command finding find_command(char *))
     and  '\-' (sandbox, see following comment).
   */
   if (real_binary_mode)

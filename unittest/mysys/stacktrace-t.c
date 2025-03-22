@@ -41,7 +41,7 @@ void test_my_safe_print_str()
   my_safe_print_str("LEGAL", 65535);
   fprintf(stderr, "\n===== Above is a junk, but it is expected. =====\n");
 # endif
-  fprintf(stderr, "\n===== Nornal length test =====\n");
+  fprintf(stderr, "\n===== Normal length test =====\n");
   my_safe_print_str("LEGAL", 5);
   fprintf(stderr, "\n===== NULL =====\n");
   my_safe_print_str(0, 5);

@@ -39,7 +39,7 @@
 /*
   This intends to support *BSD's, macOS, Solaris, AIX, HP-UX, and Linux.
 
-  specificly:
+  specifically:
   FreeBSD/OpenBSD/DragonFly/macOS (statfs) NetBSD (statvfs) uses getmntinfo().
   Linux can use getmntent_r(), but we've just used getmntent for simplification.
   Linux/Solaris/AIX/HP-UX uses setmntent()/getmntent().

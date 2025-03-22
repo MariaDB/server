@@ -1229,7 +1229,7 @@ struct charset_info_st my_charset_utf8mb3_nopad_bin=
 #ifdef HAVE_UTF8_GENERAL_CS
 
 /*
- * These functions bacically do the same as their original, except
+ * These functions basically do the same as their original, except
  * that they return 0 only when two comparing unicode strings are
  * strictly the same in case-sensitive way.  See "save_diff" local
  * variable to what they actually do.
@@ -1329,7 +1329,7 @@ static int my_strnncollsp_utf8mb3_cs(CHARSET_INFO *cs,
     space. It means if we meet a character greater
     than space, it always means that the longer string
     is greater. So we can reuse the same loop from the
-    8bit version, without having to process full multibute
+    8bit version, without having to process full multibyte
     sequences.
   */
   if ((res= slen == tlen ? 0 :

@@ -52,7 +52,7 @@
 #include "little_endian.h"
 #endif
 
-/* convenienve helpers */
+/* convenience helpers */
 static inline float get_float(const void *from)
 {
   float to;

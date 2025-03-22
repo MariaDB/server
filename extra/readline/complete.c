@@ -1205,7 +1205,7 @@ postprocess_matches (matchesp, matching_filenames)
     return 0;
 
   /* It seems to me that in all the cases we handle we would like
-     to ignore duplicate possiblilities.  Scan for the text to
+     to ignore duplicate possibilities. Scan for the text to
      insert being identical to the other completions. */
   if (rl_ignore_completion_duplicates)
     {

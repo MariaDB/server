@@ -2208,7 +2208,7 @@ int cli_stmt_execute(MYSQL_STMT *stmt)
 	DBUG_RETURN(1);
     }
     length= (ulong) (net->write_pos - net->buff);
-    /* TODO: Look into avoding the following memdup */
+    /* TODO: Look into avoiding the following memdup */
     if (!(param_data= my_memdup(PSI_NOT_INSTRUMENTED, net->buff, length, MYF(0))))
     {
       set_stmt_error(stmt, CR_OUT_OF_MEMORY, unknown_sqlstate, NULL);

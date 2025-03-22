@@ -63,7 +63,7 @@ my_mb_wc_utf16_quick(my_wc_t *pwc, const uchar *s, const uchar *e)
     if (s + 4 > e)
       return MY_CS_TOOSMALL4;
 
-    if (!MY_UTF16_LOW_HEAD(s[2]))  /* Broken surrigate pair */
+    if (!MY_UTF16_LOW_HEAD(s[2]))  /* Broken surrogate pair */
       return MY_CS_ILSEQ;
 
     *pwc= MY_UTF16_WC4(s[0], s[1], s[2], s[3]);
