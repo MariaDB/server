@@ -10792,6 +10792,20 @@ function_call_nonkeyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | 
+          EMBED_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_embed(thd, $3);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | 
+          EMBED_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_embed(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         ;
 
 /*
