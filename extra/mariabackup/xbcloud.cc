@@ -1484,7 +1484,7 @@ struct download_buffer_info {
 };
 
 /*********************************************************************//**
-Callback to parse header of GET request on swift contaier. */
+Callback to parse header of GET request on swift container. */
 static
 size_t fetch_buffer_header_cb(char *ptr, size_t size, size_t nmemb,
 				      void *data)
@@ -1686,7 +1686,7 @@ container_list_add_object(container_list *list, const char *name,
 
 
 /*********************************************************************//**
-Tokenize json string. Return array of tokens. Caller is responsoble for
+Tokenize json string. Return array of tokens. Caller is responsible for
 deallocating the array. */
 jsmntok_t *
 json_tokenise(char *json, size_t len, int initial_tokens)

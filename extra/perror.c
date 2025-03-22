@@ -315,7 +315,7 @@ int main(int argc,char *argv[])
       code=atoi(*argv);
       msg = strerror(code);
 
-      // On AIX, unknow error return " Error <CODE> occurred."
+      // On AIX, unknown error returns " Error <CODE> occurred."
       snprintf(unknow_aix, sizeof(unknow_aix), " Error %3d occurred.", code);
 
       /*

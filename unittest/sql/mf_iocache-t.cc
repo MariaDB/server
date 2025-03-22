@@ -414,7 +414,7 @@ void mdev10963()
   */
   for (; n_checks; n_checks--, rewind(file))
   {
-    // copied size is an estimate can be incremeneted to greater than total_size
+    // copied size is an estimate can be incremented to greater than total_size
     ulong copied_size= 0;
 
     res= reinit_io_cache(&info, READ_CACHE, 0L, FALSE, FALSE);

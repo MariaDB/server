@@ -40,7 +40,7 @@ static int compare_bin(const uchar *a, uint a_length,
     /*
       We are using space compression. We have to check if longer key
       has next character < ' ', in which case it's less than the shorter
-      key that has an implicite space afterwards.
+      key that has an implicit space afterwards.
 
       This code is identical to the one in
       strings/ctype-simple.c:my_strnncollsp_simple
