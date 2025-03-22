@@ -443,10 +443,10 @@ void my_large_free(void *ptr, size_t size)
 
     For ASAN, we need to explicitly unpoison this memory region because the OS
     may reuse that memory for some TLS or stack variable. It will remain
-    poisoned if it was explicitly poisioned before release. If this happens,
+    poisoned if it was explicitly poisoned before release. If this happens,
     we'll have hard to debug false positives like in MDEV-21239.
     For valgrind, we mark it as UNDEFINED rather than NOACCESS because of the
-    implict reuse possiblility.
+    implicit reuse possibility.
   */
 #if defined(HAVE_MMAP) && !defined(_WIN32)
   if (munmap(ptr, size))

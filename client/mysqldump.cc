@@ -4269,7 +4269,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
   /*
      Check --skip-events flag: it is not enough to skip creation of events
-     discarding SHOW CREATE EVENT statements generation. The myslq.event
+     discarding SHOW CREATE EVENT statements generation. The mysql.event
      table data should be skipped too.
   */
   if (!opt_events && !cmp_database(db, "mysql") &&

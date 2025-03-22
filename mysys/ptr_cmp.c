@@ -25,7 +25,7 @@
  * On some platforms, memcmp() is faster than the unrolled ptr_compare_N
  * functions, as memcmp() is usually a platform-specific implementation
  * written in assembler. for example one in /usr/lib/libc/libc_hwcap*.so.1.
- * on Solaris, or on Windows inside C runtime linrary.
+ * on Solaris, or on Windows inside C runtime library.
  *
  * On Solaris, native implementation is also usually faster than the
  * built-in memcmp supplied by GCC, so it is recommended to build
@@ -35,7 +35,7 @@
 /*
   Daniel Blacks tests shows that libc memcmp is generally faster than
   ptr_cmp() at least of x86 and power8 platforms, so we use the libc
-  code as deafult for now
+  code as default for now
 */
 
 #define USE_NATIVE_MEMCMP 1

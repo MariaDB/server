@@ -121,7 +121,7 @@ static void get_options(int *argc, char ***argv);
 
 
 /*
-  Abort unless given experssion is non-zero.
+  Abort unless given expression is non-zero.
 
   SYNOPSIS
     DIE_UNLESS(expr)

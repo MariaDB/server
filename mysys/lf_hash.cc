@@ -119,7 +119,7 @@ retry:
                                         MY_MEMORY_ORDER_ACQUIRE);
 
     do {
-      /* attempting to my_assume_aligned onlink below broke the implementation */
+      /* attempting to my_assume_aligned on link below broke the implementation */
       link= (intptr) my_atomic_loadptr_explicit((void **) &cursor->curr->link,
                                                 MY_MEMORY_ORDER_RELAXED);
       cursor->next= my_assume_aligned<sizeof(LF_SLIST *)>(PTR(link));

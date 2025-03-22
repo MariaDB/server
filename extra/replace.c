@@ -332,7 +332,7 @@ static void free_pointer_array(reg1 POINTER_ARRAY *pa)
 } /* free_pointer_array */
 
 
-	/* Code for replace rutines */
+	/* Code for replace routines */
 
 #define SET_MALLOC_HUNC 64
 
@@ -342,7 +342,7 @@ typedef struct st_rep_set {
   uint	found_len;			/* Best match to date */
   int	found_offset;
   uint  table_offset;
-  uint  size_of_bits;			/* For convinience */
+  uint  size_of_bits;			/* For convenience */
 } REP_SET;
 
 typedef struct st_rep_sets {
