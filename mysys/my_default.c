@@ -526,7 +526,7 @@ static int search_default_file(struct handle_option_ctx *ctx, const char *dir,
    get_argument()
    keyword		Include directive keyword
    kwlen		Length of keyword
-   ptr			Pointer to the keword in the line under process
+   ptr			Pointer to the keyword in the line under process
    line			line number
 
   RETURN
@@ -857,7 +857,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
 static char *remove_end_comment(char *ptr)
 {
   char quote= 0;	/* we are inside quote marks */
-  char escape= 0;	/* symbol is protected by escape chagacter */
+  char escape= 0;	/* symbol is protected by escape character */
 
   for (; *ptr; ptr++)
   {

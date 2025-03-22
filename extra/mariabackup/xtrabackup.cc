@@ -219,7 +219,7 @@ uint xtrabackup_compress = FALSE;
 uint xtrabackup_compress_threads;
 ulonglong xtrabackup_compress_chunk_size = 0;
 
-/* sleep interval beetween log copy iterations in log copying thread
+/* sleep interval between log copy iterations in log copying thread
 in milliseconds (default is 1 second) */
 ulint xtrabackup_log_copy_interval = 1000;
 static ulong max_buf_pool_modified_pct;
@@ -431,7 +431,7 @@ typedef decltype(fil_space_t::id) space_id_t;
 typedef std::map<space_id_t,std::string> space_id_to_name_t;
 
 struct ddl_tracker_t {
-	/** Tablspaces with their ID and name, as they were copied to backup.*/
+	/** Tablespaces with their ID and name, as they were copied to backup.*/
 	space_id_to_name_t tables_in_backup;
 	/** Drop operations found in redo log. */
 	std::set<space_id_t> drops;
@@ -651,7 +651,7 @@ void CorruptedPages::zero_out_free_pages()
   {
     uint32_t space_id = space_it->first;
     const std::string &space_name = space_it->second.space_name;
-    // There is no need to close tablespaces explixitly as they will be closed
+    // There is no need to close tablespaces explicitly as they will be closed
     // in innodb_shutdown().
     xb_load_single_table_tablespace(space_name, false);
     fil_space_t *space = fil_space_t::get(space_id);
@@ -5333,7 +5333,7 @@ class BackupStages {
 
 			/* The only reason why Galera/binlog info is written before
 				 wait_for_ibbackup_log_copy_finish() is that after that call the xtrabackup
-				 binary will start streamig a temporary copy of REDO log to stdout and
+				 binary will start streaming a temporary copy of REDO log to stdout and
 				 thus, any streaming from innobackupex would interfere. The only way to
 				 avoid that is to have a single process, i.e. merge innobackupex and
 				 xtrabackup. */
@@ -6364,7 +6364,7 @@ and ".idb.meta" files in incremental directory to avoid applying delta to
 @param[in] db_name	database name
 @param[in] file_name	file name with suffix
 @param[in] arg	destination path, used in incremental backup to notify, that
-*.new file must be moved to destibation directory
+*.new file must be moved to destination directory
 
 @return true */
 static ibool prepare_handle_new_files(const char *data_home_dir,

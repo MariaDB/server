@@ -481,7 +481,7 @@ hs_longrun_thread_hs::op_insert(record_value& rec)
   cli->response_recv(numflds);
   if (arg.sh.verbose > 10) {
     const string_ref *row = cli->get_next_row();
-    fprintf(stderr, "HS op=+ errrcode=%d errmess=[%s]\n", cli->get_error_code(),
+    fprintf(stderr, "HS op=+ errcode=%d errmess=[%s]\n", cli->get_error_code(),
       row ? to_string(row[0]).c_str() : "");
   }
   const bool op_success = cli->get_error_code() == 0;

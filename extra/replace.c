@@ -196,7 +196,7 @@ static int static_get_options(int *argc, char***argv)
 	     "          space-character.\n");
 	  printf("Usage: %s [-?svIV] from to from to ... -- [files]\n", my_progname);
 	puts("or");
-	  printf("Usage: %s [-?svIV] from to from to ... < fromfile > tofile\n", my_progname);
+	  printf("Usage: %s [-?svIV] from to from to ... < fromfile > to file\n", my_progname);
 	puts("");
 	puts("Options: -? or -I \"Info\"  -s \"silent\"      -v \"verbose\"");
 	break;
@@ -332,7 +332,7 @@ static void free_pointer_array(reg1 POINTER_ARRAY *pa)
 } /* free_pointer_array */
 
 
-	/* Code for replace rutines */
+	/* Code for replacing routines */
 
 #define SET_MALLOC_HUNC 64
 
@@ -342,7 +342,7 @@ typedef struct st_rep_set {
   uint	found_len;			/* Best match to date */
   int	found_offset;
   uint  table_offset;
-  uint  size_of_bits;			/* For convinience */
+  uint  size_of_bits;			/* For convenience */
 } REP_SET;
 
 typedef struct st_rep_sets {

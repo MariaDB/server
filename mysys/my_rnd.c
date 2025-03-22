@@ -28,7 +28,7 @@
 void my_rnd_init(struct my_rnd_struct *rand_st, ulong seed1, ulong seed2)
 {
 #ifdef HAVE_valgrind
-  bzero((char*) rand_st,sizeof(*rand_st));      /* Avoid UMC varnings */
+  bzero((char*) rand_st,sizeof(*rand_st));      /* Avoid UMC warnings */
 #endif
   rand_st->max_value= 0x3FFFFFFFL;
   rand_st->max_value_dbl=(double) rand_st->max_value;

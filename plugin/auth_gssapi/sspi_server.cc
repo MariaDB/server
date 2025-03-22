@@ -345,7 +345,7 @@ static SECURITY_STATUS sspi_get_context(MYSQL_PLUGIN_VIO *vio,
       /* Send generated blob to client. */
       if (vio->write_packet(vio, (unsigned char *)outbuf.pvBuffer, outbuf.cbBuffer))
       {
-        log_error(SEC_E_OK, "communicaton error(write)");
+        log_error(SEC_E_OK, "communication error(write)");
         goto cleanup;
       }
     }

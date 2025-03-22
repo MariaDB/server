@@ -488,7 +488,7 @@ my_strnxfrm_ret_t my_strnxfrm_mb_internal(CHARSET_INFO *cs,
   }
 
   /*
-    A thourough loop, checking all possible limits:
+    A thorough loop, checking all possible limits:
     "se", "nweights" and "de".
   */
   for (; src < se && *nweights && dst < de; (*nweights)--)

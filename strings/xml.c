@@ -429,7 +429,7 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
           /*
             We are in <!DOCTYPE>, e.g.
             <!DOCTYPE name SYSTEM "SystemLiteral">
-            <!DOCTYPE name PUBLIC "PublidLiteral" "SystemLiteral">
+            <!DOCTYPE name PUBLIC "PublicLiteral" "SystemLiteral">
             Just skip "SystemLiteral" and "PublicidLiteral"
           */
         }

@@ -16,7 +16,7 @@
 
 /*
   Code for handling red-black (balanced) binary trees.
-  key in tree is allocated accrding to following:
+  key in tree is allocated according to following:
 
   1) If size < 0 then tree will not allocate keys and only a pointer to
      each key is saved in tree.
@@ -780,7 +780,7 @@ static void rb_delete_fixup(TREE *tree, TREE_ELEMENT ***parent)
 
 #ifndef DBUG_OFF
 
-	/* Test that the proporties for a red-black tree holds */
+	/* Test that the properties for a red-black tree holds */
 
 static int test_rb_tree(TREE_ELEMENT *element)
 {

@@ -293,7 +293,7 @@ static uint parse_name(const TYPELIB *lib, const char **pos, const char *end)
 }
 
 /**
-  Parse and apply a set of flag assingments
+  Parse and apply a set of flag assignments
 
   @param lib               Flag names
   @param default_name      Number of "default" in the typelib

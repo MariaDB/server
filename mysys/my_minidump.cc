@@ -50,7 +50,7 @@ extern "C" BOOL my_create_minidump(DWORD pid, BOOL verbose)
   if (filename)
   {
     filename++;
-    // We are not interested in dump of some proceses (my_safe_process.exe,cmd.exe)
+    // We are not interested in dump of some processes (my_safe_process.exe,cmd.exe)
     // since they are only used to start up other programs.
     // We're interested however in their children;
     const char *exclude_programs[] = {"my_safe_process.exe","cmd.exe", 0};

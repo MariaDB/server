@@ -196,7 +196,7 @@ maria_declare_plugin(versioning)
   &versioning_plugin,
   "test_versioning",
   "MariaDB Corp",
-  "System Vesioning testing features",
+  "System Versioning testing features",
   PLUGIN_LICENSE_GPL,
   versioning_plugin_init, /* Plugin Init */
   versioning_plugin_deinit, /* Plugin Deinit */

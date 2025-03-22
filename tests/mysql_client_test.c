@@ -7861,7 +7861,7 @@ static void test_explain_bug()
 
   if ( mysql_get_server_version(mysql) >= 50027 )
   {
-    /*  The patch for bug#23037 changes column type of DEAULT to blob */
+    /*  The patch for bug#23037 changes column type of DEFAULT to blob */
     verify_prepare_field(result, 4, "Default", "COLUMN_DEFAULT",
                          MYSQL_TYPE_BLOB, 0, 0, "information_schema", 0, 0);
   }
@@ -13779,7 +13779,7 @@ static void test_bug8722()
   myquery(rc);
   /* Note: if you uncomment following block everything works fine */
 /*
-  rc= mysql_query(mysql, "sellect * from v1");
+  rc= mysql_query(mysql, "select * from v1");
   myquery(rc);
   mysql_free_result(mysql_store_result(mysql));
 */
@@ -13917,7 +13917,7 @@ static void test_bug9159()
 }
 
 
-/* Crash when opening a cursor to a query with DISTICNT and no key */
+/* Crash when opening a cursor to a query with DISTINCT and no key */
 
 static void test_bug9520()
 {
@@ -14233,7 +14233,7 @@ static void test_bug11111()
 
 /*
   Check that proper cleanups are done for prepared statement when
-  fetching thorugh a cursor.
+  fetching through a cursor.
 */
 
 static void test_bug10729()
@@ -15052,7 +15052,7 @@ static void test_bug11909()
   myquery(rc);
 }
 
-/* Cursors: opening a cursor to a compilicated query with ORDER BY */
+/* Cursors: opening a cursor to a complicated query with ORDER BY */
 
 static void test_bug11901()
 {
@@ -15927,7 +15927,7 @@ static void test_bug17667()
     char line_buffer[MAX_TEST_QUERY_LENGTH*2];
     /* more than enough room for the query and some marginalia. */
 
-    /* Prepared statments always occurs twice in log */
+    /* Prepared statements always occurs twice in log */
     if (statement_cursor->qt == QT_PREPARED)
       expected_hits++;
 

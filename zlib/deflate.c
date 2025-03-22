@@ -478,7 +478,7 @@ int ZEXPORT deflateInit2_(z_streamp strm, int level, int method,
      * can range from 128 to 32768.
      *
      * Therefore, at a minimum, there are 142 bits of space between what is
-     * written and what is read in the overlain buffers, so the symbols cannot
+     * written and what is read in the overlay buffers, so the symbols cannot
      * be overwritten by the compressed data. That space is actually 139 bits,
      * due to the three-bit fixed-code block header.
      *

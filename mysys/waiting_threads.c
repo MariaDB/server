@@ -40,7 +40,7 @@
     a function that knows how to compare values of this resource type.
     In the simple case it could be wt_resource_id_memcmp().
 
-  a wait-for graph - a graph, that represenst "wait-for" relationships.
+  a wait-for graph - a graph, that represents "wait-for" relationships.
     It has two types of nodes - threads and resources. There are directed
     edges from a thread to a resource it is waiting for (WT_THD::waiting_for),
     from a thread to resources that it "owns" (WT_THD::my_resources),
@@ -669,7 +669,7 @@ retry:
       That is, only deadlocks that *we* have created. For example,
         thd->A->B->thd
       (thd waits for A, A waits for B, while B is waiting for thd).
-      While walking the graph we can encounter other cicles, e.g.
+      While walking the graph we can encounter other cycles, e.g.
         thd->A->B->C->A
       This will not be detected. Instead we will walk it in circles until
       the search depth limit is reached (the latter guarantees that an

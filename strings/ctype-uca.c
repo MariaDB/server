@@ -28,7 +28,7 @@
    Features that are not implemented yet:
    - No Normalization From D is done
      + No decomposition is done
-     + No Thai/Lao orderding is done
+     + No Thai/Lao ordering is done
    - No combining marks processing is done
 */
 
@@ -32274,7 +32274,7 @@ my_uca_collation_can_optimize_no_contractions(CHARSET_INFO *cs)
   Diff command:
     <d1> :=  <     - Identifies a primary difference.
     <d2> :=  <<    - Identifies a secondary difference.
-    <d3> := <<<    - Idenfifies a tertiary difference.
+    <d3> := <<<    - Identifies a tertiary difference.
   
   
   Collation rules:
@@ -32352,7 +32352,7 @@ typedef struct my_coll_lexem_st
 
 
 /*
-  Initialize collation rule lexical anilizer
+  Initialize collation rule lexical analyzer
   
   SYNOPSIS
     my_coll_lexem_init
@@ -32703,7 +32703,7 @@ my_coll_rule_reset(MY_COLL_RULE *r)
 /*
   Shift methods:
   Simple: "&B < C" : weight('C') = weight('B') + 1
-  Expand: weght('C') =  { weight('B'), weight(last_non_ignorable) + 1 }
+  Expand: weight('C') =  { weight('B'), weight(last_non_ignorable) + 1 }
 */
 typedef enum
 {
@@ -33353,7 +33353,7 @@ my_coll_parser_scan_rule(MY_COLL_RULE_PARSER *p)
   @param  p        Collation customization parser
 
   @return
-  @retval          0 if collation customozation expression was not scanned.
+  @retval          0 if collation customization expression was not scanned.
   @retval          1 if collation customization expression was scanned.
 */
 
@@ -33562,7 +33562,7 @@ apply_shift(MY_CHARSET_LOADER *loader,
             'a' must be sorted before 'A'.
             
             Note, there are no real collations in CLDR which shift
-            after and before two neighbourgh characters. We need this
+            after and before two adjacent characters. We need this
             just in case. Reserving 4096 (0x1000) weights for such
             cases is perfectly enough.
           */
@@ -34243,7 +34243,7 @@ my_uca_level_booster_2bytes_disable_context_dependent(
   2 (two ASCII chars)         0  (both ignorable)                    {0,0} [IGN]
   2 (two ASCII chars)         1  (e.g. Czech "ch")                   {X,0}
   2 (two ASCII chars)         1  (e.g. ignorable + non-ignorable)    {X,0}
-  2 (two ASCII chars)         2  (two ASCII chars, one weigth each)  {X,0}
+  2 (two ASCII chars)         2  (two ASCII chars, one weight each)  {X,0}
   2 (two ASCII chars)         3+ (contraction with a long expansion) {0,0} [E3]
   1 (one 2-byte char)         0  (ignorable)                         {0,0} [IGN]
   1 (one 2-byte char)         1                                      {X,0}

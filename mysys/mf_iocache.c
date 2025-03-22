@@ -16,7 +16,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
-  Cashing of files with only does (sequential) read or writes of fixed-
+  Caсhing of files with only does (sequential) read or writes of fixed-
   length records. A read isn't allowed to go over file-length. A read is ok
   if it ends at file-length and next read can try to read after file-length
   (and get a EOF-error).
@@ -26,7 +26,7 @@
   One can change info->pos_in_file to a higher value to skip bytes in file if
   also info->read_pos is set to info->read_end.
   If called through open_cached_file(), then the temporary file will
-  only be created if a write exeeds the file buffer or if one calls
+  only be created if a write exceeds the file buffer or if one calls
   my_b_flush_io_cache().
 
   If one uses SEQ_READ_APPEND, then two buffers are allocated, one for

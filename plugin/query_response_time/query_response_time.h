@@ -32,7 +32,7 @@
 */
 #define QRT_POSITIVE_POWER_FILLER ""
 /*
-  Filler for fractional number. Similiary to whole number
+  Filler for fractional number. Similarly to whole number
 */
 #define QRT_NEGATIVE_POWER_FILLER "0"
 

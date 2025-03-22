@@ -609,7 +609,7 @@ int my_strnncollsp_tis620_nopad(CHARSET_INFO * cs __attribute__((unused)),
   return my_strnncoll_tis620(cs, a0, a_length, b0, b_length, FALSE);
 }
 /*
-  strnxfrm replacment, convert Thai string to sortable string
+  strnxfrm replacement, convert Thai string to sortable string
 
   Arg: Destination buffer, source string, dest length and source length
   Ret: Converted string size

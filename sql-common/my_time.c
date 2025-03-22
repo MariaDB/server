@@ -1005,7 +1005,7 @@ fractional:
   else
     date[4]= 0;
 
-  /* Check for exponent part: E<gigit> | E<sign><digit> */
+  /* Check for exponent part: E<digit> | E<sign><digit> */
   /* (may occur as result of %g formatting of time value) */
   if ((end - str) > 1 &&
       (*str == 'e' || *str == 'E') &&

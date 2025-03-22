@@ -242,7 +242,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
 
   /*
     Number of digits in the exponent from the 'e' conversion.
-     The sign of the exponent is taken into account separetely, we don't need
+     The sign of the exponent is taken into account separately, we don't need
      to count it here.
    */
   exp_len= 1 + (decpt >= 101 || decpt <= -99) + (decpt >= 11 || decpt <= -9);

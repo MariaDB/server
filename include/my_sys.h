@@ -463,7 +463,7 @@ typedef struct st_io_cache		/* Used when caching files */
   int (*write_function)(struct st_io_cache *,const uchar *,size_t);
   /*
     Specifies the type of the cache. Depending on the type of the cache
-    certain operations might not be available and yield unpredicatable
+    certain operations might not be available and yield unpredictable
     results. Details to be documented later
   */
   enum cache_type type;

@@ -930,7 +930,7 @@ rl_initialize ()
       RL_SETSTATE(RL_STATE_INITIALIZED);
     }
 
-  /* Initalize the current line information. */
+  /* Initialize the current line information. */
   _rl_init_line_state ();
 
   /* We aren't done yet.  We haven't even gotten started yet! */

@@ -102,7 +102,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 /* MariaDB plugin types */
 /** Client and server password validation */
 #define MariaDB_PASSWORD_VALIDATION_PLUGIN  8 
-/**< Encryption and key managment plugins */
+/**< Encryption and key management plugins */
 #define MariaDB_ENCRYPTION_PLUGIN 9
 /**< Plugins for SQL data storage types */
 #define MariaDB_DATA_TYPE_PLUGIN  10

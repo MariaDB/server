@@ -1699,7 +1699,7 @@ my_strntoull10rnd_8bit(CHARSET_INFO *cs __attribute__((unused)),
     ul= ul * 10 + ch;
   }
   
-  if (str >= end) /* Small number without dots and expanents */
+  if (str >= end) /* Small number without dots and exponents */
   {
     *endptr= (char*) str;
     if (negative)
@@ -2074,7 +2074,7 @@ uint my_strxfrm_flag_normalize(CHARSET_INFO *cs, uint flags)
     reverse order for that level, that is, starting with
     the last character and ending with the first character.
     
-    If nether DESC nor REVERSE flags are give,
+    If neither DESC nor REVERSE flags are give,
     the string is not changed.
     
 */

@@ -153,7 +153,7 @@ extern int rl_blink_matching_paren;
 
 /*************************************************************************
  *									 *
- * Global functions and variables unsed and undocumented		 *
+ * Global functions and variables unused and undocumented		 *
  *									 *
  *************************************************************************/
 

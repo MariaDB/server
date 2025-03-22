@@ -147,7 +147,7 @@ struct datadir_thread_ctxt_t {
 };
 
 /************************************************************************
-Retirn true if character if file separator */
+Return true if character is file separator */
 bool
 is_path_separator(char c)
 {
@@ -1413,7 +1413,7 @@ bool backup_finish(ds_ctxt *ds_data)
 
 /*
   Drop all empty database directories in the base backup
-  that do not exists in the icremental backup.
+  that do not exist in the incremental backup.
 
   This effectively re-plays all DROP DATABASE statements happened
   in between base backup and incremental backup creation time.
@@ -2209,7 +2209,7 @@ static void rocksdb_lock_checkpoint()
 	MYSQL_ROW r = mysql_fetch_row(res);
 	if (r && r[0] && strcmp(r[0], "1"))
 	{
-		msg("Could not obtain rocksdb checkpont lock.");
+		msg("Could not obtain rocksdb checkpoint lock.");
 		exit(EXIT_FAILURE);
 	}
 	mysql_free_result(res);
