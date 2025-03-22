@@ -187,6 +187,19 @@ my_collation_id_is_uca1400(uint id)
                     id <= MY_UCA1400_COLLATION_ID_POSSIBLE_MAX);
 }
 
+
+typedef struct my_uca1400_collation_definition_st
+{
+  const char * tailoring;
+  const char * name;
+  uint16 id_utf8mb3;
+  uint16 id_utf8mb4;
+  uint16 id_ucs2;
+  uint16 id_utf16;
+  uint16 id_utf32;
+} MY_UCA1400_COLLATION_DEFINITION;
+
+
 /*
   UCA1400 collation ID:
 
@@ -241,13 +254,38 @@ my_uca1400_make_builtin_collation_id(my_cs_encoding_t charset_id,
                                      my_bool secondary_level,
                                      my_bool tertiary_level);
 
-my_bool
-my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
-                                     struct charset_info_st *dst,
-                                     uint collation_id);
+LEX_CSTRING
+my_uca1400_collation_build_name(char *buffer, size_t buffer_size,
+                                const LEX_CSTRING *cs_name,
+                                const char *tailoring_name,
+                                const uca_collation_def_param_t *prm);
 
+my_bool
+my_uca1400_collation_alloc_and_init(MY_CHARSET_LOADER *loader,
+                                    LEX_CSTRING name,
+                                    LEX_CSTRING comment,
+                                    const uca_collation_def_param_t *param,
+                                    uint id);
+
+uca_collation_def_param_t my_uca1400_collation_param_by_id(uint id);
+
+LEX_CSTRING my_ci_get_collation_name_uca1400_context(CHARSET_INFO *cs);
+
+uint my_uca1400_collation_id_uca400_compat(uint id);
+
+my_bool my_uca1400_collation_definitions_add(MY_CHARSET_LOADER *loader);
+
+
+/* Exported data */
 #define MY_UCA1400_COLLATION_DEFINITION_COUNT 26
 
-my_bool mysql_utf8mb4_0900_collation_definitions_add();
+extern MY_UCA1400_COLLATION_DEFINITION
+my_uca1400_collation_definitions[MY_UCA1400_COLLATION_DEFINITION_COUNT];
+
+extern MY_UCA_INFO my_uca_v1400;
+
+
+extern MY_UCA_INFO my_uca1400_info_tailored[MY_CS_ENCODING_LAST+1]
+                                      [MY_UCA1400_COLLATION_DEFINITION_COUNT];
 
 #endif /* CTYPE_UCA_1400_H */

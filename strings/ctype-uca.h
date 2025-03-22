@@ -118,8 +118,17 @@ typedef enum my_cs_encoding_enum
 #define MY_CS_ENCODING_LAST MY_CS_ENCODING_UTF32
 
 
-#include "ctype-uca1400.h"
+typedef struct uca_collation_def_param
+{
+  my_cs_encoding_t cs_id;
+  uint tailoring_id;
+  uint nopad_flags;
+  uint level_flags;
+} uca_collation_def_param_t;
 
+
+#include "ctype-uca1400.h"
+#include "ctype-uca0900.h"
 
 static inline MY_UCA_IMPLICIT_WEIGHT
 my_uca_implicit_weight_primary(uint version, my_wc_t code)
