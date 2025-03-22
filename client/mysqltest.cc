@@ -1832,7 +1832,10 @@ static int run_command(char* cmd,
 
   if (!(res_file= my_popen(cmd, "r")))
   {
-    report_or_die("popen(\"%s\", \"r\") failed", cmd);
+#ifdef _WIN32
+    my_osmaperr(GetLastError());
+#endif
+    report_or_die("popen(\"%s\", \"r\") failed (errno %d)", cmd, errno);
     DBUG_RETURN(-1);
   }
 
@@ -1933,7 +1936,12 @@ static int diff_check(const char *diff_name)
   my_snprintf(buf, sizeof(buf), "%s -v", diff_name);
 
   if (!(res_file= my_popen(buf, "r")))
-    die("popen(\"%s\", \"r\") failed", buf);
+  {
+#ifdef _WIN32
+    my_osmaperr(GetLastError());
+#endif
+    die("popen(\"%s\", \"r\") failed (errno %d)", buf, errno);
+  }
 
   /*
     if diff is not present, nothing will be in stdout to increment
@@ -3396,9 +3404,12 @@ void do_exec(struct st_command *command)
 
   if (!(res_file= my_popen(ds_cmd.str, "r")))
   {
+#ifdef _WIN32
+    my_osmaperr(GetLastError());
+#endif
     dynstr_free(&ds_cmd);
     if (command->abort_on_error)
-      report_or_die("popen(\"%s\", \"r\") failed", command->first_argument);
+      report_or_die("popen(\"%s\", \"r\") failed (errno %d)", command->first_argument, errno);
     DBUG_VOID_RETURN;
   }
 
@@ -4673,8 +4684,11 @@ void do_perl(struct st_command *command)
 
     if (!(res_file= my_popen(buf, "r")))
     {
+#ifdef _WIN32
+      my_osmaperr(GetLastError());
+#endif
       if (command->abort_on_error)
-        die("popen(\"%s\", \"r\") failed", buf);
+        die("popen(\"%s\", \"r\") failed (errno %d)", buf, errno);
       dynstr_free(&ds_delimiter);
       DBUG_VOID_RETURN;
     }
