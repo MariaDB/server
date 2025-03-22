@@ -1,0 +1,272 @@
+#
+# MDEV-13817 add support for oracle's left join syntax - the ( + )
+#
+SET sql_mode=ORACLE;
+CREATE TABLE tj1(a int, b int);
+CREATE TABLE tj2(c int, d int);
+CREATE TABLE tj3(e int, f int);
+CREATE TABLE tj4(b int, c int);
+INSERT INTO tj1 VALUES (1, 1);
+INSERT INTO tj1 VALUES (2, 2);
+INSERT INTO tj2 VALUES (2, 3);
+INSERT INTO tj3 VALUES (1, 4);
+#
+# Basic test
+#
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+);
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+#
+# Compare marked with literal
+#
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d(+) > 4;
+a	b	c	d
+1	1	NULL	NULL
+2	2	NULL	NULL
+#
+# Use both marked and unmarked field in the same condition
+#
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d = 3;
+a	b	c	d
+2	2	2	3
+#
+# Use both marked and unmarked field in OR condition
+#
+SELECT * FROM tj2,tj1 WHERE tj1.a = tj2.c(+) OR tj2.d=4;
+ERROR HY000: Invalid usage of (+) operator
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj3.e(+) AND (tj1.a = tj2.c(+) OR tj2.d=4);
+ERROR HY000: Invalid usage of (+) operator
+#
+# Use unmarked fields in OR condition
+#
+SELECT * FROM tj2,tj1 WHERE tj1.a = tj2.c(+) AND (tj2.d=3 OR tj2.d * 2=3);
+a	b	c	d
+2	2	2	3
+#
+# Use marked fields in OR condition when all fields are marked
+#
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND (tj2.d(+)=3 OR tj2.c(+)=1);
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+#
+# Use more than one marked table per condition
+#
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) + tj3.e(+);
+ERROR HY000: Invalid usage of (+) operator
+#
+# Use different tables per `AND` operand
+#
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj1.a = tj3.e(+);
+a	b	e	f	c	d
+2	2	NULL	NULL	2	3
+1	1	1	4	NULL	NULL
+#
+# Ensure table dependencies are properly resolved
+#
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj3.e AND tj1.a + 1 = tj2.c(+);
+a	b	e	f	c	d
+1	1	1	4	2	3
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj2.c = tj3.e(+) + 1;
+a	b	c	d	e	f
+2	2	2	3	1	4
+1	1	NULL	NULL	NULL	NULL
+SELECT * FROM tj1, tj2, tj3 WHERE tj1.a + tj3.e = tj2.c(+);
+e	f	a	b	c	d
+1	4	1	1	2	3
+1	4	2	2	NULL	NULL
+#
+# Cyclic dependency of tables
+# ORA-01416 two tables cannot be outer-joined to each other
+#
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj2.c = tj3.e(+) + 1 AND tj3.e = tj1.a(+);
+ERROR HY000: Invalid usage of (+) operator
+#
+# Table not referenced in where condition (must be cross-joined)
+#
+SELECT * FROM tj1, tj2, tj3 WHERE tj1.a + 1 = tj2.c(+);
+a	b	e	f	c	d
+1	1	1	4	2	3
+2	2	1	4	NULL	NULL
+#
+# Alias
+#
+SELECT * FROM tj1, tj2 b WHERE tj1.a + 1 = b.c(+);
+a	b	c	d
+1	1	2	3
+2	2	NULL	NULL
+#
+# Subselect
+#
+SELECT * FROM tj1, (SELECT * from tj2) b WHERE tj1.a + 1 = b.c(+);
+a	b	c	d
+1	1	2	3
+2	2	NULL	NULL
+SELECT * FROM tj1, (SELECT * FROM tj1, tj2 d WHERE tj1.a = d.c(+)) b WHERE tj1.a + 1 = b.c(+);
+a	b	a	b	c	d
+1	1	2	2	2	3
+2	2	NULL	NULL	NULL	NULL
+#
+# Single table
+#
+SELECT * FROM tj1 WHERE tj1.a(+) = 1;
+ERROR HY000: Invalid usage of (+) operator
+#
+# Self outer join
+#
+SELECT * FROM tj1 a, tj1 b WHERE a.a + 1 = b.a(+);
+a	b	a	b
+1	1	2	2
+2	2	NULL	NULL
+#
+# Self outer join without alias
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a + 1 = tj1.a(+);
+ERROR HY000: Invalid usage of (+) operator
+#
+# Outer join condition is independent of other tables
+# In this case we need to restrict the marked table(s) to appear
+# after the unmarked table(s) during topological sort. This test
+# ensures that the topological sort is working correctly.
+#
+SELECT * FROM tj1, tj2 WHERE tj2.c(+) = 1;
+a	b	c	d
+1	1	NULL	NULL
+2	2	NULL	NULL
+SELECT * FROM tj1, tj2 WHERE tj1.a(+) = 1;
+c	d	a	b
+2	3	1	1
+#
+# Outer join in 'IN' condition
+# ORA-01719
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+), tj2.d(+));
+ERROR HY000: Invalid usage of (+) operator
+SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+), tj2.d(+));
+ERROR HY000: Invalid usage of (+) operator
+#
+# Outer join in 'IN' condition with a single expression
+# This is also allowed in oracle since the expression is
+# can be simplified to 'equal' or 'not equal' condition
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+));
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+));
+a	b	c	d
+1	1	2	3
+2	2	NULL	NULL
+#
+# Oracle outer join not in WHERE clause
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c GROUP BY tj2.c(+);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(+)' at line 1
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c GROUP BY tj2.c HAVING tj2.c(+) > 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(+) > 1' at line 1
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c ORDER BY tj2.c(+);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(+)' at line 1
+SELECT tj2.c(+) FROM tj2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(+) FROM tj2' at line 1
+#
+# Mix ANSI and Oracle outer join
+# ORA-25156
+SELECT * FROM tj1 LEFT JOIN tj2 ON tj2.c = 1 WHERE tj1.a = tj2.c(+);
+ERROR HY000: Invalid usage of (+) operator
+SELECT * FROM tj1 INNER JOIN tj2 ON tj2.c = 1 WHERE tj1.a = tj2.c(+);
+ERROR HY000: Invalid usage of (+) operator
+SELECT * FROM tj1 NATURAL JOIN tj2 WHERE tj1.a = tj2.c(+);
+ERROR HY000: Invalid usage of (+) operator
+#
+# View with oracle outer join
+#
+CREATE VIEW v1 AS SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c(+);
+SELECT * FROM v1;
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+#
+# Cursor with oracle outer join
+#
+DECLARE
+CURSOR c1 IS SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c(+);
+BEGIN
+FOR r1 IN c1 LOOP
+SELECT r1.a || ' ' || r1.c;
+END LOOP;
+END
+$$
+r1.a || ' ' || r1.c
+2 2
+r1.a || ' ' || r1.c
+1 
+#
+# Marking ROW type
+#
+DECLARE
+v1 ROW (a INT, b INT);
+BEGIN
+SELECT * FROM tj1 WHERE tj1.a = v1.a(+);
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(+);
+END' at line 4
+#
+# Unspecified table used in WHERE clause that contains (+)
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj3.c(+);
+ERROR 42S02: Unknown table 'tj3'
+#
+# '.' prefixed table name
+#
+SELECT * FROM tj1, tj2 WHERE tj1.a = .tj2.c(+);
+a	b	c	d
+2	2	2	3
+1	1	NULL	NULL
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE tj1(a int, b int);
+INSERT INTO tj1 VALUES (3, 3);
+INSERT INTO tj1 VALUES (4, 4);
+#
+# DB qualifed ident with oracle outer join (aliased)
+#
+SELECT * FROM test.tj2 a, tj1 WHERE a.c(+) = tj1.a - 1;
+a	b	c	d
+3	3	2	3
+4	4	NULL	NULL
+#
+# DB qualifed ident with oracle outer join (non-aliased)
+#
+SELECT * FROM test.tj2, tj1 WHERE test.tj2.c(+) = tj1.a - 1;
+a	b	c	d
+3	3	2	3
+4	4	NULL	NULL
+#
+# DB qualifed ident with oracle outer join (aliased but use table name)
+#
+SELECT * FROM test.tj2 a, tj1 WHERE test.tj2.c(+) = tj1.a - 1;
+ERROR 42S02: Unknown table 'tj2'
+USE test;
+#
+# UPDATE with oracle outer join
+#
+UPDATE tj1, tj2 SET tj1.a = tj2.c WHERE tj1.a = tj2.c(+);
+SELECT * FROM tj1;
+a	b
+NULL	1
+2	2
+#
+# DELETE with oracle outer join
+#
+DELETE tj1 FROM tj1, tj2 WHERE tj1.b(+) = tj2.c;
+SELECT * FROM tj1;
+a	b
+NULL	1
+DROP DATABASE db1;
+DROP VIEW v1;
+DROP TABLE tj4;
+DROP TABLE tj3;
+DROP TABLE tj2;
+DROP TABLE tj1;

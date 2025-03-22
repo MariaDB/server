@@ -8966,6 +8966,530 @@ Item *normalize_cond(THD *thd, Item *cond)
   return cond;
 }
 
+struct Qualified_table_ident: public Sql_alloc
+{
+  Qualified_table_ident(Lex_ident_db *db, Lex_ident_table *table)
+  : db(db),
+    table(table)
+  {
+  }
+
+  Qualified_table_ident(TABLE_LIST *table_list)
+  : db(&table_list->db),
+    table(&table_list->table_name),
+    alias(&table_list->alias),
+    is_alias(table_list->is_alias)
+  {
+  }
+
+  int cmp(const Qualified_table_ident &rhs) const
+  {
+    auto cs= db->charset_info();
+    LEX_CSTRING *lhs_db= db, *rhs_db= rhs.db;
+
+    if (is_alias)
+    {
+      if (rhs.is_alias)
+        return cs->strnncoll(*alias, *rhs.alias);
+      return cs->strnncoll(*alias, *rhs.table);
+    }
+    else if (rhs.is_alias)
+    {
+      return cs->strnncoll(*table, *rhs.alias);
+    }
+
+    if (lhs_db->str == nullptr)
+    {
+      lhs_db= &current_thd->db;
+    }
+    if (rhs_db->str == nullptr)
+    {
+      rhs_db= &current_thd->db;
+    }
+
+    auto db_cmp= cs->strnncoll(*lhs_db, *rhs_db);
+    if (db_cmp == 0)
+      return cs->strnncoll(*table, *rhs.table);
+    return db_cmp;
+  }
+
+  static bool cmp_eq(Qualified_table_ident *a, Qualified_table_ident *b)
+  {
+    return a->cmp(*b) == 0;
+  }
+
+  Lex_ident_db *db;
+  Lex_ident_table *table;
+  Lex_ident_table *alias= nullptr;
+  bool is_alias= false;
+};
+
+struct Lex_ident_table_cmp_less 
+{
+  bool operator()(const Qualified_table_ident& lhs,
+                  const Qualified_table_ident& rhs) const
+  {
+    return lhs.cmp(rhs) < 0;
+  }
+};
+
+class Ora_join_enumerator : public Field_enumerator 
+{
+public:
+  Ora_join_enumerator(THD *thd):
+    thd(thd),
+    marked(new (thd->mem_root) List<Qualified_table_ident>()),
+    unmarked(new (thd->mem_root) List<Qualified_table_ident>())
+  {
+  }
+  ~Ora_join_enumerator()
+  {
+    delete marked;
+    delete unmarked;
+  }
+
+  bool initialized() const
+  {
+    return marked && unmarked;
+  }
+  void visit_field(Item_field *item) override
+  {
+    Qualified_table_ident *ident=
+        new (thd->mem_root) Qualified_table_ident(&item->db_name,
+                                                  &item->table_name);
+    if (item->with_ora_join())
+      marked->add_unique(ident, Qualified_table_ident::cmp_eq);
+    else
+      unmarked->add_unique(ident, Qualified_table_ident::cmp_eq);
+  }
+
+  THD *thd;
+
+  /*
+    List of table idents marked with (+)
+    Ideally we should use table_map type, but we don't have a quick way to
+    get the map until a field has been created for the Item_field
+  */
+  List<Qualified_table_ident> *marked;
+  /*
+    List of table idents not marked with (+)
+  */
+  List<Qualified_table_ident> *unmarked;
+};
+
+struct Ora_join
+{
+  Ora_join(THD *thd)
+  : thd(thd),
+    where(nullptr),
+    where_and(nullptr)
+  {
+  }
+
+  THD *thd;
+
+  std::map<Qualified_table_ident,
+           std::vector<Qualified_table_ident>,
+           Lex_ident_table_cmp_less> join_depends;
+  std::map<Qualified_table_ident,
+           std::vector<Item *>,
+           Lex_ident_table_cmp_less> join_conditions;
+
+  /*
+    The final WHERE clause of the query, this may be NULL if there is no
+    WHERE clause, or a single item (i.e. Item_func_eq) or a list of items
+    (Item_cond_and).
+  */
+  Item *where;
+
+  /*
+    Contains a list of predicates that are ANDed together to form the
+    WHERE clause of the query.
+  */
+  Item_cond_and *where_and;
+
+  void add_dependency(Qualified_table_ident &ident, List<Qualified_table_ident> &depends)
+  {
+    auto &deps= join_depends[ident];
+    for (auto depend: depends)
+      deps.push_back(depend);
+  }
+
+  /*
+    If parent of the item is Item_cond_and, add the item to the list of
+    predicates, otherwise assign the item to the where clause as is. 
+  */
+  void assign_where(THD *thd, Item *item)
+  {
+    if (where_and)
+      where_and->add(item, thd->mem_root);
+    else
+      where= item;
+  }
+
+  /*
+    Sort the tables in the query based on the join dependencies
+  */
+  bool sort(THD *thd, List<Qualified_table_ident>& sorted) const
+  {
+    std::map<Qualified_table_ident, int, Lex_ident_table_cmp_less> indegree;
+
+    for (auto &pair: join_depends)
+    {
+      indegree[pair.first]= 0;
+    }
+
+    /*
+      Calculate indegree of each node
+    */
+    for (auto &pair: join_depends)
+    {
+      for (auto depend: pair.second)
+      {
+        indegree[depend]++;
+      }
+    }
+
+    /*
+      Set of all nodes with no incoming edges
+    */
+    List<Qualified_table_ident> q;
+    for (auto &pair: indegree)
+    {
+      if (pair.second == 0)
+        q.push_back(new (thd->mem_root) Qualified_table_ident(pair.first));
+    }
+
+    /*
+      Kahn's algorithm
+    */
+    while (q.elements != 0)
+    {
+      auto table= q.pop();
+      sorted.push_front(table);
+      
+      DBUG_ASSERT(join_depends.count(*table) > 0);
+      for (auto depend: join_depends.at(*table))
+      {
+        indegree[depend]--;
+        if (indegree[depend] == 0)
+          q.push_back(new (thd->mem_root) Qualified_table_ident(depend));
+      }
+    }
+
+    /*
+      Check for cycles
+    */
+    if (sorted.elements != indegree.size())
+      return true;
+
+    return false;
+  }
+
+  bool traverse(Item *item)
+  {
+    if (Item_cond_and *cond_and= dynamic_cast<Item_cond_and*>(item))
+    {
+      where_and= new (thd->mem_root) Item_cond_and(thd);
+      if (!where_and)
+        return true;
+
+      List<Item>* args= cond_and->argument_list();
+      List_iterator<Item> it(*args);
+      for (Item *arg= it++; arg; arg= it++)
+      {
+        if (traverse(arg))
+          return true;
+      }
+
+      auto count= where_and->argument_list()->elements;
+      if (count == 1)
+        where= where_and->argument_list()->head();
+      else if (count > 1)
+        where= where_and;
+    }
+    else if (Item_cond_or *cond_or= dynamic_cast<Item_cond_or*>(item))
+    {
+      // Ensure that either all or none of the arguments are marked with (+)
+      List<Item>* args= cond_or->argument_list();
+      List_iterator<Item> it(*args);
+      List<Qualified_table_ident> marked;
+      List<Qualified_table_ident> unmarked;
+      for (Item *arg= it++; arg; arg= it++)
+      {
+        Ora_join_enumerator c(thd);
+        if (!c.initialized())
+          return true;
+        arg->walk(&Item::enumerate_field_refs_processor, false, &c);
+
+        if (c.marked->elements == 0)
+        {
+          if (marked.elements != 0)
+          {
+            /* We can't have a mix of marked and unmarked fields */
+            my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+            return true;
+          }
+        }
+        else if (c.marked->elements > 1)
+        {
+          /* We can't have more than one field marked with (+) */
+          my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+          return true;
+        }
+        else
+          marked.add_unique(c.marked->head(), &Qualified_table_ident::cmp_eq);
+
+        /* Create a list of all unmarked fields for dependency tracking */
+        List_iterator<Qualified_table_ident> it(*c.unmarked);
+        for (auto unmarked_table= it++; unmarked_table; unmarked_table= it++)
+          unmarked.add_unique(unmarked_table, &Qualified_table_ident::cmp_eq);
+      }
+
+      if (marked.elements > 1)
+      {
+        /* We can't have more than one field marked with (+) */
+        my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+        return true;
+      }
+      else if (marked.elements == 1)
+      {
+        auto table= marked.head();
+        join_conditions[*table].push_back(item);
+        add_dependency(*table, unmarked);
+      }
+      else
+      {
+        assign_where(thd, item);
+      }
+    }
+    else
+    {
+      Ora_join_enumerator c(thd);
+      if (!c.initialized())
+        return true;
+      item->walk(&Item::enumerate_field_refs_processor, false, &c);
+
+      if (c.marked->elements == 0)
+      {
+        /* We couldn't find any fields marked with (+) */
+        assign_where(thd, item);
+      }
+      else if (c.marked->elements > 1)
+      {
+        /* We can't have more than one field marked with (+) */
+        my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+        return true;
+      }
+      else
+      {
+        /* We found a field marked with (+) */
+        if (dynamic_cast<Item_func_in*>(item))
+        {
+          my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+          return true;
+        }
+
+        auto table= c.marked->head();
+        join_conditions[*table].push_back(item);
+        add_dependency(*table, *c.unmarked);
+      }
+    }
+
+    return false;
+  }
+
+  bool has_outer_join() const
+  {
+    for (auto &join: join_conditions)
+    {
+      if (join.second.size() > 0)
+        return true;
+    }
+    return false;
+  }
+};
+
+/*
+  Transform the select query if the WHERE clause contains (+) operator
+  into ANSI join syntax (LEFT OUTER JOIN).
+
+  i.e.
+    SELECT * FROM t1, t2 WHERE t1.a = t2.a (+) AND t1.b = t2.b (+)
+  is transformed into
+    SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.a AND t1.b = t2.b
+  
+  Not all combinations of (+) operator are allowed, the following
+  are not allowed:
+    - (+) operator with IN operator
+    - (+) operator with OR operator
+     - Exception to this is when both operands of the OR operator
+       contain the same table marked with (+)
+    - (+) operator with multiple tables in the same predicate
+    - All tables has fields marked with (+) operator (i.e. no tables
+      without the (+) operator)
+  In addition, using (+) operator with ANSI joins is not allowed.
+  Limitations above are similar to Oracle's limitations.
+
+  We traverse the WHERE clause and mark all fields with (+) operator
+  and each marked predicate will be stored to create the ON clause.
+  Unmarked predicates are ANDed together to form the WHERE clause, hence the
+  limitation of (+) operator with OR operator.
+
+  We also track the dependencies between the tables to ensure that
+  the tables are joined in the correct order. Dependency in this case is defined
+  as a table that is marked with (+) operator and is used in a predicate
+  with a table that is not marked with (+) operator.
+  For example, in the query
+    SELECT * FROM t1, t2, t3 WHERE t1.a = t2.a (+) AND t2.b = t3.b (+)
+  t2 is dependent on t1 and t3 is dependent on t2.
+
+*/
+bool process_ora_outer_join(THD *thd, SELECT_LEX *select,
+                            Item *cond, Item **transformed_cond)
+{
+  Ora_join j(thd);
+
+  /*
+    Initialize the map elements with keys from the table_list which contains
+    aliases and table names
+  */
+  for (TABLE_LIST *ptr= select->table_list.first; ptr; ptr= ptr->next_local)
+  {
+    Qualified_table_ident ident(ptr);
+    j.join_depends[ident];
+    j.join_conditions[ident];
+  }
+
+  if (j.traverse(cond))
+    return true;
+  
+  if (!j.has_outer_join())
+    return false;
+  
+  if (select->table_list.elements == 1)
+  {
+    /* We can't use (+) operator when there is only a single table */
+    my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+    return true;
+  }
+  
+  /*
+    Check if we have ANSI joins
+  */
+  Qualified_table_ident independent(nullptr, nullptr);
+  for (TABLE_LIST *ptr= select->table_list.first; ptr; ptr= ptr->next_local)
+  {
+    if (ptr->on_expr || ptr->natural_join)
+    {
+      /* We can't mix (+) with ON or NATURAL JOINs */
+      my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+      return true;
+    }
+
+    Qualified_table_ident ident(ptr);
+
+    if (j.join_depends[ident].size() == 0 &&
+        j.join_conditions[ident].size() == 0)
+      independent= ident;
+  }
+
+  if (independent.table)
+  {
+    for (TABLE_LIST *ptr= select->table_list.first; ptr; ptr= ptr->next_local)
+    {
+      Qualified_table_ident ident(ptr);
+      if (j.join_depends[ident].size() == 0 &&
+          j.join_conditions[ident].size() != 0)
+      {
+        /*
+          We have a table with on condition but no dependencies
+          make it depend on at least one independent table.
+        */
+        j.join_depends[ident].push_back(independent);
+      }
+    }
+  }
+  
+  List<Qualified_table_ident> sorted;
+  if (j.sort(thd, sorted))
+  {
+    my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+    return true;
+  }
+  
+  select->join_list->empty();
+
+  TABLE_LIST *prev= NULL, *prev_name_res= NULL;
+  List_iterator<Qualified_table_ident> it(sorted);
+  for (auto table= it++; table; table= it++)
+  {
+    bool found= false;
+    for (TABLE_LIST *ptr= select->table_list.first; ptr; ptr= ptr->next_local)
+    {
+      Qualified_table_ident ident(ptr);
+      if (table->cmp(ident) == 0)
+      {
+        found= true;
+        ptr->next_name_resolution_table= NULL;
+
+        if (j.join_conditions[*table].size() > 0)
+        {
+          select->add_joined_table(ptr);
+          if (j.join_conditions[*table].size() > 1)
+          {
+            /*
+              We have multiple conditions for this table, we need to
+              join them together with an AND expression
+            */
+            Item_cond_and *and_expr= new (thd->mem_root) Item_cond_and(thd);
+            for (Item *item: j.join_conditions[*table])
+            {
+              and_expr->add(item, thd->mem_root);
+            }
+            add_join_on(thd, ptr, and_expr);
+          }
+          else
+          {
+            add_join_on(thd, ptr, j.join_conditions[*table][0]);
+          }
+          ptr->on_context= &select->context;
+          ptr->outer_join|=JOIN_TYPE_LEFT;
+
+          prev= select->nest_last_join(thd);
+        }
+        else if (prev)
+        {
+          select->add_joined_table(ptr);
+          prev= select->nest_last_join(thd);
+        }
+        else
+          prev= ptr;
+
+        if (prev_name_res)
+          prev_name_res->next_name_resolution_table= ptr;
+
+        select->add_joined_table(prev);
+        prev_name_res= ptr;
+
+        break;
+      }
+    }
+
+    if (!found)
+    {
+      my_error(ER_BAD_TABLE_ERROR, MYF(0), table->table->str);
+      return true;
+    }
+
+    DBUG_ASSERT(prev);
+  }
+
+  *transformed_cond= j.where;
+
+  return false;
+}
+
 
 /**
   Add an ON condition to the second operand of a JOIN ... ON.
