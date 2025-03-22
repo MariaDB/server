@@ -1266,14 +1266,22 @@ static bool update_binlog_space_limit(sys_var *, THD *,
 
   if (opt_bin_log)
   {
-    if (binlog_space_limit)
-      mysql_bin_log.count_binlog_space();
-    /* Inform can_purge_log() that it should do a recheck of log_in_use() */
-    sending_new_binlog_file++;
-    mysql_bin_log.unlock_index();
-    mysql_bin_log.purge(1);
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    return 0;
+    if (opt_binlog_engine_hton)
+    {
+      if (loc_binlog_space_limit)
+        mysql_bin_log.engine_purge_logs_by_size(loc_binlog_space_limit);
+    }
+    else
+    {
+      if (loc_binlog_space_limit)
+        mysql_bin_log.count_binlog_space();
+      /* Inform can_purge_log() that it should do a recheck of log_in_use() */
+      sending_new_binlog_file++;
+      mysql_bin_log.unlock_index();
+      mysql_bin_log.purge(1);
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      return 0;
+    }
   }
   mysql_bin_log.unlock_index();
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -1813,6 +1821,16 @@ Sys_max_binlog_size(
        BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_max_binlog_size));
 
+
+static Sys_var_charptr_fscs Sys_binlog_directory(
+       "binlog_directory",
+       "Directory path (absolute or relative to datadir) where binlog files "
+       "are stored. If this is used, must not specify a directory path for "
+       "--log-bin",
+       READ_ONLY GLOBAL_VAR(opt_binlog_directory), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+
 static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 {
   return false;
@@ -2324,7 +2342,7 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   bool first= true;
 
   str.length(0);
-  rpl_gtid gtid= thd->get_last_commit_gtid();
+  rpl_gtid gtid= *thd->get_last_commit_gtid();
   if ((gtid.seq_no > 0 &&
        rpl_slave_state_tostring_helper(&str, &gtid, &first)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
