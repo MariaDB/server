@@ -6319,6 +6319,22 @@ protected:
 
 Create_func_vec_totext Create_func_vec_totext::s_singleton;
 
+class Create_func_embed : public Create_func_arg1
+{
+
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_embed(thd, arg1);
+  }
+  static Create_func_embed s_singleton;
+
+protected:
+  Create_func_embed()= default;
+  virtual ~Create_func_embed()= default;
+};
+
+Create_func_embed Create_func_embed::s_singleton;
 
 class Create_func_vec_fromtext: public Create_func_arg1
 {
@@ -6568,6 +6584,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("VEC_DISTANCE") }, BUILDER(Create_func_vec_distance)},
   { { STRING_WITH_LEN("VEC_FROMTEXT") }, BUILDER(Create_func_vec_fromtext)},
   { { STRING_WITH_LEN("VEC_TOTEXT") }, BUILDER(Create_func_vec_totext)},
+  { { STRING_WITH_LEN("EMBED")}, BUILDER(Create_func_vec_totext)},
   { { STRING_WITH_LEN("VERSION") }, BUILDER(Create_func_version)},
   { { STRING_WITH_LEN("WEEK") }, BUILDER(Create_func_week)},
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},
