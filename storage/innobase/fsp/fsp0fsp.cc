@@ -1535,7 +1535,7 @@ MY_ATTRIBUTE((nonnull(1,4,5), warn_unused_result))
 @param[out]	block		inode block
 @param[out]	err		error code
 @return segment inode, page x-latched
-@retrval nullptr if the inode is free or corruption was noticed */
+@retval nullptr if the inode is free or corruption was noticed */
 static
 fseg_inode_t*
 fseg_inode_try_get(
@@ -2075,7 +2075,7 @@ take_hinted_page:
 	}
 
 	/** If the number of unused but reserved pages in a segment is
-	esser than minimum value of 1/8 of reserved pages or
+	less than minimum value of 1/8 of reserved pages or
 	4 * FSP_EXTENT_SIZE and there are at least half of extent size
 	used pages, then we allow a new empty extent to be added to
 	the segment in fseg_alloc_free_page_general(). Otherwise, we use
@@ -3306,7 +3306,7 @@ func_exit:
   {
     /* Update the FLST_LAST pointer in base node with current
     valid extent descriptor and mark the FIL_NULL as next in
-    current extent descriptr */
+    current extent descriptor */
     flst_write_addr(
       *header,
       header->page.frame + hdr_offset + FLST_LAST,

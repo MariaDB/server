@@ -4324,7 +4324,7 @@ int ha_maria::find_unique_row(uchar *record, uint constrain_no)
   else
   {
     /*
-     It is case when just unique index used instead unicue constrain
+     It is the case when just unique index is used instead of unique constraint
      (conversion from heap table).
      */
     DBUG_ASSERT(file->s->state.header.keys > constrain_no);

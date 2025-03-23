@@ -126,7 +126,7 @@ void buf_pool_t::page_cleaner_wakeup(bool for_LRU) noexcept
 
   /* if pct_lwm != 0.0, adaptive flushing is enabled.
   signal buf page cleaner thread
-  - if pct_lwm <= dirty_pct then it will invoke apdative flushing flow
+  - if pct_lwm <= dirty_pct then it will invoke adaptive flushing flow
   - if pct_lwm > dirty_pct then it will invoke idle flushing flow.
 
   idle_flushing:
@@ -2221,7 +2221,7 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
-/** Check if the adpative flushing threshold is recommended based on
+/** Check if the adaptive flushing threshold is recommended based on
 redo log capacity filled threshold.
 @param oldest_lsn     buf_pool.get_oldest_modification()
 @return true if adaptive flushing is recommended. */

@@ -346,7 +346,7 @@ mysql_mutex_t srv_monitor_file_mutex;
 FILE*	srv_monitor_file;
 /** Mutex for locking srv_misc_tmpfile */
 mysql_mutex_t srv_misc_tmpfile_mutex;
-/** Temporary file for miscellanous diagnostic output */
+/** Temporary file for miscellaneous diagnostic output */
 FILE*	srv_misc_tmpfile;
 
 /* The following counts are used by the srv_master_callback. */

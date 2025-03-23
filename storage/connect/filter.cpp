@@ -547,7 +547,7 @@ bool FILTER::FindJoinFilter(POPJOIN opj, PFIL fprec, bool teq, bool tek,
     return (Opc < 0);
 
   // Keep only equi-joins and specific joins (Outer and Distinct)
-  // Normally specific join operators comme first because they have
+  // Normally specific join operators come first because they have
   // been placed first by SortJoin.
   if (teq && Opc > OP_EQ)
     return FALSE;
@@ -747,7 +747,7 @@ bool FILTER::CheckHaving(PGLOBAL g, PSQL sqlp)
       return FALSE;
     default:
       if (CheckColumn(g, sqlp, xp, agg) < -1)
-        return TRUE;       // Unrecovable error
+        return TRUE;       // Unrecoverable error
 
       break;
     } // endswitch Opc

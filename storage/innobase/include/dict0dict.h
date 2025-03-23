@@ -1383,7 +1383,7 @@ public:
   inline void add(dict_table_t *table) noexcept;
   /** Remove a table definition from the data dictionary cache.
   @param[in,out]	table	cached table definition to be evicted
-  @param[in]	lru	whether this is part of least-recently-used evictiono
+  @param[in]	lru	whether this is part of least-recently-used eviction
   @param[in]	keep	whether to keep (not free) the object */
   void remove(dict_table_t *table, bool lru= false, bool keep= false) noexcept;
 

@@ -152,14 +152,14 @@ class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   void   *Hdll;               /* Handle for the loaded shared library  */
 #endif  // !_WIN32
   PTABDEF Pxdef;              /* Pointer to the external TABDEF class  */
-  char   *Module;             /* Path/Name of the DLL implenting it    */
+  char   *Module;             /* Path/Name of the DLL implementing it  */
   char   *Subtype;            /* The name of the OEM table sub type    */
   }; // end of OEMDEF
 
 /***********************************************************************/
 /*  Column definition block used during creation.                      */
 /***********************************************************************/
-class DllExport COLCRT : public BLOCK { /* Column description block              */
+class DllExport COLCRT : public BLOCK { /* Column description block    */
   friend class TABDEF;
  public:
   COLCRT(PSZ name);           // Constructor

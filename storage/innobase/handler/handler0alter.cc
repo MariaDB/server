@@ -948,7 +948,7 @@ my_error_innodb(dberr_t error, const char *table, ulint flags)
 }
 
 /** Get the name of an erroneous key.
-@param[in]	error_key_num	InnoDB number of the erroneus key
+@param[in]	error_key_num	InnoDB number of the erroneous key
 @param[in]	ha_alter_info	changes that were being performed
 @param[in]	table		InnoDB table
 @return	the name of the erroneous key */
@@ -1539,7 +1539,7 @@ static bool alter_options_need_rebuild(
 		/* Specifying ROW_FORMAT or KEY_BLOCK_SIZE requires
 		rebuilding the table. (These attributes in the .frm
 		file may disagree with the InnoDB data dictionary, and
-		the interpretation of thse attributes depends on
+		the interpretation of these attributes depends on
 		InnoDB parameters. That is why we for now always
 		require a rebuild when these attributes are specified.) */
 		return true;
@@ -3150,7 +3150,7 @@ innobase_col_check_fk(
 }
 
 /** Check whether the foreign key constraint is on base of any stored columns.
-@param[in]	foreign	Foriegn key constraing information
+@param[in]	foreign	Foreign key constraint information
 @param[in]	table	table to which the foreign key objects
 to be added
 @param[in]	s_cols	list of stored column information in the table.
@@ -8747,7 +8747,7 @@ found_col:
 	DBUG_RETURN(true);
 }
 
-/* Check whether a columnn length change alter operation requires
+/* Check whether a column length change alter operation requires
 to rebuild the template.
 @param[in]	altered_table	TABLE object for new version of table.
 @param[in]	ha_alter_info	Structure describing changes to be done
@@ -10128,7 +10128,7 @@ innobase_update_foreign_cache(
 	} else {
 		/* Drop the foreign key constraints if the
 		table was not rebuilt. If the table is rebuilt,
-		there would not be any foreign key contraints for
+		there would not be any foreign key constraints for
 		it yet in the data dictionary cache. */
 		for (ulint i = 0; i < ctx->num_to_drop_fk; i++) {
 			dict_foreign_t* fk = ctx->drop_fk[i];
