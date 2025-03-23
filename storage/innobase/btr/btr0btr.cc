@@ -67,7 +67,7 @@ either in S (shared) or X (exclusive) mode and block->lock was not acquired on
 node pointer pages.
 
 After MariaDB 10.2.2, block->lock S-latch or X-latch is used to protect
-node pointer pages and obtaiment of node pointer page latches is protected by
+node pointer pages and obtainment of node pointer page latches is protected by
 index->lock.
 
 (0) Definition: B-tree level.
@@ -130,7 +130,7 @@ NOTE: New rules after MariaDB 10.2.2 does not affect the latching rules of leaf 
 
 index->lock S-latch is needed in read for the node pointer traversal. When the leaf
 level is reached, index-lock can be released (and with the MariaDB 10.2.2 changes, all
-node pointer latches). Left to right index travelsal in leaf page level can be safely done
+node pointer latches). Left to right index traversal in leaf page level can be safely done
 by obtaining right sibling leaf page latch and then releasing the old page latch.
 
 Single leaf page modifications (BTR_MODIFY_LEAF) are protected by index->lock

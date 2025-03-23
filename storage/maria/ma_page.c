@@ -87,7 +87,7 @@ void page_cleanup(MARIA_SHARE *share, MARIA_PAGE *page)
   @param lock		Lock type for page
   @param level		Importance of page; Priority for page cache
   @param buff	        Buffer to use for page
-  @param return_buffer  Set to 1 if we want to force useage of buff
+  @param return_buffer  Set to 1 if we want to force usage of the "buff"
 
   @return
   @retval 0  ok

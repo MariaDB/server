@@ -121,7 +121,7 @@ created. Thus we can easily see if this record was changed by the
 creating transaction. Because we already have clustered record we can
 access roll_ptr. Using this roll_ptr we can fetch undo record.
 We can now check that undo_no of the undo record is less than undo_no of the
-trancaction which created a view when cursor was created. We see this
+transaction which created a view when cursor was created. We see this
 clustered record only in case when record undo_no is less than undo_no
 in the view. If this is not true we build based on undo_rec previous
 version of the record. This record is found because purge can't remove

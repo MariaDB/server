@@ -485,7 +485,7 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
     - compare FULLTEXT keys;
     - compare SPATIAL keys;
     - compare FIELD_SKIP_ZERO which is converted to FIELD_NORMAL correctly
-      (should be corretly detected in table2myisam).
+      (should be correctly detected in table2myisam).
 */
 
 int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,
@@ -642,7 +642,7 @@ void mi_check_print_warning(HA_CHECK *param, const char *fmt,...)
 
 /**
   Report list of threads (and queries) accessing a table, thread_id of a
-  thread that detected corruption, ource file name and line number where
+  thread that detected corruption, source file name and line number where
   this corruption was detected, optional extra information (string).
 
   This function is intended to be used when table corruption is detected.
@@ -1313,7 +1313,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
 #endif
     /*
       The following is to catch errors when my_errno is no set properly
-      during repairt
+      during repair
     */
     my_errno= 0;
     if (mi_test_if_sort_rep(file,file->state->records,tmp_key_map,0) &&

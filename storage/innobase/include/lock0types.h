@@ -257,7 +257,7 @@ struct ib_lock_t
         bool can_be_bypassed(bool has_s_lock_or_stronger) const noexcept
         {
           ut_ad(!is_table());
-          /* We don't neet do check supremum bit in the lock's bitmap here,
+          /* We don't need to check supremum bit in the lock's bitmap here,
           because the function is always called after checking for
           bypass_mode, which already contains check for supremum. */
           ut_ad(!is_insert_intention() || is_gap());

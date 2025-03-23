@@ -259,7 +259,7 @@ updated but the lock prevents insert of a user record to the end of
 the page.
 	Next key locks will prevent the phantom problem where new rows
 could appear to SELECT result sets after the select operation has been
-performed. Prevention of phantoms ensures the serilizability of
+performed. Prevention of phantoms ensures the serializability of
 transactions.
 	What should we check if an insert of a new record is wanted?
 Only the lock on the next record on the same page, because also the

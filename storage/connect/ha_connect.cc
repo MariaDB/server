@@ -4990,7 +4990,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       } // endelse Xchk
 
     if (CloseTable(g)) {
-      // This is an error while builing index
+      // This is an error while building index
       // Make it a warning to avoid crash
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
       rc= 0;

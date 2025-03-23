@@ -19,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /**************************************************//**
 @file buf/buf0dblwr.cc
-Doublwrite buffer module
+Doublewrite buffer module
 
 Created 2011/12/19
 *******************************************************/

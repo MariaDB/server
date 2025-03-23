@@ -300,7 +300,7 @@ page_corrupted:
         if (UNIV_UNLIKELY(block.page.id().page_no() < 3 ||
                           block.page.zip.ssize))
           goto record_corrupted;
-        static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatiblity");
+        static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatibility");
         static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
@@ -680,7 +680,7 @@ static struct
       p.first->second.lsn= lsn;
       p.first->second.file_name= defer.file_name;
     }
-    /* Add the newly added defered space and change the file name */
+    /* Add the newly added deferred space and change the file name */
     recv_spaces_t::iterator it{recv_spaces.find(space)};
     if (it != recv_spaces.end())
       it->second.name = defer.file_name;
