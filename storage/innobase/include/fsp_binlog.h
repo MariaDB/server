@@ -292,6 +292,8 @@ public:
 };
 
 
+extern uint32_t ibb_page_size_shift;
+extern ulong ibb_page_size;
 extern uint32_t current_binlog_state_interval;
 extern mysql_mutex_t active_binlog_mutex;
 extern pthread_cond_t active_binlog_cond;
