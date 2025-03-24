@@ -18628,6 +18628,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         prev_table->dep_tables|= used_tables;
       if (prev_table->on_expr)
       {
+        /* If the ON expression is still there, it's an outer join */
+        DBUG_ASSERT(prev_table->outer_join);
         prev_table->dep_tables|= table->on_expr_dep_tables;
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
@@ -18642,11 +18644,59 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
           prevents update of inner table dependences.
           For example it might happen if RAND() function
           is used in JOIN ON clause.
-	*/  
-        if (!((prev_table->on_expr->used_tables() &
-               ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT)) &
-              ~prev_used_tables))
+	*/
+        table_map prev_on_expr_deps= prev_table->on_expr->used_tables() &
+                                     ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
+        prev_on_expr_deps&= ~prev_used_tables;
+
+        if (!prev_on_expr_deps)
           prev_table->dep_tables|= used_tables;
+        else
+        {
+          /*
+            Another possible case is when prev_on_expr_deps!=0 but it depends
+            on a table outside this join nest. SQL name resolution don't allow
+            this but it is possible when LEFT JOIN is inside a subquery which
+            is converted into a semi-join nest, Example:
+
+              t1 SEMI JOIN (
+                t2
+                LEFT JOIN (t3 LEFT JOIN t4 ON t4.col=t1.col) ON expr
+              ) ON ...
+
+            here, we would have prev_table=t4, table=t3.  The condition
+            "ON t4.col=t1.col" depends on tables {t1, t4}. To make sure the
+            optimizer puts t3 before t4 we need to make sure t4.dep_tables
+            includes t3.
+          */
+
+          DBUG_ASSERT(table->embedding == prev_table->embedding);
+          if (table->embedding)
+          {
+            /*
+              Find what are the "peers" of "table" in the join nest. Normally,
+              it is table->embedding->nested_join->used_tables, but here we are
+              in the process of recomputing that value.
+              So, we walk the join list and collect the bitmap of peers:
+            */
+            table_map peers= 0;
+            List_iterator_fast<TABLE_LIST> li(*join_list);
+            TABLE_LIST *peer;
+            while ((peer= li++))
+            {
+              table_map curmap= peer->nested_join
+                                    ? peer->nested_join->used_tables
+                                    : peer->get_map();
+              peers|= curmap;
+            }
+            /*
+              If prev_table doesn't depend on any of its peers, add a
+              dependency on nearest peer, that is, on 'table'.
+            */
+            if (!(prev_on_expr_deps & peers))
+              prev_table->dep_tables|= used_tables;
+          }
+        }
       }
     }
     prev_table= table;
