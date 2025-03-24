@@ -2694,6 +2694,35 @@ static bool innodb_init()
 
 /* ================= common ================= */
 
+/** Read the backup_info file during prepare to know whether
+it is working on partial backup target directory */
+static
+void xtrabackup_read_backup_info_file(const char *dir,
+                                      const char *name) noexcept
+{
+  char	filename[FN_REFLEN];
+  snprintf(filename, sizeof(filename), "%s/%s", dir, name);
+  FILE *fp= fopen(filename, "r");
+  char key[8], value;
+  if (!fp)
+  {
+    msg("Error: cannot open %s", filename);
+    return;
+  }
+
+  while (!feof(fp))
+  {
+    if (fscanf(fp, "%7s = %c\n", key, &value) == 2)
+      if (strcmp(key, "partial") == 0)
+      {
+        if (value == 'Y')
+          srv_prepare_partial_backup= true;
+	break;
+      }
+  }
+  fclose(fp);
+}
+
 /***********************************************************************
 Read backup meta info.
 @return TRUE on success, FALSE on failure. */
@@ -6796,6 +6825,7 @@ static bool xtrabackup_prepare_func(char** argv)
 		return(false);
 	}
 
+	xtrabackup_read_backup_info_file(xtrabackup_target_dir, MB_INFO);
 	if (!strcmp(metadata_type, "full-backuped")) {
 		if (xtrabackup_incremental) {
 			msg("error: applying incremental backup "

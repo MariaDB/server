@@ -1175,7 +1175,6 @@ got_deleted:
 		   || f.name != fname.name) {
 reload:
 		fil_space_t*	space;
-
 		/* Check if the tablespace file exists and contains
 		the space_id. If not, ignore the file after displaying
 		a note. Abort if there are multiple files with the
@@ -1232,6 +1231,18 @@ rename:
 				break;
 			}
 
+			/* In case of prepare on partial backup,
+			InnoDB can't find some tablespace on target
+			directory. If InnoDB encounters redo log
+			for the tablespace before FILE_* record then
+			InnoDB should rename the file name in
+			recv_spaces from "" to name which encountered
+			during FILE_* record */
+			if (srv_prepare_partial_backup &&
+			    strcmp(fname.name.c_str(), "") == 0) {
+				f.name= fname.name;
+			}
+
 			if (srv_force_recovery
 			    || srv_operation == SRV_OPERATION_RESTORE) {
 				/* Without innodb_force_recovery,
@@ -1249,6 +1260,17 @@ rename:
 					int(fname.name.size()),
 					fname.name.data(), space_id);
 			}
+
+			DBUG_EXECUTE_IF("partial_backup_test",
+					char *exist=
+					  strstr(const_cast<char*>(name),
+						 "t2.ibd");
+					static uint32_t n_exist= 0;
+					if (exist && n_exist == 0)
+					{
+					  n_exist++;
+					  recv_spaces.erase(space_id);
+					});
 			break;
 
 		case FIL_LOAD_DEFER:
@@ -1751,13 +1773,26 @@ dberr_t recv_sys_t::find_checkpoint()
         continue;
       }
 
+      DBUG_EXECUTE_IF("use_old_checkpoint",
+		      if (log_sys.next_checkpoint_lsn > 0) {
+		        if (checkpoint_lsn > log_sys.next_checkpoint_lsn)
+			  goto skip_lsn;
+			else goto assign_lsn;
+		       }
+		     );
       if (checkpoint_lsn >= log_sys.next_checkpoint_lsn)
       {
+#ifndef DBUG_OFF
+assign_lsn:
+#endif /* !DBUG_OFF */
         log_sys.next_checkpoint_lsn= checkpoint_lsn;
         log_sys.next_checkpoint_no= field == log_t::CHECKPOINT_1;
         lsn= end_lsn;
       }
     }
+#ifndef DBUG_OFF
+skip_lsn:
+#endif /* !DBUG_OFF */
     if (!log_sys.next_checkpoint_lsn)
       goto got_no_checkpoint;
     if (!memcmp(creator, "Backup ", 7))

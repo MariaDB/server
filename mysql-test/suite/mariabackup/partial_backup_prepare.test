@@ -1,0 +1,37 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1(i INT) ENGINE INNODB;
+CREATE TABLE t2(i INT) ENGINE INNODB;
+
+INSERT INTO t1 VALUES(1);
+INSERT INTO t2 VALUES(2);
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log;
+let $prepare_log=$MYSQLTEST_VARDIR/tmp/prepare.log;
+set global innodb_log_checkpoint_now = 1;
+INSERT INTO t1 select * from seq_1_to_1024;
+INSERT INTO t2 select * from seq_1_to_1024;
+--source include/restart_mysqld.inc
+echo # xtrabackup backup;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --dbug=+d,use_old_checkpoint --skip-innodb-log-checkpoint-now --backup "--tables=test.*1" --target-dir=$targetdir --parallel=10 > $backup_log 2>&1;
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --export --target-dir=$targetdir --dbug=+d,partial_backup_test > $prepare_log 2>&1;
+
+list_files $targetdir/test *.cfg;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+ALTER TABLE t1 DISCARD TABLESPACE;
+copy_file $targetdir/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd;
+copy_file $targetdir/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg;
+ALTER TABLE t1 IMPORT TABLESPACE;
+SELECT * FROM t1;
+DROP TABLE t1, t2;
+remove_file $backup_log;
+remove_file $prepare_log;
+rmdir $targetdir;
