@@ -39646,8 +39646,9 @@ struct mysql_0900_to_mariadb_1400_mapping mysql_0900_mapping[]=
 };
 
 
-static LEX_CSTRING mysql_utf8_bin= { STRING_WITH_LEN("utf8mb4_0900_bin") };
-static LEX_CSTRING mariadb_utf8_bin= { STRING_WITH_LEN("utf8mb4_bin") };
+static LEX_CSTRING
+  mysql_utf8mb4_0900_bin= {STRING_WITH_LEN("utf8mb4_0900_bin")},
+  mariadb_utf8mb4_nopad_bin= {STRING_WITH_LEN("utf8mb4_nopad_bin")};
 
 /*
   Map mysql character sets to MariaDB using the same definition but with
@@ -39691,7 +39692,8 @@ my_bool mysql_utf8mb4_0900_collation_definitions_add()
     }
   }
 
-  if (add_alias_for_collation(&mariadb_utf8_bin, 46, &mysql_utf8_bin, 309))
+  if (add_alias_for_collation(&mariadb_utf8mb4_nopad_bin, 1070,
+                              &mysql_utf8mb4_0900_bin, 309))
     return 1;
   return 0;
 }
