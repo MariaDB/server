@@ -92,11 +92,11 @@ while ($i < $num_trx) {
 #
 # In this case, just check that the general structure of the present binlogs
 # is similar, and then update the $binlog_name waited for and the .result file.
---let $binlog_name= binlog-000009.ibb
+--let $binlog_name= binlog-000010.ibb
 --let $binlog_size= 262144
 --let $wait_notfound= 1
 --source include/wait_for_engine_binlog.inc
---let $binlog_name= binlog-000013.ibb
+--let $binlog_name= binlog-000014.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 SHOW BINARY LOGS;
@@ -117,7 +117,7 @@ while ($i < $num_insert) {
 }
 COMMIT;
 --enable_query_log
---let $binlog_name= binlog-000011.ibb
+--let $binlog_name= binlog-000012.ibb
 --let $binlog_size= 262144
 --let $wait_notfound= 1
 --source include/wait_for_engine_binlog.inc

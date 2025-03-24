@@ -536,7 +536,7 @@ binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
   File fh= my_open(full_path, O_RDONLY | O_BINARY, MYF(0));
   if (fh < (File)0)
     return (my_errno == ENOENT ? 0 : -1);
-  size_t read= my_pread(fh, page_buf, srv_page_size, 0, MYF(0));
+  size_t read= my_pread(fh, page_buf, ibb_page_size, 0, MYF(0));
   my_close(fh, MYF(0));
   if (UNIV_UNLIKELY(read == (size_t)-1))
     return -1;
@@ -546,7 +546,7 @@ binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
     If the crc32 does not match, the page was not written properly, so treat
     it as an empty file.
   */
-  const uint32_t payload= (uint32_t)srv_page_size - BINLOG_PAGE_CHECKSUM;
+  const uint32_t payload= (uint32_t)ibb_page_size - BINLOG_PAGE_CHECKSUM;
   uint32_t crc32= mach_read_from_4(page_buf + payload);
   if (UNIV_UNLIKELY(crc32 != my_crc32c(0, page_buf, payload)))
     return 0;
@@ -571,12 +571,12 @@ bool binlog_recovery::init_recovery(bool space_id, uint32_t page_no,
 {
   /* Start by initializing resource pointers so we are safe to releaes(). */
   cur_file_fh= (File)-1;
-  if (!(page_buf= (byte *)ut_malloc(srv_page_size, mem_key_binlog)))
+  if (!(page_buf= (byte *)ut_malloc(ibb_page_size, mem_key_binlog)))
   {
-    my_error(ER_OUTOFMEMORY, MYF(MY_WME), srv_page_size);
+    my_error(ER_OUTOFMEMORY, MYF(MY_WME), ibb_page_size);
     return true;
   }
-  memset(page_buf, 0, srv_page_size);
+  memset(page_buf, 0, ibb_page_size);
   inited= true;
   /*
     ToDo: It would be good to find a way to not duplicate this logic for
@@ -837,10 +837,10 @@ binlog_recovery::flush_page() noexcept
     return true;
   size_t res=
     crc32_pwrite_page(cur_file_fh, page_buf, cur_page_no, MYF(MY_WME));
-  if (res != srv_page_size)
+  if (res != ibb_page_size)
     return true;
   cur_page_offset= 0;
-  memset(page_buf, 0, srv_page_size);
+  memset(page_buf, 0, ibb_page_size);
   return false;
 }
 
@@ -853,7 +853,7 @@ binlog_recovery::zero_out_cur_file()
 
   /* Recover the original size from the current file. */
   size_t read= crc32_pread_page(cur_file_fh, page_buf, 0, MYF(0));
-  if (read != (size_t)srv_page_size)
+  if (read != (size_t)ibb_page_size)
   {
     sql_print_warning("InnoDB: Could not read last binlog file during recovery");
     return;
@@ -873,23 +873,23 @@ binlog_recovery::zero_out_cur_file()
   }
 
   /* Fill up or truncate the file to its original size. */
-  if (my_chsize(cur_file_fh, (my_off_t)header.page_count << srv_page_size_shift,
+  if (my_chsize(cur_file_fh, (my_off_t)header.page_count << ibb_page_size_shift,
                 0, MYF(0)))
     sql_print_warning("InnoDB: Could not change the size of last binlog file "
                       "during recovery (error: %d)", my_errno);
   for (uint32_t i= cur_page_no + 1; i < header.page_count; ++i)
   {
-    if (my_pread(cur_file_fh, page_buf, srv_page_size,
-                 (my_off_t)i << srv_page_size_shift, MYF(0)) <
-        (size_t)srv_page_size)
+    if (my_pread(cur_file_fh, page_buf, ibb_page_size,
+                 (my_off_t)i << ibb_page_size_shift, MYF(0)) <
+        (size_t)ibb_page_size)
       break;
     /* Check if page already zeroed out. */
-    if (page_buf[0] == 0 && !memcmp(page_buf, page_buf+1, srv_page_size - 1))
+    if (page_buf[0] == 0 && !memcmp(page_buf, page_buf+1, ibb_page_size - 1))
       continue;
-    memset(page_buf, 0, srv_page_size);
-    if (my_pwrite(cur_file_fh, page_buf, srv_page_size,
-                  (uint64_t)i << srv_page_size_shift, MYF(MY_WME)) <
-        (size_t)srv_page_size)
+    memset(page_buf, 0, ibb_page_size);
+    if (my_pwrite(cur_file_fh, page_buf, ibb_page_size,
+                  (uint64_t)i << ibb_page_size_shift, MYF(MY_WME)) <
+        (size_t)ibb_page_size)
     {
       sql_print_warning("InnoDB: Error writing to last binlog file during "
                         "recovery (error code: %d)", my_errno);
@@ -981,9 +981,9 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
   {
     /* Check that we recovered all of this file. */
     if ( ( (cur_page_offset > BINLOG_PAGE_DATA &&
-            cur_page_offset < srv_page_size - BINLOG_PAGE_DATA_END) ||
+            cur_page_offset < ibb_page_size - BINLOG_PAGE_DATA_END) ||
            cur_page_no + (cur_page_offset > BINLOG_PAGE_DATA) <
-           cur_phys_size >> srv_page_size_shift) &&
+           cur_phys_size >> ibb_page_size_shift) &&
          !srv_force_recovery)
     {
       sql_print_error("InnoDB: Missing recovery record at end of file_no=%"
@@ -1005,7 +1005,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
   /* Test for moving to the next page. */
   else if (page_no != cur_page_no)
   {
-    if (cur_page_offset < srv_page_size - BINLOG_PAGE_DATA_END &&
+    if (cur_page_offset < ibb_page_size - BINLOG_PAGE_DATA_END &&
         !srv_force_recovery)
     {
       sql_print_error("InnoDB: Missing recovery record in file_no=%"
@@ -1037,7 +1037,7 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
       return true;
   }
 
-  if (offset + size >= srv_page_size)
+  if (offset + size >= ibb_page_size)
     return !srv_force_recovery;
 
   update_page_from_record(offset, buf, size);
@@ -1107,9 +1107,9 @@ innodb_binlog_init_state()
   binlog_cur_page_no= 0;
   binlog_cur_page_offset= BINLOG_PAGE_DATA;
   current_binlog_state_interval=
-    (uint32_t)(innodb_binlog_state_interval >> srv_page_size_shift);
+    (uint32_t)(innodb_binlog_state_interval >> ibb_page_size_shift);
   ut_a(innodb_binlog_state_interval ==
-       (current_binlog_state_interval << srv_page_size_shift));
+       (current_binlog_state_interval << ibb_page_size_shift));
 }
 
 
@@ -1160,17 +1160,17 @@ binlog_sync_initial()
 bool
 innodb_binlog_init(size_t binlog_size, const char *directory)
 {
-  uint64_t pages= binlog_size >> srv_page_size_shift;
+  uint64_t pages= binlog_size >> ibb_page_size_shift;
   if (UNIV_LIKELY(pages > (uint64_t)UINT32_MAX)) {
     pages= UINT32_MAX;
     sql_print_warning("Requested max_binlog_size is larger than the maximum "
                       "InnoDB tablespace size, truncated to %llu",
-                      (pages << srv_page_size_shift));
+                      (pages << ibb_page_size_shift));
   } else if (pages < 2) {  /* Minimum one data page and one index page. */
     pages= 2;
     sql_print_warning("Requested max_binlog_size is smaller than the minimum "
                       "size supported by InnoDB, truncated to %llu",
-                      (pages << srv_page_size_shift));
+                      (pages << ibb_page_size_shift));
   }
   innodb_binlog_size_in_pages= (uint32_t)pages;
 
@@ -1302,8 +1302,8 @@ static int
 find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
                    uint32_t *out_page_no, uint32_t *out_pos_in_page)
 {
-  const uint32_t page_size= (uint32_t)srv_page_size;
-  const uint32_t page_size_shift= (uint32_t)srv_page_size_shift;
+  const uint32_t page_size= (uint32_t)ibb_page_size;
+  const uint32_t page_size_shift= (uint32_t)ibb_page_size_shift;
   const uint32_t idx= file_no & 1;
   char file_name[OS_FILE_MAX_PATH];
   uint32_t p_0, p_1, p_2, last_nonempty;
@@ -1413,8 +1413,8 @@ static int
 innodb_binlog_discover()
 {
   uint64_t file_no;
-  const uint32_t page_size= (uint32_t)srv_page_size;
-  const uint32_t page_size_shift= (uint32_t)srv_page_size_shift;
+  const uint32_t page_size= (uint32_t)ibb_page_size;
+  const uint32_t page_size_shift= (uint32_t)ibb_page_size_shift;
   struct found_binlogs UNINIT_VAR(binlog_files);
 
   int res= scan_for_binlogs(innodb_binlog_directory, &binlog_files, false);
@@ -1572,7 +1572,7 @@ innodb_binlog_prealloc_thread()
       dberr_t res2= fsp_binlog_tablespace_create(last_created, size_in_pages);
       if (earliest_binlog_file_no == ~(uint64_t)0)
         earliest_binlog_file_no= last_created;
-      total_binlog_used_size+= (size_in_pages << srv_page_size_shift);
+      total_binlog_used_size+= (size_in_pages << ibb_page_size_shift);
 
       innodb_binlog_autopurge(first_open);
       mysql_mutex_unlock(&purge_binlog_mutex);
@@ -1716,7 +1716,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     }
   }
 
-  const uint32_t page_size= (uint32_t)srv_page_size;
+  const uint32_t page_size= (uint32_t)ibb_page_size;
   const uint32_t page_room= page_size - (BINLOG_PAGE_DATA + BINLOG_PAGE_DATA_END);
   uint32_t needed_pages= (uint32_t)((used_bytes + page_room - 1) / page_room);
 
@@ -1903,7 +1903,7 @@ read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
                 binlog_header_data *out_header_data)
 {
   std::unique_ptr<byte [], void (*)(void *)> page_buf
-    ((byte *)my_malloc(PSI_NOT_INSTRUMENTED, srv_page_size, MYF(MY_WME)),
+    ((byte *)my_malloc(PSI_NOT_INSTRUMENTED, ibb_page_size, MYF(MY_WME)),
      &my_free);
   if (UNIV_UNLIKELY(!page_buf))
     return -1;
@@ -1972,7 +1972,7 @@ binlog_state_recover()
 
   ha_innodb_binlog_reader reader(active_binlog_file_no.load
                                    (std::memory_order_relaxed),
-                                 page_no << srv_page_size_shift);
+                                 page_no << ibb_page_size_shift);
   return binlog_recover_gtid_state(&state, &reader);
 }
 
@@ -2408,7 +2408,7 @@ ha_innodb_binlog_reader::ha_innodb_binlog_reader(uint64_t file_no,
                                                  uint64_t offset)
   : rd_buf_len(0), rd_buf_sofar(0), state(ST_read_next_event_group)
 {
-  page_buf= (uchar *)ut_malloc(srv_page_size, mem_key_binlog);
+  page_buf= (uchar *)ut_malloc(ibb_page_size, mem_key_binlog);
   chunk_rd.set_page_buf(page_buf);
   chunk_rd.seek(file_no, offset);
   chunk_rd.skip_partial(true);
@@ -2635,7 +2635,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
 
     if (file_no + 1 >= active &&
         end_offset != ~(uint64_t)0 &&
-        page_no <= (end_offset >> srv_page_size_shift))
+        page_no <= (end_offset >> ibb_page_size_shift))
     {
       /*
         See if the page is available in the buffer pool.
@@ -2665,7 +2665,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
         and we fall through to the file-reading code below, no need for an
         extra conditional jump here.
       */
-      if (page_no > (end_offset >> srv_page_size_shift))
+      if (page_no > (end_offset >> ibb_page_size_shift))
       {
         ut_ad(!block);
         return READ_NOT_FOUND;
@@ -2792,7 +2792,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
   */
   uint32_t page0= 0;
   uint32_t page2= (uint32_t)
-    (diff_state_page_interval + ((file_end - 1) >> srv_page_size_shift));
+    (diff_state_page_interval + ((file_end - 1) >> ibb_page_size_shift));
   /* Round to the next diff_state_page_interval after file_end. */
   page2-= page2 % diff_state_page_interval;
   uint32_t page1= (page0 + page2) / 2;
@@ -2835,7 +2835,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
   ut_ad(page1 >= page0);
   out_state->load_nolock(&page0_diff_state);
   *out_file_no= file_no;
-  *out_offset= (uint64_t)page0 << srv_page_size_shift;
+  *out_offset= (uint64_t)page0 << ibb_page_size_shift;
   return 1;
 }
 
@@ -2876,7 +2876,7 @@ ha_innodb_binlog_reader::init_legacy_pos(const char *filename, ulonglong offset)
     my_error(ER_UNKNOWN_TARGET_BINLOG, MYF(0));
     return -1;
   }
-  if ((uint64_t)offset >= (uint64_t)(UINT32_MAX) << srv_page_size_shift)
+  if ((uint64_t)offset >= (uint64_t)(UINT32_MAX) << ibb_page_size_shift)
   {
     my_error(ER_BINLOG_POS_INVALID, MYF(0), offset);
     return -1;
@@ -2971,7 +2971,7 @@ innodb_binlog_status(char out_filename[FN_REFLEN], ulonglong *out_pos)
   uint32_t page_no= binlog_cur_page_no;
   uint32_t in_page_offset= binlog_cur_page_offset;
   binlog_name_make_short(out_filename, file_no);
-  *out_pos= ((ulonglong)page_no << srv_page_size_shift) | in_page_offset;
+  *out_pos= ((ulonglong)page_no << ibb_page_size_shift) | in_page_offset;
 }
 
 
