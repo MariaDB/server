@@ -97,6 +97,7 @@ DEFAULT CHARSET=latin1;
 INSERT INTO federated.t3 VALUES
   ('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
 
+--sorted_result
 SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
 WHERE federated.t3.name=t.name;

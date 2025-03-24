@@ -605,7 +605,6 @@ DROP TABLE t2;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 --echo #
 --echo # MDEV-19699 Server crashes in Item_null_result::field_type upon SELECT with ROLLUP on constant table
 --echo #

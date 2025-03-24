@@ -4954,11 +4954,24 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if ((res= multi_delete_precheck(thd, all_tables)))
       break;
 
-    /* condition will be TRUE on SP re-excuting */
-    if (select_lex->item_list.elements != 0)
-      select_lex->item_list.empty();
-    if (add_item_to_list(thd, new (thd->mem_root) Item_null(thd)))
-      goto error;
+    if (thd->stmt_arena->is_stmt_prepare())
+    {
+      if (add_item_to_list(thd, new (thd->mem_root) Item_null(thd)))
+        goto error;
+    }
+    else if (thd->is_first_query_execution())
+    {
+      if (select_lex->item_list.elements != 0)
+        select_lex->item_list.empty();
+      bool rc= false;
+      Query_arena *arena= 0, backup;
+      arena= thd->activate_stmt_arena_if_needed(&backup);
+      rc= add_item_to_list(thd, new (thd->stmt_arena->mem_root) Item_null(thd));
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      if (rc)
+        goto error;
+    }
 
     THD_STAGE_INFO(thd, stage_init);
     if ((res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
