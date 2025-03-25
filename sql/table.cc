@@ -1260,7 +1260,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       table->map= 1;
       if (vcol &&
           (field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode) ||
-           vcol->expr->check_assignability_to(field_ptr[0], false)))
+           vcol->expr->check_assignability_to(field_ptr[0],
+             mode == VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING)))
       {
         DBUG_ASSERT(thd->is_error());
         *error_reported= true;

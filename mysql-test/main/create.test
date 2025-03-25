@@ -2002,3 +2002,22 @@ EXECUTE stmt USING 4;
 DROP TABLE t;
 
 --echo # End of 11.7 Test
+
+--echo #
+--echo # MDEV-36104 Server crashes when reading information_schema.COLUMNS after creating a table with virtual columns using the GIS data type
+--echo #
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+create table t (a point generated always as (1) stored,b int generated always as (1) virtual);
+set sql_mode='';
+create table t (a point generated always as (1) stored,b int generated always as (1) virtual);
+set sql_mode=default;
+select column_name,column_type from information_schema.columns where table_name='t';
+--enable_prepare_warnings
+show create table t;
+--disable_prepare_warnings
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+insert t () values ();
+alter table t add column c int, drop column a, drop column b;
+drop table t;
+
+--echo # End of 11.8 Test
