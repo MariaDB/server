@@ -122,4 +122,9 @@ log_tmp_block_decrypt(
 
 /** @return whether temporary files are encrypted */
 inline bool log_tmp_is_encrypted() { return srv_encrypt_log; }
+
+/** Encryption key version for temporary file or tablespace */
+extern uint tmp_key_version;
+/** Secret key for temporary file or tablespace */
+extern byte tmp_crypt_key[MY_AES_BLOCK_SIZE];
 #endif  // log0crypt.h

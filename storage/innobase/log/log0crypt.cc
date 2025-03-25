@@ -60,6 +60,11 @@ static crypt_info_t infos[5 * 2];
 /** First unused slot in infos[] */
 static size_t infos_used;
 
+/** Encryption key version for temporary file or tablespace */
+uint tmp_key_version;
+/** Secret key for temporary file or tablespace */
+byte tmp_crypt_key[MY_AES_BLOCK_SIZE];
+
 /*********************************************************************//**
 Get a log block's start lsn.
 @return a log block's start lsn */
@@ -240,6 +245,8 @@ bool log_crypt_init()
 
   info.key_version= 0;
 func_exit:
+  tmp_key_version= info.key_version;
+  memcpy(tmp_crypt_key, info.crypt_key, MY_AES_BLOCK_SIZE);
   return info.key_version != 0;
 }
 
@@ -413,12 +420,12 @@ log_tmp_block_encrypt(
 
 	int rc = encryption_crypt(
 		src, uint(size), dst, &dst_len,
-		const_cast<byte*>(info.crypt_key), MY_AES_BLOCK_SIZE,
+		const_cast<byte*>(tmp_crypt_key), MY_AES_BLOCK_SIZE,
 		reinterpret_cast<byte*>(iv), uint(sizeof iv),
 		encrypt
 		? ENCRYPTION_FLAG_ENCRYPT|ENCRYPTION_FLAG_NOPAD
 		: ENCRYPTION_FLAG_DECRYPT|ENCRYPTION_FLAG_NOPAD,
-		LOG_DEFAULT_ENCRYPTION_KEY, info.key_version);
+		LOG_DEFAULT_ENCRYPTION_KEY, tmp_key_version);
 
 	if (rc != MY_AES_OK) {
 		ib::error() << (encrypt ? "Encryption" : "Decryption")

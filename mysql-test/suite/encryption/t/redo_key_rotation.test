@@ -1,0 +1,17 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TEMPORARY TABLE temp(f1 INT NOT NULL, f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO temp select seq, seq FROM seq_1_to_65536;
+SET GLOBAL debug_key_management_version = 10;
+SET GLOBAL innodb_log_checkpoint_now=1;
+INSERT INTO temp select seq, seq FROM seq_1_to_65536;
+SELECT COUNT(*) FROM temp;
+SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE SPACE=4294967294;
+let $restart_parameters=--debug_key_management_version=10;
+--source include/restart_mysqld.inc
+CREATE TEMPORARY TABLE temp(f1 INT NOT NULL, f2 INT NOT NULL)ENGINE=InnoDB;
+SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE SPACE=4294967294;
+SET GLOBAL debug_key_management_version = 1;
