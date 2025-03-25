@@ -24,3 +24,7 @@ FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_temp_blocks_decrypted';
 CAST(variable_value AS INT) > @old_decrypted
 1
+select * from information_schema.INNODB_TABLESPACES_ENCRYPTION
+WHERE SPACE=4294967294;
+SPACE	NAME	ENCRYPTION_SCHEME	KEYSERVER_REQUESTS	MIN_KEY_VERSION	CURRENT_KEY_VERSION	KEY_ROTATION_PAGE_NUMBER	KEY_ROTATION_MAX_PAGE_NUMBER	CURRENT_KEY_ID	ROTATING_OR_FLUSHING
+4294967294	innodb_temporary	1	1	1	1	NULL	NULL	1	1
