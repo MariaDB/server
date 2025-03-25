@@ -3053,7 +3053,7 @@ void handler::start_psi_batch_mode()
 void handler::end_psi_batch_mode()
 {
 #ifdef HAVE_PSI_TABLE_INTERFACE
-  DBUG_ASSERT(m_psi_batch_mode != PSI_BATCH_MODE_NONE);
+  DBUG_ASSERT(is_in_psi_batch_mode());
   if (m_psi_locker != NULL)
   {
     DBUG_ASSERT(m_psi_batch_mode == PSI_BATCH_MODE_STARTED);
@@ -3061,6 +3061,15 @@ void handler::end_psi_batch_mode()
     m_psi_locker= NULL;
   }
   m_psi_batch_mode= PSI_BATCH_MODE_NONE;
+#endif
+}
+
+bool handler::is_in_psi_batch_mode() const
+{
+#ifdef HAVE_PSI_TABLE_INTERFACE
+  return m_psi_batch_mode != PSI_BATCH_MODE_NONE;
+#else
+  return false;
 #endif
 }
 

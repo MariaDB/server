@@ -1,0 +1,17 @@
+
+--source include/have_sequence.inc
+
+SET max_heap_table_size= 1048576;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (a INT,  b INT, c VARCHAR(3), d VARCHAR(35));
+INSERT INTO t2 (a) SELECT seq FROM seq_1_to_130;
+
+SET optimizer_switch = 'derived_merge=off';
+SELECT COUNT(*) FROM t1, ( SELECT t2a.* FROM t2 AS t2a, t2 AS t2b ) AS sq;
+SET optimizer_switch = 'derived_merge=on';
+SELECT COUNT(*) FROM t1, ( SELECT t2a.* FROM t2 AS t2a, t2 AS t2b ) AS sq;
+
+# Cleanup
+DROP TABLE t1, t2;
