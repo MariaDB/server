@@ -32,7 +32,7 @@ IF (WITH_INNODB_AHI)
   MY_ADD_TEST(innodb_ahi)
 ENDIF()
 # See explanation in innobase/CmakeLists.txt
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x")
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x" OR CMAKE_SYSTEM_NAME MATCHES "AIX")
   ADD_COMPILE_FLAGS(
       ../sync/srw_lock.cc
       COMPILE_FLAGS "-mhtm"
