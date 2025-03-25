@@ -3497,7 +3497,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
 
       /*
         Emit a warning in the event that we finished processing input
-        before reaching the boundary indicated by --stop-position.
+        before reaching the boundary indicated by --stop-position index.
       */
       if (((longlong)stop_position != stop_position_default) &&
           stop_position > my_b_tell(file))
@@ -3687,10 +3687,22 @@ int main(int argc, char** argv)
     start_position= BIN_LOG_HEADER_SIZE;
   }
 
+  /*
+    Emit a warning in the event that we finished processing input
+    before reaching the boundary indicated by --stop-datetime.
+  */
   if (stop_datetime != MY_TIME_T_MAX &&
       stop_datetime > last_processed_datetime)
     warning("Did not reach stop datetime '%s' before end of input",
             stop_datetime_str);
+
+  /*
+    Emit warning(s) (in Gtid_event_filter::verify_completed_state())
+    in the event that we finished processing input
+    before reaching all boundaries indicated by --stop-position GTID(s).
+  */
+  if (position_gtid_filter)
+    position_gtid_filter->verify_final_state();
 
   /*
     If enable flashback, need to print the events from the end to the
