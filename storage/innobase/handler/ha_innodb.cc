@@ -5872,7 +5872,7 @@ dberr_t ha_innobase::statistics_init(dict_table_t *table, bool recalc)
           if (err == DB_STATS_DO_NOT_EXIST && table->stats_is_auto_recalc())
             goto recalc;
         }
-        if (err == DB_SUCCESS)
+        if (err == DB_SUCCESS || err == DB_READ_ONLY)
           return err;
         if (!recalc)
           break;
@@ -14934,6 +14934,7 @@ recalc:
 				ret = statistics_init(ib_table, is_analyze);
 				switch (ret) {
 				case DB_SUCCESS:
+				case DB_READ_ONLY:
 					break;
 				default:
 					goto error;
