@@ -240,7 +240,7 @@ set global server_audit_logging= on;
 disconnect cn1;
 drop user user1@localhost;
 set global server_audit_events='';
-set global server_audit_incl_users='root, plug_dest';
+set global server_audit_incl_users='root, plug_dest, ssl_user1';
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 connect(localhost,plug,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
@@ -256,6 +256,14 @@ connection default;
 disconnect plug_con;
 DROP USER plug;
 DROP USER plug_dest;
+CREATE USER ssl_user1@localhost require SSL;
+connect  conssl1,localhost,ssl_user1,,,,,SSL;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	CIPHER_NAME
+disconnect conssl1;
+connection default;
+DROP USER ssl_user1@localhost;
 set global server_audit_query_log_limit= 15;
 select (1), (2), (3), (4);
 1	2	3	4
@@ -301,7 +309,7 @@ server_audit_file_path
 server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
 server_audit_file_rotations	9
-server_audit_incl_users	root, plug_dest
+server_audit_incl_users	root, plug_dest, ssl_user1
 server_audit_logging	ON
 server_audit_mode	1
 server_audit_output_type	file
@@ -318,10 +326,10 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_user
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_incl_users\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_excl_users= repeat("\'root\',", 10000)',ID
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_excl_users\'',0
-TIME,HOSTNAME,root,localhost,ID,0,CONNECT,mysql,,0
-TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,mysql,,0
-TIME,HOSTNAME,no_such_user,localhost,ID,0,FAILED_CONNECT,,,ID
-TIME,HOSTNAME,no_such_user,localhost,ID,0,DISCONNECT,,,0
+TIME,HOSTNAME,root,localhost,ID,0,CONNECT,mysql,,0,
+TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,mysql,,0,
+TIME,HOSTNAME,no_such_user,localhost,ID,0,FAILED_CONNECT,,,ID,
+TIME,HOSTNAME,no_such_user,localhost,ID,0,DISCONNECT,,,0,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, root, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,test,t2,
@@ -360,7 +368,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audi
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_mode=1',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_events=\'\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create database sa_db',0
-TIME,HOSTNAME,root,localhost,ID,0,CONNECT,test,,0
+TIME,HOSTNAME,root,localhost,ID,0,CONNECT,test,,0,
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,test,t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create table t1 (id2 int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,test,t1,
@@ -392,7 +400,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,proc,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proc,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,event,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop database sa_db',0
-TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,,,0
+TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,,,0,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create database sa_db',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'use sa_db',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
@@ -461,7 +469,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_events=\'\'',0
-TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_incl_users=\'root, plug_dest\'',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_incl_users=\'root, plug_dest, ssl_user1\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
@@ -478,15 +486,15 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER plug_dest IDENTIFIED BY *****',0
-TIME,HOSTNAME,plug,localhost,ID,0,FAILED_CONNECT,,,ID
-TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0
+TIME,HOSTNAME,plug,localhost,ID,0,FAILED_CONNECT,,,ID,
+TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT PROXY ON plug_dest TO plug',0
-TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,,,0
-TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,,`plug_dest`@`%`,0
+TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,,,0,
+TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,,`plug_dest`@`%`,0,
 TIME,HOSTNAME,plug,localhost,ID,ID,QUERY,,'select USER(),CURRENT_USER()',0
-TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0
+TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
@@ -503,6 +511,26 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'DROP USER plug_dest',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER ssl_user1@localhost require SSL',0
+TIME,HOSTNAME,ssl_user1,localhost,ID,0,CONNECT,,,0,TLS_VERSION
+TIME,HOSTNAME,ssl_user1,localhost,ID,ID,QUERY,Access denied for user 'ssl_user1'@'localhost' to database 'test','SHOW STATUS LIKE \'Ssl_version\'',0
+TIME,HOSTNAME,ssl_user1,localhost,ID,ID,QUERY,Access denied for user 'ssl_user1'@'localhost' to database 'test','SHOW STATUS LIKE \'Ssl_cipher\'',0
+TIME,HOSTNAME,ssl_user1,localhost,ID,0,DISCONNECT,,,0,TLS_VERSION
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'DROP USER ssl_user1@localhost',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global serv',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select \'A\', ',0
