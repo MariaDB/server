@@ -1,0 +1,71 @@
+list of non-innodb system tables:
+SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='mysql' AND ENGINE!='InnoDB';
+TABLE_NAME
+use mysql;
+show create table help_relation;
+Table	Create Table
+help_relation	CREATE TABLE `help_relation` (
+  `help_topic_id` int(10) unsigned NOT NULL,
+  `help_keyword_id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`help_keyword_id`,`help_topic_id`),
+  KEY `help_topic_id` (`help_topic_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci TRANSACTIONAL=0 COMMENT='keyword-topic relation'
+Re-add relation like might have been pre-MDEV-30065 (with a bit of effort).
+alter table help_relation add foreign key (help_topic_id) references help_topic ( help_topic_id), add foreign key (help_keyword_id)  references help_keyword ( help_keyword_id);
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+show create table help_relation;
+Table	Create Table
+help_relation	CREATE TABLE `help_relation` (
+  `help_topic_id` int(10) unsigned NOT NULL,
+  `help_keyword_id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`help_keyword_id`,`help_topic_id`),
+  KEY `help_topic_id` (`help_topic_id`)
+) ENGINE=Aria DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=0 COMMENT='keyword-topic relation'
+#
+# End of 10.5 tests
+#
