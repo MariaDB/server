@@ -25,6 +25,18 @@ grant select on test.* to ssl_user4@localhost require SUBJECT "/C=FI/ST=Helsinki
 grant select on test.* to ssl_user5@localhost require SUBJECT "xxx";
 flush privileges;
 
+# Attempting cert with the same issuer and subject on the client isn't sufficient.
+--replace_regex /(ERROR 2026 \(HY000\): TLS\/SSL error:).*/\1 xxxx/
+--error 1
+--exec $MYSQL --user ssl_user4 --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert_faked.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key_faked.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert_faked.pem test -e "SELECT CURRENT_USER();SHOW STATUS LIKE 'Ssl_version'" 2>&1
+--echo
+
+# Subject may match, but its not one of the server CAs
+--replace_regex /(ERROR 2026 \(HY000\): TLS\/SSL error:).*/\1 xxxx/
+--error 1
+--exec $MYSQL --user ssl_user3 --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert_faked.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key_faked.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert_faked.pem test -e "SELECT CURRENT_USER();SHOW STATUS LIKE 'Ssl_version'" 2>&1
+--echo
+
 connect (con1,localhost,ssl_user1,,,,,SSL);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect (con3,localhost,ssl_user3,,,,,SSL);
