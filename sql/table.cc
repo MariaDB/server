@@ -346,6 +346,7 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
     table_name          Table name
     key			Table cache key (db \0 table_name \0...)
     key_length		Length of key
+    flags               0 or FN_IS_TMP
 
   RETURN
     0  Error (out of memory)
@@ -353,7 +354,7 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
 */
 
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
-                               const char *key, uint key_length)
+                               const char *key, uint key_length, uint flags)
 {
   MEM_ROOT mem_root;
   TABLE_SHARE *share;
@@ -364,7 +365,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
   DBUG_PRINT("enter", ("table: '%s'.'%s'", db, table_name));
 
   path_length= build_table_filename(path, sizeof(path) - 1,
-                                    db, table_name, "", 0);
+                                    db, table_name, "", flags);
   init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE,
                  TABLE_PREALLOC_BLOCK_SIZE, MYF(0));
   if (multi_alloc_root(&mem_root,
@@ -382,15 +383,20 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(path_buff, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-    share->table_category= get_table_category(share->db, share->table_name);
+    if (flags & FN_IS_TMP)
+      share->table_category= TABLE_CATEGORY_TEMPORARY;
+    else
+    {
+      share->table_category= get_table_category(share->db, share->table_name);
+      if (share->table_category == TABLE_CATEGORY_LOG)
+        share->no_replicate= 1;
+      if (key_length > 6 &&
+          table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
+        share->not_usable_by_query_cache= 1;
+    }
     share->open_errno= ENOENT;
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;
-    if (share->table_category == TABLE_CATEGORY_LOG)
-      share->no_replicate= 1;
-    if (key_length > 6 &&
-        table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
-      share->not_usable_by_query_cache= 1;
 
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_share,

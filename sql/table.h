@@ -3553,7 +3553,7 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                      bool *error_reported, vcol_init_mode expr);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
-                               const char *key, uint key_length);
+                               const char *key, uint key_length, uint flags);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length, const char *table_name,
                           const char *path, bool thread_specific);

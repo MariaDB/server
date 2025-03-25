@@ -90,7 +90,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 	k += sprintf(key + k, "%s", name);
   key[++k] = 0;
 
-	if (!(s = alloc_table_share(db, name, key, ++k))) {
+  if (!(s = alloc_table_share(db, name, key, ++k, 0))) {
     strcpy(g->Message, "Error allocating share\n");
     return NULL;
     } // endif s
