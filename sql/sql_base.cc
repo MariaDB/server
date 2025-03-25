@@ -9405,16 +9405,16 @@ bool setup_oracle_join(THD *thd, COND **conds,
 
     which parses in:
 
-     top_join_list of SELECT
+     top_join_list of SELECT_LEX
        |
-       nest_tableN-1  --join_list-> NESTED_JOIN_N-1
+       nest_tableN-1  --nested_join-> NESTED_JOIN_N-1
        join_list of NESTED_JOIN_N-1
         /\
   tableN  nest_tableN-2
          ...
            join_list of of NESTED_JOIN_2
             /\
-      table3  nest_table1  --join_list-> NESTED_JOIN_1
+      table3  nest_table1  --nested_join-> NESTED_JOIN_1
               join_list of NESTED_JOIN1
                /\
          table2  table1
