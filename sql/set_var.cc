@@ -1117,6 +1117,9 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 
     mysql_mutex_lock(&LOCK_global_system_variables);
 
+    if (var->cast_pluginvar())
+      plugin_opt_set_limits(&var->option, var->cast_mysql_sys_var());
+
     // SESSION_VALUE
     store_var(fields[1], var, OPT_SESSION, &strbuf);
 
