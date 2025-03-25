@@ -5220,7 +5220,7 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-log-optimize-ddl"),
       MARIADB_REMOVED_OPTION("innodb-lru-flush-size"),
       MARIADB_REMOVED_OPTION("innodb-page-cleaners"),
-      MARIADB_REMOVED_OPTION("innodb-purge-truncate-frequency"),
+      MARIADB_REMOVED_OPTION("innodb-purge-rseg-truncate-frequency"),
       MARIADB_REMOVED_OPTION("innodb-replication-delay"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log-speed"),
