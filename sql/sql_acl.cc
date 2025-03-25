@@ -13127,7 +13127,12 @@ static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
 int fill_users_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   int res= 0;
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /* --skip-grants */
+  if (!initialized)
+    return res;
+
   bool see_whole_table= check_access(thd, SELECT_ACL, "mysql", NULL, NULL,
                                      true, true) == 0;
   TABLE *table= tables->table;
