@@ -2173,7 +2173,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       fr_length= build_table_filename(from_path, sizeof(from_path) - 1,
                                       ddl_log_entry->db.str,
                                       ddl_log_entry->name.str,
-                                      reg_ext, 0);
+                                      reg_ext, fn_flags & FN_TO_IS_TMP);
       to_length= build_table_filename(to_path, sizeof(to_path) - 1,
                                       ddl_log_entry->from_db.str,
                                       ddl_log_entry->from_name.str,
@@ -2259,7 +2259,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       build_table_filename(to_path, sizeof(to_path) - 1,
                            ddl_log_entry->db.str,
                            ddl_log_entry->name.str,
-                           "", 0);
+                           "", fn_flags & FN_TO_IS_TMP);
       from_end= strend(from_path);
       if (likely(org_hton))
       {
@@ -3645,6 +3645,7 @@ bool ddl_log_alter_table(DDL_LOG_STATE *ddl_state,
   DBUG_ENTER("ddl_log_alter_table");
   DBUG_ASSERT(new_hton);
   DBUG_ASSERT(org_hton);
+  DBUG_ASSERT(is_prefix(new_table->str, tmp_file_prefix));
 
   bzero(&ddl_log_entry, sizeof(ddl_log_entry));
   ddl_log_entry.action_type=  DDL_LOG_ALTER_TABLE_ACTION;
@@ -3661,7 +3662,8 @@ bool ddl_log_alter_table(DDL_LOG_STATE *ddl_state,
   ddl_log_entry.from_name=    *const_cast<LEX_CSTRING*>(table);
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(frm_path);
   ddl_log_entry.extra_name=   *const_cast<LEX_CSTRING*>(backup_name);
-  ddl_log_entry.flags=        is_renamed ? DDL_LOG_FLAG_ALTER_RENAME : 0;
+  ddl_log_entry.flags=        ((is_renamed ? DDL_LOG_FLAG_ALTER_RENAME : 0) |
+                               DDL_LOG_FLAG_TO_IS_TMP);
   ddl_log_entry.unique_id=    table_version;
 
   /*
