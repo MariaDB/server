@@ -9528,6 +9528,7 @@ PSI_stage_info stage_master_has_sent_all_binlog_to_slave= { 0, "Master has sent 
 PSI_stage_info stage_opening_tables= { 0, "Opening tables", 0};
 PSI_stage_info stage_optimizing= { 0, "Optimizing", 0};
 PSI_stage_info stage_preparing= { 0, "Preparing", 0};
+PSI_stage_info stage_prepare_for_executing = { 0, "Preparing for execution", 0};
 PSI_stage_info stage_purging_old_relay_logs= { 0, "Purging old relay logs", 0};
 PSI_stage_info stage_query_end= { 0, "Query end", 0};
 PSI_stage_info stage_starting_cleanup= { 0, "Starting cleanup", 0};
@@ -9771,6 +9772,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_opening_tables,
   & stage_optimizing,
   & stage_preparing,
+  & stage_prepare_for_executing,
   & stage_purging_old_relay_logs,
   & stage_starting_cleanup,
   & stage_query_end,
