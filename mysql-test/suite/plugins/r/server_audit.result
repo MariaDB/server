@@ -106,6 +106,8 @@ id2
 2
 drop table t1;
 use sa_db;
+create table test_partitions (i int) partition by hash (i) partitions 4;
+drop table test_partitions;
 create table sa_t1(id int);
 insert into sa_t1 values (1), (2);
 drop table sa_t1;
@@ -369,6 +371,13 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,index_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,DROP,test,t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'drop table t1',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'use sa_db',0
+TIME,HOSTNAME,root,localhost,ID,ID,CREATE,sa_db,test_partitions,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create table test_partitions (i int) partition by hash (i) partitions 4',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,table_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,column_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,index_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,DROP,sa_db,test_partitions,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop table test_partitions',0
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,sa_db,sa_t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create table sa_t1(id int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,sa_db,sa_t1,
