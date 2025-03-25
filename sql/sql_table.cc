@@ -602,12 +602,18 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
   /*
     Check if this is a temporary table name. Allow it if a corresponding .frm
     file exists.
+    This is needed to be able to drop orphaned #sql-tables with DROP TABLE.
+    This 'should' not happen with atomic ddl, but can still be useful in extreme
+    cases.
   */
   if (!(flags & FN_IS_TMP) &&
       is_prefix(table_name, tmp_file_prefix) &&
       strlen(table_name) < NAME_CHAR_LEN &&
       check_if_frm_exists(tbbuff, dbbuff, table_name))
+  {
+    DBUG_ASSERT(0);
     flags|= FN_IS_TMP;
+  }
 
   if (flags & FN_IS_TMP) // FN_FROM_IS_TMP | FN_TO_IS_TMP
     strmake(tbbuff, table_name, sizeof(tbbuff)-1);
