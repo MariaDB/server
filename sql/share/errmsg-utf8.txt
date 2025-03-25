@@ -10226,10 +10226,8 @@ ER_UNUSED_7
         eng "You should never see it"
         spa "Nunca debería vd de ver esto"
         sw "Hupaswi kuiona kamwe"
-ER_UNUSED_8
-        eng "You should never see it"
-        spa "Nunca debería vd de ver esto"
-        sw "Hupaswi kuiona kamwe"
+ER_INVALID_USE_OF_ORA_JOIN
+        eng "Invalid usage of (+) operator"
 ER_DATA_OVERFLOW 22003
         chi "转换'%-.128s'到%-.32s时溢出。值截断"
         eng "Got overflow when converting '%-.128s' to %-.32s. Value truncated"
