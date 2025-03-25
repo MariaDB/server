@@ -1,4 +1,8 @@
+--source include/have_sequence.inc
+# have show_slave_status
 --source include/not_embedded.inc
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root';
+--let $status_items= Replicate_Do_DB
 
 --echo #
 --echo # Basic testing of replicate_do_db.
@@ -23,11 +27,23 @@ SET @@GLOBAL.replicate_do_db=1.1;
 --error ER_WRONG_TYPE_FOR_VAR
 SET @@GLOBAL.replicate_do_db=1e1;
 
+# MDEV-35693 Replicate_* fields of Show-Slave-Status display truncated
+--echo # Argument size acceptance.
+
+SELECT GROUP_CONCAT(CONCAT("database_name_", seq) SEPARATOR ",")
+  INTO @name FROM seq_1_to_8;
+SELECT LENGTH(@name);
+SET @@GLOBAL.replicate_do_db= @name;
+SELECT @@GLOBAL.replicate_do_db;
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_do_db';
+--source include/show_slave_status.inc
+
 --echo # Argument syntax.
 
 SET @@GLOBAL.replicate_do_db="db1,,,,,db3";
 SELECT @@GLOBAL.replicate_do_db;
 SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_do_db';
+--source include/show_slave_status.inc
 
 SET @@GLOBAL.replicate_do_db="db1,,,db2,,,db3";
 SELECT @@GLOBAL.replicate_do_db;
