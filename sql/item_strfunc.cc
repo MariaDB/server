@@ -271,7 +271,12 @@ String *Item_func_sha2::val_str_ascii(String *str)
     Since we're subverting the usual String methods, we must make sure that
     the destination has space for the bytes we're about to write.
   */
-  str->alloc((uint) digest_length*2 + 1); /* Each byte as two nybbles */
+  if (str->alloc((uint) digest_length*2 + 1)) /* Each byte as two nybbles */
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) digest_length*2 +1);
+    null_value= TRUE;
+    return NULL;
+  }
 
   /* Convert the large number to a string-hex representation. */
   array_to_hex((char *) str->ptr(), digest_buf, (uint)digest_length);
@@ -2987,7 +2992,12 @@ String *Item_func_char::val_str(String *str)
     if (!args[i]->null_value)
       append_char(str, num);
   }
-  str->realloc(str->length());			// Add end 0 (for Purify)
+  if (str->realloc(str->length()))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) str->length());
+    null_value= TRUE;
+    return NULL;
+  }
   return check_well_formed_result(str);
 }
 
