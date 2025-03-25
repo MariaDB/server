@@ -41,6 +41,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "log0crypt.h"
 #include "srv0mon.h"
 #include "fil0pagecompress.h"
+#include "fsp_binlog.h"
 #include "lzo/lzo1x.h"
 #include "snappy-c.h"
 
@@ -1600,7 +1601,8 @@ static ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED,
 bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
 {
   const auto space_id= space->id;
-  ut_ad(space_id < SRV_SPACE_ID_UPPER_BOUND);
+  ut_ad(space_id < SRV_SPACE_ID_UPPER_BOUND ||
+        space_id == SRV_SPACE_ID_BINLOG0 || space_id == SRV_SPACE_ID_BINLOG1);
 
   bool may_have_skipped= false;
   ulint max_n_flush= srv_io_capacity;
@@ -1987,6 +1989,46 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   return true;
 }
 
+void mtr_t::write_binlog(bool space_id, uint32_t page_no,
+                         uint16_t offset,
+                         const void *buf, size_t size) noexcept
+{
+  ut_ad(!srv_read_only_mode);
+  ut_ad(m_log_mode == MTR_LOG_ALL);
+
+  bool alloc{size < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5)};
+  byte *end= log_write<WRITE>(page_id_t{LOG_BINLOG_ID_0 | (uint32_t)space_id,
+                                        page_no},
+                              nullptr, size, alloc, offset);
+  if (alloc)
+          {
+    ::memcpy(end, buf, size);
+    m_log.close(end + size);
+  }
+  else
+  {
+    m_log.close(end);
+    m_log.push(static_cast<const byte*>(buf), uint32_t(size));
+  }
+}
+
+/** Write binlog data
+@param space_id  binlog tablespace
+@param page_no   binlog page number
+@param offset    offset within the page
+@param buf       data
+@param size      size of data
+@return start LSN of the mini-transaction */
+lsn_t binlog_write_data(bool space_id, uint32_t page_no, uint16_t offset,
+                        const void *buf, size_t size) noexcept
+{
+  mtr_t mtr;
+  mtr.start();
+  mtr.write_binlog(space_id, page_no, offset, buf, size);
+  mtr.commit();
+  return mtr.commit_lsn();
+}
+
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
@@ -1999,11 +2041,13 @@ static bool log_checkpoint() noexcept
     recv_sys.apply(true);
 
   fil_flush_file_spaces();
+  binlog_write_up_to_now();
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const lsn_t end_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
+  // FIXME: limit oldest_lsn below binlog split write LSN
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   return log_checkpoint_low(oldest_lsn, end_lsn);
 }
@@ -2186,12 +2230,14 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   }
 
   fil_flush_file_spaces();
+  binlog_write_up_to_now();
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const lsn_t newest_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_t measure= buf_pool.get_oldest_modification(0);
   const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
+  // FIXME: limit checkpoint_lsn below binlog split write LSN
 
   if (!recv_recovery_is_on() &&
       checkpoint_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)

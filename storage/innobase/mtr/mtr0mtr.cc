@@ -35,6 +35,7 @@ Created 11/26/1995 Heikki Tuuri
 # include "btr0cur.h"
 #endif
 #include "srv0start.h"
+#include "fsp_binlog.h"
 #include "log.h"
 #include "mariadb_stats.h"
 #include "my_cpu.h"
@@ -210,6 +211,7 @@ void mtr_t::start()
   m_user_space= nullptr;
   m_commit_lsn= 0;
   m_trim_pages= false;
+  m_binlog_page= nullptr;
 }
 
 /** Release the resources */
@@ -219,6 +221,11 @@ inline void mtr_t::release_resources()
   ut_ad(m_memo.empty());
   m_log.erase();
   ut_d(m_commit= true);
+  if (m_binlog_page)
+  {
+    fsp_binlog_release(m_binlog_page);
+    m_binlog_page= nullptr;
+  }
 }
 
 /** Handle any pages that were freed during the mini-transaction. */
@@ -582,7 +589,9 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
   file->size-= space.size - size;
   space.size= space.size_in_header= size;
 
-  if (space.id == TRX_SYS_SPACE)
+  if (space.id == TRX_SYS_SPACE ||
+      space.id == SRV_SPACE_ID_BINLOG0 ||
+      space.id == SRV_SPACE_ID_BINLOG1)
     srv_sys_space.set_last_file_size(file->size);
   else
     space.set_create_lsn(m_commit_lsn);
@@ -1690,7 +1699,9 @@ void mtr_t::set_modified(const buf_block_t &block)
 void mtr_t::init(buf_block_t *b)
 {
   const page_id_t id{b->page.id()};
-  ut_ad(is_named_space(id.space()));
+  ut_ad(is_named_space(id.space()) ||
+        id.space() == SRV_SPACE_ID_BINLOG0 ||
+        id.space() == SRV_SPACE_ID_BINLOG1);
   ut_ad(!m_freed_pages == !m_freed_space);
   ut_ad(memo_contains_flagged(b, MTR_MEMO_PAGE_X_FIX));
 
