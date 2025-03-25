@@ -57,6 +57,7 @@ loose-innodb_log_buffer_size=     2M
 loose-innodb_log_file_size=       10M
 
 slave-net-timeout=120
+master-retry-count=30
 
 # MAINTAINER:
 # the loose- syntax is to make sure the cnf file is also
