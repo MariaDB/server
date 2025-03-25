@@ -8011,6 +8011,17 @@ set_max_autoinc:
 		error, m_prebuilt->table->flags, m_user_thd);
 
 #ifdef WITH_WSREP
+#ifdef ENABLED_DEBUG_SYNC
+	DBUG_EXECUTE_IF("sync.wsrep_after_write_row",
+	{
+	  const char act[]=
+	    "now "
+	    "SIGNAL sync.wsrep_after_write_row_reached "
+	    "WAIT_FOR signal.wsrep_after_write_row";
+	  DBUG_ASSERT(!debug_sync_set_action(m_user_thd, STRING_WITH_LEN(act)));
+	};);
+#endif /* ENABLED_DEBUG_SYNC */
+
 	if (!error_result && trx->is_wsrep()
 	    && !trx->is_bulk_insert()
 	    && wsrep_thd_is_local(m_user_thd)

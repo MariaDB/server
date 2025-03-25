@@ -2733,6 +2733,15 @@ err_exit:
 
 	DBUG_EXECUTE_IF("row_ins_row_level", goto skip_bulk_insert;);
 
+#ifdef WITH_WSREP
+	/* Appliers never execute bulk insert statements directly. */
+	if (trx->is_wsrep() &&
+	    !wsrep_thd_is_local_transaction(trx->mysql_thd))
+	{
+		goto skip_bulk_insert;
+	}
+#endif /* WITH_WSREP */
+
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->page.frame)
 	    && !entry->is_metadata() && !trx->duplicates
@@ -2760,15 +2769,11 @@ err_exit:
 			}
 
 #ifdef WITH_WSREP
-			if (trx->is_wsrep())
+			if (trx->is_wsrep() &&
+			    wsrep_append_table_key(trx->mysql_thd, *index->table))
 			{
-				if (!wsrep_thd_is_local_transaction(trx->mysql_thd))
-					goto skip_bulk_insert;
-				if (wsrep_append_table_key(trx->mysql_thd, *index->table))
-				{
-					trx->error_state = DB_ROLLBACK;
-					goto err_exit;
-				}
+				trx->error_state = DB_ROLLBACK;
+				goto err_exit;
 			}
 #endif /* WITH_WSREP */
 
