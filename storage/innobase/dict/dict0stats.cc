@@ -2887,6 +2887,13 @@ dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"));
 	    });
 	);
+	DBUG_EXECUTE_IF("dict_stats_save_exit_notify_and_wait",
+	   SCOPE_EXIT([] {
+	       debug_sync_set_action(current_thd,
+	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"
+			       " WAIT_FOR dict_stats_save_unblock"));
+	    });
+	);
 #endif /* ENABLED_DEBUG_SYNC */
 
 	if (high_level_read_only) {

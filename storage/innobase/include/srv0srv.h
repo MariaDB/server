@@ -267,8 +267,8 @@ extern ulong    srv_io_capacity;
 
 /* We use this dummy default value at startup for max_io_capacity.
 The real value is set based on the value of io_capacity. */
-#define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(~0UL)
-#define SRV_MAX_IO_CAPACITY_LIMIT		(~0UL)
+#define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(UINT32_MAX)
+#define SRV_MAX_IO_CAPACITY_LIMIT		(UINT32_MAX)
 extern ulong    srv_max_io_capacity;
 
 /* The "innodb_stats_method" setting, decides how InnoDB is going

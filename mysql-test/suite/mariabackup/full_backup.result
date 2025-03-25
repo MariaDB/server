@@ -1,7 +1,12 @@
 CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
+SET GLOBAL innodb_max_purge_lag_wait=0;
 # xtrabackup backup
 NOT FOUND /InnoDB: Allocated tablespace ID/ in backup.log
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+variable_value
+0
 INSERT INTO t VALUES(2);
 # xtrabackup prepare
 # shutdown server

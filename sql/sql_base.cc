@@ -4561,6 +4561,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
     }
 
   thd->current_tablenr= 0;
+  sroutine_to_open= &thd->lex->sroutines_list.first;
 
 restart:
   /*
@@ -4576,7 +4577,6 @@ restart:
 
   has_prelocking_list= thd->lex->requires_prelocking();
   table_to_open= start;
-  sroutine_to_open= &thd->lex->sroutines_list.first;
   *counter= 0;
   THD_STAGE_INFO(thd, stage_opening_tables);
   prelocking_strategy->reset(thd);
@@ -4673,7 +4673,7 @@ restart:
             elements from the table list (if MERGE tables are involved),
           */
           close_tables_for_reopen(thd, start, ot_ctx.start_of_statement_svp(),
-                                  ot_ctx.remove_implicitly_used_deps());
+                                  false);
 
           /*
             Here we rely on the fact that 'tables' still points to the valid
@@ -4741,10 +4741,9 @@ restart:
           /* F.ex. deadlock happened */
           if (ot_ctx.can_recover_from_failed_open())
           {
-            DBUG_ASSERT(ot_ctx.remove_implicitly_used_deps());
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp(),
-                                    ot_ctx.remove_implicitly_used_deps());
+                                    true);
             if (ot_ctx.recover_from_failed_open())
               goto error;
 
@@ -4753,6 +4752,7 @@ restart:
               goto error;
 
             error= FALSE;
+            sroutine_to_open= &thd->lex->sroutines_list.first;
             goto restart;
           }
           /*
@@ -6034,19 +6034,19 @@ bool restart_trans_for_tables(THD *thd, TABLE_LIST *table)
                          trying to reopen tables. NULL if no metadata locks
                          were held and thus all metadata locks should be
                          released.
-  @param[in] remove_implicit_deps  True in case routines and tables implicitly
+  @param[in] remove_indirect  True in case routines and tables implicitly
                                    used by a statement should be removed.
 */
 
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
                              const MDL_savepoint &start_of_statement_svp,
-                             bool remove_implicit_deps)
+                             bool remove_indirect)
 {
-  TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
   TABLE_LIST *tmp;
 
-  if (remove_implicit_deps)
+  if (remove_indirect)
   {
+    TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
     /*
       If table list consists only from tables from prelocking set, table list
       for new attempt should be empty, so we have to update list's root pointer.
