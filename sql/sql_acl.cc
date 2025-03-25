@@ -8307,15 +8307,26 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       we need to modify the requested access rights depending on how the
       sequence is used.
     */
-    if (t_ref->sequence &&
-        !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
+    if (t_ref->sequence)
     {
-      /*
-        We want to have either SELECT or INSERT rights to sequences depending
-        on how they are accessed
-      */
-      orig_want_access= ((t_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
-                         INSERT_ACL : SELECT_ACL);
+      if (!(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
+      {
+        /*
+          We want to have either SELECT or INSERT rights to sequences depending
+          on how they are accessed
+        */
+        orig_want_access=
+            ((t_ref->lock_type == TL_WRITE_ALLOW_WRITE) ? INSERT_ACL
+                                                        : SELECT_ACL);
+      }
+      else if (tl != tables && want_access == ALTER_ACL)
+      {
+        /*
+          It is ALTER ..  SET DEFAULT=nextval(sequence)
+          Always allow it, the grants of the current user are irrelevant.
+        */
+        continue;
+      }
     }
 
     const ACL_internal_table_access *access=

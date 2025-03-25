@@ -8,14 +8,26 @@
 
 create database s_db;
 create sequence s_db.s1;
-grant select on s_db.s1 to normal_1@'%' identified by 'pass';
+create table s_db.t1 (id int);
+grant select, insert, alter on s_db.t1 to normal_1@'%' identified by 'pass';
+
 
 --disable_ps2_protocol
+# ALTER ... DEFAULT nextval(), succeeds without any access to sequence
+# inserts also succeed
 connect(m_normal_1, localhost, normal_1, pass, s_db);
+alter table t1 modify id int DEFAULT nextval(s1);
+connection default;
+grant select on s_db.s1 to normal_1@'%';
+connection m_normal_1;
 select * from s1;
 --error ER_TABLEACCESS_DENIED_ERROR
 select nextval(s1);
 show create sequence s1;
+
+# but inserts into table that use nextval are Ok
+insert into t1 values() returning id;
+
 --error ER_TABLEACCESS_DENIED_ERROR
 alter sequence s1 restart 50;
 connection default;
