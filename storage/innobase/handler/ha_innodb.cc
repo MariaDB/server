@@ -2122,6 +2122,10 @@ convert_error_code_to_mysql(
 	ulint	flags,  /*!< in: InnoDB table flags, or 0 */
 	THD*	thd)	/*!< in: user thread handle or NULL */
 {
+  trx_t* trx;
+  if (thd != nullptr)
+    trx = thd_to_trx(thd);
+
 	switch (error) {
 	case DB_SUCCESS:
 		return(0);
@@ -2298,6 +2302,8 @@ convert_error_code_to_mysql(
 		return(HA_ERR_TABLE_CORRUPT);
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE);
+  case DB_SQL_ERROR:
+    return(trx->sql_error);
 	case DB_COMPUTE_VALUE_FAILED:
 		return(HA_ERR_GENERIC); // impossible
 	}
@@ -8561,6 +8567,33 @@ ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &ta
 }
 #endif /* WITH_WSREP */
 
+int ha_innobase::update_prebuilt_upd_buf()
+{
+  DBUG_ENTER("ha_innobase::update_prebuilt_upd_buf");
+  if (m_upd_buf == NULL) {
+    ut_ad(m_upd_buf_size == 0);
+
+    /* Create a buffer for packing the fields of a record. Why
+    table->reclength did not work here? Obviously, because char
+    fields when packed actually became 1 byte longer, when we also
+    stored the string length as the first byte. */
+
+    m_upd_buf_size = table->s->reclength + table->s->max_key_length
+                     + MAX_REF_PARTS * 3;
+
+    m_upd_buf = reinterpret_cast<uchar*>(my_malloc(PSI_INSTRUMENT_ME,
+                    m_upd_buf_size,
+                    MYF(MY_WME)));
+
+    if (m_upd_buf == NULL) {
+      m_upd_buf_size = 0;
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+
 /**
 Updates a row given as a parameter to a new value. Note that we are given
 whole rows, not just the fields which are updated: this incurs some
@@ -8589,27 +8622,8 @@ ha_innobase::update_row(
 		DBUG_RETURN(err);
 	}
 
-	if (m_upd_buf == NULL) {
-		ut_ad(m_upd_buf_size == 0);
-
-		/* Create a buffer for packing the fields of a record. Why
-		table->reclength did not work here? Obviously, because char
-		fields when packed actually became 1 byte longer, when we also
-		stored the string length as the first byte. */
-
-		m_upd_buf_size = table->s->reclength + table->s->max_key_length
-			+ MAX_REF_PARTS * 3;
-
-		m_upd_buf = reinterpret_cast<uchar*>(
-			my_malloc(PSI_INSTRUMENT_ME,
-                                  m_upd_buf_size,
-				MYF(MY_WME)));
-
-		if (m_upd_buf == NULL) {
-			m_upd_buf_size = 0;
-			DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-		}
-	}
+	if (int ret= update_prebuilt_upd_buf())
+		DBUG_RETURN(ret);
 
 	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
 	ib_uint64_t	autoinc;
@@ -8632,6 +8646,12 @@ ha_innobase::update_row(
 		This is fix for http://bugs.mysql.com/29157 */
 		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
 	} else {
+    que_thr_t *thr = que_fork_get_first_thr(m_prebuilt->upd_graph);
+    if (table->pos_in_table_list == nullptr ||
+		table->pos_in_table_list->prelocking_placeholder != TABLE_LIST::PRELOCK_FK
+	) {
+      thr->fk_cascade_depth = 0;
+    }
 		if (m_prebuilt->upd_node->is_delete) {
 			trx->fts_next_doc_id = 0;
 		}
@@ -8755,6 +8775,13 @@ ha_innobase::delete_row(
 	if (!m_prebuilt->upd_node) {
 		row_get_prebuilt_update_vector(m_prebuilt);
 	}
+
+  que_thr_t *thr = que_fork_get_first_thr(m_prebuilt->upd_graph);
+  if (table->pos_in_table_list == nullptr ||
+	  table->pos_in_table_list->prelocking_placeholder != TABLE_LIST::PRELOCK_FK
+	) {
+    thr->fk_cascade_depth = 0;
+  }
 
 	/* This is a delete */
 	m_prebuilt->upd_node->is_delete = table->versioned_write(VERS_TRX_ID)
@@ -21537,4 +21564,120 @@ ulint buf_pool_size_align(ulint size) noexcept
   } else {
     return (size / m + 1) * m;
   }
+}
+
+
+/********************************************************************//**
+Fetches the MySQL TABLE object corresponding to the InnoDB table 
+referenced in the given update node. 
+@return Pointer to the TABLE object if found, or nullptr on error. */
+static
+TABLE *find_sql_table_for_update_node(upd_node_t* node) {
+  THD *thd= current_thd;
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  ulint db_buf_len, tbl_buf_len;
+  dict_table_t *table= node->table;
+  if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+    return nullptr;
+  }
+
+  return find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, 
+                                          tbl_buf_len);
+}
+
+
+/********************************************************************//**
+Executes a cascading operation (DELETE or UPDATE) for a foreign key 
+constraint by invoking the appropriate action at the SQL layer. 
+
+@return DB_SUCCESS if OK else error code. */
+dberr_t 
+innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
+{
+  bool is_delete= (node->is_delete == PLAIN_DELETE);
+
+
+  TABLE *maria_table= find_sql_table_for_update_node(node);
+  ha_innobase *handler= (ha_innobase*)maria_table->file;
+
+  row_prebuilt_t *prebuilt= handler->get_prebuilt(node->table);
+  btr_pcur_t	*pcur= node->pcur;
+  const rec_t* rec= btr_pcur_get_rec(pcur); 
+  dict_index_t *clust_index= dict_table_get_first_index(node->table);
+  const rec_offs*	offsets= rec_get_offsets(
+    rec, 
+    clust_index, 
+    nullptr, 
+    clust_index->n_core_fields, 
+    ULINT_UNDEFINED, 
+    &node->heap
+  );
+
+  if (is_delete)
+    row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, 
+                         true, clust_index, offsets);
+
+  auto *upd_node= prebuilt->upd_node;
+  auto *upd_graph= prebuilt->upd_graph;
+  prebuilt->upd_node= node;
+  prebuilt->upd_graph= static_cast<que_fork_t*>(que_node_get_parent(thr));
+
+  btr_pcur_copy_stored_position(prebuilt->pcur, pcur);
+  prebuilt->sql_stat_start = 0; // a parent table is already locked correctly
+
+
+  if (!is_delete) {
+    row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec, NULL, 
+                         true, clust_index, offsets);
+
+    if (node->upd_row == NULL) {
+      node->row= row_build(ROW_COPY_DATA, clust_index, rec,
+              offsets, NULL,
+              NULL, NULL, &node->upd_ext, node->heap);
+
+      node->upd_row= dtuple_copy(node->row, node->heap);
+      row_upd_replace(node->upd_row, &node->upd_ext,
+        clust_index, node->update, node->heap);
+    }
+
+    dtuple_t* entry= row_build_index_entry(node->upd_row, 
+                                            NULL, 
+                                            clust_index, 
+                                            node->heap);
+
+    ulint n_ext= dtuple_get_n_ext(node->upd_row);
+
+    ulint size= rec_get_converted_size(clust_index, entry, n_ext);
+    byte *buf= static_cast<byte*>(mem_heap_alloc(node->heap, size));
+
+    rec_t *rec_upd= rec_convert_dtuple_to_rec(buf, clust_index, entry, n_ext);
+    const rec_offs* upd_offsets= rec_get_offsets(
+      rec_upd, clust_index, nullptr, 
+      clust_index->n_core_fields, 
+      ULINT_UNDEFINED, &node->heap);
+
+    row_sel_store_mysql_rec_no_blob_free(maria_table->record[0], prebuilt, rec_upd, 
+                            NULL, false, clust_index, upd_offsets);
+  }
+
+  if (handler->update_prebuilt_upd_buf())
+    return DB_ERROR;
+
+  int err = is_delete ? sql_delete_row(maria_table)
+                      : sql_update_row(maria_table);
+
+  prebuilt->upd_node= upd_node;
+  prebuilt->upd_graph= upd_graph;
+
+  if (err != 0) {
+    if (err == HA_ERR_FOUND_DUPP_KEY || err == HA_ERR_FOUND_DUPP_UNIQUE) 
+        return DB_FOREIGN_DUPLICATE_KEY;    
+
+    trx_t* trx= thr_get_trx(thr);
+    trx->sql_error= err;
+    return DB_SQL_ERROR;
+  }
+
+  return DB_SUCCESS;
 }

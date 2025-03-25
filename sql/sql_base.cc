@@ -5097,6 +5097,11 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
     tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
         NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
         op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
+    
+
+    if (fk->delete_method == FK_OPTION_SET_NULL)
+      tl->trg_event_map |= trg2bit(TRG_EVENT_UPDATE);
+    
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -5137,6 +5142,11 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
 
   if (table_list->trg_event_map)
   {
+    if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
+                                   need_prelocking,
+                                   table_list->trg_event_map))
+      return TRUE;
+
     if (table->triggers)
     {
       *need_prelocking= TRUE;
@@ -5144,12 +5154,7 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
       if (table->triggers->
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
         return TRUE;
-    }
-
-    if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
-                                   need_prelocking,
-                                   table_list->trg_event_map))
-      return TRUE;
+    }  
   }
   else if (table_list->slave_fk_event_map)
   {

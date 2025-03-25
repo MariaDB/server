@@ -876,6 +876,14 @@ public:
   lock_wait(). That is protected by lock_sys.wait_mutex and lock.wait_lock. */
   dberr_t error_state;
 
+  /*
+  When handling cascade operations (e.g. foreign key updates/deletes), 
+  nested SQL operations may generate errors that are already stored 
+  in sql_error. In these scenarios, we preserve the original error 
+  state and skip redundant error conversion.
+  */
+  int sql_error;
+
 	const dict_index_t*error_info;	/*!< if the error number indicates a
 					duplicate key error, a pointer to
 					the problematic index is stored here */
