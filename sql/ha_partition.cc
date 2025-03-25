@@ -12452,6 +12452,19 @@ ulonglong ha_partition::index_blocks(uint index, uint ranges, ha_rows rows)
   return blocks;
 }
 
+/*
+   Get partition file for FK info. For SYSTEM_TIME this is current partition,
+   for other partitioning this is first read partition. Chooses partition from
+   which to get foreign keys into SQL layer. SQL layer receives FKs only from
+   one partition with partition suffix removed from constraint name.
+*/
+handler *ha_partition::get_fk_file()
+{
+  uint i= m_part_info->vers_info ?
+    m_tot_parts - 1 :
+    bitmap_get_first_set(&m_part_info->read_partitions);
+  return m_file[i];
+}
 
 struct st_mysql_storage_engine partition_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };

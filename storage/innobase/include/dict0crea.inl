@@ -35,12 +35,15 @@ where the numbers start from 1, and are given locally for this table, that is,
 the number is not global, as it used to be before MySQL 4.0.18.  */
 UNIV_INLINE
 dberr_t
+// Used in inplace add foreign key
 dict_create_add_foreign_id(
 /*=======================*/
 	ulint*		id_nr,	/*!< in/out: number to use in id generation;
 				incremented if used */
 	const char*	name,	/*!< in: table name */
-	dict_foreign_t*	foreign)/*!< in/out: foreign key */
+	dict_foreign_t*	foreign, /*!< in/out: foreign key */
+	const char *	part_suffix,
+	size_t		part_suffix_len)
 {
 	DBUG_ENTER("dict_create_add_foreign_id");
 
@@ -49,15 +52,28 @@ dict_create_add_foreign_id(
 		ulint	namelen	= strlen(name);
 		char*	id	= static_cast<char*>(
 					mem_heap_alloc(foreign->heap,
-						       namelen + 20));
+// +1 for \xFF
+						       namelen + 21));
+		int idlen;
+		char buf[MAX_FOREIGN_ID_LEN];
+		const bool tmp_name= dict_table_t::is_temporary_name(name);
+		ut_ad(is_partition(name) == part_suffix);
+// First treat name without partition suffix ...
+		if (part_suffix) {
+			size_t len= size_t(part_suffix - name);
+			memcpy(buf, name, len);
+			buf[len]= 0;
+			name= buf;
+		}
 
-		if (dict_table_t::is_temporary_name(name)) {
+		if (tmp_name) {
 
 			/* no overflow if number < 1e13 */
-			sprintf(id, "%s_ibfk_%lu", name,
+			idlen= sprintf(id, "%s_ibfk_%lu", name,
 				(ulong) (*id_nr)++);
+			ut_ad(idlen > 0);
 		} else {
-			char	table_name[MAX_TABLE_NAME_LEN + 21];
+			char	table_name[MAX_TABLE_NAME_LEN + 22];
 			uint	errors = 0;
 
 			strncpy(table_name, name, (sizeof table_name) - 1);
@@ -75,14 +91,26 @@ dict_create_add_foreign_id(
 			}
 
 			/* no overflow if number < 1e13 */
-			sprintf(id, "%s_ibfk_%lu", table_name,
+			idlen= sprintf(id, "%s_ibfk_%lu", table_name,
 				(ulong) (*id_nr)++);
+			ut_ad(idlen > 0);
 
+// \xFF does not validate well. We don't check part that is not visible at SQL layer.
 			if (innobase_check_identifier_length(
 				strchr(id,'/') + 1)) {
 				DBUG_RETURN(DB_IDENTIFIER_TOO_LONG);
 			}
 		}
+
+// ... and then append partition suffix to the end.
+		if (part_suffix)
+		{
+			id[idlen++]= '\xFF';
+			memcpy(&id[idlen], part_suffix, part_suffix_len);
+			idlen+= (int) part_suffix_len;
+			id[idlen]= 0;
+		}
+
 		foreign->id = id;
 
 		DBUG_PRINT("dict_create_add_foreign_id",

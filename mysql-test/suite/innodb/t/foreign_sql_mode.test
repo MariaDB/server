@@ -42,7 +42,7 @@ UPDATE t1 SET f2 = NULL;
 SELECT * FROM t1;
 DROP TABLE t2, t1;
 
-let $error_code= ER_ERROR_ON_RENAME;
+let $error_code= ER_CANT_CREATE_TABLE;
 if ($algorithm == "INPLACE")
 {
   let $error_code= ER_FK_COLUMN_NOT_NULL;

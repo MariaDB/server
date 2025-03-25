@@ -552,7 +552,7 @@ partition p1 values in (12, 13, 14),
 partition p2 values in (52, 53, 54));
 insert tp values (12), (2), (3), (4);
 alter table tp exchange partition p0 with table t;
-ERROR HY000: Table has no partition for value 0
+ERROR HY000: Table has no partition for value 1
 alter table tp exchange partition p0 with table t without validation;
 FOUND 8 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
 select * from t;

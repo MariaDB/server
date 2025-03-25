@@ -5773,6 +5773,33 @@ static ST_FIELD_INFO innodb_sys_foreign_fields_info[]=
 };
 } // namespace Show
 
+// In I_S show partition suffix with \xFF replaced by ':'.
+// #P# separator is skipped, if there is #SP# we skip to subpartition name
+// (partition name is skipped).
+/* Secondary partition foreign keys use '\xFF' to add suffix */
+static void fixup_foreign_id(char *dest, const char *src)
+{
+  while (*src)
+  {
+    if (*src == '\xFF')
+    {
+      *(dest++)= ':';
+      src++;
+      if (src[0] == '#' &&
+          src[1] == table_name_t::part_suffix[1] &&
+          src[2] == '#')
+      {
+        src+= 3;
+        if (const char *sp= strstr(src, table_name_t::subpart_suffix))
+          src= sp + 4;
+      }
+    }
+    else
+      *(dest++)= *(src++);
+  }
+  *dest= '\0';
+}
+
 /**********************************************************************//**
 Function to fill information_schema.innodb_sys_foreign with information
 collected by scanning SYS_FOREIGN table.
@@ -5790,8 +5817,10 @@ i_s_dict_fill_sys_foreign(
 	DBUG_ENTER("i_s_dict_fill_sys_foreign");
 
 	fields = table_to_fill->field;
+	char foreign_id[MAX_FOREIGN_ID_LEN];
+	fixup_foreign_id(foreign_id, foreign->id);
 
-	OK(field_store_string(fields[SYS_FOREIGN_ID], foreign->id));
+	OK(field_store_string(fields[SYS_FOREIGN_ID], foreign_id));
 
 	OK(field_store_string(fields[SYS_FOREIGN_FOR_NAME],
 			      foreign->foreign_table_name));
@@ -5983,8 +6012,10 @@ i_s_dict_fill_sys_foreign_cols(
 	DBUG_ENTER("i_s_dict_fill_sys_foreign_cols");
 
 	fields = table_to_fill->field;
+	char foreign_id[MAX_FOREIGN_ID_LEN];
+	fixup_foreign_id(foreign_id, name);
 
-	OK(field_store_string(fields[SYS_FOREIGN_COL_ID], name));
+	OK(field_store_string(fields[SYS_FOREIGN_COL_ID], foreign_id));
 
 	OK(field_store_string(fields[SYS_FOREIGN_COL_FOR_NAME], for_col_name));
 

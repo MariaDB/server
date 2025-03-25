@@ -1,0 +1,450 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/lcase_names.inc
+
+--echo #
+--echo # MDEV-19191 Partial support of foreign keys in partitioned tables
+--echo #
+create or replace table t1 (id int primary key)
+with system versioning engine innodb
+partition by system_time partitions 2;
+
+--echo # Referenced table cannot be partitioned still until MDEV-12483
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (fk int references t1(id))
+with system versioning engine innodb;
+
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (fk int references t1(id))
+with system versioning engine innodb
+partition by system_time partitions 2;
+
+create or replace table t1 (id int primary key)
+with system versioning engine innodb;
+
+--echo # CASCADE in partitioned table is prohibited until MDEV-12483
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (
+  fk int,
+  foreign key(fk) references t1(id)
+  on delete cascade)
+with system versioning engine innodb
+partition by system_time partitions 2;
+
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (
+  fk int references t1(id)
+  on update cascade)
+with system versioning engine innodb
+partition by system_time partitions 2;
+
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (
+  fk int references t1(id)
+  on delete cascade)
+with system versioning engine innodb
+partition by system_time partitions 2;
+
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (
+  fk int references t1(id)
+  on update set null)
+with system versioning engine innodb
+partition by system_time partitions 2;
+
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (
+  fk int references t1(id)
+  on delete set null)
+with system versioning engine innodb
+partition by system_time partitions 2;
+
+# test/t2_ibfk_1
+create or replace table t2 (
+  fk int,
+  foreign key(fk) references t1(id)
+  on delete cascade) engine innodb;
+--error ER_CANT_CREATE_TABLE
+alter table t2 partition by hash(fk) partitions 5;
+
+--echo # Subpartition by SYSTEM_TIME is prohibited at parser layer
+--error ER_PARSE_ERROR
+create or replace table t2 (i int) with system versioning
+partition by system_time interval 1 day
+subpartition by system_time interval 2 hours
+(partition p1 history, partition pn current);
+
+--echo # Partition by SYSTEM_TIME, subpartition by KEY
+create or replace table t2 (fk int references t1(id))
+with system versioning engine innodb
+partition by system_time limit 1 auto
+subpartition by key (fk) subpartitions 2
+(partition p1 history, partition pn current);
+
+show create table t2;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+insert into t1 values (1), (2), (3), (4), (5), (6);
+insert into t2 values (3), (4), (5);
+select * from t2 partition (pnsp0) order by fk;
+select * from t2 partition (pnsp1) order by fk;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 3;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 4;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 5;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (7);
+delete from t1 where id = 1;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id > 2;
+--echo # Partition auto-creation does not affect foreign keys in current partition
+delete from t2 where fk = 3;
+update t2 set fk= fk - 1;
+delete from t2 where fk = 3;
+update t2 set fk= fk - 1;
+delete from t2 where fk = 3;
+select * from t2 for system_time all order by fk;
+delete from t1 where id > 2;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (3), (5);
+insert into t2 values (2);
+
+show create table t2;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign;
+
+--echo # Partition by HASH, explicit constraint id
+insert into t1 values (3), (4), (5), (6);
+
+create or replace table t2 (
+  fk int,
+  foreign key fk01 (fk) references t1(id))
+engine innodb
+partition by hash (fk) partitions 2;
+
+insert into t2 values (3), (4), (5);
+select * from t2 partition (p0) order by fk;
+select * from t2 partition (p1) order by fk;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 3;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 4;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 5;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (7);
+delete from t1 where id = 1;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id > 2;
+delete from t2;
+select * from t2 order by fk;
+delete from t1 where id > 2;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (3), (5);
+insert into t2 values (2);
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign;
+
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (4);
+
+--echo # Explicit constraint id via CONSTRAINT if that matters
+create or replace table t3 (
+  fk int,
+  constraint fk02 foreign key(fk) references t1(id))
+engine innodb
+partition by range columns (fk)
+subpartition by hash (fk) subpartitions 2 (
+    partition p0 values less than (100),
+    partition p1 values less than (1000));
+show create table t2;
+show create table t3;
+
+--echo # Same constraint id in non-partitioned
+--error ER_CANT_CREATE_TABLE
+create table t4 (fk int, foreign key fk02 (fk) references t1(id)) engine innodb;
+--error ER_CANT_CREATE_TABLE
+create table t5 (fk int, foreign key fk02 (fk) references t1(id)) engine innodb;
+
+--error ER_NO_REFERENCED_ROW_2
+insert into t3 values (10);
+insert into t1 values (10);
+insert into t3 values (10);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 10;
+
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--echo ### Alter operations ###
+
+--echo # get_parent_foreign_key_list()
+set session foreign_key_checks= off;
+set system_versioning_alter_history= keep;
+--error ER_FK_COLUMN_CANNOT_CHANGE_CHILD
+alter table t1 change column id id time not null;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 change column id b time;
+set session foreign_key_checks= on;
+
+--echo # RENAME TABLE
+rename table t3 to t4;
+show create table t4;
+
+--error ER_NO_REFERENCED_ROW_2
+insert into t4 values (11);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 10;
+
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t4%';
+alter table t4 rename to t3;
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+
+create table tT like t2;
+--echo # CREATE LIKE does not copy foreign keys
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+alter table tT add constraint fk03 foreign key (fk) references t1(id);
+if (!$MTR_COMBINATION_LCASE1)
+{
+  select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+  --error ER_TABLE_EXISTS_ERROR
+  alter table tT rename to t2;
+  alter table tT rename to T2;
+  select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+  rename table T2 to t4;
+}
+if ($MTR_COMBINATION_LCASE1)
+{
+  --replace_result tt tT
+  select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+  --replace_result T2 t2
+  --error ER_TABLE_EXISTS_ERROR
+  alter table tT rename to T2;
+  --replace_result T5 T2
+  alter table tT rename to T5;
+  --replace_result t5 T2
+  select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+  --replace_result T5 T2
+  rename table T5 to t4;
+}
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t%';
+drop table t4;
+
+--error ER_NO_REFERENCED_ROW_2
+insert into t3 values (11);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 10;
+
+--echo # REMOVE PARTITIONING
+alter table t2 remove partitioning;
+show create table t2;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 2;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (4);
+insert into t2 values (10);
+delete from t2;
+
+--echo # DROP PARTITION
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 10;
+alter table t3 drop partition p0;
+delete from t1 where id = 10;
+
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--echo # Add range partition into beginning is not possible (MDEV-31212)
+--error ER_RANGE_NOT_INCREASING_ERROR
+alter table t3 add partition (partition p0 values less than (1));
+
+--echo # REORGANIZE PARTITION
+select * from t1;
+--error ER_NO_REFERENCED_ROW_2
+insert t3 values (3);
+insert t3 values (2);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 2;
+alter table t3 reorganize partition p1 into (
+    partition p0 values less than (10),
+    partition p1 values less than (1000));
+
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 2;
+alter table t3 drop partition p0;
+delete from t1 where id = 2;
+
+--echo # Add/drop foreign keys
+--error ER_CANT_CREATE_TABLE
+alter table t3 add foreign key fk03(fk) references t1(id) on delete cascade;
+alter table t3 add foreign key fk03(fk) references t1(id), algorithm=copy;
+# Instant add foreign key may be done only with foreign_key_checks= off
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t3 add foreign key fk04(fk) references t1(id), algorithm=instant;
+set session foreign_key_checks= off;
+alter table t3 add foreign key fk04(fk) references t1(id), algorithm=instant;
+alter table t3 add foreign key (fk) references t1(id), algorithm=instant;
+set session foreign_key_checks= on;
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+alter table t3 drop foreign key fk03, algorithm=copy;
+alter table t3 drop foreign key fk04, algorithm=instant;
+alter table t3 drop foreign key t3_ibfk_1, algorithm=instant;
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+
+--echo # CONVERT OUT
+insert t1 values (1), (2), (300);
+create or replace table t3 (
+  fk int,
+  foreign key fk02(fk) references t1(id))
+engine innodb
+partition by range columns (fk) (
+    partition p0 values less than (100),
+    partition p1 values less than (1000));
+
+insert t3 values (2), (300);
+alter table t3 convert partition p0 to table tp0;
+# This is the violation of foreign_id uniqueness per DB,
+# since this limitation should be lifted it should be rather left as is.
+# Otherwise we have to implement drop of foreign keys in tp0 in rename_constraint_ids.
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign;
+show create table tp0;
+select * from t3;
+select * from tp0;
+delete from t1 where id = 1;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 2;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 300;
+
+--echo # TRUNCATE
+truncate t3;
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 2;
+delete from t1 where id = 300;
+
+--echo # PARTITION BY LIST, engine change, add partitioning, add partitition, drop partition
+create or replace table t3 (fk int) engine myisam;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+alter table t3 add foreign key fk03(fk) references t1(id);
+# Foreign keys are not stored in non-InnoDB
+show create table t3;
+alter table t3 engine innodb;
+alter table t3 add foreign key fk03(fk) references t1(id);
+show create table t3;
+alter table t3 partition by list (fk) (
+    partition p1 values in (4, 5, 6, 7));
+alter table t3 engine myisam;
+alter table t3 engine innodb;
+alter table t3 add foreign key fk03(fk) references t1(id);
+alter table t1 drop system versioning;
+# Referenced not allowed to change engine
+--error ER_ROW_IS_REFERENCED
+alter table t1 engine myisam;
+insert t1 values (0), (4);
+insert t3 values (4);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 4;
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+insert t3 values (0);
+alter table t3 add partition (partition p0 values in (0, 1, 2, 3));
+insert t3 values (0);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 0;
+
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+
+alter table t3 drop partition p0;
+delete from t1 where id = 0;
+
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+
+--echo # CONVERT IN
+--error ER_NO_REFERENCED_ROW_2
+insert tp0 values (0);
+insert t1 values (0);
+insert tp0 values (0);
+--error ER_TABLES_DIFFERENT_METADATA
+alter table t3 convert table tp0 to partition p0 values in (0, 1);
+alter table tp0 drop foreign key fk02;
+# The only way now to convert table to partition with foreign keys is to
+# match foreign key id which is possible with foreign_key_checks= off.
+# The problem is mysql_compare_tables() compares keys, not foreign keys
+# so loosen that would loose restriction for keys as well as
+# foreign key id cannot be different from key name.
+set session foreign_key_checks= off;
+alter table tp0 add foreign key fk03 (fk) references t1(id);
+set session foreign_key_checks= on;
+show create table t3;
+show create table tp0;
+alter table t3 convert table tp0 to partition p0 values in (0, 1, 2);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 0;
+
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign;
+
+--echo # COALESCE
+create or replace table t3 (
+  fk int,
+  foreign key fk02 (fk) references t1(id))
+engine innodb
+partition by hash (fk) partitions 4;
+
+delete from t1;
+insert into t1 values (0), (1), (2), (3);
+insert into t3 values (0), (1), (2), (3);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 0;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 1;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 2;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 3;
+
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+
+alter table t3 coalesce partition 2;
+
+show create table t3;
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign where for_name like 'test/t3%';
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 0;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 1;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 2;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 3;
+
+drop tables t3, t2, t1;

@@ -43,7 +43,7 @@ CREATE TABLE t2(a INT, FOREIGN KEY(a) REFERENCES t1(a))ENGINE=INNODB
 PARTITION BY RANGE(a)
 (PARTITION pa VALUES LESS THAN (2),
 PARTITION pb VALUES LESS THAN (4));
-ERROR HY000: Partitioned tables do not support FOREIGN KEY
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 DROP TABLE t1;
 # End of 10.3 tests
 #

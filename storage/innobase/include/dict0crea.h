@@ -129,25 +129,9 @@ dict_create_add_foreign_id(
 	ulint*		id_nr,		/*!< in/out: number to use in id
 					generation; incremented if used */
 	const char*	name,		/*!< in: table name */
-	dict_foreign_t*	foreign);	/*!< in/out: foreign key */
-
-/** Adds the given set of foreign key objects to the dictionary tables
-in the database. This function does not modify the dictionary cache. The
-caller must ensure that all foreign key objects contain a valid constraint
-name in foreign->id.
-@param[in]	local_fk_set	set of foreign key objects, to be added to
-the dictionary tables
-@param[in]	table		table to which the foreign key objects in
-local_fk_set belong to
-@param[in,out]	trx		transaction
-@return error code or DB_SUCCESS */
-dberr_t
-dict_create_add_foreigns_to_dictionary(
-/*===================================*/
-	const dict_foreign_set&	local_fk_set,
-	const dict_table_t*	table,
-	trx_t*			trx)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	dict_foreign_t*	foreign,	/*!< in/out: foreign key */
+	const char *	part_suffix,
+	size_t		part_suffix_len);
 
 /** Check if a foreign constraint is on columns server as base columns
 of any stored column. This is to prevent creating SET NULL or CASCADE

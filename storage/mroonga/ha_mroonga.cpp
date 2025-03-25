@@ -16413,38 +16413,6 @@ void ha_mroonga::change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg)
   DBUG_VOID_RETURN;
 }
 
-bool ha_mroonga::wrapper_is_fk_defined_on_table_or_index(uint index)
-{
-  MRN_DBUG_ENTER_METHOD();
-  bool res;
-  MRN_SET_WRAP_SHARE_KEY(share, table->s);
-  MRN_SET_WRAP_TABLE_KEY(this, table);
-  res = wrap_handler->is_fk_defined_on_table_or_index(index);
-  MRN_SET_BASE_SHARE_KEY(share, table->s);
-  MRN_SET_BASE_TABLE_KEY(this, table);
-  DBUG_RETURN(res);
-}
-
-bool ha_mroonga::storage_is_fk_defined_on_table_or_index(uint index)
-{
-  MRN_DBUG_ENTER_METHOD();
-  bool res = handler::is_fk_defined_on_table_or_index(index);
-  DBUG_RETURN(res);
-}
-
-bool ha_mroonga::is_fk_defined_on_table_or_index(uint index)
-{
-  MRN_DBUG_ENTER_METHOD();
-  bool res;
-  if (share->wrapper_mode)
-  {
-    res = wrapper_is_fk_defined_on_table_or_index(index);
-  } else {
-    res = storage_is_fk_defined_on_table_or_index(index);
-  }
-  DBUG_RETURN(res);
-}
-
 char *ha_mroonga::wrapper_get_foreign_key_create_info()
 {
   MRN_DBUG_ENTER_METHOD();

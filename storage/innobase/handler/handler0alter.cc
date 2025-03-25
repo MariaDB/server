@@ -2867,8 +2867,10 @@ innobase_init_foreign(
 	dict_index_t*	referenced_index,	/*!< in: referenced index */
 	const char**	referenced_column_names,/*!< in: referenced column
 						names */
-	ulint		referenced_num_field)	/*!< in: number of referenced
+	ulint		referenced_num_field,	/*!< in: number of referenced
 						columns */
+	const char *	part_suffix,
+	const size_t	part_suffix_len)
 {
 	ut_ad(dict_sys.locked());
 
@@ -2882,12 +2884,27 @@ innobase_init_foreign(
 
                 db_len = dict_get_db_name_len(table->name.m_name);
 
+// Append partition suffix when FK is created in inplace alter
+		const size_t constr_len= strlen(constraint_name);
+		size_t alloc_len = 2 + db_len + constr_len + 2;
+		if (part_suffix)
+		{
+			alloc_len += part_suffix_len + 1;
+		}
+
                 foreign->id = static_cast<char*>(mem_heap_alloc(
-                        foreign->heap, db_len + strlen(constraint_name) + 2));
+                        foreign->heap, alloc_len));
 
                 memcpy(foreign->id, table->name.m_name, db_len);
                 foreign->id[db_len] = '/';
-                strcpy(foreign->id + db_len + 1, constraint_name);
+		char *pos= foreign->id + db_len + 1;
+		strcpy(pos, constraint_name);
+		if (part_suffix)
+		{
+			pos+= constr_len;
+			*(pos++) = '\xFF';
+			strcpy(pos, part_suffix);
+		}
 
 		/* Check if any existing foreign key has the same id,
 		this is needed only if user supplies the constraint name */
@@ -3220,6 +3237,8 @@ innobase_get_foreign_key_info(
 	char db_name[MAX_DATABASE_NAME_LEN + 1];
 	char t_name[MAX_TABLE_NAME_LEN + 1];
 	static_assert(MAX_TABLE_NAME_LEN == MAX_DATABASE_NAME_LEN, "");
+	const char *	part_suffix= is_partition(table->name.basename());
+	const size_t	part_suffix_len= part_suffix ? strlen(part_suffix) : 0;
 
 	DBUG_ENTER("innobase_get_foreign_key_info");
 
@@ -3356,7 +3375,8 @@ innobase_get_foreign_key_info(
 			    table, index, column_names,
 			    num_col, referenced_table_name,
 			    referenced_table, referenced_index,
-			    referenced_column_names, referenced_num_col)) {
+			    referenced_column_names, referenced_num_col,
+			    part_suffix, part_suffix_len)) {
 			my_error(
 				ER_DUP_CONSTRAINT_NAME,
 				MYF(0),
@@ -7939,6 +7959,7 @@ ha_innobase::prepare_inplace_alter_table(
 	bool		add_fts_idx		= false;
 	dict_s_col_list*s_cols			= NULL;
 	mem_heap_t*	s_heap			= NULL;
+	char foreign_id[MAX_FOREIGN_ID_LEN];
 
 	DBUG_ENTER("prepare_inplace_alter_table");
 	DBUG_ASSERT(!ha_alter_info->handler_ctx);
@@ -8272,8 +8293,18 @@ check_if_ok_to_rename:
 				the FOREIGN KEY constraint name, compare
 				to the full constraint name. */
 				fid = fid ? fid + 1 : foreign->id;
-
-				if (Lex_ident_column(Lex_cstring_strlen(fid)).
+// For inplace drop FK find partition-suffixed FKs by ID without suffix
+				Lex_cstring id;
+				id.str= fid;
+				const char *suff= strchr(fid, '\xFF');
+				if (suff) {
+					id.length= size_t(suff - fid);
+					memcpy(foreign_id, fid, id.length);
+					id.str= foreign_id;
+					foreign_id[id.length]= 0;
+				} else
+					id.length = strlen(fid);
+				if (Lex_ident_column(id).
 				      streq(drop.name)) {
 					goto found_fk;
 				}
@@ -10030,6 +10061,10 @@ innobase_update_foreign_try(
 
 	foreign_id++;
 
+// Used by inplace add foreign key
+	const char *part_suffix= is_partition(ctx->old_table->name.m_name);
+	size_t part_suffix_len= part_suffix ? strlen(part_suffix) : 0;
+
 	for (i = 0; i < ctx->num_to_add_fk; i++) {
 		dict_foreign_t*		fk = ctx->add_fk[i];
 
@@ -10037,7 +10072,8 @@ innobase_update_foreign_try(
 		      || fk->foreign_table == ctx->old_table);
 
 		dberr_t error = dict_create_add_foreign_id(
-			&foreign_id, ctx->old_table->name.m_name, fk);
+			&foreign_id, ctx->old_table->name.m_name, fk,
+			part_suffix, part_suffix_len);
 
 		if (error != DB_SUCCESS) {
 			my_error(ER_TOO_LONG_IDENT, MYF(0),

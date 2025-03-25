@@ -330,6 +330,7 @@ SET(INNOBASE_SOURCES
 	include/srv0start.h
 	include/srw_lock.h
 	include/sux_lock.h
+	include/sql_funcs.h
 	include/transactional_lock_guard.h
 	include/trx0i_s.h
 	include/trx0purge.h

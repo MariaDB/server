@@ -2357,7 +2357,10 @@ struct Table_scope_and_contents_source_st:
   parts are handled on the SQL level and are not needed on the handler level.
 */
 struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
-                       public Schema_specification_st
+                       public Schema_specification_st,
+                       // Make OPT_LIKE accessible from ha_innobase::create().
+                       // We don't create foreign keys for CREATE LIKE.
+                       public DDL_options_st
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
@@ -2366,6 +2369,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
+    DDL_options_st::init();
     alter_info= NULL;
   }
   ulong table_options_with_row_type()
@@ -2386,8 +2390,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
   This struct is passed to mysql_create_table() and similar creation functions,
   as well as to show_create_table().
 */
-struct Table_specification_st: public HA_CREATE_INFO,
-                               public DDL_options_st
+struct Table_specification_st: public HA_CREATE_INFO
 {
   Lex_table_charset_collation_attrs_st default_charset_collation;
   Lex_table_charset_collation_attrs_st convert_charset_collation;
@@ -4496,18 +4499,6 @@ public:
 
   virtual int indexes_are_disabled(void) {return 0;}
   virtual void append_create_info(String *packet) {}
-  /**
-    If index == MAX_KEY then a check for table is made and if index <
-    MAX_KEY then a check is made if the table has foreign keys and if
-    a foreign key uses this index (and thus the index cannot be dropped).
-
-    @param  index            Index to check if foreign key uses it
-
-    @retval   TRUE            Foreign key defined on table or index
-    @retval   FALSE           No foreign key defined
-  */
-  virtual bool is_fk_defined_on_table_or_index(uint index)
-  { return FALSE; }
   virtual char* get_foreign_key_create_info()
   { return(NULL);}  /* gets foreign key create string from InnoDB */
   /**

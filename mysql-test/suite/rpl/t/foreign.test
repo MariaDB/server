@@ -1,0 +1,58 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-19191 Partial support of foreign keys in partitioned tables
+--echo #
+create or replace table t1 (id int primary key)
+with system versioning engine innodb;
+
+--echo # Partition by HASH, explicit constraint id
+insert into t1 values (1), (2), (3), (4), (5), (6);
+
+create or replace table t2 (
+  fk int,
+  foreign key fk01 (fk) references t1(id))
+engine innodb
+partition by hash (fk) partitions 2;
+
+--sync_slave_with_master
+--connection master
+insert into t2 values (3), (4), (5);
+select * from t2 partition (p0) order by fk;
+select * from t2 partition (p1) order by fk;
+
+--sync_slave_with_master
+show create table t1;
+show create table t2;
+select * from t2 partition (p0) order by fk;
+select * from t2 partition (p1) order by fk;
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 3;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 4;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id = 5;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (7);
+delete from t1 where id = 1;
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id > 2;
+delete from t2;
+select * from t2 order by fk;
+delete from t1 where id > 2;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (3), (5);
+insert into t2 values (2);
+--replace_result #p# #P# #sp# #SP#
+select * from information_schema.innodb_sys_foreign;
+
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (4);
+
+--connection master
+drop tables t2, t1;
+
+--source include/rpl_end.inc

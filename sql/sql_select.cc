@@ -34192,39 +34192,38 @@ static void MYSQL_DML_START(THD *thd)
 }
 
 
-static void MYSQL_DML_DONE(THD *thd, int rc)
+static void MYSQL_DML_GET_STAT(THD * thd, ha_rows &found, ha_rows &changed)
 {
   switch (thd->lex->sql_command) {
-
   case SQLCOM_UPDATE:
-    MYSQL_UPDATE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_found()),
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_updated()));
-    break;
   case SQLCOM_UPDATE_MULTI:
-    MYSQL_MULTI_UPDATE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_found()),
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_updated()));
+  case SQLCOM_DELETE_MULTI:
+    thd->lex->m_sql_cmd->get_dml_stat(found, changed);
     break;
   case SQLCOM_DELETE:
-    MYSQL_DELETE_DONE(rc, (rc ? 0 : (ulong) (thd->get_row_count_func())));
+    found= 0;
+    changed= (thd->get_row_count_func());
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
+
+
+static void MYSQL_DML_DONE(THD *thd, int rc, ha_rows found, ha_rows changed)
+{
+  switch (thd->lex->sql_command) {
+  case SQLCOM_UPDATE:
+    MYSQL_UPDATE_DONE(rc, found, changed);
+    break;
+  case SQLCOM_UPDATE_MULTI:
+    MYSQL_MULTI_UPDATE_DONE(rc, found, changed);
+    break;
+  case SQLCOM_DELETE:
+    MYSQL_DELETE_DONE(rc, changed);
     break;
   case SQLCOM_DELETE_MULTI:
-    MYSQL_MULTI_DELETE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_delete*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_deleted()));
+    MYSQL_MULTI_DELETE_DONE(rc, changed);
     break;
   default:
     DBUG_ASSERT(0);
@@ -34313,6 +34312,7 @@ err:
 bool Sql_cmd_dml::execute(THD *thd)
 {
   lex = thd->lex;
+  ha_rows found= 0, changed= 0;
   bool res;
 
   SELECT_LEX_UNIT *unit = &lex->unit;
@@ -34363,6 +34363,8 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   if (res)
     goto err;
+  else
+    MYSQL_DML_GET_STAT(thd, found, changed);
 
   thd->push_final_warnings();
   res= unit->cleanup();
@@ -34372,13 +34374,13 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   THD_STAGE_INFO(thd, stage_end);
 
-  MYSQL_DML_DONE(thd, res);
+  MYSQL_DML_DONE(thd, 0, found, changed);
 
   return res;
 
 err:
   DBUG_ASSERT(thd->is_error() || thd->killed);
-  MYSQL_DML_DONE(thd, 1);
+  MYSQL_DML_DONE(thd, 1, 0, 0);
   THD_STAGE_INFO(thd, stage_end);
   (void)unit->cleanup();
   if (is_prepared())

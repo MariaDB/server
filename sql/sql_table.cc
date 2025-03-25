@@ -4518,27 +4518,7 @@ handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(NULL);
     }
   }
-  /*
-    Unless table's storage engine supports partitioning natively
-    don't allow foreign keys on partitioned tables (they won't
-    work work even with InnoDB beneath of partitioning engine).
-    If storage engine handles partitioning natively (like NDB)
-    foreign keys support is possible, so we let the engine decide.
-  */
-  if (create_info->db_type == partition_hton)
-  {
-    List_iterator_fast<Key> key_iterator(alter_info->key_list);
-    Key *key;
-    while ((key= key_iterator++))
-    {
-      if (key->type == Key::FOREIGN_KEY)
-      {
-        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
-                 "FOREIGN KEY");
-        goto err;
-      }
-    }
-  }
+// Allow FKs in partitioned table for CREATE TABLE
 #endif
 
   if (mysql_prepare_create_table_finalize(thd, create_info,
@@ -5624,6 +5604,13 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
 
   if (error == HA_ERR_WRONG_COMMAND)
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
+  if (error == HA_ERR_FOREIGN_DUPLICATE_KEY)
+    /*
+       TODO: constraint name is not known because rename_constraint_ids
+       does not supply it in row_rename_table_for_mysql().
+       Should be fixed in MDEV-16417.
+    */
+    my_error(ER_DUP_CONSTRAINT_NAME_2, MYF(0));
   else if (error ==  ENOTDIR)
     my_error(ER_BAD_DB_ERROR, MYF(0), new_db->str);
   else if (error)
@@ -11017,7 +11004,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if ((create_info->db_type != table->s->db_type() ||
        (alter_info->partition_flags & ALTER_PARTITION_INFO)) &&
-      !table->file->can_switch_engines())
+// can_switch_engines() returns false if there are parent and child refs.
+// We allow engine switch for child.
+      table->file->referenced_by_foreign_key())
   {
     my_error(ER_ROW_IS_REFERENCED, MYF(0));
     DBUG_RETURN(true);

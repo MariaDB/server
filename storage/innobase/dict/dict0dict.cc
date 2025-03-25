@@ -1580,7 +1580,8 @@ dict_table_rename_in_cache(
 			foreign->heap, table->name.m_name);
 		foreign->foreign_table_name_lookup_set();
 
-		if (strchr(foreign->id, '/')) {
+		const bool tmp_id = (strchr(foreign->id, '\xFF') != NULL);
+		if (!tmp_id && strchr(foreign->id, '/')) {
 			/* This is a >= 4.0.18 format id */
 
 			ulint	db_len;
@@ -1724,10 +1725,17 @@ dict_table_rename_in_cache(
 		}
 
 		table->foreign_set.erase(it);
-		fk_set.insert(foreign);
 
-		if (foreign->referenced_table) {
-			foreign->referenced_table->referenced_set.insert(foreign);
+		if (!tmp_id) {
+			fk_set.insert(foreign);
+
+			if (foreign->referenced_table) {
+				foreign->referenced_table
+					->referenced_set.insert(foreign);
+			}
+		} else {
+			/* foreign was not added to cache, free it */
+			dict_foreign_free(foreign);
 		}
 	}
 
@@ -3646,13 +3654,23 @@ dict_print_info_on_foreign_key_in_create_format(const trx_t *trx,
 	const char*	stripped_id;
 	ulint	i;
 	std::string	str;
+// When returning FKs to SQL layer remove partition suffix from foreign ID (constraint name).
+	char foreign_id[MAX_FOREIGN_ID_LEN];
+	const char* s;
 
-	if (strchr(foreign->id, '/')) {
+	if (size_t db_len= dict_get_db_name_len(foreign->id)) {
+		ut_ad(foreign->id[db_len + 1]);
 		/* Strip the preceding database name from the constraint id */
-		stripped_id = foreign->id + 1
-			+ dict_get_db_name_len(foreign->id);
+		stripped_id = foreign->id + 1 + db_len;
 	} else {
 		stripped_id = foreign->id;
+	}
+
+	if ((s= strchr(stripped_id, '\xFF')) && s > stripped_id) {
+		size_t l= size_t(s - stripped_id);
+		memcpy(foreign_id, stripped_id, l);
+		foreign_id[l]= 0;
+		stripped_id= foreign_id;
 	}
 
 	str.append(",");
