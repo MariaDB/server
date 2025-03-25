@@ -3232,8 +3232,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         */
         new_gco= false;
         if (!(gtid_flags & Gtid_log_event::FL_TRANSACTIONAL) ||
-            ( (!(gtid_flags & Gtid_log_event::FL_ALLOW_PARALLEL) ||
-               (gtid_flags & Gtid_log_event::FL_WAITED)) &&
+            ( !(gtid_flags & Gtid_log_event::FL_ALLOW_PARALLEL) &&
               (mode < SLAVE_PARALLEL_AGGRESSIVE)))
         {
           /*
