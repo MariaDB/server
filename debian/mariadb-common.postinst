@@ -4,8 +4,21 @@ set -e
 
 case "$1" in
   configure)
-    # New packaging paradigm for my.cnf handling among MySQL variants
-    # Used in Ubuntu since Dec-2014 and in Debian since Jul-2015
+    # A new packaging paradigm for my.cnf handling among MySQL variants using
+    # has been in Ubuntu since Dec-2014 and in Debian since Jul-2015. It uses
+    # source package 'mysql-defaults'
+    # (https://tracker.debian.org/pkg/mysql-defaults)
+    #
+    # This source package generates multiple 'default-mysql-*' packages that in
+    # Debian refer to MariaDB and in Ubuntu to MySQL.
+    #
+    # The source package also generates 'mysql-common', which owns the
+    # /etc/mysql configuration directory and which is responsible for among
+    # others symlinking my.cnf -> mariadb.conf
+    #
+    # See sources of mysql-common at
+    # https://salsa.debian.org/mariadb-team/mysql/-/tree/mysql-defaults/debian/master/debian
+    # to see how it works in detail.
     #
     # If the new mysql-common package does not provide
     # the update-alternatives facility, notify user about manual fall back
