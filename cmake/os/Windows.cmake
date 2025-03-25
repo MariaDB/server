@@ -121,7 +121,7 @@ IF(MSVC)
   # Disable mingw based pkg-config found in Strawberry perl
   SET(PKG_CONFIG_EXECUTABLE 0 CACHE INTERNAL "")
 
-  SET(MSVC_CRT_TYPE /MT CACHE STRING
+  SET(MSVC_CRT_TYPE /MD CACHE STRING
     "Runtime library - specify runtime library for linking (/MT,/MTd,/MD,/MDd)"
   )
   SET(VALID_CRT_TYPES /MTd /MDd /MD /MT)
