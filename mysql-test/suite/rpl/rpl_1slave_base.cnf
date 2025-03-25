@@ -23,7 +23,7 @@ log-basename=               slave
 
 init-rpl-role=              slave
 log-slave-updates
-master-retry-count=         10
+master-retry-count=         30
 
 # Values reported by slave when it connect to master
 # and shows up in SHOW SLAVE STATUS;
