@@ -765,6 +765,8 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
       if (extra != HA_EXTRA_NOT_USED && table->db_stat)
       {
         table->file->extra(extra);
+        if (table->hlindex)
+          table->hlindex->file->extra(extra);
         extra= HA_EXTRA_NOT_USED;               // Call extra once!
       }
 
