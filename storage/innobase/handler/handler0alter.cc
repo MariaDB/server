@@ -11547,34 +11547,16 @@ err_index:
 		}
 	}
 
-	dict_table_t *table_stats = nullptr, *index_stats = nullptr;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
+	dict_stats stats;
+	bool stats_failed = true;
 	dberr_t error = DB_SUCCESS;
 	if (!ctx0->old_table->is_stats_table() &&
 	    !ctx0->new_table->is_stats_table()) {
-		table_stats = dict_table_open_on_name(
-			TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-		if (table_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
-			table_stats = dict_acquire_mdl_shared<false>(
-				table_stats, m_user_thd, &mdl_table);
-			dict_sys.unfreeze();
-		}
-		index_stats = dict_table_open_on_name(
-			INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-		if (index_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
-			index_stats = dict_acquire_mdl_shared<false>(
-				index_stats, m_user_thd, &mdl_index);
-			dict_sys.unfreeze();
-		}
-
-		if (table_stats && index_stats
-		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)
-		    && !(error = lock_table_for_trx(table_stats,
+		stats_failed = stats.open(m_user_thd);
+		if (!stats_failed
+		    && !(error = lock_table_for_trx(stats.table(),
 						    trx, LOCK_X))) {
-			error = lock_table_for_trx(index_stats, trx, LOCK_X);
+			error = lock_table_for_trx(stats.index(), trx, LOCK_X);
 		}
 	}
 
@@ -11588,15 +11570,9 @@ err_index:
 		error = lock_sys_tables(trx);
 	}
 	if (error != DB_SUCCESS) {
-		if (table_stats) {
-			dict_table_close(table_stats, false, m_user_thd,
-					 mdl_table);
+		if (!stats_failed) {
+			stats.close();
 		}
-		if (index_stats) {
-			dict_table_close(index_stats, false, m_user_thd,
-					 mdl_index);
-		}
-		my_error_innodb(error, table_share->table_name.str, 0);
 		if (fts_exist) {
 			purge_sys.resume_FTS();
 		}
@@ -11612,6 +11588,7 @@ err_index:
 			trx_start_for_ddl(trx);
 		}
 
+		my_error_innodb(error, table_share->table_name.str, 0);
 		DBUG_RETURN(true);
 	}
 
@@ -11629,15 +11606,10 @@ err_index:
 fail:
 			trx->rollback();
 			ut_ad(!trx->fts_trx);
-			if (table_stats) {
-				dict_table_close(table_stats, true, m_user_thd,
-						 mdl_table);
-			}
-			if (index_stats) {
-				dict_table_close(index_stats, true, m_user_thd,
-						 mdl_index);
-			}
 			row_mysql_unlock_data_dictionary(trx);
+			if (!stats_failed) {
+				stats.close();
+			}
 			if (fts_exist) {
 				purge_sys.resume_FTS();
 			}
@@ -11657,14 +11629,14 @@ fail:
 
 			if (commit_try_rebuild(ha_alter_info, ctx,
 					       altered_table, table,
-					       table_stats && index_stats,
+					       !stats_failed,
 					       trx,
 					       table_share->table_name.str)) {
 				goto fail;
 			}
 		} else if (commit_try_norebuild(ha_alter_info, ctx,
 						altered_table, table,
-						table_stats && index_stats,
+						!stats_failed,
 						trx,
 						table_share->table_name.str)) {
 			goto fail;
@@ -11685,13 +11657,6 @@ fail:
 			);
 		}
 #endif
-	}
-
-	if (table_stats) {
-		dict_table_close(table_stats, true, m_user_thd, mdl_table);
-	}
-	if (index_stats) {
-		dict_table_close(index_stats, true, m_user_thd, mdl_index);
 	}
 
 	/* Commit or roll back the changes to the data dictionary. */
@@ -11843,6 +11808,9 @@ foreign_fail:
 		DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 				DBUG_SUICIDE(););
 		trx->free();
+		if (!stats_failed) {
+			stats.close();
+		}
 		if (fts_exist) {
 			purge_sys.resume_FTS();
 		}
@@ -11900,6 +11868,9 @@ foreign_fail:
 	DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 			DBUG_SUICIDE(););
 	trx->free();
+	if (!stats_failed) {
+		stats.close();
+	}
 	if (fts_exist) {
 		purge_sys.resume_FTS();
 	}

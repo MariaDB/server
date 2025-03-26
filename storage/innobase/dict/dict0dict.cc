@@ -704,12 +704,9 @@ dict_acquire_mdl_shared(dict_table_t *table,
 
 retry:
   ut_ad(!trylock == dict_sys.frozen());
-  ut_ad(trylock || table->get_ref_count());
 
   if (!table->is_readable() || table->corrupted)
   {
-    if (!trylock)
-      table->release();
     if (*mdl)
     {
       mdl_context->release_lock(*mdl);
@@ -721,10 +718,7 @@ retry:
   const table_id_t table_id{table->id};
 
   if (!trylock)
-  {
-    table->release();
     dict_sys.unfreeze();
-  }
 
   {
     MDL_request request;
@@ -771,7 +765,8 @@ lookup:
       return table;
     }
 
-    table->acquire();
+    if (trylock)
+      table->acquire();
 
     if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
     {
@@ -885,6 +880,7 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                                     dict_table_op_t table_op, THD *thd,
                                     MDL_ticket **mdl)
 {
+retry:
   if (!dict_locked)
     dict_sys.freeze(SRW_LOCK_CALL);
 
@@ -892,9 +888,21 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 
   if (table)
   {
-    table->acquire();
-    if (thd && !dict_locked)
-      table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
+    if (!dict_locked)
+    {
+      if (thd)
+      {
+        table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
+        if (table)
+          goto acquire;
+      }
+      else
+      acquire:
+        table->acquire();
+      dict_sys.unfreeze();
+    }
+    else
+      table->acquire();
   }
   else if (table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
   {
@@ -907,23 +915,15 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                                  table_op == DICT_TABLE_OP_LOAD_TABLESPACE
                                  ? DICT_ERR_IGNORE_RECOVER_LOCK
                                  : DICT_ERR_IGNORE_FK_NOKEY);
-    if (table)
-      table->acquire();
     if (!dict_locked)
     {
       dict_sys.unlock();
-      if (table && thd)
-      {
-        dict_sys.freeze(SRW_LOCK_CALL);
-        table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
-        dict_sys.unfreeze();
-      }
-      return table;
+      if (table)
+        goto retry;
     }
+    else if (table)
+      table->acquire();
   }
-
-  if (!dict_locked)
-    dict_sys.unfreeze();
 
   return table;
 }
@@ -1117,6 +1117,55 @@ dict_table_open_on_name(
     dict_sys.unlock();
 
   DBUG_RETURN(table);
+}
+
+bool dict_stats::open(THD *thd) noexcept
+{
+  ut_ad(!mdl_table);
+  ut_ad(!mdl_index);
+  ut_ad(!table_stats);
+  ut_ad(!index_stats);
+  ut_ad(!mdl_context);
+
+  mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
+  if (!mdl_context)
+    return true;
+  /* FIXME: use compatible type, and maybe remove this parameter altogether! */
+  const double timeout= double(global_system_variables.lock_wait_timeout);
+  MDL_request request;
+  MDL_REQUEST_INIT(&request, MDL_key::TABLE, "mysql", "innodb_table_stats",
+                   MDL_SHARED, MDL_EXPLICIT);
+  if (UNIV_UNLIKELY(mdl_context->acquire_lock(&request, timeout)))
+    return true;
+  mdl_table= request.ticket;
+  MDL_REQUEST_INIT(&request, MDL_key::TABLE, "mysql", "innodb_index_stats",
+                   MDL_SHARED, MDL_EXPLICIT);
+  if (UNIV_UNLIKELY(mdl_context->acquire_lock(&request, timeout)))
+    goto release_mdl;
+  mdl_index= request.ticket;
+  table_stats= dict_table_open_on_name("mysql/innodb_table_stats", false,
+                                       DICT_ERR_IGNORE_NONE);
+  if (!table_stats)
+    goto release_mdl;
+  index_stats= dict_table_open_on_name("mysql/innodb_index_stats", false,
+                                       DICT_ERR_IGNORE_NONE);
+  if (index_stats)
+    return false;
+
+  dict_table_close(table_stats);
+release_mdl:
+  if (mdl_index)
+    mdl_context->release_lock(mdl_index);
+  mdl_context->release_lock(mdl_table);
+  return true;
+}
+
+void dict_stats::close() noexcept
+{
+  dict_table_close(table_stats);
+  dict_table_close(index_stats);
+  mdl_context->release_lock(mdl_table);
+  mdl_context->release_lock(mdl_index);
 }
 
 /**********************************************************************//**
