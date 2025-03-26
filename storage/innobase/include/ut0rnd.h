@@ -24,13 +24,11 @@ Random numbers and hashing
 Created 1/20/1994 Heikki Tuuri
 ***********************************************************************/
 
-#ifndef ut0rnd_h
-#define ut0rnd_h
+#pragma once
 
 #include "ut0byte.h"
 #include <my_sys.h>
 
-#ifndef UNIV_INNOCHECKSUM
 /** Seed value of ut_rnd_gen() */
 extern std::atomic<uint32_t> ut_rnd_current;
 
@@ -87,30 +85,3 @@ ut_find_prime(
 /*==========*/
 	ulint	n)	/*!< in: positive number > 100 */
 	MY_ATTRIBUTE((const));
-
-#endif /* !UNIV_INNOCHECKSUM */
-
-/*************************************************************//**
-Folds a pair of ulints.
-@return folded value */
-UNIV_INLINE
-ulint
-ut_fold_ulint_pair(
-/*===============*/
-	ulint	n1,	/*!< in: ulint */
-	ulint	n2)	/*!< in: ulint */
-	MY_ATTRIBUTE((const));
-/*************************************************************//**
-Folds a binary string.
-@return folded value */
-UNIV_INLINE
-ulint
-ut_fold_binary(
-/*===========*/
-	const byte*	str,	/*!< in: string of bytes */
-	ulint		len)	/*!< in: length */
-	MY_ATTRIBUTE((pure));
-
-#include "ut0rnd.inl"
-
-#endif

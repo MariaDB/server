@@ -33,17 +33,6 @@ Created 2/17/1996 Heikki Tuuri
 struct btr_pcur_t;
 /** B-tree cursor */
 struct btr_cur_t;
-/** B-tree search information for the adaptive hash index */
-struct btr_search_t;
-
-#ifdef BTR_CUR_HASH_ADAPT
-/** Is search system enabled.
-Search system is protected by array of latches. */
-extern char	btr_search_enabled;
-
-/** Number of adaptive hash index partition. */
-extern ulong	btr_ahi_parts;
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /** The size of a reference to data stored on a different page.
 The reference is stored at the end of the prefix of the field

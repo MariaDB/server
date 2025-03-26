@@ -522,7 +522,7 @@ row_vers_build_cur_vrow_low(
 	const rec_t*	version;
 	rec_t*		prev_version;
 	mem_heap_t*	heap = NULL;
-	ulint		num_v = dict_table_get_n_v_cols(index->table);
+	const auto	num_v = dict_table_get_n_v_cols(index->table);
 	const dfield_t* field;
 	ulint		i;
 	bool		all_filled = false;
