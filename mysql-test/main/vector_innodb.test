@@ -321,3 +321,14 @@ select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e')
 drop table t1, t2;
 
 --echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-36163 InnoDB assert with vector index under LOCK TABLES
+--echo #
+create table t (a int,v vector (1) not null,vector index (v)) engine=innodb;
+lock table t write;
+insert into t values (1,0x30303030);
+insert into t values (1,0x31313131);
+drop table t;
+
+--echo # End of 11.8 tests

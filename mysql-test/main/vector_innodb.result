@@ -321,3 +321,12 @@ id	d
 3	0.58656
 drop table t1, t2;
 # End of 11.7 tests
+#
+# MDEV-36163 InnoDB assert with vector index under LOCK TABLES
+#
+create table t (a int,v vector (1) not null,vector index (v)) engine=innodb;
+lock table t write;
+insert into t values (1,0x30303030);
+insert into t values (1,0x31313131);
+drop table t;
+# End of 11.8 tests
