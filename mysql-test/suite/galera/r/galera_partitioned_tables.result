@@ -44,7 +44,7 @@ t1_v2	CREATE TABLE `t1_v2` (
   `v2` int(11) DEFAULT NULL,
   `v3` int(11) DEFAULT NULL,
   PRIMARY KEY (`v1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`v1`)
 PARTITIONS 2
 SHOW CREATE TABLE t2_v2;
@@ -54,15 +54,15 @@ t2_v2	CREATE TABLE `t2_v2` (
   `v2` int(11) DEFAULT NULL,
   `v3` int(11) DEFAULT NULL,
   PRIMARY KEY (`v1`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`v1`)
 PARTITIONS 2
 SHOW CREATE VIEW x1;
 View	Create View	character_set_client	collation_connection
-x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2`,`t1_v2`.`v3` AS `v3` from `t1_v2`	latin1	latin1_swedish_ci
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2`,`t1_v2`.`v3` AS `v3` from `t1_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
 SHOW CREATE VIEW x2;
 View	Create View	character_set_client	collation_connection
-x2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x2` AS select `t2_v2`.`v1` AS `v1`,`t2_v2`.`v2` AS `v2`,`t2_v2`.`v3` AS `v3` from `t2_v2`	latin1	latin1_swedish_ci
+x2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x2` AS select `t2_v2`.`v1` AS `v1`,`t2_v2`.`v2` AS `v2`,`t2_v2`.`v3` AS `v3` from `t2_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
 SELECT * FROM t1_v2;
 v1	v2	v3
 SELECT * FROM t2_v2;
@@ -138,7 +138,7 @@ t1_v2	CREATE TABLE `t1_v2` (
   `v1` int(11) NOT NULL,
   `v2` int(11) DEFAULT NULL,
   PRIMARY KEY (`v1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`v1`)
 PARTITIONS 2
 SHOW CREATE TABLE t2;
@@ -147,12 +147,12 @@ t2	CREATE TABLE `t2` (
   `v1` int(11) NOT NULL,
   `v2` int(11) DEFAULT NULL,
   PRIMARY KEY (`v1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`v1`)
 PARTITIONS 2
 SHOW CREATE VIEW x1;
 View	Create View	character_set_client	collation_connection
-x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2` from `t1_v2`	latin1	latin1_swedish_ci
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2` from `t1_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
 SELECT * FROM t1_v2;
 v1	v2
 SELECT * FROM t2;
