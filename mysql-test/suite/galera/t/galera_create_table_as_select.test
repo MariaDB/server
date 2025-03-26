@@ -106,7 +106,10 @@ DROP TABLE t1, t2;
 
 --connection node_1
 # Pause applying CTAS command from the other node
-SET GLOBAL DEBUG_DBUG = 'd,sync.wsrep_apply_cb';
+# This cases sync.wsrep_apply_cb_reached to be sent in Wsrep_applier_service::apply_write_set
+# and wait for signal.wsrep_apply_cb
+SET @save_debug_dbug=@@global.DEBUG_DBUG;
+SET GLOBAL DEBUG_DBUG = '+d,sync.wsrep_apply_cb';
 
 CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1),(2),(3),(4),(5);
@@ -124,7 +127,7 @@ CREATE TABLE t1 AS SELECT * FROM t2;
 --error ER_QUERY_INTERRUPTED
 --reap
 
-SET GLOBAL DEBUG_DBUG = '';
+SET GLOBAL DEBUG_DBUG = @save_debug_dbug;
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1, t2;
 
