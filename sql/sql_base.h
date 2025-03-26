@@ -709,4 +709,10 @@ private:
   int m_unhandled_errors;
   uint first_error;
 };
+
+bool setup_oracle_join(THD *thd, COND **conds,
+                       TABLE_LIST *tables,
+                       SQL_I_List<TABLE_LIST> &select_table_list,
+                       List<TABLE_LIST> *select_join_list);
+
 #endif /* SQL_BASE_INCLUDED */
