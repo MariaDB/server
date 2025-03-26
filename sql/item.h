@@ -99,6 +99,7 @@ struct ora_join_processor_param
 {
   TABLE_LIST *outer;
   List<TABLE_LIST> inner;
+  /* TRUE means Oracle join operator was used inside some OR clause */
   bool or_present;
 };
 
