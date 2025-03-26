@@ -150,15 +150,17 @@ struct recv_dblwr_t
                         const fil_space_t *space= nullptr,
                         byte *tmp_buf= nullptr) const noexcept;
 
-  /** Find the doublewrite copy of an encrypted page with the
-  smallest FIL_PAGE_LSN that is large enough for recovery.
+  /** Find the doublewrite copy of an encrypted/page_compressed
+  page with the smallest FIL_PAGE_LSN that is large enough for
+  recovery.
   @param space    tablespace object
   @param page_no  page number to find
-  @param buf      buffer for unencrypted page
+  @param buf      buffer for unencrypted/uncompressed page
   @return buf
   @retval nullptr if the page was not found in doublewrite buffer */
-  byte *find_encrypted_page(const fil_node_t &space, uint32_t page_no,
-                            byte *buf) noexcept;
+  ATTRIBUTE_COLD byte *find_deferred_page(const fil_node_t &space,
+                                          uint32_t page_no,
+                                          byte *buf) noexcept;
 
   /** Restore the first page of the given tablespace from
   doublewrite buffer.
