@@ -1292,8 +1292,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
       break;
   }
 
-  purge_sys.m_active= false;
-
 #ifdef UNIV_DEBUG
   thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
   for (ulint i= 0; thr && i < *n_work_items;
@@ -1342,6 +1340,8 @@ static void trx_purge_wait_for_workers_to_complete()
 TRANSACTIONAL_INLINE
 void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 {
+  m_active= false;
+
   /* Release the undo pages. */
   for (auto p : pages)
     p.second->unfix();

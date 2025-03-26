@@ -6603,8 +6603,9 @@ prepare_inplace_alter_table_dict(
 		mem_heap_alloc(ctx->heap, ctx->num_to_add_index
 			       * sizeof *ctx->add_key_numbers));
 
-	const bool fts_exist = ctx->new_table->flags2
+	const bool have_fts = user_table->flags2
 		& (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
+	const bool pause_purge = have_fts || user_table->get_ref_count() > 1;
 	/* Acquire a lock on the table before creating any indexes. */
 	bool table_lock_failed = false;
 
@@ -6631,12 +6632,17 @@ acquire_lock:
 		user_table->lock_shared_unlock();
 	}
 
-	if (fts_exist) {
-		purge_sys.stop_FTS(*ctx->new_table);
+	if (pause_purge) {
+		purge_sys.stop_FTS();
+		if (have_fts) {
+			purge_sys.stop_FTS(*user_table, true);
+		}
 		if (error == DB_SUCCESS) {
-			error = fts_lock_tables(ctx->trx, *ctx->new_table);
+			error = fts_lock_tables(ctx->trx, *user_table);
 		}
 	}
+
+	ut_ad(user_table->get_ref_count() == 1);
 
 	if (error == DB_SUCCESS) {
 		error = lock_sys_tables(ctx->trx);
@@ -7470,7 +7476,7 @@ error_handling_drop_uncached:
 		/* fts_create_common_tables() may drop old common tables,
 		whose files would be deleted here. */
 		commit_unlock_and_unlink(ctx->trx);
-		if (fts_exist) {
+		if (pause_purge) {
 			purge_sys.resume_FTS();
 		}
 
@@ -7566,7 +7572,7 @@ err_exit:
 		ctx->trx->free();
 	}
 	trx_commit_for_mysql(ctx->prebuilt->trx);
-	if (fts_exist) {
+	if (pause_purge) {
 		purge_sys.resume_FTS();
 	}
 

@@ -14023,6 +14023,7 @@ int ha_innobase::truncate()
 
   const bool fts= error == DB_SUCCESS &&
     ib_table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
+  const bool pause_purge= error == DB_SUCCESS && ib_table->get_ref_count() > 1;
 
   if (fts)
   {
@@ -14030,6 +14031,8 @@ int ha_innobase::truncate()
     purge_sys.stop_FTS(*ib_table);
     error= fts_lock_tables(trx, *ib_table);
   }
+  else if (pause_purge)
+    purge_sys.stop_FTS();
 
   /* Wait for purge threads to stop using the table. */
   for (uint n = 15; ib_table->get_ref_count() > 1; )
