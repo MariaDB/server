@@ -377,7 +377,7 @@ void buf_dblwr_t::recover() noexcept
                                                     srv_page_size));
   byte *const buf= read_buf + srv_page_size;
 
-  std::deque<byte*> encrypted_pages;
+  std::deque<byte*> deferred_pages;
   for (recv_dblwr_t::list::iterator i= recv_sys.dblwr.pages.begin();
        i != recv_sys.dblwr.pages.end(); ++i, ++page_no_dblwr)
   {
@@ -396,11 +396,12 @@ void buf_dblwr_t::recover() noexcept
     {
       /* These pages does not appear to belong to any tablespace.
       There is a possibility that this page could be
-      encrypted using full_crc32 format. If innodb encounters
-      any corrupted encrypted page during recovery then
-      InnoDB should use this page to find the valid page.
-      See find_encrypted_page() */
-      encrypted_pages.push_back(*i);
+      encrypted/compressed using full_crc32 format.
+      If innodb encounters any corrupted encrypted/compressed
+      page during recovery then InnoDB should use this page to
+      find the valid page.
+      See find_encrypted_page()/find_page_compressed() */
+      deferred_pages.push_back(*i);
       continue;
     }
 
@@ -481,7 +482,7 @@ next_page:
   }
 
   recv_sys.dblwr.pages.clear();
-  for (byte *page : encrypted_pages)
+  for (byte *page : deferred_pages)
     recv_sys.dblwr.pages.push_back(page);
   fil_flush_file_spaces();
   aligned_free(read_buf);
