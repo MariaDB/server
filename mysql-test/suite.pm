@@ -65,8 +65,8 @@ sub skip_combinations {
   $skip{'include/have_ssl_communication.inc'} =
   $skip{'include/have_ssl_crypto_functs.inc'} = 'Requires SSL' unless $ssl_lib;
 
-  $skip{'main/openssl_6975.test'} = 'no or wrong openssl version'
-    unless $openssl_ver ge "1.0.1d" and $openssl_ver lt "1.1.1";
+  $skip{'main/openssl.test'} = 'openssl version greater than or equal to 1.0.1d required'
+    unless $openssl_ver ge "1.0.1d";
 
   $skip{'main/ssl_7937.combinations'} = [ 'x509v3' ]
     unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "1.0.2";

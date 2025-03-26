@@ -1,15 +1,13 @@
+# This is OpenSSL test.
 #
-# MDEV-6975 Implement TLS protocol
-#
-# test SSLv3 and TLSv1.2 ciphers when OpenSSL is restricted to SSLv3 or TLSv1.2
+# Test SSLv3 and TLSv1.2 ciphers when OpenSSL is restricted to SSLv3 or TLSv1.2
+# 
+# Related: MDEV-6975 Implement TLS protocol
 #
 source include/have_ssl_communication.inc;
 source include/require_openssl_client.inc;
 
-# this is OpenSSL test.
-
 create user ssl_sslv3@localhost;
-# grant select on test.* to ssl_sslv3@localhost require cipher "AES128-SHA";
 grant select on test.* to ssl_sslv3@localhost require cipher "AES128-SHA";
 create user ssl_tls12@localhost;
 grant select on test.* to ssl_tls12@localhost require cipher "AES128-SHA256";
@@ -18,24 +16,36 @@ let $mysql=$MYSQL --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$
 
 disable_abort_on_error;
 echo TLS1.2 ciphers: user is ok with any cipher;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --tls-version=TLSv1.2 --ssl-cipher=AES128-SHA256;
 --replace_result DHE-RSA-CHACHA20-POLY1305 DHE-RSA-AES256-GCM-SHA384 ECDHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-GCM-SHA384
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --tls-version=TLSv1.2 --ssl-cipher=TLSv1.2;
 echo TLS1.2 ciphers: user requires SSLv3 cipher AES128-SHA;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --user ssl_sslv3 --tls-version=TLSv1.2 --ssl-cipher=AES128-SHA256;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --user ssl_sslv3 --tls-version=TLSv1.2 --ssl-cipher=TLSv1.2;
 echo TLS1.2 ciphers: user requires TLSv1.2 cipher AES128-SHA256;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --user ssl_tls12 --tls-version=TLSv1.2 --ssl-cipher=AES128-SHA256;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --user ssl_tls12 --tls-version=TLSv1.2 --ssl-cipher=TLSv1.2;
 
 echo SSLv3 ciphers: user is ok with any cipher;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=AES256-SHA;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=SSLv3;
 echo SSLv3 ciphers: user requires SSLv3 cipher AES128-SHA;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --user ssl_sslv3 --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=AES128-SHA;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --user ssl_sslv3 --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=SSLv3;
 echo SSLv3 ciphers: user requires TLSv1.2 cipher AES128-SHA256;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --user ssl_tls12 --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=AES128-SHA;
+--replace_result "sslv3 alert" "ssl/tls alert"
 exec $mysql --user ssl_tls12 --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=SSLv3;
 
 drop user ssl_sslv3@localhost;
