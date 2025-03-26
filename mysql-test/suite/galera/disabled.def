@@ -10,7 +10,6 @@
 #
 ##############################################################################
 
-galera_sequences : MDEV-35934/MDEV-33850 For Galera, create sequence with low cache got signal 6 error: [ERROR] WSREP: FSM: no such a transition REPLICATING -> COMMITTED
 galera_wan : MDEV-35940 Unallowed state transition: donor -> synced in galera_wan
 galera_vote_rejoin_ddl : MDEV-35940 Unallowed state transition: donor -> synced in galera_wan
 MW-329 : MDEV-35951 Complete freeze during MW-329 test
