@@ -41,7 +41,7 @@ INSERT INTO t1 VALUES ('1'),('௨');
 INSERT INTO t2 VALUES ('\\p{Cyrillic}'),('\\p{Greek}'),('\\p{Latin}');
 INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
-INSERT INTO t2 VALUES ('\\p{L}'),('\\p{Ll}'),('\\p{Lu}'),('\\p{L&}');
+INSERT INTO t2 VALUES ('\\p{L}'), /* buggy before v10.45 ('\\p{Ll}'),('\\p{Lu}'),*/ ('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
 SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
 DROP TABLE t1, t2;

@@ -54,8 +54,8 @@ MACRO(BUNDLE_PCRE2)
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.44/pcre2-10.44.zip"
-    URL_MD5 dfab8313154b3377a6959c3b6377841e
+    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.45/pcre2-10.45.zip"
+    URL_MD5 873da56c6469ec207ca5c5ae9688b83a
     INSTALL_COMMAND ""
     CMAKE_ARGS
       "-DCMAKE_WARN_DEPRECATED=FALSE"
