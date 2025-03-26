@@ -1,0 +1,23 @@
+START slave until MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=4, MASTER_USE_GTID=NO, MASTER_DEMOTE_TO_SLAVE=1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MASTER_USE_GTID=NO, MASTER_DEMOTE_TO_SLAVE=1' at line 1
+START slave until RELAY_LOG_FILE='master-bin.000001', RELAY_LOG_POS=4, MASTER_USE_GTID=NO, MASTER_DEMOTE_TO_SLAVE=1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MASTER_USE_GTID=NO, MASTER_DEMOTE_TO_SLAVE=1' at line 1
+START slave until MASTER_LOG_FILE='master-bin.000001', RELAY_LOG_POS=4;
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+START slave until RELAY_LOG_FILE='master-bin.000001', MASTER_LOG_POS=4;
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+START slave until MASTER_LOG_FILE='master-bin.000001';
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+START slave until RELAY_LOG_FILE='master-bin.000001';
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+START slave until RELAY_LOG_POS=4;
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+START slave until MASTER_LOG_POS=4;
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+START slave until MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=4;
+ERROR HY000: Misconfigured slave: MASTER_HOST was not set; Fix in config file or with CHANGE MASTER TO
+START slave until RELAY_LOG_FILE='master-bin.000001', RELAY_LOG_POS=4;
+ERROR HY000: Misconfigured slave: MASTER_HOST was not set; Fix in config file or with CHANGE MASTER TO
+START slave UNTIL MASTER_GTID_POS = '0-1-1';
+ERROR HY000: Misconfigured slave: MASTER_HOST was not set; Fix in config file or with CHANGE MASTER TO
+==== End of test ====
