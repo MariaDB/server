@@ -1453,3 +1453,11 @@ SELECT ST_LatFromGeohash(col1) FROM t1;
 SELECT ST_LongFromGeohash(col1) FROM t1;
 SELECT ST_AsText(ST_PointFromGeohash(col1, 4326)) FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-36168 ASAN global-buffer-overflow in Item_func_latlongfromgeohash::decode_geohash
+--echo #
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT ST_LatFromGeoHash("ї");
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT ST_LongFromGeoHash("ї");

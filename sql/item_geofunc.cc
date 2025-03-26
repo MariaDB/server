@@ -3027,6 +3027,15 @@ const uint8_t Item_func_latlongfromgeohash::geohash_alphabet[256] = {
 };
 
 
+bool Item_func_latlongfromgeohash::convert_character(char in, int &out)
+{
+  if (in < 0)
+    return true;
+  out= Item_func_latlongfromgeohash::geohash_alphabet[(int) in];
+  return false;
+}
+
+
 /**
   Decodes a geohash string into longitude and latitude.
   The results are rounded,  based on the length of input geohash. The function
@@ -3053,10 +3062,9 @@ bool Item_func_latlongfromgeohash::decode_geohash(
 
   for (uint i = 0; i < input_length; i++)
   {
-    int converted_character =
-      Item_func_latlongfromgeohash::geohash_alphabet[(int) (*geohash)[i]];
-
-    if (converted_character == 255) {
+    int converted_character= -1;
+    if (convert_character((*geohash)[i], converted_character) ||
+        converted_character == 255) {
       return true;
     }
 

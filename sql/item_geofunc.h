@@ -1317,12 +1317,13 @@ public:
 
 class Item_func_latlongfromgeohash : public Item_real_func
 {
- private:
+private:
   String buf;
   static const uint8_t geohash_alphabet[256];
   const bool decode_longitude;
+  static bool convert_character(char in, int &out);
 
- public:
+public:
   Item_func_latlongfromgeohash(THD *thd, Item *a, bool start_on_even_bit_arg)
       : Item_real_func(thd, a),
         decode_longitude(start_on_even_bit_arg) {}

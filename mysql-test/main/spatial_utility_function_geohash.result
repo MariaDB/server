@@ -1654,3 +1654,10 @@ SELECT ST_AsText(ST_PointFromGeohash(col1, 4326)) FROM t1;
 ST_AsText(ST_PointFromGeohash(col1, 4326))
 POINT(-145 49.3)
 DROP TABLE t1;
+#
+# MDEV-36168 ASAN global-buffer-overflow in Item_func_latlongfromgeohash::decode_geohash
+#
+SELECT ST_LatFromGeoHash("ї");
+ERROR HY000: Incorrect geohash value: '\0457' for function st_latfromgeohash
+SELECT ST_LongFromGeoHash("ї");
+ERROR HY000: Incorrect geohash value: '\0457' for function st_longfromgeohash
