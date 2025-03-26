@@ -44,6 +44,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "buf0buf.h"
+#include "buf0flu.h"
 #include "data0type.h"
 #include "dict0boot.h"
 #include "dict0load.h"
@@ -1024,7 +1025,10 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexc
   const ulong threshold= srv_fatal_semaphore_wait_threshold;
 
   if (waited >= threshold)
+  {
+    buf_pool.print_flush_info();
     ib::fatal() << fatal_msg;
+  }
 
   if (waited > threshold / 4)
     ib::warn() << "A long wait (" << waited
