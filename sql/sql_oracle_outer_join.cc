@@ -71,19 +71,22 @@ ora_join_process_expression(THD *thd, Item *cond,
 {
   DBUG_ENTER("ora_join_process_expression");
 
-  // collect info about relations and report error if there are some
+  // Collect info about relations and report error if there are some
   struct ora_join_processor_param param;
-  param.outer= NULL; param.inner.empty(); param.or_present= FALSE;
+  param.outer= NULL;
+  param.inner.empty();
+  param.or_present= FALSE;
+
   if (cond->walk(&Item::ora_join_processor, (void *)(&param), WALK_NO_REF))
     DBUG_RETURN(TRUE);
 
   /*
-    thre fould be at least one table for outer part (inner can be absent in
-    case of constants
+    There should be at least one table for outer part (inner can be absent in
+    case of constants)
   */
   DBUG_ASSERT(param.outer != NULL);
-  table_pos *outer_tab= tab +
-    param.outer->ora_join_table_no;
+  table_pos *outer_tab= tab + param.outer->ora_join_table_no;
+
   if (param.inner.elements > 0)
   {
     if (param.or_present)
@@ -126,16 +129,16 @@ ora_join_process_expression(THD *thd, Item *cond,
 
 static void process_tab(table_pos *t, table_pos *end, uint &processed)
 {
-    DBUG_ASSERT(t->next == NULL);
-    DBUG_ASSERT(t->prev == NULL);
-    if (end)
-    {
-      t->next= end->next;
-      end->next= t;
-      t->prev= end;
-    }
-    t->processed= TRUE;
-    processed++;
+  DBUG_ASSERT(t->next == NULL);
+  DBUG_ASSERT(t->prev == NULL);
+  if (end)
+  {
+    t->next= end->next;
+    end->next= t;
+    t->prev= end;
+  }
+  t->processed= TRUE;
+  processed++;
 }
 
 
@@ -156,7 +159,8 @@ static bool process_inner_relations(THD* thd,
   of check in "beggining")  in case we have non-directional cycle
 */
 
-static bool check_directed_cycle(THD* thd, table_pos *tab, table_pos* beginning, uint lvl, uint max)
+static bool check_directed_cycle(THD* thd, table_pos *tab,
+                                 table_pos* beginning, uint lvl, uint max)
 {
   List_iterator_fast<table_pos> it(tab->outer_side);
   table_pos *t;
@@ -172,12 +176,12 @@ static bool check_directed_cycle(THD* thd, table_pos *tab, table_pos* beginning,
       TODO: try to make such test
     */
     return FALSE;
-  while((t= it++))
+  while ((t= it++))
   {
     if (t == beginning)
       return true;
     if (check_directed_cycle(thd, t, beginning, lvl, max))
-return TRUE;
+      return TRUE;
   }
   return FALSE;
 }
@@ -202,7 +206,7 @@ static bool process_outer_relations(THD* thd,
       if (t->processed)
       {
         /*
-          it is case of "non-cyclyc" loop (or just processed alreay
+          it is case of "non-cyclic" loop (or just processed alreay
           branch)
            for example:
 
@@ -237,7 +241,7 @@ static bool process_outer_relations(THD* thd,
       }
     }
     it.rewind();
-    while((t= it++))
+    while ((t= it++))
     {
       if (!t->inner_processed)
       {
@@ -373,7 +377,7 @@ static bool put_after(THD *thd,
 
 
 #ifndef DBUG_OFF
-static void dbug_ptint_tab_pos(table_pos *t)
+static void dbug_print_tab_pos(table_pos *t)
 {
   DBUG_PRINT("XXXX", ("Table: %s", t->table->alias.str));
   List_iterator_fast iti(t->on_conds);
@@ -401,7 +405,7 @@ static void dbug_ptint_tab_pos(table_pos *t)
 }
 
 
-static void dbug_ptint_table_name(const char *prefix,
+static void dbug_print_table_name(const char *prefix,
                                   const char *legend, TABLE_LIST *t)
 {
   if (t)
@@ -414,10 +418,10 @@ static void dbug_ptint_table_name(const char *prefix,
     DBUG_PRINT(prefix, ("%s Table: NULL", legend));
 }
 
-static void dbug_ptint_table(TABLE_LIST *t)
+static void dbug_print_table(TABLE_LIST *t)
 {
-  dbug_ptint_table_name("XXX", "---", t);
-  dbug_ptint_table_name("INFO", "Embedding", t->embedding);
+  dbug_print_table_name("XXX", "---", t);
+  dbug_print_table_name("INFO", "Embedding", t->embedding);
   if (t->join_list)
   {
     DBUG_PRINT("INFO", ("Join list: %p elements %d",
@@ -426,7 +430,7 @@ static void dbug_ptint_table(TABLE_LIST *t)
     TABLE_LIST *tbl;
     while ((tbl= it++))
     {
-      dbug_ptint_table_name("INFO", "join_list", tbl);
+      dbug_print_table_name("INFO", "join_list", tbl);
     }
   }
   else
@@ -436,7 +440,14 @@ static void dbug_ptint_table(TABLE_LIST *t)
 
 
 /**
-  Process Oracle outer join (+) in WHERE
+  @brief
+    Process Oracle outer join (+) in WHERE
+
+  @param conds  INOUT  The WHERE condition
+
+  @return
+    TRUE   Error
+    FALSE  Ok, conversion is either done or not needed.
 */
 bool setup_oracle_join(THD *thd, COND **conds,
                        TABLE_LIST *tables,
@@ -453,8 +464,8 @@ bool setup_oracle_join(THD *thd, COND **conds,
   table_pos *t= tab;
   TABLE_LIST *table= tables;
   uint i= 0;
-  // setup origonal order
-  for(;table; i++, t++, table= table->next_local)
+  // Setup the original order
+  for (;table; i++, t++, table= table->next_local)
   {
     DBUG_ASSERT(i < n_tables);
     if (table->outer_join || table->nested_join || table->natural_join ||
@@ -502,7 +513,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
 
   List<Item> return_to_where;
   return_to_where.empty();
-  // sort relations if needed and check sainles
+  // Sort relations if needed and check sainles
   for (i= 0; i < n_tables; i++)
   {
     if (tab[i].on_conds.elements > 0 &&
@@ -546,8 +557,8 @@ bool setup_oracle_join(THD *thd, COND **conds,
        bubble_sort<table_pos>(&tab[i].outer_side,
                               table_pos_sort, NULL);
 #ifndef DBUG_OFF
-    dbug_ptint_tab_pos(tab + i);
-    dbug_ptint_table(tab[i].table);
+    dbug_print_tab_pos(tab + i);
+    dbug_print_table(tab[i].table);
 #endif
   }
   // order tables
@@ -557,7 +568,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
   i= 0;
   do
   {
-    //find first independent
+    // Find the first independent
     for(;
         i < n_tables && (tab[i].processed || tab[i].inner_side.elements != 0);
         i++);
@@ -575,7 +586,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
     }
     process_tab(tab + i, end, processed);
     process_outer_relations(thd, tab + i, processed, n_tables);
-  }while (i < n_tables);
+  } while (i < n_tables);
 
   if (processed < n_tables)
   {
@@ -597,7 +608,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
 #ifndef DBUG_OFF
   for(table_pos *t= list; t != NULL; t= t->next)
   {
-    dbug_ptint_tab_pos(t);
+    dbug_print_tab_pos(t);
   }
 #endif
 
@@ -661,7 +672,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
       TABLE_LIST *next_embedding= ((i < n_tables - 2) ?
                                     nest_table_lists + (i+1) :
                                     NULL);
-      // jpoin type
+      // join type
       DBUG_ASSERT(curr->table->outer_join == 0);
       DBUG_ASSERT(curr->table->on_expr == 0);
       if (curr->inner_side.elements)
@@ -783,7 +794,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
 #ifndef DBUG_OFF
   for (TABLE_LIST *t= new_from; t; t= t->next_local)
   {
-    dbug_ptint_table(t);
+    dbug_print_table(t);
   }
 #endif
 
@@ -801,7 +812,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
       (*conds)= (Item *)and_item->argument_list()->head();
     }
   }
-  if ((*conds)) // remove flags becaouse we converted them
+  if ((*conds)) // remove flags because we converted them
     (*conds)->walk(&Item::remove_ora_join_processor, 0, 0);
   DBUG_RETURN(FALSE);
 }

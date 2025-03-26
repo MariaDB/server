@@ -3707,7 +3707,7 @@ public:
   {
     if (with_ora_join())
     {
-      // oracle join used in OR
+      // Oracle join operator is used in this OR clause.
       ((ora_join_processor_param *) arg)->or_present= true;
     }
     return (FALSE);
