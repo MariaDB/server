@@ -3186,21 +3186,23 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     if (full)
       protocol->store(mi->connection_name.str, mi->connection_name.length,
                       &my_charset_bin);
+
     mysql_mutex_lock(&mi->run_lock);
+    THD *sql_thd= mi->rli.sql_driver_thd;
+    const char *slave_sql_running_state=
+      sql_thd ? sql_thd->get_proc_info() : "";
+    THD *io_thd= mi->io_thd;
+    const char *slave_io_running_state= io_thd ? io_thd->get_proc_info() : "";
+    mysql_mutex_unlock(&mi->run_lock);
+
     if (full)
-    {
       /*
         Show what the sql driver replication thread is doing
         This is only meaningful if there is only one slave thread.
       */
-      msg= (mi->rli.sql_driver_thd ?
-            mi->rli.sql_driver_thd->get_proc_info() : "");
-      protocol->store_string_or_null(msg, &my_charset_bin);
-    }
-    msg= mi->io_thd ? mi->io_thd->get_proc_info() : "";
-    protocol->store_string_or_null(msg, &my_charset_bin);
+      protocol->store_string_or_null(slave_sql_running_state, &my_charset_bin);
 
-    mysql_mutex_unlock(&mi->run_lock);
+    protocol->store_string_or_null(slave_io_running_state, &my_charset_bin);
 
     mysql_mutex_lock(&mi->data_lock);
     mysql_mutex_lock(&mi->rli.data_lock);
@@ -3374,10 +3376,6 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
     protocol->store((uint32) mi->rli.get_sql_delay());
     // SQL_Remaining_Delay
-    // THD::proc_info is not protected by any lock, so we read it once
-    // to ensure that we use the same value throughout this function.
-    const char *slave_sql_running_state=
-      mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
     if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
     {
       time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();

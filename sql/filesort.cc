@@ -673,7 +673,7 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
     move_back_guard.engage();
   }
 
-  SCOPE_VALUE(table->read_set, (table->read_set && table->write_set) ?
+  SCOPE_VALUE(table->read_set, (table->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE) ?
                                 table->write_set : table->read_set);
 
   output.length(0);

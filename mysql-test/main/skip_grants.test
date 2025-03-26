@@ -168,3 +168,14 @@ drop user baz@baz;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-34501: SIGSEGV in pfs_start_mutex_wait_v1, __strlen_avx2, or __strlen_evex from safe_mutex_lock on CREATE DEFINER when using skip-grant-tables
+--echo #
+CREATE DEFINER=a PROCEDURE p() SELECT 1;
+CREATE DEFINER=a FUNCTION f() RETURNS INT RETURN 100;
+
+DROP PROCEDURE p;
+DROP FUNCTION f;
+
+--echo # End of 10.5 tests

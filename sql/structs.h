@@ -235,7 +235,7 @@ struct AUTHID
   LEX_CSTRING user, host;
   void init() { memset(this, 0, sizeof(*this)); }
   void copy(MEM_ROOT *root, const LEX_CSTRING *usr, const LEX_CSTRING *host);
-  bool is_role() const { return user.str[0] && !host.str[0]; }
+  bool is_role() const { return user.str[0] && (!host.str || !host.str[0]); }
   void set_lex_string(LEX_CSTRING *l, char *buf)
   {
     if (is_role())
