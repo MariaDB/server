@@ -331,4 +331,17 @@ insert into t values (1,0x30303030);
 insert into t values (1,0x31313131);
 drop table t;
 
+--echo #
+--echo # MDEV-36177 InnoDB: Failing assertion: prebuilt->select_lock_type != LOCK_NONE || srv_read_only_mode || trx->read_view.is_open()
+--echo #
+--disable_service_connection
+create table t (id int key,v vector (1) not null,vector index (v)) engine=innodb;
+flush tables t for export;
+select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
+select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
+unlock tables;
+drop table t;
+--enable_service_connection
+
+
 --echo # End of 11.8 tests
