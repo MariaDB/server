@@ -44,8 +44,8 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <string.h>
 #include <mysql.h>
 #include <my_dir.h>
-#include <ut0mem.h>
 #include <os0file.h>
+#include "buf0buf.h"
 #include <srv0start.h>
 #include <algorithm>
 #include <mysqld.h>
@@ -594,8 +594,9 @@ static struct my_option ibx_long_options[] =
 	 "--apply-log.",
 	 (uchar*) &ibx_xtrabackup_use_memory,
 	 (uchar*) &ibx_xtrabackup_use_memory,
-	 0, GET_LL, REQUIRED_ARG, 100*1024*1024L, 1024*1024L, LONGLONG_MAX, 0,
-	 1024*1024L, 0},
+	 0, GET_LL, REQUIRED_ARG, 96 << 20,
+	 innodb_buffer_pool_extent_size, SIZE_T_MAX, 0,
+	 innodb_buffer_pool_extent_size, 0},
 
 	{"innodb-force-recovery", OPT_INNODB_FORCE_RECOVERY,
 	 "This option starts up the embedded InnoDB instance in crash "

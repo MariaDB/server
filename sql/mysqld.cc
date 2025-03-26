@@ -420,7 +420,9 @@ my_bool opt_require_secure_transport= 0;
 char* opt_secure_file_priv;
 my_bool lower_case_file_system= 0;
 my_bool opt_large_pages= 0;
+#ifdef HAVE_SOLARIS_LARGE_PAGES
 my_bool opt_super_large_pages= 0;
+#endif
 my_bool opt_myisam_use_mmap= 0;
 uint   opt_large_page_size= 0;
 #if defined(ENABLED_DEBUG_SYNC)
@@ -4118,7 +4120,7 @@ static int init_common_variables()
   if (opt_large_pages)
   {
     DBUG_PRINT("info", ("Large page set"));
-    if (my_init_large_pages(opt_super_large_pages))
+    if (my_init_large_pages())
     {
       return 1;
     }
@@ -7872,7 +7874,9 @@ static int mysql_init_variables(void)
   bzero((char*) &global_status_var, offsetof(STATUS_VAR,
                                              last_cleared_system_status_var));
   opt_large_pages= 0;
+#ifdef HAVE_SOLARIS_LARGE_PAGES
   opt_super_large_pages= 0;
+#endif
 #if defined(ENABLED_DEBUG_SYNC)
   opt_debug_sync_timeout= 0;
 #endif /* defined(ENABLED_DEBUG_SYNC) */

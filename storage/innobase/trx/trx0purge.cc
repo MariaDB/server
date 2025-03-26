@@ -1237,9 +1237,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
     static_cast<MDL_context*>(thd_mdl_context(thd));
   ut_ad(mdl_context);
 
-  const size_t max_pages=
-    std::min(buf_pool.curr_size * 3 / 4, size_t{srv_purge_batch_size});
-
   while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown)
   {
     /* Track the max {trx_id, undo_no} for truncating the
@@ -1289,7 +1286,9 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
       ut_ad(!table_node->in_progress);
     }
 
-    if (purge_sys.n_pages_handled() >= max_pages)
+    const size_t size{purge_sys.n_pages_handled()};
+    if (size >= size_t{srv_purge_batch_size} ||
+        size >= buf_pool.usable_size() * 3 / 4)
       break;
   }
 

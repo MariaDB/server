@@ -282,6 +282,7 @@ STRING(APPEND CMAKE_CXX_STANDARD_LIBRARIES " ws2_32.lib synchronization.lib")
 
 # System checks
 SET(SIGNAL_WITH_VIO_CLOSE 1) # Something that runtime team needs
+SET(HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT 1)
 
 # IPv6 constants appeared in Vista SDK first. We need to define them in any case if they are 
 # not in headers, to handle dual mode sockets correctly.

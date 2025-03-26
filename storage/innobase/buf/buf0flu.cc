@@ -281,6 +281,8 @@ void buf_page_t::write_complete(bool persistent, bool error, uint32_t state)
 {
   ut_ad(!persistent == fsp_is_system_temporary(id().space()));
   ut_ad(state >= WRITE_FIX);
+  ut_ad(!frame ||
+        frame == reinterpret_cast<buf_block_t*>(this)->frame_address());
 
   if (UNIV_LIKELY(!error))
   {
@@ -795,6 +797,7 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
   size_t orig_size;
 #endif
   buf_tmp_buffer_t *slot= nullptr;
+  byte *page= frame;
 
   if (UNIV_UNLIKELY(!frame)) /* ROW_FORMAT=COMPRESSED */
   {
@@ -810,7 +813,6 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
   }
   else
   {
-    byte *page= frame;
     size= block->physical_size();
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
     orig_size= size;
@@ -891,7 +893,7 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
          : space.physical_size() == 1024 ? 3 : 0));
   /* When flushed, dirty blocks are searched in neighborhoods of this
   size, and flushed along with the original page. */
-  const ulint s= buf_pool.curr_size / 16;
+  const ulint s= buf_pool.curr_size() / 16;
   const uint32_t read_ahead= buf_pool.read_ahead_area;
   const uint32_t buf_flush_area= read_ahead > s
     ? static_cast<uint32_t>(s) : read_ahead;
@@ -1211,16 +1213,15 @@ static void buf_flush_discard_page(buf_page_t *bpage) noexcept
 
 /** Flush dirty blocks from the end buf_pool.LRU,
 and move clean blocks to buf_pool.free.
-@param max    maximum number of blocks to flush
-@param n      counts of flushed and evicted pages */
-static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n) noexcept
+@param max         maximum number of blocks to flush
+@param n           counts of flushed and evicted pages
+@param to_withdraw buf_pool.to_withdraw() */
+static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
+                                     size_t to_withdraw) noexcept
 {
-  ulint scanned= 0;
+  size_t scanned= 0;
   mysql_mutex_assert_owner(&buf_pool.mutex);
-  ulint free_limit{buf_pool.LRU_scan_depth};
-  if (buf_pool.withdraw_target && buf_pool.is_shrinking())
-    free_limit+= buf_pool.withdraw_target - UT_LIST_GET_LEN(buf_pool.withdraw);
-
+  size_t free_limit{buf_pool.LRU_scan_depth + to_withdraw};
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
     ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
@@ -1237,8 +1238,8 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n) noexcept
   pages. To avoid such hang, we adjust the LRU limit lower than the limit for
   data objects as checked in buf_LRU_check_size_of_non_data_objects() i.e. one
   page less than 5% of BP. */
-  size_t pool_limit= buf_pool.curr_size / 20 - 1;
-  auto buf_lru_min_len= std::min<size_t>(pool_limit, BUF_LRU_MIN_LEN);
+  const size_t buf_lru_min_len=
+    std::min((buf_pool.usable_size()) / 20 - 1, size_t{BUF_LRU_MIN_LEN});
 
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
        bpage &&
@@ -1372,11 +1373,12 @@ Whether LRU or unzip_LRU is used depends on the state of the system.
 @param n      counts of flushed and evicted pages */
 static void buf_do_LRU_batch(ulint max, flush_counters_t *n) noexcept
 {
-  if (buf_LRU_evict_from_unzip_LRU())
+  const size_t to_withdraw= buf_pool.to_withdraw();
+  if (!to_withdraw && buf_LRU_evict_from_unzip_LRU())
     buf_free_from_unzip_LRU_list_batch();
   n->evicted= 0;
   n->flushed= 0;
-  buf_flush_LRU_list_batch(max, n);
+  buf_flush_LRU_list_batch(max, n, to_withdraw);
 
   mysql_mutex_assert_owner(&buf_pool.mutex);
   buf_lru_freed_page_count+= n->evicted;
@@ -2423,6 +2425,13 @@ func_exit:
 }
 
 TPOOL_SUPPRESS_TSAN
+bool buf_pool_t::running_out() const noexcept
+{
+  return !recv_recovery_is_on() &&
+    UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) < n_blocks / 4;
+}
+
+TPOOL_SUPPRESS_TSAN
 bool buf_pool_t::need_LRU_eviction() const noexcept
 {
   /* try_LRU_scan==false means that buf_LRU_get_free_block() is waiting
@@ -2481,7 +2490,7 @@ static void buf_flush_page_cleaner() noexcept
           (!UT_LIST_GET_LEN(buf_pool.flush_list) ||
            srv_max_dirty_pages_pct_lwm == 0.0))
       {
-        buf_pool.LRU_warned.clear(std::memory_order_release);
+        buf_pool.LRU_warned_clear();
         /* We are idle; wait for buf_pool.page_cleaner_wakeup() */
         my_cond_wait(&buf_pool.do_flush_list,
                      &buf_pool.flush_list_mutex.m_mutex);
@@ -2556,6 +2565,7 @@ static void buf_flush_page_cleaner() noexcept
       buf_pool.n_flush_inc();
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       n= srv_max_io_capacity;
+      os_aio_wait_until_no_pending_writes(false);
       mysql_mutex_lock(&buf_pool.mutex);
     LRU_flush:
       n= buf_flush_LRU(n);
@@ -2659,7 +2669,10 @@ static void buf_flush_page_cleaner() noexcept
              !buf_pool.need_LRU_eviction())
       goto check_oldest_and_set_idle;
     else
+    {
       mysql_mutex_lock(&buf_pool.mutex);
+      os_aio_wait_until_no_pending_writes(false);
+    }
 
     n= srv_max_io_capacity;
     n= n >= n_flushed ? n - n_flushed : 0;
@@ -2700,11 +2713,14 @@ ATTRIBUTE_COLD void buf_pool_t::LRU_warn() noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   try_LRU_scan= false;
-  if (!LRU_warned.test_and_set(std::memory_order_acquire))
+  if (!LRU_warned)
+  {
+    LRU_warned= true;
     sql_print_warning("InnoDB: Could not free any blocks in the buffer pool!"
                       " %zu blocks are in use and %zu free."
                       " Consider increasing innodb_buffer_pool_size.",
                       UT_LIST_GET_LEN(LRU), UT_LIST_GET_LEN(free));
+  }
 }
 
 /** Initialize page_cleaner. */
