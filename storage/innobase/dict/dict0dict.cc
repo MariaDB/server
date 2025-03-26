@@ -694,35 +694,37 @@ dict_acquire_mdl_shared(dict_table_t *table,
                         MDL_context *mdl_context, MDL_ticket **mdl,
                         dict_table_op_t table_op)
 {
-  table_id_t table_id= table->id;
   char db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
   size_t db_len, tbl_len;
-  bool unaccessible= false;
 
   if (!table->parse_name<!trylock>(db_buf, tbl_buf, &db_len, &tbl_len))
     /* The name of an intermediate table starts with #sql */
     return table;
 
 retry:
-  if (!unaccessible && (!table->is_readable() || table->corrupted))
+  ut_ad(!trylock == dict_sys.frozen());
+  ut_ad(trylock || table->get_ref_count());
+
+  if (!table->is_readable() || table->corrupted)
   {
+    if (!trylock)
+      table->release();
     if (*mdl)
     {
       mdl_context->release_lock(*mdl);
       *mdl= nullptr;
     }
-    unaccessible= true;
+    return nullptr;
   }
 
+  const table_id_t table_id{table->id};
+
   if (!trylock)
+  {
     table->release();
-
-  if (unaccessible)
-    return nullptr;
-
-  if (!trylock)
     dict_sys.unfreeze();
+  }
 
   {
     MDL_request request;
@@ -748,11 +750,37 @@ retry:
     }
   }
 
+  size_t db1_len, tbl1_len;
+lookup:
   dict_sys.freeze(SRW_LOCK_CALL);
   table= dict_sys.find_table(table_id);
   if (table)
+  {
+    if (!table->is_accessible())
+    {
+      table= nullptr;
+    unlock_and_return_without_mdl:
+      if (trylock)
+        dict_sys.unfreeze();
+    return_without_mdl:
+      if (*mdl)
+      {
+        mdl_context->release_lock(*mdl);
+        *mdl= nullptr;
+      }
+      return table;
+    }
+
     table->acquire();
-  if (!table && table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
+
+    if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
+    {
+      /* The table was renamed to #sql prefix.
+      Release MDL (if any) for the old name and return. */
+      goto unlock_and_return_without_mdl;
+    }
+  }
+  else if (table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
   {
     dict_sys.unfreeze();
     dict_sys.lock(SRW_LOCK_CALL);
@@ -760,31 +788,15 @@ retry:
                                  table_op == DICT_TABLE_OP_LOAD_TABLESPACE
                                  ? DICT_ERR_IGNORE_RECOVER_LOCK
                                  : DICT_ERR_IGNORE_FK_NOKEY);
-    if (table)
-      table->acquire();
     dict_sys.unlock();
-    dict_sys.freeze(SRW_LOCK_CALL);
-  }
-
-  if (!table || !table->is_accessible())
-  {
-return_without_mdl:
-    if (trylock)
-      dict_sys.unfreeze();
-    if (*mdl)
-    {
-      mdl_context->release_lock(*mdl);
-      *mdl= nullptr;
-    }
-    return nullptr;
-  }
-
-  size_t db1_len, tbl1_len;
-
-  if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
-  {
-    /* The table was renamed to #sql prefix.
-    Release MDL (if any) for the old name and return. */
+    /* At this point, the freshly loaded table may already have been evicted.
+    We must look it up again while holding a shared dict_sys.latch.  We keep
+    trying this until the table is found in the cache or it cannot be found
+    in the dictionary (because the table has been dropped or rebuilt). */
+    if (table)
+      goto lookup;
+    if (!trylock)
+      dict_sys.freeze(SRW_LOCK_CALL);
     goto return_without_mdl;
   }
 
