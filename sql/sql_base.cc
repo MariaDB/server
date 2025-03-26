@@ -5431,6 +5431,7 @@ static bool check_lock_and_start_stmt(THD *thd,
     table_list->table->file->print_error(error, MYF(0));
     DBUG_RETURN(1);
   }
+  table_list->table->unlock_hlindexes();
 
   /*
     Record in transaction state tracking
