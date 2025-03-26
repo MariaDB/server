@@ -1018,97 +1018,98 @@ ATTRIBUTE_COLD void buf_mem_pressure_shutdown() noexcept
 {
   mem_pressure_obj.join();
 }
+#endif
 
+#if defined __linux__ || !defined DBUG_OFF
 inline void buf_pool_t::garbage_collect() noexcept
 {
   mysql_mutex_lock(&mutex);
-  size_t freed= 0;
-
-#ifdef BTR_CUR_HASH_ADAPT
-  /* buf_LRU_free_page() will temporarily release and reacquire
-  buf_pool.mutex for invoking btr_search_drop_page_hash_index(). Thus,
-  we must protect ourselves with the hazard pointer. */
-rescan:
-#else
-  lru_hp.set(nullptr);
-#endif
-  for (buf_page_t *bpage= UT_LIST_GET_LAST(LRU), *prev; bpage; bpage= prev)
+  const size_t old_size{size_in_bytes}, min_size{size_in_bytes_auto_min};
+  const size_t reduce_size=
+    std::max(innodb_buffer_pool_extent_size,
+             ut_calc_align((old_size - min_size) / 2,
+                           innodb_buffer_pool_extent_size));
+  if (old_size < min_size + reduce_size ||
+      first_to_withdraw || old_size != size_in_bytes_requested)
   {
-    prev= UT_LIST_GET_PREV(LRU, bpage);
-#ifdef BTR_CUR_HASH_ADAPT
-    lru_hp.set(prev);
-#endif
-    auto state= bpage->state();
-    ut_ad(state >= buf_page_t::FREED);
-    ut_ad(bpage->in_LRU_list);
-
-    /* We try to free any pages that can be freed without writing out
-    anything. */
-    switch (bpage->oldest_modification()) {
-    case 0:
-    try_to_evict:
-      if (buf_LRU_free_page(bpage, true))
-      {
-      evicted:
-        freed++;
-#ifdef BTR_CUR_HASH_ADAPT
-        bpage= prev;
-        prev= lru_hp.get();
-        if (!prev && bpage)
-          goto rescan;
-#endif
-      }
-      continue;
-    case 1:
-      break;
-    default:
-      if (state >= buf_page_t::UNFIXED)
-        continue;
-    }
-
-    if (state < buf_page_t::READ_FIX && bpage->lock.u_lock_try(true))
-    {
-      ut_ad(!bpage->is_io_fixed());
-      lsn_t oldest_modification= bpage->oldest_modification();
-      switch (oldest_modification) {
-      case 1:
-        mysql_mutex_lock(&flush_list_mutex);
-        oldest_modification= bpage->oldest_modification();
-        if (oldest_modification)
-        {
-          ut_ad(oldest_modification == 1);
-          delete_from_flush_list(bpage);
-        }
-        mysql_mutex_unlock(&flush_list_mutex);
-        /* fall through */
-      case 0:
-        bpage->lock.u_unlock(true);
-        goto try_to_evict;
-      default:
-        if (bpage->state() < buf_page_t::UNFIXED &&
-            oldest_modification <= log_sys.get_flushed_lsn())
-        {
-          release_freed_page(bpage);
-          goto evicted;
-        }
-        else
-          bpage->lock.u_unlock(true);
-      }
-    }
+    mysql_mutex_unlock(&mutex);
+    sql_print_information("InnoDB: Memory pressure event disregarded;"
+                          " innodb_buffer_pool_size=%zum,"
+                          " innodb_buffer_pool_size_min=%zum",
+                          old_size >> 20, min_size >> 20);
+    return;
   }
 
-#if defined MADV_FREE
-  /* FIXME: Issue fewer calls for larger contiguous blocks of
-  memory. For now, we assume that this is acceptable, because this
-  code should be executed rarely. */
-  for (buf_page_t *bpage= UT_LIST_GET_FIRST(free); bpage;
-       bpage= UT_LIST_GET_NEXT(list, bpage))
-    madvise(bpage->frame, srv_page_size, MADV_FREE);
-#endif
+  size_t size= old_size - reduce_size;
+  size_t n_blocks_new= get_n_blocks(size);
+
+  ut_ad(UT_LIST_GET_LEN(withdrawn) == 0);
+  ut_ad(n_blocks_to_withdraw == 0);
+
+  n_blocks_to_withdraw= n_blocks - n_blocks_new;
+  first_to_withdraw= &get_nth_page(n_blocks_new)->page;
+
+  size_in_bytes_requested= size;
   mysql_mutex_unlock(&mutex);
-  sql_print_information("InnoDB: Memory pressure event freed %zu pages",
-                        freed);
-  return;
+  mysql_mutex_lock(&flush_list_mutex);
+  page_cleaner_wakeup(true);
+  my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+  mysql_mutex_unlock(&flush_list_mutex);
+# ifdef BTR_CUR_HASH_ADAPT
+  bool ahi_disabled= btr_search_disable();
+# endif /* BTR_CUR_HASH_ADAPT */
+  time_t start= time(nullptr);
+  mysql_mutex_lock(&mutex);
+
+  do
+  {
+    if (shrink(size))
+    {
+      const size_t old_blocks{n_blocks};
+      n_blocks= n_blocks_new;
+
+      size_t s= n_blocks_new / BUF_READ_AHEAD_PORTION;
+      read_ahead_area= s >= READ_AHEAD_PAGES
+        ? READ_AHEAD_PAGES
+        : my_round_up_to_next_power(uint32(s));
+
+      os_total_large_mem_allocated-= reduce_size;
+      shrunk(size, reduce_size);
+      ibuf_max_size_update(srv_change_buffer_max_size);
+# ifdef BTR_CUR_HASH_ADAPT
+      if (ahi_disabled)
+        btr_search_enable(true);
+# endif
+      mysql_mutex_unlock(&mutex);
+      sql_print_information("InnoDB: Memory pressure event shrunk"
+                            " innodb_buffer_pool_size=%zum (%zu pages)"
+                            " from %zum (%zu pages)",
+                            size >> 20, n_blocks_new, old_size >> 20,
+                            old_blocks);
+      ut_d(validate());
+      return;
+    }
+  }
+  while (time(nullptr) - start < 15);
+
+  ut_ad(size_in_bytes > size_in_bytes_requested);
+  n_blocks_to_withdraw= 0;
+  first_to_withdraw= nullptr;
+  size_in_bytes_requested= size_in_bytes;
+
+  while (buf_page_t *b= UT_LIST_GET_FIRST(withdrawn))
+  {
+    UT_LIST_REMOVE(withdrawn, b);
+    UT_LIST_ADD_LAST(free, b);
+    ut_d(b->in_free_list= true);
+    ut_ad(b->state() == buf_page_t::NOT_USED);
+    b->lock.init();
+  }
+
+  mysql_mutex_unlock(&mutex);
+  sql_print_information("InnoDB: Memory pressure event failed to shrink"
+                        " innodb_buffer_pool_size=%zum", old_size);
+  ut_d(validate());
 }
 #endif
 

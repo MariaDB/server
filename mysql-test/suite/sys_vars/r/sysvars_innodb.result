@@ -5,7 +5,6 @@ variable_name not in (
 'innodb_evict_tables_on_commit_debug', # one may want to override this
 'innodb_use_native_aio',            # default value depends on OS
 'innodb_log_file_buffering',        # only available on Linux and Windows
-'innodb_buffer_pool_size_auto_min', # only available on Linux for now
 'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing
 order by variable_name;
 VARIABLE_NAME	INNODB_ADAPTIVE_FLUSHING
@@ -209,6 +208,18 @@ VARIABLE_COMMENT	The size of the memory buffer InnoDB uses to cache data and ind
 NUMERIC_MIN_VALUE	2097152
 NUMERIC_MAX_VALUE	18446744073701163008
 NUMERIC_BLOCK_SIZE	1048576
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	INNODB_BUFFER_POOL_SIZE_AUTO_MIN
+SESSION_VALUE	NULL
+DEFAULT_VALUE	0
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Minimum innodb_buffer_pool_size for dynamic shrinking on memory pressure
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073701163008
+NUMERIC_BLOCK_SIZE	8388608
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED

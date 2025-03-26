@@ -1205,6 +1205,10 @@ class buf_pool_t
 public:
   /** The requested innodb_buffer_pool_size */
   size_t size_in_bytes_requested;
+#if defined __linux__ || !defined DBUG_OFF
+  /** The minimum allowed innodb_buffer_pool_size in garbage_collect() */
+  size_t size_in_bytes_auto_min;
+#endif
   /** The maximum allowed innodb_buffer_pool_size */
   size_t size_in_bytes_max;
 

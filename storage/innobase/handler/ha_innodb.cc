@@ -3688,6 +3688,25 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_size, buf_pool.size_in_bytes_requested,
   nullptr, innodb_buffer_pool_size_update, 128U << 20, 2U << 20,
   size_t(-ssize_t(innodb_buffer_pool_extent_size)), 1U << 20);
 
+#if defined __linux__ || !defined DBUG_OFF
+static void innodb_buffer_pool_size_auto_min_update(THD*,st_mysql_sys_var*,
+                                                    void*, const void *save)
+  noexcept
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  buf_pool.size_in_bytes_auto_min= *static_cast<const size_t*>(save);
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
+static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_auto_min,
+                           buf_pool.size_in_bytes_auto_min,
+  PLUGIN_VAR_RQCMDARG,
+  "Minimum innodb_buffer_pool_size for dynamic shrinking on memory pressure",
+  nullptr, innodb_buffer_pool_size_auto_min_update, 0, 0,
+  size_t(-ssize_t(innodb_buffer_pool_extent_size)),
+  innodb_buffer_pool_extent_size);
+#endif
+
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_max, buf_pool.size_in_bytes_max,
                            PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                            "Maximum innodb_buffer_pool_size",
@@ -3792,6 +3811,13 @@ static int innodb_init_params()
                                               innodb_buffer_pool_extent_size);
 
   MYSQL_SYSVAR_NAME(buffer_pool_size).max_val= buf_pool.size_in_bytes_max;
+#if defined __linux__ || !defined DBUG_OFF
+  if (!buf_pool.size_in_bytes_auto_min ||
+      buf_pool.size_in_bytes_auto_min > buf_pool.size_in_bytes_max)
+    buf_pool.size_in_bytes_auto_min= buf_pool.size_in_bytes_max;
+  MYSQL_SYSVAR_NAME(buffer_pool_size_auto_min).max_val=
+    buf_pool.size_in_bytes_max;
+#endif
 
   if (innodb_buffer_pool_size < min)
   {
@@ -19933,6 +19959,9 @@ static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tabl
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
+#if defined __linux__ || !defined DBUG_OFF
+  MYSQL_SYSVAR(buffer_pool_size_auto_min),
+#endif
   MYSQL_SYSVAR(buffer_pool_size_max),
   MYSQL_SYSVAR(buffer_pool_chunk_size),
   MYSQL_SYSVAR(buffer_pool_filename),
