@@ -1330,38 +1330,17 @@ static void innodb_drop_database(handlerton*, char *path)
 
   dict_sys.unlock();
 
-  dict_table_t *table_stats, *index_stats;
-  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
-  table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
-                                       DICT_ERR_IGNORE_NONE);
-  if (table_stats)
-  {
-    dict_sys.freeze(SRW_LOCK_CALL);
-    table_stats= dict_acquire_mdl_shared<false>(table_stats,
-                                                thd, &mdl_table);
-    dict_sys.unfreeze();
-  }
-  index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
-                                       DICT_ERR_IGNORE_NONE);
-  if (index_stats)
-  {
-    dict_sys.freeze(SRW_LOCK_CALL);
-    index_stats= dict_acquire_mdl_shared<false>(index_stats,
-                                                thd, &mdl_index);
-    dict_sys.unfreeze();
-  }
-
+  dict_stats stats;
+  const bool stats_failed{stats.open(thd)};
   trx_start_for_ddl(trx);
 
   uint errors= 0;
   char db[NAME_LEN + 1];
   strconvert(&my_charset_filename, namebuf, len, system_charset_info, db,
              sizeof db, &errors);
-  if (!errors && table_stats && index_stats &&
-      !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
-      !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-      lock_table_for_trx(table_stats, trx, LOCK_X) == DB_SUCCESS &&
-      lock_table_for_trx(index_stats, trx, LOCK_X) == DB_SUCCESS)
+  if (!errors && !stats_failed &&
+      lock_table_for_trx(stats.table(), trx, LOCK_X) == DB_SUCCESS &&
+      lock_table_for_trx(stats.index(), trx, LOCK_X) == DB_SUCCESS)
   {
     row_mysql_lock_data_dictionary(trx);
     if (dict_stats_delete(db, trx))
@@ -1457,19 +1436,16 @@ static void innodb_drop_database(handlerton*, char *path)
   if (err != DB_SUCCESS)
   {
     trx->rollback();
-    namebuf[len] = '\0';
-    ib::error() << "DROP DATABASE " << namebuf << ": " << err;
+    sql_print_error("InnoDB: DROP DATABASE %.*s: %s",
+                    int(len), namebuf, ut_strerr(err));
   }
   else
     trx->commit();
 
-  if (table_stats)
-    dict_table_close(table_stats, thd, mdl_table);
-  if (index_stats)
-    dict_table_close(index_stats, thd, mdl_index);
   row_mysql_unlock_data_dictionary(trx);
-
   trx->free();
+  if (!stats_failed)
+    stats.close();
 
   if (err == DB_SUCCESS)
   {
@@ -13680,8 +13656,6 @@ int ha_innobase::delete_table(const char *name)
       err= lock_table_children(table, trx);
   }
 
-  dict_table_t *table_stats= nullptr, *index_stats= nullptr;
-  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
   if (err == DB_SUCCESS)
     err= lock_table_for_trx(table, trx, LOCK_X);
 
@@ -13720,37 +13694,18 @@ int ha_innobase::delete_table(const char *name)
 #endif
 
   DEBUG_SYNC(thd, "before_delete_table_stats");
+  dict_stats stats;
+  bool stats_failed= true;
 
   if (err == DB_SUCCESS && table->stats_is_persistent() &&
       !table->is_stats_table())
   {
-    table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
-                                         DICT_ERR_IGNORE_NONE);
-    if (table_stats)
-    {
-      dict_sys.freeze(SRW_LOCK_CALL);
-      table_stats= dict_acquire_mdl_shared<false>(table_stats,
-                                                  thd, &mdl_table);
-      dict_sys.unfreeze();
-    }
-
-    index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
-                                         DICT_ERR_IGNORE_NONE);
-    if (index_stats)
-    {
-      dict_sys.freeze(SRW_LOCK_CALL);
-      index_stats= dict_acquire_mdl_shared<false>(index_stats,
-                                                  thd, &mdl_index);
-      dict_sys.unfreeze();
-    }
-
+    stats_failed= stats.open(thd);
     const bool skip_wait{table->name.is_temporary()};
 
-    if (table_stats && index_stats &&
-        !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
-        !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-        !(err= lock_table_for_trx(table_stats, trx, LOCK_X, skip_wait)))
-      err= lock_table_for_trx(index_stats, trx, LOCK_X, skip_wait);
+    if (!stats_failed &&
+        !(err= lock_table_for_trx(stats.table(), trx, LOCK_X, skip_wait)))
+      err= lock_table_for_trx(stats.index(), trx, LOCK_X, skip_wait);
 
     if (err != DB_SUCCESS && skip_wait)
     {
@@ -13759,10 +13714,8 @@ int ha_innobase::delete_table(const char *name)
       ut_ad(err == DB_LOCK_WAIT);
       ut_ad(trx->error_state == DB_SUCCESS);
       err= DB_SUCCESS;
-      dict_table_close(table_stats, thd, mdl_table);
-      dict_table_close(index_stats, thd, mdl_index);
-      table_stats= nullptr;
-      index_stats= nullptr;
+      stats.close();
+      stats_failed= true;
     }
   }
 
@@ -13833,13 +13786,11 @@ err_exit:
     else if (rollback_add_partition)
       purge_sys.resume_FTS();
 #endif
-    if (table_stats)
-      dict_table_close(table_stats, thd, mdl_table);
-    if (index_stats)
-      dict_table_close(index_stats, thd, mdl_index);
     row_mysql_unlock_data_dictionary(trx);
     if (trx != parent_trx)
       trx->free();
+    if (!stats_failed)
+      stats.close();
     DBUG_RETURN(convert_error_code_to_mysql(err, 0, NULL));
   }
 
@@ -13854,7 +13805,7 @@ err_exit:
     err= trx->drop_table_foreign(table->name);
   }
 
-  if (err == DB_SUCCESS && table_stats && index_stats)
+  if (err == DB_SUCCESS && !stats_failed)
     err= trx->drop_table_statistics(table->name);
   if (err != DB_SUCCESS)
     goto err_exit;
@@ -13865,11 +13816,9 @@ err_exit:
 
   std::vector<pfs_os_file_t> deleted;
   trx->commit(deleted);
-  if (table_stats)
-    dict_table_close(table_stats, thd, mdl_table);
-  if (index_stats)
-    dict_table_close(index_stats, thd, mdl_index);
   row_mysql_unlock_data_dictionary(trx);
+  if (!stats_failed)
+    stats.close();
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
   log_write_up_to(trx->commit_lsn, true);
@@ -14065,9 +14014,6 @@ int ha_innobase::truncate()
                                         ib_table->name.m_name, ib_table->id);
   const char *name= mem_heap_strdup(heap, ib_table->name.m_name);
 
-  dict_table_t *table_stats = nullptr, *index_stats = nullptr;
-  MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
-
   dberr_t error= lock_table_children(ib_table, trx);
 
   if (error == DB_SUCCESS)
@@ -14075,6 +14021,7 @@ int ha_innobase::truncate()
 
   const bool fts= error == DB_SUCCESS &&
     ib_table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
+  const bool pause_purge= error == DB_SUCCESS && ib_table->get_ref_count() > 1;
 
   if (fts)
   {
@@ -14082,6 +14029,8 @@ int ha_innobase::truncate()
     purge_sys.stop_FTS(*ib_table);
     error= fts_lock_tables(trx, *ib_table);
   }
+  else if (pause_purge)
+    purge_sys.stop_FTS();
 
   if (error == DB_SUCCESS)
   {
@@ -14097,33 +14046,16 @@ int ha_innobase::truncate()
     }
   }
 
+  dict_stats stats;
+  bool stats_failed= true;
+
   if (error == DB_SUCCESS && ib_table->stats_is_persistent() &&
       !ib_table->is_stats_table())
   {
-    table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
-                                         DICT_ERR_IGNORE_NONE);
-    if (table_stats)
-    {
-      dict_sys.freeze(SRW_LOCK_CALL);
-      table_stats= dict_acquire_mdl_shared<false>(table_stats, m_user_thd,
-                                                  &mdl_table);
-      dict_sys.unfreeze();
-    }
-    index_stats= dict_table_open_on_name(INDEX_STATS_NAME, false,
-                                         DICT_ERR_IGNORE_NONE);
-    if (index_stats)
-    {
-      dict_sys.freeze(SRW_LOCK_CALL);
-      index_stats= dict_acquire_mdl_shared<false>(index_stats, m_user_thd,
-                                                  &mdl_index);
-      dict_sys.unfreeze();
-    }
-
-    if (table_stats && index_stats &&
-        !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
-        !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-        !(error= lock_table_for_trx(table_stats, trx, LOCK_X)))
-      error= lock_table_for_trx(index_stats, trx, LOCK_X);
+    stats_failed= stats.open(m_user_thd);
+    if (!stats_failed &&
+        !(error= lock_table_for_trx(stats.table(), trx, LOCK_X)))
+      error= lock_table_for_trx(stats.index(), trx, LOCK_X);
   }
 
   if (error == DB_SUCCESS)
@@ -14215,14 +14147,9 @@ int ha_innobase::truncate()
   }
 
   trx->free();
-
+  if (!stats_failed)
+    stats.close();
   mem_heap_free(heap);
-
-  if (table_stats)
-    dict_table_close(table_stats, m_user_thd, mdl_table);
-  if (index_stats)
-    dict_table_close(index_stats, m_user_thd, mdl_index);
-
   DBUG_RETURN(err);
 }
 
@@ -14284,8 +14211,6 @@ ha_innobase::rename_table(
 	trx_t*	trx = innobase_trx_allocate(thd);
 	trx_start_for_ddl(trx);
 
-	dict_table_t *table_stats = nullptr, *index_stats = nullptr;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
 	char norm_from[MAX_FULL_NAME_LEN];
 	char norm_to[MAX_FULL_NAME_LEN];
 
@@ -14296,6 +14221,7 @@ ha_innobase::rename_table(
 	const bool from_temp = dict_table_t::is_temporary_name(norm_from);
 
 	dict_table_t* t;
+	bool pause_purge = false, fts_exist = false;
 
 	if (from_temp) {
 		/* There is no need to lock any FOREIGN KEY child tables. */
@@ -14308,37 +14234,35 @@ ha_innobase::rename_table(
 			if (error == DB_SUCCESS) {
 				error = lock_table_for_trx(t, trx, LOCK_X);
 			}
+			fts_exist = error == DB_SUCCESS && t->flags2
+				& (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
+			pause_purge = error == DB_SUCCESS
+				&& t->get_ref_count() > 1;
+			if (fts_exist) {
+				fts_optimize_remove_table(t);
+				purge_sys.stop_FTS(*t);
+				if (error == DB_SUCCESS) {
+					error = fts_lock_tables(trx, *t);
+				}
+			} else if (pause_purge) {
+				purge_sys.stop_FTS();
+			}
 		}
 	}
+
+	dict_stats stats;
+	bool stats_fail = true;
 
 	if (strcmp(norm_from, TABLE_STATS_NAME)
 	    && strcmp(norm_from, INDEX_STATS_NAME)
 	    && strcmp(norm_to, TABLE_STATS_NAME)
 	    && strcmp(norm_to, INDEX_STATS_NAME)) {
-		table_stats = dict_table_open_on_name(TABLE_STATS_NAME, false,
-						      DICT_ERR_IGNORE_NONE);
-		if (table_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
-			table_stats = dict_acquire_mdl_shared<false>(
-				table_stats, thd, &mdl_table);
-			dict_sys.unfreeze();
-		}
-		index_stats = dict_table_open_on_name(INDEX_STATS_NAME, false,
-						      DICT_ERR_IGNORE_NONE);
-		if (index_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
-			index_stats = dict_acquire_mdl_shared<false>(
-				index_stats, thd, &mdl_index);
-			dict_sys.unfreeze();
-		}
-
-		if (error == DB_SUCCESS && table_stats && index_stats
-		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-			error = lock_table_for_trx(table_stats, trx, LOCK_X,
-						   from_temp);
+		stats_fail = stats.open(thd);
+		if (!stats_fail && error == DB_SUCCESS) {
+			error = lock_table_for_trx(stats.table(), trx,
+						   LOCK_X, from_temp);
 			if (error == DB_SUCCESS) {
-				error = lock_table_for_trx(index_stats, trx,
+				error = lock_table_for_trx(stats.index(), trx,
 							   LOCK_X, from_temp);
 			}
 			if (error != DB_SUCCESS && from_temp) {
@@ -14349,10 +14273,8 @@ ha_innobase::rename_table(
 				we cannot lock the tables, when the
 				table is being renamed from from a
 				temporary name. */
-				dict_table_close(table_stats, thd, mdl_table);
-				dict_table_close(index_stats, thd, mdl_index);
-				table_stats = nullptr;
-				index_stats = nullptr;
+				stats.close();
+				stats_fail = true;
 			}
 		}
 	}
@@ -14379,7 +14301,7 @@ ha_innobase::rename_table(
 
 	DEBUG_SYNC(thd, "after_innobase_rename_table");
 
-	if (error == DB_SUCCESS && table_stats && index_stats) {
+	if (error == DB_SUCCESS && !stats_fail) {
 		error = dict_stats_rename_table(norm_from, norm_to, trx);
 		if (error == DB_DUPLICATE_KEY) {
 			/* The duplicate may also occur in
@@ -14393,7 +14315,10 @@ ha_innobase::rename_table(
 	if (error == DB_SUCCESS) {
 		trx->flush_log_later = true;
 		if (t) {
-			ut_ad(dict_sys.frozen());
+			ut_ad(dict_sys.locked());
+			if (fts_exist) {
+		                fts_optimize_add_table(t);
+                        }
 			if (UNIV_LIKELY(t->release())) {
 				stats_deinit(t);
 			} else {
@@ -14403,23 +14328,28 @@ ha_innobase::rename_table(
 		innobase_commit_low(trx);
 	} else {
 		if (t) {
+			if (fts_exist) {
+		                fts_optimize_add_table(t);
+                        }
 			t->release();
 		}
 		trx->rollback();
 	}
 
-	if (table_stats) {
-		dict_table_close(table_stats, thd, mdl_table);
-	}
-	if (index_stats) {
-		dict_table_close(index_stats, thd, mdl_index);
-	}
 	row_mysql_unlock_data_dictionary(trx);
+
+	if (fts_exist || pause_purge) {
+		purge_sys.resume_FTS();
+	}
+
 	if (error == DB_SUCCESS) {
 		log_write_up_to(trx->commit_lsn, true);
 	}
 	trx->flush_log_later = false;
 	trx->free();
+	if (!stats_fail) {
+		stats.close();
+	}
 
 	if (error == DB_DUPLICATE_KEY) {
 		/* We are not able to deal with handler::get_dup_key()
@@ -17714,11 +17644,16 @@ static int innodb_ft_aux_table_validate(THD *thd, st_mysql_sys_var*,
 	int len = sizeof buf;
 
 	if (const char* table_name = value->val_str(value, buf, &len)) {
+		/* Because we are not acquiring MDL on the table name,
+		we must contiguously hold dict_sys.latch while we are
+		examining the table, to protect us against concurrent DDL. */
+		dict_sys.lock(SRW_LOCK_CALL);
 		if (dict_table_t* table = dict_table_open_on_name(
-			    table_name, false, DICT_ERR_IGNORE_NONE)) {
+			    table_name, true, DICT_ERR_IGNORE_NONE)) {
+			table->release();
 			const table_id_t id = dict_table_has_fts_index(table)
 				? table->id : 0;
-			table->release();
+			dict_sys.unlock();
 			if (id) {
 				innodb_ft_aux_table_id = id;
 				if (table_name == buf) {
@@ -17729,12 +17664,11 @@ static int innodb_ft_aux_table_validate(THD *thd, st_mysql_sys_var*,
 								 len);
 				}
 
-
 				*static_cast<const char**>(save) = table_name;
 				return 0;
 			}
 		}
-
+		dict_sys.unlock();
 		return 1;
 	} else {
 		*static_cast<char**>(save) = NULL;
