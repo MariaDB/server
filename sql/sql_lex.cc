@@ -8675,20 +8675,27 @@ Item *LEX::create_item_ident(THD *thd,
 }
 
 
+/*
+  @detail
+    This is called when we've parsed Oracle's outer join syntax, that is
+
+      [[db_name.]table_name.]column_name(+)
+
+    Check if the parse context allows it, if yes, mark the Item_field with
+    ORA_JOIN flag and return it.
+*/
+
 bool LEX::mark_item_ident_for_ora_join(THD *thd, Item *item)
 {
+  Item_field *item_field;
   DBUG_ASSERT(item);
 
-  if (thd->variables.sql_mode & MODE_ORACLE)
+  if ((thd->variables.sql_mode & MODE_ORACLE) &&
+      current_select && current_select->parsing_place == IN_WHERE &&
+      (item_field= dynamic_cast<Item_field*>(item)))
   {
-    if (current_select && current_select->parsing_place == IN_WHERE)
-    {
-      if (Item_field *item_field= dynamic_cast<Item_field*>(item))
-      {
-        item_field->with_flags|= item_with_t::ORA_JOIN;
-        return false;
-      }
-    }
+    item_field->with_flags|= item_with_t::ORA_JOIN;
+    return false;
   }
 
   thd->parse_error(ER_SYNTAX_ERROR);
