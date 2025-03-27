@@ -816,7 +816,7 @@ ST_GEOHASH(180,NULL,10)
 NULL
 SELECT ST_GEOHASH(180,90,NULL);
 ST_GEOHASH(180,90,NULL)
-zzzzzzzzzzzzzzzzzzzzzz
+NULL
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(0 0)'),10);
 ST_GEOHASH(ST_GEOMFROMTEXT('POINT(0 0)'),10)
 s000000000
@@ -894,7 +894,7 @@ ST_GEOHASH(NULL,100)
 NULL
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(-0.0001 -0.0001)'),NULL);
 ST_GEOHASH(ST_GEOMFROMTEXT('POINT(-0.0001 -0.0001)'),NULL)
-7zzzzzzzmtm7mzm00yd7z00s0y30g60000000000000000000000000000000000000000000000000000000000000000000000
+NULL
 SELECT ST_GEOHASH(ST_DIFFERENCE(ST_GEOMFROMTEXT('POINT(180 90)'),ST_GEOMFROMTEXT('POINT(0 0)')),20) c;
 c
 zzzzzzzzzzzzzzzzzzzz
@@ -957,15 +957,15 @@ ERROR HY000: Out of range error: Latitude should be [-90,90] in function ST_GeoH
 SELECT ST_GEOHASH(-180,-90.0000000000001,10);
 ERROR HY000: Out of range error: Latitude should be [-90,90] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,90,0);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(-180,90,-1);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,-90,-100);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(-180,-90,101);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(0,90,1000);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH("181",90,20);
 ERROR HY000: Out of range error: Longitude should be [-180,180] in function ST_GeoHash.
 SELECT ST_GEOHASH("-181",90,20);
@@ -975,19 +975,19 @@ ERROR HY000: Out of range error: Latitude should be [-90,90] in function ST_GeoH
 SELECT ST_GEOHASH(180,"-91",20);
 ERROR HY000: Out of range error: Latitude should be [-90,90] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,90,"0");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,90,"-1");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,90,"-100");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,90,"101");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,90,"1000");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,90,"");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(180,90,"****");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH();
 ERROR 42000: Incorrect parameter count in the call to native function 'ST_GEOHASH'
 SELECT ST_GEOHASH(1);
@@ -1039,29 +1039,29 @@ ERROR HY000: Out of range error: Latitude should be [-90,90] in function ST_GeoH
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(-180 -90.0000000000001)'),10);
 ERROR HY000: Out of range error: Latitude should be [-90,90] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(180 90)'),0);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(180 -90)'),-1);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(-180 90)'),-100);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(-180 -90)'),101);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(0 0)'),10000);
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMWKB(ST_ASWKB(ST_GEOMFROMTEXT('POINT(180 90)'))),"0");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMWKB(ST_ASWKB(ST_GEOMFROMTEXT('POINT(180 -90)'))),"-1");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMWKB(ST_ASWKB(ST_GEOMFROMTEXT('POINT(-180 90)'))),"-100");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMWKB(ST_ASWKB(ST_GEOMFROMTEXT('POINT(-180 -90)'))),"101");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMWKB(ST_ASWKB(ST_GEOMFROMTEXT('POINT(0 0)'))),"10000");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(0 0)')," ");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(0 0)'),"***");
-ERROR HY000: Out of range error: max geohash length value in function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(0 0)'));
 ERROR 42000: Incorrect parameter count in the call to native function 'ST_GEOHASH'
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT(),20);
@@ -1085,9 +1085,9 @@ ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(POINT(0 0))'),10);
 ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(180 90)'),20.0001);
-ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_GEOMFROMTEXT('POINT(180 90)'),(CAST(10 AS DATE)));
-ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_GEOHASH(ST_INTERSECTION(ST_GEOMFROMTEXT('POINT(180 90)'),ST_GEOMFROMTEXT('POINT(1 1)')),20);
 ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
 SELECT ST_GEOHASH(ST_UNION(ST_GEOMFROMTEXT('POINT(180 90)'),ST_GEOMFROMTEXT('POINT(-180 -90)')),20);
@@ -1516,7 +1516,7 @@ ST_GeoHash(POINT(10, 10), @maxlen)
 s1z
 SELECT ST_GeoHash(POINT(10, 10), @null);
 ST_GeoHash(POINT(10, 10), @null)
-s1z0gs3y0zh7w1z0gs3y0zw
+NULL
 SET @point = POINT(10, 10);
 PREPARE stmt FROM "SELECT ST_GeoHash(?, 10)";
 EXECUTE stmt USING @point;
@@ -1565,7 +1565,7 @@ SELECT ST_GeoHash(@double, @double, 10);
 ST_GeoHash(@double, @double, 10)
 s60tmsgy0s
 SELECT ST_GeoHash(POINT(10, 10), @double);
-ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
 SELECT ST_POINTFROMGEOHASH("00", @double);
 ERROR 22023: Invalid GIS data provided to function ST_PointFromGeoHash.
 DROP TABLE IF EXISTS t1;
@@ -1661,3 +1661,19 @@ SELECT ST_LatFromGeoHash("ї");
 ERROR HY000: Incorrect geohash value: '\0457' for function st_latfromgeohash
 SELECT ST_LongFromGeoHash("ї");
 ERROR HY000: Incorrect geohash value: '\0457' for function st_longfromgeohash
+#
+# MDEV-34158 st_geohash error reporting and null handling
+#
+SELECT  ST_GeoHash(( POINTFROMTEXT(' POINT( 4 1 ) ') ), 1e0);
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
+SELECT  ST_GeoHash(( POINTFROMTEXT(' POINT( 4 1 ) ') ), 0);
+ERROR HY000: Out of range error: max_length parameter should be an integer in the range [1, 100] in function ST_GeoHash.
+SELECT ST_GeoHash(45,-20,null);
+ST_GeoHash(45,-20,null)
+NULL
+SELECT ST_GeoHash(0,-20,null);
+ST_GeoHash(0,-20,null)
+NULL
+SELECT  ST_GeoHash(( POINTFROMTEXT(' POINT( 4 1 ) ') ), NULL);
+ST_GeoHash(( POINTFROMTEXT(' POINT( 4 1 ) ') ), NULL)
+NULL
