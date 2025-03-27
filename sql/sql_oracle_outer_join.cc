@@ -456,7 +456,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
 {
   DBUG_ENTER("setup_oracle_join");
   uint n_tables= select_table_list.elements;
-  Item_cond_and *and_item= NULL;
+
   if (!(*conds)->with_ora_join() || n_tables == 0)
     DBUG_RETURN(FALSE); // no oracle joins
 
@@ -486,7 +486,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
   DBUG_ASSERT(i == n_tables);
   if (is_cond_and(*conds))
   {
-    and_item= (Item_cond_and *)(*conds);
+    Item_cond_and *and_item= (Item_cond_and *)(*conds);
     Item *item;
     List_iterator<Item> it(*and_item->argument_list());
     while ((item= it++))

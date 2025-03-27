@@ -10121,6 +10121,15 @@ bool Item_default_value::val_native_result(THD *thd, Native *to)
 }
 
 
+/*
+  We're processing an expression with a (+) operator somewhere.
+  We encounter reference to '$table.column' (with the(+) or not).
+  Add $table to the outer join structure we're building
+
+  TODO: does this need to be a member function?
+   make with_ora_join() a parameter and move this out?
+*/
+
 bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
                                            TABLE_LIST *table)
 {
@@ -10136,11 +10145,13 @@ bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
       List_iterator_fast<TABLE_LIST> it(arg->inner);
       TABLE_LIST *t;
       while ((t= it++))
+      {
         if (t == table)
         {
           err_table= t;
           goto err;
         }
+      }
     }
     else
     {
@@ -10157,8 +10168,10 @@ bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
     List_iterator_fast<TABLE_LIST> it(arg->inner);
     TABLE_LIST *t;
     while ((t= it++))
+    {
       if (t == table)
         break;
+    }
     if (t == NULL)
     {
       if (table == arg->outer)
@@ -10173,13 +10186,17 @@ bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
 err:
   // it is not marked all tables as outer or several inner or outer tables
   if (table == err_table)
+  {
     // self reference (simple case of cyclic reference)
     my_error(ER_INVALID_USE_OF_ORA_JOIN_CYCLE, MYF(0));
+  }
   else
+  {
     my_error(ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE, MYF(0),
              err_table->alias.str,
              table->alias.str,
              (with_ora_join()?"OUTER":"INNER"));
+  }
   return TRUE;
 }
 
