@@ -2836,6 +2836,8 @@ String *Item_func_geohash::val_str_ascii(String *str)
     longitude= args[0]->val_real();
     latitude= args[1]->val_real();
 
+    // We need to check again because the val_real calls may set the null
+    // bit, depending on their implementation.
     if (args[0]->null_value || args[1]->null_value)
       return 0;
 
@@ -2844,7 +2846,9 @@ String *Item_func_geohash::val_str_ascii(String *str)
 
   if (is_invalid_length_field(length_field->field_type()))
   {
-    my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeoHash");
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
+             "max_length parameter should be an integer in the range [1, 100]",
+             "ST_GeoHash");
     return 0;
   }
 
@@ -2864,12 +2868,16 @@ String *Item_func_geohash::val_str_ascii(String *str)
 
   geohash_length= static_cast<uint>(length_field->val_int());
   if (length_field->null_value)
-    geohash_length= MAX_GEOHASH_LENGTH;
+  {
+    null_value= 1;
+    return 0;
+  }
 
   if (geohash_length <= MIN_GEOHASH_LENGTH ||
       geohash_length > MAX_GEOHASH_LENGTH)
   {
-    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0), "max geohash length value",
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
+             "max_length parameter should be an integer in the range [1, 100]",
              "ST_GeoHash");
     return 0;
   }
