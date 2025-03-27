@@ -2313,3 +2313,44 @@ SELECT 1 LIKE 2 ESCAPE a;
 END;
 $$
 ERROR 21000: Operand should contain 1 column(s)
+# Start of 10.6 tests
+#
+# MDEV-36179 Assertion `0' failed in virtual bool Type_handler_row::Item_save_in_value(THD*, Item*, st_value*) const
+#
+CREATE PROCEDURE p0 (IN a ROW(a INT,b INT))
+BEGIN
+SET a=ROW(0,0);
+END;
+/
+PREPARE s0 FROM 'CALL p0(?)';
+EXECUTE s0 USING @a;
+ERROR HY000: Illegal parameter data type row for operation 'EXECUTE ... USING ?'
+DROP PROCEDURE p0;
+CREATE PROCEDURE p0 (INOUT a ROW(a INT,b INT))
+BEGIN
+SET a=ROW(0,0);
+END;
+/
+PREPARE s0 FROM 'CALL p0(?)';
+EXECUTE s0 USING @a;
+ERROR HY000: Illegal parameter data type row for operation 'EXECUTE ... USING ?'
+DROP PROCEDURE p0;
+CREATE PROCEDURE p0 (OUT a ROW(a INT,b INT))
+BEGIN
+SET a=ROW(0,0);
+END;
+/
+PREPARE s0 FROM 'CALL p0(?)';
+EXECUTE s0 USING @a;
+ERROR HY000: Illegal parameter data type row for operation 'EXECUTE ... USING ?'
+DROP PROCEDURE p0;
+CREATE FUNCTION f0(a ROW(a INT,b INT)) RETURNS BOOLEAN
+BEGIN
+RETURN FALSE;
+END;
+/
+PREPARE s0 FROM 'SELECT f0(?)';
+EXECUTE s0 USING @a;
+ERROR HY000: Illegal parameter data type row for operation 'EXECUTE ... USING ?'
+DROP FUNCTION f0;
+# End of 10.6 tests

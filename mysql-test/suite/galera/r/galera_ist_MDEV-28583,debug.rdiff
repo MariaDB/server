@@ -1,5 +1,5 @@
---- suite/galera/r/galera_ist_MDEV-28583.result	2022-06-11 10:48:16.875034382 +0300
-+++ suite/galera/r/galera_ist_MDEV-28583,debug.reject	2022-06-11 11:25:55.616481509 +0300
+--- r/galera_ist_MDEV-28583.result
++++ r/galera_ist_MDEV-28583,debug.reject
 @@ -517,3 +517,187 @@
  1
  DROP TABLE t1;

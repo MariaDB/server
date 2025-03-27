@@ -10,10 +10,10 @@
 --source include/have_innodb.inc
 --source include/force_restart.inc
 
-CALL mtr.add_suppression("WSREP: Stray state UUID msg:");
-CALL mtr.add_suppression("Sending JOIN failed: ");
-CALL mtr.add_suppression("WSREP: .* sending install message failed: Socket is not connected");
-CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+CALL mtr.add_suppression("WSREP: Stray state UUID msg: ");
+CALL mtr.add_suppression("WSREP: .*Sending JOIN failed: ");
+CALL mtr.add_suppression("WSREP: .*sending install message failed: Socket is not connected");
+CALL mtr.add_suppression("WSREP: .*There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
@@ -42,8 +42,8 @@ SELECT VARIABLE_VALUE LIKE '%gmcast.segment = 3%' FROM INFORMATION_SCHEMA.GLOBAL
 DROP TABLE t1;
 
 --connection node_1
-call mtr.add_suppression("WSREP: read_completion_condition.*");
-call mtr.add_suppression("WSREP: read_handler.*");
+call mtr.add_suppression("WSREP: read_completion_condition");
+call mtr.add_suppression("WSREP: read_handler");
 
 --disconnect node_3
 --disconnect node_4

@@ -3929,10 +3929,9 @@ database_corrupted_compressed:
   if (err == DB_PAGE_CORRUPTED || err == DB_DECRYPTION_FAILED)
   {
 release_page:
-    if (node.space->full_crc32() && node.space->crypt_data &&
-        recv_recovery_is_on() &&
-        recv_sys.dblwr.find_encrypted_page(node, id().page_no(),
-                                           const_cast<byte*>(read_frame)))
+    if (node.space->full_crc32() && recv_recovery_is_on() &&
+        recv_sys.dblwr.find_deferred_page(node, id().page_no(),
+                                          const_cast<byte*>(read_frame)))
     {
       /* Recover from doublewrite buffer */
       err= DB_SUCCESS;

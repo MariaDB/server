@@ -9,7 +9,5 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-
-GCF-1060 : MDEV-32160 GCF-1060 test failure due to wsrep MDL conflict
 # Links to below failures in MDEV-30172
 MDEV-25718 : timeout related to wsrep_sync_wait and DEBUG_SYNC

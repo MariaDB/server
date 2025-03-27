@@ -18,6 +18,7 @@
 # - with annotated events, default checksums and minimal binlog row image
 #
 
+--source include/long_test.inc
 # The test can take very long time with valgrind
 --source include/not_valgrind.inc
 

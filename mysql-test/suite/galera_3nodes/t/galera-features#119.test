@@ -66,6 +66,5 @@ CALL mtr.add_suppression("WSREP: Event 3 Write_rows_v1 apply failed: 121, seqno"
 CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster\\.\\.\\.");
 CALL mtr.add_suppression("WSREP: Failed to apply write set: ");
 
-
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc

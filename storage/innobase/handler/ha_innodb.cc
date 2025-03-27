@@ -15922,28 +15922,37 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		trx = check_trx_exists(ha_thd());
-		if (m_prebuilt->table->skip_alter_undo) {
-			if (dberr_t err= trx->bulk_insert_apply()) {
-				m_prebuilt->table->skip_alter_undo = 0;
-				return convert_error_code_to_mysql(
-					 err,
-					 m_prebuilt->table->flags,
-					 trx->mysql_thd);
-			}
-
-			trx->end_bulk_insert(*m_prebuilt->table);
-			trx->bulk_insert = false;
-			/* During copy alter operation, InnoDB
-			updates the stats only for non-persistent
-			tables. */
-			if (!m_prebuilt->table->stats_is_persistent()) {
-				dict_stats_update_if_needed(
-					m_prebuilt->table, *trx);
-			}
+		if (!m_prebuilt->table->skip_alter_undo) {
+			/* This could be invoked inside INSERT...SELECT.
+			We do not want any extra log writes, because
+			they could cause a severe performance regression. */
+			break;
 		}
 		m_prebuilt->table->skip_alter_undo = 0;
+		if (dberr_t err= trx->bulk_insert_apply()) {
+			m_prebuilt->table->skip_alter_undo = 0;
+			return convert_error_code_to_mysql(
+				 err, m_prebuilt->table->flags,
+				 trx->mysql_thd);
+		}
+
+		trx->end_bulk_insert(*m_prebuilt->table);
+		trx->bulk_insert = false;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
+			/* During copy_data_between_tables(), InnoDB only
+			updates transient statistics. */
+			if (!m_prebuilt->table->stats_is_persistent()) {
+				dict_stats_update_if_needed(m_prebuilt->table,
+							    *trx);
+			}
+			/* The extra log write is necessary for
+			ALTER TABLE...ALGORITHM=COPY, because
+			a normal transaction commit would be a no-op
+			because no undo log records were generated.
+			This log write will also be unnecessarily executed
+			during CREATE...SELECT, which is the other caller of
+			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
 		break;

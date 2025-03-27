@@ -3746,12 +3746,12 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 #endif
 
   /*
-    When thread specific is set, both mysqld_server_initialized and thd
-    must be set, and we check that with DBUG_ASSERT.
-
-    However, do not crash, if current_thd is NULL, in release version.
+    is_thread_specific is only relevant when a THD exist and the server
+    has fully started. is_thread_specific can be set during recovery by
+    Aria for functions that are normally only run in one thread.
+    However InnoDB sets thd early, so we can use it.
   */
-  DBUG_ASSERT(!is_thread_specific || (mysqld_server_initialized && thd));
+  DBUG_ASSERT(!is_thread_specific || thd || !plugins_are_initialized);
 
   if (is_thread_specific && likely(thd))  /* If thread specific memory */
   {
@@ -5339,7 +5339,7 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-log-optimize-ddl"),
       MARIADB_REMOVED_OPTION("innodb-lru-flush-size"),
       MARIADB_REMOVED_OPTION("innodb-page-cleaners"),
-      MARIADB_REMOVED_OPTION("innodb-purge-truncate-frequency"),
+      MARIADB_REMOVED_OPTION("innodb-purge-rseg-truncate-frequency"),
       MARIADB_REMOVED_OPTION("innodb-replication-delay"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log-speed"),
@@ -9307,6 +9307,7 @@ PSI_stage_info stage_preparing= { 0, "Preparing", 0};
 PSI_stage_info stage_purging_old_relay_logs= { 0, "Purging old relay logs", 0};
 PSI_stage_info stage_query_end= { 0, "Query end", 0};
 PSI_stage_info stage_starting_cleanup= { 0, "Starting cleanup", 0};
+PSI_stage_info stage_slave_sql_cleanup= { 0, "Slave SQL thread ending", 0};
 PSI_stage_info stage_rollback= { 0, "Rollback", 0};
 PSI_stage_info stage_rollback_implicit= { 0, "Rollback_implicit", 0};
 PSI_stage_info stage_commit= { 0, "Commit", 0};
@@ -9548,6 +9549,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_preparing,
   & stage_purging_old_relay_logs,
   & stage_starting_cleanup,
+  & stage_slave_sql_cleanup,
   & stage_query_end,
   & stage_queueing_master_event_to_the_relay_log,
   & stage_reading_event_from_the_relay_log,

@@ -4,7 +4,6 @@
 
 --source include/galera_cluster.inc
 --source include/have_debug.inc
---source include/have_debug_sync.inc
 
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
@@ -43,7 +42,6 @@ SELECT WSREP_SYNC_WAIT_UPTO_GTID('1-1-1,1-1-2');
 --let $wsrep_last_committed_gtid = `SELECT WSREP_LAST_SEEN_GTID()`
 --eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('$wsrep_last_committed_gtid') AS WSREP_SYNC_WAIT_UPTO;
 --enable_query_log
-
 
 # Timeout if GTID is not received on time
 

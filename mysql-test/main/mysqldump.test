@@ -1,4 +1,4 @@
---source include/no_valgrind_without_big.inc
+--source include/long_test.inc
 --source include/have_utf8mb4.inc
 
 call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");

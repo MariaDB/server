@@ -88,7 +88,7 @@ SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 --connection node_2
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 # As noted above sometimes node delivers the same view twice
-call mtr.add_suppression("WSREP: node uuid:.*");
+call mtr.add_suppression("WSREP: node uuid:");
 
 --connection node_1
 DROP TABLE t1;

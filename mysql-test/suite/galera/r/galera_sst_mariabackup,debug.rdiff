@@ -1,6 +1,6 @@
---- galera/r/galera_sst_mariabackup.result	2024-04-11 09:53:12.950512316 +0300
-+++ galera/r/galera_sst_mariabackup,debug.reject	2024-04-11 10:00:36.771144955 +0300
-@@ -524,6 +524,190 @@
+--- r/galera_sst_mariabackup.result
++++ r/galera_sst_mariabackup,debug.reject
+@@ -516,5 +516,189 @@
  1
  DROP TABLE t1;
  COMMIT;

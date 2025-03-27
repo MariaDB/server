@@ -139,6 +139,8 @@ ha_checksum _ma_unique_hash(MARIA_UNIQUEDEF *def, const uchar *record)
     {
       uint tmp_length= _ma_calc_blob_length(keyseg->bit_start,pos);
       memcpy((void*) &pos,pos+keyseg->bit_start,sizeof(char*));
+      if (!pos)
+        pos= (const uchar*) ""; /* hash_sort does not support NULL ptr */
       if (!length || length > tmp_length)
 	length=tmp_length;			/* The whole blob */
     }
@@ -236,6 +238,10 @@ my_bool _ma_unique_comp(MARIA_UNIQUEDEF *def, const uchar *a, const uchar *b,
       }
       memcpy((void*) &pos_a, pos_a+keyseg->bit_start, sizeof(char*));
       memcpy((void*) &pos_b, pos_b+keyseg->bit_start, sizeof(char*));
+      if (pos_a == 0)
+        pos_a= (const uchar *) ""; /* Avoid UBSAN nullptr-with-offset */
+      if (pos_b == 0)
+        pos_b= (const uchar *) ""; /* Avoid UBSAN nullptr-with-offset */
     }
     if (type == HA_KEYTYPE_TEXT/* the CHAR data type*/)
     {

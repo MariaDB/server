@@ -4884,28 +4884,43 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id, lsn_t max_lsn,
   goto check_if_corrupted;
 }
 
-byte *recv_dblwr_t::find_encrypted_page(const fil_node_t &node,
-                                        uint32_t page_no,
-                                        byte *buf) noexcept
+ATTRIBUTE_COLD
+byte *recv_dblwr_t::find_deferred_page(const fil_node_t &node,
+                                       uint32_t page_no,
+                                       byte *buf) noexcept
 {
-  ut_ad(node.space->crypt_data);
   ut_ad(node.space->full_crc32());
   mysql_mutex_lock(&recv_sys.mutex);
   byte *result_page= nullptr;
+  bool is_encrypted= node.space->crypt_data &&
+                     node.space->crypt_data->is_encrypted();
   for (list::iterator page_it= pages.begin(); page_it != pages.end();
        page_it++)
   {
     if (page_get_page_no(*page_it) != page_no ||
         buf_page_is_corrupted(true, *page_it, node.space->flags))
       continue;
+
+    if (is_encrypted &&
+        !mach_read_from_4(*page_it + FIL_PAGE_FCRC32_KEY_VERSION))
+      continue;
+
     memcpy(buf, *page_it, node.space->physical_size());
     buf_tmp_buffer_t *slot= buf_pool.io_buf_reserve(false);
     ut_a(slot);
     slot->allocate();
-    bool invalidate=
-      !fil_space_decrypt(node.space, slot->crypt_buf, buf) ||
-      (node.space->is_compressed() &&
-       !fil_page_decompress(slot->crypt_buf, buf, node.space->flags));
+
+    bool invalidate= false;
+    if (is_encrypted)
+    {
+      invalidate= !fil_space_decrypt(node.space, slot->crypt_buf, buf);
+      if (!invalidate && node.space->is_compressed())
+        goto decompress;
+    }
+    else
+decompress:
+      invalidate= !fil_page_decompress(slot->crypt_buf, buf,
+                                       node.space->flags);
     slot->release();
 
     if (invalidate ||

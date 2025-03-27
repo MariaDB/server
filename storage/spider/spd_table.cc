@@ -3550,7 +3550,7 @@ int spider_set_connect_info_default(
               spider_dbton[roop_count2].wrapper : "NULL"));
           if (
             spider_dbton[roop_count2].wrapper &&
-            !strcmp(share->tgt_wrappers[roop_count],
+            !strcasecmp(share->tgt_wrappers[roop_count],
               spider_dbton[roop_count2].wrapper)
           ) {
             if (spider_dbton[roop_count2].db_access_type ==
@@ -3832,7 +3832,7 @@ int spider_set_connect_info_default_db_table(
               spider_dbton[roop_count2].wrapper : "NULL"));
           if (
             spider_dbton[roop_count2].wrapper &&
-            !strcmp(share->tgt_wrappers[roop_count],
+            !strcasecmp(share->tgt_wrappers[roop_count],
               spider_dbton[roop_count2].wrapper)
           ) {
             if (spider_dbton[roop_count2].db_access_type ==

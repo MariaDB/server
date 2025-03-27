@@ -55,4 +55,3 @@ DROP TABLE t1;
 
 --disconnect node_2a
 --disconnect node_2b
-

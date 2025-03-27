@@ -1,4 +1,5 @@
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 --source include/have_aria.inc
 
 create table t1(id serial, val varchar(100)) engine=myisam;
@@ -37,7 +38,6 @@ insert into t5 values(null, 'b');
 insert into t5 select null, 'c';
 insert into t5 select null, 'd' from t5;
 select * from t2;
-
 
 --connection node_2
 select * from t1;

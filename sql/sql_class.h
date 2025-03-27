@@ -2383,8 +2383,8 @@ struct wait_for_commit
       return wait_for_prior_commit2(thd, allow_kill);
     else
     {
-      if (wakeup_error)
-        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+      if (unlikely(wakeup_error))
+        prior_commit_error(thd);
       return wakeup_error;
     }
   }
@@ -2435,6 +2435,7 @@ struct wait_for_commit
   void wakeup(int wakeup_error);
 
   int wait_for_prior_commit2(THD *thd, bool allow_kill);
+  void prior_commit_error(THD *thd);
   void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 

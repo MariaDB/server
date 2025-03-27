@@ -51,4 +51,3 @@ SHOW CREATE TABLE t6;
 
 --connection node_1
 DROP TABLE t1, t2, t3, t4, t5, t6;
-
