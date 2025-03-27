@@ -4348,7 +4348,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
     break;
   }
 
-  if (lower_case_table_names && !rc)
+  if (lower_case_table_names == 1 && !rc)
   {
     /* 
       We can safely do in-place upgrades here since all of the above cases
