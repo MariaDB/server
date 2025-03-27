@@ -164,7 +164,7 @@ DROP TABLE t;
 #
 # MDEV-35104 Invalid (old?) table or database name upon DDL on table with vector key and unique key
 #
-create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb charset=utf8mb3;
+create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb;
 alter table t add vector (v);
 drop table t;
 #
@@ -340,4 +340,9 @@ select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
 d
 unlock tables;
 drop table t;
+#
+# MDEV-36188 assert with vector index and very long PK
+#
+create table t (c1 varchar(1024) not null,c2 vector(1) not null,  unique key c1(c1), vector key c2 (c2)) engine=innodb default charset=utf8mb3 ;
+ERROR 42000: Primary key was too long for vector indexes, max length is 256 bytes
 # End of 11.8 tests
