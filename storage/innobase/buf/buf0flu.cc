@@ -2195,6 +2195,8 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
                                  MONITOR_FLUSH_SYNC_PAGES, n_flushed);
   }
 
+  os_aio_wait_until_no_pending_writes(false);
+
   switch (srv_file_flush_method) {
   case SRV_NOSYNC:
   case SRV_O_DIRECT_NO_FSYNC:

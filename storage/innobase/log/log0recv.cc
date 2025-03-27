@@ -2041,6 +2041,7 @@ ATTRIBUTE_COLD void recv_sys_t::wait_for_pool(size_t pages)
 {
   mysql_mutex_unlock(&mutex);
   os_aio_wait_until_no_pending_reads(false);
+  os_aio_wait_until_no_pending_writes(false);
   mysql_mutex_lock(&mutex);
   garbage_collect();
   mysql_mutex_lock(&buf_pool.mutex);
