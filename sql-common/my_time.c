@@ -168,9 +168,20 @@ static int get_date_time_separator(uint *number_of_fields,
   if (s >= end)
     return 0;
 
+  /*
+    According to ISO_8601 - 2016
+    "
+    The character [T] shall be used as time designator to indicate the start of the	 
+    representation of the time of day  component in these expressions.
+    "
+  
+    That means that after T there *must* be a time component.
+  */
   if (*s == 'T')
   {
     (*str)++;
+    if (s + 1 >= end)
+      return 1;
     return 0;
   }
 
