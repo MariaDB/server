@@ -1334,10 +1334,10 @@ set names latin1;
 set character_set_connection=ucs2;
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
 soundex('')	soundex('he')	soundex('hello all folks')	soundex('#3556 in bugdb')
-	H000	H4142	I51231
+	H000	H400?????F420	?????B231
 select hex(soundex('')),hex(soundex('he')),hex(soundex('hello all folks')),hex(soundex('#3556 in bugdb'));
 hex(soundex(''))	hex(soundex('he'))	hex(soundex('hello all folks'))	hex(soundex('#3556 in bugdb'))
-	0048003000300030	00480034003100340032	004900350031003200330031
+	0048003000300030	0048003400300030200041003400300030200046003400320030	200049003500300030200042003200330031
 select 'mood' sounds like 'mud';
 'mood' sounds like 'mud'
 1

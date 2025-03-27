@@ -936,10 +936,10 @@ set names latin1;
 set character_set_connection=utf32;
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
 soundex('')	soundex('he')	soundex('hello all folks')	soundex('#3556 in bugdb')
-	H000	H4142	I51231
+	H000	H400?A400?F4	?I500?B2
 select hex(soundex('')),hex(soundex('he')),hex(soundex('hello all folks')),hex(soundex('#3556 in bugdb'));
 hex(soundex(''))	hex(soundex('he'))	hex(soundex('hello all folks'))	hex(soundex('#3556 in bugdb'))
-	00000048000000300000003000000030	0000004800000034000000310000003400000032	000000490000003500000031000000320000003300000031
+	00000048000000300000003000000030	0000004800000034000000300000003020000000410000003400000030000000302000000046000000340000003200000030	20000000490000003500000030000000302000000042000000320000003300000031
 select 'mood' sounds like 'mud';
 'mood' sounds like 'mud'
 1

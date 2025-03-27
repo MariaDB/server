@@ -1342,6 +1342,7 @@ public:
 class Item_func_soundex :public Item_str_func
 {
   String tmp_value;
+  String *soundex(String *, String);
 public:
   Item_func_soundex(THD *thd, Item *a): Item_str_func(thd, a) {}
   String *val_str(String *) override;
