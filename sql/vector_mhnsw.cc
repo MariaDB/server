@@ -1550,6 +1550,13 @@ int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate)
 
 const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
 {
+  constexpr int max_ref_length= 256; // arbitrary limit < max key length
+  if (ref_length > max_ref_length)
+  {
+    my_printf_error(ER_TOO_LONG_KEY, "Primary key was too long for vector "
+                    "indexes, max length is %d bytes", MYF(0), max_ref_length);
+    return { nullptr, 0 };
+  }
   const char templ[]="CREATE TABLE i (                   "
                      "  layer tinyint not null,          "
                      "  tref varbinary(%u),              "

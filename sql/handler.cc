@@ -6481,8 +6481,9 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       init_tmp_table_share(thd, &index_share, db, 0, table_name, file_name, 1);
       index_share.db_plugin= share.db_plugin;
       LEX_CSTRING sql= mhnsw_hlindex_table_def(thd, ref_length);
-      if ((error= index_share.init_from_sql_statement_string(thd, false,
-                        sql.str, sql.length)))
+      error= !sql.length ||
+        index_share.init_from_sql_statement_string(thd, 0, sql.str, sql.length);
+      if (error)
       {
         index_share.db_plugin= NULL;
         break;

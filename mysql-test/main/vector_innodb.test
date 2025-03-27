@@ -158,7 +158,7 @@ DROP TABLE t;
 --echo #
 --echo # MDEV-35104 Invalid (old?) table or database name upon DDL on table with vector key and unique key
 --echo #
-create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb charset=utf8mb3;
+create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb;
 alter table t add vector (v);
 drop table t;
 
@@ -343,5 +343,10 @@ unlock tables;
 drop table t;
 --enable_service_connection
 
+--echo #
+--echo # MDEV-36188 assert with vector index and very long PK
+--echo #
+--error ER_TOO_LONG_KEY
+create table t (c1 varchar(1024) not null,c2 vector(1) not null,  unique key c1(c1), vector key c2 (c2)) engine=innodb default charset=utf8mb3 ;
 
 --echo # End of 11.8 tests
