@@ -1413,8 +1413,9 @@ struct my_option xb_client_options[]= {
      "The value is used in place of innodb_buffer_pool_size. "
      "This option is only relevant when the --prepare option is specified.",
      (G_PTR *) &xtrabackup_use_memory, (G_PTR *) &xtrabackup_use_memory, 0,
-     GET_LL, REQUIRED_ARG, 96 << 20, innodb_buffer_pool_extent_size,
-     SIZE_T_MAX, 0, innodb_buffer_pool_extent_size, 0},
+     GET_ULL, REQUIRED_ARG, 96 << 20, innodb_buffer_pool_extent_size,
+     size_t(-ssize_t(innodb_buffer_pool_extent_size)),
+     0, innodb_buffer_pool_extent_size, 0},
     {"throttle", OPT_XTRA_THROTTLE,
      "limit count of IO operations (pairs of read&write) per second to IOS "
      "values (for '--backup')",
