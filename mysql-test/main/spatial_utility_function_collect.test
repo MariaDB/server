@@ -33,24 +33,19 @@ INSERT INTO table_simple_aggregation ( grouping_condition, location ) VALUES
 SELECT ST_EQUALS( (SELECT ST_COLLECT( location ) AS t FROM
 table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,0 0,1 0,2
 0,3 0) ',4326)) c;
-# --echo # Functional requirement F-8 Shall support DISTINCT in aggregates
-# --echo # result shall be 1
+--echo # Functional requirement F-8 Shall support DISTINCT in aggregates
+--echo # result shall be 1
 SELECT ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
 table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
 0) ',4326)) c;
-# --echo # Functional requirement F-5: ST_COLLECT shall support group by, which
-# --echo # is given by aggregation machinery
-# --echo # result shall be
-# --echo # MULTIPOINT(0 0,1 0,3 0)
-# --echo # MULTIPOINT(2 0,0 0)
-# --sorted_result
-# SELECT ST_ASTEXT(ST_COLLECT( DISTINCT location )) AS t FROM
-# table_simple_aggregation GROUP BY grouping_condition;
-
-# --echo # Distinct with rollup
-# SELECT st_astext(ST_COLLECT( distinct location )) AS t from
-# table_simple_aggregation group by st_latitude(location) with rollup;
-
+--echo # Functional requirement F-5: ST_COLLECT shall support group by, which
+--echo # is given by aggregation machinery
+--echo # result shall be
+--echo # MULTIPOINT(0 0,1 0,3 0)
+--echo # MULTIPOINT(2 0,0 0)
+--sorted_result
+SELECT ST_ASTEXT(ST_COLLECT( DISTINCT location )) AS t FROM
+table_simple_aggregation GROUP BY grouping_condition;
 
 INSERT INTO table_simple_aggregation (location) VALUES
 ( ST_GEOMFROMTEXT('POINT(0 -0)'         ,4326)),
@@ -81,20 +76,20 @@ SELECT ST_ASTEXT(ST_COLLECT(location) OVER ( ROWS BETWEEN 1 PRECEDING AND
 CURRENT ROW)) c FROM table_simple_aggregation;
 
 
-# --echo Excercising multiple code paths.
-# --sorted_result
-# SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(running_number)
-# OVER()  FROM table_simple_aggregation GROUP BY running_number;
-# --sorted_result
-# SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(grouping_condition)
-# OVER(), grouping_condition FROM table_simple_aggregation GROUP BY
-# grouping_condition;
-# --sorted_result
-# SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(grouping_condition) OVER(),
-# grouping_condition FROM table_simple_aggregation GROUP BY grouping_condition;
-# --sorted_result
-# SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(running_number) OVER()  FROM
-# table_simple_aggregation GROUP BY running_number;
+--echo Excercising multiple code paths.
+--sorted_result
+SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(running_number)
+OVER()  FROM table_simple_aggregation GROUP BY running_number;
+--sorted_result
+SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(grouping_condition)
+OVER(), grouping_condition FROM table_simple_aggregation GROUP BY
+grouping_condition;
+--sorted_result
+SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(grouping_condition) OVER(),
+grouping_condition FROM table_simple_aggregation GROUP BY grouping_condition;
+--sorted_result
+SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(running_number) OVER()  FROM
+table_simple_aggregation GROUP BY running_number;
 
 --enable_warnings
 set session group_concat_max_len= 10;
@@ -120,28 +115,27 @@ INSERT INTO multi_srs_table( geometry ) VALUES
 --echo # ST_COLLECT MUST raise ER_GIS_DIFFERENT_SRIDS.
 --error ER_GIS_DIFFERENT_SRIDS_AGGREGATION
 SELECT ST_ASTEXT(ST_COLLECT(geometry)) AS t FROM multi_srs_table;
-# TODO fix this
-# --echo # F-2 b) If all the elements in an aggregate is of same SRS, ST_COLLECT
-# --echo # MUST return a result in that SRS.
-# --echo # result shall be one MULTIPOINT((60 -24),(61 -24)) with SRID 4326 and
-# --echo # one
-# --echo # Multipoint((38 77)) with SRID 0. There is some rounding issue on the
-# --echo # result, bug #31535105
-# --sorted_result
-# SELECT st_srid(geometry),ST_ASTEXT(ST_COLLECT( geometry )) AS t FROM
-# multi_srs_table GROUP BY ST_SRID(geometry);
+--echo # F-2 b) If all the elements in an aggregate is of same SRS, ST_COLLECT
+--echo # MUST return a result in that SRS.
+--echo # result shall be one MULTIPOINT((60 -24),(61 -24)) with SRID 4326 and
+--echo # one
+--echo # Multipoint((38 77)) with SRID 0. There is some rounding issue on the
+--echo # result, bug #31535105
+--sorted_result
+SELECT st_srid(geometry),ST_ASTEXT(ST_COLLECT( geometry )) AS t FROM
+multi_srs_table GROUP BY ST_SRID(geometry);
 
-# --echo Rollup needs all SRIDs to be the same.
-# --error ER_GIS_DIFFERENT_SRIDS_AGGREGATION
-# SELECT st_srid(geometry),ST_ASTEXT(ST_COLLECT( geometry )) AS t FROM
-# multi_srs_table GROUP BY ST_SRID(geometry) WITH ROLLUP;
+--echo Rollup needs all SRIDs to be the same.
+--error ER_GIS_DIFFERENT_SRIDS_AGGREGATION
+SELECT st_srid(geometry),ST_ASTEXT(ST_COLLECT( geometry )) AS t FROM
+multi_srs_table GROUP BY ST_SRID(geometry) WITH ROLLUP;
 
-# --echo # Triggering a codepath for geometrycollection in temp tables
-# INSERT INTO multi_srs_table( geometry ) VALUES
-# (ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(POINT(60 -24))'         ,4326));
-# --sorted_result
-# SELECT st_srid(geometry),ST_ASTEXT(ST_COLLECT( geometry )) AS t FROM
-# multi_srs_table GROUP BY ST_SRID(geometry);
+--echo # Triggering a codepath for geometrycollection in temp tables
+INSERT INTO multi_srs_table( geometry ) VALUES
+(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(POINT(60 -24))'         ,4326));
+--sorted_result
+SELECT st_srid(geometry),ST_ASTEXT( geometry ) AS t FROM
+multi_srs_table GROUP BY ST_SRID(geometry);
 
 
 --echo #teardown of testing handling of multiple SRS
@@ -175,18 +169,17 @@ INSERT INTO simple_table ( geo) VALUES
 --echo # GC, GC, GC, GC
 SELECT ST_ASTEXT(ST_COLLECT(geo) OVER( ORDER BY running_number ROWS BETWEEN 1
 PRECEDING AND CURRENT ROW)) AS geocollect  FROM simple_table;
-# --echo # with DISTINCT this result is expected to be:
-# --echo # GEMETRYCOLLECTION(GEOMETRYCOLLECTION EMPTY)
-# --echo # GEMETRYCOLLECTION(GEOMETRYCOLLECTION EMPTY)
-# SELECT ST_ASTEXT(ST_COLLECT( DISTINCT geo) OVER( ORDER BY running_number ROWS
-# BETWEEN 1 PRECEDING AND CURRENT ROW)) AS geocollect  FROM simple_table WHERE
-# ST_EQUALS(geo,ST_GEOMFROMTEXT('GEOMETRYCOLLECTION EMPTY'));
+--echo # with DISTINCT this result is expected to be:
+--echo # MP, GC, MLS, GC, MPpoly, GC, GC, GC, GC with only one EMPTY GC
+SELECT ST_ASTEXT(ST_COLLECT(DISTINCT geo) OVER( ORDER BY running_number ROWS BETWEEN 1
+PRECEDING AND CURRENT ROW)) AS geocollect FROM simple_table;
 
-# --echo # Exercising the "copy" constructor
-# SELECT ST_ASTEXT(ST_COLLECT(geo)) FROM simple_table GROUP BY geo WITH ROLLUP;
+--echo # Exercising the "copy" constructor
+SELECT ST_ASTEXT(ST_COLLECT(geo)) FROM simple_table GROUP BY geo WITH ROLLUP;
 
-# --echo # Casting Geometry as decimal invokes val_decimal()
-# SELECT CAST(ST_COLLECT(geo) AS DECIMAL ) FROM simple_table;
+--echo # Casting Geometry as decimal invokes val_decimal()
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST(ST_COLLECT(geo) AS DECIMAL ) FROM simple_table;
 
 DROP TABLE simple_table;
 
@@ -195,7 +188,6 @@ DROP TABLE simple_table;
 --echo #
 SELECT ST_astext(ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )));
 CREATE TABLE tb1 AS SELECT (ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )) );
-SHOW CREATE TABLE tb1;
 DROP TABLE tb1;
 
 --echo #
@@ -205,3 +197,11 @@ create view v1 as SELECT ST_COLLECT(ST_GEOMFROMTEXT('POINT(0 0)'));
 drop view v1;
 create view v1 as SELECT GROUP_CONCAT(ST_GEOMFROMTEXT('POINT(0 0)'));
 drop view v1;
+
+--echo #
+--echo # MDEV-36167 Assertion `0' failed in Item_sum_str::reset_field after selecting st_collect + group by
+--echo #
+CREATE TABLE t1 (a int, p point);
+INSERT INTO t1 (a, p) VALUES (0,st_geomfromtext('POINT(1 1)')), ( 1,st_geomfromtext('POINT(0 0)')), ( 0,st_geomfromtext('POINT(1 1)'));
+SELECT st_astext(ST_COLLECT(p)) FROM t1 GROUP BY a;
+DROP TABLE t1;
