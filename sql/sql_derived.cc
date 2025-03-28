@@ -354,6 +354,13 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (derived->dt_handler)
   {
     derived->change_refs_to_fields();
+    /*
+      Update JOIN::tmp_table_param to reflect new number of fields
+      and functions
+    */
+    SELECT_LEX *sl= derived->select_lex;
+    count_field_types(sl, &sl->join->tmp_table_param, sl->join->all_fields, 0);
+
     derived->set_materialized_derived();
     DBUG_RETURN(FALSE);
   }
@@ -465,6 +472,13 @@ unconditional_materialization:
   }
 
   derived->change_refs_to_fields();
+  /*
+    Update JOIN::tmp_table_param to reflect new number of fields
+    and functions
+  */
+  SELECT_LEX *sl= derived->select_lex;
+  count_field_types(sl, &sl->join->tmp_table_param, sl->join->all_fields, 0);
+
   derived->set_materialized_derived();
   if (!derived->table || !derived->table->is_created())
     res= mysql_derived_create(thd, lex, derived);
@@ -1042,6 +1056,14 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (derived->is_merged_derived())
     {
       derived->change_refs_to_fields();
+      /*
+        Update JOIN::tmp_table_param to reflect new number of fields
+        and functions
+      */
+      SELECT_LEX *sl= derived->select_lex;
+      count_field_types(sl, &sl->join->tmp_table_param,
+                        sl->join->all_fields, 0);
+
       derived->set_materialized_derived();
     }
     if ((res= mysql_derived_create(thd, lex, derived)))
