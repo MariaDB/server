@@ -602,7 +602,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
@@ -1252,7 +1251,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
     "table": {
       "table_name": "t2",
       "access_type": "const",
@@ -1277,7 +1275,6 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "const_condition": "1",
     "table": {
       "table_name": "t2",
       "access_type": "const",

@@ -204,8 +204,9 @@ public:
   void recalc_used_tables(st_select_lex *new_parent, bool after_pullout);
   virtual bool exec();
   /*
-    If subquery optimization or execution determines that the subquery has
-    an empty result, mark the subquery predicate as a constant value.
+    Called if we've managed to calculate the value of this subquery
+    during optimization or execution, hence it can be considered constant
+    at all subsequent steps.
   */
   void make_const()
   { 
@@ -262,6 +263,7 @@ public:
     @retval FALSE otherwise
   */
   bool is_expensive_processor(void *arg) override { return is_expensive(); }
+  bool make_const_processor(void *arg) override;
   bool update_table_bitmaps_processor(void *arg) override;
 
   /**
