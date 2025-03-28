@@ -2333,6 +2333,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 {
 	btr_pcur_t	pcur;
 	mtr_t		mtr;
+	dict_names_t	fk_list;
 
 	DBUG_ENTER("dict_load_table_one");
 	DBUG_PRINT("dict_load_table_one",
@@ -2516,7 +2517,7 @@ corrupted:
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
 		err = dict_load_foreigns(table->name.m_name, nullptr,
-					 0, true, ignore_err, fk_tables);
+					 0, true, ignore_err, fk_list);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << "Load table " << table->name
@@ -2557,6 +2558,8 @@ corrupted:
 
 	ut_ad(err != DB_SUCCESS || dict_foreign_set_validate(*table));
 
+	for (auto it : fk_list)
+	  fk_tables.push_back(it);
 	DBUG_RETURN(table);
 }
 
