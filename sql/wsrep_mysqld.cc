@@ -2527,7 +2527,7 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
       break;
     case DB_TYPE_ARIA:
       if (wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
-	return true;
+        return true;
       break;
     case DB_TYPE_PARTITION_DB:
       /* In most cases this means we could not find out

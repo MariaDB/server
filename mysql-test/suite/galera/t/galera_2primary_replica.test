@@ -49,13 +49,13 @@ grant all on *.* to  repl2@'%';
 --echo # Galera replica changing master to primary1
 SET @@default_master_connection='stream1';
 --disable_query_log
---eval CHANGE MASTER 'stream1' TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
+--eval CHANGE MASTER 'stream1' TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_ssl_verify_server_cert=0, master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
 --enable_query_log
 
 --echo # Primary node changing master to primary2
 SET @@default_master_connection='stream2';
 --disable_query_log
---eval CHANGE MASTER 'stream2' TO master_host='127.0.0.1', master_user='repl2', master_password='repl2', master_port=$NODE_MYPORT_4, master_use_gtid=slave_pos;
+--eval CHANGE MASTER 'stream2' TO master_host='127.0.0.1', master_user='repl2', master_password='repl2', master_ssl_verify_server_cert=0, master_port=$NODE_MYPORT_4, master_use_gtid=slave_pos;
 --enable_query_log
 
 START ALL SLAVES;
