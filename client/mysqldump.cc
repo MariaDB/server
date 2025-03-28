@@ -6327,7 +6327,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
 
       // move partition name, if we're skipping a table
       if (partition_names != NULL) {
-        *partition_names_pos = partition_names[table_num];
+        *partition_names_pos= partition_names[table_num];
         partition_names_pos++;
       }
     }
@@ -6408,7 +6408,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   for (pos= dump_tables; pos < end; pos++)
   {
     char *partition = NULL;
-    if (*partition_names_pos != NULL) {
+    if (partition_names_pos != NULL && *partition_names_pos != NULL) {
       partition = (*partition_names_pos)->str;
       partition_names_pos++;
     }
