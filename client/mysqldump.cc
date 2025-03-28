@@ -6187,9 +6187,9 @@ static int get_sys_var_lower_case_table_names()
 // You need to do my_free on the result, if not NULL
 static char* get_partition_from_table_name(char *tablename, const char separator = '#')
 {
-  int namelen = strlen(tablename);
+  size_t namelen = strlen(tablename);
   int jj = 0;
-  for (int ii=0; ii<namelen; ii++)
+  for (size_t ii=0; ii<namelen; ii++)
   {
     if (tablename[ii] != separator)
     {
