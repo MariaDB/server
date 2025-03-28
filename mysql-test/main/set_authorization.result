@@ -94,4 +94,22 @@ ERROR 42000: User 'u1' has exceeded the 'max_queries_per_hour' resource (current
 disconnect u1;
 connection default;
 drop user u1;
+#
+# MDEV-36401 Access denied errors produced by SET SESSION AUTHORIZATION not reflected in status values
+#
+flush global status;
+set session authorization u1@localhost;
+ERROR HY000: The user 'u1'@'localhost' does not exist
+create user u1;
+connect u1,localhost,u1;
+set session authorization root@localhost;
+ERROR 28000: Access denied trying to change to user 'root'@'localhost'
+set session authorization foo@bar;
+ERROR 28000: Access denied trying to change to user 'foo'@'bar'
+disconnect u1;
+connection default;
+show global status like 'access_denied_errors';
+Variable_name	Value
+Access_denied_errors	2
+drop user u1;
 # End of 11.8 tests

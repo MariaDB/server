@@ -12617,7 +12617,7 @@ int acl_setauthorization(THD *thd, const LEX_USER *user)
     return 1;
   }
 
-  Security_context *sctx= thd->security_ctx;
+  Security_context *sctx= thd->security_ctx, save_security_ctx= *sctx;
 
   DBUG_ASSERT(*user->host.str); // guaranteed by the parser
 
@@ -12641,9 +12641,9 @@ int acl_setauthorization(THD *thd, const LEX_USER *user)
 
   if (!acl_user)
   {
-    uint err= sctx->master_access & PRIV_SUDO_CHANGE_USER
-              ? ER_NO_SUCH_USER : ER_ACCESS_DENIED_CHANGE_USER_ERROR;
-    my_error(err, MYF(0), user->user.str, user->host.str);
+    if (!(sctx->master_access & PRIV_SUDO_CHANGE_USER))
+      goto access_denied;
+    my_error(ER_NO_SUCH_USER, MYF(0), user->user.str, user->host.str);
     return 1;
   }
 
@@ -12652,13 +12652,8 @@ int acl_setauthorization(THD *thd, const LEX_USER *user)
        strcmp(user->host.str, sctx->host_or_ip) ||
        strcmp(acl_user->user.str, sctx->priv_user) ||
        strcmp(acl_user->host.hostname, sctx->priv_host)))
-  {
-    my_error(ER_ACCESS_DENIED_CHANGE_USER_ERROR, MYF(0),
-             user->user.str, user->host.str);
-    return 1;
-  }
+    goto access_denied;
 
-  Security_context save_security_ctx= *sctx;
   thd->change_user();
   thd->clear_error();                         // if errors from rollback
   my_free(const_cast<char*>(thd->db.str));
@@ -12687,6 +12682,12 @@ int acl_setauthorization(THD *thd, const LEX_USER *user)
   mysql_audit_notify_connection_change_user(thd, &save_security_ctx);
   save_security_ctx.destroy();
   return 0;
+
+access_denied:
+  my_error(ER_ACCESS_DENIED_CHANGE_USER_ERROR, MYF(0),
+           user->user.str, user->host.str);
+  status_var_increment(thd->status_var.access_denied_errors);
+  return 1;
 }
 
 #endif // NO_EMBEDDED_ACCESS_CHECKS
