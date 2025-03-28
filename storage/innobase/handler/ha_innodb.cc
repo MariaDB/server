@@ -18674,15 +18674,6 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-static void innodb_log_spin_wait_delay_update(THD *, st_mysql_sys_var*,
-                                              void *, const void *save)
-{
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  mtr_t::spin_wait_delay= *static_cast<const unsigned*>(save);
-  mtr_t::finisher_update();
-  log_sys.latch.wr_unlock();
-}
-
 /** Update innodb_status_output or innodb_status_output_locks,
 which control InnoDB "status monitor" output to the error log.
 @param[out]	var	current value
@@ -19541,11 +19532,12 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
-static MYSQL_SYSVAR_UINT(log_spin_wait_delay, mtr_t::spin_wait_delay,
-  PLUGIN_VAR_OPCMDARG,
-  "Delay between log buffer spin lock polls (0 to use a blocking latch)",
-  nullptr, innodb_log_spin_wait_delay_update,
-  0, 0, 6000, 0);
+static uint innodb_log_spin_wait_delay;
+
+static MYSQL_SYSVAR_UINT(log_spin_wait_delay, innodb_log_spin_wait_delay,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
+  nullptr, nullptr, 0, 0, 6000, 0);
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,

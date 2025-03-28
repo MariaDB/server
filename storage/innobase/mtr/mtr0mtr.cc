@@ -44,7 +44,6 @@ void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
 #endif
 
 std::pair<lsn_t,mtr_t::page_flush_ahead> (*mtr_t::finisher)(mtr_t *, size_t);
-unsigned mtr_t::spin_wait_delay;
 
 void mtr_t::finisher_update()
 {
@@ -53,15 +52,12 @@ void mtr_t::finisher_update()
   if (log_sys.is_mmap())
   {
     commit_logger= mtr_t::commit_log<true>;
-    finisher= spin_wait_delay
-      ? mtr_t::finish_writer<true,true> : mtr_t::finish_writer<false,true>;
+    finisher= mtr_t::finish_writer<true>;
     return;
   }
   commit_logger= mtr_t::commit_log<false>;
 #endif
-  finisher=
-    (spin_wait_delay
-     ? mtr_t::finish_writer<true,false> : mtr_t::finish_writer<false,false>);
+  finisher= mtr_t::finish_writer<false>;
 }
 
 void mtr_memo_slot_t::release() const
@@ -339,24 +335,11 @@ void mtr_t::release()
   m_memo.clear();
 }
 
-inline lsn_t log_t::get_write_target() const
-{
-  ut_ad(latch_have_any());
-  if (UNIV_LIKELY(buf_free_ok()))
-    return 0;
-  /* The LSN corresponding to the end of buf is
-  write_lsn - (first_lsn & 4095) + buf_free,
-  but we use simpler arithmetics to return a smaller write target in
-  order to minimize waiting in log_write_up_to(). */
-  ut_ad(max_buf_free >= 4096 * 4);
-  return write_lsn + max_buf_free / 2;
-}
-
 template<bool mmap>
 void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
+  noexcept
 {
   size_t modified= 0;
-  const lsn_t write_lsn= mmap ? 0 : log_sys.get_write_target();
 
   if (mtr->m_made_dirty)
   {
@@ -475,9 +458,6 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
 
   if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
     buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
-
-  if (!mmap && UNIV_UNLIKELY(write_lsn != 0))
-    log_write_up_to(write_lsn, false);
 }
 
 /** Commit a mini-transaction. */
@@ -897,181 +877,98 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   ? ". Shutdown is in progress" : "");
 }
 
-static ATTRIBUTE_NOINLINE void lsn_delay(size_t delay, size_t mult) noexcept
+ATTRIBUTE_COLD lsn_t log_t::append_prepare_wait(size_t size, bool ex) noexcept
 {
-  delay*= mult * 2; // GCC 13.2.0 -O2 targeting AMD64 wants to unroll twice
-  HMT_low();
-  do
-    MY_RELAX_CPU();
-  while (--delay);
-  HMT_medium();
-}
-
-#if defined __clang_major__ && __clang_major__ < 10
-/* Only clang-10 introduced support for asm goto */
-#elif defined __APPLE__
-/* At least some versions of Apple Xcode do not support asm goto */
-#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-# if SIZEOF_SIZE_T == 8
-#  define LOCK_TSET                                             \
-  __asm__ goto("lock btsq $63, %0\n\t" "jnc %l1"                \
-               : : "m"(buf_free) : "cc", "memory" : got)
-# else
-#  define LOCK_TSET                                             \
-  __asm__ goto("lock btsl $31, %0\n\t" "jnc %l1"                \
-               : : "m"(buf_free) : "cc", "memory" : got)
-# endif
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-# if SIZEOF_SIZE_T == 8
-#  define LOCK_TSET                                                     \
-  if (!_interlockedbittestandset64                                      \
-      (reinterpret_cast<volatile LONG64*>(&buf_free), 63)) return
-# else
-#  define LOCK_TSET                                                     \
-  if (!_interlockedbittestandset                                        \
-      (reinterpret_cast<volatile long*>(&buf_free), 31)) return
-# endif
-#endif
-
-#ifdef LOCK_TSET
-ATTRIBUTE_NOINLINE
-void log_t::lsn_lock_bts() noexcept
-{
-  LOCK_TSET;
-  {
-    const size_t m= mtr_t::spin_wait_delay;
-    constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
-    for (size_t delay_count= DELAY, delay_iterations= 1;;
-         lsn_delay(delay_iterations, m))
-    {
-      if (!(buf_free.load(std::memory_order_relaxed) & buf_free_LOCK))
-        LOCK_TSET;
-      if (!delay_count);
-      else if (delay_iterations < MAX_ITERATIONS)
-        delay_count= DELAY, delay_iterations++;
-      else
-        delay_count--;
-    }
-  }
-
-# ifdef __GNUC__
- got:
-  return;
-# endif
-}
-
-inline
-#else
-ATTRIBUTE_NOINLINE
-#endif
-size_t log_t::lock_lsn() noexcept
-{
-#ifdef LOCK_TSET
-  lsn_lock_bts();
-  return ~buf_free_LOCK & buf_free.load(std::memory_order_relaxed);
-# undef LOCK_TSET
-#else
-  size_t b= buf_free.fetch_or(buf_free_LOCK, std::memory_order_acquire);
-  if (b & buf_free_LOCK)
-  {
-    const size_t m= mtr_t::spin_wait_delay;
-    constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
-    for (size_t delay_count= DELAY, delay_iterations= 1;
-         ((b= buf_free.load(std::memory_order_relaxed)) & buf_free_LOCK) ||
-           (buf_free_LOCK & (b= buf_free.fetch_or(buf_free_LOCK,
-                                                  std::memory_order_acquire)));
-         lsn_delay(delay_iterations, m))
-      if (!delay_count);
-      else if (delay_iterations < MAX_ITERATIONS)
-        delay_count= DELAY, delay_iterations++;
-      else
-        delay_count--;
-  }
-  return b;
-#endif
-}
-
-template<bool spin>
-ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
-  noexcept
-{
+  wrap_mutex.wr_lock();
   waits++;
-  ut_ad(buf_free.load(std::memory_order_relaxed) ==
-        (spin ? (b | buf_free_LOCK) : b));
-  if (spin)
-    buf_free.store(b, std::memory_order_release);
-  else
-    lsn_lock.wr_unlock();
+  lsn_t l{lsn.load(std::memory_order_relaxed)};
+  constexpr lsn_t BACK_OFF= 1ULL << 63;
+  const lsn_t lsn_diff= l -
+    (is_mmap()
+     ? get_flushed_lsn(std::memory_order_relaxed)
+     : write_lsn - ((write_size - 1) & (write_lsn - first_lsn)));
+  const lsn_t flip{ex ? 0 : BACK_OFF & ~lsn_diff};
+  /* Subtract our LSN overshoot, and ensure that BACK_OFF is set. */
+  l= lsn.fetch_sub(flip | size, std::memory_order_relaxed) - size;
+  wrap_mutex.wr_unlock();
 
   if (ex)
     latch.wr_unlock();
   else
+  {
     latch.rd_unlock();
+    if (flip)
+    {
+      /* Wait for all threads to back off. */
+      latch.wr_lock(SRW_LOCK_CALL);
+      l= lsn.fetch_sub(BACK_OFF) - BACK_OFF;
+      ut_ad(is_mmap()
+            ? l - get_flushed_lsn(std::memory_order_relaxed) < capacity()
+            : l - write_lsn - ((write_size - 1) & (write_lsn - first_lsn)) <
+            buf_size);
+      latch.wr_unlock();
+    }
+    else
+    {
+      HMT_low();
+      const lsn_t old{l};
+      while (((l= lsn.load(std::memory_order_relaxed)) ^ old) & BACK_OFF)
+        MY_RELAX_CPU();
+      HMT_medium();
+    }
+  }
 
-  log_write_up_to(lsn, is_mmap());
+  log_write_up_to(l, is_mmap());
 
   if (ex)
     latch.wr_lock(SRW_LOCK_CALL);
   else
     latch.rd_lock(SRW_LOCK_CALL);
 
-  if (spin)
-    return lock_lsn();
-
-  lsn_lock.wr_lock();
-  return buf_free.load(std::memory_order_relaxed);
+  return lsn.fetch_add(size, std::memory_order_relaxed);
 }
 
 /** Reserve space in the log buffer for appending data.
-@tparam spin  whether to use the spin-only lock_lsn()
 @tparam mmap  log_sys.is_mmap()
 @param size   total length of the data to append(), in bytes
 @param ex     whether log_sys.latch is exclusively locked
 @return the start LSN and the buffer position for append() */
-template<bool spin,bool mmap>
+template<bool mmap>
 inline
 std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(mmap == is_mmap());
-  if (!spin)
-    lsn_lock.wr_lock();
-  size_t b{spin ? lock_lsn() : buf_free.load(std::memory_order_relaxed)};
-  write_to_buf++;
-
-  lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
-
-  if (UNIV_UNLIKELY(mmap
-                    ? (end_lsn -
-                       get_flushed_lsn(std::memory_order_relaxed)) > capacity()
-                    : b + size >= buf_size))
+  lsn_t l= lsn.fetch_add(size, std::memory_order_relaxed);
+#if 0
+  write_to_buf.fetch_add(1);
+#else /* reduce contention */
+  /* This counter will be inaccurate when multiple threads are
+  executing here while holding a shared log_sys.latch. */
+  write_to_buf= write_to_buf + 1;
+#endif
+  lsn_t end_lsn, buf_start_lsn= mmap
+    ? first_lsn
+    : write_lsn - ((write_size - 1) & (write_lsn - first_lsn));
+  const size_t buf_size{mmap ? size_t(capacity()) : this->buf_size};
+  for (;;)
   {
-    b= append_prepare_wait<spin>(b, ex, l);
-    /* While flushing log, we had released the lsn lock and LSN could have
-    progressed in the meantime. */
-    l= lsn.load(std::memory_order_relaxed);
     end_lsn= l + size;
+    const lsn_t lsn_diff= end_lsn -
+      (mmap ? get_flushed_lsn(std::memory_order_relaxed) : buf_start_lsn);
+    if (lsn_diff < buf_size)
+      break;
+    l= append_prepare_wait(size, ex);
+    if (!mmap)
+      buf_start_lsn= ~lsn_t(write_size - 1) & (write_lsn - first_lsn);
   }
-
-  size_t new_buf_free= b + size;
-  if (mmap && new_buf_free >= file_size)
-    new_buf_free-= size_t(capacity());
-
-  lsn.store(end_lsn, std::memory_order_relaxed);
 
   if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
     set_check_for_checkpoint(true);
 
-  byte *our_buf= buf;
-  if (spin)
-    buf_free.store(new_buf_free, std::memory_order_release);
-  else
-  {
-    buf_free.store(new_buf_free, std::memory_order_relaxed);
-    lsn_lock.wr_unlock();
-  }
-
-  return {l, our_buf + b};
+  if (mmap)
+    return {l, buf + FIRST_LSN + size_t(l - buf_start_lsn) % buf_size};
+  return {l, buf + size_t(l - buf_start_lsn)};
 }
 
 /** Finish appending data to the log.
@@ -1216,7 +1113,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     if (!resize_flush_buf)
     {
       ut_ad(is_mmap());
-      lsn_lock.wr_lock();
+      wrap_mutex.wr_lock();
       const size_t resize_capacity{resize_target - START_OFFSET};
       {
         const lsn_t resizing{resize_in_progress()};
@@ -1227,7 +1124,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
         if (UNIV_UNLIKELY(lsn < resizing))
         {
           /* This function may execute in multiple concurrent threads
-          that hold a shared log_sys.latch. Before we got lsn_lock,
+          that hold a shared log_sys.latch. Before we acquired wrap_mutex,
           another thread could have executed resize_lsn.store(lsn) below
           with a larger lsn than ours.
 
@@ -1277,7 +1174,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
       ut_ad(resize_buf[s] <= 1);
       resize_buf[s]= 1;
     mmap_done:
-      lsn_lock.wr_unlock();
+      wrap_mutex.wr_unlock();
     }
     else
 #endif
@@ -1304,7 +1201,7 @@ inline void log_t::append(byte *&d, const void *s, size_t size) noexcept
   d+= size;
 }
 
-template<bool spin,bool mmap>
+template<bool mmap>
 std::pair<lsn_t,mtr_t::page_flush_ahead>
 mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
@@ -1315,7 +1212,7 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
 
   const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start=
-    log_sys.append_prepare<spin,mmap>(len, mtr->m_latch_ex);
+    log_sys.append_prepare<mmap>(len, mtr->m_latch_ex);
 
   if (!mmap)
   {
