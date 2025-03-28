@@ -654,8 +654,7 @@ struct start_alter_info
   /*
     ALTER id is defined as a pair of GTID's seq_no and domain_id.
   */
-  decltype(rpl_gtid::seq_no) sa_seq_no; // key for searching (SA's id)
-  uint32 domain_id;
+  rpl_gtid gtid; // rpl_gtid::seq_no is the key for searching (SA's id)
   bool   direct_commit_alter; // when true CA thread executes the whole query
   /*
     0 prepared and not error from commit and rollback
