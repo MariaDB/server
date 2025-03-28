@@ -198,7 +198,7 @@ public:
   }
   const key_map *keys_to_use_for_scanning() override { return &key_map_full; }
   /*
-    Everything below are methods that we implment in ha_federated.cc.
+    Everything below are methods that we implement in ha_federated.cc.
 
     Most of these methods are not obligatory, skip them and
     MySQL will treat them as not implemented

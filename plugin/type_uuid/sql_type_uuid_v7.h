@@ -72,7 +72,7 @@ class UUIDv7: public Type_handler_uuid_new::Fbt
     }
 
     /*
-      We have 12 bits for to ensure monotonocity. Let's store microseconds
+      We have 12 bits to ensure monotonicity. Let's store microseconds
       there (from 0 to 999) as described in section 6.2, Method 3 of RFC 9562,
       and use two remaining bits as a counter, thus allowing 4000 UUIDv7
       values to be generated within one millisecond.

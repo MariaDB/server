@@ -1686,7 +1686,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
 
     /*
       setup_tables_done_option should be set only for very first SELECT,
-      because it protect from secont setup_tables call for select-like non
+      because it protect from second setup_tables call for select-like non
       select commands (DELETE/INSERT/...) and they use only very first
       SELECT (for union it can be only INSERT ... SELECT).
     */
@@ -1855,7 +1855,7 @@ cont:
                      TMP_TABLE_ALL_COLUMNS);
     /*
       Force the temporary table to be a MyISAM table if we're going to use
-      fullext functions (MATCH ... AGAINST .. IN BOOLEAN MODE) when reading
+      fulltext functions (MATCH ... AGAINST .. IN BOOLEAN MODE) when reading
       from it (this should be removed in 5.2 when fulltext search is moved 
       out of MyISAM).
     */
@@ -2240,7 +2240,7 @@ bool st_select_lex_unit::optimize()
     {
       if (item->assigned())
       {
-        item->assigned(0); // We will reinit & rexecute unit
+        item->assigned(0); // We will reinit & reexecute unit
         item->reset();
       }
       if (table->is_created())

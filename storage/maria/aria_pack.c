@@ -2905,7 +2905,7 @@ static char *make_old_name(char *new_name, char *old_name)
   return fn_format(new_name,old_name,"",OLD_EXT,2+4);
 }
 
-	/* rutines for bit writing buffer */
+	/* routines for bit writing buffer */
 
 static void init_file_buffer(File file, pbool read_buffer)
 {

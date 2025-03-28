@@ -789,7 +789,7 @@ enum class item_with_t : item_flags_t
   WINDOW_FUNC= (1<<1), // If item contains a window func
   FIELD=       (1<<2), // If any item except Item_sum contains a field.
   SUM_FUNC=    (1<<3), // If item contains a sum func
-  SUBQUERY=    (1<<4), // If item containts a sub query
+  SUBQUERY=    (1<<4), // If item contains a subquery
   ROWNUM_FUNC= (1<<5), // If ROWNUM function was used
   PARAM=       (1<<6)  // If user parameter was used
 };
@@ -2294,7 +2294,7 @@ public:
 
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
-    or can be converted to such an exression using equalities.
+    or can be converted to such an expression using equalities.
     Not to be used for AND/OR formulas.
   */
   virtual bool excl_dep_on_table(table_map tab_map) { return false; }
@@ -2530,7 +2530,17 @@ public:
   bool check_type_can_return_time(const LEX_CSTRING &opname) const;
   // It is not row => null inside is impossible
   virtual bool null_inside() { return 0; }
-  // used in row subselects to get value of elements
+  /*
+    bring_value()
+    - For scalar Item types this method does not do anything.
+    - For Items which can be of the ROW data type,
+      this method brings the row, so its component values become available
+      for calling their value methods (such as val_int(), get_date() etc).
+      * Item_singlerow_subselect stores component values in
+        the array of Item_cache in Item_singlerow_subselect::row.
+      * Item_func_sp stores component values in Field_row::m_table
+        of the Field_row instance pointed by Item_func_sp::sp_result_field.
+  */
   virtual void bring_value() {}
 
   const Type_handler *type_handler_long_or_longlong() const
@@ -3578,7 +3588,7 @@ public:
   void get_tmp_field_src(Tmp_field_src *src, const Tmp_field_param *param);
   /*
     This implementation of used_tables() used by Item_avg_field and
-    Item_variance_field which work when only temporary table left, so theu
+    Item_variance_field which work when only temporary table left, so they
     return table map of the temporary table.
   */
   table_map used_tables() const override { return 1; }
@@ -4646,7 +4656,7 @@ public:
   { return get_item_copy<Item_bool_static>(thd, this); }
 };
 
-/* The following variablese are stored in a read only segment */
+/* The following variables are stored in a read only segment */
 extern Item_bool_static *Item_false, *Item_true;
 
 class Item_uint :public Item_int
@@ -5804,7 +5814,7 @@ public:
     item to the debug log. The second use of this method is as
     a helper function of print() and error messages, where it is
     applicable. To suit both goals it should return a meaningful,
-    distinguishable and sintactically correct string. This method
+    distinguishable and syntactically correct string. This method
     should not be used for runtime type identification, use enum
     {Sum}Functype and Item_func::functype()/Item_sum::sum_func()
     instead.
@@ -7196,9 +7206,9 @@ public:
 
 
 /**
-  This class is used as bulk parameter INGNORE representation.
+  This class is used as bulk parameter IGNORE representation.
 
-  It just do nothing when assigned to a field
+  It just does nothing when assigned to a field
 
   This is a non-standard MariaDB extension.
 */
@@ -8205,7 +8215,7 @@ public:
 
   The value meaning a not-initialized ESCAPE character must not be equal to
   any valid value, so must be outside of these ranges:
-  - -128..+127, not to conflict with a valid 8bit charcter
+  - -128..+127, not to conflict with a valid 8bit character
   - 0..0x10FFFF, not to conflict with a valid Unicode code point
   The exact value does not matter.
 */

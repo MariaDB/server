@@ -123,7 +123,7 @@ ulong total_ha_2pc= 0;
 /*
   Number of non-mandatory 2pc handlertons whose initialization failed
   to estimate total_ha_2pc value under supposition of the failures
-  have not occcured.
+  have not occured.
 */
 ulong failed_ha_2pc= 0;
 #endif
@@ -613,7 +613,7 @@ int ha_finalize_handlerton(void *plugin_)
   */
   if (hton->slot != HA_SLOT_UNDEF)
   {
-    /* Make sure we are not unpluging another plugin */
+    /* Make sure we are not unplugging another plugin */
     DBUG_ASSERT(hton2plugin[hton->slot] == plugin);
     DBUG_ASSERT(hton->slot < MAX_HA);
     hton2plugin[hton->slot]= NULL;
@@ -2088,7 +2088,7 @@ err:
   {
     /*
       We are not really doing a rollback here, but the code in trans_commit()
-      requres that m_transaction_psi is 0 when we return from this function.
+      requires that m_transaction_psi is 0 when we return from this function.
     */
     MYSQL_ROLLBACK_TRANSACTION(thd->m_transaction_psi);
     thd->m_transaction_psi= NULL;
@@ -3418,7 +3418,7 @@ LEX_CSTRING *handler::engine_name()
 
 
 /*
-  Calclate the number of index blocks we are going to access when
+  Calculate the number of index blocks we are going to access when
   doing 'ranges' index dives reading a total of 'rows' rows.
 */
 
@@ -5379,7 +5379,7 @@ bool non_existing_table_error(int error)
   @retval
     HA_ADMIN_NEEDS_DATA_CONVERSION
                               Table has structures requiring
-                              ALTER TABLE FORCE, algortithm=COPY to
+                              ALTER TABLE FORCE, algorithm=COPY to
                               recreate data.
   @retval
     HA_ADMIN_NOT_IMPLEMENTED
@@ -5465,7 +5465,7 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
               ha_table_flags() & HA_CAN_REPAIR);
 
   /*
-    Update frm version if no errors and there are no version incompatibiltes
+    Update frm version if there are no errors and no version incompatibilities
     in the data (as these are not fixed by repair).
   */
   if (result == HA_ADMIN_OK && !opt_readonly &&
@@ -7132,7 +7132,7 @@ int handler::read_range_first(const key_range *start_key,
   DBUG_ENTER("handler::read_range_first");
 
   eq_range= eq_range_arg;
-  set_end_range(end_key);
+  set_end_range(end_key, RANGE_SCAN_ASC);
   range_key_part= table->key_info[active_index].key_part;
 
   if (!start_key)			// Read first record
@@ -7208,9 +7208,17 @@ int handler::read_range_next()
 }
 
 
-void handler::set_end_range(const key_range *end_key)
+/*
+  @brief
+    Inform the Storage Engine about the end of range to be scanned.
+    See opt_index_cond_pushdown.cc, "End-of-range checks".
+*/
+
+void handler::set_end_range(const key_range *end_key,
+                            enum_range_scan_direction direction)
 {
   end_range= 0;
+  range_scan_direction= direction;
   if (end_key)
   {
     end_range= &save_end_range;
@@ -7218,6 +7226,7 @@ void handler::set_end_range(const key_range *end_key)
     key_compare_result_on_equal=
       ((end_key->flag == HA_READ_BEFORE_KEY) ? 1 :
        (end_key->flag == HA_READ_AFTER_KEY) ? -1 : 0);
+    range_key_part= table->key_info[active_index].key_part;
   }
 }
 
@@ -7250,8 +7259,11 @@ int handler::compare_key(key_range *range)
 
 
 /*
-  Same as compare_key() but doesn't check have in_range_check_pushed_down.
-  This is used by index condition pushdown implementation.
+  Same as compare_key() but
+  - doesn't check in_range_check_pushed_down,
+  - supports reverse index scans.
+
+  This is used by Index Condition Pushdown implementation.
 */
 
 int handler::compare_key2(key_range *range) const
@@ -7262,6 +7274,8 @@ int handler::compare_key2(key_range *range) const
   cmp= key_cmp(range_key_part, range->key, range->length);
   if (!cmp)
     cmp= key_compare_result_on_equal;
+  if (range_scan_direction == RANGE_SCAN_DESC)
+    cmp= -cmp;
   return cmp;
 }
 
@@ -7286,6 +7300,10 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
     if (killed > abort_at)
       return CHECK_ABORTED_BY_USER;
   }
+  /*
+    Before checking the Pushed Index Condition, check if we went out of range.
+    See opt_index_cond_pushdown.cc, "End-of-range checks".
+  */
   if (unlikely(h->end_range) && h->compare_key2(h->end_range) > 0)
     return CHECK_OUT_OF_RANGE;
   h->increment_statistics(&SSV::ha_icp_attempts);
@@ -7904,7 +7922,7 @@ int handler::check_duplicate_long_entries(const uchar *new_rec)
 /** @brief
     check whether updated records breaks the
     unique constraint on long columns.
-    In the case of update we just need to check the specic key
+    In the case of update we just need to check the specific key
     reason for that is consider case
     create table t1(a blob , b blob , x blob , y blob ,unique(a,b)
                                                     ,unique(x,y))

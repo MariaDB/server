@@ -734,7 +734,7 @@ public:
 private:
   bool m_initialised;
 
-  /** mutex proteting the locks */
+  /** mutex protecting the locks */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   IF_DBUG(srw_lock_debug,srw_spin_lock) latch;
 #ifdef SUX_LOCK_GENERIC

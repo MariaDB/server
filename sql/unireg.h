@@ -131,7 +131,7 @@
 #define OPEN_TRIGGER_ONLY      (1 << 21)
 
 /**
-  This flag is used in information schema to determine if handling funciton
+  This flag is used in information schema to determine if handling function
   can treat open result extensively and provide some user output even if
   table open fails.
 */

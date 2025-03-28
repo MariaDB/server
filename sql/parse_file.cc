@@ -177,7 +177,7 @@ write_parameter(IO_CACHE *file, const uchar* base, File_option *parameter)
     LEX_STRING *val_s= (LEX_STRING *)(base + parameter->offset);
     // number of microseconds since Epoch, timezone-independent
     my_hrtime_t tm= my_hrtime();
-    // Paded to 19 characters for compatibility
+    // Padded to 19 characters for compatibility
     val_s->length= snprintf(val_s->str, MICROSECOND_TIMESTAMP_BUFFER_SIZE,
                             "%019lld", tm.val);
     DBUG_ASSERT(val_s->length == MICROSECOND_TIMESTAMP_BUFFER_SIZE-1);

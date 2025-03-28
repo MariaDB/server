@@ -115,7 +115,7 @@ uint pfs_get_socket_address(char *host,
 /**
   Compute a random index value in an interval.
   @param ptr seed address
-  @param max_size maximun size of the interval
+  @param max_size maximum size of the interval
   @return a random value in [0, max_size-1]
 */
 inline uint randomized_index(const void *ptr, uint max_size)

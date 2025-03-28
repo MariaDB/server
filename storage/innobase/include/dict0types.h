@@ -159,7 +159,7 @@ struct table_name_t
 Note: the spatial status is part of persistent undo log,
 so we should not modify the values in MySQL 5.7 */
 enum spatial_status_t {
-	/* Unkown status (undo format in 5.7.9) */
+	/* Unknown status (undo format in 5.7.9) */
 	SPATIAL_UNKNOWN = 0,
 
 	/** Not used in gis index. */

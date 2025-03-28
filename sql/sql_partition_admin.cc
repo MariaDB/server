@@ -152,7 +152,7 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
   if (unlikely(part_table->file->ht != partition_hton))
   {
     /*
-      Only allowed on partitioned tables throught the generic ha_partition
+      Only allowed on partitioned tables throughout the generic ha_partition
       handler, i.e not yet for native partitioning.
     */
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
@@ -327,7 +327,7 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
   @param thd        Thread handle
   @param name       name of table/partition 1 (to be exchanged with 2)
   @param from_name  name of table/partition 2 (to be exchanged with 1)
-  @param tmp_name   temporary name to use while exchaning
+  @param tmp_name   temporary name to use while exchanging
   @param ht         handlerton of the table/partitions
 
   @return Operation status

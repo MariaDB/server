@@ -269,7 +269,7 @@ size_t my_b_gets(IO_CACHE *info, char *to, size_t max_length)
     }
     if (!(max_length-=length))
     {
-     /* Found enough charcters;  Return found string */
+     /* Found enough characters;  Return found string */
       info->read_pos=pos;
       *to='\0';
       return (size_t) (to-start);

@@ -89,7 +89,7 @@ enum dberr_t {
 					only happen when there are too many
 					concurrent transactions */
 	DB_UNSUPPORTED,			/*!< when InnoDB sees any artefact or
-					a feature that it can't recoginize or
+					a feature that it can't recognize or
 					work with e.g., FT indexes created by
 					a later version of the engine. */
 
@@ -135,7 +135,7 @@ enum dberr_t {
 					decrypt operation failed because
 					of missing key management plugin,
 					or missing or incorrect key or
-					incorret AES method or algorithm. */
+					incorrect AES method or algorithm. */
 
 	DB_IO_ERROR = 100,		/*!< Generic IO error */
 

@@ -53,7 +53,7 @@ static void save_or_restore_used_tabs(JOIN_TAB *join_tab, bool save);
     the field value is to be copied and the length of the copied fragment. 
     Before returning the result the function increments the value of
     *field by 1.
-    The function ignores the fields 'blob_length' and 'ofset' of the
+    The function ignores the fields 'blob_length' and 'offset' of the
     descriptor.
 
   RETURN VALUE
@@ -194,7 +194,7 @@ void JOIN_CACHE::calc_record_fields()
 
         We will need to store columns of SJ-inner tables (it_X_Y.*), but we're
         not interested in storing the columns of materialization tables
-        themselves. Beause of that, if the first non-const top-level table is a
+        themselves. Because of that, if the first non-const top-level table is a
         materialized table, we move to its bush_children:
       */
       tab= join->join_tab + join->const_tables;
@@ -643,7 +643,7 @@ void JOIN_CACHE::create_remaining_fields()
     used to store record lengths.
     The function also calculates the maximal length of the representation
     of record in the cache excluding blob_data. This value is used when
-    making a dicision whether more records should be added into the join
+    making a decision whether more records should be added into the join
     buffer or not.
   
   RETURN VALUE
@@ -1266,7 +1266,7 @@ bool JOIN_CACHE::check_emb_key_usage()
         - null bitmaps for all tables,
         - null row flags for all tables
     (4) values of all data fields including
-        - full images of those fixed legth data fields that cannot have 
+        - full images of those fixed length data fields that cannot have
           trailing spaces
         - significant part of fixed length fields that can have trailing spaces
           with the prepanded length 
@@ -2645,7 +2645,7 @@ inline bool JOIN_CACHE::check_match(uchar *rec_ptr)
 
   NOTES
     The same implementation of the virtual method join_null_complements
-    is used for BNL/BNLH/BKA/BKA join algorthm.
+    is used for BNL/BNLH/BKA/BKA join algorithm.
       
   RETURN VALUE
     return one of enum_nested_loop_state.
@@ -4728,7 +4728,7 @@ DESCRIPTION
   matching the record loaded into the record buffer for join_tab when
   performing join operation by BKAH join algorithm. With BKAH algorithm, if
   association labels are used, then record loaded into the record buffer 
-  for join_tab always has a direct reference to the chain of the mathing
+  for join_tab always has a direct reference to the chain of the matching
   records from the join buffer. If association labels are not used then
   then the chain of the matching records is obtained by the call of the
   get_key_chain_by_join_key function.

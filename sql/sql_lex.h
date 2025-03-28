@@ -956,7 +956,7 @@ class st_select_lex: public st_select_lex_node
 public:
   /*
     Currently the field first_nested is used only by parser.
-    It containa either a reference to the first select
+    It contains either a reference to the first select
     of the nest of selects to which 'this' belongs to, or
     in the case of priority jump it contains a reference to
     the select to which the priority nest has to be attached to.
@@ -3340,7 +3340,7 @@ public:
   bool next_is_down:1; // use "main" SELECT_LEX for nrxt allocation;
   /*
     field_list was created for view and should be removed before PS/SP
-    rexecuton
+    reexecution
   */
   bool empty_field_list_on_rset:1;
   /**
@@ -3442,7 +3442,7 @@ public:
 
   Event_parse_data *event_parse_data;
 
-  /* Characterstics of trigger being created */
+  /* Characteristics of trigger being created */
   st_trg_chistics trg_chistics;
 
   /*
@@ -4010,7 +4010,7 @@ public:
                                   const Lex_ident_sys_st *a,
                                   const Lex_ident_sys_st *b);
   /*
-    Create an Item corresponding to a ROW field valiable:  var.field
+    Create an Item corresponding to a ROW field variable:  var.field
       @param THD        - THD, for mem_root
       @param rh [OUT]   - the rcontext handler (local vs package variables)
       @param var        - the ROW variable name
@@ -4682,7 +4682,7 @@ public:
     @retval
       0 ok
     @retval
-      1 error   ; In this case the error messege is sent to the client
+      1 error   ; In this case the error message is sent to the client
   */
   bool check_simple_select(const LEX_CSTRING *option)
   {

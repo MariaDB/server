@@ -1022,7 +1022,7 @@ void wsrep_init_startup (bool sst_first)
     either SST was not necessary or SST has been delivered.
 
     With mysqldump SST (!sst_first) wait until the server reaches
-    joiner state and procedd to accepting connections.
+    joiner state and proceed to accepting connections.
   */
   int err= 0;
   if (sst_first)

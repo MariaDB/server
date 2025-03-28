@@ -104,7 +104,7 @@ static int cmp_rqp_locations(const void *a_, const void *b_)
   2) We need to empty thd->user_var_events after we have wrote a function
      call. This is currently done by making
      reset_dynamic(&thd->user_var_events);
-     calls in several different places. (TODO cosider moving this into
+     calls in several different places. (TODO consider moving this into
      mysql_bin_log.write() function)
 
   4.2 Auto_increment storage in binlog

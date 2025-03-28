@@ -69,7 +69,7 @@ struct row_stats_t {
 						found in the index */
 
 	ulint		m_n_purged;		/*!< Number of records purged
-						optimisatically */
+						optimistically */
 
 	ulint		m_n_rows;		/*!< Number of rows */
 
@@ -269,7 +269,7 @@ struct row_import {
 	dict_col_t*	m_cols;			/*!< Column data */
 
 	byte**		m_col_names;		/*!< Column names, we store the
-						column naems separately becuase
+						column names separately because
 						there is no field to store the
 						value in dict_col_t */
 
@@ -385,7 +385,7 @@ public:
 
 /** Class that purges delete marked records from indexes, both secondary
 and cluster. It does a pessimistic delete. This should only be done if we
-couldn't purge the delete marked reocrds during Phase I. */
+couldn't purge the delete marked records during Phase I. */
 class IndexPurge {
 public:
 	/** Constructor
@@ -1007,7 +1007,7 @@ private:
 		rec_t*		rec,
 		const rec_offs*	offsets) UNIV_NOTHROW;
 
-	/** In the clustered index, adjist the BLOB pointers as needed.
+	/** In the clustered index, adjust the BLOB pointers as needed.
 	Also update the BLOB reference, write the new space id.
 	@param rec record to update
 	@param offsets column offsets for the record
@@ -1135,7 +1135,7 @@ row_import::get_n_rows(
 	return(index->m_stats.m_n_rows);
 }
 
-/** Get the number of rows for which purge failed uding the convert phase.
+/** Get the number of rows for which purge failed during the convert phase.
 @param name index name
 @return number of rows for which purge failed. */
 ulint
@@ -4729,7 +4729,7 @@ row_import_for_mysql(
 	trx_t*		trx = prebuilt->trx;
 
 	/* The caller assured that this is not read_only_mode and that no
-	temorary tablespace is being imported. */
+	temporary tablespace is being imported. */
 	ut_ad(!srv_read_only_mode);
 	ut_ad(!table->is_temporary());
 

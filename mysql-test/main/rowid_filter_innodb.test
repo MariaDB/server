@@ -810,13 +810,31 @@ from
 insert into t1 (a,b,f1) values ( 110, 100, 12345);
 analyze table t1;
 
---echo # The following must NOT use Rowid Filter:
 --source include/analyze-format.inc
 analyze format=json select * from t1
 where
   a =30100 and b in (30100,30101,30102)
 order by
   pk desc;
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='rowid_filter=off';
+--source include/analyze-format.inc
+analyze format=json select * from t1
+where
+  a =30100 and b in (30100,30101,30102)
+and
+  (a+pk)>30100+8439
+order by pk desc;
+set optimizer_switch='rowid_filter=on';
+--source include/analyze-format.inc
+analyze format=json select * from t1
+where
+  a =30100 and b in (30100,30101,30102)
+and
+  (a+pk)>30100+8439
+order by pk desc;
+set optimizer_switch=@save_optimizer_switch;
 
 drop table t1;
 

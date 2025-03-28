@@ -26,7 +26,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /* Changes:
- * 2023-12-25 Addopted for MariaDB usage
+ * 2023-12-25 Adapted for MariaDB usage
  * 2014-02-12: merge David Woodhouse, Ger Hobbelt improvements
  *     git.infradead.org/users/dwmw2/openconnect.git/commitdiff/bdeefa54
  *     github.com/GerHobbelt/selectable-socketpair

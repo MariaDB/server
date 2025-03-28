@@ -3588,7 +3588,7 @@ dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
                                            entry_size,  header_size,
                                            new_header.offset_size,
                                            new_header.entry_size,
-                                           new_heder.header_size, column_count,
+                                           new_header.header_size, column_count,
                                            new_header.column_count,
                                            add_column_count, header_end,
                                            header.data_size);
@@ -3669,7 +3669,7 @@ mariadb_dyncol_check(DYNAMIC_COLUMN *str)
   if (fmt->fixed_hdr + header.header_size + header.nmpool_size > str->length)
   {
     DBUG_PRINT("info", ("Fixed header: %u  Header size: %u  "
-                        "Name pool size: %u  but Strig length: %u",
+                        "Name pool size: %u  but String length: %u",
                         (uint)fmt->fixed_hdr,
                         (uint)header.header_size,
                         (uint)header.nmpool_size,
@@ -3776,7 +3776,7 @@ mariadb_dyncol_check(DYNAMIC_COLUMN *str)
        i++, header.entry+= header.entry_size)
   {
     DYNAMIC_COLUMN_VALUE store;
-    // already checked by previouse pass
+    // already checked by previous pass
     (*fmt->type_and_offset_read)(&header.type, &header.offset,
                                  header.entry + fmt->fixed_hdr_entry,
                                  header.offset_size);

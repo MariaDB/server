@@ -16,7 +16,7 @@
 
 /*
   Extra functions we want to do with a database
-  - All flags, exept record-cache-flags, are set in all used databases
+  - All flags, except record-cache-flags, are set in all used databases
     record-cache-flags are set in myrg_rrnd when we are changing database.
 */
 

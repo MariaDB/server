@@ -177,7 +177,7 @@ static const char* fts_config_table_insert_values_sql =
 		FTS_TABLE_STATE "', '0');\n"
 	"END;\n";
 
-/** FTS tokenize parmameter for plugin parser */
+/** FTS tokenize parameter for plugin parser */
 struct fts_tokenize_param_t {
 	fts_doc_t*	result_doc;	/*!< Result doc for tokens */
 	ulint		add_pos;	/*!< Added position for tokens */
@@ -2032,7 +2032,7 @@ fts_create_one_index_table(
 			       FTS_INDEX_DOC_COUNT_LEN);
 
 	/* The precise type calculation is as follows:
-	least signficiant byte: MySQL type code (not applicable for sys cols)
+	least significant byte: MySQL type code (not applicable for sys cols)
 	second least : DATA_NOT_NULL | DATA_BINARY_TYPE
 	third least  : the MySQL charset-collation code (DATA_MTYPE_MAX) */
 
@@ -4423,7 +4423,7 @@ or greater than fts_max_token_size.
 @param[in]	stopwords	stopwords rb tree
 @param[in]	cs		token charset
 @retval	true	if it is not stopword and length in range
-@retval	false	if it is stopword or lenght not in range */
+@retval	false	if it is stopword or length not in range */
 bool
 fts_check_token(
 	const fts_string_t*		token,

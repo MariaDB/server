@@ -41,8 +41,8 @@
   
   We keep a file pointer open for each instance of ha_archive for each read
   but for writes we keep one open file handle just for that. We flush it
-  only if we have a read occur. azip handles compressing lots of records
-  at once much better then doing lots of little records between writes.
+  only if we have a read occur. azio handles compressing lots of records
+  at once much better than doing lots of little records between writes.
   It is possible to not lock on writes but this would then mean we couldn't
   handle bulk inserts as well (that is if someone was trying to read at
   the same time since we would want to flush).
@@ -60,7 +60,7 @@
 
   At some point a recovery method for such a drastic case needs to be divised.
 
-  Locks are row level, and you will get a consistant read. 
+  Locks are row level, and you will get a consistent read.
 
   For performance as far as table scans go it is quite fast. I don't have
   good numbers but locally it has out performed both Innodb and MyISAM. For
@@ -1010,7 +1010,7 @@ int ha_archive::write_row(const uchar *buf)
     temp_auto= table->next_number_field->val_int();
 
     /*
-      We don't support decremening auto_increment. They make the performance
+      We don't support decrementing auto_increment. They make the performance
       just cry.
     */
     if (temp_auto <= share->archive_write.auto_increment && 

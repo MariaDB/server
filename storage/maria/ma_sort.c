@@ -942,7 +942,7 @@ cleanup:
     buffpek		Where to read from
     sort_length		max length to read
   RESULT
-    > 0	Ammount of bytes read
+    > 0	Amount of bytes read
     -1	Error
 */
 

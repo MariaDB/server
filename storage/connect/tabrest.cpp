@@ -95,7 +95,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	char  fn[600];
 	pid_t pID;
 
-	// Check if curl package is availabe by executing subprocess
+	// Check if curl package is available by executing subprocess
 	FILE *f= popen("command -v curl", "r");
 
 	if (!f) {

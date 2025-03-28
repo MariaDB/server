@@ -238,7 +238,7 @@ static struct
 /*
   A mutex LOCK_plugin must be acquired before accessing the
   following variables/structures.
-  We are always manipulating ref count, so a rwlock here is unneccessary.
+  We are always manipulating ref count, so a rwlock here is unnecessary.
 */
 mysql_mutex_t LOCK_plugin;
 static DYNAMIC_ARRAY plugin_dl_array;
@@ -3824,7 +3824,7 @@ void plugin_opt_set_limits(struct my_option *options,
 
   The set is stored in the pre-allocated static array supplied to the function.
   The size of the array is calculated as (number_of_plugin_varaibles*2+3). The
-  reason is that each option can have a prefix '--plugin-' in addtion to the
+  reason is that each option can have a prefix '--plugin-' in addition to the
   shorter form '--&lt;plugin-name&gt;'. There is also space allocated for
   terminating NULL pointers.
 

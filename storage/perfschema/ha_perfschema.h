@@ -222,7 +222,7 @@ private:
      - performing point in time recovery in 5.6 with old archived logs.
 
      This API detects when the code calling the performance schema storage
-     engine is a slave thread or whether the code calling isthe client thread
+     engine is a slave thread or whether the code calling is the client thread
      executing a BINLOG'.. statement.
 
      This API acts as a late filter for the above mentioned cases.

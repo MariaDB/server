@@ -1547,7 +1547,7 @@ static MYSQL_SYSVAR_BOOL(
     nullptr, true);
 
 // When pin_l0_filter_and_index_blocks_in_cache is true, RocksDB will  use the
-// LRU cache, but will always keep the filter & idndex block's handle checked
+// LRU cache, but will always keep the filter & index block's handle checked
 // out (=won't call ShardedLRUCache::Release), plus the parsed out objects
 // the LRU cache will never push flush them out, hence they're pinned.
 //
@@ -3366,7 +3366,7 @@ private:
   rocksdb::Status get(rocksdb::ColumnFamilyHandle *const column_family,
                       const rocksdb::Slice &key,
                       rocksdb::PinnableSlice *const value) const override {
-    // clean PinnableSlice right begfore Get() for multiple gets per statement
+    // clean PinnableSlice right before Get() for multiple gets per statement
     // the resources after the last Get in a statement are cleared in
     // handler::reset call
     value->Reset();
@@ -7849,7 +7849,7 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
 
   int err;
   /*
-    Construct dbname.tablename ourselves, because parititioning
+    Construct dbname.tablename ourselves, because partitioning
     passes strings like "./test/t14#P#p0" for individual partitions,
     while table_arg->s->table_name has none of that.
   */
@@ -9552,7 +9552,7 @@ const std::string ha_rocksdb::generate_cf_name(
   DBUG_ASSERT(per_part_match_found != nullptr);
 
   // When creating CF-s the caller needs to know if there was a custom CF name
-  // specified for a given paritition.
+  // specified for a given partition.
   *per_part_match_found = false;
 
   // Index comment is used to define the column family name specification(s).
@@ -9928,7 +9928,7 @@ int ha_rocksdb::check_and_lock_sk(const uint key_id,
 }
 
 /**
-   Enumerate all keys to check their uniquess and also lock it
+   Enumerate all keys to check their uniqueness and also lock it
 
   @param[in] row_info         hold all data for update row, such as old row
                               data and new row data
@@ -11010,7 +11010,7 @@ int ha_rocksdb::info(uint flag) {
         uint64_t memtableCount;
         uint64_t memtableSize;
 
-        // the stats below are calculated from skiplist wich is a probablistic
+        // the stats below are calculated from skiplist which is a probabilistic
         // data structure, so the results vary between test runs
         // it also can return 0 for quite a large tables which means that
         // cardinality for memtable only indxes will be reported as 0
@@ -12313,7 +12313,7 @@ void ha_rocksdb::get_auto_increment(ulonglong off, ulonglong inc,
     // Optimization for the standard case where we are always simply
     // incrementing from the last position
 
-    // Use CAS operation in a loop to make sure automically get the next auto
+    // Use CAS operation in a loop to atomically get the next auto
     // increment value while ensuring that we don't wrap around to a negative
     // number.
     //

@@ -112,7 +112,7 @@ struct crcr_pclmulqdq_ctx
  *     FOLD = XOR(T1, T2, DATA)
  *
  * @param data_block 16 byte data block
- * @param precomp precomputed rk1 constanst
+ * @param precomp precomputed rk1 constant
  * @param fold running 16 byte folded data
  *
  * @return New 16 byte folded data

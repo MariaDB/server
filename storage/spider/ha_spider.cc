@@ -4469,7 +4469,7 @@ void ha_spider::position(
   }
   if (pt_clone_last_searcher)
   {
-    /* sercher is cloned handler */
+    /* searcher is cloned handler */
     DBUG_PRINT("info",("spider cloned handler access"));
     pt_clone_last_searcher->position(record);
     memcpy(ref, pt_clone_last_searcher->ref, ref_length);

@@ -610,7 +610,7 @@ bool THD::rename_temporary_table(TABLE *table,
   @param is_trans [OUT]               Is set to the type of the table:
                                       transactional (e.g. innodb) as true or
                                       non-transactional (e.g. myisam) as false.
-  @paral delete_table [IN]            Whether to delete the table files?
+  @param delete_table [IN]            Whether to delete the table files?
 
   @return false                       Table was dropped
           true                        Error
@@ -1611,7 +1611,7 @@ void THD::close_unused_temporary_table_instances(const TABLE_LIST *tl)
          /* Note: removing current list element doesn't invalidate iterator. */
          share->all_tmp_tables.remove(table);
          /*
-           At least one instance should be left (guaratead by calling this
+           At least one instance should be left (guaranteed by calling this
            function for table which is opened and the table is under processing)
          */
          DBUG_ASSERT(share->all_tmp_tables.front());

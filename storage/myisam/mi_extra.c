@@ -208,7 +208,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     info->read_record=	share->read_record;
     info->opt_flag&= ~(KEY_READ_USED | REMEMBER_OLD_POS);
     break;
-  case HA_EXTRA_NO_USER_CHANGE: /* Database is somehow locked against changes */
+  case HA_EXTRA_NO_USER_CHANGE: /* Database is locked preventing changes */
     info->lock_type= F_EXTRA_LCK; /* Simulate as locked */
     break;
   case HA_EXTRA_WAIT_LOCK:

@@ -382,7 +382,7 @@ int ha_sequence::discard_or_import_tablespace(my_bool discard)
 }
 
 /*
-  Squence engine error deal method
+  Sequence engine error deal method
 */
 
 void ha_sequence::print_error(int error, myf errflag)

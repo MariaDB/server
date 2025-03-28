@@ -3243,7 +3243,7 @@ static bool innobase_query_caching_table_check_low(
 	retrieval or storing into:
 
 	(1) There should not be any locks on the table.
-	(2) Someother trx shouldn't invalidate the cache before this
+	(2) Some other trx shouldn't invalidate the cache before this
 	transaction started.
 	(3) Read view shouldn't exist. If exists then the view
 	low_limit_id should be greater than or equal to the transaction that
@@ -6819,7 +6819,7 @@ wsrep_store_key_val_for_row(
 			if (true_len > key_len) {
 				true_len = key_len;
 			}
-			/* cannot exceed max column lenght either, we may need to truncate
+			/* cannot exceed max column length either, we may need to truncate
 			the stored value: */
 			if (true_len > sizeof(sorted)) {
 			  true_len = sizeof(sorted);
@@ -8012,9 +8012,9 @@ func_exit:
 }
 
 /** Fill the update vector's "old_vrow" field for those non-updated,
-but indexed columns. Such columns could stil present in the virtual
+but indexed columns. Such columns could still be present in the virtual
 index rec fields even if they are not updated (some other fields updated),
-so needs to be logged.
+so they need to be logged.
 @param[in]	prebuilt		InnoDB prebuilt struct
 @param[in,out]	vfield			field to filled
 @param[in]	o_len			actual column length
@@ -10361,7 +10361,7 @@ ha_innobase::wsrep_append_keys(
 					if (is_null0 != is_null1 ||
 					    len0 != len1 ||
 					    memcmp(key0, key1, len0)) {
-						/* This key has chaged. If it
+						/* This key has changed. If it
 						  is unique, this is an exclusive
 						  operation -> upgrade key type */
 						if (key_info->flags & HA_NOSAME) {
@@ -11065,7 +11065,7 @@ create_index(
 		prefix, key_part->field is not the table's column (it's a
 		"fake" field forged in open_table_from_share() with length
 		equal to the length of the prefix); so we have to go to
-		form->fied. */
+		form->field. */
 		Field*	field= form->field[key_part->field->field_index];
 		if (field == NULL)
 		  ut_error;

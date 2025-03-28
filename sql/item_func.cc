@@ -84,7 +84,7 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
 /**
   Allocate memory for arguments using tmp_args or thd->alloc().
   @retval false  - success
-  @retval true   - error (arg_count is set to 0 for conveniece)
+  @retval true   - error (arg_count is set to 0 for convenience)
 */
 bool Item_args::alloc_arguments(THD *thd, uint count)
 {
@@ -7308,7 +7308,7 @@ Item_func_rownum::Item_func_rownum(THD *thd):
   /*
     Remember the select context.
     Add the function to the list fix_after_optimize in the select context
-    so that we can easily initializef all rownum functions with the pointers
+    so that we can easily initialize all rownum functions with the pointers
     to the row counters.
   */
   select= thd->lex->current_select;

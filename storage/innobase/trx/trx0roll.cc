@@ -201,7 +201,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = false;
 		ut_ad(trx->mysql_thd);
-		/* Galera transaction abort can be invoked from MDL acquision
+		/* Galera transaction abort can be invoked from MDL acquisition
 		code, so trx->lock.was_chosen_as_deadlock_victim can be set
 		even if trx->state is TRX_STATE_NOT_STARTED. */
 		ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));

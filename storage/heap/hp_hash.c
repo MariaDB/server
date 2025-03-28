@@ -375,7 +375,7 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
 
   RETURN
     0		Key is identical
-    <> 0 	Key differes
+    <> 0 	Key differs
 */
 
 int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2)

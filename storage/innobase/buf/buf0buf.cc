@@ -971,7 +971,7 @@ ATTRIBUTE_COLD void buf_mem_pressure_shutdown()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
 /** Enable buffers to be dumped to core files
 
-A convience function, not called anyhwere directly however
+A convenience function, not called anywhere directly however
 it is left available for gdb or any debugger to call
 in the event that you want all of the memory to be dumped
 to a core file.
@@ -2841,7 +2841,7 @@ loop:
 	well as error handling takes place at a lower level.
 	Here we only need to know whether the page really is
 	corrupted, or if an encrypted page with a valid
-	checksum cannot be decypted. */
+	checksum cannot be decrypted. */
 
 	switch (dberr_t local_err = buf_read_page(page_id, chain)) {
 	case DB_SUCCESS:

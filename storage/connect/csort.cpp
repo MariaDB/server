@@ -95,7 +95,7 @@ CSORT::CSORT(bool cns, int th, int mth)
   } // end of CSORT constructor
 
 /***********************************************************************/
-/*  CSORT intialization.                                               */
+/*  CSORT initialization.                                              */
 /***********************************************************************/
 int CSORT::Qsort(PGLOBAL g, int nb)
   {

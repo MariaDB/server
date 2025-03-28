@@ -22,13 +22,13 @@
   class Sql_mode_dependency
 
   A combination of hard and soft dependency on sql_mode.
-  Used to watch if a GENERATED ALWAYS AS expression guarantees consitent
+  Used to watch if a GENERATED ALWAYS AS expression guarantees consistent
   data written to its virtual column.
 
   A virtual column can appear in an index if:
   - the generation expression does not depend on any sql_mode flags, or
   - the generation expression has a soft dependency on an sql_mode flag,
-    and the column knows how to handle this dependeny.
+    and the column knows how to handle this dependency.
 
   A virtual column cannot appear in an index if:
   - its generation expression has a hard dependency

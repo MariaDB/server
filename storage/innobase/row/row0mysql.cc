@@ -782,7 +782,7 @@ row_create_prebuilt(
 
         /* Maximum size of the buffer needed for conversion of INTs from
 	little endian format to big endian format in an index. An index
-	can have maximum 16 columns (MAX_REF_PARTS) in it. Therfore
+	can have maximum 16 columns (MAX_REF_PARTS) in it. Therefore
 	Max size for PK: 16 * 8 bytes (BIGINT's size) = 128 bytes
 	Max size Secondary index: 16 * 8 bytes + PK = 256 bytes. */
 #define MAX_SRCH_KEY_VAL_BUFFER         2* (8 * MAX_REF_PARTS)
@@ -1821,7 +1821,7 @@ void thd_get_query_start_data(THD *thd, char *buf);
 
 This is used in UPDATE CASCADE/SET NULL of a system versioned referenced table.
 
-node->historical_row: dtuple_t containing pointers of row changed by refertial
+node->historical_row: dtuple_t containing pointers of row changed by referential
 action.
 
 @param[in]	thr	current query thread
@@ -2132,7 +2132,7 @@ row_create_index_for_mysql(
 
 	/* For temp-table we avoid insertion into SYSTEM TABLES to
 	maintain performance and so we have separate path that directly
-	just updates dictonary cache. */
+	just updates dictionary cache. */
 	if (!table->is_temporary()) {
 		ut_ad(trx->state == TRX_STATE_ACTIVE);
 		ut_ad(trx->dict_operation);

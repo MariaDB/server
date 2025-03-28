@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 --echo #
 --echo # MDEV-10914 ROW data type for stored routine variables
 --echo #
@@ -1594,3 +1596,102 @@ DROP PROCEDURE p1;
 --echo #
 --echo # End of 11.7 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-36322 Comparison ROW(stored_func(),1)=ROW(1,1) calls the function twice per row
+--echo #
+
+--disable_ps2_protocol
+
+DELIMITER /;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  SET @counter= COALESCE(@counter, 0) + 1;
+  RETURN @counter;
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # Queries without ROW comparison
+--echo #
+
+
+SET @counter=0;
+SELECT f1() FROM seq_1_to_5;
+
+--disable_view_protocol
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 ORDER BY f;
+
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 ORDER BY f DESC;
+--enable_view_protocol
+
+SET @counter=0;
+SELECT f1()=1 AS eq, @counter AS counter FROM seq_1_to_5;
+
+--echo #
+--echo # Queries without ROW comparison + HAVING
+--echo # The counter is incremented by 2 per row.
+--echo #
+
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 HAVING f1()<>0;
+
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 HAVING f<>0;
+
+
+--echo #
+--echo # Queries with ROW comparison.
+--echo # Item_row::bring_value() is called on the left side, which calls
+--echo # Item_func_sp::bring_value() for f1(),
+--echo # which does *not* call Item_func_sp::execute()
+--echo # because the return type of f1() is scalar.
+--echo # Item_func_sp::execute() will be called from Item_func_sp::val_int()
+--echo # from Arg_comparator::compare_int_signed().
+--echo #
+
+SET @counter=0;
+SELECT ROW(f1(),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+
+SET @counter=0;
+SELECT ROW(COALESCE(f1()),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+
+SET @counter=0;
+SELECT ROW(@f1:=f1(),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+
+SET @counter=0;
+SELECT ROW(f1(),1) IN ((1,1),(1,2)) AS c0, @counter AS counter FROM seq_1_to_5;
+
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Queries with comparison of an SP returning ROW vs a ROW constant.
+--echo # Item_func_sp::bring_value() is called on the left side,
+--echo # which calls execute().
+--echo #
+
+DELIMITER /;
+CREATE FUNCTION f1() RETURNS ROW (a INT,b VARCHAR(10))
+BEGIN
+  SET @counter= COALESCE(@counter, 0) + 1;
+  RETURN ROW(1,'b1');
+END;
+/
+DELIMITER ;/
+
+--disable_view_protocol
+SET @counter=0;
+SELECT f1() = ROW(1,'b1') AS eq, @counter AS counter FROM seq_1_to_5;
+--enable_view_protocol
+
+DROP FUNCTION f1;
+
+--enable_ps2_protocol
+
+--echo # End of 11.8 tests

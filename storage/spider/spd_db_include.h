@@ -1773,7 +1773,7 @@ typedef struct st_spider_result_list
   longlong                second_read;
   int                     set_split_read_count;
   int                     *casual_read;
-  /* 0:nomal 1:store 2:store end */
+  /* 0:normal 1:store 2:store end */
   volatile
     int                   quick_phase;
   bool                    keyread;

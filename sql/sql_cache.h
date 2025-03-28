@@ -36,7 +36,7 @@ typedef struct st_changed_table_list CHANGED_TABLE_LIST;
 */
 #define QUERY_CACHE_MIN_ALLOCATION_UNIT		512
 
-/* inittial size of hashes */
+/* initial size of hashes */
 #define QUERY_CACHE_DEF_QUERY_HASH_SIZE		1024
 #define QUERY_CACHE_DEF_TABLE_HASH_SIZE		1024
 
@@ -129,7 +129,7 @@ struct Query_cache_block
   size_t length;					// length of all block
   size_t used;					// length of data
   /*
-    Not used **pprev, **prev because really needed access to pervious block:
+    Not used **pprev, **prev because really needed access to previous block:
     *pprev to join free blocks
     *prev to access to opposite side of list in cyclic sorted list
   */

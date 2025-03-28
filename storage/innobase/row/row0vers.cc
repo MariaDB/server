@@ -402,8 +402,8 @@ row_vers_impl_x_locked(
 	const rec_t*	clust_rec;
 	dict_index_t*	clust_index;
 
-	/* The function must not be invoked under lock_sys latch to prevert
-	latching orded violation, i.e. page latch must be acquired before
+	/* The function must not be invoked under lock_sys latch to prevent
+	latching order violation, i.e. page latch must be acquired before
 	lock_sys latch */
 	lock_sys.assert_unlocked();
 	/* The current function can be called from lock_rec_unlock_unmodified()

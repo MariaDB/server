@@ -474,7 +474,7 @@ namespace oqgraph3
   find_vertex(oqgraph3::vertex_id id, const oqgraph3::graph& g)
   {
     // Fix for https://bugs.launchpad.net/oqgraph/+bug/1196020 returning vertex even when not in graph
-    // Psuedocode for fix:
+    // Pseudocode for fix:
     // if count(*) from g->TABLE where source=id or target=id > 0 then return id else return null
     oqgraph3::cursor* found_cursor = new oqgraph3::cursor(const_cast<oqgraph3::graph*>(&g));
     bool found = (found_cursor->seek_to(id, boost::none) && found_cursor->seek_to(boost::none, id));

@@ -42,7 +42,7 @@ private:
     0 <=> this trace should be in information_schema.
   !=0 tracing is disabled, this currently happens when we want to trace a
       sub-statement. For now traces are only collect for the top statement
-      not for the sub-statments.
+      not for the sub-statements.
   */
   uint I_S_disabled;
 };

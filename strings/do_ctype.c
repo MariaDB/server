@@ -91,7 +91,7 @@ register char **argv[];
 	break;
       case '#':
 	DBUG_PUSH (++pos);
-      *(pos--) = '\0';			/* Skippa argument */
+      *(pos--) = '\0';			/* Skip argument */
       break;
       case 'V':
 	version=1;
@@ -164,7 +164,7 @@ void init_case_convert()
     to_lower[ *higher_pos++ ] = (char) *lower_pos++;
   }
 
-	/* sets upp sortorder; higer_pos character (upper and lower) is */
+	/* sets up sortorder; higher_pos character (upper and lower) is */
 	/* changed to lower_pos character */
 
 #if defined(HPUX10)

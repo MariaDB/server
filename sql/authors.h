@@ -51,7 +51,7 @@ struct show_table_authors_st show_table_authors[]= {
     "Query Cache (4.0), Subqueries (4.1), Views (5.0)" },
   { "Timour Katchaounov", "Sofia , Bulgaria", "Optimizer"},
   { "Kristian Nielsen", "Copenhagen, Denmark",
-    "Replication, Async client prototocol, General buildbot stuff" },
+    "Replication, Async client protocol, General buildbot stuff" },
   { "Alexander (Bar) Barkov", "Izhevsk, Russia",
     "Unicode and character sets" },
   { "Alexey Botchkov (Holyfoot)", "Izhevsk, Russia",

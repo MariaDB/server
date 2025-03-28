@@ -215,7 +215,7 @@ int write_header(azio_stream *s)
   int8store(ptr + AZ_CHECK_POS, (unsigned long long)s->check_point); /* Start of Data Block Index Block */
   int8store(ptr + AZ_AUTOINCREMENT_POS, (unsigned long long)s->auto_increment); /* Start of Data Block Index Block */
   int4store(ptr+ AZ_LONGEST_POS , s->longest_row); /* Longest row */
-  int4store(ptr+ AZ_SHORTEST_POS, s->shortest_row); /* Shorest row */
+  int4store(ptr+ AZ_SHORTEST_POS, s->shortest_row); /* Shortest row */
   int4store(ptr+ AZ_FRM_POS, 
             AZHEADER_SIZE + AZMETA_BUFFER_SIZE); /* FRM position */
   *(ptr + AZ_DIRTY_POS)= (unsigned char)s->dirty; /* Start of Data Block Index Block */

@@ -1219,7 +1219,7 @@ PCOL TDBFMT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 
 /***********************************************************************/
 /*  FMT EstimatedLength. Returns an estimated minimum line length.     */
-/*  The big problem here is how can we astimated that minimum ?        */
+/*  The big problem here is how can we estimate that minimum ?         */
 /***********************************************************************/
 int TDBFMT::EstimatedLength(void)
   {

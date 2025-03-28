@@ -140,7 +140,7 @@ public:
 
 
 /*
-  Functions returning GEOMETRY measurements of a single GEOEMETRY argument
+  Functions returning GEOMETRY measurements of a single GEOMETRY argument
 */
 class Item_geometry_func_args_geometry: public Item_geometry_func
 {

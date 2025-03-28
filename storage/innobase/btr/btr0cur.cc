@@ -5639,7 +5639,7 @@ static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
 
   if (!buf_LRU_free_page(&block->page, all) && all && block->page.zip.data)
     /* Attempt to deallocate the redundant copy of the uncompressed page
-    if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */
+    if the whole ROW_FORMAT=COMPRESSED block cannot be deallocated. */
     buf_LRU_free_page(&block->page, false);
 
   mysql_mutex_unlock(&buf_pool.mutex);

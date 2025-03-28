@@ -82,7 +82,7 @@ struct thread_id_indexer_t : public generic_indexer_t<Type, N> {
 	}
 };
 
-/** For counters wher N=1 */
+/** For counters where N=1 */
 template <typename Type, int N=1>
 struct single_indexer_t {
 	/** Default constructor/destructor should are OK. */

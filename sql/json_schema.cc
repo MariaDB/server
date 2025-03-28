@@ -1847,7 +1847,7 @@ bool Json_schema_property_names::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 /*
- additiona_items, additional_properties, unevaluated_items,
+ additional_items, additional_properties, unevaluated_items,
  unevaluated_properties are all going to be schemas
  (basically of object type). So they all can be handled
  just like any other schema.
@@ -1879,7 +1879,7 @@ Json_schema_additional_and_unevaluated::handle_keyword(THD *thd,
 }
 
 /*
- Validating properties as an alternate shcema happens only when we have
+ Validating properties as an alternate schema happens only when we have
  logic keywords. Example we have allOf, and one key is not
  validated against allOf but it is present in "properties" and validates
  against it. Then the validation result should be true. So we would want that

@@ -291,7 +291,7 @@ table_def::~table_def()
 
    @notes
     event_buf will have same values on return. However during the process of
-    caluclating the checksum, it's temporary changed. Because of this the
+    calculating the checksum, it's temporary changed. Because of this the
     event_buf argument is not a pointer to const.
 
 */

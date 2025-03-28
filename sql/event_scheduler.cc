@@ -167,7 +167,7 @@ deinit_event_thread(THD *thd)
       thd  The THD of the thread. Has to be allocated by the caller.
 
   NOTES
-    1. The host of the thead is my_localhost
+    1. The host of the thread is my_localhost
     2. thd->net is initted with NULL - no communication.
 */
 

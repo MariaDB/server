@@ -2334,7 +2334,7 @@ row_ins_duplicate_error_in_clust(
 	/* NOTE: For unique non-clustered indexes there may be any number
 	of delete marked records with the same value for the non-clustered
 	index key (remember multiversioning), and which differ only in
-	the row refererence part of the index record, containing the
+	the row reference part of the index record, containing the
 	clustered index key fields. For such a secondary index record,
 	to avoid race condition, we must FIRST do the insertion and after
 	that check that the uniqueness condition is not breached! */

@@ -26,7 +26,7 @@
 /*
   This code originates from the Unireg project.
 
-  Code for generell handling of priority Queues.
+  Code for general handling of priority Queues.
   Implementation of queues from "Algorithms in C" by Robert Sedgewick.
 
   The queue can optionally store the position in queue in the element

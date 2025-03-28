@@ -24,8 +24,8 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
 
 /*
   In how many parts are we going to do allocations of memory and indexes
-  If we assigne 1M to the heap table memory, we will allocate roughly
-  (1M/16) bytes per allocaiton
+  If we assign 1M to the heap table memory, we will allocate roughly
+  (1M/16) bytes per allocation
 */
 static const int heap_allocation_parts= 16;
 
@@ -361,7 +361,7 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
   block->records_in_block= records_in_block;
   block->recbuffer= recbuffer;
   block->last_allocated= 0L;
-  /* All alloctions are done with this size, if possible */
+  /* All allocations are done with this size, if possible */
   block->alloc_size= alloc_size - MALLOC_OVERHEAD;
 
   for (i= 0; i <= HP_MAX_LEVELS; i++)

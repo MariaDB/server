@@ -43,7 +43,7 @@
   Cost of copying a row to 'table->record'.
   Used by scan_time() and rnd_pos_time() methods.
 
-  If this is too small, then table scans will be prefered over 'ref'
+  If this is too small, then table scans will be preferred over 'ref'
   as with table scans there are no key read (KEY_LOOKUP_COST), fewer
   disk reads but more record copying and row comparisions.  If it's
   too big then MariaDB will used key lookup even when table scan is
@@ -55,7 +55,7 @@
   Cost of copying the key to 'table->record'
 
   If this is too small, then, for small tables, index scans will be
-  prefered over 'ref' as with index scans there are fewer disk reads.
+  preferred over 'ref' as with index scans there are fewer disk reads.
 */
 #define DEFAULT_KEY_COPY_COST     ((double) 0.000015685)
 
@@ -103,7 +103,7 @@
 #define DEFAULT_DISK_READ_COST ((double) IO_SIZE / 400000000.0 * 1000)
 
 /*
-  The follwoing is an old comment for hard-disks, please ignore the
+  The following is an old comment for hard-disks, please ignore the
   following, except if you like history:
 
   For sequential hard disk seeks the cost formula is:

@@ -599,7 +599,7 @@ int TDBWMI::GetMaxSize(PGLOBAL g)
     /*******************************************************************/
     /*  Loop enumerating to get the count. This is prone to last a     */
     /*  very long time for some classes such as DataFile, this is why  */
-    /*  we just return an estimated value that will be ajusted later.  */
+    /*  we just return an estimated value that will be adjusted later. */
     /*******************************************************************/
     MaxSize = Ems;
 #if 0
@@ -619,7 +619,7 @@ int TDBWMI::GetMaxSize(PGLOBAL g)
         break;
 
       MaxSize++;
-      } // endwile Enumerator
+      } // endwhile Enumerator
 
     Res = Enumerator->Reset();
 #endif // 0

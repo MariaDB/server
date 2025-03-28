@@ -157,7 +157,7 @@ public:
 
 
 /*
-  Buffer manager interface. Mrr_reader objects use it to inqure DsMrr_impl
+  Buffer manager interface. Mrr_reader objects use it to inquire DsMrr_impl
   to manage buffer space for them.
 */
 typedef struct st_buffer_manager

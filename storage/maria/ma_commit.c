@@ -83,7 +83,7 @@ int ma_commit(TRN *trn)
 
 
 /**
-   Writes a COMMIT record for a transaciton associated with a file
+   Writes a COMMIT record for a transaction associated with a file
 
    @param  info              Maria handler
 

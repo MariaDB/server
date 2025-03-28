@@ -754,7 +754,7 @@ err:
    @brief Balances adjacent pages if underflow occours
 
    @fn    underflow()
-   @param anc_buff        Anchestor page data
+   @param anc_buff        Ancestor page data
    @param leaf_page       Leaf page (page that underflowed)
    @param leaf_page_link  Pointer to pin information about leaf page
    @param keypos          Position after current key in anc_buff

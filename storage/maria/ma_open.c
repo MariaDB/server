@@ -181,7 +181,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
       maria_delay_key_write)
     share->delay_key_write=1;
 
-  if (!share->now_transactional)       /* If not transctional table */
+  if (!share->now_transactional)       /* If not transactional table */
   {
     /* Pagecache requires access to info->trn->rec_lsn */
     _ma_set_tmp_trn_for_table(&info, &dummy_transaction_object);
@@ -548,7 +548,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     /*
       A transactional table is not usable on this system if:
       - share->state.create_trid > trnman_get_max_trid()
-        - Critical as trid as stored releative to create_trid.
+        - Critical as trid is stored relative to create_trid.
       - uuid is different
 
         STATE_NOT_MOVABLE is reset when a table is zerofilled

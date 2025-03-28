@@ -280,7 +280,7 @@ public:
     At a point in execution where we know the query source, save the text
     of it in the query profile.
 
-    This must be called exactly once per descrete statement.
+    This must be called exactly once per discrete statement.
   */
   void set_query_source(char *query_source_arg, size_t query_length_arg)
   {

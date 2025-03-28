@@ -321,7 +321,7 @@ public:
   Value range: -ULONGLONG_MAX .. +ULONGLONG_MAX.
 
   Provides a wider range for negative numbers than Longlong_hybrid does.
-  Usefull to store intermediate results of an expression whose value
+  Useful to store intermediate results of an expression whose value
   is further needed to be negated. For example, these methods:
     - Item_func_mul::int_op()
     - Item_func_int_div::val_int()

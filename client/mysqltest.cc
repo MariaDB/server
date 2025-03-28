@@ -8625,7 +8625,7 @@ void handle_no_error(struct st_command *command)
 
   SYNOPSIS
   read_stmt_results
-  stmt - prepare statemet
+  stmt - prepare statement
   mysql - mysql handle
   command - current command pointer
   ds - output buffer where to store result form query
@@ -9534,7 +9534,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     rs_output= &rs_cmp_result;
   }
   else
-    rs_output= &ds_res; // will be shown to colsole
+    rs_output= &ds_res; // will be shown to console
 
   /*
     Log the query into the output buffer

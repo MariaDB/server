@@ -143,7 +143,7 @@ void maria_chk_init_for_check(HA_CHECK *param, MARIA_HA *info)
   if (!info->s->base.born_transactional)
   {
     /*
-      There are no trids. Howver we want to set max_trid to make test of
+      There are no trids. However we want to set max_trid to make test of
       create_trid simpler.
     */
     param->max_trid= ~(TrID) 0;
@@ -1667,7 +1667,7 @@ static int check_page_layout(HA_CHECK *param, MARIA_HA *info,
   }
   *free_slots_found= free_entries;
 
-  /* Check directry */
+  /* Check directory */
   dir_entry= page+ block_size - PAGE_SUFFIX_SIZE;
   first_dir_entry= (block_size - row_count * DIR_ENTRY_SIZE -
                     PAGE_SUFFIX_SIZE);
@@ -1739,7 +1739,7 @@ static int check_page_layout(HA_CHECK *param, MARIA_HA *info,
     This is for rows-in-block format.
 
     Before this, we have already called check_page_layout(), so
-    we know the block is logicaly correct (even if the rows may not be that)
+    we know the block is logically correct (even if the rows may not be that)
 
   RETURN
    0  ok
