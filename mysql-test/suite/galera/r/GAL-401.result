@@ -24,6 +24,6 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`f1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender (.*) is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender .+ ?is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 connection node_1;
 SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';
