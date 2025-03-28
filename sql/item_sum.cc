@@ -4695,6 +4695,7 @@ Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item *item_par)
   is_distinct(is_distinct),
   group_collect_max_len(thd->variables.group_concat_max_len)
 {
+  quick_group= false;
 }
 
 
@@ -4704,6 +4705,7 @@ Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item_func_colle
   is_distinct(is_distinct),
   group_collect_max_len(thd->variables.group_concat_max_len)
 {
+  quick_group= false;
 }
 
 
