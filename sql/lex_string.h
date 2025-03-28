@@ -18,6 +18,8 @@
 #ifndef LEX_STRING_INCLUDED
 #define LEX_STRING_INCLUDED
 
+#include <m_ctype.h>
+
 
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
 
