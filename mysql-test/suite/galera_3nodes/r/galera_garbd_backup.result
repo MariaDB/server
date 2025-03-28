@@ -11,7 +11,6 @@ CREATE TABLE t1 (f1 INTEGER, f2 varchar(1024)) Engine=InnoDB;
 CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 INSERT INTO t1 (f2) SELECT REPEAT('x', 1024) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
-connection node_2;
 Killing node #3 to free ports for garbd ...
 connection node_3;
 connection node_1;
@@ -33,8 +32,8 @@ Restarting node #3 to satisfy MTR's end-of-test checks
 connection node_3;
 connection node_1;
 connection node_1;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 connection node_2;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 connection node_3;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
