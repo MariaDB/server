@@ -24,39 +24,17 @@
   It intentionally uses no constants like CR_OK ok PASSWORD_USED_YES.
 */
 
-#include <mysql/plugin.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#if 0
 #include <mysql/plugin_auth.h>
-#else
+#undef  MYSQL_AUTHENTICATION_INTERFACE_VERSION
 #define MYSQL_AUTHENTICATION_INTERFACE_VERSION 0x0100
-typedef void MYSQL_PLUGIN_VIO; /* we don't use it here */
 
-typedef struct st_mysql_server_auth_info
-{
-  char *user_name;
-  unsigned int user_name_length;
-  const char *auth_string;
-  unsigned long auth_string_length;
-  char authenticated_as[49]; 
-  char external_user[512];
-  int  password_used;
-  const char *host_or_ip;
-  unsigned int host_or_ip_length;
-} MYSQL_SERVER_AUTH_INFO;
+#include <sql_plugin_compat.h>
 
-struct st_mysql_auth
-{
-  int interface_version;
-  const char *client_auth_plugin;
-  int (*authenticate_user)(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info);
-};
-#endif
-
-static int do_auth_0x0100(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
+static int do_auth_0x0100(MYSQL_PLUGIN_VIO *vio, struct MYSQL_SERVER_AUTH_INFO_0x0100 *info)
 {
   info->password_used= 1;
   strcpy(info->authenticated_as, "zzzzzzzzzzzzzzzz");
@@ -66,7 +44,7 @@ static int do_auth_0x0100(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   return vio ? -1 : 0; /* use vio to avoid the 'unused' warning */
 }
 
-static struct st_mysql_auth auth_0x0100_struct=
+static struct st_mysql_auth_0x0100 auth_0x0100_struct=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION, 0, do_auth_0x0100
 };

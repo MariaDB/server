@@ -15,11 +15,6 @@
 
 /* old plugin api structures, used for backward compatibility */
 
-#define upgrade_var(X) latest->X= X
-#define upgrade_str(X) strmake_buf(latest->X, X)
-#define downgrade_var(X) X= latest->X
-#define downgrade_str(X) strmake_buf(X, latest->X)
-
 /**************************************************************/
 /* Authentication API, version 0x0100 *************************/
 #define MIN_AUTHENTICATION_INTERFACE_VERSION 0x0100
@@ -34,32 +29,17 @@ struct MYSQL_SERVER_AUTH_INFO_0x0100 {
   int  password_used;
   const char *host_or_ip;
   unsigned int host_or_ip_length;
-
-  void upgrade(MYSQL_SERVER_AUTH_INFO *latest)
-  {
-    upgrade_var(user_name);
-    upgrade_var(user_name_length);
-    upgrade_var(auth_string);
-    upgrade_var(auth_string_length);
-    upgrade_str(authenticated_as);
-    upgrade_str(external_user);
-    upgrade_var(password_used);
-    upgrade_var(host_or_ip);
-    upgrade_var(host_or_ip_length);
-  }
-  void downgrade(MYSQL_SERVER_AUTH_INFO *latest)
-  {
-    downgrade_var(user_name);
-    downgrade_var(user_name_length);
-    downgrade_var(auth_string);
-    downgrade_var(auth_string_length);
-    downgrade_str(authenticated_as);
-    downgrade_str(external_user);
-    downgrade_var(password_used);
-    downgrade_var(host_or_ip);
-    downgrade_var(host_or_ip_length);
-  }
+#ifdef MYSQL_SERVER
+  void downgrade(MYSQL_SERVER_AUTH_INFO *latest);
+  void upgrade(MYSQL_SERVER_AUTH_INFO *latest);
+#endif
 };
 
+struct st_mysql_auth_0x0100
+{
+  int interface_version;
+  const char *client_auth_plugin;
+  int (*authenticate_user)(MYSQL_PLUGIN_VIO *vio, struct MYSQL_SERVER_AUTH_INFO_0x0100 *info);
+};
 /**************************************************************/
 

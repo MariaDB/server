@@ -14281,6 +14281,36 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
 }
 
 
+#define upgrade_var(X) latest->X= X
+#define upgrade_str(X) strmake_buf(latest->X, X)
+#define downgrade_var(X) X= latest->X
+#define downgrade_str(X) strmake_buf(X, latest->X)
+
+void MYSQL_SERVER_AUTH_INFO_0x0100::upgrade(MYSQL_SERVER_AUTH_INFO *latest)
+{
+  upgrade_var(user_name);
+  upgrade_var(user_name_length);
+  upgrade_var(auth_string);
+  upgrade_var(auth_string_length);
+  upgrade_str(authenticated_as);
+  upgrade_str(external_user);
+  upgrade_var(password_used);
+  upgrade_var(host_or_ip);
+  upgrade_var(host_or_ip_length);
+}
+void MYSQL_SERVER_AUTH_INFO_0x0100::downgrade(MYSQL_SERVER_AUTH_INFO *latest)
+{
+  downgrade_var(user_name);
+  downgrade_var(user_name_length);
+  downgrade_var(auth_string);
+  downgrade_var(auth_string_length);
+  downgrade_str(authenticated_as);
+  downgrade_str(external_user);
+  downgrade_var(password_used);
+  downgrade_var(host_or_ip);
+  downgrade_var(host_or_ip_length);
+}
+
 static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
                         MPVIO_EXT *mpvio)
 {
@@ -14302,7 +14332,8 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
       {
         MYSQL_SERVER_AUTH_INFO_0x0100 compat;
         compat.downgrade(&mpvio->auth_info);
-        res= info->authenticate_user(mpvio, (MYSQL_SERVER_AUTH_INFO *)&compat);
+        st_mysql_auth_0x0100 *info= (st_mysql_auth_0x0100 *) plugin_decl(plugin)->info;
+        res= info->authenticate_user(mpvio, &compat);
         compat.upgrade(&mpvio->auth_info);
       }
       break;
