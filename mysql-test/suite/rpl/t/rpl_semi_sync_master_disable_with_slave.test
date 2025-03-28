@@ -1,0 +1,41 @@
+# MDEV-36359:
+# Binlog Dump thread crashes when reverting to async after Semi-Sync disabled.
+#
+# Assert behavior of turning Semi-Sync off on
+# the master when still connected to a slave
+
+--source include/have_binlog_format_mixed.inc # format-agnostic
+--source include/master-slave.inc
+
+--let $status_var= Rpl_semi_sync_master_status
+SELECT ID INTO @binlog_dump_tid
+  FROM information_schema.PROCESSLIST WHERE COMMAND = 'Binlog Dump';
+
+--echo # Control State
+SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Disable Semi-Sync while the dump thread is connected
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
+--let $status_var_value= OFF
+--source include/wait_for_status_var.inc
+
+SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Disconnect the slave and wait until the master's dump thread is done
+--connection slave
+STOP SLAVE;
+--connection master
+
+# MDEV-36359: 2013 'Lost connection to server during query'
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Cleanup
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+--let $status_var_value= ON
+--source include/wait_for_status_var.inc
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
