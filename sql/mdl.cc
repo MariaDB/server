@@ -2308,6 +2308,32 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     */
     DBUG_PRINT("info", ("Got lock without waiting"));
     DBUG_PRINT("mdl", ("Seized:   %s", dbug_print_mdl(mdl_request->ticket)));
+    DEBUG_SYNC_MDL(get_thd(), "mdl_seized", mdl_request);
+#ifdef ENABLED_DEBUG_SYNC
+    {
+      static const char *prefix= "mdl_acquire_lock_seized";
+      static const char *seized= "_seized";
+      static const LEX_CSTRING _prefix= {prefix, strlen(prefix)};
+      static const LEX_CSTRING _seized= {seized, strlen(seized)};
+      THD *thd= get_thd();
+      /* Sync point: mdl_acquire_lock_seized */
+      DEBUG_SYNC2(thd, LEX_STRING_WITH_LEN(_prefix));
+      String s(LEX_STRING_WITH_LEN(_prefix), &my_charset_latin1);
+      s.append('_');
+      MDL_key *key= mdl_request->ticket->get_key();
+      s.append(key->name(), key->name_length());
+      /* Sync point: mdl_acquire_lock_seized_TABLE_NAME */
+      DEBUG_SYNC2(thd, s.c_ptr_safe(), s.length());
+      s.set(LEX_STRING_WITH_LEN(*(mdl_request->ticket->get_type_name())), &my_charset_latin1);
+      s.append(LEX_STRING_WITH_LEN(_seized));
+      /* Sync point: LOCK_TYPE_seized */
+      DEBUG_SYNC2(thd, s.c_ptr_safe(), s.length());
+      s.append('_');
+      s.append(key->name(), key->name_length());
+      /* Sync point: LOCK_TYPE_seized_TABLE_NAME */
+      DEBUG_SYNC2(thd, s.c_ptr_safe(), s.length());
+    }
+#endif /* ENABLED_DEBUG_SYNC */
     DBUG_RETURN(FALSE);
   }
 
@@ -3339,3 +3365,27 @@ void MDL_ticket::wsrep_report(bool debug) const
               psi_stage->m_name);
 }
 #endif /* WITH_WSREP */
+
+
+#ifdef ENABLED_DEBUG_SYNC
+void debug_sync_mdl(MYSQL_THD thd, Lex_cstring_strlen prefix,
+                    const LEX_CSTRING &table_name, const LEX_CSTRING &mdl_type)
+{
+  /* Sync point: mdl_seized */
+  DEBUG_SYNC2(thd, LEX_STRING_WITH_LEN(prefix));
+  String s(LEX_STRING_WITH_LEN(prefix), &my_charset_latin1);
+  s.append('_');
+  s.append(LEX_STRING_WITH_LEN(table_name));
+  /* Sync point: mdl_seized_TABLE_NAME */
+  DEBUG_SYNC2(thd, s.c_ptr_safe(), s.length());
+  s.set(LEX_STRING_WITH_LEN(prefix), &my_charset_latin1);
+  s.append('_');
+  s.append(LEX_STRING_WITH_LEN(mdl_type), &my_charset_latin1);
+  /* Sync point: mdl_seized_LOCK_TYPE */
+  DEBUG_SYNC2(thd, s.c_ptr_safe(), s.length());
+  s.append('_');
+  s.append(LEX_STRING_WITH_LEN(table_name));
+  /* Sync point: mdl_seized_LOCK_TYPE_TABLE_NAME */
+  DEBUG_SYNC2(thd, s.c_ptr_safe(), s.length());
+}
+#endif /* ENABLED_DEBUG_SYNC */

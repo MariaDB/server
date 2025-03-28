@@ -867,7 +867,9 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 SET AUTOCOMMIT=OFF;
 SELECT * FROM t1;
 a
+set debug_sync='mdl_seized_MDL_SHARED_NO_WRITE_t1 SIGNAL con1_seized';
 DROP TRIGGER tr1;
+set debug_sync='now WAIT_FOR con1_seized';
 INSERT INTO t2 SELECT * FROM t2;
 SELECT f() FROM t2;
 ERROR 42000: FUNCTION test.f does not exist

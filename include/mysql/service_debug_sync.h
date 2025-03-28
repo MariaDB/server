@@ -345,8 +345,14 @@ extern void (*debug_sync_C_callback_ptr)(MYSQL_THD, const char *, size_t);
     if (debug_sync_service && thd)                       \
       debug_sync_service((MYSQL_THD) thd, STRING_WITH_LEN(name));   \
   } while(0)
+static inline void DEBUG_SYNC2(MYSQL_THD thd, const char *name, size_t name_len)
+{
+  if (debug_sync_service)
+      debug_sync_service(thd, name, name_len);
+}
 #else
 #define DEBUG_SYNC(thd,name)                        do { } while(0)
+#define DEBUG_SYNC2(thd, name, name_len)            do { } while(0)
 #define DEBUG_SYNC_C_IF_THD(thd, _sync_point_name_) do { } while(0)
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
