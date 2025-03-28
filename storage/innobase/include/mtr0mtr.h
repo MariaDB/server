@@ -700,7 +700,8 @@ private:
   @param mtr   mini-transaction
   @param lsns  {start_lsn,flush_ahead} */
   template<bool pmem>
-  static void commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns);
+  static void commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
+    noexcept;
 
   /** Append the redo log records to the redo log buffer.
   @return {start_lsn,flush_ahead} */

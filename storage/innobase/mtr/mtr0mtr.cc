@@ -335,24 +335,11 @@ void mtr_t::release()
   m_memo.clear();
 }
 
-inline lsn_t log_t::get_write_target() const
-{
-  ut_ad(latch_have_any());
-  if (UNIV_LIKELY(buf_free_ok()))
-    return 0;
-  /* The LSN corresponding to the end of buf is
-  write_lsn - (first_lsn & 4095) + buf_free,
-  but we use simpler arithmetics to return a smaller write target in
-  order to minimize waiting in log_write_up_to(). */
-  ut_ad(max_buf_free >= 4096 * 4);
-  return write_lsn + max_buf_free / 2;
-}
-
 template<bool mmap>
 void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
+  noexcept
 {
   size_t modified= 0;
-  const lsn_t write_lsn= mmap ? 0 : log_sys.get_write_target();
 
   if (mtr->m_made_dirty)
   {
@@ -471,9 +458,6 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
 
   if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
     buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
-
-  if (!mmap && UNIV_UNLIKELY(write_lsn != 0))
-    log_write_up_to(write_lsn, false);
 }
 
 /** Commit a mini-transaction. */
@@ -893,27 +877,55 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   ? ". Shutdown is in progress" : "");
 }
 
-ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
-  noexcept
+ATTRIBUTE_COLD lsn_t log_t::append_prepare_wait(size_t size, bool ex) noexcept
 {
+  wrap_mutex.wr_lock();
   waits++;
-  ut_ad(buf_free.load(std::memory_order_relaxed) == b);
-  lsn_lock.wr_unlock();
+  lsn_t l{lsn.load(std::memory_order_relaxed)};
+  constexpr lsn_t BACK_OFF= 1ULL << 63;
+  const lsn_t lsn_diff= l -
+    (is_mmap()
+     ? get_flushed_lsn(std::memory_order_relaxed)
+     : write_lsn - ((write_size - 1) & (write_lsn - first_lsn)));
+  const lsn_t flip{ex ? 0 : BACK_OFF & ~lsn_diff};
+  /* Subtract our LSN overshoot, and ensure that BACK_OFF is set. */
+  l= lsn.fetch_sub(flip | size, std::memory_order_relaxed) - size;
+  wrap_mutex.wr_unlock();
 
   if (ex)
     latch.wr_unlock();
   else
+  {
     latch.rd_unlock();
+    if (flip)
+    {
+      /* Wait for all threads to back off. */
+      latch.wr_lock(SRW_LOCK_CALL);
+      l= lsn.fetch_sub(BACK_OFF) - BACK_OFF;
+      ut_ad(is_mmap()
+            ? l - get_flushed_lsn(std::memory_order_relaxed) < capacity()
+            : l - write_lsn - ((write_size - 1) & (write_lsn - first_lsn)) <
+            buf_size);
+      latch.wr_unlock();
+    }
+    else
+    {
+      HMT_low();
+      const lsn_t old{l};
+      while (((l= lsn.load(std::memory_order_relaxed)) ^ old) & BACK_OFF)
+        MY_RELAX_CPU();
+      HMT_medium();
+    }
+  }
 
-  log_write_up_to(lsn, is_mmap());
+  log_write_up_to(l, is_mmap());
 
   if (ex)
     latch.wr_lock(SRW_LOCK_CALL);
   else
     latch.rd_lock(SRW_LOCK_CALL);
 
-  lsn_lock.wr_lock();
-  return buf_free.load(std::memory_order_relaxed);
+  return lsn.fetch_add(size, std::memory_order_relaxed);
 }
 
 /** Reserve space in the log buffer for appending data.
@@ -927,38 +939,36 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(mmap == is_mmap());
-  lsn_lock.wr_lock();
-  size_t b{buf_free.load(std::memory_order_relaxed)};
-  //write_to_buf++;
-
-  lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
-
-  if (UNIV_UNLIKELY(mmap
-                    ? (end_lsn -
-                       get_flushed_lsn(std::memory_order_relaxed)) > capacity()
-                    : b + size >= buf_size))
+  lsn_t l= lsn.fetch_add(size, std::memory_order_relaxed);
+#if 0
+  write_to_buf.fetch_add(1);
+#else /* reduce contention */
+  /* This counter will be inaccurate when multiple threads are
+  executing here while holding a shared log_sys.latch. */
+  write_to_buf= write_to_buf + 1;
+#endif
+  lsn_t end_lsn, buf_start_lsn= mmap
+    ? first_lsn
+    : write_lsn - ((write_size - 1) & (write_lsn - first_lsn));
+  const size_t buf_size{mmap ? size_t(capacity()) : this->buf_size};
+  for (;;)
   {
-    b= append_prepare_wait(b, ex, l);
-    /* While flushing log, we had released the lsn lock and LSN could have
-    progressed in the meantime. */
-    l= lsn.load(std::memory_order_relaxed);
     end_lsn= l + size;
+    const lsn_t lsn_diff= end_lsn -
+      (mmap ? get_flushed_lsn(std::memory_order_relaxed) : buf_start_lsn);
+    if (lsn_diff < buf_size)
+      break;
+    l= append_prepare_wait(size, ex);
+    if (!mmap)
+      buf_start_lsn= ~lsn_t(write_size - 1) & (write_lsn - first_lsn);
   }
-
-  size_t new_buf_free= b + size;
-  if (mmap && new_buf_free >= file_size)
-    new_buf_free-= size_t(capacity());
-
-  lsn.store(end_lsn, std::memory_order_relaxed);
 
   if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
     set_check_for_checkpoint(true);
 
-  byte *our_buf= buf;
-  buf_free.store(new_buf_free, std::memory_order_relaxed);
-  lsn_lock.wr_unlock();
-
-  return {l, our_buf + b};
+  if (mmap)
+    return {l, buf + FIRST_LSN + size_t(l - buf_start_lsn) % buf_size};
+  return {l, buf + size_t(l - buf_start_lsn)};
 }
 
 /** Finish appending data to the log.
@@ -1103,7 +1113,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     if (!resize_flush_buf)
     {
       ut_ad(is_mmap());
-      lsn_lock.wr_lock();
+      wrap_mutex.wr_lock();
       const size_t resize_capacity{resize_target - START_OFFSET};
       {
         const lsn_t resizing{resize_in_progress()};
@@ -1114,7 +1124,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
         if (UNIV_UNLIKELY(lsn < resizing))
         {
           /* This function may execute in multiple concurrent threads
-          that hold a shared log_sys.latch. Before we got lsn_lock,
+          that hold a shared log_sys.latch. Before we acquired wrap_mutex,
           another thread could have executed resize_lsn.store(lsn) below
           with a larger lsn than ours.
 
@@ -1164,7 +1174,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
       ut_ad(resize_buf[s] <= 1);
       resize_buf[s]= 1;
     mmap_done:
-      lsn_lock.wr_unlock();
+      wrap_mutex.wr_unlock();
     }
     else
 #endif
