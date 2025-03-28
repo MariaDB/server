@@ -25,7 +25,6 @@ SET SESSION wsrep_sync_wait=DEFAULT;
 --error ER_LOCK_WAIT_TIMEOUT
 DELETE FROM mysql.wsrep_streaming_log;
 
-
 #
 # Reconnect to the cluster
 #
@@ -36,6 +35,5 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 SET SESSION wsrep_sync_wait=DEFAULT;
 
-
 --source include/auto_increment_offset_restore.inc
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender (.*) is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender .+ ?is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
