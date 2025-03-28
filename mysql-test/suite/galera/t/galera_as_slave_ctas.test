@@ -73,4 +73,3 @@ RESET SLAVE ALL;
 
 --connection node_3
 RESET MASTER;
-

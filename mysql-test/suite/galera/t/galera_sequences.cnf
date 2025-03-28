@@ -1,13 +1,9 @@
 !include ../galera_2nodes.cnf
 
 [mysqld.1]
-log-bin
-log-slave-updates
 auto-increment-increment=2
 auto-increment-offset=1
 
 [mysqld.2]
-log-bin
-log-slave-updates
 auto-increment-increment=2
 auto-increment-offset=2

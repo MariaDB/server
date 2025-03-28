@@ -22,7 +22,7 @@ send CALL dorepeat();
 connection default;
 sleep 10;
 let $shutdown_timeout=0;
-let $restart_parameters=--innodb_buffer_pool_size=5242880;
+let $restart_parameters=--innodb_buffer_pool_size=6m;
 --source include/restart_mysqld.inc
 DROP TABLE t1;
 DROP PROCEDURE dorepeat;
@@ -33,11 +33,11 @@ DROP PROCEDURE dorepeat;
 --echo #
 if ($have_debug) {
 SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
-let $restart_parameters=--innodb_buffer_pool_size=5242880 --debug_dbug=+d,hdr_page_corrupt;
+let $restart_parameters=--innodb_buffer_pool_size=6m --debug_dbug=+d,hdr_page_corrupt;
 }
 if (!$have_debug) {
 --echo SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
-let $restart_parameters=--innodb_buffer_pool_size=5242880;
+let $restart_parameters=--innodb_buffer_pool_size=6m;
 }
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;

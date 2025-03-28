@@ -532,7 +532,6 @@ INSERT INTO t1 VALUES(1,1);
 ROLLBACK;
 SET DEBUG_SYNC = 'now SIGNAL inserted';
 connection con1;
-disconnect con1;
 connection default;
 SELECT * FROM t1;
 a	b
@@ -540,6 +539,31 @@ a	b
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+DROP TABLE t1;
+#
+# MDEV-36281 DML aborts during online virtual index
+#
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL,
+f3 INT NOT NULL, f4 INT AS (f3) VIRTUAL,
+f5 INT AS (f1) VIRTUAL, INDEX(f4))ENGINE=InnoDB;
+INSERT INTO t1(f1, f2, f3) VALUES(1, 2, 3);
+SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter SIGNAL dml_start WAIT_FOR dml_finish';
+ALTER TABLE t1 ADD INDEX v1(f5, f2, f4), ADD INDEX v2(f3, f5);
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR dml_start";
+UPDATE t1 SET f3= f3 + 1;
+set DEBUG_SYNC="now SIGNAL dml_finish";
+disconnect con1;
+connection default;
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT f5, f2, f4 FROM t1 USE INDEX(v1);
+f5	f2	f4
+1	2	4
+SELECT f3, f5 FROM t1 USE INDEX(v2);
+f3	f5
+4	1
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_monitor_enable  = default;

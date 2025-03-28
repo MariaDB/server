@@ -1417,8 +1417,9 @@ struct my_option xb_client_options[]= {
      "The value is used in place of innodb_buffer_pool_size. "
      "This option is only relevant when the --prepare option is specified.",
      (G_PTR *) &xtrabackup_use_memory, (G_PTR *) &xtrabackup_use_memory, 0,
-     GET_LL, REQUIRED_ARG, 100 * 1024 * 1024L, 1024 * 1024L, LONGLONG_MAX, 0,
-     1024 * 1024L, 0},
+     GET_ULL, REQUIRED_ARG, 96 << 20, innodb_buffer_pool_extent_size,
+     size_t(-ssize_t(innodb_buffer_pool_extent_size)),
+     0, innodb_buffer_pool_extent_size, 0},
     {"throttle", OPT_XTRA_THROTTLE,
      "limit count of IO operations (pairs of read&write) per second to IOS "
      "values (for '--backup')",
@@ -2483,7 +2484,7 @@ static bool innodb_init_param()
 	}
 
 	srv_sys_space.normalize_size();
-	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
+	srv_lock_table_size = 5 * buf_pool.curr_size();
 
 	/* -------------- Log files ---------------------------*/
 
@@ -2505,11 +2506,8 @@ static bool innodb_init_param()
 
 	srv_adaptive_flushing = FALSE;
 
-        /* We set srv_pool_size here in units of 1 kB. InnoDB internally
-        changes the value so that it becomes the number of database pages. */
-
-	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
-	srv_buf_pool_chunk_unit = srv_buf_pool_size;
+	buf_pool.size_in_bytes_max = size_t(xtrabackup_use_memory);
+	buf_pool.size_in_bytes_requested = buf_pool.size_in_bytes_max;
 
 	srv_n_read_io_threads = (uint) innobase_read_io_threads;
 	srv_n_write_io_threads = (uint) innobase_write_io_threads;
@@ -6272,9 +6270,22 @@ xtrabackup_apply_delta(
 					buf + FSP_HEADER_OFFSET + FSP_SIZE);
 				if (mach_read_from_4(buf
 						     + FIL_PAGE_SPACE_ID)) {
+#ifdef _WIN32
+					os_offset_t last_page =
+					  os_file_get_size(dst_file) /
+					  page_size;
+
+					/* os_file_set_size() would
+					shrink the size of the file */
+					if (last_page < n_pages &&
+					    !os_file_set_size(
+					       dst_path, dst_file,
+					       n_pages * page_size))
+#else
 					if (!os_file_set_size(
 						    dst_path, dst_file,
 						    n_pages * page_size))
+#endif /* _WIN32 */
 						goto error;
 				} else if (fil_space_t* space
 					   = fil_system.sys_space) {

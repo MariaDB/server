@@ -303,7 +303,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
                                         bool *hton_can_recreate)
 {
-  handlerton *hton;
+  const handlerton *hton;
   bool versioned;
   bool sequence= false;
   TABLE *table= NULL;
@@ -374,8 +374,12 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
          table we need to find out default partition
          handlerton.
       */
-      const handlerton *ht= share->default_part_plugin ?
-        plugin_hton(share->default_part_plugin) : hton;
+      const handlerton* const ht=
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        share->default_part_plugin ?
+          plugin_hton(share->default_part_plugin) :
+#endif
+        hton;
 
       if (ht && !wsrep_should_replicate_ddl(thd, ht))
       {

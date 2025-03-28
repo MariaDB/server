@@ -2839,11 +2839,12 @@ dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 	pars_info_t*	pinfo;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
+	THD* const	thd = current_thd;
 
 #ifdef ENABLED_DEBUG_SYNC
 	DBUG_EXECUTE_IF("dict_stats_save_exit_notify",
-	   SCOPE_EXIT([] {
-	       debug_sync_set_action(current_thd,
+	   SCOPE_EXIT([thd] {
+	       debug_sync_set_action(thd,
 	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"));
 	    });
 	);
@@ -2864,41 +2865,10 @@ dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 		return (dict_stats_report_error(table));
 	}
 
-	THD* thd = current_thd;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
-	dict_table_t* table_stats = dict_table_open_on_name(
-		TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (table_stats) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
-							     &mdl_table);
-		dict_sys.unfreeze();
-	}
-	if (!table_stats
-	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME)) {
-release_and_exit:
-		if (table_stats) {
-			dict_table_close(table_stats, thd, mdl_table);
-		}
+	dict_stats stats;
+	if (stats.open(thd)) {
 		return DB_STATS_DO_NOT_EXIST;
 	}
-
-	dict_table_t* index_stats = dict_table_open_on_name(
-		INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (index_stats) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
-							     &mdl_index);
-		dict_sys.unfreeze();
-	}
-	if (!index_stats) {
-		goto release_and_exit;
-	}
-	if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-		dict_table_close(index_stats, thd, mdl_index);
-		goto release_and_exit;
-	}
-
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
 	const time_t now = time(NULL);
@@ -2907,9 +2877,9 @@ release_and_exit:
 	trx_start_internal(trx);
 	dberr_t ret = trx->read_only
 		? DB_READ_ONLY
-		: lock_table_for_trx(table_stats, trx, LOCK_X);
+		: lock_table_for_trx(stats.table(), trx, LOCK_X);
 	if (ret == DB_SUCCESS) {
-		ret = lock_table_for_trx(index_stats, trx, LOCK_X);
+		ret = lock_table_for_trx(stats.index(), trx, LOCK_X);
 	}
 	if (ret != DB_SUCCESS) {
 		if (trx->state != TRX_STATE_NOT_STARTED) {
@@ -2970,8 +2940,7 @@ free_and_exit:
 		dict_sys.unlock();
 unlocked_free_and_exit:
 		trx->free();
-		dict_table_close(table_stats, thd, mdl_table);
-		dict_table_close(index_stats, thd, mdl_index);
+		stats.close();
 		return ret;
 	}
 
@@ -3434,41 +3403,10 @@ dberr_t dict_stats_fetch_from_ps(dict_table_t *table)
 	stats. */
 	dict_stats_empty_table(table);
 
-	THD* thd = current_thd;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
-	dict_table_t* table_stats = dict_table_open_on_name(
-		TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (!table_stats) {
+	THD* const thd = current_thd;
+	dict_stats stats;
+	if (stats.open(thd)) {
 		return DB_STATS_DO_NOT_EXIST;
-	}
-	dict_table_t* index_stats = dict_table_open_on_name(
-		INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (!index_stats) {
-		table_stats->release();
-		return DB_STATS_DO_NOT_EXIST;
-	}
-
-	dict_sys.freeze(SRW_LOCK_CALL);
-	table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
-						     &mdl_table);
-	if (!table_stats
-	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME)) {
-release_and_exit:
-		dict_sys.unfreeze();
-		if (table_stats) {
-			dict_table_close(table_stats, thd, mdl_table);
-		}
-		if (index_stats) {
-			dict_table_close(index_stats, thd, mdl_index);
-		}
-		return DB_STATS_DO_NOT_EXIST;
-	}
-
-	index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
-						     &mdl_index);
-	if (!index_stats
-	    || strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-		goto release_and_exit;
 	}
 
 #ifdef ENABLED_DEBUG_SYNC
@@ -3495,7 +3433,6 @@ release_and_exit:
 			        "fetch_index_stats_step",
 			        dict_stats_fetch_index_stats_step,
 			        &index_fetch_arg);
-	dict_sys.unfreeze();
 	dict_sys.lock(SRW_LOCK_CALL);
 	que_t* graph = pars_sql(
 		pinfo,
@@ -3561,18 +3498,11 @@ release_and_exit:
 	trx_start_internal_read_only(trx);
 	que_run_threads(que_fork_start_command(graph));
 	que_graph_free(graph);
-
-	dict_table_close(table_stats, thd, mdl_table);
-	dict_table_close(index_stats, thd, mdl_index);
-
 	trx_commit_for_mysql(trx);
-	dberr_t ret = trx->error_state;
+	dberr_t ret = index_fetch_arg.stats_were_modified
+		? trx->error_state : DB_STATS_DO_NOT_EXIST;
 	trx->free();
-
-	if (!index_fetch_arg.stats_were_modified) {
-		return DB_STATS_DO_NOT_EXIST;
-	}
-
+	stats.close();
 	return ret;
 }
 

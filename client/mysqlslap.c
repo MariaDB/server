@@ -2219,6 +2219,13 @@ generate_stats(conclusions *con, option_string *eng, stats *sptr)
   stats *ptr;
   unsigned int x;
 
+  if (eng && eng->string)
+    con->engine= eng->string;
+
+  /* Early return when iterations is 0 to avoid accessing uninitialized sptr */
+  if (iterations == 0)
+    return;
+
   con->min_timing= sptr->timing; 
   con->max_timing= sptr->timing;
   con->min_rows= sptr->rows;
@@ -2239,11 +2246,6 @@ generate_stats(conclusions *con, option_string *eng, stats *sptr)
       con->min_timing= ptr->timing;
   }
   con->avg_timing= con->avg_timing/iterations;
-
-  if (eng && eng->string)
-    con->engine= eng->string;
-  else
-    con->engine= NULL;
 }
 
 void

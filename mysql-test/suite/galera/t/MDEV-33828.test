@@ -1,6 +1,5 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/have_aria.inc
 
 SET AUTOCOMMIT=ON;
 SELECT @@autocommit;

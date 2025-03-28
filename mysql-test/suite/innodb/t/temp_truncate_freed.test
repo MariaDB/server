@@ -3,34 +3,15 @@
 set @old_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
 set @old_immediate_scrub_data_val= @@innodb_immediate_scrub_data_uncompressed;
 
-let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 30) = 'Completed resizing buffer pool'
-  FROM information_schema.global_status
-  WHERE LOWER(variable_name) = 'innodb_buffer_pool_resize_status';
-
+SET GLOBAL innodb_max_purge_lag_wait=0;
 SET GLOBAL innodb_immediate_scrub_data_uncompressed=1;
 SET GLOBAL innodb_buffer_pool_size= 16777216;
---source include/wait_condition.inc
 
 CREATE TEMPORARY TABLE t1(c1 MEDIUMTEXT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (repeat(1,16777215));
 DROP TEMPORARY TABLE t1;
 SET GLOBAL innodb_truncate_temporary_tablespace_now=1;
-
-let $wait_timeout = 180;
-let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 45) = 'Completed resizing buffer pool from 16777216'
-  FROM information_schema.global_status
-  WHERE LOWER(variable_name) = 'innodb_buffer_pool_resize_status';
-
 SET GLOBAL innodb_buffer_pool_size=10485760;
---source include/wait_condition.inc
 
 set global innodb_immediate_scrub_data_uncompressed = @old_immediate_scrub_data_val;
-
-let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 45) = 'Completed resizing buffer pool from 10485760'
-  FROM information_schema.global_status
-  WHERE LOWER(variable_name) = 'innodb_buffer_pool_resize_status';
 set global innodb_buffer_pool_size = @old_innodb_buffer_pool_size;
---source include/wait_condition.inc

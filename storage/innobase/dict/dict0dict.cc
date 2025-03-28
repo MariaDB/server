@@ -637,32 +637,28 @@ dict_acquire_mdl_shared(dict_table_t *table,
                         MDL_context *mdl_context, MDL_ticket **mdl,
                         dict_table_op_t table_op)
 {
-  table_id_t table_id= table->id;
   char db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
   size_t db_len, tbl_len;
-  bool unaccessible= false;
 
   if (!table->parse_name<!trylock>(db_buf, tbl_buf, &db_len, &tbl_len))
     /* The name of an intermediate table starts with #sql */
     return table;
 
 retry:
-  if (!unaccessible && (!table->is_readable() || table->corrupted))
+  ut_ad(!trylock == dict_sys.frozen());
+
+  if (!table->is_readable() || table->corrupted)
   {
     if (*mdl)
     {
       mdl_context->release_lock(*mdl);
       *mdl= nullptr;
     }
-    unaccessible= true;
+    return nullptr;
   }
 
-  if (!trylock)
-    table->release();
-
-  if (unaccessible)
-    return nullptr;
+  const table_id_t table_id{table->id};
 
   if (!trylock)
     dict_sys.unfreeze();
@@ -691,11 +687,38 @@ retry:
     }
   }
 
+  size_t db1_len, tbl1_len;
+lookup:
   dict_sys.freeze(SRW_LOCK_CALL);
   table= dict_sys.find_table(table_id);
   if (table)
-    table->acquire();
-  if (!table && table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
+  {
+    if (!table->is_accessible())
+    {
+      table= nullptr;
+    unlock_and_return_without_mdl:
+      if (trylock)
+        dict_sys.unfreeze();
+    return_without_mdl:
+      if (*mdl)
+      {
+        mdl_context->release_lock(*mdl);
+        *mdl= nullptr;
+      }
+      return table;
+    }
+
+    if (trylock)
+      table->acquire();
+
+    if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
+    {
+      /* The table was renamed to #sql prefix.
+      Release MDL (if any) for the old name and return. */
+      goto unlock_and_return_without_mdl;
+    }
+  }
+  else if (table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
   {
     dict_sys.unfreeze();
     dict_sys.lock(SRW_LOCK_CALL);
@@ -703,31 +726,15 @@ retry:
                                  table_op == DICT_TABLE_OP_LOAD_TABLESPACE
                                  ? DICT_ERR_IGNORE_RECOVER_LOCK
                                  : DICT_ERR_IGNORE_FK_NOKEY);
-    if (table)
-      table->acquire();
     dict_sys.unlock();
-    dict_sys.freeze(SRW_LOCK_CALL);
-  }
-
-  if (!table || !table->is_accessible())
-  {
-return_without_mdl:
-    if (trylock)
-      dict_sys.unfreeze();
-    if (*mdl)
-    {
-      mdl_context->release_lock(*mdl);
-      *mdl= nullptr;
-    }
-    return nullptr;
-  }
-
-  size_t db1_len, tbl1_len;
-
-  if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
-  {
-    /* The table was renamed to #sql prefix.
-    Release MDL (if any) for the old name and return. */
+    /* At this point, the freshly loaded table may already have been evicted.
+    We must look it up again while holding a shared dict_sys.latch.  We keep
+    trying this until the table is found in the cache or it cannot be found
+    in the dictionary (because the table has been dropped or rebuilt). */
+    if (table)
+      goto lookup;
+    if (!trylock)
+      dict_sys.freeze(SRW_LOCK_CALL);
     goto return_without_mdl;
   }
 
@@ -816,6 +823,7 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                                     dict_table_op_t table_op, THD *thd,
                                     MDL_ticket **mdl)
 {
+retry:
   if (!dict_locked)
     dict_sys.freeze(SRW_LOCK_CALL);
 
@@ -823,9 +831,21 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 
   if (table)
   {
-    table->acquire();
-    if (thd && !dict_locked)
-      table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
+    if (!dict_locked)
+    {
+      if (thd)
+      {
+        table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
+        if (table)
+          goto acquire;
+      }
+      else
+      acquire:
+        table->acquire();
+      dict_sys.unfreeze();
+    }
+    else
+      table->acquire();
   }
   else if (table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
   {
@@ -838,23 +858,15 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                                  table_op == DICT_TABLE_OP_LOAD_TABLESPACE
                                  ? DICT_ERR_IGNORE_RECOVER_LOCK
                                  : DICT_ERR_IGNORE_FK_NOKEY);
-    if (table)
-      table->acquire();
     if (!dict_locked)
     {
       dict_sys.unlock();
-      if (table && thd)
-      {
-        dict_sys.freeze(SRW_LOCK_CALL);
-        table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
-        dict_sys.unfreeze();
-      }
-      return table;
+      if (table)
+        goto retry;
     }
+    else if (table)
+      table->acquire();
   }
-
-  if (!dict_locked)
-    dict_sys.unfreeze();
 
   return table;
 }
@@ -918,7 +930,7 @@ void dict_sys_t::create() noexcept
   UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
   UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  const ulint hash_size = buf_pool.curr_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
 
   table_hash.create(hash_size);
@@ -1070,6 +1082,55 @@ dict_table_open_on_name(
     dict_sys.unlock();
 
   DBUG_RETURN(table);
+}
+
+bool dict_stats::open(THD *thd) noexcept
+{
+  ut_ad(!mdl_table);
+  ut_ad(!mdl_index);
+  ut_ad(!table_stats);
+  ut_ad(!index_stats);
+  ut_ad(!mdl_context);
+
+  mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
+  if (!mdl_context)
+    return true;
+  /* FIXME: use compatible type, and maybe remove this parameter altogether! */
+  const double timeout= double(global_system_variables.lock_wait_timeout);
+  MDL_request request;
+  MDL_REQUEST_INIT(&request, MDL_key::TABLE, "mysql", "innodb_table_stats",
+                   MDL_SHARED, MDL_EXPLICIT);
+  if (UNIV_UNLIKELY(mdl_context->acquire_lock(&request, timeout)))
+    return true;
+  mdl_table= request.ticket;
+  MDL_REQUEST_INIT(&request, MDL_key::TABLE, "mysql", "innodb_index_stats",
+                   MDL_SHARED, MDL_EXPLICIT);
+  if (UNIV_UNLIKELY(mdl_context->acquire_lock(&request, timeout)))
+    goto release_mdl;
+  mdl_index= request.ticket;
+  table_stats= dict_table_open_on_name("mysql/innodb_table_stats", false,
+                                       DICT_ERR_IGNORE_NONE);
+  if (!table_stats)
+    goto release_mdl;
+  index_stats= dict_table_open_on_name("mysql/innodb_index_stats", false,
+                                       DICT_ERR_IGNORE_NONE);
+  if (index_stats)
+    return false;
+
+  table_stats->release();
+release_mdl:
+  if (mdl_index)
+    mdl_context->release_lock(mdl_index);
+  mdl_context->release_lock(mdl_table);
+  return true;
+}
+
+void dict_stats::close() noexcept
+{
+  table_stats->release();
+  index_stats->release();
+  mdl_context->release_lock(mdl_table);
+  mdl_context->release_lock(mdl_index);
 }
 
 /**********************************************************************//**
@@ -4297,7 +4358,7 @@ void dict_sys_t::resize() noexcept
   table_id_hash.free();
   temp_id_hash.free();
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  const ulint hash_size = buf_pool.curr_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
   table_hash.create(hash_size);
   table_id_hash.create(hash_size);

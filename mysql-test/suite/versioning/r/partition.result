@@ -3454,4 +3454,25 @@ drop table t;
 #
 # End of 10.9 tests
 #
+#
+# MDEV-34775 Wrong reopen of already open routine due to auto-create in SP
+#
+create table t (a int) with system versioning
+partition by system_time
+interval 1 minute auto;
+create function f()
+returns int
+begin
+replace into t select * from t;
+return 0;
+end $
+set timestamp= @@timestamp + 61;
+select f();
+f()
+0
+drop table t;
+drop function f;
+#
+# End of 10.11 tests
+#
 set global innodb_stats_persistent= @save_persistent;

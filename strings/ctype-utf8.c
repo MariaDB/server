@@ -700,6 +700,7 @@ static void my_hash_sort_utf8mb3_nopad(CHARSET_INFO *cs, const uchar *s, size_t 
   const uchar *e= s+slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((s < e) && (res=my_utf8mb3_uni(cs,&wc, (uchar *)s, (uchar*)e))>0 )
   {
@@ -720,6 +721,7 @@ static void my_hash_sort_utf8mb3(CHARSET_INFO *cs, const uchar *s, size_t slen,
     'A ' and 'A' as identical
   */
   const uchar *e= skip_trailing_space(s, slen);
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_utf8mb3_nopad(cs, s, e - s, nr1, nr2);
 }
 
@@ -3152,6 +3154,7 @@ my_hash_sort_utf8mb4_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
   const uchar *e= s + slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((res= my_mb_wc_utf8mb4(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
@@ -3184,6 +3187,7 @@ my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
     'A ' and 'A' as identical
   */
   const uchar *e= skip_trailing_space(s, slen);
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_utf8mb4_nopad(cs, s, e - s, nr1, nr2);
 }
 

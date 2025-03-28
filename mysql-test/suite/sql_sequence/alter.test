@@ -80,6 +80,25 @@ alter sequence t1 start=100;
 show create sequence t1;
 select * from t1;
 select next value for t1;
+let $check_innodb_flags =
+select flag & 12288 is_sequence from information_schema.innodb_sys_tables
+where name='test/t1';
+evalp $check_innodb_flags;
+alter table t1 sequence=0;
+begin;
+delete from t1;
+rollback;
+evalp $check_innodb_flags;
+alter table t1 sequence=1;
+evalp $check_innodb_flags;
+alter table t1 sequence=0, algorithm=copy;
+evalp $check_innodb_flags;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 sequence=1, algorithm=inplace;
+alter table t1 sequence=1, algorithm=copy;
+evalp $check_innodb_flags;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 sequence=0, algorithm=inplace;
 drop sequence t1;
 
 --echo #

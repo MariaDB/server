@@ -69,5 +69,4 @@ SET DEBUG_SYNC = 'RESET';
 --disconnect node_2
 --connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
-
 --source suite/galera/include/auto_increment_offset_restore.inc

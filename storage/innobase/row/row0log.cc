@@ -4029,20 +4029,19 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
   if (!(this->cmpl_info & UPD_NODE_NO_ORD_CHANGE))
   {
     for (ulint i = 0; i < dict_table_get_n_v_cols(table); i++)
-       dfield_get_type(
-         dtuple_get_nth_v_field(row, i))->mtype = DATA_MISSING;
-  }
-
-  if (is_update)
-  {
-    old_row= dtuple_copy(row, heap);
-    row_upd_replace(old_row, &old_ext, clust_index, update, heap);
+     dfield_get_type(dtuple_get_nth_v_field(row, i))->mtype = DATA_MISSING;
   }
 
   if (table->n_v_cols)
     row_upd_replace_vcol(row, table, update, false, nullptr,
                          (cmpl_info & UPD_NODE_NO_ORD_CHANGE)
                          ? nullptr : undo_rec);
+
+  if (is_update)
+  {
+    old_row= dtuple_copy(row, heap);
+    row_upd_replace(old_row, &old_ext, clust_index, update, heap);
+  }
 
   bool success= true;
   dict_index_t *index= dict_table_get_next_index(clust_index);

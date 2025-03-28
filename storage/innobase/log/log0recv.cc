@@ -1390,34 +1390,18 @@ inline void recv_sys_t::free(const void *data)
   ut_ad(!ut_align_offset(data, ALIGNMENT));
   mysql_mutex_assert_owner(&mutex);
 
-  /* MDEV-14481 FIXME: To prevent race condition with buf_pool.resize(),
-  we must acquire and hold the buffer pool mutex here. */
-  ut_ad(!buf_pool.resize_in_progress());
-
-  auto *chunk= buf_pool.chunks;
-  for (auto i= buf_pool.n_chunks; i--; chunk++)
+  buf_block_t *block= buf_pool.block_from(data);
+  ut_ad(block->page.frame == page_align(data));
+  ut_ad(block->page.state() == buf_page_t::MEMORY);
+  ut_ad(uint16_t(block->page.free_offset - 1) < srv_page_size);
+  ut_ad(block->page.used_records);
+  if (!--block->page.used_records)
   {
-    if (data < chunk->blocks->page.frame)
-      continue;
-    const size_t offs= (reinterpret_cast<const byte*>(data) -
-                        chunk->blocks->page.frame) >> srv_page_size_shift;
-    if (offs >= chunk->size)
-      continue;
-    buf_block_t *block= &chunk->blocks[offs];
-    ut_ad(block->page.frame == page_align(data));
-    ut_ad(block->page.state() == buf_page_t::MEMORY);
-    ut_ad(uint16_t(block->page.free_offset - 1) < srv_page_size);
-    ut_ad(block->page.used_records);
-    if (!--block->page.used_records)
-    {
-      block->page.hash= nullptr;
-      UT_LIST_REMOVE(blocks, block);
-      MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
-      buf_block_free(block);
-    }
-    return;
+    block->page.hash= nullptr;
+    UT_LIST_REMOVE(blocks, block);
+    MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
+    buf_block_free(block);
   }
-  ut_ad(0);
 }
 
 
@@ -1966,12 +1950,13 @@ ATTRIBUTE_COLD void recv_sys_t::wait_for_pool(size_t pages)
 {
   mysql_mutex_unlock(&mutex);
   os_aio_wait_until_no_pending_reads(false);
+  os_aio_wait_until_no_pending_writes(false);
   mysql_mutex_lock(&mutex);
   garbage_collect();
   mysql_mutex_lock(&buf_pool.mutex);
-  bool need_more= UT_LIST_GET_LEN(buf_pool.free) < pages;
+  const size_t available= UT_LIST_GET_LEN(buf_pool.free);
   mysql_mutex_unlock(&buf_pool.mutex);
-  if (need_more)
+  if (available < pages)
     buf_flush_sync_batch(lsn);
 }
 
@@ -4853,28 +4838,43 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id, lsn_t max_lsn,
   goto check_if_corrupted;
 }
 
-byte *recv_dblwr_t::find_encrypted_page(const fil_node_t &node,
-                                        uint32_t page_no,
-                                        byte *buf) noexcept
+ATTRIBUTE_COLD
+byte *recv_dblwr_t::find_deferred_page(const fil_node_t &node,
+                                       uint32_t page_no,
+                                       byte *buf) noexcept
 {
-  ut_ad(node.space->crypt_data);
   ut_ad(node.space->full_crc32());
   mysql_mutex_lock(&recv_sys.mutex);
   byte *result_page= nullptr;
+  bool is_encrypted= node.space->crypt_data &&
+                     node.space->crypt_data->is_encrypted();
   for (list::iterator page_it= pages.begin(); page_it != pages.end();
        page_it++)
   {
     if (page_get_page_no(*page_it) != page_no ||
         buf_page_is_corrupted(true, *page_it, node.space->flags))
       continue;
+
+    if (is_encrypted &&
+        !mach_read_from_4(*page_it + FIL_PAGE_FCRC32_KEY_VERSION))
+      continue;
+
     memcpy(buf, *page_it, node.space->physical_size());
     buf_tmp_buffer_t *slot= buf_pool.io_buf_reserve(false);
     ut_a(slot);
     slot->allocate();
-    bool invalidate=
-      !fil_space_decrypt(node.space, slot->crypt_buf, buf) ||
-      (node.space->is_compressed() &&
-       !fil_page_decompress(slot->crypt_buf, buf, node.space->flags));
+
+    bool invalidate= false;
+    if (is_encrypted)
+    {
+      invalidate= !fil_space_decrypt(node.space, slot->crypt_buf, buf);
+      if (!invalidate && node.space->is_compressed())
+        goto decompress;
+    }
+    else
+decompress:
+      invalidate= !fil_page_decompress(slot->crypt_buf, buf,
+                                       node.space->flags);
     slot->release();
 
     if (invalidate ||

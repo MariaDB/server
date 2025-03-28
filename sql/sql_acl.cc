@@ -13120,6 +13120,9 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       return dup;
     }
 
+    if (!initialized)
+      return dup;
+
     if (lock)
       mysql_mutex_lock(&acl_cache->lock);
     if (find_acl_role(dup->user.str, false))

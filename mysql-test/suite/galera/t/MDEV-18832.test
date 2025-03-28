@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 CREATE SEQUENCE Seq1_1  START WITH 1  INCREMENT BY 1 NOCACHE;
 CREATE TABLE t1 (Id int(11) NOT NULL, PRIMARY KEY (Id));

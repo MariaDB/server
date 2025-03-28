@@ -456,6 +456,11 @@
 /* This should mean case insensitive file system */
 #cmakedefine FN_NO_CASE_SENSE 1
 
+/* Whether an anonymous private mapping is unaccessible after
+madvise(MADV_DONTNEED) or madvise(MADV_FREE) or similar has been invoked;
+this is the case with Microsoft Windows VirtualFree(MEM_DECOMMIT) */
+#cmakedefine HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT 1
+
 #cmakedefine HAVE_CHARSET_armscii8 1
 #cmakedefine HAVE_CHARSET_ascii 1
 #cmakedefine HAVE_CHARSET_big5 1

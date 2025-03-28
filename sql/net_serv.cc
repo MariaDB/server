@@ -705,18 +705,22 @@ net_real_write(NET *net,const uchar *packet, size_t len)
       EXTRA_DEBUG_fprintf(stderr, "%s: write looped, aborting thread\n",
                           my_progname);
       net->error= 2;				/* Close socket */
-      net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :
-                        ER_NET_ERROR_ON_WRITE);
-#ifdef MYSQL_SERVER
-      if (global_system_variables.log_warnings > 3)
+
+      if (net->vio->state != VIO_STATE_SHUTDOWN || net->last_errno == 0)
       {
-        sql_print_warning("Could not write packet: fd: %lld  state: %d  "
-                          "errno: %d  vio_errno: %d  length: %ld",
-                          (longlong) vio_fd(net->vio), (int) net->vio->state,
-                          vio_errno(net->vio), net->last_errno,
-                          (ulong) (end-pos));
-      }
+        net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :
+                          ER_NET_ERROR_ON_WRITE);
+#ifdef MYSQL_SERVER
+        if (global_system_variables.log_warnings > 3)
+        {
+          sql_print_warning("Could not write packet: fd: %lld  state: %d  "
+                            "errno: %d  vio_errno: %d  length: %ld",
+                            (longlong) vio_fd(net->vio), (int) net->vio->state,
+                            vio_errno(net->vio), net->last_errno,
+                            (ulong) (end-pos));
+        }
 #endif
+      }
       MYSQL_SERVER_my_error(net->last_errno, MYF(0));
       break;
     }
@@ -865,6 +869,7 @@ retry:
         net->last_errno= (vio_was_timeout(net->vio) ? ER_NET_READ_INTERRUPTED
                                                     : ER_NET_READ_ERROR);
 #ifdef MYSQL_SERVER
+          strmake_buf(net->last_error, ER(net->last_errno));
           if (global_system_variables.log_warnings > 3)
           {
             /* Log things as a warning */

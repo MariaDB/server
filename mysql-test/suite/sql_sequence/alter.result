@@ -166,6 +166,32 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 select next value for t1;
 next value for t1
 11
+$check_innodb_flags;
+is_sequence
+12288
+alter table t1 sequence=0;
+begin;
+delete from t1;
+rollback;
+$check_innodb_flags;
+is_sequence
+0
+alter table t1 sequence=1;
+$check_innodb_flags;
+is_sequence
+12288
+alter table t1 sequence=0, algorithm=copy;
+$check_innodb_flags;
+is_sequence
+0
+alter table t1 sequence=1, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: SEQUENCE. Try ALGORITHM=COPY
+alter table t1 sequence=1, algorithm=copy;
+$check_innodb_flags;
+is_sequence
+12288
+alter table t1 sequence=0, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: SEQUENCE. Try ALGORITHM=COPY
 drop sequence t1;
 #
 # ALTER TABLE

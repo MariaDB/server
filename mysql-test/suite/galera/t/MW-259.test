@@ -39,4 +39,3 @@ SET GLOBAL wsrep_desync=0;
 
 # Cleanup
 SET DEBUG_SYNC= 'RESET';
-

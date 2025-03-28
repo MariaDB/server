@@ -1,0 +1,54 @@
+#
+# MDEV-35874 Unexpected error 1264 'Out of Range Value for Column' when inserting into ... select ... from a spider table
+#
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t1 (c6 decimal(6,0)) ENGINE=InnoDB;
+CREATE TABLE t1_s (c6 decimal(6,0))
+ENGINE=SPIDER COMMENT='wrapper "mariadb", srv "srv", table "t1"' ;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+CREATE TABLE t2 (c8 decimal(8,0), c6 decimal(6,0)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (123456), (654321);
+/* 1 */ SELECT 12345678, c6 FROM t1_s GROUP BY c6;
+12345678	c6
+12345678	123456
+12345678	654321
+/* 2 */ INSERT INTO t2 (c8, c6) SELECT 12345678, c6 FROM t1_s GROUP BY c6;
+set spider_quick_mode= 2;
+/* 3 */ SELECT 12345678, c6 FROM t1_s GROUP BY c6;
+12345678	c6
+12345678	123456
+12345678	654321
+/* 4 */ INSERT INTO t2 (c8, c6) SELECT 12345678, c6 FROM t1_s GROUP BY c6;
+set spider_quick_mode= 3;
+set spider_quick_page_size= 1;
+INSERT INTO t1 VALUES (777777);
+/* 5 */ SELECT 12345678, c6 FROM t1_s GROUP BY c6;
+12345678	c6
+12345678	123456
+12345678	654321
+12345678	777777
+/* 6 */ INSERT INTO t2 (c8, c6) SELECT 12345678, c6 FROM t1_s GROUP BY c6;
+set spider_quick_mode= 0;
+set spider_quick_page_size= 1024;
+CREATE OR REPLACE TABLE t1_s (c6 decimal(6,0) key)
+ENGINE=SPIDER COMMENT='wrapper "mariadb", srv "srv", table "t1"' ;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+/* 7 */ SELECT MAX(c6), SUM(c6) FROM t1_s;
+MAX(c6)	SUM(c6)
+777777	1555554
+set spider_select_column_mode= 0;
+/* 8 */ SELECT MAX(c6), SUM(c6) FROM t1_s;
+MAX(c6)	SUM(c6)
+777777	1555554
+drop table t2, t1_s, t1;
+drop server srv;
+for master_1
+for child2
+for child3
