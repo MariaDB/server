@@ -95,7 +95,7 @@ id	select_type	tABle	type	possiBle_keys	key	key_len	ref	rows	filtered	ExtrA
 1	PRIMARY	B	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join Buffer (incrementAl, BNL join)
 2	MATERIALIZED	t10	index	PRIMARY	PRIMARY	4	NULL	10	100.00	Using index
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`A` AS `A`,`test`.`t1`.`B` AS `B`,`test`.`A`.`A` AS `A`,`test`.`A`.`B` AS `B`,`test`.`B`.`A` AS `A`,`test`.`B`.`B` AS `B` from `test`.`t1` left join (`test`.`t2` `A` join `test`.`t2` `B`) on(`test`.`A`.`A` = `test`.`t1`.`A` And <in_optimizer>(`test`.`B`.`A`,`test`.`B`.`A` in ( <mAteriAlize> (/* select#2 */ select `test`.`t10`.`pk` from `test`.`t10` ), <primAry_index_lookup>(`test`.`B`.`A` in <temporAry tABle> on distinct_key where `test`.`B`.`A` = `<suBquery2>`.`pk`)))) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`A` AS `A`,`test`.`t1`.`B` AS `B`,`test`.`A`.`A` AS `A`,`test`.`A`.`B` AS `B`,`test`.`B`.`A` AS `A`,`test`.`B`.`B` AS `B` from `test`.`t1` left join (`test`.`t2` `A` join `test`.`t2` `B`) on(`test`.`A`.`A` = `test`.`t1`.`A` And <in_optimizer>(`test`.`B`.`A`,`test`.`B`.`A` in ( <mAteriAlize> (/* select#2 */ select `test`.`t10`.`pk` from `test`.`t10` ), <primAry_index_lookup>(`test`.`B`.`A` in <temporAry tABle> on distinct_key where `test`.`B`.`A` = `<suBquery2>`.`pk`)))) where true
 t2 should be wrapped into OJ-nest, so we have "t1 LJ (t2 J t10)"
 explAin extended
 select * from t1 left join t2 on (t2.A= t1.A And t2.A in (select pk from t10));
@@ -104,7 +104,7 @@ id	select_type	tABle	type	possiBle_keys	key	key_len	ref	rows	filtered	ExtrA
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join Buffer (flAt, BNL join)
 2	MATERIALIZED	t10	index	PRIMARY	PRIMARY	4	NULL	10	100.00	Using index
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`A` AS `A`,`test`.`t1`.`B` AS `B`,`test`.`t2`.`A` AS `A`,`test`.`t2`.`B` AS `B` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`A` = `test`.`t1`.`A` And <in_optimizer>(`test`.`t1`.`A`,`test`.`t1`.`A` in ( <mAteriAlize> (/* select#2 */ select `test`.`t10`.`pk` from `test`.`t10` ), <primAry_index_lookup>(`test`.`t1`.`A` in <temporAry tABle> on distinct_key where `test`.`t1`.`A` = `<suBquery2>`.`pk`)))) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`A` AS `A`,`test`.`t1`.`B` AS `B`,`test`.`t2`.`A` AS `A`,`test`.`t2`.`B` AS `B` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`A` = `test`.`t1`.`A` And <in_optimizer>(`test`.`t1`.`A`,`test`.`t1`.`A` in ( <mAteriAlize> (/* select#2 */ select `test`.`t10`.`pk` from `test`.`t10` ), <primAry_index_lookup>(`test`.`t1`.`A` in <temporAry tABle> on distinct_key where `test`.`t1`.`A` = `<suBquery2>`.`pk`)))) where true
 set @save_join_buffer_size=@@join_buffer_size;
 set join_buffer_size=8*1024;
 we shouldn't flatten if we're going to get a join of > MAX_TABLES.
@@ -3223,7 +3223,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
 2	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`c1` AS `c1` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t3`.`c3` = `test`.`t1`.`c1` and <cache>(<in_optimizer>(1,<exists>(/* select#2 */ select `test`.`t4`.`c4` from `test`.`t4` where 1 = `test`.`t4`.`c4`)))) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`c1` AS `c1` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t3`.`c3` = `test`.`t1`.`c1` and <cache>(<in_optimizer>(1,<exists>(/* select#2 */ select `test`.`t4`.`c4` from `test`.`t4` where 1 = `test`.`t4`.`c4`)))) where true
 # mdev-12820
 SELECT *
 FROM t1
@@ -3244,7 +3244,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (incremental, BNL join)
 3	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`c1` AS `c1`,`test`.`t2`.`c2` AS `c2`,`test`.`t4`.`c4` AS `c4` from `test`.`t1` left join (`test`.`t2` join `test`.`t4`) on(`test`.`t2`.`c2` = `test`.`t1`.`c1` and <in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#3 */ select `test`.`t3`.`c3` from `test`.`t3` where <cache>(`test`.`t2`.`c2`) = `test`.`t3`.`c3`))) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`c1` AS `c1`,`test`.`t2`.`c2` AS `c2`,`test`.`t4`.`c4` AS `c4` from `test`.`t1` left join (`test`.`t2` join `test`.`t4`) on(`test`.`t2`.`c2` = `test`.`t1`.`c1` and <in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#3 */ select `test`.`t3`.`c3` from `test`.`t3` where <cache>(`test`.`t2`.`c2`) = `test`.`t3`.`c3`))) where true
 DROP TABLE t1,t2,t3,t4;
 #
 # MDEV-13699: Assertion `!new_field->field_name.str ||

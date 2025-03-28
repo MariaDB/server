@@ -1728,5 +1728,13 @@ Warnings:
 Warning	4036	Character disallowed in JSON in argument 1 to function 'json_extract' at position 2
 SET @@collation_connection= @save_collation_connection;
 #
+# MDEV-28649 json_array(false) in the definition of view return 0 instead of "true"
+#
+create view v1 as select json_array(false) as ja_false, json_array(true) as ja_true;
+select * from v1;
+ja_false	ja_true
+[false]	[true]
+drop view v1;
+#
 # End of 10.5 tests
 #

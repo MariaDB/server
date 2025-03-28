@@ -3391,11 +3391,11 @@ JSON_ARRAY('key1', false, 'key2', true)
 CREATE VIEW v1 AS SELECT JSON_OBJECT('key1', false, 'key2', true);
 SELECT * FROM v1;
 JSON_OBJECT('key1', false, 'key2', true)
-{"key1": 0, "key2": 1}
+{"key1": false, "key2": true}
 CREATE VIEW v2 AS SELECT JSON_ARRAY('key1', false, 'key2', true);
 SELECT * FROM v2;
 JSON_ARRAY('key1', false, 'key2', true)
-["key1", 0, "key2", 1]
+["key1", false, "key2", true]
 drop view v1;
 drop view v2;
 #
