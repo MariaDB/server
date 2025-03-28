@@ -80,3 +80,20 @@ call sudo_foobar();
 drop procedure sudo_foobar;
 
 drop user ''@'%';
+
+--echo #
+--echo # MDEV-36399 SET SESSION AUTHORIZATION allows an unrpivileged user to bypass resource limits
+--echo #
+
+create user u1 with max_queries_per_hour 2;
+connect u1,localhost,u1;
+
+set session authorization u1@localhost;
+select 1;
+--error ER_USER_LIMIT_REACHED
+select 2;
+disconnect u1;
+connection default;
+drop user u1;
+
+--echo # End of 11.8 tests

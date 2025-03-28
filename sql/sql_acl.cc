@@ -12677,7 +12677,12 @@ int acl_setauthorization(THD *thd, const LEX_USER *user)
   sctx->host_or_ip= sctx->host;
   sctx->ip= 0;
 
-  set_privs_on_login(thd, acl_user);
+  if (set_privs_on_login(thd, acl_user))
+  {
+    sctx->destroy();
+    *sctx= save_security_ctx;
+    return 1;
+  }
 
   mysql_audit_notify_connection_change_user(thd, &save_security_ctx);
   save_security_ctx.destroy();

@@ -80,3 +80,18 @@ call sudo_foobar();
 ERROR HY000: This command is not supported in the prepared statement protocol yet
 drop procedure sudo_foobar;
 drop user ''@'%';
+#
+# MDEV-36399 SET SESSION AUTHORIZATION allows an unrpivileged user to bypass resource limits
+#
+create user u1 with max_queries_per_hour 2;
+connect u1,localhost,u1;
+set session authorization u1@localhost;
+select 1;
+1
+1
+select 2;
+ERROR 42000: User 'u1' has exceeded the 'max_queries_per_hour' resource (current value: 2)
+disconnect u1;
+connection default;
+drop user u1;
+# End of 11.8 tests
