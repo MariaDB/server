@@ -50,12 +50,12 @@ DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
  INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir'
 );
 Warnings:
-Warning	1618	<INDEX DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	INDEX DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1618	<INDEX DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	INDEX DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 # Verifying .frm, .par, .isl & .ibd files
 ---- MYSQLD_DATADIR/test
 db.opt
