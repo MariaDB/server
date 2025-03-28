@@ -1879,6 +1879,14 @@ static bool log_checkpoint() noexcept
   if (recv_recovery_is_on())
     recv_sys.apply(true);
 
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
+  /* The built-in scheduler in Valgrind may neglect some threads for a
+  long time.  Under Valgrind, let us explicitly wait for page write
+  completion in order to avoid a result difference in the test
+  innodb.page_cleaner. */
+  os_aio_wait_until_no_pending_writes(false);
+#endif
+
   switch (srv_file_flush_method) {
   case SRV_NOSYNC:
   case SRV_O_DIRECT_NO_FSYNC:
