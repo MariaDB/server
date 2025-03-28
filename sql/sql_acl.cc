@@ -12346,14 +12346,15 @@ int acl_check_setrole(THD *, const LEX_CSTRING &, privilege_t *) { return 0; }
 int acl_setrole(THD *, const LEX_CSTRING &, privilege_t) { return 0; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
-static void set_privs_on_login(THD *thd, const ACL_USER *acl_user)
+static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
 {
-  strmake_buf(thd->security_ctx->priv_user, acl_user->user.str);
+  Security_context *sctx= thd->security_ctx;
+  strmake_buf(sctx->priv_user, acl_user->user.str);
 
   if (acl_user->host.hostname)
-    strmake_buf(thd->security_ctx->priv_host, acl_user->host.hostname);
+    strmake_buf(sctx->priv_host, acl_user->host.hostname);
 
-  thd->security_ctx->master_access= acl_user->access | public_access();
+  sctx->master_access= acl_user->access | public_access();
 
   if (acl_user->default_rolename.length)
   {
@@ -12363,6 +12364,33 @@ static void set_privs_on_login(THD *thd, const ACL_USER *acl_user)
       result= acl_setrole(thd, acl_user->default_rolename, access);
     thd->clear_error();
   }
+
+  /*
+    Don't allow the user to connect if he has done too many queries.
+    As we are testing max_user_connections == 0 here, it means that we
+    can't let the user change max_user_connections from 0 in the server
+    without a restart as it would lead to wrong connect counting.
+  */
+  if ((acl_user->user_resource.questions ||
+       acl_user->user_resource.updates ||
+       acl_user->user_resource.conn_per_hour ||
+       acl_user->user_resource.user_conn ||
+       acl_user->user_resource.max_statement_time != 0.0 ||
+       max_user_connections_checking) &&
+       get_or_create_user_conn(thd,
+         (opt_old_style_user_limits ? sctx->user : sctx->priv_user),
+         (opt_old_style_user_limits ? sctx->host_or_ip : sctx->priv_host),
+         &acl_user->user_resource))
+    return 1; // The error is set by get_or_create_user_conn()
+
+  if (acl_user->user_resource.max_statement_time != 0.0)
+  {
+    thd->variables.max_statement_time_double=
+      acl_user->user_resource.max_statement_time;
+    thd->variables.max_statement_time=
+      (ulonglong) (thd->variables.max_statement_time_double * 1e6 + 0.1);
+  }
+  return 0;
 }
 
 
@@ -12629,7 +12657,6 @@ int acl_setauthorization(THD *thd, const LEX_USER *user)
              user->user.str, user->host.str);
     return 1;
   }
-
 
   Security_context save_security_ctx= *sctx;
   thd->change_user();
@@ -15082,33 +15109,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     }
 #endif
 
-    set_privs_on_login(thd, acl_user);
-
-    /*
-      Don't allow the user to connect if he has done too many queries.
-      As we are testing max_user_connections == 0 here, it means that we
-      can't let the user change max_user_connections from 0 in the server
-      without a restart as it would lead to wrong connect counting.
-    */
-    if ((acl_user->user_resource.questions ||
-         acl_user->user_resource.updates ||
-         acl_user->user_resource.conn_per_hour ||
-         acl_user->user_resource.user_conn ||
-         acl_user->user_resource.max_statement_time != 0.0 ||
-         max_user_connections_checking) &&
-         get_or_create_user_conn(thd,
-           (opt_old_style_user_limits ? sctx->user : sctx->priv_user),
-           (opt_old_style_user_limits ? sctx->host_or_ip : sctx->priv_host),
-           &acl_user->user_resource))
-      DBUG_RETURN(1); // The error is set by get_or_create_user_conn()
-
-    if (acl_user->user_resource.max_statement_time != 0.0)
-    {
-      thd->variables.max_statement_time_double=
-        acl_user->user_resource.max_statement_time;
-      thd->variables.max_statement_time=
-        (ulonglong) (thd->variables.max_statement_time_double * 1e6 + 0.1);
-    }
+    if (set_privs_on_login(thd, acl_user))
+      DBUG_RETURN(1);
   }
   else
     sctx->skip_grants();
