@@ -44,7 +44,6 @@ void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
 #endif
 
 std::pair<lsn_t,mtr_t::page_flush_ahead> (*mtr_t::finisher)(mtr_t *, size_t);
-unsigned mtr_t::spin_wait_delay;
 
 void mtr_t::finisher_update()
 {
@@ -53,15 +52,12 @@ void mtr_t::finisher_update()
   if (log_sys.is_mmap())
   {
     commit_logger= mtr_t::commit_log<true>;
-    finisher= spin_wait_delay
-      ? mtr_t::finish_writer<true,true> : mtr_t::finish_writer<false,true>;
+    finisher= mtr_t::finish_writer<true>;
     return;
   }
   commit_logger= mtr_t::commit_log<false>;
 #endif
-  finisher=
-    (spin_wait_delay
-     ? mtr_t::finish_writer<true,false> : mtr_t::finish_writer<false,false>);
+  finisher= mtr_t::finish_writer<false>;
 }
 
 void mtr_memo_slot_t::release() const
@@ -897,111 +893,12 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   ? ". Shutdown is in progress" : "");
 }
 
-static ATTRIBUTE_NOINLINE void lsn_delay(size_t delay, size_t mult) noexcept
-{
-  delay*= mult * 2; // GCC 13.2.0 -O2 targeting AMD64 wants to unroll twice
-  HMT_low();
-  do
-    MY_RELAX_CPU();
-  while (--delay);
-  HMT_medium();
-}
-
-#if defined __clang_major__ && __clang_major__ < 10
-/* Only clang-10 introduced support for asm goto */
-#elif defined __APPLE__
-/* At least some versions of Apple Xcode do not support asm goto */
-#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-# if SIZEOF_SIZE_T == 8
-#  define LOCK_TSET                                             \
-  __asm__ goto("lock btsq $63, %0\n\t" "jnc %l1"                \
-               : : "m"(buf_free) : "cc", "memory" : got)
-# else
-#  define LOCK_TSET                                             \
-  __asm__ goto("lock btsl $31, %0\n\t" "jnc %l1"                \
-               : : "m"(buf_free) : "cc", "memory" : got)
-# endif
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-# if SIZEOF_SIZE_T == 8
-#  define LOCK_TSET                                                     \
-  if (!_interlockedbittestandset64                                      \
-      (reinterpret_cast<volatile LONG64*>(&buf_free), 63)) return
-# else
-#  define LOCK_TSET                                                     \
-  if (!_interlockedbittestandset                                        \
-      (reinterpret_cast<volatile long*>(&buf_free), 31)) return
-# endif
-#endif
-
-#ifdef LOCK_TSET
-ATTRIBUTE_NOINLINE
-void log_t::lsn_lock_bts() noexcept
-{
-  LOCK_TSET;
-  {
-    const size_t m= mtr_t::spin_wait_delay;
-    constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
-    for (size_t delay_count= DELAY, delay_iterations= 1;;
-         lsn_delay(delay_iterations, m))
-    {
-      if (!(buf_free.load(std::memory_order_relaxed) & buf_free_LOCK))
-        LOCK_TSET;
-      if (!delay_count);
-      else if (delay_iterations < MAX_ITERATIONS)
-        delay_count= DELAY, delay_iterations++;
-      else
-        delay_count--;
-    }
-  }
-
-# ifdef __GNUC__
- got:
-  return;
-# endif
-}
-
-inline
-#else
-ATTRIBUTE_NOINLINE
-#endif
-size_t log_t::lock_lsn() noexcept
-{
-#ifdef LOCK_TSET
-  lsn_lock_bts();
-  return ~buf_free_LOCK & buf_free.load(std::memory_order_relaxed);
-# undef LOCK_TSET
-#else
-  size_t b= buf_free.fetch_or(buf_free_LOCK, std::memory_order_acquire);
-  if (b & buf_free_LOCK)
-  {
-    const size_t m= mtr_t::spin_wait_delay;
-    constexpr size_t DELAY= 10, MAX_ITERATIONS= 10;
-    for (size_t delay_count= DELAY, delay_iterations= 1;
-         ((b= buf_free.load(std::memory_order_relaxed)) & buf_free_LOCK) ||
-           (buf_free_LOCK & (b= buf_free.fetch_or(buf_free_LOCK,
-                                                  std::memory_order_acquire)));
-         lsn_delay(delay_iterations, m))
-      if (!delay_count);
-      else if (delay_iterations < MAX_ITERATIONS)
-        delay_count= DELAY, delay_iterations++;
-      else
-        delay_count--;
-  }
-  return b;
-#endif
-}
-
-template<bool spin>
 ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
   noexcept
 {
   waits++;
-  ut_ad(buf_free.load(std::memory_order_relaxed) ==
-        (spin ? (b | buf_free_LOCK) : b));
-  if (spin)
-    buf_free.store(b, std::memory_order_release);
-  else
-    lsn_lock.wr_unlock();
+  ut_ad(buf_free.load(std::memory_order_relaxed) == b);
+  lsn_lock.wr_unlock();
 
   if (ex)
     latch.wr_unlock();
@@ -1015,29 +912,24 @@ ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
   else
     latch.rd_lock(SRW_LOCK_CALL);
 
-  if (spin)
-    return lock_lsn();
-
   lsn_lock.wr_lock();
   return buf_free.load(std::memory_order_relaxed);
 }
 
 /** Reserve space in the log buffer for appending data.
-@tparam spin  whether to use the spin-only lock_lsn()
 @tparam mmap  log_sys.is_mmap()
 @param size   total length of the data to append(), in bytes
 @param ex     whether log_sys.latch is exclusively locked
 @return the start LSN and the buffer position for append() */
-template<bool spin,bool mmap>
+template<bool mmap>
 inline
 std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(mmap == is_mmap());
-  if (!spin)
-    lsn_lock.wr_lock();
-  size_t b{spin ? lock_lsn() : buf_free.load(std::memory_order_relaxed)};
-  write_to_buf++;
+  lsn_lock.wr_lock();
+  size_t b{buf_free.load(std::memory_order_relaxed)};
+  //write_to_buf++;
 
   lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
 
@@ -1046,7 +938,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
                        get_flushed_lsn(std::memory_order_relaxed)) > capacity()
                     : b + size >= buf_size))
   {
-    b= append_prepare_wait<spin>(b, ex, l);
+    b= append_prepare_wait(b, ex, l);
     /* While flushing log, we had released the lsn lock and LSN could have
     progressed in the meantime. */
     l= lsn.load(std::memory_order_relaxed);
@@ -1063,13 +955,8 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
     set_check_for_checkpoint(true);
 
   byte *our_buf= buf;
-  if (spin)
-    buf_free.store(new_buf_free, std::memory_order_release);
-  else
-  {
-    buf_free.store(new_buf_free, std::memory_order_relaxed);
-    lsn_lock.wr_unlock();
-  }
+  buf_free.store(new_buf_free, std::memory_order_relaxed);
+  lsn_lock.wr_unlock();
 
   return {l, our_buf + b};
 }
@@ -1304,7 +1191,7 @@ inline void log_t::append(byte *&d, const void *s, size_t size) noexcept
   d+= size;
 }
 
-template<bool spin,bool mmap>
+template<bool mmap>
 std::pair<lsn_t,mtr_t::page_flush_ahead>
 mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
@@ -1315,7 +1202,7 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
 
   const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start=
-    log_sys.append_prepare<spin,mmap>(len, mtr->m_latch_ex);
+    log_sys.append_prepare<mmap>(len, mtr->m_latch_ex);
 
   if (!mmap)
   {

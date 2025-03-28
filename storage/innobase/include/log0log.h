@@ -266,12 +266,6 @@ private:
   /** Buffer for writing to resize_log; @see flush_buf */
   byte *resize_flush_buf;
 
-  /** Special implementation of lock_lsn() for IA-32 and AMD64 */
-  void lsn_lock_bts() noexcept;
-  /** Acquire a lock for updating buf_free and related fields.
-  @return the value of buf_free */
-  size_t lock_lsn() noexcept;
-
   /** log sequence number when log resizing was initiated;
   0 if the log is not being resized, 1 if resize_start() is in progress */
   std::atomic<lsn_t> resize_lsn;
@@ -327,7 +321,7 @@ public:
 private:
   /** the thread that initiated resize_lsn() */
   Atomic_relaxed<void*> resize_initiator;
-  /** A lock when the spin-only lock_lsn() is not being used */
+  /** A lock (FIXME: remove this) */
   log_lsn_lock lsn_lock;
 public:
 
@@ -491,22 +485,19 @@ private:
   void writer_update(bool resizing) noexcept;
 
   /** Wait in append_prepare() for buffer to become available
-  @tparam spin  whether to use the spin-only lock_lsn()
   @param b      the value of buf_free
   @param ex     whether log_sys.latch is exclusively locked
   @param lsn    log sequence number to write up to
   @return the new value of buf_free */
-  template<bool spin>
   ATTRIBUTE_COLD size_t append_prepare_wait(size_t b, bool ex, lsn_t lsn)
     noexcept;
 public:
   /** Reserve space in the log buffer for appending data.
-  @tparam spin  whether to use the spin-only lock_lsn()
   @tparam mmap  log_sys.is_mmap()
   @param size   total length of the data to append(), in bytes
   @param ex     whether log_sys.latch is exclusively locked
   @return the start LSN and the buffer position for append() */
-  template<bool spin,bool mmap>
+  template<bool mmap>
   std::pair<lsn_t,byte*> append_prepare(size_t size, bool ex) noexcept;
 
   /** Append a string of bytes to the redo log.
