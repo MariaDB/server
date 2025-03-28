@@ -664,4 +664,15 @@ WHERE variable_name = 'innodb_instant_alter_column';
 
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 
+CREATE TABLE t1(f1 INT, f2 TEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 'a');
+ALTER TABLE t1 ADD COLUMN f3 TEXT FIRST;
+SET DEBUG_DBUG="+d,instant_insert_fail";
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 DROP COLUMN f1;
+SET DEBUG_DBUG="-d,instant_insert_fail";
+ALTER TABLE t1 DROP COLUMN f1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
 --echo # End of 10.6 tests
