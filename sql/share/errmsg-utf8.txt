@@ -8445,11 +8445,11 @@ WARN_NO_MASTER_INFO
         spa "No existe conexión maestra '%.*s'"
         sw "Hakuna muunganisho mkuu '%.*s'"
 WARN_OPTION_IGNORED
-        eng "<%-.64s> option ignored"
-        ger "Option <%-.64s> ignoriert"
-        geo "პარამეტრი <%-.64s> იგნორირებულია"
-        spa "Opción <%-.64s> ignorada"
-        sw "<%-.64s> chaguo limepuuzwa"
+        eng "%s option ignored"
+        ger "Option %s ignoriert"
+        geo "პარამეტრი %s იგნორირებულია"
+        spa "Opción %s ignorada"
+        sw "%s chaguo limepuuzwa"
 ER_PLUGIN_DELETE_BUILTIN
         chi "内置插件无法删除"
         eng "Built-in plugins cannot be deleted"
@@ -10594,10 +10594,10 @@ ER_WARN_AGGFUNC_DEPENDENCE
         sw "Jumla ya kukokotoa '%-.192s)' ya SELECT #%d ni ya SELECT #%d"
         ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"
 WARN_INNODB_PARTITION_OPTION_IGNORED
-        chi "<%-.64s> innodb分区忽略的选项"
-        eng "<%-.64s> option ignored for InnoDB partition"
-        spa "<%-.64s> opción ignorada para partición InnoDB"
-        sw "<%-.64s> chaguo limepuuzwa kwa kizigeu cha InnoDB"
+        chi "%s innodb分区忽略的选项"
+        eng "%s option ignored for InnoDB partition"
+        spa "%s opción ignorada para partición InnoDB"
+        sw " %s chaguo limepuuzwa kwa kizigeu cha InnoDB"
 
 #
 # Internal errors, not used

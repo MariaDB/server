@@ -133,12 +133,12 @@ connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO master_log_pos=io_log_pos, master_log_file='io_log_file', master_use_gtid=Slave_Pos;
 Warnings:
-Note	1618	<MASTER_LOG_FILE> option ignored
-Note	1618	<MASTER_LOG_POS> option ignored
+Note	1618	MASTER_LOG_FILE option ignored
+Note	1618	MASTER_LOG_POS option ignored
 CHANGE MASTER TO relay_log_pos=relay_log_pos, relay_log_file='relay_log_file', master_use_gtid=Slave_Pos;
 Warnings:
-Note	1618	<RELAY_LOG_FILE> option ignored
-Note	1618	<RELAY_LOG_POS> option ignored
+Note	1618	RELAY_LOG_FILE option ignored
+Note	1618	RELAY_LOG_POS option ignored
 include/start_slave.inc
 include/rpl_end.inc
 #

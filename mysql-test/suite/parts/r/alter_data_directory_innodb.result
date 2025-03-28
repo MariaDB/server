@@ -62,8 +62,8 @@ PARTITION p1 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' 
 PARTITION p2 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB
 );
 Warnings:
-Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
-Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+Warning	1982	DATA DIRECTORY option ignored for InnoDB partition
+Warning	1982	DATA DIRECTORY option ignored for InnoDB partition
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
