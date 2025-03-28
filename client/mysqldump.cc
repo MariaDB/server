@@ -6178,12 +6178,13 @@ static int get_sys_var_lower_case_table_names()
   return lower_case_table_names;
 }
 
-// Returns partition name from table name if no partition is specified.
-// Will return NULL if no partition is there. Otherwise you need to do my_free on the result
-// Will put \0 in *tablename in place of partition separator, so after return
-// *tablename is quaranteed to contain only table name.
+// Returns partition name from table name. NULL if no partition is specified.
+// Will put \0 in place of partition separator, so after return
+// *tablename will contain only table name.
+// 
 // Will treat double separator as escape in table name
 // Will replace backtick in partition name with double backtick
+// You need to do my_free on the result, if not NULL
 static char* get_partition_from_table_name(char *tablename, const char separator = '#')
 {
   int namelen = strlen(tablename);
