@@ -16,11 +16,23 @@ table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,0 0,1 0,2
 0,3 0) ',4326)) c;
 c
 1
+# Functional requirement F-8 Shall support DISTINCT in aggregates
+# result shall be 1
 SELECT ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
 table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
 0) ',4326)) c;
 c
 1
+# Functional requirement F-5: ST_COLLECT shall support group by, which
+# is given by aggregation machinery
+# result shall be
+# MULTIPOINT(0 0,1 0,3 0)
+# MULTIPOINT(2 0,0 0)
+SELECT ST_ASTEXT(ST_COLLECT( DISTINCT location )) AS t FROM
+table_simple_aggregation GROUP BY grouping_condition;
+t
+MULTIPOINT(0 0,1 0,3 0)
+MULTIPOINT(0 0,2 0)
 INSERT INTO table_simple_aggregation (location) VALUES
 ( ST_GEOMFROMTEXT('POINT(0 -0)'         ,4326)),
 ( NULL);
@@ -63,6 +75,48 @@ MULTIPOINT(0 -0)
 MULTIPOINT(0 -0)
 MULTIPOINT(0 -0)
 NULL
+Excercising multiple code paths.
+SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(running_number)
+OVER()  FROM table_simple_aggregation GROUP BY running_number;
+geo	SUM(running_number)
+OVER()
+MULTIPOINT(0 -0)	55
+MULTIPOINT(0 -0)	55
+MULTIPOINT(0 0)	55
+MULTIPOINT(0 0)	55
+MULTIPOINT(1 0)	55
+MULTIPOINT(2 0)	55
+MULTIPOINT(3 0)	55
+NULL	55
+NULL	55
+NULL	55
+SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(grouping_condition)
+OVER(), grouping_condition FROM table_simple_aggregation GROUP BY
+grouping_condition;
+geo	SUM(grouping_condition)
+OVER()	grouping_condition
+MULTIPOINT(0 -0)	1	NULL
+MULTIPOINT(0 0,1 0,3 0)	1	0
+MULTIPOINT(0 0,2 0)	1	1
+SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(grouping_condition) OVER(),
+grouping_condition FROM table_simple_aggregation GROUP BY grouping_condition;
+geo	SUM(grouping_condition) OVER()	grouping_condition
+MULTIPOINT(0 -0,0 -0)	1	NULL
+MULTIPOINT(0 0,1 0,3 0)	1	0
+MULTIPOINT(0 0,2 0)	1	1
+SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(running_number) OVER()  FROM
+table_simple_aggregation GROUP BY running_number;
+geo	SUM(running_number) OVER()
+MULTIPOINT(0 -0)	55
+MULTIPOINT(0 -0)	55
+MULTIPOINT(0 0)	55
+MULTIPOINT(0 0)	55
+MULTIPOINT(1 0)	55
+MULTIPOINT(2 0)	55
+MULTIPOINT(3 0)	55
+NULL	55
+NULL	55
+NULL	55
 set session group_concat_max_len= 10;
 SELECT ST_COLLECT( location ) AS t FROM table_simple_aggregation;
 t
@@ -83,6 +137,29 @@ INSERT INTO multi_srs_table( geometry ) VALUES
 # ST_COLLECT MUST raise ER_GIS_DIFFERENT_SRIDS.
 SELECT ST_ASTEXT(ST_COLLECT(geometry)) AS t FROM multi_srs_table;
 ERROR HY000: Arguments to function st_collect( contains geometries with different SRIDs: 4326 and 0. All geometries must have the same SRID.
+# F-2 b) If all the elements in an aggregate is of same SRS, ST_COLLECT
+# MUST return a result in that SRS.
+# result shall be one MULTIPOINT((60 -24),(61 -24)) with SRID 4326 and
+# one
+# Multipoint((38 77)) with SRID 0. There is some rounding issue on the
+# result, bug #31535105
+SELECT st_srid(geometry),ST_ASTEXT(ST_COLLECT( geometry )) AS t FROM
+multi_srs_table GROUP BY ST_SRID(geometry);
+st_srid(geometry)	t
+0	MULTIPOINT(38 77)
+4326	MULTIPOINT(60 -24,61 -24)
+Rollup needs all SRIDs to be the same.
+SELECT st_srid(geometry),ST_ASTEXT(ST_COLLECT( geometry )) AS t FROM
+multi_srs_table GROUP BY ST_SRID(geometry) WITH ROLLUP;
+ERROR HY000: Arguments to function st_collect( contains geometries with different SRIDs: 0 and 4326. All geometries must have the same SRID.
+# Triggering a codepath for geometrycollection in temp tables
+INSERT INTO multi_srs_table( geometry ) VALUES
+(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(POINT(60 -24))'         ,4326));
+SELECT st_srid(geometry),ST_ASTEXT( geometry ) AS t FROM
+multi_srs_table GROUP BY ST_SRID(geometry);
+st_srid(geometry)	t
+0	POINT(38 77)
+4326	POINT(60 -24)
 #teardown of testing handling of multiple SRS
 DROP TABLE multi_srs_table;
 # setup of testing handling different geometry types
@@ -121,6 +198,35 @@ GEOMETRYCOLLECTION(POLYGON((4 0,0 0,0 4,4 4,4 0)),MULTIPOINT(5 0))
 GEOMETRYCOLLECTION(MULTIPOINT(5 0),MULTIPOINT(6 0))
 GEOMETRYCOLLECTION(MULTIPOINT(6 0),GEOMETRYCOLLECTION EMPTY)
 GEOMETRYCOLLECTION(GEOMETRYCOLLECTION EMPTY,GEOMETRYCOLLECTION EMPTY)
+# with DISTINCT this result is expected to be:
+# MP, GC, MLS, GC, MPpoly, GC, GC, GC, GC with only one EMPTY GC
+SELECT ST_ASTEXT(ST_COLLECT(DISTINCT geo) OVER( ORDER BY running_number ROWS BETWEEN 1
+PRECEDING AND CURRENT ROW)) AS geocollect FROM simple_table;
+geocollect
+MULTIPOINT(0 0)
+GEOMETRYCOLLECTION(POINT(0 0),LINESTRING(1 0,1 1))
+MULTILINESTRING((1 0,1 1),(2 0,2 1))
+GEOMETRYCOLLECTION(LINESTRING(2 0,2 1),POLYGON((3 0,0 0,0 3,3 3,3 0)))
+MULTIPOLYGON(((3 0,0 0,0 3,3 3,3 0)),((4 0,0 0,0 4,4 4,4 0)))
+GEOMETRYCOLLECTION(POLYGON((4 0,0 0,0 4,4 4,4 0)),MULTIPOINT(5 0))
+GEOMETRYCOLLECTION(MULTIPOINT(5 0),MULTIPOINT(6 0))
+GEOMETRYCOLLECTION(MULTIPOINT(6 0),GEOMETRYCOLLECTION EMPTY)
+GEOMETRYCOLLECTION(GEOMETRYCOLLECTION EMPTY)
+# Exercising the "copy" constructor
+SELECT ST_ASTEXT(ST_COLLECT(geo)) FROM simple_table GROUP BY geo WITH ROLLUP;
+ST_ASTEXT(ST_COLLECT(geo))
+MULTIPOINT(0 0)
+MULTILINESTRING((2 0,2 1))
+MULTILINESTRING((1 0,1 1))
+MULTIPOLYGON(((3 0,0 0,0 3,3 3,3 0)))
+MULTIPOLYGON(((4 0,0 0,0 4,4 4,4 0)))
+GEOMETRYCOLLECTION(MULTIPOINT(5 0))
+GEOMETRYCOLLECTION(MULTIPOINT(6 0))
+GEOMETRYCOLLECTION(GEOMETRYCOLLECTION EMPTY,GEOMETRYCOLLECTION EMPTY)
+GEOMETRYCOLLECTION(POINT(0 0),LINESTRING(2 0,2 1),LINESTRING(1 0,1 1),POLYGON((3 0,0 0,0 3,3 3,3 0)),POLYGON((4 0,0 0,0 4,4 4,4 0)),MULTIPOINT(5 0),MULTIPOINT(6 0),GEOMETRYCOLLECTION EMPTY,GEOMETRYCOLLECTION EMPTY)
+# Casting Geometry as decimal invokes val_decimal()
+SELECT CAST(ST_COLLECT(geo) AS DECIMAL ) FROM simple_table;
+ERROR HY000: Illegal parameter data type geometry for operation 'decimal_typecast'
 DROP TABLE simple_table;
 #
 # MDEV-35102 CREATE TABLE AS SELECT ST_collect ... does not work
@@ -129,11 +235,6 @@ SELECT ST_astext(ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )));
 ST_astext(ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )))
 MULTIPOINT(4 1)
 CREATE TABLE tb1 AS SELECT (ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )) );
-SHOW CREATE TABLE tb1;
-Table	Create Table
-tb1	CREATE TABLE `tb1` (
-  `(ST_collect(( POINTFROMTEXT(' POINT( 4 1 ) ') )) )` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE tb1;
 #
 # MDEV-35975 Server crashes after CREATE VIEW as SELECT ST_COLLECT
@@ -142,3 +243,13 @@ create view v1 as SELECT ST_COLLECT(ST_GEOMFROMTEXT('POINT(0 0)'));
 drop view v1;
 create view v1 as SELECT GROUP_CONCAT(ST_GEOMFROMTEXT('POINT(0 0)'));
 drop view v1;
+#
+# MDEV-36167 Assertion `0' failed in Item_sum_str::reset_field after selecting st_collect + group by
+#
+CREATE TABLE t1 (a int, p point);
+INSERT INTO t1 (a, p) VALUES (0,st_geomfromtext('POINT(1 1)')), ( 1,st_geomfromtext('POINT(0 0)')), ( 0,st_geomfromtext('POINT(1 1)'));
+SELECT st_astext(ST_COLLECT(p)) FROM t1 GROUP BY a;
+st_astext(ST_COLLECT(p))
+MULTIPOINT(1 1,1 1)
+MULTIPOINT(0 0)
+DROP TABLE t1;
