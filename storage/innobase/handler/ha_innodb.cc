@@ -17608,8 +17608,9 @@ static int innodb_ft_aux_table_validate(THD *thd, st_mysql_sys_var*,
 				*static_cast<const char**>(save) = table_name;
 				return 0;
 			}
+		} else {
+			dict_sys.unlock();
 		}
-		dict_sys.unlock();
 		return 1;
 	} else {
 		*static_cast<char**>(save) = NULL;
