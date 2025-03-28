@@ -45,7 +45,6 @@ extern int upgrade_config_file(const char *myini_path);
 "OPTIONS:"
 
 static char mysqld_path[MAX_PATH];
-static char mysqladmin_path[MAX_PATH];
 static char mysqlupgrade_path[MAX_PATH];
 
 static char defaults_file_param[MAX_PATH + 16]; /*--defaults-file=<path> */
@@ -455,8 +454,9 @@ int main(int argc, char **argv)
  
  /*
     Get full path to mysqld, we need it when changing service configuration.
-    Assume installation layout, i.e mysqld.exe, mysqladmin.exe, mysqlupgrade.exe
-    and mysql_upgrade_service.exe are in the same directory.
+    Assume mysqld.exe in the same directory as this program.
+    mysql_upgrade.exe is either in the same directory, or pointed to by
+    MARIADB_UPGRADE_EXE environment variable (in case of MTR running it)
   */
   GetModuleFileName(NULL, bindir, FN_REFLEN);
   p= strrchr(bindir, FN_LIBCHAR);
@@ -465,15 +465,19 @@ int main(int argc, char **argv)
     *p= 0;
   }
   sprintf_s(mysqld_path, "%s\\mysqld.exe", bindir);
-  sprintf_s(mysqladmin_path, "%s\\mysqladmin.exe", bindir);
   sprintf_s(mysqlupgrade_path, "%s\\mysql_upgrade.exe", bindir);
 
-  char *paths[]= {mysqld_path, mysqladmin_path, mysqlupgrade_path};
-  for(int i= 0; i< 3;i++)
+  if (access(mysqld_path, 0))
+    die("File %s does not exist", mysqld_path);
+  if (access(mysqlupgrade_path, 0))
   {
-    if(GetFileAttributes(paths[i]) == INVALID_FILE_ATTRIBUTES)
-      die("File %s does not exist", paths[i]);
+    /* Try to get path from environment variable, set by MTR */
+    char *alt_mysqlupgrade_path= getenv("MARIADB_UPGRADE_EXE");
+    if (alt_mysqlupgrade_path)
+      sprintf_s(mysqlupgrade_path, "%s", alt_mysqlupgrade_path);
   }
+  if (access(mysqlupgrade_path, 0))
+    die("File %s does not exist", mysqld_path);
 
   /*
     Messages written on stdout should not be buffered,  GUI upgrade program 
