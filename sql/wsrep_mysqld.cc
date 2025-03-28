@@ -1,5 +1,5 @@
 /* Copyright (c) 2008, 2024, Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2024, MariaDB
+   Copyright (c) 2020, 2025, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2521,24 +2521,21 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
     case DB_TYPE_MYISAM:
       if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM))
         return true;
-      else
-        WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
+      break;
+    case DB_TYPE_ARIA:
+      if (wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
+	return true;
       break;
     case DB_TYPE_PARTITION_DB:
       /* In most cases this means we could not find out
          table->file->partition_ht() */
       return true;
       break;
-    case DB_TYPE_ARIA:
-      if (wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
-	return true;
-      else
-        WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
-      break;
     default:
-      WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
       break;
   }
+
+  WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
 
   /* wsrep_mode = STRICT_REPLICATION, treat as error */
   my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
@@ -2554,15 +2551,14 @@ bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
 {
   for (const TABLE_LIST* it= table_list; it; it= it->next_global)
   {
-    if (it->table && !it->table_function)
+    const TABLE* table= it->table;
+    if (table && !it->table_function)
     {
       /* If this is partitioned table we need to find out
          implementing storage engine handlerton.
       */
-      const handlerton *ht= it->table->file->partition_ht() ?
-                              it->table->file->partition_ht() :
-                              it->table->s->db_type();
-
+      const handlerton *ht= table->file->partition_ht();
+      if (!ht) ht= table->s->db_type();
       if (!wsrep_should_replicate_ddl(thd, ht))
         return false;
     }
@@ -2813,7 +2809,6 @@ fail:
   WSREP_ERROR("Failed to release TOI resources. Need to abort.");
   unireg_abort(1);
 }
-
 
 /*
   returns:
@@ -3252,19 +3247,20 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_key *key)
 {
   THD *request_thd= requestor_ctx->get_thd();
-  THD *granted_thd= ticket->get_ctx()->get_thd();
 
   /* Fallback to the non-wsrep behaviour */
   if (!WSREP(request_thd)) return;
-
-  const char* schema= key->db_name();
-  int schema_len= key->db_name_length();
 
   mysql_mutex_lock(&request_thd->LOCK_thd_data);
 
   if (wsrep_thd_is_toi(request_thd) ||
       wsrep_thd_is_applying(request_thd))
   {
+    THD *granted_thd= ticket->get_ctx()->get_thd();
+
+    const char* schema= key->db_name();
+    int schema_len= key->db_name_length();
+
     WSREP_DEBUG("wsrep_handle_mdl_conflict request TOI/APPLY for %s",
                 wsrep_thd_query(request_thd));
     THD_STAGE_INFO(request_thd, stage_waiting_isolation);
@@ -3284,7 +3280,6 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     /* Here we will call wsrep_abort_transaction so we should hold
     THD::LOCK_thd_data to protect victim from concurrent usage
     and THD::LOCK_thd_kill to protect from disconnect or delete.
-
     */
     mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);

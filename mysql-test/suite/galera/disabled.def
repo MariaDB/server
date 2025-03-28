@@ -15,4 +15,3 @@ galera_wan : MDEV-35940 Unallowed state transition: donor -> synced in galera_wa
 galera_vote_rejoin_ddl : MDEV-35940 Unallowed state transition: donor -> synced in galera_wan
 MW-329 : MDEV-35951 Complete freeze during MW-329 test
 galera_vote_rejoin_dml : MDEV-35964 Assertion `ist_seqno >= cc_seqno' failed in galera_vote_rejoin_dml
-MDEV-26266 : MDEV-26266

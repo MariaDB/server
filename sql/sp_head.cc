@@ -1531,7 +1531,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
           thd->wsrep_cs().reset_error();
           /* Reset also thd->killed if it has been set during BF abort. */
           if (killed_mask_hard(thd->killed) == KILL_QUERY)
-            thd->killed= NOT_KILLED;
+            thd->reset_killed();
           /* if failed transaction was not replayed, must return with error from here */
           if (!must_replay) err_status = 1;
         }

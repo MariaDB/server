@@ -45,7 +45,6 @@ select * from t2;
 select * from t3;
 select * from t4;
 select * from t5;
-set global wsrep_mode=default;
 
 --connection node_1
 drop table t1,t2,t3,t4,t5;
