@@ -1,0 +1,6 @@
+create table t1r (a int not null primary key) engine=rocksdb data directory='$MYSQL_TMP_DIR' index directory='$MYSQL_TMP_DIR';
+Warnings:
+Note	1618	DATA DIRECTORY option ignored
+Note	1618	INDEX DIRECTORY option ignored
+insert t1r values (1),(2);
+drop table t1r;

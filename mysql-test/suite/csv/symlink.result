@@ -1,0 +1,5 @@
+create table t1c (a int not null) engine=csv data directory='$MYSQL_TMP_DIR' index directory='$MYSQL_TMP_DIR';
+Warnings:
+Note	1618	DATA DIRECTORY option ignored
+insert t1c values (1),(2);
+drop table t1c;

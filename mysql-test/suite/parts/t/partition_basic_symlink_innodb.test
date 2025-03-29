@@ -54,9 +54,8 @@ SET SESSION innodb_strict_mode = ON;
 --echo # InnoDB only supports DATA DIRECTORY with innodb_file_per_table=ON
 --echo #
 SET GLOBAL innodb_file_per_table = OFF;
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error ER_CANT_CREATE_TABLE
-eval CREATE TABLE t1 (c1 INT)  ENGINE = InnoDB
+evalp CREATE TABLE t1 (c1 INT, KEY(c1))  ENGINE = InnoDB
 PARTITION BY HASH (c1) (
   PARTITION p0
     DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
@@ -79,8 +78,7 @@ SHOW WARNINGS;
 --echo #
 SET SESSION innodb_strict_mode = OFF;
 SET GLOBAL innodb_file_per_table = ON;
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-eval CREATE TABLE t1 (c1 INT) ENGINE = InnoDB
+evalp CREATE TABLE t1 (c1 INT, KEY(c1)) ENGINE = InnoDB
 PARTITION BY HASH (c1)
 (PARTITION p0
  DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'

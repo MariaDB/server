@@ -1729,6 +1729,11 @@ int ha_tina::create(const char *name, TABLE *table_arg,
     }
   }
   
+  if (create_info->data_file_name)
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "DATA DIRECTORY");
+
+  if (create_info->index_file_name && table_arg->s->keys)
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "INDEX DIRECTORY");
 
   if ((create_file= mysql_file_create(csv_key_file_metadata,
                                       fn_format(name_buff, name, "", CSM_EXT,

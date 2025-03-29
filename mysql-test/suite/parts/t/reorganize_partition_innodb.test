@@ -8,9 +8,8 @@
 
 mkdir $MYSQLTEST_VARDIR/tmp/partitions_here;
 
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-eval CREATE TABLE t (
-      a INT NOT NULL
+evalp CREATE TABLE t (
+      a INT NOT NULL, KEY(a)
     ) ENGINE=INNODB
 PARTITION BY HASH (a) (
   PARTITION p1 DATA DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_here/' ENGINE = INNODB,
@@ -61,9 +60,8 @@ DROP TABLE t;
 
 SET @strict = @@innodb_strict_mode;
 SET innodb_strict_mode=OFF;
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-eval CREATE TABLE t (
-      a INT NOT NULL
+evalp CREATE TABLE t (
+      a INT NOT NULL, KEY(a)
     ) ENGINE=INNODB
 PARTITION BY RANGE (a)
   SUBPARTITION BY HASH (a)
