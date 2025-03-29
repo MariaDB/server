@@ -1021,6 +1021,12 @@ public:
   @param shutdown called during slow shutdown
   @return error code */
   dberr_t garbage_collect(bool shutdown);
+
+  /** Move InnoDB system tables closer to the start of
+  the tablespace.
+  @return error code
+  @retval DB_SUCCESS on successful operation */
+  dberr_t defragment() noexcept;
 private:
   /** @return whether the file is usable for io() */
   ATTRIBUTE_COLD bool prepare_acquired() noexcept;
