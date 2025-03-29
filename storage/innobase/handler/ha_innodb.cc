@@ -11274,15 +11274,6 @@ create_table_info_t::create_options_are_invalid()
 		ret = "DATA DIRECTORY";
 	}
 
-	/* Do not allow INDEX_DIRECTORY */
-	if (m_create_info->index_file_name) {
-		push_warning_printf(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_ILLEGAL_HA_CREATE_OPTION,
-			"InnoDB: INDEX DIRECTORY is not supported");
-		ret = "INDEX DIRECTORY";
-	}
-
 	/* Don't support compressed table when page size > 16k. */
 	if ((has_key_block_size || row_format == ROW_TYPE_COMPRESSED)
 	    && srv_page_size > UNIV_PAGE_SIZE_DEF) {
@@ -11557,15 +11548,16 @@ create_table_info_t::parse_table_name(
 
 			m_flags &= ~DICT_TF_MASK_DATA_DIR;
 		} else {
-			strncpy(m_remote_path,
+			strmake(m_remote_path,
 				m_create_info->data_file_name,
-				FN_REFLEN - 1);
+				FN_REFLEN - 2);
 		}
 	}
 
-	if (m_create_info->index_file_name) {
-		my_error(WARN_OPTION_IGNORED, ME_WARNING,
-			"INDEX DIRECTORY");
+	if (m_create_info->index_file_name && m_form->s->keys &&
+	    (!(m_flags & DICT_TF_MASK_DATA_DIR) ||
+	     strcmp(m_remote_path, m_create_info->index_file_name))) {
+		my_error(WARN_OPTION_IGNORED, ME_NOTE, "INDEX DIRECTORY");
 	}
 
 	DBUG_RETURN(0);
