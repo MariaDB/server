@@ -4736,6 +4736,16 @@ static int com_source(String *, char *line)
     return put_info(buff, INFO_ERROR, 0);
   }
 
+    /* Verify the opened handle is NOT a directory */
+    struct stat st;
+    if (fstat(fileno(sql_file), &st) == 0 && S_ISDIR(st.st_mode))
+    {
+        my_fclose(sql_file, MYF(0));
+        char buff[FN_REFLEN + 60];
+        sprintf(buff, "'%s' is a directory, error: %d", source_name, EISDIR);
+        return put_info(buff, INFO_ERROR, 0);
+    }
+
   if (!(line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, sql_file)))
   {
     my_fclose(sql_file,MYF(0));
