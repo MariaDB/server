@@ -2483,16 +2483,15 @@ bool Field::optimize_range(uint idx, uint part) const
 }
 
 
-Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                             bool keep_type __attribute__((unused)))
+Field *Field::make_new_field(make_new_field_args args)
 {
   Field *tmp;
-  if (!(tmp= (Field*) memdup_root(root,(char*) this,size_of())))
+  if (!(tmp= (Field*) memdup_root(args.root, (char*) this, size_of())))
     return 0;
 
   if (tmp->table->maybe_null)
     tmp->flags&= ~NOT_NULL_FLAG;
-  tmp->table= new_table;
+  tmp->table= args.new_table;
   tmp->key_start.init(0);
   tmp->part_of_key.init(0);
   tmp->part_of_sortkey.init(0);
@@ -2516,7 +2515,7 @@ Field *Field::new_key_field(MEM_ROOT *root, TABLE *new_table,
                             uchar *new_null_ptr, uint new_null_bit)
 {
   Field *tmp;
-  if ((tmp= make_new_field(root, new_table, table == new_table)))
+  if ((tmp= make_new_field({root, new_table, table == new_table})))
   {
     tmp->ptr=      new_ptr;
     tmp->null_ptr= new_null_ptr;
@@ -2545,7 +2544,7 @@ Field *Field::create_tmp_field(MEM_ROOT *mem_root, TABLE *new_table,
 {
   Field *new_field;
 
-  if ((new_field= make_new_field(mem_root, new_table, new_table == table)))
+  if ((new_field= make_new_field({mem_root, new_table, new_table == table})))
   {
     new_field->init_for_tmp_table(this, new_table);
     new_field->flags|= flags & NO_DEFAULT_VALUE_FLAG;
@@ -3281,19 +3280,18 @@ void Field_decimal::sql_type(String &res) const
 }
 
 
-Field *Field_decimal::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                     bool keep_type)
+Field *Field_decimal::make_new_field(make_new_field_args args)
 {
-  if (keep_type)
-    return Field_real::make_new_field(root, new_table, keep_type);
+  if (args.keep_type)
+    return Field_real::make_new_field(args);
 
-  Field *field= new (root) Field_new_decimal(NULL, field_length,
+  Field *field= new (args.root) Field_new_decimal(NULL, field_length,
                                              maybe_null() ? (uchar*) "" : 0, 0,
                                              NONE, &field_name,
                                              dec, flags & ZEROFILL_FLAG,
                                              unsigned_flag);
   if (field)
-    field->init_for_make_new_field(new_table, orig_table);
+    field->init_for_make_new_field(args.new_table, orig_table);
   return field;
 }
 
@@ -7783,22 +7781,21 @@ uint Field_string::get_key_image(uchar *buff, uint length, const uchar *ptr_arg,
 }
 
 
-Field *Field_string::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                    bool keep_type)
+Field *Field_string::make_new_field(make_new_field_args args)
 {
   Field *field;
-  if (type() != MYSQL_TYPE_VAR_STRING || keep_type)
-    field= Field::make_new_field(root, new_table, keep_type);
-  else if ((field= new (root) Field_varstring(field_length, maybe_null(),
+  if (type() != MYSQL_TYPE_VAR_STRING || args.keep_type)
+    field= Field::make_new_field(args);
+  else if ((field= new (args.root) Field_varstring(field_length, maybe_null(),
                                               &field_name,
-                                              new_table->s, charset())))
+                                              args.new_table->s, charset())))
   {
     /*
       Old VARCHAR field which should be modified to a VARCHAR on copy
       This is done to ensure that ALTER TABLE will convert old VARCHAR fields
       to now VARCHAR fields.
     */
-    field->init_for_make_new_field(new_table, orig_table);
+    field->init_for_make_new_field(args.new_table, orig_table);
   }
   return field;
 }
@@ -8278,12 +8275,9 @@ int Field_varstring::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
 }
 
 
-Field *Field_varstring::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                       bool keep_type)
+Field *Field_varstring::make_new_field(make_new_field_args args)
 {
-  Field_varstring *res= (Field_varstring*) Field::make_new_field(root,
-                                                                 new_table,
-                                                                 keep_type);
+  Field_varstring *res= (Field_varstring*) Field::make_new_field(args);
   if (res)
     res->length_bytes= length_bytes;
   return res;
@@ -8891,13 +8885,13 @@ static struct blob_storage_check
   blob_storage_check() { val.p= -1; val.b= false; }
 } blob_storage_check;
 #endif
-Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
+Field *Field_blob::make_new_field(make_new_field_args args)
 {
-  DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
-  if (newt->group_concat)
-    return new (root) Field_blob(field_length, maybe_null(), &field_name,
+  DBUG_ASSERT((intptr(args.new_table->blob_storage) & blob_storage_check.val.p) == 0);
+  if (args.new_table->group_concat)
+    return new (args.root) Field_blob(field_length, maybe_null(), &field_name,
                                  charset());
-  return Field::make_new_field(root, newt, keep_type);
+  return Field::make_new_field(args);
 }
 
 
@@ -9400,13 +9394,11 @@ void Field_enum::sql_type(String &res) const
 }
 
 
-Field *Field_enum::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                  bool keep_type)
+Field *Field_enum::make_new_field(make_new_field_args args)
 {
-  Field_enum *res= (Field_enum*) Field::make_new_field(root, new_table,
-                                                       keep_type);
+  Field_enum *res= (Field_enum*) Field::make_new_field(args);
   if (res)
-    res->typelib= copy_typelib(root, typelib);
+    res->typelib= copy_typelib(args.root, typelib);
   return res;
 }
 

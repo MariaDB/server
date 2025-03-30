@@ -2820,7 +2820,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   found_next_number_field= table->found_next_number_field;
   for (org_field= table->field; *org_field; org_field++, field++)
   {
-    if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy, 1)))
+    if (!(*field= (*org_field)->make_new_field({client_thd->mem_root, copy, 1})))
       goto error;
     (*field)->unireg_check= (*org_field)->unireg_check;
     (*field)->invisible= (*org_field)->invisible;

@@ -3997,7 +3997,7 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
           We are using only a prefix of the column as a key:
           Create a new field for the key part that matches the index
         */
-        field= key_part->field=field->make_new_field(root, outparam, 0);
+        field= key_part->field=field->make_new_field({root, outparam, 0});
         field->field_length= key_part->length;
       }
     }

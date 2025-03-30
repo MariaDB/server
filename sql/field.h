@@ -1507,8 +1507,16 @@ public:
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}
-  virtual Field *make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                bool keep_type);
+  struct make_new_field_args
+  {
+    MEM_ROOT *root;
+    TABLE *new_table;
+    bool keep_type;
+
+    make_new_field_args(MEM_ROOT *root, TABLE *new_table, bool keep_type) :
+    root{root}, new_table{new_table}, keep_type{keep_type} {}
+  };
+  virtual Field *make_new_field(make_new_field_args args);
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                                uchar *new_ptr, uint32 length,
                                uchar *new_null_ptr, uint new_null_bit);
@@ -2331,8 +2339,7 @@ public:
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
     {}
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-    override;
+  Field *make_new_field(make_new_field_args args) override;
   const Type_handler *type_handler() const override
   { return &type_handler_olddecimal; }
   enum ha_base_keytype key_type() const override
@@ -4079,8 +4086,7 @@ public:
   uint max_packed_col_length(uint max_length) override;
   uint size_of() const override { return sizeof *this; }
   bool has_charset() const override { return charset() != &my_charset_bin; }
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-    override;
+  Field *make_new_field(make_new_field_args args) override;
   uint get_key_image(uchar *buff, uint length,
                      const uchar *ptr_arg, imagetype type) const override;
   sql_mode_t value_depends_on_sql_mode() const override;
@@ -4207,8 +4213,7 @@ public:
   uint size_of() const override { return sizeof *this; }
   bool has_charset() const override
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-    override;
+  Field *make_new_field(make_new_field_args args) override;
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
@@ -4562,7 +4567,7 @@ public:
     return get_key_image_itRAW(ptr_arg, buff, length);
   }
   void set_key_image(const uchar *buff,uint length) override;
-  Field *make_new_field(MEM_ROOT *, TABLE *new_table, bool keep_type) override;
+  Field *make_new_field(make_new_field_args args) override;
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
@@ -4740,8 +4745,7 @@ public:
   {
       flags|=ENUM_FLAG;
   }
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-    override;
+  Field *make_new_field(make_new_field_args args) override;
   const Type_handler *type_handler() const override
   { return &type_handler_enum; }
   enum ha_base_keytype key_type() const override;

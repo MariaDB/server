@@ -26168,8 +26168,8 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	   saved value
 	*/
 	field= item->field;
-	item->result_field=field->make_new_field(thd->mem_root,
-                                                 field->table, 1);
+	item->result_field=field->make_new_field({thd->mem_root,
+                                                 field->table, 1});
         /*
           We need to allocate one extra byte for null handling and
           another extra byte to not get warnings from purify in
