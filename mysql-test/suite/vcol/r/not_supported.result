@@ -55,3 +55,28 @@ ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS A
 #
 # End of 10.3 tests
 #
+#
+# MDEV-29155 CREATE OR REPLACE with self-referencing CHECK hangs forever, cannot be killed
+#
+create table t1 (a int);
+create table t2 (b int)
+# create or replace table t (b int);
+create table t3 (c int, check(exists(select a from t1) or exists(select b from t2)));
+ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `CONSTRAINT_1`
+create table t3 (c int, check(exists(select c from t3)));
+ERROR 42S02: Table 'test.t3' doesn't exist
+create table t3 (d int);
+create or replace table t3 (c int, check(exists(select a from t1) or exists(select b from t2)));
+ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `CONSTRAINT_1`
+create table t3 (d int);
+create or replace table t3 (c int, check(exists(select c from t3)));
+ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `CONSTRAINT_1`
+create table t3 (c int);
+alter table t3 add check(exists(select a from t1) or exists(select b from t2));
+ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `CONSTRAINT_1`
+alter table t3 add check(exists(select c from t3));
+ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `CONSTRAINT_1`
+drop tables t1, t2, t3;
+#
+# End of 10.4 tests
+#
