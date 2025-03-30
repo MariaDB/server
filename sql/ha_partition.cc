@@ -4616,7 +4616,6 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
   }
 
 
-  m_last_part= new_part_id;
   start_part_bulk_insert(thd, new_part_id);
   DBUG_ASSERT(!m_file[new_part_id]->row_logging);
   if (new_part_id == old_part_id)
@@ -4650,6 +4649,8 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     if (unlikely(error))
       goto exit;
   }
+
+  m_last_part= new_part_id;
 
 exit:
   /*
