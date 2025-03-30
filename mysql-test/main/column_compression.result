@@ -2978,4 +2978,25 @@ SELECT GROUP_CONCAT( b, a ORDER BY 2 ) AS f FROM t1;
 f
 nc,mmmmmmmmmmd
 DROP TABLE t1;
+#
+# MDEV-24726 Assertion `0' failed in Field_varstring_compressed::key_cmp
+#
+CREATE TABLE t1 (a VARCHAR(8) COMPRESSED) CHARACTER SET utf8mb4;
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('foo'),('bar'),('foo');
+SELECT * FROM v1 WHERE a IN (SELECT a FROM t1);
+a
+foo
+bar
+foo
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(8)) CHARSET=eucjpms COLLATE=eucjpms_nopad_bin;
+INSERT INTO t1 VALUES ('');
+CREATE TABLE t2 (f2 VARCHAR(8) COMPRESSED) CHARSET=eucjpms COLLATE=eucjpms_nopad_bin;
+INSERT INTO t2 VALUES ('a'),('b');
+SELECT t1.* FROM t1 LEFT JOIN (SELECT DISTINCT f2 FROM t2) sq ON sq.f2 = t1.f1;
+f1
+
+DROP TABLE t1, t2;
 # End of 10.5 tests
