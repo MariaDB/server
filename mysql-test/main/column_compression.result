@@ -2987,8 +2987,8 @@ INSERT INTO t1 VALUES ('foo'),('bar'),('foo');
 SELECT * FROM v1 WHERE a IN (SELECT a FROM t1);
 a
 foo
-bar
 foo
+bar
 DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (f1 VARCHAR(8)) CHARSET=eucjpms COLLATE=eucjpms_nopad_bin;

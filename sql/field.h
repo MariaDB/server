@@ -907,6 +907,7 @@ public:
         uchar null_bit_arg, utype unireg_check_arg,
         const LEX_CSTRING *field_name_arg);
   virtual ~Field() = default;
+  Field(const Field&) = default;
 
   virtual Type_numeric_attributes type_numeric_attributes() const
   {
@@ -1512,10 +1513,13 @@ public:
     MEM_ROOT *root;
     TABLE *new_table;
     bool keep_type;
+    bool tmp_field;
 
-    make_new_field_args(MEM_ROOT *root, TABLE *new_table, bool keep_type) :
-    root{root}, new_table{new_table}, keep_type{keep_type} {}
+    make_new_field_args(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        bool tmp_field= false) :
+    root{root}, new_table{new_table}, keep_type{keep_type}, tmp_field{tmp_field} {}
   };
+  void init_new_field(make_new_field_args &args);
   virtual Field *make_new_field(make_new_field_args args);
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                                uchar *new_ptr, uint32 length,
@@ -4282,6 +4286,7 @@ private:
   { DBUG_ASSERT(0); return 0; }
   using Field_varstring::key_cmp;
   Binlog_type_info binlog_type_info() const override;
+  Field *make_new_field(make_new_field_args args) override;
 };
 
 

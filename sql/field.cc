@@ -2489,24 +2489,30 @@ Field *Field::make_new_field(make_new_field_args args)
   if (!(tmp= (Field*) memdup_root(args.root, (char*) this, size_of())))
     return 0;
 
-  if (tmp->table->maybe_null)
-    tmp->flags&= ~NOT_NULL_FLAG;
-  tmp->table= args.new_table;
-  tmp->key_start.init(0);
-  tmp->part_of_key.init(0);
-  tmp->part_of_sortkey.init(0);
+  tmp->init_new_field(args);
+  return tmp;
+}
+
+
+void Field::init_new_field(make_new_field_args &args)
+{
+  if (table->maybe_null)
+    flags&= ~NOT_NULL_FLAG;
+  table= args.new_table;
+  key_start.init(0);
+  part_of_key.init(0);
+  part_of_sortkey.init(0);
   /*
     TODO: it is not clear why this method needs to reset unireg_check.
     Try not to reset it, or explain why it needs to be reset.
   */
-  tmp->unireg_check= Field::NONE;
-  tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
+  unireg_check= Field::NONE;
+  flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
                 ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG |
                 VERS_ROW_START | VERS_ROW_END |
                 VERS_UPDATE_UNVERSIONED_FLAG);
-  tmp->reset_fields();
-  tmp->invisible= VISIBLE;
-  return tmp;
+  reset_fields();
+  invisible= VISIBLE;
 }
 
 
@@ -2544,7 +2550,7 @@ Field *Field::create_tmp_field(MEM_ROOT *mem_root, TABLE *new_table,
 {
   Field *new_field;
 
-  if ((new_field= make_new_field({mem_root, new_table, new_table == table})))
+  if ((new_field= make_new_field({mem_root, new_table, new_table == table, true})))
   {
     new_field->init_for_tmp_table(this, new_table);
     new_field->flags|= flags & NO_DEFAULT_VALUE_FLAG;
@@ -8278,6 +8284,25 @@ int Field_varstring::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
 Field *Field_varstring::make_new_field(make_new_field_args args)
 {
   Field_varstring *res= (Field_varstring*) Field::make_new_field(args);
+  if (res)
+    res->length_bytes= length_bytes;
+  return res;
+}
+
+
+Field *Field_varstring_compressed::make_new_field(make_new_field_args args)
+{
+  Field_varstring *res;
+  if (args.tmp_field)
+  {
+    /* Compressed fields can't have keys (see Field_varstring_compressed::key_cmp()). */
+    res= new (args.root) Field_varstring(*this);
+    res->init_new_field(args);
+    /* See Column_definition::create_length_to_internal_length_string() */
+    res->field_length--;
+  }
+  else
+    res= (Field_varstring*) Field::make_new_field(args);
   if (res)
     res->length_bytes= length_bytes;
   return res;
