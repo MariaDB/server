@@ -126,6 +126,8 @@ enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,
                                        SLAVE_RUN_TRIGGERS_FOR_RBR_ENFORCE};
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
+enum read_only_options { READONLY_OFF, READONLY_ON, READONLY_NO_LOCK,
+                         READONLY_NO_LOCK_NO_ADMIN};
 
 /*
   COLUMNS_READ:       A column is goind to be read.
@@ -234,6 +236,8 @@ extern "C" LEX_CSTRING *thd_current_db(MYSQL_THD thd);
 extern "C" int thd_current_status(MYSQL_THD thd);
 extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd);
 extern "C" int thd_double_innodb_cardinality(MYSQL_THD thd);
+
+extern void mariadb_error_read_only();
 
 /**
   @class CSET_STRING
@@ -3534,11 +3538,14 @@ public:
   /**
     Checks if a user connection is read-only
   */
-  inline bool is_read_only_ctx()
+  inline bool check_read_only_with_error()
   {
-    return opt_readonly &&
-           !(security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
-           !slave_thread;
+    if (likely(!opt_readonly) || slave_thread ||
+        ((security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
+         opt_readonly != READONLY_NO_LOCK_NO_ADMIN))
+      return false;
+    mariadb_error_read_only();
+    return true;
   }
 
 private:

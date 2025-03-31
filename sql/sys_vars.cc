@@ -3191,8 +3191,14 @@ static bool check_read_only(sys_var *self, THD *thd, set_var *var)
 static bool fix_read_only(sys_var *self, THD *thd, enum_var_type type)
 {
   bool result= true;
-  my_bool new_read_only= read_only; // make a copy before releasing a mutex
+  ulong new_read_only;
   DBUG_ENTER("sys_var_opt_readonly::update");
+
+  /* Change old options FALSE and TRUE to OFF and ON */
+  if (read_only > READONLY_NO_LOCK_NO_ADMIN)
+    read_only-= ((ulong) READONLY_NO_LOCK_NO_ADMIN + 1);
+
+  new_read_only= read_only; // make a copy before releasing a mutex
 
   if (read_only == FALSE || read_only == opt_readonly)
   {
@@ -3258,16 +3264,28 @@ static bool fix_read_only(sys_var *self, THD *thd, enum_var_type type)
   fix_read_only() compares them and runs needed operations for the
   transition (especially when transitioning from false to true) and
   synchronizes both booleans in the end.
+  The FALSE and TRUE options are only for compatability with old config files.
+  They will be mapped to OFF and ON respectively.
 */
-static Sys_var_on_access_global<Sys_var_mybool,
+
+const char *read_only_mode_names[]=
+{"OFF", "ON", "NO_LOCK", "NO_LOCK_NO_ADMIN", "FALSE", "TRUE", NullS };
+
+static Sys_var_on_access_global<Sys_var_enum,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_READ_ONLY>
 Sys_readonly(
        "read_only",
-       "Make all non-temporary tables read-only, with the exception for "
-       "replication (slave) threads and users with the 'READ ONLY ADMIN' "
-       "privilege",
-       GLOBAL_VAR(read_only), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       "Do not allow changes to non-temporary tables. Options are:"
+       "OFF changes allowed. "
+       "ON Disallow changes for users without the READ ONLY ADMIN "
+       "privilege. "
+       "NO_LOCK Additionally disallows LOCK TABLES and "
+       "SELECT IN SHARE MODE. "
+       "NO_LOCK_NO_ADMIN Disallows also for users with "
+       "READ_ONLY ADMIN privilege. "
+       "Replication (slave) threads are not affected by this option",
+       GLOBAL_VAR(read_only), CMD_LINE(OPT_ARG),
+       read_only_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_read_only), ON_UPDATE(fix_read_only));
 
 // Small lower limit to be able to test MRR

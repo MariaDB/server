@@ -525,13 +525,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     */
     thd->lex->sql_command= backup.sql_command;
 
-    if (opt_readonly &&
-        !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
-        !thd->slave_thread)
-    {
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+    if (thd->check_read_only_with_error())
       goto end;
-    }
 
     if (add_table_for_trigger_internal(thd, thd->lex->spname, if_exists, &tables,
                                        trn_path_buff))
