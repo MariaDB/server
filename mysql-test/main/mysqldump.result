@@ -6590,4 +6590,37 @@ CREATE TABLE `t1` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 ERROR at line 9: Not allowed in the sandbox mode
 drop table t1;
+#
+# MDEV-36268 mariadb-dump used wrong quoting character
+#
+create table t1 (a int);
+create view `v'1"2` as select * from t1 with check option;
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
+/*!50001 CREATE VIEW `v'1"2` AS SELECT
+ 1 AS `a` */;
+SET character_set_client = @saved_cs_client;
+/*!50001 DROP VIEW IF EXISTS `v'1"2`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb3 */;
+/*!50001 SET character_set_results     = utf8mb3 */;
+/*!50001 SET collation_connection      = utf8mb3_general_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v'1"2` AS select `t1`.`a` AS `a` from `t1` */
+/*!50002 WITH CASCADED CHECK OPTION */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+drop view `v'1"2`;
+drop table t1;
 # End of 10.5 tests
