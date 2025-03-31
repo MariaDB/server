@@ -3604,12 +3604,12 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	READ_ONLY
 VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Make all non-temporary tables read-only, with the exception for replication (slave) threads and users with the 'READ ONLY ADMIN' privilege
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Do not allow changes to non-temporary tables. Options are:OFF changes allowed. ON Disallow changes for users without the READ ONLY ADMIN privilege. NO_LOCK Additionally disallows LOCK TABLES and SELECT IN SHARE MODE. NO_LOCK_NO_ADMIN Disallows also for users with READ_ONLY ADMIN privilege. Replication (slave) threads are not affected by this option
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	OFF,ON
+ENUM_VALUE_LIST	OFF,ON,NO_LOCK,NO_LOCK_NO_ADMIN,FALSE,TRUE
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	READ_RND_BUFFER_SIZE

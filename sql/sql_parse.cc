@@ -1470,14 +1470,16 @@ out:
 static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
 {
   DBUG_ENTER("deny_updates_if_read_only_option");
+  DBUG_ASSERT(!thd->slave_thread);              // Checked by caller
 
   if (!opt_readonly)
     DBUG_RETURN(FALSE);
 
   LEX *lex= thd->lex;
 
-  /* Super user is allowed to do changes */
-  if ((thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL)
+  /* Super user is allowed to do changes in some cases */
+  if ((thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL &&
+      opt_readonly < READONLY_NO_LOCK_NO_ADMIN)
     DBUG_RETURN(FALSE);
 
   /* Check if command doesn't update anything */
@@ -3669,7 +3671,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     */
     if (deny_updates_if_read_only_option(thd, all_tables))
     {
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+      mariadb_error_read_only();
       DBUG_RETURN(-1);
     }
 #ifdef HAVE_REPLICATION

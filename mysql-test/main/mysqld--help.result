@@ -1157,9 +1157,13 @@ The following specify which files/extra groups are read (specified before remain
  buffer of this size for each table it scans. If you do
  many sequential scans, you may want to increase this
  value
- --read-only         Make all non-temporary tables read-only, with the
- exception for replication (slave) threads and users with
- the 'READ ONLY ADMIN' privilege
+ --read-only[=name]  Do not allow changes to non-temporary tables. Options
+ are:OFF changes allowed. ON Disallow changes for users
+ without the READ ONLY ADMIN privilege. NO_LOCK
+ Additionally disallows LOCK TABLES and SELECT IN SHARE
+ MODE. NO_LOCK_NO_ADMIN Disallows also for users with
+ READ_ONLY ADMIN privilege. Replication (slave) threads
+ are not affected by this option
  --read-rnd-buffer-size=# 
  When reading rows in sorted order after a sort, the rows
  are read through this buffer to avoid a disk seeks
@@ -1975,7 +1979,7 @@ query-prealloc-size 32768
 range-alloc-block-size 4096
 read-binlog-speed-limit 0
 read-buffer-size 131072
-read-only FALSE
+read-only OFF
 read-rnd-buffer-size 262144
 redirect-url 
 relay-log (No default value)

@@ -54,8 +54,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "scope.h"
 #include "srv0srv.h"
 
-extern my_bool opt_readonly;
-
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
 
