@@ -169,6 +169,7 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
     return(TRUE);// Fatal error flag is set!
 
   if ((++lvl) >= max)
+  {
     /*
       We checked tables more times than tables we have => we have other cycle
       reachable from "beginning"
@@ -176,6 +177,7 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
       TODO: try to make such test
     */
     return FALSE;
+  }
   while ((t= it++))
   {
     if (t == beginning)
@@ -188,7 +190,7 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
 
 
 /**
-  Process outer relation of teble just added to the order list
+  Process outer relation of the table just added to the order list
 */
 
 static bool process_outer_relations(THD* thd,
@@ -303,9 +305,9 @@ static bool process_inner_relations(THD* thd,
       {
         /*
           This (t3 in the example) table serve as outer table for several
-          otheres.
+          others.
 
-          For example we have such depemdences (inner to the right and outer
+          For example we have such dependences (inner to the right and outer
           to the left):
           SELECT *
             FROM t1,t2,t3,t4
@@ -318,7 +320,7 @@ static bool process_inner_relations(THD* thd,
                  |
           t4-----+
 
-          So we have build following list of left joins already (we
+          So we have built following list of left joins already (we
           started from the first independent table we have found - t1
           and went by outer_side relation till table t3):
 
@@ -329,7 +331,7 @@ static bool process_inner_relations(THD* thd,
                          |
             t->t4       tab
 
-          Now we goes by list of unprocessed inner relation of t3 and put
+          Now we go by list of unprocessed inner relation of t3 and put
           them  before t3.
           So we have to put t4 somewhere between t1 and t2 or
           between t2 and t3 (depends on its original position because we
@@ -343,7 +345,7 @@ static bool process_inner_relations(THD* thd,
                  left join t3 on (t2.a=t3.a and t1.a=t3)
 
           We can also put it before t1, but as far as we have found t1 first
-          it have definetly early position in the original list of tables
+          it have definitely early position in the original list of tables
           than t4.
         */
         if (put_between(thd, t, first, tab,
@@ -449,6 +451,7 @@ static void dbug_print_table(TABLE_LIST *t)
     TRUE   Error
     FALSE  Ok, conversion is either done or not needed.
 */
+
 bool setup_oracle_join(THD *thd, COND **conds,
                        TABLE_LIST *tables,
                        SQL_I_List<TABLE_LIST> &select_table_list,
@@ -521,7 +524,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
         tab[i].inner_side.elements == 0)
     {
       /*
-        there it was table marked as "outer" but without "internal"
+        there is a table marked as "outer" but without "internal"
         and no other expression showed internal table for it
       */
       List_iterator_fast it(tab[i].on_conds);
@@ -617,7 +620,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
   /*
     Now we build new permanent list of table according to our new order
 
-    table1 [outer left] join table2 ... [outer left] join tableN
+    table1 [left outer] join table2 ... [left outer] join tableN
 
     which parses in:
 
