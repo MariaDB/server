@@ -2544,6 +2544,15 @@ my_bool regex_list_check_match(
 	const regex_list_t& list,
 	const char* name)
 {
+	if (list.empty()) return (FALSE);
+
+	/*
+	  regexec/pcre2_regexec is not threadsafe, also documented.
+	  Serialize access from multiple threads to compiled regexes.
+	*/
+	static std::mutex regex_match_mutex;
+	std::lock_guard<std::mutex> lock(regex_match_mutex);
+
 	regmatch_t tables_regmatch[1];
 	for (regex_list_t::const_iterator i = list.begin(), end = list.end();
 	     i != end; ++i) {
