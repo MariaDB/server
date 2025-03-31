@@ -121,12 +121,31 @@ IF(MSVC)
   # Disable mingw based pkg-config found in Strawberry perl
   SET(PKG_CONFIG_EXECUTABLE 0 CACHE INTERNAL "")
 
-  SET(MSVC_CRT_TYPE /MT CACHE STRING
+  SET(MSVC_CRT_TYPE /MD CACHE STRING
     "Runtime library - specify runtime library for linking (/MT,/MTd,/MD,/MDd)"
   )
   SET(VALID_CRT_TYPES /MTd /MDd /MD /MT)
   IF (NOT ";${VALID_CRT_TYPES};" MATCHES ";${MSVC_CRT_TYPE};")
     MESSAGE(FATAL_ERROR "Invalid value ${MSVC_CRT_TYPE} for MSVC_CRT_TYPE, choose one of /MT,/MTd,/MD,/MDd ")
+  ENDIF()
+
+  # CMake version 3.15 and later uses CMAKE_MSVC_RUNTIME_LIBRARY
+  # variable for our MSVC_CRT_TYPE.
+  # Set CMAKE_MSVC_RUNTIME_LIBRARY and pass to external projects
+  # it is important to keep the same CRT type when linking
+  #
+  # Translation rules MSVC_CRT_TYPE -> CMAKE_MSVC_RUNTIME_LIBRARY
+  # /MT  -> MultiThreaded
+  # /MTd -> MultiThreadedDebug
+  # /MD  -> MultiThreadedDLL
+  # /MDd -> MultiThreadedDebugDLL
+
+  SET(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)
+  IF(MSVC_CRT_TYPE MATCHES "d$")
+    STRING(APPEND CMAKE_MSVC_RUNTIME_LIBRARY Debug)
+  ENDIF()
+  IF(MSVC_CRT_TYPE MATCHES "D")
+    STRING(APPEND CMAKE_MSVC_RUNTIME_LIBRARY DLL)
   ENDIF()
 
   IF(MSVC_CRT_TYPE MATCHES "/MD")

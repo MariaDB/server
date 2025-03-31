@@ -8,7 +8,7 @@ select FROM_UNIXTIME(24*3600);
 enable_query_log;
 
 # The following is because of daylight saving time
---replace_result MEST CET MET CET
+--replace_result MEST CET MET CET CEST CET
 show variables like "system_time_zone";
 
 --echo #

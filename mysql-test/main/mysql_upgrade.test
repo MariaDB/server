@@ -4,6 +4,10 @@
 -- source include/have_innodb.inc
 -- source include/have_partition.inc
 
+let majorminor=`select substring_index(version(), '.', 2)`;
+# for major upgrade test, see below
+let major=`select substring_index(version(), '.', 1) - (version() like '%.0.%')`;
+
 set sql_mode="";
 
 call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
@@ -32,7 +36,7 @@ file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
 file_exists $MYSQLD_DATADIR/mariadb_upgrade_info;
 
 --echo Run it again - should say already completed
---replace_regex /upgraded to [^\n].*/upgraded to VERSION./ /again for [^\n]*/again for VERSION./
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
 --exec $MYSQL_UPGRADE 2>&1
 
 # It should have created a file in the MySQL Servers datadir
@@ -302,10 +306,11 @@ FLUSH PRIVILEGES;
 
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+--replace_regex /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
 
@@ -333,16 +338,18 @@ perl;
   my $file= $ENV{'DATADIR'} or die "MYSQLD_DATADIR not set";
   $ver =~ s/^(\d*)\.(\d*).(\d*)(.*)/$1.$2.0$4/;
   open(FILE, ">$file/mariadb_upgrade_info") or die "Failed to open $file";
+  binmode FILE;
   print FILE "$ver\n";
   close(FILE);
 EOF
 
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $majorminor X.Y
+--replace_regex /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $majorminor X.Y
 --exec $MYSQL_UPGRADE
 --remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
@@ -358,23 +365,17 @@ perl;
   my $ver= $ENV{'MYSQL_SERVER_VERSION'} or die "MYSQL_SERVER_VERSION not set";
   my $file= $ENV{'DATADIR'} or die "MYSQLD_DATADIR not set";
   open(FILE, ">$file/mariadb_upgrade_info") or die "Failed to open $file";
-  if ($ver =~ m/(\d*)\.0\.(\d*)(.*)/)
-  {
-     my $prev= $1-1;
-     $ver= $prev . '.0.' . $2 . $3;
-  }
-  else
-  {
-    $ver =~ s/^(\d*)\.(\d*)\.(\d*)(.*)/$1.0.$3$4/;
-  }
+  binmode FILE;
+  $ver =~ s/^(\d+)\.(\d+)\.\d+.*/($1-!$2).'.0.99'/e;
   print FILE "$ver\n";
   close(FILE);
 EOF
 
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $major X
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mariadb.* as:[^\n]*/'mysql' as: mysql/
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $major X
+--replace_regex /'mariadb.* as:[^\n]*/'mysql' as: mysql/
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
 --remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 drop table mysql.global_priv;
