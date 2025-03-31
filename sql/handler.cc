@@ -1853,11 +1853,8 @@ int ha_commit_trans(THD *thd, bool all)
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
 
-  if (rw_trans && thd->is_read_only_ctx())
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+  if (rw_trans && thd->check_read_only_with_error())
     goto err;
-  }
 
 #if 1 // FIXME: This should be done in ha_prepare().
   if (rw_trans || (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&

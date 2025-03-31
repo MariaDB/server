@@ -239,7 +239,7 @@ show global variables like 'read_only';
 Variable_name	Value
 read_only	ON
 select next value for s_db.s1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 connection m_normal_1;
 drop sequence s_db.s1;
 ###########################################

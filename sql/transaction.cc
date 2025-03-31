@@ -171,12 +171,14 @@ bool trans_begin(THD *thd, uint flags)
       Implicitly starting a RW transaction is allowed for backward
       compatibility.
     */
-    const bool user_is_super=
-      MY_TEST(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY);
-    if (opt_readonly && !user_is_super)
+    if (opt_readonly)
     {
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
-      DBUG_RETURN(true);
+      if (!(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) ||
+          opt_readonly == READONLY_NO_LOCK_NO_ADMIN)
+      {
+        mariadb_error_read_only();
+        DBUG_RETURN(true);
+      }
     }
     thd->tx_read_only= false;
     /*

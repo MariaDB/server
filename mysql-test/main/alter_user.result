@@ -31,9 +31,9 @@ grant create user on *.* to foo;
 connect  a, localhost, foo;
 select @@global.read_only;
 @@global.read_only
-1
+ON
 alter user foo;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 # Grant READ_ONLY ADMIN privilege to the user.
 connection default;
 grant READ_ONLY ADMIN on *.* to foo;
