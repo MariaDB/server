@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1;
 show variables like "system_time_zone";
 Variable_name	Value
 system_time_zone	CET
