@@ -2424,7 +2424,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err;
   }
 
-  if (extra2.field_data_type_info.length &&
+  if (extra2.field_data_type_info.length &&)
+  /*
+    Extract column definitions from the .frm image buffer.
+  */
       field_data_type_info_array.parse(old_root, share->fields,
                                        extra2.field_data_type_info))
     goto err;
