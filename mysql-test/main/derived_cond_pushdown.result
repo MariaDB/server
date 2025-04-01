@@ -10249,9 +10249,8 @@ SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 EXPLAIN INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	144	Using where
-2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	12	Using temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	12	
 EXPLAIN FORMAT=JSON INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
@@ -10259,45 +10258,35 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 144,
-      "filtered": 100,
-      "attached_condition": "t.f is not null",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "table_name": "<derived4>",
-            "access_type": "ALL",
-            "rows": 12,
-            "filtered": 100,
-            "materialized": {
-              "query_block": {
-                "select_id": 4,
-                "table": {
-                  "table_name": "t1",
-                  "access_type": "ALL",
-                  "rows": 12,
-                  "filtered": 100
-                }
-              }
-            }
-          },
-          "block-nl-join": {
+    "temporary_table": {
+      "table": {
+        "table_name": "<derived4>",
+        "access_type": "ALL",
+        "rows": 12,
+        "filtered": 100,
+        "materialized": {
+          "query_block": {
+            "select_id": 4,
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 12,
-              "filtered": 100,
-              "attached_condition": "t1.f is not null"
-            },
-            "buffer_type": "flat",
-            "buffer_size": "64",
-            "join_type": "BNL"
+              "filtered": 100
+            }
           }
         }
+      },
+      "block-nl-join": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 12,
+          "filtered": 100,
+          "attached_condition": "t1.f is not null"
+        },
+        "buffer_type": "flat",
+        "buffer_size": "64",
+        "join_type": "BNL"
       }
     }
   }
@@ -10328,43 +10317,33 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 16,
-      "filtered": 100,
-      "attached_condition": "t.f is not null",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 8,
-            "filtered": 100,
-            "attached_condition": "t1.f is not null"
-          },
-          "table": {
-            "table_name": "<derived4>",
-            "access_type": "ref",
-            "possible_keys": ["key0"],
-            "key": "key0",
-            "key_length": "4",
-            "used_key_parts": ["f"],
-            "ref": ["test.t1.f"],
-            "rows": 2,
-            "filtered": 100,
-            "materialized": {
-              "query_block": {
-                "select_id": 4,
-                "table": {
-                  "table_name": "t1",
-                  "access_type": "ALL",
-                  "rows": 8,
-                  "filtered": 100,
-                  "attached_condition": "t1.f is not null"
-                }
-              }
+    "temporary_table": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 8,
+        "filtered": 100,
+        "attached_condition": "t1.f is not null"
+      },
+      "table": {
+        "table_name": "<derived4>",
+        "access_type": "ref",
+        "possible_keys": ["key0"],
+        "key": "key0",
+        "key_length": "4",
+        "used_key_parts": ["f"],
+        "ref": ["test.t1.f"],
+        "rows": 2,
+        "filtered": 100,
+        "materialized": {
+          "query_block": {
+            "select_id": 4,
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 8,
+              "filtered": 100,
+              "attached_condition": "t1.f is not null"
             }
           }
         }

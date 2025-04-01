@@ -1710,6 +1710,14 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(1);
   }
 
+  /*
+    Check if we read from the same table we're inserting into.
+    Queries like INSERT INTO t1 VALUES ((SELECT ... FROM t1...)) are not
+    allowed.
+
+    INSERT...SELECT is an exception: it will detect this case and use
+    buffering to handle it correctly.
+  */
   if (!select_insert)
   {
     Item *fake_conds= 0;
@@ -4042,7 +4050,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     Is table which we are changing used somewhere in other parts of
     query
   */
-  if (unique_table(thd, table_list, table_list->next_global, 0))
+  if (unique_table(thd, table_list, table_list->next_global,
+                   CHECK_DUP_FOR_INSERT_SELECT))
   {
     /* Using same table for INSERT and SELECT */
     lex->current_select->options|= OPTION_BUFFER_RESULT;
