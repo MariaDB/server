@@ -183,7 +183,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLE;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -216,6 +218,7 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 DELETE FROM tbl_a WHERE col_ts='1970-01-01 01:00:01';
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
 if ($USE_CHILD_GROUP2)
@@ -228,7 +231,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLE;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -272,7 +277,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLE;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -317,7 +324,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLE;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -367,7 +376,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLE;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -447,7 +458,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLE;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -499,7 +512,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLE_F;
   if (!$OUTPUT_CHILD_GROUP2)

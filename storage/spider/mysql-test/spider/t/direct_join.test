@@ -168,7 +168,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLES;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -315,7 +317,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_CONST_TABLE_JOIN;
   eval $CHILD2_1_SELECT_CONST_TABLE2_JOIN;
