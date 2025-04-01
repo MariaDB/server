@@ -4370,7 +4370,7 @@ btr_cur_pessimistic_update(
 					 cursor, offsets, offsets_heap,
 					 new_entry, &rec,
 					 &dummy_big_rec, n_ext, NULL, mtr);
-	ut_a(err == DB_SUCCESS);
+	if (err) return err;
 	ut_a(rec);
 	ut_a(dummy_big_rec == NULL);
 	ut_ad(rec_offs_validate(rec, cursor->index(), *offsets));
