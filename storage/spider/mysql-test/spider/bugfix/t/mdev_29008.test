@@ -38,9 +38,11 @@ SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
 --enable_ps2_protocol
+--enable_view_protocol
 set global log_output=@old_log_output;
 set global general_log=@old_general_log;
 DROP DATABASE IF EXISTS auto_test_remote;

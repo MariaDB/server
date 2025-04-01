@@ -76,7 +76,9 @@ SELECT * FROM tbl_c WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one"; # hack to disable GBH
 
 --connection child2_1
+--disable_view_protocol
 SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+--enable_view_protocol
 --enable_ps2_protocol
 
 --connection child2_1

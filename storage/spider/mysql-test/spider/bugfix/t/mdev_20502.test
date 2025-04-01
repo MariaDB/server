@@ -59,7 +59,9 @@ SELECT MAX(id) AS m, 0 AS const, val, (SELECT tbl_a.val+1 FROM tbl_a LIMIT 1) AS
 FROM tbl_a GROUP BY val;
 
 --connection child2_1
+--disable_view_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 --enable_ps2_protocol
 

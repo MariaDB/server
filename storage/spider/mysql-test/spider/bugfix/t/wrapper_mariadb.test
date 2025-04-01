@@ -50,9 +50,11 @@ TRUNCATE TABLE mysql.general_log;
 SELECT * FROM tbl_a ORDER BY pkey;
 
 --connection child2_1
+--disable_view_protocol
 # in --ps a query is logged differently in a general log
 replace_regex /order by t0.`pkey`/order by `pkey`/;
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 --enable_ps2_protocol
 
