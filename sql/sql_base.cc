@@ -1184,11 +1184,20 @@ retry:
     DBUG_PRINT("info",
                ("found same copy of table or table which we should skip"));
   }
-  if (res && res->belong_to_derived)
+  /*
+     If we've found a duplicate in a derived table, try to work around that.
+
+     For INSERT...SELECT, do not do any workarounds, return the duplicate. The
+     caller will enable buffering to handle this.
+  */
+  if (res && res->belong_to_derived &&
+      !(check_flag & CHECK_DUP_FOR_INSERT_SELECT))
   {
     /*
-      We come here for queries of type:
-      INSERT INTO t1 (SELECT tmp.a FROM (select * FROM t1) as tmp);
+      We come here for queries like this:
+
+      INSERT INTO t1 VALUES ((SELECT tmp.a FROM (select * FROM t1)));
+      DELETE FROM t1 WHERE ( ... (SELECT ... FROM t1) ) ;
 
       Try to fix by materializing the derived table
     */
