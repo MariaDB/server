@@ -4742,6 +4742,16 @@ static int com_source(String *, char *line)
     return put_info("Can't initialize batch_readline", INFO_ERROR, 0);
   }
 
+  /* Verify the opened handle is NOT a directory */
+  MY_STAT st;
+  if (my_fstat(my_fileno(sql_file), &st, MYF(0)) == 0 && MY_S_ISDIR(st.st_mode))
+  {
+    my_fclose(sql_file, MYF(0));
+    char buff[FN_REFLEN + 60];
+    sprintf(buff, "'%s' is a directory", source_name);
+    return put_info(buff, INFO_ERROR, 0);
+  }
+
   /* Save old status */
   old_status=status;
   save_ignore_errors= ignore_errors;
