@@ -2475,6 +2475,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                        extra2.field_data_type_info))
     goto err;
 
+  /*
+    Column definitions extraction begins here.
+  */
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
     uint interval_nr= 0, recpos;
@@ -2844,6 +2847,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         share->default_fields++;
     }
   }
+  /*
+    Column definitions extraction ends here.
+  */
+  
   *field_ptr=0;					// End marker
   /* Sanity checks: */
   DBUG_ASSERT(share->fields>=share->stored_fields);
