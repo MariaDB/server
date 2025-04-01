@@ -811,6 +811,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  COMMENT_SYM                   /* Oracle-R   */
 %token  <kwd>  COMMITTED_SYM                 /* SQL-2003-N */
 %token  <kwd>  COMMIT_SYM                    /* SQL-2003-R */
+%token  <kwd>  AMEN_SYM
 %token  <kwd>  COMPACT_SYM
 %token  <kwd>  COMPLETION_SYM
 %token  <kwd>  COMPRESSED_SYM
@@ -16330,6 +16331,7 @@ keyword_sp_head:
 keyword_verb_clause:
           CLOSE_SYM             /* Verb clause. Reserved in Oracle */
         | COMMIT_SYM            /* Verb clause. Reserved in Oracle */
+        | AMEN_SYM
         | DO_SYM                /* Verb clause                     */
         | HANDLER_SYM           /* Verb clause                     */
         | OPEN_SYM              /* Verb clause. Reserved in Oracle */
@@ -18270,7 +18272,7 @@ opt_release:
         ;
 
 commit:
-          COMMIT_SYM opt_work opt_chain opt_release
+          commit_kw opt_work opt_chain opt_release
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_COMMIT;
@@ -18279,6 +18281,11 @@ commit:
             lex->tx_chain= $3;
             lex->tx_release= $4;
           }
+        ;
+
+commit_kw:
+          COMMIT_SYM
+        | AMEN_SYM
         ;
 
 rollback:
@@ -18647,6 +18654,10 @@ xa:
           }
         | XA_SYM COMMIT_SYM xid opt_one_phase
           {
+            Lex->sql_command = SQLCOM_XA_COMMIT;
+          }
+        | XA_SYM AMEN_SYM xid opt_one_phase
+          { 
             Lex->sql_command = SQLCOM_XA_COMMIT;
           }
         | XA_SYM ROLLBACK_SYM xid

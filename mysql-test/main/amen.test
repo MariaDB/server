@@ -1,0 +1,699 @@
+--source include/have_innodb.inc
+--source include/no_view_protocol.inc
+
+connect (con1,localhost,root,,);
+
+--echo #
+--echo # Bug#20837 Apparent change of isolation level 
+--echo #           during transaction
+--echo #
+--echo # Bug#53343 completion_type=1, AMEN/ROLLBACK 
+--echo #           AND CHAIN don't preserve the isolation 
+--echo #           level
+#
+# A set of test cases that verifies operation of
+# transaction isolation level and chaining is 
+# provided
+
+# init
+connection default;
+
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+CREATE TABLE t1 (s1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+AMEN;
+
+#
+# Verify that SET TRANS ISO LEVEL is not allowed 
+# inside a transaction
+#
+START TRANSACTION;
+--error ER_CANT_CHANGE_TX_CHARACTERISTICS
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+AMEN;
+
+#
+# Verify consistent output from 
+# SELECT @@transaction_isolation  (Bug#20837)
+#
+# The transaction will be in READ UNCOMMITTED mode,
+# but SELECT @@transaction_isolation should report the session
+# value, which is REPEATABLE READ
+#
+SET @@autocommit=0;
+AMEN;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+START TRANSACTION;
+SELECT @@transaction_isolation;
+--echo Should be REPEATABLE READ
+SELECT * FROM t1;
+SELECT @@transaction_isolation;
+--echo Should be REPEATABLE READ
+INSERT INTO t1 VALUES (-1);
+SELECT @@transaction_isolation;
+--echo Should be REPEATABLE READ
+AMEN;
+
+#
+# Verify that a change in the session variable
+# does not affect the currently started
+# transaction
+#
+START TRANSACTION;
+SELECT * FROM t1;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+
+connection con1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1000);
+AMEN;
+
+connection default;
+--echo We should not be able to read the '1000'
+SELECT * FROM t1;
+AMEN;
+
+--echo Now, the '1000' should appear.
+START TRANSACTION;
+SELECT * FROM t1;
+AMEN;
+
+# restore the session value
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+#
+# A set of test cases for verification that
+# isolation level during chaining works. MySQL
+# has three variants of chaining, i.e
+# AMEN AND CHAIN, ROLLBACK AND CHAIN, and
+# the use of @completion_type
+#
+
+#
+# Verify isolation level with AMEN AND CHAIN
+#
+# AMEN AND CHAIN causes a new transaction to
+# begin as soon as the current ends, and the new
+# transaction will have the same tran. iso. level
+# as the first.
+#
+connection default;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+START TRANSACTION;
+
+connection con1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1001);
+AMEN;
+
+connection default;
+SELECT COUNT(*) FROM t1 WHERE s1 = 1001;
+--echo Should be 1
+AMEN AND CHAIN;
+
+connection con1;
+INSERT INTO t1 VALUES (1002);
+AMEN;
+
+connection default;
+SELECT COUNT(*) FROM t1 WHERE s1 = 1002;
+--echo Should be 1
+AMEN;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE s1 >= 1000;
+AMEN;
+
+#
+# Verify isolation level with ROLLBACK AND CHAIN
+#
+connection default;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+START TRANSACTION;
+
+connection con1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1001);
+AMEN;
+
+connection default;
+SELECT COUNT(*) FROM t1 WHERE s1 = 1001;
+--echo Should be 1
+ROLLBACK AND CHAIN;
+
+connection con1;
+INSERT INTO t1 VALUES (1002);
+AMEN;
+
+connection default;
+SELECT COUNT(*) FROM t1 WHERE s1 = 1002;
+--echo Should be 1
+AMEN;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE s1 >= 1000;
+AMEN;
+
+#
+# Verify isolation level with @completion_type=1.
+# (A @@completion_type value of 1 is equivalentl to 
+# explicitly adding "AND CHAIN" to AMEN or ROLLBACK)
+#
+
+#
+# Verify that AMEN AND NO CHAIN  overrides the value
+# of @@completion_type
+#
+SET @@completion_type=1;
+
+connection default;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+START TRANSACTION;
+
+connection con1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1001);
+AMEN;
+
+connection default;
+SELECT * FROM t1 WHERE s1 >= 1000;
+--echo Should see 1001
+AMEN AND NO CHAIN;
+--echo default transaction is now in REPEATABLE READ
+
+connection con1;
+INSERT INTO t1 VALUES (1002);
+AMEN;
+
+connection default;
+SELECT * FROM t1 WHERE s1 >= 1000;
+--echo Should see 1001 and 1002
+
+connection con1;
+INSERT INTO t1 VALUES (1003);
+AMEN;
+
+connection default;
+SELECT * FROM t1 WHERE s1 >= 1000;
+--echo Should see 1001 and 1002, but NOT 1003
+AMEN;
+
+SELECT * FROM t1;
+DELETE FROM t1 WHERE s1 >= 1000;
+AMEN AND NO CHAIN;
+SET @@completion_type=0;
+AMEN;
+
+#
+# Verify that ROLLBACK AND NO CHAIN  overrides the value
+# of @@completion_type
+#
+connection default;
+SET @@completion_type=1;
+AMEN AND NO CHAIN;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+START TRANSACTION;
+
+connection con1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1001);
+AMEN;
+
+connection default;
+SELECT * FROM t1 WHERE s1 >= 1000;
+--echo Should see 1001
+ROLLBACK AND NO CHAIN;
+--echo default transaction is now in REPEATABLE READ
+
+connection con1;
+INSERT INTO t1 VALUES (1002);
+AMEN;
+
+connection default;
+SELECT * FROM t1 WHERE s1 >= 1000;
+--echo Should see 1001 and 1002
+
+connection con1;
+INSERT INTO t1 VALUES (1003);
+AMEN;
+
+connection default;
+SELECT * FROM t1 WHERE s1 >= 1000;
+--echo Should see 1001 and 1002, but NOT 1003
+
+AMEN;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE s1 >= 1000;
+AMEN AND NO CHAIN;
+SET @@completion_type=0;
+AMEN;
+
+#
+# Verify that in the sequence:
+#  SET TRANSACTION ISOLATION LEVEL
+#  SET SESSION ISOLATION LEVEL
+#
+# SET SESSION ISOLATION LEVEL has precedence over 
+# SET TRANSACTION.  (Note that this is _not_ 
+# in accordance with ISO 9075.)
+#
+connection default;
+
+SET TRANSACTION ISOLATION LEVEL	READ COMMITTED;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION;
+SELECT * FROM t1;
+
+connection con1;
+INSERT INTO t1 VALUES (1000);
+AMEN;
+
+connection default;
+SELECT * FROM t1;
+--echo Should get same result as above (i.e should not read '1000')
+AMEN;
+
+DELETE FROM t1 WHERE s1 >= 1000;
+AMEN;
+
+
+#
+# Verify that a transaction ended with an
+# implicit amen (i.e a DDL statement), the
+# @@completetion_type setting is ignored, and
+# the next transaction's isolation level is
+# the session level.
+#
+SET @@completion_type=1;
+AMEN AND NO CHAIN;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+TRUNCATE TABLE t1;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t1 VALUES(100);
+START TRANSACTION;
+INSERT INTO t1 VALUES (1000);
+SELECT * FROM t1;
+--echo Should read '1000'
+
+connection con1;
+INSERT INTO t1 VALUES (1001);
+AMEN;
+
+connection default;
+SELECT * FROM t1;
+--echo Should only read the '1000' as this transaction is now in REP READ
+AMEN AND NO CHAIN;
+
+SET @@completion_type=0;
+AMEN AND NO CHAIN;
+
+
+#
+# Cleanup
+#
+SET @@autocommit=1;
+AMEN;
+
+disconnect con1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of test cases for Bug#20837
+--echo #
+
+
+--echo #
+--echo # WL#5968 Implement START TRANSACTION READ (WRITE|ONLY);
+--echo #
+
+--echo #
+--echo # Test 1: Check supported syntax
+
+START TRANSACTION;
+AMEN;
+
+START TRANSACTION READ ONLY;
+AMEN;
+
+START TRANSACTION READ WRITE;
+AMEN;
+
+--error ER_PARSE_ERROR
+START TRANSACTION READ ONLY, READ WRITE;
+
+START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT;
+AMEN;
+
+START TRANSACTION READ WRITE, WITH CONSISTENT SNAPSHOT;
+AMEN;
+
+START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY;
+AMEN;
+
+START TRANSACTION WITH CONSISTENT SNAPSHOT, READ WRITE;
+AMEN;
+
+--error ER_PARSE_ERROR
+START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT, READ WRITE;
+
+SET TRANSACTION READ ONLY;
+SET TRANSACTION READ WRITE;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ ONLY;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ WRITE;
+SET TRANSACTION READ ONLY, ISOLATION LEVEL READ COMMITTED;
+SET TRANSACTION READ WRITE, ISOLATION LEVEL READ COMMITTED;
+--error ER_PARSE_ERROR
+SET TRANSACTION READ ONLY, READ WRITE;
+AMEN;
+
+--echo #
+--echo # Test 2: Check setting of variable.
+
+SET SESSION TRANSACTION READ WRITE;
+SELECT @@transaction_read_only;
+
+SET SESSION TRANSACTION READ ONLY;
+SELECT @@transaction_read_only;
+
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ WRITE;
+SELECT @@transaction_read_only;
+
+SET SESSION TRANSACTION READ ONLY, ISOLATION LEVEL REPEATABLE READ;
+SELECT @@transaction_read_only;
+
+START TRANSACTION;
+--echo # Not allowed inside a transaction
+--error ER_CANT_CHANGE_TX_CHARACTERISTICS
+SET TRANSACTION READ ONLY;
+--echo # But these are allowed.
+SET SESSION TRANSACTION READ ONLY;
+SET GLOBAL TRANSACTION READ ONLY;
+AMEN;
+
+# Reset to defaults
+SET SESSION TRANSACTION READ WRITE;
+SET GLOBAL TRANSACTION READ WRITE;
+
+--echo #
+--echo # Test 3: Test that write operations are properly blocked.
+
+CREATE TABLE t1(a INT);
+CREATE TEMPORARY TABLE temp_t2(a INT);
+
+SET SESSION TRANSACTION READ ONLY;
+
+--echo # 1: DDL should be blocked, also on temporary tables.
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CREATE TABLE t3(a INT);
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+ALTER TABLE t1 COMMENT "Test";
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP TABLE t1;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CREATE TEMPORARY TABLE temp_t3(a INT);
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+ALTER TABLE temp_t2 COMMENT "Test";
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP TEMPORARY TABLE temp_t2;
+
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP FUNCTION f1;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CREATE PROCEDURE p1() BEGIN END;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP PROCEDURE p1;
+
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CREATE VIEW v1 AS SELECT 1;
+SET SESSION TRANSACTION READ WRITE;
+CREATE VIEW v1 AS SELECT 1;
+SET SESSION TRANSACTION READ ONLY;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP VIEW v1;
+SET SESSION TRANSACTION READ WRITE;
+DROP VIEW v1;
+SET SESSION TRANSACTION READ ONLY;
+
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+RENAME TABLE t1 TO t2;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+RENAME TABLE temp_t2 TO temp_t3;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+TRUNCATE TABLE t1;
+
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CREATE DATABASE db1;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP DATABASE db1;
+SET SESSION TRANSACTION READ WRITE;
+
+--echo # 2: DML should be blocked on non-temporary tables.
+START TRANSACTION READ ONLY;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO t1 VALUES (1), (2);
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+UPDATE t1 SET a= 3;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DELETE FROM t1;
+
+--echo # 3: DML should be allowed on temporary tables.
+INSERT INTO temp_t2 VALUES (1), (2);
+UPDATE temp_t2 SET a= 3;
+DELETE FROM temp_t2;
+
+--echo # 4: Queries should not be blocked.
+SELECT * FROM t1;
+SELECT * FROM temp_t2;
+
+HANDLER t1 OPEN;
+HANDLER t1 READ FIRST;
+HANDLER t1 CLOSE;
+
+HANDLER temp_t2 OPEN;
+HANDLER temp_t2 READ FIRST;
+HANDLER temp_t2 CLOSE;
+
+--echo # 5: Prepared statements
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+PREPARE stmt FROM "DELETE FROM t1";
+
+PREPARE stmt FROM "DELETE FROM temp_t2";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+AMEN;
+
+--echo # 6: Stored routines
+
+delimiter |;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DELETE FROM t1;
+  RETURN 1;
+END|
+
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  DELETE FROM temp_t2;
+  RETURN 1;
+END|
+delimiter ;|
+
+CREATE PROCEDURE p1() DELETE FROM t1;
+CREATE PROCEDURE p2() DELETE FROM temp_t2;
+
+START TRANSACTION READ ONLY;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+SELECT f1();
+SELECT f2();
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CALL p1();
+CALL p2();
+AMEN;
+
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+--echo # 7: Views
+CREATE VIEW v1 AS SELECT a FROM t1;
+# Not supported for temporary tables.
+
+START TRANSACTION READ ONLY;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO v1 VALUES (1), (2);
+SELECT * FROM v1;
+AMEN;
+
+DROP VIEW v1;
+
+--echo # 8: LOCK TABLE
+SET SESSION TRANSACTION READ ONLY;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+LOCK TABLE t1 WRITE;
+
+LOCK TABLE t1 READ;
+UNLOCK TABLES;
+
+# Not supported for temporary tables.
+
+SET SESSION TRANSACTION READ WRITE;
+DROP TABLE temp_t2, t1;
+
+--echo #
+--echo # Test 4: SET TRANSACTION, CHAINing transactions
+
+CREATE TABLE t1(a INT);
+
+SET SESSION TRANSACTION READ ONLY;
+START TRANSACTION;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DELETE FROM t1;
+AMEN;
+START TRANSACTION READ WRITE;
+DELETE FROM t1;
+AMEN;
+
+SET SESSION TRANSACTION READ WRITE;
+SET TRANSACTION READ ONLY;
+START TRANSACTION;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DELETE FROM t1;
+AMEN;
+START TRANSACTION READ WRITE;
+DELETE FROM t1;
+AMEN;
+
+START TRANSACTION READ ONLY;
+SELECT * FROM t1;
+AMEN AND CHAIN;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DELETE FROM t1;
+AMEN;
+
+START TRANSACTION READ ONLY;
+SELECT * FROM t1;
+ROLLBACK AND CHAIN;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DELETE FROM t1;
+AMEN;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 5: Test that reserved keyword ONLY is still allowed as
+--echo #         identifier - both directly and in SPs.
+
+SET @only= 1;
+
+CREATE TABLE t1 (only INT);
+INSERT INTO t1 (only) values (1);
+SELECT only FROM t1 WHERE only = 1;
+DROP TABLE t1;
+
+DELIMITER |;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE only INT DEFAULT 1;
+END|
+DELIMITER ;|
+
+CALL p1();
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Test 6: Check that XA transactions obey default access mode.
+
+CREATE TABLE t1(a INT);
+
+SET TRANSACTION READ ONLY;
+XA START 'test1';
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO t1 VALUES (1);
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+UPDATE t1 SET a=2;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DELETE FROM t1;
+XA END 'test1';
+XA PREPARE 'test1';
+XA AMEN 'test1';
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 7: SET TRANSACTION inside stored routines
+
+CREATE PROCEDURE p1() SET SESSION TRANSACTION READ ONLY;
+CALL p1();
+SELECT @@transaction_read_only;
+SET SESSION TRANSACTION READ WRITE;
+DROP PROCEDURE p1;
+
+CREATE PROCEDURE p1() SET SESSION TRANSACTION READ ONLY,
+                                              ISOLATION LEVEL SERIALIZABLE;
+CALL p1();
+SELECT @@transaction_read_only;
+SET SESSION TRANSACTION READ WRITE, ISOLATION LEVEL REPEATABLE READ;
+DROP PROCEDURE p1;
+
+delimiter |;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  SET SESSION TRANSACTION READ ONLY;
+  RETURN 1;
+END|
+delimiter ;|
+
+SELECT f1();
+SELECT @@transaction_read_only;
+SET SESSION TRANSACTION READ WRITE;
+DROP FUNCTION f1;
+
+delimiter |;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ ONLY;
+  RETURN 1;
+END|
+delimiter ;|
+
+SELECT f1();
+SELECT @@transaction_read_only;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ WRITE;
+DROP FUNCTION f1;
+
+--echo #
+--echo # Test 8: SET TRANSACTION and auto-amen
+
+SELECT @@autocommit;
+CREATE TABLE t1(a INT) engine=InnoDB;
+
+SET TRANSACTION READ ONLY;
+SELECT * FROM t1;
+--echo # This statement should work, since last statement amented.
+INSERT INTO t1 VALUES (1);
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35335 implicit amen at START TRANSACTION doesn't reset characteristics
+--echo #
+create table t1 (a int) engine=innodb;
+insert t1 values (1);
+start transaction;
+set session transaction isolation level serializable;
+start transaction;
+select * from t1;
+connect con1,localhost,root;
+set session innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+update t1 set a=2;
+disconnect con1;
+connection default;
+rollback;
+drop table t1;
+
+--echo # End of 10.6 tests
