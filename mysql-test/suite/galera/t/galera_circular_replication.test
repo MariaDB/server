@@ -45,6 +45,7 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 --let $node_1 = replica1
 --let $node_2 = node_2
 --let $node_3 = primary2
+--let $node_4 = primary1
 --source include/auto_increment_offset_save.inc
 
 --connection replica1

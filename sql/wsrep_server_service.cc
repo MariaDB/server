@@ -192,6 +192,7 @@ void Wsrep_server_service::log_message(enum wsrep::log::level level,
     break;
   case wsrep::log::unknown:
     WSREP_UNKNOWN("%s", message);
+    assert(0);
     break;
   }
 }

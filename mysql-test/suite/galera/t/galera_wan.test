@@ -12,7 +12,7 @@
 
 CALL mtr.add_suppression("WSREP: Stray state UUID msg: ");
 CALL mtr.add_suppression("WSREP: .*Sending JOIN failed: ");
-CALL mtr.add_suppression("WSREP: .*sending install message failed: Socket is not connected");
+CALL mtr.add_suppression("WSREP: .*sending install message failed: (Transport endpoint|Socket) is not connected");
 CALL mtr.add_suppression("WSREP: .*There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';

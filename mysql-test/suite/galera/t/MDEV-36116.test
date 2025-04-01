@@ -1,0 +1,43 @@
+#
+# MDEV-36116: TOI crashes in debug assert if executing thread is killed.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connect con1,127.0.0.1,root,,test,$NODE_MYPORT_1
+
+# Start TOI operation and wait for the thread to be killed.
+--connection node_1
+CALL mtr.add_suppression("CREATE TABLE isolation failure");
+
+--let $connection_id = `SELECT CONNECTION_ID()`
+SET DEBUG_SYNC = 'wsrep_kill_thd_before_enter_toi SIGNAL may_kill WAIT_FOR continue';
+--send
+  CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+
+# Kill the thread and let it continue.
+--connection con1
+SET DEBUG_SYNC = 'now WAIT_FOR may_kill';
+--disable_query_log
+--eval KILL CONNECTION $connection_id
+--enable_query_log
+SET DEBUG_SYNC = 'now SIGNAL continue';
+
+--connection node_1
+--error 2013
+--reap
+
+# Verify no tables created on either nodes.
+--connection node_2
+SHOW TABLES LIKE 't1';
+
+--connection con1
+SHOW TABLES LIKE 't1';
+
+# Cleanup
+SET DEBUG_SYNC = 'RESET';
+--disconnect con1
+--source include/galera_end.inc

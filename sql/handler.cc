@@ -7728,7 +7728,10 @@ int handler::ha_write_row(const uchar *buf)
                   });
 #endif /* WITH_WSREP */
   if ((error= ha_check_overlaps(NULL, buf)))
+  {
+    DEBUG_SYNC_C("ha_write_row_end");
     DBUG_RETURN(error);
+  }
 
   /*
     NOTE: this != table->file is true in 3 cases:
@@ -7749,6 +7752,7 @@ int handler::ha_write_row(const uchar *buf)
       if (table->next_number_field && buf == table->record[0])
         if (int err= update_auto_increment())
           error= err;
+      DEBUG_SYNC_C("ha_write_row_end");
       DBUG_RETURN(error);
     }
   }
@@ -7771,13 +7775,10 @@ int handler::ha_write_row(const uchar *buf)
       error= binlog_log_row(table, 0, buf, log_func);
     }
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
-    {
-      DEBUG_SYNC_C("ha_write_row_end");
-      DBUG_RETURN(error);
-    }
+    THD *thd= ha_thd();
+    if (WSREP_NNULL(thd) && table_share->tmp_table == NO_TMP_TABLE &&
+        ht->flags & HTON_WSREP_REPLICATION && !error)
+      error= wsrep_after_row(thd);
 #endif /* WITH_WSREP */
   }
 
