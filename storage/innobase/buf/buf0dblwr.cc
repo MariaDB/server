@@ -630,7 +630,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size) noexcept
       static_cast<size_t>(srv_fatal_semaphore_wait_threshold);
   size_t log_count= first_log_count;
 
-  for (ulong count= 0;;)
+  for (size_t count= 0;;)
   {
     if (!active_slot->first_free)
       return false;
