@@ -1780,6 +1780,9 @@ public:
   @param pool_info    buffer pool metadata */
   void get_info(buf_pool_info_t *pool_info) noexcept;
 
+  /** Print buffer pool flush state information. */
+  ATTRIBUTE_COLD void print_flush_info() const noexcept;
+
 private:
   /** Temporary memory for page_compressed and encrypted I/O */
   struct io_buf_t

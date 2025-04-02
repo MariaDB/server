@@ -600,20 +600,67 @@ static void buf_dblwr_check_block(const buf_page_t *bpage) noexcept
 }
 #endif /* UNIV_DEBUG */
 
+ATTRIBUTE_COLD void buf_dblwr_t::print_info() const noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
+  const slot *flush_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
+
+  sql_print_information("InnoDB: Double Write State\n"
+      "-------------------\n"
+      "Batch running : %s\n"
+      "Active Slot - first_free: %zu reserved:  %zu\n"
+      "Flush Slot  - first_free: %zu reserved:  %zu\n"
+      "-------------------",
+      (batch_running ? "true" : "false"),
+      active_slot->first_free, active_slot->reserved,
+      flush_slot->first_free, flush_slot->reserved);
+}
+
 bool buf_dblwr_t::flush_buffered_writes(const ulint size) noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   ut_ad(size == block_size);
 
-  for (;;)
+  const size_t max_count= 60 * 60;
+  const size_t first_log_count= 30;
+  const size_t fatal_threshold=
+      static_cast<size_t>(srv_fatal_semaphore_wait_threshold);
+  size_t log_count= first_log_count;
+
+  for (ulong count= 0;;)
   {
     if (!active_slot->first_free)
       return false;
     if (!batch_running)
       break;
-    my_cond_wait(&cond, &mutex.m_mutex);
-  }
 
+    timespec abstime;
+    set_timespec(abstime, 1);
+    my_cond_timedwait(&cond, &mutex.m_mutex, &abstime);
+
+    if (count > fatal_threshold)
+    {
+      buf_pool.print_flush_info();
+      print_info();
+      ib::fatal() << "InnoDB: Long wait (" << count
+                  << " seconds) for double-write buffer flush.";
+    }
+    else if (++count < first_log_count && !(count % 5))
+    {
+      sql_print_information("InnoDB: Long wait (%zu seconds) for double-write"
+                            " buffer flush.", count);
+      buf_pool.print_flush_info();
+      print_info();
+    }
+    else if (!(count % log_count))
+    {
+      sql_print_warning("InnoDB: Long wait (%zu seconds) for double-write"
+                        " buffer flush.", count);
+      buf_pool.print_flush_info();
+      print_info();
+      log_count= log_count >= max_count ? max_count : log_count * 2;
+    }
+  }
   ut_ad(active_slot->reserved == active_slot->first_free);
   ut_ad(!flushing_buffered_writes);
 
