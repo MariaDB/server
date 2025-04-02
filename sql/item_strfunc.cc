@@ -6161,7 +6161,10 @@ String *Item_func_format_bytes::val_str_ascii(String *)
   if (null_value)
     return 0;
 
-  double bytes_abs= fabs(bytes);
+  /*
+    snprintf below uses %4.2f, so 1023.99 MiB should be shown as 1.00 GiB
+  */
+  double bytes_abs= fabs(bytes)/1023.995*1024;
 
   constexpr uint64_t kib{1024};
   constexpr uint64_t mib{1024 * kib};
