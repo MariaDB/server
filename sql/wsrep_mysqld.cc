@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2024, Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2024, MariaDB
+/* Copyright (c) 2008, 2025, Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2025, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -855,12 +855,13 @@ int wsrep_init()
   wsrep_init_position();
   wsrep_sst_auth_init();
 
-  if (strlen(wsrep_provider)== 0 ||
-      !strcmp(wsrep_provider, WSREP_NONE))
+  if (!*wsrep_provider ||
+      !strcasecmp(wsrep_provider, WSREP_NONE))
   {
     // enable normal operation in case no provider is specified
     global_system_variables.wsrep_on= 0;
-    int err= Wsrep_server_state::instance().load_provider(wsrep_provider, wsrep_provider_options ? wsrep_provider_options : "");
+    int err= Wsrep_server_state::instance().load_provider(
+        wsrep_provider, wsrep_provider_options ? wsrep_provider_options : "");
     if (err)
     {
       DBUG_PRINT("wsrep",("wsrep::init() failed: %d", err));
@@ -2765,7 +2766,6 @@ fail:
   unireg_abort(1);
 }
 
-
 /*
   returns:
    0: statement was replicated as TOI
@@ -2781,6 +2781,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_TOI);
 
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
+  DEBUG_SYNC(thd, "wsrep_before_toi_begin");
 
   if (wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
   {
@@ -3019,12 +3020,13 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables,
                              const HA_CREATE_INFO *create_info)
 {
+  DEBUG_SYNC(thd, "wsrep_kill_thd_before_enter_toi");
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   const killed_state killed = thd->killed;
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
   if (killed)
   {
-    DBUG_ASSERT(FALSE);
+    /* The thread may have been killed as a result of memory pressure. */
     return -1;
   }
 
@@ -3204,14 +3206,15 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
   if (!WSREP_ON) return;
 
   THD *request_thd= requestor_ctx->get_thd();
-  THD *granted_thd= ticket->get_ctx()->get_thd();
-
-  const char* schema= key->db_name();
-  int schema_len= key->db_name_length();
 
   mysql_mutex_lock(&request_thd->LOCK_thd_data);
   if (wsrep_thd_is_toi(request_thd) ||
-      wsrep_thd_is_applying(request_thd)) {
+      wsrep_thd_is_applying(request_thd))
+  {
+    THD *granted_thd= ticket->get_ctx()->get_thd();
+
+    const char* schema= key->db_name();
+    int schema_len= key->db_name_length();
 
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
     WSREP_MDL_LOG(DEBUG, "MDL conflict ", schema, schema_len,

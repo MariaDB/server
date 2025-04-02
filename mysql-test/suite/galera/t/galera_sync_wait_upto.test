@@ -3,6 +3,7 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 --source include/have_debug.inc
 
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;

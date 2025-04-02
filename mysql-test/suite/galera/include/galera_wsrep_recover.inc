@@ -9,14 +9,14 @@ if (!$wsrep_recover_additional)
 }
 
 --perl
-	use strict;
+        use strict;
         my $wsrep_start_position_str = "grep -a 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'";
         my $wsrep_start_position = `grep -a 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
         chomp($wsrep_start_position);
 
         die if $wsrep_start_position eq '';
 
-	open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/galera_wsrep_start_position.inc") or die;
+        open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/galera_wsrep_start_position.inc") or die;
         print FILE "--let \$galera_wsrep_start_position = $wsrep_start_position\n";
         close FILE;
 EOF
