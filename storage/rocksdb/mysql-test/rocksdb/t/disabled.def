@@ -28,7 +28,6 @@ com_rpc_tx : Requires connection attributes and detached sessions
 mysqlbinlog_blind_replace: requires @@enable_blind_replace support
 optimize_myrocks_replace_into_base: requires @@enable_blind_replace support
 optimize_myrocks_replace_into_lock:  requires @@enable_blind_replace support
-rocksdb.skip_core_dump_on_error: requires @@binlog_error_action support
 bypass_select_basic_bloom : Query bypass is not supported
 bypass_select_basic : Query bypass is not supported
 
