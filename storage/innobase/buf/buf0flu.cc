@@ -1231,7 +1231,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
 
   /* BUF_LRU_MIN_LEN (256) is too high value for low buffer pool(BP) size. For
   example, for BP size lower than 80M and 16 K page size, the limit is more than
-  5% of total BP and for lowest BP 5M, it is 80% of the BP. Non-data objects
+  5% of total BP and for lowest BP 6M, it is 80% of the BP. Non-data objects
   like explicit locks could occupy part of the BP pool reducing the pages
   available for LRU. If LRU reaches minimum limit and if no free pages are
   available, server would hang with page cleaner not able to free any more
@@ -1745,7 +1745,7 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
     pthread_cond_broadcast(&buf_pool.done_free);
   }
   else if (!pages && !buf_pool.try_LRU_scan)
-    /* For example, with the minimum innodb_buffer_pool_size=5M and
+    /* For example, with the minimum innodb_buffer_pool_size=6M and
     the default innodb_page_size=16k there are only a little over 316
     pages in the buffer pool. The buffer pool can easily be exhausted
     by a workload of some dozen concurrent connections. The system could
