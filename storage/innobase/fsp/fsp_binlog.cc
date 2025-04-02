@@ -58,9 +58,10 @@ ulong ibb_page_size= (1 << ibb_page_size_shift);
   This value must be used over the setting innodb_binlog_state_interval,
   because after a restart the latest binlog file will be using the value of the
   setting prior to the restart; the new value of the setting (if different)
-  will be used for newly created binlog files.
+  will be used for newly created binlog files. The value refers to the file
+  of active_binlog_file_no.
 */
-uint32_t current_binlog_state_interval;
+uint64_t current_binlog_state_interval;
 
 /*
   Mutex protecting active_binlog_file_no.
@@ -583,7 +584,7 @@ fsp_binlog_page_fifo::flush_thread_run()
       if (all_flushed && file_no <= first_file_no)
         all_flushed= flush_one_page(file_no + 1, false);
     }
-    if (all_flushed)
+    if (all_flushed && !flush_thread_end)
       my_cond_wait(&m_cond, &m_mutex.m_mutex);
   }
 
@@ -597,21 +598,30 @@ size_t
 crc32_pwrite_page(File fd, byte *buf, uint32_t page_no, myf MyFlags) noexcept
 {
   const uint32_t payload= (uint32_t)ibb_page_size - BINLOG_PAGE_CHECKSUM;
-  mach_write_to_4(buf + payload, my_crc32c(0, buf, payload));
+  int4store(buf + payload, my_crc32c(0, buf, payload));
   return my_pwrite(fd, (const uchar *)buf, ibb_page_size,
                    (my_off_t)page_no << ibb_page_size_shift, MyFlags);
 }
 
 
-size_t
+/*
+  Read a page, with CRC check.
+  Returns:
+
+   -1  error
+    0  EOF
+    1  Ok
+*/
+int
 crc32_pread_page(File fd, byte *buf, uint32_t page_no, myf MyFlags) noexcept
 {
-  size_t res= my_pread(fd, buf, ibb_page_size,
-                       (my_off_t)page_no << ibb_page_size_shift, MyFlags);
-  if (UNIV_LIKELY(res == ibb_page_size))
+  size_t read= my_pread(fd, buf, ibb_page_size,
+                        (my_off_t)page_no << ibb_page_size_shift, MyFlags);
+  int res= 1;
+  if (UNIV_LIKELY(read == ibb_page_size))
   {
     const uint32_t payload= (uint32_t)ibb_page_size - BINLOG_PAGE_CHECKSUM;
-    uint32_t crc32= mach_read_from_4(buf + payload);
+    uint32_t crc32= uint4korr(buf + payload);
     /* Allow a completely zero (empty) page as well. */
     if (UNIV_UNLIKELY(crc32 != my_crc32c(0, buf, payload)) &&
         (buf[0] != 0 || 0 != memcmp(buf, buf+1, ibb_page_size - 1)))
@@ -624,7 +634,43 @@ crc32_pread_page(File fd, byte *buf, uint32_t page_no, myf MyFlags) noexcept
                         page_no, crc32);
     }
   }
+  else if (read == (size_t)-1)
+    res= -1;
+  else
+    res= 0;
+
   return res;
+}
+
+
+int
+crc32_pread_page(pfs_os_file_t fh, byte *buf, uint32_t page_no, myf MyFlags)
+  noexcept
+{
+  const uint32_t page_size= (uint32_t)ibb_page_size;
+  ulint bytes_read= 0;
+  dberr_t err= os_file_read(IORequestRead, fh, buf,
+                            (os_offset_t)page_no << ibb_page_size_shift,
+                            page_size, &bytes_read);
+  if (UNIV_UNLIKELY(err != DB_SUCCESS))
+    return -1;
+  else if (UNIV_UNLIKELY(bytes_read < page_size))
+    return 0;
+
+  const uint32_t payload= (uint32_t)ibb_page_size - BINLOG_PAGE_CHECKSUM;
+  uint32_t crc32= uint4korr(buf + payload);
+  /* Allow a completely zero (empty) page as well. */
+  if (UNIV_UNLIKELY(crc32 != my_crc32c(0, buf, payload)) &&
+      (buf[0] != 0 || 0 != memcmp(buf, buf+1, ibb_page_size - 1)))
+  {
+    my_errno= EIO;
+    if (MyFlags & MY_WME)
+      sql_print_error("InnoDB: Page corruption in binlog tablespace file "
+                      "page number %u (invalid crc32 checksum 0x%08X)",
+                      page_no, crc32);
+    return -1;
+  }
+  return 1;
 }
 
 
@@ -655,6 +701,36 @@ binlog_write_up_to_now() noexcept
 
 
 void
+fsp_binlog_extract_header_page(const byte *page_buf,
+                              binlog_header_data *out_header_data) noexcept
+{
+  uint32_t magic= uint4korr(page_buf);
+  uint32_t vers_major= uint4korr(page_buf + 8);
+  const uint32_t payload= IBB_HEADER_PAGE_SIZE - BINLOG_PAGE_CHECKSUM;
+  uint32_t crc32= uint4korr(page_buf + payload);
+  out_header_data->is_empty= false;
+  out_header_data->is_invalid= false;
+  if (crc32 != my_crc32c(0, page_buf, payload) ||
+      magic != IBB_MAGIC || vers_major > IBB_FILE_VERS_MAJOR)
+  {
+    if (page_buf[0] == 0 &&
+        0 == memcmp(page_buf, page_buf+1, IBB_HEADER_PAGE_SIZE - 1))
+      out_header_data->is_empty= true;
+    else
+      out_header_data->is_invalid= true;
+    return;
+  }
+  out_header_data->page_size_shift= uint4korr(page_buf + 4);
+  out_header_data->vers_major= vers_major;
+  out_header_data->vers_minor= uint4korr(page_buf + 12);
+  out_header_data->file_no= uint8korr(page_buf + 16);
+  out_header_data-> page_count= uint8korr(page_buf + 24);
+  out_header_data-> start_lsn= uint8korr(page_buf + 32);
+  out_header_data-> diff_state_interval= uint8korr(page_buf + 40);
+}
+
+
+void
 fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
                      uint32_t page_offset, uint32_t len)
 {
@@ -677,6 +753,19 @@ fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
   mtr->write_binlog((file_no & 1), page_no, (uint16_t)page_offset,
                     page_offset + &page->page_buf[0], len);
 }
+
+
+void
+fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page, uint32_t len)
+  noexcept
+{
+  uint64_t file_no= page->file_no;
+  uint32_t page_no= page->page_no;
+  ut_ad(page_no == 0);
+  page->complete= true;
+  mtr->write_binlog((file_no & 1), page_no, 0, &page->page_buf[0], len);
+}
+
 
 /*
   Initialize the InnoDB implementation of binlog.
@@ -849,6 +938,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
   byte cont_flag= 0;
   for (;;) {
     if (page_offset == BINLOG_PAGE_DATA) {
+      ut_ad(!block);
       uint32_t file_size_in_pages= binlog_page_fifo->size_in_pages(file_no);
       if (UNIV_UNLIKELY(page_no >= file_size_in_pages)) {
         /*
@@ -859,7 +949,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
 
           The normal case is that the next tablespace is already pre-allocated
           and available; binlog tablespace N is active while (N+1) is being
-          pre-allocated. Only under extreme I/O pressure should be need to
+          pre-allocated. Only under extreme I/O pressure should we need to
           stall here.
         */
         ut_ad(!pending_prev_end_offset);
@@ -873,14 +963,24 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
 
         // ToDo: assert that a single write doesn't span more than two binlog files.
         ++file_no;
+        file_size_in_pages= binlog_page_fifo->size_in_pages(file_no);
         binlog_cur_written_offset[file_no & 1].store(0, std::memory_order_relaxed);
         binlog_cur_end_offset[file_no & 1].store(0, std::memory_order_relaxed);
         pthread_cond_signal(&active_binlog_cond);
         mysql_mutex_unlock(&active_binlog_mutex);
         binlog_cur_page_no= page_no= 0;
-        /* ToDo: Here we must use the value from the file, if this file was pre-allocated before a server restart where the value of innodb_binlog_state_interval changed. Maybe just make innodb_binlog_state_interval dynamic and make the prealloc thread (and discover code at startup) supply the correct value to use for each file. */
         current_binlog_state_interval=
-          (uint32_t)(innodb_binlog_state_interval >> page_size_shift);
+          (uint64_t)(innodb_binlog_state_interval >> page_size_shift);
+      }
+
+      /* Write the header page at the start of a binlog tablespace file. */
+      if (page_no == 0)
+      {
+        lsn_t start_lsn= log_get_lsn();
+        bool err= ibb_write_header_page(mtr, file_no, file_size_in_pages,
+                                        start_lsn, current_binlog_state_interval);
+        ut_a(!err /* ToDo error handling */);
+        page_no= 1;
       }
 
       /* Must be a power of two. */
@@ -888,14 +988,15 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
             current_binlog_state_interval ==
             (uint64_t)1 << (63 - nlz(current_binlog_state_interval)));
 
-      if (0 == (page_no & (current_binlog_state_interval - 1))) {
-        if (page_no == 0) {
+      if (page_no == 1 ||
+          0 == (page_no & (current_binlog_state_interval - 1))) {
+        if (page_no == 1) {
           rpl_binlog_state_base full_state;
           bool err;
           full_state.init();
           err= load_global_binlog_state(&full_state);
           ut_a(!err /* ToDo error handling */);
-          if (UNIV_UNLIKELY(file_no == 0 && page_no == 0) &&
+          if (UNIV_UNLIKELY(file_no == 0 && page_no == 1) &&
               (full_state.count_nolock() == 1))
           {
             /*
@@ -932,14 +1033,14 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
             }
           }
           err= binlog_gtid_state(&full_state, mtr, block, page_no,
-                                 page_offset, file_no, file_size_in_pages);
+                                 page_offset, file_no);
           ut_a(!err /* ToDo error handling */);
           ut_ad(block);
           full_state.free();
           binlog_diff_state.reset_nolock();
         } else {
           bool err= binlog_gtid_state(&binlog_diff_state, mtr, block, page_no,
-                                      page_offset, file_no, file_size_in_pages);
+                                      page_offset, file_no);
           ut_a(!err /* ToDo error handling */);
         }
       } else
@@ -1256,15 +1357,15 @@ binlog_chunk_reader::fetch_current_page()
         cur_file_length= ~(uint64_t)0;
       }
       ++s.file_no;
-      s.page_no= 0;
+      s.page_no= 1;  /* Skip the header page. */
       continue;
     }
 
-    size_t res= crc32_pread_page(cur_file_handle, page_buffer, s.page_no,
-                                 MYF(MY_WME));
-    if (res == (size_t)-1)
+    int res= crc32_pread_page(cur_file_handle, page_buffer, s.page_no,
+                              MYF(MY_WME));
+    if (res < 0)
       return CHUNK_READER_ERROR;
-    if (res == 0 && my_errno == HA_ERR_FILE_TOO_SHORT)
+    if (res == 0)
       goto goto_next_file;
     page_ptr= page_buffer;
     return CHUNK_READER_FOUND;
@@ -1459,7 +1560,7 @@ go_next_page:
       cur_file_handle= (File)-1;
       cur_file_length= ~(uint64_t)0;
       ++s.file_no;
-      s.page_no= 0;
+      s.page_no= 1;  /* Skip the header page. */
     }
   }
 
@@ -1467,6 +1568,19 @@ go_next_page:
     return sofar;
 
   goto read_more_data;
+}
+
+
+int
+binlog_chunk_reader::get_file_header(binlog_header_data *out_header)
+{
+  seek(current_file_no(), 0);
+  if (fetch_current_page() != CHUNK_READER_FOUND)
+    return -1;
+  fsp_binlog_extract_header_page(page_ptr, out_header);
+  if (out_header->is_invalid || out_header->is_empty)
+    return -1;
+  return 0;
 }
 
 

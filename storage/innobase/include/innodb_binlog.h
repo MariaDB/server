@@ -76,8 +76,8 @@ struct chunk_data_flush : public chunk_data_base {
 
 /*
   Data stored at the start of each binlog file.
-  (The data is stored in the file as compressed integers; this is just a
-  struct to pass around the values in-memory).
+  (The data is stored as little-engian values in the first page of the file;
+  this is just a struct to pass around the values in-memory).
 */
 struct binlog_header_data {
   /*
@@ -93,16 +93,28 @@ struct binlog_header_data {
   */
   uint64_t file_no;
   /* The length of this binlog file, in pages. */
-  uint32_t page_count;
+  uint64_t page_count;
   /*
     The interval (in pages) at which the (differential) binlog GTID state is
     written into the binlog file, for faster GTID position search. This
     corresponds to the value of --innodb-binlog-state-interval at the time the
     binlog file was created.
   */
-  uint32_t diff_state_interval;
+  uint64_t diff_state_interval;
+  /* The log_2 of the page size (eg. ibb_page_size_shift). */
+  uint32_t page_size_shift;
+  /*
+    Major and minor file format version number. The idea is that minor version
+    increments are backwards compatible, major version upgrades are not.
+  */
+  uint32_t vers_major, vers_minor;
   /* Whether the page was found empty. */
   bool is_empty;
+  /*
+    Whether the page was found invalid, bad magic or major version, or CRC32
+    error (and not empty).
+  */
+  bool is_invalid;
 };
 
 
@@ -149,10 +161,12 @@ binlog_name_make_short(char *name_buf, uint64_t file_no)
 extern void innodb_binlog_startup_init();
 extern bool innodb_binlog_init(size_t binlog_size, const char *directory);
 extern void innodb_binlog_close(bool shutdown);
+extern bool ibb_write_header_page(mtr_t *mtr, uint64_t file_no,
+                                  uint64_t file_size_in_pages, lsn_t start_lsn,
+                                  uint64_t gtid_state_interval_in_pages);
 extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                               fsp_binlog_page_entry * &block, uint32_t &page_no,
-                              uint32_t &page_offset, uint64_t file_no,
-                               uint32_t file_size_in_pages);
+                              uint32_t &page_offset, uint64_t file_no);
 extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
 extern void innodb_free_oob(THD *thd, void *engine_data);

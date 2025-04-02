@@ -389,8 +389,7 @@ public:
   ~gtid_search();
   enum Read_Result read_gtid_state_file_no(rpl_binlog_state_base *state,
                                            uint64_t file_no, uint32_t page_no,
-                                           uint64_t *out_file_end,
-                                           uint32_t *out_diff_state_interval);
+                                           uint64_t *out_file_end);
   int find_gtid_pos(slave_connection_state *pos,
                     rpl_binlog_state_base *out_state, uint64_t *out_file_no,
                     uint64_t *out_offset);
@@ -491,7 +490,7 @@ public:
   bool close_file() noexcept;
   bool next_file() noexcept;
   bool next_page() noexcept;
-  void update_page_from_record(uint16_t offset,
+  bool update_page_from_record(uint16_t offset,
                                const byte *buf, size_t size) noexcept;
 };
 
@@ -506,8 +505,8 @@ static int innodb_binlog_discover();
 static bool binlog_state_recover();
 static void innodb_binlog_autopurge(uint64_t first_open_file_no);
 static int read_gtid_state_from_page(rpl_binlog_state_base *state,
-                                     const byte *page, uint32_t page_no,
-                                     binlog_header_data *out_header_data);
+                                     const byte *page, uint32_t page_no)
+  noexcept;
 
 
 /*
@@ -526,7 +525,6 @@ binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
   noexcept
 {
   char full_path[OS_FILE_MAX_PATH];
-  rpl_binlog_state_base dummy_state;
   binlog_header_data header;
 
   out_empty= true;
@@ -547,14 +545,13 @@ binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
     it as an empty file.
   */
   const uint32_t payload= (uint32_t)ibb_page_size - BINLOG_PAGE_CHECKSUM;
-  uint32_t crc32= mach_read_from_4(page_buf + payload);
+  uint32_t crc32= uint4korr(page_buf + payload);
   if (UNIV_UNLIKELY(crc32 != my_crc32c(0, page_buf, payload)))
     return 0;
 
-  dummy_state.init();
-  int res= read_gtid_state_from_page(&dummy_state, page_buf, 0, &header);
-  if (res <= 0)
-    return res;
+  fsp_binlog_extract_header_page(page_buf, &header);
+  if (header.is_invalid)
+    return 0;
   if (!header.is_empty)
   {
     out_empty= false;
@@ -724,8 +721,8 @@ binlog_recovery::init_recovery_from(uint64_t file_no, lsn_t file_lsn,
     skipping_early_lsn= false;
     if (offset <= BINLOG_PAGE_DATA)
     {
-      update_page_from_record(offset, buf, size);
       skipping_partial_page= false;
+      return update_page_from_record(offset, buf, size);
     }
   }
   return false;
@@ -852,22 +849,24 @@ binlog_recovery::zero_out_cur_file()
     return;
 
   /* Recover the original size from the current file. */
-  size_t read= crc32_pread_page(cur_file_fh, page_buf, 0, MYF(0));
-  if (read != (size_t)ibb_page_size)
+  int res= crc32_pread_page(cur_file_fh, page_buf, 0, MYF(0));
+  if (res <= 0)
   {
     sql_print_warning("InnoDB: Could not read last binlog file during recovery");
     return;
   }
   binlog_header_data header;
-  rpl_binlog_state_base dummy_state;
-  dummy_state.init();
-  int res= read_gtid_state_from_page(&dummy_state, page_buf, 0, &header);
-  if (res <= 0)
+  fsp_binlog_extract_header_page(page_buf, &header);
+
+  if (header.is_invalid)
   {
-    if (res < 0)
-      sql_print_warning("InnoDB: Could not read last binlog file during recovery");
-    else
-      sql_print_warning("InnoDB: Empty binlog file header found during recovery");
+    sql_print_warning("InnoDB: Invalid header page in last binlog file "
+                      "during recovery");
+    return;
+  }
+  if (header.is_empty)
+  {
+    sql_print_warning("InnoDB: Empty binlog file header found during recovery");
     ut_ad(0);
     return;
   }
@@ -1040,17 +1039,56 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
   if (offset + size >= ibb_page_size)
     return !srv_force_recovery;
 
-  update_page_from_record(offset, buf, size);
-  return false;
+  return update_page_from_record(offset, buf, size);
 }
 
 
-void
+bool
 binlog_recovery::update_page_from_record(uint16_t offset,
                                          const byte *buf, size_t size) noexcept
 {
   memcpy(page_buf + offset, buf, size);
+  if (cur_page_no == 0 && offset == 0)
+  {
+    binlog_header_data header;
+    /*
+      This recovery record is for the file header page.
+      This record is special, it covers only the used part of the header page.
+      The reaminder of the page must be set to zeroes.
+      Additionally, there is an extra CRC corresponding to a minimum
+      page size of IBB_PAGE_SIZE_MIN, in anticipation for future configurable
+      page size.
+    */
+    memset(page_buf + size, 0, ibb_page_size - (size + BINLOG_PAGE_DATA_END));
+    cur_page_offset= (uint32_t)ibb_page_size - BINLOG_PAGE_DATA_END;
+    uint32_t payload= IBB_HEADER_PAGE_SIZE - BINLOG_PAGE_CHECKSUM;
+    int4store(page_buf + payload, my_crc32c(0, page_buf, payload));
+    fsp_binlog_extract_header_page(page_buf, &header);
+    if (header.is_invalid)
+    {
+      sql_print_error("InnoDB: Corrupt or invalid file header found during "
+                      "recovery of file number %" PRIu64, cur_file_no);
+      return !srv_force_recovery;
+    }
+    if (header.is_empty)
+    {
+      sql_print_error("InnoDB: Empty file header found during "
+                      "recovery of file number %" PRIu64, cur_file_no);
+      return !srv_force_recovery;
+    }
+    if (header.file_no != cur_file_no)
+    {
+      sql_print_error("InnoDB: Inconsistency in file header during recovery. "
+                      "The header in file number %" PRIu64 " is for file "
+                      "number %" PRIu64, cur_file_no, header.file_no);
+      return !srv_force_recovery;
+    }
+
+    return false;
+  }
+
   cur_page_offset= offset + (uint32_t)size;
+  return false;
 }
 
 
@@ -1107,7 +1145,7 @@ innodb_binlog_init_state()
   binlog_cur_page_no= 0;
   binlog_cur_page_offset= BINLOG_PAGE_DATA;
   current_binlog_state_interval=
-    (uint32_t)(innodb_binlog_state_interval >> ibb_page_size_shift);
+    (uint64_t)(innodb_binlog_state_interval >> ibb_page_size_shift);
   ut_a(innodb_binlog_state_interval ==
        (current_binlog_state_interval << ibb_page_size_shift));
 }
@@ -1149,6 +1187,7 @@ binlog_sync_initial()
   mtr.commit();
   log_buffer_flush_to_disk(true);
   binlog_page_fifo->flush_up_to(0, 0);
+  binlog_page_fifo->do_fdatasync(0);
 }
 
 
@@ -1300,41 +1339,57 @@ binlog_page_empty(const byte *page)
 
 static int
 find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
-                   uint32_t *out_page_no, uint32_t *out_pos_in_page)
+                   uint32_t *out_page_no, uint32_t *out_pos_in_page,
+                   uint64_t *out_state_interval)
 {
   const uint32_t page_size= (uint32_t)ibb_page_size;
   const uint32_t page_size_shift= (uint32_t)ibb_page_size_shift;
   const uint32_t idx= file_no & 1;
   char file_name[OS_FILE_MAX_PATH];
   uint32_t p_0, p_1, p_2, last_nonempty;
-  dberr_t err;
   byte *p, *page_end;
   bool ret;
+  binlog_header_data header_data;
 
   *out_page_no= 0;
   *out_pos_in_page= BINLOG_PAGE_DATA;
+  *out_state_interval= 0;
 
   binlog_name_make(file_name, file_no);
   pfs_os_file_t fh= os_file_create(innodb_data_file_key, file_name,
                                    OS_FILE_OPEN, OS_DATA_FILE,
                                    srv_read_only_mode, &ret);
   if (!ret) {
-    sql_print_warning("Unable to open file '%s'", file_name);
+    sql_print_warning("InnoDB: Unable to open file '%s'", file_name);
     return -1;
   }
 
-  err= os_file_read(IORequestRead, fh, page_buf, 0, page_size, nullptr);
-  if (err != DB_SUCCESS) {
+  int res= crc32_pread_page(fh, page_buf, 0, MYF(MY_WME));
+  if (res <= 0) {
     os_file_close(fh);
     return -1;
   }
-  if (binlog_page_empty(page_buf)) {
+  fsp_binlog_extract_header_page(page_buf, &header_data);
+  if (header_data.is_invalid)
+  {
+    sql_print_error("InnoDB: Invalid or corrupt file header in file "
+                    "'%s'", file_name);
+    return -1;
+  }
+  if (header_data.is_empty) {
     ret=
       fsp_binlog_open(file_name, fh, file_no, file_size, ~(uint32_t)0, nullptr);
     binlog_cur_written_offset[idx].store(0, std::memory_order_relaxed);
     binlog_cur_end_offset[idx].store(0, std::memory_order_relaxed);
     return (ret ? -1 : 0);
   }
+  if (header_data.file_no != file_no)
+  {
+    sql_print_error("InnoDB: Inconsistent file header in file '%s', "
+                    "wrong file_no %" PRIu64, file_name, header_data.file_no);
+    return -1;
+  }
+  *out_state_interval= header_data.diff_state_interval;
   last_nonempty= 0;
 
   /*
@@ -1348,9 +1403,8 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
       break;
     ut_ad(p_0 < p_2);
     p_1= (p_0 + p_2) / 2;
-    err= os_file_read(IORequestRead, fh, page_buf, p_1 << page_size_shift,
-                      page_size, nullptr);
-    if (err != DB_SUCCESS) {
+    res= crc32_pread_page(fh, page_buf, p_1, MYF(MY_WME));
+    if (res <= 0) {
       os_file_close(fh);
       return -1;
     }
@@ -1368,9 +1422,8 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
     This sometimes does an extra read, but as this is only during startup it
     does not matter.
   */
-  err= os_file_read(IORequestRead, fh, page_buf,
-                    last_nonempty << page_size_shift, page_size, nullptr);
-  if (err != DB_SUCCESS) {
+  res= crc32_pread_page(fh, page_buf, last_nonempty, MYF(MY_WME));
+  if (res <= 0) {
     os_file_close(fh);
     return -1;
   }
@@ -1416,6 +1469,7 @@ innodb_binlog_discover()
   const uint32_t page_size= (uint32_t)ibb_page_size;
   const uint32_t page_size_shift= (uint32_t)ibb_page_size_shift;
   struct found_binlogs UNINIT_VAR(binlog_files);
+  uint64_t diff_state_interval;
 
   int res= scan_for_binlogs(innodb_binlog_directory, &binlog_files, false);
   if (res <= 0)
@@ -1437,10 +1491,12 @@ innodb_binlog_discover()
 
     res= find_pos_in_binlog(binlog_files.last_file_no,
                             binlog_files.last_size,
-                            page_buf.get(), &page_no, &pos_in_page);
+                            page_buf.get(), &page_no, &pos_in_page,
+                            &diff_state_interval);
     if (res < 0) {
       file_no= binlog_files.last_file_no;
       active_binlog_file_no.store(file_no, std::memory_order_release);
+      current_binlog_state_interval= innodb_binlog_state_interval;
       sql_print_warning("Binlog number %llu could no be opened. Starting a new "
                         "binlog file from number %llu",
                         binlog_files.last_file_no, (file_no + 1));
@@ -1451,6 +1507,7 @@ innodb_binlog_discover()
       /* Found start position in the last binlog file. */
       file_no= binlog_files.last_file_no;
       active_binlog_file_no.store(file_no, std::memory_order_release);
+      current_binlog_state_interval= diff_state_interval;
       binlog_cur_page_no= page_no;
       binlog_cur_page_offset= pos_in_page;
       ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -1465,10 +1522,12 @@ innodb_binlog_discover()
       res= find_pos_in_binlog(binlog_files.prev_file_no,
                               binlog_files.prev_size,
                               page_buf.get(),
-                              &prev_page_no, &prev_pos_in_page);
+                              &prev_page_no, &prev_pos_in_page,
+                              &diff_state_interval);
       if (res < 0) {
         file_no= binlog_files.last_file_no;
         active_binlog_file_no.store(file_no, std::memory_order_release);
+        current_binlog_state_interval= innodb_binlog_state_interval;
         binlog_cur_page_no= page_no;
         binlog_cur_page_offset= pos_in_page;
         sql_print_warning("Binlog number %llu could not be opened, starting "
@@ -1478,6 +1537,7 @@ innodb_binlog_discover()
       }
       file_no= binlog_files.prev_file_no;
       active_binlog_file_no.store(file_no, std::memory_order_release);
+      current_binlog_state_interval= diff_state_interval;
       binlog_cur_page_no= prev_page_no;
       binlog_cur_page_offset= prev_pos_in_page;
       ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -1490,6 +1550,7 @@ innodb_binlog_discover()
     /* Just one empty binlog file found. */
     file_no= binlog_files.last_file_no;
     active_binlog_file_no.store(file_no, std::memory_order_release);
+    current_binlog_state_interval= innodb_binlog_state_interval;
     binlog_cur_page_no= page_no;
     binlog_cur_page_offset= pos_in_page;
     ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -1501,6 +1562,7 @@ innodb_binlog_discover()
   file_no= 0;
   earliest_binlog_file_no= 0;
   total_binlog_used_size= 0;
+  current_binlog_state_interval= innodb_binlog_state_interval;
   ib::info() << "Starting a new binlog from file number " << file_no << ".";
   return 0;
 }
@@ -1532,8 +1594,8 @@ void innodb_binlog_close(bool shutdown)
   if (shutdown && innodb_binlog_inited >= 1)
   {
     binlog_diff_state.free();
-    mysql_mutex_destroy(&purge_binlog_mutex);
     fsp_binlog_shutdown();
+    mysql_mutex_destroy(&purge_binlog_mutex);
   }
 }
 
@@ -1624,38 +1686,56 @@ innodb_binlog_prealloc_thread()
 }
 
 
+bool
+ibb_write_header_page(mtr_t *mtr, uint64_t file_no, uint64_t file_size_in_pages,
+                      lsn_t start_lsn, uint64_t gtid_state_interval_in_pages)
+{
+  fsp_binlog_page_entry *block;
+  uint32_t used_bytes;
+
+  block= binlog_page_fifo->create_page(file_no, 0);
+  ut_a(block /* ToDo: error handling? */);
+  byte *ptr= &block->page_buf[0];
+
+  int4store(ptr, IBB_MAGIC);
+  int4store(ptr + 4, ibb_page_size_shift);
+  int4store(ptr + 8, IBB_FILE_VERS_MAJOR);
+  int4store(ptr + 12, IBB_FILE_VERS_MINOR);
+  int8store(ptr + 16, file_no);
+  int8store(ptr + 24, file_size_in_pages);
+  int8store(ptr + 32, start_lsn);
+  int8store(ptr + 40, gtid_state_interval_in_pages);
+  used_bytes= 48;
+  ut_ad(ibb_page_size >= IBB_HEADER_PAGE_SIZE);
+  memset(ptr + used_bytes, 0, ibb_page_size - (used_bytes + BINLOG_PAGE_CHECKSUM));
+  /*
+    For future expansion with configurable page size:
+    Write a CRC32 at the end of the minimal page size. This way, the header
+    page can be read and checksummed without knowing the page size used in
+    the file, and then the actual page size can be obtained from the header
+    page.
+  */
+  const uint32_t payload= IBB_HEADER_PAGE_SIZE - BINLOG_PAGE_CHECKSUM;
+  int4store(ptr + payload, my_crc32c(0, ptr, payload));
+
+  fsp_log_header_page(mtr, block, used_bytes);
+  binlog_page_fifo->release_page_mtr(block, mtr);
+
+  return false;  // No error
+}
+
+
 __attribute__((noinline))
 static ssize_t
-serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
-                     uint32_t file_size_in_pages, uint64_t file_no,
-                     bool is_first_page)
+serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size)
+  noexcept
 {
   unsigned char *p= (unsigned char *)buf;
   /*
-    1 uint64_t for the current LSN at start of binlog file.
-    1 uint64_t for the file_no.
-    1 uint32_t for the file size in pages.
-    1 uint32_t for the innodb_binlog_state_interval in pages.
     1 uint64_t for the number of entries in the state stored.
     2 uint32_t + 1 uint64_t for at least one GTID.
   */
-  ut_ad(buf_size >= 4*COMPR_INT_MAX32 + 4*COMPR_INT_MAX64);
-  if (is_first_page) {
-    /*
-      In the first page where we put the full state, include the value of the
-      setting for the interval at which differential states are binlogged, so
-      we know how to search them independent of how the setting changes.
-
-      We also include the current LSN for recovery purposes; and the file
-      length and file_no, which is also useful if we have to recover the whole
-      file from the redo log after a crash.
-    */
-    p= compr_int_write(p, log_get_lsn());
-    p= compr_int_write(p, file_no);
-    p= compr_int_write(p, file_size_in_pages);
-    /* ToDo: Check that this current_binlog_state_interval is the correct value! */
-    p= compr_int_write(p, current_binlog_state_interval);
-  }
+  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 2*COMPR_INT_MAX64);
   p= compr_int_write(p, state->count_nolock());
   unsigned char * const pmax=
     p + (buf_size - (2*COMPR_INT_MAX32 + COMPR_INT_MAX64));
@@ -1678,8 +1758,7 @@ serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
 bool
 binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                   fsp_binlog_page_entry * &block, uint32_t &page_no,
-                  uint32_t &page_offset, uint64_t file_no,
-                  uint32_t file_size_in_pages)
+                  uint32_t &page_offset, uint64_t file_no)
 {
   /*
     Use a small, efficient stack-allocated buffer by default, falling back to
@@ -1690,9 +1769,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   uint32_t block_page_no= ~(uint32_t)0;
   block= nullptr;
 
-  ssize_t used_bytes= serialize_gtid_state(state, small_buf, sizeof(small_buf),
-                                           file_size_in_pages, file_no,
-                                           page_no==0);
+  ssize_t used_bytes= serialize_gtid_state(state, small_buf, sizeof(small_buf));
   if (used_bytes >= 0)
   {
     buf= small_buf;
@@ -1706,8 +1783,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     if (UNIV_UNLIKELY(!alloced_buf))
       return true;
     buf= alloced_buf;
-    used_bytes= serialize_gtid_state(state, buf, buf_size, file_size_in_pages,
-                                     file_no, page_no==0);
+    used_bytes= serialize_gtid_state(state, buf, buf_size);
     if (UNIV_UNLIKELY(used_bytes < 0))
     {
       ut_ad(0 /* Shouldn't happen, as we allocated maximum needed size. */);
@@ -1722,6 +1798,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 
   /* For now, GTID state always at the start of a page. */
   ut_ad(page_offset == BINLOG_PAGE_DATA);
+  /* Page 0 is reserved for the header page. */
+  ut_ad(page_no != 0);
 
   /*
     Only write the GTID state record if there is room for actual event data
@@ -1792,16 +1870,12 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 */
 static int
 read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
-                          uint32_t page_no, binlog_header_data *out_header_data)
+                          uint32_t page_no) noexcept
 {
   const byte *p= page + BINLOG_PAGE_DATA;
   byte t= *p;
   if (UNIV_UNLIKELY((t & FSP_BINLOG_TYPE_MASK) != FSP_BINLOG_TYPE_GTID_STATE))
-  {
-    out_header_data->is_empty= binlog_page_empty(page);
     return 0;
-  }
-  out_header_data->is_empty= false;
   /* ToDo: Handle reading a state that spans multiple pages. For now, we assume the state fits in a single page. */
   ut_a(t & FSP_BINLOG_FLAG_LAST);
 
@@ -1811,42 +1885,6 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
     return -1;
   std::pair<uint64_t, const unsigned char *> v_and_p= compr_int_read(p + 3);
   p= v_and_p.second;
-  if (page_no == 0)
-  {
-    /*
-      The state in the first page has four extra words: The start LSN of the
-      file; the file_no of the file; the file length, in pages; and the offset
-      between differential binlog states logged regularly in the binlog
-      tablespace.
-    */
-    if (UNIV_UNLIKELY(p >= p_end))
-      return -1;
-    out_header_data->start_lsn= (uint32_t)v_and_p.first;
-    v_and_p= compr_int_read(p);
-    p= v_and_p.second;
-    if (UNIV_UNLIKELY(p >= p_end))
-      return -1;
-    out_header_data->file_no= v_and_p.first;
-    v_and_p= compr_int_read(p);
-    p= v_and_p.second;
-    if (UNIV_UNLIKELY(p >= p_end) || UNIV_UNLIKELY(v_and_p.first >= UINT32_MAX))
-      return -1;
-    out_header_data->page_count= (uint32_t)v_and_p.first;
-    v_and_p= compr_int_read(p);
-    p= v_and_p.second;
-    if (UNIV_UNLIKELY(p >= p_end) || UNIV_UNLIKELY(v_and_p.first >= UINT32_MAX))
-      return -1;
-    out_header_data->diff_state_interval= (uint32_t)v_and_p.first;
-    v_and_p= compr_int_read(p);
-    p= v_and_p.second;
-  }
-  else
-  {
-    out_header_data->start_lsn= 0;
-    out_header_data->file_no= ~(uint64_t)0;
-    out_header_data->page_count= 0;
-    out_header_data->diff_state_interval= 0;
-  }
 
   if (UNIV_UNLIKELY(p > p_end))
     return -1;
@@ -1899,8 +1937,7 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
     -1 Error
 */
 static int
-read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
-                binlog_header_data *out_header_data)
+read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no)
 {
   std::unique_ptr<byte [], void (*)(void *)> page_buf
     ((byte *)my_malloc(PSI_NOT_INSTRUMENTED, ibb_page_size, MYF(MY_WME)),
@@ -1909,12 +1946,11 @@ read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
     return -1;
 
   /* ToDo: Handle encryption. */
-  size_t res= crc32_pread_page(file, page_buf.get(), page_no, MYF(MY_WME));
-  if (UNIV_UNLIKELY(res == (size_t)-1))
+  int res= crc32_pread_page(file, page_buf.get(), page_no, MYF(MY_WME));
+  if (UNIV_UNLIKELY(res <= 0))
     return -1;
 
-  return read_gtid_state_from_page(state, page_buf.get(), page_no,
-                                   out_header_data);
+  return read_gtid_state_from_page(state, page_buf.get(), page_no);
 }
 
 
@@ -1929,40 +1965,36 @@ read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
 static bool
 binlog_state_recover()
 {
-  binlog_header_data header_data;
   rpl_binlog_state_base state;
   state.init();
-  uint32_t diff_state_interval= 0;
-  uint32_t page_no= 0;
+  uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+  uint64_t diff_state_interval= current_binlog_state_interval;
+  uint32_t page_no= 1;
   char filename[OS_FILE_MAX_PATH];
 
-  binlog_name_make(filename,
-                   active_binlog_file_no.load(std::memory_order_relaxed));
+  binlog_name_make(filename, active);
   File file= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME));
   if (UNIV_UNLIKELY(file < (File)0))
     return true;
 
-  int res= read_gtid_state(&state, file, page_no, &header_data);
+  int res= read_gtid_state(&state, file, page_no);
   if (res < 0)
   {
     my_close(file, MYF(0));
     return true;
   }
-  diff_state_interval= header_data.diff_state_interval;
   if (diff_state_interval == 0)
   {
     sql_print_warning("Invalid differential binlog state interval %llu found "
                       "in binlog file, ignoring", diff_state_interval);
-    current_binlog_state_interval= 0;  /* Disable in this binlog file */
   }
   else
   {
-    current_binlog_state_interval= diff_state_interval;
     page_no= (uint32_t)(binlog_cur_page_no -
                         (binlog_cur_page_no % diff_state_interval));
-    while (page_no > 0)
+    while (page_no > 1)
     {
-      res= read_gtid_state(&state, file, page_no, &header_data);
+      res= read_gtid_state(&state, file, page_no);
       if (res > 0)
         break;
       page_no-= (uint32_t)diff_state_interval;
@@ -1970,9 +2002,7 @@ binlog_state_recover()
   }
   my_close(file, MYF(0));
 
-  ha_innodb_binlog_reader reader(active_binlog_file_no.load
-                                   (std::memory_order_relaxed),
-                                 page_no << ibb_page_size_shift);
+  ha_innodb_binlog_reader reader(active, page_no << ibb_page_size_shift);
   return binlog_recover_gtid_state(&state, &reader);
 }
 
@@ -2410,6 +2440,8 @@ ha_innodb_binlog_reader::ha_innodb_binlog_reader(uint64_t file_no,
 {
   page_buf= (uchar *)ut_malloc(ibb_page_size, mem_key_binlog);
   chunk_rd.set_page_buf(page_buf);
+  if (offset < ibb_page_size)
+    offset= ibb_page_size;
   chunk_rd.seek(file_no, offset);
   chunk_rd.skip_partial(true);
 }
@@ -2617,10 +2649,8 @@ gtid_search::~gtid_search()
 enum gtid_search::Read_Result
 gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
                                      uint64_t file_no, uint32_t page_no,
-                                     uint64_t *out_file_end,
-                                     uint32_t *out_diff_state_interval)
+                                     uint64_t *out_file_end)
 {
-  binlog_header_data header_data;
   *out_file_end= 0;
   uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
   if (file_no > active2)
@@ -2675,9 +2705,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
     if (block)
     {
       ut_ad(end_offset != ~(uint64_t)0);
-      int res= read_gtid_state_from_page(state, block->page_buf, page_no,
-                                         &header_data);
-      *out_diff_state_interval= header_data.diff_state_interval;
+      int res= read_gtid_state_from_page(state, block->page_buf, page_no);
       binlog_page_fifo->release_page(block);
       return (Read_Result)res;
     }
@@ -2716,8 +2744,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
       }
       if (!*out_file_end)
         *out_file_end= cur_open_file_length;
-      int res= read_gtid_state(state, cur_open_file, page_no, &header_data);
-      *out_diff_state_interval= header_data.diff_state_interval;
+      int res= read_gtid_state(state, cur_open_file, page_no);
       return (Read_Result)res;
     }
   }
@@ -2735,7 +2762,6 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
      0 Position not found (has been purged)
      1 Position found
 */
-
 int
 gtid_search::find_gtid_pos(slave_connection_state *pos,
                            rpl_binlog_state_base *out_state,
@@ -2750,14 +2776,39 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
 
   /* First search backwards for the right file to start from. */
   uint64_t file_end= 0;
-  uint32_t diff_state_page_interval= 0;
+  uint64_t diff_state_page_interval= 0;
   rpl_binlog_state_base base_state, page0_diff_state, tmp_diff_state;
   base_state.init();
   for (;;)
   {
+    /*
+      Read the header page, needed to get the binlog diff state interval.
+      ToDo: Here we instantiate our own binlog_chunk_reader specifically for
+      this. Later, when read_gtid_state_file_no() is fixed to also use a
+      binlog_chunk_reader, integrate and use the same single
+      binlog_chunk_reader object.
+    */
+    binlog_header_data header;
+    int err;
+    byte *page_buffer= (byte *)ut_malloc(ibb_page_size, mem_key_binlog);
+    if (!page_buffer)
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
+      return -1;
+    }
+    {
+      binlog_chunk_reader chunk_reader;
+      chunk_reader.set_page_buf(page_buffer);
+      chunk_reader.seek(file_no, 0);
+      err= chunk_reader.get_file_header(&header);
+      diff_state_page_interval= header.diff_state_interval;
+    }
+    ut_free(page_buffer);
+    if (err)
+      return -1;
+
     enum Read_Result res=
-      read_gtid_state_file_no(&base_state, file_no, 0, &file_end,
-                              &diff_state_page_interval);
+      read_gtid_state_file_no(&base_state, file_no, 1, &file_end);
     if (res == READ_ENOENT)
       return 0;
     if (res == READ_ERROR)
@@ -2769,7 +2820,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
         /* Handle the special case of a completely empty binlog file. */
         out_state->reset_nolock();
         *out_file_no= file_no;
-        *out_offset= 0;
+        *out_offset= ibb_page_size;
         return 1;
       }
       ut_ad(0 /* Not expected to find no state, should always be written. */);
@@ -2794,20 +2845,18 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
   uint32_t page2= (uint32_t)
     (diff_state_page_interval + ((file_end - 1) >> ibb_page_size_shift));
   /* Round to the next diff_state_page_interval after file_end. */
-  page2-= page2 % diff_state_page_interval;
+  page2-= page2 % (uint32_t)diff_state_page_interval;
   uint32_t page1= (page0 + page2) / 2;
   page0_diff_state.init();
   page0_diff_state.load_nolock(&base_state);
   tmp_diff_state.init();
-  while (page1 >= page0 + diff_state_page_interval)
+  while (page1 >= page0 + diff_state_page_interval && page1 > 1)
   {
     ut_ad((page1 - page0) % diff_state_page_interval == 0);
     tmp_diff_state.reset_nolock();
     tmp_diff_state.load_nolock(&base_state);
-    uint32_t dummy;
     enum Read_Result res=
-      read_gtid_state_file_no(&tmp_diff_state, file_no, page1, &file_end,
-                              &dummy);
+      read_gtid_state_file_no(&tmp_diff_state, file_no, page1, &file_end);
     if (res == READ_ENOENT)
       return 0;  /* File purged while we are reading from it? */
     if (res == READ_ERROR)
@@ -2819,7 +2868,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
         try the one just before. It will be safe, even if not always optimal,
         and this is an abnormal situation anyway.
       */
-      page1= page1 - diff_state_page_interval;
+      page1= page1 - (uint32_t)diff_state_page_interval;
       continue;
     }
     if (tmp_diff_state.is_before_pos(pos))
@@ -2835,6 +2884,8 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
   ut_ad(page1 >= page0);
   out_state->load_nolock(&page0_diff_state);
   *out_file_no= file_no;
+  if (page0 == 0)
+    page0= 1;  /* Skip the initial file header page. */
   *out_offset= (uint64_t)page0 << ibb_page_size_shift;
   return 1;
 }
@@ -2888,6 +2939,8 @@ ha_innodb_binlog_reader::init_legacy_pos(const char *filename, ulonglong offset)
     reached. This way we avoid reading garbaga data for invalid request
     offset.
   */
+  if (offset < ibb_page_size)
+    offset= ibb_page_size;
   chunk_rd.seek(file_no, (uint64_t)offset);
   chunk_rd.skip_partial(true);
   cur_file_no= chunk_rd.current_file_no();
@@ -2980,14 +3033,12 @@ innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 {
   gtid_search search_obj;
   uint64_t dummy_file_end;
-  uint32_t dummy_diff_state_interval;
   bool err= false;
 
   mysql_mutex_lock(&purge_binlog_mutex);
   uint64_t file_no= earliest_binlog_file_no;
   enum gtid_search::Read_Result res=
-    search_obj.read_gtid_state_file_no(out_state, file_no, 0, &dummy_file_end,
-                                       &dummy_diff_state_interval);
+    search_obj.read_gtid_state_file_no(out_state, file_no, 1, &dummy_file_end);
   mysql_mutex_unlock(&purge_binlog_mutex);
   if (res != gtid_search::READ_FOUND)
     err= true;
