@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-call mtr.add_suppression("WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table .*");
+call mtr.add_suppression("WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled\\. Table ");
 CREATE TABLE t1(a int, b varchar(50)) ENGINE=INNODB;
 CREATE TABLE t2(a int, b varchar(50)) ENGINE=MYISAM;
 CREATE TABLE t3(a int, b varchar(50)) ENGINE=MEMORY;

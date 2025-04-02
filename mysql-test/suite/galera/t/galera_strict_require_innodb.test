@@ -15,9 +15,10 @@
 # In both cases apply flood control if >= 10 same warning
 #
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 --source include/have_aria.inc
 
-call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine .*");
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled\\. Storage engine ");
 
 CREATE TABLE t1(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=INNODB;
 CREATE TABLE t2(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=MYISAM;
@@ -114,4 +115,3 @@ DROP TABLE t1,t2,t3,t4;
 SET GLOBAL log_warnings=DEFAULT;
 SET GLOBAL wsrep_mode=DEFAULT;
 --disable_query_log
-

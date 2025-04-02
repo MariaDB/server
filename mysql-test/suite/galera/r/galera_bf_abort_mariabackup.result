@@ -51,7 +51,7 @@ FOUND 1 /Desyncing and pausing the provider/ in mysqld.2.err
 FOUND 1 /Resuming and resyncing the provider/ in mysqld.2.err
 # Should return FOUND 1 because only last backup does not desync
 FOUND 1 /Server not desynched from group because WSREP_MODE_BF_MARIABACKUP used./ in mysqld.2.err
-SET GLOBAL wsrep_mode = "";
+SET GLOBAL wsrep_mode = DEFAULT;
 connection node_1;
 DROP TABLE t;
 disconnect node_2;

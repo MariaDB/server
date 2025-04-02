@@ -45,7 +45,7 @@ SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_sync_wait = DEFAULT;
 SET DEBUG_SYNC = 'now SIGNAL continue';
 connection node_2;
-ERROR HY000: Got error 6 "No such device or address" during COMMIT
+ERROR HY000: Error while appending streaming replication fragment(provider status: Not connected to Primary Component)
 connection node_2a;
 SET DEBUG_SYNC = 'RESET';
 connection node_1a;

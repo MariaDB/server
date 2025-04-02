@@ -5,12 +5,12 @@ wsrep_sst_method=rsync
 
 [mysqld.1]
 wsrep_node_name='node.1'
-wsrep_provider_options='base_port=@mysqld.1.#galera_port;socket.ssl=yes;socket.ssl_cert=@ENV.MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=@ENV.MYSQL_TEST_DIR/std_data/galera-key.pem;socket.dynamic=true'
+wsrep_provider_options='socket.ssl=yes;socket.ssl_cert=@ENV.MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=@ENV.MYSQL_TEST_DIR/std_data/galera-key.pem;socket.dynamic=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
 
 [mysqld.2]
 wsrep_node_name='node.2'
-wsrep_provider_options='base_port=@mysqld.2.#galera_port'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
 
 [mysqld.3]
 wsrep_node_name='node.3'
-wsrep_provider_options='base_port=@mysqld.3.#galera_port;socket.ssl=yes;socket.ssl_cert=@ENV.MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=@ENV.MYSQL_TEST_DIR/std_data/galera-key.pem;socket.dynamic=true'
+wsrep_provider_options='socket.ssl=yes;socket.ssl_cert=@ENV.MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=@ENV.MYSQL_TEST_DIR/std_data/galera-key.pem;socket.dynamic=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
