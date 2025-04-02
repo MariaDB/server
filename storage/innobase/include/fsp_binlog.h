@@ -32,7 +32,27 @@ InnoDB implementation of binlog.
 
 
 struct chunk_data_base;
+struct binlog_header_data;
 
+/* 4-byte "magic" identifying InnoDB binlog file (little endian). */
+static constexpr uint32_t IBB_MAGIC= 0x010dfefe;
+static constexpr uint32_t IBB_FILE_VERS_MAJOR= 0;
+static constexpr uint32_t IBB_FILE_VERS_MINOR= 0;
+
+/*
+  The size of the header page that is stored in the first page of a file.
+  This is the smallest page size that can be used in a backwards compatible
+  way. Having a fixed-size small header page means we can get the real page
+  size of the file from the header page, but still be able to checksum the
+  header page without relying on unchecked page size field to compute the
+  checksum.
+
+  (The remainder of the header page is just unused or could potentially
+  later be used for other data as needed).
+*/
+static constexpr uint32_t IBB_HEADER_PAGE_SIZE= 512;
+static constexpr uint32_t IBB_PAGE_SIZE_MIN= IBB_HEADER_PAGE_SIZE;
+static constexpr uint32_t IBB_PAGE_SIZE_MAX= 65536;
 
 /** Store crc32 checksum at the end of the page */
 #define BINLOG_PAGE_CHECKSUM 4
@@ -266,6 +286,8 @@ public:
     of the current binlog (ie. end-of-file).
   */
   int read_data(byte *buffer, int max_len, bool multipage);
+  /* Read the file header of current file_no. */
+  int get_file_header(binlog_header_data *out_header);
 
   /* Save current position, and restore it later. */
   void save_pos(saved_position *out_pos) { *out_pos= s; }
@@ -294,7 +316,8 @@ public:
 
 extern uint32_t ibb_page_size_shift;
 extern ulong ibb_page_size;
-extern uint32_t current_binlog_state_interval;
+/* The state interval (in pages) used for active_binlog_file_no. */
+extern uint64_t current_binlog_state_interval;
 extern mysql_mutex_t active_binlog_mutex;
 extern pthread_cond_t active_binlog_cond;
 extern std::atomic<uint64_t> active_binlog_file_no;
@@ -313,11 +336,18 @@ fsp_binlog_release(fsp_binlog_page_entry *page)
 
 extern size_t crc32_pwrite_page(File fd, byte *buf, uint32_t page_no,
                                 myf MyFlags) noexcept;
-extern size_t crc32_pread_page(File fd, byte *buf, uint32_t page_no,
-                               myf MyFlags) noexcept;
+extern int crc32_pread_page(File fd, byte *buf, uint32_t page_no,
+                            myf MyFlags) noexcept;
+extern int crc32_pread_page(pfs_os_file_t fh, byte *buf, uint32_t page_no,
+                            myf MyFlags) noexcept;
 extern void binlog_write_up_to_now() noexcept;
+extern void fsp_binlog_extract_header_page(const byte *page_buf,
+                                           binlog_header_data *out_header_data)
+  noexcept;
 extern void fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
                                  uint32_t page_offset, uint32_t len);
+extern void fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page,
+                                uint32_t len) noexcept;
 extern void fsp_binlog_init();
 extern void fsp_binlog_shutdown();
 extern dberr_t fsp_binlog_tablespace_close(uint64_t file_no);

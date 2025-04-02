@@ -57,6 +57,6 @@ EOF
 --source include/wait_until_connected_again.inc
 
 --let $binlog_file=
---let $binlog_start= 0
+--let $binlog_start= 4
 --source include/show_binlog_events.inc
 DROP TABLE t1;
