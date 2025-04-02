@@ -7,7 +7,7 @@ SET @save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
 SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
 SET GLOBAL innodb_max_dirty_pages_pct=0.0;
 
-CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
 --connect (prevent_purge,localhost,root)
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 --connection default
@@ -27,19 +27,16 @@ WHERE variable_name='innodb_log_writes';
 --enable_cursor_protocol
 
 BEGIN;
-INSERT INTO t SELECT * FROM seq_1_to_500;
-INSERT INTO t SELECT * FROM seq_501_to_1000;
-INSERT INTO t SELECT * FROM seq_1001_to_1500;
-INSERT INTO t SELECT * FROM seq_1501_to_2000;
-INSERT INTO t SELECT * FROM seq_2001_to_2500;
-INSERT INTO t SELECT * FROM seq_2501_to_3000;
-INSERT INTO t SELECT * FROM seq_3001_to_3500;
-INSERT INTO t SELECT * FROM seq_3501_to_4000;
-INSERT INTO t SELECT * FROM seq_4001_to_4500;
-INSERT INTO t SELECT * FROM seq_4501_to_5000;
+--disable_query_log
+let $N=500;
+while ($N) {
+  INSERT INTO t SELECT * FROM seq_1_to_10;
+  dec $N;
+}
+--enable_query_log
 ROLLBACK;
 
-SELECT if(variable_value-@log_writes<10,'ok',variable_value-@log_writes)
+SELECT if(variable_value-@log_writes<500,'ok',variable_value-@log_writes)
 FROM information_schema.global_status WHERE variable_name='innodb_log_writes';
 --disconnect prevent_purge
 
