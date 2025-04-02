@@ -31,8 +31,8 @@ CREATE TABLE tbl_a (
 a INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
 create temporary table results (a int);
-SELECT SPIDER_DIRECT_SQL('select * from tbl_a', 'results', 'srv "s_2_1", database "auto_test_remote"');
-SPIDER_DIRECT_SQL('select * from tbl_a', 'results', 'srv "s_2_1", database "auto_test_remote"')
+SELECT SPIDER_DIRECT_SQL('select * from tbl_a', 'results', 'srv "s_2_1", database "auto_test_remote"') as exp;
+exp
 1
 select * from results;
 a
