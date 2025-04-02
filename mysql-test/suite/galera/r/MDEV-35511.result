@@ -1,0 +1,27 @@
+connection node_2;
+connection node_1;
+connection node_1;
+install plugin server_audit soname 'server_audit';
+SET GLOBAL server_audit_logging=ON;
+connection node_2;
+SET GLOBAL server_audit_logging=ON;
+connection node_1;
+CREATE TABLE t1(a INT);
+# Now checking the logs.
+connection node_2;
+INSERT INTO t1 VALUES (1);
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'SET GLOBAL server_audit_logging=ON',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,test,t1,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,table_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,column_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,index_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'INSERT INTO t1 VALUES (1)',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'SELECT @@datadir',0
+# resetting the test state
+SET GLOBAL server_audit_logging=DEFAULT;
+connection node_1;
+DROP TABLE t1;
+SET GLOBAL server_audit_logging=DEFAULT;
+UNINSTALL PLUGIN server_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown

@@ -1456,6 +1456,7 @@ static size_t log_header(char *message, size_t message_len,
                       const char *operation)
 {
   struct tm tm_time;
+  const LEX_CSTRING user_sys= {STRING_WITH_LEN("system user")};
 
   if (host_len == 0 && userip_len != 0)
   {
@@ -1477,7 +1478,8 @@ static size_t log_header(char *message, size_t message_len,
     return my_snprintf(message, message_len,
         "%.*s,%.*s,%.*s,%d,%lld,%s",
         (int) serverhost_len, serverhost,
-        username_len, username,
+        username_len ? username_len : user_sys.length,
+        username_len ? username : user_sys.str,
         host_len, host,
         connection_id, query_id, operation);
 
@@ -1487,7 +1489,8 @@ static size_t log_header(char *message, size_t message_len,
       tm_time.tm_year+1900, tm_time.tm_mon+1, tm_time.tm_mday,
       tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec,
       (int) serverhost_len, serverhost,
-      username_len, username,
+      username_len ? username_len : user_sys.length,
+      username_len ? username : user_sys.str,
       host_len, host,
       connection_id, query_id, operation);
 }
