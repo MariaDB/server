@@ -7771,6 +7771,7 @@ int handler::ha_write_row(const uchar *buf)
       Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
       error= binlog_log_row(table, 0, buf, log_func);
     }
+
 #ifdef WITH_WSREP
     THD *thd= ha_thd();
     if (WSREP_NNULL(thd) && table_share->tmp_table == NO_TMP_TABLE &&

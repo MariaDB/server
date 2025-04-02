@@ -1088,6 +1088,7 @@ void srv_monitor_task(void*)
 			now -= start;
 			ulong waited = static_cast<ulong>(now / 1000000);
 			if (waited >= threshold) {
+				buf_pool.print_flush_info();
 				ib::fatal() << dict_sys.fatal_msg;
 			}
 

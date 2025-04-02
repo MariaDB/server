@@ -4487,6 +4487,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: innodb_open_files .* should not be greater than/,
      qr/InnoDB: Trying to delete tablespace.*but there are.*pending/,
      qr/InnoDB: Tablespace 1[0-9]* was not found at .*, and innodb_force_recovery was set/,
+     qr/InnoDB: Long wait \([0-9]+ seconds\) for double-write buffer flush/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
