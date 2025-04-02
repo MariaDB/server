@@ -189,7 +189,7 @@ fsp_binlog_page_fifo::release_page(fsp_binlog_page_entry *page)
   mysql_mutex_lock(&m_mutex);
   ut_a(page->latched > 0);
   if (--page->latched == 0)
-    pthread_cond_signal(&m_cond);
+    pthread_cond_broadcast(&m_cond);
   mysql_mutex_unlock(&m_mutex);
 }
 
@@ -266,24 +266,68 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
   }
   flushing= true;
   uint32_t page_no= pl->first_page_no;
-  mysql_mutex_unlock(&m_mutex);
-  ut_ad(e->complete || !e->next);
-  if (e->complete || (force && !e->flushed_clean))
+  bool is_complete= e->complete;
+  ut_ad(is_complete || !e->next);
+  if (is_complete || (force && !e->flushed_clean))
   {
+    /*
+      Careful here! We are going to release the mutex while flushing the page
+      to disk. At this point, another thread might come in and add more data
+      to the page in parallel, if e->complete is not set!
+
+      So here we set flushed_clean _before_ releasing the mutex. Then any
+      other thread that in parallel latches the page and tries to update it in
+      parallel will either increment e->latched, or set e->flushed_clean back
+      to false (or both). This allows us to detect a parallel update and retry
+      the write in that case.
+    */
+  retry:
+    if (!is_complete)
+      e->flushed_clean= true;
+    mysql_mutex_unlock(&m_mutex);
     File fh= get_fh(file_no);
     ut_a(pl->fh >= (File)0);
     size_t res= crc32_pwrite_page(fh, e->page_buf, page_no, MYF(MY_WME));
     ut_a(res == ibb_page_size);
-    e->flushed_clean= true;
+    mysql_mutex_lock(&m_mutex);
+    if (!is_complete &&
+        (UNIV_UNLIKELY(e->latched) || UNIV_UNLIKELY(!e->flushed_clean)))
+    {
+      flushing= false;
+      pthread_cond_broadcast(&m_cond);
+      for (;;)
+      {
+        ut_ad(file_no < first_file_no ||
+              fifos[file_no & 1].first_page_no >= page_no);
+        ut_ad(file_no < first_file_no ||
+              fifos[file_no & 1].first_page_no > page_no ||
+              fifos[file_no & 1].first_page == e);
+        if (!flushing)
+        {
+          if (file_no < first_file_no ||
+              fifos[file_no & 1].first_page_no != page_no ||
+              fifos[file_no & 1].first_page != e)
+          {
+            /* Someone else flushed the page for us. */
+            return true;
+          }
+          if (e->latched == 0)
+            break;
+        }
+        my_cond_wait(&m_cond, &m_mutex.m_mutex);
+      }
+      flushing= true;
+      is_complete= e->complete;
+      goto retry;
+    }
   }
-  mysql_mutex_lock(&m_mutex);
   /*
     We marked the FIFO as flushing, page could not have disappeared despite
     releasing the mutex during the I/O.
   */
   ut_ad(flushing);
   bool done= (e->next == nullptr);
-  if (e->complete)
+  if (is_complete)
   {
     pl->first_page= e->next;
     pl->first_page_no= page_no + 1;
@@ -294,7 +338,7 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
     done= true;  /* Cannot flush past final incomplete page. */
 
   flushing= false;
-  pthread_cond_signal(&m_cond);
+  pthread_cond_broadcast(&m_cond);
   return done;
 }
 
@@ -342,7 +386,7 @@ fsp_binlog_page_fifo::do_fdatasync(uint64_t file_no)
     ut_a(!res);
     mysql_mutex_lock(&m_mutex);
     flushing= false;
-    pthread_cond_signal(&m_cond);
+    pthread_cond_broadcast(&m_cond);
   }
 done:
   mysql_mutex_unlock(&m_mutex);
@@ -435,6 +479,7 @@ fsp_binlog_page_fifo::create_tablespace(uint64_t file_no,
   }
   fifos[file_no & 1].fh= (File)-1;
   fifos[file_no & 1].size_in_pages= size_in_pages;
+  pthread_cond_broadcast(&m_cond);
   mysql_mutex_unlock(&m_mutex);
 }
 
@@ -462,7 +507,7 @@ fsp_binlog_page_fifo::release_tablespace(uint64_t file_no)
     my_close(fifos[file_no & 1].fh, MYF(0));
     mysql_mutex_lock(&m_mutex);
     flushing= false;
-    pthread_cond_signal(&m_cond);
+    pthread_cond_broadcast(&m_cond);
   }
   first_file_no= file_no + 1;
 
@@ -548,7 +593,7 @@ fsp_binlog_page_fifo::stop_flush_thread()
     return;
   mysql_mutex_lock(&m_mutex);
   flush_thread_end= true;
-  pthread_cond_signal(&m_cond);
+  pthread_cond_broadcast(&m_cond);
   while (flush_thread_started)
     my_cond_wait(&m_cond, &m_mutex.m_mutex);
   mysql_mutex_unlock(&m_mutex);
@@ -561,7 +606,7 @@ fsp_binlog_page_fifo::flush_thread_run()
 {
   mysql_mutex_lock(&m_mutex);
   flush_thread_started= true;
-  pthread_cond_signal(&m_cond);
+  pthread_cond_broadcast(&m_cond);
 
   while (!flush_thread_end)
   {
@@ -589,7 +634,7 @@ fsp_binlog_page_fifo::flush_thread_run()
   }
 
   flush_thread_started= false;
-  pthread_cond_signal(&m_cond);
+  pthread_cond_broadcast(&m_cond);
   mysql_mutex_unlock(&m_mutex);
 }
 
