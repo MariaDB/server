@@ -374,7 +374,9 @@ fsp_binlog_page_fifo::do_fdatasync(uint64_t file_no)
   mysql_mutex_lock(&m_mutex);
   if (file_no < first_file_no)
     goto done;   /* Old files are already fully synced. */
-  ut_a(file_no == first_file_no || file_no == first_file_no + 1);
+  /* Guard against simultaneous RESET MASTER. */
+  if (file_no > first_file_no + 1)
+    goto done;
   fh= fifos[file_no & 1].fh;
   if (fh != (File)-1)
   {
