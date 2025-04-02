@@ -10,11 +10,9 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
---connection node_1
-# Save original auto_increment_offset values.
---let $node_1=node_1
---let $node_2=node_2
---let $node_3=node_3
+# Save galera ports
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
 
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
@@ -22,12 +20,13 @@
 --source suite/galera/include/galera_base_port.inc
 --let $NODE_GALERAPORT_3 = $_NODE_GALERAPORT
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
 --source ../galera/include/auto_increment_offset_save.inc
 
-# Save galera ports
 --connection node_1
---source suite/galera/include/galera_base_port.inc
---let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
 --let $datadir= `SELECT @@datadir`
 
 --let $innodb_max_dirty_pages_pct = `SELECT @@innodb_max_dirty_pages_pct`
@@ -41,10 +40,6 @@ CREATE TABLE t1 (f1 INTEGER, f2 varchar(1024)) Engine=InnoDB;
 CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 INSERT INTO t1 (f2) SELECT REPEAT('x', 1024) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
- 
---connection node_2
---source suite/galera/include/galera_base_port.inc
---let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
 
 --echo Killing node #3 to free ports for garbd ...
 --connection node_3
@@ -124,13 +119,16 @@ let $restart_noprint=2;
 --eval SET GLOBAL innodb_max_dirty_pages_pct_lwm = $innodb_max_dirty_pages_pct_lwm
 --enable_query_log
 
+# Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc
 
+# Workaround for galera#101
+
 --connection node_1
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 
 --connection node_2
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 
 --connection node_3
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");

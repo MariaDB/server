@@ -11968,7 +11968,8 @@ alter_copy:
     - Neither old or new engine uses files from another engine
       The above is mainly true for the sequence and the partition engine.
   */
-  engine_changed= ((new_table->file->ht != table->file->ht) &&
+  engine_changed= ((new_table->file->storage_ht() !=
+                    table->file->storage_ht()) &&
                    ((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
                      !(table->file->ha_table_flags() & HA_FILE_BASED))) &&
                    !(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&
@@ -12003,7 +12004,7 @@ alter_copy:
 
   debug_crash_here("ddl_log_alter_after_copy");      // Use old table
   /*
-    We are new ready to use the new table. Update the state in the
+    We are now ready to use the new table. Update the state in the
     ddl log so that we recovery know that the new table is ready and
     in case of crash it should use the new one and log the query
     to the binary log.

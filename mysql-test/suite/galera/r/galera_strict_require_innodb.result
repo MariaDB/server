@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine .*");
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled\\. Storage engine ");
 CREATE TABLE t1(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=INNODB;
 CREATE TABLE t2(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=MYISAM;
 CREATE TABLE t3(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=ARIA;

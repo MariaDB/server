@@ -611,7 +611,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   int ret= apply_events(thd, m_rli, data, err, true);
 
   thd->close_temporary_tables();
-  if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
+  if (!ret && !wsrep::commits_transaction(ws_meta.flags()))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }
@@ -779,7 +779,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   }
   ret= ret || apply_events(thd, m_rli, data, err, true);
   thd->close_temporary_tables();
-  if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
+  if (!ret && !wsrep::commits_transaction(ws_meta.flags()))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }

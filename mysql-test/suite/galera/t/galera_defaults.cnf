@@ -4,7 +4,7 @@
 wsrep_sst_auth="root:"
 
 [mysqld.1]
-wsrep_provider_options='base_port=@mysqld.1.#galera_port;gmcast.segment=1'
+wsrep_provider_options='gmcast.segment=1;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
 
 [mysqld.2]
-wsrep_provider_options='base_port=@mysqld.2.#galera_port;gmcast.segment=1'
+wsrep_provider_options='gmcast.segment=1;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'

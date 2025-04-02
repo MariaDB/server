@@ -2,6 +2,8 @@
 --source include/have_sequence.inc
 --source include/not_embedded.inc
 --source include/have_debug.inc
+# This test is extremely slow on Valgrind (exceeding 4 hours).
+--source include/not_valgrind.inc
 
 call mtr.add_suppression("InnoDB: Cannot shrink the system tablespace");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");

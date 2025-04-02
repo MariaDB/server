@@ -4423,31 +4423,19 @@ THR_LOCK_DATA **ha_partition::store_lock(THD *thd,
   DBUG_ENTER("ha_partition::store_lock");
   DBUG_ASSERT(thd == current_thd);
 
-  /*
-    This can be called from get_lock_data() in mysql_lock_abort_for_thread(),
-    even when thd != table->in_use. In that case don't use partition pruning,
-    but use all partitions instead to avoid using another threads structures.
-  */
-  if (thd != table->in_use)
-  {
-    for (i= 0; i < m_tot_parts; i++)
-      to= m_file[i]->store_lock(thd, to, lock_type);
-  }
-  else
-  {
-    MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
-                                lock_type == TL_IGNORE ?
-                                &m_locked_partitions :
-                                &m_part_info->lock_partitions;
+  MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
+                              lock_type == TL_IGNORE ?
+                              &m_locked_partitions :
+                              &m_part_info->lock_partitions;
 
-    for (i= bitmap_get_first_set(used_partitions);
-         i < m_tot_parts;
-         i= bitmap_get_next_set(used_partitions, i))
-    {
-      DBUG_PRINT("info", ("store lock %u iteration", i));
-      to= m_file[i]->store_lock(thd, to, lock_type);
-    }
+  for (i= bitmap_get_first_set(used_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(used_partitions, i))
+  {
+    DBUG_PRINT("info", ("store lock %u iteration", i));
+    to= m_file[i]->store_lock(thd, to, lock_type);
   }
+
   DBUG_RETURN(to);
 }
 
@@ -4774,7 +4762,6 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
   }
 
 
-  m_last_part= new_part_id;
   start_part_bulk_insert(thd, new_part_id);
   DBUG_ASSERT(!m_file[new_part_id]->row_logging);
   if (new_part_id == old_part_id)
@@ -4808,6 +4795,8 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     if (unlikely(error))
       goto exit;
   }
+
+  m_last_part= new_part_id;
 
 exit:
   /*

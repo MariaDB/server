@@ -2233,6 +2233,9 @@ sub environment_setup {
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
        "$bindir/bin/mariadb-install-db");
+     $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
+      "$bindir/bin/mariadb-upgrade-service");
+     $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
   }
 
   my $client_config_exe=
@@ -4495,6 +4498,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: innodb_open_files .* should not be greater than/,
      qr/InnoDB: Trying to delete tablespace.*but there are.*pending/,
      qr/InnoDB: Tablespace 1[0-9]* was not found at .*, and innodb_force_recovery was set/,
+     qr/InnoDB: Long wait \([0-9]+ seconds\) for double-write buffer flush/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,

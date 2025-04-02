@@ -129,7 +129,7 @@ let SEARCH_PATTERN = Server not desynched from group at BLOCK_DDL because WSREP_
 let SEARCH_PATTERN = Server desynched from group during BACKUP STAGE BLOCK_COMMIT.;
 --source include/search_pattern_in_file.inc
 
-SET GLOBAL wsrep_mode = "";
+SET GLOBAL wsrep_mode = DEFAULT;
 
 --connection node_1
 DROP TABLE t;

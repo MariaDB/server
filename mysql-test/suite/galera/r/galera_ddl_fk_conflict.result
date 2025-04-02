@@ -298,6 +298,7 @@ DROP TABLE p1, p2;
 ######################################################################
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
 INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
 CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
@@ -491,6 +492,7 @@ Note	1051	Unknown table 'test.tmp1,test.tmp2'
 ######################################################################
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
 INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
 CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
@@ -684,6 +686,7 @@ Note	1051	Unknown table 'test.tmp1,test.tmp2'
 ######################################################################
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
 INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
 CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));

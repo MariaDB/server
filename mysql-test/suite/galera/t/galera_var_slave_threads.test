@@ -15,11 +15,15 @@
 
 --connection node_1
 --let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+
 CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 CREATE TABLE t2 (f1 INT AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
 
 --connection node_2
+--let $wsrep_slave_threads_orig_2 = `SELECT @@wsrep_slave_threads`
+
 CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread\\.");
+
 # Setting wsrep_slave_threads to zero triggers a warning
 SET GLOBAL wsrep_slave_threads = 0;
 SHOW WARNINGS;
@@ -74,7 +78,9 @@ SELECT COUNT(*) FROM t2;
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc
 
---eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig_2;
+--enable_query_log
 
 DROP TABLE t1;
 DROP TABLE t2;
@@ -94,6 +100,11 @@ SET GLOBAL wsrep_slave_threads = 4;
 SET GLOBAL wsrep_slave_threads = 1;
 
 --connection node_1
+
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
+--enable_query_log
+
 INSERT INTO t1 VALUES (DEFAULT);
 INSERT INTO t1 VALUES (DEFAULT);
 INSERT INTO t1 VALUES (DEFAULT);
@@ -105,6 +116,10 @@ INSERT INTO t1 VALUES (DEFAULT);
 DROP TABLE t1;
 
 --connection node_2
+
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig_2;
+--enable_query_log
 
 # Wait until above DDL is replicated
 #

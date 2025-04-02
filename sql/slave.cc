@@ -2932,12 +2932,16 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
                     &my_charset_bin);
 
   mysql_mutex_lock(&mi->run_lock);
-  msg= (mi->rli.sql_driver_thd ?
-        mi->rli.sql_driver_thd->get_proc_info() : "");
-  store_string_or_null(field++, msg);
-  msg= mi->io_thd ? mi->io_thd->get_proc_info() : "";
-  store_string_or_null(field++, msg);
+  THD *sql_thd= mi->rli.sql_driver_thd;
+  const char *const slave_sql_running_state=
+    sql_thd ? sql_thd->get_proc_info() : "";
+  THD *io_thd= mi->io_thd;
+  const char *const slave_io_running_state=
+    io_thd ? io_thd->get_proc_info() : "";
   mysql_mutex_unlock(&mi->run_lock);
+
+  store_string_or_null(field++, slave_sql_running_state);
+  store_string_or_null(field++, slave_io_running_state);
 
   mysql_mutex_lock(&mi->data_lock);
   mysql_mutex_lock(&mi->rli.data_lock);
@@ -3106,10 +3110,6 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   // int32 on paper, unsigned in practice
   (*field++)->store((uint32) mi->rli.get_sql_delay(), true);
   // SQL_Remaining_Delay
-  // THD::proc_info is not protected by any lock, so we read it once
-  // to ensure that we use the same value throughout this function.
-  const char *slave_sql_running_state=
-    mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
   if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
   {
     time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
@@ -5163,6 +5163,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   THD *thd;                     /* needs to be first for thread_stack */
   char saved_log_name[FN_REFLEN];
   char saved_master_log_name[FN_REFLEN];
+  bool thd_initialized= 0;
   my_off_t UNINIT_VAR(saved_log_pos);
   my_off_t UNINIT_VAR(saved_master_log_pos);
   String saved_skip_gtid_pos;
@@ -5263,6 +5264,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   thd->variables.binlog_annotate_row_events= 0;
 
   server_threads.insert(thd);
+  thd_initialized= 1;
   /*
     We are going to set slave_running to 1. Assuming slave I/O thread is
     alive and connected, this is going to make Seconds_Behind_Master be 0
@@ -5642,7 +5644,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
   thd->add_status_to_global();
-  server_threads.erase(thd);
+  THD_STAGE_INFO(thd, stage_slave_sql_cleanup);
   mysql_mutex_lock(&rli->run_lock);
 
 err_during_init:
@@ -5713,6 +5715,8 @@ err_during_init:
   rpl_parallel_resize_pool_if_no_slaves();
 
   delete serial_rgi;
+  if (thd_initialized)
+    server_threads.erase(thd);
   delete thd;
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
