@@ -3801,6 +3801,7 @@ void* start_wsrep_THD(void *arg)
 
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
   thd->security_ctx->skip_grants();
+  thd->security_ctx->user = (char *)cluster_user;
 
   /* handle_one_connection() again... */
   thd->mark_connection_idle();

@@ -2803,7 +2803,9 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 
     thd_info->thread_id=tmp->thread_id;
     thd_info->os_thread_id=tmp->os_thread_id;
-    thd_info->user= arg->thd->strdup(tmp_sctx->user && tmp_sctx->user != slave_user ?
+    thd_info->user= arg->thd->strdup(tmp_sctx->user &&
+                                     (tmp_sctx->user != slave_user &&
+                                      tmp_sctx->user != cluster_user) ?
                                        tmp_sctx->user :
                                        (tmp->system_thread ?
                                          "system user" : "unauthenticated user"));
@@ -3256,8 +3258,9 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   /* ID */
   arg->table->field[0]->store((longlong) tmp->thread_id, TRUE);
   /* USER */
-  val= tmp_sctx->user && tmp_sctx->user != slave_user ? tmp_sctx->user :
-        (tmp->system_thread ? "system user" : "unauthenticated user");
+  val= tmp_sctx->user && (tmp_sctx->user != slave_user &&
+       tmp_sctx->user != cluster_user) ? tmp_sctx->user :
+       (tmp->system_thread ? "system user" : "unauthenticated user");
   arg->table->field[1]->store(val, strlen(val), cs);
   /* HOST */
   if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
