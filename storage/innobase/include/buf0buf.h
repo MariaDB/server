@@ -1776,6 +1776,9 @@ public:
   /** Issue a warning that we could not free up buffer pool pages. */
   ATTRIBUTE_COLD void LRU_warn() noexcept;
 
+  /** Print buffer pool flush state information. */
+  ATTRIBUTE_COLD void print_flush_info() const noexcept;
+
   /** Collect buffer pool metadata.
   @param pool_info    buffer pool metadata */
   void get_info(buf_pool_info_t *pool_info) noexcept;

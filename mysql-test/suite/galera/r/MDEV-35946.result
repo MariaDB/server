@@ -13,4 +13,4 @@ SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME 
 VARIABLE_VALUE
 Primary
 SET SESSION wsrep_sync_wait=DEFAULT;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender (.*) is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender .+ ?is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");

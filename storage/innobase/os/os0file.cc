@@ -3330,6 +3330,12 @@ size_t os_aio_pending_writes() noexcept
   return pending;
 }
 
+/** @return approximate number of pending writes */
+size_t os_aio_pending_writes_approx() noexcept
+{
+  return write_slots->pending_io_count();
+}
+
 /** Wait until all pending asynchronous reads have completed.
 @param declare  whether the wait will be declared in tpool */
 void os_aio_wait_until_no_pending_reads(bool declare) noexcept
