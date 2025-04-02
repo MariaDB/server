@@ -7,8 +7,10 @@ CREATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
 SELECT spider_bg_direct_sql ('SELECT * FROM s','a','srv "b"');
 
 CREATE FUNCTION spider_copy_tables RETURNS INT SONAME 'ha_spider.so';
+--disable_view_protocol
 --error ER_CANT_INITIALIZE_UDF
 SELECT spider_copy_tables ('t', '0', '0');
+--enable_view_protocol
 
 # spider_flush_table_mon_cache does not require spider init to function
 CREATE FUNCTION spider_flush_table_mon_cache RETURNS INT SONAME 'ha_spider.so';
@@ -21,8 +23,10 @@ install soname 'ha_spider';
 SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
 
 call mtr.add_suppression(".*\\[Error\\] (mysqld|mariadbd): Can't find record in 'spider_tables'");
+--disable_view_protocol
 --error ER_KEY_NOT_FOUND
 SELECT spider_copy_tables ('t', '0', '0');
+--enable_view_protocol
 
 SELECT spider_flush_table_mon_cache ();
 
