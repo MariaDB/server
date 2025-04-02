@@ -18,11 +18,11 @@ binlog-000001.ibb	262144
 FLUSH BINARY LOGS;
 SHOW BINARY LOGS;
 Log_name	File_size
-binlog-000000.ibb	36864
+binlog-000000.ibb	40960
 binlog-000001.ibb	262144
 binlog-000002.ibb	262144
 SET STATEMENT sql_log_bin=0 FOR
-CALL mtr.add_suppression("InnoDB: Page corruption in binlog tablespace file page number 0");
+CALL mtr.add_suppression("InnoDB: Page corruption in binlog tablespace file page number 1");
 FLUSH BINARY LOGS;
 FLUSH BINARY LOGS;
 SHOW BINLOG EVENTS IN 'binlog-000000.ibb' LIMIT 1;
@@ -83,7 +83,7 @@ binlog-000022.ibb	262144
 binlog-000023.ibb	262144
 binlog-000024.ibb	262144
 SET @now= NOW();
-*** Do 187 inserts ...
+*** Do 149 inserts ...
 PURGE BINARY LOGS BEFORE @now;
 SHOW BINARY LOGS;
 Log_name	File_size
