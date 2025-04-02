@@ -2748,7 +2748,7 @@ ATTRIBUTE_COLD void buf_pool_t::LRU_warn() noexcept
     LRU_warned= true;
     sql_print_warning("InnoDB: Could not free any blocks in the buffer pool!"
                       " Consider increasing innodb_buffer_pool_size.");
-    buf_pool.print_flush_info();
+    print_flush_info();
   }
 }
 

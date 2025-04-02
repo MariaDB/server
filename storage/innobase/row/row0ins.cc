@@ -2755,11 +2755,8 @@ err_exit:
 
 #ifdef WITH_WSREP
 	/* Appliers never execute bulk insert statements directly. */
-	if (trx->is_wsrep() &&
-	    !wsrep_thd_is_local_transaction(trx->mysql_thd))
-	{
+	if (trx->is_wsrep() && !wsrep_thd_is_local_transaction(trx->mysql_thd))
 		goto row_level_insert;
-	}
 #endif /* WITH_WSREP */
 
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
