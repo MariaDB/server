@@ -887,6 +887,7 @@ public:
   ) override;
   int append_key_select(
     spider_string *str,
+    ulong sql_type,
     uint idx
   );
   int append_minimum_select_part(
