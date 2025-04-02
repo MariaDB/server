@@ -24,10 +24,14 @@ eval CREATE TABLE t1 (a INT KEY) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "$sr
 SELECT MAX(a) FROM t1;
 SELECT SUM(a) FROM t1;
 SELECT COUNT(a) FROM t1;
+# Spider does not create a GBH with view protocol in these cases which
+# would cause extra direct aggregate counts than without view protocol
+--disable_view_protocol
 SELECT MAX(a), SUM(a) FROM t1;
 SELECT COUNT(a), MAX(a), SUM(a) FROM t1;
 SELECT MAX(a), COUNT(a), SUM(a) FROM t1;
 SELECT MAX(a), MAX(COALESCE(a)) FROM t1;
+--enable_view_protocol
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 
 DROP TABLE t, t1;
