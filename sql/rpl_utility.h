@@ -27,10 +27,12 @@
 #include "table.h"                              /* TABLE_LIST */
 #endif
 #include "mysql_com.h"
+#include "log_event.h"
 
 class Relay_log_info;
 class Log_event;
 struct rpl_group_info;
+struct RPL_TABLE_LIST;
 
 /**
   A table definition from the master.
@@ -52,9 +54,14 @@ public:
     @param field_metadata Array of extra information about fields
     @param metadata_size Size of the field_metadata array
     @param null_bitmap The bitmap of fields that can be null
+    @param optional_metadata_len Length of optional_metadata
+    @param optional_metadata Optional metadata logged into Table Map Event
+                             when binlog_row_metadata=FULL on master
    */
   table_def(unsigned char *types, ulong size, uchar *field_metadata,
-            int metadata_size, uchar *null_bitmap, uint16 flags);
+            int metadata_size, uchar *null_bitmap, uint16 flags,
+            unsigned int optional_metadata_len,
+            unsigned char *optional_metadata);
 
   ~table_def();
 
@@ -154,6 +161,16 @@ public:
             (1 << (index % 8))) == (1 << (index %8)));
   }
 
+  unsigned char *get_optional_metadata_str()
+  {
+    return m_optional_metadata;
+  }
+
+  unsigned int get_optional_metadata_len()
+  {
+    return m_optional_metadata_len;
+  }
+
   /*
     This function returns the field size in raw bytes based on the type
     and the encoded field data from the master's raw data. This method can 
@@ -190,8 +207,9 @@ public:
     @retval 0  if the table definition is compatible with @c table
   */
 #ifndef MYSQL_CLIENT
-  bool compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
-                      TABLE **conv_table_var) const;
+  bool compatible_with(THD *thd, rpl_group_info *rgi,
+                       RPL_TABLE_LIST *table_list,
+                       TABLE **conv_table_var) const;
 
   /**
    Create a virtual in-memory temporary table structure.
@@ -216,7 +234,7 @@ public:
    thread's memroot, NULL if the table could not be created
    */
   TABLE *create_conversion_table(THD *thd, rpl_group_info *rgi,
-                                 TABLE *target_table) const;
+                                 RPL_TABLE_LIST *target_table_list_el) const;
 #endif
 
 
@@ -228,6 +246,8 @@ private:
   uchar *m_null_bits;
   uint16 m_flags;         // Table flags
   uchar *m_memory;
+  unsigned int   m_optional_metadata_len;
+  unsigned char *m_optional_metadata;
 };
 
 
@@ -243,6 +263,112 @@ struct RPL_TABLE_LIST
   table_def m_tabledef;
   TABLE *m_conv_table;
   bool master_had_triggers;
+
+  /*
+    Maps column index from master to slave. This is determined using the field
+    names (provied by optional metadata when the master is configured with
+    binlog_row_metadata=FULL).
+  */
+  std::map<uint, uint> master_to_slave_index_map;
+
+  /*
+    When using field names to map from master->slave columns, this keeps track
+    of column indices on the master which aren't present on the slave.
+
+    It is used when checking type-conversions and unpacking row data to skip
+    columns and update write-set bit information.
+  */
+  std::set<uint> master_unmatched_cols;
+
+  /*
+    If field names are to be used to map columns from the master to slave, this
+    tracks whether the respective data structures (master_to_slave_index_map
+    and master_unmatched_cols) have been initialized, so we can destruct them.
+  */
+  bool master_to_slave_structs_inited;
+
+  /*
+    Function pointer that is configured to look up columns on the slave-side
+    table. Options are
+      1. Use a 1-to-1 mapping from numeric master column index number to slave
+         column index number (function lookup_by_identity_func)
+      2. Use the field name map, master_to_slave_index_map, to lookup the slave
+         column index number (function lookup_by_col_mapping)
+
+    Parameters
+      master_idx [in]     : The column index of the table on the master
+      slave_idx_var [out] : The variable to store the slave index number in
+
+    Return based on error-code semantics:
+      false indicates a column was found,
+      true indicates that the record was not found
+  */
+  bool (RPL_TABLE_LIST::*lookup_slave_column_func)(uint master_idx, uint *slave_idx_var);
+
+  /*
+    Try to create column mappings using field names (when
+    binlog_row_metadata=FULL).
+  */
+  bool create_column_mappings(unsigned char *optional_metadata_raw,
+                              unsigned int optional_metadata_len);
+
+  /*
+    Implementation for lookup_slave_column_func which uses field names to
+    identify which slave column matches the master column.
+  */
+  bool lookup_by_col_mapping(uint master_col_idx, uint *slave_col_idx_var);
+
+  /*
+    Initialize state to prepare data structures and helper functions to lookup
+    slave column indices by field_name
+  */
+  bool init_master_to_slave_structs()
+  {
+    if (!master_to_slave_structs_inited)
+    {
+      new (&master_to_slave_index_map) std::map<uint, uint>();
+      new (&master_unmatched_cols) std::set<uint>();
+      lookup_slave_column_func= &RPL_TABLE_LIST::lookup_by_col_mapping;
+      master_to_slave_structs_inited= true;
+    }
+    return false;
+  }
+
+  /*
+    Finds the slave-side column index for a column in a row event from the
+    master. A function pointer, lookup_slave_column_func, keeps track of the
+    correct strategy for this given table. That is, when a row event is logged
+    on the master using binlog_row_metadata=FULL, it will use function
+    lookup_by_col_mapping so we can lookup by field name. Otherwise, it will
+    use lookup_by_identity_func, and assume the indices are ordered the same
+    between the master and slave.
+  */
+  bool lookup_slave_column(uint master_col_idx, uint *slave_col_idx_var)
+  {
+    DBUG_ASSERT(slave_col_idx_var);
+    return (this->*lookup_slave_column_func)(master_col_idx, slave_col_idx_var);
+  }
+
+  /*
+    One implementation for lookup_slave_column_func which assumes master and
+    slave have columns in the same ordering, and thereby says the slave
+    column index is the same as the master index (identity function). The
+    exception is if the master index extends beyond the number of fields on
+    the slave table, in which case we return indicating the column is not
+    found.
+  */
+  bool lookup_by_identity_func(uint master_col_idx, uint *slave_col_idx_var)
+  {
+    DBUG_ASSERT(slave_col_idx_var);
+    /*
+      table->s->fields is a count, whereas master_col_idx is an index (0 based)
+      so we have to account for the 0-based index.
+    */
+    if (master_col_idx >= table->s->fields)
+      return true;
+    *slave_col_idx_var= master_col_idx;
+    return false;
+  }
 };
 
 

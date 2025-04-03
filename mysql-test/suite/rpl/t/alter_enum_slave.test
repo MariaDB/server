@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, en ENUM('a','b','c')) ENGINE = innodb;
+INSERT INTO t1 VALUES(100,'a'), (200,'b');
+
+--sync_slave_with_master
+
+--connection slave
+alter table t1 modify column en enum ('a','d', 'b', 'c');
+
+connection master;
+
+INSERT INTO t1 VALUES(300, 'b');
+
+--sync_slave_with_master
+select * from t1;
+
+connection master;
+
+update t1 set en='b' where A=100;
+
+--sync_slave_with_master
+select * from t1;
+
+connection master;
+--source include/rpl_end.inc

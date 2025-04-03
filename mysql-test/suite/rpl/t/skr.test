@@ -1,0 +1,26 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, BBB INT) ENGINE = innodb;
+INSERT INTO t1 VALUES(100,100), (200,200);
+
+--sync_slave_with_master
+
+alter table t1 add column CCC int default 5 after A;
+connection master;
+
+INSERT INTO t1 VALUES(300,301), (400,401);
+
+--sync_slave_with_master
+select * from t1;
+
+connection master;
+
+update t1 set BBB=1 where A=200;
+
+--sync_slave_with_master
+select * from t1;
+
+connection master;
+--source include/rpl_end.inc

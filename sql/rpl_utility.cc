@@ -173,18 +173,21 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
 
 PSI_memory_key key_memory_table_def_memory;
 
-table_def::table_def(unsigned char *types, ulong size,
-                     uchar *field_metadata, int metadata_size,
-                     uchar *null_bitmap, uint16 flags)
-  : m_size(size), m_type(0), m_field_metadata_size(metadata_size),
-    m_field_metadata(0), m_null_bits(0), m_flags(flags),
-    m_memory(NULL)
+table_def::table_def(unsigned char *types, ulong size, uchar *field_metadata,
+                     int metadata_size, uchar *null_bitmap, uint16 flags,
+                     unsigned int optional_metadata_len,
+                     unsigned char *optional_metadata)
+    : m_size(size), m_type(0), m_field_metadata_size(metadata_size),
+      m_field_metadata(0), m_null_bits(0), m_flags(flags), m_memory(NULL),
+      m_optional_metadata_len(optional_metadata_len),
+      m_optional_metadata(0)
 {
   m_memory= (uchar *)my_multi_malloc(key_memory_table_def_memory, MYF(MY_WME),
                                      &m_type, size,
                                      &m_field_metadata,
                                      size * sizeof(uint16),
                                      &m_null_bits, (size + 7) / 8,
+                                     &m_optional_metadata, m_optional_metadata_len,
                                      NULL);
 
   bzero(m_field_metadata, size * sizeof(uint16));
@@ -193,6 +196,10 @@ table_def::table_def(unsigned char *types, ulong size,
     memcpy(m_type, types, size);
   else
     m_size= 0;
+
+  if (m_optional_metadata_len)
+    memcpy(m_optional_metadata, optional_metadata, optional_metadata_len);
+
   /*
     Extract the data from the table map into the field metadata array
     iff there is field metadata. The variable metadata_size will be

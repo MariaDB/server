@@ -1,0 +1,1 @@
+--binlog_format=row --binlog_row_metadata=full --slave_type_conversions=ALL_NON_LOSSY,ALL_LOSSY

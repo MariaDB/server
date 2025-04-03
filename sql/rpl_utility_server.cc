@@ -921,21 +921,40 @@ const Type_handler *table_def::field_type_handler(uint col) const
   @retval true Master table is compatible with slave table.
   @retval false Master table is not compatible with slave table.
 */
-bool
-table_def::compatible_with(THD *thd, rpl_group_info *rgi,
-                           TABLE *table, TABLE **conv_table_var)
-  const
+bool table_def::compatible_with(THD *thd, rpl_group_info *rgi,
+                                RPL_TABLE_LIST *table_list,
+                                TABLE **conv_table_var) const
 {
+  TABLE *table= table_list->table;
   /*
     We only check the initial columns for the tables.
+
+    TODO Is cols_to_check still correct? We now can put in default values on
+      the slave if the master doesn't have them
   */
-  uint const cols_to_check= MY_MIN(table->s->fields, size());
+  ulong master_table_n_cols= size();
+  uint const cols_to_check= MY_MIN(table->s->fields, master_table_n_cols);
   Relay_log_info *rli= rgi->rli;
   TABLE *tmp_table= NULL;
 
+
+  /*
+    TODO Write MTR tests which use both type conversions & mis-indexed col
+  */
   for (uint col= 0 ; col < cols_to_check ; ++col)
   {
-    Field *const field= table->field[col];
+    uint slave_col_idx;
+    if(table_list->lookup_slave_column(col, &slave_col_idx))
+      continue;
+    fprintf(stderr, "\n\tcompatible_with checking master col %u, slave col %u\n", col, slave_col_idx);
+    Field *const field= table->field[slave_col_idx];
+    fprintf(stderr, "\n\tcompatible_with checking slave col %s\n", field->field_name.str);
+
+    /*
+      TODO Use table_list->master_unmatched_cols
+    */
+
+
     const Type_handler *h= field_type_handler(col);
     if (!h)
     {
@@ -968,7 +987,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
           This will create the full table with all fields. This is
           necessary to ge the correct field lengths for the record.
         */
-        tmp_table= create_conversion_table(thd, rgi, table);
+        tmp_table= create_conversion_table(thd, rgi, table_list);
         if (tmp_table == NULL)
             return false;
         /*
@@ -1027,6 +1046,8 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
   }
 #endif
 
+  fprintf(stderr, "\n\tcompatible_with conversion done, output? %d\n", (bool) tmp_table);
+
   *conv_table_var= tmp_table;
   return true;
 }
@@ -1077,12 +1098,14 @@ public:
  */
 
 TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
-                                          TABLE *target_table) const
+                                          RPL_TABLE_LIST *target_table_list_el) const
 {
   DBUG_ENTER("table_def::create_conversion_table");
 
   Virtual_conversion_table *conv_table;
   Relay_log_info *rli= rgi->rli;
+  TABLE *target_table= target_table_list_el->table;
+
   /*
     At slave, columns may differ. So we should create
     MY_MIN(columns@master, columns@slave) columns in the
@@ -1092,16 +1115,24 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
   if (!(conv_table= new(thd) Virtual_conversion_table(thd)) ||
       conv_table->init(cols_to_create))
     goto err;
+
+  /*
+    TODO Enhance for loop to consider field name (when using field names,
+    always go through all master cols)
+  */
   for (uint col= 0 ; col < cols_to_create; ++col)
   {
+    uint slave_col_idx;
+    if(target_table_list_el->lookup_slave_column(col, &slave_col_idx))
+      continue;
     const Type_handler *ha= field_type_handler(col);
     DBUG_ASSERT(ha); // Checked at compatible_with() time
-    if (conv_table->add(ha, field_metadata(col), target_table->field[col]))
+    if (conv_table->add(ha, field_metadata(col), target_table->field[slave_col_idx]))
     {
       DBUG_PRINT("debug", ("binlog_type: %d, metadata: %04X, target_field: '%s'"
                            " make_conversion_table_field() failed",
                            binlog_type(col), field_metadata(col),
-                           target_table->field[col]->field_name.str));
+                           target_table->field[slave_col_idx]->field_name.str));
       goto err;
     }
   }
@@ -1181,6 +1212,114 @@ void Deferred_log_events::rewind()
     reset_dynamic(&array);
   }
   last_added= NULL;
+}
+
+bool RPL_TABLE_LIST::lookup_by_col_mapping(uint master_col_idx, uint *slave_col_idx_var)
+{
+  DBUG_ASSERT(master_to_slave_structs_inited);
+  DBUG_ASSERT(slave_col_idx_var);
+
+  /*
+    If the column on the master doesn't have a respective column on the slave,
+    return in error
+  */
+  if (master_unmatched_cols.count(master_col_idx))
+    return true;
+
+  DBUG_ASSERT(master_to_slave_index_map.count(master_col_idx));
+
+  *slave_col_idx_var= master_to_slave_index_map[master_col_idx];
+  return false;
+}
+
+bool RPL_TABLE_LIST::create_column_mappings(unsigned char *optional_metadata_raw,
+                                            unsigned int optional_metadata_len)
+{
+  DBUG_ASSERT(m_tabledef_valid);
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(table->s);
+
+  ulong master_table_n_cols= m_tabledef.size();
+
+  Table_map_log_event::Optional_metadata_fields optional_metadata(
+      optional_metadata_raw, optional_metadata_len);
+  bool has_column_names= optional_metadata.m_column_name.size();
+
+  /*
+    If there are no column names provided in the optional metadata, just exit
+    (without error) because the default configuration of RPL_TABLE_LIST
+    handles mapping master->slave column using column indices.
+  */
+  if (!has_column_names)
+    return false;
+
+  init_master_to_slave_structs();
+  DBUG_ASSERT(master_to_slave_structs_inited);
+  DBUG_ASSERT(lookup_slave_column_func == &RPL_TABLE_LIST::lookup_by_col_mapping);
+
+  bool indices_in_sync= true;
+  uint slave_start_idx= 0;
+  for (uint master_tbl_col_idx= 0 ; master_tbl_col_idx < master_table_n_cols ; master_tbl_col_idx++)
+  {
+      std::string master_col_name_cppstr= optional_metadata.m_column_name[master_tbl_col_idx];
+    const char *master_col_name=  master_col_name_cppstr.c_str();
+    size_t master_col_name_len= master_col_name_cppstr.length();
+
+    /*
+      Track if we matched this column from the master table. If not, add it to
+      master_unmatched_cols set so we know not to try and store this change.
+    */
+    bool master_col_matched= false;
+
+    /*
+      If master and slave tables line up in indices so far, then we can start
+      our column search at the same index the master is using.
+    */
+    slave_start_idx = indices_in_sync ? master_tbl_col_idx : slave_start_idx;
+    for (uint slave_tbl_col_idx= slave_start_idx; slave_tbl_col_idx < table->s->fields; slave_tbl_col_idx++)
+    {
+      Field *slave_field= table->field[slave_tbl_col_idx];
+      const char *slave_col_name= slave_field->field_name.str;
+      size_t slave_col_name_len= slave_field->field_name.length;
+
+      /*
+        Length of column name must match to ensure the comparison doesn't
+        accidentally return a match when the slave column name is an extension
+        of the master's, e.g. `Name` shouldn't match `Name_2`.
+
+        TODO: Write a test.
+      */
+      if (master_col_name_len == slave_col_name_len &&
+          !strncmp(master_col_name, slave_col_name, master_col_name_len))
+      {
+        /*
+          Match
+        */
+        fprintf(stderr, "\n\tMapping %s.%s from %u to %u\n",
+                table->s->table_name.str, master_col_name,
+                master_tbl_col_idx, slave_tbl_col_idx);
+        master_to_slave_index_map[master_tbl_col_idx]= slave_tbl_col_idx;
+        master_col_matched= true;
+
+        break;
+      }
+
+      fprintf(stderr, "\n\tSlave is out of sync with master\n");
+      /*
+        If we don't match on the first column check, the columns aren't in
+        sync. Going forward, we have to rescan from the last in-sync column
+      */
+      indices_in_sync= false;
+    }
+
+    /*
+      If we didn't find a slave column with this name, we save that info so
+      during unpack_row, we can discard it.
+    */
+    if (!master_col_matched)
+      master_unmatched_cols.insert(master_tbl_col_idx);
+  }
+  return false;
 }
 
 #endif // defined(HAVE_REPLICATION)

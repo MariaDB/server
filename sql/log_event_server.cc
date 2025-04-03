@@ -5686,8 +5686,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
+        ptr->create_column_mappings(
+            ptr->m_tabledef.get_optional_metadata_str(),
+            ptr->m_tabledef.get_optional_metadata_len());
         TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr, &conv_table))
         {
           DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
                                ptr->table->s->db.str,
@@ -6595,6 +6598,8 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   table_list->table_id= DBUG_EVALUATE_IF("inject_tblmap_same_id_maps_diff_table", 0, m_table_id);
   table_list->updating= 1;
   table_list->required_type= TABLE_TYPE_NORMAL;
+  table_list->lookup_slave_column_func= &RPL_TABLE_LIST::lookup_by_identity_func;
+  table_list->master_to_slave_structs_inited= false;
 
   DBUG_PRINT("debug", ("table: %s is mapped to %llu",
                        table_list->table_name.str,
@@ -6617,10 +6622,9 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
       inside Relay_log_info::clear_tables_to_lock() by calling the
       table_def destructor explicitly.
     */
-    new (&table_list->m_tabledef)
-      table_def(m_coltype, m_colcnt,
-                m_field_metadata, m_field_metadata_size,
-                m_null_bits, m_flags);
+    new (&table_list->m_tabledef) table_def(
+        m_coltype, m_colcnt, m_field_metadata, m_field_metadata_size,
+        m_null_bits, m_flags, m_optional_metadata_len, m_optional_metadata);
     table_list->m_tabledef_valid= TRUE;
     table_list->m_conv_table= NULL;
     table_list->open_type= OT_BASE_ONLY;
