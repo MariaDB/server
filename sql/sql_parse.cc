@@ -10059,8 +10059,9 @@ void create_table_set_open_action_and_adjust_tables(LEX *lex)
   CREATE TABLE query pre-check.
 
   @param thd			Thread handler
-  @param tables		Global table list
-  @param create_table	        Table which will be created
+  @param tables			Tables in the SELECT part
+  @param create_table	        Table which will be created. Contains also
+                                used sequences tables.
 
   @retval
     FALSE   OK
@@ -10143,6 +10144,16 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
   if (want_priv != CREATE_TMP_ACL &&
       check_grant(thd, want_priv, create_table, FALSE, 1, FALSE))
     goto err;
+
+  /* Check access for sequence tables */
+  for (TABLE_LIST *table= create_table->next_global ;
+       table && table != tables ;
+       table= table->next_global)
+  {
+    if (check_table_access(thd, INSERT_ACL | SELECT_ACL, table,
+                           FALSE, 1, FALSE))
+      goto err;
+  }
 
   if (select_lex->item_list.elements)
   {

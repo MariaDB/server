@@ -60,10 +60,66 @@ select * from s1;
 #
 
 connection default;
-drop database mysqltest_1;
 drop user 'normal'@'%';
 drop user 'read_only'@'%';
 drop user 'read_write'@'%';
 drop user 'alter'@'%';
 drop user 'only_alter'@'%';
+drop sequence s1;
 
+--echo #
+--echo # MDEV-36413  User without any privileges to a sequence can read from
+--echo # it and modify it via column default
+--echo #
+
+create sequence s1;
+create sequence s2;
+create sequence s3;
+select * from s2;
+create table t2 (a int not null default(nextval(s1)));
+insert into t2 values();
+
+create user u;
+grant create, insert, select, drop on mysqltest_1.t1 to u;
+grant insert, select on mysqltest_1.s1 to u;
+grant insert, select on mysqltest_1.s3 to u;
+grant select on mysqltest_1.t2 to u;
+
+--connect(con1,localhost,u,,mysqltest_1)
+--error ER_TABLEACCESS_DENIED_ERROR
+select nextval(s2);
+--error ER_TABLEACCESS_DENIED_ERROR
+show create sequence s2;
+
+create table t1 (a int not null default(nextval(s1)));
+drop table t1;
+create table t1 (a int not null default(nextval(s1))) select a from t2;
+insert into t1 values();
+select * from t1;
+drop table t1;
+create table t1 (a int not null default(nextval(s1)), b int not null default(nextval(s3))) select a,a as b from t2;
+insert into t1 values (),();
+select * from t1;
+drop table t1;
+create table t1 (a int not null default(nextval(s1))) select a from (select t2.a from t2,t2 as t3 where t2.a=t3.a) as t4;
+drop table t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+create table t1 (a int not null default(nextval(s2)));
+--error ER_TABLEACCESS_DENIED_ERROR
+create table t1 (a int not null default(nextval(s1)), b int not null default nextval(s2));
+--error ER_TABLEACCESS_DENIED_ERROR
+create table t1 (a int not null default(nextval(s1)),
+                 a int not null default(nextval(s2)));
+--disconnect con1
+--connection default
+drop user u;
+
+#
+# Cleanup
+#
+
+drop database mysqltest_1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
