@@ -5547,6 +5547,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   uint save_thd_create_info_options;
   bool is_trans= FALSE;
   bool result;
+  int create;
   DBUG_ENTER("mysql_create_table");
 
   DBUG_ASSERT(create_info->default_table_charset);
@@ -5605,10 +5606,11 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   /* We can abort create table for any table type */
   thd->abort_on_warning= thd->is_strict_mode();
 
-  result= mysql_create_table_no_lock(thd, &ddl_log_state_create,
+  create= mysql_create_table_no_lock(thd, &ddl_log_state_create,
                                      &ddl_log_state_rm,
                                      create_info, alter_info, &is_trans,
-                                     create_table_mode, create_table) > 0;
+                                     create_table_mode, create_table);
+  result= create > 0;
   thd->abort_on_warning= 0;
 
 err:
@@ -5645,7 +5647,7 @@ err:
   }
 
 end:
-  if (create_info->pos_in_locked_tables)
+  if (create_info->pos_in_locked_tables && create >= 0)
     result|= create_info->finalize_locked_tables(thd, result);
 
   DBUG_RETURN(result);

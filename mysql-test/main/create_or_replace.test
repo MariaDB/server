@@ -779,6 +779,18 @@ create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
 drop table t1;
 
 --echo #
+--echo # MDEV-36435 Assertion failure in
+--echo #            Table_specification_st::finalize_locked_tables upon attempt
+--echo #            to create an already existing table under lock
+--echo #
+CREATE TABLE t (a INT);
+LOCK TABLE t WRITE;
+CREATE TABLE IF NOT EXISTS t (a INT);
+
+UNLOCK TABLES;
+DROP TABLE t;
+
+--echo #
 --echo # End of 12.0 tests
 --echo #
 

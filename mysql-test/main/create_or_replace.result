@@ -1039,6 +1039,18 @@ set sql_mode= default;
 create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
 drop table t1;
 #
+# MDEV-36435 Assertion failure in
+#            Table_specification_st::finalize_locked_tables upon attempt
+#            to create an already existing table under lock
+#
+CREATE TABLE t (a INT);
+LOCK TABLE t WRITE;
+CREATE TABLE IF NOT EXISTS t (a INT);
+Warnings:
+Note	1050	Table 't' already exists
+UNLOCK TABLES;
+DROP TABLE t;
+#
 # End of 12.0 tests
 #
 SET GLOBAL innodb_stats_persistent=@save_persistent;
