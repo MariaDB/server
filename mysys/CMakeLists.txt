@@ -171,7 +171,7 @@ IF(HAVE_BFD_H)
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp)
+  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp ws2_32 synchronization)
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address
