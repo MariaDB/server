@@ -716,7 +716,7 @@ public:
       store_stat_fields();
       if ((err= stat_file->ha_write_row(record[0])))
       {
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
 	return TRUE;
       }
     }
@@ -3643,7 +3643,7 @@ int rename_columns_in_stat_table(THD *thd, TABLE *tab,
           {
             if (likely(err != HA_ERR_FOUND_DUPP_KEY))
             {
-              DBUG_ASSERT(0);
+              DBUG_ASSERT_NO_ASSUME(0);
               it.remove();                      // Unknown error, ignore column
             }
             else

@@ -153,7 +153,7 @@ get_fieldno_by_name(HA_CREATE_INFO *create_info,
     }
   }
 
-  DBUG_ASSERT(0); /* Not Reachable */
+  DBUG_ASSERT_NO_ASSUME(0); /* Not Reachable */
   return NO_CACHED_FIELD_INDEX;
 }
 

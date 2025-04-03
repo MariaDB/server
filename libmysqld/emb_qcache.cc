@@ -399,7 +399,7 @@ void emb_store_querycache_result(Querycache_stream *dst, THD *thd)
       }
     }
   }
-  DBUG_ASSERT(emb_count_querycache_size(thd) == dst->stored_size);
+  DBUG_ASSERT_NO_ASSUME(emb_count_querycache_size(thd) == dst->stored_size);
   DBUG_VOID_RETURN;
 }
 

@@ -68,7 +68,7 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
 #ifdef _WIN32
   if (my_use_large_pages)
   {
-    DBUG_ASSERT(is_memory_committed(ptr, size));
+    DBUG_ASSERT_NO_ASSUME(is_memory_committed(ptr, size));
   }
   else
   {
@@ -127,7 +127,7 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
 void my_virtual_mem_decommit(char *ptr, size_t size)
 {
 #ifdef _WIN32
-  DBUG_ASSERT(is_memory_committed(ptr, size));
+  DBUG_ASSERT_NO_ASSUME(is_memory_committed(ptr, size));
 # ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
 #  error "VirtualFree(MEM_DECOMMIT) will not allow subsequent reads!"
 # endif
@@ -184,7 +184,7 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
 void my_virtual_mem_release(char *ptr, size_t size)
 {
 #ifdef _WIN32
-  DBUG_ASSERT(my_use_large_pages || !is_memory_committed(ptr, size));
+  DBUG_ASSERT_NO_ASSUME(my_use_large_pages || !is_memory_committed(ptr, size));
   if (!VirtualFree(ptr, 0, MEM_RELEASE))
   {
     my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,

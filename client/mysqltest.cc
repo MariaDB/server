@@ -1950,7 +1950,7 @@ ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code,
     break;
     default:
       printf("unknown exit code: %d\n", exit_code);
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
     }
   }
 
@@ -11016,7 +11016,7 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
       }
       else
       {
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
         dynstr_append_mem(ds, STRING_WITH_LEN("Tracker???\n"));
       }
     }

@@ -636,7 +636,7 @@ void Protocol::end_statement()
   case Diagnostics_area::DA_EMPTY:
   default:
     thd->stop_collecting_unit_results();
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     error= send_ok(thd->server_status, 0, 0, 0, NULL);
     break;
   }
@@ -1163,13 +1163,13 @@ static bool should_send_column_info(THD* thd, List<Item>* list, uint flags)
   auto cmd= thd->get_command();
 #endif
 
-  DBUG_ASSERT(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE
+  DBUG_ASSERT_NO_ASSUME(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE
               || cmd == COM_STMT_BULK_EXECUTE);
-  DBUG_ASSERT(cmd != COM_STMT_PREPARE || !column_info_state.initialized);
+  DBUG_ASSERT_NO_ASSUME(cmd != COM_STMT_PREPARE || !column_info_state.initialized);
 
   bool ret= metadata_columns_changed(column_info_state, thd, *list);
 
-  DBUG_ASSERT(cmd != COM_STMT_PREPARE || ret);
+  DBUG_ASSERT_NO_ASSUME(cmd != COM_STMT_PREPARE || ret);
   if (!ret)
     thd->status_var.skip_metadata_count++;
 
@@ -1570,7 +1570,7 @@ bool Protocol_text::store_longlong(longlong from, bool unsigned_flag)
 bool Protocol_text::store_decimal(const my_decimal *d)
 {
 #ifndef DBUG_OFF
-  DBUG_ASSERT(0); // This method is not used yet
+  DBUG_ASSERT_NO_ASSUME(0); // This method is not used yet
   field_pos++;
 #endif
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
@@ -1689,7 +1689,7 @@ bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
 
     if (!(sparam= param->get_settable_routine_parameter()))
     {
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       continue;
     }
 

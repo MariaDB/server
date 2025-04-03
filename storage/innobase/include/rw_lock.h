@@ -107,7 +107,7 @@ public:
     static_assert(WRITER == 1U << 31, "compatibility");
     IF_DBUG_ASSERT(auto l=,) lock.fetch_sub(WRITER, std::memory_order_release);
     /* the write lock must have existed */
-    DBUG_ASSERT(l & WRITER);
+    DBUG_ASSERT_NO_ASSUME(l & WRITER);
   }
   /** Try to acquire a shared lock.
   @return whether the lock was acquired */

@@ -292,7 +292,7 @@ my_bool maria_page_filler_set_normal(PAGECACHE_IO_HOOK_ARGS *args)
 #endif
   MARIA_SHARE *share= (MARIA_SHARE *)args->data;
   DBUG_ENTER("maria_page_filler_set_normal");
-  DBUG_ASSERT(page_no != 0);                    /* Catches some simple bugs */
+  DBUG_ASSERT_NO_ASSUME(page_no != 0);                    /* Catches some simple bugs */
   int4store_aligned(page + share->block_size - CRC_SIZE,
                     MARIA_NO_CRC_NORMAL_PAGE);
   DBUG_RETURN(0);

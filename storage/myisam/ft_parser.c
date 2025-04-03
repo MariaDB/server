@@ -89,7 +89,7 @@ my_bool ft_boolean_check_syntax_string(const uchar *str, size_t length,
 
   if (cs->mbminlen != 1)
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 1;
   }
 

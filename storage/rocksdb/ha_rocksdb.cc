@@ -6440,7 +6440,7 @@ bool ha_rocksdb::should_hide_ttl_rec(const Rdb_key_def &kd,
         "Decoding ttl from PK value failed, "
         "for index (%u,%u), val: %s",
         gl_index_id.cf_id, gl_index_id.index_id, buf.c_str());
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return false;
   }
 
@@ -7024,7 +7024,7 @@ int ha_rocksdb::rdb_error_to_mysql(const rocksdb::Status &s,
       err = HA_ERR_ROCKSDB_STATUS_TRY_AGAIN;
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return -1;
   }
 
@@ -7585,7 +7585,7 @@ int rdb_normalize_tablename(const std::string &tablename,
                             std::string *const strbuf) {
   if (tablename.size() < 2 || tablename[0] != '.' ||
       (tablename[1] != FN_LIBCHAR && tablename[1] != FN_LIBCHAR2)) {
-    DBUG_ASSERT(0);  // We were not passed table name?
+    DBUG_ASSERT_NO_ASSUME(0);  // We were not passed table name?
     return HA_ERR_ROCKSDB_INVALID_TABLE;
   }
 
@@ -7595,7 +7595,7 @@ int rdb_normalize_tablename(const std::string &tablename,
   }
 
   if (pos == std::string::npos) {
-    DBUG_ASSERT(0);  // We were not passed table name?
+    DBUG_ASSERT_NO_ASSUME(0);  // We were not passed table name?
     return HA_ERR_ROCKSDB_INVALID_TABLE;
   }
 
@@ -9058,9 +9058,9 @@ int ha_rocksdb::get_row_by_rowid(uchar *const buf, const char *const rowid,
     s = tx->get(m_pk_descr->get_cf(), key_slice, &m_retrieved_record);
   } else if (m_insert_with_update && m_dup_pk_found) {
     DBUG_ASSERT(m_pk_descr->get_keyno() == m_dupp_errkey);
-    DBUG_ASSERT(m_dup_pk_retrieved_record.length() ==
+    DBUG_ASSERT_NO_ASSUME(m_dup_pk_retrieved_record.length() ==
                 m_retrieved_record.size());
-    DBUG_ASSERT(memcmp(m_dup_pk_retrieved_record.ptr(),
+    DBUG_ASSERT_NO_ASSUME(memcmp(m_dup_pk_retrieved_record.ptr(),
                        m_retrieved_record.data(),
                        m_retrieved_record.size()) == 0);
 
@@ -11717,7 +11717,7 @@ Rdb_tbl_def *ha_rocksdb::get_table_if_exists(const char *const tablename) {
   std::string str;
   if (rdb_normalize_tablename(tablename, &str) != HA_EXIT_SUCCESS) {
     // We were not passed table name?
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return nullptr;
   }
 
@@ -13404,7 +13404,7 @@ static ulonglong io_stall_prop_value(
   } else {
     DBUG_PRINT("warning",
                ("RocksDB GetMapPropery hasn't returned key=%s", key.c_str()));
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 0;
   }
 }

@@ -3024,7 +3024,7 @@ static my_bool write_block_record(MARIA_HA *info,
           cur_block++;
         }
 #ifdef SANITY_CHECKS
-        DBUG_ASSERT(!(cur_block >= end_block));
+        DBUG_ASSERT_NO_ASSUME(!(cur_block >= end_block));
         if ((cur_block >= end_block))
           goto crashed;
 #endif
@@ -5009,7 +5009,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     }
     default:
 #ifdef EXTRA_DEBUG
-      DBUG_ASSERT(0);                           /* purecov: deadcode */
+      DBUG_ASSERT_NO_ASSUME(0);                           /* purecov: deadcode */
 #endif
       goto err;
     }
@@ -6971,8 +6971,8 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
                                        LSN_IMPOSSIBLE, 0, FALSE);
               goto fix_bitmap;
             }
-            DBUG_ASSERT((found_page_type == (uchar) BLOB_PAGE) ||
-                        (found_page_type == (uchar) UNALLOCATED_PAGE));
+            DBUG_ASSERT_NO_ASSUME((found_page_type == (uchar) BLOB_PAGE) ||
+                                 (found_page_type == (uchar) UNALLOCATED_PAGE));
           }
           unlock_method= PAGECACHE_LOCK_WRITE_UNLOCK;
           unpin_method=  PAGECACHE_UNPIN;
