@@ -156,7 +156,9 @@ if ($USE_CHILD_GROUP2)
 
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT a.a, c.b, c.c FROM tbl_a a right join tbl_b b on a.a = b.a right join tbl_c c on a.a = c.a ORDER BY a.b DESC;
+--enable_view_protocol
 
 if ($USE_CHILD_GROUP2)
 {
