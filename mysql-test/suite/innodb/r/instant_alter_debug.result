@@ -577,5 +577,16 @@ FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
 37
+CREATE TABLE t1(f1 INT, f2 TEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 'a');
+ALTER TABLE t1 ADD COLUMN f3 TEXT FIRST;
+SET STATEMENT DEBUG_DBUG="+d,instant_insert_fail" FOR
+ALTER TABLE t1 DROP COLUMN f1;
+ERROR HY000: Internal error: InnoDB: Insert into SYS_COLUMNS failed
+ALTER TABLE t1 DROP COLUMN f1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 # End of 10.6 tests
