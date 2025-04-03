@@ -8389,7 +8389,11 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     DBUG_RETURN(0);
   else
     fqtn= FALSE;
-  bool info_schema= is_infoschema_db(&db);
+  /*
+    The test for length==0 is for performance purposes as is_infoschema_db()
+    is quite heavy. Without explict db SQL syntax, length==0 is a common case.
+  */
+  bool info_schema= db.length ? is_infoschema_db(&db) : false;
   if (!table->sel && info_schema &&
       (table_options & TL_OPTION_UPDATING) &&
       /* Special cases which are processed by commands itself */
