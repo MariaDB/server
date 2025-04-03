@@ -13385,8 +13385,6 @@ bool check_engine(THD *thd, const char *db_name,
   bool no_substitution= thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION;
   *new_engine= ha_checktype(thd, req_engine, no_substitution);
   DBUG_ASSERT(*new_engine);
-  if (!*new_engine)
-    DBUG_RETURN(true);
 
   /*
     Enforced storage engine should not be used in ALTER TABLE that does not
