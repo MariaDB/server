@@ -71,7 +71,9 @@ TRUNCATE TABLE mysql.general_log;
 set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
 set spider_direct_aggregate=1;
 SHOW STATUS LIKE 'Spider_direct_aggregate';
+--disable_view_protocol
 SELECT skey, count(*) cnt FROM tbl_a GROUP BY skey ORDER BY cnt DESC, skey DESC LIMIT 5;
+--enable_view_protocol
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 set spider_direct_aggregate=@old_spider_direct_aggregate;
 
