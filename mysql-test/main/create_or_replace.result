@@ -1051,6 +1051,18 @@ Note	1050	Table 't' already exists
 UNLOCK TABLES;
 DROP TABLE t;
 #
+# MDEV-36439 Assertion `thd_arg->lex->sql_command !=
+#            SQLCOM_CREATE_SEQUENCE || (flags2 & FL_DDL) || thd_arg->in_mult
+#            i_stmt_transaction_mode()' failed
+#
+create sequence s2 engine=innodb;
+create or replace sequence s2 engine=innodb;
+drop sequence s2;
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+RENAME TABLE s1 TO s2;
+CREATE OR REPLACE SEQUENCE s2 ENGINE=InnoDB;
+DROP TABLE s2;
+#
 # End of 12.0 tests
 #
 SET GLOBAL innodb_stats_persistent=@save_persistent;

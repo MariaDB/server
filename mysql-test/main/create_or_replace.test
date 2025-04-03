@@ -4,6 +4,7 @@
 
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
+--source include/have_sequence.inc
 
 SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent=OFF;
@@ -789,6 +790,20 @@ CREATE TABLE IF NOT EXISTS t (a INT);
 
 UNLOCK TABLES;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-36439 Assertion `thd_arg->lex->sql_command !=
+--echo #            SQLCOM_CREATE_SEQUENCE || (flags2 & FL_DDL) || thd_arg->in_mult
+--echo #            i_stmt_transaction_mode()' failed
+--echo #
+create sequence s2 engine=innodb;
+create or replace sequence s2 engine=innodb;
+drop sequence s2;
+
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+RENAME TABLE s1 TO s2;
+CREATE OR REPLACE SEQUENCE s2 ENGINE=InnoDB;
+DROP TABLE s2;
 
 --echo #
 --echo # End of 12.0 tests
