@@ -2,8 +2,10 @@
 --echo ##### test SELECTs #####
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT * FROM ta_l WHERE id = plusone(1);
 SELECT * FROM ta_l WHERE id IN (plusone(1), plusone(2)) AND a = plusone(32);
+--enable_view_protocol
 --enable_ps2_protocol
 
 if ($USE_CHILD_GROUP2)

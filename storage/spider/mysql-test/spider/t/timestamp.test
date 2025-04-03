@@ -172,7 +172,9 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -218,9 +220,10 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 DELETE FROM tbl_a WHERE col_ts='1970-01-01 01:00:01';
---disable_view_protocol
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -266,7 +269,9 @@ SET @@timestamp=1;
 INSERT INTO tbl_a VALUES (1, now(), now());
 SET @@timestamp=0;
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -313,7 +318,9 @@ if ($USE_CHILD_GROUP2)
 --connection master_1
 UPDATE tbl_a SET col_ts=col_dt;
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -359,6 +366,7 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > '2018-01-01';
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts < '2018-10-28 02:30:00';
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE '2018-10-28 02:30:00' > col_ts;
@@ -366,6 +374,7 @@ SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts BETWEEN '2018-10-28 01:
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts >= '2018-10-28 01:30:00' AND col_ts <= '2018-10-28 02:30:00';
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > 180325020000;
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > 19700101010001;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -441,6 +450,7 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > '2018-01-01';
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts < '2018-10-28 02:30:00';
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE '2018-10-28 02:30:00' > col_ts;
@@ -448,6 +458,7 @@ SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts BETWEEN '2018-10-28 01:
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts >= '2018-10-28 01:30:00' AND col_ts <= '2018-10-28 02:30:00';
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > 180325020000;
 SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > 19700101010001;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -497,11 +508,13 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT * FROM tbl_f;
 SELECT TIMESTAMP(col_d, col_t) FROM tbl_f;
 SELECT TIMESTAMP('2018-06-25', col_t) FROM tbl_f;
 SELECT TIMESTAMP(col_d, '10:43:21') FROM tbl_f;
 SELECT TIMESTAMP('2018-06-25', '10:43:21') FROM tbl_f;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
