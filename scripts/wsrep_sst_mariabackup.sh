@@ -1519,6 +1519,8 @@ else # joiner
         exit 2
     fi
 
+    simulate_long_sst
+
     # use donor magic file, if present
     # if IST was used, donor magic file was not created
     # Remove special tags from the magic file, and from the output:

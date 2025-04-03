@@ -10,14 +10,14 @@
 SELECT count(*) AS expect1_390 FROM t1;
 
 #CALL mtr.add_suppression("Replica SQL: Could not execute Delete_rows");
-#CALL mtr.add_suppression("Event 3 Delete_rows apply failed: 120, seqno [0-9]*");
+#CALL mtr.add_suppression("Event 3 Delete_rows apply failed: 120, seqno [0-9]+");
 
 --connection node_2
 SELECT count(*) AS expect2_390 FROM t1;
 
 #CALL mtr.add_suppression("mysqld: Can't find record in 't1'");
 #CALL mtr.add_suppression("Replica SQL: Could not execute Delete_rows");
-#CALL mtr.add_suppression("Event 3 Delete_rows apply failed: 120, seqno seqno [0-9]*");
+#CALL mtr.add_suppression("Event 3 Delete_rows apply failed: 120, seqno seqno [0-9]+");
 
 --connection node_3
 SELECT count(*) AS expect3_390 FROM t1;

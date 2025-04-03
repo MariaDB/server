@@ -85,16 +85,16 @@ EOF
 --source galera_vote_joined_end.inc
 
 --connection node_1
-CALL mtr.add_suppression("BF applier failed to open_and_lock_tables: 1146");
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
 CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
 
 --connection node_2
-CALL mtr.add_suppression("BF applier failed to open_and_lock_tables: 1146");
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
 CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
 
 --connection node_3
-CALL mtr.add_suppression("Vote 0 \\(success\\) on .* is inconsistent with group");
+CALL mtr.add_suppression("Vote 0 \\(success\\) on .+ is inconsistent with group");
 
 --connection node_4
-CALL mtr.add_suppression("BF applier failed to open_and_lock_tables: 1146");
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
 CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
