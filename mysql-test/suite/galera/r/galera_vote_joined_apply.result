@@ -2,6 +2,7 @@ connection node_4;
 connection node_3;
 connection node_2;
 connection node_1;
+# Correct Galera library found
 connection node_1;
 connection node_2;
 connection node_3;
@@ -87,7 +88,7 @@ expect4_390
 DROP TABLE t1;
 DROP PROCEDURE p1;
 connection node_4;
-CALL mtr.add_suppression("BF applier failed to open_and_lock_tables: 1146");
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
 CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
 CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus");
 CALL mtr.add_suppression("Failed to apply write set: gtid:");

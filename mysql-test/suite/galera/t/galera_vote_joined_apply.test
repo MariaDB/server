@@ -67,7 +67,7 @@ DROP TABLE t2;
 --source galera_vote_joined_end.inc
 
 --connection node_4
-CALL mtr.add_suppression("BF applier failed to open_and_lock_tables: 1146");
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
 CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
 CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus");
 CALL mtr.add_suppression("Failed to apply write set: gtid:");
