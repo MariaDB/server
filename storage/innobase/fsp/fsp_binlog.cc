@@ -251,7 +251,9 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
     */
     if (file_no < first_file_no)
       return true;
-    ut_a(file_no <= first_file_no + 1);
+    /* Guard against simultaneous RESET MASTER. */
+    if (file_no > first_file_no + 1)
+      return true;
 
     if (!flushing)
     {
@@ -311,6 +313,9 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
             /* Someone else flushed the page for us. */
             return true;
           }
+          /* Guard against simultaneous RESET MASTER. */
+          if (file_no > first_file_no + 1)
+            return true;
           if (e->latched == 0)
             break;
         }
@@ -1153,11 +1158,23 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
     }
     if (size_last.second)
       break;
+    ut_ad(!block);
+    if (UNIV_UNLIKELY(block != nullptr))
+    {
+      /*
+        Defensive coding, just to not leave a page latch which would hang the
+        entire server hard. This code should not be reachable.
+      */
+      binlog_page_fifo->release_page_mtr(block, mtr);
+      block= nullptr;
+    }
   }
   if (block)
     binlog_page_fifo->release_page_mtr(block, mtr);
   binlog_cur_page_no= page_no;
   binlog_cur_page_offset= page_offset;
+  binlog_cur_end_offset[file_no & 1].store(((uint64_t)page_no << page_size_shift) + page_offset,
+                                           std::memory_order_relaxed);
   if (UNIV_UNLIKELY(pending_prev_end_offset != 0))
   {
     mysql_mutex_lock(&active_binlog_mutex);
@@ -1167,8 +1184,6 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
     pthread_cond_signal(&active_binlog_cond);
     mysql_mutex_unlock(&active_binlog_mutex);
   }
-  binlog_cur_end_offset[file_no & 1].store(((uint64_t)page_no << page_size_shift) + page_offset,
-                                           std::memory_order_relaxed);
   return {start_file_no, start_offset};
 }
 
@@ -1343,10 +1358,13 @@ binlog_chunk_reader::fetch_current_page()
           have gotten invalid end_offset or a buffer pool page from a wrong
           tablespace. So just try again.
         */
+        if (block)
+          binlog_page_fifo->release_page(block);
         continue;
       }
       cur_end_offset= end_offset;
       if (offset >= end_offset) {
+        ut_ad(!block);
         if (s.file_no == active) {
           /* Reached end of the currently active binlog file -> EOF. */
           return CHUNK_READER_EOF;
