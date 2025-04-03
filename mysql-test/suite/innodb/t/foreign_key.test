@@ -133,7 +133,6 @@ FLUSH TABLES;
 --let $shutdown_timeout=
 disconnect incomplete;
 
-SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
 
 INSERT INTO child SET a=0;
@@ -1245,8 +1244,31 @@ ALTER TABLE t2 ADD KEY(b), ALGORITHM=NOCOPY;
 DELETE FROM t1;
 DROP TABLE t2, t1;
 
+--echo #
+--echo # MDEV-33167 ASAN errors after failing to load foreign key
+--echo #   relation for the table
+--echo #
+call mtr.add_suppression("InnoDB: Load table `test`.`t3` failed, the table has missing foreign key indexes. Turn off 'foreign_key_checks' and try again.");
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t1(f1 VARCHAR(8),
+	        FOREIGN KEY(f1) REFERENCES test.t3(f1))ENGINE=InnoDB;
+
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t2(f1 VARCHAR(8),
+	        FOREIGN KEY(f1) REFERENCES test.t3(f1))
+                ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t3(f1 VARCHAR(8) PRIMARY KEY)
+		ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+set GLOBAL innodb_fast_shutdown=0;
+--let $shutdown_timeout=
+--source include/restart_mysqld.inc
+# Error encountered while loading the foreign key
+# constraint for t3. t1 wasn't loaded into memory yet
+# t2 failed to find index for foreign key relation
+ALTER TABLE t2 FORCE;
+DROP TABLE t2, t1, t3;
+
 --echo # End of 10.6 tests
-
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
-
---source include/wait_until_count_sessions.inc
