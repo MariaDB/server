@@ -6304,9 +6304,17 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
        *ref != NULL means that *ref contains the item that we need to
        replace. If the item was aliased by the user, set the alias to
        the replacing item.
+       set_name() can allocate memory in thd->mem_root.
+       This needs to be in the same mem_root the item above.
       */
       if (*ref && (*ref)->is_explicit_name())
+      {
+        if (thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute())
+          arena= thd->activate_stmt_arena_if_needed(&backup);
         item->set_name(thd, (*ref)->name);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+      }
       if (register_tree_change)
         thd->change_item_tree(ref, item);
       else
