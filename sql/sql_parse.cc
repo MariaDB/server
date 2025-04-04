@@ -10389,7 +10389,13 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
 
 bool check_ident_length(const LEX_CSTRING *ident)
 {
-  if (check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
+  /*
+    string_char_length desite the names, goes into Well_formed_prefix_status
+    so this is more than just a length comparison. Things like a primary key
+    doesn't have a name, therefore no length. Also the ident grammar allows
+    empty backtick. Check quickly the length, and if 0, accept that.
+  */
+  if (ident->length && check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
     return 1;
