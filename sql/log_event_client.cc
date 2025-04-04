@@ -3881,8 +3881,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (flags2 & FL_TRANSACTIONAL)
       if (my_b_write_string(&cache, " trans"))
         goto err;
-    if (flags2 & FL_WAITED)
-      if (my_b_write_string(&cache, " waited"))
+    if (flags2 & FL_WAITED_NO_LONGER_USED)
+      if (my_b_write_string(&cache, " (waited)"))
         goto err;
     if (my_b_printf(&cache, "\n"))
       goto err;
