@@ -303,7 +303,7 @@ public:
     return SIZE_OF_LENGTH_FIELD + uint4korr(p);
   }
 
-  uint sort_length(THD *thd, bool *allow_packing_for_sortkeys);
+  uint sort_length(ulong max_sort_length);
 
   bool is_parameters_computed() const { return parameters_computed; }
   int compare_keys(const uchar *a, const uchar *b) const;

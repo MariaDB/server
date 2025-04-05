@@ -7429,7 +7429,6 @@ struct SORT_FIELD_ATTR
   uint pack_sort_string(uchar *to, const Binary_string *str,
                         CHARSET_INFO *cs) const;
   bool is_variable_sized() const { return type == VARIABLE_SIZE; }
-  void set_length(THD *thd, uint length_arg);
   void setup_key_part(Field *fld, bool is_mem_comparable);
 };
 
@@ -7444,13 +7443,13 @@ struct SORT_FIELD: public SORT_FIELD_ATTR
   int compare_keys(const uchar *a, size_t *a_len,
                    const uchar *b, size_t *b_len) const;
 
-  bool setup_sort_field_length(THD *thd);
+  void setup_sort_field_length(ulong max_sort_length);
 
 private:
-  typedef int (*compare_fun_type) (const SORT_FIELD *,
-                                   const uchar *, size_t *,
-                                   const uchar *, size_t *);
-  compare_fun_type key_compare_fun = nullptr;
+  typedef int (*compare_fn_type)(const SORT_FIELD *,
+                                 const uchar *, size_t *,
+                                 const uchar *, size_t *);
+  compare_fn_type key_compare_fn;
   static int compare_fixed_size_vals(const SORT_FIELD *sort_field,
                                      const uchar *a, size_t *a_len,
                                      const uchar *b, size_t *b_len);
