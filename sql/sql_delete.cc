@@ -829,7 +829,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     end_read_record(&info);
     if (table->file->ha_index_or_rnd_end() || error > 0 ||
         deltempfile->get(table) ||
-        init_read_record(&info, thd, table, 0, &deltempfile->get_sort(), 0, 1, 0))
+        init_read_record(&info, thd, table, 0, deltempfile->get_sort(), 0, 1, 0))
     {
       error= 1;
       goto terminate_delete;
