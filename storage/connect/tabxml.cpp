@@ -26,6 +26,9 @@
 #include <netinet/in.h>
 #include <unistd.h>
 //#include <ctype.h>
+#ifdef LIBXML2_SUPPORT
+#include <libxml/tree.h>
+#endif
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
 #endif  // !_WIN32
