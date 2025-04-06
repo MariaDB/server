@@ -5,7 +5,7 @@
 
 --source include/not_embedded.inc
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
---eval CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=$SERVER_MYPORT_1
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=$SERVER_MYPORT_1, master_ssl_verify_server_cert=0
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
 --eval CHANGE MASTER 'named' TO master_host='localhost', master_user='test', master_port=$SERVER_MYPORT_2
 

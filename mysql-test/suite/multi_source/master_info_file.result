@@ -1,4 +1,4 @@
-CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=SERVER_MYPORT_1;
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=SERVER_MYPORT_1, master_ssl_verify_server_cert=0;
 CHANGE MASTER 'named' TO master_host='localhost', master_user='test', master_port=SERVER_MYPORT_2;
 --list_files @@datadir *.info
 relay-log-named.info
