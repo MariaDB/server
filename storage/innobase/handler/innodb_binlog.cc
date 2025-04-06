@@ -1251,6 +1251,18 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
 static void
 process_binlog_name(found_binlogs *bls, uint64_t idx, size_t size)
 {
+  if (bls->found_binlogs == 0)
+  {
+    bls->earliest_file_no= idx;
+    bls->total_size= size;
+  }
+  else
+  {
+    if (idx < bls->earliest_file_no)
+      bls->earliest_file_no= idx;
+    bls->total_size+= size;
+  }
+
   if (bls->found_binlogs == 0 ||
       idx > bls->last_file_no) {
     if (bls->found_binlogs >= 1 && idx == bls->last_file_no + 1) {
@@ -1266,18 +1278,6 @@ process_binlog_name(found_binlogs *bls, uint64_t idx, size_t size)
     bls->found_binlogs= 2;
     bls->prev_file_no= idx;
     bls->prev_size= size;
-  }
-
-  if (bls->found_binlogs == 0)
-  {
-    bls->earliest_file_no= idx;
-    bls->total_size= size;
-  }
-  else
-  {
-    if (idx < bls->earliest_file_no)
-      bls->earliest_file_no= idx;
-    bls->total_size+= size;
   }
 }
 
