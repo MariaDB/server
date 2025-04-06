@@ -106,8 +106,8 @@ struct FVector
     if (metric == COSINE)
     {
       if (vec->abs2 > 0.0f)
-        vec->scale/= std::sqrt(vec->abs2);
-      vec->abs2= 1.0f;
+        vec->scale/= std::sqrt(2*vec->abs2);
+      vec->abs2= 0.5f;
     }
     return vec;
   }
