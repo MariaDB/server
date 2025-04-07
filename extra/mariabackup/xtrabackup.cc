@@ -2684,7 +2684,7 @@ static bool innodb_init()
   }
 
   recv_sys.lsn= log_sys.next_checkpoint_lsn=
-    log_sys.get_lsn() - SIZE_OF_FILE_CHECKPOINT;
+    log_get_lsn() - SIZE_OF_FILE_CHECKPOINT;
   log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
   byte *b= &log_hdr_buf[log_t::START_OFFSET];
