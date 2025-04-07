@@ -1472,8 +1472,20 @@ void recv_sys_t::debug_free()
 
   mysql_mutex_unlock(&mutex);
   log_sys.clear_mmap();
-}
 
+  if (!recv_needed_recovery)
+    return;
+  recv_needed_recovery= false;
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED &&
+      lsn - log_sys.next_checkpoint_lsn < log_sys.log_capacity)
+    /* Write a FILE_CHECKPOINT marker as the first thing,
+    before generating any other redo log. This ensures
+    that subsequent crash recovery will be possible even
+    if the server were killed soon after this. */
+    fil_names_clear(log_sys.next_checkpoint_lsn);
+  log_sys.latch.wr_unlock();
+}
 
 /** Free a redo log snippet.
 @param data buffer allocated in add() */
@@ -2973,7 +2985,7 @@ restart:
                                 l - recs + rlen)))
           {
             lsn= start_lsn;
-            if (lsn > log_sys.get_lsn())
+            if (lsn > log_sys.get_flushed_lsn(std::memory_order_relaxed))
               log_sys.set_recovered_lsn(start_lsn);
             l+= rlen;
             offset= begin.ptr - log_sys.buf;
@@ -3560,13 +3572,14 @@ void recv_sys_t::report_progress() const
   }
   else
   {
+    const lsn_t end{std::max(recv_sys.scanned_lsn, recv_sys.file_checkpoint)};
     sql_print_information("InnoDB: To recover: LSN " LSN_PF
                           "/" LSN_PF "; %zu pages",
-                          recv_sys.lsn, recv_sys.scanned_lsn, n);
+                          recv_sys.lsn, end, n);
     service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                    "To recover: LSN " LSN_PF
                                    "/" LSN_PF "; %zu pages",
-                                   recv_sys.lsn, recv_sys.scanned_lsn, n);
+                                   recv_sys.lsn, end, n);
   }
 }
 
@@ -4107,8 +4120,8 @@ static bool recv_scan_log(bool last_phase)
                                         {log_sys.buf + recv_sys.len, size}))
       {
         mysql_mutex_unlock(&recv_sys.mutex);
-        ib::error() << "Failed to read log at " << source_offset
-                    << ": " << err;
+        sql_print_error("InnoDB: Failed to read log at %" PRIu64 ": %s",
+                        source_offset, ut_strerr(err));
         recv_sys.set_corrupt_log();
         mysql_mutex_lock(&recv_sys.mutex);
       }
@@ -4582,19 +4595,16 @@ dberr_t recv_recovery_read_checkpoint()
 inline void log_t::set_recovered() noexcept
 {
   ut_ad(get_flushed_lsn() == get_lsn());
-  ut_ad(recv_sys.lsn == get_lsn());
-  size_t offset{recv_sys.offset};
+  ut_ad(recv_sys.lsn == get_flushed_lsn());
   if (!is_mmap())
   {
     const size_t bs{log_sys.write_size}, bs_1{bs - 1};
-    memmove_aligned<512>(buf, buf + (offset & ~bs_1), bs);
-    offset&= bs_1;
+    memmove_aligned<512>(buf, buf + (recv_sys.offset & ~bs_1), bs);
   }
-#ifndef _WIN32
+#ifdef HAVE_PMEM
   else
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
 #endif
-  set_buf_free(offset);
 }
 
 inline bool recv_sys_t::validate_checkpoint() const noexcept
@@ -4668,7 +4678,7 @@ read_only_recovery:
 			goto err_exit;
 		}
 		ut_ad(recv_sys.file_checkpoint);
-		ut_ad(log_sys.get_lsn() >= recv_sys.scanned_lsn);
+		ut_ad(log_sys.get_flushed_lsn() >= recv_sys.scanned_lsn);
 		if (rewind) {
 			recv_sys.lsn = log_sys.next_checkpoint_lsn;
 			recv_sys.offset = 0;
@@ -4730,7 +4740,7 @@ read_only_recovery:
 			tablespaces (not individual pages), while retaining
 			the initial recv_sys.pages. */
 			mysql_mutex_lock(&recv_sys.mutex);
-			ut_ad(log_sys.get_lsn() >= recv_sys.lsn);
+			ut_ad(log_sys.get_flushed_lsn() >= recv_sys.lsn);
 			recv_sys.clear();
 			recv_sys.lsn = log_sys.next_checkpoint_lsn;
 			mysql_mutex_unlock(&recv_sys.mutex);
@@ -4738,7 +4748,8 @@ read_only_recovery:
 
 		if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			mysql_mutex_lock(&recv_sys.mutex);
-			deferred_spaces.deferred_dblwr(log_sys.get_lsn());
+			deferred_spaces.deferred_dblwr(
+				log_sys.get_flushed_lsn());
 			buf_dblwr.recover();
 			mysql_mutex_unlock(&recv_sys.mutex);
 		}
@@ -4771,16 +4782,6 @@ err_exit:
 
 	if (!srv_read_only_mode && log_sys.is_latest()) {
 		log_sys.set_recovered();
-		if (recv_needed_recovery
-		    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
-		    && recv_sys.lsn - log_sys.next_checkpoint_lsn
-		    < log_sys.log_capacity) {
-			/* Write a FILE_CHECKPOINT marker as the first thing,
-			before generating any other redo log. This ensures
-			that subsequent crash recovery will be possible even
-			if the server were killed soon after this. */
-			fil_names_clear(log_sys.next_checkpoint_lsn);
-		}
 	}
 
 	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);

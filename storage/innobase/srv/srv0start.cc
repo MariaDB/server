@@ -1057,7 +1057,7 @@ srv_init_abort_low(
 /** Prepare to delete the redo log file. Flush the dirty pages from all the
 buffer pools.  Flush the redo log buffer to the redo log file.
 @return lsn upto which data pages have been flushed. */
-static lsn_t srv_prepare_to_delete_redo_log_file()
+static lsn_t srv_prepare_to_delete_redo_log_file() noexcept
 {
   DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
@@ -1071,7 +1071,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const bool latest_format{log_sys.is_latest()};
-  lsn_t flushed_lsn{log_sys.get_lsn()};
+  lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
   if (latest_format && !(log_sys.file_size & 4095) &&
       flushed_lsn != log_sys.next_checkpoint_lsn +
@@ -1079,6 +1079,11 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
        ? SIZE_OF_FILE_CHECKPOINT + 8
        : SIZE_OF_FILE_CHECKPOINT))
   {
+#ifdef HAVE_PMEM
+    if (!log_sys.is_opened())
+      log_sys.buf_size= unsigned(std::min<uint64_t>(log_sys.capacity(),
+                                                    log_sys.buf_size_max));
+#endif
     fil_names_clear(flushed_lsn);
     flushed_lsn= log_sys.get_lsn();
   }
@@ -1119,7 +1124,7 @@ same_size:
   if (latest_format)
     log_write_up_to(flushed_lsn, false);
 
-  ut_ad(flushed_lsn == log_sys.get_lsn());
+  ut_ad(flushed_lsn == log_get_lsn());
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
@@ -1133,6 +1138,18 @@ static tpool::task_group rollback_all_recovered_group(1);
 static tpool::task rollback_all_recovered_task(trx_rollback_all_recovered,
 					       nullptr,
 					       &rollback_all_recovered_group);
+
+inline lsn_t log_t::init_lsn() noexcept
+{
+  latch.wr_lock(SRW_LOCK_CALL);
+  ut_ad(!write_lsn_offset);
+  write_lsn_offset= 0;
+  const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};
+  flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
+  write_lsn= lsn;
+  latch.wr_unlock();
+  return lsn;
+}
 
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
