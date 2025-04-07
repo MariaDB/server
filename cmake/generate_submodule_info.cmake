@@ -18,13 +18,14 @@ FUNCTION(INVOKE_GIT command working_dir result_var)
   EXECUTE_PROCESS(
     COMMAND ${GIT_EXECUTABLE} ${command}
     RESULT_VARIABLE res OUTPUT_VARIABLE out
-    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_VARIABLE err
     WORKING_DIRECTORY ${working_dir}
   )
   IF (res EQUAL 0)
     SET(${result_var} ${out} PARENT_SCOPE)
+    MESSAGE("'${GIT_EXECUTABLE} ${command}'  in ${working_dir} returned '${out}'")
   ELSE()
-    #MESSAGE("'${GIT_EXECUTABLE} ${command}' failed with ${res}")
+    MESSAGE("'${GIT_EXECUTABLE} ${command}' failed in ${working_dir} with ${res} : ${err}")
     SET(${result_var} "" PARENT_SCOPE)
   ENDIF()
 ENDFUNCTION()
@@ -128,4 +129,8 @@ FUNCTION(generate_submodule_info outfile)
   STRING(APPEND out_string "SET(GIT_REV_SHORT \"${outvar}\")\n")
   SET(CMAKE_CONFIGURABLE_FILE_CONTENT ${out_string})
   CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/cmake/configurable_file_content.in ${outfile} @ONLY)
+  FILE(READ "${outfile}" submodule_info)
+  message("---submodule info --")
+  message("${submodule_info}")
+  message("---submodule info end--")
 ENDFUNCTION()

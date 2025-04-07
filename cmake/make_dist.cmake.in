@@ -149,6 +149,10 @@ ENDIF()
 
 INCLUDE(${CMAKE_SOURCE_DIR}/cmake/generate_submodule_info.cmake)
 GENERATE_SUBMODULE_INFO(${PACKAGE_DIR}/cmake/submodule_info.cmake)
+FILE(READ ${PACKAGE_DIR}/cmake/submodule_info.cmake submodule_info)
+message("---submodule info --")
+message("${submodule_info}")
+message("---submodule info end--")
 
 # In case we used CPack, it could have copied some
 # extra files that are not usable on different machines.

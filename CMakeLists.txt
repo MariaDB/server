@@ -577,11 +577,13 @@ ENDIF()
 
 INCLUDE(build_depends)
 
-OPTION(WITH_SBOM "Generate Software Bill of Materials (SBOM)" "${SBOM_DEFAULT}")
+OPTION(WITH_SBOM "Generate Software Bill of Materials (SBOM)" ON)
 MARK_AS_ADVANCED(WITH_SBOM)
 IF(WITH_SBOM)
   INCLUDE(generate_sbom)
   GENERATE_SBOM()
+  FILE(READ "${CMAKE_BINARY_DIR}/sbom.json" SBOM_JSON)
+  message("${SBOM_JSON}")
 ENDIF()
 
 INCLUDE(CPack)
