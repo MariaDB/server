@@ -712,6 +712,28 @@ COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SELECT * FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME LIKE 'test2.%';
 SHOW PACKAGE STATUS;
+Db	sys
+Name	dbms_random
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of random routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	dbms_utility
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of utility routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
 Db	test
 Name	test2
 Type	PACKAGE
@@ -724,6 +746,28 @@ character_set_client	latin1
 collation_connection	latin1_swedish_ci
 Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PACKAGE BODY STATUS;
+Db	sys
+Name	dbms_random
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	dbms_utility
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
 Db	test
 Name	test2
 Type	PACKAGE BODY
@@ -805,6 +849,28 @@ PROCEDURE p1 AS BEGIN SELECT f1(); END;
 END;
 $$
 SHOW PACKAGE STATUS;
+Db	sys
+Name	dbms_random
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of random routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	dbms_utility
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of utility routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
 Db	test2
 Name	test2
 Type	PACKAGE
@@ -817,6 +883,28 @@ character_set_client	latin1
 collation_connection	latin1_swedish_ci
 Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PACKAGE BODY STATUS;
+Db	sys
+Name	dbms_random
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	dbms_utility
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
 Db	test2
 Name	test2
 Type	PACKAGE BODY

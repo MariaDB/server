@@ -48,6 +48,13 @@
 #endif /* WITH_WSREP */
 
 #include <my_user.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+#include <fcntl.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "mysql/psi/mysql_statement.h"
 #include "mysql/psi/mysql_sp.h"
 
@@ -1217,6 +1224,21 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 #endif
   sp_instr *i;
   DEBUG_SYNC(thd, "sp_head_execute_before_loop");
+  if (!thd->sql_condition_handled)
+  {
+    struct Backtrace_info instr_and_lineno;
+    instr_and_lineno.sphead= this;
+
+    thd->bt_list.push(instr_and_lineno);
+
+    if (thd->first_call)
+    {
+      thd->variables.backtrace_str= "";
+      thd->variables.errstack_str= "";
+      thd->first_call= false;
+      thd->f1_sphead= this;
+    }
+  }
   do
   {
 #if defined(ENABLED_PROFILING)
@@ -1239,6 +1261,13 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       thd->spcont->quit_func= TRUE;
       break;
     }
+
+    if (!thd->sql_condition_handled)
+    {
+      if (thd->bt_list.size())
+        thd->bt_list.back()->line_no= i->m_lineno;
+    }
+    
 
     /* Reset number of warnings for this query. */
     thd->get_stmt_da()->reset_for_next_command();
@@ -1396,8 +1425,19 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
         ctx->handle_sql_condition(thd, &ip, i))
     {
       err_status= FALSE;
+      thd->sql_condition_handled= TRUE;
+      if (this == thd->f1_sphead &&
+          !i->m_ctx->parent_context()->parent_context())
+      {
+        construct_dbms_utility_backtrace_string(thd);
+        construct_dbms_utility_errstack_string(thd);
+        thd->bt_list.free_memory();
+        thd->erroring_bt_list.free_memory();
+        thd->error_stack.free_memory();
+      }
+      
     }
-
+  
     /* Reset sp_rcontext::end_partial_result_set flag. */
     ctx->end_partial_result_set= FALSE;
 
@@ -1414,6 +1454,20 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   } while (!err_status && likely(!thd->killed) &&
            likely(!thd->is_fatal_error) &&
            !thd->spcont->pause_state);
+
+  if (thd->bt_list.size() && !err_status)
+  {
+    thd->bt_list.back()->sphead= NULL;
+    thd->bt_list.del(thd->bt_list.size() - 1);
+  }
+  if (this == thd->f1_sphead)
+  {
+    thd->variables.backtrace_str= "";
+    thd->variables.errstack_str= "";
+    thd->bt_list.free_memory();
+    thd->erroring_bt_list.free_memory();
+    thd->error_stack.free_memory();
+  }
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -1497,12 +1551,17 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       da->copy_sql_conditions_from_wi(thd, &sp_wi);
       da->remove_marked_sql_conditions();
       if (i != NULL)
+      {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_SP_STACK_TRACE,
                             ER_THD(thd, ER_SP_STACK_TRACE),
                             i->m_lineno,
                             m_qname.str != NULL ? m_qname.str :
                                                   "anonymous block");
+
+        //save the erroring part of the error stack
+        save_dbms_utility_error_info(thd, this, da, i->m_lineno);
+      }
     }
   }
 
@@ -1571,6 +1630,203 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   DBUG_RETURN(err_status);
 }
 
+void sp_head::save_dbms_utility_error_info(THD *thd, sp_head *sphead,
+    Diagnostics_area *da, const int line_no) const
+{
+  struct Backtrace_info instr_and_linno;
+  instr_and_linno.line_no= line_no;
+  instr_and_linno.sphead= sphead;
+  thd->erroring_bt_list.push(instr_and_linno);
+
+  struct Error_info msg_and_errno;
+  msg_and_errno.err_no= da->get_sql_errno();
+  if (da->is_set())
+    strcpy(msg_and_errno.msg, da->message());
+  thd->error_stack.push(msg_and_errno);
+}
+
+bool sp_head::check_errstack_str_length_and_append(THD *thd, const
+    LEX_CSTRING &str, CHARSET_INFO *cs_info)
+    const
+{
+  return (check_errstack_str_length_and_append(thd, str.str, str.length,
+      cs_info));
+}
+
+bool sp_head::construct_dbms_utility_errstack_string_line(THD *thd,
+    Dynamic_array<struct Backtrace_info> &frames_list, const int loop_ctr,
+    CHARSET_INFO *cs_info) const
+{
+  char err[10]= "";
+  char line_no_str[20]= "";
+
+  sprintf(err, "%i", ER_SP_STACK_TRACE);
+  sprintf(line_no_str, "%i", frames_list[loop_ctr].line_no);
+
+  if (check_errstack_str_length_and_append(thd, err, strlen(err),
+      cs_info))
+    return true;
+  if (check_errstack_str_length_and_append(thd, {STRING_WITH_LEN(": ")},
+      cs_info))
+    return true;
+  if (check_errstack_str_length_and_append(thd, thd->main_security_ctx.user,
+      strlen(thd->main_security_ctx.user),
+      cs_info))
+    return true;
+  if (check_errstack_str_length_and_append(thd, {STRING_WITH_LEN(".")},
+      cs_info))
+    return true;
+  if (check_errstack_str_length_and_append(thd,
+      frames_list[loop_ctr].sphead->m_qname.str,
+      frames_list[loop_ctr].sphead->m_qname.length,
+      cs_info))
+    return true;
+  if (check_errstack_str_length_and_append(thd, {STRING_WITH_LEN(" at line ")},
+      cs_info))
+    return true;
+  if (check_errstack_str_length_and_append(thd, line_no_str,
+      strlen(line_no_str), cs_info))
+    return true;
+  if (check_errstack_str_length_and_append(thd, {STRING_WITH_LEN("\n")},
+      cs_info))
+    return true;
+  return false;
+}
+
+#ifdef _WIN32
+int is_valid_pointer(void *ptr) {
+  if (!ptr)
+    return 0;
+  MEMORY_BASIC_INFORMATION mbi;
+  if (VirtualQuery(ptr, &mbi, sizeof(mbi)) == 0)
+    return 0;
+  if (mbi.State != MEM_COMMIT)
+    return 0;
+  if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS))
+    return 0;
+  // Strip modifier flags (PAGE_GUARD, PAGE_NOCACHE, etc.) to get base protection
+  DWORD base_protect = mbi.Protect & 0xFF;
+  // Reject execute-only pages (all other base protections allow reading)
+  if (base_protect == PAGE_EXECUTE)
+    return 0;
+
+  return 1;
+}
+#else
+int is_valid_pointer(void *ptr) {
+  int fd = open("/dev/random", O_WRONLY);
+  if (fd < 0) return 0;
+  int valid = (write(fd, ptr, 1) >= 0);
+  close(fd);
+  return valid;
+}
+#endif
+
+void sp_head::construct_dbms_utility_backtrace_string_line(THD *thd,
+    Dynamic_array<struct Backtrace_info> &frames_list, const int loop_ctr) const
+{
+  if (is_valid_pointer((void *) frames_list[loop_ctr].sphead->m_qname.str))
+  {
+    char err[10]= "";
+    char line_no_str[20]= "";
+
+    sprintf(err, "%i", ER_SP_STACK_TRACE);
+    sprintf(line_no_str, "%i", frames_list[loop_ctr].line_no);
+
+    thd->backtrace_std_str.append({err, strlen(err)});
+    thd->backtrace_std_str.append({STRING_WITH_LEN(": ")});
+    thd->backtrace_std_str.append({thd->main_security_ctx.user, strlen(
+        thd->main_security_ctx.user)});
+    thd->backtrace_std_str.append('.');
+    if (frames_list[loop_ctr].sphead->m_qname.length &&
+        frames_list[loop_ctr].sphead->m_qname.length < UINT_MAX32)
+      thd->backtrace_std_str.append({frames_list[loop_ctr].sphead->m_qname.str,
+          frames_list[loop_ctr].sphead->m_qname.length});
+    thd->backtrace_std_str.append({STRING_WITH_LEN(" at line ")});
+    thd->backtrace_std_str.append({line_no_str, strlen(line_no_str)});
+    thd->backtrace_std_str.append('\n');
+  }
+}
+
+bool sp_head::check_errstack_str_length_and_append(THD *thd, const char *str,
+    const size_t str_length, CHARSET_INFO *cs_info) const
+{
+  if (is_valid_pointer((void *) str))
+  {
+    int byte_length= thd->errstack_str.length();
+    if (byte_length + str_length < ERRSTACK_MAX_LEN)
+    {
+      thd->errstack_str.append(str, str_length, cs_info);
+      return false;
+    }
+    else
+    {
+      thd->errstack_str.append(str, ERRSTACK_MAX_LEN- byte_length, cs_info);
+      return true;
+    }
+  }
+  else
+    return true;
+}
+
+void sp_head::construct_dbms_utility_errstack_string(THD *thd) const
+{
+  //construct backtrace_str starting with reversed errframes_strs
+  int err_frames_strs_size=
+      static_cast<int>(thd->error_stack.size());
+  for (int loop_ctr= err_frames_strs_size - 1; loop_ctr >= 0;
+        loop_ctr--)
+  {
+    //construct string with err msg
+    char err[10]= "";
+
+    sprintf(err, "%i", thd->error_stack[loop_ctr].err_no);
+    if (check_errstack_str_length_and_append(thd, err, strlen(err),
+        thd->errstack_str.charset()))
+      break;
+    if (check_errstack_str_length_and_append(thd, {STRING_WITH_LEN(": ")},
+        thd->errstack_str.charset()))
+      break;
+    if (check_errstack_str_length_and_append(thd,
+        thd->error_stack[loop_ctr].msg,
+        strlen(thd->error_stack[loop_ctr].msg),
+        thd->errstack_str.charset()))
+      break;
+    if (check_errstack_str_length_and_append(thd, {STRING_WITH_LEN("\n")},
+        thd->errstack_str.charset()))
+      break;
+
+    //construct string with no err msg
+    if (construct_dbms_utility_errstack_string_line(thd,
+        thd->erroring_bt_list, loop_ctr, thd->errstack_str.charset()))
+      break;
+  }
+  //append the non-erroring frames also in reversed order
+  int normalframes_strs_size=
+      static_cast<int>(thd->bt_list.size());
+  for (int loop_ctr= normalframes_strs_size - 2; loop_ctr >= 0;
+      loop_ctr--)
+  {
+    if (construct_dbms_utility_errstack_string_line(thd,
+        thd->bt_list, loop_ctr, thd->errstack_str.charset()))
+      break;
+  }
+  thd->variables.errstack_str= thd->errstack_str.c_ptr();
+}
+
+void sp_head::construct_dbms_utility_backtrace_string(THD *thd) const
+{
+  if (thd->erroring_bt_list.size())
+    construct_dbms_utility_backtrace_string_line(thd, thd->erroring_bt_list, 0);
+  int normalframes_strs_size=
+      static_cast<int>(thd->bt_list.size());
+  for (int loop_ctr= normalframes_strs_size - 2; loop_ctr >= 0;
+      loop_ctr--)
+  {
+    construct_dbms_utility_backtrace_string_line(thd, thd->bt_list, loop_ctr);
+  }
+  thd->variables.backtrace_str= thd->backtrace_std_str.c_ptr();
+}
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**

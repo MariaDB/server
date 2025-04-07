@@ -1009,6 +1009,19 @@ protected:
   bool
   execute(THD *thd, bool merge_da_on_success);
 
+  bool construct_dbms_utility_errstack_string_line(THD *thd, Dynamic_array<
+      Backtrace_info> &, const int, CHARSET_INFO *) const;
+  bool check_errstack_str_length_and_append(THD *thd,
+      const LEX_CSTRING &, CHARSET_INFO *) const;
+  bool check_errstack_str_length_and_append(THD *thd, const char *,
+      const size_t, CHARSET_INFO *) const;
+  void construct_dbms_utility_errstack_string(THD *thd) const;
+  void construct_dbms_utility_backtrace_string(THD *thd) const;
+  void construct_dbms_utility_backtrace_string_line(THD *thd, Dynamic_array<
+      Backtrace_info> &, const int) const;
+  void save_dbms_utility_error_info(THD *thd, sp_head*, Diagnostics_area*,
+      int) const;
+  
   /**
     Perform a forward flow analysis in the generated code.
     Mark reachable instructions, for the optimizer.
