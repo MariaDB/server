@@ -39,6 +39,7 @@ while ($counter) {
 --disable_result_log
 --eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
 START SLAVE;
+
 --eval SELECT MASTER_GTID_WAIT('$gtid', 600)
 --enable_result_log
 --enable_query_log

@@ -7,5 +7,3 @@ loose-galera-ddl-fk-conflict=1
 [mysqld.2]
 wsrep-debug=1
 loose-galera-ddl-fk-conflict=1
-
-

@@ -201,8 +201,6 @@ struct xb_filter_entry_t{
 	xb_filter_entry_t *name_hash;
 };
 
-lsn_t checkpoint_lsn_start;
-lsn_t checkpoint_no_start;
 /** whether log_copying_thread() is active; protected by recv_sys.mutex */
 static bool log_copying_running;
 /** for --backup, target LSN to copy the log to; protected by recv_sys.mutex */
@@ -1386,6 +1384,7 @@ enum options_xtrabackup
   OPT_XTRA_MYSQLD_ARGS,
   OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
   OPT_INNODB_FORCE_RECOVERY,
+  OPT_INNODB_CHECKPOINT,
   OPT_ARIA_LOG_DIR_PATH
 };
 
@@ -1417,8 +1416,9 @@ struct my_option xb_client_options[]= {
      "The value is used in place of innodb_buffer_pool_size. "
      "This option is only relevant when the --prepare option is specified.",
      (G_PTR *) &xtrabackup_use_memory, (G_PTR *) &xtrabackup_use_memory, 0,
-     GET_LL, REQUIRED_ARG, 100 * 1024 * 1024L, 1024 * 1024L, LONGLONG_MAX, 0,
-     1024 * 1024L, 0},
+     GET_ULL, REQUIRED_ARG, 96 << 20, innodb_buffer_pool_extent_size,
+     size_t(-ssize_t(innodb_buffer_pool_extent_size)),
+     0, innodb_buffer_pool_extent_size, 0},
     {"throttle", OPT_XTRA_THROTTLE,
      "limit count of IO operations (pairs of read&write) per second to IOS "
      "values (for '--backup')",
@@ -1795,6 +1795,8 @@ extern const char *io_uring_may_be_unsafe;
 bool innodb_use_native_aio_default();
 #endif
 
+static my_bool innodb_log_checkpoint_now;
+
 struct my_option xb_server_options[] =
 {
   {"datadir", 'h', "Path to the database root.", (G_PTR*) &mysql_data_home,
@@ -2032,6 +2034,12 @@ struct my_option xb_server_options[] =
    (G_PTR*)&srv_force_recovery,
    0, GET_ULONG, OPT_ARG, 0, 0, SRV_FORCE_IGNORE_CORRUPT, 0, 0, 0},
 
+  {"innodb_log_checkpoint_now", OPT_INNODB_CHECKPOINT,
+   "(for --backup): Force an InnoDB checkpoint",
+   (G_PTR*)&innodb_log_checkpoint_now,
+   (G_PTR*)&innodb_log_checkpoint_now,
+   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
+
     {"mysqld-args", OPT_XTRA_MYSQLD_ARGS,
      "All arguments that follow this argument are considered as server "
      "options, and if some of them are not supported by mariabackup, they "
@@ -2118,7 +2126,7 @@ static int prepare_export()
   if (strncmp(orig_argv1,"--defaults-file=", 16) == 0)
   {
     snprintf(cmdline, sizeof cmdline,
-      IF_WIN("\"","") "\"%s\" --mysqld \"%s\""
+      IF_WIN("\"","") "\"%s\" --mariadbd \"%s\""
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb-buffer-pool-size=%llu"
@@ -2132,7 +2140,7 @@ static int prepare_export()
   else
   {
     snprintf(cmdline, sizeof cmdline,
-      IF_WIN("\"","") "\"%s\" --mysqld"
+      IF_WIN("\"","") "\"%s\" --mariadbd"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb-buffer-pool-size=%llu"
@@ -2476,7 +2484,7 @@ static bool innodb_init_param()
 	}
 
 	srv_sys_space.normalize_size();
-	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
+	srv_lock_table_size = 5 * buf_pool.curr_size();
 
 	/* -------------- Log files ---------------------------*/
 
@@ -2498,11 +2506,8 @@ static bool innodb_init_param()
 
 	srv_adaptive_flushing = FALSE;
 
-        /* We set srv_pool_size here in units of 1 kB. InnoDB internally
-        changes the value so that it becomes the number of database pages. */
-
-	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
-	srv_buf_pool_chunk_unit = srv_buf_pool_size;
+	buf_pool.size_in_bytes_max = size_t(xtrabackup_use_memory);
+	buf_pool.size_in_bytes_requested = buf_pool.size_in_bytes_max;
 
 	srv_n_read_io_threads = (uint) innobase_read_io_threads;
 	srv_n_write_io_threads = (uint) innobase_write_io_threads;
@@ -2968,6 +2973,15 @@ my_bool regex_list_check_match(
 	const regex_list_t& list,
 	const char* name)
 {
+	if (list.empty()) return (FALSE);
+
+	/*
+	  regexec/pcre2_regexec is not threadsafe, also documented.
+	  Serialize access from multiple threads to compiled regexes.
+	*/
+	static std::mutex regex_match_mutex;
+	std::lock_guard<std::mutex> lock(regex_match_mutex);
+
 	regmatch_t tables_regmatch[1];
 	for (regex_list_t::const_iterator i = list.begin(), end = list.end();
 	     i != end; ++i) {
@@ -5427,6 +5441,14 @@ static bool xtrabackup_backup_func()
 	}
 	msg("cd to %s", mysql_real_data_home);
 	encryption_plugin_backup_init(mysql_connection);
+	if (innodb_log_checkpoint_now != false && mysql_send_query(
+		    mysql_connection,
+		    C_STRING_WITH_LEN("SET GLOBAL "
+				      "innodb_log_checkpoint_now=ON;"))) {
+		msg("initiating checkpoint failed");
+		return(false);
+	}
+
 	msg("open files limit requested %lu, set to %lu",
 	    xb_open_files_limit,
 	    xb_set_max_open_files(xb_open_files_limit));
@@ -5539,6 +5561,11 @@ fail:
 		goto fail;
 	}
 
+	/* try to wait for a log checkpoint, but do not fail if the
+	server does not support this */
+	if (innodb_log_checkpoint_now != false) {
+		mysql_read_query_result(mysql_connection);
+	}
 	/* label it */
 	recv_sys.file_checkpoint = log_sys.next_checkpoint_lsn;
 	log_hdr_init();
@@ -6252,9 +6279,22 @@ xtrabackup_apply_delta(
 					buf + FSP_HEADER_OFFSET + FSP_SIZE);
 				if (mach_read_from_4(buf
 						     + FIL_PAGE_SPACE_ID)) {
+#ifdef _WIN32
+					os_offset_t last_page =
+					  os_file_get_size(dst_file) /
+					  page_size;
+
+					/* os_file_set_size() would
+					shrink the size of the file */
+					if (last_page < n_pages &&
+					    !os_file_set_size(
+					       dst_path, dst_file,
+					       n_pages * page_size))
+#else
 					if (!os_file_set_size(
 						    dst_path, dst_file,
 						    n_pages * page_size))
+#endif /* _WIN32 */
 						goto error;
 				} else if (fil_space_t* space
 					   = fil_system.sys_space) {
@@ -7530,9 +7570,9 @@ int main(int argc, char **argv)
 	{
 		/* In "prepare export", we need  to start mysqld 
 		Since it is not always be installed on the machine,
-		we start "mariabackup --mysqld", which acts as mysqld
+		we start "mariabackup --mariadbd", which acts as mysqld
 		*/
-		if (strcmp(argv[1], "--mysqld") == 0)
+		if (strcmp(argv[1], "--mariadbd") == 0)
 		{
 			srv_operation= SRV_OPERATION_EXPORT_RESTORED;
 			extern int mysqld_main(int argc, char **argv);

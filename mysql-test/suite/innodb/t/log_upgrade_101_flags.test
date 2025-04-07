@@ -89,7 +89,7 @@ print OUT chr(0);
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m --innodb_page_size=32k --innodb_buffer_pool_size=10M
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m --innodb_page_size=32k --innodb_buffer_pool_size=11M
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'

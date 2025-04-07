@@ -2795,5 +2795,96 @@ SELECT f1();
 DROP FUNCTION f1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-36390: Minor refactoring of the method get_expr_query at the classes sp_instr_cpush/sp_instr_cursor_copy_struct
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--delimiter $
+
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE va INT;
+  # Check that the TAB character after the clause FOR is skipped and
+  # the body of cursor is remembered correctly for subsequent re-parsing
+  DECLARE cur CURSOR FOR	SELECT a FROM t1;
+
+  OPEN cur;
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$
+
+CREATE OR REPLACE PROCEDURE p2()
+BEGIN
+  DECLARE va INT;
+  # Check that the newline character after the clause FOR is skipped and
+  # the body of cursor is remembered correctly for subsequent re-parsing
+  DECLARE cur CURSOR FOR
+  SELECT a FROM t1;
+
+  OPEN cur;
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$
+
+CREATE OR REPLACE PROCEDURE p3()
+BEGIN
+  DECLARE va INT;
+  # Check that C-style comment and the newline character after
+  # the clause FOR is skipped and the body of cursor is remembered
+  # correctly for subsequent re-parsing
+  DECLARE cur CURSOR FOR /* Explicit comment */
+  SELECT a FROM t1;
+
+  OPEN cur;
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$
+
+CREATE OR REPLACE PROCEDURE p4()
+BEGIN
+  DECLARE va INT;
+  # Check that SQL-style comment and the newline character after
+  # the clause FOR is skipped and the body of cursor is remembered
+  # correctly for subsequent re-parsing
+  DECLARE cur CURSOR FOR -- Explicit comment
+  SELECT a FROM t1;
+
+  OPEN cur;
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$
+
+--delimiter ;
+
+CALL p1();
+CALL p2();
+CALL p3();
+CALL p4();
+ALTER TABLE t1 COMMENT 'The Comment 1';
+--echo # The following statements will run re-parsing of
+--echo # cursor declaration statements inside the stored
+--echo # procedures p1, p2, p3, p4.
+CALL p1();
+CALL p2();
+CALL p3();
+CALL p4();
+
+--echo # Clean up
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+DROP PROCEDURE p4;
+DROP TABLE t1;
+
 SET sql_mode = default;
 --enable_ps2_protocol

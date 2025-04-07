@@ -4344,13 +4344,12 @@ dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
           children.end())
         continue; /* We already acquired MDL on this child table. */
       MDL_ticket *mdl= nullptr;
-      child->acquire();
       child= dict_acquire_mdl_shared<false>(child, mdl_context, &mdl,
                                             DICT_TABLE_OP_NORMAL);
       if (child)
       {
-        if (!mdl)
-          child->release();
+        if (mdl)
+          child->acquire();
         children.emplace_back(table_mdl{child, mdl});
         goto rescan;
       }

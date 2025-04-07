@@ -26,4 +26,3 @@ reset_connection;
 --connection node_1
 DROP TABLE t1;
 DROP USER user1;
-

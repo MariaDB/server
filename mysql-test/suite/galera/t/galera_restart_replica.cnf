@@ -17,4 +17,3 @@ wsrep_gtid_mode=1
 wsrep_gtid_domain_id=16
 gtid_domain_id=11
 gtid_strict_mode=1
-
