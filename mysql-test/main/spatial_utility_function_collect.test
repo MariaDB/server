@@ -205,3 +205,9 @@ CREATE TABLE t1 (a int, p point);
 INSERT INTO t1 (a, p) VALUES (0,st_geomfromtext('POINT(1 1)')), ( 1,st_geomfromtext('POINT(0 0)')), ( 0,st_geomfromtext('POINT(1 1)'));
 SELECT st_astext(ST_COLLECT(p)) FROM t1 GROUP BY a;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-36491 Server crashes in Item_func_group_concat::print
+--echo #
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT 1 FROM dual WHERE group_concat(1, 1);
