@@ -20,8 +20,8 @@
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 --connection node_1a
-TRUNCATE TABLE t1;
-# TRUNCATE forces the next statement to re-read statistics from persistent storage,
+RENAME TABLE t1 TO tmp, tmp TO t1;
+# RENAME forces the next statement to re-read statistics from persistent storage,
 # which will acquire MDL locks on the statistics tables in InnoDB.
 SET SESSION wsrep_retry_autocommit = 0;
 SET DEBUG_SYNC = 'dict_stats_mdl_acquired SIGNAL may_toi WAIT_FOR bf_abort';
