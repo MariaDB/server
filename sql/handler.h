@@ -59,6 +59,12 @@ class Field_varstring;
 class Field_blob;
 class Column_definition;
 class select_result;
+class handler_binlog_reader;
+struct rpl_gtid;
+struct slave_connection_state;
+struct rpl_binlog_state_base;
+struct handler_binlog_event_group_info;
+struct handler_binlog_purge_info;
 
 // the following is for checking tables
 
@@ -1225,6 +1231,17 @@ typedef struct st_ha_create_table_option {
   struct st_mysql_sys_var *var;
 } ha_create_table_option;
 
+
+/* Struct used to return binlog file list for SHOW BINARY LOGS from engine. */
+struct binlog_file_entry
+{
+  binlog_file_entry *next;
+  LEX_CSTRING name;
+  /* The size is filled in by server, engine need not return it. */
+  my_off_t size;
+};
+
+
 class handler;
 class group_by_handler;
 class derived_handler;
@@ -1527,6 +1544,55 @@ struct handlerton
   /* Called at startup to update default engine costs */
   void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
   void *optimizer_costs;                        /* Costs are stored here */
+
+  /* Optional implementation of binlog in the engine. */
+  bool (*binlog_init)(size_t binlog_size, const char *directory);
+  /* Binlog an event group that doesn't go through commit_ordered. */
+  bool (*binlog_write_direct)(IO_CACHE *cache,
+                              handler_binlog_event_group_info *binlog_info,
+                              const rpl_gtid *gtid);
+  /*
+    Binlog parts of large transactions out-of-band, in different chunks in the
+    binlog as the transaction executes. This limits the amount of data that
+    must be binlogged transactionally during COMMIT. The engine_data points to
+    a pointer location that the engine can set to maintain its own context
+    for the out-of-band data.
+   */
+  bool (*binlog_oob_data)(THD *thd, const unsigned char *data, size_t data_len,
+                          void **engine_data);
+  /* Call to allow engine to release the engine_data from binlog_oob_data(). */
+  void (*binlog_oob_free)(THD *thd, void *engine_data);
+  /* Obtain an object to allow reading from the binlog. */
+  handler_binlog_reader * (*get_binlog_reader)();
+  /*
+    Obtain the current position in the binlog.
+    Used to support legacy SHOW MASTER STATUS.
+  */
+  void (*binlog_status)(char out_filename[FN_REFLEN], ulonglong *out_pos);
+  /* Obtain list of binlog files (SHOW BINARY LOGS). */
+  binlog_file_entry * (*get_binlog_file_list)(MEM_ROOT *mem_root);
+  /*
+    End the current binlog file, and create and switch to a new one.
+    Used to implement FLUSH BINARY LOGS.
+  */
+  bool (*binlog_flush)();
+  /*
+    Read the binlog state at the start of the very first (not purged) binlog
+    file, and return it in *out_state. This is used to check validity of
+    FLUSH BINARY LOGS DELETE_DOMAIN_ID=(<list>).
+
+    Returns true on error, false on ok.
+  */
+  bool (*binlog_get_init_state)(rpl_binlog_state_base *out_state);
+  /* Engine implementation of RESET MASTER. */
+  bool (*reset_binlogs)();
+  /*
+    Engine implementation of PURGE BINARY LOGS.
+    Return 0 for ok or one of LOG_INFO_* errors.
+
+    See also ha_binlog_purge_info() for auto-purge.
+  */
+  int (*binlog_purge)(handler_binlog_purge_info *purge_info);
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
@@ -5801,4 +5867,106 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
 #ifndef DBUG_OFF
 const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
+
+/* Struct with info about an event group to be binlogged by a storage engine. */
+struct handler_binlog_event_group_info {
+  /* Opaque pointer for the engine's use. */
+  void *engine_ptr;
+  /* End of data that has already been binlogged out-of-band. */
+  my_off_t out_of_band_offset;
+  /*
+    Offset of the GTID event, which comes first in the event group, but is put
+    at the end of the IO_CACHE containing the data to be binlogged.
+  */
+  my_off_t gtid_offset;
+};
+
+
+/*
+  Class for reading a binlog implemented in an engine.
+*/
+class handler_binlog_reader {
+public:
+  /*
+    Approximate current position (from which next call to read_binlog_data()
+    will need to read). Updated by the engine. Used to know which binlog files
+    the active dump threads are currently reading from, to avoid purging
+    actively used binlogs.
+  */
+  uint64_t cur_file_no;
+  uint64_t cur_file_pos;
+
+private:
+  /* Position and length of any remaining data in buf[]. */
+  uint32_t buf_data_pos;
+  uint32_t buf_data_remain;
+  /* Buffer used when reading data out via read_binlog_data(). */
+  uchar buf[32768];
+
+public:
+  handler_binlog_reader()
+    : cur_file_no(~(uint64_t)0), cur_file_pos(~(uint64_t)0),
+      buf_data_pos(0), buf_data_remain(0)
+  { }
+  virtual ~handler_binlog_reader() { };
+  virtual int read_binlog_data(uchar *buf, uint32_t len) = 0;
+  virtual bool data_available()= 0;
+  /*
+    This initializes the current read position to the point of the slave GTID
+    position passed in as POS. It is permissible to start at a position a bit
+    earlier in the binlog, only cost is the extra read cost of reading not
+    needed event data.
+
+    If position is found, must return the corresponding binlog state in the
+    STATE output parameter and initialize cur_file_no and cur_file_pos members.
+
+    Returns:
+     -1  Error
+      0  The requested GTID position not found, needed binlogs have been purged
+      1  Ok, position found and returned.
+  */
+  virtual int init_gtid_pos(slave_connection_state *pos,
+                            rpl_binlog_state_base *state) = 0;
+  /*
+    Initialize to a legacy-type position (filename, offset). This mostly to
+    support legacy SHOW BINLOG EVENTS.
+  */
+  virtual int init_legacy_pos(const char *filename, ulonglong offset) = 0;
+  /* Get a binlog name from a file_no. */
+  virtual void get_filename(char name[FN_REFLEN], uint64_t file_no) = 0;
+
+  int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
+};
+
+
+/* Structure returned by ha_binlog_purge_info(). */
+struct handler_binlog_purge_info {
+  /* The earliest binlog file that is in use by a dump thread. */
+  uint64_t limit_file_no;
+  /*
+    Set by engine to give a reason why a requested purge could not be done.
+    If set, then nonpurge_filename should be set to the filename.
+
+    Also set by ha_binlog_purge_info() when it returns false, to the reason
+    why no purge is possible. In this case, the nonpurge_filename is set
+    to the empty string.
+  */
+  const char *nonpurge_reason;
+  /* The user-configured maximum total size of the binlog. */
+  ulonglong limit_size;
+  /* Binlog name, for PURGE BINARY LOGS TO. */
+  const char *limit_name;
+  /* The earliest file date (unix timestamp) that should not be purged. */
+  time_t limit_date;
+  /* Whether purge by date and/or by size and/or name is requested. */
+  bool purge_by_date, purge_by_size, purge_by_name;
+  /*
+    The name of the file that could not be purged, when nonpurge_reason
+    is given.
+  */
+  char nonpurge_filename[FN_REFLEN];
+  /* Default constructor to silence compiler warnings -Wuninitialized. */
+  handler_binlog_purge_info()= default;
+};
+
 #endif /* HANDLER_INCLUDED */

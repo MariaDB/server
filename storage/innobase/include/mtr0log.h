@@ -25,7 +25,7 @@ Mini-transaction log record encoding and decoding
 #include "mtr0mtr.h"
 
 /** The smallest invalid page identifier for persistent tablespaces */
-constexpr page_id_t end_page_id{SRV_SPACE_ID_UPPER_BOUND, 0};
+constexpr page_id_t end_page_id{SRV_SPACE_ID_BINLOG1 + 1, 0};
 
 /** The minimum 2-byte integer (0b10xxxxxx xxxxxxxx) */
 constexpr uint32_t MIN_2BYTE= 1 << 7;
@@ -389,9 +389,13 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
 {
   static_assert(!(type & 15) && type != RESERVED &&
                 type <= FILE_CHECKPOINT, "invalid type");
-  ut_ad(type >= FILE_CREATE || is_named_space(id.space()));
+  ut_ad(type >= FILE_CREATE || is_named_space(id.space()) ||
+        id.space() == LOG_BINLOG_ID_0 ||
+        id.space() == LOG_BINLOG_ID_1);
   ut_ad(!bpage || bpage->id() == id);
-  ut_ad(id < end_page_id);
+  ut_ad(id < end_page_id ||
+        id.space() == LOG_BINLOG_ID_0 ||
+        id.space() == LOG_BINLOG_ID_1);
   constexpr bool have_len= type != INIT_PAGE && type != FREE_PAGE;
   constexpr bool have_offset= type == WRITE || type == MEMSET ||
     type == MEMMOVE;
@@ -402,7 +406,8 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   ut_ad(offset + len <= srv_page_size);
   static_assert(MIN_4BYTE >= UNIV_PAGE_SIZE_MAX, "consistency");
   ut_ad(type == FREE_PAGE || type == OPTION || (type == EXTENDED && !bpage) ||
-        memo_contains_flagged(bpage, MTR_MEMO_MODIFY));
+        memo_contains_flagged(bpage, MTR_MEMO_MODIFY) ||
+        (type == WRITE && id.space() >= LOG_BINLOG_ID_0));
   size_t max_len;
   if (!have_len)
     max_len= 1 + 5 + 5;
