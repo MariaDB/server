@@ -5737,6 +5737,9 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
 
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
 
+  if (create_info->sequence)
+      DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
   if (altered_table->versioned(VERS_TIMESTAMP))
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 

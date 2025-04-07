@@ -12767,6 +12767,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         else
           to->next_number_field->reset();
       }
+      if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 1)
+      {
+        my_error(ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS, MYF(0));
+        error= 1;
+        break;
+      }
       error= to->file->ha_write_row(to->record[0]);
       to->auto_increment_field_not_null= FALSE;
       if (unlikely(error))
