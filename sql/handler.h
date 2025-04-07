@@ -5977,6 +5977,8 @@ struct handler_binlog_purge_info {
     is given.
   */
   char nonpurge_filename[FN_REFLEN];
+  /* Default constructor to silence compiler warnings -Wuninitialized. */
+  handler_binlog_purge_info()= default;
 };
 
 #endif /* HANDLER_INCLUDED */
