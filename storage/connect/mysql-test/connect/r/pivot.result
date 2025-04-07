@@ -110,7 +110,7 @@ Joe	Beer	18.00	49.00	14.00
 Joe	Car	20.00	0.00	0.00
 Joe	Food	31.00	34.00	12.00
 #
-# Using scalar functions and expresssions
+# Using scalar functions and expressions
 #
 DROP TABLE pivex;
 CREATE TABLE pivex (

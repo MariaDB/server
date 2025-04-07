@@ -342,7 +342,7 @@ EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x12345;
 EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x23456;
 
 # Delete the current PK and create a new one referencing different CF-s. We
-# need to verity that new CF-s will be created and no data will be lost in
+# need to verify that new CF-s will be created and no data will be lost in
 # process.
 ALTER TABLE t2 DROP PRIMARY KEY;
 ALTER TABLE t2 ADD  PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=new_cf0;custom_p1_cfname=new_cf1';

@@ -3503,7 +3503,7 @@ id	subset_id
 2	2
 3	3
 4	4
-# non-mergable subquery
+# non-mergeable subquery
 # expected for t1: range access and rows = 4 (not 1000)
 explain SELECT * FROM t1
 WHERE t1.subset_id IN (SELECT max(t2.id) FROM t2 group by t2.col);

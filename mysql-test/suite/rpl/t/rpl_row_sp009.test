@@ -1,7 +1,7 @@
 #############################################################################
 # Original Author: JBM                                                      #
 # Original Date: Aug/18/2005                                                #
-# Updated: 08/29/2005 removed sleeps and added master pos save and snyc     #
+# Updated: 08/29/2005 removed sleeps and added master pos save and sync     #
 #############################################################################
 #TEST: Taken and modfied from http://bugs.mysql.com/bug.php?id=12168        #
 #############################################################################

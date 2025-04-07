@@ -134,7 +134,7 @@ drop table t1;
 --exec echo "use"         >  $file
 --exec $MYSQL              < $file 2>&1
 
-# Test exceutable comments
+# Test executable comments
 --exec echo "SELECT 1 /*! +1 */;"       > $file
 --exec echo "SELECT 1 /*M! +1 */;"      >> $file
 --exec echo "SELECT 1 /*!00000 +1 */;"  >> $file

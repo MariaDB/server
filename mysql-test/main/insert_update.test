@@ -85,7 +85,7 @@ DROP TABLE t2;
 
 #
 # Bug#9725 - "disapearing query/hang" and "unknown error" with "on duplicate key update"
-# INSERT INGORE...UPDATE gives bad error or breaks protocol.
+# INSERT IGNORE...UPDATE gives bad error or breaks protocol.
 #
 create table t1 (a int not null unique) engine=myisam;
 insert into t1 values (1),(2);

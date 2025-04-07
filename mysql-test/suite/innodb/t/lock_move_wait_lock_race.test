@@ -27,7 +27,7 @@ SET DEBUG_SYNC="lock_rec_store_on_page_infimum_end SIGNAL trx2_moved_locks WAIT_
 --connect(trx3, localhost,root,,)
 SET DEBUG_SYNC="now WAIT_FOR trx2_start_waiting";
 #################
-# The condition wariable waiting in lock_wait() must be finished by timeout
+# The condition variable waiting in lock_wait() must be finished by timeout
 ###
 SET innodb_lock_wait_timeout=1;
 BEGIN;

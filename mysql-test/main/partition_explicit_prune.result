@@ -226,7 +226,7 @@ INSERT INTO t1 PARTITION (pNonExisting) VALUES (1, "error");
 ERROR HY000: Unknown partition 'pNonExisting' in table 't1'
 INSERT INTO t1 PARTITION (pNeg, pNonExisting) VALUES (1, "error");
 ERROR HY000: Unknown partition 'pNonExisting' in table 't1'
-# Duplicate partitions and overlapping partitions and subpartitios is OK
+# Duplicate partitions and overlapping partitions and subpartitions is OK
 FLUSH STATUS;
 INSERT INTO t1 PARTITION (pNeg, pNeg) VALUES (-1, "pNeg(-subp1)");
 SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS
@@ -1291,7 +1291,7 @@ HANDLER_TMP_WRITE	24
 SELECT * FROM t3 PARTITION (pNeg);
 ERROR HY000: PARTITION () clause on non partitioned table
 DROP TABLE t1, t2, t3;
-# Test from superseeded WL# 2682
+# Test from superseded WL# 2682
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
 CREATE TABLE `t1` (
 `id` int(11) default NULL

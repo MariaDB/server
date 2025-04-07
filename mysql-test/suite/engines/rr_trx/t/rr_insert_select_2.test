@@ -7,7 +7,7 @@
 SET autocommit = 0;
 START TRANSACTION;
 
-# We need this to determine how many rows to update after insert (we may insert mulitple rows).
+# We need this to determine how many rows to update after insert (we may insert multiple rows).
 let $pk_before= `SELECT MAX(`pk`) FROM t1`;
 
 # Insert rows unless we have duplicate values in unique indexes.

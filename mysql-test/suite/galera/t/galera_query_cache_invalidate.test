@@ -12,7 +12,7 @@
 #       |                          {Async replication}
 #       D(3) <-> E(4)              {Galera cluster 2}
 #
-# Normal asyncronous replication is used between nodes 1 and 3
+# Normal asynchronous replication is used between nodes 1 and 3
 # so that node_1 is master and node_3 a slave.
 #
 # In this test we can't test is some query fast or slow but we can

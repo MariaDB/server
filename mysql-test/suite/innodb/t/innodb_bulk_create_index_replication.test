@@ -6,7 +6,7 @@
 # Earlier index was create by repeatedly inserting records           #
 # Test scenario :                                                    #
 # - Run bulk create index on replication setup                       #
-# - Run bulk create on partitioned table and see its replictaed      #
+# - Run bulk create on partitioned table and see its replicated      #
 #   to slave                                                         #
 # Creation:                                                          #
 # 2014-06-19 Implemented this test as part of WL#7277                #

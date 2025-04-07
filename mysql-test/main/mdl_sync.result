@@ -44,7 +44,7 @@ connection default;
 set debug_sync= 'RESET';
 create table t1 (c1 int);
 # 
-# A) First let us check compatibility rules between differend kinds of
+# A) First let us check compatibility rules between different kinds of
 #    type-of-operation aware metadata locks.
 #    Of course, these rules are already covered by the tests scattered
 #    across the test suite. But it still makes sense to have one place
@@ -1981,7 +1981,7 @@ connection deadlock_con2;
 set debug_sync='now WAIT_FOR parked2';
 # Resume ALTER execution. Eventually it will release its
 # metadata lock and INSERT's request for SW lock will be
-# satisified.
+# satisfied.
 set debug_sync='now SIGNAL go1';
 #
 connection default;
@@ -2470,7 +2470,7 @@ disconnect con1;
 # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
 #           failed in open_ltable()
 #
-# Supress warnings written to the log file
+# Suppress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
 connect  con1,localhost,root;
 connect  con2,localhost,root;

@@ -1055,7 +1055,7 @@ FROM t1
 ORDER BY max;
 
 --echo
---echo # Only 11 is correct for collumn i in this result
+--echo # Only 11 is correct for column i in this result
 SELECT MAX(pk) as max, i
 FROM t1
 WHERE pk<2

@@ -19,7 +19,7 @@ begin;
 insert into t1 select @s:=1+(seq mod 9), point(@s, @s)
 from seq_1_to_576;
 
-#Check second round spliting.
+#Check second round splitting.
 SET @saved_dbug = @@SESSION.debug_dbug;
 SET debug_dbug = '+d,rtr_page_need_second_split';
 insert into t1 select @s:=1+(seq mod 9), point(@s, @s)

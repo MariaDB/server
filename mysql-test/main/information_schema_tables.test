@@ -25,7 +25,7 @@ END LOOP $
 --delimiter ;
 --connection default
 # Avoid "Prepared statement needs to be re-prepared"
-# Note, the code could probably eventually fixed to avoid forcing re-pepare if
+# Note, the code could probably eventually be fixed to avoid forcing re-prepare if
 # the *temporary* instance of Sp_caches (not the permanent one) was invalidated.
 --disable_ps_protocol
 --disable_warnings
@@ -64,7 +64,7 @@ DROP VIEW v2;
 DROP FUNCTION f;
 
 --echo # The third test version from the MDEV.
---echo # It failed reliably, and should be deterninistic.
+--echo # It failed reliably, and should be deterministic.
 
 CREATE FUNCTION f1() RETURNS INT RETURN 1;
 CREATE VIEW v01 AS SELECT f1();

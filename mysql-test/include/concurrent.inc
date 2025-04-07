@@ -454,7 +454,7 @@ drop table t1;
       --echo ** Table will be unchanged and the select command will not be
       --echo ** blocked:
       select * from t1;
-      --echo ** Commit transacton on thread 2.
+      --echo ** Commit transaction on thread 2.
       commit;
 
   connection thread1;

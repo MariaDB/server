@@ -84,7 +84,7 @@ sub init_pattern {
   return undef unless defined $from;
   if ( $from =~ /^[a-z0-9\.]*$/ ) {
     # Does not contain any regex (except . that we allow as
-    # separator betwen suite and testname), make the pattern match
+    # separator between suite and testname), make the pattern match
     # beginning of string
     $from= "^$from";
     mtr_verbose2("$what='$from'");
@@ -184,7 +184,7 @@ sub collect_test_cases ($$$$) {
       #
       # Collect the criteria for sorting, in order of importance.
       # Note that criteria are also used in mysql-test-run.pl to
-      # schedule tests to workers, and it preferres tests that have
+      # schedule tests to workers, and it prefers tests that have
       # *identical* criteria. That is, test name is *not* part of
       # the criteria, but it's part of the sorting function below.
       #
@@ -487,7 +487,7 @@ sub process_suite {
 					     $suitedir));
 
   #
-  # Read suite config files, unless it was done aleady
+  # Read suite config files, unless it was done already
   #
   unless (defined $suite->{name}) {
     $suite->{name} = $suitename;

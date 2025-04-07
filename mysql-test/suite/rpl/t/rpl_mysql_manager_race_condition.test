@@ -66,7 +66,7 @@ create table t1 (a int);
 --echo # the mysql handle manager has started.
 --connection slave
 
---echo # Add test suppresssions so crash recovery messages don't fail the test
+--echo # Add test suppressions so crash recovery messages don't fail the test
 set session sql_log_bin=0;
 call mtr.add_suppression("mariadbd: Got error '145.*");
 call mtr.add_suppression("Checking table:.*");

@@ -302,7 +302,7 @@ set @@optimizer_switch=@save_optimizer_switch;
 drop table t1, t2;
 #
 # MWL#89: test introduced after Sergey Petrunia's review - test that
-# keyparts wihtout index prefix are used with the IN-EXISTS strategy.
+# keyparts without index prefix are used with the IN-EXISTS strategy.
 # 
 create table t1 (c1 int);
 insert into t1 values (1), (2), (3);

@@ -168,7 +168,7 @@ sub check_socket_path_length {
        Local => $testfile,
        Listen => 1,
       );
-    $truncated= 1; # Be negatvie
+    $truncated= 1; # Be negative
 
     die "Could not create UNIX domain socket: $!"
       unless defined $sock;

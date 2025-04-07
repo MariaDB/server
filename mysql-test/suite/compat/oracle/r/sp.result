@@ -140,7 +140,7 @@ SELECT @p1, @p2;
 @p1	@p2
 p1	p2new
 DROP PROCEDURE p1;
-# Testing Oracle-style assigment
+# Testing Oracle-style assignment
 CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10)) AS
 BEGIN
 p1:= 'p1new';

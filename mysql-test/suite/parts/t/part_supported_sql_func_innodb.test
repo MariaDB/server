@@ -35,7 +35,7 @@ let $do_long_tests= 1;
 # Engine specific settings and requirements
 
 ##### Storage engine to be tested
-#The server nust support the engine
+#The server must support the engine
 --source include/have_innodb.inc
 let $engine= 'INNODB';
 

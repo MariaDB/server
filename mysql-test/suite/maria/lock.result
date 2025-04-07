@@ -72,7 +72,7 @@ f2
 unlock tables;
 DROP TABLE t1,t2,tmp;
 #
-# Using spatical keys (disables versioning)
+# Using spatial keys (disables versioning)
 #
 CREATE TABLE t1 (f1 INT, c1 geometry NOT NULL, SPATIAL KEY i1 (c1)) transactional=1 ENGINE=Aria;
 SHOW CREATE TABLE t1;

@@ -2,8 +2,8 @@
 # Important Note:
 # 1) Uncommitted records are not visible using FTS index - this is by FTS design
 # 2) records will be seen using FTS index ONLY when transaction completes 
-# 3) UNCOMMITTED RECORDS CAN BE SEEN WITH QURIES WHICH DO NOT USE FTS INDEX
-# this behavior do not break integratity of tables and "select" which do not use FTS still can view them.
+# 3) UNCOMMITTED RECORDS CAN BE SEEN WITH QUERIES WHICH DO NOT USE FTS INDEX
+# this behavior do not break integrity of tables and "select" which do not use FTS still can view them.
 --source include/have_innodb.inc
 --source include/maybe_versioning.inc
 
@@ -301,7 +301,7 @@ SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('query performace' IN BOOLEAN MODE);
 
-# following update will not succeed as it uses FTS index in where clause and the record matching condition is not committe yet.
+# following update will not succeed as it uses FTS index in where clause and the record matching condition is not committed yet.
 UPDATE t1 SET a = 'when To Use MySQL Well' , b = 'for free faq mail xyz.com ...' WHERE MATCH (a,b) AGAINST ('+query +performace' IN BOOLEAN MODE);
 # update will succeed as it uses non FTS condition in where clause. Record in where clause is visible as it is accessed by NON FTS condition.
 UPDATE t1 SET a = 'when To Use MySQL Well' , b = 'for free faq mail xyz.com ...' WHERE b like '%query performace%';
@@ -412,7 +412,7 @@ SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('+record +multiple' IN BOOLEAN MODE);
 
-# 3 rcords expected , two for tutor* and one for Sævö*
+# 3 records expected , two for tutor* and one for Sævö*
 SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('tutor* Sævö*' IN BOOLEAN MODE) ORDER BY 1;
@@ -499,7 +499,7 @@ ALTER TABLE t1 DROP INDEX idx;
 CREATE FULLTEXT INDEX idx on t1 (a,b);
 
 START TRANSACTION;
-# update record but do not commiit so latest upadted string not visible using FTS index but available with normal select
+# update record but do not commit so latest updated string not visible using FTS index but available with normal select
 UPDATE t1 SET a = 'Trial version Příliš žluťoučký' , b = 'query performace 1255 minute on 2.1Hz Memory 2GB...'
 WHERE MATCH (a,b) AGAINST ('+request +MySQL' IN BOOLEAN MODE);
 

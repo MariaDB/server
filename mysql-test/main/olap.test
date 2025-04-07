@@ -185,7 +185,7 @@ SELECT SQL_CALC_FOUND_ROWS a, SUM(b) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1;
 DROP TABLE t1;
 
 #
-# Tests for bug #9681: ROLLUP in subquery for derived table wiht 
+# Tests for bug #9681: ROLLUP in subquery for derived table with
 #                      a group by field declared as NOT NULL
 #
 

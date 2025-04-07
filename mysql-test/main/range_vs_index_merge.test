@@ -38,7 +38,7 @@ set session optimizer_switch='index_merge_sort_intersection=off';
 
 # The following 4 queries are added for code coverage 
 
-#the exptected # of rows differ on 32-bit and 64-bit platforms for innodb 
+#the expected # of rows differ on 32-bit and 64-bit platforms for innodb
 --replace_column 9 4079
 EXPLAIN
 SELECT * FROM City

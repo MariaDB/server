@@ -15,7 +15,7 @@
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 
-# Create auxilliary connections
+# Create auxiliary connections
 connect (addconroot1, localhost, root,,);
 connect (addconroot2, localhost, root,,);
 connect (addconroot3, localhost, root,,);

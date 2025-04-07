@@ -6,7 +6,7 @@ INSERT INTO t1 VALUES ("one"),("two"),("three"),("four"),("five");
 SHOW VARIABLES LIKE 'secure_file_priv';
 --disable_query_log
 
-# Atempt to create a file where we normally aren't allowed to create one.
+# Attempt to create a file where we normally aren't allowed to create one.
 #
 # Doing this in a portable manner is difficult but we should be able to
 # count on the directory hierarchy used. A step up from MYSQLTEST_VARDIR

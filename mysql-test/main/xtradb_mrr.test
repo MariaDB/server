@@ -382,7 +382,7 @@ insert into t1(pk,b) values (3, 30), (2, 20), (9, 90), (7, 70), (4, 40), (5, 50)
 set @bug665669_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=off';
 explain select * from t1 where b > 1000;
---echo # The following two must produce indentical results:
+--echo # The following two must produce identical results:
 select * from t1 where pk < 2 or pk between 3 and 4;
 select * from t1 where pk < 2 or pk between 3 and 4;   
 drop table t1;

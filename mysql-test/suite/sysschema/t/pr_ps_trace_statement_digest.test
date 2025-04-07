@@ -31,7 +31,7 @@ SET @digest.insert = (SELECT DIGEST FROM performance_schema.events_statements_hi
 SELECT * FROM t1;
 SET @digest.select = (SELECT DIGEST FROM performance_schema.events_statements_history WHERE THREAD_ID = @threadid AND SQL_TEXT LIKE 'SELECT * FROM t1');
 
-# Get digets of a SHOW statement (doesn't support EXPLAIN)
+# Get digest of a SHOW statement (doesn't support EXPLAIN)
 SHOW CREATE TABLE test.t1;
 SET @digest.show = (SELECT DIGEST FROM performance_schema.events_statements_history WHERE THREAD_ID = @threadid AND SQL_TEXT LIKE 'SHOW CREATE TABLE test.t1');
 

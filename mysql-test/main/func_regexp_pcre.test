@@ -196,7 +196,7 @@ SELECT REGEXP_REPLACE('a5b ab a5b','(?<=a)5*(?=b)','x');
 SELECT REGEXP_REPLACE('a5b a5b a5b','(?<=a)5*(?=b)','x');
 
 
-# Check that case sensitiviry respects the collation
+# Check that case sensitivity respects the collation
 SELECT REGEXP_REPLACE('A','a','b');
 SELECT REGEXP_REPLACE('a','A','b');
 SELECT REGEXP_REPLACE('A' COLLATE utf8_bin,'a','b');
@@ -423,7 +423,7 @@ SELECT 0xE001 REGEXP CAST(@regCheck AS CHAR);
 --echo # Since 11.5 (MDEV-25829) user variables have DERIVATION_COERCIBLE
 --echo # so a user variable and a literal in the pattern gave equal results
 --echo # But since 11.6 (MDEV-35041) user variables have DERIVATION_USERVAR
---echo # so the query with a literal is performece as binary:
+--echo # so the query with a literal is performed as binary:
 SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1;
 
 --echo # while the query with a user variable is performed as string
@@ -441,7 +441,7 @@ SET NAMES latin1;
 SET @regCheck= _binary '\\xE0\\x01';
 SELECT 0xE001 REGEXP @regCheck;
 
---echo # Testing workarond N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
+--echo # Testing workaround N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
 SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;

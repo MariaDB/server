@@ -43,7 +43,7 @@ drop view v1,v2;
 set query_cache_type=demand;
 --disable_ps2_protocol
 flush global status;
-# query with view will be cached, but direct acess to table will not
+# query with view will be cached, but direct access to table will not
 create view v1 (c,d) as select sql_cache a,b from t1;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";

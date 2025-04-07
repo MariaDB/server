@@ -5,7 +5,7 @@
 --echo # Issue #390
 --echo #---------------------------
 
-# Run 10 simulatenous threads each inserting 10,000 rows
+# Run 10 simultaneous threads each inserting 10,000 rows
 let $num_threads = 10;
 let $num_rows_per_thread = 100000;
 

@@ -81,7 +81,7 @@ EXPLAIN SELECT STRAIGHT_JOIN * FROM t1,t1 AS t2 WHERE t1.b = t2.b;
 ANALYZE TABLE t1;
 
 ###################################################################
-#   Setting new value for max_seeks_for_key and anaylyzing table  #
+#   Setting new value for max_seeks_for_key and analyzing table  #
 ###################################################################
 
 SET MAX_SEEKS_FOR_KEY=1;

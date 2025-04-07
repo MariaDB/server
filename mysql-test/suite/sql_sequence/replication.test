@@ -2,7 +2,7 @@
 # This test is originally sequence.test from ALISQL by Jianwei modified for
 # MariaDB
 #
-# It tests basic sequence functionallity together with replication
+# It tests basic sequence functionality together with replication
 #
 
 --source include/have_binlog_format_row.inc

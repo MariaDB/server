@@ -37,7 +37,7 @@ reset master;
 begin;
 insert into t1 values(2);
 insert into t2 select * from t1;
-# should say some changes to non-transact1onal tables couldn't be rolled back
+# should say some changes to non-transactional tables couldn't be rolled back
 rollback;
 
 source include/show_binlog_events.inc;
@@ -92,7 +92,7 @@ connection con2;
 select get_lock("a",10);
 source include/show_binlog_events.inc;
 
-# and when not in a transact1on?
+# and when not in a transaction?
 delete from t1;
 delete from t2;
 reset master;
@@ -102,7 +102,7 @@ insert into t2 select * from t1;
 
 source include/show_binlog_events.inc;
 
-# Check that when the query updat1ng the MyISAM table is the first in the
+# Check that when the query updating the MyISAM table is the first in the
 # transaction, we log it immediately.
 delete from t1;
 delete from t2;

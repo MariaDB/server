@@ -13,7 +13,7 @@
 ##############################################################################
 
 --echo
---echo Test phase 1 to make sure that natral deadlock in trigger SP execution is
+--echo Test phase 1 to make sure that natural deadlock in trigger SP execution is
 --echo handled correctly
 --echo
 --let $aborts_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
@@ -173,7 +173,7 @@ ROLLBACK;
 
 ##############################################################################
 #
-# test case to verify that natural deadlock within SP exceution
+# test case to verify that natural deadlock within SP execution
 # does not cause BF abort
 #
 ##############################################################################

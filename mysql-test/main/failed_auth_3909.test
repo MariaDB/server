@@ -3,7 +3,7 @@ source include/not_embedded.inc;
 #
 # MDEV-3909 remote user enumeration
 #
-# verify that for some failed login attemps (with wrong user names)
+# verify that for some failed login attempts (with wrong user names)
 # the server requests a plugin
 #
 create user foo identified via mysql_old_password;

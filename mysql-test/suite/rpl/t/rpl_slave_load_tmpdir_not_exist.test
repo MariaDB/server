@@ -1,5 +1,5 @@
 ##########################################################################
-# This test verifies if the start slave fails gracefuly when an 
+# This test verifies if the start slave fails gracefully when an
 # invalid directory is used to set --slave-load-tmpdir.
 ##########################################################################
 --source include/have_log_bin.inc

@@ -151,7 +151,7 @@ INSERT INTO t11 VALUES(7,7,f2(7));
 INSERT INTO t11 VALUES (103,103,'');
 
 --echo # Scheduler is on
-# Temporally events fire sequentally due Bug#29020.
+# Temporally events fire sequentially due Bug#29020.
 SET GLOBAL EVENT_SCHEDULER = on;
 # Wait while events will executed
 ALTER EVENT e1 ENABLE;

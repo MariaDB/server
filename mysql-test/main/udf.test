@@ -248,7 +248,7 @@ DROP FUNCTION avgcost;
 #             the UDF
 # 
 
-#enable view prtotocol after fix MDEV-28677
+#enable view protocol after fix MDEV-28677
 --disable_view_protocol
 #check after fix MDEV-31587
 --disable_cursor_protocol

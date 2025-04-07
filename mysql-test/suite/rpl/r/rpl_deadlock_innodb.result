@@ -47,7 +47,7 @@ COUNT(*)
 0
 COMMIT;
 
-# Test that the performance schema coulumn shows > 0 values.
+# Test that the performance schema column shows > 0 values.
 
 include/assert.inc [current number of retries should be more than the value saved before deadlock.]
 include/check_slave_is_running.inc

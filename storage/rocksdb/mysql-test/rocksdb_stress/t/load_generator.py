@@ -725,7 +725,7 @@ class LoadGenWorker(WorkerThread):
 
     while self.loop_num < self.num_requests and not TEST_STOP:
       try:
-        # verify our data on each reconnect and also on ocassion
+        # verify our data on each reconnect and also on occasion
         if reconnected or random.randint(1, 500) == 1:
           self.verify_data()
           reconnected = False

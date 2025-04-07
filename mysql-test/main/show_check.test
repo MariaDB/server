@@ -536,7 +536,7 @@ DROP VIEW IF EXISTS v1;
 DROP PROCEDURE IF EXISTS p1;
 --enable_warnings
 
-# Check that SHOW CREATE VIEW shows SQL_CACHE flag exaclty as
+# Check that SHOW CREATE VIEW shows SQL_CACHE flag exactly as
 # specified by the user.
 CREATE VIEW v1 AS SELECT 1;
 SHOW CREATE VIEW v1;

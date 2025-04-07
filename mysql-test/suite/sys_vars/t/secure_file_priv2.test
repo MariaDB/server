@@ -15,7 +15,7 @@ CREATE TABLE t1 (c1 INT);
 LOAD DATA INFILE "t1.MYI" into table t1;
 
 #
-# The following test makes the assuption that /test isn't a valid path in any
+# The following test makes the assumption that /test isn't a valid path in any
 # operating system running the test suite.
 --error ER_OPTION_PREVENTS_STATEMENT
 LOAD DATA INFILE "/test" into table t1;

@@ -835,7 +835,7 @@ select db_name, table_name, column_name,
 drop table t1;
 
 --echo #
---echo # MDEB-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
+--echo # MDEV-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
 --echo # Encountered illegal value '' when converting to DECIMAL
 --echo #
 
@@ -1001,7 +1001,7 @@ from mysql.column_stats;
 set analyze_sample_percentage=0.1;
 
 --echo #
---echo # This query will show an innacurate avg_frequency value.
+--echo # This query will show an inaccurate avg_frequency value.
 --echo #
 ANALYZE TABLE t1;
 --source include/histogram_replaces.inc

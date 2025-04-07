@@ -98,7 +98,7 @@ SHOW VARIABLES LIKE 'gtid_binlog_state';
 # value 0 for the reverse server id 2 -> 1 failover
 --let $failover_to_slave=0
 # Additionally through "foreign" server_id verify MDEV-27760's acceptance
-# policy on the recient (to be promoted into master) server.
+# policy on the recent (to be promoted into master) server.
 --let $query_to_crash = SET STATEMENT server_id=1 FOR INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
 --let $query2_to_crash= INSERT INTO t1 VALUES (5, REPEAT("x", 4100))
 --echo # $query_to_crash

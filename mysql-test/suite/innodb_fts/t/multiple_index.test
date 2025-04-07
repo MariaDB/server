@@ -21,7 +21,7 @@ ALTER TABLE t1 ADD FULLTEXT INDEX idx_1 (a);
 ALTER TABLE t1 ADD FULLTEXT INDEX idx_2 (b);
 EVAL SHOW CREATE TABLE t1;
 
-# check mutiple index with transaction
+# check multiple index with transaction
 START TRANSACTION;
 # Insert rows
 INSERT INTO t1 (a,b) VALUES

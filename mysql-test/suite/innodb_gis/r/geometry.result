@@ -82,7 +82,7 @@ INSERT into gis_geometry SELECT * FROM gis_multi_point;
 INSERT into gis_geometry SELECT * FROM gis_multi_line;
 INSERT into gis_geometry SELECT * FROM gis_multi_polygon;
 INSERT into gis_geometry SELECT * FROM gis_geometrycollection;
-#check format coversion functions & spatial values
+#check format conversion functions & spatial values
 SELECT fid, ST_AsText(g) FROM gis_point;
 fid	ST_AsText(g)
 101	POINT(10 10)
@@ -411,7 +411,7 @@ SET @c7=ST_GeomCollFromText('GEOMETRYCOLLECTION(POINT(0 0), LINESTRING(0 0,10 10
 SET @c8=ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))');
 #call the proc
 CALL geom_insert(@c1,@c2,@c3,@c4,@c5,@c6,@c7,@c8);
-#check the values ofter proc call
+#check the values after proc call
 SELECT ST_AsText(c0) FROM tab;
 ST_AsText(c0)
 POINT(10 10)
@@ -469,7 +469,7 @@ tab2	CREATE TABLE `tab2` (
   `c7` geometrycollection DEFAULT NULL,
   `c8` geometry NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-#create a tigger and populate the values into tab2
+#create a trigger and populate the values into tab2
 CREATE TRIGGER geom_trigger AFTER INSERT ON tab
 FOR EACH ROW
 BEGIN

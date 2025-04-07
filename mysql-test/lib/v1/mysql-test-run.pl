@@ -31,8 +31,8 @@
 #
 # Coding style directions for this perl script
 #
-#   - To make this Perl script easy to alter even for those that not
-#     code Perl that often, keeep the coding style as close as possible to
+#   - To make this Perl script easy to alter even for those that do not
+#     code Perl that often, keep the coding style as close as possible to
 #     the C/C++ MySQL coding standard.
 #
 #   - All lists of arguments to send to commands are Perl lists/arrays,
@@ -926,7 +926,7 @@ sub command_line_setup () {
   }
 
   # --------------------------------------------------------------------------
-  # ps protcol flag
+  # ps protocol flag
   # --------------------------------------------------------------------------
   if ( $opt_ps_protocol )
   {
@@ -1571,8 +1571,8 @@ sub environment_setup () {
   }
 
   # --------------------------------------------------------------------------
-  # Valgrind need to be run with debug libraries otherwise it's almost
-  # impossible to add correct supressions, that means if "/usr/lib/debug"
+  # Valgrind needs to be run with debug libraries otherwise it's almost
+  # impossible to add correct suppressions, that means if "/usr/lib/debug"
   # is available, it should be added to
   # LD_LIBRARY_PATH
   #
@@ -1668,7 +1668,7 @@ sub environment_setup () {
   $ENV{'MYSQL_CHECK'}=              $cmdline_mysqlcheck;
 
   # ----------------------------------------------------
-  # Setup env to childs can execute myqldump
+  # Setup env to childs can execute mysqldump
   # ----------------------------------------------------
   my $cmdline_mysqldump= generate_cmdline_mysqldump($master->[0]);
   my $cmdline_mysqldumpslave= generate_cmdline_mysqldump($slave->[0]);
@@ -2411,7 +2411,7 @@ sub mysql_install_db () {
     copy_install_db('master', $master->[1]->{'path_myddir'});
   }
 
-  # Install the number of slave databses needed
+  # Install the number of slave databases needed
   for (my $idx= 0; $idx < $max_slave_num; $idx++)
   {
     copy_install_db("slave".($idx+1), $slave->[$idx]->{'path_myddir'});
@@ -3083,7 +3083,7 @@ sub mysqld_arguments ($$$$) {
 
   if (!$opt_extern and $mysql_version_id >= 50106 )
   {
-    # Turn on logging to bothe tables and file
+    # Turn on logging to both tables and file
     mtr_add_arg($args, "%s--log-output=table,file", $prefix);
   }
 

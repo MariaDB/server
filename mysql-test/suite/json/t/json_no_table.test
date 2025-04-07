@@ -1863,7 +1863,7 @@ select json_unquote(json_compact('{"abc": "foo"}'));
 select json_extract(json_compact('{"abc": "foo"}'), '$.abc');
 select json_unquote(json_extract(json_compact('{"abc": "foo"}'), '$.abc'));
 
-# Bug fix: thse should be the same
+# Bug fix: these should be the same
 select json_unquote('["a", "b", "c"]');
 select json_unquote(json_compact('["a", "b", "c"]'));
 

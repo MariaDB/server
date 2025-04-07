@@ -759,7 +759,7 @@ set optimizer_switch='mrr=off';
 explain select * from t1 where b > 1000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	idx	idx	5	NULL	1	Using index condition
-# The following two must produce indentical results:
+# The following two must produce identical results:
 select * from t1 where pk < 2 or pk between 3 and 4;
 pk	b	c
 3	30	0

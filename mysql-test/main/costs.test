@@ -34,7 +34,7 @@ explain select count(*) from t1 where a > 2;
 --source include/last_query_cost.inc
 
 --echo #
---echo # Shorter indexes are prefered over longer indexs
+--echo # Shorter indexes are preferred over longer indexes
 --echo #
 explain select sum(a+b) from t1;
 --source include/last_query_cost.inc

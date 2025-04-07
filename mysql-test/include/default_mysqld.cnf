@@ -96,7 +96,7 @@ loose-performance-schema-max-thread-instances=400
 loose-performance-schema-session-connect-attrs-size=2048
 loose-performance-schema-max-metadata-locks=10000
 
-# Enable everything, for maximun code exposure during testing
+# Enable everything, for maximum code exposure during testing
 
 loose-performance-schema-instrument='%=ON'
 

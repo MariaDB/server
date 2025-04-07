@@ -683,7 +683,7 @@ show create table t1;
 drop table t1;
 
 #
-# Testing that maximim possible key length is 1000 bytes
+# Testing that maximum possible key length is 1000 bytes
 #
 create table t1 (a varchar(250) character set utf16 primary key);
 show create table t1;

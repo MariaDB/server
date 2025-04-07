@@ -47,7 +47,7 @@ INSERT INTO t1 values (2, 2);
 SELECT * FROM t1 ORDER BY id;
 
 # Regular long-running transaction.
-# No "Transaction could not check for conflicts for opearation" error should happen.
+# No "Transaction could not check for conflicts for operation" error should happen.
 BEGIN;
 
 connection con2;

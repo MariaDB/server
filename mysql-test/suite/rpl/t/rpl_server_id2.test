@@ -33,7 +33,7 @@ drop table t1;
 # Bug#38934 slave slave until does not work with --replicate-same-server-id
 #
 # Verifying that slave performs all events until the master_log_pos
-# in presense of --replicate-same-server-id the slave is started with.
+# in presence of --replicate-same-server-id the slave is started with.
 
 connection master;
 reset master;

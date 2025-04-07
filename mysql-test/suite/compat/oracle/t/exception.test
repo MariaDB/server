@@ -76,7 +76,7 @@ RAISE;
 
 
 --echo #
---echo # RAISE for an undefinite exception
+--echo # RAISE for an undefined exception
 --echo #
 
 DELIMITER $$;

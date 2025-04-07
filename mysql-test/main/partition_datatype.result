@@ -441,7 +441,7 @@ INSERT INTO t1 VALUES ('2011-03-27 01:59:59', 'Moscow');
 INSERT INTO t1 VALUES ('2011-03-27 03:00:00', 'Moscow');
 INSERT INTO t1 VALUES ('2011-03-27 03:00:01', 'Moscow');
 INSERT INTO t1 VALUES ('2011-10-30 01:59:59', 'Moscow');
-# All values between 02:00 and 02:59:59 will be interpretated as DST
+# All values between 02:00 and 02:59:59 will be interpreted as DST
 INSERT INTO t1 VALUES ('2011-10-30 02:00:00', 'MoscowD');
 INSERT INTO t1 VALUES ('2011-10-30 02:00:01', 'MoscowD');
 INSERT INTO t1 VALUES ('2011-10-30 02:59:59', 'MoscowD');

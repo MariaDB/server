@@ -247,7 +247,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Comnination: PAD_CHAR_TO_FULL_LENGTH + NO_UNSIGNED_SUBTRACTION
+--echo # Combination: PAD_CHAR_TO_FULL_LENGTH + NO_UNSIGNED_SUBTRACTION
 --echo #
 
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
@@ -307,7 +307,7 @@ CREATE TABLE t1 (id int, a CHAR(5), v TEXT AS (a) VIRTUAL, KEY(id, v(100)));
 SHOW WARNINGS;
 
 
---echo # A persisten virtual column cannot depend on sql_mode
+--echo # A persistent virtual column cannot depend on sql_mode
 
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (a) PERSISTENT);

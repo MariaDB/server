@@ -6,8 +6,8 @@
 #    Then report 'Last_query_cost' estimate from the query
 #    optimizer and total number of 'Handler_read%' when the
 #    query was executed.
-#    Intended usage is to verify that there are not regressions
-#    in either calculated or actuall cost for $query.
+#    Intended usage is to verify that there are no regressions
+#    in either calculated or actual cost for $query.
 #
 # USAGE
 #

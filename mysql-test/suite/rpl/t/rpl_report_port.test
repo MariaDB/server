@@ -23,7 +23,7 @@ source include/master-slave.inc;
 connection master;
 
 # Start the server with some value being passed to the report_port= <option>
-# this will be used incase we have to mask the value of the slave's port
+# this will be used in case we have to mask the value of the slave's port
 # number in certain situations.
 
 --let $rpl_server_number= 2

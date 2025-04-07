@@ -8,7 +8,7 @@
 --disable_abort_on_error
 
 # Section x.x.x.1
-# Test case: Verifing that a trigger that activates a primary key results in
+# Test case: Verifying that a trigger that activates a primary key results in
 #            the primary key acting correctly on the foreign key
 let $message= Testcase x.x.x.1:;
 --source include/show_msg.inc

@@ -6008,7 +6008,7 @@ DROP VIEW v1;
 DROP FUNCTION f;
 # Running mysql -uroot test < **vardir**/test.dmp
 #
-# Cleanup after succesful import.
+# Cleanup after successful import.
 #
 DROP VIEW v1;
 DROP FUNCTION f;

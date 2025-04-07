@@ -26,7 +26,7 @@ eval CREATE TABLE `t1` (
 INSERT INTO t1 (id, c) VALUES (1, 'manually');
 
 # We create the event so that it inserts exactly 1 row in the table
-# A recuring event is used so that we can be sure the event will
+# A recurring event is used so that we can be sure the event will
 # fire regardless of timing delays on the server. Otherwise, it is
 # possible for the event to timeout before it has inserted a row.
 --echo "Creating event test.justonce on the master"

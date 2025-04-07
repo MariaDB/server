@@ -1,5 +1,5 @@
 # Actual test of key caches
-# Verifing that reads/writes use the key cache correctly
+# Verifying that reads/writes use the key cache correctly
 SET @org_key_cache_buffer_size= @@global.default.key_buffer_size;
 # Minimize default key cache (almost disabled).
 SET @@global.default.key_buffer_size = 4096;

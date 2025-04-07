@@ -1591,7 +1591,7 @@ drop table t1;
 # performed. Namely, the table share, inserted in the hash during table
 # open, was not deleted from hash. At the same time the share was freed
 # when an error was encountered. Thus, subsequent access to the hash
-# resulted in scanning through deleted memory and we were geting a crash.
+# resulted in scanning through deleted memory and we were getting a crash.
 # that's why we need two tables in the bugtest
 
 create table bug15205 (val int(11) not null) engine=csv;

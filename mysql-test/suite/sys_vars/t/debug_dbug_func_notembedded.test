@@ -11,7 +11,7 @@
 connect(con1,localhost,root,,test,,);
 connect(con2,localhost,root,,test,,);
 
-# makes output independant of current debug status
+# makes output independent of current debug status
 connection con1;
 set session debug_dbug="t";
 show session variables like 'debug_dbug';

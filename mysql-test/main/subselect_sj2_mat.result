@@ -1648,7 +1648,7 @@ DROP TABLE t1,t2,t3,t4;
 set optimizer_switch=@save_optimizer_switch;
 #
 # mdev-4177: materialization of a subquery whose WHERE condition is OR
-# formula with two disjucts such that the second one is always false
+# formula with two disjuncts such that the second one is always false
 #
 set @save_optimizer_switch=@@optimizer_switch;
 set @save_join_cache_level=@@join_cache_level;
@@ -1760,8 +1760,8 @@ CREATE TABLE t1 (
 PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1;
 insert  into t1(`id`,`local_name`) values
-(1,'Cash Advance'),
-(2,'Cash Advance'),
+(1,'Cache Advance'),
+(2,'Cache Advance'),
 (3,'Rollover'),
 (4,'AL Installment'),
 (5,'AL Installment'),

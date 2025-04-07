@@ -39,7 +39,7 @@ if ($ctype_unescape_combinations == 'selected')
 --source include/bytes.inc
 #
 # Populate "selected_bytes" with bytes that have a special meaning.
-# We'll use "selected_bytes" to generate byte seqeunces,
+# We'll use "selected_bytes" to generate byte sequences,
 # instead of the full possible byte combinations, to reduce test time.
 #
 CREATE TABLE selected_bytes (a VARBINARY(10));

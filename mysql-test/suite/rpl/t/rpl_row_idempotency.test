@@ -102,7 +102,7 @@ select @@global.slave_exec_mode /* must be STRICT */;
 # Checking stops.
 # In the following sections strict slave sql thread is going to
 # stop when faces an idempotent error. In order to proceed
-# the mode is temporarily switched to indempotent.
+# the mode is temporarily switched to idempotent.
 #
 
 #
@@ -137,7 +137,7 @@ select * from ti1 order by b /* must be (2),(3) */;
 
 # foreign key: row is referenced
 
---echo *** slave must stop (Trying to delete a referenced foreing key)
+--echo *** slave must stop (Trying to delete a referenced foreign key)
 connection slave;
 # ER_ROW_IS_REFERENCED_2 # Cannot add or update a child row: a foreign key constraint fails 
 --let slave_sql_errno= 1451

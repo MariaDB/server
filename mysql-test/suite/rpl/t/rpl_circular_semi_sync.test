@@ -12,7 +12,7 @@ call mtr.add_suppression("Timeout waiting for reply of binlog");
 
 # The following tests prove
 # A.
-# no out-of-order gtid error is done to the stict gtid mode semisync
+# no out-of-order gtid error is done to the strict gtid mode semisync
 # slave receives the same server-id gtid event from the past (of its gtid
 # state). Such transaction is silently ignored similarly to
 # replicate_same_sever_id; and

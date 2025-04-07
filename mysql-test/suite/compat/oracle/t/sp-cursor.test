@@ -20,7 +20,7 @@ SELECT c%ROWCOUNT;
 
 
 --echo #
---echo # Undefinite cursor attributes
+--echo # Undefined cursor attributes
 --echo #
 
 DELIMITER $$;

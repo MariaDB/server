@@ -6,7 +6,7 @@
 #==============================================================================
 #
 # Performance schema table socket_summary_by_event_name holds statistics
-# aggreagated by event name. Table socket_summary_by_instances maintains statistics
+# aggregated by event name. Table socket_summary_by_instances maintains statistics
 # per socket instance.
 #
 # This test verifies that the statistics in socket_summary_by_event_name

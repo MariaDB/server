@@ -115,7 +115,7 @@ insert into t2 values (11,33), (11,22), (11,11);
 explain select * from t1, t2 where t1.a=t2.a and t1.b=t2.b;
 select * from t1, t2 where t1.a=t2.a and t1.b=t2.b;
 
-# Check a real resultset for comaprison:
+# Check a real resultset for comparison:
 set join_cache_level=0;
 select * from t1, t2 where t1.a=t2.a and t1.b=t2.b;
 set join_cache_level=6;

@@ -29,7 +29,7 @@ SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
 # through the list of dropped keys and if any are gone from the database it
 # deletes information related to the key - and this delete causes this count
 # to be incorrect.  I moved this test first and made the whole test require
-# a fresh server to hopefully avoid tihs.
+# a fresh server to hopefully avoid this.
 create table t1 (
   pk int primary key,
   a int,
@@ -851,7 +851,7 @@ send update t49 set a = 1000 where pk = 1;
 --connect (con2,localhost,root,,)
 --echo kill query \$con1_id;
 --disable_query_log
-# If we immeditely kill the query - internally the condition broadcast can
+# If we immediately kill the query - internally the condition broadcast can
 # occur before the lock is waiting on the condition, thus the broadcast call
 # is lost.  Sleep 1 second to avoid this condition.
 --sleep 1

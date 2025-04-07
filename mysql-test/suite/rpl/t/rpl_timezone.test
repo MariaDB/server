@@ -85,7 +85,7 @@ delete from t1;
 insert into t1 values ('20040101000000',NULL), ('20040611093902',NULL);
 
 #
-# Now let us check how well we replicate statments reading TIMESTAMP fields
+# Now let us check how well we replicate statements reading TIMESTAMP fields
 # (We should see the same data on master and on slave but it should differ
 # from originally inserted)
 #
@@ -175,7 +175,7 @@ SET @@session.time_zone = default;
 --source include/stop_slave.inc
 
 # Bug#41719 delayed INSERT into timestamp col needs set time_zone for concurrent binlogging
-# To test that time_zone is correctly binloging for 'insert delayed' statement
+# To test that time_zone is correctly binlogging for 'insert delayed' statement
 # Insert 2 values into timestamp col with different time_zone. Check result.
 
 --connection master

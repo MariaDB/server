@@ -205,7 +205,7 @@ select a2, min(c), max(c) from t1 group by a1,a2,b;
 # Queries with a where clause
 #
 
-# A) Preds only over the group 'A' attributes
+# A) Predicates only over the group 'A' attributes
 # plans
 explain select a1,a2,b,min(c),max(c) from t1 where a1 < 'd' group by a1,a2,b;
 explain select a1,a2,b,min(c),max(c) from t1 where a1 >= 'b' group by a1,a2,b;

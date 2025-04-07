@@ -14,7 +14,7 @@ ERROR 42000: Undefined CURSOR: c
 SELECT c%ROWCOUNT;
 ERROR 42000: Undefined CURSOR: c
 #
-# Undefinite cursor attributes
+# Undefined cursor attributes
 #
 CREATE PROCEDURE p1
 AS

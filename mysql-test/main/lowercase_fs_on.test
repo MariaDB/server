@@ -25,7 +25,7 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
 --error 1
 --exec $MYSQLD_CMD --lower_case_table_names=0 > $SEARCH_FILE  2>&1
 
-#Search for the error messege in the server error log.
+#Search for the error message in the server error log.
 let SEARCH_PATTERN= \[ERROR\] The server option \'lower_case_table_names\' is configured to use case sensitive table names;
 --source include/search_pattern_in_file.inc
 

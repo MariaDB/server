@@ -445,7 +445,7 @@ HAVING ((t1.a=t1.c) AND (t1.a>1)) OR ((t1.a<3) AND (t1.c>3));
 --source include/explain-no-costs.inc
 eval $no_pushdown explain format=json $query;
 
---echo # conjuctive subformula : pushdown using WHERE multiple equalities
+--echo # conjunctive subformula : pushdown using WHERE multiple equalities
 let $query=
 SELECT t1.a,MAX(t1.b),t1.c
 FROM t1

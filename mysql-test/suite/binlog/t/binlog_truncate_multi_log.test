@@ -23,7 +23,7 @@ connect(master1,localhost,root,,);
 --echo "List of binary logs before rotation"
 --source include/show_binary_logs.inc
 
-# Some load to either non- and transactional egines
+# Some load to either non- and transactional engines
 # that should not affect the following recovery:
 INSERT INTO ti VALUES(1,"I am gonna survive");
 INSERT INTO tm VALUES(1,"me too!");

@@ -54,7 +54,7 @@ SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
 SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
 
 # All connections are to the same server. One transaction occurs on con1. It is
-# commited before con2 is started. con2 transaction violates the unique key contraint. This
+# commited before con2 is started. con2 transaction violates the unique key constraint. This
 # type of group commit is binlog_group_commit_trigger_lock_wait so that further con2
 # transactions will occur afterwards as they may be as result of the ER_DUP_ENTRY on the 
 # application side.
@@ -147,9 +147,9 @@ reap;
 SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
 SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
 
-# All connections are to the same server. con2 and con3 updates are aquiring
+# All connections are to the same server. con2 and con3 updates are acquiring
 # the same row lock for a=1. Either con2 or con3 will be in a lock wait
-# thefore the binlog_group_commit_trigger_lock_wait is incremented.
+# therefore the binlog_group_commit_trigger_lock_wait is incremented.
 # before: binlog_group_commit=2, binlog_group_commit_trigger_count=1
 # before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=1
 # after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_lock_wait+1
@@ -191,7 +191,7 @@ SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.gl
 SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 
-# Test that when the binlog_commit_wait_usec is reached the tranction gets a group commit
+# Test that when the binlog_commit_wait_usec is reached the transaction gets a group commit
 
 --connection default
 SET @a= current_timestamp();

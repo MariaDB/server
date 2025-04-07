@@ -310,10 +310,10 @@ int main(int argc, const char** argv )
     terminated when the last handle to it is closed(which is owned by
     this process).
 
-    If breakaway from job fails on some reason, fallback is to create a
+    If breakaway from job fails for some reason, fallback is to create a
     new process group. Process groups also allow to kill process and its 
-    descedants, subject to some restrictions (processes have to run within
-    the same console,and must not ignore CTRL_BREAK)
+    descendants, subject to some restrictions (processes have to run within
+    the same console, and must not ignore CTRL_BREAK)
   */
   DWORD create_flags[]= {CREATE_BREAKAWAY_FROM_JOB, CREATE_NEW_PROCESS_GROUP, 0};
   BOOL process_created= FALSE;

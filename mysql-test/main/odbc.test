@@ -12,7 +12,7 @@ set @@session.sql_auto_is_null=1;
 select {fn length("hello")}, { date "1997-10-20" };
 
 #
-# Test retreiving row with last insert_id value.
+# Test retrieving row with last insert_id value.
 #
 
 create table t1 (a int not null auto_increment,b int not null,primary key (a,b));

@@ -117,7 +117,7 @@ SELECT id, rollno, GROUP_CONCAT(name) FROM t1 GROUP BY rollno;
 ###############################################################################
 
 --echo ## Setting session value of variable to 26. No warning should appear here ##
---echo ## because the value after concatination is less than 30 ##
+--echo ## because the value after concatenation is less than 30 ##
 SET @@session.group_concat_max_len = 26;
 
 --echo ## Verifying value of name column, it should not give warning now ##

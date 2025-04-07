@@ -9,7 +9,7 @@ user()	current_user()
 test_dialog@localhost	test_dialog@%
 #
 # without -p. up to three questions are asked on the stdin.
-# athentication is successful, the correct pasword is on the third line
+# athentication is successful, the correct password is on the third line
 #
 Password, please: ***
 Password, please: ****

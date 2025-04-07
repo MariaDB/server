@@ -3,7 +3,7 @@ source include/not_embedded.inc;
 --echo #
 --echo # MDEV-13655: SET ROLE does not properly grant privileges.
 --echo #
---echo # We must test that if aditional db privileges get granted to a role
+--echo # We must test that if additional db privileges get granted to a role
 --echo # which previously inherited privileges from another granted role
 --echo # keep the internal memory structures intact.
 --echo #

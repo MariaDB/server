@@ -1351,7 +1351,7 @@ set autocommit=default;
 drop table t2, t3;
 # 
 # HANDLER statement and operation-type aware metadata locks.
-# Check that when we clone a ticket for HANDLER we downrade
+# Check that when we clone a ticket for HANDLER we downgrade
 # the lock.
 #
 connect  con1,localhost,root,,;

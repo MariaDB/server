@@ -13,7 +13,7 @@ insert t1 select 3,seq from seq_1_to_20;
 analyze table t1;
 
 --echo #
---echo # Delete with limit (quick select - range acces)
+--echo # Delete with limit (quick select - range access)
 --echo #
 
 --disable_view_protocol

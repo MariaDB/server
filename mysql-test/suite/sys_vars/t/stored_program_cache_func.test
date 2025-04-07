@@ -36,7 +36,7 @@ call pr(1);
 #--error ER_BAD_FIELD_ERROR
 # MDEV-5816 added support for recompilation of statements
 # inside a stored routine so the error ER_BAD_FIELD_ERROR is
-# no more expcted
+# no more expected
 call pr(2);
 
 set global stored_program_cache=0;

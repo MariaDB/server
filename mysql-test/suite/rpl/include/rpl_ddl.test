@@ -525,7 +525,7 @@ use test;
 connection master;
 DROP TEMPORARY TABLE mysqltest1.t22;
 DROP DATABASE mysqltest1;
-# mysqltest2 was alreday DROPPED some tests before.
+# mysqltest2 was already DROPPED some tests before.
 DROP DATABASE mysqltest3;
 
 set global sql_mode=default;

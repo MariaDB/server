@@ -188,14 +188,14 @@
 # nTe - Fails while updating an n-tuple (n > 1) in a T-Table.
 #
 # - Update both types of tables. First a N-Table and the a T-Table:
-# NT - Upates both types of tables through an update statement.
+# NT - Updates both types of tables through an update statement.
 # NT-trig - Updates both types of tables through a trigger.
 # NT-func - Updates both types of tables through a procedure.
 # NeT-trig - Fails while updating an n-tuple (n > 1) in a T-Table.
 # NeT-func - Fails while updating an n-tuple (n > 1) in a T-Table.
 #
 # - Update both types of tables. First a T-Table and the a N-Table:
-# TN - Upates both types of tables through an update statement.
+# TN - Updates both types of tables through an update statement.
 # TN-trig - Updates both types of tables through a trigger.
 # TN-func - Updates both types of tables through a procedure.
 # TeN-trig - Fails while updating an n-tuple (n > 1) in a N-Table.

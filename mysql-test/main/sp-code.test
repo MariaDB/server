@@ -509,7 +509,7 @@ show procedure code proc_26977_broken;
 
 show procedure code proc_26977_works;
 
-## This caust an error because of jump short cut
+## This causes an error because of jump short cut
 ## optimization.
 call proc_26977_broken(1);
 

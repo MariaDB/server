@@ -45,7 +45,7 @@ CREATE OR REPLACE SERVER s1 FOREIGN DATA WRAPPER mariadb OPTIONS ( PASSWORD "pwd
 --source include/search_pattern_in_file.inc
 --echo # pattern should not be found
 
---echo # cleaunup
+--echo # cleanup
 DROP SERVER s1;
 DROP USER u1;
 DROP USER u2;

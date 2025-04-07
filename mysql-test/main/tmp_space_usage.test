@@ -164,7 +164,7 @@ insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) fro
 show warnings;
 select count(*) <> 0 from t1;
 
-# Shhow that this problem does not exists with transactional tables
+# Show that this problem does not exists with transactional tables
 truncate table t1;
 alter table t1 engine=innodb;
 --error 41,42

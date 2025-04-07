@@ -283,7 +283,7 @@ INSERT INTO t1(c_point) VALUES(ST_PointFromText('POINT(10 10)'));
 DROP TABLE t1;
 RESET MASTER;
 #
-# Comptibility Test: Verify mysqlbinlog can print OLD table_map_log_event
+# Compatibility Test: Verify mysqlbinlog can print OLD table_map_log_event
 # without any optional metadata
 #
 CREATE TABLE t1(c_int INT, c_tiny_int_unsigned TINYINT UNSIGNED,

@@ -88,7 +88,7 @@ CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END as
 ;
 
 #
-# COALESCE is a CASE abbrevation:
+# COALESCE is a CASE abbreviation:
 #
 # COALESCE(v1,v2) == CASE WHEN v1 IS NOT NULL THEN v1 ELSE v2 END
 #

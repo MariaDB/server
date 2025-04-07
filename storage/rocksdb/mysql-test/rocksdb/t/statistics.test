@@ -22,7 +22,7 @@ create table t2(
        index t2_1(b) comment 'cf_t3'
 ) engine=rocksdb;
 
-# a table wint index in a reverse CF
+# a table with index in a reverse CF
 create table t3(
        id bigint not null primary key auto_increment,
        a varchar(255) not null,

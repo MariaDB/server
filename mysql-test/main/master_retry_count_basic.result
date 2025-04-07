@@ -14,7 +14,7 @@ FROM information_schema.SLAVE_STATUS;
 Connection_name	Master_Retry_Count
 	10
 named	11
-# Conventional views also show the configuations
+# Conventional views also show the configurations
 Connection_name = ''
 Connection_name = 'named'
 Master_Retry_Count = '10'

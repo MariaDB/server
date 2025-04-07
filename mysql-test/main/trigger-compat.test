@@ -258,7 +258,7 @@ CREATE TABLE t2 ( a INT );
 INSERT INTO t1 VALUES (1), (2), (3);
 INSERT INTO t2 VALUES (1), (2), (3);
 
---echo # We write three trigger files. First trigger is syntaxically incorrect, next trigger is correct
+--echo # We write three trigger files. First trigger is syntactically incorrect, next trigger is correct
 --echo # and last trigger is broken.
 --echo # Next we try to execute SHOW CREATE TRIGGER command for broken trigger and then try to drop one.
 --write_file $MYSQLD_DATADIR/test/tr11.TRN

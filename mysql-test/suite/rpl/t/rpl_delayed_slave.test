@@ -35,7 +35,7 @@
 # time, we wait 10 seconds more.
 #
 # To simulate that the slave lags due to slow queries, we invoke a
-# stored function that executes SLEEP if @@gloval.server_id==2. This
+# stored function that executes SLEEP if @@GLOBAL.server_id==2. This
 # requires that we run with binlog_format=STATEMENT.
 #
 # ==== Related Bugs and Worklogs ====

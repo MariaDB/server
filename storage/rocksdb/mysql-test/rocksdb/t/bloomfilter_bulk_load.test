@@ -27,7 +27,7 @@ select variable_value into @h from information_schema.global_status where variab
 insert into r1 values (100, 100);
 select variable_value-@h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
 
-# cf2 has no bloo filter in the bottommost level
+# cf2 has no bloom filter in the bottommost level
 --disable_cursor_protocol
 select variable_value into @h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
 --enable_cursor_protocol

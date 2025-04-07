@@ -48,7 +48,7 @@ DEALLOCATE PREPARE stmt_1;
 --echo # Create the user u1 without the REPLICATION SLAVE privilege required
 --echo # for running the statements SHOW BINLOG EVENTS/SHOW RELAYLOG EVENTS
 --echo # and check that attempt to execute the statements SHOW BINLOG EVENTS/
---echo # SHOW RELAYLOG EVENTS as a prepred statements by a user without required
+--echo # SHOW RELAYLOG EVENTS as a prepared statements by a user without required
 --echo # privileges results in error.
 
 --connect (con2,localhost,u1,,"*NO-ONE*")

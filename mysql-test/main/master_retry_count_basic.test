@@ -16,7 +16,7 @@ CHANGE MASTER TO master_retry_count=10;
 SELECT Connection_name, Master_Retry_Count
   FROM information_schema.SLAVE_STATUS;
 
---echo # Conventional views also show the configuations
+--echo # Conventional views also show the configurations
 --let $all_slaves_status= 1
 --let $status_items= Connection_name, Master_Retry_Count
 --source include/show_slave_status.inc

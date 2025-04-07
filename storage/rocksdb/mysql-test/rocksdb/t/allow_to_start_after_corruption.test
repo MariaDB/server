@@ -13,7 +13,7 @@
 --let LOG=$MYSQLTEST_VARDIR/tmp/allow_to_start_after_corruption_debug.err
 --let SEARCH_FILE=$LOG
 
-# restart server to change error log and ignore corruptopn on startup
+# restart server to change error log and ignore corruption on startup
 --let $_mysqld_option=--log-error=$LOG --rocksdb_allow_to_start_after_corruption=1
 --source include/restart_mysqld_with_option.inc
 --let $_server_id= `SELECT @@server_id`

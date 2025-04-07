@@ -202,12 +202,12 @@ SELECT COUNT(a) FROM t3;
 --echo #the command should fail with exit status 2
 #
 # Note: Use of regular expressions in this file is for output printed in result file
-#       The main purpose of this regular expression is to supress the filenames for
+#       The main purpose of this regular expression is to suppress the filenames for
 #       error messages produced so that we can create a generic result file
 #
 #1.    /.*myisampack(\.exe)?: Can't create\/write to file .*\(/myisampack: Can't create\/write to file (/
 #      Replace everything before "myisampack" or "myisampack.exe" and followed by
-#      ": Can't create\/write to file " until the first open paranthesis , with
+#      ": Can't create\/write to file " until the first open parentheses , with
 #      "myisampack:  Can't create\/write to file ("
 #      
 #2.    /Aborted: .*is/Aborted: file is/

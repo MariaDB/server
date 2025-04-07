@@ -545,7 +545,7 @@ connect (con1,localhost,root,,test);
 
 CREATE TABLE t1 (id INT NOT NULL);
 --send LOAD DATA LOCAL INFILE 'tb.txt' INTO TABLE t1
-# please keep this is a spearate test file : it's important to have no
+# please keep this is a separate test file : it's important to have no
 # commands after this one
 
 connection default;
@@ -557,7 +557,7 @@ connection default;
 disconnect con1;
 
 #############################################################################
-#           The below protion is moved to ctype_ucs.test                    #
+#           The below portion is moved to ctype_ucs.test                    #
 #############################################################################
 #--echo #
 #--echo # Bug #51876 : crash/memory underrun when loading data with ucs2 
