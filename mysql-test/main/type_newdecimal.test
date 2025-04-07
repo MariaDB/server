@@ -811,7 +811,7 @@ select 1 / 0;
 #BUG#1845 Not correctly recognising value for decimal field
 #BUG#2493 Round function doesn't work correctly
 #BUG#2649 round(0.5) gives 0 (should be 1)
-#BUG#3612 impicite rounding of VARCHARS during aritchmetic operations...
+#BUG#3612 impicite rounding of VARCHARS during arithmetic operations...
 #BUG#3722 SELECT fails for certain values in Double(255,10) column.
 #BUG#4485 Floating point conversions are inconsistent
 #BUG#4891 MATH
@@ -1227,7 +1227,7 @@ DROP TABLE t1;
 #
 
 # As per 10.1.1. Overview of Numeric Types, type (new) DECIMAL has a
-# maxmimum precision of 30 places after the decimal point. Show that
+# maximum precision of 30 places after the decimal point. Show that
 # temp field creation beyond that works and throws a truncation warning.
 # DECIMAL(37,36) should be adjusted to DECIMAL(31,30).
 CREATE TABLE t1 SELECT 0.1234567890123456789012345678901234567890123456789 AS f1;

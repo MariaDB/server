@@ -383,11 +383,11 @@ CREATE DATABASE mysqltest_db1;
 
 use mysqltest_db1;
 
-# Tables for tesing table-level privileges:
+# Tables for testing table-level privileges:
 CREATE TABLE t1(col CHAR(20)); # table for "read-value" trigger
 CREATE TABLE t2(col CHAR(20)); # table for "write-value" trigger
 
-# Tables for tesing column-level privileges:
+# Tables for testing column-level privileges:
 CREATE TABLE t3(col CHAR(20)); # table for "read-value" trigger
 CREATE TABLE t4(col CHAR(20)); # table for "write-value" trigger
 
@@ -400,7 +400,7 @@ SET @mysqltest_var = NULL;
 --connect (bug15166_u1_con,localhost,mysqltest_u1,,mysqltest_db1)
 
 # parsing (CREATE TRIGGER) time:
-#   - check that nor SELECT either UPDATE is required to execute triggger w/o
+#   - check that nor SELECT either UPDATE is required to execute trigger w/o
 #     NEW/OLD variables.
 
 --connection default
@@ -631,7 +631,7 @@ INSERT INTO t4 VALUES('t4_line2');
 SELECT * FROM t4;
 
 # execution time:
-#   - check that nor SELECT either UPDATE is required to execute triggger w/o
+#   - check that nor SELECT either UPDATE is required to execute trigger w/o
 #     NEW/OLD variables.
 
 DELETE FROM t1;

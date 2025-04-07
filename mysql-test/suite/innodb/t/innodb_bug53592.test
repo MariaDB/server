@@ -30,7 +30,7 @@ check table bug53592;
 
 drop table bug53592;
 
-# Test a dup key reported by foreign key constriant.
+# Test a dup key reported by foreign key constraint.
 CREATE TABLE bug53592_1(
   col1 int, col2 int,
   PRIMARY KEY  (col1, col2)

@@ -201,7 +201,7 @@ extern "C" void handle_signal(int sig)
   signal(SIGINT,  SIG_IGN);
   signal(SIGHUP, SIG_IGN);
 
-  // Continune execution, allow the child to be started and
+  // Continue execution, allow the child to be started and
   // finally terminated by monitor loop
 }
 

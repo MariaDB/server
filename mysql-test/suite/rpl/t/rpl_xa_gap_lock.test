@@ -91,7 +91,7 @@ XA COMMIT 'XA2';
 --source include/sync_slave_sql_with_master.inc
 
 #
-# Step 2 - Using mysqlbinlog dump to restore the salve
+# Step 2 - Using mysqlbinlog dump to restore the slave
 #
 --source include/stop_slave.inc
 DROP TABLE t2, t1;

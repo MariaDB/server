@@ -41,7 +41,7 @@ INSERT INTO t1 VALUES (1);
 --source include/rpl_assert.inc
 
 # The row should be available in table after master_delay=20 seconds.
---let $assert_text= One row shoule be found in table t1.
+--let $assert_text= One row should be found in table t1.
 --let $assert_cond= COUNT(*) = 1 FROM t1
 --source include/rpl_assert.inc
 

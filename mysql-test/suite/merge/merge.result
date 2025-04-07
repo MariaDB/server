@@ -639,7 +639,7 @@ INSERT INTO t4 SELECT * FROM t3;
 # Alter temporary MERGE table.
 ALTER TABLE t4 UNION=(t1);
 LOCK TABLES t4 WRITE;
-# Alter temporary MERGE table under LOCk tables.
+# Alter temporary MERGE table under LOCK tables.
 ALTER TABLE t4 UNION=(t1,t2);
 UNLOCK TABLES;
 # MERGE table and function.

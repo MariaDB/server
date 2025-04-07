@@ -280,8 +280,8 @@ tr2_bu	2
 DROP TABLE t1;
 #
 # Test 16.
-# Check that the trigger in the clause FOLLOWS/PRECEDES can refences
-# only to the trigger for the same ACTION/TIMINMG
+# Check that the trigger in the clause FOLLOWS/PRECEDES can reference
+# only to the trigger for the same ACTION/TIMING
 #
 CREATE TABLE t1 (a INT);
 CREATE TRIGGER tr1_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a:=1;

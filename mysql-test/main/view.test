@@ -274,7 +274,7 @@ drop view v1,v2;
 create table t1 (a int, b int, primary key(b));
 insert into t1 values (1,20), (2,30), (3,40), (4,50), (5,100);
 create view v1 (c) as select b from t1 where a<3;
-# simple select and explaint to be sure that it is MERGE
+# simple select and explain to be sure that it is MERGE
 select * from v1;
 explain extended select * from v1;
 # update test
@@ -495,7 +495,7 @@ drop view v1;
 create view v1 (a,a) as select 'a','a';
 
 #
-# updatablity should be transitive
+# updatability should be transitive
 #
 create table t1 (col1 int,col2 char(22));
 insert into t1 values(5,'Hello, world of views');
@@ -1117,7 +1117,7 @@ drop view v1;
 drop table t1;
 
 #
-# test of cascaded check option for whiew without WHERE clause
+# test of cascaded check option for view without WHERE clause
 #
 create table t1 (s1 tinyint);
 create view v1 as select * from t1 where s1 <> 0 with local check option;
@@ -1202,7 +1202,7 @@ drop view v1;
 drop table t1;
 
 #
-# Trys update table from which we select using views and subqueries
+# Try update table from which we select using views and subqueries
 #
 create table t1 (s1 smallint);
 create view v1 as select * from t1 where 20 < (select (s1) from t1);
@@ -1720,7 +1720,7 @@ drop view v1;
 drop table t1;
 
 #
-# hide underlying tables names in case of imposibility to update (Bug#10773)
+# hide underlying tables names in case of impossibility to update (Bug#10773)
 #
 create table t1 (f59 int, f60 int, f61 int);
 insert into t1 values (19,41,32);

@@ -168,7 +168,7 @@ let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 
 --echo
---echo # Case 2: DROP TEMPORARY TABLE in a transacation
+--echo # Case 2: DROP TEMPORARY TABLE in a transaction
 --echo # ----------------------------------------------
 --echo
 

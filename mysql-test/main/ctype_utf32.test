@@ -600,7 +600,7 @@ drop table t1;
 create table t1 (utf32 varchar(2) character set utf32);
 --echo Wrong character with pad
 insert ignore into t1 values (0x110000);
---echo Wrong chsaracter without pad
+--echo Wrong character without pad
 insert ignore into t1 values (0x00110000);
 --echo Wrong character with pad followed by another wrong character
 insert ignore into t1 values (0x11000000110000);
@@ -724,7 +724,7 @@ show create table t1;
 drop table t1;
 
 #
-# Testing that maximim possible key length is 1332 bytes
+# Testing that maximum possible key length is 1332 bytes
 #
 create table t1 (a varchar(250) character set utf32 primary key);
 show create table t1;

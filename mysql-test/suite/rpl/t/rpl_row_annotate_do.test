@@ -7,7 +7,7 @@
 # - are reproduced only once for "multi-table-maps" rbr queries
 # - are not reproduced when the corresponding queries are filtered away
 #   on replication
-# - are reproduced when the corresponding queries are filtered away partialy
+# - are reproduced when the corresponding queries are filtered away partially
 #   (e.g. in case of multi-delete)
 # - are not generated on slave for queries that are not annotated on master.
 ###############################################################################

@@ -552,7 +552,7 @@ eval $tvc_conversion_threshold EXPLAIN $query;
 let $no_split_materialized_loosescan=
   set statement optimizer_switch='split_materialized=off, loosescan=off' for;
 
-# Correct result with split materializied optimization disabled
+# Correct result with split materialized optimization disabled
 eval $no_split_materialized_loosescan
   $tvc_conversion_threshold
   $query;

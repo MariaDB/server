@@ -17,7 +17,7 @@ INSERT INTO t1 values
  ('äb'),('B1'),('B100'),('B9'),('C'),('100');
 
 -- echo #Natural sort order.
-# We sort by 2 colums, for stable sort,as we do not currenly have a case and accent insensitive Unicode collation.
+# We sort by 2 colums, for stable sort,as we do not currently have a case and accent insensitive Unicode collation.
 SELECT c FROM t1 ORDER BY k,c;
 -- echo #Unnatural but  unicode aware) sort order
 SELECT c FROM t1 ORDER BY CONVERT(c USING utf8mb4) COLLATE utf8mb4_unicode_ci,c;

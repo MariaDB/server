@@ -62,7 +62,7 @@ SET GLOBAL slave_parallel_mode='optimistic';
 # Observe the following START SLAVE resumes OK.
 #
 # Auxiliary third trx3 on master is just for triggering the actual stop
-# (whihc is a legacy UNTIL's property).
+# (which is a legacy UNTIL's property).
 # trx0 is to produce a specific value of the last executed binlog file:pos
 # to emulate the bug condition.
 #
@@ -368,7 +368,7 @@ START SLAVE IO_THREAD;
 
 # Set position inside the transaction though the value
 # specified is beyond that relay log file.
-# The coordianate may point to in a different event in future changes
+# The coordinate may point to in a different event in future changes
 # but should not move away from inside this big group of events.
 # So we don't test which event in the transaction it points to.
 --let $pos_until= 4500
@@ -426,7 +426,7 @@ START SLAVE IO_THREAD;
 --connection slave
 # The relay-log coordinate is not at an event boundary and
 # also may change across the server version.
-# The test makes its best to check its coherance.
+# The test makes its best to check its coherence.
 --let $pos_until= 3130
 --let $file_rl= slave-relay-bin.000018
 

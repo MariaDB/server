@@ -363,7 +363,7 @@ drop function bug27563;
 # keep binlogging for this piece of test in a new file
 FLUSH LOGS;
 
-# Connection con3 as transaction generator thoughout the test
+# Connection con3 as transaction generator throughout the test
 connect (con3, localhost, root,,);
 
 connection con3;

@@ -211,7 +211,7 @@ FROM testdb_wl5522.t1;
 
 DROP TABLE testdb_wl5522.t1;
 
-# case 4 - trasportable tablesace with autoincrement
+# case 4 - transportable tablespace with autoincrement
 CREATE TABLE testdb_wl5522.t1 (
 col_1_int INT AUTO_INCREMENT,
 col_2_varchar VARCHAR (20),
@@ -299,7 +299,7 @@ PRIMARY KEY (col_1_int),
 FOREIGN KEY (col_2_varchar) REFERENCES testdb_wl5522.t1(col_2_varchar)
 ) ENGINE = Innodb;
 
-# Alter table discrad table is not allowed with foreign_key_checks = 1
+# Alter table discard table is not allowed with foreign_key_checks = 1
 SET foreign_key_checks = 0;
 ALTER TABLE testdb_wl5522.t1_fk DISCARD TABLESPACE;
 ALTER TABLE testdb_wl5522.t1 DISCARD TABLESPACE;
@@ -332,7 +332,7 @@ DROP TABLE testdb_wl5522.t1_fk,testdb_wl5522.t1;
 SET AUTOCOMMIT = 1;
 
 
-# case 6 - transporatbale tablespace with transactions
+# case 6 - transportable tablespace with transactions
 CREATE TABLE testdb_wl5522.t1 (
 col_1_int int,col_2_varchar VARCHAR (20),
 PRIMARY KEY (col_2_varchar)) ENGINE = Innodb;
@@ -381,7 +381,7 @@ SET AUTOCOMMIT = 1;
 
 DROP TABLE testdb_wl5522.t1;
 
-#case 7 - transpotable tablespace with transaction(earlier failed with jet)
+#case 7 - transportable tablespace with transaction (earlier failed with jet)
 
 CREATE TABLE testdb_wl5522.t1 ( i int ) ENGINE = Innodb;
 INSERT INTO testdb_wl5522.t1 VALUES (100),(200),(300);
@@ -449,7 +449,7 @@ EOF
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE testdb_wl5522.t1 IMPORT TABLESPACE;
 
-# explicilty delet idb file before creating table with correct schema
+# explicilty delete idb file before creating table with correct schema
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_unlink_tablespace("testdb_wl5522", "t1");
@@ -741,7 +741,7 @@ col_14 = REPEAT("col14_00001",10),
 col_15
 FROM testdb_wl5522.t1;
 
-# perform transaction on impoted table
+# perform transaction on imported table
 SET AUTOCOMMIT = 0;
 INSERT INTO testdb_wl5522.t1(col_15) VALUES (15000),(16000);
 SELECT col_15 FROM testdb_wl5522.t1 WHERE col_15 > 11000;

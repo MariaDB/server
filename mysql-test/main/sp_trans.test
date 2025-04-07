@@ -170,7 +170,7 @@ create procedure bug10015_8() start transaction|
 select *, bug10015_7() from t1|
 drop procedure bug10015_8|
 # Again it is OK to drop temporary table
-# We are surpressing warnings since they are not essential
+# We are suppressing warnings since they are not essential
 create procedure bug10015_8() drop temporary table if exists t1_temp|
 --disable_warnings
 select *, bug10015_7() from t1|

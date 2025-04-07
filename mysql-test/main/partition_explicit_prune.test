@@ -134,7 +134,7 @@ INSERT INTO t1 PARTITION () VALUES (1, "error");
 INSERT INTO t1 PARTITION (pNonExisting) VALUES (1, "error");
 --error ER_UNKNOWN_PARTITION
 INSERT INTO t1 PARTITION (pNeg, pNonExisting) VALUES (1, "error");
---echo # Duplicate partitions and overlapping partitions and subpartitios is OK
+--echo # Duplicate partitions and overlapping partitions and subpartitions is OK
 FLUSH STATUS;
 INSERT INTO t1 PARTITION (pNeg, pNeg) VALUES (-1, "pNeg(-subp1)");
 eval $get_handler_status_counts;
@@ -627,7 +627,7 @@ DROP TABLE t1, t2, t3;
 --enable_ps2_protocol
 --enable_view_protocol
 --enable_cursor_protocol
---echo # Test from superseeded WL# 2682
+--echo # Test from superseded WL# 2682
 # Partition select tests.
 #
 --disable_warnings

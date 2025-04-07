@@ -130,7 +130,7 @@ select * from t10, t2 where t2.mb4>t10.mb4 and t10.pk=3;
 --echo # Check multiple equalities
 --echo #
 
---echo # - ref acccess lookup keys do use equality substitution,
+--echo # - ref access lookup keys do use equality substitution,
 --echo # - concat() arguments don't
 #Enable after fix MDEV-32034
 --disable_view_protocol

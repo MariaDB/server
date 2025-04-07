@@ -6031,7 +6031,7 @@ SELECT
 ADDTIME(TIME'-838:59:59.9999999', '87649416:59:59') AS c7;
 c7	NULL
 # HOUR is max_useful_hour() (inside INTERVAL DAY TO SECOND range)
-# Expect max TIME(0) + zero fraction + TIME warnings + no INTEVAL warnings
+# Expect max TIME(0) + zero fraction + TIME warnings + no INTERVAL warnings
 SELECT
 ADDTIME(TIME'00:00:00', 876494155959) AS ci,
 ADDTIME(TIME'00:00:00', 876494155959)+0 AS c0,

@@ -107,7 +107,7 @@ eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 
 # On Linux, lseek() would typically report EINVAL when invoked on a directory.
-# On other plaftorms as well as some GNU/Linux based environments, such as
+# On other platforms as well as some GNU/Linux based environments, such as
 # a Ubuntu 22.04 based image on Amazon Web Services,
 # os_file_get_size() would succeed on a directory, and we would get another
 # error about inability to apply log to a corrupted page.

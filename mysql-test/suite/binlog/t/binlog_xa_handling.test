@@ -6,7 +6,7 @@
 #
 # Test:
 # =====
-# Begin an XA transaction and execte a DML statement so that XA state becomes
+# Begin an XA transaction and execute a DML statement so that XA state becomes
 # XA_ACTIVE. Execute the BINLOG command it should not cause any assert.
 # Execution should be successful.
 ###############################################################################

@@ -25,7 +25,7 @@
 #  - Verify that, the change in values are correctly shown by the table.
 #  - Verify that the values are preserved after STOP SLAVE, thread_id
 #    changes to NULL and service_state changes to "Off".
-#  - A priliminary test for Multi-threaded slave(MTS) mode.
+#  - A preliminary test for Multi-threaded slave(MTS) mode.
 #
 #  ==== Reference ====
 #
@@ -93,7 +93,7 @@ source include/assert.inc;
 --echo
 
 # Cause an error in SQL thread.
-# 1) Ceate a table 't' at master, replicate at slave.
+# 1) Create a table 't' at master, replicate at slave.
 # 2) Drop table 't' at slave only.
 # 3) Insert a value in table 't' on master and replicate on slave.
 # Since slave doesnt have table 't' anymore, SQL thread will show an error.

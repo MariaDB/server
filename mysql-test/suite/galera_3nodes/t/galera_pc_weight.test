@@ -56,7 +56,7 @@ SHOW STATUS LIKE 'wsrep_local_state_comment';
 
 # For Node #1, we expect a primary component of size 1
 # (NOTE: this is a bit racy as nodes 2 and 3 will try to reconnect ASAP.
-#  to avoid the raice they should be suspended first as well, but that's
+#  to avoid the race they should be suspended first as well, but that's
 #  not currently possible)
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
@@ -88,7 +88,7 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 --source include/wait_condition.inc
 --source include/galera_wait_ready.inc
 
-# wait until nodes 2 and 3 have declared ready state (can happen after cluster_size raaise)
+# wait until nodes 2 and 3 have declared ready state (can happen after cluster_size raise)
 --connection node_2
 --let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
 --source include/wait_condition.inc

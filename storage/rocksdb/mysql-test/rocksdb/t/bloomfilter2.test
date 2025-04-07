@@ -1,6 +1,6 @@
 --source include/have_rocksdb.inc
 
-## Test 0: Eq cond len includs VARCHAR, and real cond len < prefix bloom len < VARCHAR definition len
+## Test 0: Eq cond len includes VARCHAR, and real cond len < prefix bloom len < VARCHAR definition len
 CREATE TABLE t0 (id1 VARCHAR(30), id2 INT, value INT, PRIMARY KEY (id1, id2)) ENGINE=rocksdb collate latin1_bin;
 --disable_query_log
 let $i = 1;

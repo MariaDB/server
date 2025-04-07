@@ -40,7 +40,7 @@ UNLOCK TABLES;
 # wait to go non-Primary due to inconsistency voting
 #--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 #--source include/wait_condition.inc
-# Somehow the above times out so we use connectin to node 3
+# Somehow the above times out so we use connecting to node 3
 
 --connection node_3
 # wait for node_1 to disappear

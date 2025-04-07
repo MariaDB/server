@@ -18,7 +18,7 @@
 #   TRUNCATE
 #
 # Note: When adding new query statements, please add them between the
-# two 'flush logs'. And aslo please make sure the connection is
+# two 'flush logs'. And also please make sure the connection is
 # switched between each statement.
 #
 # ==== Related bugs ====

@@ -1524,7 +1524,7 @@ INSERT INTO t4 (companynr, companyname) VALUES (00,'Unknown');
 --enable_query_log
 
 #
-# Test of stright join to force a full join.
+# Test of straight join to force a full join.
 #
 
 select STRAIGHT_JOIN t2.companynr,companyname from t4,t2 where t2.companynr=t4.companynr group by t2.companynr;
@@ -1592,7 +1592,7 @@ explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=
 SET @@join_cache_level=@local_join_cache_level;
 
 #
-# Search using 'or' with the same referens group.
+# Search using 'or' with the same reference group.
 # An interval search will be done first with the first table and after that
 # the other table is referenced with a key with a 'test if key in use' for
 # each record

@@ -81,7 +81,7 @@ DROP TABLE t;
 # Then we update the last row inserted. On master the correct
 # row is updated. On the slave the wrong row would be updated
 # because the engine would look it up by the NULL Unique KEY.
-# As a consquence, the wrong row would be updated.
+# As a consequence, the wrong row would be updated.
 #
 
 -- source include/rpl_reset.inc

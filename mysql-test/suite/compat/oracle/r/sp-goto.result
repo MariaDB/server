@@ -315,7 +315,7 @@ f21	@res
 f21	1
 drop procedure f21;
 #
-# Jump beetween handler
+# Jump between handler
 CREATE or replace procedure f22(lim INT, res OUT VARCHAR)
 AS
 a INT;

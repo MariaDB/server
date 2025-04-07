@@ -1,7 +1,7 @@
 ######################################################################################
 #
 # Using UPDATE statements in order to:
-#  - move a record outside the curent index extremities (min and max values).
+#  - move a record outside the current index extremities (min and max values).
 #  - move a record forward and backward in the index (add and subtract some number).
 #  - move a record into, out of and inside a locked index interval.
 #

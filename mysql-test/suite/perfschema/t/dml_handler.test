@@ -4,7 +4,7 @@
 --source include/have_perfschema.inc
 
 #==============================================================================
-# This test verifies that the peformance schema storage engine does not support
+# This test verifies that the performance schema storage engine does not support
 # HANDLER operations.
 #
 # Get the list of tables from information_schema.tables, store the table names

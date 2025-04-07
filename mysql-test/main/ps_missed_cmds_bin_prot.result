@@ -124,7 +124,7 @@ SELECT @a;
 1
 DROP PROCEDURE p1;
 # Test case 13: Check that the statements PREPARE FROM/EXECUTE/
-# DEALLOCAT PREPARE can be executed as prepared statements.
+# DEALLOCATE PREPARE can be executed as prepared statements.
 PREPARE stmt_1 FROM 'SELECT 1';
 # Now execute the prepared statement with the name stmt_1
 # It is expected that output contains the single row '1'

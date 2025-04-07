@@ -9,7 +9,7 @@
 #
 # ==== Method ====
 #
-#This is a new functionality of having an interruptable sleep of the slave.
+#This is a new functionality of having an interruptible sleep of the slave.
 #We find the thread id for the slave thread. On finding the thread ID of the 
 #slave thread we kill the slave thread. A successful kill in less than 60 sec 
 #should serve the purpose of checking the functionality.

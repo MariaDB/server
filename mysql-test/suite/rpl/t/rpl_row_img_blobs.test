@@ -25,7 +25,7 @@
 # Tests combinations of binlog-row-image against mixes of MyISAM and InnoDB
 # storage engines on all three servers.
 #
-# All the combinarions need not to be separated into their own files as
+# All the combinations need not to be separated into their own files as
 # the tests for indexes and engines mixes are, because noblobs test script
 # does not take too long time, thence we do not risk triggering PB2 timeout
 # on valgrind runs.

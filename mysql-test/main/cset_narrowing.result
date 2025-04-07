@@ -393,7 +393,7 @@ EXPLAIN
 #
 # Check multiple equalities
 #
-# - ref acccess lookup keys do use equality substitution,
+# - ref access lookup keys do use equality substitution,
 # - concat() arguments don't
 explain format=json
 select straight_join * from t10,t1 force index(mb3),t2

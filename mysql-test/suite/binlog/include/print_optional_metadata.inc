@@ -1,4 +1,4 @@
-# Auxaliary file for printing optional metadata in table_map_log_event
+# Auxiliary file for printing optional metadata in table_map_log_event
 # Usage :
 # --let $binlog_file=
 # [--let $stop_position]

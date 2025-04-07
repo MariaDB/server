@@ -777,7 +777,7 @@ SET @a=POLYFROMWKB(@a);
 #
 
 #The SELECT statement cannot contain a subquery in the FROM clause
-#fore  --view-protocol
+#for  --view-protocol
 --disable_view_protocol
 create table t1(a geometry NOT NULL)engine=myisam;
 insert into t1 values (geomfromtext("point(0 1)"));

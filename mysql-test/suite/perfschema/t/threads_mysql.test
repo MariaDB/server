@@ -28,7 +28,7 @@ SET GLOBAL event_scheduler = OFF;
 #    But there might be more kinds of parents with most probably unstable
 #    "thread_id" values in future.
 # 3. In case the test is started with the option "--ps-protocol" we will
-#    find a correcet row for our current thread but the content will differ.
+#    find a correct row for our current thread but the content will differ.
 #    Therefore we have to disable this protocol for the next statement.
 --disable_ps_protocol
 SELECT name, type, processlist_user, processlist_host, processlist_db,
