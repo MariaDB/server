@@ -292,8 +292,8 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
     size_t res= crc32_pwrite_page(fh, e->page_buf, page_no, MYF(MY_WME));
     ut_a(res == ibb_page_size);
     mysql_mutex_lock(&m_mutex);
-    if (!is_complete &&
-        (UNIV_UNLIKELY(e->latched) || UNIV_UNLIKELY(!e->flushed_clean)))
+    if (UNIV_UNLIKELY(e->latched) ||
+        (!is_complete && UNIV_UNLIKELY(!e->flushed_clean)))
     {
       flushing= false;
       pthread_cond_broadcast(&m_cond);
@@ -322,8 +322,20 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
         my_cond_wait(&m_cond, &m_mutex.m_mutex);
       }
       flushing= true;
-      is_complete= e->complete;
-      goto retry;
+      if (!is_complete)
+      {
+        /*
+          The page was not complete, a writer may have added data. Need to redo
+          the flush.
+        */
+        is_complete= e->complete;
+        goto retry;
+      }
+      /*
+        The page was complete, but was latched while we were flushing (by a
+        reader). No need to flush again, just needed to wait until the latch
+        was released before we can continue to free the page.
+      */
     }
   }
   /*
@@ -1331,7 +1343,7 @@ binlog_chunk_reader::fetch_current_page()
       binlog_cur_end_offset[s.file_no&1].load(std::memory_order_acquire);
     if (s.file_no > active)
     {
-      ut_ad(s.page_no == 0);
+      ut_ad(s.page_no == 1);
       ut_ad(s.in_page_offset == 0);
       /*
         Allow a reader that reached the very end of the active binlog file to
@@ -1712,7 +1724,7 @@ bool binlog_chunk_reader::data_available()
   uint64_t active= active_binlog_file_no.load(std::memory_order_acquire);
   if (active != s.file_no)
   {
-    ut_ad(active > s.file_no || (s.page_no == 0 && s.in_page_offset == 0));
+    ut_ad(active > s.file_no || (s.page_no == 1 && s.in_page_offset == 0));
     return active > s.file_no;
   }
   uint64_t end_offset=
