@@ -3646,9 +3646,9 @@ innobase_row_to_mysql(
 
 	/* The InnoDB row may contain an extra FTS_DOC_ID column at the end. */
 	ut_ad(row->n_fields == dict_table_get_n_cols(itab));
-	ut_ad(n_fields == row->n_fields - DATA_N_SYS_COLS
-	      + dict_table_get_n_v_cols(itab)
-	      - !!(DICT_TF2_FLAG_IS_SET(itab, DICT_TF2_FTS_HAS_DOC_ID)));
+	ut_ad(row->n_fields == n_fields + DATA_N_SYS_COLS
+	      - dict_table_get_n_v_cols(itab)
+	      + !!(DICT_TF2_FLAG_IS_SET(itab, DICT_TF2_FTS_HAS_DOC_ID)));
 
 	for (uint i = 0; i < n_fields; i++) {
 		Field*		field	= table->field[i];
@@ -4721,11 +4721,9 @@ innobase_build_col_map(
 	DBUG_ENTER("innobase_build_col_map");
 	DBUG_ASSERT(altered_table != table);
 	DBUG_ASSERT(new_table != old_table);
-	DBUG_ASSERT(dict_table_get_n_cols(new_table)
-		    + dict_table_get_n_v_cols(new_table)
+	DBUG_ASSERT(unsigned(new_table->n_cols + new_table->n_v_cols)
 		    >= altered_table->s->fields + DATA_N_SYS_COLS);
-	DBUG_ASSERT(dict_table_get_n_cols(old_table)
-		    + dict_table_get_n_v_cols(old_table)
+	DBUG_ASSERT(unsigned(old_table->n_cols + old_table->n_v_cols)
 		    >= table->s->fields + DATA_N_SYS_COLS
 		    || ha_innobase::omits_virtual_cols(*table->s));
 	DBUG_ASSERT(!!defaults == !!(ha_alter_info->handler_flags
@@ -6016,12 +6014,12 @@ static bool innobase_instant_try(
 #ifdef BTR_CUR_HASH_ADAPT
 	/* Acquire the ahi latch to avoid a race condition
 	between ahi access and instant alter table */
-	srw_spin_lock* ahi_latch = btr_search_sys.get_latch(*index);
-	ahi_latch->wr_lock(SRW_LOCK_CALL);
+	btr_sea::partition& part = btr_search.get_part(*index);
+	part.latch.wr_lock(SRW_LOCK_CALL);
 #endif /* BTR_CUR_HASH_ADAPT */
 	const bool metadata_changed = ctx->instant_column();
 #ifdef BTR_CUR_HASH_ADAPT
-	ahi_latch->wr_unlock();
+	part.latch.wr_unlock();
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);

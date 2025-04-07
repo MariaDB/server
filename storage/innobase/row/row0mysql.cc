@@ -2182,7 +2182,7 @@ row_create_index_for_mysql(
 
 			err = dict_create_index_tree_in_mem(index, trx);
 #ifdef BTR_CUR_HASH_ADAPT
-			ut_ad(!index->search_info->ref_count);
+			ut_ad(!index->search_info.ref_count);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 			if (err != DB_SUCCESS) {

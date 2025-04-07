@@ -1058,7 +1058,7 @@ inline void buf_pool_t::garbage_collect() noexcept
   my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
   mysql_mutex_unlock(&flush_list_mutex);
 # ifdef BTR_CUR_HASH_ADAPT
-  bool ahi_disabled= btr_search_disable();
+  bool ahi_disabled= btr_search.disable();
 # endif /* BTR_CUR_HASH_ADAPT */
   time_t start= time(nullptr);
   mysql_mutex_lock(&mutex);
@@ -1080,7 +1080,7 @@ inline void buf_pool_t::garbage_collect() noexcept
       ibuf_max_size_update(srv_change_buffer_max_size);
 # ifdef BTR_CUR_HASH_ADAPT
       if (ahi_disabled)
-        btr_search_enable(true);
+        btr_search.enable(true);
 # endif
       mysql_mutex_unlock(&mutex);
       sql_print_information("InnoDB: Memory pressure event shrunk"
@@ -1178,6 +1178,26 @@ void buf_page_print(const byte *read_buf, ulint zip_size) noexcept
 #endif
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+
+/** Ensure that some adaptive hash index fields are initialized */
+static void buf_block_init_low(buf_block_t *block) noexcept
+{
+  /* No adaptive hash index entries may point to a previously unused
+  (and now freshly allocated) block. */
+  MEM_MAKE_DEFINED(&block->index, sizeof block->index);
+  MEM_MAKE_DEFINED(&block->n_hash_helps, sizeof block->n_hash_helps);
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+  MEM_MAKE_DEFINED(&block->n_pointers, sizeof block->n_pointers);
+  ut_a(!block->index);
+  ut_a(!block->n_pointers);
+  ut_a(!block->n_hash_helps);
+# endif
+}
+#else /* BTR_CUR_HASH_ADAPT */
+inline void buf_block_init_low(buf_block_t*) {}
+#endif /* BTR_CUR_HASH_ADAPT */
+
 IF_DBUG(,inline) byte *buf_block_t::frame_address() const noexcept
 {
   static_assert(ut_is_2pow(innodb_buffer_pool_extent_size), "");
@@ -1243,7 +1263,10 @@ buf_block_t *buf_pool_t::allocate() noexcept
     if (UNIV_LIKELY(!n_blocks_to_withdraw) || !withdraw(*b))
     {
       /* No adaptive hash index entries may point to a free block. */
-      assert_block_ahi_empty(reinterpret_cast<buf_block_t*>(b));
+#ifdef BTR_CUR_HASH_ADAPT
+      ut_ad(!reinterpret_cast<buf_block_t*>(b)->n_pointers);
+      ut_ad(!reinterpret_cast<buf_block_t*>(b)->index);
+#endif
       b->set_state(buf_page_t::MEMORY);
       b->set_os_used();
       return reinterpret_cast<buf_block_t*>(b);
@@ -1717,6 +1740,10 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
         goto next_quick;
 
       ut_ad(is_uncompressed_current(b));
+#ifdef BTR_CUR_HASH_ADAPT
+      ut_ad(!reinterpret_cast<buf_block_t*>(b)->index);
+      ut_ad(!reinterpret_cast<buf_block_t*>(b)->n_pointers);
+#endif
 
       byte *const frame= block->page.frame;
       memcpy_aligned<4096>(frame, b->frame, srv_page_size);
@@ -1768,13 +1795,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
 
     buf_block_modify_clock_inc(block);
 
-#ifdef BTR_CUR_HASH_ADAPT
-    assert_block_ahi_empty_on_init(block);
-    block->index= nullptr;
-    block->n_hash_helps= 0;
-    block->n_fields= 1;
-    block->left_side= true;
-#endif /* BTR_CUR_HASH_ADAPT */
+    buf_block_init_low(block);
     hash_lock.unlock();
 
     ut_d(b->in_LRU_list= false);
@@ -1998,7 +2019,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     ibuf_max_size_update(srv_change_buffer_max_size);
 #ifdef BTR_CUR_HASH_ADAPT
     if (ahi_disabled)
-      btr_search_enable(true);
+      btr_search.enable(true);
 #endif
     mysql_mutex_lock(&LOCK_global_system_variables);
     bool resized= n_blocks_removed < 0;
@@ -2035,7 +2056,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
     mysql_mutex_unlock(&flush_list_mutex);
 #ifdef BTR_CUR_HASH_ADAPT
-    ahi_disabled= btr_search_disable();
+    ahi_disabled= btr_search.disable();
 #endif /* BTR_CUR_HASH_ADAPT */
     mysql_mutex_lock(&mutex);
 
@@ -2418,27 +2439,6 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
 #endif /* UNIV_DEBUG */
   return bpage;
-}
-
-/********************************************************************//**
-Initialize some fields of a control block. */
-UNIV_INLINE
-void
-buf_block_init_low(
-/*===============*/
-	buf_block_t*	block)	/*!< in: block to init */
-{
-#ifdef BTR_CUR_HASH_ADAPT
-	/* No adaptive hash index entries may point to a previously
-	unused (and now freshly allocated) block. */
-	assert_block_ahi_empty_on_init(block);
-	block->index		= NULL;
-
-	block->n_hash_helps	= 0;
-	block->n_fields		= 1;
-	block->n_bytes		= 0;
-	block->left_side	= TRUE;
-#endif /* BTR_CUR_HASH_ADAPT */
 }
 
 bool buf_zip_decompress(buf_block_t *block, bool check) noexcept
@@ -3998,7 +3998,7 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
   std::set<dict_index_t*> garbage;
 
   mysql_mutex_lock(&mutex);
-  ut_ad(!btr_search_enabled);
+  ut_ad(!btr_search.enabled);
 
   for (char *extent= memory,
          *end= memory + block_descriptors_in_bytes(n_blocks);
@@ -4034,9 +4034,11 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
       block->n_pointers= 0;
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-      if (index->freed())
-        garbage.insert(index);
       block->index= nullptr;
+      if (index->freed())
+        garbage.emplace(index);
+      else
+        index->search_info.ref_count= 0;
     }
 
   mysql_mutex_unlock(&mutex);

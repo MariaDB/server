@@ -943,7 +943,10 @@ buf_LRU_block_free_non_file_page(
 	void*		data;
 
 	ut_ad(block->page.state() == buf_page_t::MEMORY);
+#ifdef BTR_CUR_HASH_ADAPT
 	assert_block_ahi_empty(block);
+	block->n_hash_helps = 0;
+#endif
 	ut_ad(!block->page.in_free_list);
 	ut_ad(!block->page.oldest_modification());
 	ut_ad(!block->page.in_LRU_list);

@@ -45,8 +45,7 @@ Created 3/26/1996 Heikki Tuuri
 const dtuple_t trx_undo_metadata = {
 	/* This also works for REC_INFO_METADATA_ALTER, because the
 	delete-mark (REC_INFO_DELETED_FLAG) is ignored when searching. */
-	REC_INFO_METADATA_ADD, 0, 0,
-	NULL, 0, NULL
+	REC_INFO_METADATA_ADD, 0, 0, 0, nullptr, nullptr
 #ifdef UNIV_DEBUG
 	, DATA_TUPLE_MAGIC_N
 #endif /* UNIV_DEBUG */
@@ -594,7 +593,7 @@ trx_undo_rec_get_row_ref(
 {
 	ut_ad(index->is_primary());
 
-	const ulint ref_len = dict_index_get_n_unique(index);
+	const uint16_t ref_len = dict_index_get_n_unique(index);
 
 	dtuple_t* tuple = dtuple_create(heap, ref_len);
 	*ref = tuple;

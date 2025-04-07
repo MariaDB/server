@@ -1838,8 +1838,8 @@ struct my_option xb_server_options[] =
 #ifdef BTR_CUR_HASH_ADAPT
   {"innodb_adaptive_hash_index", OPT_INNODB_ADAPTIVE_HASH_INDEX,
    "Enable InnoDB adaptive hash index (disabled by default).",
-   &btr_search_enabled,
-   &btr_search_enabled,
+   &btr_search.enabled,
+   &btr_search.enabled,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* BTR_CUR_HASH_ADAPT */
   {"innodb_autoextend_increment", OPT_INNODB_AUTOEXTEND_INCREMENT,
@@ -2403,7 +2403,7 @@ static bool innodb_init_param()
 	srv_page_size = 0;
 	srv_page_size_shift = 0;
 #ifdef BTR_CUR_HASH_ADAPT
-	btr_ahi_parts = 1;
+	btr_search.n_parts = 1;
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	if (innobase_page_size != (1LL << 14)) {

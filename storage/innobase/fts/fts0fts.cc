@@ -3415,7 +3415,7 @@ fts_add_doc_by_id(
 
 	/* Search based on Doc ID. Here, we'll need to consider the case
 	when there is no primary index on Doc ID */
-	const ulint n_uniq = table->fts_n_uniq();
+	const auto n_uniq = table->fts_n_uniq();
 	tuple = dtuple_create(heap, n_uniq);
 	dfield = dtuple_get_nth_field(tuple, 0);
 	dfield->type.mtype = DATA_INT;
@@ -3466,9 +3466,7 @@ fts_add_doc_by_id(
 			doc_pcur = &pcur;
 		} else {
 			dtuple_t*	clust_ref;
-			ulint		n_fields;
-
-			n_fields = dict_index_get_n_unique(clust_index);
+			auto n_fields = dict_index_get_n_unique(clust_index);
 
 			clust_ref = dtuple_create(heap, n_fields);
 			dict_index_copy_types(clust_ref, clust_index, n_fields);

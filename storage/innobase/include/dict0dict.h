@@ -647,7 +647,7 @@ Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
 @return number of columns of a table */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -657,7 +657,7 @@ dict_table_get_n_cols(
 @param[in]	table	the table to check
 @return number of virtual columns of a table */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_table_get_n_v_cols(
 	const dict_table_t*	table);
 

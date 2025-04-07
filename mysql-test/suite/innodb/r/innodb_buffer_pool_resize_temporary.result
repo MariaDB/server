@@ -19,7 +19,7 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR blocked';
 SHOW STATUS LIKE 'innodb_buffer_pool_resize_status';
 Variable_name	Value
-Innodb_buffer_pool_resize_status	Withdrawing blocks. (505/505).
+Innodb_buffer_pool_resize_status	Withdrawing blocks. (506/506).
 SET DEBUG_SYNC='now SIGNAL go';
 connection con1;
 disconnect con1;
