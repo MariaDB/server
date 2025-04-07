@@ -1,5 +1,5 @@
---- suite/galera/r/galera_ist_MDEV-28423.result
-+++ suite/galera/r/galera_ist_MDEV-28423.reject
+--- r/galera_ist_MDEV-28423.result
++++ r/galera_ist_MDEV-28423,debug.reject
 @@ -517,3 +517,187 @@
  1
  DROP TABLE t1;

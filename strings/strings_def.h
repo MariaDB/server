@@ -82,7 +82,7 @@
 static inline const uchar *skip_trailing_space(const uchar *ptr,size_t len)
 {
   const uchar *end= ptr + len;
-
+  DBUG_ASSERT(ptr); /* Avoid UBSAN nullptr-with-offset */
   if (len > 20)
   {
     const uchar *end_words= (const uchar *)(intptr)

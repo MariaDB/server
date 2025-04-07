@@ -276,7 +276,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
                                         int open_flags)
 {
   uchar buffer[CF_MAX_SIZE];
-  char name[FN_REFLEN], errmsg_buff[256];
+  char name[FN_REFLEN], errmsg_buff[512];
   const char *errmsg, *lock_failed_errmsg= "Could not get an exclusive lock;"
     " file is probably in use by another process";
   uint new_cf_create_time_size, new_cf_changeable_size, new_block_size;
@@ -399,10 +399,14 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
 
   if (new_cf_create_time_size < CF_MIN_CREATE_TIME_TOTAL_SIZE ||
       new_cf_changeable_size <  CF_MIN_CHANGEABLE_TOTAL_SIZE ||
-      new_cf_create_time_size + new_cf_changeable_size != file_size)
+      new_cf_create_time_size + new_cf_changeable_size > file_size)
   {
     error= CONTROL_FILE_INCONSISTENT_INFORMATION;
-    errmsg= "Sizes stored in control file are inconsistent";
+    sprintf(errmsg_buff,
+            "Sizes stored in control file are inconsistent. "
+            "create_time_size: %u  changeable_size: %u  file_size: %llu",
+            new_cf_create_time_size, new_cf_changeable_size, (ulonglong) file_size);
+    errmsg= errmsg_buff;
     goto err;
   }
 
@@ -622,6 +626,20 @@ my_bool ma_control_file_inited(void)
   return (control_file_fd >= 0);
 }
 
+
+
+static int check_zerofill(uchar *buffer, ulonglong offset, ulonglong length)
+{
+  uchar *pos= buffer + offset, *end= buffer+length;
+  while (pos < end)
+  {
+    if (*pos++)
+      return 1;
+  }
+  return 0;
+}
+
+
 /**
    Print content of aria_log_control file
 */
@@ -629,6 +647,7 @@ my_bool ma_control_file_inited(void)
 my_bool print_aria_log_control()
 {
   uchar buffer[CF_MAX_SIZE];
+  char errmsg_buff[512];
   char name[FN_REFLEN], uuid_str[MY_UUID_STRING_LENGTH+1];
   const char *errmsg;
   uint new_cf_create_time_size, new_cf_changeable_size;
@@ -705,10 +724,14 @@ my_bool print_aria_log_control()
 
   if (new_cf_create_time_size < CF_MIN_CREATE_TIME_TOTAL_SIZE ||
       new_cf_changeable_size <  CF_MIN_CHANGEABLE_TOTAL_SIZE ||
-      new_cf_create_time_size + new_cf_changeable_size != file_size)
+      new_cf_create_time_size + new_cf_changeable_size > file_size)
   {
     error= CONTROL_FILE_INCONSISTENT_INFORMATION;
-    errmsg= "Sizes stored in control file are inconsistent";
+    sprintf(errmsg_buff,
+            "Sizes stored in control file are inconsistent. "
+            "create_time_size: %u  changeable_size: %u  file_size: %llu",
+            new_cf_create_time_size, new_cf_changeable_size, (ulonglong) file_size);
+    errmsg= errmsg_buff;
     goto err;
   }
   checkpoint_lsn= lsn_korr(buffer + new_cf_create_time_size +
@@ -732,6 +755,18 @@ my_bool print_aria_log_control()
       (buffer + new_cf_create_time_size + CF_RECOV_FAIL_OFFSET)[0];
     printf("recovery_failures:   %u\n", recovery_fails);
   }
+  if (check_zerofill(buffer, new_cf_create_time_size + new_cf_changeable_size, file_size))
+  {
+    printf("Warning: %s file_size is %llu (should be %llu) and contains unknown data.\n"
+           "It will still work but should be examined.\n",
+           name, (ulonglong) file_size,
+           (ulonglong) (new_cf_create_time_size + new_cf_changeable_size));
+  }
+  else if (new_cf_create_time_size + new_cf_changeable_size < file_size)
+    printf("Note: file_size (%llu) is bigger than the expected file size %llu.\n"
+           "This is unexpected but will not cause any issues.\n",
+           (ulonglong) file_size,
+           (ulonglong) (new_cf_create_time_size + new_cf_changeable_size));
   mysql_file_close(file, MYF(0));
   DBUG_RETURN(0);
 

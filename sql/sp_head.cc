@@ -1356,7 +1356,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
           thd->wsrep_cs().reset_error();
           /* Reset also thd->killed if it has been set during BF abort. */
           if (killed_mask_hard(thd->killed) == KILL_QUERY)
-            thd->killed= NOT_KILLED;
+            thd->reset_killed();
           /* if failed transaction was not replayed, must return with error from here */
           if (!must_replay) err_status = 1;
         }
@@ -2383,6 +2383,16 @@ sp_head::bind_input_param(THD *thd,
   sp_variable *spvar= m_pcont->find_variable(arg_no);
   if (!spvar)
     DBUG_RETURN(FALSE);
+
+  if (!spvar->field_def.type_handler()->is_scalar_type() &&
+      dynamic_cast<Item_param*>(arg_item))
+  {
+    // Item_param cannot store values of non-scalar data types yet
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             spvar->field_def.type_handler()->name().ptr(),
+             "EXECUTE ... USING ?");
+    DBUG_RETURN(true);
+  }
 
   if (spvar->mode != sp_variable::MODE_IN)
   {

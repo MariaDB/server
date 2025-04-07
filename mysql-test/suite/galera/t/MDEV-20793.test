@@ -99,4 +99,4 @@ SET SESSION debug_sync = "now SIGNAL continue";
 SET debug_sync = "RESET";
 
 DROP TABLE t1;
-SET GLOBAL wsrep_slave_threads = 1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;

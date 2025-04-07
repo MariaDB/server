@@ -318,6 +318,9 @@ int get_defaults_options(char **argv)
   }
 
   if (! my_defaults_group_suffix)
+    my_defaults_group_suffix= getenv("MARIADB_GROUP_SUFFIX");
+
+  if (! my_defaults_group_suffix)
     my_defaults_group_suffix= getenv("MYSQL_GROUP_SUFFIX");
 
   if (my_defaults_extra_file && my_defaults_extra_file != extra_file_buffer)

@@ -1,2 +1,4 @@
---loose-innodb-flush-log-at-timeout=3
+--innodb
+--innodb-purge-rseg-truncate-frequency=64
+--innodb-flush-log-at-timeout=3
 --table_open_cache=200

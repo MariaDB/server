@@ -11,6 +11,7 @@ CREATE TABLE t (a INT) ENGINE = innodb;
 
 --sync_slave_with_master
 --source include/stop_slave.inc
+SET STATEMENT sql_log_bin= 0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
 SET @old_parallel_mode   = @@GLOBAL.slave_parallel_mode;
 SET @@global.slave_parallel_threads= 2;
@@ -28,20 +29,21 @@ xa prepare 'x';
 --connection slave
 SET @@global.debug_dbug="+d,hold_worker_on_schedule";
 start slave;
+SET debug_sync = 'now WAIT_FOR reached_pause';
 --let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
 --source include/wait_condition.inc
 
 --connection slave1
 backup stage start;
---send backup stage block_commit
+backup stage block_commit;
 
 --connection slave
 --let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for backup lock"
 SET debug_sync = 'now SIGNAL continue_worker';
+--source include/wait_condition.inc
 SET debug_sync = RESET;
 
 --connection slave1
-reap;
 backup stage end;
 
 --connection master

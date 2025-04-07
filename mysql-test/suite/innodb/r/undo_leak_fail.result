@@ -43,7 +43,7 @@ NAME	FILE_SIZE
 innodb_system	77594624
 # restart: --debug_dbug=d,unused_undo_free_fail_1
 # Fail to free the segment due to previous shutdown
-FOUND 4 /InnoDB: Cannot free the unused segments in system tablespace because a previous shutdown was not with innodb_fast_shutdown=0/ in mysqld.1.err
+FOUND 1 /InnoDB: Cannot free the unused segments in system tablespace because a previous shutdown was not with innodb_fast_shutdown=0.*/ in mysqld.1.err
 SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
 NAME	FILE_SIZE
 innodb_system	15728640

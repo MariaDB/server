@@ -1,5 +1,8 @@
 connection node_2;
 connection node_1;
+SELECT COUNT(*) `expect 0` FROM performance_schema.socket_instances WHERE EVENT_NAME LIKE '%wsrep%';
+expect 0
+0
 connection node_1;
 connection node_2;
 connection node_1;

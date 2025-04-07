@@ -2,6 +2,7 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;

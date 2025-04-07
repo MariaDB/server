@@ -281,6 +281,8 @@ void buf_page_t::write_complete(bool persistent, bool error, uint32_t state)
 {
   ut_ad(!persistent == fsp_is_system_temporary(id().space()));
   ut_ad(state >= WRITE_FIX);
+  ut_ad(!frame ||
+        frame == reinterpret_cast<buf_block_t*>(this)->frame_address());
 
   if (UNIV_LIKELY(!error))
   {
@@ -795,6 +797,7 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
   size_t orig_size;
 #endif
   buf_tmp_buffer_t *slot= nullptr;
+  byte *page= frame;
 
   if (UNIV_UNLIKELY(!frame)) /* ROW_FORMAT=COMPRESSED */
   {
@@ -810,7 +813,6 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
   }
   else
   {
-    byte *page= frame;
     size= block->physical_size();
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
     orig_size= size;
@@ -891,7 +893,7 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
          : space.physical_size() == 1024 ? 3 : 0));
   /* When flushed, dirty blocks are searched in neighborhoods of this
   size, and flushed along with the original page. */
-  const ulint s= buf_pool.curr_size / 16;
+  const ulint s= buf_pool.curr_size() / 16;
   const uint32_t read_ahead= buf_pool.read_ahead_area;
   const uint32_t buf_flush_area= read_ahead > s
     ? static_cast<uint32_t>(s) : read_ahead;
@@ -1209,16 +1211,15 @@ static void buf_flush_discard_page(buf_page_t *bpage) noexcept
 
 /** Flush dirty blocks from the end buf_pool.LRU,
 and move clean blocks to buf_pool.free.
-@param max    maximum number of blocks to flush
-@param n      counts of flushed and evicted pages */
-static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n) noexcept
+@param max         maximum number of blocks to flush
+@param n           counts of flushed and evicted pages
+@param to_withdraw buf_pool.to_withdraw() */
+static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
+                                     size_t to_withdraw) noexcept
 {
-  ulint scanned= 0;
+  size_t scanned= 0;
   mysql_mutex_assert_owner(&buf_pool.mutex);
-  ulint free_limit{buf_pool.LRU_scan_depth};
-  if (buf_pool.withdraw_target && buf_pool.is_shrinking())
-    free_limit+= buf_pool.withdraw_target - UT_LIST_GET_LEN(buf_pool.withdraw);
-
+  size_t free_limit{buf_pool.LRU_scan_depth + to_withdraw};
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
     ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
@@ -1235,8 +1236,8 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n) noexcept
   pages. To avoid such hang, we adjust the LRU limit lower than the limit for
   data objects as checked in buf_LRU_check_size_of_non_data_objects() i.e. one
   page less than 5% of BP. */
-  size_t pool_limit= buf_pool.curr_size / 20 - 1;
-  auto buf_lru_min_len= std::min<size_t>(pool_limit, BUF_LRU_MIN_LEN);
+  const size_t buf_lru_min_len=
+    std::min((buf_pool.usable_size()) / 20 - 1, size_t{BUF_LRU_MIN_LEN});
 
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
        bpage &&
@@ -1334,7 +1335,10 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n) noexcept
         break;
       }
 
-      if (neighbors && space->is_rotational())
+      if (neighbors && space->is_rotational() &&
+          /* Skip neighbourhood flush from LRU list if we haven't yet reached
+          half of the free page target. */
+          UT_LIST_GET_LEN(buf_pool.free) * 2 >= free_limit)
         n->flushed+= buf_flush_try_neighbors(space, page_id, bpage,
                                              neighbors == 1,
                                              n->flushed, max);
@@ -1370,11 +1374,12 @@ Whether LRU or unzip_LRU is used depends on the state of the system.
 @param n      counts of flushed and evicted pages */
 static void buf_do_LRU_batch(ulint max, flush_counters_t *n) noexcept
 {
-  if (buf_LRU_evict_from_unzip_LRU())
+  const size_t to_withdraw= buf_pool.to_withdraw();
+  if (!to_withdraw && buf_LRU_evict_from_unzip_LRU())
     buf_free_from_unzip_LRU_list_batch();
   n->evicted= 0;
   n->flushed= 0;
-  buf_flush_LRU_list_batch(max, n);
+  buf_flush_LRU_list_batch(max, n, to_withdraw);
 
   mysql_mutex_assert_owner(&buf_pool.mutex);
   buf_lru_freed_page_count+= n->evicted;
@@ -1723,8 +1728,16 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
   buf_do_LRU_batch(max_n, &n);
 
   ulint pages= n.flushed;
+  ulint evicted= n.evicted;
 
-  if (n.evicted)
+  /* If we have exhausted flush quota, it is likely we exited before
+  generating enough free pages. Call once more with 0 flush to generate
+  free pages immediately as required. */
+  if (pages >= max_n)
+    buf_do_LRU_batch(0, &n);
+
+  evicted+= n.evicted;
+  if (evicted)
   {
     buf_pool.try_LRU_scan= true;
     pthread_cond_broadcast(&buf_pool.done_free);
@@ -1998,6 +2011,14 @@ static bool log_checkpoint() noexcept
   if (recv_recovery_is_on())
     recv_sys.apply(true);
 
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
+  /* The built-in scheduler in Valgrind may neglect some threads for a
+  long time.  Under Valgrind, let us explicitly wait for page write
+  completion in order to avoid a result difference in the test
+  innodb.page_cleaner. */
+  os_aio_wait_until_no_pending_writes(false);
+#endif
+
   fil_flush_file_spaces();
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
@@ -2185,6 +2206,7 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
                                  MONITOR_FLUSH_SYNC_PAGES, n_flushed);
   }
 
+  os_aio_wait_until_no_pending_writes(false);
   fil_flush_file_spaces();
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
@@ -2296,13 +2318,23 @@ static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
 	if (!prev_lsn || !pct_for_lsn) {
 		prev_time = curr_time;
 		prev_lsn = cur_lsn;
-		if (max_pct > 0.0) {
-			dirty_pct /= max_pct;
-		}
 
-		n_pages = ulint(dirty_pct * double(srv_io_capacity));
-		if (n_pages < dirty_blocks) {
-			n_pages= std::min<ulint>(srv_io_capacity, dirty_blocks);
+		if (srv_io_capacity >= dirty_blocks) {
+			n_pages = dirty_blocks;
+		} else {
+			if (max_pct > 1.0) {
+				dirty_pct/= max_pct;
+			}
+			n_pages= ulint(dirty_pct * double(srv_io_capacity));
+
+			if (n_pages < dirty_blocks) {
+				n_pages= srv_io_capacity;
+
+			} else {
+				/* Set maximum IO capacity upper bound. */
+				n_pages= std::min<ulint>(srv_max_io_capacity,
+							 dirty_blocks);
+			}
 		}
 
 func_exit:
@@ -2399,6 +2431,13 @@ func_exit:
 }
 
 TPOOL_SUPPRESS_TSAN
+bool buf_pool_t::running_out() const noexcept
+{
+  return !recv_recovery_is_on() &&
+    UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) < n_blocks / 4;
+}
+
+TPOOL_SUPPRESS_TSAN
 bool buf_pool_t::need_LRU_eviction() const noexcept
 {
   /* try_LRU_scan==false means that buf_LRU_get_free_block() is waiting
@@ -2436,6 +2475,11 @@ static void buf_flush_page_cleaner() noexcept
     DBUG_EXECUTE_IF("ib_page_cleaner_sleep",
     {
       std::this_thread::sleep_for(std::chrono::seconds(1));
+      /* Cover the logging code in debug mode. */
+      buf_pool.print_flush_info();
+      buf_dblwr.lock();
+      buf_dblwr.print_info();
+      buf_dblwr.unlock();
     });
     lsn_limit= buf_flush_sync_lsn;
 
@@ -2458,7 +2502,7 @@ static void buf_flush_page_cleaner() noexcept
           (!UT_LIST_GET_LEN(buf_pool.flush_list) ||
            srv_max_dirty_pages_pct_lwm == 0.0))
       {
-        buf_pool.LRU_warned.clear(std::memory_order_release);
+        buf_pool.LRU_warned_clear();
         /* We are idle; wait for buf_pool.page_cleaner_wakeup() */
         my_cond_wait(&buf_pool.do_flush_list,
                      &buf_pool.flush_list_mutex.m_mutex);
@@ -2533,6 +2577,7 @@ static void buf_flush_page_cleaner() noexcept
       buf_pool.n_flush_inc();
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       n= srv_max_io_capacity;
+      os_aio_wait_until_no_pending_writes(false);
       mysql_mutex_lock(&buf_pool.mutex);
     LRU_flush:
       n= buf_flush_LRU(n);
@@ -2636,10 +2681,17 @@ static void buf_flush_page_cleaner() noexcept
              !buf_pool.need_LRU_eviction())
       goto check_oldest_and_set_idle;
     else
+    {
       mysql_mutex_lock(&buf_pool.mutex);
+      os_aio_wait_until_no_pending_writes(false);
+    }
 
     n= srv_max_io_capacity;
     n= n >= n_flushed ? n - n_flushed : 0;
+    /* It is critical to generate free pages to keep the system alive. Make
+    sure we are not hindered by dirty pages in LRU tail. */
+    n= std::max<ulint>(n, std::min<ulint>(srv_max_io_capacity,
+                                          buf_pool.LRU_scan_depth));
     goto LRU_flush;
   }
 
@@ -2677,11 +2729,13 @@ ATTRIBUTE_COLD void buf_pool_t::LRU_warn() noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   try_LRU_scan= false;
-  if (!LRU_warned.test_and_set(std::memory_order_acquire))
+  if (!LRU_warned)
+  {
+    LRU_warned= true;
     sql_print_warning("InnoDB: Could not free any blocks in the buffer pool!"
-                      " %zu blocks are in use and %zu free."
-                      " Consider increasing innodb_buffer_pool_size.",
-                      UT_LIST_GET_LEN(LRU), UT_LIST_GET_LEN(free));
+                      " Consider increasing innodb_buffer_pool_size.");
+    print_flush_info();
+  }
 }
 
 /** Initialize page_cleaner. */
@@ -2763,6 +2817,53 @@ void buf_flush_sync() noexcept
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   tpool::tpool_wait_end();
   thd_wait_end(nullptr);
+}
+
+ATTRIBUTE_COLD void buf_pool_t::print_flush_info() const noexcept
+{
+  /* We do dirty read of UT_LIST count variable. */
+  size_t lru_size= UT_LIST_GET_LEN(LRU);
+  size_t dirty_size= UT_LIST_GET_LEN(flush_list);
+  size_t free_size= UT_LIST_GET_LEN(free);
+  size_t dirty_pct= lru_size ? dirty_size * 100 / (lru_size + free_size) : 0;
+  sql_print_information("InnoDB: Buffer Pool pages\n"
+    "-------------------\n"
+    "LRU Pages  : %zu\n"
+    "Free Pages : %zu\n"
+    "Dirty Pages: %zu : %zu%%\n"
+    "-------------------",
+    lru_size, free_size, dirty_size, dirty_pct);
+
+  lsn_t lsn= log_sys.get_lsn();
+  lsn_t clsn= log_sys.last_checkpoint_lsn;
+  sql_print_information("InnoDB: LSN flush parameters\n"
+    "-------------------\n"
+    "System LSN     : %" PRIu64 "\n"
+    "Checkpoint  LSN: %" PRIu64 "\n"
+    "Flush ASync LSN: %" PRIu64 "\n"
+    "Flush Sync  LSN: %" PRIu64 "\n"
+    "-------------------",
+    lsn, clsn, buf_flush_async_lsn.load(), buf_flush_sync_lsn.load());
+
+  lsn_t age= lsn - clsn;
+  lsn_t age_pct= log_sys.max_checkpoint_age
+      ? age * 100 / log_sys.max_checkpoint_age : 0;
+  sql_print_information("InnoDB: LSN age parameters\n"
+    "-------------------\n"
+    "Current Age   : %" PRIu64 " : %" PRIu64 "%%\n"
+    "Max Age(Async): %" PRIu64 "\n"
+    "Max Age(Sync) : %" PRIu64 "\n"
+    "Capacity      : %" PRIu64 "\n"
+    "-------------------",
+    age, age_pct, log_sys.max_modified_age_async, log_sys.max_checkpoint_age,
+    log_sys.log_capacity);
+
+  sql_print_information("InnoDB: Pending IO count\n"
+    "-------------------\n"
+    "Pending Read : %zu\n"
+    "Pending Write: %zu\n"
+    "-------------------",
+    os_aio_pending_reads_approx(), os_aio_pending_writes_approx());
 }
 
 #ifdef UNIV_DEBUG
