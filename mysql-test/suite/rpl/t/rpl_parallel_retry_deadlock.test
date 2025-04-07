@@ -11,7 +11,7 @@ SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 # Test assumes that 'conservative' mode is in effect. i.e
 # Do not start parallel execution of this event group until all prior groups
 # have reached the commit phase. Refer 'rpl_parallel_start_waiting_for_prior'
-# debug simumation.
+# debug simulation.
 SET GLOBAL slave_parallel_mode='conservative';
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;

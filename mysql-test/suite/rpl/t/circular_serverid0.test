@@ -44,7 +44,7 @@ eval INSERT INTO `t1` VALUES (null, repeat('a', $row_size)), (null, repeat('b', 
 
 # START M2 IO thread and wait for its signal to follow with the SQL
 # thread start.  At this moment the SQL thread shall be having 2 and
-# "half" groups to execute.  The "hafl" one would be committed by the
+# "half" groups to execute.  The "half" one would be committed by the
 # buggy applier after which the IO is released to queue the rest of
 # the 3rd group which the SQL thread commits separately to complete
 # the split.

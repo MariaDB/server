@@ -2544,7 +2544,7 @@ EXECUTE stmt1;
 # Create temporary table which will shadow t1.
 CREATE TEMPORARY TABLE t1 (b int);
 # The below execution of statement should not fail with ER_CANT_REOPEN
-# error. Instead stmt1 should be auto-matically reprepared and succeed.
+# error. Instead stmt1 should be automatically reprepared and executed successfully.
 EXECUTE stmt1;
 DEALLOCATE PREPARE stmt1;
 DROP TEMPORARY TABLE t1;

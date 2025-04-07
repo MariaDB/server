@@ -98,7 +98,7 @@ eval INSERT INTO t SELECT 1+MAX(a) FROM t;
 --error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
 --eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($domain_list)
 
-# Now satisfy the safety condtion to purge log files containing $domain list
+# Now satisfy the safety condition to purge log files containing $domain list
 FLUSH BINARY LOGS;
 --let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
 --eval PURGE BINARY LOGS TO '$purge_to_binlog'

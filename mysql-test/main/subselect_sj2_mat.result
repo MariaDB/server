@@ -1648,7 +1648,7 @@ DROP TABLE t1,t2,t3,t4;
 set optimizer_switch=@save_optimizer_switch;
 #
 # mdev-4177: materialization of a subquery whose WHERE condition is OR
-# formula with two disjucts such that the second one is always false
+# formula with two disjuncts such that the second one is always false
 #
 set @save_optimizer_switch=@@optimizer_switch;
 set @save_join_cache_level=@@join_cache_level;

@@ -10,7 +10,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 #
-# Delete with limit (quick select - range acces)
+# Delete with limit (quick select - range access)
 #
 start transaction;
 delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 limit 1;

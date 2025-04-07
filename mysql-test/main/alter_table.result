@@ -1220,7 +1220,7 @@ info: Records: 2  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6');
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-# Copy: Numerical incrase (pack lenght)
+# Copy: Numerical increase (pack length)
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6','a7','a8','a9','a10');
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 0

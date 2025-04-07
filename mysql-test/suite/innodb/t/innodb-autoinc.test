@@ -272,7 +272,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 #
-# Check for overflow handling when increment and offser are > 1
+# Check for overflow handling when increment and offset are > 1
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
 SHOW VARIABLES LIKE "auto_inc%";
@@ -382,7 +382,7 @@ DROP TABLE t1;
 --echo # by a change in auto_increment_increment.
 --echo # In addition, current value of auto_increment_increment by the client
 --echo # that uses the existing autoinc value with be used to set next autoinc
---echo # value, which will be used by next client reguardless of its own session
+--echo # value, which will be used by next client regardless of its own session
 --echo # setting for auto_increment_increment.
 --echo #
 

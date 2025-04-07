@@ -2030,7 +2030,7 @@ EXPLAIN
     }
   }
 }
-# conjuctive subformula : pushdown using WHERE multiple equalities
+# conjunctive subformula : pushdown using WHERE multiple equalities
 set statement optimizer_switch='condition_pushdown_from_having=off' for SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a=t1.c)

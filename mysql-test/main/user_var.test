@@ -505,7 +505,7 @@ DROP TABLE t1;
 --echo #
 
 --disable_service_connection
-# Execute twice so number stablizes a bit
+# Execute twice so number stabilizes a bit
 let $tmp= `select memory_used from information_schema.processlist`;
 set @var= repeat('a',30000);
 let $tmp2= `select memory_used from information_schema.processlist`;

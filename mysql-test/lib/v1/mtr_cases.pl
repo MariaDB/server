@@ -115,9 +115,8 @@ sub collect_test_cases ($) {
     {
       my @criteria = ();
 
-      # Look for tests that muct be in run in a defined order
-      # that is defined by test having the same name except for
-      # the ending digit
+      # Look for tests that must be run in an order defined by
+      # test having the same name except for the ending digit
 
       # Put variables into hash
       my $test_name= $tinfo->{'name'};
@@ -180,7 +179,7 @@ sub collect_test_cases ($) {
 
 }
 
-# Valid extensions and their corresonding component id
+# Valid extensions and their corresponding component id
 my %exts = ( 'test' => 'mysqld',
 	     'imtest' => 'im'
 	   );
@@ -274,7 +273,7 @@ sub collect_one_suite($)
       #print "  tname:      $tname\n";
       #print "  extension:  $extension\n";
 
-      # Check cirrect suite if suitename is defined
+      # Check correct suite if suitename is defined
       next if (defined $sname and $suite ne $sname);
 
       my $component_id;

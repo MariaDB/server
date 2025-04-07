@@ -232,7 +232,7 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 --source include/galera_wait_sync_point.inc
 #
 # Now node_1 is processing PC3, and should have finished state transfer
-# State tranfer request was dilivered before PC3, so node_1 should have
+# State transfer request was dilivered before PC3, so node_1 should have
 # received IST up to 4 rows in t1 (what was there before PC2) plus one more
 # INSERT while in PC2.
 #

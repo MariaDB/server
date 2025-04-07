@@ -67,7 +67,7 @@ ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=expenses;
 SELECT * FROM pivex;
 
 --echo #
---echo # Using scalar functions and expresssions
+--echo # Using scalar functions and expressions
 --echo #
 DROP TABLE pivex;
 CREATE TABLE pivex (

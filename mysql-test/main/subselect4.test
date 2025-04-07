@@ -62,7 +62,7 @@ CREATE TABLE t3 LIKE t1;
 INSERT INTO t3 SELECT * FROM t1;
 
 --echo # Should not crash.
---echo # Should have 1 impossible where and 2 dependent subqs.
+--echo # Should have 1 impossible where and 2 dependent subqueries.
 EXPLAIN
 SELECT
   (SELECT 1 FROM t1,t2 WHERE t2.b > t3.b)
@@ -2291,7 +2291,7 @@ SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
 
 set names utf8 collate utf8_general_ci;
 --echo #
---echo # IN predicate to IN subquery is performed as materialization is llowed
+--echo # IN predicate to IN subquery is performed as materialization is allowed
 --echo # The character set on the inner side is a proper subset of the outer side
 --echo #
 

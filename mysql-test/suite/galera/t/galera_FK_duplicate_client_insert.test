@@ -20,7 +20,7 @@
 #    innodb suspend
 # 3. in node 2, a similar insert is issued. This will replicate to node 1 and try to
 #    abort the conflicting update and blocked insert
-# 4. the inserts dbug sync point is relased, and insert should continue and abort
+# 4. the inserts dbug sync point is released, and insert should continue and abort
 #    gracefully
 # 5. update is continued to commit, and it should also observe the deadlock
 #

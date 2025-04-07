@@ -3,7 +3,7 @@
 
 #
 # Test that SR transaction is cumulatively allowed to grow beyond repl.max_ws_size
-# if individual fragements are below that size
+# if individual fragments are below that size
 #
 
 --connection node_1

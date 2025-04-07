@@ -842,7 +842,7 @@ SELECT * FROM t2;
 DROP TABLE t2;
 
 # Let's change "TYPE OF t1.a" after the function has been successfully called
-# and thus is already in the SP chache.
+# and thus is already in the SP cache.
 
 DROP TABLE t1;
 CREATE TABLE t1 (a INT);

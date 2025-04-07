@@ -80,7 +80,7 @@ DESC `£Ô£¸`;
 DESC `£Ô£¹`;
 
 #
-# Test problem with enum values after the colum with  NOT NULL restriction
+# Test problem with enum values after the column with  NOT NULL restriction
 # Bug#7302 UCS2 data in ENUM field get truncated when new column is added
 ALTER TABLE `£Ô£±` ADD `£Ã£²` CHAR(1) NOT NULL FIRST;
 ALTER TABLE `£Ô£²` ADD `£Ã£²` CHAR(1) NOT NULL FIRST;

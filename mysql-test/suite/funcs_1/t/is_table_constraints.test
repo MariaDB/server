@@ -8,7 +8,7 @@
 #    - to show information about the all time existing tables
 #      within the databases information_schema and mysql
 #    - for checking storage engine properties
-#      Therefore please do not alter $engine_typee.
+#      Therefore please do not alter $engine_type.
 #
 # Author:
 # 2008-01-23 mleich WL#4203 Reorganize and fix the data dictionary tests of
@@ -109,7 +109,7 @@ let $my_show1 = SHOW INDEXES FROM db_datadict.t1;
 let $my_show2 = SHOW INDEXES FROM db_datadict.t2;
 
 eval $my_select;
-# 1 Table           Note: We intentinally suppress the protocolling of all
+# 1 Table           Note: We intentionally suppress the protocolling of all
 # 2 Non_unique            output being not of interest or depending on
 # 3 Key_name              storage engine used for the table.
 # 4 Seq_in_index

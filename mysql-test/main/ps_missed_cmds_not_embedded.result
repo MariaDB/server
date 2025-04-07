@@ -15,7 +15,7 @@ PREPARE stmt_2 FROM "ALTER EVENT e1 COMMENT 'New comment'";
 PREPARE stmt_3 FROM "DROP EVENT e1";
 # Create the event e1 that specifies time in past. Such event is created
 # just for the sake of its existence and never will be triggered.
-# Disable warnings temprorary in order to hide the following warnings
+# Temporarily disable warnings in order to hide the following warnings
 # generated in result of execution the 'CREATE EVENT' statement:
 #   "1544 | Event execution time is in the past. Event has been disabled"
 #   "1105 | Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it."

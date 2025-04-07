@@ -63,7 +63,7 @@ reap;
 connection con2;
 
 # Wait for the the tables to be renamed
-# i.e the query below succeds
+# i.e the query below succeeds
 let $query= select * from t2, t4;
 source include/wait_for_query_to_succeed.inc;
 

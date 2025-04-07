@@ -711,7 +711,7 @@ explain extended select sum(ord(a1)) from t1 where (a1 > 'a') group by a1,a2,b;
 create table t4 as select distinct a1, a2, b, c from t1;
 alter table t4 add unique index idxt4 (a1, a2, b, c);
 
---echo # This is "superceded" by MDEV-7118, and Loose Index Scan is again an option:
+--echo # This is "superseded" by MDEV-7118, and Loose Index Scan is again an option:
 explain
 select a1, a2, b, min(c) from t4 group by a1, a2, b;
 select a1, a2, b, min(c) from t4 group by a1, a2, b;

@@ -25,7 +25,7 @@ INSERT INTO t1 (id) VALUES (1);
 --echo # <con1, S, granted>, <con2, X, waiting for con1>, <con1, X, waiting for con1>
 --echo # After MDEV-34877:
 --echo # <con1, S, granted>, <con1, X, granted>, <con2, X, waiting for con1>
---echo # Expected: instead of deadlocking, the con1's request should ingore con2's
+--echo # Expected: instead of deadlocking, the con1's request should ignore con2's
 
 --connection con1
   BEGIN;
@@ -183,7 +183,7 @@ INSERT INTO t1 (id) VALUES (1);
   --reap
   COMMIT;
 
---echo # A secenario, where con1 has to bypass two transactions:
+--echo # A scenario, where con1 has to bypass two transactions:
 --echo # <con1, S, granted>
 --echo # <con1, S, granted> <con2, X, waiting>
 --echo # <con1, S, granted> <con2, X, waiting> <con3, X, waiting>

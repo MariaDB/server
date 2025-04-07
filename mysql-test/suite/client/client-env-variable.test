@@ -1,6 +1,6 @@
 -- source include/have_log_bin.inc
 
-# Set up environment varibles for client programs
+# Set up environment variables for client programs
 # The environment variables for client programs have default options file
 # They interfere with the MTR test so I am creating new variables for them
 
@@ -45,7 +45,7 @@ EOF
 --let MYSQL_HOST=localhost
 --echo $MARIADB_HOST
 
-# Now run the same command as in the postive test case
+# Now run the same command as in the positive test case
 # Client programs are expected to fail since the server does not exist
 # Some client program fails with error 1 and some fails wtih error 2
 

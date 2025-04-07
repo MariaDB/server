@@ -6,7 +6,7 @@
 # Check by setting at index level with CREATE TABLE
 # Check with BLOB column at index level with CREATE Index
 # Check with row_format=compressed and key_block_size=8k
-# Check withe valid and invalid merge_threshold values.
+# Check with valid and invalid merge_threshold values.
 #
 # Check actual behavior for table, partitioned table and temporary table
 # #############################################################

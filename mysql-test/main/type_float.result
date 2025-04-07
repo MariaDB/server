@@ -565,7 +565,7 @@ SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-# t2 should NOT be elimitated
+# t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	

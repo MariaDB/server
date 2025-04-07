@@ -206,7 +206,7 @@ XA END 'xa1';
 
 --connection default
   # In the patch's base BBT would exit first to win the race against
-  # the XA transaction's binloging.
+  # the XA transaction's binlogging.
   SET GLOBAL debug_dbug="+d,only_kill_system_threads_no_loop";
 --source include/shutdown_mysqld.inc
 --source include/start_mysqld.inc

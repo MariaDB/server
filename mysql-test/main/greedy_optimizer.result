@@ -1313,7 +1313,7 @@ COUNT(*)
 # plans without restricting 'optimizer_search_depth'.
 # Fix problems like those reported as bug#41740 & bug#58225.
 #
-# EPLAIN of queries using T1-T62 will timeout/hang wo/ fixes
+# EXPLAIN of queries using T1-T62 will timeout/hang wo/ fixes
 #
 DROP TABLE t10, t10000;
 CREATE TABLE t1 ( K INT NOT NULL AUTO_INCREMENT,

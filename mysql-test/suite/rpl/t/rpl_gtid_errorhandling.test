@@ -72,7 +72,7 @@ SELECT * FROM t1 ORDER BY a;
 # MDEV-34049: Parallel access to temptable in different domain_id in parallel replication
 #
 # Temporary tables must be prevented from being accessed from multiple threads
-# at the same time in parallel replication. Withon one domain_id, this is done
+# at the same time in parallel replication. Within one domain_id, this is done
 # by running wait_for_prior_commit() before accessing a temporary table. To
 # prevent the same temporary table from being accessed in parallel from two
 # domains in out-of-order parallel replication, an error must be raised on

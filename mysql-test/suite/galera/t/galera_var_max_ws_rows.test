@@ -42,7 +42,7 @@ COMMIT;
 SELECT COUNT(*) = 0 FROM t1;
 
 
-# Test that wsrep_max_ws_rows is enforced on sigle statements
+# Test that wsrep_max_ws_rows is enforced on single statements
 
 SET GLOBAL wsrep_max_ws_rows = 5;
 INSERT INTO t1 (f2) VALUES (1),(2),(3),(4),(5);

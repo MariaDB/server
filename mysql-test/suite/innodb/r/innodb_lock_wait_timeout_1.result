@@ -220,7 +220,7 @@ a	b
 commit;
 #
 # Have a one more record in t2 to show that 
-# if join_read_key cache is purned, the current
+# if join_read_key cache is purged, the current
 # row under the cursor is unlocked (provided, this row didn't 
 # match the partial WHERE clause, of course).
 # Sic: the result of this test dependent on the order of retrieval

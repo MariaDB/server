@@ -216,7 +216,7 @@ END
 $
 --delimiter ;
 
---echo # The following statement UPDATE doens't modify the row (1)
+--echo # The following statement UPDATE doesn't modify the row (1)
 --echo # since this row is explicitly ignored by implementation of
 --echo # trigger t1_bu, therefore the trigger t1_au is not fired
 --echo # for this row and the row (1, 11) not inserted into the table t2

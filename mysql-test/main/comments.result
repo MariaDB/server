@@ -71,7 +71,7 @@ SELECT 1 /*!190000 +1*/;
 1
 1
 #
-# Tesing that versions >= 5.7.x and < 10.0.0 are not ignored 
+# Testing that versions >= 5.7.x and < 10.0.0 are not ignored
 # when used with the MariaDB executable comment syntax.
 #
 SELECT 1 /*M!50699 +1*/;

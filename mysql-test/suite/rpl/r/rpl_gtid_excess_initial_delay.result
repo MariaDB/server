@@ -11,7 +11,7 @@ include/sync_slave_io_with_master.inc
 connection slave;
 "Sleeping for 15"
 # Asserted this: Seconds_Behind_Master should be less than MASTER_DELAY
-# Asserted this: One row shoule be found in table t1.
+# Asserted this: One row should be found in table t1.
 "======= Clean up ========"
 STOP SLAVE;
 CHANGE MASTER TO MASTER_DELAY=0;

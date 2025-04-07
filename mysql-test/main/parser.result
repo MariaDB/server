@@ -931,7 +931,7 @@ ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies t
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
 ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
-# UNION with a parenthesed term
+# UNION with a parenthesized term
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 2);
@@ -986,7 +986,7 @@ ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a));
 ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
 DROP TABLE t1;
-# UNION with a non-parethesized term with ROLLUP
+# UNION with a non-parenthesized term with ROLLUP
 # This will change after: MDEV-10120 Wrong result of UNION .. ORDER BY GROUP_CONCAT()
 # Currently we're testing the parser only
 CREATE TABLE t1 (a INT);

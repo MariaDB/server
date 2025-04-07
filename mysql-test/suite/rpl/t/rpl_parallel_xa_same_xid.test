@@ -75,7 +75,7 @@ while ($k)
 
 
 # Above-like test complicates execution env to create
-# data conflicts as well. They will be resolved by the optmistic
+# data conflicts as well. They will be resolved by the optimistic
 # scheduler as usual.
 
 CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b INT) ENGINE=InnoDB;

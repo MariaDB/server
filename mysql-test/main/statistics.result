@@ -1688,7 +1688,7 @@ db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_fre
 test	t1	a	D879626AF872675F73E662F8	D879626AF872675F73E662F8	0.0000	1.0000	0	NULL	NULL
 drop table t1;
 #
-# MDEB-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
+# MDEV-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
 # Encountered illegal value '' when converting to DECIMAL
 #
 set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
@@ -1839,7 +1839,7 @@ table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	
 t1	id	1	17384	0.0000	4.0000	14.0000	0.15705,0.15711,0.21463,0.15705,0.15711,0.15706
 set analyze_sample_percentage=0.1;
 #
-# This query will show an innacurate avg_frequency value.
+# This query will show an inaccurate avg_frequency value.
 #
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text

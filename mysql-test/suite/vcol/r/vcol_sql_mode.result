@@ -360,7 +360,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
-# Comnination: PAD_CHAR_TO_FULL_LENGTH + NO_UNSIGNED_SUBTRACTION
+# Combination: PAD_CHAR_TO_FULL_LENGTH + NO_UNSIGNED_SUBTRACTION
 #
 CREATE TABLE t1 (
 a INT UNSIGNED,
@@ -414,7 +414,7 @@ SHOW WARNINGS;
 Level	Code	Message
 Error	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
 Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
-# A persisten virtual column cannot depend on sql_mode
+# A persistent virtual column cannot depend on sql_mode
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (a) PERSISTENT);
 ERROR HY000: Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
 SHOW WARNINGS;

@@ -1,4 +1,4 @@
-# Test to detect changest to the PERFORMANCE_SCHEMA table schemas
+# Test to detect changes to the PERFORMANCE_SCHEMA table schemas
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc

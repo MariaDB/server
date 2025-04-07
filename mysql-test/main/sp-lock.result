@@ -119,7 +119,7 @@ drop temporary table t1;
 #
 # For that, start a transaction, use a routine. In a concurrent
 # connection, try to drop or alter the routine. It should place
-# a pending or exclusive lock and block. In another concurrnet
+# a pending or exclusive lock and block. In another concurrent
 # connection, try to use the routine.
 # That should block on the pending exclusive lock.
 #

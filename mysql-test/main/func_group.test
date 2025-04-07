@@ -435,7 +435,7 @@ drop table t1;
 
 
 #
-# cleunup() of optimized away count(*) and max/min
+# cleanup() of optimized away count(*) and max/min
 #
 create table t1 (a int);
 insert into t1 values (1),(2);
@@ -1055,7 +1055,7 @@ FROM t1
 ORDER BY max;
 
 --echo
---echo # Only 11 is correct for collumn i in this result
+--echo # Only 11 is correct for column i in this result
 SELECT MAX(pk) as max, i
 FROM t1
 WHERE pk<2

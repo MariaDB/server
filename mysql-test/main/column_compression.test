@@ -346,7 +346,7 @@ DELIMITER ;$$
 
 
 # Let's override the default threshold (100) to force
-# comression for VARCHAR1+MB, for example, for:
+# compression for VARCHAR1+MB, for example, for:
 # VARCHAR(80) CHARACTER SET utf8mb3
 
 SET @@column_compression_threshold=32;

@@ -382,7 +382,7 @@ select extractValue('<foo><foo.bar>Data</foo.bar><something>Otherdata</something
 select extractValue('<zot><tim0><01>10:39:15</01><02>140</02></tim0></zot>','/zot/tim0/02') as xml;
 select extractValue('<zot><tim0><01>10:39:15</01><02>140</02></tim0></zot>','//*') as xml;
 
-# dot and dash are bad identtifier start character
+# dot and dash are bad identifier start character
 select extractValue('<.>test</.>','//*');
 select extractValue('<->test</->','//*');
 # semicolon is good identifier start character
