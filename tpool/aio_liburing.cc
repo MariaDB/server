@@ -17,6 +17,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include "tpool.h"
 #include "mysql/service_my_print_error.h"
 #include "mysqld_error.h"
+#include "my_valgrind.h"
+
+#if __has_feature(memory_sanitizer)
+/* Try to work around uninstrumented liburing.
+FIXME: This does not cover <liburing/barrier.h>. */
+# define IOURINGINLINE __attribute__((no_sanitize("memory"))) static inline
+#endif
 
 #include <liburing.h>
 
@@ -45,10 +52,11 @@ public:
                         " under systemd"
 #ifdef HAVE_IO_URING_MLOCK_SIZE
                         " (%zd bytes required)", ME_ERROR_LOG | ME_WARNING,
-                        io_uring_mlock_size(max_aio, 0));
+                        io_uring_mlock_size(max_aio, 0)
 #else
-                        , ME_ERROR_LOG | ME_WARNING);
+                        , ME_ERROR_LOG | ME_WARNING
 #endif
+                        );
         break;
       case ENOSYS:
         my_printf_error(ER_UNKNOWN_ERROR,
@@ -95,6 +103,9 @@ public:
     io_uring_queue_exit(&uring_);
   }
 
+#if __has_feature(memory_sanitizer)
+  __attribute__((no_sanitize("memory")))
+#endif
   int submit_io(tpool::aiocb *cb) final
   {
     cb->iov_base= cb->m_buffer;
@@ -104,6 +115,8 @@ public:
     // must be atomical. This is because liburing provides thread-unsafe calls.
     std::lock_guard<std::mutex> _(mutex_);
 
+    /* Work around uninstrumented liburing */
+    MEM_MAKE_DEFINED(&uring_, sizeof uring_);
     io_uring_sqe *sqe= io_uring_get_sqe(&uring_);
     if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
       io_uring_prep_readv(sqe, cb->m_fh, static_cast<struct iovec *>(cb), 1,
@@ -142,6 +155,9 @@ private:
     for (;;)
     {
       io_uring_cqe *cqe;
+      /* Work around uninstrumented liburing */
+      MEM_MAKE_DEFINED(&aio->uring_, sizeof aio->uring_);
+      MEM_MAKE_DEFINED(&cqe, sizeof cqe);
       if (int ret= io_uring_wait_cqe(&aio->uring_, &cqe))
       {
         if (ret == -EINTR)

@@ -3690,6 +3690,11 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node) noexcept
 
   const byte *read_frame= zip.data ? zip.data : frame;
   ut_ad(read_frame);
+#if __has_feature(memory_sanitizer)
+  if (srv_use_native_aio)
+    /* Work around uninstrumented asynchronous I/O interface */
+    MEM_MAKE_DEFINED(read_frame, zip.data ? zip_size() : srv_page_size);
+#endif
 
   dberr_t err;
   if (!buf_page_decrypt_after_read(this, node))
