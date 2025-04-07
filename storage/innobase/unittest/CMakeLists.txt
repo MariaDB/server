@@ -25,6 +25,12 @@ ADD_EXECUTABLE(innodb_fts-t innodb_fts-t.cc)
 TARGET_LINK_LIBRARIES(innodb_fts-t mysys mytap)
 ADD_DEPENDENCIES(innodb_fts-t GenError)
 MY_ADD_TEST(innodb_fts)
+IF (WITH_INNODB_AHI)
+  ADD_EXECUTABLE(innodb_ahi-t innodb_ahi-t.cc)
+  TARGET_LINK_LIBRARIES(innodb_ahi-t mysys mytap)
+  ADD_DEPENDENCIES(innodb_ahi-t GenError)
+  MY_ADD_TEST(innodb_ahi)
+ENDIF()
 # See explanation in innobase/CmakeLists.txt
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x")
   ADD_COMPILE_FLAGS(

@@ -1454,7 +1454,7 @@ static void innodb_drop_database(handlerton*, char *path)
 
     dfield_t dfield;
     dtuple_t tuple{
-      0,1,1,&dfield,0,nullptr
+      0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
       , DATA_TUPLE_MAGIC_N
 #endif
@@ -17640,9 +17640,9 @@ innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
 {
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 	if (*(my_bool*) save) {
-		btr_search_enable();
+		btr_search.enable();
 	} else {
-		btr_search_disable();
+		btr_search.disable();
 	}
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
@@ -19221,18 +19221,15 @@ static MYSQL_SYSVAR_BOOL(stats_traditional, srv_stats_sample_traditional,
   NULL, NULL, TRUE);
 
 #ifdef BTR_CUR_HASH_ADAPT
-static MYSQL_SYSVAR_BOOL(adaptive_hash_index, btr_search_enabled,
+static MYSQL_SYSVAR_BOOL(adaptive_hash_index, *(my_bool*) &btr_search.enabled,
   PLUGIN_VAR_OPCMDARG,
   "Enable InnoDB adaptive hash index (disabled by default).",
   NULL, innodb_adaptive_hash_index_update, false);
 
-/** Number of distinct partitions of AHI.
-Each partition is protected by its own latch and so we have parts number
-of latches protecting complete search system. */
-static MYSQL_SYSVAR_ULONG(adaptive_hash_index_parts, btr_ahi_parts,
+static MYSQL_SYSVAR_ULONG(adaptive_hash_index_parts, btr_search.n_parts,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Number of InnoDB Adaptive Hash Index Partitions (default 8)",
-  NULL, NULL, 8, 1, 512, 0);
+  NULL, NULL, 8, 1, array_elements(btr_search.parts), 0);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,

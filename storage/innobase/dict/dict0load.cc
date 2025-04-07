@@ -1334,7 +1334,7 @@ static dberr_t dict_load_columns(dict_table_t *table, unsigned use_uncommitted,
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -1461,7 +1461,7 @@ dict_load_virtual_col(dict_table_t *table, bool uncommitted, ulint nth_v_col)
 
 	dfield_t dfield[2];
 	dtuple_t tuple{
-		0,2,2,dfield,0,nullptr
+		0,2,2,0,dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -1705,7 +1705,7 @@ static dberr_t dict_load_fields(dict_index_t *index, bool uncommitted,
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -1964,7 +1964,7 @@ dberr_t dict_load_indexes(dict_table_t *table, bool uncommitted,
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2353,7 +2353,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2607,7 +2607,7 @@ dict_load_table_on_id(
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2716,7 +2716,7 @@ static dberr_t dict_load_foreign_cols(dict_foreign_t *foreign, trx_id_t trx_id)
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2892,7 +2892,7 @@ dict_load_foreign(
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -3103,7 +3103,7 @@ dict_load_foreigns(
 	bool check_recursive = !trx_id;
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
