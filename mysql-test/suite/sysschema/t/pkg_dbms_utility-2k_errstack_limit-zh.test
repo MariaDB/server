@@ -1,0 +1,86 @@
+-- source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-34330: System package SYS.DBMS_UTILITY
+--echo #
+
+SET sql_mode= oracle;
+
+SET SESSION note_verbosity = "";
+
+SET NAMES utf8;
+
+SET lc_messages=ZH_CN;
+
+DELIMITER //;
+
+CREATE OR REPLACE PROCEDURE proc1
+IS
+BEGIN
+   RAISE TOO_MANY_ROWS;
+END;
+//
+
+CREATE OR REPLACE PACKAGE pkg1
+IS
+   PROCEDURE proc2;
+END pkg1;//
+
+CREATE OR REPLACE PACKAGE BODY pkg1
+IS
+   PROCEDURE proc2
+   IS
+   BEGIN
+      proc1_1;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+        RAISE DUP_VAL_ON_INDEX;
+   END;
+END pkg1;//
+
+CREATE PROCEDURE proc3( )
+AS
+BEGIN
+   pkg1.proc2;
+EXCEPTION
+    WHEN DUP_VAL_ON_INDEX THEN
+        SELECT sys.DBMS_UTILITY.FORMAT_ERROR_STACK();
+END;//
+
+DELIMITER ;//
+
+SET @identifier := REPEAT('x', 500);
+--echo #
+--echo # Test FORMAT_ERROR_STACK with very long result string
+--echo #
+--error ER_DUP_ENTRY
+
+DELIMITER //;
+
+CREATE OR REPLACE PROCEDURE cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc IS BEGIN proc1; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+
+CREATE OR REPLACE PROCEDURE bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb IS BEGIN cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+
+CREATE OR REPLACE PROCEDURE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa IS BEGIN bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+
+CREATE OR REPLACE PROCEDURE proc1_1
+IS
+BEGIN
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+EXCEPTION
+    WHEN OTHERS
+    THEN
+      SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier;
+END;//
+
+DELIMITER ;//
+CALL proc3( );
+
+DROP PROCEDURE proc1;
+DROP PROCEDURE cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;
+DROP PROCEDURE bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;
+DROP PROCEDURE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+DROP PROCEDURE proc1_1;
+DROP PACKAGE pkg1;
+DROP PROCEDURE proc3;

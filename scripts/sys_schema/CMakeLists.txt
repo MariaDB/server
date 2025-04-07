@@ -159,8 +159,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/procedures/statement_performance_analyzer.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/table_exists.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_transaction.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_random.sql
-${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_encode.sql
-${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_raw.sql
+${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_utility.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/after_setup.sql
 )
 ELSE()
@@ -172,8 +171,7 @@ SET(files
   ${CMAKE_CURRENT_SOURCE_DIR}/triggers/sys_config_update_set_user.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_transaction.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_random.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_encode.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_raw.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_utility.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/after_setup.sql)
 ENDIF()
 
