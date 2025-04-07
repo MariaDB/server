@@ -253,3 +253,8 @@ st_astext(ST_COLLECT(p))
 MULTIPOINT(1 1,1 1)
 MULTIPOINT(0 0)
 DROP TABLE t1;
+#
+# MDEV-36491 Server crashes in Item_func_group_concat::print
+#
+SELECT 1 FROM dual WHERE group_concat(1, 1);
+ERROR HY000: Invalid use of group function

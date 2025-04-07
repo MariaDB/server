@@ -4555,6 +4555,8 @@ uint Item_func_group_concat::get_null_bytes()
 
 void Item_func_group_concat::print(String *str, enum_query_type query_type)
 {
+  /* orig_args is not filled with valid values until fix_fields() */
+  Item **pargs= fixed() ? orig_args : args;
   str->append(func_name_cstring());
   if (distinct)
     str->append(STRING_WITH_LEN("distinct "));
@@ -4562,7 +4564,7 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
   {
     if (i)
       str->append(',');
-    orig_args[i]->print(str, query_type);
+    pargs[i]->print(str, query_type);
   }
   if (arg_count_order)
   {
@@ -4571,10 +4573,10 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
     {
       if (i)
         str->append(',');
-      orig_args[i + arg_count_field]->print(str, query_type);
+      pargs[i + arg_count_field]->print(str, query_type);
       if (order[i]->direction == ORDER::ORDER_ASC)
         str->append(STRING_WITH_LEN(" ASC"));
-     else
+      else
         str->append(STRING_WITH_LEN(" DESC"));
     }
   }
