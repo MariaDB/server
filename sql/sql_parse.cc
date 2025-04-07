@@ -3225,6 +3225,10 @@ bool Sql_cmd_call::execute(THD *thd)
 {
   TABLE_LIST *all_tables= thd->lex->query_tables;
   sp_head *sp;
+  if (!thd->spcont)
+  {
+    thd->reset_backtrace_data(thd);
+  }
   /*
     This will cache all SP and SF and open and lock all tables
     required for execution.
@@ -7483,7 +7487,6 @@ void THD::reset_for_next_command(bool do_clear_error)
 #endif
   DBUG_VOID_RETURN;
 }
-
 
 /**
   Used to allocate a new SELECT_LEX object on the current thd mem_root and
