@@ -259,14 +259,15 @@ struct chunk_data_cache : public chunk_data_base {
   chunk_data_cache(IO_CACHE *cache_arg,
                    handler_binlog_event_group_info *binlog_info)
   : cache(cache_arg),
-    main_remain(binlog_info->gtid_offset - binlog_info->out_of_band_offset),
+    main_remain((size_t)(binlog_info->gtid_offset -
+                         binlog_info->out_of_band_offset)),
     header_sofar(0)
   {
-    size_t end_offset= my_b_tell(cache);
+    size_t end_offset= (size_t)my_b_tell(cache);
     ut_ad(end_offset > binlog_info->out_of_band_offset);
     ut_ad(binlog_info->gtid_offset >= binlog_info->out_of_band_offset);
     ut_ad(end_offset >= binlog_info->gtid_offset);
-    gtid_remain= end_offset - binlog_info->gtid_offset;
+    gtid_remain= end_offset - (size_t)binlog_info->gtid_offset;
 
     binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
     unsigned char *p;
@@ -1312,7 +1313,7 @@ scan_for_binlogs(const char *binlog_dir, found_binlogs *binlog_files,
     uint64_t idx;
     if (!is_binlog_name(name, &idx))
       continue;
-    process_binlog_name(binlog_files, idx, entries[i].mystat->st_size);
+    process_binlog_name(binlog_files, idx, (size_t)entries[i].mystat->st_size);
   }
   my_dirend(dir);
 
@@ -1821,7 +1822,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       ut_a(block /* ToDo: error handling? */);
       page_offset= BINLOG_PAGE_DATA;
       byte *ptr= page_offset + &block->page_buf[0];
-      ssize_t chunk= used_bytes;
+      uint32_t chunk= (uint32_t)used_bytes;
       byte last_flag= FSP_BINLOG_FLAG_LAST;
       if (chunk > page_room - 3) {
         last_flag= 0;
@@ -1834,7 +1835,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       ut_ad(chunk <= 0xffff);
       memcpy(ptr+3, buf, chunk);
       fsp_log_binlog_write(mtr, block, page_offset, (uint32)(chunk+3));
-      page_offset+= (uint32_t)(chunk+3);
+      page_offset+= chunk + 3;
       buf+= chunk;
       used_bytes-= chunk;
       cont_flag= FSP_BINLOG_FLAG_CONT;
@@ -2217,7 +2218,7 @@ binlog_oob_context::chunk_data_oob::chunk_data_oob(uint64_t idx,
   p= compr_int_write(p, left_offset);
   p= compr_int_write(p, right_file_no);
   p= compr_int_write(p, right_offset);
-  ut_ad(p - &header_buf[0] <= max_buffer);
+  ut_ad((uint32_t)(p - &header_buf[0]) <= max_buffer);
   header_len= (uint32_t)(p - &header_buf[0]);
 }
 
@@ -3195,7 +3196,7 @@ innodb_binlog_purge_low(handler_binlog_purge_info *purge_info,
       ut_ad(0);
     }
     else
-      loc_total_size-= stat_buf.st_size;
+      loc_total_size-= (size_t)stat_buf.st_size;
 
     /*
       Make sure that we always leave at least one binlog file durably non-empty,
@@ -3241,7 +3242,7 @@ innodb_binlog_autopurge(uint64_t first_open_file_no)
   bool can_purge= ha_binlog_purge_info(&purge_info);
 #else
   bool can_purge= false;
-  memset(purge_info, 0, sizeof(purge_info));  /* Silence compiler warnings. */
+  memset(&purge_info, 0, sizeof(purge_info));  /* Silence compiler warnings. */
 #endif
   if (!can_purge ||
       !(purge_info.purge_by_size || purge_info.purge_by_date))
