@@ -1982,15 +1982,13 @@ row_ins_dupl_error_with_rec(
 	dict_index_t*	index,	/*!< in: index */
 	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec, index) */
 {
-	ulint	matched_fields;
-	ulint	n_unique;
 	ulint	i;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
-	n_unique = dict_index_get_n_unique(index);
+	const auto n_unique = dict_index_get_n_unique(index);
 
-	matched_fields = 0;
+	uint16_t matched_fields = 0;
 
 	cmp_dtuple_rec_with_match(entry, rec, index, offsets, &matched_fields);
 
@@ -2087,7 +2085,6 @@ row_ins_scan_sec_index_for_duplicate(
 	mem_heap_t*	offsets_heap)
 				/*!< in/out: memory heap that can be emptied */
 {
-	ulint		n_unique;
 	int		cmp;
 	ulint		n_fields_cmp;
 	btr_pcur_t	pcur;
@@ -2099,7 +2096,7 @@ row_ins_scan_sec_index_for_duplicate(
 
 	ut_ad(!index->lock.have_any());
 
-	n_unique = dict_index_get_n_unique(index);
+	const auto n_unique = dict_index_get_n_unique(index);
 
 	/* If the secondary index is unique, but one of the fields in the
 	n_unique first fields is NULL, a unique key violation cannot occur,
@@ -2229,7 +2226,7 @@ row_ins_duplicate_online(ulint n_uniq, const dtuple_t *entry,
                          const rec_t *rec, const dict_index_t *index,
                          rec_offs *offsets)
 {
-	ulint	fields	= 0;
+	uint16_t fields	= 0;
 
 	/* During rebuild, there should not be any delete-marked rows
 	in the new table. */
@@ -2797,13 +2794,10 @@ avoid_bulk:
 #endif /* WITH_WSREP */
 
 #ifdef BTR_CUR_HASH_ADAPT
-			if (btr_search_enabled) {
-				btr_search_x_lock_all();
-				index->table->bulk_trx_id = trx->id;
-				btr_search_x_unlock_all();
-			} else {
-				index->table->bulk_trx_id = trx->id;
-			}
+			auto &part = btr_search.get_part(*index);
+			part.latch.wr_lock(SRW_LOCK_CALL);
+			index->table->bulk_trx_id = trx->id;
+			part.latch.wr_unlock();
 #else /* BTR_CUR_HASH_ADAPT */
 			index->table->bulk_trx_id = trx->id;
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -3324,7 +3318,7 @@ row_ins_clust_index_entry(
 		: index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
 #endif /* WITH_WSREP */
-	const ulint	orig_n_fields = entry->n_fields;
+	const auto orig_n_fields = entry->n_fields;
 
 	/* For intermediate table during copy alter table,
 	   skip the undo log and record lock checking for

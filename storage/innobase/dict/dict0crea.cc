@@ -1284,7 +1284,7 @@ dict_create_index_step(
 			}
 
 #ifdef BTR_CUR_HASH_ADAPT
-			ut_ad(!node->index->search_info->ref_count);
+			ut_ad(!node->index->search_info.ref_count);
 #endif /* BTR_CUR_HASH_ADAPT */
 			dict_index_remove_from_cache(table, node->index);
 			node->index = NULL;

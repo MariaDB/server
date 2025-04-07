@@ -2033,7 +2033,7 @@ void innodb_shutdown()
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys.is_initialised()) {
-		btr_search_disable();
+		btr_search.disable();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 	ibuf_close();

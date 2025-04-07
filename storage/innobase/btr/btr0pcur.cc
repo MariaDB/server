@@ -450,7 +450,7 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	rec_offs_init(offsets);
 	restore_status ret_val= restore_status::NOT_SAME;
 	if (rel_pos == BTR_PCUR_ON && btr_pcur_is_on_user_rec(this)) {
-		ulint n_matched_fields= 0;
+		uint16_t n_matched_fields= 0;
 		if (!cmp_dtuple_rec_with_match(
 		      tuple, btr_pcur_get_rec(this), index,
 		      rec_get_offsets(btr_pcur_get_rec(this), index, offsets,

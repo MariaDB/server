@@ -203,6 +203,7 @@ cmp_decimal(const byte*	a, ulint a_length, const byte* b, ulint b_length)
 @retval positive if data1 is greater than data2 */
 int cmp_data(ulint mtype, ulint prtype, bool descending,
              const byte *data1, size_t len1, const byte *data2, size_t len2)
+  noexcept
 {
   ut_ad(len1 != UNIV_SQL_DEFAULT);
   ut_ad(len2 != UNIV_SQL_DEFAULT);
@@ -341,15 +342,14 @@ int cmp_data(ulint mtype, ulint prtype, bool descending,
 int cmp_dtuple_rec_with_match_low(const dtuple_t *dtuple, const rec_t *rec,
                                   const dict_index_t *index,
                                   const rec_offs *offsets,
-                                  ulint n_cmp, ulint *matched_fields)
+                                  ulint n_cmp, uint16_t *matched_fields)
 {
-	ulint		cur_field;	/* current field number */
 	int		ret = 0;	/* return value */
 
 	ut_ad(dtuple_check_typed(dtuple));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
-	cur_field = *matched_fields;
+	auto cur_field = *matched_fields;
 
 	ut_ad(n_cmp > 0);
 	ut_ad(n_cmp <= dtuple_get_n_fields(dtuple));
@@ -363,17 +363,16 @@ int cmp_dtuple_rec_with_match_low(const dtuple_t *dtuple, const rec_t *rec,
 
 		/* The "infimum node pointer" is always first. */
 		if (UNIV_UNLIKELY(rec_info & REC_INFO_MIN_REC_FLAG)) {
-			ret = !(tup_info & REC_INFO_MIN_REC_FLAG);
-			goto order_resolved;
+			return !(tup_info & REC_INFO_MIN_REC_FLAG);
 		} else if (UNIV_UNLIKELY(tup_info & REC_INFO_MIN_REC_FLAG)) {
-			ret = -1;
-			goto order_resolved;
+			return -1;
 		}
 	}
 
 	/* Match fields in a loop */
 
-	for (; cur_field < n_cmp; cur_field++) {
+	for (const bool may_descend{!index->is_ibuf()};
+	     cur_field < n_cmp; cur_field++) {
 		const byte*	rec_b_ptr;
 		const dfield_t*	dtuple_field
 			= dtuple_get_nth_field(dtuple, cur_field);
@@ -402,229 +401,17 @@ int cmp_dtuple_rec_with_match_low(const dtuple_t *dtuple, const rec_t *rec,
 
 		ut_ad(!dfield_is_ext(dtuple_field));
 
-		ret = cmp_data(type->mtype, type->prtype, !index->is_ibuf()
+		ret = cmp_data(type->mtype, type->prtype, may_descend
 			       && index->fields[cur_field].descending,
 			       dtuple_b_ptr, dtuple_f_len,
 			       rec_b_ptr, rec_f_len);
 		if (ret) {
-			goto order_resolved;
-		}
-	}
-
-order_resolved:
-	*matched_fields = cur_field;
-	return(ret);
-}
-
-/** Get the pad character code point for a type.
-@param[in]	type
-@return		pad character code point
-@retval		ULINT_UNDEFINED if no padding is specified */
-UNIV_INLINE
-ulint
-cmp_get_pad_char(
-	const dtype_t*	type)
-{
-	switch (type->mtype) {
-	case DATA_FIXBINARY:
-	case DATA_BINARY:
-		if (dtype_get_charset_coll(type->prtype)
-		    == DATA_MYSQL_BINARY_CHARSET_COLL) {
-			/* Starting from 5.0.18, do not pad
-			VARBINARY or BINARY columns. */
-			return(ULINT_UNDEFINED);
-		}
-		/* Fall through */
-	case DATA_CHAR:
-	case DATA_VARCHAR:
-	case DATA_MYSQL:
-	case DATA_VARMYSQL:
-		/* Space is the padding character for all char and binary
-		strings, and starting from 5.0.3, also for TEXT strings. */
-		return(0x20);
-	case DATA_GEOMETRY:
-                /* DATA_GEOMETRY is binary data, not ASCII-based. */
-	        return(ULINT_UNDEFINED);
-	case DATA_BLOB:
-		if (!(type->prtype & DATA_BINARY_TYPE)) {
-			return(0x20);
-		}
-		/* Fall through */
-	default:
-		/* No padding specified */
-		return(ULINT_UNDEFINED);
-	}
-}
-
-/** Compare a data tuple to a physical record.
-@param[in]	dtuple		data tuple
-@param[in]	rec		B-tree or R-tree index record
-@param[in]	index		index tree
-@param[in]	offsets		rec_get_offsets(rec)
-@param[in,out]	matched_fields	number of completely matched fields
-@param[in,out]	matched_bytes	number of matched bytes in the first
-field that is not matched
-@return the comparison result of dtuple and rec
-@retval 0 if dtuple is equal to rec
-@retval negative if dtuple is less than rec
-@retval positive if dtuple is greater than rec */
-int
-cmp_dtuple_rec_with_match_bytes(
-	const dtuple_t*		dtuple,
-	const rec_t*		rec,
-	const dict_index_t*	index,
-	const rec_offs*		offsets,
-	ulint*			matched_fields,
-	ulint*			matched_bytes)
-{
-	ut_ad(dtuple_check_typed(dtuple));
-	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!(REC_INFO_MIN_REC_FLAG
-		& dtuple_get_info_bits(dtuple)));
-	ut_ad(!index->is_ibuf());
-
-	if (UNIV_UNLIKELY(REC_INFO_MIN_REC_FLAG
-			  & rec_get_info_bits(rec, rec_offs_comp(offsets)))) {
-		ut_ad(page_rec_is_first(rec, page_align(rec)));
-		ut_ad(!page_has_prev(page_align(rec)));
-		ut_ad(rec_is_metadata(rec, *index));
-		return 1;
-	}
-
-	ulint cur_field = *matched_fields;
-	ulint cur_bytes = *matched_bytes;
-	ulint n_cmp = dtuple_get_n_fields_cmp(dtuple);
-	int ret = 0;
-
-	ut_ad(n_cmp <= dtuple_get_n_fields(dtuple));
-	ut_ad(cur_field <= n_cmp);
-	ut_ad(cur_field + (cur_bytes > 0) <= rec_offs_n_fields(offsets));
-
-	/* Match fields in a loop; stop if we run out of fields in dtuple
-	or find an externally stored field */
-
-	while (cur_field < n_cmp) {
-		const dfield_t*	dfield		= dtuple_get_nth_field(
-			dtuple, cur_field);
-		const dtype_t*	type		= dfield_get_type(dfield);
-		ulint		dtuple_f_len	= dfield_get_len(dfield);
-		const byte*	dtuple_b_ptr;
-		const byte*	rec_b_ptr;
-		ulint		rec_f_len;
-
-		dtuple_b_ptr = static_cast<const byte*>(
-			dfield_get_data(dfield));
-
-		ut_ad(!rec_offs_nth_default(offsets, cur_field));
-		rec_b_ptr = rec_get_nth_field(rec, offsets,
-					      cur_field, &rec_f_len);
-		ut_ad(!rec_offs_nth_extern(offsets, cur_field));
-
-		/* If we have matched yet 0 bytes, it may be that one or
-		both the fields are SQL null, or the record or dtuple may be
-		the predefined minimum record. */
-		if (cur_bytes == 0) {
-			if (dtuple_f_len == UNIV_SQL_NULL) {
-				if (rec_f_len == UNIV_SQL_NULL) {
-
-					goto next_field;
-				}
-
-				ret = -1;
-				goto order_resolved;
-			} else if (rec_f_len == UNIV_SQL_NULL) {
-				/* We define the SQL null to be the
-				smallest possible value of a field
-				in the alphabetical order */
-
-				ret = 1;
-				goto order_resolved;
-			}
-		}
-
-		switch (type->mtype) {
-		case DATA_FIXBINARY:
-		case DATA_BINARY:
-		case DATA_INT:
-		case DATA_SYS_CHILD:
-		case DATA_SYS:
 			break;
-		case DATA_BLOB:
-			if (type->prtype & DATA_BINARY_TYPE) {
-				break;
-			}
-			/* fall through */
-		default:
-			ret = cmp_data(type->mtype, type->prtype, false,
-				       dtuple_b_ptr, dtuple_f_len,
-				       rec_b_ptr, rec_f_len);
-
-			if (!ret) {
-				goto next_field;
-			}
-
-			cur_bytes = 0;
-			goto order_resolved;
 		}
-
-		/* Set the pointers at the current byte */
-
-		rec_b_ptr += cur_bytes;
-		dtuple_b_ptr += cur_bytes;
-		/* Compare then the fields */
-
-		for (const ulint pad = cmp_get_pad_char(type);;
-		     cur_bytes++) {
-			ulint	rec_byte = pad;
-			ulint	dtuple_byte = pad;
-
-			if (rec_f_len <= cur_bytes) {
-				if (dtuple_f_len <= cur_bytes) {
-
-					goto next_field;
-				}
-
-				if (rec_byte == ULINT_UNDEFINED) {
-					ret = 1;
-
-					goto order_resolved;
-				}
-			} else {
-				rec_byte = *rec_b_ptr++;
-			}
-
-			if (dtuple_f_len <= cur_bytes) {
-				if (dtuple_byte == ULINT_UNDEFINED) {
-					ret = -1;
-
-					goto order_resolved;
-				}
-			} else {
-				dtuple_byte = *dtuple_b_ptr++;
-			}
-
-			if (dtuple_byte < rec_byte) {
-				ret = -1;
-				goto order_resolved;
-			} else if (dtuple_byte > rec_byte) {
-				ret = 1;
-				goto order_resolved;
-			}
-		}
-
-next_field:
-		cur_field++;
-		cur_bytes = 0;
 	}
 
-	ut_ad(cur_bytes == 0);
-
-order_resolved:
 	*matched_fields = cur_field;
-	*matched_bytes = cur_bytes;
-
-	return !ret || UNIV_LIKELY(!index->fields[cur_field].descending)
-		? ret : -ret;
+	return ret;
 }
 
 /** Check if a dtuple is a prefix of a record.
@@ -637,8 +424,7 @@ bool cmp_dtuple_is_prefix_of_rec(const dtuple_t *dtuple, const rec_t *rec,
                                  const dict_index_t *index,
                                  const rec_offs *offsets)
 {
-  ulint	matched_fields= 0;
-  ulint n_fields= dtuple_get_n_fields(dtuple);
+  uint16_t matched_fields= 0, n_fields= dtuple_get_n_fields(dtuple);
   ut_ad(n_fields <= rec_offs_n_fields(offsets));
   cmp_dtuple_rec_with_match(dtuple, rec, index, offsets, &matched_fields);
   return matched_fields == n_fields;

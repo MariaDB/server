@@ -68,6 +68,7 @@ Note that if write operation is very fast, a) or b) can be fine as alternative.
 #include <sys/syscall.h>
 #endif
 
+#include <algorithm>
 #include <atomic>
 #include <thread>
 #include <mutex>

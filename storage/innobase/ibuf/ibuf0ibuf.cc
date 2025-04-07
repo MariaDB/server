@@ -464,9 +464,6 @@ err_exit:
 	ibuf.index->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
 	ibuf.index->n_uniq = REC_MAX_N_FIELDS;
 	ibuf.index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
-#ifdef BTR_CUR_ADAPT
-	ibuf.index->search_info = btr_search_info_create(ibuf.index->heap);
-#endif /* BTR_CUR_ADAPT */
 	ibuf.index->page = FSP_IBUF_TREE_ROOT_PAGE_NO;
 	ut_d(ibuf.index->cached = TRUE);
 
@@ -1352,7 +1349,7 @@ ibuf_build_entry_from_ibuf_rec_func(
 
 	n_fields = rec_get_n_fields_old(ibuf_rec) - IBUF_REC_FIELD_USER;
 
-	tuple = dtuple_create(heap, n_fields);
+	tuple = dtuple_create(heap, uint16_t(n_fields));
 
 	types = rec_get_nth_field_old(ibuf_rec, IBUF_REC_FIELD_METADATA, &len);
 
@@ -1560,7 +1557,7 @@ ibuf_entry_build(
 
 	n_fields = dtuple_get_n_fields(entry);
 
-	tuple = dtuple_create(heap, n_fields + IBUF_REC_FIELD_USER);
+	tuple = dtuple_create(heap, uint16_t(n_fields + IBUF_REC_FIELD_USER));
 
 	/* 1) Space Id */
 
@@ -2260,7 +2257,7 @@ static void ibuf_delete_recs(const page_id_t page_id)
     return;
   dfield_t dfield[IBUF_REC_FIELD_METADATA];
   dtuple_t tuple {0,IBUF_REC_FIELD_METADATA,IBUF_REC_FIELD_METADATA,
-                  dfield,0,nullptr
+                  0,dfield,nullptr
 #ifdef UNIV_DEBUG
                   ,DATA_TUPLE_MAGIC_N
 #endif
@@ -2456,7 +2453,7 @@ ibuf_merge_space(
 
 	dfield_t dfield[IBUF_REC_FIELD_METADATA];
 	dtuple_t tuple {0, IBUF_REC_FIELD_METADATA,
-			IBUF_REC_FIELD_METADATA,dfield,0,nullptr
+			IBUF_REC_FIELD_METADATA,0,dfield,nullptr
 #ifdef UNIV_DEBUG
 			, DATA_TUPLE_MAGIC_N
 #endif
@@ -3615,7 +3612,7 @@ ibuf_insert_to_index_page(
 		return DB_CORRUPTION;
 	}
 
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 	page_cur.index = index;
 	page_cur.block = block;
 
@@ -3739,7 +3736,7 @@ ibuf_set_del_mark(
 	page_cur_t	page_cur;
 	page_cur.block = block;
 	page_cur.index = index;
-	ulint		up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
@@ -3798,7 +3795,7 @@ ibuf_delete(
 	page_cur_t	page_cur;
 	page_cur.block = block;
 	page_cur.index = index;
-	ulint		up_match = 0, low_match = 0;
+	uint16_t	up_match = 0, low_match = 0;
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
@@ -4362,7 +4359,7 @@ void ibuf_delete_for_discarded_space(uint32_t space)
 
 	dfield_t	dfield[IBUF_REC_FIELD_METADATA];
 	dtuple_t	search_tuple {0,IBUF_REC_FIELD_METADATA,
-				      IBUF_REC_FIELD_METADATA,dfield,0
+				      IBUF_REC_FIELD_METADATA,0,dfield
 				      ,nullptr
 #ifdef UNIV_DEBUG
 				      ,DATA_TUPLE_MAGIC_N
