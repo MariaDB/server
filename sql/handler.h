@@ -3245,6 +3245,8 @@ public:
   void start_psi_batch_mode();
   /** End a batch started with @c start_psi_batch_mode. */
   void end_psi_batch_mode();
+  /** Returns true if the handler is in 'batch' mode */
+  bool is_in_psi_batch_mode() const;
 
   /* If we have row logging enabled for this table */
   bool row_logging, row_logging_init;
