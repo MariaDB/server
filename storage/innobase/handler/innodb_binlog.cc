@@ -3139,12 +3139,14 @@ innodb_reset_binlogs()
         writing or active dump threads).
 */
 static int
-innodb_binlog_purge_low(uint64_t limit_file_no,
-                        bool by_date, time_t limit_date,
-                        bool by_size, ulonglong limit_size,
-                        bool by_name, uint64_t limit_name_file_no,
-                        uint64_t *out_file_no)
+innodb_binlog_purge_low(handler_binlog_purge_info *purge_info,
+                        uint64_t limit_name_file_no, uint64_t *out_file_no)
+  noexcept
 {
+  uint64_t limit_file_no= purge_info->limit_file_no;
+  bool by_date= purge_info->purge_by_date;
+  bool by_size= purge_info->purge_by_size;
+  bool by_name= purge_info->purge_by_name;
   uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
   bool need_active_flush= (active <= limit_file_no + 2);
   ut_ad(by_date || by_size || by_name);
@@ -3174,9 +3176,9 @@ innodb_binlog_purge_low(uint64_t limit_file_no,
       continue;
     }
 
-    if (by_date && stat_buf.st_mtime < limit_date)
+    if (by_date && stat_buf.st_mtime < purge_info->limit_date)
       want_purge= true;
-    if (by_size && loc_total_size > limit_size)
+    if (by_size && loc_total_size > purge_info->limit_size)
       want_purge= true;
     if (by_name && file_no < limit_name_file_no)
       want_purge= true;
@@ -3239,6 +3241,7 @@ innodb_binlog_autopurge(uint64_t first_open_file_no)
   bool can_purge= ha_binlog_purge_info(&purge_info);
 #else
   bool can_purge= false;
+  memset(purge_info, 0, sizeof(purge_info));  /* Silence compiler warnings. */
 #endif
   if (!can_purge ||
       !(purge_info.purge_by_size || purge_info.purge_by_date))
@@ -3251,20 +3254,17 @@ innodb_binlog_autopurge(uint64_t first_open_file_no)
   */
 
   /* Don't purge any actively open tablespace files. */
-  uint64_t limit_file_no= purge_info.limit_file_no;
-  if (limit_file_no == ~(uint64_t)0 || limit_file_no > first_open_file_no)
-    limit_file_no= first_open_file_no;
+  uint64_t orig_limit_file_no= purge_info.limit_file_no;
+  if (purge_info.limit_file_no == ~(uint64_t)0 ||
+      purge_info.limit_file_no > first_open_file_no)
+    purge_info.limit_file_no= first_open_file_no;
   uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
-  if (limit_file_no > active)
-    limit_file_no= active;
+  if (purge_info.limit_file_no > active)
+    purge_info.limit_file_no= active;
+  purge_info.purge_by_name= false;
 
   uint64_t file_no;
-  int res=
-    innodb_binlog_purge_low(limit_file_no,
-                            purge_info.purge_by_date, purge_info.limit_date,
-                            purge_info.purge_by_size, purge_info.limit_size,
-                            false, 0,
-                            &file_no);
+  int res= innodb_binlog_purge_low(&purge_info, 0, &file_no);
   if (res)
   {
     if (!purge_warning_given)
@@ -3275,11 +3275,11 @@ innodb_binlog_autopurge(uint64_t first_open_file_no)
         sql_print_information("InnoDB: Binlog file %s could not be purged "
                               "because %s",
                               filename, purge_info.nonpurge_reason);
-      else if (purge_info.limit_file_no == file_no)
+      else if (orig_limit_file_no == file_no)
         sql_print_information("InnoDB: Binlog file %s could not be purged "
                               "because it is in use by a binlog dump thread "
                               "(connected slave)", filename);
-      else if (limit_file_no == file_no)
+      else if (purge_info.limit_file_no == file_no)
         sql_print_information("InnoDB: Binlog file %s could not be purged "
                               "because it is in active use", filename);
       else
@@ -3325,14 +3325,12 @@ innodb_binlog_purge(handler_binlog_purge_info *purge_info)
       return LOG_INFO_EOF;
   }
 
+  uint64_t orig_limit_file_no= purge_info->limit_file_no;
+  purge_info->limit_file_no= std::min(orig_limit_file_no, limit_file_no);
+
   mysql_mutex_lock(&purge_binlog_mutex);
   uint64_t file_no;
-  int res= innodb_binlog_purge_low(
-        std::min(purge_info->limit_file_no, limit_file_no),
-        purge_info->purge_by_date, purge_info->limit_date,
-        purge_info->purge_by_size, purge_info->limit_size,
-                                   purge_info->purge_by_name, to_file_no,
-        &file_no);
+  int res= innodb_binlog_purge_low(purge_info, to_file_no, &file_no);
   mysql_mutex_unlock(&purge_binlog_mutex);
   if (res == 1)
   {
@@ -3343,7 +3341,7 @@ innodb_binlog_purge(handler_binlog_purge_info *purge_info)
     {
       if (limit_file_no == file_no)
         purge_info->nonpurge_reason= "the binlog file is in active use";
-      else if (purge_info->limit_file_no == file_no)
+      else if (orig_limit_file_no == file_no)
         purge_info->nonpurge_reason= "it is in use by a binlog dump thread "
           "(connected slave)";
     }
