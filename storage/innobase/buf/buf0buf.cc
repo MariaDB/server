@@ -3409,7 +3409,6 @@ void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
 {
   ut_ad(!page.in_file());
   buf_block_init_low(this);
-  page.lock.init();
   page.init(fix, page_id);
   page.set_os_used();
   page_zip_set_size(&page.zip, zip_size);
