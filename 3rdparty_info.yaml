@@ -1,0 +1,50 @@
+# This file is used for SBOM generation.
+
+# It consists of the list of 3rd party products
+# which can be compiled together with MariaDB server
+# and their licenses, copyright notices, and CPE prefixes
+# this is the vendor:product part of CPE identifier from
+# https://nvd.nist.gov/products/cpe
+
+# We use both git submodules, and CMake external projects
+# dependencies (as well we zlib, which is part of the code)
+# so the information is here for all these types
+
+- zlib:
+    license: Zlib
+    copyright: Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler
+    cpe-prefix: zlib:zlib
+- minizip:
+    license: Zlib
+    copyright: Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler
+    cpe-prefix: zlib:zlib
+- fmt:
+    license: MIT
+    copyright: Copyright (C) 2012 - present, Victor Zverovich
+    cpe-prefix: fmt:fmt
+- pcre2:
+    license: BSD-3-Clause
+    cpe-prefix: pcre:pcre2
+- wolfssl:
+    license: GPL-2.0
+    copyright: Copyright (C) 2006-2024 wolfSSL Inc.
+    cpe-prefix: wolfssl:wolfssl
+- boost:
+    license: BSL-1.0
+    cpe-prefix: boost:boost
+- mariadb-connector-c:
+    license: LGPL-2.1
+    cpe-prefix: mariadb:connector\\/c
+- rocksdb:
+    license: GPL-2.0
+- wsrep-lib:
+    license: GPL-2.0
+- wsrep-api:
+    license: GPL-2.0
+- mariadb-columnstore-engine:
+    license: GPL-2.0
+- libmarias3:
+    license: LGPL-2.1
+- thrift:
+    license: Apache-2.0
+    cpe-prefix: apache:thrift

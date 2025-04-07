@@ -1,6 +1,90 @@
 INCLUDE(generate_submodule_info)
 INCLUDE(ExternalProject)
 
+# Helper macro, truncate list to specified length
+MACRO(LIST_TRUNCATE list_var new_len)
+  WHILE(1)
+    LIST(LENGTH ${list_var} list_len)
+    IF(list_len EQUAL ${new_len})
+      BREAK()
+    ELSEIF(list_len GREATER ${new_len})
+      MATH(EXPR back "${list_len} - 1")
+      LIST(REMOVE_AT ${list_var} ${back})
+    ELSE()
+      MESSAGE(FATAL_ERROR "invalid call , new_len > list_len")
+    ENDIF()
+  ENDWHILE()
+ENDMACRO()
+
+# Parse YAML file into set of CMake variables
+# for every key/value pair in YAML file, create a cmake variable with name
+# "${prefix}.path.to.key"  with corresponding value.
+#
+# Only very basic YAML can be parsed this way  - lists, maps, key/values
+# No multiline values, no json.
+FUNCTION(PARSE_YAML_FILE filepath prefix)
+  FILE(STRINGS ${filepath}  LINES)
+  SET(indents)
+  SET(path)
+  SET(linenr 0)
+  SET(current_indent 0)
+
+  FOREACH(LINE ${LINES})
+    # Remove comments
+    MATH(EXPR linenr "${linenr}+1")
+    SET(orig_line "${line}")
+    STRING(REGEX REPLACE "#.*$" "" LINE "${LINE}")
+    # Calculate indentation level
+    STRING(REGEX MATCH "^[ ]+" indent "${LINE}")
+    STRING(LENGTH "${indent}" indent_level)
+    STRING(REGEX REPLACE "^[ ]+" "" LINE "${LINE}")
+    # Skip empty lines
+    IF(NOT LINE)
+      CONTINUE()
+    ENDIF()
+
+    IF(LINE MATCHES "^([^:]+):[ ]*(.*)$")
+      # Key-value pair
+      SET(key "${CMAKE_MATCH_1}")
+      SET(oldvalue "${value}")
+      SET(value "${CMAKE_MATCH_2}")
+      IF (${indent_level} GREATER ${current_indent})
+        IF (NOT ("${oldvalue}" STREQUAL ""))
+          MESSAGE(FATAL_ERROR "file ${filepath}, line ${linenr}: inconsistent indentation ")
+        ENDIF()
+      ELSEIF(indent_level LESS current_indent)
+        LIST(FIND indents ${indent_level} idx)
+        IF (idx LESS 0)
+          MESSAGE(FATAL_ERROR "inconsistent indentation found at line ${linenr}")
+        ENDIF()
+        MATH(EXPR new_len "${idx}+1")
+        LIST_TRUNCATE(path ${idx})
+        LIST_TRUNCATE(indents ${idx})
+      ENDIF()
+      SET(current_indent ${indent_level})
+
+      STRING(REGEX REPLACE "^- " "" key "${key}")
+      IF("${value}" STREQUAL "")
+        # Empty values are indicating a map
+        LIST(APPEND path ${key})
+        LIST(APPEND indents ${indent_level})
+      ELSE()
+        STRING(JOIN "." path_str ${path})
+        SET("${prefix}.${path_str}.${key}" "${value}" PARENT_SCOPE)
+        # MESSAGE("SET(\"${prefix}.${path_str}.${key}\" \"${value}\" PARENT_SCOPE)")
+      ENDIF()
+    ELSE()
+       MESSAGE(FATAL_ERROR "invalid format. Expected character ':' at line ${linenr}")
+    ENDIF()
+  ENDFOREACH()
+ENDFUNCTION()
+
+# Get a value from parsed YAML
+FUNCTION(GET_YAML_VALUE prefix path outvar)
+  SET(${outvar} "${${prefix}.${path}}" PARENT_SCOPE)
+ENDFUNCTION()
+
+
 
 # Extract user name and repository name from a github URL.
 FUNCTION (EXTRACT_REPO_NAME_AND_USER repo_url repo_name_var repo_user_var)
@@ -36,30 +120,23 @@ ENDMACRO()
 
 # Get CPE ID ( https://en.wikipedia.org/wiki/Common_Platform_Enumeration )
 # for given project name and version
-# Only "known" CPEs are handled here, e.g currently no CPE for rocksdb
+# CPE prefix are stored with other auxilliary info in the 3rdparty_info.yaml
+# file
 FUNCTION(SBOM_GET_CPE name version var)
-  SET(cpe_prefix_map
-    "zlib" "zlib:zlib"
-    "mariadb-connector-c" "mariadb:connector\\\\/c"
-    "wolfssl" "wolfssl:wolfssl"
-    "minizip" "zlib:zlib"
-    "pcre2" "pcre:pcre2"
-    "fmt" "fmt:fmt"
-    "boost" "boost:boost"
-    "thrift" "apache:thrift"
-  )
-  LIST(FIND cpe_prefix_map "${name}" idx_cpe_mapping)
-  # Version needs to have at least one dot character in it.
-  # Otherwise, we assume it is a git  hash, and do not generate CPE
-  STRING(FIND "${version}" "." idx_version_dot)
-  IF((idx_cpe_mapping GREATER -1) AND (idx_version_dot GREATER -1))
-    MATH(EXPR next_idx "${idx_cpe_mapping}+1")
-    LIST(GET cpe_prefix_map ${next_idx} cpe_name_and_vendor)
-    STRING(REGEX REPLACE "[^0-9\\.]" "" cleaned_version "${version}")
-    SET(${var} "cpe:2.3:a:${cpe_name_and_vendor}:${cleaned_version}:*:*:*:*:*:*:*" PARENT_SCOPE)
-  ELSE()
-    SET(${var} "" PARENT_SCOPE)
+  SET(${var} "" PARENT_SCOPE)
+  STRING(FIND "${version}" "." dot_idx)
+  IF(${dot_idx} EQUAL -1)
+    # Version does not have dot inside.
+    # mostly likely it is just a git hash
+    RETURN()
   ENDIF()
+  GET_YAML_VALUE(THIRD_PARTY "${repo_name_lower}.cpe-prefix" cpe_name_and_vendor)
+  IF(NOT cpe_name_and_vendor)
+    RETURN()
+  ENDIF()
+
+  STRING(REGEX REPLACE "[^0-9\\.]" "" cleaned_version "${version}")
+  SET(${var} "cpe:2.3:a:${cpe_name_and_vendor}:${cleaned_version}:*:*:*:*:*:*:*" PARENT_SCOPE)
 ENDFUNCTION()
 
 # Add dependency on CMake ExternalProject.
@@ -97,8 +174,8 @@ ENDMACRO()
 # Perhaps it can always be "MariaDB", but security team recommendation is different
 # more towards "author"
 FUNCTION (sbom_get_supplier repo_name repo_user varname)
-  IF("${repo_name_SUPPLIER}")
-    SET(${varname} "${repo_name_SUPPLIER}" PARENT_SCOPE)
+  IF("${${repo_name}_SUPPLIER}")
+    SET(${varname} "${${repo_name}_SUPPLIER}" PARENT_SCOPE)
   ELSEIF (repo_name MATCHES "zlib|minizip")
     # stuff that is checked into out repos
     SET(${varname} "MariaDB" PARENT_SCOPE)
@@ -230,6 +307,7 @@ FUNCTION(GENERATE_SBOM)
       \"ref\": \"${CPACK_PACKAGE_NAME}\",
       \"dependsOn\": [" )
 
+  PARSE_YAML_FILE(${PROJECT_SOURCE_DIR}/3rdparty_info.yaml THIRD_PARTY)
   SET(first ON)
   FOREACH(dep ${ALL_THIRD_PARTY})
     # Extract the part after the last "/" from URL
@@ -277,6 +355,15 @@ FUNCTION(GENERATE_SBOM)
     IF(cpe)
       SET(cpe "\n      \"cpe\": \"${cpe}\",")
     ENDIF()
+
+    GET_YAML_VALUE(THIRD_PARTY "${repo_name_lower}.license" license)
+    IF(NOT license)
+      MESSAGE(FATAL_ERROR "no license for 3rd party dependency ${repo_name_lower}.")
+    ENDIF()
+    GET_YAML_VALUE(THIRD_PARTY "${repo_name_lower}.copyright" copyright)
+    IF(NOT copyright)
+      SET(copyright NOASSERTION)
+    ENDIF()
     STRING(APPEND sbom_components "
     {
       \"bom-ref\": \"${bom_ref}\",
@@ -286,7 +373,15 @@ FUNCTION(GENERATE_SBOM)
       \"purl\": \"${purl}\",${cpe}
       \"supplier\": {
           \"name\": \"${supplier}\"
-       }
+       },
+      \"licenses\": [
+          {
+            \"license\": {
+              \"id\": \"${license}\"
+            }
+          }
+        ],
+      \"copyright\": \"${copyright}\"
     }")
     STRING(APPEND sbom_dependencies "
         \"${bom_ref}\"")
@@ -302,5 +397,6 @@ FUNCTION(GENERATE_SBOM)
   IF(NOT DEFINED CPACK_PACKAGE_VERSION)
     SET(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
   ENDIF()
+  STRING(TIMESTAMP CURRENT_YEAR "%Y")
   configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/sbom.json.in ${CMAKE_BINARY_DIR}/sbom.json)
 ENDFUNCTION()
