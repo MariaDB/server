@@ -3402,11 +3402,24 @@ bool LooseScan_picker::check_qep(JOIN *join,
     then 
        stop considering loose scan
   */
-  if ((first_loosescan_table != MAX_TABLES) &&   // (1)
-      (first->table->emb_sj_nest->sj_inner_tables & remaining_tables) && //(2)
-      new_join_tab->emb_sj_nest != first->table->emb_sj_nest) //(2)
+  if (first_loosescan_table != MAX_TABLES)
+      //(first->table->emb_sj_nest->sj_inner_tables & remaining_tables) && //(2)
   {
-    first_loosescan_table= MAX_TABLES;
+    bool interleaving=false;
+    if (new_join_tab->emb_sj_nest)
+    {
+      interleaving= 
+        MY_TEST(new_join_tab->emb_sj_nest != first->table->emb_sj_nest);
+    }
+    else
+    {
+      interleaving= (first->table->emb_sj_nest->sj_inner_tables & remaining_tables);
+    }
+    if (interleaving)
+    {
+      first_loosescan_table= MAX_TABLES;
+      return FALSE;
+    }
   }
 
   /*
