@@ -403,7 +403,9 @@ private:
 struct found_binlogs {
   uint64_t last_file_no, prev_file_no, earliest_file_no;
   size_t last_size, prev_size, total_size;
-  int found_binlogs;
+  int num_found;
+  /* Default constructor to silence compiler warnings -Wuninitialized. */
+  found_binlogs()= default;
 };
 
 
@@ -613,7 +615,7 @@ bool binlog_recovery::init_recovery(bool space_id, uint32_t page_no,
   ignore_last= false;
   uint64_t file_no2= scan_result.last_file_no;
   uint64_t file_no1= scan_result.prev_file_no;
-  int num_binlogs= scan_result.found_binlogs;
+  int num_binlogs= scan_result.num_found;
   for (;;)
   {
     lsn_t lsn1= 0, lsn2= 0;
@@ -785,7 +787,7 @@ binlog_recovery::end_actions(bool recovery_successful) noexcept
       to --innodb-flush-log-at-trx-commit=0|2.
     */
     for (uint64_t i= cur_file_no;
-         scan_result.found_binlogs >= 1 && i <= scan_result.last_file_no;
+         scan_result.num_found >= 1 && i <= scan_result.last_file_no;
          ++i)
     {
       binlog_name_make(full_path, i, binlog_dir);
@@ -1251,7 +1253,7 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
 static void
 process_binlog_name(found_binlogs *bls, uint64_t idx, size_t size)
 {
-  if (bls->found_binlogs == 0)
+  if (bls->num_found == 0)
   {
     bls->earliest_file_no= idx;
     bls->total_size= size;
@@ -1263,19 +1265,19 @@ process_binlog_name(found_binlogs *bls, uint64_t idx, size_t size)
     bls->total_size+= size;
   }
 
-  if (bls->found_binlogs == 0 ||
+  if (bls->num_found == 0 ||
       idx > bls->last_file_no) {
-    if (bls->found_binlogs >= 1 && idx == bls->last_file_no + 1) {
+    if (bls->num_found >= 1 && idx == bls->last_file_no + 1) {
       bls->prev_file_no= bls->last_file_no;
       bls->prev_size= bls->last_size;
-      bls->found_binlogs= 2;
+      bls->num_found= 2;
     } else {
-      bls->found_binlogs= 1;
+      bls->num_found= 1;
     }
     bls->last_file_no= idx;
     bls->last_size= size;
-  } else if (bls->found_binlogs == 1 && idx + 1 == bls->last_file_no) {
-    bls->found_binlogs= 2;
+  } else if (bls->num_found == 1 && idx + 1 == bls->last_file_no) {
+    bls->num_found= 2;
     bls->prev_file_no= idx;
     bls->prev_size= size;
   }
@@ -1302,7 +1304,7 @@ scan_for_binlogs(const char *binlog_dir, found_binlogs *binlog_files,
     return (my_errno == ENOENT ? 0 : -1);
   }
 
-  binlog_files->found_binlogs= 0;
+  binlog_files->num_found= 0;
   size_t num_entries= dir->number_of_files;
   fileinfo *entries= dir->dir_entry;
   for (size_t i= 0; i < num_entries; ++i) {
@@ -1468,7 +1470,7 @@ innodb_binlog_discover()
   uint64_t file_no;
   const uint32_t page_size= (uint32_t)ibb_page_size;
   const uint32_t page_size_shift= (uint32_t)ibb_page_size_shift;
-  struct found_binlogs UNINIT_VAR(binlog_files);
+  struct found_binlogs binlog_files;
   uint64_t diff_state_interval;
 
   int res= scan_for_binlogs(innodb_binlog_directory, &binlog_files, false);
@@ -1485,7 +1487,7 @@ innodb_binlog_discover()
              &aligned_free);
   if (!page_buf)
     return -1;
-  if (binlog_files.found_binlogs >= 1) {
+  if (binlog_files.num_found >= 1) {
     earliest_binlog_file_no= binlog_files.earliest_file_no;
     total_binlog_used_size= binlog_files.total_size;
 
@@ -1513,11 +1515,11 @@ innodb_binlog_discover()
       ib::info() << "Continuing binlog number " << file_no << " from position "
                  << (((uint64_t)page_no << page_size_shift) | pos_in_page)
                  << ".";
-      return binlog_files.found_binlogs;
+      return binlog_files.num_found;
     }
 
     /* res == 0, the last binlog is empty. */
-    if (binlog_files.found_binlogs >= 2) {
+    if (binlog_files.num_found >= 2) {
       /* The last binlog is empty, try the previous one. */
       res= find_pos_in_binlog(binlog_files.prev_file_no,
                               binlog_files.prev_size,
@@ -1544,7 +1546,7 @@ innodb_binlog_discover()
                  << (((uint64_t)prev_page_no << page_size_shift) |
                      prev_pos_in_page)
                  << ".";
-      return binlog_files.found_binlogs;
+      return binlog_files.num_found;
     }
 
     /* Just one empty binlog file found. */
@@ -1555,7 +1557,7 @@ innodb_binlog_discover()
     binlog_cur_page_offset= pos_in_page;
     ib::info() << "Continuing binlog number " << file_no << " from position "
                << BINLOG_PAGE_DATA << ".";
-    return binlog_files.found_binlogs;
+    return binlog_files.num_found;
   }
 
   /* No binlog files found, start from scratch. */
@@ -3231,7 +3233,7 @@ innodb_binlog_purge_low(uint64_t limit_file_no,
 static void
 innodb_binlog_autopurge(uint64_t first_open_file_no)
 {
-  handler_binlog_purge_info UNINIT_VAR(purge_info);
+  handler_binlog_purge_info purge_info;
 #ifdef HAVE_REPLICATION
   extern bool ha_binlog_purge_info(handler_binlog_purge_info *out_info);
   bool can_purge= ha_binlog_purge_info(&purge_info);
