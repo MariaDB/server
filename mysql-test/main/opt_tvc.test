@@ -364,8 +364,6 @@ DROP TABLE t1;
 --echo # MDEV-14835: conversion to TVC with BIGINT or YEAR values
 --echo #
 
-#Enable after fix MDEV-31178
---disable_ps2_protocol
 SET @@in_predicate_conversion_threshold= 2;
 
 CREATE TABLE t1 (a BIGINT);
@@ -381,7 +379,6 @@ SELECT * FROM t2 WHERE y IN ('2009','2011');
 DROP TABLE t1,t2;
 
 SET @@in_predicate_conversion_threshold= default;
---enable_ps2_protocol
 
 --echo #
 --echo # MDEV-17222: conversion to TVC with no names for constants

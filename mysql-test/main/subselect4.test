@@ -1739,8 +1739,6 @@ EXPLAIN
 SELECT MAX(a), 1 >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
 SELECT MAX(a), 1 >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
 
-#enable after fix MDEV-31270
---disable_ps2_protocol
 EXPLAIN
 SELECT MAX(a), ( SELECT 1 FROM t2 where b = a) AS bb FROM t1;
 SELECT MAX(a), ( SELECT 1 FROM t2 where b = a) AS bb FROM t1;
@@ -1752,7 +1750,6 @@ SELECT MAX(a), a in ( SELECT b FROM t2 ) AS bb FROM t1;
 EXPLAIN
 SELECT MAX(a), a >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
 SELECT MAX(a), a >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
---enable_ps2_protocol
 
 drop table t1, t2;
 

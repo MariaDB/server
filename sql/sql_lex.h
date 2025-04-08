@@ -1052,6 +1052,8 @@ public:
 
   bool can_be_merged();
 
+  uint ub_eq_for_exists2_in();
+
   friend class st_select_lex;
 
 private:
@@ -1244,6 +1246,7 @@ public:
 
   enum_column_usage   item_list_usage;
   bool                is_item_list_lookup:1;
+
   /*
     Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column
     of EXPLAIN
@@ -1296,6 +1299,8 @@ public:
 
   /// Array of pointers to top elements of all_fields list
   Ref_ptr_array ref_pointer_array;
+  Ref_ptr_array save_ref_ptrs;
+  uint card_of_ref_ptrs_slice;
   ulong table_join_options;
 
   /*
@@ -1316,6 +1321,7 @@ public:
   uint order_group_num;
   /* reserved for exists 2 in */
   uint select_n_reserved;
+  uint select_n_eq;
   /*
    it counts the number of bit fields in the SELECT list. These are used when
    DISTINCT is converted to a GROUP BY involving BIT fields.
@@ -1336,6 +1342,7 @@ public:
   uint curr_tvc_name;
   /* true <=> select has been created a TVC wrapper */
   bool is_tvc_wrapper;
+  uint fields_added_by_fix_inner_refs;
   uint fields_in_window_functions;
   uint insert_tables;
   enum_parsing_place parsing_place; /* where we are parsing expression */
@@ -1379,6 +1386,8 @@ public:
     case of an error during prepare the PS is not created.
   */
   uint8 changed_elements; // see TOUCHED_SEL_*
+  uint8 save_uncacheable;
+  uint8 save_master_uncacheable;
 
   /**
     The set of those tables whose fields are referenced in the select list of
@@ -1510,6 +1519,8 @@ public:
   }
   bool setup_ref_array(THD *thd, uint order_group_num);
   uint get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg);
+  bool save_ref_ptrs_after_persistent_rewrites(THD *thd);
+  bool save_ref_ptrs_if_needed(THD *thd);
   void print(THD *thd, String *str, enum_query_type query_type);
   void print_lock_type(String *str);
   void print_item_list(THD *thd, String *str, enum_query_type query_type);

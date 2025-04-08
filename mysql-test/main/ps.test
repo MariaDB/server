@@ -5258,6 +5258,140 @@ EXECUTE IMMEDIATE 'SELECT GROUP_CONCAT(@x) FROM t GROUP BY @x := f';
 # Cleanup
 
 DROP TABLE t;
+--echo #
+--echo # MDEV-31269: 2nd execution of query with HAVING containing IN predicand
+--echo #             over subquery with EXISTS in WHERE clause
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (3), (7), (1);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (7), (8), (3);
+CREATE TABLE t3 (c int);
+INSERT INTO t3 VALUES (3), (7), (1);
+
+let $q1=
+SELECT * FROM t2
+HAVING 7 IN (
+  SELECT a FROM t1
+  WHERE EXISTS (
+    SELECT c FROM t3
+    WHERE b = c
+  )
+);
+
+eval EXPLAIN EXTENDED $q1;
+eval $q1;
+eval PREPARE stmt FROM "$q1";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+eval CREATE PROCEDURE p1() $q1;
+CALL p1();
+CALL p1();
+DROP PROCEDURE p1;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+let $q2=
+SELECT * FROM t2
+HAVING 7 IN (
+  SELECT a FROM v1
+  WHERE EXISTS (
+    SELECT c FROM t3
+    WHERE b = c
+  )
+);
+
+eval EXPLAIN EXTENDED $q2;
+eval $q2;
+eval PREPARE stmt FROM "$q2";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+eval CREATE PROCEDURE p2() $q2;
+CALL p2();
+CALL p2();
+DROP PROCEDURE p2;
+
+DROP VIEW v1;
+DROP TABLE t1, t2, t3;
+
+
+--echo #
+--echo # MDEV-31281: 2nd execution of query with IN subquery whose left operand
+--echo #             is aggregate function or aggregate function
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1), (2), (3);
+
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (3), (7), (1);
+
+let $q1=
+SELECT SUM(a) IN ( SELECT b FROM t2 ) FROM t1;
+
+eval EXPLAIN EXTENDED $q1;
+eval $q1;
+eval PREPARE stmt FROM "$q1";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+eval CREATE PROCEDURE p1() $q1;
+CALL p1();
+CALL p1();
+DROP PROCEDURE p1;
+
+let $q2=
+SELECT SUM(a) IN ( SELECT b+3 FROM t2 ) FROM t1;
+
+eval EXPLAIN EXTENDED $q2;
+eval $q2;
+eval PREPARE stmt FROM "$q2";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+eval CREATE PROCEDURE p2() $q2;
+CALL p2();
+CALL p2();
+DROP PROCEDURE p2;
+
+let $q3=
+SELECT SUM(a) OVER () IN ( SELECT b FROM t2 ) FROM t1;
+
+eval EXPLAIN EXTENDED $q3;
+eval $q3;
+eval PREPARE stmt FROM "$q3";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+eval CREATE PROCEDURE p3() $q3;
+CALL p3();
+CALL p3();
+DROP PROCEDURE p3;
+
+let $q4=
+SELECT SUM(a) OVER () IN ( SELECT b+3 FROM t2 ) FROM t1;
+
+eval EXPLAIN EXTENDED $q4;
+eval $q4;
+eval PREPARE stmt FROM "$q4";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+eval CREATE PROCEDURE p4() $q4;
+CALL p4();
+CALL p4();
+DROP PROCEDURE p4;
+
+DROP TABLE t1,t2;
 
 --echo #
 --echo # MDEV-15703: Crash in EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)' USING DEFAULT
