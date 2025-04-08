@@ -3277,5 +3277,78 @@ v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIE
 drop view v;
 drop table t1,t2;
 #
+# MDEV-31178: 2 execution of query with conversion from
+#             IN predicate to IN subquery applied
+#
+CREATE TABLE t1 (a bigint);
+INSERT INTO t1 VALUES (1), (2), (3);
+SET in_predicate_conversion_threshold=1;
+# IN predicate is transformed into IN subquery
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a IN (1,5,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.a	2	100.00	Using where; FirstMatch(t1)
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join ((values (1),(5),(3)) `tvc_0`) where `test`.`t1`.`a` = `tvc_0`.`_col_1`
+SELECT * FROM t1 WHERE a IN (1,5,3);
+a
+1
+3
+PREPARE stmt FROM "SELECT * FROM t1 WHERE a IN (1,5,3)";
+EXECUTE stmt;
+a
+1
+3
+EXECUTE stmt;
+a
+1
+3
+DEALLOCATE PREPARE stmt;
+# here IN predicate is also transformed into IN subquery
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a IN ('1','5','3');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	8	test.t1.a	2	100.00	FirstMatch(t1)
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join ((values (1),(5),(3)) `tvc_0`) where `tvc_0`.`_col_1` = `test`.`t1`.`a`
+SELECT * FROM t1 WHERE a IN ('1','5','3');
+a
+1
+3
+PREPARE stmt FROM "SELECT * FROM t1 WHERE a IN ('1','5','3')";
+EXECUTE stmt;
+a
+1
+3
+EXECUTE stmt;
+a
+1
+3
+DEALLOCATE PREPARE stmt;
+# and here IN predicate is not transformed into IN subquery
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a IN ('1','1.7','3');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` in (1,'1.7',3)
+SELECT * FROM t1 WHERE a IN ('1','5','3');
+a
+1
+3
+PREPARE stmt FROM "SELECT * FROM t1 WHERE a IN ('1','1.7','3')";
+EXECUTE stmt;
+a
+1
+3
+EXECUTE stmt;
+a
+1
+3
+DEALLOCATE PREPARE stmt;
+SET in_predicate_conversion_threshold=default;
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #

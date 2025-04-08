@@ -962,8 +962,13 @@ bool JOIN::transform_max_min_subquery()
   if (!subselect || (subselect->substype() != Item_subselect::ALL_SUBS &&
                      subselect->substype() != Item_subselect::ANY_SUBS))
     DBUG_RETURN(0);
-  DBUG_RETURN(((Item_allany_subselect *) subselect)->
-              transform_into_max_min(this));
+  bool rc= false;
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+  rc= (((Item_allany_subselect *) subselect)->transform_into_max_min(this));
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(rc);
 }
 
 
@@ -1902,7 +1907,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
          with thd->change_item_tree
     */
     Item_func_eq *item_eq=
-      new (thd->mem_root) Item_func_eq(thd, left_exp_orig,
+      new (thd->mem_root) Item_func_eq(thd, left_exp,
                                        subq_lex->ref_pointer_array[0]);
     if (!item_eq)
       goto restore_tl_and_exit;
@@ -6548,6 +6553,10 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
   if (is_in_subquery())
   {
     in_subs= unit->item->get_IN_subquery();
+    if (in_subs->test_set_strategy(SUBS_MAXMIN_INJECTED))
+      return false;
+    if (in_subs->test_set_strategy(SUBS_MAXMIN_ENGINE))
+      return false;
     if (in_subs->create_in_to_exists_cond(this))
       return true;
   }

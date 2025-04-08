@@ -7225,6 +7225,10 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
+  if (thd->is_noninitial_query_execution())
+  {
+    DBUG_RETURN(field);
+  }
   Name_resolution_context *context= (view->view ?
                                      &view->view->first_select_lex()->context:
                                      &thd->lex->first_select_lex()->context);

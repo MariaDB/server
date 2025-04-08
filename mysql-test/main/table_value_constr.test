@@ -1821,6 +1821,55 @@ show create view v;
 drop view v;
 drop table t1,t2;
 
+
+--echo #
+--echo # MDEV-31178: 2 execution of query with conversion from
+--echo #             IN predicate to IN subquery applied
+--echo #
+
+CREATE TABLE t1 (a bigint);
+INSERT INTO t1 VALUES (1), (2), (3);
+
+SET in_predicate_conversion_threshold=1;
+
+let $q1=
+SELECT * FROM t1 WHERE a IN (1,5,3);
+
+--echo # IN predicate is transformed into IN subquery
+eval EXPLAIN EXTENDED $q1;
+eval $q1;
+eval PREPARE stmt FROM "$q1";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+
+let $q2=
+SELECT * FROM t1 WHERE a IN ('1','5','3');
+
+--echo # here IN predicate is also transformed into IN subquery
+eval EXPLAIN EXTENDED $q2;
+eval $q2;
+eval PREPARE stmt FROM "$q2";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+let $q3=
+SELECT * FROM t1 WHERE a IN ('1','1.7','3');
+
+--echo # and here IN predicate is not transformed into IN subquery
+eval EXPLAIN EXTENDED $q3;
+eval $q2;
+eval PREPARE stmt FROM "$q3";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET in_predicate_conversion_threshold=default;
+
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.4 tests
 --echo #

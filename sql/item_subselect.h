@@ -302,6 +302,7 @@ class Item_singlerow_subselect :public Item_subselect
 {
 protected:
   Item_cache *value, **row;
+  uchar strategy;
 public:
   Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_singlerow_subselect(THD *thd_arg): Item_subselect(thd_arg), value(0), row (0)
@@ -347,6 +348,10 @@ public:
   st_select_lex* invalidate_and_restore_select_lex();
 
   Item* expr_cache_insert_transformer(THD *thd, uchar *unused) override;
+
+  bool test_set_strategy(uchar strategy_arg);
+
+  void set_strategy(uchar strategy_arg);
 
   friend class select_singlerow_subselect;
 };

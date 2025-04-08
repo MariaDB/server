@@ -1967,16 +1967,12 @@ set @@optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
 #
 SELECT MIN(t2.pk)
 FROM t2 JOIN t1 ON t1.pk=t2.pk
-WHERE 'j'
+WHERE 1=2
 HAVING ('m') IN ( 
 SELECT v
 FROM t2);
 MIN(t2.pk)
 NULL
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'j'
-Warning	1292	Truncated incorrect DOUBLE value: 'j'
-Warning	1292	Truncated incorrect DOUBLE value: 'j'
 
 EXPLAIN
 SELECT MIN(t2.pk)
