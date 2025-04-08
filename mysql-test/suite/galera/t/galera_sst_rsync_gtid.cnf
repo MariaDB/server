@@ -1,0 +1,23 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+gtid_strict_mode=ON
+wsrep-gtid_mode=ON
+log-bin
+log-slave_updates
+loose-galera-sst-rsync-gtid=1
+
+[mysqld.1]
+wsrep_provider_options='pc.weight=2;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+gtid_domain_id=10
+wsrep_gtid_domain_id=100
+wsrep_slave_threads=4
+server-id=10
+
+[mysqld.2]
+wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+gtid_domain_id=10
+wsrep_gtid_domain_id=100
+wsrep_slave_threads=4
+server-id=10

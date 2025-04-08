@@ -8381,6 +8381,24 @@ end:
 }
 
 
+void
+wait_for_commit::prior_commit_error(THD *thd)
+{
+  /*
+    Only raise a "prior commit failed" error if we didn't already raise
+    an error.
+
+    The ER_PRIOR_COMMIT_FAILED is just an internal mechanism to ensure that a
+    transaction does not commit successfully if a prior commit failed, so that
+    the parallel replication worker threads stop in an orderly fashion when
+    one of them get an error. Thus, if another worker already got another real
+    error, overriding it with ER_PRIOR_COMMIT_FAILED is not useful.
+  */
+  if (!thd->get_stmt_da()->is_set())
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+}
+
+
 /*
   Wakeup anyone waiting for us to have committed.
 

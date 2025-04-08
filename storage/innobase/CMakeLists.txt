@@ -226,7 +226,6 @@ SET(INNOBASE_SOURCES
 	include/dict0pagecompress.h
 	include/dict0pagecompress.inl
 	include/dict0stats.h
-	include/dict0stats.inl
 	include/dict0stats_bg.h
 	include/dict0types.h
 	include/dyn0buf.h

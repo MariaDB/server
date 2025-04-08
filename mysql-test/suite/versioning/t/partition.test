@@ -2676,6 +2676,22 @@ drop table t;
 create table t (a int) with system versioning partition by system_time partitions 3;
 
 --echo #
+--echo # MDEV-36115 InnoDB: assertion: node->pcur->rel_pos == BTR_PCUR_ON
+--echo #            in row_update_for_mysql
+--echo #
+create table t (a int key) engine=innodb
+with system versioning
+partition by key() partitions 3;
+
+start transaction;
+insert into t values (1),(2),(3),(4),(5),(6),(7),(8);
+set timestamp=+1;
+delete from t;
+insert into t values (1),(2);
+DELETE from t;
+drop table t;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
@@ -2715,6 +2731,33 @@ drop table t;
 
 --echo #
 --echo # End of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-34775 Wrong reopen of already open routine due to auto-create in SP
+--echo #
+
+create table t (a int) with system versioning
+partition by system_time
+interval 1 minute auto;
+
+--delimiter $
+create function f()
+returns int
+begin
+  replace into t select * from t;
+  return 0;
+end $
+--delimiter ;
+
+set timestamp= @@timestamp + 61;
+select f();
+
+drop table t;
+drop function f;
+
+--echo #
+--echo # End of 10.11 tests
 --echo #
 
 set global innodb_stats_persistent= @save_persistent;

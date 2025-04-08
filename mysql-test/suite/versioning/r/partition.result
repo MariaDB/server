@@ -3445,6 +3445,20 @@ drop table t;
 create table t (a int) with system versioning partition by system_time partitions 3;
 ERROR HY000: Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
 #
+# MDEV-36115 InnoDB: assertion: node->pcur->rel_pos == BTR_PCUR_ON
+#            in row_update_for_mysql
+#
+create table t (a int key) engine=innodb
+with system versioning
+partition by key() partitions 3;
+start transaction;
+insert into t values (1),(2),(3),(4),(5),(6),(7),(8);
+set timestamp=+1;
+delete from t;
+insert into t values (1),(2);
+DELETE from t;
+drop table t;
+#
 # End of 10.5 tests
 #
 #
@@ -3469,5 +3483,26 @@ create table t (a int) with system versioning partition by system_time limit 100
 drop table t;
 #
 # End of 10.9 tests
+#
+#
+# MDEV-34775 Wrong reopen of already open routine due to auto-create in SP
+#
+create table t (a int) with system versioning
+partition by system_time
+interval 1 minute auto;
+create function f()
+returns int
+begin
+replace into t select * from t;
+return 0;
+end $
+set timestamp= @@timestamp + 61;
+select f();
+f()
+0
+drop table t;
+drop function f;
+#
+# End of 10.11 tests
 #
 set global innodb_stats_persistent= @save_persistent;

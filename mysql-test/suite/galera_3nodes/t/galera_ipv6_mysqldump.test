@@ -20,7 +20,6 @@ call mtr.add_suppression("Failed to load slave replication state from table mysq
 CREATE USER 'sst';
 GRANT ALL PRIVILEGES ON *.* TO 'sst';
 
---let $wsrep_sst_auth_orig = `SELECT @@wsrep_sst_auth`
 SET GLOBAL wsrep_sst_auth = 'sst:';
 
 --connection node_2

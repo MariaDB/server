@@ -69,7 +69,6 @@ SHOW CREATE TABLE t1;
 
 --connection node_2
 SHOW CREATE TABLE t1;
-CALL mtr.add_suppression("is inconsistent with group");
 
 --connection node_3
 SHOW CREATE TABLE t1;
@@ -83,6 +82,7 @@ CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'PRIMARY'; check that col
 # restart node so we don't fail on WSREP_START_POSITION internal check
 --source include/restart_mysqld.inc
 --source include/wait_until_connected_again.inc
+CALL mtr.add_suppression("WSREP: .+ is inconsistent with group");
 
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';

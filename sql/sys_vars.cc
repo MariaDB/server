@@ -2982,7 +2982,7 @@ static const char *adjust_secondary_key_cost[]=
 {
   "adjust_secondary_key_cost", "disable_max_seek", "disable_forced_index_in_group_by",
   "fix_innodb_cardinality", "fix_reuse_range_for_ref",
-  "fix_card_multiplier", 0
+  "fix_card_multiplier", "fix_derived_table_read_cost", 0
 };
 
 
@@ -2999,8 +2999,9 @@ static Sys_var_set Sys_optimizer_adjust_secondary_key_costs(
     "secondary keys. "
     "fix_reuse_range_for_ref = Do a better job at reusing range access estimates "
     "when estimating ref access. "
-    "fix_card_multiplier = Fix the computation in selectivity_for_indexes."
-    " selectivity_multiplier. "
+    "fix_card_multiplier = Fix the computation in selectivity_for_indexes. "
+    "fix_derived_table_read_cost = Fix the cost of reading materialized "
+    "derived table. "
 
     "This variable will be deleted in MariaDB 11.0 as it is not needed with the "
     "new 11.0 optimizer.",

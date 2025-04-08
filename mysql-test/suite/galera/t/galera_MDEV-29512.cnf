@@ -10,6 +10,4 @@ log_slave_updates
 max-binlog-size=4096
 expire-logs-days=1
 
-
 [mysqld.2]
-

@@ -1,24 +1,43 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 SET @save_limit=@@GLOBAL.innodb_limit_optimistic_insert_debug;
 SET @save_size=@@GLOBAL.innodb_buffer_pool_size;
 SET GLOBAL innodb_limit_optimistic_insert_debug=2;
-
 SET GLOBAL innodb_buffer_pool_size=16777216;
 
 CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq FROM seq_1_to_200;
 
-SET GLOBAL innodb_buffer_pool_size=8388608;
+# Flush the buffer pool to prevent
+# "innodb_buffer_pool_size change aborted" error with ./mtr --repeat=3
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SET @save_pct= @@GLOBAL.innodb_max_dirty_pages_pct;
+SET @save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm = 0.0;
+SET GLOBAL innodb_max_dirty_pages_pct = 0.0;
 
-let $wait_timeout = 60;
-let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 30) = 'Completed resizing buffer pool'
-  FROM information_schema.global_status
-  WHERE variable_name = 'INNODB_BUFFER_POOL_RESIZE_STATUS';
---source include/wait_condition.inc
+SHOW STATUS LIKE 'innodb_buffer_pool_resize_status';
+connect con1,localhost,root;
+SET DEBUG_SYNC='buf_pool_shrink_before_wakeup SIGNAL blocked WAIT_FOR go';
+send SET GLOBAL innodb_buffer_pool_size=8388608;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blocked';
+# adjust for 32-bit and SUX_LOCK_GENERIC
+--replace_regex /(5..)\/\1/505\/505/
+SHOW STATUS LIKE 'innodb_buffer_pool_resize_status';
+SET DEBUG_SYNC='now SIGNAL go';
+connection con1;
+reap;
+disconnect con1;
+connection default;
+SHOW STATUS LIKE 'innodb_buffer_pool_resize_status';
+SET DEBUG_SYNC=RESET;
+
+SET GLOBAL innodb_max_dirty_pages_pct = @save_pct;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm = @save_pct_lwm;
 
 SELECT COUNT(*),MIN(a),MAX(a) FROM t1;
 DROP TEMPORARY TABLE t1;

@@ -46,7 +46,8 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
-                                file_logger.c my_dlerror.c   crc32/crc32c.cc)
+                                file_logger.c my_dlerror.c   crc32/crc32c.cc
+                                my_virtual_mem.c)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
@@ -170,7 +171,7 @@ IF(HAVE_BFD_H)
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp)
+  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp ws2_32 synchronization)
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address

@@ -6,6 +6,7 @@
 # or rollback and replay (depending on the nature of lock conflict).
 #
 
+--source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 --source include/have_debug.inc
@@ -13,9 +14,7 @@
 --source include/galera_have_debug_sync.inc
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
-
 --connection node_2a
---source include/galera_cluster.inc
 
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 

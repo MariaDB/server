@@ -1,0 +1,16 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait=DEFAULT;
+DELETE FROM mysql.wsrep_streaming_log;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE
+Primary
+SET SESSION wsrep_sync_wait=DEFAULT;
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender .+ ?is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");

@@ -42,10 +42,17 @@ commit work;
 SET GLOBAL innodb_fast_shutdown = 0;
 let $shutdown_timeout=;
 --source include/restart_mysqld.inc
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0,innodb_max_dirty_pages_pct=0;
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+SET GLOBAL innodb_max_dirty_pages_pct=99;
 --source ../include/no_checkpoint_start.inc
 connect (dml,localhost,root,,);
 XA START 'x';
-insert into t1 values (6, repeat('%', @@innodb_page_size/2));
+insert into t1 values(6, repeat('%', @@innodb_page_size/2));
 XA END 'x';
 XA PREPARE 'x';
 disconnect dml;
@@ -53,9 +60,11 @@ connection default;
 
 flush table t1 for export;
 
-let $restart_parameters=;
---let CLEANUP_IF_CHECKPOINT=XA COMMIT 'x';drop table t1;
+--let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
 --source ../include/no_checkpoint_end.inc
+
+--copy_file $MYSQLD_DATADIR/ibdata1 $MYSQLD_DATADIR/ibdata1.bak
+--copy_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile0.bak
 
 perl;
 use IO::Handle;
@@ -145,6 +154,12 @@ let $shutdown_timeout=0;
 --source include/shutdown_mysqld.inc
 let $shutdown_timeout=;
 # Corrupt the file in a better way.
+
+--remove_file $MYSQLD_DATADIR/ibdata1
+--remove_file $MYSQLD_DATADIR/ib_logfile0
+--move_file $MYSQLD_DATADIR/ibdata1.bak $MYSQLD_DATADIR/ibdata1
+--move_file $MYSQLD_DATADIR/ib_logfile0.bak $MYSQLD_DATADIR/ib_logfile0
+
 perl;
 use IO::Handle;
 my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
@@ -157,22 +172,23 @@ syswrite(FILE, chr(0) x ($page_size/2));
 close FILE;
 EOF
 --source include/start_mysqld.inc
-XA ROLLBACK 'x';
 check table t1;
 select f1, f2 from t1;
 
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0,innodb_max_dirty_pages_pct=0;
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+SET GLOBAL innodb_max_dirty_pages_pct=99;
 --source ../include/no_checkpoint_start.inc
-connect (dml,localhost,root,,);
-XA START 'x';
-insert into t1 values (6, repeat('%', @@innodb_page_size/2));
-XA END 'x';
-XA PREPARE 'x';
-disconnect dml;
-connection default;
+XA ROLLBACK 'x';
+FLUSH TABLE t1 FOR EXPORT;
 
-flush table t1 for export;
-
-let $restart_parameters=;
+# If we are skipping the test at this point due to an unexpected
+# checkpoint, we will already have tested a part of this functionality.
+--let CLEANUP_IF_CHECKPOINT=drop table t1;
 --source ../include/no_checkpoint_end.inc
 
 # Zero out the first page in file and try to recover from dblwr
@@ -186,7 +202,6 @@ EOF
 --source include/start_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9][0-9]*, page number=[03]\\];
 --source include/search_pattern_in_file.inc
-XA ROLLBACK 'x';
 check table t1;
 select f1, f2 from t1;
 drop table t1;

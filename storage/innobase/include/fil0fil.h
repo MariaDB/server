@@ -422,7 +422,7 @@ private:
   bool being_imported= false;
 
   /** Whether any corrupton of this tablespace has been reported */
-  mutable std::atomic_flag is_corrupted{false};
+  mutable std::atomic_flag is_corrupted= ATOMIC_FLAG_INIT;
 
 public:
   /** mutex to protect freed_ranges and last_freed_lsn */
@@ -1527,7 +1527,10 @@ extern fil_system_t	fil_system;
 
 inline void fil_space_t::reacquire() noexcept
 {
-  ut_d(uint32_t n=) n_pending.fetch_add(1, std::memory_order_relaxed);
+#ifdef SAFE_MUTEX
+  uint32_t n=
+#endif
+  n_pending.fetch_add(1, std::memory_order_relaxed);
 #ifdef SAFE_MUTEX
   if (mysql_mutex_is_owner(&fil_system.mutex)) return;
   ut_ad(n & PENDING);

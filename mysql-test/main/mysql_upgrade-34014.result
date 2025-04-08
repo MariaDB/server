@@ -12,6 +12,8 @@ FLUSH TABLES;
 SHOW CREATE DATABASE sys;
 Database	Create Database
 sys	CREATE DATABASE `sys` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci */
+Warnings:
+Note	1105	Database 'sys' does not have a db.opt file. You can create one with ALTER DATABASE if needed
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql

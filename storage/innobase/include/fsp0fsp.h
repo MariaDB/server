@@ -355,9 +355,9 @@ and how many pages are currently used.
 @param[out]     used    number of pages that are used (not more than reserved)
 @param[in,out]  mtr     mini-transaction
 @return number of reserved pages */
-ulint fseg_n_reserved_pages(const buf_block_t &block,
-                            const fseg_header_t *header, ulint *used,
-                            mtr_t *mtr)
+uint32_t fseg_n_reserved_pages(const buf_block_t &block,
+                               const fseg_header_t *header, uint32_t *used,
+                               mtr_t *mtr) noexcept
   MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements

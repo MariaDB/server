@@ -6,23 +6,16 @@ source include/not_windows.inc;
 # this would need an instrumented ncurses library
 source include/not_msan.inc;
 
-error 0,1;
-exec $MYSQL -V|grep -q readline;
-if ($sys_errno == 1)
-{
-  # strangely enough
-  skip does not work with libedit;
-}
-
 write_file $MYSQL_TMP_DIR/mysql_in;
 delimiter $
 select 1;
 $
+exit
 EOF
 let TERM=dumb;
 replace_regex /id is \d+/id is X/ /Server version: .*/Server version: Y/ / \(\d+\.\d+ sec\)//;
 error 0,127;
-exec socat EXEC:"$MYSQL",pty STDIO < $MYSQL_TMP_DIR/mysql_in;
+exec socat -t10 EXEC:"$MYSQL",pty STDIO < $MYSQL_TMP_DIR/mysql_in;
 if ($sys_errno == 127)
 {
   remove_file $MYSQL_TMP_DIR/mysql_in;

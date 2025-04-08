@@ -44,7 +44,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "log.h"
 #include "mariadb_stats.h"
 
-/** If there are buf_pool.curr_size per the number below pending reads, then
+/** If there are buf_pool.curr_size() per the number below pending reads, then
 read-ahead is not done: this is to prevent flooding the buffer pool with
 i/o-fixed buffer blocks */
 #define BUF_READ_AHEAD_PEND_LIMIT	2
@@ -63,7 +63,6 @@ inline uint32_t buf_pool_t::watch_remove(buf_page_t *w,
   ut_ad(xtest() || page_hash.lock_get(chain).is_write_locked());
   ut_ad(w >= &watch[0]);
   ut_ad(w < &watch[array_elements(watch)]);
-  ut_ad(!w->in_zip_hash);
   ut_ad(!w->zip.data);
 
   uint32_t s{w->state()};
@@ -372,7 +371,7 @@ ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf) noexcept
     return 0;
 
   if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   fil_space_t* space= fil_space_t::get(page_id.space());
@@ -525,7 +524,7 @@ ulint buf_read_ahead_linear(const page_id_t page_id, bool ibuf) noexcept
     return 0;
 
   if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;

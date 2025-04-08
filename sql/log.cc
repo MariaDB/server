@@ -322,6 +322,11 @@ public:
     incident= TRUE;
   }
   
+  void clear_incident(void)
+  {
+    incident= FALSE;
+  }
+
   bool has_incident(void)
   {
     return(incident);
@@ -1932,6 +1937,16 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
     if (using_trx && thd->binlog_flush_pending_rows_event(TRUE, TRUE))
       DBUG_RETURN(1);
 
+#ifdef WITH_WSREP
+    /* Wsrep transaction was BF aborted but it must replay because certification
+       succeeded. The transaction must not be written into binlog yet, it will
+       be done during commit after the replay. */
+    if (WSREP(thd) && wsrep_must_replay(thd))
+    {
+      DBUG_RETURN(0);
+    }
+#endif /* WITH_WSREP */
+
     /*
       Doing a commit or a rollback including non-transactional tables,
       i.e., ending a transaction where we might write the transaction
@@ -2527,6 +2542,18 @@ void binlog_reset_cache(THD *thd)
     cache_mngr->reset(true, true);
   }
   DBUG_VOID_RETURN;
+}
+
+
+void binlog_clear_incident(THD *thd)
+{
+  binlog_cache_mngr *const cache_mngr= opt_bin_log ?
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton) : 0;
+  if (cache_mngr)
+  {
+    cache_mngr->stmt_cache.clear_incident();
+    cache_mngr->trx_cache.clear_incident();
+  }
 }
 
 
@@ -7971,7 +7998,12 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   {
     DBUG_RETURN(0);
   }
-  else if (!(thd->variables.option_bits & OPTION_BIN_LOG))
+
+  if (!(thd->variables.option_bits & OPTION_BIN_LOG)
+#ifdef WITH_WSREP
+      && !WSREP(thd)
+#endif
+      )
   {
     cache_mngr->need_unlog= false;
     DBUG_RETURN(0);
@@ -8878,6 +8910,13 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   bool has_xid= entry->end_event->get_type_code() == XID_EVENT;
 
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
+#ifdef WITH_WSREP
+  if (WSREP(entry->thd) &&
+      !(entry->thd->variables.option_bits & OPTION_BIN_LOG))
+  {
+    DBUG_RETURN(0);
+  }
+#endif /* WITH_WSREP */
 
   /*
     An error in the trx_cache will truncate the cache to the last good
