@@ -56,7 +56,7 @@ ALTER TABLE t1 ADD COLUMN (f4 int(10));
 # reach commit stage. In the unlikely case the interleaving is different, the
 # result of the test should not change.
 --connection node_1c
---let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.processlist WHERE (State='Commit' OR State='Waiting for certification') AND ID=$insert_id
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.processlist WHERE (STATE LIKE '%committing%' OR STATE LIKE 'Commit' OR STATE LIKE 'Waiting for certification') AND ID=$insert_id
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info WHERE TABLE_NAME='t1' AND THREAD_ID=$insert_id
 --source include/wait_condition.inc
@@ -83,11 +83,11 @@ ALTER TABLE t1 ADD COLUMN (f4 int(10));
 
 # wait for insert to get blocked
 --connection node_1c
---let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.processlist WHERE (State='Commit' OR State='Waiting for certification') AND ID=$insert_id
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.processlist WHERE (STATE LIKE '%committing%' OR STATE LIKE 'Commit' OR STATE LIKE 'Waiting for certification') AND ID=$insert_id
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info WHERE TABLE_NAME='t1' AND THREAD_ID=$insert_id
 --source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*)=2 FROM information_schema.processlist WHERE Info like 'INSERT INTO t1 (f1) values("node1%")' AND (State = 'Commit' OR State='Waiting for certification')
+--let $wait_condition = SELECT COUNT(*)=2 FROM information_schema.processlist WHERE Info like 'INSERT INTO t1 (f1) values("node1%")' AND (STATE LIKE '%committing%' OR STATE LIKE 'Commit' OR STATE LIKE 'Waiting for certification')
 --source include/wait_condition.inc
 
 # nothing after BLOCK_DDL is applied

@@ -42,8 +42,10 @@ SHOW STATUS LIKE 'wsrep_cluster_size';
 SHOW STATUS LIKE 'wsrep_cluster_size';
 #--disable_parsing
 --connection node_1
---replace_result $NODE_MYPORT_4 NODE_MYPORT_4
---eval change master to master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_4, master_use_gtid=current_pos, ignore_server_ids=(12,13);
+--echo --- ignore_server_ids=(12,13)
+--disable_query_log
+--eval change master to master_host='127.0.0.1', master_user='root', MASTER_SSL_VERIFY_SERVER_CERT=0, master_port=$NODE_MYPORT_4, master_use_gtid=current_pos, ignore_server_ids=(12,13);
+--enable_query_log
 start slave;
 --source include/wait_for_slave_to_start.inc
 select @@gtid_binlog_state;
@@ -51,8 +53,10 @@ select @@gtid_slave_pos;
 #--query_vertical SHOW SLAVE STATUS;
 
 --connection node_4
---replace_result $NODE_MYPORT_1 NODE_MYPORT_1
---eval change master to master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_1, master_use_gtid=current_pos, ignore_server_ids=(22,23);
+--echo --- ignore_server_ids=(22,23)
+--disable_query_log
+--eval change master to master_host='127.0.0.1', master_user='root', MASTER_SSL_VERIFY_SERVER_CERT=0, master_port=$NODE_MYPORT_1, master_use_gtid=current_pos, ignore_server_ids=(22,23);
+--enable_query_log
 start slave;
 --source include/wait_for_slave_to_start.inc
 select @@gtid_binlog_state;
@@ -210,8 +214,10 @@ set global wsrep_on=ON;
 # Then we will kill node D and set up the replication between A and E
 # To see whether fail over works or not.
 --connection node_1
---replace_result $NODE_MYPORT_6 NODE_MYPORT_6
---eval change master to master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_6, master_use_gtid=current_pos, ignore_server_ids=(12,13);
+--echo --- ignore_server_ids=(12,13)
+--disable_query_log
+--eval change master to master_host='127.0.0.1', master_user='root', MASTER_SSL_VERIFY_SERVER_CERT=0, master_port=$NODE_MYPORT_6, master_use_gtid=current_pos, ignore_server_ids=(12,13);
+--enable_query_log
 start slave;
 --source include/wait_for_slave_to_start.inc
 select @@gtid_binlog_state;
@@ -219,8 +225,10 @@ select @@gtid_slave_pos;
 #--query_vertical SHOW SLAVE STATUS;
 
 --connection node_4
---replace_result $NODE_MYPORT_3 NODE_MYPORT_3
---eval change master to master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_3, master_use_gtid=current_pos, ignore_server_ids=(22,23);
+--echo --- ignore_server_ids=(22,23)
+--disable_query_log
+--eval change master to master_host='127.0.0.1', master_user='root', MASTER_SSL_VERIFY_SERVER_CERT=0, master_port=$NODE_MYPORT_3, master_use_gtid=current_pos, ignore_server_ids=(22,23);
+--enable_query_log
 start slave;
 --source include/wait_for_slave_to_start.inc
 select @@gtid_binlog_state;

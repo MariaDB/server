@@ -18,6 +18,7 @@
 #include <mysys_priv.h>
 #include <my_default.h>
 #include <m_string.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <mysys_err.h>
 #include <my_getopt.h>
@@ -1039,7 +1040,7 @@ my_bool getopt_compare_strings(register const char *s, register const char *t,
 
   for (;s != end ; s++, t++)
   {
-    if ((*s != '-' ? *s : '_') != (*t != '-' ? *t : '_'))
+    if ((*s != '-' ? tolower(*s) : '_') != (*t != '-' ? tolower(*t) : '_'))
       DBUG_RETURN(1);
   }
   DBUG_RETURN(0);

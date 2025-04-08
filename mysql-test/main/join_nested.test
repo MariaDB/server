@@ -1459,3 +1459,16 @@ DROP TABLE t1, t2, t3;
 set join_cache_level= @save_join_cache_level;
 
 --echo # end of 10.3 tests
+
+--echo #
+--echo # MDEV-32084: Assertion in best_extension_by_limited_search(), or crash elsewhere in release
+--echo #
+CREATE TABLE t1 (i int);
+INSERT INTO t1 values (1),(2);
+
+SELECT 1 FROM  t1 WHERE i IN
+  (SELECT 1 FROM t1 c
+    LEFT JOIN  (t1 a LEFT JOIN t1 b ON t1.i = b.i)  ON c.i = t1.i);
+
+DROP TABLE t1;
+--echo # end of 10.11 tests

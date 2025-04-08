@@ -1252,6 +1252,32 @@ public:
 
 
 /**
+  Get a query text associated with the cursor.
+*/
+
+static inline LEX_CSTRING get_cursor_query(const LEX_CSTRING &cursor_stmt)
+{
+  /*
+    Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
+    move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
+    in order to get correct value of cursor's query string.
+  */
+
+  if (strncasecmp(cursor_stmt.str, "FOR", 3) == 0 &&
+      my_isspace(current_thd->variables.character_set_client,
+                 cursor_stmt.str[3]))
+    return LEX_CSTRING{cursor_stmt.str + 4, cursor_stmt.length - 4};
+
+  if (strncasecmp(cursor_stmt.str, "IS", 2) == 0 &&
+      my_isspace(current_thd->variables.character_set_client,
+                 cursor_stmt.str[2]))
+    return LEX_CSTRING{cursor_stmt.str + 3, cursor_stmt.length - 3};
+
+  return cursor_stmt;
+}
+
+
+/**
   This is DECLARE CURSOR
 */
 
@@ -1311,16 +1337,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
   bool on_after_expr_parsing(THD *) override
@@ -1452,16 +1469,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
   bool on_after_expr_parsing(THD *) override

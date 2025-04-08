@@ -2954,6 +2954,12 @@ set sql_mode=no_backslash_escapes;
 select "foo\""bar";
 set sql_mode=default;
 
+--echo #
+--echo # MDEV-29344: engines/iuds.insert_time cannot run with PS protocol (syntax error)
+--echo #
+SELECT 1 /* doesn't throw error */;
+SELECT 1 /* doesn't throw error */;
+
 --echo End of tests
 
 # Wait till we reached the initial number of concurrent sessions

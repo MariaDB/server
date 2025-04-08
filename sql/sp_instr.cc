@@ -862,6 +862,13 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     cleanup_items(cursor_lex->free_list);
     cursor_free_list= &cursor_lex->free_list;
     DBUG_ASSERT(thd->lex == sp_instr_lex);
+    /*
+      Adjust mem_root of the cursor's Query_arena to point the just created
+      memory root allocated for re-parsing, else we would have the pointer to
+      sp_head's memory_root that has already been marked as read_only after
+      the first successful execution of the stored routine.
+    */
+    cursor_lex->query_arena()->mem_root= m_mem_root_for_reparsing;
     lex_start(thd);
   }
 

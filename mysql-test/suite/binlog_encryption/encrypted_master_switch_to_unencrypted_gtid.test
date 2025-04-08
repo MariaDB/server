@@ -122,6 +122,13 @@ start slave;
 --let $slave_io_errno= 1236
 --source include/wait_for_slave_io_error.inc
 
+# Wait for the SQL thread to have replicated to the expected point. Otherwise
+# there is a race where the IO thread can stop with error and the test case
+# check the @@GLOBAL.gtid_slave_pos before the SQL thread has had time to
+# replicate the events queued by the IO thread (MDEV-36424).
+--replace_result "$last_unencrypted_gtid" "LAST_UNENCRYPTED_GTID"
+eval SELECT MASTER_GTID_WAIT("$last_unencrypted_gtid", 60);
+
 --echo # Ensuring slave was unable to replicate any encrypted transactions..
 --let $gsp= `SELECT @@global.gtid_slave_pos`
 if (`SELECT strcmp("$gsp","$last_unencrypted_gtid")`)

@@ -15,8 +15,9 @@ uint32_t srv_page_size_shift= 14;
 ulong srv_page_size= 1 << 14;
 dict_sys_t dict_sys;
 buf_pool_t buf_pool;
-buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_reg;
-buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_ref;
+buf_block_t *buf_pool_t::block_from(const void *ptr) noexcept
+{ return nullptr; }
+void buf_pool_t::clear_hash_index() noexcept {}
 
 void buf_pool_t::free_block(buf_block_t*) noexcept {}
 void dict_mem_table_free(dict_table_t*) {}
