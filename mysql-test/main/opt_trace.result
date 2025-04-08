@@ -10753,19 +10753,6 @@ jd
         ]
     }
 ]
-explain select * from t0 where a in (1,2,3,4,5,a+1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
-from information_schema.optimizer_trace;
-jd
-[
-    {
-        "item": "t0.a in (1,2,3,4,5,t0.a + 1)",
-        "done": false,
-        "reason": "non-constant element in the IN-list"
-    }
-]
 explain select * from t0 where a in ('1','2','3','4','5','6');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where

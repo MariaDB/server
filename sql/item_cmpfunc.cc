@@ -274,6 +274,23 @@ bool Item_func_nop_all::val_bool()
 }
 
 
+/*
+  The values of this enumeration type are used only as parameters in calls
+  of the function convert_const_to_int() that converts a constant to an
+  integer. A value of this type  determines the mode in which this function is
+  requested to work.
+  Currently only calls of this function within the method
+  Item_func_in::value_list_convert_const_to_int() need all three modes.
+  All other invocations use the mode 'not_permanent_conv'.
+*/
+
+enum Conv_const_to_int_mode
+{
+  not_permanent_conv, // conversion is done not on statement memory
+  check_only,         // only the possibility of conversion is checked
+  permanent_conv      // conversion is done on statement memory
+};
+
 /**
   Convert a constant item to an int and replace the original item.
 
@@ -287,6 +304,7 @@ bool Item_func_nop_all::val_bool()
   @param  thd             thread handle
   @param  field           item will be converted using the type of this field
   @param[in,out] item     reference to the item to convert
+  @param  conv_mode       determines the mode in which coversion is to be done
 
   @note
     This function is called only at prepare stage.
@@ -295,6 +313,16 @@ bool Item_func_nop_all::val_bool()
     they can contain derived tables and thus we may attempt to use a
     table that has not been populated yet.
 
+  @note
+    Usually this function is called with the last parameter set to
+    Conv_const_to_int_mode::not_permanent_conv which means that the conversion
+    is rolled back after each execution. However in the method
+    Item_func_in::value_list_convert_const_to_int() in some cases we need
+    the conversion to be performed permanently on the statement memory. It is
+    required if the result of the conversion may be used in a permanent
+    re-writing optimization such as transformation of IN predicate into
+    IN subquery.
+
   @retval
     0  Can't convert item
   @retval
@@ -302,7 +330,9 @@ bool Item_func_nop_all::val_bool()
 */
 
 static bool convert_const_to_int(THD *thd, Item_field *field_item,
-                                  Item **item)
+				 Item **item,
+                                 Conv_const_to_int_mode conv_mode=
+                                 Conv_const_to_int_mode::not_permanent_conv)
 {
   Field *field= field_item->field;
   int result= 0;
@@ -364,12 +394,20 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
 
       if (0 == field_cmp)
       {
-        Item *tmp= (new (thd->mem_root)
-                    Item_int_with_ref(thd, field->val_int(), *item,
-                                      MY_TEST(field->flags & UNSIGNED_FLAG)));
-        if (tmp)
-          thd->change_item_tree(item, tmp);
-        result= 1;					// Item was replaced
+        if (conv_mode != Conv_const_to_int_mode::check_only)
+        {
+          Item *tmp=
+            (new (thd->mem_root) Item_int_with_ref(thd, field->val_int(), *item,
+                                        MY_TEST(field->flags & UNSIGNED_FLAG)));
+          if (tmp)
+	  {
+            if ( conv_mode == Conv_const_to_int_mode::not_permanent_conv)
+              thd->change_item_tree(item, tmp);
+	    else
+              *item= tmp;
+          }
+        }
+	result= 1;					// Item was replaced
       }
     }
     /* Restore the original field value. */
@@ -4676,6 +4714,34 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
     {
       bool all_converted= true;
       Item **arg, **arg_end;
+      Conv_const_to_int_mode conv_mode= Conv_const_to_int_mode::not_permanent_conv;
+      bool need_permanent_conversion= to_be_transformed_into_in_subq(thd) &&
+	                              thd->is_first_query_execution();
+      /*
+        Permanent conversion of constant arguments makes sense only if
+        all of them can be converted to integers. So first we check that
+        all the arguments from the IN list can be converted. If this is not
+        the case we perform non-permanent conversion that is rolled back
+        after the end of the query execution.
+      */
+      if (need_permanent_conversion)
+      {
+        for (arg=args+1, arg_end=args+arg_count; arg != arg_end ; arg++)
+	{
+	  conv_mode= Conv_const_to_int_mode::permanent_conv;
+          if (arg[0]->type() != Item::NULL_ITEM &&
+	      !convert_const_to_int(thd, field_item, &arg[0],
+		                    Conv_const_to_int_mode::check_only))
+	  {
+            conv_mode= Conv_const_to_int_mode::not_permanent_conv;
+            break;
+          }
+        }
+      }
+      Query_arena *arena= 0, backup;
+      if (conv_mode == Conv_const_to_int_mode::permanent_conv &&
+          !thd->stmt_arena->is_conventional())
+        arena= thd->activate_stmt_arena_if_needed(&backup);
       for (arg=args+1, arg_end=args+arg_count; arg != arg_end ; arg++)
       {
           /*
@@ -4686,12 +4752,23 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
               year_column IN (DATE'2001-01-01', NULL)
             switches from TIME_RESULT to INT_RESULT.
           */
+          /*
+            On a noninitial execution of the query we always come here
+            with conv_mode == Conv_const_to_int_mode::not_parmanent_conv.
+            So convert_const_to_int() is called. However if permanent
+            converstion has already been done at the first execution of
+            the query the function returns 'true' immediately.
+	  */
+	  DBUG_ASSERT (!thd->is_noninitial_query_execution() ||
+		       conv_mode == Conv_const_to_int_mode::not_permanent_conv);
           if (arg[0]->type() != Item::NULL_ITEM &&
               !convert_const_to_int(thd, field_item, &arg[0]))
-           all_converted= false;
+            all_converted= false;
       }
       if (all_converted)
         m_comparator.set_handler(&type_handler_slonglong);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
     }
   }
   return thd->is_fatal_error; // Catch errrors in convert_const_to_int
