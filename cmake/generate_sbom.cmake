@@ -105,7 +105,7 @@ FUNCTION (sbom_get_supplier repo_name repo_user varname)
   ELSEIF (repo_name MATCHES "boost")
     SET(${varname} "Boost.org" PARENT_SCOPE)
   ELSEIF(repo_user MATCHES "mariadb-corporation|mariadb")
-    SET(${varname} "MariaDB")
+    SET(${varname} "MariaDB" PARENT_SCOPE)
   ELSE()
     # Capitalize just first letter in repo_user
     STRING(SUBSTRING "${repo_user}" 0 1 first_letter)
