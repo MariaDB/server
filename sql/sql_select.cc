@@ -1468,8 +1468,19 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (!(select_options & OPTION_SETUP_TABLES_DONE) &&
       setup_tables_and_check_access(thd, &select_lex->context, join_list,
                                     tables_list, select_lex->leaf_tables,
-                                    false, SELECT_ACL, SELECT_ACL, false, true))
+                                    false, SELECT_ACL, SELECT_ACL, false))
       DBUG_RETURN(-1);
+
+  if (thd->lex->opt_hints_global && select_lex->select_number == 1)
+  {
+    thd->lex->opt_hints_global->fix_hint(thd);
+    /*
+      There's no need to call opt_hints_global->check_unresolved(),
+      this is done for each query block individually
+    */
+  }
+  if (select_lex->opt_hints_qb)
+    select_lex->opt_hints_qb->check_unfixed(thd);
 
   /* System Versioning: handle FOR SYSTEM_TIME clause. */
   if (select_lex->vers_setup_conds(thd, tables_list) < 0)

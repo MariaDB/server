@@ -419,7 +419,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                                     thd->lex->first_select_lex()->leaf_tables,
                                     FALSE,
                                     INSERT_ACL | UPDATE_ACL,
-                                    INSERT_ACL | UPDATE_ACL, false, true))
+                                    INSERT_ACL | UPDATE_ACL, false))
      DBUG_RETURN(-1);
   if (!table_list->table ||               // do not support join view
       !table_list->single_table_updatable() || // and derived tables
