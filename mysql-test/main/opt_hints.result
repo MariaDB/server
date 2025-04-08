@@ -1379,6 +1379,61 @@ SELECT
 Warnings:
 Warning	1064	Optimizer hint syntax error near '? bad syntax */ 1' at line 2
 DROP TABLE t1;
+
+# MDEV-36486 Optimizer hints are resolved against the INSERT part of INSERT..SELECT
+
+CREATE TABLE t1 (a INT, KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE TABLE t2 (a INT, KEY(a));
+INSERT INTO t2 VALUES (1),(2),(3);
+# See that the range optimization is employed when there are no hints:
+EXPLAIN EXTENDED
+INSERT INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index; Using temporary
+Warnings:
+Note	1003	insert into `test`.`t1`(a) select sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# No range optimization any more:
+EXPLAIN EXTENDED
+INSERT INTO t1 (a) SELECT /*+ no_range_optimization (t1 a)*/ a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	a	a	5	NULL	3	100.00	Using where; Using index; Using temporary
+Warnings:
+Note	1003	insert into `test`.`t1`(a) select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#2` `a`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# Alternatively, a hint may be placed next to INSERT keyword:
+EXPLAIN EXTENDED
+INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	a	a	5	NULL	3	100.00	Using where; Using index; Using temporary
+Warnings:
+Note	1003	insert into `test`.`t1`(a) select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#1`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# But if hints are present at both INSERT and SELECT parts,
+# those at the INSERT part are ignored:
+EXPLAIN EXTENDED
+INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT /*+ mrr(t1)*/ a 
+FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index; Using temporary
+Warnings:
+Note	1003	insert into `test`.`t1`(a) select /*+ MRR(`t1`@`select#2`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# Table `t2` cannot be resolved since it is not present in the SELECT part
+# (a warning expected):
+EXPLAIN EXTENDED
+INSERT INTO t2 (a) SELECT /*+ no_range_optimization (t2)*/ a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index
+Warnings:
+Warning	4212	Unresolved table name `t2`@`select#2` for NO_RANGE_OPTIMIZATION hint
+Note	1003	insert into `test`.`t2`(a) select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# Alternative placement of the hint:
+EXPLAIN EXTENDED
+INSERT /*+ no_range_optimization (t2 ix1)*/ INTO t2 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index
+Warnings:
+Warning	4213	Unresolved index name `t2`@`select#1` `ix1` for NO_RANGE_OPTIMIZATION hint
+Note	1003	insert into `test`.`t2`(a) select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+DROP TABLE t1, t2;
 set optimizer_switch = DEFAULT;
 set join_cache_level = DEFAULT;
 #

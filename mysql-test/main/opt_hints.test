@@ -704,6 +704,46 @@ SELECT
 /*+ ? bad syntax */ 1;
 
 DROP TABLE t1;
+
+--echo
+--echo # MDEV-36486 Optimizer hints are resolved against the INSERT part of INSERT..SELECT
+--echo
+
+CREATE TABLE t1 (a INT, KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+
+CREATE TABLE t2 (a INT, KEY(a));
+INSERT INTO t2 VALUES (1),(2),(3);
+
+--echo # See that the range optimization is employed when there are no hints:
+EXPLAIN EXTENDED
+INSERT INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+
+--echo # No range optimization any more:
+EXPLAIN EXTENDED
+INSERT INTO t1 (a) SELECT /*+ no_range_optimization (t1 a)*/ a FROM t1 WHERE a>1 AND a<=3;
+
+--echo # Alternatively, a hint may be placed next to INSERT keyword:
+EXPLAIN EXTENDED
+INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+
+--echo # But if hints are present at both INSERT and SELECT parts,
+--echo # those at the INSERT part are ignored:
+EXPLAIN EXTENDED
+INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT /*+ mrr(t1)*/ a 
+  FROM t1 WHERE a>1 AND a<=3;
+
+--echo # Table `t2` cannot be resolved since it is not present in the SELECT part
+--echo # (a warning expected):
+EXPLAIN EXTENDED
+INSERT INTO t2 (a) SELECT /*+ no_range_optimization (t2)*/ a FROM t1 WHERE a>1 AND a<=3;
+
+--echo # Alternative placement of the hint:
+EXPLAIN EXTENDED
+INSERT /*+ no_range_optimization (t2 ix1)*/ INTO t2 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+
+DROP TABLE t1, t2;
+
 set optimizer_switch = DEFAULT;
 set join_cache_level = DEFAULT;
 

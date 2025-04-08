@@ -11189,6 +11189,18 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
   SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);
+
+  // INSERT..SELECT allows placing hints next to either INSERT or SELECT, i.e.:
+  //  `INSERT /* hint(t1) */ INTO t2 SELECT a FROM t1` or
+  //  `INSERT INTO t2 SELECT /* hint(t1) */ a FROM t1`
+  // but not at both places at the same time.
+  // `first_select` represents the SELECT part here while `builtin_select` -
+  // the INSERT part. Future processing will proceed with `first_select`,
+  // so transfer the hints from `builtin_select` to `first_select` in case
+  // they were not already set. If hints are present for both INSERT and SELECT
+  // parts, SELECT part hints are preserved while INSERT part hints are discarded
+  if (!first_select->opt_hints_qb && blt->opt_hints_qb)
+    first_select->opt_hints_qb= blt->opt_hints_qb;
   return false;
 }
 
