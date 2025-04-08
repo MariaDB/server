@@ -8485,14 +8485,15 @@ err_no_arena:
 }
 
 
-static void unwind_stored_field_offsets(const List<Item> &fields, Field *end)
+static void unwind_stored_field_offsets(const List<Item> &fields, Item_field *end)
 {
-  for (Item &item_field: fields)
+  for (Item &item: fields)
   {
-    Field *f= item_field.field_for_view_update()->field;
-    if (f == end)
+    Item_field *item_field= item.field_for_view_update();
+    if (item_field == end)
       break;
 
+    Field *f= item_field->field;
     if (f->stored_in_db())
     {
       TABLE *table= f->table;
@@ -8537,7 +8538,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
-  Item_field *field;
+  Item_field *field= NULL;
   Field *rfield;
   TABLE *table;
   bool only_unvers_fields= update && table_arg->versioned();
@@ -8555,11 +8556,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
 
   while ((fld= f++))
   {
-    if (!(field= fld->field_for_view_update()))
-    {
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name.str);
-      goto err_unwind_fields;
-    }
+    field= fld->field_for_view_update();
+    DBUG_ASSERT(field); // ensured by check_fields or check_view_insertability.
     value=v++;
     DBUG_ASSERT(value);
     rfield= field->field;
@@ -8621,7 +8619,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   DBUG_RETURN(thd->is_error());
 err_unwind_fields:
   if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
-    unwind_stored_field_offsets(fields, rfield);
+    unwind_stored_field_offsets(fields, field);
 err:
   DBUG_PRINT("error",("got error"));
   thd->abort_on_warning= save_abort_on_warning;
