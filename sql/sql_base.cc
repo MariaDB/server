@@ -8222,7 +8222,6 @@ void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
     refresh       It is only refresh for subquery
     select_insert It is SELECT ... INSERT command
     full_table_list a parameter to pass to the make_leaves_list function
-    resolve_opt_hints Whether optimizer hints must be resolved here
 
   NOTE
     Check also that the 'used keys' and 'ignored keys' exists and set up the
@@ -8242,7 +8241,7 @@ void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
 bool setup_tables(THD *thd, Name_resolution_context *context,
                   List<TABLE_LIST> *from_clause, TABLE_LIST *tables,
                   List<TABLE_LIST> &leaves, bool select_insert,
-                  bool full_table_list, bool resolve_opt_hints)
+                  bool full_table_list)
 {
   uint tablenr= 0;
   List_iterator<TABLE_LIST> ti(leaves);
@@ -8278,18 +8277,23 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         leaves.push_back(table_list, thd->mem_root);
     }
 
-    bool is_insert_tables_num_set= false;
+    /*
+      This variable is only used for INSERT..SELECT's:
+        true:  processing the INSERT part of an INSERT..SELECT
+        false: processing the SELECT part of it
+    */
+    bool is_insert_part= true;
     while ((table_list= ti++))
     {
       TABLE *table= table_list->table;
       if (table && !table->pos_in_table_list)
         table->pos_in_table_list= table_list;
-      if (select_insert && !is_insert_tables_num_set &&
+      if (select_insert && is_insert_part &&
           table_list->top_table() == first_select_table)
       {
         /* new counting for SELECT of INSERT ... SELECT command */
         thd->lex->first_select_lex()->insert_tables= tablenr;
-        is_insert_tables_num_set= true;
+        is_insert_part= false;
         tablenr= 0;
       }
       if(table_list->jtbm_subselect)
@@ -8314,15 +8318,22 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         DBUG_RETURN(1);
       }
 
-      if (qb_hints &&                          // QB hints initialized
-          !table_list->opt_hints_table)        // Table hints are not adjusted yet
+      /*
+        Conditions to meet for optimizer hints resolution:
+        (1)  QB hints initialized
+        (2)  Table hints are not adjusted yet
+        (3)  Table is not in the INSERT part of INSERT..SELECT
+      */
+      if (qb_hints &&                          // (1)
+          !table_list->opt_hints_table &&      // (2)
+          !(select_insert && is_insert_part))  // (3)
       {
         table_list->opt_hints_table=
             qb_hints->fix_hints_for_table(table_list->table,
                                           table_list->alias);
       }
     }
-    if (select_insert && !is_insert_tables_num_set)
+    if (select_insert && is_insert_part)
     {
       /*
         This happens for statements like `INSERT INTO t1 SELECT 1`,
@@ -8389,19 +8400,6 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   if (setup_natural_join_row_types(thd, from_clause, context))
     DBUG_RETURN(1);
 
-  if (resolve_opt_hints)
-  {
-    if (thd->lex->opt_hints_global && select_lex->select_number == 1)
-    {
-      thd->lex->opt_hints_global->fix_hint(thd);
-      /*
-        There's no need to call opt_hints_global->check_unresolved(),
-        this is done for each query block individually
-      */
-    }
-    if (qb_hints)
-      qb_hints->check_unfixed(thd);
-  }
   DBUG_RETURN(0);
 }
 
@@ -8421,7 +8419,6 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     select_insert It is SELECT ... INSERT command
     want_access   what access is needed
     full_table_list a parameter to pass to the make_leaves_list function
-    resolve_opt_hints Whether optimizer hints must be resolved here
 
   NOTE
     a wrapper for check_tables that will also check the resulting
@@ -8438,13 +8435,12 @@ bool setup_tables_and_check_access(THD *thd, Name_resolution_context *context,
                                    bool select_insert,
                                    privilege_t want_access_first,
                                    privilege_t want_access,
-                                   bool full_table_list,
-                                   bool resolve_opt_hints)
+                                   bool full_table_list)
 {
   DBUG_ENTER("setup_tables_and_check_access");
 
   if (setup_tables(thd, context, from_clause, tables,
-                   leaves, select_insert, full_table_list, resolve_opt_hints))
+                   leaves, select_insert, full_table_list))
     DBUG_RETURN(TRUE);
 
   List_iterator<TABLE_LIST> ti(leaves);

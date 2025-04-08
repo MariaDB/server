@@ -1629,7 +1629,7 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
                                     table_list,
                                     thd->lex->first_select_lex()->leaf_tables,
                                     select_insert, INSERT_ACL, SELECT_ACL,
-                                    true, true))
+                                    true))
     DBUG_RETURN(TRUE);
 
   if (insert_into_view && !fields.elements)
