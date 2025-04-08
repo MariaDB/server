@@ -214,7 +214,7 @@ static void escape(EscapeInfo *info, UDF_ARGS *args)
 }
 
 MRN_API char *mroonga_escape(UDF_INIT *init, UDF_ARGS *args, char *result,
-                             unsigned long *length, char *is_null, char *error)
+                             unsigned long *length, uchar *is_null, uchar *error)
 {
   EscapeInfo *info = reinterpret_cast<EscapeInfo *>(init->ptr);
   grn_ctx *ctx = info->ctx;

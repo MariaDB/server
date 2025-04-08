@@ -244,8 +244,8 @@ MRN_API char *mroonga_query_expand(UDF_INIT *init,
                                    UDF_ARGS *args,
                                    char *result,
                                    unsigned long *length,
-                                   char *is_null,
-                                   char *error)
+                                   uchar *is_null,
+                                   uchar *error)
 {
   MRN_DBUG_ENTER_FUNCTION();
 
