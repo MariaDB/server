@@ -6216,10 +6216,7 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
   {
     if (!my_strcasecmp(system_charset_info, field_it.name()->str, name))
     {
-      // in PS use own arena or data will be freed after prepare
-      if (register_tree_change &&
-          thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute())
-        arena= thd->activate_stmt_arena_if_needed(&backup);
+      arena= thd->activate_stmt_arena_if_needed(&backup);
       /*
         create_item() may, or may not create a new Item, depending on
         the column reference. See create_view_field() for details.
@@ -6238,11 +6235,23 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
        the replacing item.
       */
       if (*ref && (*ref)->is_explicit_name())
+      {
+        arena=0;
+        if (thd->is_first_query_execution())
+          arena= thd->activate_stmt_arena_if_needed(&backup);
         item->set_name(thd, (*ref)->name);
-      if (register_tree_change)
-        thd->change_item_tree(ref, item);
-      else
-        *ref= item;
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+      }
+      if (item != *ref)
+      {
+        if (register_tree_change &&
+            !thd->is_first_query_execution())
+          thd->change_item_tree(ref, item);
+        else
+          *ref= item;
+      }
+
       DBUG_RETURN((Field*) view_ref_found);
     }
   }
@@ -8092,10 +8101,14 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     TODO: remove it when (if) we made one list for allfields and
     ref_pointer_array
   */
-  if (!ref_pointer_array.is_null())
+  if (thd->is_first_query_execution() ||
+      thd->stmt_arena->is_stmt_prepare())
   {
-    DBUG_ASSERT(ref_pointer_array.size() >= fields.elements);
-    memset(ref_pointer_array.array(), 0, sizeof(Item *) * fields.elements);
+    if (!ref_pointer_array.is_null())
+    {
+      DBUG_ASSERT(ref_pointer_array.size() >= fields.elements);
+      memset(ref_pointer_array.array(), 0, sizeof(Item *) * fields.elements);
+    }
   }
 
   /*
@@ -8134,17 +8147,6 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     {
       ref[0]= item;
       ref.pop_front();
-    }
-    /*
-      split_sum_func() must be called for Window Function items, see
-      Item_window_func::split_sum_func.
-    */
-    if (sum_func_list &&
-        ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
-         item->with_window_func()))
-    {
-      item->split_sum_func(thd, ref_pointer_array, *sum_func_list,
-                           SPLIT_SUM_SELECT);
     }
     lex->current_select->select_list_tables|= item->used_tables();
     lex->used_tables|= item->used_tables();

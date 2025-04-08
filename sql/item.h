@@ -8275,6 +8275,7 @@ public:
       if (!copy)
         return 0;
       copy->set_item(clone_item);
+      copy->ref= &copy->m_item;
       return copy;
     }
     return 0;
