@@ -6802,7 +6802,7 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           table->field[1]->set_null(); // CHARACTER_SET_NAME
           table->field[2]->set_null(); // ID
           table->field[3]->set_null(); // IS_DEFAULT
-          table->field[6]->set_null(); // Comment
+          table->field[7]->set_null(); // Comment
         }
         else
         {
@@ -6818,12 +6818,14 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
             LEX_CSTRING comment;
             comment.str= tmp_cl->comment;
             comment.length= strlen(comment.str);
-            table->field[6]->store(&comment, scs);
+            table->field[7]->store(&comment, scs);
           }
         }
         table->field[4]->store(
           Show::Yes_or_empty::value(tmp_cl->compiled_flag()), scs);
         table->field[5]->store((longlong) tmp_cl->strxfrm_multiply, TRUE);
+        // PAD_ATTRIBUTE
+        table->field[6]->store(1 + (bool)(tmp_cl->state & MY_CS_NOPAD), true);
         if (schema_table_store_record(thd, table))
           return 1;
       }
@@ -10004,6 +10006,26 @@ ST_FIELD_INFO charsets_fields_info[]=
 };
 
 
+class CollationPAD: public Enum
+{
+  static const TypelibBuffer<2> *typelib()
+  {
+    static const LEX_CSTRING values[] =
+    {
+      { STRING_WITH_LEN("PAD SPACE") },
+      { STRING_WITH_LEN("NO PAD") }
+    };
+    static const TypelibBuffer<2> tl(values);
+    return &tl;
+  };
+
+public:
+  CollationPAD()
+   :Enum(typelib())
+  { }
+};
+
+
 ST_FIELD_INFO collation_fields_info[]=
 {
   Column("COLLATION_NAME",               CLName(),     NOT_NULL, "Collation"),
@@ -10012,6 +10034,7 @@ ST_FIELD_INFO collation_fields_info[]=
   Column("IS_DEFAULT",                 Yes_or_empty(), NULLABLE, "Default"),
   Column("IS_COMPILED",                Yes_or_empty(), NOT_NULL, "Compiled"),
   Column("SORTLEN",                    SLonglong(3),   NOT_NULL, "Sortlen"),
+  Column("PAD_ATTRIBUTE",              CollationPAD(), NOT_NULL, "Pad_attribute"),
   Column("COMMENT",                    Varchar(80),    NOT_NULL),
   CEnd()
 };
