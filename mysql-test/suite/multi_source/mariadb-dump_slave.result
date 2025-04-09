@@ -1,0 +1,32 @@
+connect  active_master,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  inactive_master,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MYPORT_1, master_user='root';
+START SLAVE SQL_THREAD;
+CHANGE MASTER 'inactive' TO master_host='127.0.0.1', master_port=MYPORT_2;
+include/wait_for_slave_sql_to_start.inc
+# Basic
+MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+/*M!999999\- enable the sandbox mode */ 
+
+-- SET GLOBAL gtid_slave_pos='';
+# MDEV-7611 mysqldump --dump-slave always starts stopped slave
+MYSQL_DUMP --compact --dump-slave test
+/*M!999999\- enable the sandbox mode */ 
+
+-- SET GLOBAL gtid_slave_pos='';
+Slave_SQL_Running = 'No'
+include/wait_for_slave_sql_to_start.inc
+# MDEV-5624 mysqldump --dump-slave option does not restart the replication if the dump has failed
+MYSQL_DUMP --compact --dump-slave no_such_db
+/*M!999999\- enable the sandbox mode */ 
+
+Slave_SQL_Running = 'No'
+include/wait_for_slave_sql_to_start.inc
+# Cleanup
+STOP SLAVE SQL_THREAD;
+RESET SLAVE 'inactive' ALL;
+disconnect active_master;
+disconnect inactive_master;
+include/wait_for_slave_sql_to_stop.inc
+disconnect slave;
