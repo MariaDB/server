@@ -59,10 +59,11 @@ def	information_schema	CLIENT_STATISTICS	TOTAL_SSL_CONNECTIONS	26	NULL	NO	bigint
 def	information_schema	CLIENT_STATISTICS	UPDATE_COMMANDS	18	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)					NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	CHARACTER_SET_NAME	2	NULL	YES	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)					NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	COLLATION_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL	NO	NO
-def	information_schema	COLLATIONS	COMMENT	7	NULL	NO	varchar	80	240	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(80)					NEVER	NULL	NO	NO
+def	information_schema	COLLATIONS	COMMENT	8	NULL	NO	varchar	80	240	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(80)					NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	ID	3	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(11)					NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	IS_COMPILED	5	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)					NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	IS_DEFAULT	4	NULL	YES	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)					NEVER	NULL	NO	NO
+def	information_schema	COLLATIONS	PAD_ATTRIBUTE	7	NULL	NO	enum	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('PAD SPACE','NO PAD')					NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	SORTLEN	6	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(3)					NEVER	NULL	NO	NO
 def	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	CHARACTER_SET_NAME	2	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)					NEVER	NULL	NO	NO
 def	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL	NO	NO
@@ -576,6 +577,7 @@ AND table_name <> 'profiling' AND table_name not like 'innodb_%'
 AND CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH <> 1
 ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
+3.0000	enum	utf8mb3	utf8mb3_general_ci
 3.0000	varchar	utf8mb3	utf8mb3_general_ci
 SELECT DISTINCT
 CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH AS COL_CML,
@@ -672,6 +674,7 @@ NULL	information_schema	COLLATIONS	ID	bigint	NULL	NULL	NULL	NULL	bigint(11)
 3.0000	information_schema	COLLATIONS	IS_DEFAULT	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
 3.0000	information_schema	COLLATIONS	IS_COMPILED	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
 NULL	information_schema	COLLATIONS	SORTLEN	bigint	NULL	NULL	NULL	NULL	bigint(3)
+3.0000	information_schema	COLLATIONS	PAD_ATTRIBUTE	enum	3	9	utf8mb3	utf8mb3_general_ci	enum('PAD SPACE','NO PAD')
 3.0000	information_schema	COLLATIONS	COMMENT	varchar	80	240	utf8mb3	utf8mb3_general_ci	varchar(80)
 3.0000	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	CHARACTER_SET_NAME	varchar	32	96	utf8mb3	utf8mb3_general_ci	varchar(32)

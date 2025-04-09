@@ -893,8 +893,9 @@ def	information_schema	COLLATIONS	COLLATIONS	ID	Id	8	11	2	Y	36864	0	63
 def	information_schema	COLLATIONS	COLLATIONS	IS_DEFAULT	Default	253	9	0	Y	4096	0	33
 def	information_schema	COLLATIONS	COLLATIONS	IS_COMPILED	Compiled	253	9	3	N	4097	0	33
 def	information_schema	COLLATIONS	COLLATIONS	SORTLEN	Sortlen	8	3	1	N	36865	0	63
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_bin	latin1	47		Yes	1
+def	information_schema	COLLATIONS	COLLATIONS	PAD_ATTRIBUTE	Pad_attribute	254	9	9	N	4353	0	33
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_bin	latin1	47		Yes	1	PAD SPACE
 ----------------------------------------------------------------
 SHOW CREATE DATABASE mysqltest1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr

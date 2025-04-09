@@ -34,6 +34,7 @@ ID	bigint(11)	YES		NULL
 IS_DEFAULT	varchar(3)	YES		NULL	
 IS_COMPILED	varchar(3)	NO		NULL	
 SORTLEN	bigint(3)	NO		NULL	
+PAD_ATTRIBUTE	enum('PAD SPACE','NO PAD')	NO		NULL	
 COMMENT	varchar(80)	NO		NULL	
 SHOW CREATE TABLE information_schema.COLLATIONS;
 Table	Create Table
@@ -44,6 +45,7 @@ COLLATIONS	CREATE TEMPORARY TABLE `COLLATIONS` (
   `IS_DEFAULT` varchar(3),
   `IS_COMPILED` varchar(3) NOT NULL,
   `SORTLEN` bigint(3) NOT NULL,
+  `PAD_ATTRIBUTE` enum('PAD SPACE','NO PAD') NOT NULL,
   `COMMENT` varchar(80) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.COLLATIONS;
@@ -54,6 +56,7 @@ ID	bigint(11)	YES		NULL
 IS_DEFAULT	varchar(3)	YES		NULL	
 IS_COMPILED	varchar(3)	NO		NULL	
 SORTLEN	bigint(3)	NO		NULL	
+PAD_ATTRIBUTE	enum('PAD SPACE','NO PAD')	NO		NULL	
 COMMENT	varchar(80)	NO		NULL	
 # Testcases 3.2.3.2 and 3.2.3.3 are checked in suite/funcs_1/t/charset_collation*.test
 ########################################################################

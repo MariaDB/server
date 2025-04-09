@@ -7,8 +7,8 @@ show variables like 'character_sets_dir%';
 Variable_name	Value
 character_sets_dir	MYSQL_TEST_DIR/std_data/ldml/
 show collation like 'utf8mb3_phone_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf8mb3_phone_ci	utf8mb3	352			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf8mb3_phone_ci	utf8mb3	352			8	PAD SPACE
 CREATE TABLE t1 (
 name VARCHAR(64),
 phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
@@ -39,8 +39,8 @@ name	phone
 Bar	+7-912-800-80-01
 DROP TABLE t1;
 show collation like 'utf8mb3_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf8mb3_test_ci	utf8mb3	353			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf8mb3_test_ci	utf8mb3	353			8	PAD SPACE
 create table t1 (c1 char(1) character set utf8 collate utf8_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -48,8 +48,8 @@ c1
 a
 drop table t1;
 show collation like 'ucs2_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-ucs2_test_ci	ucs2	358			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+ucs2_test_ci	ucs2	358			8	PAD SPACE
 create table t1 (c1 char(1) character set ucs2 collate ucs2_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -57,8 +57,8 @@ c1
 a
 drop table t1;
 show collation like 'utf8mb4_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf8mb4_test_ci	utf8mb4	326			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf8mb4_test_ci	utf8mb4	326			8	PAD SPACE
 create table t1 (c1 char(1) character set utf8mb4 collate utf8mb4_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -66,8 +66,8 @@ c1
 a
 drop table t1;
 show collation like 'utf16_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf16_test_ci	utf16	327			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf16_test_ci	utf16	327			8	PAD SPACE
 create table t1 (c1 char(1) character set utf16 collate utf16_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -75,8 +75,8 @@ c1
 a
 drop table t1;
 show collation like 'utf32_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf32_test_ci	utf32	391			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf32_test_ci	utf32	391			8	PAD SPACE
 create table t1 (c1 char(1) character set utf32 collate utf32_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -174,8 +174,8 @@ Warning	1265	Data truncated for column 'c1' at row 1
 DROP TABLE t1;
 Vietnamese experimental collation
 show collation like 'ucs2_vn_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-ucs2_vn_ci	ucs2	359			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+ucs2_vn_ci	ucs2	359			8	PAD SPACE
 create table t1 (c1 char(1) character set ucs2 collate ucs2_vn_ci);
 insert into t1 values (0x0061),(0x0041),(0x00E0),(0x00C0),(0x1EA3),(0x1EA2),
 (0x00E3),(0x00C3),(0x00E1),(0x00C1),(0x1EA1),(0x1EA0);
@@ -449,69 +449,69 @@ drop table t1;
 Bug#46448 trailing spaces are not ignored when user collation maps space != 0x20
 set names latin1;
 show collation like 'latin1_test';
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_test	latin1	331			1
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_test	latin1	331			1	PAD SPACE
 select "foo" = "foo " collate latin1_test;
 "foo" = "foo " collate latin1_test
 1
 The following tests check that two-byte collation IDs work
 select * from information_schema.collations where id>256 and is_compiled<>'Yes' order by id;
-COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	COMMENT
-ascii2_general_nopad_ci	ascii2	318			1	
-ascii2_bin2	ascii2	319			1	
-ascii2_general_ci	ascii2	320	Yes		1	
-ascii2_bin	ascii2	321			1	
-ascii2_general_inherited_ci	ascii2	322			1	
-ascii2_general_inherited2_ci	ascii2	323			1	
-ascii2_badly_inherited_ci	ascii2	324			1	
-ascii2_nopad_bin	ascii2	325			1	
-utf8mb4_test_ci	utf8mb4	326			8	
-utf16_test_ci	utf16	327			8	
-utf8mb4_test_400_ci	utf8mb4	328			8	
-utf8mb4_test_520_nopad_ci	utf8mb4	329			8	
-utf8mb4_uca1400_test01_as_ci	utf8mb4	330			4	
-latin1_test	latin1	331			1	cp1252 West European
-latin1_test2	latin1	332			1	cp1252 West European
-latin1_test2_cs	latin1	333			1	cp1252 West European
-latin1_swedish_nopad2_ci	latin1	334			1	cp1252 West European
-utf8mb3_bengali_standard_ci	utf8mb3	336			8	
-utf8mb3_bengali_traditional_ci	utf8mb3	337			8	
-utf8mb3_implicit_weights_ci	utf8mb3	338			8	
-utf8mb3_phone_ci	utf8mb3	352			8	
-utf8mb3_test_ci	utf8mb3	353			8	
-utf8mb3_5624_1	utf8mb3	354			8	
-utf8mb3_5624_2	utf8mb3	355			8	
-utf8mb3_5624_3	utf8mb3	356			8	
-utf8mb3_5624_4	utf8mb3	357			8	
-ucs2_test_ci	ucs2	358			8	
-ucs2_vn_ci	ucs2	359			8	
-ucs2_5624_1	ucs2	360			8	
-utf8mb3_5624_5	utf8mb3	368			8	
-utf8mb3_5624_5_bad	utf8mb3	369			8	
-utf8mb3_czech_test_w2	utf8mb3	370			4	
-utf8mb3_czech_test_nopad_w2	utf8mb3	371			4	
-utf8mb3_czech_test_bad_w2	utf8mb3	372			4	
-utf32_test_ci	utf32	391			8	
-utf8mb3_maxuserid_ci	utf8mb3	2047			8	
+COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	PAD_ATTRIBUTE	COMMENT
+ascii2_general_nopad_ci	ascii2	318			1	NO PAD	
+ascii2_bin2	ascii2	319			1	PAD SPACE	
+ascii2_general_ci	ascii2	320	Yes		1	PAD SPACE	
+ascii2_bin	ascii2	321			1	PAD SPACE	
+ascii2_general_inherited_ci	ascii2	322			1	PAD SPACE	
+ascii2_general_inherited2_ci	ascii2	323			1	PAD SPACE	
+ascii2_badly_inherited_ci	ascii2	324			1	PAD SPACE	
+ascii2_nopad_bin	ascii2	325			1	NO PAD	
+utf8mb4_test_ci	utf8mb4	326			8	PAD SPACE	
+utf16_test_ci	utf16	327			8	PAD SPACE	
+utf8mb4_test_400_ci	utf8mb4	328			8	PAD SPACE	
+utf8mb4_test_520_nopad_ci	utf8mb4	329			8	NO PAD	
+utf8mb4_uca1400_test01_as_ci	utf8mb4	330			4	PAD SPACE	
+latin1_test	latin1	331			1	PAD SPACE	cp1252 West European
+latin1_test2	latin1	332			1	PAD SPACE	cp1252 West European
+latin1_test2_cs	latin1	333			1	PAD SPACE	cp1252 West European
+latin1_swedish_nopad2_ci	latin1	334			1	NO PAD	cp1252 West European
+utf8mb3_bengali_standard_ci	utf8mb3	336			8	PAD SPACE	
+utf8mb3_bengali_traditional_ci	utf8mb3	337			8	PAD SPACE	
+utf8mb3_implicit_weights_ci	utf8mb3	338			8	PAD SPACE	
+utf8mb3_phone_ci	utf8mb3	352			8	PAD SPACE	
+utf8mb3_test_ci	utf8mb3	353			8	PAD SPACE	
+utf8mb3_5624_1	utf8mb3	354			8	PAD SPACE	
+utf8mb3_5624_2	utf8mb3	355			8	PAD SPACE	
+utf8mb3_5624_3	utf8mb3	356			8	PAD SPACE	
+utf8mb3_5624_4	utf8mb3	357			8	PAD SPACE	
+ucs2_test_ci	ucs2	358			8	PAD SPACE	
+ucs2_vn_ci	ucs2	359			8	PAD SPACE	
+ucs2_5624_1	ucs2	360			8	PAD SPACE	
+utf8mb3_5624_5	utf8mb3	368			8	PAD SPACE	
+utf8mb3_5624_5_bad	utf8mb3	369			8	PAD SPACE	
+utf8mb3_czech_test_w2	utf8mb3	370			4	PAD SPACE	
+utf8mb3_czech_test_nopad_w2	utf8mb3	371			4	NO PAD	
+utf8mb3_czech_test_bad_w2	utf8mb3	372			4	PAD SPACE	
+utf32_test_ci	utf32	391			8	PAD SPACE	
+utf8mb3_maxuserid_ci	utf8mb3	2047			8	PAD SPACE	
 show collation like '%test%';
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_test	latin1	331			1
-latin1_test2	latin1	332			1
-latin1_test2_cs	latin1	333			1
-utf8mb3_test_ci	utf8mb3	353			8
-utf8mb3_czech_test_w2	utf8mb3	370			4
-utf8mb3_czech_test_nopad_w2	utf8mb3	371			4
-utf8mb3_czech_test_bad_w2	utf8mb3	372			4
-ucs2_test_ci	ucs2	358			8
-utf8mb4_test_ci	utf8mb4	326			8
-utf8mb4_test_400_ci	utf8mb4	328			8
-utf8mb4_test_520_nopad_ci	utf8mb4	329			8
-utf8mb4_uca1400_test01_as_ci	utf8mb4	330			4
-utf16_test_ci	utf16	327			8
-utf32_test_ci	utf32	391			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_test	latin1	331			1	PAD SPACE
+latin1_test2	latin1	332			1	PAD SPACE
+latin1_test2_cs	latin1	333			1	PAD SPACE
+utf8mb3_test_ci	utf8mb3	353			8	PAD SPACE
+utf8mb3_czech_test_w2	utf8mb3	370			4	PAD SPACE
+utf8mb3_czech_test_nopad_w2	utf8mb3	371			4	NO PAD
+utf8mb3_czech_test_bad_w2	utf8mb3	372			4	PAD SPACE
+ucs2_test_ci	ucs2	358			8	PAD SPACE
+utf8mb4_test_ci	utf8mb4	326			8	PAD SPACE
+utf8mb4_test_400_ci	utf8mb4	328			8	PAD SPACE
+utf8mb4_test_520_nopad_ci	utf8mb4	329			8	NO PAD
+utf8mb4_uca1400_test01_as_ci	utf8mb4	330			4	PAD SPACE
+utf16_test_ci	utf16	327			8	PAD SPACE
+utf32_test_ci	utf32	391			8	PAD SPACE
 show collation like 'ucs2_vn_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-ucs2_vn_ci	ucs2	359			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+ucs2_vn_ci	ucs2	359			8	PAD SPACE
 create table t1 (c1 char(1) character set ucs2 collate ucs2_vn_ci);
 insert into t1 values (0x0061);
 set @@character_set_results=NULL;
@@ -530,8 +530,8 @@ b
 DROP TABLE t1;
 SET NAMES utf8 COLLATE utf8_phone_ci;
 show collation like 'utf8mb3_phone_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf8mb3_phone_ci	utf8mb3	352			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf8mb3_phone_ci	utf8mb3	352			8	PAD SPACE
 SET NAMES utf8;
 SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci)) as exp;
 exp
@@ -3108,7 +3108,7 @@ DROP TABLE case_folding;
 # MDEV-7947 my_charset_same: strcmp() takes 0.37% in OLTP RO
 #
 SHOW COLLATION LIKE 'latin1_test_replace';
-Collation	Charset	Id	Default	Compiled	Sortlen
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 SELECT 'foo' = 'foo ' COLLATE latin1_test_replace;
 ERROR HY000: Unknown collation: 'latin1_test_replace'
 #
