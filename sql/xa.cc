@@ -442,6 +442,12 @@ bool trans_xa_start(THD *thd)
 {
   DBUG_ENTER("trans_xa_start");
 
+  if (opt_binlog_engine_hton)
+  {
+    my_error(ER_ENGINE_BINLOG_NO_USER_XA, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
   if (thd->transaction->xid_state.is_explicit_XA() &&
       thd->transaction->xid_state.xid_cache_element->xa_state == XA_IDLE &&
       thd->lex->xa_opt == XA_RESUME)

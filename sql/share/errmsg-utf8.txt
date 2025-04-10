@@ -12304,3 +12304,7 @@ ER_BINLOG_CANNOT_READ_STATE
 	eng "Error reading GTID state from the binlog"
 ER_BINLOG_POS_INVALID
 	eng "The binlog offset %llu is invalid"
+ER_ENGINE_BINLOG_NO_SEMISYNC
+	eng "Semi-synchronous replication is not yet supported with --binlog-storage-engine"
+ER_ENGINE_BINLOG_NO_USER_XA
+	eng "Explicit XA transactions are not yet supported with --binlog-storage-engine"

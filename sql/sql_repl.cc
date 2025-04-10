@@ -4865,7 +4865,7 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
     String packet;
     Format_description_log_event fd(4);
     char name_buf[FN_REFLEN];
-    reader->get_filename(name_buf, file_no);
+    opt_binlog_engine_hton->get_filename(name_buf, file_no);
 
     for (ha_rows event_count= 0;
          reader->cur_file_no == file_no && event_count < limit;
@@ -5256,12 +5256,14 @@ bool show_binlog_info(THD* thd)
   if (mysql_bin_log.is_open())
   {
     const char *base;
-    ulonglong pos;
+    uint64_t pos;
     if (opt_binlog_engine_hton)
     {
       char buf[FN_REFLEN];
+      uint64_t file_no;
       mysql_mutex_lock(mysql_bin_log.get_log_lock());
-      (*opt_binlog_engine_hton->binlog_status)(buf, &pos);
+      (*opt_binlog_engine_hton->binlog_status)(&file_no, &pos);
+      (*opt_binlog_engine_hton->get_filename)(buf, file_no);
       mysql_mutex_unlock(mysql_bin_log.get_log_lock());
       base= buf;
     }
@@ -5269,13 +5271,13 @@ bool show_binlog_info(THD* thd)
     {
       LOG_INFO li;
       mysql_bin_log.get_current_log(&li);
-      pos= (ulonglong) li.pos;
+      pos= (uint64_t) li.pos;
       size_t dir_len = dirname_length(li.log_file_name);
       base= li.log_file_name + dir_len;
     }
 
     protocol->store(base, strlen(base), &my_charset_bin);
-    protocol->store(pos);
+    protocol->store((ulonglong)pos);
     protocol->store(binlog_filter->get_do_db());
     protocol->store(binlog_filter->get_ignore_db());
     if (protocol->write())

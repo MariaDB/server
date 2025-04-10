@@ -1,0 +1,63 @@
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo *** Test the --binlog-directory variable with legacy binlog.
+
+--connection slave
+# Stop the slave while restarting master, just to not have to worry about
+# any connect/re-connect tries. We are testing the location of the binlog,
+# not the slave re-connect abilities.
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=Slave_pos;
+
+--connection master
+--let $master_datadir= `SELECT @@datadir`
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+
+INSERT INTO t1 VALUES (1, 10);
+
+# Test that the master can be restarted with binlogs in a separate
+# directory specificed by --binlog-directory.
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+
+--mkdir $master_datadir/binlog_dir
+--copy_file $master_datadir/master-bin.000001 $master_datadir/binlog_dir/master-bin.000001
+--copy_file $master_datadir/master-bin.000001.idx $master_datadir/binlog_dir/master-bin.000001.idx
+--let $rpl_server_parameters= --binlog-directory=binlog_dir
+--source include/rpl_start_server.inc
+
+INSERT INTO t1 VALUES (2, 11);
+
+# Move master back to using the standard binlog directory.
+--source include/rpl_stop_server.inc
+--let $rpl_server_parameters=
+--source include/rpl_start_server.inc
+
+INSERT INTO t1 VALUES (3, 12);
+--save_master_pos
+--source include/show_binary_logs.inc
+--echo *** Contents of master-bin.index (including directory path):
+--cat_file $master_datadir/master-bin.index
+SELECT * FROM t1 ORDER BY a;
+
+--connection slave
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL gtid_slave_pos= '';
+
+--connection master
+RESET MASTER;
+--rmdir $master_datadir/binlog_dir
+
+--connection slave
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

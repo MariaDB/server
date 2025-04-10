@@ -523,17 +523,12 @@ fsp_binlog_page_fifo::release_tablespace(uint64_t file_no)
     mysql_mutex_unlock(&m_mutex);
     int res= my_sync(fh, MYF(MY_WME));
     ut_a(!res);
-    my_close(fifos[file_no & 1].fh, MYF(0));
     mysql_mutex_lock(&m_mutex);
+    free_page_list(&fifos[file_no & 1]);
     flushing= false;
     pthread_cond_broadcast(&m_cond);
   }
   first_file_no= file_no + 1;
-
-  fifos[file_no & 1].first_page= nullptr;
-  fifos[file_no & 1].first_page_no= 0;
-  fifos[file_no & 1].size_in_pages= 0;
-  fifos[file_no & 1].fh= (File)-1;
   mysql_mutex_unlock(&m_mutex);
 }
 
@@ -546,9 +541,24 @@ fsp_binlog_page_fifo::fsp_binlog_page_fifo()
   fifos[1]= {nullptr, 0, 0, (File)-1 };
   mysql_mutex_init(fsp_page_fifo_mutex_key, &m_mutex, nullptr);
   pthread_cond_init(&m_cond, nullptr);
+}
 
-  // ToDo I think I need to read the first page here, or somewhere?
-  // Normally I'd never want to read a page into the page fifo, but at startup, I seem to need to do so for the first page I start writing on. Though I suppose I already read that, so maybe just a way to add that page into the FIFO in the constructor?
+
+void
+fsp_binlog_page_fifo::free_page_list(page_list *pl)
+{
+  if (pl->fh != (File)-1)
+    my_close(pl->fh, MYF(0));
+  fsp_binlog_page_entry *e= pl->first_page;
+  while (e)
+  {
+    fsp_binlog_page_entry *next= e->next;
+    aligned_free(e->page_buf);
+    ut_free(e);
+    e= next;
+  }
+  *pl= {nullptr, 0, 0, (File)-1 };
+
 }
 
 
@@ -557,19 +567,7 @@ fsp_binlog_page_fifo::reset()
 {
   ut_ad(!flushing);
   for (uint32_t i= 0; i < 2; ++i)
-  {
-    if (fifos[i].fh != (File)-1)
-      my_close(fifos[i].fh, MYF(0));
-    fsp_binlog_page_entry *e= fifos[i].first_page;
-    while (e)
-    {
-      fsp_binlog_page_entry *next= e->next;
-      aligned_free(e->page_buf);
-      ut_free(e);
-      e= next;
-    }
-    fifos[i]= {nullptr, 0, 0, (File)-1 };
-  }
+    free_page_list(&fifos[i]);
   first_file_no= ~(uint64_t)0;
 }
 

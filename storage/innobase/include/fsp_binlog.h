@@ -184,6 +184,7 @@ public:
                          uint32_t init_page= ~(uint32_t)0,
                          byte *partial_page= nullptr);
   void release_tablespace(uint64_t file_no);
+  void free_page_list(page_list *pl);
   fsp_binlog_page_entry *create_page(uint64_t file_no, uint32_t page_no);
   fsp_binlog_page_entry *get_page(uint64_t file_no, uint32_t page_no);
   void release_page(fsp_binlog_page_entry *page);

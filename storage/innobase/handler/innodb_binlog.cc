@@ -244,7 +244,6 @@ public:
   virtual int init_gtid_pos(slave_connection_state *pos,
                             rpl_binlog_state_base *state) final;
   virtual int init_legacy_pos(const char *filename, ulonglong offset) final;
-  virtual void get_filename(char name[FN_REFLEN], uint64_t file_no) final;
 };
 
 
@@ -2953,7 +2952,7 @@ ha_innodb_binlog_reader::init_legacy_pos(const char *filename, ulonglong offset)
 
 
 void
-ha_innodb_binlog_reader::get_filename(char name[FN_REFLEN], uint64_t file_no)
+ibb_get_filename(char name[FN_REFLEN], uint64_t file_no)
 {
   static_assert(BINLOG_NAME_MAX_LEN <= FN_REFLEN,
                 "FN_REFLEN too shot to hold InnoDB binlog name");
@@ -2961,7 +2960,7 @@ ha_innodb_binlog_reader::get_filename(char name[FN_REFLEN], uint64_t file_no)
 }
 
 
-extern "C" void binlog_get_cache(THD *, IO_CACHE **,
+extern "C" void binlog_get_cache(THD *, uint64_t, uint64_t, IO_CACHE **,
                                  handler_binlog_event_group_info **,
                                  const rpl_gtid **);
 
@@ -2971,10 +2970,12 @@ innodb_binlog_trx(trx_t *trx, mtr_t *mtr)
   IO_CACHE *cache;
   handler_binlog_event_group_info *binlog_info;
   const rpl_gtid *gtid;
+  uint64_t file_no, pos;
 
   if (!trx->mysql_thd)
     return;
-  binlog_get_cache(trx->mysql_thd, &cache, &binlog_info, &gtid);
+  innodb_binlog_status(&file_no, &pos);
+  binlog_get_cache(trx->mysql_thd, file_no, pos, &cache, &binlog_info, &gtid);
   if (UNIV_LIKELY(binlog_info != nullptr) &&
       UNIV_LIKELY(binlog_info->gtid_offset > 0)) {
     binlog_diff_state.update_nolock(gtid);
@@ -3019,15 +3020,15 @@ innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
 
 
 void
-innodb_binlog_status(char out_filename[FN_REFLEN], ulonglong *out_pos)
+innodb_binlog_status(uint64_t *out_file_no, uint64_t *out_pos)
 {
   static_assert(BINLOG_NAME_MAX_LEN <= FN_REFLEN,
                 "FN_REFLEN too shot to hold InnoDB binlog name");
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
   uint32_t page_no= binlog_cur_page_no;
   uint32_t in_page_offset= binlog_cur_page_offset;
-  binlog_name_make_short(out_filename, file_no);
-  *out_pos= ((ulonglong)page_no << ibb_page_size_shift) | in_page_offset;
+  *out_file_no= file_no;
+  *out_pos= ((uint64_t)page_no << ibb_page_size_shift) | in_page_offset;
 }
 
 
