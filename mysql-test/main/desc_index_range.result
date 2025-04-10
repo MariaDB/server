@@ -140,13 +140,14 @@ jd
 ]
 drop table t2;
 #
-# Check that "Using index for group-by" is disabled (it's not supported, yet)
+# "Using index for group-by" was disabled for reverse index but
+# not any more after MDEV-32732
 #
 CREATE TABLE t1 (p int NOT NULL, a int NOT NULL, PRIMARY KEY (p,a desc));
 insert into t1 select 2,seq from seq_0_to_1000;
 EXPLAIN select MIN(a) from t1 where p = 2 group by p;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	PRIMARY	PRIMARY	4	const	1000	Using index
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index for group-by
 select json_detailed(json_extract(trace, '$**.potential_group_range_indexes')) as jd
 from information_schema.optimizer_trace;
 jd
@@ -154,8 +155,11 @@ jd
     [
         {
             "index": "PRIMARY",
-            "usable": false,
-            "cause": "Reverse-ordered (not supported yet)"
+            "covering": true,
+            "ranges": 
+            ["(2) <= (p) <= (2)"],
+            "rows": 1,
+            "cost": 0.000838227
         }
     ]
 ]
@@ -199,3 +203,400 @@ select * from t1 where b = 255 AND a IS NULL;
 pk	a	b
 10000	NULL	255
 drop table t1;
+#
+# MDEV-32732 Support DESC indexes in loose scan optimization
+#
+create table t1 (a int, c int, key (a, c desc));
+insert into t1 values (1, 9), (1, 6), (1, 3);
+explain SELECT MAX(c), MIN(c) FROM t1 group by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	3	Using index for group-by
+SELECT MAX(c), MIN(c) FROM t1 group by a;
+MAX(c)	MIN(c)
+9	3
+drop table t1;
+create table t1 (a int, b int, c int, key (a desc, b, c desc));
+insert into t1 values (1, 2, 9), (1, 2, 6), (2, 1, 3), (2, 1, 12);
+explain SELECT a, b, MAX(c), MIN(c) FROM t1 group by a, b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	15	NULL	4	Using index for group-by; Using temporary; Using filesort
+SELECT a, b, MAX(c), MIN(c) FROM t1 group by a, b;
+a	b	MAX(c)	MIN(c)
+1	2	9	6
+2	1	12	3
+drop table t1;
+CREATE TABLE t1 (a int, b int, KEY (a, b desc));
+insert into t1 values (1, 23), (3, 45), (1, 11), (3, 88), (3, 70), (4, NULL), (1, 14), (4, NULL);
+EXPLAIN SELECT MIN(b) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using index for group-by
+SELECT MIN(b) FROM t1 GROUP BY a;
+MIN(b)
+11
+45
+NULL
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b < 68 GROUP BY a;
+MIN(b)
+11
+45
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b > 13 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b > 13 GROUP BY a;
+MIN(b)
+14
+45
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b > 13 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b > 13 AND b < 68 GROUP BY a;
+MIN(b)
+14
+45
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b >= 14 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b >= 14 AND b < 68 GROUP BY a;
+MIN(b)
+14
+45
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b > 14 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b > 14 AND b < 68 GROUP BY a;
+MIN(b)
+23
+45
+EXPLAIN SELECT MIN(b) FROM t1 WHERE (b > 47 AND b < 91) OR (b > 11 AND b < 30) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE (b > 47 AND b < 91) OR (b > 11 AND b < 30) GROUP BY a;
+MIN(b)
+14
+70
+EXPLAIN SELECT MIN(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b IS NULL) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b IS NULL) GROUP BY a;
+MIN(b)
+14
+45
+NULL
+EXPLAIN SELECT MIN(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b = 100) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b = 100) GROUP BY a;
+MIN(b)
+14
+45
+EXPLAIN SELECT MAX(b) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	5	NULL	8	Using index for group-by
+SELECT MAX(b) FROM t1 GROUP BY a;
+MAX(b)
+23
+88
+NULL
+EXPLAIN SELECT MAX(b) FROM t1 WHERE b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE b < 68 GROUP BY a;
+MAX(b)
+23
+45
+EXPLAIN SELECT MAX(b) FROM t1 WHERE b > 13 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	5	NULL	8	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE b > 13 GROUP BY a;
+MAX(b)
+23
+88
+EXPLAIN SELECT MAX(b) FROM t1 WHERE b > 13 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE b > 13 AND b < 68 GROUP BY a;
+MAX(b)
+23
+45
+EXPLAIN SELECT MAX(b) FROM t1 WHERE b >= 14 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE b >= 14 AND b < 68 GROUP BY a;
+MAX(b)
+23
+45
+EXPLAIN SELECT MAX(b) FROM t1 WHERE (b > 47 AND b < 91) OR (b > 11 AND b < 30) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE (b > 47 AND b < 91) OR (b > 11 AND b < 30) GROUP BY a;
+MAX(b)
+23
+88
+EXPLAIN SELECT MAX(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b IS NULL) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b IS NULL) GROUP BY a;
+MAX(b)
+23
+45
+NULL
+EXPLAIN SELECT MAX(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b = 100) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	8	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b = 100) GROUP BY a;
+MAX(b)
+23
+45
+insert into t1 values (4, 8);
+EXPLAIN SELECT MIN(b) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using index for group-by
+SELECT MIN(b) FROM t1 GROUP BY a;
+MIN(b)
+11
+45
+8
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b < 68 GROUP BY a;
+MIN(b)
+11
+45
+8
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b > 13 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b > 13 GROUP BY a;
+MIN(b)
+14
+45
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b > 13 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b > 13 AND b < 68 GROUP BY a;
+MIN(b)
+14
+45
+EXPLAIN SELECT MIN(b) FROM t1 WHERE b >= 14 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE b >= 14 AND b < 68 GROUP BY a;
+MIN(b)
+14
+45
+EXPLAIN SELECT MIN(b) FROM t1 WHERE (b > 47 AND b < 91) OR (b > 11 AND b < 30) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE (b > 47 AND b < 91) OR (b > 11 AND b < 30) GROUP BY a;
+MIN(b)
+14
+70
+EXPLAIN SELECT MIN(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b IS NULL) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b IS NULL) GROUP BY a;
+MIN(b)
+14
+45
+NULL
+EXPLAIN SELECT MIN(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b = 100) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MIN(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b = 100) GROUP BY a;
+MIN(b)
+14
+45
+EXPLAIN SELECT MAX(b) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	5	NULL	9	Using index for group-by
+SELECT MAX(b) FROM t1 GROUP BY a;
+MAX(b)
+23
+88
+8
+EXPLAIN SELECT MAX(b) FROM t1 WHERE b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE b < 68 GROUP BY a;
+MAX(b)
+23
+45
+8
+EXPLAIN SELECT MAX(b) FROM t1 WHERE b > 13 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	5	NULL	9	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE b > 13 GROUP BY a;
+MAX(b)
+23
+88
+EXPLAIN SELECT MAX(b) FROM t1 WHERE b > 13 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE b > 13 AND b < 68 GROUP BY a;
+MAX(b)
+23
+45
+EXPLAIN SELECT MAX(b) FROM t1 WHERE b >= 14 AND b < 68 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE b >= 14 AND b < 68 GROUP BY a;
+MAX(b)
+23
+45
+EXPLAIN SELECT MAX(b) FROM t1 WHERE (b > 47 AND b < 91) OR (b > 11 AND b < 30) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE (b > 47 AND b < 91) OR (b > 11 AND b < 30) GROUP BY a;
+MAX(b)
+23
+88
+EXPLAIN SELECT MAX(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b IS NULL) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b IS NULL) GROUP BY a;
+MAX(b)
+23
+45
+NULL
+EXPLAIN SELECT MAX(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b = 100) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+SELECT MAX(b) FROM t1 WHERE (b > 13 AND b < 68) OR (b = 100) GROUP BY a;
+MAX(b)
+23
+45
+drop table t1;
+create table t1(c1 int, c2 int, c3 int, c4 int, key (c1 desc, c2 desc, c3 desc));
+insert into t1 values (1, 2, 9, 2), (3, 2, 6, 9), (1, 2, 6, 9), (4, 1, 3, 38), (4, 1, 12, 12);
+EXPLAIN select distinct c1 from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	5	NULL	5	Using index for group-by; Using temporary
+select distinct c1 from t1;
+c1
+4
+3
+1
+EXPLAIN select distinct c1 from t1 where c2 = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	10	NULL	5	Using where; Using index for group-by; Using temporary
+select distinct c1 from t1 where c2 = 2;
+c1
+3
+1
+EXPLAIN select c1 from t1 group by c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	5	NULL	5	Using index for group-by; Using temporary; Using filesort
+select c1 from t1 group by c1;
+c1
+1
+3
+4
+EXPLAIN select distinct c1, c2 from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	10	NULL	5	Using index for group-by; Using temporary
+select distinct c1, c2 from t1;
+c1	c2
+4	1
+3	2
+1	2
+EXPLAIN select c1, c2 from t1 group by c1, c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	10	NULL	5	Using index for group-by; Using temporary; Using filesort
+select c1, c2 from t1 group by c1, c2;
+c1	c2
+1	2
+3	2
+4	1
+EXPLAIN SELECT c1, MIN(c2) FROM t1 GROUP BY c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	10	NULL	5	Using index for group-by; Using temporary; Using filesort
+SELECT c1, MIN(c2) FROM t1 GROUP BY c1;
+c1	MIN(c2)
+1	2
+3	2
+4	1
+EXPLAIN SELECT c1, c2, min(c3), max(c3) FROM t1 WHERE c2 = 2 GROUP BY c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	15	NULL	5	Using where; Using index for group-by; Using temporary; Using filesort
+SELECT c1, c2, min(c3), max(c3) FROM t1 WHERE c2 = 2 GROUP BY c1;
+c1	c2	min(c3)	max(c3)
+1	2	6	9
+3	2	6	6
+EXPLAIN SELECT c1, c2 FROM t1 WHERE c1 < 3 GROUP BY c1, c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	c1	c1	10	NULL	2	Using where; Using index for group-by; Using temporary; Using filesort
+SELECT c1, c2 FROM t1 WHERE c1 < 3 GROUP BY c1, c2;
+c1	c2
+1	2
+EXPLAIN SELECT MAX(c3), MIN(c3), c1, c2 FROM t1 WHERE c2 > 1 GROUP BY c1, c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	15	NULL	5	Using where; Using index for group-by; Using temporary; Using filesort
+SELECT MAX(c3), MIN(c3), c1, c2 FROM t1 WHERE c2 > 1 GROUP BY c1, c2;
+MAX(c3)	MIN(c3)	c1	c2
+9	6	1	2
+6	6	3	2
+EXPLAIN SELECT c2 FROM t1 WHERE c1 < 3 GROUP BY c1, c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	c1	c1	10	NULL	2	Using where; Using index for group-by; Using temporary; Using filesort
+SELECT c2 FROM t1 WHERE c1 < 3 GROUP BY c1, c2;
+c2
+2
+EXPLAIN SELECT c1, c2 FROM t1 WHERE c3 = 6 GROUP BY c1, c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	15	NULL	5	Using where; Using index for group-by; Using temporary; Using filesort
+SELECT c1, c2 FROM t1 WHERE c3 = 6 GROUP BY c1, c2;
+c1	c2
+1	2
+3	2
+EXPLAIN SELECT c1, c3 FROM t1 WHERE c3 = 6 GROUP BY c1, c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	15	NULL	5	Using where; Using index for group-by; Using temporary; Using filesort
+SELECT c1, c3 FROM t1 WHERE c3 = 6 GROUP BY c1, c2;
+c1	c3
+1	6
+3	6
+insert into t1 values (1, 3, 3, 4);
+EXPLAIN SELECT c1, c2, min(c3), max(c3) FROM t1 WHERE c2 = 2 GROUP BY c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	15	NULL	6	Using where; Using index for group-by; Using temporary; Using filesort
+SELECT c1, c2, min(c3), max(c3) FROM t1 WHERE c2 = 2 GROUP BY c1;
+c1	c2	min(c3)	max(c3)
+1	2	6	9
+3	2	6	6
+insert into t1 values (1, 4, NULL, 4);
+EXPLAIN SELECT c1, c2, min(c3), max(c3) FROM t1 WHERE c2 = 2 GROUP BY c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	c1	15	NULL	7	Using where; Using index for group-by; Using temporary; Using filesort
+SELECT c1, c2, min(c3), max(c3) FROM t1 WHERE c2 = 2 GROUP BY c1;
+c1	c2	min(c3)	max(c3)
+1	2	6	9
+3	2	6	6
+drop table t1;
+create table t20 (
+kp1 int,
+kp2 int,
+index (kp1 desc, kp2 desc)
+);
+insert into t20 select A.seq, B.seq from seq_1_to_10 A, seq_1_to_10 B;
+insert into t20 values (1, NULL);
+insert into t20 values (10, NULL);
+EXPLAIN select min(kp2) from t20 where kp2=3 or kp2=5 or kp2 is null group by kp1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	NULL	kp1	10	NULL	11	Using where; Using index for group-by; Using temporary; Using filesort
+select min(kp2) from t20 where kp2=3 or kp2=5 or kp2 is null group by kp1;
+min(kp2)
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+drop table t20;
