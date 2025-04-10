@@ -351,7 +351,7 @@ struct fil_space_t final
   /** fil_system.spaces chain node */
   fil_space_t *hash= nullptr;
   /** log_sys.get_lsn() of the most recent fil_names_write_if_was_clean().
-  Reset to 0 by fil_names_clear(). Protected by log_sys.mutex.
+  Reset to 0 by fil_names_clear(). Protected by log_sys.latch_have_wr().
   If and only if this is nonzero, the tablespace will be in named_spaces. */
   lsn_t max_lsn= 0;
   /** base node for the chain of data files; multiple entries are

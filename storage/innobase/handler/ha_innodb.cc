@@ -243,11 +243,11 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     /* Adjust for purge_coordinator_state::refresh() */
-    log_sys.latch.rd_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
-    log_sys.latch.rd_unlock();
     const lsn_t lsn= log_sys.get_lsn();
+    log_sys.latch.wr_unlock();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
     purge_sys.wake_if_not_active();
@@ -1155,7 +1155,7 @@ innobase_rollback_to_savepoint_can_release_mdl(
 					be rolled back to savepoint */
 
 /** Request notification of log writes */
-static void innodb_log_flush_request(void *cookie);
+static void innodb_log_flush_request(void *cookie) noexcept;
 
 /** Requests for log flushes */
 struct log_flush_request
@@ -4749,11 +4749,13 @@ void log_flush_notify(lsn_t flush_lsn)
 We put the request in a queue, so that we can notify upper layer about
 checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
-static void innodb_log_flush_request(void *cookie)
+static void innodb_log_flush_request(void *cookie) noexcept
 {
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
   lsn_t flush_lsn= log_sys.get_flushed_lsn();
   /* Load lsn relaxed after flush_lsn was loaded from the same cache line */
   const lsn_t lsn= log_sys.get_lsn();
+  log_sys.latch.wr_unlock();
 
   if (flush_lsn >= lsn)
     /* All log is already persistent. */;
@@ -18440,11 +18442,16 @@ checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
   const auto size= log_sys.is_encrypted()
     ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  lsn_t lsn;
-  while (!thd_kill_level(thd) &&
-         log_sys.last_checkpoint_lsn.load(std::memory_order_acquire) + size <
-         (lsn= log_sys.get_lsn(std::memory_order_acquire)))
+  while (!thd_kill_level(thd))
+  {
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    lsn_t cp= log_sys.last_checkpoint_lsn.load(std::memory_order_relaxed),
+      lsn= log_sys.get_lsn();
+    log_sys.latch.wr_unlock();
+    if (cp + size >= lsn)
+      break;
     log_make_checkpoint();
+  }
 
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
@@ -18664,33 +18671,21 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (!resizing || !log_sys.resize_running(thd))
           break;
-        if (resizing > log_sys.get_lsn())
+        log_sys.latch.wr_lock(SRW_LOCK_CALL);
+        while (resizing > log_sys.get_lsn())
         {
           ut_ad(!log_sys.is_mmap());
           /* The server is almost idle. Write dummy FILE_CHECKPOINT records
           to ensure that the log resizing will complete. */
-          log_sys.latch.wr_lock(SRW_LOCK_CALL);
-          while (resizing > log_sys.get_lsn())
-          {
-            mtr_t mtr;
-            mtr.start();
-            mtr.commit_files(log_sys.last_checkpoint_lsn);
-          }
-          log_sys.latch.wr_unlock();
+          mtr_t mtr;
+          mtr.start();
+          mtr.commit_files(log_sys.last_checkpoint_lsn);
         }
+        log_sys.latch.wr_unlock();
       }
     }
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
-}
-
-static void innodb_log_spin_wait_delay_update(THD *, st_mysql_sys_var*,
-                                              void *, const void *save)
-{
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  mtr_t::spin_wait_delay= *static_cast<const unsigned*>(save);
-  mtr_t::finisher_update();
-  log_sys.latch.wr_unlock();
 }
 
 /** Update innodb_status_output or innodb_status_output_locks,
@@ -19551,11 +19546,12 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
-static MYSQL_SYSVAR_UINT(log_spin_wait_delay, mtr_t::spin_wait_delay,
-  PLUGIN_VAR_OPCMDARG,
-  "Delay between log buffer spin lock polls (0 to use a blocking latch)",
-  nullptr, innodb_log_spin_wait_delay_update,
-  0, 0, 6000, 0);
+static uint innodb_log_spin_wait_delay;
+
+static MYSQL_SYSVAR_UINT(log_spin_wait_delay, innodb_log_spin_wait_delay,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
+  nullptr, nullptr, 0, 0, 6000, 0);
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,

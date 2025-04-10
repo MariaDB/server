@@ -69,7 +69,7 @@ Created 9/17/2000 Heikki Tuuri
 
 
 /** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
-static void row_mysql_delay_if_needed()
+static void row_mysql_delay_if_needed() noexcept
 {
   const auto delay= srv_dml_needed_delay;
   if (UNIV_UNLIKELY(delay != 0))
@@ -78,8 +78,8 @@ static void row_mysql_delay_if_needed()
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
+    const lsn_t lsn= log_sys.get_flushed_lsn();
     log_sys.latch.rd_unlock();
-    const lsn_t lsn= log_sys.get_lsn();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
     purge_sys.wake_if_not_active();
