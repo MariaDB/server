@@ -5041,7 +5041,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         }
         if ((res= inner_join->optimize()))
           return TRUE;
-	if (inner_join->thd->is_first_query_execution())
+        if (!inner_join->cleaned)
           sl->update_used_tables();
         sl->update_correlated_cache();
         is_correlated_unit|= sl->is_correlated;
