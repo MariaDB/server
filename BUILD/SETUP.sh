@@ -163,14 +163,11 @@ fi
 
 # Set flags for various build configurations.
 # Used in -valgrind builds
-# Override -DFORCE_INIT_OF_VARS from debug_cflags. It enables the macro
-# UNINIT_VAR(), which is only useful for silencing spurious warnings
-# of static analysis tools. We want UNINIT_VAR() to be a no-op in Valgrind.
 # TRASH_FREE_MEMORY is enabled so that we can find wrong memory accesses
 # even when running a test without valgrind
 #
 valgrind_flags="-DHAVE_valgrind -USAFEMALLOC -DTRASH_FREE_MEMORY"
-valgrind_flags="$valgrind_flags -UFORCE_INIT_OF_VARS -Wno-uninitialized"
+valgrind_flags="$valgrind_flags -Wno-uninitialized"
 valgrind_flags="$valgrind_flags -DMYSQL_SERVER_SUFFIX=-valgrind-max"
 valgrind_configs="--with-valgrind"
 #
@@ -258,7 +255,7 @@ if test `$CC -v 2>&1 | tail -1 | sed 's/ .*$//'` = 'gcc' ; then
   if test '(' "$GCCV1" -gt '4' ')' -o \
     '(' '(' "$GCCV1" -eq '4' ')' -a '(' "$GCCV2" -ge '4' ')' ')'
   then
-    debug_cflags="$debug_cflags -DFORCE_INIT_OF_VARS -Wuninitialized"
+    debug_cflags="$debug_cflags -Wuninitialized"
   fi
   if (test '(' "$GCCV1" -gt '6' ')')
   then
