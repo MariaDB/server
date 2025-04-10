@@ -3559,13 +3559,14 @@ void recv_sys_t::report_progress() const
   }
   else
   {
+    const lsn_t end{std::max(recv_sys.scanned_lsn, recv_sys.file_checkpoint)};
     sql_print_information("InnoDB: To recover: LSN " LSN_PF
                           "/" LSN_PF "; %zu pages",
-                          recv_sys.lsn, recv_sys.scanned_lsn, n);
+                          recv_sys.lsn, end, n);
     service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                    "To recover: LSN " LSN_PF
                                    "/" LSN_PF "; %zu pages",
-                                   recv_sys.lsn, recv_sys.scanned_lsn, n);
+                                   recv_sys.lsn, end, n);
   }
 }
 
@@ -4106,8 +4107,8 @@ static bool recv_scan_log(bool last_phase)
                                         {log_sys.buf + recv_sys.len, size}))
       {
         mysql_mutex_unlock(&recv_sys.mutex);
-        ib::error() << "Failed to read log at " << source_offset
-                    << ": " << err;
+        sql_print_error("InnoDB: Failed to read log at %" PRIu64 ": %s",
+                        source_offset, ut_strerr(err));
         recv_sys.set_corrupt_log();
         mysql_mutex_lock(&recv_sys.mutex);
       }
