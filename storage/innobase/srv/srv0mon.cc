@@ -1376,7 +1376,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_written */
 	case MONITOR_OVLD_OS_LOG_WRITTEN:
-		value = log_sys.get_lsn() - recv_sys.lsn;
+		value = log_get_lsn() - recv_sys.lsn;
 		break;
 
 	/* innodb_log_waits */
@@ -1477,7 +1477,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = log_sys.get_lsn();
+		value = log_get_lsn();
 		break;
 
         case MONITOR_OVLD_CHECKPOINTS:
@@ -1485,10 +1485,10 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_LSN_CHECKPOINT_AGE:
-		log_sys.latch.rd_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
 		value = static_cast<mon_type_t>(log_sys.get_lsn()
 						- log_sys.last_checkpoint_lsn);
-		log_sys.latch.rd_unlock();
+		log_sys.latch.wr_unlock();
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
