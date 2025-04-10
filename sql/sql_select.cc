@@ -27244,7 +27244,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     }
 
     /* Lookup the current GROUP field in the FROM clause. */
-    order_item_type= (*order->item)->type();
+    order_item_type= order_item->type();
     from_field= (Field*) not_found_field;
     if ((is_group_field && order_item_type == Item::FIELD_ITEM) ||
         order_item_type == Item::REF_ITEM)
