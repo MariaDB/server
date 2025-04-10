@@ -475,7 +475,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     if (!idx)
     {
       idx= new (pc->thd->mem_root)
-      Opt_hints_key(index_name_sys, tab, pc->thd->mem_root);
+        Opt_hints_key(index_name_sys, tab, pc->thd->mem_root);
       tab->register_child(idx);
     }
 
