@@ -448,20 +448,13 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 /*
    Suppress uninitialized variable warning without generating code.
 */
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
 /* GCC specific self-initialization which inhibits the warning. */
 #define UNINIT_VAR(x) x= x
-#elif defined(_lint) || defined(FORCE_INIT_OF_VARS)
+#elif defined(FORCE_INIT_OF_VARS)
 #define UNINIT_VAR(x) x= 0
 #else
 #define UNINIT_VAR(x) x
-#endif
-
-/* This is only to be used when resetting variables in a class constructor */
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
-#define LINT_INIT(x) x= 0
-#else
-#define LINT_INIT(x)
 #endif
 
 #if !defined(HAVE_UINT)

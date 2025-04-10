@@ -3479,8 +3479,6 @@ static int com_go(String *buffer, char *)
     old_buffer.copy();
   }
 
-  /* Remove garbage for nicer messages */
-  LINT_INIT_STRUCT(buff[0]);
   remove_cntrl(*buffer);
 
   if (buffer->is_empty())
