@@ -8014,6 +8014,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->item= &order->item_ptr;
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
   order->used=0;
+  order->view_ref= 0;
   order->counter_used= 0;
   order->fast_field_copier_setup= 0; 
   list.link_in_list(order, &order->next);

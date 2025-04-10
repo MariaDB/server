@@ -28491,12 +28491,15 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
       original field name, we should additionally check if we have conflict
       for this name (in case if we would perform lookup in all tables).
     */
-    if (resolution == RESOLVED_BEHIND_ALIAS &&
-        order_item->fix_fields_if_needed_for_order_by(thd, order->item))
-      return TRUE;
+    if (resolution == RESOLVED_BEHIND_ALIAS)
+    {
+      if (order_item->fix_fields_if_needed_for_order_by(thd, order->item))
+        return TRUE;
+      order_item= *order->item;
+    }
 
     /* Lookup the current GROUP field in the FROM clause. */
-    order_item_type= (*order->item)->type();
+    order_item_type= order_item->type();
     from_field= (Field*) not_found_field;
     if ((is_group_field && order_item_type == Item::FIELD_ITEM) ||
         order_item_type == Item::REF_ITEM)
