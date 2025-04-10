@@ -4095,6 +4095,7 @@ static int innodb_init(void* p)
         innobase_hton->binlog_oob_free= innodb_free_oob;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
         innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
+        innobase_hton->get_filename= ibb_get_filename;
         innobase_hton->binlog_status= innodb_binlog_status;
         innobase_hton->binlog_flush= innodb_binlog_flush;
         innobase_hton->binlog_get_init_state= innodb_binlog_get_init_state;

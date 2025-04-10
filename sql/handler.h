@@ -1569,7 +1569,9 @@ struct handlerton
     Obtain the current position in the binlog.
     Used to support legacy SHOW MASTER STATUS.
   */
-  void (*binlog_status)(char out_filename[FN_REFLEN], ulonglong *out_pos);
+  void (*binlog_status)(uint64_t * out_fileno, uint64_t *out_pos);
+  /* Get a binlog name from a file_no. */
+  void (*get_filename)(char name[FN_REFLEN], uint64_t file_no);
   /* Obtain list of binlog files (SHOW BINARY LOGS). */
   binlog_file_entry * (*get_binlog_file_list)(MEM_ROOT *mem_root);
   /*
@@ -5945,8 +5947,6 @@ public:
     support legacy SHOW BINLOG EVENTS.
   */
   virtual int init_legacy_pos(const char *filename, ulonglong offset) = 0;
-  /* Get a binlog name from a file_no. */
-  virtual void get_filename(char name[FN_REFLEN], uint64_t file_no) = 0;
 
   int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
 };

@@ -3719,6 +3719,17 @@ Replicate_events_marked_for_skip
 
 /* new options for semisync */
 
+static bool
+check_rpl_semi_sync_master_enabled(sys_var *self, THD *thd, set_var *var)
+{
+  if (opt_binlog_engine_hton && var->save_result.ulonglong_value)
+  {
+    my_error(ER_ENGINE_BINLOG_NO_SEMISYNC, MYF(0));
+    return true;
+  }
+  return false;
+}
+
 static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
@@ -3773,7 +3784,8 @@ Sys_semisync_master_enabled(
        "Enable semi-synchronous replication master (disabled by default).",
        GLOBAL_VAR(rpl_semi_sync_master_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_rpl_semi_sync_master_enabled),
        ON_UPDATE(fix_rpl_semi_sync_master_enabled));
 
 static Sys_var_on_access_global<Sys_var_ulong,

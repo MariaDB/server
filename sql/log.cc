@@ -385,7 +385,10 @@ public:
      trx_cache.set_binlog_cache_info(param_max_binlog_cache_size,
                                      param_ptr_binlog_cache_use,
                                      param_ptr_binlog_cache_disk_use);
-     last_commit_pos_file[0]= 0;
+     if (opt_binlog_engine_hton)
+       last_commit_pos_file.engine_file_no= ~(uint64_t)0;
+     else
+       last_commit_pos_file.legacy_name[0]= 0;
   }
 
   void reset(bool do_stmt, bool do_trx)
@@ -399,7 +402,10 @@ public:
     {
       trx_cache.reset();
       using_xa= FALSE;
-      last_commit_pos_file[0]= 0;
+      if (opt_binlog_engine_hton)
+        last_commit_pos_file.engine_file_no= ~(uint64_t)0;
+      else
+        last_commit_pos_file.legacy_name[0]= 0;
       last_commit_pos_offset= 0;
     }
     if (likely(opt_binlog_engine_hton) &&
@@ -438,9 +444,15 @@ public:
     position corresponding to the snapshot taken. During (and after) commit,
     this is set to the binlog position corresponding to just after the
     commit (so storage engines can store it in their transaction log).
+
+    For the legacy binlog, we have to use the full filename, for binlog
+    implemented in engine we can just keep track of the file number.
   */
-  char last_commit_pos_file[FN_REFLEN];
-  my_off_t last_commit_pos_offset;
+  union {
+    uint64_t engine_file_no;
+    char legacy_name[FN_REFLEN];
+  } last_commit_pos_file;
+  uint64_t last_commit_pos_offset;
 
   /* Context for engine-implemented binlogging. */
   handler_binlog_event_group_info engine_binlog_info;
@@ -1901,7 +1913,8 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
 
 extern "C"
 void
-binlog_get_cache(THD *thd, IO_CACHE **out_cache,
+binlog_get_cache(THD *thd, uint64_t file_no, uint64_t offset,
+                 IO_CACHE **out_cache,
                  handler_binlog_event_group_info **out_context,
                  const rpl_gtid **out_gtid)
 {
@@ -1909,10 +1922,11 @@ binlog_get_cache(THD *thd, IO_CACHE **out_cache,
   handler_binlog_event_group_info *context= nullptr;
   binlog_cache_mngr *cache_mngr;
   const rpl_gtid *gtid= nullptr;
-  if (likely(!opt_bootstrap /* ToDo needed? */) &&
-      opt_binlog_engine_hton &&
-      (cache_mngr= thd->binlog_get_cache_mngr()))
+  /* opt_binlog_engine_hton can be unset during bootstrap. */
+  if (opt_binlog_engine_hton && (cache_mngr= thd->binlog_get_cache_mngr()))
   {
+    cache_mngr->last_commit_pos_file.engine_file_no= file_no;
+    cache_mngr->last_commit_pos_offset= offset;
     context= &cache_mngr->engine_binlog_info;
     cache= !cache_mngr->trx_cache.empty() ?
       &cache_mngr->trx_cache.cache_log : &cache_mngr->stmt_cache.cache_log;
@@ -3673,7 +3687,13 @@ void MYSQL_BIN_LOG::cleanup()
 
     inited= 0;
     mysql_mutex_lock(&LOCK_log);
-    close(LOG_CLOSE_INDEX|LOG_CLOSE_STOP_EVENT);
+    if (opt_binlog_engine_hton)
+    {
+      if (!is_relay_log)
+        close_engine();
+    }
+    else
+      close(LOG_CLOSE_INDEX|LOG_CLOSE_STOP_EVENT);
     mysql_mutex_unlock(&LOCK_log);
     delete description_event_for_queue;
     delete description_event_for_exec;
@@ -4273,6 +4293,18 @@ err:
     delete new_xid_list_entry;
   close(LOG_CLOSE_INDEX);
   DBUG_RETURN(1);
+}
+
+
+/*
+  Open the binlog implemented in a storage engine (--binlog-storage-engine). */
+bool
+MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
+{
+  bool err= (*hton->binlog_init)((size_t)max_size, dir);
+  if (!err)
+    log_state= LOG_OPENED;
+  return err;
 }
 
 
@@ -6713,8 +6745,18 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
 
   /* Server layer calls us with LOCK_commit_ordered locked, so this is safe. */
   mysql_mutex_assert_owner(&LOCK_commit_ordered);
-  strmake_buf(cache_mngr->last_commit_pos_file, mysql_bin_log.last_commit_pos_file);
-  cache_mngr->last_commit_pos_offset= mysql_bin_log.last_commit_pos_offset;
+  if (opt_binlog_engine_hton)
+  {
+    (*opt_binlog_engine_hton->binlog_status)
+      (&cache_mngr->last_commit_pos_file.engine_file_no,
+       &cache_mngr->last_commit_pos_offset);
+  }
+  else
+  {
+    strmake_buf(cache_mngr->last_commit_pos_file.legacy_name,
+                mysql_bin_log.last_commit_pos_file);
+    cache_mngr->last_commit_pos_offset= mysql_bin_log.last_commit_pos_offset;
+  }
 
   trans_register_ha(thd, TRUE, binlog_hton, 0);
 
@@ -7824,8 +7866,6 @@ err:
         if ((*opt_binlog_engine_hton->binlog_write_direct)
             (file, engine_context, thd->get_last_commit_gtid()))
           goto engine_fail;
-        /* ToDo: Need to set last_commit_pos_offset here? */
-        /* ToDo: Maybe binlog_write_direct() could return the coords. */
         mysql_mutex_unlock(&LOCK_commit_ordered);
 
         update_binlog_end_pos();
@@ -8699,6 +8739,7 @@ bool MYSQL_BIN_LOG::write_incident_already_locked(THD *thd)
   Incident incident= INCIDENT_LOST_EVENTS;
   Incident_log_event ev(thd, incident, &write_error_msg);
 
+  DBUG_ASSERT(!opt_binlog_engine_hton);
   if (likely(is_open()))
   {
     error= write_event(&ev);
@@ -8716,6 +8757,9 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
   bool check_purge= false;
   ulong prev_binlog_id;
   DBUG_ENTER("MYSQL_BIN_LOG::write_incident");
+
+  if (opt_binlog_engine_hton)
+    DBUG_RETURN(0);
 
   mysql_mutex_lock(&LOCK_log);
   if (likely(is_open()))
@@ -8779,6 +8823,7 @@ write_binlog_checkpoint_event_already_locked(const char *name_arg, uint len)
   bool err;
   Binlog_checkpoint_log_event ev(name_arg, len);
 
+  DBUG_ASSERT(!opt_binlog_engine_hton);
   /*
     Note that we must sync the binlog checkpoint to disk.
     Otherwise a subsequent log purge could delete binlogs that XA recovery
@@ -9516,11 +9561,18 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
                                                               commit_id))))
         current->commit_errno= errno;
 
-      strmake_buf(cache_mngr->last_commit_pos_file, log_file_name);
-      commit_offset= my_b_write_tell(&log_file);
-      update_gtid_index((uint32)commit_offset,
-                        current->thd->get_last_commit_gtid());
-      cache_mngr->last_commit_pos_offset= commit_offset;
+      if (!opt_binlog_engine_hton)
+      {
+        strmake_buf(cache_mngr->last_commit_pos_file.legacy_name, log_file_name);
+        commit_offset= my_b_write_tell(&log_file);
+        cache_mngr->last_commit_pos_offset= commit_offset;
+        /*
+          When --binlog-storage-engine, the last_commit_pos is updated in
+          binlog_get_cache().
+        */
+        update_gtid_index((uint32)commit_offset,
+                          current->thd->get_last_commit_gtid());
+      }
       if ((cache_mngr->using_xa && cache_mngr->xa_xid) || current->need_unlog)
       {
         /*
@@ -9558,42 +9610,60 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     }
     else
     {
-      DEBUG_SYNC(leader->thd, "commit_before_update_binlog_end_pos");
-      bool any_error= false;
-
-      mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
-      mysql_mutex_assert_owner(&LOCK_log);
-      mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
-      mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-
-      for (current= queue; current != NULL; current= current->next)
-      {
 #ifdef HAVE_REPLICATION
-        /*
-          The thread which will await the ACK from the replica can change
-          depending on the wait-point. If AFTER_COMMIT, then the user thread
-          will perform the wait. If AFTER_SYNC, the binlog group commit leader
-          will perform the wait on behalf of the user thread.
-        */
-        THD *waiter_thd= (repl_semisync_master.wait_point() ==
-                          SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
-                             ? current->thd
-                             : leader->thd;
-        if (likely(!current->error) &&
-            unlikely(repl_semisync_master.
-                     report_binlog_update(current->thd, waiter_thd,
-                                          current->cache_mngr->
-                                          last_commit_pos_file,
-                                          current->cache_mngr->
-                                          last_commit_pos_offset)))
+      if (unlikely(repl_semisync_master.get_master_enabled()))
+      {
+        DEBUG_SYNC(leader->thd, "commit_before_update_binlog_end_pos");
+        bool any_error= false;
+
+        mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+        mysql_mutex_assert_owner(&LOCK_log);
+        mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+        mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+
+        for (current= queue; current != NULL; current= current->next)
         {
-          current->error= ER_ERROR_ON_WRITE;
-          current->commit_errno= -1;
-          current->error_cache= NULL;
-          any_error= true;
+          /*
+            The thread which will await the ACK from the replica can change
+            depending on the wait-point. If AFTER_COMMIT, then the user thread
+            will perform the wait. If AFTER_SYNC, the binlog group commit leader
+            will perform the wait on behalf of the user thread.
+          */
+          THD *waiter_thd= (repl_semisync_master.wait_point() ==
+                            SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
+                               ? current->thd
+                               : leader->thd;
+          char buf[FN_REFLEN];
+          const char *filename= buf;
+          /*
+            ToDo: When we want to support semi-sync in the --binlog-in-engine
+            case, we need to do this report_binlog_update() later, after
+            commit_ordered() has been called, as that is where each
+            transaction gets written to the binlog and where the binlog
+            position gets put into the cache_mngr.
+          */
+          if (opt_binlog_engine_hton)
+            (*opt_binlog_engine_hton->get_filename)
+              (buf, current->cache_mngr->last_commit_pos_file.engine_file_no);
+          else
+            filename= current->cache_mngr->last_commit_pos_file.legacy_name;
+          if (likely(!current->error) &&
+              unlikely(repl_semisync_master.
+                       report_binlog_update(current->thd, waiter_thd, filename,
+                                            (my_off_t)current->cache_mngr->
+                                            last_commit_pos_offset)))
+          {
+            current->error= ER_ERROR_ON_WRITE;
+            current->commit_errno= -1;
+            current->error_cache= NULL;
+            any_error= true;
+          }
         }
-#endif
+
+        if (unlikely(any_error))
+          sql_print_error("Failed to run 'after_flush' hooks");
       }
+#endif
 
       /*
         update binlog_end_pos so it can be read by dump thread
@@ -9606,43 +9676,43 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       */
       if (!opt_binlog_engine_hton)
         update_binlog_end_pos(commit_offset);
-
-      if (unlikely(any_error))
-        sql_print_error("Failed to run 'after_flush' hooks");
     }
 
-    /*
-      If any commit_events are Xid_log_event, increase the number of pending
-      XIDs in current binlog (it's decreased in ::unlog()). When the count in
-      a (not active) binlog file reaches zero, we know that it is no longer
-      needed in XA recovery, and we can log a new binlog checkpoint event.
-    */
-    if (xid_count > 0)
-    {
-      mark_xids_active(binlog_id, xid_count);
-    }
-
-    if (rotate(false, &check_purge))
+    if (!opt_binlog_engine_hton)
     {
       /*
-        If we fail to rotate, which thread should get the error?
-        We give the error to the leader, as any my_error() thrown inside
-        rotate() will have been registered for the leader THD.
-
-        However we must not return error from here - that would cause
-        ha_commit_trans() to abort and rollback the transaction, which would
-        leave an inconsistent state with the transaction committed in the
-        binlog but rolled back in the engine.
-
-        Instead set a flag so that we can return error later, from unlog(),
-        when the transaction has been safely committed in the engine.
+        If any commit_events are Xid_log_event, increase the number of pending
+        XIDs in current binlog (it's decreased in ::unlog()). When the count in
+        a (not active) binlog file reaches zero, we know that it is no longer
+        needed in XA recovery, and we can log a new binlog checkpoint event.
       */
-      leader->cache_mngr->delayed_error= true;
-      my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG), name, errno);
-      check_purge= false;
+      if (xid_count > 0)
+      {
+        mark_xids_active(binlog_id, xid_count);
+      }
+
+      if (rotate(false, &check_purge))
+      {
+        /*
+          If we fail to rotate, which thread should get the error?
+          We give the error to the leader, as any my_error() thrown inside
+          rotate() will have been registered for the leader THD.
+
+          However we must not return error from here - that would cause
+          ha_commit_trans() to abort and rollback the transaction, which would
+          leave an inconsistent state with the transaction committed in the
+          binlog but rolled back in the engine.
+
+          Instead set a flag so that we can return error later, from unlog(),
+          when the transaction has been safely committed in the engine.
+        */
+        leader->cache_mngr->delayed_error= true;
+        my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG), name, errno);
+        check_purge= false;
+      }
+      /* In case of binlog rotate, update the correct current binlog offset. */
+      commit_offset= my_b_write_tell(&log_file);
     }
-    /* In case of binlog rotate, update the correct current binlog offset. */
-    commit_offset= my_b_write_tell(&log_file);
   }
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_after_binlog_sync");
@@ -9657,9 +9727,14 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
   DEBUG_SYNC(leader->thd, "commit_after_release_LOCK_log");
 
+#ifdef HAVE_REPLICATION
   /*
     Loop through threads and run the binlog_sync hook
+    AFTER_SYNC is not available for --binlog-in-engine, as there we avoid the
+    costly two-phase commit between binlog and engine.
   */
+  if (!opt_binlog_engine_hton &&
+      unlikely(repl_semisync_master.get_master_enabled()))
   {
     mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
     mysql_mutex_assert_not_owner(&LOCK_log);
@@ -9671,17 +9746,16 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     for (current= queue; current != NULL; current= current->next)
     {
       last= current->next == NULL;
-#ifdef HAVE_REPLICATION
       if (likely(!current->error))
         current->error=
           repl_semisync_master.wait_after_sync(current->cache_mngr->
-                                               last_commit_pos_file,
-                                               current->cache_mngr->
+                                               last_commit_pos_file.legacy_name,
+                                               (my_off_t)current->cache_mngr->
                                                last_commit_pos_offset);
-#endif
       first= false;
     }
   }
+#endif
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
 
@@ -9690,7 +9764,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       {
         DBUG_SUICIDE();
       });
-  last_commit_pos_offset= commit_offset;
+  if (!opt_binlog_engine_hton)
+    last_commit_pos_offset= commit_offset;
 
   /*
     Unlock LOCK_after_binlog_sync only *after* LOCK_commit_ordered has been
@@ -9766,8 +9841,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
   if (opt_binlog_engine_hton)
     update_binlog_end_pos();
-
-  if (check_purge)
+  else if (check_purge)
     checkpoint_and_purge(binlog_id);
 
   DBUG_VOID_RETURN;
@@ -10228,6 +10302,13 @@ void MYSQL_BIN_LOG::close(uint exiting)
   my_free(name);
   name= NULL;
   DBUG_VOID_RETURN;
+}
+
+
+void
+MYSQL_BIN_LOG::close_engine()
+{
+  log_state= LOG_CLOSED;
 }
 
 
@@ -11518,11 +11599,23 @@ int TC_LOG_BINLOG::open(const char *opt_name)
   DBUG_ASSERT(opt_name);
   DBUG_ASSERT(opt_name[0]);
 
-  if (!my_b_inited(&index_file))
+  if (!opt_binlog_engine_hton && !my_b_inited(&index_file))
   {
     /* There was a failure to open the index file, can't open the binlog */
     cleanup();
     DBUG_RETURN(1);
+  }
+
+  if (opt_binlog_engine_hton)
+  {
+    /*
+      ToDo: Eventually, we will want to recover from the in-engine binlog,
+      for cross-engine transactions (or just transactions in a different
+      XA-capable engine that the engine used in --binlog-storage-engine.
+      For now, just skip recovery when --binlog-storage-engine.
+    */
+    binlog_state_recover_done= true;
+    DBUG_RETURN(0);
   }
 
   if (using_heuristic_recover())
@@ -13210,10 +13303,11 @@ void
 mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file)
 {
   binlog_cache_mngr *cache_mngr;
-  if (opt_bin_log &&
+  //DBUG_ASSERT(!opt_binlog_engine_hton);
+  if (likely(opt_bin_log) && likely(!opt_binlog_engine_hton) &&
       (cache_mngr= thd->binlog_get_cache_mngr()))
   {
-    *out_file= cache_mngr->last_commit_pos_file;
+    *out_file= cache_mngr->last_commit_pos_file.legacy_name;
     *out_pos= (ulonglong)(cache_mngr->last_commit_pos_offset);
   }
   else
@@ -13335,11 +13429,30 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);
     auto cache_mngr= thd->binlog_get_cache_mngr();
-    have_snapshot= cache_mngr && cache_mngr->last_commit_pos_file[0];
-    if (have_snapshot)
+    if (cache_mngr)
     {
-      set_binlog_snapshot_file(cache_mngr->last_commit_pos_file);
-      binlog_snapshot_position= cache_mngr->last_commit_pos_offset;
+      if (opt_binlog_engine_hton)
+      {
+        have_snapshot=
+          cache_mngr->last_commit_pos_file.engine_file_no != ~(uint64_t)0;
+        if (have_snapshot)
+        {
+          char buf[FN_REFLEN];
+          uint64_t file_no= cache_mngr->last_commit_pos_file.engine_file_no;
+          (*opt_binlog_engine_hton->get_filename)(buf, file_no);
+          set_binlog_snapshot_file(buf);
+          binlog_snapshot_position= cache_mngr->last_commit_pos_offset;
+        }
+      }
+      else
+      {
+        have_snapshot= cache_mngr->last_commit_pos_file.legacy_name[0] != '\0';
+        if (have_snapshot)
+        {
+          set_binlog_snapshot_file(cache_mngr->last_commit_pos_file.legacy_name);
+          binlog_snapshot_position= cache_mngr->last_commit_pos_offset;
+        }
+      }
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
@@ -13349,8 +13462,21 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
   binlog_status_var_num_group_commits= this->num_group_commits;
   if (!have_snapshot)
   {
-    set_binlog_snapshot_file(last_commit_pos_file);
-    binlog_snapshot_position= last_commit_pos_offset;
+    if (opt_binlog_engine_hton)
+    {
+      char buf[FN_REFLEN];
+      uint64_t file_no;
+      uint64_t offset;
+      (*opt_binlog_engine_hton->binlog_status)(&file_no, &offset);
+      (*opt_binlog_engine_hton->get_filename)(buf, file_no);
+      set_binlog_snapshot_file(buf);
+      binlog_snapshot_position= (ulonglong)offset;
+    }
+    else
+    {
+      set_binlog_snapshot_file(last_commit_pos_file);
+      binlog_snapshot_position= last_commit_pos_offset;
+    }
   }
   mysql_mutex_unlock(&LOCK_commit_ordered);
   mysql_mutex_lock(&LOCK_prepare_ordered);
