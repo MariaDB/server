@@ -1003,6 +1003,7 @@ public:
 	    ulong max_size,
             bool null_created,
             bool need_mutex);
+  bool open_engine(handlerton *hton, ulong max_size, const char *dir);
   bool open_index_file(const char *index_file_name_arg,
                        const char *log_name, bool need_mutex);
   /* Use this to start writing a new log file */
@@ -1109,6 +1110,7 @@ public:
                             uint32 init_state_len);
   void wait_for_last_checkpoint_event();
   void close(uint exiting);
+  void close_engine();
   void clear_inuse_flag_when_closing(File file);
 
   // iterating through the log index file

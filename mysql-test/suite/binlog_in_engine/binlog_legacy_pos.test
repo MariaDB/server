@@ -1,0 +1,45 @@
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+
+--connect(con1,localhost,root,,)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connect(con2,localhost,root,,)
+
+--echo *** Connection sees current position by default.
+--connection default
+INSERT INTO t1 VALUES (2, 0);
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (3, 0);
+--let $binlog_file= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_file', Value, 1)
+--let $binlog_start= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+--let $binlog_limit= 0, 3
+INSERT INTO t1 VALUES (4, 0);
+SELECT * FROM t1 ORDER BY a;
+--source include/show_binlog_events.inc
+
+--echo *** START TRANSACTION WITH CONSISTENT SNAPSHOT sees position consistent with read view.
+--connection con1
+--let $binlog_file= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_file', Value, 1)
+--let $binlog_start= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+SELECT * FROM t1 ORDER BY a;
+--source include/show_binlog_events.inc
+
+--echo *** Connection with no active transaction sees the current position.
+--connection con2
+--let $binlog_file= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_file', Value, 1)
+--let $binlog_start= query_get_value(SHOW STATUS LIKE 'binlog_snapshot_position', Value, 1)
+--connection default
+INSERT INTO t1 VALUES (5, 0);
+--connection con2
+SELECT * FROM t1 ORDER BY a;
+--source include/show_binlog_events.inc
+
+--connection default
+--disconnect con1
+--disconnect con2
+DROP TABLE t1;

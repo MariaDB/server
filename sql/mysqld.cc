@@ -771,6 +771,7 @@ mysql_rwlock_t LOCK_all_status_vars;
 mysql_prlock_t LOCK_system_variables_hash;
 mysql_cond_t COND_start_thread;
 pthread_t signal_thread;
+bool signal_thread_needs_join= false;
 pthread_attr_t connection_attrib;
 mysql_mutex_t LOCK_server_started;
 mysql_cond_t COND_server_started;
@@ -2123,7 +2124,11 @@ static void wait_for_signal_thread_to_end()
   {
     sql_print_warning("Signal handler thread did not exit in a timely manner. "
                       "Continuing to wait for it to stop..");
+  }
+  if (signal_thread_needs_join)
+  {
     pthread_join(signal_thread, NULL);
+    signal_thread_needs_join= false;
   }
 #endif
 }
@@ -3222,6 +3227,7 @@ static void start_signal_handler(void)
       error,errno);
     exit(1);
   }
+  signal_thread_needs_join= true;
   mysql_cond_wait(&COND_start_thread, &LOCK_start_thread);
   mysql_mutex_unlock(&LOCK_start_thread);
 
@@ -4871,6 +4877,8 @@ static int adjust_optimizer_costs(const LEX_CSTRING *, OPTIMIZER_COSTS *oc, TABL
 static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
+  bool binlog_engine_used= false;
+
   /*
     We need to call each of these following functions to ensure that
     all things are initialized so that unireg_abort() doesn't fail
@@ -5043,33 +5051,55 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
+    if (opt_binlog_storage_engine && *opt_binlog_storage_engine)
+      binlog_engine_used= true;
+
     /* Reports an error and aborts, if the --log-bin's path 
        is a directory.*/
     if (opt_bin_logname[0] && 
         opt_bin_logname[strlen(opt_bin_logname) - 1] == FN_LIBCHAR)
     {
       sql_print_error("Path '%s' is a directory name, please specify "
-                      "a file name for --log-bin option", opt_bin_logname);
+                      "a file name for --log-bin option, or use "
+                      "--binlog-directory", opt_bin_logname);
       unireg_abort(1);
     }
 
-    /* Reports an error and aborts, if the --log-bin-index's path 
-       is a directory.*/
-    if (opt_binlog_index_name && 
-        opt_binlog_index_name[strlen(opt_binlog_index_name) - 1] 
-        == FN_LIBCHAR)
+    if (!binlog_engine_used)
     {
-      sql_print_error("Path '%s' is a directory name, please specify "
-                      "a file name for --log-bin-index option",
-                      opt_binlog_index_name);
-      unireg_abort(1);
+      /* Reports an error and aborts, if the --log-bin-index's path 
+         is a directory.*/
+      if (opt_binlog_index_name && 
+          opt_binlog_index_name[strlen(opt_binlog_index_name) - 1] 
+          == FN_LIBCHAR)
+      {
+        sql_print_error("Path '%s' is a directory name, please specify "
+                        "a file name for --log-bin-index option",
+                        opt_binlog_index_name);
+        unireg_abort(1);
+      }
     }
 
-    char buf[FN_REFLEN];
+    char buf[FN_REFLEN], buf2[FN_REFLEN];
     const char *ln;
-    /* ToDo: Here we also need to add in opt_binlog_directory, if given. */
     ln= mysql_bin_log.generate_name(opt_bin_logname, "-bin", 1, buf);
-    if (!opt_bin_logname[0] && !opt_binlog_index_name)
+    /* Add in opt_binlog_directory, if given. */
+    if (opt_binlog_directory && opt_binlog_directory[0])
+    {
+      if (strlen(opt_binlog_directory) + 1 + strlen(ln) + 1 > FN_REFLEN)
+      {
+        sql_print_error("The combination of --binlog-directory path '%s' with "
+                        "filename '%s' from --log-bin results in a too long "
+                        "path", opt_binlog_directory, ln);
+        unireg_abort(1);
+      }
+      const char *end= &buf2[FN_REFLEN-1];
+      char *p= strmake(buf2, opt_binlog_directory, FN_REFLEN - 2);
+      *p++= FN_LIBCHAR;
+      strmake(p, ln, end - p - 1);
+      ln= buf2;
+    }
+    if (!binlog_engine_used && !opt_bin_logname[0] && !opt_binlog_index_name)
     {
       /*
         User didn't give us info to name the binlog index file.
@@ -5088,6 +5118,8 @@ static int init_server_components()
     }
     if (ln == buf)
       opt_bin_logname= my_once_strdup(buf, MYF(MY_WME));
+    else if (ln == buf2)
+      opt_bin_logname= my_once_strdup(buf2, MYF(MY_WME));
   }
 
   /*
@@ -5152,7 +5184,7 @@ static int init_server_components()
   }
 #endif /* WITH_WSREP */
 
-  if (!opt_help && opt_bin_log)
+  if (!opt_help && !binlog_engine_used && opt_bin_log)
   {
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
                                       TRUE))
@@ -5480,7 +5512,7 @@ static int init_server_components()
     unireg_abort(1);
   }
 
-  if (opt_binlog_storage_engine && *opt_binlog_storage_engine && !opt_bootstrap)
+  if (binlog_engine_used)
   {
     LEX_CSTRING name= { opt_binlog_storage_engine, strlen(opt_binlog_storage_engine) };
     opt_binlog_engine_plugin= ha_resolve_by_name(0, &name, false);
@@ -5512,6 +5544,14 @@ static int init_server_components()
                       "to specify a separate directory for binlogs");
       unireg_abort(1);
     }
+#ifdef HAVE_REPLICATION
+    if (rpl_semi_sync_master_enabled)
+    {
+      sql_print_error("Semi-synchronous replication is not yet supported "
+                      "with --binlog-storage-engine");
+      unireg_abort(1);
+    }
+#endif
   }
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
@@ -5568,24 +5608,20 @@ static int init_server_components()
   {
     mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
     bool error;
+    mysql_mutex_lock(log_lock);
     if (opt_binlog_engine_hton)
     {
-      mysql_mutex_lock(log_lock);
-      error= (*opt_binlog_engine_hton->binlog_init)((size_t)max_binlog_size,
-                                                    opt_binlog_directory);
-      mysql_mutex_unlock(log_lock);
-      if (unlikely(error))
-        unireg_abort(1);
+      error= mysql_bin_log.open_engine(opt_binlog_engine_hton, max_binlog_size,
+                                       opt_binlog_directory);
     }
-    if (true) /* ToDo: `else` branch (don't open legacy binlog if using engine implementation). */
+    else
     {
-      mysql_mutex_lock(log_lock);
       error= mysql_bin_log.open(opt_bin_logname, 0, 0,
                                 WRITE_CACHE, max_binlog_size, 0, TRUE);
-      mysql_mutex_unlock(log_lock);
-      if (unlikely(error))
-        unireg_abort(1);
     }
+    mysql_mutex_unlock(log_lock);
+    if (unlikely(error))
+      unireg_abort(1);
   }
 
 #ifdef HAVE_REPLICATION
@@ -5595,9 +5631,12 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
-    if (binlog_space_limit)
-      mysql_bin_log.count_binlog_space_with_mutex();
-    mysql_bin_log.purge(1);
+    if (!opt_binlog_engine_hton)
+    {
+      if (binlog_space_limit)
+        mysql_bin_log.count_binlog_space_with_mutex();
+      mysql_bin_log.purge(1);
+    }
   }
   else
   {
