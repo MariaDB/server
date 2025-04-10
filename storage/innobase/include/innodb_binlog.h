@@ -171,13 +171,13 @@ extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
 extern void innodb_free_oob(THD *thd, void *engine_data);
 extern handler_binlog_reader *innodb_get_binlog_reader();
+extern void ibb_get_filename(char name[FN_REFLEN], uint64_t file_no);
 extern void innodb_binlog_trx(trx_t *trx, mtr_t *mtr);
 extern bool innobase_binlog_write_direct
   (IO_CACHE *cache, handler_binlog_event_group_info *binlog_info,
    const rpl_gtid *gtid);
 extern bool innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last);
-extern void innodb_binlog_status(char out_filename[FN_REFLEN],
-                                 ulonglong *out_pos);
+extern void innodb_binlog_status(uint64_t *out_file_no, uint64_t *out_pos);
 extern bool innodb_binlog_get_init_state(rpl_binlog_state_base *out_state);
 extern bool innodb_reset_binlogs();
 extern int innodb_binlog_purge(handler_binlog_purge_info *purge_info);
