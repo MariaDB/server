@@ -327,8 +327,8 @@ CREATE TABLE t1 (
 ) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1;
 
 insert  into t1(`id`,`local_name`) values
-(1,'Cache Advance'),
-(2,'Cache Advance'),
+(1,'Cash Advance'),
+(2,'Cash Advance'),
 (3,'Rollover'),
 (4,'AL Installment'),
 (5,'AL Installment'),
