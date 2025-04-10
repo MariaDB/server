@@ -286,7 +286,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
+  where state = "Enabling backup commit lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -1454,7 +1454,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
+  where state = "Enabling backup commit lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -1777,7 +1777,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
+  where state = "Enabling backup commit lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';

@@ -48,7 +48,10 @@ static const char *stage_names[]=
 TYPELIB backup_stage_names=
 { array_elements(stage_names)-1, "", stage_names, 0 };
 
-static MDL_ticket *backup_flush_ticket;
+static MDL_ticket *backup_flush_ticket= 0;
+static std::atomic<uint> backup_executing_commit;
+static uint backup_commit_lock_enabled= 0;
+
 static File volatile backup_log= -1;
 static int backup_log_error= 0;
 
@@ -59,16 +62,33 @@ static bool backup_block_commit(THD *thd);
 static bool start_ddl_logging();
 static void stop_ddl_logging();
 
-/**
-  Run next stage of backup
-*/
+
+/* Initialize backup variables */
 
 void backup_init()
 {
   backup_flush_ticket= 0;
   backup_log= -1;
   backup_log_error= 0;
+  backup_executing_commit= 0;
+  backup_commit_lock_enabled= 0;
 }
+
+
+void backup_reset()
+{
+  /*
+    Ensure that disable_backup_commit_locks() has been called for all
+    calls to enable_backup_commit_locks().
+  */
+  DBUG_ASSERT(backup_commit_lock_enabled == 0);
+  DBUG_ASSERT(backup_flush_ticket == 0);
+}
+
+
+/**
+  Run next stage of backup
+*/
 
 bool run_backup_stage(THD *thd, backup_stages stage)
 {
@@ -191,15 +211,145 @@ static bool backup_start(THD *thd)
     DBUG_RETURN(1);
   }
 
+  /* Downgrade lock to only block other backups */
+  mdl_request.ticket->downgrade_lock(MDL_BACKUP_START);
+
+  /* Wait for other threads to start taking MDL_BACKUP locks */
+  if (enable_backup_commit_locks(thd))
+  {
+    stop_ddl_logging();
+    thd->mdl_context.release_lock(mdl_request.ticket);
+    DBUG_RETURN(1);
+  }
+
   DBUG_ASSERT(backup_flush_ticket == 0);
   backup_flush_ticket= mdl_request.ticket;
 
-  /* Downgrade lock to only block other backups */
-  backup_flush_ticket->downgrade_lock(MDL_BACKUP_START);
-
+  /* Inform engines that backup is starting */
   ha_prepare_for_backup();
+
   DBUG_RETURN(0);
 }
+
+
+/*
+  Check if any threads are running a commit
+*/
+
+static my_bool check_if_thd_in_commit(THD *thd, void *arg)
+{
+  if (thd->executing_commit_without_backup_lock)
+    return 1;                          // Found thread in commit
+  return 0;
+}
+
+/*
+  Wait until all active commits are done and all server threads knows
+  that backup has started.
+  This will cause ha_commit_trans() to use MDL locks to enable protection
+  commits under FTWRL and BACKUP STAGE BLOCK_COMMIT
+*/
+
+bool enable_backup_commit_locks(THD *thd)
+{
+  /* Wait for all THD to start taking backup MDL locks during commit */
+  THD_STAGE_INFO(thd, stage_backup_setup_mdl_locks);
+
+  /*
+    We have to take a mutex here as this function can be called for
+    both FTWRL and BACKUP STAGE and we do not want to disable taking
+    mdl backup locks until both are finished.
+  */
+  mysql_mutex_lock(&LOCK_backup_commit);
+  backup_commit_lock_enabled++;
+  mysql_mutex_unlock(&LOCK_backup_commit);
+
+  /* We use a busy loop here the wait for a commit should be very fast */
+  while (backup_executing_commit)
+  {
+    my_sleep(100);                               // Sleep 0.1 seconds
+    if (thd->killed)
+    {
+      disable_backup_commit_locks();
+      return 1;
+    }
+  }
+  /*
+    Ensure that all threads are doing commits with mdl backup locks active.
+    This is to protect against a thread switche between calling
+    backup_is_running() and incrementing backup_executing_commit.
+  */
+  while (server_threads.iterate(check_if_thd_in_commit, (void*) 0))
+  {
+    if (thd->killed)
+    {
+      disable_backup_commit_locks();
+      return 1;
+    }
+    my_sleep(100);
+  }
+  THD_STAGE_INFO(thd, stage_backup_got_commit_lock);
+  return 0;
+}
+
+
+void disable_backup_commit_locks()
+{
+  mysql_mutex_lock(&LOCK_backup_commit);
+  backup_commit_lock_enabled--;
+  mysql_mutex_unlock(&LOCK_backup_commit);
+}
+
+
+inline bool have_backup_commit_locks()
+{
+  /* We don't need a mutex here as thanks to enable_backup_commit_locks() */
+  return backup_commit_lock_enabled != 0;
+}
+
+/*
+  Mark that the THD is about to execute a commit.
+  If backup is already running, the caller needs to
+  take a mdl lock instead
+*/
+
+bool protect_against_backup(THD *thd)
+{
+  if (unlikely(thd->executing_commit_without_backup_lock))
+    return 0;                                   /* Already protected */
+  if (unlikely(have_backup_commit_locks()))
+  {
+    if (unlikely(thd->mdl_context.acquire_lock(&thd->mdl_backup,
+                                               thd->variables.
+                                               lock_wait_timeout)))
+      return 1;
+    thd->backup_commit_lock= &thd->mdl_backup;  /* Remember we have the lock */
+    return 0;
+  }
+  /* Backup is not running. use fast protection */
+  backup_executing_commit.fetch_add(1);
+  thd->executing_commit_without_backup_lock= 1;
+  return 0;
+}
+
+
+void unprotect_against_backup(THD *thd)
+{
+  if (thd->mdl_backup.ticket)
+  {
+    DBUG_ASSERT(thd->backup_commit_lock);
+    thd->mdl_context.release_lock(thd->mdl_backup.ticket);
+    thd->mdl_backup.ticket= 0;
+    thd->backup_commit_lock= 0;
+  }
+  else if (thd->executing_commit_without_backup_lock)
+  {
+    backup_executing_commit.fetch_add(-1);
+    DBUG_ASSERT((int) backup_executing_commit >= 0);
+    thd->executing_commit_without_backup_lock= 0;
+  }
+}
+
 
 /**
    backup_flush()
@@ -458,6 +608,7 @@ bool backup_end(THD *thd)
     backup_flush_ticket= 0;
     thd->current_backup_stage= BACKUP_FINISHED;
     thd->mdl_context.release_lock(old_ticket);
+    disable_backup_commit_locks();
 #ifdef WITH_WSREP
     // If node was desynced, resume and resync
     if (thd->wsrep_desynced_backup_stage)

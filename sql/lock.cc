@@ -1125,6 +1125,7 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
 
 void Global_read_lock::unlock_global_read_lock(THD *thd)
 {
+  bool have_backup_commit_lock;
   DBUG_ENTER("unlock_global_read_lock");
 
   DBUG_ASSERT(m_mdl_global_read_lock && m_state);
@@ -1138,7 +1139,16 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     }
   }
 
+  /*
+    The backup commit lock was only taken and hold in
+    make_global_read_lock_block_commit() if the current lock is
+    FTWRL2
+  */
+  have_backup_commit_lock= (m_mdl_global_read_lock->get_type() ==
+                            MDL_BACKUP_FTWRL2);
   thd->mdl_context.release_lock(m_mdl_global_read_lock);
+  if (have_backup_commit_lock)
+    disable_backup_commit_locks();
 
 #ifdef WITH_WSREP
   if (m_state == GRL_ACQUIRED_AND_BLOCKS_COMMIT &&
@@ -1199,10 +1209,16 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   if (m_state != GRL_ACQUIRED)
     DBUG_RETURN(0);
 
+  if (enable_backup_commit_locks(thd))
+    DBUG_RETURN(TRUE);
+
   if (thd->mdl_context.upgrade_shared_lock(m_mdl_global_read_lock,
                                            MDL_BACKUP_FTWRL2,
                                            thd->variables.lock_wait_timeout))
+  {
+    disable_backup_commit_locks();
     DBUG_RETURN(TRUE);
+  }
 
   m_state= GRL_ACQUIRED_AND_BLOCKS_COMMIT;
 

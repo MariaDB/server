@@ -522,22 +522,12 @@ bool trans_xa_end(THD *thd)
 static bool trans_xa_get_backup_lock(THD *thd, MDL_request *mdl_request)
 {
   DBUG_ASSERT(thd->backup_commit_lock == 0);
-  MDL_REQUEST_INIT(mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                   MDL_EXPLICIT);
-  if (thd->mdl_context.acquire_lock(mdl_request,
-                                    thd->variables.lock_wait_timeout))
-    return 1;
-  thd->backup_commit_lock= mdl_request;
-  return 0;
+  return protect_against_backup(thd);
 }
 
 static inline void trans_xa_release_backup_lock(THD *thd)
 {
-  if (thd->backup_commit_lock)
-  {
-    thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
-    thd->backup_commit_lock= 0;
-  }
+  unprotect_against_backup(thd);
 }
 
 
