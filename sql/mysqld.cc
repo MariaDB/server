@@ -742,7 +742,7 @@ mysql_mutex_t LOCK_thread_id;
   server may be fairly high, we need a dedicated lock.
 */
 mysql_mutex_t LOCK_prepared_stmt_count;
-mysql_mutex_t LOCK_backup_log;
+mysql_mutex_t LOCK_backup_log, LOCK_backup_commit;
 mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 mysql_rwlock_t LOCK_ssl_refresh;
 mysql_rwlock_t LOCK_all_status_vars;
@@ -921,7 +921,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
   key_LOCK_gdl, key_LOCK_global_system_variables,
-  key_LOCK_manager, key_LOCK_backup_log,
+  key_LOCK_manager, key_LOCK_backup_log, key_LOCK_backup_commit,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_temp_pool,
@@ -985,6 +985,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_hash_filo_lock, "hash_filo::lock", 0},
   { &key_LOCK_active_mi, "LOCK_active_mi", PSI_FLAG_GLOBAL},
   { &key_LOCK_backup_log, "LOCK_backup_log", PSI_FLAG_GLOBAL},
+  { &key_LOCK_backup_commit, "LOCK_backup_commit", PSI_FLAG_GLOBAL},
   { &key_LOCK_temp_pool, "LOCK_temp_pool", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_id, "LOCK_thread_id", PSI_FLAG_GLOBAL},
   { &key_LOCK_crypt, "LOCK_crypt", PSI_FLAG_GLOBAL},
@@ -2049,6 +2050,7 @@ static void clean_up(bool print_message)
   logger.cleanup_end();
   sys_var_end();
   free_charsets();
+  backup_reset();
 
   my_free(const_cast<char*>(log_bin_basename));
   my_free(const_cast<char*>(log_bin_index));
@@ -2140,6 +2142,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_active_mi);
   mysql_rwlock_destroy(&LOCK_ssl_refresh);
   mysql_mutex_destroy(&LOCK_backup_log);
+  mysql_mutex_destroy(&LOCK_backup_commit);
   mysql_mutex_destroy(&LOCK_temp_pool);
   mysql_rwlock_destroy(&LOCK_sys_init_connect);
   mysql_rwlock_destroy(&LOCK_sys_init_slave);
@@ -4502,6 +4505,7 @@ static int init_thread_environment()
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_backup_log, &LOCK_backup_log, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_temp_pool, &LOCK_temp_pool, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_backup_commit, &LOCK_backup_commit, MY_MUTEX_INIT_FAST);
 
 #ifdef HAVE_OPENSSL
 #ifdef HAVE_des
@@ -9391,6 +9395,8 @@ PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel repli
 PSI_stage_info stage_starting= { 0, "starting", 0};
 PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be flushed", 0};
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
+PSI_stage_info stage_backup_setup_mdl_locks= { 0, "Enabling backup commit lock", 0};
+PSI_stage_info stage_backup_got_commit_lock= { 0, "Backup commit lock enabled", 0};
 
 #ifdef WITH_WSREP
 // Aditional Galera thread states

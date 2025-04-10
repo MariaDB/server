@@ -1346,6 +1346,9 @@ void THD::init()
   first_successful_insert_id_in_cur_stmt= 0;
   current_backup_stage= BACKUP_FINISHED;
   backup_commit_lock= 0;
+  executing_commit_without_backup_lock= 0;
+  MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                   MDL_EXPLICIT);
 #ifdef WITH_WSREP
   wsrep_last_query_id= 0;
   wsrep_xid.null();

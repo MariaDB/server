@@ -6953,18 +6953,11 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       DBUG_PRINT("info", ("direct is set"));
       DBUG_ASSERT(!thd->backup_commit_lock);
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
-      if (thd->mdl_context.acquire_lock(&mdl_request,
-                                        thd->variables.lock_wait_timeout))
+      if (protect_against_backup(thd))
         DBUG_RETURN(1);
-      thd->backup_commit_lock= &mdl_request;
-
       if ((res= thd->wait_for_prior_commit()))
       {
-        if (mdl_request.ticket)
-          thd->mdl_context.release_lock(mdl_request.ticket);
-        thd->backup_commit_lock= 0;
+        unprotect_against_backup(thd);
         DBUG_RETURN(res);
       }
       file= &log_file;
@@ -6982,9 +6975,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
           commit_id= entry->val_int(&null_value);
         });
       res= write_gtid_event(thd, true, using_trans, commit_id);
-      if (mdl_request.ticket)
-        thd->mdl_context.release_lock(mdl_request.ticket);
-      thd->backup_commit_lock= 0;
+      unprotect_against_backup(thd);
       if (res)
         goto err;
     }
