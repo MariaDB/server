@@ -35,15 +35,17 @@ https://mariadb.com/kb/en/new-and-old-releases/
 # Getting the code, building it and testing it
 
 Refer to the following guide:
+
 https://mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/
-which outlines how to build the source code correctly and run the MariaDB testing framework,
-as well as which branch to target for your contributions.
+
+which outlines how to build the source code correctly and run the MariaDB
+testing framework, as well as which branch to target for your contributions.
 
 # Help
 
 More help is available from the Maria Discuss mailing list
-https://lists.mariadb.org/postorius/lists/discuss.lists.mariadb.org/ and MariaDB's Zulip
-instance, https://mariadb.zulipchat.com/
+https://lists.mariadb.org/postorius/lists/discuss.lists.mariadb.org/ and
+MariaDB's Zulip instance, https://mariadb.zulipchat.com/
 
 # Licensing
 
