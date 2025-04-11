@@ -9610,7 +9610,7 @@ ha_innobase::ft_init_ext(
 	switch (trx->state) {
 	default:
 		ut_ad("invalid state" == 0);
-		my_printf_error(HA_ERR_ROLLBACK, "Invalid tansaction state",
+		my_printf_error(HA_ERR_ROLLBACK, "Invalid transaction state",
 				ME_ERROR_LOG);
 		return nullptr;
 	case TRX_STATE_ACTIVE:

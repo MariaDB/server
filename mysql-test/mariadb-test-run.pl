@@ -1859,7 +1859,7 @@ sub collect_mysqld_features {
     /^([\S]+)[ \t]+(.*?)\r?$/ or die "Could not parse mysqld --help: $_\n";
     $mysqld_variables{$1}= $2;
   }
-  mtr_error("Could not find variabes list") unless %mysqld_variables;
+  mtr_error("Could not find variables list") unless %mysqld_variables;
 }
 
 
@@ -5968,7 +5968,7 @@ Options that specify ports
                         set and is not "auto", it overrides build-thread.
   mtr-build-thread=#    Specify unique number to calculate port number(s) from.
   build-thread=#        Can be set in environment variable MTR_BUILD_THREAD.
-                        Set  MTR_BUILD_THREAD="auto" to automatically aquire
+                        Set  MTR_BUILD_THREAD="auto" to automatically acquire
                         a build thread id that is unique to current host
   port-group-size=N     Reserve groups of TCP ports of size N for each MTR thread
 

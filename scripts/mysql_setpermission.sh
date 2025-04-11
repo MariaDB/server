@@ -380,7 +380,7 @@ sub database {
     } else {
         print "Type either database name or * meaning any databasename. That means";
         print " any of those above but also any which will be created in future!";
-        print " This option gives a user chance to operate on databse mysql, which";
+        print " This option gives user a chance to operate on database mysql, which";
         print " contains privilege settings. That is really risky!\n";
       next;
     }

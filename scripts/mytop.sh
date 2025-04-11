@@ -1949,13 +1949,13 @@ sub PrintHelp()
   E - display current replication error
   f - show full query info for a given thread
   F - unfilter the display
-  h - show only a specifc host's connections
+  h - show only a specific host's connections
   H - toggle the mytop header
   i - toggle the display of idle (sleeping) threads
   I - show innodb status
   k - kill a thread
   p - pause the display
-  l - change long running queries hightlighing
+  l - change long running queries highlighting
   m - switch [mode] to qps (queries/sec) scrolling view
   M - switch [mode] to status
   o - reverse the sort order (toggle)
@@ -1963,7 +1963,7 @@ sub PrintHelp()
   r - reset the status counters (via FLUSH STATUS on your server)
   R - change reverse IP lookup
   s - change the delay between screen updates
-  S - change slow query hightlighting
+  S - change slow query highlighting
   t - switch to thread view (default)
   u - show only a specific user
   V - show variables

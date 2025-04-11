@@ -276,7 +276,7 @@ sub odbc_to_sql
     return "tinyint" if (!defined($precision));
     return "tinyint($precision)";
   }
-  die "Can't covert type '$type' to a ODBC type\n";
+  die "Can't convert type '$type' to a ODBC type\n";
 }
 
 #
