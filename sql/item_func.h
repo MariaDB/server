@@ -3774,11 +3774,14 @@ class Item_func_nextval :public Item_longlong_func
 protected:
   TABLE_LIST *table_list;
   TABLE *table;
+  bool check_access_and_fix_fields(THD *, Item **ref, privilege_t);
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
   Item_longlong_func(thd), table_list(table_list_arg) {}
   longlong val_int() override;
   const char *func_name() const override { return "nextval"; }
+  bool fix_fields(THD *thd, Item **ref) override
+  { return check_access_and_fix_fields(thd, ref, INSERT_ACL | SELECT_ACL); }
   bool fix_length_and_dec() override
   {
     unsigned_flag= 0;
@@ -3820,6 +3823,8 @@ class Item_func_lastval :public Item_func_nextval
 public:
   Item_func_lastval(THD *thd, TABLE_LIST *table_list_arg):
   Item_func_nextval(thd, table_list_arg) {}
+  bool fix_fields(THD *thd, Item **ref) override
+  { return check_access_and_fix_fields(thd, ref, SELECT_ACL); }
   longlong val_int() override;
   const char *func_name() const override { return "lastval"; }
   Item *do_get_copy(THD *thd) const override
@@ -3840,6 +3845,8 @@ public:
     : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
   {}
+  bool fix_fields(THD *thd, Item **ref) override
+  { return check_access_and_fix_fields(thd, ref, INSERT_ACL); }
   longlong val_int() override;
   const char *func_name() const override { return "setval"; }
   void print(String *str, enum_query_type query_type) override;
