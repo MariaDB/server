@@ -427,10 +427,18 @@ int ha_sequence::check(THD* thd, HA_CHECK_OPT* check_opt)
   if (int ret= file->check(thd, check_opt))
     DBUG_RETURN(ret);
   /* Check number of rows */
-  if ((file->table_flags() & HA_STATS_RECORDS_IS_EXACT) && file->stats.records > 1)
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS,
-                 ER_THD(thd, ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS));
+  if ((file->table_flags() & HA_STATS_RECORDS_IS_EXACT))
+  {
+    if (file->stats.records > 1)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS,
+                   ER_THD(thd, ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS));
+    else if (file->stats.records == 0)
+    {
+      my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
+      DBUG_RETURN(HA_ADMIN_CORRUPT);
+    }
+  }
   /*
     Initialise the sequence from the table if needed.
   */
@@ -446,7 +454,7 @@ int ha_sequence::check(THD* thd, HA_CHECK_OPT* check_opt)
   if (sequence->check_and_adjust(thd, false, /*adjust_next=*/false))
   {
     print_error(HA_ERR_SEQUENCE_INVALID_DATA, MYF(0));
-    DBUG_RETURN(HA_ADMIN_FAILED);
+    DBUG_RETURN(HA_ADMIN_CORRUPT);
   }
   /* Check value not exhausted */
   if (sequence->has_run_out())

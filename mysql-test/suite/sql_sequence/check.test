@@ -23,45 +23,41 @@ select nextval(s);
 --enable_ps2_protocol
 drop sequence s;
 
-# Insert a row into a non-sequence table then turn it into a sequence
-# table
-create sequence s;
-alter table s sequence=0;
+# More than one row
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s sequence=0;
 insert into s values (3,1,9223372036854775806,1,1,1000,0,0);
-select * from s;
-alter table s sequence=1;
-check table s;
-# Only the first row appears
-select * from s;
-check table s;
---disable_ps2_protocol
-select nextval(s);
---enable_ps2_protocol
-check table s;
-drop sequence s;
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+DROP SEQUENCE s;
 
-# Insert a wrong row (min > max)
-create sequence s;
-alter table s sequence=0 engine=innodb;
+# Fewer than one row
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s sequence=0;
 delete from s;
-insert into s values (2,500,200,1,1,1000,0,0);
-select * from s;
-alter table s sequence=1;
-check table s;
-select * from s;
-# SELECT NEXTVAL does not fail, with or without execution of check
-# table beforehand, even though the sequence metadata is wrong. This
-# should be a separate issue to fix, if needed.
---disable_ps2_protocol
-select nextval(s);
---enable_ps2_protocol
-check table s;
-# REPAIR is still delegated to the underlying engine. It is not
-# implemented in innodb. In this case the printing of
-# HA_ERR_SEQUENCE_INVALID_DATA happens when trying to write row in
-# mysql_alter_table through a call to admin_recreate_table().
-repair table s;
-drop sequence s;
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+DROP SEQUENCE s;
+
+# Wrong metadata (minvalue > maxvalue)
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s sequence=0;
+update s set minimum_value=200, maximum_value=100;
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+DROP SEQUENCE s;
 
 # Sequence run out tests.
 #
@@ -136,25 +132,8 @@ select nextval(s);
 --enable_ps2_protocol
 drop sequence s;
 
-# Directly create a table with wrong structure is detected, therefore
-# no check is needed
-CREATE TABLE `s` (
-  # `next_not_cached_value` bigint(21) NOT NULL,
-  `minimum_value` bigint(21) NOT NULL,
-  `maximum_value` bigint(21) NOT NULL,
-  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
-  `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache_size` bigint(21) unsigned NOT NULL,
-  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
-  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
-) ENGINE=innodb;
---error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
-alter table s sequence=1;
-drop table s;
-
-# Altering a sequence table to a wrong structure is detected,
-# therefore no check needed
+# UPDATE is banned by the storage engine - no need to check.
 create sequence s;
---error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
-alter table s drop column next_not_cached_value;
+--error ER_ILLEGAL_HA
+update s set minimum_value=500, maximum_value=200;
 drop sequence s;
