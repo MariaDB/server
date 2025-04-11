@@ -48,29 +48,49 @@ static const char *stage_names[]=
 TYPELIB backup_stage_names=
 { array_elements(stage_names)-1, "", stage_names, 0 };
 
-static MDL_ticket *backup_flush_ticket;
+static MDL_ticket *backup_flush_ticket= 0;
+std::atomic<uint> THD::backup_commit_lock_enabled;
+
 static File volatile backup_log= -1;
 static int backup_log_error= 0;
 
-static bool backup_start(THD *thd);
-static bool backup_flush(THD *thd);
-static bool backup_block_ddl(THD *thd);
-static bool backup_block_commit(THD *thd);
-static bool start_ddl_logging();
-static void stop_ddl_logging();
+static bool backup_start(THD *thd) noexcept;
+static bool backup_flush(THD *thd) noexcept;
+static bool backup_block_ddl(THD *thd) noexcept;
+static bool backup_block_commit(THD *thd) noexcept;
+static bool start_ddl_logging() noexcept;
+static void stop_ddl_logging() noexcept;
+
+
+/* Initialize backup variables */
+
+void backup_init() noexcept
+{
+  DBUG_ASSERT(backup_flush_ticket == 0);
+  DBUG_ASSERT(THD::backup_commit_lock_enabled == 0);
+  backup_log= -1;
+  backup_log_error= 0;
+}
+
+
+#ifndef DBUG_OFF
+void backup_reset() noexcept
+{
+  /*
+    Ensure that disable_backup_commit_locks() has been called for all
+    calls to enable_backup_commit_locks().
+  */
+  DBUG_ASSERT(THD::backup_commit_lock_enabled == 0);
+  DBUG_ASSERT(backup_flush_ticket == 0);
+}
+#endif
+
 
 /**
   Run next stage of backup
 */
 
-void backup_init()
-{
-  backup_flush_ticket= 0;
-  backup_log= -1;
-  backup_log_error= 0;
-}
-
-bool run_backup_stage(THD *thd, backup_stages stage)
+bool run_backup_stage(THD *thd, backup_stages stage) noexcept
 {
   backup_stages next_stage;
   DBUG_ENTER("run_backup_stage");
@@ -157,7 +177,7 @@ bool run_backup_stage(THD *thd, backup_stages stage)
     to speed up the recovery stage of the backup.
 */
 
-static bool backup_start(THD *thd)
+static bool backup_start(THD *thd) noexcept
 {
   MDL_request mdl_request;
   DBUG_ENTER("backup_start");
@@ -191,15 +211,96 @@ static bool backup_start(THD *thd)
     DBUG_RETURN(1);
   }
 
+  /* Downgrade lock to only block other backups */
+  mdl_request.ticket->downgrade_lock(MDL_BACKUP_START);
+
+  /* Wait for other threads to start taking MDL_BACKUP locks */
+  if (thd->enable_backup_commit_locks())
+  {
+    stop_ddl_logging();
+    thd->mdl_context.release_lock(mdl_request.ticket);
+    DBUG_RETURN(1);
+  }
+
   DBUG_ASSERT(backup_flush_ticket == 0);
   backup_flush_ticket= mdl_request.ticket;
 
-  /* Downgrade lock to only block other backups */
-  backup_flush_ticket->downgrade_lock(MDL_BACKUP_START);
-
+  /* Inform engines that backup is starting */
   ha_prepare_for_backup();
+
   DBUG_RETURN(0);
 }
+
+
+/** @return whether a thread is in "fast path" THD::protect_against_backup() */
+static my_bool check_if_unblocked(THD *thd, void *) noexcept
+{
+  return thd->backup_commit_lock.load(std::memory_order_acquire) ==
+    THD::IN_COMMIT_NO_LOCK;
+}
+
+/*
+  Wait until all active commits are done and all server threads knows
+  that backup has started.
+  This will cause ha_commit_trans() to use MDL locks to enable protection
+  commits under FTWRL and BACKUP STAGE BLOCK_COMMIT
+*/
+
+bool THD::enable_backup_commit_locks() noexcept
+{
+  /* Wait for all THD to start taking backup MDL locks during commit */
+  THD_STAGE_INFO(this, stage_backup_setup_mdl_locks);
+
+  /* Notify THD::protect_against_backup() that we are interested in them. */
+  backup_commit_lock_enabled.fetch_add(1, std::memory_order_release);
+
+  /*
+    Ensure that all threads are doing commits with mdl backup locks active.
+  */
+  while (server_threads.iterate(check_if_unblocked, static_cast<void*>(0)))
+  {
+    if (killed)
+    {
+      disable_backup_commit_locks();
+      return 1;
+    }
+    my_sleep(100);
+  }
+  THD_STAGE_INFO(this, stage_backup_got_commit_lock);
+  return 0;
+}
+
+
+void THD::disable_backup_commit_locks() noexcept
+{
+  IF_DBUG(auto l=,)
+    backup_commit_lock_enabled.fetch_sub(1, std::memory_order_relaxed);
+  DBUG_ASSERT(l);
+}
+
+
+ATTRIBUTE_COLD bool THD::protect_against_backup_slow() noexcept
+{
+  /* The slow path: First, update our state, then wait for mdl_backup. */
+  DBUG_ASSERT(this == current_thd);
+
+  backup_commit_lock.store(IN_COMMIT_WITH_LOCK, std::memory_order_release);
+  if (likely(!mdl_context.acquire_lock
+             (&mdl_backup, variables.lock_wait_timeout)))
+    return false;
+
+  backup_commit_lock.store(OUTSIDE_COMMIT, std::memory_order_release);
+  return true;
+}
+
+
+ATTRIBUTE_COLD void THD::unprotect_against_backup_slow() noexcept
+{
+  DBUG_ASSERT(this == current_thd);
+  mdl_context.release_lock(mdl_backup.ticket);
+  mdl_backup.ticket= nullptr;
+}
+
 
 /**
    backup_flush()
@@ -218,7 +319,7 @@ static bool backup_start(THD *thd)
      CREATE, RENAME, DROP
 */
 
-static bool backup_flush(THD *thd)
+static bool backup_flush(THD *thd) noexcept
 {
   DBUG_ENTER("backup_flush");
   /*
@@ -265,7 +366,7 @@ static bool backup_flush(THD *thd)
 /* Retry to get inital lock for 0.1 + 0.5 + 2.25 + 11.25 + 56.25 = 70.35 sec */
 #define MAX_RETRY_COUNT 5
 
-static bool backup_block_ddl(THD *thd)
+static bool backup_block_ddl(THD *thd) noexcept
 {
   PSI_stage_info org_stage;
   uint sleep_time;
@@ -392,7 +493,7 @@ err:
    Block commits, writes to log and statistics tables and binary log
 */
 
-static bool backup_block_commit(THD *thd)
+static bool backup_block_commit(THD *thd) noexcept
 {
   DBUG_ENTER("backup_block_commit");
   if (thd->mdl_context.upgrade_shared_lock(backup_flush_ticket,
@@ -444,7 +545,7 @@ static bool backup_block_commit(THD *thd)
    This is for example the case when a THD ends.
 */
 
-bool backup_end(THD *thd)
+bool backup_end(THD *thd) noexcept
 {
   DBUG_ENTER("backup_end");
 
@@ -457,6 +558,7 @@ bool backup_end(THD *thd)
     stop_ddl_logging();
     backup_flush_ticket= 0;
     thd->current_backup_stage= BACKUP_FINISHED;
+    thd->disable_backup_commit_locks();
     thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP
     // If node was desynced, resume and resync
@@ -490,15 +592,14 @@ bool backup_end(THD *thd)
    the lock may be of type MDL_BACKUP_DML.
 */
 
-void backup_set_alter_copy_lock(THD *thd, TABLE *table)
+void backup_set_alter_copy_lock(THD *thd, TABLE *table) noexcept
 {
-  MDL_ticket *ticket= thd->mdl_backup_ticket;
-
-  /* Ticket maybe NULL in case of LOCK TABLES or for temporary tables*/
-  DBUG_ASSERT(ticket || thd->locked_tables_mode ||
-              table->s->tmp_table != NO_TMP_TABLE);
-  if (ticket)
+  if (MDL_ticket *ticket= thd->mdl_backup_ticket)
     ticket->downgrade_lock(MDL_BACKUP_ALTER_COPY);
+  else
+    /* Ticket maybe NULL in case of LOCK TABLES or for temporary tables*/
+    DBUG_ASSERT(thd->locked_tables_mode ||
+                table->s->tmp_table != NO_TMP_TABLE);
 }
 
 /**
@@ -508,7 +609,7 @@ void backup_set_alter_copy_lock(THD *thd, TABLE *table)
    Can fail if MDL lock was killed
 */
 
-bool backup_reset_alter_copy_lock(THD *thd)
+bool backup_reset_alter_copy_lock(THD *thd) noexcept
 {
   bool res= 0;
   MDL_ticket *ticket= thd->mdl_backup_ticket;
@@ -528,7 +629,7 @@ bool backup_reset_alter_copy_lock(THD *thd)
 *****************************************************************************/
 
 
-bool backup_lock(THD *thd, TABLE_LIST *table)
+bool backup_lock(THD *thd, TABLE_LIST *table) noexcept
 {
   /* We should leave the previous table unlocked in case of errors */
   backup_unlock(thd);
@@ -548,7 +649,7 @@ bool backup_lock(THD *thd, TABLE_LIST *table)
 
 /* Release old backup lock if it exists */
 
-void backup_unlock(THD *thd)
+void backup_unlock(THD *thd) noexcept
 {
   if (thd->mdl_backup_lock)
     thd->mdl_context.release_lock(thd->mdl_backup_lock);
@@ -560,7 +661,7 @@ void backup_unlock(THD *thd)
  Logging of ddl statements to backup log
 *****************************************************************************/
 
-static bool start_ddl_logging()
+static bool start_ddl_logging() noexcept
 {
   char name[FN_REFLEN];
   DBUG_ENTER("start_ddl_logging");
@@ -574,7 +675,7 @@ static bool start_ddl_logging()
   DBUG_RETURN(backup_log < 0);
 }
 
-static void stop_ddl_logging()
+static void stop_ddl_logging() noexcept
 {
   mysql_mutex_lock(&LOCK_backup_log);
   if (backup_log >= 0)
@@ -588,6 +689,7 @@ static void stop_ddl_logging()
 
 
 static inline char *add_str_to_buffer(char *ptr, const LEX_CSTRING *from)
+  noexcept
 {
   if (from->length)                           // If length == 0, str may be 0
     memcpy(ptr, from->str, from->length);
@@ -636,7 +738,7 @@ static char *add_bool_to_buffer(char *ptr, bool value) {
   to ensure that all logging had succeded
 */
 
-void backup_log_ddl(const backup_log_info *info)
+void backup_log_ddl(const backup_log_info *info) noexcept
 {
   if (backup_log >= 0 && backup_log_error == 0)
   {
