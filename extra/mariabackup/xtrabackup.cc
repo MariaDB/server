@@ -5588,7 +5588,7 @@ fail:
 
 	/* Populate fil_system with tablespaces to copy */
 	if (dberr_t err = xb_load_tablespaces()) {
-		msg("merror: xb_load_tablespaces() failed with"
+		msg("error: xb_load_tablespaces() failed with"
 		    " error %s.", ut_strerr(err));
 		log_copying_running = false;
 		goto fail;

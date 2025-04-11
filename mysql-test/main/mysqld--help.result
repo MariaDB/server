@@ -1078,7 +1078,7 @@ The following specify which files/extra groups are read (specified before remain
  --pid-file=name     Pid file used by mariadbd-safe
  --plugin-dir=name   Directory for plugins
  --plugin-load=name  Semicolon-separated list of plugins to load, where each
- plugin is specified as ether a plugin_name=library_file
+ plugin is specified as either a plugin_name=library_file
  pair or only a library_file. If the latter case, all
  plugins from a given library_file will be loaded
  --plugin-load-add=name 

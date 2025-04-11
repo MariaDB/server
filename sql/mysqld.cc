@@ -6987,7 +6987,7 @@ struct my_option my_long_options[]=
    OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin-load", OPT_PLUGIN_LOAD,
    "Semicolon-separated list of plugins to load, where each plugin is "
-   "specified as ether a plugin_name=library_file pair or only a library_file. "
+   "specified as either a plugin_name=library_file pair or only a library_file. "
    "If the latter case, all plugins from a given library_file will be loaded",
    0, 0, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},

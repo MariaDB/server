@@ -1296,7 +1296,7 @@ sub collect_mysqld_features () {
   }
   rmtree($tmpdir) if (!$opt_tmpdir);
   mtr_error("Could not find version of MySQL") unless $mysql_version_id;
-  mtr_error("Could not find variabes list") unless $found_variable_list_start;
+  mtr_error("Could not find variables list") unless $found_variable_list_start;
 
 }
 
