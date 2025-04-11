@@ -203,7 +203,7 @@ VIRTUAL, ADD FULLTEXT KEY ftidx ( col9 ), algorithm=inplace;
 # This will add a hidden FTS_DOC_ID column
 CREATE FULLTEXT INDEX idx ON t1(col9);
 
-# Since there is no table rebuild needed, now the alter would be sucessful
+# Since there is no table rebuild needed, now the alter would be successful
 ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col5x % col6x)
 VIRTUAL, ADD FULLTEXT KEY ftidx ( col9 ), algorithm=inplace;
 

@@ -9,7 +9,7 @@
 let $num_threads = 10;
 let $num_rows_per_thread = 100000;
 
-# Create the table with an AUTO_INCREMENT primary key and a separate colum
+# Create the table with an AUTO_INCREMENT primary key and a separate column
 # to store which thread created the row
 CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, thr INT) ENGINE=rocksdb;
 

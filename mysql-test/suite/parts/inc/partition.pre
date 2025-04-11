@@ -359,21 +359,21 @@ if (0)
 #      3. We want abort testing if we know that a certain error must not happen.
 #      Common but unusable Solutions:
 #      a) --error 0, ER_DUP_KEY, ER_DUP_ENTRY
-#         <statment>
+#         <statement>
 #         We get no error message even if the statement fails.
 #      b) --error ER_DUP_KEY, ER_DUP_ENTRY
-#         <statment>
+#         <statement>
 #         We might get "got one of the expected errors".
 #         There are situations where the statement must be successful.
 #      c) --disable_abort_on_error
-#         <statment>
+#         <statement>
 #         --enable_abort_on_error
 #         And nothing extra
 #         We do not abort in case of unexpected server errors.
 #
 #      Final solution:
 #         --disable_abort_on_error
-#         <statment>
+#         <statement>
 #         --enable_abort_on_error
 #         Check via error number if the error is not totally unexpected.
 #         The sub tests use $ER_DUP_KEY, $ER_DUP_ENTRY, etc.

@@ -87,7 +87,7 @@ flush privileges;
 show grants for mysqltest_1@localhost;
 
 #
-# Test what happens when you have same table and colum level grants
+# Test what happens when you have same table and column level grants
 #
 
 create table t1 (a int);

@@ -435,7 +435,7 @@ drop table t1;
 
 
 #
-# cleunup() of optimized away count(*) and max/min
+# cleanup() of optimized away count(*) and max/min
 #
 create table t1 (a int);
 insert into t1 values (1),(2);

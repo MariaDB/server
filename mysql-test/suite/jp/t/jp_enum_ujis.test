@@ -75,7 +75,7 @@ DESC `£Ô£¸`;
 DESC `£Ô£¹`;
 
 #
-# Test problem with enum values after the colum with  NOT NULL restriction
+# Test problem with enum values after the column with  NOT NULL restriction
 #
 
 ALTER TABLE `£Ô£±` ADD `£Ã£²` CHAR(1) NOT NULL FIRST;

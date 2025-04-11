@@ -143,7 +143,7 @@ show table status;
 # The same as before
 show table status in mysqltest;
 
-# The should show all ables from `test` DB
+# This should show all tables from `test` DB
 --replace_column 12 # 13 # 14 #
 --horizontal_results
 show table status in test;
