@@ -8079,7 +8079,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   wait_for_commit *wfc;
   bool backup_lock_released= 0;
   int result= 0;
-  THD *thd= orig_entry->thd;
+  THD *const thd= orig_entry->thd;
   DBUG_ENTER("MYSQL_BIN_LOG::queue_for_group_commit");
   DBUG_ASSERT(thd == current_thd);
 
@@ -8091,7 +8091,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     another safe check under lock, to avoid the race where the other
     transaction wakes us up between the check and the wait.
   */
-  wfc= orig_entry->thd->wait_for_commit_ptr;
+  wfc= thd->wait_for_commit_ptr;
   orig_entry->queued_by_other= false;
   if (wfc && wfc->waitee.load(std::memory_order_acquire))
   {
@@ -8120,12 +8120,14 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           yet have the MDL_BACKUP_COMMIT_LOCK) and any threads using
           BACKUP LOCK BLOCK_COMMIT.
         */
-      if (thd->backup_commit_lock && thd->backup_commit_lock->ticket &&
-          !backup_lock_released)
+
+      if (!backup_lock_released &&
+          thd->backup_commit_lock.load(std::memory_order_relaxed) &&
+          thd->mdl_backup.ticket)
       {
-        backup_lock_released= 1;
-        thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
-        thd->backup_commit_lock->ticket= 0;
+        backup_lock_released= true;
+        thd->mdl_context.release_lock(thd->mdl_backup.ticket);
+        thd->mdl_backup.ticket= nullptr;
       }
 
       /*
@@ -8143,13 +8145,12 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
         we have been woken up.
       */
       wfc->opaque_pointer= orig_entry;
-      DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior");
-      orig_entry->thd->ENTER_COND(&wfc->COND_wait_commit,
-                                  &wfc->LOCK_wait_commit,
-                                  &stage_waiting_for_prior_transaction_to_commit,
-                                  &old_stage);
+      DEBUG_SYNC(thd, "group_commit_waiting_for_prior");
+      thd->ENTER_COND(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit,
+                      &stage_waiting_for_prior_transaction_to_commit,
+                      &old_stage);
       while ((loc_waitee= wfc->waitee.load(std::memory_order_relaxed)) &&
-              !orig_entry->thd->check_killed(1))
+              !thd->check_killed(1))
         mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
       wfc->opaque_pointer= NULL;
       DBUG_PRINT("info", ("After waiting for prior commit, queued_by_other=%d",
@@ -8180,19 +8181,19 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           */
           wfc->waitee.store(NULL, std::memory_order_relaxed);
 
-          orig_entry->thd->EXIT_COND(&old_stage);
+          thd->EXIT_COND(&old_stage);
           /* Interrupted by kill. */
-          DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior_killed");
-          wfc->wakeup_error= orig_entry->thd->killed_errno();
+          DEBUG_SYNC(thd, "group_commit_waiting_for_prior_killed");
+          wfc->wakeup_error= thd->killed_errno();
           if (!wfc->wakeup_error)
             wfc->wakeup_error= ER_QUERY_INTERRUPTED;
           my_message(wfc->wakeup_error,
-                     ER_THD(orig_entry->thd, wfc->wakeup_error), MYF(0));
+                     ER_THD(thd, wfc->wakeup_error), MYF(0));
           result= -1;
           goto end;
         }
       }
-      orig_entry->thd->EXIT_COND(&old_stage);
+      thd->EXIT_COND(&old_stage);
     }
     else
       mysql_mutex_unlock(&wfc->LOCK_wait_commit);
@@ -8213,8 +8214,8 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   }
 
   /* Now enqueue ourselves in the group commit queue. */
-  DEBUG_SYNC(orig_entry->thd, "commit_before_enqueue");
-  orig_entry->thd->clear_wakeup_ready();
+  DEBUG_SYNC(thd, "commit_before_enqueue");
+  thd->clear_wakeup_ready();
   mysql_mutex_lock(&LOCK_prepare_ordered);
   orig_queue= group_commit_queue;
 
@@ -8259,9 +8260,9 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
     if (entry->cache_mngr->using_xa)
     {
-      DEBUG_SYNC(orig_entry->thd, "commit_before_prepare_ordered");
+      DEBUG_SYNC(thd, "commit_before_prepare_ordered");
       run_prepare_ordered(entry->thd, entry->all);
-      DEBUG_SYNC(orig_entry->thd, "commit_after_prepare_ordered");
+      DEBUG_SYNC(thd, "commit_after_prepare_ordered");
     }
 
     if (cur)
@@ -8382,14 +8383,14 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   if (opt_binlog_commit_wait_count > 0 && orig_queue != NULL)
     mysql_cond_signal(&COND_prepare_ordered);
   mysql_mutex_unlock(&LOCK_prepare_ordered);
-  DEBUG_SYNC(orig_entry->thd, "commit_after_release_LOCK_prepare_ordered");
+  DEBUG_SYNC(thd, "commit_after_release_LOCK_prepare_ordered");
 
   DBUG_PRINT("info", ("Queued for group commit as %s",
                       (orig_queue == NULL) ? "leader" : "participant"));
 
 end:
   if (backup_lock_released)
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
+    thd->mdl_context.acquire_lock(&thd->mdl_backup,
                                   thd->variables.lock_wait_timeout);
   DBUG_RETURN(result);
 }

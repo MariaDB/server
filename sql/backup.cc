@@ -50,7 +50,7 @@ TYPELIB backup_stage_names=
 
 static MDL_ticket *backup_flush_ticket= 0;
 static std::atomic<uint> backup_executing_commit;
-static uint backup_commit_lock_enabled= 0;
+static std::atomic<uint> backup_commit_lock_enabled;
 
 static File volatile backup_log= -1;
 static int backup_log_error= 0;
@@ -236,11 +236,9 @@ static bool backup_start(THD *thd)
   Check if any threads are running a commit
 */
 
-static my_bool check_if_thd_in_commit(THD *thd, void *arg)
+static my_bool check_if_thd_in_commit(THD *thd, void *) noexcept
 {
-  if (thd->executing_commit_without_backup_lock)
-    return 1;                          // Found thread in commit
-  return 0;
+  return thd->backup_commit_lock.load(std::memory_order_acquire) == 2;
 }
 
 /*
@@ -250,7 +248,7 @@ static my_bool check_if_thd_in_commit(THD *thd, void *arg)
   commits under FTWRL and BACKUP STAGE BLOCK_COMMIT
 */
 
-bool enable_backup_commit_locks(THD *thd)
+bool enable_backup_commit_locks(THD *thd) noexcept
 {
   /* Wait for all THD to start taking backup MDL locks during commit */
   THD_STAGE_INFO(thd, stage_backup_setup_mdl_locks);
@@ -261,11 +259,11 @@ bool enable_backup_commit_locks(THD *thd)
     mdl backup locks until both are finished.
   */
   mysql_mutex_lock(&LOCK_backup_commit);
-  backup_commit_lock_enabled++;
+  backup_commit_lock_enabled.fetch_add(1, std::memory_order_acq_rel);
   mysql_mutex_unlock(&LOCK_backup_commit);
 
   /* We use a busy loop here the wait for a commit should be very fast */
-  while (backup_executing_commit)
+  while (backup_executing_commit.load(std::memory_order_relaxed))
   {
     my_sleep(100);                               // Sleep 0.1 seconds
     if (thd->killed)
@@ -276,7 +274,7 @@ bool enable_backup_commit_locks(THD *thd)
   }
   /*
     Ensure that all threads are doing commits with mdl backup locks active.
-    This is to protect against a thread switche between calling
+    This is to protect against a thread switch between calling
     backup_is_running() and incrementing backup_executing_commit.
   */
   while (server_threads.iterate(check_if_thd_in_commit, (void*) 0))
@@ -293,18 +291,16 @@ bool enable_backup_commit_locks(THD *thd)
 }
 
 
-void disable_backup_commit_locks()
+void disable_backup_commit_locks() noexcept
 {
-  mysql_mutex_lock(&LOCK_backup_commit);
-  backup_commit_lock_enabled--;
-  mysql_mutex_unlock(&LOCK_backup_commit);
+  backup_commit_lock_enabled.fetch_sub(1, std::memory_order_acq_rel);
 }
 
 
-inline bool have_backup_commit_locks()
+inline bool have_backup_commit_locks() noexcept
 {
   /* We don't need a mutex here as thanks to enable_backup_commit_locks() */
-  return backup_commit_lock_enabled != 0;
+  return backup_commit_lock_enabled.load(std::memory_order_acquire) != 0;
 }
 
 /*
@@ -313,9 +309,11 @@ inline bool have_backup_commit_locks()
   take a mdl lock instead
 */
 
-bool protect_against_backup(THD *thd)
+bool protect_against_backup(THD *thd) noexcept
 {
-  if (unlikely(thd->executing_commit_without_backup_lock))
+  DBUG_ASSERT(thd == current_thd);
+
+  if (unlikely(thd->backup_commit_lock.load(std::memory_order_relaxed)))
     return 0;                                   /* Already protected */
   if (unlikely(have_backup_commit_locks()))
   {
@@ -323,30 +321,38 @@ bool protect_against_backup(THD *thd)
                                                thd->variables.
                                                lock_wait_timeout)))
       return 1;
-    thd->backup_commit_lock= &thd->mdl_backup;  /* Remember we have the lock */
+    thd->backup_commit_lock.store(1, std::memory_order_release);
     return 0;
   }
   /* Backup is not running. use fast protection */
-  backup_executing_commit.fetch_add(1);
-  thd->executing_commit_without_backup_lock= 1;
+  backup_executing_commit.fetch_add(1, std::memory_order_relaxed);
+  thd->backup_commit_lock.store(2, std::memory_order_release);
   return 0;
 }
 
 
-void unprotect_against_backup(THD *thd)
+void unprotect_against_backup(THD *thd) noexcept
 {
-  if (thd->mdl_backup.ticket)
-  {
-    DBUG_ASSERT(thd->backup_commit_lock);
+  const uint l= thd->backup_commit_lock.load(std::memory_order_relaxed);
+
+  DBUG_ASSERT(thd == current_thd);
+
+  switch (l) {
+  case 0:
+    break;
+  default:
+    DBUG_ASSERT(l == 2);
+    {
+      IF_DBUG(auto i=,)
+        backup_executing_commit.fetch_sub(1, std::memory_order_relaxed);
+      DBUG_ASSERT(i);
+    }
+    thd->backup_commit_lock.store(0, std::memory_order_release);
+    break;
+  case 1:
+    thd->backup_commit_lock.store(0, std::memory_order_release);
     thd->mdl_context.release_lock(thd->mdl_backup.ticket);
-    thd->mdl_backup.ticket= 0;
-    thd->backup_commit_lock= 0;
-  }
-  else if (thd->executing_commit_without_backup_lock)
-  {
-    backup_executing_commit.fetch_add(-1);
-    DBUG_ASSERT((int) backup_executing_commit >= 0);
-    thd->executing_commit_without_backup_lock= 0;
+    thd->mdl_backup.ticket= nullptr;
   }
 }
 

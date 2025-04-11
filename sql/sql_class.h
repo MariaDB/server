@@ -2740,10 +2740,8 @@ public:
   MDL_ticket *mdl_backup_ticket, *mdl_backup_lock;
   /* Pre-initialized backup lock for the THD */
   MDL_request mdl_backup;
-  /* Used to register that thread has a MDL_BACKUP_WAIT_COMMIT lock */
-  MDL_request *backup_commit_lock;
-  /* True if the thread is executing a commit without a mdl lock */
-  bool executing_commit_without_backup_lock;
+  /** whether the thread holds a MDL_BACKUP_WAIT_COMMIT lock */
+  std::atomic<uint> backup_commit_lock;
 
   void reset_for_next_command(bool do_clear_errors= 1);
 

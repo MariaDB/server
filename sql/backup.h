@@ -45,8 +45,8 @@ bool backup_reset_alter_copy_lock(THD *thd);
 bool backup_lock(THD *thd, TABLE_LIST *table);
 void backup_unlock(THD *thd);
 void backup_log_ddl(const backup_log_info *info);
-bool protect_against_backup(THD *thd);
-void unprotect_against_backup(THD *thd);
-bool enable_backup_commit_locks(THD *thd);
-void disable_backup_commit_locks();
+bool protect_against_backup(THD *thd) noexcept;
+void unprotect_against_backup(THD *thd) noexcept;
+bool enable_backup_commit_locks(THD *thd) noexcept;
+void disable_backup_commit_locks() noexcept;
 #endif /* BACKUP_INCLUDED */

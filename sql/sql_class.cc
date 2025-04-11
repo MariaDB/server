@@ -1345,8 +1345,7 @@ void THD::init()
   first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   first_successful_insert_id_in_cur_stmt= 0;
   current_backup_stage= BACKUP_FINISHED;
-  backup_commit_lock= 0;
-  executing_commit_without_backup_lock= 0;
+  backup_commit_lock.store(0, std::memory_order_relaxed);
   MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
                    MDL_EXPLICIT);
 #ifdef WITH_WSREP
@@ -8307,7 +8306,8 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
-  bool backup_lock_released= false;
+
+  DBUG_ASSERT(thd == current_thd);
 
   /*
     Release MDL_BACKUP_COMMIT LOCK while waiting for other threads to commit
@@ -8315,11 +8315,14 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
     yet have the MDL_BACKUP_COMMIT_LOCK) and any threads using
     BACKUP LOCK BLOCK_COMMIT.
   */
-  if (thd->backup_commit_lock && thd->backup_commit_lock->ticket)
+  const bool backup_lock_released=
+    thd->backup_commit_lock.load(std::memory_order_relaxed) == 1 &&
+    thd->mdl_backup.ticket;
+
+  if (backup_lock_released)
   {
-    backup_lock_released= true;
-    thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
-    thd->backup_commit_lock->ticket= 0;
+    thd->mdl_context.release_lock(thd->mdl_backup.ticket);
+    thd->mdl_backup.ticket= nullptr;
   }
 
   mysql_mutex_lock(&LOCK_wait_commit);
@@ -8334,7 +8337,9 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
   {
     if (wakeup_error)
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
-    goto end;
+  end:
+    thd->EXIT_COND(&old_stage);
+    goto func_exit;
   }
   /*
     Wait was interrupted by kill. We need to unregister our wait and give the
@@ -8370,15 +8375,9 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
     use within enter_cond/exit_cond.
   */
   DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
+func_exit:
   if (unlikely(backup_lock_released))
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
-                                  thd->variables.lock_wait_timeout);
-  return wakeup_error;
-
-end:
-  thd->EXIT_COND(&old_stage);
-  if (unlikely(backup_lock_released))
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
+    thd->mdl_context.acquire_lock(&thd->mdl_backup,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
 }
