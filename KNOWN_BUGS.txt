@@ -1,5 +1,5 @@
 This file should contain all known fatal bugs in MariaDB for the last
-source or binary release. Old bugs, extensions and feature requests,
+source or binary release. Minor bugs, extensions and feature requests,
 and bugs found since this release can be found in the MariaDB bugs
 database at: https://jira.mariadb.org
 
