@@ -108,3 +108,5 @@ CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables fo
 CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
 CALL mtr.add_suppression("Inconsistency detected: Failed on preordered");
 CALL mtr.add_suppression("Failed to apply write set");
+CALL mtr.add_suppression("Sending JOIN failed: -103");
+CALL mtr.add_suppression("Failed to JOIN the cluster after SST");
