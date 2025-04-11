@@ -1232,8 +1232,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   LEX *old_lex, *lex;
   Query_arena *arena, backup;
   TABLE_LIST *top_view= table->top_table();
+  TABLE_LIST *view_tables= 0;
+  TABLE_LIST *view_tables_tail= 0;
   bool UNINIT_VAR(parse_status);
   bool result, view_is_mergeable;
+  bool view_has_sequences= FALSE;
   TABLE_LIST *UNINIT_VAR(view_main_select_tables);
   DBUG_ENTER("mysql_make_view");
   DBUG_PRINT("info", ("table: %p (%s)", table, table->table_name.str));
@@ -1452,8 +1455,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   }
   if (!parse_status)
   {
-    TABLE_LIST *view_tables= lex->query_tables;
-    TABLE_LIST *view_tables_tail= 0;
+    view_tables= lex->query_tables;
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
 
@@ -1689,7 +1691,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       DBUG_ASSERT(view_tables_tail);
       for (tbl= view_tables; tbl != view_tables_tail->next_global;
            tbl= tbl->next_global)
+      {
         tbl->security_ctx= security_ctx;
+        if (tbl->sequence)
+          view_has_sequences= TRUE;
+      }
     }
 
     /* assign security context to SELECT name resolution contexts of view */
@@ -1809,7 +1815,31 @@ ok2:
   DBUG_ASSERT(lex == thd->lex);
   thd->lex= old_lex;                            // Needed for prepare_security
   result= !table->prelocking_placeholder && table->prepare_security(thd);
+  if (!result && view_tables && view_has_sequences)
+  {
+    /*
+      Now we have prepare_security() run which prepared security context
+      for suid views we can check privileges for suid and non suid
+      views underlying tables
+    */
+    for (TABLE_LIST *tbl= view_tables;
+         tbl != view_tables_tail->next_global;
+         tbl= tbl->next_global)
+    {
+      /*
+        Sequences rely only on table access (no individual column access)
+        so the privileges can not be checked later.
+      */
+      if (tbl->sequence &&
+          check_table_access(thd, SELECT_ACL, tbl, FALSE, 1, FALSE))
+      {
+        result= 1;
+        goto late_error;
+      }
+    }
+  }
 
+late_error:
   lex_end(lex);
 end:
   if (arena)

@@ -2239,4 +2239,27 @@ DROP VIEW v1;
 DROP USER foo;
 DROP USER FOO;
 
+--echo #
+--echo # MDEV-36380: User has unauthorized access to a sequence through
+--echo # a view with security invoker
+--echo #
+create database db;
+use db;
+create sequence s;
+create sql security invoker view v as select nextval(s);
+create user u@localhost;
+grant select on db.v to u@localhost;
+
+--connect (con1,localhost,u,,db)
+--error ER_TABLEACCESS_DENIED_ERROR
+select nextval(s);
+--echo # should be the same error as above
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from v;
+
+--disconnect con1
+--connection default
+drop database db;
+drop user u@localhost;
+
 --echo # End of 10.5 tests

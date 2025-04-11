@@ -1985,4 +1985,24 @@ connection default;
 DROP VIEW v1;
 DROP USER foo;
 DROP USER FOO;
+#
+# MDEV-36380: User has unauthorized access to a sequence through
+# a view with security invoker
+#
+create database db;
+use db;
+create sequence s;
+create sql security invoker view v as select nextval(s);
+create user u@localhost;
+grant select on db.v to u@localhost;
+connect  con1,localhost,u,,db;
+select nextval(s);
+ERROR 42000: INSERT command denied to user 'u'@'localhost' for table `db`.`s`
+# should be the same error as above
+select * from v;
+ERROR 42000: INSERT command denied to user 'u'@'localhost' for table `db`.`s`
+disconnect con1;
+connection default;
+drop database db;
+drop user u@localhost;
 # End of 10.5 tests
