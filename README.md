@@ -34,7 +34,8 @@ https://mariadb.com/kb/en/new-and-old-releases/
 
 # Getting the code, building it and testing it
 
-Refer to the following guide: https://mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/
+Refer to the following guide:
+https://mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/
 which outlines how to build the source code correctly and run the MariaDB testing framework,
 as well as which branch to target for your contributions.
 
