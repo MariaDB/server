@@ -95,10 +95,11 @@ let $wait_condition =
 
 --disable_cursor_protocol
 SELECT @@innodb_buffer_pool_size INTO @innodb_buffer_pool_size_orig;
-SELECT CEILING((256 + 64) * @@innodb_page_size / 1048576) * 1048576 INTO @min_pool_size;
+SELECT CAST(NUMERIC_MIN_VALUE AS UNSIGNED) INTO @min_pool_size FROM information_schema.system_variables WHERE variable_name='INNODB_BUFFER_POOL_SIZE';
+SET @out_of_bounds_pool_size=@min_pool_size - @@innodb_buffer_pool_chunk_size;
 --enable_cursor_protocol
 --error ER_WRONG_VALUE_FOR_VAR
-EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size -1);
+EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@out_of_bounds_pool_size);
 
 SHOW WARNINGS;
 
