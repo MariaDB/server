@@ -364,13 +364,94 @@ FLUSH LOGS;
 
 DROP TABLE t1;
 
+--echo # < CASE 8 >
+--echo # MDEV-23077: --flashback + --table produces buggy results
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1), (-1);
+CREATE TABLE t2 (i INT);
+INSERT INTO t2 VALUES (1), (-2);
+
+RESET MASTER;
+BEGIN;
+  UPDATE t1, t2 SET t1.i=2, t2.i=2 WHERE t1.i=t2.i AND t1.i=1;
+  DELETE t1, t2 FROM t1 INNER JOIN t2 WHERE t1.i=2;
+COMMIT;
+FLUSH BINARY LOGS;
+
+# only (-1)
+SELECT * FROM t1;
+# empty
+SELECT * FROM t2;
+
+--echo # < CASE 8.1 >
+--echo # Only the table used in WHERE
+--echo # MDEV-23077 bug03: Only the first Base64 was in a BINLOG statement.
+--echo #
+
+--exec $MYSQL_BINLOG -Bvv --table=t1 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8_1.sql
+--exec $MYSQL -e "SOURCE $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8_1.sql;"
+
+# (1), (-1)
+SELECT * FROM t1;
+# still empty
+SELECT * FROM t2;
+
+--echo # < CASE 8.2 >
+--echo # Ignore the table used in WHERE
+--echo # MDEV-23077 bug02: Output includes extraneous "unknown table".
+--echo #
+
+--exec $MYSQL_BINLOG -Bvv --table=t2 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8_2.sql
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8_2.sql
+--let SEARCH_PATTERN= ### Row event for unknown table
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo # < CASE 9 >
+--echo # --flashback + --database
+--echo #
+
+CREATE DATABASE d1;
+CREATE DATABASE d2;
+CREATE TABLE d1.t AS SELECT 1 AS a;
+CREATE TABLE d2.t AS SELECT 2 AS a;
+
+RESET MASTER;
+BEGIN;
+  # delete all data
+  DELETE FROM d1.t;
+  DELETE FROM d2.t;
+COMMIT;
+FLUSH LOGS;
+
+--echo # < CASE 9 >
+--echo # Flashback & Check the result
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_BINLOG -Bvv --database=d1 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9.sql
+--exec $MYSQL -e "SOURCE $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9.sql;"
+
+# (1)
+SELECT * FROM d1.t;
+# empty
+SELECT * FROM d2.t;
+
+DROP DATABASE d1;
+DROP DATABASE d2;
+
 --echo #
 --echo # MDEV-30698 Cover missing test cases for mariadb-binlog options
 --echo #            --raw [and] --flashback
 --echo #
 
 --error 1 # --raw mode and --flashback mode are not allowed
---exec $MYSQL_BINLOG -vv -B --raw --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000003> $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8.sql
+--exec $MYSQL_BINLOG -vv -B --raw --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000003> $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_0.sql
 
 ## Clear
 SET binlog_format=statement;

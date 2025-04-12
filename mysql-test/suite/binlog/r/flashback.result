@@ -702,6 +702,64 @@ include/assert.inc [Table t1 should have 0 rows.]
 # 6- Rows must be present upon restoring from flashback
 include/assert.inc [Table t1 should have six rows.]
 DROP TABLE t1;
+# < CASE 8 >
+# MDEV-23077: --flashback + --table produces buggy results
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1), (-1);
+CREATE TABLE t2 (i INT);
+INSERT INTO t2 VALUES (1), (-2);
+RESET MASTER;
+BEGIN;
+UPDATE t1, t2 SET t1.i=2, t2.i=2 WHERE t1.i=t2.i AND t1.i=1;
+DELETE t1, t2 FROM t1 INNER JOIN t2 WHERE t1.i=2;
+COMMIT;
+FLUSH BINARY LOGS;
+SELECT * FROM t1;
+i
+-1
+SELECT * FROM t2;
+i
+# < CASE 8.1 >
+# Only the table used in WHERE
+# MDEV-23077 bug03: Only the first Base64 was in a BINLOG statement.
+#
+SELECT * FROM t1;
+i
+1
+-1
+SELECT * FROM t2;
+i
+# < CASE 8.2 >
+# Ignore the table used in WHERE
+# MDEV-23077 bug02: Output includes extraneous "unknown table".
+#
+NOT FOUND /### Row event for unknown table/ in mysqlbinlog_row_flashback_8_2.sql
+DROP TABLE t1;
+DROP TABLE t2;
+# < CASE 9 >
+# --flashback + --database
+#
+CREATE DATABASE d1;
+CREATE DATABASE d2;
+CREATE TABLE d1.t AS SELECT 1 AS a;
+CREATE TABLE d2.t AS SELECT 2 AS a;
+RESET MASTER;
+BEGIN;
+DELETE FROM d1.t;
+DELETE FROM d2.t;
+COMMIT;
+FLUSH LOGS;
+# < CASE 9 >
+# Flashback & Check the result
+#
+SELECT * FROM d1.t;
+a
+1
+SELECT * FROM d2.t;
+a
+DROP DATABASE d1;
+DROP DATABASE d2;
 #
 # MDEV-30698 Cover missing test cases for mariadb-binlog options
 #            --raw [and] --flashback
