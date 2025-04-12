@@ -803,15 +803,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                     derived->get_unit()->first_select()->select_number,
                     derived->is_merged_derived() ? "merged" : "materialized");
   }
-  /*
-    Above cascade call of prepare is important for PS protocol, but after it
-    is called we can check if we really need prepare for this derived
-  */
-  if (derived->merged)
-  {
-    DBUG_PRINT("info", ("Irreversibly merged: exit"));
-    DBUG_RETURN(FALSE);
-  }
 
   derived->fill_me= FALSE;
 
