@@ -102,7 +102,7 @@ DROP TABLE t1,t2;
 create table t1 (a int);
 create table t2 (a int);
 
---error ER_INVALID_USE_OF_ORA_JOIN_OUTER
+--error ER_INVALID_USE_OF_ORA_JOIN_OUTER_REF
 select u2.a, (select t1.a, t2.a from t1,t2 where u1.a(+) = t2.a)
   from t1 as u1, t2 as u2 where  u1.a(+) = u2.a;
 

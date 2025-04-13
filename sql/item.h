@@ -97,8 +97,8 @@ public:
 
 struct ora_join_processor_param
 {
-  TABLE_LIST *outer;
-  List<TABLE_LIST> inner;
+  TABLE_LIST *inner;
+  List<TABLE_LIST> outer;
   /* TRUE means Oracle join operator was used inside some OR clause */
   bool or_present;
 };
@@ -3931,7 +3931,7 @@ public:
     return 0;
   }
   bool ora_join_processor(void *arg) override;
-  bool check_ora_join(Item **reference, bool outer_fixed);
+  bool check_ora_join(Item **reference, bool outer_ref_fixed);
   void cleanup() override;
   Item_equal *get_item_equal() override { return item_equal; }
   void set_item_equal(Item_equal *item_eq) override { item_equal= item_eq; }

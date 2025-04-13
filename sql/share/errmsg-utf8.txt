@@ -12303,7 +12303,7 @@ ER_INVALID_USE_OF_ORA_JOIN
         eng "Invalid usage of (+) operator"
 ER_INVALID_USE_OF_ORA_JOIN_CYCLE
         eng "Invalid usage of (+) operator: cycle dependencies"
-ER_INVALID_USE_OF_ORA_JOIN_OUTER
+ER_INVALID_USE_OF_ORA_JOIN_OUTER_REF
         eng "Invalid usage of (+) operator with outer reference %s"
 ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE
         eng "Invalid usage of (+) operator: both tables %s and %s are of %s type in the relation"

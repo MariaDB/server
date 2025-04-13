@@ -199,7 +199,7 @@ a	b	c	d
 # Use more than one marked table per condition
 #
 SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) + tj3.e(+);
-ERROR HY000: Invalid usage of (+) operator: both tables tj2 and tj3 are of OUTER type in the relation
+ERROR HY000: Invalid usage of (+) operator: both tables tj2 and tj3 are of INNER type in the relation
 #
 # Use different tables per `AND` operand
 #

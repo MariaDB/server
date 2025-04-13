@@ -33,11 +33,11 @@ struct table_pos: public Sql_alloc
   TABLE_LIST *table;
   int order; // original order of the table
   bool processed;
-  bool inner_processed;
+  bool outer_processed;
 
-  bool is_inner_of(table_pos *tab)
+  bool is_outer_of(table_pos *tab)
   {
-    List_iterator_fast<table_pos> it(inner_side);
+    List_iterator_fast<table_pos> it(outer_side);
     table_pos *t;
     while((t= it++))
     {
@@ -55,7 +55,7 @@ static int
 table_pos_sort(table_pos *a, table_pos *b, void *arg)
 {
   //sort bacward (descent) but taking into account dependencies
-  if (a->is_inner_of(b))
+  if (a->is_outer_of(b))
     return -1;
   return b->order - a->order;
 }
@@ -73,21 +73,21 @@ ora_join_process_expression(THD *thd, Item *cond,
 
   // Collect info about relations and report error if there are some
   struct ora_join_processor_param param;
-  param.outer= NULL;
-  param.inner.empty();
+  param.inner= NULL;
+  param.outer.empty();
   param.or_present= FALSE;
 
   if (cond->walk(&Item::ora_join_processor, (void *)(&param), WALK_NO_REF))
     DBUG_RETURN(TRUE);
 
   /*
-    There should be at least one table for outer part (inner can be absent in
+    There should be at least one table for inner part (outer can be absent in
     case of constants)
   */
-  DBUG_ASSERT(param.outer != NULL);
-  table_pos *outer_tab= tab + param.outer->ora_join_table_no;
+  DBUG_ASSERT(param.inner != NULL);
+  table_pos *inner_tab= tab + param.inner->ora_join_table_no;
 
-  if (param.inner.elements > 0)
+  if (param.outer.elements > 0)
   {
     if (param.or_present)
     {
@@ -97,13 +97,13 @@ ora_join_process_expression(THD *thd, Item *cond,
     {
       // Permanent list can be used in AND
       Query_arena_stmt on_stmt_arena(thd);
-      outer_tab->on_conds.push_back(cond);
+      inner_tab->on_conds.push_back(cond);
     }
-    List_iterator_fast<TABLE_LIST> it(param.inner);
+    List_iterator_fast<TABLE_LIST> it(param.outer);
     TABLE_LIST *t;
     while ((t= it++))
     {
-      table_pos *inner_tab= tab + t->ora_join_table_no;
+      table_pos *outer_tab= tab + t->ora_join_table_no;
       outer_tab->inner_side.push_back(inner_tab);
       inner_tab->outer_side.push_back(outer_tab);
     }
@@ -113,7 +113,7 @@ ora_join_process_expression(THD *thd, Item *cond,
     {
       // Permanent list can be used in AND
       Query_arena_stmt on_stmt_arena(thd);
-      outer_tab->on_conds.push_back(cond);
+      inner_tab->on_conds.push_back(cond);
     }
   }
 
@@ -147,7 +147,7 @@ static bool put_after(THD *thd,
                       table_pos *first,
                       uint &processed,
                       uint n_tables);
-static bool process_inner_relations(THD* thd,
+static bool process_outer_relations(THD* thd,
                                     table_pos *tab,
                                     table_pos *first,
                                     uint &processed,
@@ -162,7 +162,7 @@ static bool process_inner_relations(THD* thd,
 static bool check_directed_cycle(THD* thd, table_pos *tab,
                                  table_pos* beginning, uint lvl, uint max)
 {
-  List_iterator_fast<table_pos> it(tab->outer_side);
+  List_iterator_fast<table_pos> it(tab->inner_side);
   table_pos *t;
   uchar buff[STACK_BUFF_ALLOC]; // Max argument in function
   if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
@@ -193,15 +193,15 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
   Process outer relation of the table just added to the order list
 */
 
-static bool process_outer_relations(THD* thd,
+static bool process_inner_relations(THD* thd,
                                     table_pos *tab,
                                     uint &processed,
                                     uint n_tables)
 {
-  if (tab->outer_side.elements > 0)
+  if (tab->inner_side.elements > 0)
   {
     // process this "sub-graph"
-    List_iterator_fast<table_pos> it(tab->outer_side);
+    List_iterator_fast<table_pos> it(tab->inner_side);
     table_pos *t;
     while((t= it++))
     {
@@ -245,9 +245,9 @@ static bool process_outer_relations(THD* thd,
     it.rewind();
     while ((t= it++))
     {
-      if (!t->inner_processed)
+      if (!t->outer_processed)
       {
-        if (process_inner_relations(thd, t, tab, processed, n_tables))
+        if (process_outer_relations(thd, t, tab, processed, n_tables))
           return TRUE;
       }
     }
@@ -258,8 +258,8 @@ static bool process_outer_relations(THD* thd,
 /*
   Put "tab" between "first_in_this_subgraph" and "last_in_the_subgraph".
 
-  Used to process INNER tables of "last_in_the_subgraph" nserted as
-  OUTER table of "first_in_this_subgraph".
+  Used to process OUTER tables of "last_in_the_subgraph" nserted as
+  INNER table of "first_in_this_subgraph".
 */
 
 static bool put_between(THD *thd,
@@ -276,16 +276,16 @@ static bool put_between(THD *thd,
   DBUG_ASSERT(first != last);
   // find place to insert
   while (curr->prev != first && tab->order > curr->prev->order &&
-         !curr->is_inner_of(curr->prev))
+         !curr->is_outer_of(curr->prev))
     curr= curr->prev;
   process_tab(tab, curr->prev, processed);
 
-  process_outer_relations(thd, tab, processed, n_tables);
+  process_inner_relations(thd, tab, processed, n_tables);
 
   return FALSE;
 }
 
-static bool process_inner_relations(THD* thd,
+static bool process_outer_relations(THD* thd,
                                     table_pos *tab,
                                     table_pos *first,
                                     uint &processed,
@@ -294,20 +294,20 @@ static bool process_inner_relations(THD* thd,
   uchar buff[STACK_BUFF_ALLOC]; // Max argument in function
   if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
     return(TRUE);// Fatal error flag is set!
-  tab->inner_processed= TRUE;
-  if (tab->inner_side.elements)
+  tab->outer_processed= TRUE;
+  if (tab->outer_side.elements)
   {
-    List_iterator_fast<table_pos> it(tab->inner_side);
+    List_iterator_fast<table_pos> it(tab->outer_side);
     table_pos *t;
     while((t= it++))
     {
       if (!t->processed)
       {
         /*
-          This (t3 in the example) table serve as outer table for several
+          This (t3 in the example) table serve as inner table for several
           others.
 
-          For example we have such dependences (inner to the right and outer
+          For example we have such dependences (outer to the right and inner
           to the left):
           SELECT *
             FROM t1,t2,t3,t4
@@ -322,7 +322,7 @@ static bool process_inner_relations(THD* thd,
 
           So we have built following list of left joins already (we
           started from the first independent table we have found - t1
-          and went by outer_side relation till table t3):
+          and went by inner_side relation till table t3):
 
           first
           |
@@ -331,7 +331,7 @@ static bool process_inner_relations(THD* thd,
                          |
             t->t4       tab
 
-          Now we go by list of unprocessed inner relation of t3 and put
+          Now we go by list of unprocessed outer relation of t3 and put
           them  before t3.
           So we have to put t4 somewhere between t1 and t2 or
           between t2 and t3 (depends on its original position because we
@@ -354,12 +354,12 @@ static bool process_inner_relations(THD* thd,
       }
     }
   }
-  return process_outer_relations(thd, tab, processed, n_tables);
+  return process_inner_relations(thd, tab, processed, n_tables);
 }
 
 
 /**
-  Put tab after prev and process its INNER side relations
+  Put tab after prev and process its OUTER side relations
 */
 
 static bool put_after(THD *thd,
@@ -391,15 +391,15 @@ static void dbug_print_tab_pos(table_pos *t)
     item->print(&expr, QT_ORDINARY);
     DBUG_PRINT("INFO", ("  On: %s", expr.c_ptr()));
   }
-  List_iterator_fast itit(t->inner_side);
+  List_iterator_fast itot(t->outer_side);
   table_pos *tbl;
-  while ((tbl= itit++))
+  while ((tbl= itot++))
   {
     DBUG_PRINT("INFO", ("  Inner side: %s",
                tbl->table->alias.str));
   }
-  List_iterator_fast itot(t->outer_side);
-  while ((tbl= itot++))
+  List_iterator_fast itit(t->inner_side);
+  while ((tbl= itit++))
   {
     DBUG_PRINT("INFO", ("  Outer side: %s",
                tbl->table->alias.str));
@@ -485,7 +485,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
     t->on_conds.empty();
     t->table= table;
     table->ora_join_table_no= t->order= i;
-    t->processed= t->inner_processed= FALSE;
+    t->processed= t->outer_processed= FALSE;
   }
   DBUG_ASSERT(i == n_tables);
   if (is_cond_and(*conds))
@@ -521,7 +521,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
   for (i= 0; i < n_tables; i++)
   {
     if (tab[i].on_conds.elements > 0 &&
-        tab[i].inner_side.elements == 0)
+        tab[i].outer_side.elements == 0)
     {
       /*
         there is a table marked as "outer" but without "internal"
@@ -548,8 +548,8 @@ bool setup_oracle_join(THD *thd, COND **conds,
       we do not need inner side sorted, becouse it always processed ba
       inserts with order check
 
-    if (tab[i].inner_side.elements > 1)
-       bubble_sort<table_pos>(&tab[i].inner_side,
+    if (tab[i].outer_side.elements > 1)
+       bubble_sort<table_pos>(&tab[i].outer_side,
                               table_pos_sort, NULL);
     */
 
@@ -557,8 +557,8 @@ bool setup_oracle_join(THD *thd, COND **conds,
       we have to sort this backward becouse after insert the list will be
       reverted
     */
-    if (tab[i].outer_side.elements > 1)
-       bubble_sort<table_pos>(&tab[i].outer_side,
+    if (tab[i].inner_side.elements > 1)
+       bubble_sort<table_pos>(&tab[i].inner_side,
                               table_pos_sort, NULL);
 #ifndef DBUG_OFF
     dbug_print_tab_pos(tab + i);
@@ -574,7 +574,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
   {
     // Find the first independent
     for(;
-        i < n_tables && (tab[i].processed || tab[i].inner_side.elements != 0);
+        i < n_tables && (tab[i].processed || tab[i].outer_side.elements != 0);
         i++);
     if (i >= n_tables)
       break;
@@ -589,7 +589,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
       while(end->next) end= end->next; // go to the new end
     }
     process_tab(tab + i, end, processed);
-    process_outer_relations(thd, tab + i, processed, n_tables);
+    process_inner_relations(thd, tab + i, processed, n_tables);
   } while (i < n_tables);
 
   if (processed < n_tables)
@@ -620,7 +620,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
   /*
     Now we build new permanent list of table according to our new order
 
-    table1 [left outer] join table2 ... [left outer] join tableN
+    table1 [left inner] join table2 ... [left inner] join tableN
 
     which parses in:
 
@@ -679,7 +679,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
       // join type
       DBUG_ASSERT(curr->table->outer_join == 0);
       DBUG_ASSERT(curr->table->on_expr == 0);
-      if (curr->inner_side.elements)
+      if (curr->outer_side.elements)
       {
         DBUG_ASSERT(curr->on_conds.elements > 0);
         curr->table->outer_join|=JOIN_TYPE_LEFT;

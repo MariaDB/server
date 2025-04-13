@@ -6240,13 +6240,13 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   return 1;
 }
 
-bool Item_field::check_ora_join(Item **reference, bool outer_fixed)
+bool Item_field::check_ora_join(Item **reference, bool outer_ref_fixed)
 {
   if(with_ora_join())
   {
-    if (outer_fixed) // Oracle join operator is local
+    if (outer_ref_fixed) // Oracle join operator is local
     {
-      my_error(ER_INVALID_USE_OF_ORA_JOIN_OUTER, MYF(0), name.str);
+      my_error(ER_INVALID_USE_OF_ORA_JOIN_OUTER_REF, MYF(0), name.str);
       return TRUE;
     }
     // Keep flag about oracle join if view fied was resolved
@@ -6520,17 +6520,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   base_flags|= item_base_t::FIXED;
-  if(with_ora_join())
-  {
-    if (outer_fixed) // Oracle join operator is local
-    {
-      my_error(ER_INVALID_USE_OF_ORA_JOIN_OUTER, MYF(0), name.str);
-      goto error;
-    }
-    // Keep flag about oracle join if view fied was resolved
-    if (reference[0] != this) // resolved to a new field
-      reference[0]->copy_flags(this, item_with_t::ORA_JOIN);
-  }
+  if (check_ora_join(reference, outer_fixed))
+    goto error;
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       select &&
@@ -10123,24 +10114,23 @@ bool Item_default_value::val_native_result(THD *thd, Native *to)
 
 /*
   We're processing an expression with a (+) operator somewhere.
-  We encounter reference to '$table.column' (with the(+) or not).
-  Add $table to the outer join structure we're building
-
+  We encounter reference to 'table.column' (with the(+) or not).
+  Add table to theorecle outer join structure we're building
 */
 
 bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
-                                                  TABLE_LIST *table)
+                                           TABLE_LIST *table)
 {
   DBUG_ASSERT(fixed());
   TABLE_LIST *err_table= NULL;
 
   if (with_ora_join())
   {
-    // OUTER table
-    if (arg->outer == NULL)
+    // INNER table
+    if (arg->inner == NULL)
     {
-      arg->outer= table;
-      List_iterator_fast<TABLE_LIST> it(arg->inner);
+      arg->inner= table;
+      List_iterator_fast<TABLE_LIST> it(arg->outer);
       TABLE_LIST *t;
       while ((t= it++))
       {
@@ -10153,17 +10143,17 @@ bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
     }
     else
     {
-      if (arg->outer != table)
+      if (arg->inner != table)
       {
-        err_table= arg->outer;
+        err_table= arg->inner;
         goto err;
       }
     }
   }
   else
   {
-    // INNER table
-    List_iterator_fast<TABLE_LIST> it(arg->inner);
+    // OUTER table
+    List_iterator_fast<TABLE_LIST> it(arg->outer);
     TABLE_LIST *t;
     while ((t= it++))
     {
@@ -10172,12 +10162,12 @@ bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
     }
     if (t == NULL)
     {
-      if (table == arg->outer)
+      if (table == arg->inner)
       {
-        err_table= arg->outer;
+        err_table= arg->inner;
         goto err;
       }
-      arg->inner.push_back(table);
+      arg->outer.push_back(table);
     }
   }
   return FALSE;
@@ -10193,7 +10183,7 @@ err:
     my_error(ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE, MYF(0),
              err_table->alias.str,
              table->alias.str,
-             (with_ora_join()?"OUTER":"INNER"));
+             (with_ora_join()?"INNER":"OUTER"));
   }
   return TRUE;
 }
