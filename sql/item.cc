@@ -10126,12 +10126,10 @@ bool Item_default_value::val_native_result(THD *thd, Native *to)
   We encounter reference to '$table.column' (with the(+) or not).
   Add $table to the outer join structure we're building
 
-  TODO: does this need to be a member function?
-   make with_ora_join() a parameter and move this out?
 */
 
 bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
-                                           TABLE_LIST *table)
+                                                  TABLE_LIST *table)
 {
   DBUG_ASSERT(fixed());
   TABLE_LIST *err_table= NULL;
