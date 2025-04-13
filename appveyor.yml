@@ -4,35 +4,39 @@ skip_branch_with_pr: true
 
 before_build:
   - ps: |
-      $pullRequestNr = $env:APPVEYOR_PULL_REQUEST_NUMBER
-      $branch = $env:APPVEYOR_REPO_BRANCH
-      $commit = $env:APPVEYOR_REPO_COMMIT
-      $repo = $env:APPVEYOR_REPO_NAME
-      $prRepo = $env:APPVEYOR_PULL_REQUEST_HEAD_REPO_NAME
-
-      $isPrFromFork = $pullRequestNr -and ($repo -ne $prRepo)
-      Write-Host "pullRequestNr=$pullRequestNr, isPRFromFork=$isPrFromFork, branch=$branch, commit=$commit, repo=$repo"
-
-      if ($pullRequestNr -and (-not $isPrFromFork)) {
-        $branch = $env:APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH
-        $commit = $env:APPVEYOR_PULL_REQUEST_HEAD_COMMIT
-        Write-Host "real branch name of this pull request is $branch, real commit $commit"
-      }
-
-      if ($isPrFromFork) {
-        Write-Host "pull request from a fork detected,  always build."
-      } elseif ($branch -eq "main" -or $branch -match '^\d+\.\d+$') {
-        Write-Host "main branch detected, always build."
-      } else {
-        Write-Host "Checking if this is the latest commit on branch '$branch'..."
-        $remoteHead = git ls-remote https://github.com/$repo.git refs/heads/$branch |
-                      ForEach-Object { ($_ -split "`t")[0] }
-        Write-Host "latest commit=$remoteHead"
-        if ($remoteHead -ne $commit) {
-          Write-Host "Not the latest commit on branch '$branch' — skipping build."
-          Exit-AppveyorBuild
+      # Retrieve the latest commit hash on the branch or PR
+      function Get-Remote-Ref($ref) {
+        try {
+          $result = git ls-remote origin $ref 2>$null
+          if (-not $result) {
+            "Warning: Could not fetch remote ref '$ref'"
+            return $null
+          }
+          return ($result -split "`t")[0]
+        } catch {
+          "Warning: Exception while running git ls-remote for '$ref': $_"
+          return $null
         }
       }
+      Get-ChildItem Env: | Where-Object { $_.Name -like 'APPVEYOR*' } | ForEach-Object { "$($_.Name)=$($_.Value)" }
+      $commit = $null
+      $latest = $null
+      if ($env:APPVEYOR_PULL_REQUEST_NUMBER -eq $null) {
+        "Branch build detected"
+        $commit = $env:APPVEYOR_REPO_COMMIT
+        $branch = $env:APPVEYOR_REPO_BRANCH
+        $latest = Get-Remote-Ref "refs/heads/$branch"
+      } else {
+        "Pull Request build detected"
+        $commit = $env:APPVEYOR_PULL_REQUEST_HEAD_COMMIT
+        $pr = $env:APPVEYOR_PULL_REQUEST_NUMBER
+        $latest = Get-Remote-Ref "refs/pull/$pr/head"
+      }
+      if ($latest -and ($commit -ne $latest)) {
+        "Skipping outdated commit $commit (latest is $latest)"
+        Exit-AppVeyorBuild
+      }
+
 
 clone_depth: 10
 
