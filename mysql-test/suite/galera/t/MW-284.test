@@ -11,7 +11,7 @@ call mtr.add_suppression("\\[ERROR\\] Error reading packet from server: WSREP ha
 call mtr.add_suppression("WSREP has not yet prepared node for application use");
 
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_1, MASTER_USER='root', master_connect_retry=1, MASTER_SSL_VERIFY_SERVER_CERT=0;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_1, master_connect_retry=1;
 --enable_query_log
 
 --connection node_1

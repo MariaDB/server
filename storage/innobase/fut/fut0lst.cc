@@ -409,45 +409,56 @@ dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
   return err;
 }
 
-#ifdef UNIV_DEBUG
 /** Validate a file-based list. */
-void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr)
+dberr_t flst_validate(const buf_block_t *base, uint16_t boffset,
+                      mtr_t *mtr) noexcept
 {
-  ut_ad(boffset < base->physical_size());
+  if (boffset >= base->physical_size())
+    return DB_CORRUPTION;
+
   ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
                                    MTR_MEMO_PAGE_SX_FIX));
 
   const uint32_t len= flst_get_len(base->page.frame + boffset);
   fil_addr_t addr= flst_get_first(base->page.frame + boffset);
+  dberr_t err= DB_SUCCESS;
 
   for (uint32_t i= len; i--; )
   {
-    ut_ad(addr.boffset >= FIL_PAGE_DATA);
-    ut_ad(addr.boffset < base->physical_size() - FIL_PAGE_DATA_END);
+    if (addr.boffset < FIL_PAGE_DATA ||
+        addr.boffset >= base->physical_size() - FIL_PAGE_DATA_END)
+      return DB_CORRUPTION;
     const buf_block_t *b=
       buf_page_get_gen(page_id_t(base->page.id().space(), addr.page),
-                       base->zip_size(), RW_SX_LATCH, nullptr, BUF_GET, mtr);
-    ut_ad(b);
+                       base->zip_size(), RW_SX_LATCH, nullptr, BUF_GET, mtr,
+                       &err);
+    if (!b)
+      return err;
     addr= flst_get_next_addr(b->page.frame + addr.boffset);
     mtr->release_last_page();
   }
 
-  ut_ad(addr.page == FIL_NULL);
+  if (addr.page != FIL_NULL)
+    return DB_CORRUPTION;
 
   addr= flst_get_last(base->page.frame + boffset);
 
   for (uint32_t i= len; i--; )
   {
-    ut_ad(addr.boffset >= FIL_PAGE_DATA);
-    ut_ad(addr.boffset < base->physical_size() - FIL_PAGE_DATA_END);
+    if (addr.boffset < FIL_PAGE_DATA ||
+        addr.boffset >= base->physical_size() - FIL_PAGE_DATA_END)
+      return DB_CORRUPTION;
     const buf_block_t *b=
       buf_page_get_gen(page_id_t(base->page.id().space(), addr.page),
-                       base->zip_size(), RW_SX_LATCH, nullptr, BUF_GET, mtr);
-    ut_ad(b);
+                       base->zip_size(), RW_SX_LATCH, nullptr, BUF_GET, mtr,
+                       &err);
+    if (!b)
+      return err;
     addr= flst_get_prev_addr(b->page.frame + addr.boffset);
     mtr->release_last_page();
   }
 
-  ut_ad(addr.page == FIL_NULL);
+  if (addr.page != FIL_NULL)
+    return DB_CORRUPTION;
+  return err;
 }
-#endif

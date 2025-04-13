@@ -1335,7 +1335,10 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         break;
       }
 
-      if (neighbors && space->is_rotational())
+      if (neighbors && space->is_rotational() &&
+          /* Skip neighbourhood flush from LRU list if we haven't yet reached
+          half of the free page target. */
+          UT_LIST_GET_LEN(buf_pool.free) * 2 >= free_limit)
         n->flushed+= buf_flush_try_neighbors(space, page_id, bpage,
                                              neighbors == 1,
                                              n->flushed, max);
@@ -1725,8 +1728,16 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
   buf_do_LRU_batch(max_n, &n);
 
   ulint pages= n.flushed;
+  ulint evicted= n.evicted;
 
-  if (n.evicted)
+  /* If we have exhausted flush quota, it is likely we exited before
+  generating enough free pages. Call once more with 0 flush to generate
+  free pages immediately as required. */
+  if (pages >= max_n)
+    buf_do_LRU_batch(0, &n);
+
+  evicted+= n.evicted;
+  if (evicted)
   {
     buf_pool.try_LRU_scan= true;
     pthread_cond_broadcast(&buf_pool.done_free);
@@ -2463,6 +2474,11 @@ static void buf_flush_page_cleaner() noexcept
     DBUG_EXECUTE_IF("ib_page_cleaner_sleep",
     {
       std::this_thread::sleep_for(std::chrono::seconds(1));
+      /* Cover the logging code in debug mode. */
+      buf_pool.print_flush_info();
+      buf_dblwr.lock();
+      buf_dblwr.print_info();
+      buf_dblwr.unlock();
     });
     lsn_limit= buf_flush_sync_lsn;
 
@@ -2671,6 +2687,10 @@ static void buf_flush_page_cleaner() noexcept
 
     n= srv_max_io_capacity;
     n= n >= n_flushed ? n - n_flushed : 0;
+    /* It is critical to generate free pages to keep the system alive. Make
+    sure we are not hindered by dirty pages in LRU tail. */
+    n= std::max<ulint>(n, std::min<ulint>(srv_max_io_capacity,
+                                          buf_pool.LRU_scan_depth));
     goto LRU_flush;
   }
 
@@ -2712,9 +2732,8 @@ ATTRIBUTE_COLD void buf_pool_t::LRU_warn() noexcept
   {
     LRU_warned= true;
     sql_print_warning("InnoDB: Could not free any blocks in the buffer pool!"
-                      " %zu blocks are in use and %zu free."
-                      " Consider increasing innodb_buffer_pool_size.",
-                      UT_LIST_GET_LEN(LRU), UT_LIST_GET_LEN(free));
+                      " Consider increasing innodb_buffer_pool_size.");
+    print_flush_info();
   }
 }
 
@@ -2797,6 +2816,53 @@ void buf_flush_sync() noexcept
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   tpool::tpool_wait_end();
   thd_wait_end(nullptr);
+}
+
+ATTRIBUTE_COLD void buf_pool_t::print_flush_info() const noexcept
+{
+  /* We do dirty read of UT_LIST count variable. */
+  size_t lru_size= UT_LIST_GET_LEN(LRU);
+  size_t dirty_size= UT_LIST_GET_LEN(flush_list);
+  size_t free_size= UT_LIST_GET_LEN(free);
+  size_t dirty_pct= lru_size ? dirty_size * 100 / (lru_size + free_size) : 0;
+  sql_print_information("InnoDB: Buffer Pool pages\n"
+    "-------------------\n"
+    "LRU Pages  : %zu\n"
+    "Free Pages : %zu\n"
+    "Dirty Pages: %zu : %zu%%\n"
+    "-------------------",
+    lru_size, free_size, dirty_size, dirty_pct);
+
+  lsn_t lsn= log_sys.get_lsn();
+  lsn_t clsn= log_sys.last_checkpoint_lsn;
+  sql_print_information("InnoDB: LSN flush parameters\n"
+    "-------------------\n"
+    "System LSN     : %" PRIu64 "\n"
+    "Checkpoint  LSN: %" PRIu64 "\n"
+    "Flush ASync LSN: %" PRIu64 "\n"
+    "Flush Sync  LSN: %" PRIu64 "\n"
+    "-------------------",
+    lsn, clsn, buf_flush_async_lsn.load(), buf_flush_sync_lsn.load());
+
+  lsn_t age= lsn - clsn;
+  lsn_t age_pct= log_sys.max_checkpoint_age
+      ? age * 100 / log_sys.max_checkpoint_age : 0;
+  sql_print_information("InnoDB: LSN age parameters\n"
+    "-------------------\n"
+    "Current Age   : %" PRIu64 " : %" PRIu64 "%%\n"
+    "Max Age(Async): %" PRIu64 "\n"
+    "Max Age(Sync) : %" PRIu64 "\n"
+    "Capacity      : %" PRIu64 "\n"
+    "-------------------",
+    age, age_pct, log_sys.max_modified_age_async, log_sys.max_checkpoint_age,
+    log_sys.log_capacity);
+
+  sql_print_information("InnoDB: Pending IO count\n"
+    "-------------------\n"
+    "Pending Read : %zu\n"
+    "Pending Write: %zu\n"
+    "-------------------",
+    os_aio_pending_reads_approx(), os_aio_pending_writes_approx());
 }
 
 #ifdef UNIV_DEBUG

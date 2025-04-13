@@ -5,6 +5,7 @@ for master_1
 for child2
 for child3
 set spider_same_server_link=1;
+set global spider_same_server_link=1;
 CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t1 ( a bigint(20) NOT NULL, b bigint(20) DEFAULT 0, PRIMARY KEY (a));
 CREATE TABLE t2 ( a bigint(20) NOT NULL, b bigint(20) DEFAULT 0, PRIMARY KEY (a)) ENGINE=SPIDER COMMENT='srv "srv", WRAPPER "mysql", TABLE "t1"';

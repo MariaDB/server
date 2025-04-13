@@ -47,6 +47,9 @@ select NEXT VALUE FOR Seq1_1;
 NEXT VALUE FOR Seq1_1
 4
 connection node_1;
+SHOW CREATE SEQUENCE Seq1_1;
+Table	Create Table
+Seq1_1	CREATE SEQUENCE `Seq1_1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=InnoDB
 DROP SEQUENCE Seq1_1;
 connection node_1;
 CREATE TABLE t2 (d CHAR(1)KEY);

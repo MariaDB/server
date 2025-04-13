@@ -206,8 +206,13 @@ FROM information_schema.collations
 WHERE collation_name='utf8mb4_0900_bin';
 collation_name	id	comment
 utf8mb4_0900_bin	309	Alias for utf8mb4_nopad_bin
-SET NAMES utf8mb4 COLLATE utf8mb4_0900_bin;
-SELECT 'a\t'<'a' AS c1;
-c1
+CREATE TABLE t1 (
+a VARCHAR(32),
+b VARCHAR(32)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin;
+INSERT INTO t1 VALUES ('a\t', 'a');
+SELECT a<b FROM t1;
+a<b
 0
+DROP TABLE t1;
 # End of 11.4 tests
