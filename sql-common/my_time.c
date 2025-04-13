@@ -579,6 +579,14 @@ str_to_datetime_or_date_body(const char *str, size_t length, MYSQL_TIME *l_time,
   status->warnings|= warn;
 
   *endptr= str;
+
+  if (*number_of_fields == 1 && year_length == 4)
+  {
+    l_time->month= 0;
+    l_time->day= 0;
+    *number_of_fields= 3;
+  }
+
   /* we're ok if date part is correct. even if the rest is truncated */
   if (*number_of_fields < 3)
   {
@@ -1813,6 +1821,11 @@ longlong number_to_datetime_or_date(longlong nr, ulong sec_part,
   }
   if (nr < 101)
     goto err;
+  if (nr >= 1000 && nr <= 9999)
+  {
+    nr= nr * 10000000000LL;
+    goto ok;
+  }
   if (nr <= (YY_PART_YEAR-1)*10000L+1231L)
   {
     nr= (nr+20000000L)*1000000L;                 /* YYMMDD, year: 2000-2069 */
