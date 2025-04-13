@@ -123,7 +123,7 @@ select @d:=1111;
 1111
 select year(@d), month(@d), day(@d), cast(@d as date);
 year(@d)	month(@d)	day(@d)	cast(@d as date)
-2000	11	11	2000-11-11
+1111	0	0	1111-00-00
 select @d:=011111;
 @d:=011111
 11111
@@ -135,12 +135,7 @@ select @d:=1311;
 1311
 select year(@d), month(@d), day(@d), cast(@d as date);
 year(@d)	month(@d)	day(@d)	cast(@d as date)
-NULL	NULL	NULL	NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '1311'
-Warning	1292	Incorrect datetime value: '1311'
-Warning	1292	Incorrect datetime value: '1311'
-Warning	1292	Incorrect datetime value: '1311'
+1311	0	0	1311-00-00
 create table t1 (d  date , dt datetime , ts timestamp);
 insert ignore into t1 values (9912101,9912101,9912101);
 Warnings:
@@ -934,8 +929,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '2012-12-12';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	f	f	4	NULL	1	100.00	Using where; Using index
 Warnings:
-Warning	1292	Truncated incorrect datetime value: '1995.0000000'
-Note	1003	select `test`.`t1`.`f` AS `f` from `test`.`t1` where '0000-00-00' between `test`.`t1`.`f` and <cache>('2012-12-12')
+Note	1003	select `test`.`t1`.`f` AS `f` from `test`.`t1` where '1995-00-00' between `test`.`t1`.`f` and <cache>('2012-12-12')
 DROP TABLE t1;
 #
 # MDEV-27072 Subquery using the ALL keyword on date columns produces a wrong result
@@ -1089,14 +1083,14 @@ SET sql_mode=DEFAULT;
 #
 SELECT NULLIF(CAST(1012.5 AS DATE), 1);
 NULLIF(CAST(1012.5 AS DATE), 1)
-2000-10-12
+1012-00-00
 Warnings:
 Note	1292	Truncated incorrect date value: '1012.5'
 Warning	1292	Truncated incorrect datetime value: '1'
 Note	1292	Truncated incorrect date value: '1012.5'
 SELECT CAST(1012.5 AS DATE) * 1.0;
 CAST(1012.5 AS DATE) * 1.0
-20001012.0
+10120000.0
 Warnings:
 Note	1292	Truncated incorrect date value: '1012.5'
 #
@@ -1286,3 +1280,124 @@ indexed_col	not_indexed_col
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-9343: Copying from YEAR to DATE result in '0000-00-00'
+#
+#
+# Setup
+#
+DROP TABLE IF EXISTS t1, t2, t3;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3'
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DATE);
+CREATE TABLE t3 (a DATETIME);
+SET SESSION sql_mode = '';
+INSERT INTO t1 VALUES (2000), (0), (1901), (2155), (70);
+INSERT INTO t2 SELECT a FROM t1;
+INSERT INTO t3 SELECT a FROM t1;
+SELECT * FROM t2 ORDER BY a;
+a
+0000-00-00
+1901-00-00
+1970-00-00
+2000-00-00
+2155-00-00
+SELECT * FROM t3 ORDER BY a;
+a
+0000-00-00 00:00:00
+1901-00-00 00:00:00
+1970-00-00 00:00:00
+2000-00-00 00:00:00
+2155-00-00 00:00:00
+SHOW WARNINGS;
+Level	Code	Message
+SET SESSION sql_mode = 'NO_ZERO_IN_DATE';
+DELETE FROM t2;
+DELETE FROM t3;
+INSERT INTO t2 SELECT a FROM t1;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 3
+Warning	1265	Data truncated for column 'a' at row 4
+Warning	1265	Data truncated for column 'a' at row 5
+INSERT INTO t3 SELECT a FROM t1;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 3
+Warning	1265	Data truncated for column 'a' at row 4
+Warning	1265	Data truncated for column 'a' at row 5
+SHOW ERRORS;
+Level	Code	Message
+SELECT * FROM t2;
+a
+0000-00-00
+0000-00-00
+0000-00-00
+0000-00-00
+0000-00-00
+SELECT * FROM t3;
+a
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+SET SESSION sql_mode = '';
+ALTER TABLE t1 MODIFY a DATE;
+SELECT * FROM t1;
+a
+2000-00-00
+0000-00-00
+1901-00-00
+2155-00-00
+1970-00-00
+ALTER TABLE t1 MODIFY a YEAR;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 2
+Warning	1265	Data truncated for column 'a' at row 3
+Warning	1265	Data truncated for column 'a' at row 4
+Warning	1265	Data truncated for column 'a' at row 5
+SELECT * FROM t1;
+a
+2000
+0000
+1901
+2155
+1970
+SET SESSION sql_mode = 'NO_ZERO_IN_DATE';
+ALTER TABLE t1 MODIFY a DATE;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 3
+Warning	1265	Data truncated for column 'a' at row 4
+Warning	1265	Data truncated for column 'a' at row 5
+SELECT * FROM t1;
+a
+0000-00-00
+0000-00-00
+0000-00-00
+0000-00-00
+0000-00-00
+SET SESSION sql_mode = '';
+SELECT CAST(a AS DATE), CAST(a AS DATETIME) FROM t1 ORDER BY a;
+CAST(a AS DATE)	CAST(a AS DATETIME)
+0000-00-00	0000-00-00 00:00:00
+0000-00-00	0000-00-00 00:00:00
+0000-00-00	0000-00-00 00:00:00
+0000-00-00	0000-00-00 00:00:00
+0000-00-00	0000-00-00 00:00:00
+SET SESSION sql_mode = 'NO_ZERO_IN_DATE';
+SELECT CAST(a AS DATE), CAST(a AS DATETIME) FROM t1;
+CAST(a AS DATE)	CAST(a AS DATETIME)
+0000-00-00	0000-00-00 00:00:00
+0000-00-00	0000-00-00 00:00:00
+0000-00-00	0000-00-00 00:00:00
+0000-00-00	0000-00-00 00:00:00
+0000-00-00	0000-00-00 00:00:00
+#
+# Cleanup
+#
+DROP TABLE t1, t2, t3;
+SET SESSION sql_mode = DEFAULT;
