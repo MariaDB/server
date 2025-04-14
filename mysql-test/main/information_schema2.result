@@ -41,6 +41,6 @@ drop table t1;
 #
 create function f() returns int return (1>2,1,2);
 select * from information_schema.columns where f() is null;
-ERROR HY000: Cannot cast 'row' as 'int' in assignment of `(null)`
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `f`
 drop function f;
 # End of 11.8 tests

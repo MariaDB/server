@@ -993,10 +993,12 @@ sp_head::create_result_field(uint field_max_length,
                (def.pack_flag &
                 (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
 
-  if (field_name)
+  if (field_name && field_name->length)
     name= *field_name;
-  else
+  else if (m_name.length)
     name= m_name;
+  else
+    name= m_qname;
   field= def.make_field(table->s, /* TABLE_SHARE ptr */
                         table->in_use->mem_root,
                         &name);
