@@ -125,6 +125,18 @@ ENDIF()
 
 FIND_PACKAGE(Git)
 
+IF(WIN32)
+ # Install runtime dependency by default, when using vcpkg
+ IF(NOT DEFINED INSTALL_RUNTIME_DEPENDENCIES_DEFAULT)
+   IF("${VCPKG_INSTALLED_DIR}")
+     SET(INSTALL_RUNTIME_DEPENDENCIES_DEFAULT OFF)
+   ELSE()
+     SET(INSTALL_RUNTIME_DEPENDENCIES_DEFAULT ON)
+   ENDIF()
+ ENDIF()
+ OPTION(INSTALL_RUNTIME_DEPENDENCIES "Install runtime dependencies"  "${INSTALL_RUNTIME_DEPENDENCIES_DEFAULT}")
+ENDIF()
+
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
 IF(DEFINED ENV{CPPFLAGS})
