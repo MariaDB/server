@@ -4590,7 +4590,10 @@ inline void log_t::set_recovered() noexcept
   }
 #ifdef HAVE_PMEM
   else
+  {
+    buf_size= unsigned(std::min<uint64_t>(capacity(), buf_size_max));
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
+  }
 #endif
 }
 
