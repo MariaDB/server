@@ -72,6 +72,7 @@ char opt_plugin_dir[FN_REFLEN];
 ulong plugin_maturity;
 
 static LEX_CSTRING MYSQL_PLUGIN_NAME= {STRING_WITH_LEN("plugin") };
+static const uint MYSQL_PLUGIN_COL_CNT= 2;
 
 /*
   not really needed now, this map will become essential when we add more
@@ -1915,6 +1916,11 @@ static void plugin_load(MEM_ROOT *tmp_root)
     goto end;
   }
 
+  if (table->s->fields < MYSQL_PLUGIN_COL_CNT)
+  {
+    sql_print_error("Column count of mysql.plugin is wrong");
+    goto end;
+  }
   if (init_read_record(&read_record_info, new_thd, table, NULL, NULL, 1, 0,
                        FALSE))
   {
@@ -1977,8 +1983,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
                            table->file->table_type());
   end_read_record(&read_record_info);
   table->mark_table_for_reopen();
-  close_mysql_tables(new_thd);
 end:
+  close_mysql_tables(new_thd);
   new_thd->db= null_clex_str;                 // Avoid free on thd->db
   delete new_thd;
   DBUG_VOID_RETURN;
@@ -2283,6 +2289,12 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
                              MYSQL_LOCK_IGNORE_TIMEOUT)))
     DBUG_RETURN(TRUE);
 
+  if (table->s->fields < MYSQL_PLUGIN_COL_CNT)
+  {
+    my_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2, MYF(0), "mysql",
+             "plugin", MYSQL_PLUGIN_COL_CNT, table->s->fields);
+    DBUG_RETURN(TRUE);
+  }
   if (my_load_defaults(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv, NULL))
   {
     my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), name->str);

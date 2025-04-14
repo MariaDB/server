@@ -143,11 +143,11 @@ drop temporary table mysql.user;
 rename table mysql.user1 to mysql.user;
 # switching back from mysql.user to mysql.global_priv
 # switching from mysql.global_priv to mysql.user
-call mtr.add_suppression('mysql.user table is damaged');
+call mtr.add_suppression('Column count of mysql.user is wrong');
 rename table mysql.user to mysql.user1;
 create table mysql.user (Host char(100), User char(100));
 flush privileges;
-ERROR HY000: Fatal error: mysql.user table is damaged or in unsupported 3.20 format
+ERROR HY000: Column count of mysql.user is wrong. Expected 3, found 2. The table is probably corrupted
 drop table mysql.user;
 rename table mysql.user1 to mysql.user;
 # switching back from mysql.user to mysql.global_priv
