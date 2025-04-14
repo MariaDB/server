@@ -199,7 +199,7 @@ FUNCTION(SIGN_TARGET target)
 ENDFUNCTION()
 
 # Installs targets, also installs pdbs on Windows.
-#
+# Also installs runtime dependencies
 #
 
 FUNCTION(MYSQL_INSTALL_TARGETS)
@@ -230,9 +230,34 @@ FUNCTION(MYSQL_INSTALL_TARGETS)
     ENDIF()
   ENDFOREACH()
 
-  INSTALL(TARGETS ${TARGETS} DESTINATION ${ARG_DESTINATION} ${COMP})
+  IF(WIN32 AND INSTALL_RUNTIME_DEPENDENCIES)
+    STRING(JOIN "." runtime_deps_set_name ${TARGETS})
+    SET(RUNTIME_DEPS RUNTIME_DEPENDENCY_SET "${runtime_deps_set_name}")
+  ENDIF()
+
+  INSTALL(TARGETS ${TARGETS} DESTINATION ${ARG_DESTINATION} ${COMP} ${RUNTIME_DEPS})
   INSTALL_DEBUG_SYMBOLS(${TARGETS} ${COMP} INSTALL_LOCATION ${ARG_DESTINATION})
 
+  IF(WIN32 AND INSTALL_RUNTIME_DEPENDENCIES)
+    INSTALL(
+      RUNTIME_DEPENDENCY_SET
+      "${runtime_deps_set_name}"
+      COMPONENT RuntimeDeps
+      DESTINATION ${INSTALL_BINDIR}
+      PRE_EXCLUDE_REGEXES
+      "api-ms-" # Windows stuff
+      "ext-ms-"
+      "server\\.dll" # main server DLL, installed separately
+      "clang_rt" # ASAN libraries
+      "vcruntime"
+      POST_EXCLUDE_REGEXES
+      ".*system32/.*\\.dll" # Windows stuff
+      POST_INCLUDE_REGEXES
+      DIRECTORIES
+      ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
+      $<$<CONFIG:Debug>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin>
+    )
+  ENDIF()
 ENDFUNCTION()
 
 # Optionally install mysqld/client/embedded from debug build run. outside of the current build dir
