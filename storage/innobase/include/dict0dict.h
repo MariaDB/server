@@ -61,16 +61,6 @@ void
 dict_foreign_free(
 /*==============*/
 	dict_foreign_t*	foreign);	/*!< in, own: foreign key struct */
-/*********************************************************************//**
-Finds the highest [number] for foreign key constraints of the table. Looks
-only at the >= 4.0.18-format id's, which are of the form
-databasename/tablename_ibfk_[number].
-@return highest number, 0 if table has no new format foreign key constraints */
-ulint
-dict_table_get_highest_foreign_id(
-/*==============================*/
-	dict_table_t*	table);		/*!< in: table in the dictionary
-					memory cache */
 /** Check whether the dict_table_t is a partition.
 A partitioned table on the SQL level is composed of InnoDB tables,
 where each InnoDB table is a [sub]partition including its secondary indexes
