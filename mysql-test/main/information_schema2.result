@@ -36,3 +36,11 @@ index_name	comment
 a	disabled
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-36596 Assertion failure in TABLE_SHARE::init_from_sql_statement_string upon returning wrong type from function
+#
+create function f() returns int return (1>2,1,2);
+select * from information_schema.columns where f() is null;
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `(null)`
+drop function f;
+# End of 11.8 tests

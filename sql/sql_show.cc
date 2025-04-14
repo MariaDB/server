@@ -5622,6 +5622,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
         if (!partial_cond || partial_cond->val_bool())
         {
+          if (thd->is_error())
+            goto err;
           /*
             If table is I_S.tables and open_table_method is 0 (eg SKIP_OPEN)
             we can skip table opening and we don't have lookup value for
