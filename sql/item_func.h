@@ -1373,9 +1373,9 @@ protected:
   LEX_CSTRING m_cursor_name;
 public:
   Cursor_ref(const LEX_CSTRING *name,
-             const Sp_rcontext_handler *h, uint offset,
+             const sp_rcontext_addr &addr,
              const Sp_rcontext_handler *deref_rcontext_handler)
-   :sp_rcontext_ref(sp_rcontext_addr(h, offset), deref_rcontext_handler),
+   :sp_rcontext_ref(addr, deref_rcontext_handler),
     m_cursor_name(*name)
   { }
   void print_func(String *str, const LEX_CSTRING &func_name);

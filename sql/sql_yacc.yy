@@ -1983,6 +1983,7 @@ rule:
 %type <NONE> sp_proc_stmt_in_returns_clause
 %type <lex_str> sp_label
 %type <spblock> sp_decl_handler
+%type <spblock> sp_decl_cursor
 %type <spblock> sp_decls
 %type <spblock> sp_decl
 %type <spblock> sp_decl_body
@@ -2007,6 +2008,7 @@ rule:
 %type <spblock> sp_decl_non_handler_list
 %type <spblock> sp_decl_handler
 %type <spblock> sp_decl_handler_list
+%type <spblock> sp_decl_cursor
 %type <spblock> opt_sp_decl_handler_list
 %type <spblock_handlers> sp_block_statements_and_exceptions
 %type <sp_instr_addr> sp_instr_addr
@@ -18903,6 +18905,7 @@ sf_return_type:
 
 package_implementation_item_declaration:
           DECLARE_MARIADB_SYM sp_decl_variable_list ';' { $$= $2; }
+        | DECLARE_MARIADB_SYM sp_decl_cursor ';'        { $$= $2; }
         ;
 
 //  Inside CREATE PACKAGE BODY, package-wide items (e.g. variables)
@@ -19181,7 +19184,11 @@ sp_decl_body:
             $$.conds= 1;
           }
         | sp_decl_handler
-        | sp_decl_ident CURSOR_SYM
+        | sp_decl_cursor
+        ;
+
+sp_decl_cursor:
+          sp_decl_ident CURSOR_SYM
           {
             Lex->sp_block_init(thd);
           }
@@ -19398,6 +19405,7 @@ sf_return_type:
 
 package_implementation_item_declaration:
           sp_decl_variable_list ';'
+        | sp_decl_cursor ';'
         ;
 
 sp_package_function_body:
@@ -20185,7 +20193,11 @@ sp_decl_non_handler:
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
           }
-        | CURSOR_SYM ident_directly_assignable
+        | sp_decl_cursor
+        ;
+
+sp_decl_cursor:
+          CURSOR_SYM ident_directly_assignable
           {
             Lex->sp_block_init(thd);
           }

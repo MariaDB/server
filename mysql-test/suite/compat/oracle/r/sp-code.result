@@ -1029,11 +1029,11 @@ SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	cpush cur1@0
 1	cpush cur2@1
-2	cursor_copy_struct cur1 rec1@0
-3	cursor_copy_struct cur1 rec2@1
+2	cursor_copy_struct cur1@0 rec1@0
+3	cursor_copy_struct cur1@0 rec2@1
 4	set rec1@0 NULL
 5	set rec2@1 NULL
-6	cursor_copy_struct cur2 rec3@2
+6	cursor_copy_struct cur2@1 rec3@2
 7	set rec3@2 NULL
 8	set rec1.a@0["a"] 10
 9	set rec1.b@0["b"] 'bbb'
@@ -1074,7 +1074,7 @@ Pos	Instruction
 0	cpush cur0@0
 1	cpush cur1@1
 2	cpush cur2@2
-3	cursor_copy_struct cur1 rec1@0
+3	cursor_copy_struct cur1@1 rec1@0
 4	copen cur1@1
 5	cfetch cur1@1 rec1@0
 6	jump_if_not 13(13) "cur1"%FOUND
@@ -1085,7 +1085,7 @@ Pos	Instruction
 11	cfetch cur1@1 rec1@0
 12	jump 6
 13	cclose cur1@1
-14	cursor_copy_struct cur0 rec0@1
+14	cursor_copy_struct cur0@0 rec0@1
 15	copen cur0@0
 16	cfetch cur0@0 rec0@1
 17	jump_if_not 22(22) "cur0"%FOUND
@@ -1094,7 +1094,7 @@ Pos	Instruction
 20	cfetch cur0@0 rec0@1
 21	jump 17
 22	cclose cur0@0
-23	cursor_copy_struct cur2 rec2@2
+23	cursor_copy_struct cur2@2 rec2@2
 24	copen cur2@2
 25	cfetch cur2@2 rec2@2
 26	jump_if_not 31(31) "cur2"%FOUND
@@ -1137,21 +1137,21 @@ $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	cpush cur0@0
-1	cursor_copy_struct cur0 rec0@0
+1	cursor_copy_struct cur0@0 rec0@0
 2	copen cur0@0
 3	cfetch cur0@0 rec0@0
 4	jump_if_not 31(31) "cur0"%FOUND
 5	cpush cur1@1
 6	set rec0.a@0["a"] 11
 7	set rec0.b@0["b"] 'b0'
-8	cursor_copy_struct cur1 rec1@1
+8	cursor_copy_struct cur1@1 rec1@1
 9	copen cur1@1
 10	cfetch cur1@1 rec1@1
 11	jump_if_not 27(27) "cur1"%FOUND
 12	set rec1.a@1["a"] 11
 13	set rec1.b@1["b"] 'b1'
 14	cpush cur2@2
-15	cursor_copy_struct cur2 rec2@2
+15	cursor_copy_struct cur2@2 rec2@2
 16	copen cur2@2
 17	cfetch cur2@2 rec2@2
 18	jump_if_not 23(23) "cur2"%FOUND
@@ -1198,7 +1198,7 @@ $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	cpush [implicit_cursor]@0
-1	cursor_copy_struct [implicit_cursor] rec1@0
+1	cursor_copy_struct [implicit_cursor]@0 rec1@0
 2	copen [implicit_cursor]@0
 3	cfetch [implicit_cursor]@0 rec1@0
 4	jump_if_not 11(11) "[implicit_cursor]"%FOUND
@@ -1210,7 +1210,7 @@ Pos	Instruction
 10	jump 4
 11	cpop 1
 12	cpush [implicit_cursor]@0
-13	cursor_copy_struct [implicit_cursor] rec0@1
+13	cursor_copy_struct [implicit_cursor]@0 rec0@1
 14	copen [implicit_cursor]@0
 15	cfetch [implicit_cursor]@0 rec0@1
 16	jump_if_not 21(21) "[implicit_cursor]"%FOUND
@@ -1220,7 +1220,7 @@ Pos	Instruction
 20	jump 16
 21	cpop 1
 22	cpush [implicit_cursor]@0
-23	cursor_copy_struct [implicit_cursor] rec2@2
+23	cursor_copy_struct [implicit_cursor]@0 rec2@2
 24	copen [implicit_cursor]@0
 25	cfetch [implicit_cursor]@0 rec2@2
 26	jump_if_not 31(31) "[implicit_cursor]"%FOUND
@@ -1253,21 +1253,21 @@ $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	cpush [implicit_cursor]@0
-1	cursor_copy_struct [implicit_cursor] rec0@0
+1	cursor_copy_struct [implicit_cursor]@0 rec0@0
 2	copen [implicit_cursor]@0
 3	cfetch [implicit_cursor]@0 rec0@0
 4	jump_if_not 29(29) "[implicit_cursor]"%FOUND
 5	set rec0.a@0["a"] 11
 6	set rec0.b@0["b"] 'b0'
 7	cpush [implicit_cursor]@1
-8	cursor_copy_struct [implicit_cursor] rec1@1
+8	cursor_copy_struct [implicit_cursor]@1 rec1@1
 9	copen [implicit_cursor]@1
 10	cfetch [implicit_cursor]@1 rec1@1
 11	jump_if_not 26(26) "[implicit_cursor]"%FOUND
 12	set rec1.a@1["a"] 11
 13	set rec1.b@1["b"] 'b1'
 14	cpush [implicit_cursor]@2
-15	cursor_copy_struct [implicit_cursor] rec2@2
+15	cursor_copy_struct [implicit_cursor]@2 rec2@2
 16	copen [implicit_cursor]@2
 17	cfetch [implicit_cursor]@2 rec2@2
 18	jump_if_not 23(23) "[implicit_cursor]"%FOUND
@@ -1301,7 +1301,7 @@ END;
 $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	cursor_copy_struct cur1 rec1@0
+0	cursor_copy_struct cur1@0 rec1@0
 1	set rec1@0 NULL
 2	cpush cur1@0
 3	set rec1.a@0["a"] 10
@@ -1333,9 +1333,9 @@ $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	set a@0 10
-1	cursor_copy_struct cur1 rec1@1
+1	cursor_copy_struct cur1@0 rec1@1
 2	set rec1@1 NULL
-3	cursor_copy_struct cur2 rec2@2
+3	cursor_copy_struct cur2@1 rec2@2
 4	set rec2@2 NULL
 5	cpush cur1@0
 6	cpush cur2@1

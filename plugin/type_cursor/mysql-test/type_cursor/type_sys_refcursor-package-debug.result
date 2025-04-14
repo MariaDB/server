@@ -43,7 +43,7 @@ Pos	Instruction
 1	set b@1 NULL
 2	set c@2 NULL
 3	copen STMT.cursor[c@2]
-4	cfetch STMT.cursor[c@2] a@0 b@1
+4	cfetch STMT.cursor[c@2] MEMBER.a@0 MEMBER.b@1
 5	cclose STMT.cursor[c@2]
 6	destruct sys_refcursor c@2
 CALL pkg.show_body_items();

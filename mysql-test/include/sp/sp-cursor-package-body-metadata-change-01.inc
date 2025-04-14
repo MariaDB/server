@@ -1,0 +1,58 @@
+--source sp-cursor-package-body-init.inc
+
+if ($oracle == 0)
+{
+DELIMITER /;
+CREATE OR REPLACE PACKAGE pkg
+  FUNCTION f1() RETURNS INT;
+END;
+/
+CREATE PACKAGE BODY pkg
+  DECLARE cur CURSOR FOR SELECT a FROM t1;
+  FUNCTION f1() RETURNS TEXT
+  BEGIN
+    DECLARE vc TEXT DEFAULT 0;
+    OPEN cur;
+    FETCH cur INTO vc;
+    CLOSE cur;
+    RETURN vc;
+  END;
+END;
+/
+DELIMITER ;/
+}
+
+
+if ($oracle > 0)
+{
+DELIMITER /;
+CREATE OR REPLACE PACKAGE pkg AS
+  FUNCTION f1 RETURN INT;
+END;
+/
+CREATE PACKAGE BODY pkg AS
+  CURSOR cur IS SELECT a FROM t1;
+  FUNCTION f1 RETURN TEXT AS
+    vc TEXT := 0;
+  BEGIN
+    OPEN cur;
+    FETCH cur INTO vc;
+    CLOSE cur;
+    RETURN vc;
+  END;
+END;
+/
+DELIMITER ;/
+}
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT pkg.f1();
+SELECT pkg.f1();
+ALTER TABLE t1 MODIFY a TEXT;
+UPDATE t1 SET a=CONCAT('a',a);
+SELECT pkg.f1();
+SELECT pkg.f1();
+SELECT pkg.f1();
+DROP TABLE t1;
+DROP PACKAGE pkg;

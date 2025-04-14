@@ -1,0 +1,61 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-36053 CURSOR declarations in PACKAGE BODY
+#
+# Using package body cursor attributes from a routine
+CREATE OR REPLACE PACKAGE pkg AS
+FUNCTION f1 RETURN TEXT;
+END;
+/
+CREATE PACKAGE BODY pkg AS
+CURSOR cur IS SELECT 1 AS c FROM DUAL;
+FUNCTION f1 RETURN TEXT AS
+vc INT;
+rc TEXT DEFAULT '';
+BEGIN
+rc:= CONCAT(rc,  '10 ISOPEN=', cur%ISOPEN, ';');
+OPEN cur;
+rc:= CONCAT(rc, ' 20 ISOPEN=', cur%ISOPEN, ';');
+FETCH cur INTO vc;
+rc:= CONCAT(rc, ' 30 FOUND=', cur%FOUND, ';');
+rc:= CONCAT(rc, ' 31 NOTFOUND=', cur%NOTFOUND, ';');
+rc:= CONCAT(rc, ' 32 ROWCOUNT=', cur%ROWCOUNT, ';');
+CLOSE cur;
+rc:= CONCAT(rc, ' 40 ISOPEN=', cur%ISOPEN, ';');
+RETURN rc;
+END;
+END;
+/
+SELECT pkg.f1();
+pkg.f1()
+10 ISOPEN=0; 20 ISOPEN=1; 30 FOUND=1; 31 NOTFOUND=0; 32 ROWCOUNT=1; 40 ISOPEN=0;
+DROP PACKAGE pkg;
+# Using package body cursor attributes from the initialization section
+CREATE OR REPLACE PACKAGE pkg AS
+FUNCTION f1 RETURN TEXT;
+END;
+/
+CREATE PACKAGE BODY pkg AS
+CURSOR cur IS SELECT 1 AS c FROM DUAL;
+rc TEXT DEFAULT '';
+vc INT;
+FUNCTION f1 RETURN TEXT AS
+BEGIN
+RETURN rc;
+END;
+BEGIN
+rc:= CONCAT(rc,  '10 ISOPEN=', cur%ISOPEN, ';');
+OPEN cur;
+rc:= CONCAT(rc, ' 20 ISOPEN=', cur%ISOPEN, ';');
+FETCH cur INTO vc;
+rc:= CONCAT(rc, ' 30 FOUND=', cur%FOUND, ';');
+rc:= CONCAT(rc, ' 31 NOTFOUND=', cur%NOTFOUND, ';');
+rc:= CONCAT(rc, ' 32 ROWCOUNT=', cur%ROWCOUNT, ';');
+CLOSE cur;
+rc:= CONCAT(rc, ' 40 ISOPEN=', cur%ISOPEN, ';');
+END;
+/
+SELECT pkg.f1();
+pkg.f1()
+10 ISOPEN=0; 20 ISOPEN=1; 30 FOUND=1; 31 NOTFOUND=0; 32 ROWCOUNT=1; 40 ISOPEN=0;
+DROP PACKAGE pkg;
