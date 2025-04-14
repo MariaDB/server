@@ -19132,4 +19132,25 @@ FROM cte2
 GROUP BY 1 ;
 ( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
 1
+create table t1 (f int);
+create view v1 as select f, count(*) c from t1 group by f;
+#
+# MDEV-25012 Server crash in find_field_in_tables, Assertion `name' failed in find_field_in_table_ref
+#
+select * from v1 where export_set(1, default(f), 'x', aes_decrypt('secret', f));
+f	c
+show warnings;
+Level	Code	Message
+drop view v1;
+drop table t1;
+create table t(c3 longtext) ;
+with cte1 as
+(
+select default(c3) as a
+from t group by 1
+)
+select * from cte1
+where cte1.a >= 1;
+a
+drop table t;
 # End of 10.5 tests

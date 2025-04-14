@@ -11064,7 +11064,8 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
 Field_pair *get_corresponding_field_pair(Item *item,
                                          List<Field_pair> pair_list)
 {
-  DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+  DBUG_ASSERT(item->type() == Item::DEFAULT_VALUE_ITEM ||
+              item->type() == Item::FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
                (((Item_ref *) item)->ref_type() == Item_ref::REF))));
