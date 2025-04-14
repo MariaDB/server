@@ -766,6 +766,8 @@ static LEX_CSTRING MYSQL_TABLE_NAME[USER_TABLE+1]= {
   {STRING_WITH_LEN("roles_mapping")},
   {STRING_WITH_LEN("global_priv")}
 };
+static uint MYSQL_TABLE_COL_CNT[USER_TABLE+1]= {
+  23, 8, 7, /* No more mysql.host since MDEV-15851 */ 0, 8, 7, 4, 3};
 static LEX_CSTRING MYSQL_TABLE_NAME_USER={STRING_WITH_LEN("user")};
 
 /**
@@ -2028,6 +2030,22 @@ class Grant_tables
                     MYSQL_LOCK_IGNORE_TIMEOUT |
                     MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
       DBUG_RETURN(-1);
+
+    /* Check table structures, but only if the server has started */
+    if (mysqld_server_started)
+    {
+      for (int i=USER_TABLE; i >=0; i--)
+      {
+        if (which_tables & (1 << i) && tables[i].table != NULL &&
+            tables[i].table->s->fields < MYSQL_TABLE_COL_CNT[i])
+        {
+          my_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2, MYF(0), "mysql",
+                   tables[i].table_name.str, MYSQL_TABLE_COL_CNT[i],
+                   tables[i].table->s->fields);
+          DBUG_RETURN(-1);
+        }
+      }
+    }
 
     p_user_table->set_table(tables[USER_TABLE].table);
     m_db_table.set_table(tables[DB_TABLE].table);

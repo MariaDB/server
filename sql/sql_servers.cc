@@ -55,7 +55,7 @@ static HASH servers_cache;
 static MEM_ROOT mem;
 static mysql_rwlock_t THR_LOCK_servers;
 static LEX_CSTRING MYSQL_SERVERS_NAME= {STRING_WITH_LEN("servers") };
-
+static const uint MYSQL_SERVERS_COL_CNT= 9;
 
 static bool get_server_from_table_to_cache(TABLE *table);
 
@@ -355,6 +355,12 @@ bool servers_reload(THD *thd)
     goto end;
   }
 
+  if (tables[0].table->s->fields < MYSQL_SERVERS_COL_CNT)
+  {
+    sql_print_error("Column count of mysql.servers is wrong");
+    return_val= TRUE;
+    goto end;
+  }
   if ((return_val= servers_load(thd, tables)))
   {					// Error. Revert to old list
     /* blast, for now, we have no servers, discuss later way to preserve */
@@ -556,7 +562,7 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
 
   table->use_all_columns();
 
-  if (table->s->fields < 9)
+  if (table->s->fields < MYSQL_SERVERS_COL_CNT)
     return ER_CANT_FIND_SYSTEM_REC;
 
   /*

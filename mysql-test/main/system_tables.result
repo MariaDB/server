@@ -1,0 +1,31 @@
+#
+# MDEV-35622 SEGV when reading system table with less than expected number of columns
+#
+create table mysql.servers_save like mysql.servers;
+ALTER TABLE mysql.servers DROP COLUMN Owner;
+INSERT INTO mysql.servers VALUES(0,0,0,0,0,0,0,0);
+call mtr.add_suppression('\\[ERROR\\] Column count of mysql.servers is wrong');
+FLUSH PRIVILEGES;
+ERROR HY000: Unknown error
+drop table mysql.servers;
+rename table mysql.servers_save to mysql.servers;
+create table mysql.plugin_save like mysql.plugin;
+alter table mysql.plugin drop column dl;
+install soname "ha_example";
+ERROR HY000: Column count of mysql.plugin is wrong. Expected 2, found 1. The table is probably corrupted
+drop table mysql.plugin;
+rename table mysql.plugin_save to mysql.plugin;
+rename table mysql.procs_priv to mysql.procs_priv_save;
+CREATE OR REPLACE TABLE mysql.procs_priv (id INT);
+INSERT INTO mysql.procs_priv VALUES(0);
+CREATE ROLE r;
+ERROR HY000: Column count of mysql.procs_priv is wrong. Expected 8, found 1. The table is probably corrupted
+drop table mysql.procs_priv;
+rename table mysql.procs_priv_save to mysql.procs_priv;
+create table mysql.plugin_save like mysql.plugin;
+install soname "ha_example";
+alter table mysql.plugin drop column dl;
+call mtr.add_suppression('\\[ERROR\\] Column count of mysql.plugin is wrong');
+# restart
+drop table mysql.plugin;
+rename table mysql.plugin_save to mysql.plugin;
