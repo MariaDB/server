@@ -2501,29 +2501,28 @@ dberr_t
 row_delete_constraint(
 /*==================*/
 	const char*	id,		/*!< in: constraint id */
-	const char*	database_name,	/*!< in: database name, with the
-					trailing '/' */
+	const char*	name,		/*!< in: table name */
 	mem_heap_t*	heap,		/*!< in: memory heap */
 	trx_t*		trx)		/*!< in: transaction handle */
 {
-	dberr_t	err;
+  const size_t s= strlen(id) + strlen(name) + 2;
+  char *fk= static_cast<char*>(mem_heap_alloc(heap, s));
+  snprintf(fk, s, "%s\377%s", name, id);
+  dberr_t err= row_delete_constraint_low(fk, trx);
+  if (err == DB_SUCCESS)
+  {
+    /* Also try dropping the MySQL 4.0.18 or 4.1.2 constraints,
+    with schemaname/constraintname. */
+    snprintf(fk, s, "%.*s%s", int(dict_get_db_name_len(name) + 1), name, id);
+    err= row_delete_constraint_low(fk, trx);
+  }
+  if (err == DB_SUCCESS && !strchr(id, '/'))
+    /* Before MySQL 4.0.18 or 4.1.2, constraints were of the form
+    %lu_%lu (a 64-bit global identifier split into two 32-bit
+    parts). Let them be dropped. */
+    err= row_delete_constraint_low(id, trx);
 
-	/* New format constraints have ids <databasename>/<constraintname>. */
-	err = row_delete_constraint_low(
-		mem_heap_strcat(heap, database_name, id), trx);
-
-	if ((err == DB_SUCCESS) && !strchr(id, '/')) {
-		/* Old format < 4.0.18 constraints have constraint ids
-		NUMBER_NUMBER. We only try deleting them if the
-		constraint name does not contain a '/' character, otherwise
-		deleting a new format constraint named 'foo/bar' from
-		database 'baz' would remove constraint 'bar' from database
-		'foo', if it existed. */
-
-		err = row_delete_constraint_low(id, trx);
-	}
-
-	return(err);
+  return err;
 }
 
 /*********************************************************************//**
@@ -2663,132 +2662,49 @@ row_rename_table_for_mysql(
 	if (err != DB_SUCCESS) {
 		// Assume the caller guarantees destination name doesn't exist.
 		ut_ad(err != DB_DUPLICATE_KEY);
-		goto rollback_and_exit;
-	}
-
-	if (/* fk == RENAME_IGNORE_FK || */ !new_is_tmp) {
+	} else if (/* fk == RENAME_IGNORE_FK || */ !new_is_tmp) {
 		/* Rename all constraints. */
-		char	new_table_name[MAX_TABLE_NAME_LEN + 1];
-		char	old_table_utf8[MAX_TABLE_NAME_LEN + 1];
-		uint	errors = 0;
-
-		strncpy(old_table_utf8, old_name, MAX_TABLE_NAME_LEN);
-		old_table_utf8[MAX_TABLE_NAME_LEN] = '\0';
-		innobase_convert_to_system_charset(
-			strchr(old_table_utf8, '/') + 1,
-			strchr(old_name, '/') +1,
-			MAX_TABLE_NAME_LEN, &errors);
-
-		if (errors) {
-			/* Table name could not be converted from charset
-			my_charset_filename to UTF-8. This means that the
-			table name is already in UTF-8 (#mysql#50). */
-			strncpy(old_table_utf8, old_name, MAX_TABLE_NAME_LEN);
-			old_table_utf8[MAX_TABLE_NAME_LEN] = '\0';
-		}
-
 		info = pars_info_create();
 
-		pars_info_add_str_literal(info, "new_table_name", new_name);
-		pars_info_add_str_literal(info, "old_table_name", old_name);
-		pars_info_add_str_literal(info, "old_table_name_utf8",
-					  old_table_utf8);
-
-		strncpy(new_table_name, new_name, MAX_TABLE_NAME_LEN);
-		new_table_name[MAX_TABLE_NAME_LEN] = '\0';
-		innobase_convert_to_system_charset(
-			strchr(new_table_name, '/') + 1,
-			strchr(new_name, '/') +1,
-			MAX_TABLE_NAME_LEN, &errors);
-
-		if (errors) {
-			/* Table name could not be converted from charset
-			my_charset_filename to UTF-8. This means that the
-			table name is already in UTF-8 (#mysql#50). */
-			strncpy(new_table_name, new_name, MAX_TABLE_NAME_LEN);
-			new_table_name[MAX_TABLE_NAME_LEN] = '\0';
-		}
-
-		pars_info_add_str_literal(info, "new_table_utf8", new_table_name);
+		pars_info_add_str_literal(info, "new_name", new_name);
+		pars_info_add_str_literal(info, "old_name", old_name);
 
 		err = que_eval_sql(
 			info,
 			"PROCEDURE RENAME_CONSTRAINT_IDS () IS\n"
-			"gen_constr_prefix CHAR;\n"
-			"new_db_name CHAR;\n"
-			"foreign_id CHAR;\n"
-			"new_foreign_id CHAR;\n"
-			"old_db_name_len INT;\n"
-			"old_t_name_len INT;\n"
-			"new_db_name_len INT;\n"
-			"id_len INT;\n"
-			"offset INT;\n"
-			"found INT;\n"
+			"old CHAR; new CHAR; found INT; p INT;\n"
 			"BEGIN\n"
 			"found := 1;\n"
-			"old_db_name_len := INSTR(:old_table_name, '/')-1;\n"
-			"new_db_name_len := INSTR(:new_table_name, '/')-1;\n"
-			"new_db_name := SUBSTR(:new_table_name, 0,\n"
-			"                      new_db_name_len);\n"
-			"old_t_name_len := LENGTH(:old_table_name);\n"
-			"gen_constr_prefix := CONCAT(:old_table_name_utf8,\n"
-			"                            '_ibfk_');\n"
 			"WHILE found = 1 LOOP\n"
-			"       SELECT ID INTO foreign_id\n"
-			"        FROM SYS_FOREIGN\n"
-			"        WHERE FOR_NAME = :old_table_name\n"
-			"         AND TO_BINARY(FOR_NAME)\n"
-			"           = TO_BINARY(:old_table_name)\n"
-			"         LOCK IN SHARE MODE;\n"
-			"       IF (SQL % NOTFOUND) THEN\n"
-			"        found := 0;\n"
-			"       ELSE\n"
-			"        UPDATE SYS_FOREIGN\n"
-			"        SET FOR_NAME = :new_table_name\n"
-			"         WHERE ID = foreign_id;\n"
-			"        id_len := LENGTH(foreign_id);\n"
-			"        IF (INSTR(foreign_id, '/') > 0) THEN\n"
-			"               IF (INSTR(foreign_id,\n"
-			"                         gen_constr_prefix) > 0)\n"
-			"               THEN\n"
-                        "                offset := INSTR(foreign_id, '_ibfk_') - 1;\n"
-			"                new_foreign_id :=\n"
-			"                CONCAT(:new_table_utf8,\n"
-			"                SUBSTR(foreign_id, offset,\n"
-			"                       id_len - offset));\n"
-			"               ELSE\n"
-			"                new_foreign_id :=\n"
-			"                CONCAT(new_db_name,\n"
-			"                SUBSTR(foreign_id,\n"
-			"                       old_db_name_len,\n"
-			"                       id_len - old_db_name_len));\n"
-			"               END IF;\n"
-			"               UPDATE SYS_FOREIGN\n"
-			"                SET ID = new_foreign_id\n"
-			"                WHERE ID = foreign_id;\n"
-			"               UPDATE SYS_FOREIGN_COLS\n"
-			"                SET ID = new_foreign_id\n"
-			"                WHERE ID = foreign_id;\n"
-			"        END IF;\n"
-			"       END IF;\n"
+			"  SELECT ID INTO old FROM SYS_FOREIGN\n"
+			"  WHERE FOR_NAME = :old_name\n"
+			"  AND TO_BINARY(FOR_NAME)=TO_BINARY(:old_name)\n"
+			"  LOCK IN SHARE MODE;\n"
+			"  IF (SQL % NOTFOUND) THEN\n"
+			"    found := 0;\n"
+			"  ELSE\n"
+			"    p := INSTR(old, '\377');\n"
+			"    IF p = 0 THEN p := INSTR(old, '/'); END IF;\n"
+			"    new:=CONCAT(:new_name,'\377',\n"
+			"                SUBSTR(old,p,LENGTH(old)-1));\n"
+			"    UPDATE SYS_FOREIGN\n"
+			"    SET ID=new, FOR_NAME=:new_name WHERE ID=old;\n"
+			"    UPDATE SYS_FOREIGN_COLS\n"
+			"    SET ID=new WHERE ID=old;\n"
+			"  END IF;\n"
 			"END LOOP;\n"
-			"UPDATE SYS_FOREIGN SET REF_NAME = :new_table_name\n"
-			"WHERE REF_NAME = :old_table_name\n"
-			"  AND TO_BINARY(REF_NAME)\n"
-			"    = TO_BINARY(:old_table_name);\n"
+			"UPDATE SYS_FOREIGN SET REF_NAME = :new_name\n"
+			"WHERE REF_NAME = :old_name\n"
+			"AND TO_BINARY(REF_NAME)=TO_BINARY(:old_name);\n"
 			"END;\n", trx);
-
+		if (err == DB_DUPLICATE_KEY) {
+			err = DB_FOREIGN_DUPLICATE_KEY;
+		}
 	} else if (n_constraints_to_drop > 0) {
 		/* Drop some constraints of tmp tables. */
-
-		ulint	db_name_len = dict_get_db_name_len(old_name) + 1;
-		char*	db_name = mem_heap_strdupl(heap, old_name,
-						   db_name_len);
-		ulint	i;
-
-		for (i = 0; i < n_constraints_to_drop; i++) {
+		for (auto i = n_constraints_to_drop; i--; ) {
 			err = row_delete_constraint(constraints_to_drop[i],
-						    db_name, heap, trx);
+						    old_name, heap, trx);
 
 			if (err != DB_SUCCESS) {
 				break;
@@ -2798,34 +2714,20 @@ row_rename_table_for_mysql(
 
 	if (err == DB_SUCCESS
 	    && (dict_table_has_fts_index(table)
-	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
-	    && !dict_tables_have_same_db(old_name, new_name)) {
+                || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
+            && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 	}
 
-	switch (err) {
-	case DB_DUPLICATE_KEY:
-		ib::error() << "Table rename might cause two"
-			" FOREIGN KEY constraints to have the same"
-			" internal name in case-insensitive comparison.";
-		ib::info() << TROUBLESHOOTING_MSG;
-		/* fall through */
-	rollback_and_exit:
-	default:
-		trx->error_state = DB_SUCCESS;
-		trx->rollback();
-		trx->error_state = DB_SUCCESS;
-		break;
-	case DB_SUCCESS:
+	if (err == DB_SUCCESS) {
 		DEBUG_SYNC_C("innodb_rename_in_cache");
 		/* The following call will also rename the .ibd file */
 		err = dict_table_rename_in_cache(
 			table, span<const char>{new_name,strlen(new_name)},
 			false);
-		if (err != DB_SUCCESS) {
-			goto rollback_and_exit;
-		}
+	}
 
+	if (err == DB_SUCCESS) {
 		/* In case of copy alter, template db_name and
 		table_name should be renamed only for newly
 		created table. */
@@ -2859,7 +2761,7 @@ row_rename_table_for_mysql(
 					" definition.";
 				if (!trx->check_foreigns) {
 					err = DB_SUCCESS;
-					break;
+					goto funct_exit;
 				}
 			} else {
 				ib::error() << "In RENAME TABLE table "
@@ -2868,29 +2770,23 @@ row_rename_table_for_mysql(
 					" constraints which are not compatible"
 					" with the new table definition.";
 			}
-
-			goto rollback_and_exit;
-		}
-
-		/* Check whether virtual column or stored column affects
-		the foreign key constraint of the table. */
-		if (dict_foreigns_has_s_base_col(table->foreign_set, table)) {
+		} else if (dict_foreigns_has_s_base_col(table->foreign_set,
+							table)) {
 			err = DB_NO_FK_ON_S_BASE_COL;
-			goto rollback_and_exit;
+		} else {
+			/* Fill the virtual column set in foreign when
+			the table undergoes copy alter operation. */
+			dict_mem_table_free_foreign_vcol_set(table);
+			dict_mem_table_fill_foreign_vcol_set(table);
+
+			while (!fk_tables.empty()) {
+				const char *f = fk_tables.front();
+				dict_sys.load_table({f, strlen(f)});
+				fk_tables.pop_front();
+			}
+
+			table->data_dir_path= NULL;
 		}
-
-		/* Fill the virtual column set in foreign when
-		the table undergoes copy alter operation. */
-		dict_mem_table_free_foreign_vcol_set(table);
-		dict_mem_table_fill_foreign_vcol_set(table);
-
-		while (!fk_tables.empty()) {
-			const char *f = fk_tables.front();
-			dict_sys.load_table({f, strlen(f)});
-			fk_tables.pop_front();
-		}
-
-		table->data_dir_path= NULL;
 	}
 
 funct_exit:
