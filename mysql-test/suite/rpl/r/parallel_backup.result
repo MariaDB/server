@@ -26,14 +26,39 @@ include/start_slave.inc
 connection aux_slave;
 connect  backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
 BACKUP STAGE START;
-BACKUP STAGE BLOCK_COMMIT;
 connection aux_slave;
 ROLLBACK;
 connection backup_slave;
 BACKUP STAGE END;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
+#
+# Test with blocking BLOCK_COMMIT
+#
+connection slave;
+include/stop_slave.inc
+connection backup_slave;
+BACKUP STAGE START;
+connection master;
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+connection aux_slave;
+BEGIN;
+INSERT INTO t1 VALUES (3);
+connection slave;
+include/start_slave.inc
+connection aux_slave;
+connection backup_slave;
+BACKUP STAGE BLOCK_COMMIT;;
+connection aux_slave;
+ROLLBACK;
+connection backup_slave;
+BACKUP STAGE END;
+connection slave;
+include/diff_tables.inc [master:t1,slave:t1]
+#
 # MDEV-30423: dealock XA COMMIT vs BACKUP
+#
 #
 # Normal XA COMMIT
 connection slave;
@@ -52,6 +77,8 @@ INSERT INTO t1 VALUES (102);
 connection master;
 XA COMMIT '1';
 include/save_master_gtid.inc
+connection backup_slave;
+BACKUP STAGE START;
 connection slave;
 include/start_slave.inc
 connection aux_slave;
@@ -60,7 +87,6 @@ XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 1	1	0	1
 connection backup_slave;
-BACKUP STAGE START;
 BACKUP STAGE BLOCK_COMMIT;
 connection aux_slave;
 ROLLBACK;
@@ -87,6 +113,8 @@ INSERT INTO t1 VALUES (104);
 connection master;
 XA ROLLBACK '1';
 include/save_master_gtid.inc
+connection backup_slave;
+BACKUP STAGE START;
 connection slave;
 include/start_slave.inc
 connection aux_slave;
@@ -95,7 +123,6 @@ XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 1	1	0	1
 connection backup_slave;
-BACKUP STAGE START;
 BACKUP STAGE BLOCK_COMMIT;
 connection aux_slave;
 ROLLBACK;
@@ -122,6 +149,8 @@ INSERT INTO t1 VALUES (106);
 connection master;
 XA COMMIT '1';
 include/save_master_gtid.inc
+connection backup_slave;
+BACKUP STAGE START;
 connection slave;
 SET @sav_innodb_lock_wait_timeout  = @@global.innodb_lock_wait_timeout;
 SET @sav_slave_transaction_retries = @@global.slave_transaction_retries;
@@ -134,7 +163,6 @@ XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 1	1	0	1
 connection backup_slave;
-BACKUP STAGE START;
 BACKUP STAGE BLOCK_COMMIT;
 connection aux_slave;
 ROLLBACK;
@@ -165,6 +193,8 @@ INSERT INTO t1 VALUES (108);
 connection master;
 XA ROLLBACK '1';
 include/save_master_gtid.inc
+connection backup_slave;
+BACKUP STAGE START;
 connection slave;
 SET @sav_innodb_lock_wait_timeout  = @@global.innodb_lock_wait_timeout;
 SET @sav_slave_transaction_retries = @@global.slave_transaction_retries;
@@ -177,7 +207,6 @@ XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 1	1	0	1
 connection backup_slave;
-BACKUP STAGE START;
 BACKUP STAGE BLOCK_COMMIT;
 connection aux_slave;
 ROLLBACK;

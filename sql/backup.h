@@ -35,13 +35,18 @@ struct backup_log_info {
   bool new_partitioned;
 };
 
-void backup_init();
-bool run_backup_stage(THD *thd, backup_stages stage);
-bool backup_end(THD *thd);
-void backup_set_alter_copy_lock(THD *thd, TABLE *altered_table);
-bool backup_reset_alter_copy_lock(THD *thd);
+void backup_init() noexcept;
+#ifndef DBUG_OFF
+void backup_reset() noexcept;
+#else
+# define backup_reset() /* empty */
+#endif
+bool run_backup_stage(THD *thd, backup_stages stage) noexcept;
+bool backup_end(THD *thd) noexcept;
+void backup_set_alter_copy_lock(THD *thd, TABLE *altered_table) noexcept;
+bool backup_reset_alter_copy_lock(THD *thd) noexcept;
 
-bool backup_lock(THD *thd, TABLE_LIST *table);
-void backup_unlock(THD *thd);
-void backup_log_ddl(const backup_log_info *info);
+bool backup_lock(THD *thd, TABLE_LIST *table) noexcept;
+void backup_unlock(THD *thd) noexcept;
+void backup_log_ddl(const backup_log_info *info) noexcept;
 #endif /* BACKUP_INCLUDED */

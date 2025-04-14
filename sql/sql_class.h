@@ -2736,10 +2736,49 @@ public:
     rpl_io_thread_info *rpl_io_info;
     rpl_sql_thread_info *rpl_sql_info;
   } system_thread_info;
-  /* Used for BACKUP LOCK */
-  MDL_ticket *mdl_backup_ticket, *mdl_backup_lock;
-  /* Used to register that thread has a MDL_BACKUP_WAIT_COMMIT lock */
-  MDL_request *backup_commit_lock;
+  /** Used in lock_table_names() */
+  MDL_ticket *mdl_backup_ticket;
+  /** Used in BACKUP STAGE */
+  MDL_ticket *mdl_backup_lock;
+  /** Pre-initialized MDL request for protect_against_backup() */
+  MDL_request mdl_backup;
+
+  /** the state of protect_against_backup() and unprotect_against_backup() */
+  enum backup_locking_state {
+    OUTSIDE_COMMIT= 0, IN_COMMIT_NO_LOCK, IN_COMMIT_WITH_LOCK
+  };
+
+  /** whether the thread holds a MDL_BACKUP_WAIT_COMMIT lock */
+  std::atomic<backup_locking_state> backup_commit_lock{OUTSIDE_COMMIT};
+
+  /** the difference of enable_backup_commit_locks() and
+  disable_backup_commit_locks() calls */
+  static std::atomic<uint> backup_commit_lock_enabled;
+
+  /** @return whether we failed to acquire mdl_backup when it is necessary */
+  bool protect_against_backup() noexcept
+  {
+    DBUG_ASSERT(!backup_commit_lock.load(std::memory_order_relaxed));
+    backup_commit_lock.store(IN_COMMIT_NO_LOCK, std::memory_order_release);
+    /* We must have updated our state before the load below, to guarantee that
+    enable_backup_commit_locks() will account for us. */
+    return
+      unlikely(backup_commit_lock_enabled.load(std::memory_order_acquire)) &&
+      protect_against_backup_slow();
+  }
+  void unprotect_against_backup() noexcept
+  {
+    backup_locking_state s= backup_commit_lock.load(std::memory_order_relaxed);
+    backup_commit_lock.store(OUTSIDE_COMMIT, std::memory_order_release);
+    if (unlikely(s == IN_COMMIT_WITH_LOCK))
+      unprotect_against_backup_slow();
+  }
+private:
+  bool protect_against_backup_slow() noexcept;
+  void unprotect_against_backup_slow() noexcept;
+public:
+  bool enable_backup_commit_locks() noexcept;
+  static void disable_backup_commit_locks() noexcept;
 
   void reset_for_next_command(bool do_clear_errors= 1);
 

@@ -1765,17 +1765,16 @@ int ha_commit_trans(THD *thd, bool all)
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && rw_ha_count > 0;
-  MDL_request mdl_backup;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
 
   /*
     backup_commit_lock may have already been set.
     This can happen in case of spider that does xa_commit() by
-    calling ha_commit_trans() from spader_commit().
+    calling ha_commit_trans() from spider_commit().
   */
 
-  if (rw_trans && !thd->backup_commit_lock)
+  if (rw_trans && !thd->backup_commit_lock.load(std::memory_order_relaxed))
   {
     /*
       Acquire a metadata lock which will ensure that COMMIT is blocked
@@ -1785,19 +1784,11 @@ int ha_commit_trans(THD *thd, bool all)
       We allow the owner of FTWRL to COMMIT; we assume that it knows
       what it does.
     */
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
-
-    if (!WSREP(thd))
+    if (!WSREP(thd) && thd->protect_against_backup())
     {
-      if (thd->mdl_context.acquire_lock(&mdl_backup,
-                                        thd->variables.lock_wait_timeout))
-      {
-        my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
-        ha_rollback_trans(thd, all);
-        DBUG_RETURN(1);
-      }
-      thd->backup_commit_lock= &mdl_backup;
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+      ha_rollback_trans(thd, all);
+      DBUG_RETURN(1);
     }
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
@@ -2047,17 +2038,14 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  if (mdl_backup.ticket)
-  {
-    /*
-      We do not always immediately release transactional locks
-      after ha_commit_trans() (see uses of ha_enable_transaction()),
-      thus we release the commit blocker lock as soon as it's
-      not needed.
-    */
-    thd->mdl_context.release_lock(mdl_backup.ticket);
-    thd->backup_commit_lock= 0;
-  }
+  /*
+    We do not always immediately release transactional locks
+    after ha_commit_trans() (see uses of ha_enable_transaction()),
+    thus we release the commit blocker lock as soon as it's
+    not needed.
+  */
+  thd->unprotect_against_backup();
+
 #ifdef WITH_WSREP
   if (wsrep_is_active(thd) && is_real_trans && !error &&
       (rw_ha_count == 0 || all) &&

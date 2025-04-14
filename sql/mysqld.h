@@ -692,6 +692,9 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
+extern PSI_stage_info stage_backup_setup_mdl_locks;
+extern PSI_stage_info stage_backup_got_commit_lock;
+
 #ifdef WITH_WSREP
 // Aditional Galera thread states
 extern PSI_stage_info stage_waiting_isolation;
@@ -768,7 +771,8 @@ extern mysql_mutex_t
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_active_mi, LOCK_manager, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages,  LOCK_backup_log;
+       LOCK_prepared_stmt_count, LOCK_error_messages,
+       LOCK_backup_log, LOCK_backup_commit;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;

@@ -36,6 +36,9 @@ XA PREPARE '1';
 --eval XA $complete '1'
 --source include/save_master_gtid.inc
 
+--connection backup_slave
+BACKUP STAGE START;
+
 --connection slave
 if ($slave_ooo_error)
 {
@@ -51,7 +54,6 @@ if ($slave_ooo_error)
 --echo # Xid '1' must be in the output:
 XA RECOVER;
 --connection backup_slave
-  BACKUP STAGE START;
 --send BACKUP STAGE BLOCK_COMMIT
 --connection aux_slave
   --sleep 1

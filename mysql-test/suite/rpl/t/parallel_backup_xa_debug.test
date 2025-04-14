@@ -26,6 +26,9 @@ xa start 'x';
 xa end 'x';
 xa prepare 'x';
 
+--connection slave1
+backup stage start;
+
 --connection slave
 SET @@global.debug_dbug="+d,hold_worker_on_schedule";
 start slave;
@@ -34,7 +37,6 @@ SET debug_sync = 'now WAIT_FOR reached_pause';
 --source include/wait_condition.inc
 
 --connection slave1
-backup stage start;
 backup stage block_commit;
 
 --connection slave
