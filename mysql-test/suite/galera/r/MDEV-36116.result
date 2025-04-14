@@ -9,7 +9,7 @@ connection con1;
 SET DEBUG_SYNC = 'now WAIT_FOR may_kill';
 SET DEBUG_SYNC = 'now SIGNAL continue';
 connection node_1;
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 connection node_2;
 SHOW TABLES LIKE 't1';
 Tables_in_test (t1)

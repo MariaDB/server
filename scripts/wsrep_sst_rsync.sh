@@ -915,6 +915,8 @@ EOF
         fi
     fi
 
+    simulate_long_sst
+
     # Remove special tags from the magic file, and from the output:
     coords=$(head -n1 "$MAGIC_FILE")
     wsrep_log_info "Galera co-ords from recovery: $coords"

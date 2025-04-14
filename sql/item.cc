@@ -5287,6 +5287,7 @@ bool Item_param::assign_default(Field *field)
 
 double Item_copy_string::val_real()
 {
+  DBUG_ASSERT(copied_in);
   int err_not_used;
   char *end_not_used;
   return (null_value ? 0.0 :
@@ -5297,6 +5298,7 @@ double Item_copy_string::val_real()
 
 longlong Item_copy_string::val_int()
 {
+  DBUG_ASSERT(copied_in);
   int err;
   return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
                                                         str_value.length(), 10,
@@ -5306,6 +5308,7 @@ longlong Item_copy_string::val_int()
 
 int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 {
+  DBUG_ASSERT(copied_in);
   return save_str_value_in_field(field, &str_value);
 }
 
@@ -5316,11 +5319,15 @@ void Item_copy_string::copy()
   if (res && res != &str_value)
     str_value.copy(*res);
   null_value=item->null_value;
+#ifndef DBUG_OFF
+  copied_in= 1;
+#endif
 }
 
 /* ARGSUSED */
 String *Item_copy_string::val_str(String *str)
 {
+  DBUG_ASSERT(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (String*) 0;
@@ -5330,6 +5337,7 @@ String *Item_copy_string::val_str(String *str)
 
 my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
 {
+  DBUG_ASSERT(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (my_decimal *) 0;
