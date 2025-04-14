@@ -1,0 +1,41 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-36053 CURSOR declarations in PACKAGE BODY
+#
+CREATE OR REPLACE PACKAGE pkg AS
+FUNCTION f1 RETURN INT;
+END;
+/
+CREATE PACKAGE BODY pkg AS
+CURSOR cur IS SELECT a FROM t1;
+FUNCTION f1 RETURN TEXT AS
+vc TEXT := 0;
+BEGIN
+OPEN cur;
+FETCH cur INTO vc;
+CLOSE cur;
+RETURN vc;
+END;
+END;
+/
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT pkg.f1();
+pkg.f1()
+10
+SELECT pkg.f1();
+pkg.f1()
+10
+ALTER TABLE t1 MODIFY a TEXT;
+UPDATE t1 SET a=CONCAT('a',a);
+SELECT pkg.f1();
+pkg.f1()
+a10
+SELECT pkg.f1();
+pkg.f1()
+a10
+SELECT pkg.f1();
+pkg.f1()
+a10
+DROP TABLE t1;
+DROP PACKAGE pkg;

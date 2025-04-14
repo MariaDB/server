@@ -40,6 +40,8 @@
 #include "sql_class.h"                // enum enum_column_usage
 #include "select_handler.h"
 
+class sp_pcursor;
+
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
 typedef Bitmap<SELECT_NESTING_MAP_SIZE> nesting_map;
@@ -4000,6 +4002,26 @@ public:
     sp_pcontext *not_used_ctx;
     return find_variable(name, &not_used_ctx, rh);
   }
+  /*
+    Find a cursor by name
+    @param name        The cursor name
+    @param addr [OUT]  The cursor address is returned here if found
+    @retval            nullptr if not found
+    @retval            the sp_pcursor not null pointer if found
+  */
+  const sp_pcursor *find_cursor(const LEX_CSTRING *name,
+                                sp_rcontext_addr *addr) const;
+  const sp_pcursor *find_cursor_with_error(const LEX_CSTRING *name,
+                                           sp_rcontext_addr *addr) const
+  {
+    const sp_pcursor *pcursor= find_cursor(name, addr);
+    if (!pcursor)
+    {
+      my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+      return nullptr;
+    }
+    return pcursor;
+  }
   sp_fetch_target *make_fetch_target(THD *thd, const Lex_ident_sys_st &name);
   bool set_variable(const Lex_ident_sys_st *name, Item *item,
                     const LEX_CSTRING &expr_str);
@@ -4026,7 +4048,8 @@ public:
                                                  Item *def,
                                                  const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
-                                                        uint offset,
+                                                        const sp_rcontext_addr
+                                                          &cursor_addr,
                                                         Item *def,
                                                         const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
@@ -4071,6 +4094,8 @@ public:
 
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
                       List<sp_assignment_lex> *parameters);
+  bool sp_close(THD *thd, const Lex_ident_sys_st &name);
+
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 
@@ -4415,7 +4440,7 @@ public:
   sp_variable *sp_add_for_loop_cursor_variable(THD *thd,
                                                const LEX_CSTRING *name,
                                                const class sp_pcursor *cur,
-                                               uint coffset,
+                                               const sp_rcontext_addr &caddr,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
   bool sp_for_loop_implicit_cursor_statement(THD *thd,

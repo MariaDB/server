@@ -23,6 +23,7 @@
 
 #include "sql_class.h"                    // select_result_interceptor
 #include "sp_pcontext.h"                  // sp_condition_value
+#include "sp_rcontext_handler.h"
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext declaration.
@@ -72,7 +73,7 @@ public:
   /// @return valid sp_rcontext object or NULL in case of OOM-error.
   static sp_rcontext *create(THD *thd,
                              sp_head *owner,
-                             const sp_pcontext *root_parsing_ctx,
+                             const sp_pcontext_top *root_parsing_ctx,
                              Field *return_value_fld,
                              Row_definition_list &defs);
 
@@ -80,7 +81,7 @@ public:
 
 private:
   sp_rcontext(sp_head *owner,
-              const sp_pcontext *root_parsing_ctx,
+              const sp_pcontext_top *root_parsing_ctx,
               Field *return_value_fld,
               bool in_sub_stmt);
 
@@ -292,6 +293,9 @@ public:
   sp_cursor *get_cursor(uint i) const
   { return m_cstack[i]; }
 
+  sp_cursor *get_member_cursor(uint i) const
+  { return m_member_cursors.at(i); }
+
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
   /////////////////////////////////////////////////////////////////////////
@@ -371,7 +375,7 @@ private:
 
 private:
   /// Top-level (root) parsing context for this runtime context.
-  const sp_pcontext *m_root_parsing_ctx;
+  const sp_pcontext_top *m_root_parsing_ctx;
 
   /// Virtual table for storing SP-variables.
   Virtual_tmp_table *m_var_table;
@@ -396,6 +400,9 @@ private:
 
   /// Stack of caught SQL conditions.
   Dynamic_array<Handler_call_frame *> m_handler_call_stack;
+
+  /// E.g. PACKAGE and PACKAGE BODY cursors
+  Dynamic_array<sp_cursor*> m_member_cursors;
 
   /// Stack of cursors.
   Bounds_checked_array<sp_cursor *> m_cstack;

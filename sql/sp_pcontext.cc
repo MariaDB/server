@@ -92,10 +92,17 @@ void sp_pcontext::init(uint var_offset,
 }
 
 
-sp_pcontext::sp_pcontext()
+sp_pcontext_top::sp_pcontext_top(const sp_head *owner)
+ :sp_pcontext(this),
+  m_sp(owner),
+  m_member_cursors(PSI_INSTRUMENT_MEM)
+{ }
+
+
+sp_pcontext::sp_pcontext(sp_pcontext_top *top)
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
-  m_parent(NULL), m_pboundary(0),
+  m_top(top), m_parent(NULL), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
   m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
@@ -108,7 +115,7 @@ sp_pcontext::sp_pcontext()
 sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
-  m_parent(prev), m_pboundary(0),
+  m_top(prev->m_top), m_parent(prev), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
   m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
@@ -207,6 +214,7 @@ uint sp_pcontext::diff_cursors(const sp_pcontext *ctx, bool exclusive) const
 
 
 sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
+                                        const sp_pcontext **frame_pctx,
                                         bool current_scope_only) const
 {
   size_t i= m_vars.elements() - m_pboundary;
@@ -218,12 +226,13 @@ sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
     if (system_charset_info->strnncoll(name->str, name->length,
 		                       p->name.str, p->name.length) == 0)
     {
+      *frame_pctx= this;
       return p;
     }
   }
 
   return (!current_scope_only && m_parent) ?
-    m_parent->find_variable(name, false) :
+    m_parent->find_variable(name, frame_pctx, false) :
     NULL;
 }
 
@@ -628,10 +637,7 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
 
   while (i--)
   {
-    LEX_CSTRING n= m_cursors.at(i);
-
-    if (system_charset_info->strnncoll(name->str, name->length,
-		                       n.str, n.length) == 0)
+    if (m_cursors.at(i).eq_name(*name))
     {
       *poff= m_cursor_offset + i;
       return &m_cursors.at(i);

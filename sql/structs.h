@@ -862,26 +862,47 @@ public:
 };
 
 
+/*
+  This structure is used as a Bison token type.
+  It must stay as small as possible, hence it uses a "union" declaration:
+  - m_target_bound is used only in "FOR idx IN 0..9" style loops
+  - m_cursor_rcontext_handler is used only in "FOR rec IN cursor" style loops
+  They are never needed at the same time.
+  See "%union size check" in sql_yacc.yy for details on the token size limit.
+*/
 struct Lex_for_loop_st
 {
 public:
+  enum class Type : uchar
+  {
+    INT_RANGE= 0,       // FOR i IN 1..10
+    CURSOR_IMPLICIT= 1, // FOR r IN (SELECT 1 FROM DUAL)
+    CURSOR_EXPLICIT= 2  // FOR r IN cursor1
+  };
   class sp_variable *m_index;  // The first iteration value (or cursor)
-  class sp_variable *m_target_bound; // The last iteration value
+  union
+  {
+    class sp_variable *m_target_bound; // The last iteration value
+    const class Sp_rcontext_handler *m_cursor_rcontext_handler;
+  };
   int m_cursor_offset;
   int8 m_direction;
-  bool m_implicit_cursor;
+  Type m_type;
   void init()
   {
     m_index= 0;
     m_target_bound= 0;
     m_cursor_offset= 0;
     m_direction= 0;
-    m_implicit_cursor= false;
+    m_type= Type::INT_RANGE;
   }
-  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
+  bool is_for_loop_cursor() const
+  {
+    return m_type == Type::CURSOR_IMPLICIT || m_type == Type::CURSOR_EXPLICIT;
+  }
   bool is_for_loop_explicit_cursor() const
   {
-    return is_for_loop_cursor() && !m_implicit_cursor;
+    return m_type == Type::CURSOR_EXPLICIT;
   }
 };
 
@@ -1072,6 +1093,12 @@ public:
   sp_rcontext_addr(const class Sp_rcontext_handler *h, uint offset)
    :m_rcontext_handler(h), m_offset(offset)
   { }
+  sp_rcontext_addr(const Lex_for_loop_st &loop)
+   :m_rcontext_handler(loop.m_cursor_rcontext_handler),
+    m_offset(loop.m_cursor_offset)
+  {
+    DBUG_ASSERT(loop.is_for_loop_cursor());
+  }
   const Sp_rcontext_handler *rcontext_handler() const
   {
     return m_rcontext_handler;

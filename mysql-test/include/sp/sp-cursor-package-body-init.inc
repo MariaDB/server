@@ -1,0 +1,4 @@
+--disable_query_log
+--let $oracle=`SELECT @@sql_mode LIKE '%ORACLE%'`
+--let $code=`SELECT COALESCE(@code, 0)`
+--enable_query_log

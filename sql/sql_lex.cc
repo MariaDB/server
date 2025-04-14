@@ -6537,22 +6537,80 @@ LEX::find_variable(const LEX_CSTRING *name,
                    const Sp_rcontext_handler **rh) const
 {
   sp_variable *spv;
-  if (spcont && (spv= spcont->find_variable(name, false)))
+  const sp_pcontext *frame_pctx;
+  if (spcont && (spv= spcont->find_variable(name, &frame_pctx, false)))
   {
     *ctx= spcont;
-    *rh= &sp_rcontext_handler_local;
+    if (frame_pctx == sphead->frame_for_members())
+      *rh= &sp_rcontext_handler_member;
+    else
+      *rh= &sp_rcontext_handler_local;
     return spv;
   }
   sp_package *pkg= sphead ? sphead->m_parent : NULL;
-  if (pkg && (spv= pkg->find_package_variable(name)))
+  if (pkg && (spv= pkg->find_member_variable(name)))
   {
-    *ctx= pkg->get_parse_context()->child_context(0);
+    *ctx= pkg->frame_for_members();
     *rh= &sp_rcontext_handler_package_body;
     return spv;
   }
   *ctx= NULL;
   *rh= NULL;
   return NULL;
+}
+
+
+/*
+  Find a cursor by name, in this order:
+  - A local cursor in the nearest context frame, i.e.:
+     * a BEGIN/END block for sql_mode=DEFAULT
+     * a DECLARE/BEGIN/END block for sql_mode=ORACLE
+  - An own member cursor (if LEX::sphead is PACKAGE BODY)
+  - A parent PACKAGE BODY cursor (if LEX::sphead is a package routine)
+*/
+const sp_pcursor *LEX::find_cursor(const LEX_CSTRING *name,
+                                   sp_rcontext_addr *addr) const
+{
+  const sp_pcursor *c;
+  uint offset;
+  if (spcont && (c= spcont->find_cursor(name, &offset, false)))
+  {
+    /*
+      The top level parse context frame contains routine formal parameters.
+      In case of PACKAGE or PACKAGE BODY the parameter frame still
+      exists, but it contains no variables (and no cursors).
+      Thus the top level parse context is never expected
+      to be used when searching for static cursors,
+      neither for PROCEDURE/FUNCTION, nor for PACKAGE/PACKAGE BODY.
+    */
+    DBUG_ASSERT(spcont->parent_context());
+    *addr= sp_rcontext_addr(&sp_rcontext_handler_local, offset);
+    return c;
+  }
+
+  /*
+    Check of sphead is the executable section of a PACKAGE BODY.
+    If so, find its own member cursor.
+  */
+  const sp_package *self_pkg= sphead ? sphead->get_package() : nullptr;
+  if (self_pkg && (c= self_pkg->find_member_cursor(name, &offset)))
+  {
+    *addr= sp_rcontext_addr(&sp_rcontext_handler_member, offset);
+    return c;
+  }
+
+  /*
+    Check if sphead is a package routine.
+    If so, find a member cursor of the parent package.
+  */
+  sp_package *pkg= sphead ? sphead->m_parent : nullptr;
+  if (pkg && (c= pkg->find_member_cursor(name, &offset)))
+  {
+    *addr= sp_rcontext_addr(&sp_rcontext_handler_package_body, offset);
+    return c;
+  }
+  *addr= sp_rcontext_addr(nullptr, 0);
+  return nullptr;
 }
 
 
@@ -6742,13 +6800,13 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
                                                Item *def,
                                                const LEX_CSTRING &expr_str)
 {
-  uint coffp;
+  sp_rcontext_addr cursor_addr(nullptr, 0);
   const sp_pcursor *pcursor= ref->table.str && ref->db.str ? NULL :
-                             spcont->find_cursor(&ref->m_column, &coffp,
-                                                 false);
+                             find_cursor(&ref->m_column, &cursor_addr);
   if (pcursor)
     return sp_variable_declarations_cursor_rowtype_finalize(thd, nvars,
-                                                            coffp, def,
+                                                            cursor_addr,
+                                                            def,
                                                             expr_str);
   /*
     When parsing a qualified identifier chain, the parser does not know yet
@@ -6797,23 +6855,29 @@ LEX::sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
 
 bool
 LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
-                                                      uint offset,
+                                                      const sp_rcontext_addr
+                                                        &cursor_addr,
                                                       Item *def,
                                                       const LEX_CSTRING &expr_str)
 {
-  const sp_pcursor *pcursor= spcont->find_cursor(offset);
+  const sp_pcursor *pcursor= spcont->get_pcursor(cursor_addr);
 
   // Loop through all variables in the same declaration
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
+    const sp_rcontext_addr var_addr= spcont == sphead->frame_for_members() ?
+      sp_rcontext_addr(&sp_rcontext_handler_member, spvar->offset) :
+      sp_rcontext_addr(&sp_rcontext_handler_local, spvar->offset);
 
-    spvar->field_def.set_cursor_rowtype_ref(offset);
+    spvar->field_def.set_cursor_rowtype_ref(cursor_addr);
     sp_instr_cursor_copy_struct *instr=
       new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
-                                                      spcont, offset,
+                                                      spcont,
                                                       pcursor->lex(),
-                                                      spvar->offset);
+                                                      cursor_addr,
+                                                      var_addr);
+
     if (instr == NULL || sphead->add_instr(instr))
      return true;
 
@@ -6884,9 +6948,9 @@ LEX::sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
 
   if (t->field_def.is_cursor_rowtype_ref())
   {
-    uint offset= t->field_def.cursor_rowtype_offset();
+    const sp_rcontext_addr &cursor_addr= t->field_def.cursor_rowtype_addr();
     return sp_variable_declarations_cursor_rowtype_finalize(thd, nvars,
-                                                            offset,
+                                                            cursor_addr,
                                                             default_value,
                                                             expr_str);
   }
@@ -7010,7 +7074,7 @@ sp_variable *
 LEX::sp_add_for_loop_cursor_variable(THD *thd,
                                      const LEX_CSTRING *name,
                                      const sp_pcursor *pcursor,
-                                     uint coffset,
+                                     const sp_rcontext_addr &cursor_addr,
                                      sp_assignment_lex *param_lex,
                                      Item_args *parameters)
 {
@@ -7022,10 +7086,10 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
   if (unlikely(!(spvar->default_value= new (thd->mem_root) Item_null(thd))))
     return NULL;
 
-  spvar->field_def.set_cursor_rowtype_ref(coffset);
+  spvar->field_def.set_cursor_rowtype_ref(cursor_addr);
 
   if (unlikely(sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor,
-                                                coffset,
+                                                cursor_addr,
                                                 param_lex, parameters)))
     return NULL;
 
@@ -7085,12 +7149,14 @@ bool LEX::sp_for_loop_cursor_condition_test(THD *thd,
   Item *expr;
   spcont->set_for_loop(loop);
   sphead->reset_lex(thd);
-  cursor_name= spcont->find_cursor(loop.m_cursor_offset);
+  cursor_name= spcont->get_pcursor(sp_rcontext_addr(loop));
+
   DBUG_ASSERT(cursor_name);
   if (unlikely(!(expr=
                  new (thd->mem_root)
-                 Item_func_cursor_found(thd, cursor_name,
-                                        loop.m_cursor_offset))))
+                 Item_func_cursor_found(thd,
+                                        Cursor_ref(cursor_name,
+                                                   sp_rcontext_addr(loop))))))
     return true;
   if (thd->lex->sp_while_loop_expression(thd, expr, empty_clex_str))
     return true;
@@ -7131,7 +7197,7 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
                                               ))))
      return true;
   loop->m_direction= bounds.m_direction;
-  loop->m_implicit_cursor= 0;
+  loop->m_type= Lex_for_loop_st::Type::INT_RANGE;
   return false;
 }
 
@@ -7146,7 +7212,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   Item_field *item_field;
   Item_func_sp *item_func_sp= NULL;
   LEX_CSTRING name;
-  uint coffs, param_count= 0;
+  uint param_count= 0;
   const sp_pcursor *pcursor;
   DBUG_ENTER("LEX::sp_for_loop_cursor_declarations");
 
@@ -7182,20 +7248,26 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
     thd->parse_error();
     DBUG_RETURN(true);
   }
-  if (unlikely(!(pcursor= spcont->find_cursor_with_error(&name, &coffs,
-                                                         false)) ||
+
+  sp_rcontext_addr cursor_addr(nullptr, 0);
+
+  if (unlikely(!(pcursor= find_cursor_with_error(&name, &cursor_addr)) ||
                pcursor->check_param_count_with_error(param_count)))
     DBUG_RETURN(true);
 
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
-                                                       pcursor, coffs,
+                                                       pcursor,
+                                                       cursor_addr,
                                                        bounds.m_index,
                                                        item_func_sp)))
     DBUG_RETURN(true);
   loop->m_target_bound= NULL;
   loop->m_direction= bounds.m_direction;
-  loop->m_cursor_offset= coffs;
-  loop->m_implicit_cursor= bounds.m_implicit_cursor;
+  loop->m_cursor_rcontext_handler= cursor_addr.rcontext_handler();
+  loop->m_cursor_offset= cursor_addr.offset();
+  loop->m_type= bounds.m_implicit_cursor ?
+                Lex_for_loop_st::Type::CURSOR_IMPLICIT :
+                Lex_for_loop_st::Type::CURSOR_EXPLICIT;
   DBUG_RETURN(false);
 }
 
@@ -7246,7 +7318,7 @@ bool LEX::sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &loop)
 {
   sp_instr_cfetch *instr=
     new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
-                                        spcont, loop.m_cursor_offset, false);
+                                        spcont, sp_rcontext_addr(loop), false);
   if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
     return true;
   const sp_rcontext_addr raddr(&sp_rcontext_handler_local,
@@ -7261,7 +7333,7 @@ bool LEX::sp_for_loop_outer_block_finalize(THD *thd,
                                            const Lex_for_loop_st &loop)
 {
   Lex_spblock tmp;
-  tmp.curs= MY_TEST(loop.m_implicit_cursor);
+  tmp.curs= MY_TEST(loop.m_type == Lex_for_loop_st::Type::CURSOR_IMPLICIT);
   if (unlikely(sp_block_finalize(thd, tmp))) // The outer DECLARE..BEGIN..END
     return true;
   if (!loop.is_for_loop_explicit_cursor())
@@ -7273,7 +7345,7 @@ bool LEX::sp_for_loop_outer_block_finalize(THD *thd,
   */
   sp_instr_cclose *ic= new (thd->mem_root)
                        sp_instr_cclose(sphead->instructions(), spcont,
-                                       loop.m_cursor_offset);
+                                       sp_rcontext_addr(loop));
   return ic == NULL || sphead->add_instr(ic);
 }
 
@@ -7308,6 +7380,10 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
     }
   }
 
+  if (spcont == sphead->frame_for_members())
+    return sphead->get_parse_context()->add_member_cursor(name, param_ctx,
+                                                          cursor_stmt);
+  // Add a local cursor
   if (spcont->find_cursor(name, &offp, true))
   {
     my_error(ER_SP_DUP_CURS, MYF(0), name->str);
@@ -7338,13 +7414,30 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
 bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
                          List<sp_assignment_lex> *parameters)
 {
-  uint offset;
+  sp_rcontext_addr addr(nullptr, 0);
   const sp_pcursor *pcursor;
   uint param_count= parameters ? parameters->elements : 0;
-  return !(pcursor= spcont->find_cursor_with_error(name, &offset, false)) ||
+  return !(pcursor= find_cursor_with_error(name, &addr)) ||
          pcursor->check_param_count_with_error(param_count) ||
-         sphead->add_open_cursor(thd, spcont, offset,
+         sphead->add_open_cursor(thd, spcont, addr,
                                  pcursor->param_context(), parameters);
+}
+
+
+/*
+  Add instructions for "CLOSE cur".
+*/
+bool LEX::sp_close(THD *thd, const Lex_ident_sys_st &name)
+{
+  sp_rcontext_addr addr(nullptr, 0);
+
+  if (!find_cursor_with_error(&name, &addr))
+    return true;
+
+  sp_instr_cclose *i=
+    new (thd->mem_root) sp_instr_cclose(sphead->instructions(),
+                                        spcont, addr);
+  return i == nullptr || sphead->add_instr(i);
 }
 
 
@@ -7423,7 +7516,7 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
         unlikely(sp->add_instr(i)))
       return true;
   }
-  if (spblock.curs)
+  if (spblock.curs && ctx != sphead->frame_for_members())
   {
     i= new (thd->mem_root)
       sp_instr_cpop(sp->instructions(), ctx, spblock.curs);
@@ -8128,21 +8221,21 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
 Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
                                        plsql_cursor_attr_t attr)
 {
-  uint offset;
-  if (unlikely(!spcont || !spcont->find_cursor(name, &offset, false)))
+  Cursor_ref ref(name, sp_rcontext_addr(nullptr, 0));
+  if (unlikely(!spcont || !find_cursor(name, &ref)))
   {
     my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
     return NULL;
   }
   switch (attr) {
   case PLSQL_CURSOR_ATTR_ISOPEN:
-    return new (thd->mem_root) Item_func_cursor_isopen(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_isopen(thd, ref);
   case PLSQL_CURSOR_ATTR_FOUND:
-    return new (thd->mem_root) Item_func_cursor_found(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_found(thd, ref);
   case PLSQL_CURSOR_ATTR_NOTFOUND:
-    return new (thd->mem_root) Item_func_cursor_notfound(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_notfound(thd, ref);
   case PLSQL_CURSOR_ATTR_ROWCOUNT:
-    return new (thd->mem_root) Item_func_cursor_rowcount(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_rowcount(thd, ref);
   }
   DBUG_ASSERT(0);
   return NULL;
@@ -8613,7 +8706,6 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  uint unused_off;
   DBUG_ASSERT(spcont);
   DBUG_ASSERT(sphead);
   if ((spv= find_variable(name, &rh)))
@@ -8652,9 +8744,10 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
 
+  sp_rcontext_addr cursor_addr(nullptr, 0);
   if (fields_are_impossible() &&
       (current_select->parsing_place != FOR_LOOP_BOUND ||
-       spcont->find_cursor(name, &unused_off, false) == NULL))
+       find_cursor(name, &cursor_addr) == NULL))
   {
     // we are out of SELECT or FOR so it is syntax error
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
@@ -9341,16 +9434,14 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 
 sp_instr_cfetch *LEX::sp_add_instr_cfetch(THD *thd, const LEX_CSTRING *name)
 {
-  uint offset;
+  sp_rcontext_addr addr(nullptr, 0);
   sp_instr_cfetch *i;
 
-  if (!spcont->find_cursor(name, &offset, false))
-  {
-    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+  if (!find_cursor_with_error(name, &addr))
     return nullptr;
-  }
+
   i= new (thd->mem_root)
-    sp_instr_cfetch(sphead->instructions(), spcont, offset,
+    sp_instr_cfetch(sphead->instructions(), spcont, addr,
                     !(thd->variables.sql_mode & MODE_ORACLE));
   if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
     return nullptr;
