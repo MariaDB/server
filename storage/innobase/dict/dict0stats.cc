@@ -960,10 +960,8 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 						      n_core,
 						      ULINT_UNDEFINED, &heap);
 
-			if (n_not_null != NULL) {
-				btr_record_not_null_field_in_rec(
-					n_cols, offsets_rec, n_not_null);
-			}
+			btr_record_not_null_field_in_rec(
+				n_cols, offsets_rec, n_not_null);
 		}
 
 		while (rec != page_get_supremum_rec(page)) {
@@ -995,10 +993,8 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 				n_diff[j]++;
 			}
 
-			if (n_not_null != NULL) {
-				btr_record_not_null_field_in_rec(
-					n_cols, offsets_next_rec, n_not_null);
-			}
+			btr_record_not_null_field_in_rec(
+				n_cols, offsets_next_rec, n_not_null);
 
 			total_external_size
 				+= btr_rec_get_externally_stored_len(
@@ -1369,6 +1365,8 @@ dict_stats_analyze_index_level(
 	ulint		level,		/*!< in: level */
 	ib_uint64_t*	n_diff,		/*!< out: array for number of
 					distinct keys for all prefixes */
+	ib_uint64_t*	n_not_null,	/*!< out: array for number of
+                                        non null keys for all prefixes */
 	ib_uint64_t*	total_recs,	/*!< out: total number of records */
 	ib_uint64_t*	total_pages,	/*!< out: total number of pages */
 	boundaries_t*	n_diff_boundaries,/*!< out: boundaries of the groups
@@ -1516,6 +1514,9 @@ dict_stats_analyze_index_level(
 
 		(*total_recs)++;
 
+		btr_record_not_null_field_in_rec(n_uniq, rec_offsets,
+                                                 n_not_null);
+
 		if (prev_rec != NULL) {
 			ulint	matched_fields;
 
@@ -1526,7 +1527,9 @@ dict_stats_analyze_index_level(
 
 			cmp_rec_rec(prev_rec, rec,
 				    prev_rec_offsets, rec_offsets, index,
-				    false, &matched_fields);
+				    (srv_innodb_stats_method
+				       > SRV_STATS_NULLS_EQUAL),
+				    &matched_fields);
 
 			for (i = matched_fields; i < n_uniq; i++) {
 
@@ -1694,6 +1697,8 @@ be big enough)
 @param[out]	n_diff			number of distinct records encountered
 @param[out]	n_external_pages	if this is non-NULL then it will be set
 to the number of externally stored pages which were encountered
+@param[out]	n_not_null		number of non null value for
+					the given n_prefix key
 @return offsets1 or offsets2 (the offsets of *out_rec),
 or NULL if the page is empty and does not contain user records. */
 UNIV_INLINE
@@ -1707,7 +1712,8 @@ dict_stats_scan_page(
 	ulint			n_prefix,
 	ulint		 	n_core,
 	ib_uint64_t*		n_diff,
-	ib_uint64_t*		n_external_pages)
+	ib_uint64_t*		n_external_pages,
+	ib_uint64_t*		n_not_null)
 {
 	rec_offs*	offsets_rec		= offsets1;
 	rec_offs*	offsets_next_rec	= offsets2;
@@ -1753,6 +1759,8 @@ dict_stats_scan_page(
 
 	*n_diff = 1;
 
+	if (n_not_null) *n_not_null = 1;
+
 	while (next_rec && next_rec != page_get_supremum_rec(page)) {
 
 		ulint	matched_fields;
@@ -1765,7 +1773,9 @@ dict_stats_scan_page(
 		/* check whether rec != next_rec when looking at
 		the first n_prefix fields */
 		cmp_rec_rec(rec, next_rec, offsets_rec, offsets_next_rec,
-			    index, false, &matched_fields);
+			    index,
+			    (srv_innodb_stats_method > SRV_STATS_NULLS_EQUAL),
+			    &matched_fields);
 
 		if (matched_fields < n_prefix) {
 			/* rec != next_rec, => rec is non-boring */
@@ -1794,6 +1804,11 @@ dict_stats_scan_page(
 				rec, offsets_rec);
 		}
 
+		if (n_not_null &&
+		    !rec_offs_nth_sql_null(offsets_rec, n_prefix -1)) {
+			(*n_not_null)++;
+		}
+
 		next_rec = get_next(page, next_rec);
 	}
 
@@ -1812,6 +1827,7 @@ on the leaf page.
 when comparing records
 @param[out]	n_diff			number of distinct records
 @param[out]	n_external_pages	number of external pages
+@param[out]	n_not_null		number of non null key values
 @return number of distinct records on the leaf page */
 static
 void
@@ -1819,7 +1835,8 @@ dict_stats_analyze_index_below_cur(
 	const btr_cur_t*	cur,
 	ulint			n_prefix,
 	ib_uint64_t*		n_diff,
-	ib_uint64_t*		n_external_pages)
+	ib_uint64_t*		n_external_pages,
+	ib_uint64_t*		n_not_null)
 {
 	dict_index_t*	index;
 	buf_block_t*	block;
@@ -1896,7 +1913,7 @@ dict_stats_analyze_index_below_cur(
 		/* search for the first non-boring record on the page */
 		offsets_rec = dict_stats_scan_page(
 			&rec, offsets1, offsets2, index, page, n_prefix,
-			0, n_diff, NULL);
+			0, n_diff, NULL, nullptr);
 
 		/* pages on level > 0 are not allowed to be empty */
 		ut_a(offsets_rec != NULL);
@@ -1942,7 +1959,7 @@ dict_stats_analyze_index_below_cur(
 	offsets_rec = dict_stats_scan_page(
 		&rec, offsets1, offsets2, index, page, n_prefix,
 		index->n_core_fields, n_diff,
-		n_external_pages);
+		n_external_pages, n_not_null);
 
 #if 0
 	DEBUG_PRINTF("      %s(): n_diff below page_no=%lu: " UINT64PF "\n",
@@ -1977,6 +1994,9 @@ struct n_diff_data_t {
 	/** Number of different key values that were found on the mid level. */
 	ib_uint64_t	n_diff_on_level;
 
+	/** Number of non null key values that were found on the mid level */
+	ib_uint64_t	n_not_null_on_level;
+
 	/** Number of leaf pages that are analyzed. This is also the same as
 	the number of records that we pick from the mid level and dive below
 	them. */
@@ -1989,6 +2009,9 @@ struct n_diff_data_t {
 	/** Cumulative sum of the number of external pages (stored outside of
 	the btree but in the same file segment). */
 	ib_uint64_t	n_external_pages_sum;
+
+	/** Number of non-null key values found on leaf pages */
+	ib_uint64_t	n_not_null_on_leaf;
 };
 
 /** Estimate the number of different key values in an index when looking at
@@ -2036,6 +2059,7 @@ dict_stats_analyze_index_for_n_prefix(
 
 	n_diff_data->n_diff_all_analyzed_pages = 0;
 	n_diff_data->n_external_pages_sum = 0;
+	n_diff_data->n_not_null_on_leaf= 0;
 
 	if (btr_pcur_open_level(&pcur, n_diff_data->level, mtr, index)
 	    != DB_SUCCESS
@@ -2143,11 +2167,17 @@ dict_stats_analyze_index_for_n_prefix(
 
 		ib_uint64_t	n_diff_on_leaf_page;
 		ib_uint64_t	n_external_pages;
+		ib_uint64_t	n_not_null_on_leaf_page = 0;
+		bool            calc_non_null =
+		  (srv_innodb_stats_method == SRV_STATS_NULLS_IGNORED);
 
 		dict_stats_analyze_index_below_cur(btr_pcur_get_btr_cur(&pcur),
 						   n_prefix,
 						   &n_diff_on_leaf_page,
-						   &n_external_pages);
+						   &n_external_pages,
+						   (calc_non_null
+						    ? &n_not_null_on_leaf_page
+						    : nullptr));
 
 		/* We adjust n_diff_on_leaf_page here to avoid counting
 		one value twice - once as the last on some page and once
@@ -2170,6 +2200,9 @@ dict_stats_analyze_index_for_n_prefix(
 		n_diff_data->n_diff_all_analyzed_pages += n_diff_on_leaf_page;
 
 		n_diff_data->n_external_pages_sum += n_external_pages;
+
+		if (calc_non_null)
+		  n_diff_data->n_not_null_on_leaf += n_not_null_on_leaf_page;
 	}
 }
 
@@ -2257,6 +2290,15 @@ dict_stats_index_set_n_diff(
 			* data->n_diff_all_analyzed_pages
 			/ data->n_leaf_pages_to_analyze;
 
+		index_stats.stats[n_prefix - 1].n_non_null_key_vals
+			= n_ordinary_leaf_pages
+
+			* data->n_not_null_on_level
+			/ data->n_recs_on_level
+
+			* data->n_not_null_on_leaf
+			/ data->n_leaf_pages_to_analyze;
+
 		index_stats.stats[n_prefix - 1].n_sample_sizes
 			= data->n_leaf_pages_to_analyze;
 
@@ -2333,6 +2375,8 @@ empty_index:
 
 	mtr.commit();
 
+	bool calc_non_null = (srv_innodb_stats_method
+			      == SRV_STATS_NULLS_IGNORED);
 	mtr.start();
 	mtr_sx_lock_index(index, &mtr);
 
@@ -2364,6 +2408,9 @@ empty_index:
 		dict_stats_analyze_index_level(index,
 					       0 /* leaf level */,
 					       index->stat_n_diff_key_vals,
+					       calc_non_null
+					         ? index->stat_n_non_null_key_vals
+						 : nullptr,
 					       &total_recs,
 					       &total_pages,
 					       NULL /* boundaries not needed */,
@@ -2387,6 +2434,16 @@ empty_index:
 	number of different key values for all possible n-column prefixes. */
 	ib_uint64_t*	n_diff_on_level = UT_NEW_ARRAY(
 		ib_uint64_t, n_uniq, mem_key_dict_stats_n_diff_on_level);
+
+	ib_uint64_t*    n_not_null_on_level = nullptr;
+
+	if (calc_non_null) {
+		n_not_null_on_level =
+                  UT_NEW_ARRAY(ib_uint64_t, n_uniq,
+                               mem_key_dict_stats_n_nonnull_on_level);
+		for (ulint i=0; i < n_uniq; i++)
+                  n_not_null_on_level[i] = 0;
+	}
 
 	/* For each level that is being scanned in the btree, this contains the
 	index of the last record from each group of equal records (when
@@ -2508,6 +2565,7 @@ empty_index:
 			dict_stats_analyze_index_level(index,
 						       level,
 						       n_diff_on_level,
+						       n_not_null_on_level,
 						       &total_recs,
 						       &total_pages,
 						       n_diff_boundaries,
@@ -2557,6 +2615,11 @@ found_level:
 		data->n_recs_on_level = total_recs;
 
 		data->n_diff_on_level = n_diff_on_level[n_prefix - 1];
+
+		data->n_not_null_on_level =
+		  (n_not_null_on_level
+                   ? n_not_null_on_level[n_prefix -1]
+		   : 0);
 
 		data->n_leaf_pages_to_analyze = std::min(
 			N_SAMPLE_PAGES(index),
@@ -3040,6 +3103,34 @@ unlocked_free_and_exit:
 			if (ret != DB_SUCCESS) {
 				goto rollback_and_exit;
 			}
+
+			/* Update n_nonnull_pfx */
+			snprintf(stat_name, sizeof(stat_name),
+				 "n_nonnull_pfx%02u", i + 1);
+
+			snprintf(stat_description,
+				 sizeof(stat_description),
+				 "%s", index->fields[0].name());
+
+			for (unsigned j = 1; j <= i; j++) {
+				size_t	len;
+
+				len = strlen(stat_description);
+
+				snprintf(stat_description + len,
+					 sizeof(stat_description) - len,
+					 ",%s", index->fields[j].name());
+			}
+
+			ret = dict_stats_save_index_stat(
+				index, now, stat_name,
+				index->stat_n_non_null_key_vals[i],
+				&index->stat_n_sample_sizes[i],
+				stat_description, trx);
+
+			if (ret != DB_SUCCESS) {
+				goto rollback_and_exit;
+			}
 		}
 
 		ret = dict_stats_save_index_stat(index, now, "n_leaf_pages",
@@ -3167,6 +3258,35 @@ struct index_fetch_t {
 	bool		stats_were_modified; /*!< will be set to true if at
 				least one index stats were modified */
 };
+
+/* Print the error while fetching the stats from innodb_index_stats
+@param index	     stats to be fetched for index
+@param stat_name     statistics field name
+@param stat_name_len length of the stats field
+@param out_of_bound  Out of bound error */
+static void dict_stats_fetch_print_error(dict_index_t *index,
+                                         const char* stat_name,
+                                         ulint stat_name_len,
+					 bool out_of_bound=false)
+{
+  dict_table_t *table= index->table;
+  char db_utf8[MAX_DB_UTF8_LEN];
+  char table_utf8[MAX_TABLE_UTF8_LEN];
+  dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
+               table_utf8, sizeof(table_utf8));
+  ib::info out;
+  out << "Ignoring strange row from "<< INDEX_STATS_NAME_PRINT
+      << " WHERE database_name = '" << db_utf8
+      << "' AND table_name = '" << table_utf8
+      << "' AND index_name = '" << index->name()
+      << "' AND stat_name = '";
+  out.write(stat_name, stat_name_len);
+  if (out_of_bound)
+    out << "'; because stat_name is out of range, the index has "
+        << index->n_uniq << " unique columns";
+  else
+    out << "'; because stat_name is malformed";
+}
 
 /*********************************************************************//**
 Called for the rows that are selected by
@@ -3319,6 +3439,8 @@ dict_stats_fetch_index_stats_step(
 
 #define PFX	"n_diff_pfx"
 #define PFX_LEN	10
+	const char *non_null_pfx = "n_not_null_pfx";
+	size_t non_null_len = strlen(non_null_pfx);
 
 	if (stat_name_len == 4 /* strlen("size") */
 	    && strncasecmp("size", stat_name, stat_name_len) == 0) {
@@ -3344,23 +3466,9 @@ dict_stats_fetch_index_stats_step(
 		    || num_ptr[0] < '0' || num_ptr[0] > '9'
 		    || num_ptr[1] < '0' || num_ptr[1] > '9') {
 
-			char	db_utf8[MAX_DB_UTF8_LEN];
-			char	table_utf8[MAX_TABLE_UTF8_LEN];
-
-			dict_fs2utf8(table->name.m_name,
-				     db_utf8, sizeof(db_utf8),
-				     table_utf8, sizeof(table_utf8));
-
-			ib::info	out;
-			out << "Ignoring strange row from "
-				<< INDEX_STATS_NAME_PRINT << " WHERE"
-				" database_name = '" << db_utf8
-				<< "' AND table_name = '" << table_utf8
-				<< "' AND index_name = '" << index->name()
-				<< "' AND stat_name = '";
-			out.write(stat_name, stat_name_len);
-			out << "'; because stat_name is malformed";
-			return(TRUE);
+			dict_stats_fetch_print_error(index, stat_name,
+                                                     stat_name_len);
+			return true;
 		}
 		/* else */
 
@@ -3372,25 +3480,10 @@ dict_stats_fetch_index_stats_step(
 
 		if (n_pfx == 0 || n_pfx > n_uniq) {
 
-			char	db_utf8[MAX_DB_UTF8_LEN];
-			char	table_utf8[MAX_TABLE_UTF8_LEN];
-
-			dict_fs2utf8(table->name.m_name,
-				     db_utf8, sizeof(db_utf8),
-				     table_utf8, sizeof(table_utf8));
-
-			ib::info	out;
-			out << "Ignoring strange row from "
-				<< INDEX_STATS_NAME_PRINT << " WHERE"
-				" database_name = '" << db_utf8
-				<< "' AND table_name = '" << table_utf8
-				<< "' AND index_name = '" << index->name()
-				<< "' AND stat_name = '";
-			out.write(stat_name, stat_name_len);
-			out << "'; because stat_name is out of range, the index"
-				" has " << n_uniq << " unique columns";
-
-			return(TRUE);
+			dict_stats_fetch_print_error(index, stat_name,
+                                                     stat_name_len,
+                                                     true);
+			return true;
 		}
 		/* else */
 
@@ -3405,9 +3498,30 @@ dict_stats_fetch_index_stats_step(
 			index->stat_n_sample_sizes[n_pfx - 1] = 0;
 		}
 
-		index->stat_n_non_null_key_vals[n_pfx - 1] = 0;
+		arg->stats_were_modified = true;
+	} else if (stat_name_len > non_null_len
+                   && strncasecmp(non_null_pfx, stat_name,
+				  non_null_len) == 0) {
+		const char *num_ptr = stat_name + non_null_len;
+		if (stat_name_len != non_null_len + 2
+                    || num_ptr[0] < '0' || num_ptr[0] > '9'
+                    || num_ptr[1] < '0' || num_ptr[1] > '9') {	
+			dict_stats_fetch_print_error(index, stat_name,
+                                                     stat_name_len);
+			return true;
+		}
+
+		ulong n_pfx = ulong(num_ptr[0] - '0') * 10
+				+ ulong(num_ptr[1] - '0');
+		if (n_pfx == 0 || n_pfx > index->n_uniq) {
+			dict_stats_fetch_print_error(index, stat_name,
+                                                     stat_name_len,
+						     true);
+			return true;
+		}
 
 		arg->stats_were_modified = true;
+		index->stat_n_non_null_key_vals[n_pfx - 1] = stat_value;
 	} else {
 		/* silently ignore rows with unknown stat_name, the
 		user may have developed her own stats */
