@@ -1371,3 +1371,23 @@ c1	c2	c3
 12	5	8
 drop table t1,t2,t3,t;
 # End of 10.4 tests
+#
+# MDEV-31647 Stack looping and SIGSEGV in Item_args::walk_args on UPDATE
+#
+create table t1 (c int, c2 int) engine=innodb;
+update t1 set c=0 where c=(
+select 1 from (select 1 as v1) as v2
+natural join t1) order by last_value (c2) over (order by c2);
+ERROR HY000: Invalid use of group function
+update t1 set c=0 where c=(
+select 1 from (select 1 as v1) as v2
+natural join t1) order by last_value (c2) over ();
+ERROR HY000: Invalid use of group function
+update t1 set c=0 where c=(
+select 1 from (select 1 as v1) as v2
+natural join t1) order by c2;
+select 1 from (select 1 as v1) as v2
+natural join t1 order by last_value (c2) over (order by c2);
+1
+drop table t1;
+# End of 10.5 tests
