@@ -962,7 +962,8 @@ bool Explain_node::print_explain_json_cache(Json_writer *writer,
   if (cache_tracker)
   {
     cache_tracker->fetch_current_stats();
-    writer->add_member("expression_cache").start_object();
+    //writer->add_member("expression_cache").start_object();
+    writer->add_member("subquery_cache").start_object();
     if (cache_tracker->state != Expression_cache_tracker::OK)
     {
       writer->add_member("state").
