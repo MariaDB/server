@@ -2381,30 +2381,6 @@ dtype_get_mblen(
 	}
 }
 
-/**********************************************************************
-Check if the length of the identifier exceeds the maximum allowed.
-return true when length of identifier is too long. */
-my_bool
-innobase_check_identifier_length(
-/*=============================*/
-	const char*	id)	/* in: FK identifier to check excluding the
-				database portion. */
-{
-	int		well_formed_error = 0;
-	CHARSET_INFO	*cs = system_charset_info;
-	DBUG_ENTER("innobase_check_identifier_length");
-
-	size_t len = my_well_formed_length(
-		cs, id, id + strlen(id),
-		NAME_CHAR_LEN, &well_formed_error);
-
-	if (well_formed_error || len == NAME_CHAR_LEN) {
-		my_error(ER_TOO_LONG_IDENT, MYF(0), id);
-		DBUG_RETURN(true);
-	}
-	DBUG_RETURN(false);
-}
-
 /******************************************************************//**
 Converts an identifier to UTF-8. */
 void
@@ -12385,6 +12361,40 @@ LEX_CSTRING innodb_convert_name(CHARSET_INFO *cs, LEX_CSTRING name, char *buf)
                                      buf, MAX_TABLE_NAME_LEN, &errors)};
 }
 
+/** Find an auto-generated foreign key constraint identifier.
+@param table   InnoDB table
+@return the next number to assign to a constraint */
+ulint dict_table_get_foreign_id(const dict_table_t &table) noexcept
+{
+  ulint id= 0;
+
+  for (const dict_foreign_t *foreign : table.foreign_set)
+  {
+    const char *s= foreign->sql_id();
+    char *endp;
+    ulint f= strtoul(s, &endp, 10);
+    if (!*endp && f > id)
+      id= f;
+  }
+
+  return id + 1;
+}
+
+/** Generate a foreign key constraint name for an anonymous constraint.
+@param id_nr    sequence to allocate identifiers from
+@param name     table name
+@param foreign  foreign key */
+void dict_create_add_foreign_id(ulint *id_nr, const char *name,
+                                dict_foreign_t *foreign) noexcept
+{
+  if (!foreign->id)
+  {
+    size_t len= snprintf(nullptr, 0, "%s\377%zu", name, *id_nr);
+    foreign->id= static_cast<char*>(mem_heap_alloc(foreign->heap, len + 1));
+    snprintf(foreign->id, len + 1, "%s\377%zu", name, (*id_nr)++);
+  }
+}
+
 /** Create InnoDB foreign keys from MySQL alter_info. Collect all
 dict_foreign_t items into local_fk_set and then add into system table.
 @return		DB_SUCCESS or specific error code */
@@ -12422,12 +12432,6 @@ create_table_info_t::create_foreign_keys()
 		dict_table_t* alter_table;
 		char* n = dict_table_lookup(d, t, &alter_table, heap);
 
-		/* Starting from 4.0.18 and 4.1.2, we generate foreign key id's
-		in the format databasename/tablename_ibfk_[number], where
-		[number] is local to the table; look for the highest [number]
-		for alter_table, so that we can assign to new constraints
-		higher numbers. */
-
 		/* If we are altering a temporary table, the table name after
 		ALTER TABLE does not correspond to the internal table name, and
 		alter_table=nullptr. But, we do not support FOREIGN KEY
@@ -12435,8 +12439,7 @@ create_table_info_t::create_foreign_keys()
 
 		if (alter_table) {
 			n = alter_table->name.m_name;
-			number = 1 + dict_table_get_highest_foreign_id(
-				alter_table);
+			number = dict_table_get_foreign_id(*alter_table);
 		}
 
 		char* bufend = innobase_convert_name(
@@ -12548,33 +12551,17 @@ create_table_info_t::create_foreign_keys()
 			return (DB_CANNOT_ADD_CONSTRAINT);
 		}
 
-		if (fk->constraint_name.str) {
-			ulint db_len;
-
-			/* Catenate 'databasename/' to the constraint name
-			specified by the user: we conceive the constraint as
-			belonging to the same MySQL 'database' as the table
-			itself. We store the name to foreign->id. */
-
-			db_len = dict_get_db_name_len(table->name.m_name);
-
-			foreign->id = static_cast<char*>(mem_heap_alloc(
-				foreign->heap,
-				db_len + fk->constraint_name.length + 2));
-
-			memcpy(foreign->id, table->name.m_name, db_len);
-			foreign->id[db_len] = '/';
-			strcpy(foreign->id + db_len + 1,
-			       fk->constraint_name.str);
-		}
-
-		if (foreign->id == NULL) {
-			error = dict_create_add_foreign_id(
-				&number, table->name.m_name, foreign);
-			if (error != DB_SUCCESS) {
-				dict_foreign_free(foreign);
-				return (error);
-			}
+		if (size_t fk_len = fk->constraint_name.length) {
+			/* Prepend the table name to the constraint name. */
+			size_t s = strlen(table->name.m_name) + 2 + fk_len;
+			foreign->id = static_cast<char*>(
+				mem_heap_alloc(foreign->heap, s));
+			snprintf(foreign->id, s, "%s\377%.*s",
+				 table->name.m_name, int(fk_len),
+				 fk->constraint_name.str);
+		} else {
+			dict_create_add_foreign_id(&number, table->name.m_name,
+                                                   foreign);
 		}
 
 		std::pair<dict_foreign_set::iterator, bool> ret
@@ -14402,18 +14389,24 @@ ha_innobase::rename_table(
 	trx->flush_log_later = false;
 	trx->free();
 
-	if (error == DB_DUPLICATE_KEY) {
+	switch (error) {
+	case DB_SUCCESS:
+		DBUG_RETURN(0);
+	case DB_DUPLICATE_KEY:
 		/* We are not able to deal with handler::get_dup_key()
 		during DDL operations, because the duplicate key would
 		exist in metadata tables, not in the user table. */
 		my_error(ER_TABLE_EXISTS_ERROR, MYF(0), to);
 		DBUG_RETURN(HA_ERR_GENERIC);
-	} else if (error == DB_LOCK_WAIT_TIMEOUT) {
+	case DB_LOCK_WAIT_TIMEOUT:
 		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 		DBUG_RETURN(HA_ERR_GENERIC);
+	case DB_FOREIGN_DUPLICATE_KEY:
+		my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", "");
+		DBUG_RETURN(HA_ERR_GENERIC);
+	default:
+		DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 	}
-
-	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 }
 
 /*********************************************************************//**
@@ -15649,14 +15642,13 @@ get_foreign_key_info(
 	size_t			len;
 	char			tmp_buff[NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
-	const char*		ptr;
+	const char*		ptr = foreign->sql_id();
 	LEX_CSTRING*		name = NULL;
 
 	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
- 		return NULL;
- 	}
+		return NULL;
+	}
 
-	ptr = dict_remove_db_name(foreign->id);
 	f_key_info.foreign_id = thd_make_lex_string(
 		thd, 0, ptr, strlen(ptr), 1);
 

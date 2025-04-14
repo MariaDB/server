@@ -322,7 +322,7 @@ INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 DELETE IGNORE FROM t1 WHERE i = 1;
 Warnings:
-Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`i`) REFERENCES `t1` (`i`) ON DELETE NO ACTION)
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`i`) REFERENCES `t1` (`i`) ON DELETE NO ACTION)
 SELECT * FROM t1, t2;
 i	i
 1	1
@@ -2126,10 +2126,10 @@ t2	CREATE TABLE `t2` (
   `c` int(11) NOT NULL,
   `d` int(11) NOT NULL,
   PRIMARY KEY (`c`,`d`),
+  CONSTRAINT `1` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION,
   CONSTRAINT `c1` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON DELETE NO ACTION,
   CONSTRAINT `c2` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION,
-  CONSTRAINT `f3` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION,
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION
+  CONSTRAINT `f3` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
@@ -2445,7 +2445,7 @@ INSERT INTO t2 VALUES (3,2);
 SET AUTOCOMMIT = 0;
 START TRANSACTION;
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
 SELECT * FROM t1;
 id
 1
@@ -2457,7 +2457,7 @@ id
 2
 START TRANSACTION;
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
 SELECT * FROM t1;
 id
 1
@@ -2475,7 +2475,7 @@ id
 2
 COMMIT;
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
 SELECT * FROM t1;
 id
 1
@@ -2487,7 +2487,7 @@ id
 1
 2
 TRUNCATE TABLE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_id`) REFERENCES `test`.`t1` (`id`))
 ROLLBACK;
 SELECT * FROM t1;
 id
@@ -2526,9 +2526,9 @@ INSERT INTO t4 VALUES (1),(2),(3),(4),(5);
 INSERT INTO t5 VALUES (1);
 DELETE t5 FROM t4 LEFT JOIN t5 ON t4.a= t5.a;
 DELETE t2, t1 FROM t2 INNER JOIN t1 ON (t2.aid = t1.id) WHERE t2.id = 1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3`, CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`bid`) REFERENCES `t2` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3`, CONSTRAINT `1` FOREIGN KEY (`bid`) REFERENCES `t2` (`id`))
 DELETE t2, t1 FROM t2 INNER JOIN t1 ON (t2.aid = t1.id) WHERE t2.id = 1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3`, CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`bid`) REFERENCES `t2` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t3`, CONSTRAINT `1` FOREIGN KEY (`bid`) REFERENCES `t2` (`id`))
 DELETE IGNORE t2, t1 FROM t2 INNER JOIN t1 ON (t2.aid = t1.id) WHERE t2.id = 1;
 DROP TABLE t3;
 DROP TABLE t2;
@@ -2627,7 +2627,7 @@ END||
 SET @a:=0;
 ** Errors in the trigger causes the statement to abort.
 DELETE IGNORE t1 FROM t3 LEFT JOIN t1 ON t1.i=t3.i;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `t4_ibfk_1` FOREIGN KEY (`t1i`) REFERENCES `t1` (`i`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `1` FOREIGN KEY (`t1i`) REFERENCES `t1` (`i`))
 SELECT * FROM t1 LEFT JOIN t3 ON t1.i=t3.i;
 i	i
 1	1
