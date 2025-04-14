@@ -184,7 +184,7 @@ Pos	Instruction
 5	copen STMT.cursor[c00@3]
 6	copen STMT.cursor[c01@4]
 7	jump_if_not 10(10) declare_row_type_of@0
-8	cursor_copy_struct s00 r00@5
+8	cursor_copy_struct s00@0 r00@5
 9	set r00@5 NULL
 10	cfetch STMT.cursor[c00@3] v00@1
 11	cfetch STMT.cursor[c01@4] v01@2

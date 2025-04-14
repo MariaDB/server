@@ -1,0 +1,3 @@
+--disable_query_log
+--let $oracle=`SELECT @@sql_mode LIKE '%ORACLE%'`
+--enable_query_log

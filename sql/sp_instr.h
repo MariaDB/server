@@ -98,6 +98,16 @@ class sp_instr :public Query_arena, public Sql_alloc
   sp_instr(const sp_instr &);	/**< Prevent use of these */
   void operator=(sp_instr &);
 
+protected:
+  /*
+    Print a command followed by a variable/cursor name and address.
+    Example:
+      copen name@offset
+  */
+  void print_cmd_and_var(const LEX_CSTRING &cmd,
+                         const LEX_CSTRING &var_name,
+                         const sp_rcontext_addr &var_addr,
+                         String *str) const;
 public:
   uint marked;
   uint m_ip;			///< My index
@@ -458,12 +468,11 @@ public:
     LEX-object.
 
     @param thd  Thread context.
-    @param sp   The stored program.
     @param lex  SP instruction's lex
 
     @return new LEX-object or NULL in case of failure.
   */
-  LEX *parse_expr(THD *thd, sp_head *sp, LEX *lex);
+  LEX *parse_expr(THD *thd, LEX *lex);
 
   SQL_I_List<Item_trigger_field>* get_instr_trig_field_list() override
   {
@@ -1323,21 +1332,52 @@ static inline LEX_CSTRING get_cursor_query(const LEX_CSTRING &cursor_stmt)
 }
 
 
+class sp_lex_cursor_instr : public sp_lex_instr
+{
+  sp_lex_cursor_instr(const sp_lex_cursor_instr &); // Prevent use of these
+  void operator=(sp_lex_cursor_instr &);
+public:
+  sp_lex_cursor_instr(uint ip, sp_pcontext *ctx, sp_lex_cursor *lex,
+                      bool is_owner)
+   :sp_lex_instr(ip, ctx, lex, is_owner),
+    m_cursor_stmt(lex->get_expr_str())
+  { }
+
+  void get_query(String *sql_query) const override
+  {
+    sql_query->append(get_expr_query());
+  }
+
+protected:
+  /*
+    Switch to the given rcontext and open the cursor.
+    Used e.g. when copying a structure of a package cursor to a variable:
+      DECLARE var package_cursor%ROWTYPE;
+  */
+  int open_cursor_in_rcontext(THD *thd, sp_cursor *c, sp_rcontext *ctx);
+
+  LEX_CSTRING get_expr_query() const override
+  {
+    return get_cursor_query(m_cursor_stmt);
+  }
+  LEX_CSTRING m_cursor_stmt;
+};
+
+
 /**
-  This is DECLARE CURSOR
+  This is DECLARE CURSOR for local (stack) cursors
 */
 
-class sp_instr_cpush : public sp_lex_instr, public sp_cursor
+class sp_instr_cpush : public sp_lex_cursor_instr, public sp_cursor
 {
   sp_instr_cpush(const sp_instr_cpush &); /**< Prevent use of these */
   void operator=(sp_instr_cpush &);
 
 public:
   sp_instr_cpush(uint ip, sp_pcontext *ctx, sp_lex_cursor *lex, uint offset)
-    : sp_lex_instr(ip, ctx, lex, true),
+    : sp_lex_cursor_instr(ip, ctx, lex, true),
       m_cursor(offset),
-      m_metadata_changed(false),
-      m_cursor_stmt(lex->get_expr_str())
+      m_metadata_changed(false)
   {}
 
   virtual ~sp_instr_cpush() = default;
@@ -1373,19 +1413,9 @@ public:
     return &m_lex_keeper;
   }
 
-  void get_query(String *sql_query) const override
-  {
-    sql_query->append(get_expr_query());
-  }
-
   sp_instr_cpush *get_push_instr() override { return this; }
 
 protected:
-  LEX_CSTRING get_expr_query() const override
-  {
-    return get_cursor_query(m_cursor_stmt);
-  }
-
   bool on_after_expr_parsing(THD *) override
   {
     m_metadata_changed= false;
@@ -1399,8 +1429,6 @@ private:
     on depending database objects used in the statement.
   */
   bool m_metadata_changed;
-
-  LEX_CSTRING m_cursor_stmt;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -1439,6 +1467,9 @@ public:
 }; // class sp_instr_cpop : public sp_instr
 
 
+/*
+  Open a local (stack) cursor
+*/
 class sp_instr_copen : public sp_instr
 {
   sp_instr_copen(const sp_instr_copen &); /**< Prevent use of these */
@@ -1470,28 +1501,29 @@ public:
   from the LEX containing the cursor SELECT statement.
 */
 
-class sp_instr_cursor_copy_struct: public sp_lex_instr
+class sp_instr_cursor_copy_struct: public sp_lex_cursor_instr,
+                                   public sp_rcontext_addr
 {
   /**< Prevent use of these */
   sp_instr_cursor_copy_struct(const sp_instr_cursor_copy_struct &);
   void operator=(sp_instr_cursor_copy_struct &);
-  uint m_cursor;
-  uint m_var;
+
+  const sp_rcontext_addr m_var;
   /**
     Flag to tell whether metadata has been changed and the LEX object should
     be reinitialized.
   */
   bool m_valid;
-  LEX_CSTRING m_cursor_stmt;
 
 public:
-  sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
-                              sp_lex_cursor *lex, uint voffs)
-    : sp_lex_instr(ip, ctx, lex, false),
-      m_cursor(coffs),
-      m_var(voffs),
-      m_valid(true),
-      m_cursor_stmt(lex->get_expr_str())
+  sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx,
+                              sp_lex_cursor *lex,
+                              const sp_rcontext_addr &cursor_addr,
+                              const sp_rcontext_addr &var_addr)
+    : sp_lex_cursor_instr(ip, ctx, lex, false),
+      sp_rcontext_addr(cursor_addr),
+      m_var(var_addr),
+      m_valid(true)
   {}
   virtual ~sp_instr_cursor_copy_struct() = default;
   int execute(THD *thd, uint *nextp) override;
@@ -1507,16 +1539,7 @@ public:
     m_valid= false;
   }
 
-  void get_query(String *sql_query) const override
-  {
-    sql_query->append(get_expr_query());
-  }
-
 protected:
-  LEX_CSTRING get_expr_query() const override
-  {
-    return get_cursor_query(m_cursor_stmt);
-  }
 
   bool on_after_expr_parsing(THD *) override
   {
@@ -1524,21 +1547,25 @@ protected:
     return false;
   }
 
+  // Export the structure of a previosly opened cursor into a row SP variable
+  int export_structure(THD *thd, sp_cursor *c, Item_field_row *row);
+
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 };
 
 
-class sp_instr_cclose : public sp_instr
+class sp_instr_cclose : public sp_instr,
+                        public sp_rcontext_addr
 {
   sp_instr_cclose(const sp_instr_cclose &); /**< Prevent use of these */
   void operator=(sp_instr_cclose &);
 
 public:
-  sp_instr_cclose(uint ip, sp_pcontext *ctx, uint c)
+  sp_instr_cclose(uint ip, sp_pcontext *ctx, const sp_rcontext_addr &addr)
     : sp_instr(ip, ctx),
-      m_cursor(c)
+      sp_rcontext_addr(addr)
   {}
 
   virtual ~sp_instr_cclose() = default;
@@ -1546,9 +1573,6 @@ public:
   int execute(THD *thd, uint *nextp) override;
 
   void print(String *str) override;
-
-private:
-  uint m_cursor;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -1585,15 +1609,17 @@ protected:
 };
 
 
-class sp_instr_cfetch : public sp_instr_fetch_cursor
+class sp_instr_cfetch : public sp_instr_fetch_cursor,
+                        public sp_rcontext_addr
 {
   sp_instr_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
   void operator=(sp_instr_cfetch &);
 
 public:
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx, const sp_rcontext_addr &addr,
+                  bool error_on_no_data)
    :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
-    m_cursor(c)
+    sp_rcontext_addr(addr)
   { }
 
   virtual ~sp_instr_cfetch() = default;
@@ -1762,6 +1788,65 @@ public:
   int execute(THD *thd, uint *nextp) override;
 
   void print(String *str) override;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
+
+
+/*
+  Open a cursor member (e.g. PACKAGE BODY wide cursor):
+  - its own member, when called from a PACKAGE BODY initialization section
+  - parent PACKAGE BODY member, when called from a package routine
+
+  Unlike sp_instr_open, sp_instr_open2 does not use the cursor stack:
+  - It points to an sp_rcontext::m_member_cursors element
+    (of the current or the parent sp_rcontext)
+    rather than an sp_rcontext::m_cstack element
+  - Does not need a preceeding sp_instr_cpush
+  - Does not need a following sp_instr_pop
+*/
+class sp_instr_copen2 : public sp_lex_cursor_instr,
+                        public sp_rcontext_addr
+{
+  // Prevent use of these
+  sp_instr_copen2(const sp_instr_copen2 &) = delete;
+  void operator=(sp_instr_copen2 &) = delete;
+
+public:
+  sp_instr_copen2(uint ip, sp_pcontext *ctx, const sp_rcontext_addr &addr,
+                  sp_lex_cursor *lex)
+   :sp_lex_cursor_instr(ip, ctx, lex, false),
+    sp_rcontext_addr(addr),
+    m_metadata_changed(false)
+  { }
+
+  virtual ~sp_instr_copen2() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+  bool is_invalid() const override
+  {
+    return m_metadata_changed;
+  }
+
+  void invalidate() override
+  {
+    m_metadata_changed= true;
+  }
+
+  bool on_after_expr_parsing(THD *) override
+  {
+    m_metadata_changed= false;
+    return false;
+  }
+
+private:
+  bool m_metadata_changed;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }

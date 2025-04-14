@@ -1,0 +1,8 @@
+-- source include/have_debug.inc
+
+--echo #
+--echo # MDEV-36053 CURSOR declarations in PACKAGE BODY
+--echo #
+
+--let $code=1
+--source include/sp/sp-cursor-package-body.inc

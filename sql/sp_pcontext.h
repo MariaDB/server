@@ -21,6 +21,7 @@
 #include "sql_string.h"                         // LEX_STRING
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
+#include "sp_rcontext_handler.h"
 
 
 /// This class represents a stored program variable or a parameter
@@ -307,6 +308,10 @@ public:
   class sp_pcontext *param_context() const { return m_param_context; }
   class sp_lex_cursor *lex() const { return m_lex; }
   bool check_param_count_with_error(uint param_count) const;
+  bool eq_name(const Lex_ident_column &name) const
+  {
+    return !system_charset_info->strnncoll(name.str, name.length, str, length);
+  }
 };
 
 
@@ -367,6 +372,9 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////
+
+class sp_pcontext_top;
+class sp_head;
 
 /// The class represents parse-time context, which keeps track of declared
 /// variables/parameters, conditions, handlers, cursors and labels.
@@ -434,7 +442,7 @@ public:
   };
 
 public:
-  sp_pcontext();
+  sp_pcontext(sp_pcontext_top *top);
   ~sp_pcontext();
 
 
@@ -448,6 +456,9 @@ public:
   /// Pop a node from the parsing context tree.
   /// @return the parent node.
   sp_pcontext *pop_context();
+
+  sp_pcontext_top *top_context() const
+  { return m_top; }
 
   sp_pcontext *parent_context() const
   { return m_parent; }
@@ -540,10 +551,21 @@ public:
   /// The function is called only at parsing time.
   ///
   /// @param name               Variable name.
+  /// @param frame_pctx [OUT]   The frame sp_pcontext on which
+  ///                           the variable was found.
   /// @param current_scope_only A flag if we search only in current scope.
   ///
   /// @return instance of found SP-variable, or NULL if not found.
-  sp_variable *find_variable(const LEX_CSTRING *name, bool current_scope_only) const;
+  sp_variable *find_variable(const LEX_CSTRING *name,
+                             const sp_pcontext **frame_pctx,
+                             bool current_scope_only) const;
+
+  sp_variable *find_variable(const LEX_CSTRING *name,
+                             bool current_scope_only) const
+  {
+    const sp_pcontext *dummy_frame_pctx;
+    return find_variable(name, &dummy_frame_pctx, current_scope_only);
+  }
 
   /// Find SP-variable by the offset in the root parsing context.
   ///
@@ -562,6 +584,11 @@ public:
   /// @param n The number of variables to skip.
   void declare_var_boundary(uint n)
   { m_pboundary= n; }
+
+  const sp_variable *get_pvariable(const sp_rcontext_addr &addr) const
+  {
+    return addr.rcontext_handler()->get_pvariable(this, addr.offset());
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
@@ -775,6 +802,11 @@ public:
     return add_record(thd, name, field);
   }
 
+  const sp_pcursor *get_pcursor(const sp_rcontext_addr &addr) const
+  {
+    return addr.rcontext_handler()->get_pcursor(this, addr.offset());
+  }
+
 private:
   /// Constructor for a tree node.
   /// @param prev the parent parsing context
@@ -801,6 +833,9 @@ private:
 
   /// The maximum sub context's framesizes.
   uint m_max_cursor_index;
+
+  /// Top level context
+  sp_pcontext_top *m_top;
 
   /// Parent context.
   sp_pcontext *m_parent;
@@ -873,6 +908,117 @@ private:
   /// FOR LOOP characteristics
   Lex_for_loop m_for_loop;
 }; // class sp_pcontext : public Sql_alloc
+
+
+/*
+  A class for the top level parse context of an SP.
+*/
+class sp_pcontext_top: public sp_pcontext
+{
+public:
+  sp_pcontext_top(sp_head *sp);
+
+  sp_head *sp() const
+  {
+    return m_sp;
+  }
+
+  bool add_member_cursor(const Lex_ident_column &name, sp_pcontext *param_ctx,
+                         class sp_lex_cursor *lex)
+  {
+    uint dummy_offset;
+    if (find_member_cursor(name, &dummy_offset))
+    {
+       my_error(ER_SP_DUP_CURS, MYF(0), name.str);
+       return true;
+    }
+    return m_member_cursors.append(sp_pcursor(&name, param_ctx, lex));
+  }
+
+  const sp_pcursor *find_member_cursor(const Lex_ident_column &name,
+                                       uint *poff) const
+  {
+    for (uint i= 0; i < m_member_cursors.elements(); i++)
+    {
+      if (m_member_cursors.at(i).eq_name(name))
+      {
+        *poff= i;
+        return &m_member_cursors.at(i);
+      }
+    }
+    return nullptr;
+  }
+
+  const sp_pcursor *find_member_cursor(uint offset) const
+  {
+    return &m_member_cursors.at(offset);
+  }
+
+  uint member_cursor_count() const
+  {
+    return (uint) m_member_cursors.elements();
+  }
+
+  /*
+    Return a possible parse context frame for members.
+
+    Members are:
+    - CREATE PACKAGE wide variables and cursors (coming soon - MDEV-13139)
+    - CREATE PACKAGE BODY wide variables and cursors
+
+    Example (using Oracle syntax):
+
+      CREATE PACKAGE BODY pkg AS -- sp_package
+        a0 INT;                  -- A member
+        CURSOR c0;               -- A member
+
+        PROCEDURE p1() AS  -- A method sp_head (package routine)
+          a1 INT;          -- A local variable - not an sp_package member
+          CURSOR c1;       -- A local cursor   - not an sp_package member
+        BEGIN
+          OPEN c0;         -- Open a cursor member of the parent sp_package
+          CLOSE c0;        -- Close a cursor member of the parent sp_package
+        END;
+
+      BEGIN                -- Executable initialization section (constructor)
+        DECLARE
+          a2 INT;          -- a local variable - not a member
+          CURSOR c2;       -- a local cursor   - not a member
+        BEGIN
+          OPEN c0;         -- Open its own cursor member (of sp_package)
+          CLOSE c0;        -- Close its own cursor member (of sp_package)
+        END;
+      END;
+
+    Members are visible in all subroutines and are treated in a different way
+    comparing to local variables/cursors. For example, member cursors
+    do not need sp_instr_cpush and sp_instr_cpop, unlike local cursors.
+
+    The top level parse context frame of an sp_head stores formal parameters:
+    - PROCEDURE and FUNCTION can have formal parameters.
+    - PACKAGE and PACKAGE BODY cannot have formal parameters,
+      but still the top level context frame exists (it's just empty).
+      Members reside in child(0) of the top level parse context.
+
+    The owning sp_head will check if this frame is really for members,
+    depending on the sp_head type (a package vs a routine).
+  */
+  sp_pcontext *frame_for_members_candidate() const
+  {
+    return child_context(0);
+  }
+
+private:
+  /*
+    A pointer to the owner SP. It's used by package routines
+    e.g. to access elements of the parse context of the owner package body,
+    such as cursors. See Sp_rcontext_handler_package_body::get_pcursor() for
+    an example.
+  */
+  sp_head *m_sp;
+  // An array of member cursors. Used by packages.
+  Dynamic_array<sp_pcursor> m_member_cursors;
+};
 
 
 #endif /* _SP_PCONTEXT_H_ */

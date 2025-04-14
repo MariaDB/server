@@ -18,7 +18,9 @@
 
 
 class sp_rcontext;
-class sp_cursor; 
+class sp_pcontext;
+class sp_pcursor;
+class sp_cursor;
 
 /**
   A helper class to handle the run time context of various components of SP:
@@ -27,7 +29,9 @@ class sp_cursor;
   - PACKAGE BODY routine variables
   - (there will be more kinds in the future)
   Cursors:
-  - static cursors
+  - static local cursors
+  - static PACKAGE BODY cursors of the parent PACKAGE BODY
+  - static PACKAGE BODY own cursors (when used in the executable secion)
   - SYS_REFCURSORs
 */
 
@@ -73,6 +77,15 @@ public:
     name with a package body variable.
   */
   virtual const LEX_CSTRING *get_name_prefix() const= 0;
+
+  // Find a parse time SP variable
+  virtual const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                           uint offset) const= 0;
+
+  // Find a parse time SP cursor
+  virtual const sp_pcursor *get_pcursor(const sp_pcontext *pctx,
+                                        uint offset) const= 0;
+
   /**
     At execution time THD->spcont points to the run-time context (sp_rcontext)
     of the currently executed routine.
@@ -84,6 +97,8 @@ public:
   */
   virtual sp_rcontext *get_rcontext(sp_rcontext *ctx) const= 0;
   virtual Item_field *get_variable(THD *thd, uint offset) const= 0;
+
+  // Find a run time SP cursor
   virtual sp_cursor *get_cursor(THD *thd, uint offset) const= 0;
   virtual sp_cursor *get_cursor_by_ref(THD *thd,
                                        const sp_rcontext_addr &ref,
@@ -91,10 +106,17 @@ public:
 };
 
 
+/*
+  A handler to access local variables and cursors.
+*/
 class Sp_rcontext_handler_local final :public Sp_rcontext_handler
 {
 public:
   const LEX_CSTRING *get_name_prefix() const override;
+  const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                   uint offset) const override;
+  const sp_pcursor *get_pcursor(const sp_pcontext *pctx,
+                                uint offset) const override;
   sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
   Item_field *get_variable(THD *thd, uint offset) const override;
   sp_cursor *get_cursor(THD *thd, uint offset) const override;
@@ -107,21 +129,50 @@ public:
 };
 
 
+/*
+  A handler to access parent members, e.g.:
+  PACKAGE BODY variables and cursors when used in package routines.
+*/
 class Sp_rcontext_handler_package_body final :public Sp_rcontext_handler
 {
 public:
   const LEX_CSTRING *get_name_prefix() const override;
+  const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                   uint offset) const override;
+  const sp_pcursor *get_pcursor(const sp_pcontext *pctx,
+                                uint offset) const override;
   sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
   Item_field *get_variable(THD *thd, uint offset) const override;
-  sp_cursor *get_cursor(THD *thd, uint offset) const override
+  sp_cursor *get_cursor(THD *thd, uint offset) const override;
+  sp_cursor *get_cursor_by_ref(THD *thd, const sp_rcontext_addr &ref,
+                               bool for_open) const override
   {
-    /*
-      There are no package body wide static cursors yet:
-      MDEV-36053 Syntax error on a CURSOR..IS declaration in PACKAGE BODY
-    */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT(0); // References to static cursors are not supported
     return nullptr;
   }
+};
+
+
+/*
+  A handler to access its own members, e.g.:
+  PACKAGE BODY variables and cursors when used in
+  the initialization section of PACKAGE BODY.
+*/
+class Sp_rcontext_handler_member final :public Sp_rcontext_handler
+{
+public:
+  const LEX_CSTRING *get_name_prefix() const override;
+  const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                   uint offset) const override;
+  const sp_pcursor *get_pcursor(const sp_pcontext *pctx,
+                                uint offset) const override;
+  sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
+  Item_field *get_variable(THD *thd, uint offset) const override
+  {
+    DBUG_ASSERT(0); // TODO: member variables are not used this way yet
+    return nullptr;
+  }
+  sp_cursor *get_cursor(THD *thd, uint offset) const override;
   sp_cursor *get_cursor_by_ref(THD *thd, const sp_rcontext_addr &ref,
                                bool for_open) const override
   {
@@ -135,6 +186,18 @@ class Sp_rcontext_handler_statement final :public Sp_rcontext_handler
 {
 public:
   const LEX_CSTRING *get_name_prefix() const override;
+  const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                   uint offset) const override
+  {
+    DBUG_ASSERT(0);
+    return nullptr; // TODO: not used this way yet
+  }
+  const sp_pcursor *get_pcursor(const sp_pcontext *pctx,
+                                uint offset) const override
+  {
+    DBUG_ASSERT(0); // TODO: not used this way yet
+    return nullptr;
+  }
   sp_rcontext *get_rcontext(sp_rcontext *ctx) const override
   {
     DBUG_ASSERT(0); // There are no session wide SP variables yet.
@@ -151,15 +214,12 @@ public:
 };
 
 
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_local sp_rcontext_handler_local;
+extern Sp_rcontext_handler_local sp_rcontext_handler_local;
 
+extern Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
 
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+extern Sp_rcontext_handler_member sp_rcontext_handler_member;
 
-
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_statement sp_rcontext_handler_statement;
+extern Sp_rcontext_handler_statement sp_rcontext_handler_statement;
 
 #endif  // SP_RCONTEXT_HANDLER_INCLUDED

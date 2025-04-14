@@ -82,16 +82,18 @@ private:
     int send_data(List<Item> &items) override;
     int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
     bool view_structure_only() const override { return m_view_structure_only; }
-};
+  };
 
 public:
   sp_cursor()
    :result(NULL, false),
-    server_side_cursor(NULL)
+    server_side_cursor(NULL),
+    m_persistent(false)
   { }
-  sp_cursor(THD *thd_arg, bool view_structure_only)
+  sp_cursor(THD *thd_arg, bool persistent, bool view_structure_only)
    :result(thd_arg, view_structure_only),
-    server_side_cursor(NULL)
+    server_side_cursor(NULL),
+    m_persistent(persistent)
   {}
 
   virtual ~sp_cursor()
@@ -136,6 +138,7 @@ public:
 private:
   Select_fetch_into_spvars result;
   Server_side_cursor *server_side_cursor;
+  bool m_persistent;
   void destroy();
 };
 

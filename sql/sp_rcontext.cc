@@ -30,6 +30,7 @@
 
 Sp_rcontext_handler_local sp_rcontext_handler_local;
 Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+Sp_rcontext_handler_member sp_rcontext_handler_member;
 Sp_rcontext_handler_statement sp_rcontext_handler_statement;
 
 
@@ -49,10 +50,40 @@ sp_rcontext *Sp_rcontext_handler_local::get_rcontext(sp_rcontext *ctx) const
   return ctx;
 }
 
+const sp_variable *
+Sp_rcontext_handler_local::get_pvariable(const sp_pcontext *pctx, uint i) const
+{
+  return pctx->find_variable(i);
+}
+
+const sp_pcursor *
+Sp_rcontext_handler_local::get_pcursor(const sp_pcontext *pctx, uint i) const
+{
+  return pctx->find_cursor(i);
+}
+
+
 sp_rcontext *Sp_rcontext_handler_package_body::get_rcontext(sp_rcontext *ctx) const
 {
   return ctx->m_sp->m_parent->m_rcontext;
 }
+
+const sp_variable *
+Sp_rcontext_handler_package_body::get_pvariable(const sp_pcontext *pctx, uint i)
+                                                                           const
+{
+  DBUG_ASSERT(0);
+  return nullptr;
+}
+
+const sp_pcursor *
+Sp_rcontext_handler_package_body::get_pcursor(const sp_pcontext *pctx, uint i)
+                                                                        const
+{
+  return pctx->top_context()->sp()->m_parent->
+           get_parse_context()->find_member_cursor(i);
+}
+
 
 const LEX_CSTRING *Sp_rcontext_handler_local::get_name_prefix() const
 {
@@ -106,13 +137,52 @@ sp_cursor *Sp_rcontext_handler_statement::get_cursor_by_ref(THD *thd,
   return thd->statement_cursors()->get_cursor_by_ref(thd, field, for_open);
 }
 
+
+sp_cursor *Sp_rcontext_handler_package_body::get_cursor(THD *thd,
+                                                        uint offset) const
+{
+  return get_rcontext(thd->spcont)->get_member_cursor(offset);
+}
+
+
+sp_rcontext *Sp_rcontext_handler_member::get_rcontext(sp_rcontext *ctx) const
+{
+  return ctx;
+}
+
+const LEX_CSTRING *Sp_rcontext_handler_member::get_name_prefix() const
+{
+  static const LEX_CSTRING sp_package_body_variable_prefix_clex_str=
+                           {STRING_WITH_LEN("MEMBER.")};
+  return &sp_package_body_variable_prefix_clex_str;
+}
+
+sp_cursor *Sp_rcontext_handler_member::get_cursor(THD *thd,
+                                                  uint offset) const
+{
+  return thd->spcont->get_member_cursor(offset);
+}
+
+const sp_variable *
+Sp_rcontext_handler_member::get_pvariable(const sp_pcontext *pctx, uint i) const
+{
+  return pctx->find_variable(i);
+}
+
+const sp_pcursor *
+Sp_rcontext_handler_member::get_pcursor(const sp_pcontext *pctx, uint i) const
+{
+  return pctx->top_context()->find_member_cursor(i);
+}
+
+
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext implementation.
 ///////////////////////////////////////////////////////////////////////////
 
 
 sp_rcontext::sp_rcontext(sp_head *owner,
-                         const sp_pcontext *root_parsing_ctx,
+                         const sp_pcontext_top *root_parsing_ctx,
                          Field *return_value_fld,
                          bool in_sub_stmt)
   :callers_arena(nullptr), end_partial_result_set(false),
@@ -124,6 +194,7 @@ sp_rcontext::sp_rcontext(sp_head *owner,
    m_return_value_set(false),
    m_in_sub_stmt(in_sub_stmt),
    m_handlers(PSI_INSTRUMENT_MEM), m_handler_call_stack(PSI_INSTRUMENT_MEM),
+   m_member_cursors(PSI_INSTRUMENT_MEM),
    m_ccount(0),
    m_inited_params_count(0)
 {
@@ -133,6 +204,10 @@ sp_rcontext::sp_rcontext(sp_head *owner,
 sp_rcontext::~sp_rcontext()
 {
   delete m_var_table;
+  for (size_t i= 0; i < m_member_cursors.size(); i++)
+  {
+    delete m_member_cursors.at(i);
+  }
   // Leave m_handlers, m_handler_call_stack, m_var_items, m_cstack
   // and m_case_expr_holders untouched.
   // They are allocated in mem roots and will be freed accordingly.
@@ -141,7 +216,7 @@ sp_rcontext::~sp_rcontext()
 
 sp_rcontext *sp_rcontext::create(THD *thd,
                                  sp_head *owner,
-                                 const sp_pcontext *root_parsing_ctx,
+                                 const sp_pcontext_top *root_parsing_ctx,
                                  Field *return_value_fld,
                                  Row_definition_list &field_def_lst)
 {
@@ -163,6 +238,22 @@ sp_rcontext *sp_rcontext::create(THD *thd,
   {
     delete ctx;
     ctx= 0;
+  }
+
+  // Create sp_cursor instances for members (PACKAGE/PACKAGE BODY wide cursors)
+  if (owner->get_package())
+  {
+    for (uint i= 0; i < root_parsing_ctx->member_cursor_count(); i++)
+    {
+      sp_cursor *cur= new sp_cursor(thd,
+                                    true/*persistent*/,
+                                    false/*view_structure_only*/);
+      if (!cur || ctx->m_member_cursors.append(cur))
+      {
+        delete ctx;
+        ctx= 0;
+      }
+    }
   }
 
   thd->lex->current_select= save_current_select;
@@ -794,7 +885,8 @@ int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
 
   if (mysql_open_cursor(thd, &result, &server_side_cursor))
     return -1;
-  thd->open_cursors_counter_increment();
+  if (!m_persistent)
+    thd->open_cursors_counter_increment();
   return 0;
 }
 
@@ -807,7 +899,8 @@ int sp_cursor::close(THD *thd)
                MYF(0));
     return -1;
   }
-  thd->open_cursors_counter_decrement();
+  if (!m_persistent)
+    thd->open_cursors_counter_decrement();
   sp_cursor_statistics::reset();
   destroy();
   return 0;

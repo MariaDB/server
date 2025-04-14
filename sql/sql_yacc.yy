@@ -1983,6 +1983,7 @@ rule:
 %type <NONE> sp_proc_stmt_in_returns_clause
 %type <lex_str> sp_label
 %type <spblock> sp_decl_handler
+%type <spblock> sp_decl_cursor
 %type <spblock> sp_decls
 %type <spblock> sp_decl
 %type <spblock> sp_decl_body
@@ -2007,6 +2008,7 @@ rule:
 %type <spblock> sp_decl_non_handler_list
 %type <spblock> sp_decl_handler
 %type <spblock> sp_decl_handler_list
+%type <spblock> sp_decl_cursor
 %type <spblock> opt_sp_decl_handler_list
 %type <spblock_handlers> sp_block_statements_and_exceptions
 %type <sp_instr_addr> sp_instr_addr
@@ -4365,7 +4367,7 @@ sp_proc_stmt_with_cursor:
 sp_proc_stmt_open:
           OPEN_SYM ident opt_parenthesized_cursor_actual_parameters
           {
-            if (unlikely(Lex->sp_open_cursor(thd, &$2, $3)))
+            if (unlikely(Lex->sp_open_cursor(thd, Lex_ident_column($2), $3)))
               MYSQL_YYABORT;
           }
         | OPEN_SYM ident FOR_SYM sp_cursor_stmt
@@ -4378,17 +4380,20 @@ sp_proc_stmt_open:
 sp_proc_stmt_fetch_head:
           FETCH_SYM ident INTO
           {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$2))))
+            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd,
+                                                       Lex_ident_column($2)))))
               MYSQL_YYABORT;
           }
         | FETCH_SYM FROM ident INTO
           {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$3))))
+            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd,
+                                                       Lex_ident_column($3)))))
               MYSQL_YYABORT;
           }
        | FETCH_SYM NEXT_SYM FROM ident INTO
           {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$4))))
+            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd,
+                                                       Lex_ident_column($4)))))
               MYSQL_YYABORT;
           }
         ;
@@ -10142,7 +10147,8 @@ plsql_cursor_attr:
 explicit_cursor_attr:
           ident PERCENT_ORACLE_SYM plsql_cursor_attr
           {
-            if (unlikely(!($$= Lex->make_item_plsql_cursor_attr(thd, &$1, $3))))
+            if (unlikely(!($$= Lex->make_item_plsql_cursor_attr(thd,
+                                                    Lex_ident_column($1), $3))))
               MYSQL_YYABORT;
           }
         ;
@@ -18903,6 +18909,7 @@ sf_return_type:
 
 package_implementation_item_declaration:
           DECLARE_MARIADB_SYM sp_decl_variable_list ';' { $$= $2; }
+        | DECLARE_MARIADB_SYM sp_decl_cursor ';'        { $$= $2; }
         ;
 
 //  Inside CREATE PACKAGE BODY, package-wide items (e.g. variables)
@@ -19181,7 +19188,11 @@ sp_decl_body:
             $$.conds= 1;
           }
         | sp_decl_handler
-        | sp_decl_ident CURSOR_SYM
+        | sp_decl_cursor
+        ;
+
+sp_decl_cursor:
+          sp_decl_ident CURSOR_SYM
           {
             Lex->sp_block_init(thd);
           }
@@ -19191,7 +19202,8 @@ sp_decl_body:
             sp_pcontext *param_ctx= Lex->spcont;
             if (unlikely(Lex->sp_block_finalize(thd)))
               MYSQL_YYABORT;
-            if (unlikely(Lex->sp_declare_cursor(thd, &$1, $6, param_ctx, true)))
+            if (unlikely(Lex->sp_declare_cursor(thd, Lex_ident_column($1),
+                                                $6, param_ctx, true)))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
@@ -19398,6 +19410,7 @@ sf_return_type:
 
 package_implementation_item_declaration:
           sp_decl_variable_list ';'
+        | sp_decl_cursor ';'
         ;
 
 sp_package_function_body:
@@ -20185,7 +20198,11 @@ sp_decl_non_handler:
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
           }
-        | CURSOR_SYM ident_directly_assignable
+        | sp_decl_cursor
+        ;
+
+sp_decl_cursor:
+          CURSOR_SYM ident_directly_assignable
           {
             Lex->sp_block_init(thd);
           }
@@ -20195,7 +20212,8 @@ sp_decl_non_handler:
             sp_pcontext *param_ctx= Lex->spcont;
             if (unlikely(Lex->sp_block_finalize(thd)))
               MYSQL_YYABORT;
-            if (unlikely(Lex->sp_declare_cursor(thd, &$2, $6, param_ctx, false)))
+            if (unlikely(Lex->sp_declare_cursor(thd, Lex_ident_column($2),
+                                                $6, param_ctx, false)))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;

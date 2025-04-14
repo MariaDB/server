@@ -41,6 +41,8 @@
 #include "sql_class.h"                // enum enum_column_usage
 #include "select_handler.h"
 
+class sp_pcursor;
+
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
 typedef Bitmap<SELECT_NESTING_MAP_SIZE> nesting_map;
@@ -3931,6 +3933,26 @@ public:
   */
   bool check_variable_is_refcursor(const LEX_CSTRING &verb_clause,
                                    const sp_variable *var) const;
+  /*
+    Find a cursor by name
+    @param name        The cursor name
+    @param addr [OUT]  The cursor address is returned here if found
+    @retval            nullptr if not found
+    @retval            the sp_pcursor not null pointer if found
+  */
+  const sp_pcursor *find_cursor(const Lex_ident_column &name,
+                                sp_rcontext_addr *addr) const;
+  const sp_pcursor *find_cursor_with_error(const Lex_ident_column &name,
+                                           sp_rcontext_addr *addr) const
+  {
+    const sp_pcursor *pcursor= find_cursor(name, addr);
+    if (!pcursor)
+    {
+      my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+      return nullptr;
+    }
+    return pcursor;
+  }
   sp_fetch_target *make_fetch_target(THD *thd, const Lex_ident_sys_st &name);
   bool set_variable(const Lex_ident_sys_st *name, Item *item,
                     const LEX_CSTRING &expr_str);
@@ -3961,7 +3983,8 @@ public:
                                                  Item *def,
                                                  const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
-                                                        uint offset,
+                                                        const sp_rcontext_addr
+                                                          &cursor_addr,
                                                         Item *def,
                                                         const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
@@ -4000,11 +4023,11 @@ public:
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 
-  bool sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
+  bool sp_declare_cursor(THD *thd, const Lex_ident_column &name,
                          class sp_lex_cursor *cursor_stmt,
                          sp_pcontext *param_ctx, bool add_cpush_instr);
 
-  bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
+  bool sp_open_cursor(THD *thd, const Lex_ident_column &name,
                       List<sp_assignment_lex> *parameters);
   bool sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
                                sp_lex_cursor *stmt);
@@ -4291,7 +4314,9 @@ public:
                                     const Lex_ident_cli_st *a,
                                     const Lex_ident_cli_st *b);
   // PLSQL: cursor%ISOPEN etc
-  Item *make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+  Item *make_item_plsql_cursor_attr(THD *thd, const Lex_ident_column &name,
+                                    plsql_cursor_attr_t attr);
+  Item *make_item_plsql_cursor_attr(THD *thd, const Cursor_ref &ref,
                                     plsql_cursor_attr_t attr);
 
   // For "SELECT @@var", "SELECT @@var.field"
@@ -4398,7 +4423,7 @@ public:
   sp_variable *sp_add_for_loop_cursor_variable(THD *thd,
                                                const LEX_CSTRING *name,
                                                const class sp_pcursor *cur,
-                                               uint coffset,
+                                               const sp_rcontext_addr &caddr,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
   bool sp_for_loop_implicit_cursor_statement(THD *thd,
@@ -4606,7 +4631,8 @@ public:
     return check_create_options(create_info);
   }
   sp_instr_fetch_cursor* sp_add_instr_fetch_cursor(THD *thd,
-                                                   const LEX_CSTRING *name);
+                                                   const Lex_ident_column
+                                                   &name);
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,
