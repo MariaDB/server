@@ -1,0 +1,424 @@
+#
+# MDEV-36053 CURSOR declarations in PACKAGE BODY
+#
+#
+# FUNCTION:
+#   FETCH package_body_cursor INTO package_body_variable
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE vc INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+FUNCTION f1() RETURNS INT
+BEGIN
+OPEN cur;
+FETCH cur INTO vc;
+CLOSE cur;
+RETURN vc;
+END;
+END;
+/
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+0	set vc@0 0
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	copen2 PACKAGE_BODY.cur@0
+1	cfetch PACKAGE_BODY.cur@0 PACKAGE_BODY.vc@0
+2	cclose PACKAGE_BODY.cur@0
+3	freturn int PACKAGE_BODY.vc@0
+DROP PACKAGE pkg;
+#
+# FUNCTION:
+#   FETCH package_body_cursor INTO local_variable
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE vc INT DEFAULT 0;
+OPEN cur;
+FETCH cur INTO vc;
+CLOSE cur;
+RETURN vc;
+END;
+END;
+/
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	set vc@0 0
+1	copen2 PACKAGE_BODY.cur@0
+2	cfetch PACKAGE_BODY.cur@0 vc@0
+3	cclose PACKAGE_BODY.cur@0
+4	freturn int vc@0
+DROP PACKAGE pkg;
+#
+# PACKAGE BODY initialization section:
+#   FETCH package_body_cursor INTO package_body_variable
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+DECLARE vc INT;
+FUNCTION f1() RETURNS INT
+BEGIN
+RETURN vc;
+END;
+-- initialization
+OPEN cur;
+FETCH cur INTO vc;
+CLOSE cur;
+END;
+/
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+0	set vc@0 NULL
+1	copen2 MEMBER.cur@0
+2	cfetch MEMBER.cur@0 MEMBER.vc@0
+3	cclose MEMBER.cur@0
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	freturn int PACKAGE_BODY.vc@0
+DROP PACKAGE pkg;
+#
+# PACKAGE BODY initialization:
+#   FETCH package_body_cursor INTO package_body_variable
+# FUNCTION:
+#   FETCH package_body_cursor INTO package_body_variable
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+DECLARE vc0 INT;
+DECLARE vc1 INT;
+FUNCTION f1() RETURNS INT
+BEGIN
+OPEN cur;
+FETCH cur INTO vc1;
+RETURN vc0 + vc1;
+END;
+-- initialization
+OPEN cur;
+FETCH cur INTO vc0;
+CLOSE cur;
+END;
+/
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+2
+SELECT pkg.f1() FROM DUAL;
+ERROR 24000: Cursor is already open
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+0	set vc0@0 NULL
+1	set vc1@1 NULL
+2	copen2 MEMBER.cur@0
+3	cfetch MEMBER.cur@0 MEMBER.vc0@0
+4	cclose MEMBER.cur@0
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	copen2 PACKAGE_BODY.cur@0
+1	cfetch PACKAGE_BODY.cur@0 PACKAGE_BODY.vc1@1
+2	freturn int PACKAGE_BODY.vc0@0 + PACKAGE_BODY.vc1@1
+DROP PACKAGE pkg;
+#
+# PACKAGE BODY initialization nested BEGIN..END block:
+#   FETCH package_body_cursor INTO local_variable
+# FUNCTION:
+#   FETCH package_body_cursor INTO package_body_variable
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+DECLARE vc0 INT;
+DECLARE vc1 INT;
+FUNCTION f1() RETURNS INT
+BEGIN
+OPEN cur;
+FETCH cur INTO vc1;
+RETURN vc0 + vc1;
+END;
+-- initialization
+BEGIN
+DECLARE vc2 INT;
+OPEN cur;
+FETCH cur INTO vc2;
+CLOSE cur;
+SET vc0= vc2;
+END;
+END;
+/
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+2
+SELECT pkg.f1() FROM DUAL;
+ERROR 24000: Cursor is already open
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+0	set vc0@0 NULL
+1	set vc1@1 NULL
+2	set vc2@2 NULL
+3	copen2 MEMBER.cur@0
+4	cfetch MEMBER.cur@0 vc2@2
+5	cclose MEMBER.cur@0
+6	set MEMBER.vc0@0 vc2@2
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	copen2 PACKAGE_BODY.cur@0
+1	cfetch PACKAGE_BODY.cur@0 PACKAGE_BODY.vc1@1
+2	freturn int PACKAGE_BODY.vc0@0 + PACKAGE_BODY.vc1@1
+DROP PACKAGE pkg;
+#
+# PACKAGE BODY initialization:
+#   OPEN package_body_cursor
+# FUNCTION:
+#   FETCH package_body_cursor INTO package_body_variable
+# PROCEDURE:
+#   CLOSE package_body_cursor
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+PROCEDURE p1close();
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+DECLARE vc0 INT;
+FUNCTION f1() RETURNS INT
+BEGIN
+FETCH cur INTO vc0;
+RETURN vc0;
+END;
+PROCEDURE p1close()
+BEGIN
+CLOSE cur;
+END;
+-- initialization
+OPEN cur;
+END;
+/
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+0	set vc0@0 NULL
+1	copen2 MEMBER.cur@0
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	cfetch PACKAGE_BODY.cur@0 PACKAGE_BODY.vc0@0
+1	freturn int PACKAGE_BODY.vc0@0
+SHOW PROCEDURE CODE pkg.p1close;
+Pos	Instruction
+0	cclose PACKAGE_BODY.cur@0
+DROP PACKAGE pkg;
+#
+# PROCEDURE:
+#   ROW TYPE OF package_body_cursor
+#
+CREATE PACKAGE pkg
+PROCEDURE p1();
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE c0 CURSOR FOR SELECT 1 AS c0, 'c1' AS c1 FROM DUAL;
+PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW TYPE OF c0;
+DECLARE r1 TYPE OF r0;
+CREATE TABLE t1 AS SELECT r0.c0, r0.c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+CREATE TABLE t2 AS SELECT r0.c0, r0.c1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END;
+/
+CALL pkg.p1();
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `r0.c0` int(11) DEFAULT NULL,
+  `r0.c1` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `r0.c0` int(11) DEFAULT NULL,
+  `r0.c1` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+SHOW PROCEDURE CODE pkg.p1;
+Pos	Instruction
+0	cursor_copy_struct PACKAGE_BODY.c0 r0@0
+1	set r0@0 NULL
+2	cursor_copy_struct PACKAGE_BODY.c0 r1@1
+3	set r1@1 NULL
+4	stmt 1 "CREATE TABLE t1 AS SELECT r0.c0, r0.c1"
+5	stmt 24 "SHOW CREATE TABLE t1"
+6	stmt 9 "DROP TABLE t1"
+7	stmt 1 "CREATE TABLE t2 AS SELECT r0.c0, r0.c1"
+8	stmt 24 "SHOW CREATE TABLE t2"
+9	stmt 9 "DROP TABLE t2"
+DROP PACKAGE pkg;
+#
+# PROCEDURE:
+#   FOR rec IN package_body_cursor
+#
+CREATE PACKAGE pkg
+PROCEDURE p1();
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE c0 CURSOR FOR SELECT 10 AS c0, 'c10' AS c1 FROM DUAL UNION
+SELECT 11 AS c0, 'c11' AS c1 FROM DUAL;
+PROCEDURE p1()
+BEGIN
+FOR r0 IN c0
+DO
+SELECT r0.c0, r0.c1;
+END FOR;
+END;
+END;
+/
+CALL pkg.p1();
+r0.c0	r0.c1
+10	c10
+r0.c0	r0.c1
+11	c11
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+SHOW PROCEDURE CODE pkg.p1;
+Pos	Instruction
+0	cursor_copy_struct PACKAGE_BODY.c0 r0@0
+1	copen2 PACKAGE_BODY.c0@0
+2	cfetch 0 r0@0
+3	jump_if_not 7(7) `c0`%FOUND
+4	stmt 0 "SELECT r0.c0, r0.c1"
+5	cfetch 0 r0@0
+6	jump 3
+7	cclose 0
+DROP PACKAGE pkg;
+#
+# PROCEDURE:
+#   FOR rec IN package_body_cursor_with_parameters
+#
+CREATE PACKAGE pkg
+PROCEDURE p1();
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE c0 CURSOR(c0 INT, c1 VARCHAR(10)) FOR SELECT c0, c1 FROM DUAL;
+PROCEDURE p1()
+BEGIN
+FOR i IN 1..2
+DO
+FOR r0 IN c0(1,'c1')
+DO
+SELECT r0.c0, r0.c1;
+END FOR;
+END FOR;
+END;
+END;
+/
+CALL pkg.p1();
+r0.c0	r0.c1
+1	c1
+r0.c0	r0.c1
+1	c1
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+SHOW PROCEDURE CODE pkg.p1;
+Pos	Instruction
+0	set i@0 1
+1	set [target_bound]@1 2
+2	jump_if_not 15(15) i@0 <= [target_bound]@1
+3	set PACKAGE_BODY.c0@0 1
+4	set PACKAGE_BODY.c1@1 'c1'
+5	cursor_copy_struct PACKAGE_BODY.c0 r0@2
+6	copen2 PACKAGE_BODY.c0@0
+7	cfetch 0 r0@2
+8	jump_if_not 12(12) `c0`%FOUND
+9	stmt 0 "SELECT r0.c0, r0.c1"
+10	cfetch 0 r0@2
+11	jump 8
+12	cclose 0
+13	set i@0 i@0 + 1
+14	jump 2
+DROP PACKAGE pkg;
+#
+# PROCEDURE
+#   FOR rec IN package_body_cursor_with_package_body_variables_in_select_list
+#
+CREATE PACKAGE pkg
+PROCEDURE p1();
+END;
+/
+CREATE PACKAGE BODY pkg
+DECLARE v0 INT DEFAULT 1;
+DECLARE v1 VARCHAR(10) DEFAULT 'v1';
+DECLARE c0 CURSOR FOR SELECT v0, v1 FROM DUAL;
+PROCEDURE p1()
+BEGIN
+FOR i IN 1..2
+DO
+FOR r0 IN c0
+DO
+SELECT r0.v0, r0.v1;
+END FOR;
+END FOR;
+END;
+END;
+/
+CALL pkg.p1();
+r0.v0	r0.v1
+1	v1
+r0.v0	r0.v1
+1	v1
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+0	set v0@0 1
+1	set v1@1 'v1'
+SHOW PROCEDURE CODE pkg.p1;
+Pos	Instruction
+0	set i@0 1
+1	set [target_bound]@1 2
+2	jump_if_not 13(13) i@0 <= [target_bound]@1
+3	cursor_copy_struct PACKAGE_BODY.c0 r0@2
+4	copen2 PACKAGE_BODY.c0@0
+5	cfetch 0 r0@2
+6	jump_if_not 10(10) `c0`%FOUND
+7	stmt 0 "SELECT r0.v0, r0.v1"
+8	cfetch 0 r0@2
+9	jump 6
+10	cclose 0
+11	set i@0 i@0 + 1
+12	jump 2
+DROP PACKAGE pkg;

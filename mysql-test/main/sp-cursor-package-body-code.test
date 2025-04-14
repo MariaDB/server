@@ -1,0 +1,76 @@
+-- source include/have_debug.inc
+
+--echo #
+--echo # MDEV-36053 CURSOR declarations in PACKAGE BODY
+--echo #
+
+--source sp-cursor-package-body-01.inc
+SELECT pkg.f1() FROM DUAL;
+SHOW PACKAGE BODY CODE pkg;
+SHOW FUNCTION CODE pkg.f1;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-02.inc
+SELECT pkg.f1() FROM DUAL;
+SHOW PACKAGE BODY CODE pkg;
+SHOW FUNCTION CODE pkg.f1;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-03.inc
+SELECT pkg.f1() FROM DUAL;
+SHOW PACKAGE BODY CODE pkg;
+SHOW FUNCTION CODE pkg.f1;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-04.inc
+--disable_ps2_protocol
+SELECT pkg.f1() FROM DUAL;
+--error ER_SP_CURSOR_ALREADY_OPEN
+SELECT pkg.f1() FROM DUAL;
+--enable_ps2_protocol
+SHOW PACKAGE BODY CODE pkg;
+SHOW FUNCTION CODE pkg.f1;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-05.inc
+--disable_ps2_protocol
+SELECT pkg.f1() FROM DUAL;
+--error ER_SP_CURSOR_ALREADY_OPEN
+SELECT pkg.f1() FROM DUAL;
+--enable_ps2_protocol
+SHOW PACKAGE BODY CODE pkg;
+SHOW FUNCTION CODE pkg.f1;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-06.inc
+--disable_ps2_protocol
+SELECT pkg.f1() FROM DUAL;
+--enable_ps2_protocol
+SHOW PACKAGE BODY CODE pkg;
+SHOW FUNCTION CODE pkg.f1;
+SHOW PROCEDURE CODE pkg.p1close;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-07.inc
+CALL pkg.p1();
+SHOW PACKAGE BODY CODE pkg;
+SHOW PROCEDURE CODE pkg.p1;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-08.inc
+CALL pkg.p1();
+SHOW PACKAGE BODY CODE pkg;
+SHOW PROCEDURE CODE pkg.p1;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-09.inc
+CALL pkg.p1();
+SHOW PACKAGE BODY CODE pkg;
+SHOW PROCEDURE CODE pkg.p1;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-10.inc
+CALL pkg.p1();
+SHOW PACKAGE BODY CODE pkg;
+SHOW PROCEDURE CODE pkg.p1;
+DROP PACKAGE pkg;

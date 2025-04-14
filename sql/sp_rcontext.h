@@ -23,6 +23,7 @@
 
 #include "sql_class.h"                    // select_result_interceptor
 #include "sp_pcontext.h"                  // sp_condition_value
+#include "sp_rcontext_handler.h"
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext declaration.
@@ -292,6 +293,9 @@ public:
   sp_cursor *get_cursor(uint i) const
   { return m_cstack[i]; }
 
+  sp_cursor *get_member_cursor(uint i) const
+  { return m_member_cursors.at(i); }
+
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
   /////////////////////////////////////////////////////////////////////////
@@ -396,6 +400,9 @@ private:
 
   /// Stack of caught SQL conditions.
   Dynamic_array<Handler_call_frame *> m_handler_call_stack;
+
+  /// E.g. PACKAGE and PACKAGE BODY cursors
+  Dynamic_array<sp_cursor*> m_member_cursors;
 
   /// Stack of cursors.
   Bounds_checked_array<sp_cursor *> m_cstack;

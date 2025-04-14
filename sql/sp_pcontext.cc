@@ -207,6 +207,7 @@ uint sp_pcontext::diff_cursors(const sp_pcontext *ctx, bool exclusive) const
 
 
 sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
+                                        const sp_pcontext **frame_pctx,
                                         bool current_scope_only) const
 {
   size_t i= m_vars.elements() - m_pboundary;
@@ -218,12 +219,13 @@ sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
     if (system_charset_info->strnncoll(name->str, name->length,
 		                       p->name.str, p->name.length) == 0)
     {
+      *frame_pctx= this;
       return p;
     }
   }
 
   return (!current_scope_only && m_parent) ?
-    m_parent->find_variable(name, false) :
+    m_parent->find_variable(name, frame_pctx, false) :
     NULL;
 }
 
@@ -621,6 +623,7 @@ bool sp_pcontext::add_cursor(const LEX_CSTRING *name, sp_pcontext *param_ctx,
 
 
 const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
+                                           const sp_pcontext **frame_pctx,
                                            uint *poff,
                                            bool current_scope_only) const
 {
@@ -633,13 +636,14 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
     if (system_charset_info->strnncoll(name->str, name->length,
 		                       n.str, n.length) == 0)
     {
+      *frame_pctx= this;
       *poff= m_cursor_offset + i;
       return &m_cursors.at(i);
     }
   }
 
   return (!current_scope_only && m_parent) ?
-    m_parent->find_cursor(name, poff, false) :
+    m_parent->find_cursor(name, frame_pctx, poff, false) :
     NULL;
 }
 

@@ -865,23 +865,36 @@ public:
 struct Lex_for_loop_st
 {
 public:
+  enum class Type : uchar
+  {
+    INT_RANGE= 0,       // FOR i IN 1..10
+    CURSOR_IMPLICIT= 1, // FOR r IN (SELECT 1 FROM DUAL)
+    CURSOR_EXPLICIT= 2  // FOR r IN cursor1
+  };
   class sp_variable *m_index;  // The first iteration value (or cursor)
-  class sp_variable *m_target_bound; // The last iteration value
+  union
+  {
+    class sp_variable *m_target_bound; // The last iteration value
+    const class Sp_rcontext_handler *m_cursor_rcontext_handler;
+  };
   int m_cursor_offset;
   int8 m_direction;
-  bool m_implicit_cursor;
+  Type m_type;
   void init()
   {
     m_index= 0;
     m_target_bound= 0;
     m_cursor_offset= 0;
     m_direction= 0;
-    m_implicit_cursor= false;
+    m_type= Type::INT_RANGE;
   }
-  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
+  bool is_for_loop_cursor() const
+  {
+    return m_type == Type::CURSOR_IMPLICIT || m_type == Type::CURSOR_EXPLICIT;
+  }
   bool is_for_loop_explicit_cursor() const
   {
-    return is_for_loop_cursor() && !m_implicit_cursor;
+    return m_type == Type::CURSOR_EXPLICIT;
   }
 };
 
@@ -1060,6 +1073,31 @@ public:
 };
 
 
+class sp_pcontext;
+
+/*
+  A parse-time address of an SP variable.
+*/
+class sp_pcontext_addr
+{
+public:
+  sp_pcontext_addr(sp_pcontext *pcontext, uint offset)
+   :m_pcontext(pcontext), m_offset(offset)
+  { }
+  sp_pcontext *pcontext() const
+  {
+    return m_pcontext;
+  }
+  uint offset() const
+  {
+    return m_offset;
+  }
+protected:
+  sp_pcontext *m_pcontext; // The frame parse context
+  uint m_offset;           // Absolute offset
+};
+
+
 /*
   A run-time address of an SP variable. Consists of:
   - The rcontext type (LOCAL, PACKAGE BODY),
@@ -1072,6 +1110,12 @@ public:
   sp_rcontext_addr(const class Sp_rcontext_handler *h, uint offset)
    :m_rcontext_handler(h), m_offset(offset)
   { }
+  sp_rcontext_addr(const Lex_for_loop_st &loop)
+   :m_rcontext_handler(loop.m_cursor_rcontext_handler),
+    m_offset(loop.m_cursor_offset)
+  {
+    DBUG_ASSERT(loop.is_for_loop_cursor());
+  }
   const Sp_rcontext_handler *rcontext_handler() const
   {
     return m_rcontext_handler;

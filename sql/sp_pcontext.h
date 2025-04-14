@@ -521,10 +521,21 @@ public:
   /// The function is called only at parsing time.
   ///
   /// @param name               Variable name.
+  /// @param frame_pctx [OUT]   The frame sp_pcontext on which
+  ///                           the variable was found.
   /// @param current_scope_only A flag if we search only in current scope.
   ///
   /// @return instance of found SP-variable, or NULL if not found.
-  sp_variable *find_variable(const LEX_CSTRING *name, bool current_scope_only) const;
+  sp_variable *find_variable(const LEX_CSTRING *name,
+                             const sp_pcontext **frame_pctx,
+                             bool current_scope_only) const;
+
+  sp_variable *find_variable(const LEX_CSTRING *name,
+                             bool current_scope_only) const
+  {
+    const sp_pcontext *frame_pctx;
+    return find_variable(name, &frame_pctx, current_scope_only);
+  }
 
   /// Find SP-variable by the offset in the root parsing context.
   ///
@@ -543,6 +554,56 @@ public:
   /// @param n The number of variables to skip.
   void declare_var_boundary(uint n)
   { m_pboundary= n; }
+
+  /*
+    Check if the given parse context frame is the frame which stores members
+    of the owning sp_package.
+
+    Members are:
+    - CREATE PACKAGE wide variables and cursors (coming soon - MDEV-13139)
+    - CREATE PACKAGE BODY wide variables and cursors
+
+    Example:
+
+      CREATE PACKAGE BODY pkg AS -- sp_package
+        a0 INT;                  -- A member
+        CURSOR c0;               -- A member
+
+        PROCEDURE p1() AS  -- A method sp_head (package routine)
+          a1 INT;          -- A local variable - not an sp_package member
+          CURSOR c1;       -- A local cursor   - not an sp_package member
+        BEGIN
+          OPEN c0;         -- Open a cursor member of the parent sp_package
+          CLOSE c0;        -- Close a cursor member of the parent sp_package
+        END;
+
+      BEGIN                -- Executable initialization section (constructor)
+        DECLARE
+          a2 INT;          -- a local variable - not a member
+          CURSOR c2;       -- a local cursor   - not a member
+        BEGIN
+          OPEN c0;         -- Open its own cursor member (of sp_package)
+          CLOSE c0;        -- Close its own cursor member (of sp_package)
+        END;
+      END;
+
+    Members are visible in all subroutines and are treated in a different way
+    comparing to local variables/cursors. For example, member cursors
+    do not need sp_instr_cpush and sp_instr_cpop, unlike local cursors.
+
+    The top level parse context frame of an sp_head stores formal parameters:
+    - PROCEDURE and FUNCTION can have formal parameters.
+    - PACKAGE and PACKAGE BODY cannot have formal parameters,
+      but still the top level context frame exists (it's just empty).
+      Members reside in child(0) of the top level parse context.
+  */
+  bool is_frame_for_members() const
+  {
+    const sp_pcontext *parent= parent_context();
+    return parent &&
+           !parent->parent_context() &&
+           parent->child_context(0) == this;
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
@@ -688,7 +749,15 @@ public:
 
   /// See comment for find_variable() above.
   const sp_pcursor *find_cursor(const LEX_CSTRING *name,
+                                const sp_pcontext **frame_pcontext,
                                 uint *poff, bool current_scope_only) const;
+
+  const sp_pcursor *find_cursor(const LEX_CSTRING *name,
+                                uint *poff, bool current_scope_only) const
+  {
+    const sp_pcontext *dummy_frame_pctx;
+    return find_cursor(name, &dummy_frame_pctx, poff, current_scope_only);
+  }
 
   const sp_pcursor *find_cursor_with_error(const LEX_CSTRING *name,
                                            uint *poff,

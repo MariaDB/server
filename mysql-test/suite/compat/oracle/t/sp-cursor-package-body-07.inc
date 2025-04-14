@@ -1,0 +1,26 @@
+--echo #
+--echo # PROCEDURE:
+--echo #   ROW TYPE OF package_body_cursor
+--echo #
+
+DELIMITER /;
+CREATE PACKAGE pkg IS
+  PROCEDURE p1;
+END;
+/
+CREATE PACKAGE BODY pkg AS
+  CURSOR c0 IS SELECT 1 AS c0, 'c1' AS c1 FROM DUAL;
+  PROCEDURE p1 AS
+    r0 c0%ROWTYPE;
+    r1 r0%TYPE;
+  BEGIN
+    CREATE TABLE t1 AS SELECT r0.c0, r0.c1;
+    SHOW CREATE TABLE t1;
+    DROP TABLE t1;
+    CREATE TABLE t2 AS SELECT r0.c0, r0.c1;
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END;
+END;
+/
+DELIMITER ;/

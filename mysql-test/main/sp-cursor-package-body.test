@@ -1,0 +1,58 @@
+--echo #
+--echo # MDEV-36053 CURSOR declarations in PACKAGE BODY
+--echo #
+
+--source sp-cursor-package-body-01.inc
+SELECT pkg.f1() FROM DUAL;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-02.inc
+SELECT pkg.f1() FROM DUAL;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-03.inc
+SELECT pkg.f1() FROM DUAL;
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-04.inc
+--disable_ps2_protocol
+SELECT pkg.f1() FROM DUAL;
+--error ER_SP_CURSOR_ALREADY_OPEN
+SELECT pkg.f1() FROM DUAL;
+--enable_ps2_protocol
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-05.inc
+--disable_ps2_protocol
+SELECT pkg.f1() FROM DUAL;
+--error ER_SP_CURSOR_ALREADY_OPEN
+SELECT pkg.f1() FROM DUAL;
+--enable_ps2_protocol
+DROP PACKAGE pkg;
+
+--disable_view_protocol
+--source sp-cursor-package-body-06.inc
+--disable_ps2_protocol
+SELECT pkg.f1() FROM DUAL;
+--enable_ps2_protocol
+CALL pkg.p1close();
+--error ER_SP_CURSOR_NOT_OPEN
+SELECT pkg.f1() FROM DUAL;
+DROP PACKAGE pkg;
+--enable_view_protocol
+
+--source sp-cursor-package-body-07.inc
+CALL pkg.p1();
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-08.inc
+CALL pkg.p1();
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-09.inc
+CALL pkg.p1();
+DROP PACKAGE pkg;
+
+--source sp-cursor-package-body-10.inc
+CALL pkg.p1();
+DROP PACKAGE pkg;

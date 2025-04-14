@@ -1,0 +1,25 @@
+--echo #
+--echo # PROCEDURE:
+--echo #   FOR rec IN package_body_cursor_with_parameters
+--echo #
+
+DELIMITER /;
+CREATE PACKAGE pkg IS
+  PROCEDURE p1;
+END;
+/
+CREATE PACKAGE BODY pkg AS
+  CURSOR c0(c0 INT, c1 VARCHAR(10)) IS SELECT c0, c1 FROM DUAL;
+  PROCEDURE p1 AS
+  BEGIN
+    FOR i IN 1..2
+    LOOP
+      FOR r0 IN c0(1,'c1')
+      LOOP
+        SELECT r0.c0, r0.c1;
+      END LOOP;
+    END LOOP;
+  END;
+END;
+/
+DELIMITER ;/

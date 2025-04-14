@@ -34,15 +34,33 @@
 
 Sp_rcontext_handler_local sp_rcontext_handler_local;
 Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+Sp_rcontext_handler_member sp_rcontext_handler_member;
 
 sp_rcontext *Sp_rcontext_handler_local::get_rcontext(sp_rcontext *ctx) const
 {
   return ctx;
 }
 
+sp_pcontext *Sp_rcontext_handler_local::get_pcontext(THD *thd) const
+{
+  return thd->lex->spcont;
+}
+
 sp_rcontext *Sp_rcontext_handler_package_body::get_rcontext(sp_rcontext *ctx) const
 {
   return ctx->m_sp->m_parent->m_rcontext;
+}
+
+sp_pcontext *Sp_rcontext_handler_package_body::get_pcontext(THD *thd) const
+{
+  /*
+    PACKAGE BODY cursors and variables reside in the first child
+    of the PACKAGE BODY top level parse context.
+    The top level parse context of any sp_head is for routine parameters.
+    PACKAGE BODY still has the parse context for parameters,
+    but it does not have any variables.
+  */
+  return thd->lex->sphead->m_parent->get_parse_context()->child_context(0);
 }
 
 const LEX_CSTRING *Sp_rcontext_handler_local::get_name_prefix() const
@@ -57,6 +75,41 @@ const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
   return &sp_package_body_variable_prefix_clex_str;
 }
 
+sp_cursor *Sp_rcontext_handler_local::get_cursor(THD *thd, uint offset) const
+{
+  return thd->spcont->get_cursor(offset);
+}
+
+sp_cursor *Sp_rcontext_handler_package_body::get_cursor(THD *thd,
+                                                        uint offset) const
+{
+  return get_rcontext(thd->spcont)->get_member_cursor(offset);
+}
+
+
+sp_rcontext *Sp_rcontext_handler_member::get_rcontext(sp_rcontext *ctx) const
+{
+  return ctx;
+}
+
+const LEX_CSTRING *Sp_rcontext_handler_member::get_name_prefix() const
+{
+  static const LEX_CSTRING sp_package_body_variable_prefix_clex_str=
+                           {STRING_WITH_LEN("MEMBER.")};
+  return &sp_package_body_variable_prefix_clex_str;
+}
+
+sp_cursor *Sp_rcontext_handler_member::get_cursor(THD *thd,
+                                                  uint offset) const
+{
+  return thd->spcont->get_member_cursor(offset);
+}
+
+
+sp_pcontext *Sp_rcontext_handler_member::get_pcontext(THD *thd) const
+{
+  return thd->lex->spcont;
+}
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext implementation.
@@ -76,6 +129,7 @@ sp_rcontext::sp_rcontext(sp_head *owner,
    m_return_value_set(false),
    m_in_sub_stmt(in_sub_stmt),
    m_handlers(PSI_INSTRUMENT_MEM), m_handler_call_stack(PSI_INSTRUMENT_MEM),
+   m_member_cursors(PSI_INSTRUMENT_MEM),
    m_ccount(0)
 {
 }
@@ -84,6 +138,10 @@ sp_rcontext::sp_rcontext(sp_head *owner,
 sp_rcontext::~sp_rcontext()
 {
   delete m_var_table;
+  for (size_t i= 0; i < m_member_cursors.size(); i++)
+  {
+    delete m_member_cursors.at(i);
+  }
   // Leave m_handlers, m_handler_call_stack, m_var_items, m_cstack
   // and m_case_expr_holders untouched.
   // They are allocated in mem roots and will be freed accordingly.
@@ -114,6 +172,19 @@ sp_rcontext *sp_rcontext::create(THD *thd,
   {
     delete ctx;
     ctx= 0;
+  }
+
+  // Create sp_cursor instances for members (PACKAGE/PACKAGE BODY wide cursors)
+  if (owner->get_package())
+  {
+    for (uint i= 0;
+         i < root_parsing_ctx->child_context(0)->frame_cursor_count();
+         i++)
+    {
+      sp_cursor *cur= new sp_cursor;
+      cur->reset(thd);
+      ctx->m_member_cursors.append(cur);
+    }
   }
 
   thd->lex->current_select= save_current_select;

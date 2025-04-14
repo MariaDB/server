@@ -31,6 +31,7 @@
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"                            // Item
 #include "sp_pcontext.h"                        // sp_pcontext
+#include "sp_rcontext_handler.h"
 #include <stddef.h>
 #include "sp.h"
 
@@ -513,6 +514,7 @@ private:
     @param
   */
   bool add_set_for_loop_cursor_param_variables(THD *thd,
+                                               const sp_rcontext_addr &caddr,
                                                sp_pcontext *param_spcont,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
@@ -529,10 +531,22 @@ private:
                          sp_rcontext *octx,
                          sp_rcontext *nctx);
 
+  /*
+    Add sp_instr_copen or sp_instr_copen2 depending on addr.
+    @param thd          - the current thd
+    @param pcursor      - the cursor
+    @param spcont       - the cursor parse context
+    @param addr         - the cursor run time address
+  */
+  bool add_instr_copenX(THD *thd,
+                        const sp_pcursor *pcursor,
+                        sp_pcontext *spcont,
+                        const sp_rcontext_addr &addr);
 public:
   /**
     Generate a code for an "OPEN cursor" statement.
     @param thd          - current thd, for mem_root allocations
+    @param sp_pcursor   - the cursor
     @param spcont       - the context of the cursor
     @param offset       - the offset of the cursor
     @param param_spcont - the context of the cursor parameter block
@@ -543,8 +557,10 @@ public:
     in "parameters" (actual parameters).
     NULL in either of them means 0 parameters.
   */
-  bool add_open_cursor(THD *thd, sp_pcontext *spcont,
-                       uint offset,
+  bool add_open_cursor(THD *thd,
+                       const sp_pcursor *pcursor,
+                       sp_pcontext *spcont,
+                       const sp_rcontext_addr &addr,
                        sp_pcontext *param_spcont,
                        List<sp_assignment_lex> *parameters);
 
@@ -564,7 +580,8 @@ public:
     @param spcont     - the current parse context
     @param index      - the loop "index" ROW-type variable
     @param pcursor    - the cursor
-    @param coffset    - the cursor offset
+    @param cursor_pctx- the cursor parser context
+    @param cursor_addr- the cursor run time address
     @param param_lex  - the LEX that owns Items in "parameters"
     @param parameters - the cursor parameters Item array
     @retval true      - on error (EOM)
@@ -572,7 +589,9 @@ public:
   */
   bool add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
                                 sp_variable *index,
-                                const sp_pcursor *pcursor, uint coffset,
+                                const sp_pcursor *pcursor,
+                                sp_pcontext *cursor_pctx,
+                                const sp_rcontext_addr &cursor_addr,
                                 sp_assignment_lex *param_lex,
                                 Item_args *parameters);
   /**
@@ -708,6 +727,17 @@ public:
   /// Backpatch (and pop) the current level to the current position.
   void
   do_cont_backpatch();
+
+  /*
+    Check if the given parse context is for members.
+    PROCEDURE and FUNCTION cannot have members yet.
+    They will when "MDEV-34559 Nested routines" is done.
+    For now return true only if "this" is a package.
+  */
+  bool is_frame_for_members(const sp_pcontext *pctx)
+  {
+    return get_package() && pctx->is_frame_for_members();
+  }
 
   /// Add cpush instructions for all cursors declared in the current frame
   bool sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext);
@@ -1117,6 +1147,12 @@ public:
     */
     sp_pcontext *ctx= m_pcont->child_context(0);
     return ctx ? ctx->find_variable(name, true) : NULL;
+  }
+  const sp_pcursor *
+  find_member_cursor(const LEX_CSTRING *name, uint *poff) const
+  {
+    sp_pcontext *ctx= m_pcont->child_context(0);
+    return ctx ? ctx->find_cursor(name, poff, true) : nullptr;
   }
   bool validate_after_parser(THD *thd);
   bool instantiate_if_needed(THD *thd);

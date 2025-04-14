@@ -538,6 +538,28 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
   sp_instr class functions
 */
 
+void
+sp_instr::print_cmd_and_var(const LEX_CSTRING &cmd,
+                            const LEX_CSTRING &name,
+                            const sp_rcontext_addr &addr,
+                            String *str) const
+{
+  const LEX_CSTRING *prefix= addr.rcontext_handler()->get_name_prefix();
+  size_t rsrv= SP_INSTR_UINT_MAXLEN + 8 + name.length + prefix->length;
+
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(&cmd);
+  if (name.length)
+  {
+    str->qs_append(prefix);
+    str->qs_append(&name);
+    str->qs_append('@');
+  }
+  str->qs_append(addr.offset());
+}
+
+
 int sp_instr::exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
 {
   int result;
@@ -1819,7 +1841,7 @@ sp_instr_copen::execute(THD *thd, uint *nextp)
     We don't store a pointer to the cursor in the instruction to be
     able to reuse the same instruction among different threads in future.
   */
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor);
+  sp_cursor *c= m_rcontext_handler->get_cursor(thd, m_offset);
   int res;
   DBUG_ENTER("sp_instr_copen::execute");
 
@@ -1867,10 +1889,11 @@ sp_instr_copen::execute(THD *thd, uint *nextp)
 void
 sp_instr_copen::print(String *str)
 {
-  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
+  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_offset);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
 
   /* copen name@offset */
-  size_t rsrv= SP_INSTR_UINT_MAXLEN+7;
+  size_t rsrv= SP_INSTR_UINT_MAXLEN + 7 + prefix->length;
 
   if (cursor_name)
     rsrv+= cursor_name->length;
@@ -1879,10 +1902,11 @@ sp_instr_copen::print(String *str)
   str->qs_append(STRING_WITH_LEN("copen "));
   if (cursor_name)
   {
+    str->qs_append(prefix->str, prefix->length);
     str->qs_append(cursor_name->str, cursor_name->length);
     str->qs_append('@');
   }
-  str->qs_append(m_cursor);
+  str->qs_append(m_offset);
 }
 
 
@@ -1896,7 +1920,7 @@ PSI_statement_info sp_instr_cclose::psi_info=
 int
 sp_instr_cclose::execute(THD *thd, uint *nextp)
 {
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor);
+  sp_cursor *c= m_rcontext_handler->get_cursor(thd, m_offset);
   int res;
   DBUG_ENTER("sp_instr_cclose::execute");
 
@@ -1912,22 +1936,11 @@ sp_instr_cclose::execute(THD *thd, uint *nextp)
 void
 sp_instr_cclose::print(String *str)
 {
-  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
-
+  const LEX_CSTRING cmd= {STRING_WITH_LEN("cclose ")};
+  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_offset);
   /* cclose name@offset */
-  size_t rsrv= SP_INSTR_UINT_MAXLEN+8;
-
-  if (cursor_name)
-    rsrv+= cursor_name->length;
-  if (str->reserve(rsrv))
-    return;
-  str->qs_append(STRING_WITH_LEN("cclose "));
-  if (cursor_name)
-  {
-    str->qs_append(cursor_name->str, cursor_name->length);
-    str->qs_append('@');
-  }
-  str->qs_append(m_cursor);
+  print_cmd_and_var(cmd, cursor_name ? *cursor_name : empty_clex_str,
+                    *this, str);
 }
 
 
@@ -1941,7 +1954,7 @@ PSI_statement_info sp_instr_cfetch::psi_info=
 int
 sp_instr_cfetch::execute(THD *thd, uint *nextp)
 {
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor);
+  sp_cursor *c= m_rcontext_handler->get_cursor(thd, m_offset);
   int res;
   Query_arena backup_arena;
   DBUG_ENTER("sp_instr_cfetch::execute");
@@ -1958,22 +1971,13 @@ sp_instr_cfetch::print(String *str)
 {
   List_iterator_fast<sp_fetch_target> li(m_fetch_target_list);
   sp_fetch_target *pv;
-  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
+  const LEX_CSTRING cmd= {STRING_WITH_LEN("cfetch ")};
+  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_offset);
 
   /* cfetch name@offset vars... */
-  size_t rsrv= SP_INSTR_UINT_MAXLEN+8;
+  print_cmd_and_var(cmd, cursor_name ? *cursor_name : empty_clex_str,
+                    *this, str);
 
-  if (cursor_name)
-    rsrv+= cursor_name->length;
-  if (str->reserve(rsrv))
-    return;
-  str->qs_append(STRING_WITH_LEN("cfetch "));
-  if (cursor_name)
-  {
-    str->qs_append(cursor_name->str, cursor_name->length);
-    str->qs_append('@');
-  }
-  str->qs_append(m_cursor);
   while ((pv= li++))
   {
     const LEX_CSTRING *prefix= pv->rcontext_handler()->get_name_prefix();
@@ -2054,7 +2058,8 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cursor_copy_struct::exec_core");
   int ret= 0;
-  Item_field_row *row= (Item_field_row*) thd->spcont->get_variable(m_var);
+  Item_field_row *row= (Item_field_row*) thd->spcont->
+                                           get_variable(m_var.offset());
   DBUG_ASSERT(row->type_handler() == &type_handler_row);
 
   /*
@@ -2068,7 +2073,46 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   {
     sp_cursor tmp(thd, true);
     // Open the cursor without copying data
-    if (!(ret= tmp.open(thd)))
+    // TODO: Check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK.
+    DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
+    auto backup_flags= thd->lex->query_arena()->mem_root->flags;
+    thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+
+    /*
+      Open the cursor in its sp_rcontext, because
+      Items inside the cursor statement have rcontext handler
+      relative to the cursor rcontext. In this example package:
+
+        CREATE PACKAGE BODY pkg AS
+          CURSOR c0(p0 INT, p1 VARCHAR(10)) IS SELECT p0, p1 FROM DUAL;
+          PROCEDURE p1 AS
+          BEGIN
+            FOR r0 IN c0(1,'c1')
+            LOOP
+              SELECT r0.c0, r0.c1;
+            END LOOP;
+          END;
+        END;
+
+      Item_splocal instances for the cursor parameters p0 and p1
+      (in the cursor SELECT statement) use sp_rcontext_handler_local.
+      But the cursor is opened from the PROCEDURE p1.
+      It has a different sp_rcontext, which is pointed by thd->spcont
+      at the time of the current sp_instr::exec_core(). Using the above
+      package as an example, let's do the following:
+      - backup the sp_rcontext of the PROCEDURE p1
+      - reset thd->spcont to the sp_rcontext of the PACKAGE BODY pkg
+      - open the cursor int its sp_rcontext
+      - restore thd->spcont to the sp_rcontext of the PROCEDURE p1
+    */
+    sp_rcontext *rcontext_backup= thd->spcont;
+    thd->spcont= m_rcontext_handler->get_rcontext(thd->spcont);
+    ret= tmp.open(thd);
+    thd->spcont= rcontext_backup;
+
+    thd->lex->query_arena()->mem_root->flags= backup_flags;
+
+    if (!ret)
     {
       Row_definition_list defs;
       /*
@@ -2106,14 +2150,95 @@ sp_instr_cursor_copy_struct::execute(THD *thd, uint *nextp)
 void
 sp_instr_cursor_copy_struct::print(String *str)
 {
-  sp_variable *var= m_ctx->find_variable(m_var);
-  const LEX_CSTRING *name= m_ctx->find_cursor(m_cursor);
+  sp_variable *var= m_var.pcontext()->find_variable(m_var.offset());
+  const LEX_CSTRING *name= m_ctx->find_cursor(m_offset);
   str->append(STRING_WITH_LEN("cursor_copy_struct "));
+  str->append(m_rcontext_handler->get_name_prefix());
   str->append(name);
   str->append(' ');
   str->append(&var->name);
   str->append('@');
-  str->append_ulonglong(m_var);
+  str->append_ulonglong(m_var.offset());
+}
+
+
+/*
+  sp_instr_copen2 class functions.
+*/
+
+PSI_statement_info sp_instr_copen2::psi_info=
+{ 0, "copen2", 0};
+
+
+int
+sp_instr_copen2::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_copen2::execute");
+  m_lex_keeper.disable_query_cache();
+  int res= m_lex_keeper.cursor_reset_lex_and_exec_core(thd, nextp, false, this);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+int sp_instr_copen2::exec_core(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_copen2::exec_core");
+  sp_cursor *cursor= m_rcontext_handler->get_cursor(thd, m_offset);
+  /*
+    CREATE PACKAGE BODY pkg
+      CURSOR package_body_wide_cursor;
+      PROCEDURE p1()
+      BEGIN
+        OPEN package_body_wide_cursor;   -- #2
+        CLOSE package_body_wide_cursor;
+      END;
+    BEGIN
+      OPEN package_body_wide_cursor;     -- #1
+      CLOSE package_body_wide_cursor;
+    END;
+
+    "OPEN package_body_wide_cursor" can be called from two different places:
+    #1. From the package initialization secion. In this case
+        sp_head::mem_main_root::flags does not have the ROOT_FLAG_READ_ONLY bit
+        yet - it will be set in the end of the current sp_head::execute().
+    #2. From a package routine. In this case sp_head::execute() representing
+        the initialization section of the package was called earlier and
+        its mem_main_root::flags already has the ROOT_FLAG_READ_ONLY flag.
+        Unset it temporarily.
+  */
+  /*
+    TODO:
+    this assert crashes due to a problem in the metadata modification code
+  */
+  //DBUG_ASSERT(thd->spcont->m_sp->get_package() ||
+  //            (thd->lex->query_arena()->mem_root->flags & ROOT_FLAG_READ_ONLY));
+  DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
+  auto backup_flags= thd->lex->query_arena()->mem_root->flags;
+  thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+
+  /*
+    Open the cursor in its sp_rcontext.
+    See sp_instr_cursor_copy_struct::exec_core() for details.
+  */
+  sp_rcontext *ctx_backup= thd->spcont;
+  thd->spcont= m_rcontext_handler->get_rcontext(thd->spcont);
+  int rc= cursor->open(thd);
+  thd->spcont= ctx_backup;
+
+  thd->lex->query_arena()->mem_root->flags= backup_flags;
+  DBUG_RETURN(rc);
+}
+
+
+void
+sp_instr_copen2::print(String *str)
+{
+  const LEX_CSTRING cmd= {STRING_WITH_LEN("copen2 ")};
+  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_offset);
+  /* copen name@offset */
+  print_cmd_and_var(cmd, cursor_name ? *cursor_name : empty_clex_str,
+                    *this, str);
 }
 
 

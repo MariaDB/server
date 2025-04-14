@@ -53,7 +53,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 show package body code test_db.pk;
 Pos	Instruction
 0	set pkv@0 1
-1	set pkv@0 2
+1	set MEMBER.pkv@0 2
 use test;
 ###
 ### Pre-"SHOW-CREATE-ROUTINE" behaviour tests
@@ -74,7 +74,7 @@ Pos	Instruction
 show package body code test_db.pk;
 Pos	Instruction
 0	set pkv@0 1
-1	set pkv@0 2
+1	set MEMBER.pkv@0 2
 connection default;
 disconnect conn1;
 revoke all privileges on mysql.* from user@localhost;
@@ -195,7 +195,7 @@ Pos	Instruction
 show package body code test_db.pk;
 Pos	Instruction
 0	set pkv@0 1
-1	set pkv@0 2
+1	set MEMBER.pkv@0 2
 connection default;
 disconnect conn1;
 revoke show create routine on *.* from user@localhost;
@@ -237,7 +237,7 @@ Pos	Instruction
 show package body code test_db.pk;
 Pos	Instruction
 0	set pkv@0 1
-1	set pkv@0 2
+1	set MEMBER.pkv@0 2
 connection default;
 disconnect conn1;
 revoke show create routine on test_db.* from user@localhost;
@@ -281,7 +281,7 @@ connect conn1, localhost, user, , test;
 show package body code test_db.pk;
 Pos	Instruction
 0	set pkv@0 1
-1	set pkv@0 2
+1	set MEMBER.pkv@0 2
 connection default;
 disconnect conn1;
 SET sql_mode=ORACLE;
