@@ -80,6 +80,7 @@ void init_sp_psi_keys()
   PSI_server->register_statement(category, & sp_instr_cclose_by_ref::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_cfetch_by_ref::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_destruct_variable::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_copen2::psi_info, 1);
 
   DBUG_ASSERT(SP_PSI_STATEMENT_INFO_COUNT == __LINE__ - num);
 }
@@ -583,7 +584,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_cpp_body_begin(NULL),
    m_thd_root(NULL),
    m_thd(NULL),
-   m_pcont(new (&main_mem_root) sp_pcontext()),
+   m_pcont(new (&main_mem_root) sp_pcontext_top(this)),
    m_cont_level(0)
 {
   mem_root= &main_mem_root;
@@ -2829,6 +2830,8 @@ sp_head::do_cont_backpatch()
 bool
 sp_head::sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext)
 {
+  if (pcontext == frame_for_members())
+    return false; // Member cursors do not use the cursor stack
   for (uint i= 0; i < pcontext->frame_cursor_count(); i++)
   {
     const sp_pcursor *c= pcontext->get_cursor_by_local_frame_offset(i);
@@ -3868,7 +3871,26 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
 }
 
 
-bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
+bool sp_head::add_instr_copenX(THD *thd, sp_pcontext *spcont,
+                               const sp_rcontext_addr &addr)
+{
+  sp_instr *i;
+  if (addr.rcontext_handler() == &sp_rcontext_handler_local)
+    i= new (thd->mem_root) sp_instr_copen(instructions(), spcont,
+                                          addr.offset());
+  else
+  {
+    const sp_pcursor *pcursor= addr.rcontext_handler()->
+                                 get_pcursor(spcont, addr.offset());
+    i= new (thd->mem_root) sp_instr_copen2(instructions(), spcont,
+                                           addr, pcursor->lex());
+  }
+  return i == NULL || add_instr(i);
+}
+
+
+bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont,
+                              const sp_rcontext_addr &addr,
                               sp_pcontext *param_spcont,
                               List<sp_assignment_lex> *parameters)
 {
@@ -3883,50 +3905,50 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
       add_set_cursor_param_variables(thd, param_spcont, parameters))
     return true;
 
-  sp_instr_copen *i= new (thd->mem_root)
-                     sp_instr_copen(instructions(), spcont, offset);
-  return i == NULL || add_instr(i);
+  return add_instr_copenX(thd, spcont, addr);
 }
 
 
 bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
                                        sp_variable *index,
-                                       const sp_pcursor *pcursor, uint coffset,
+                                       const sp_pcursor *pcursor,
+                                       const sp_rcontext_addr &cursor_addr,
                                        sp_assignment_lex *param_lex,
                                        Item_args *parameters)
 {
+  const sp_rcontext_addr index_addr(&sp_rcontext_handler_local, index->offset);
   if (parameters &&
-      add_set_for_loop_cursor_param_variables(thd, pcursor->param_context(),
+      add_set_for_loop_cursor_param_variables(thd, cursor_addr,
+                                              pcursor->param_context(),
                                               param_lex, parameters))
     return true;
 
   sp_instr *instr_copy_struct=
     new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
-                                                    spcont, coffset,
+                                                    spcont,
                                                     pcursor->lex(),
-                                                    index->offset);
+                                                    cursor_addr,
+                                                    index_addr);
   if (instr_copy_struct == NULL || add_instr(instr_copy_struct))
     return true;
 
-  sp_instr_copen *instr_copen=
-    new (thd->mem_root) sp_instr_copen(instructions(), spcont, coffset);
-  if (instr_copen == NULL || add_instr(instr_copen))
+  if (add_instr_copenX(thd, spcont, cursor_addr))
     return true;
 
   sp_instr_cfetch *instr_cfetch=
-    new (thd->mem_root) sp_instr_cfetch(instructions(),
-                                        spcont, coffset, false);
+    new (thd->mem_root) sp_instr_cfetch(instructions(), spcont,
+                                        cursor_addr, false);
   if (instr_cfetch == NULL || add_instr(instr_cfetch))
     return true;
-  const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
   sp_fetch_target *target=
-    new (thd->mem_root) sp_fetch_target(index->name, raddr);
+    new (thd->mem_root) sp_fetch_target(index->name, index_addr);
   return !target || instr_cfetch->add_to_fetch_target_list(target);
 }
 
 
 bool
 sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
+                                                 const sp_rcontext_addr &caddr,
                                                  sp_pcontext *param_spcont,
                                                  sp_assignment_lex *param_lex,
                                                  Item_args *parameters)
@@ -3942,7 +3964,7 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
     bool last= idx + 1 == parameters->argument_count();
     sp_variable *spvar= param_spcont->get_context_variable(idx);
     if (set_local_variable(thd, param_spcont,
-                           &sp_rcontext_handler_local,
+                           caddr.rcontext_handler(),
                            spvar, parameters->arguments()[idx],
                            param_lex, last,
                            param_lex->get_expr_str()))

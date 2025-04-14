@@ -5726,14 +5726,14 @@ class Spvar_definition: public Column_definition
   const Qualified_column_ident *m_column_type_ref; // for %TYPE
   Table_ident *m_table_rowtype_ref;                // for table%ROWTYPE
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
-  uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
+  sp_rcontext_addr m_cursor_rowtype_addr;          // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
 public:
   Spvar_definition()
    :m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
-    m_cursor_rowtype_offset(0),
+    m_cursor_rowtype_addr(nullptr, 0),
     m_row_field_definitions(NULL)
   { }
   Spvar_definition(THD *thd, Field *field)
@@ -5741,7 +5741,7 @@ public:
     m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
-    m_cursor_rowtype_offset(0),
+    m_cursor_rowtype_addr(nullptr, 0),
     m_row_field_definitions(NULL)
   { }
   const Type_handler *type_handler() const
@@ -5777,15 +5777,15 @@ public:
     m_table_rowtype_ref= ref;
   }
 
-  uint cursor_rowtype_offset() const
+  const sp_rcontext_addr &cursor_rowtype_addr() const
   {
-    return m_cursor_rowtype_offset;
+    return m_cursor_rowtype_addr;
   }
-  void set_cursor_rowtype_ref(uint offset)
+  void set_cursor_rowtype_ref(const sp_rcontext_addr &cursor_addr)
   {
     set_handler(&type_handler_row);
     m_cursor_rowtype_ref= true;
-    m_cursor_rowtype_offset= offset;
+    m_cursor_rowtype_addr= cursor_addr;
   }
 
   /*

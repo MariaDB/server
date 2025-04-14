@@ -27,6 +27,7 @@
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"                            // Item
 #include "sp_pcontext.h"                        // sp_pcontext
+#include "sp_rcontext_handler.h"
 #include <stddef.h>
 #include "sp.h"
 
@@ -219,6 +220,7 @@ public:
   LEX_CSTRING m_defstr;
   AUTHID      m_definer;
 
+  Query_arena *query_arena() { return this; }
   const st_sp_chistics &chistics() const { return m_chistics; }
   const LEX_CSTRING &comment() const { return m_chistics.comment; }
   void set_suid(enum_sp_suid_behaviour suid) { m_chistics.suid= suid; }
@@ -520,6 +522,7 @@ private:
     @param
   */
   bool add_set_for_loop_cursor_param_variables(THD *thd,
+                                               const sp_rcontext_addr &caddr,
                                                sp_pcontext *param_spcont,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
@@ -537,6 +540,15 @@ private:
                          sp_rcontext *octx,
                          sp_rcontext *nctx);
 
+  /*
+    Add sp_instr_copen or sp_instr_copen2 depending on addr.rcontext_handler().
+    @param thd          - the current thd
+    @param spcont       - the cursor parse context
+    @param addr         - the cursor run time address
+  */
+  bool add_instr_copenX(THD *thd,
+                        sp_pcontext *spcont,
+                        const sp_rcontext_addr &addr);
 public:
   /**
     Generate a code for an "OPEN cursor" statement.
@@ -552,7 +564,7 @@ public:
     NULL in either of them means 0 parameters.
   */
   bool add_open_cursor(THD *thd, sp_pcontext *spcont,
-                       uint offset,
+                       const sp_rcontext_addr &addr,
                        sp_pcontext *param_spcont,
                        List<sp_assignment_lex> *parameters);
 
@@ -572,7 +584,7 @@ public:
     @param spcont     - the current parse context
     @param index      - the loop "index" ROW-type variable
     @param pcursor    - the cursor
-    @param coffset    - the cursor offset
+    @param cursor_addr- the cursor run time address
     @param param_lex  - the LEX that owns Items in "parameters"
     @param parameters - the cursor parameters Item array
     @retval true      - on error (EOM)
@@ -580,7 +592,8 @@ public:
   */
   bool add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
                                 sp_variable *index,
-                                const sp_pcursor *pcursor, uint coffset,
+                                const sp_pcursor *pcursor,
+                                const sp_rcontext_addr &cursor_addr,
                                 sp_assignment_lex *param_lex,
                                 Item_args *parameters);
   /**
@@ -937,7 +950,9 @@ public:
     DBUG_VOID_RETURN;
   }
 
-  sp_pcontext *get_parse_context() { return m_pcont; }
+  sp_pcontext_top *get_parse_context() { return m_pcont; }
+
+  const sp_pcontext_top *get_parse_context() const { return m_pcont; }
 
   /*
     Check EXECUTE access:
@@ -951,6 +966,15 @@ public:
     return NULL;
   }
 
+  /*
+    See sp_pcontext_top::frame_for_members_candidate() in sp_pcontext.h
+    for details on sphead types which can have members.
+  */
+  virtual sp_pcontext *frame_for_members() const
+  {
+    return nullptr;
+  }
+
   virtual void init_psi_share();
 
 protected:
@@ -958,7 +982,7 @@ protected:
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root
   THD *m_thd;			///< Set if we have reset mem_root
 
-  sp_pcontext *m_pcont;		///< Parse context
+  sp_pcontext_top *m_pcont;	///< Parse context
   List<LEX> m_lex;		///< Temp. store for the other lex
   DYNAMIC_ARRAY m_instr;	///< The "instructions"
 
@@ -1119,6 +1143,12 @@ public:
            m_routine_implementations.push_back(lex, &main_mem_root);
   }
   sp_package *get_package() override { return this; }
+
+  sp_pcontext *frame_for_members() const override
+  {
+    return m_pcont->frame_for_members_candidate();
+  }
+
   void init_psi_share() override;
   bool is_invoked() const override
   {
@@ -1129,14 +1159,15 @@ public:
     */
     return sp_head::is_invoked() || m_invoked_subroutine_count > 0;
   }
-  sp_variable *find_package_variable(const LEX_CSTRING *name) const
+  sp_variable *find_member_variable(const LEX_CSTRING *name) const
   {
-    /*
-      sp_head::m_pcont is a special level for routine parameters.
-      Variables declared inside CREATE PACKAGE BODY reside in m_children.at(0).
-    */
-    sp_pcontext *ctx= m_pcont->child_context(0);
+    sp_pcontext *ctx= frame_for_members();
     return ctx ? ctx->find_variable(name, true) : NULL;
+  }
+  const sp_pcursor *find_member_cursor(const LEX_CSTRING *name, uint *poff)
+                                                                      const
+  {
+    return m_pcont->find_member_cursor(name, poff);
   }
   bool validate_after_parser(THD *thd);
   bool instantiate_if_needed(THD *thd);

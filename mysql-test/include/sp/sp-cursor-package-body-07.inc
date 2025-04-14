@@ -1,0 +1,109 @@
+--echo #
+--echo # PACKAGE BODY executable section:
+--echo #   ROW TYPE OF package_body_cursor
+--echo # PROCEDURE:
+--echo #   ROW TYPE OF package_body_cursor
+--echo #
+
+--source sp-cursor-package-body-init.inc
+
+if ($oracle == 0)
+{
+
+DELIMITER /;
+CREATE PACKAGE pkg
+  PROCEDURE p1();
+END;
+/
+CREATE PACKAGE BODY pkg
+  DECLARE mc0 CURSOR FOR SELECT 0 AS c0, 'mc0' AS c1 FROM DUAL;
+  DECLARE mc1 CURSOR FOR SELECT 1 AS c0, TIME'10:20:30' AS c1 FROM DUAL;
+  DECLARE mr00 ROW TYPE OF mc0;
+  DECLARE mr01 ROW TYPE OF mc1;
+  DECLARE mr11 ROW TYPE OF mc1;
+  DECLARE mr10 ROW TYPE OF mc0;
+  PROCEDURE p1()
+  BEGIN
+    DECLARE r00 ROW TYPE OF mc0;
+    DECLARE r01 ROW TYPE OF mc1;
+    DECLARE r10 ROW TYPE OF mc1;
+    DECLARE r11 ROW TYPE OF mc0;
+    DECLARE r20 TYPE OF r00;
+    CREATE TABLE t00 AS SELECT r10.c0, r10.c1;
+    SHOW CREATE TABLE t00;
+    DROP TABLE t00;
+    CREATE TABLE t11 AS SELECT r11.c0, r11.c1;
+    SHOW CREATE TABLE t11;
+    DROP TABLE t11;
+    CREATE TABLE t20 AS SELECT r20.c0, r20.c1;
+    SHOW CREATE TABLE t20;
+    DROP TABLE t20;
+  END;
+  BEGIN
+    DECLARE e00 ROW TYPE OF mc0;
+    DECLARE e01 ROW TYPE OF mc1;
+    DECLARE e10 ROW TYPE OF mc1;
+    DECLARE e11 ROW TYPE OF mc0;
+  END;
+END;
+/
+DELIMITER ;/
+
+}
+
+
+if ($oracle > 0)
+{
+
+DELIMITER /;
+CREATE PACKAGE pkg IS
+  PROCEDURE p1;
+END;
+/
+CREATE PACKAGE BODY pkg AS
+  CURSOR mc0 IS SELECT 0 AS c0, 'mc0' AS c1 FROM DUAL;
+  CURSOR mc1 IS SELECT 1 AS c0, TIME'10:20:30' AS c1 FROM DUAL;
+  mr00 mc0%ROWTYPE;
+  mr01 mc1%ROWTYPE;
+  mr11 mc1%ROWTYPE;
+  mr10 mc0%ROWTYPE;
+  PROCEDURE p1 AS
+    r00 mc0%ROWTYPE;
+    r01 mc1%ROWTYPE;
+    r10 mc1%ROWTYPE;
+    r11 mc0%ROWTYPE;
+    r20 r00%TYPE;
+  BEGIN
+    CREATE TABLE t00 AS SELECT r10.c0, r10.c1;
+    SHOW CREATE TABLE t00;
+    DROP TABLE t00;
+    CREATE TABLE t11 AS SELECT r11.c0, r11.c1;
+    SHOW CREATE TABLE t11;
+    DROP TABLE t11;
+    CREATE TABLE t20 AS SELECT r20.c0, r20.c1;
+    SHOW CREATE TABLE t20;
+    DROP TABLE t20;
+  END;
+BEGIN
+  DECLARE
+    e00 mc0%ROWTYPE;
+    e01 mc1%ROWTYPE;
+    e10 mc1%ROWTYPE;
+    e11 mc0%ROWTYPE;
+  BEGIN
+    NULL;
+  END;
+END;
+/
+DELIMITER ;/
+
+}
+
+
+CALL pkg.p1();
+if ($code > 0)
+{
+SHOW PACKAGE BODY CODE pkg;
+SHOW PROCEDURE CODE pkg.p1;
+}
+DROP PACKAGE pkg;

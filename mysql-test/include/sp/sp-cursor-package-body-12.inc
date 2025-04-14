@@ -1,0 +1,53 @@
+--echo #
+--echo # Duplicate cursor in PACKAGE BODY
+--echo #
+
+--source sp-cursor-package-body-init.inc
+
+if ($oracle == 0)
+{
+
+DELIMITER /;
+CREATE PACKAGE pkg
+  FUNCTION f1() RETURNS INT;
+END;
+/
+--error ER_SP_DUP_CURS
+CREATE PACKAGE BODY pkg
+  DECLARE c CURSOR FOR SELECT 'c' AS c FROM DUAL;
+  DECLARE c CURSOR FOR SELECT 'c' AS c FROM DUAL;
+  FUNCTION f1() RETURNS TEXT
+  BEGIN
+    RETURN NULL;
+  END;
+END;
+/
+DELIMITER ;/
+
+}
+
+
+if ($oracle > 0)
+{
+
+DELIMITER /;
+CREATE PACKAGE pkg AS
+  FUNCTION f1 RETURN INT;
+END;
+/
+--error ER_SP_DUP_CURS
+CREATE PACKAGE BODY pkg AS
+  CURSOR c IS SELECT 'c' AS c FROM DUAL;
+  CURSOR c IS SELECT 'c' AS c FROM DUAL;
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN NULL;
+  END;
+END;
+/
+DELIMITER ;/
+
+
+}
+
+DROP PACKAGE pkg;

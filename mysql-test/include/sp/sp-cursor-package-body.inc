@@ -1,0 +1,12 @@
+--source include/sp/sp-cursor-package-body-01.inc
+--source include/sp/sp-cursor-package-body-02.inc
+--source include/sp/sp-cursor-package-body-03.inc
+--source include/sp/sp-cursor-package-body-04.inc
+--source include/sp/sp-cursor-package-body-05.inc
+--source include/sp/sp-cursor-package-body-06.inc
+--source include/sp/sp-cursor-package-body-07.inc
+--source include/sp/sp-cursor-package-body-08.inc
+--source include/sp/sp-cursor-package-body-09.inc
+--source include/sp/sp-cursor-package-body-10.inc
+--source include/sp/sp-cursor-package-body-11.inc
+--source include/sp/sp-cursor-package-body-12.inc
