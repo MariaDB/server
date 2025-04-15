@@ -115,3 +115,29 @@ create sequence s;
 update s set minimum_value=500, maximum_value=200;
 ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
 drop sequence s;
+#
+# MDEV-35866 mariadb-check does not return warning for incorrect sequence with engine InnoDB
+#
+CREATE SEQUENCE s engine=innodb;
+ALTER TABLE s sequence=0;
+delete from s;
+FLUSH TABLES;
+CHECK TABLE s;
+Table	Op	Msg_type	Msg_text
+test.s	check	Error	Fewer than one row in the table
+test.s	check	error	Corrupt
+DROP SEQUENCE s;
+CREATE SEQUENCE s engine=innodb;
+CHECK TABLE s;
+Table	Op	Msg_type	Msg_text
+test.s	check	status	OK
+DROP SEQUENCE s;
+CREATE SEQUENCE s engine=innodb;
+ALTER TABLE s sequence=0;
+insert into s values (2,1,9223372036854775806,1,1,1000,0,0);
+FLUSH TABLES;
+CHECK TABLE s;
+Table	Op	Msg_type	Msg_text
+test.s	check	Warning	More than one row in the table
+test.s	check	status	OK
+DROP SEQUENCE s;

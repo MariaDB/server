@@ -137,3 +137,36 @@ create sequence s;
 --error ER_ILLEGAL_HA
 update s set minimum_value=500, maximum_value=200;
 drop sequence s;
+
+--echo #
+--echo # MDEV-35866 mariadb-check does not return warning for incorrect sequence with engine InnoDB
+--echo #
+--source include/have_innodb.inc
+# Fewer than one row
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s engine=innodb;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s sequence=0;
+delete from s;
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+DROP SEQUENCE s;
+
+# Just one row, check ok
+CREATE SEQUENCE s engine=innodb;
+CHECK TABLE s;
+DROP SEQUENCE s;
+
+# More than one row
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s engine=innodb;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s sequence=0;
+insert into s values (2,1,9223372036854775806,1,1,1000,0,0);
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+DROP SEQUENCE s;

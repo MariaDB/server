@@ -422,10 +422,11 @@ void ha_sequence::print_error(int error, myf errflag)
 
 int ha_sequence::check(THD* thd, HA_CHECK_OPT* check_opt)
 {
+  int error= 0;
   DBUG_ENTER("ha_sequence::check");
   /* Check the underlying engine */
-  if (int ret= file->check(thd, check_opt))
-    DBUG_RETURN(ret);
+  if ((error= file->check(thd, check_opt)))
+    DBUG_RETURN(error);
   /* Check number of rows */
   if ((file->table_flags() & HA_STATS_RECORDS_IS_EXACT))
   {
@@ -438,6 +439,27 @@ int ha_sequence::check(THD* thd, HA_CHECK_OPT* check_opt)
       my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
       DBUG_RETURN(HA_ADMIN_CORRUPT);
     }
+  }
+  else
+  {
+    if (file->ha_rnd_init_with_error(1))
+      DBUG_RETURN(HA_ADMIN_FAILED);
+    if ((error= file->ha_rnd_next(table->record[0])))
+    {
+      file->ha_rnd_end();
+      if (error == HA_ERR_END_OF_FILE)
+      {
+        my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
+        DBUG_RETURN(HA_ADMIN_CORRUPT);
+      }
+      file->print_error(error, MYF(0));
+      DBUG_RETURN(HA_ADMIN_FAILED);
+    }
+    if (!file->ha_rnd_next(table->record[0]))
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS,
+                   ER_THD(thd, ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS));
+    file->ha_rnd_end();
   }
   /*
     Initialise the sequence from the table if needed.
