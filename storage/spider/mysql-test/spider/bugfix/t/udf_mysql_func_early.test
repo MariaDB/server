@@ -37,7 +37,7 @@ eval CREATE TABLE tbl_a (
 
 create temporary table results (a int);
 --disable_ps_protocol
-SELECT SPIDER_DIRECT_SQL('select * from tbl_a', 'results', 'srv "s_2_1", database "auto_test_remote"');
+SELECT SPIDER_DIRECT_SQL('select * from tbl_a', 'results', 'srv "s_2_1", database "auto_test_remote"') as exp;
 --enable_ps_protocol
 select * from results;
 

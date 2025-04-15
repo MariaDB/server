@@ -7108,10 +7108,6 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
       victim->lock.was_chosen_as_deadlock_victim= true;
       DEBUG_SYNC_C("deadlock_report_before_lock_releasing");
       lock_cancel_waiting_and_release<true>(victim->lock.wait_lock);
-#ifdef WITH_WSREP
-      if (victim->is_wsrep() && wsrep_thd_is_SR(victim->mysql_thd))
-        wsrep_handle_SR_rollback(trx->mysql_thd, victim->mysql_thd);
-#endif
     }
 
 func_exit:
