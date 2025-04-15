@@ -2173,7 +2173,7 @@ int Gis_polygon::is_valid(int *valid) const
   MBR mbr;
   uint32 num_rings;
   const char *c_end;
-  char *border_count, *touches_count, *internals;
+  char *border_count= nullptr, *touches_count= nullptr, *internals= nullptr;
   int result= 0;
 
   *valid= 0;
