@@ -54,11 +54,10 @@ remove_rocksdb_tools()
   fi
 }
 
-replace_uring_with_aio()
+remove_uring()
 {
-  sed 's/liburing-dev/libaio-dev/g' -i debian/control
-  sed -e '/-DIGNORE_AIO_CHECK=ON/d' \
-      -e '/-DWITH_URING=ON/d' -i debian/rules
+  sed -e '/liburing-dev/d' -i debian/control
+  sed -e '/-DWITH_URING=ON/d' -i debian/rules
 }
 
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
@@ -93,14 +92,14 @@ case "${LSBNAME}"
 in
   # Debian
   "buster")
-    replace_uring_with_aio
+    remove_uring
     ;&
   "bullseye"|"bookworm")
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
     # so no removal is necessary.
     if [[ ! "$architecture" =~ amd64|arm64|armel|armhf|i386|mips64el|mipsel|ppc64el|s390x ]]
     then
-      replace_uring_with_aio
+      remove_uring
     fi
     ;&
   "sid")
@@ -109,7 +108,7 @@ in
     ;;
   # Ubuntu
   "focal")
-    replace_uring_with_aio
+    remove_uring
     ;&
   "impish"|"jammy"|"kinetic")
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
@@ -121,7 +120,7 @@ in
     fi
     if [[ ! "$architecture" =~ amd64|arm64|armhf|ppc64el|s390x ]]
     then
-      replace_uring_with_aio
+      remove_uring
     fi
     ;;
   *)
