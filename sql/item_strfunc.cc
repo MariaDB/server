@@ -2985,7 +2985,120 @@ static bool my_uni_isalpha(int wc)
 }
 
 
-String *Item_func_soundex::val_str(String *str)
+String *Item_func_soundex::soundex(String *str, String input_str)
+{
+  DBUG_ASSERT(fixed());
+  CHARSET_INFO *cs= collation.collation;
+  String *res= new String(input_str.c_ptr(), input_str.length(), cs);
+  char last_ch,ch;
+  my_wc_t wc;
+  uint nchars;
+  int rc;
+  if (!input_str.ptr() || input_str.length() == 0) 
+  {
+    str->copy(NULL, 0, collation.collation);  // Set str to empty string
+    return str;
+  }
+
+  if ((null_value= args[0]->null_value))
+    return 0; /* purecov: inspected */
+
+  if (str->alloc(MY_MAX(res->length(), 4 * cs->mbminlen)))
+    return &tmp_value; /* purecov: inspected */
+  str->set_charset(collation.collation);
+  char *to= (char *) str->ptr();
+  char *to_end= to + str->alloced_length();
+  char *from= (char *) res->ptr(), *end= from + res->length();
+  
+  for ( ; ; ) /* Skip pre-space */
+  {
+    if ((rc= cs->mb_wc(&wc, (uchar*) from, (uchar*) end)) <= 0)
+      return make_empty_result(str); /* EOL or invalid byte sequence */
+
+    if (rc == 1 && cs->m_ctype)
+    {
+      /* Single byte letter found */
+      if (my_isalpha(cs, *from))
+      {
+        last_ch= get_scode(*from);       // Code of the first letter
+        *to++= soundex_toupper(*from++); // Copy first letter
+        break;
+      }
+      from++;
+    }
+    else
+    {
+      from+= rc;
+      if (my_uni_isalpha(wc))
+      {
+        /* Multibyte letter found */
+        wc= soundex_toupper(wc);
+        last_ch= get_scode(wc);     // Code of the first letter
+        if ((rc= cs->wc_mb(wc, (uchar*) to, (uchar*) to_end)) <= 0)
+        {
+          /* Extra safety - should not really happen */
+          DBUG_ASSERT(false);
+          return make_empty_result(str);
+        }
+        to+= rc;
+        break;
+      }
+    }
+  }
+  
+  /*
+     last_ch is now set to the first 'double-letter' check.
+     loop on input letters until end of input
+  */
+  for (nchars= 1 ; ; )
+  {
+    if ((rc= cs->mb_wc(&wc, (uchar*) from, (uchar*) end)) <= 0)
+      break; /* EOL or invalid byte sequence */
+
+    if (rc == 1 && cs->m_ctype)
+    {
+      if (!my_isalpha(cs, *from++))
+        continue;
+    }
+    else
+    {
+      from+= rc;
+      if (!my_uni_isalpha(wc))
+        continue;
+    }
+    
+    ch= get_scode(wc);
+    if ((ch != '0') && (ch != last_ch)) // if not skipped or double
+    {
+      // letter, copy to output
+      if ((rc= cs->wc_mb((my_wc_t) ch, (uchar*) to, (uchar*) to_end)) <= 0)
+      {
+        // Extra safety - should not really happen
+        DBUG_ASSERT(false);
+        break;
+      }
+      to+= rc;
+      nchars++;
+      last_ch= ch;  // save code of last input letter
+      if (nchars >= 4)
+        break; // Soundex code is 4 characters
+    }
+  }
+  
+  /* Pad up to 4 characters with DIGIT ZERO, if the string is shorter */
+  if (nchars < 4) 
+  {
+    uint nbytes= (4 - nchars) * cs->mbminlen;
+    cs->fill(to, nbytes, '0');
+    to+= nbytes;
+  }
+
+  str->length((uint) (to - str->ptr()));
+  return str;
+}
+
+
+String *Item_func_soundex::val_str_legacy(String *str)
 {
   DBUG_ASSERT(fixed());
   String *res= args[0]->val_str(&tmp_value);
@@ -3090,6 +3203,93 @@ String *Item_func_soundex::val_str(String *str)
   return str;
 }
 
+
+String *Item_func_soundex::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  
+  if (arg_count == 1)
+    return Item_func_soundex::val_str_legacy(str);
+  else if (arg_count == 2)
+  {    
+    if (args[1]->val_int() == 0)
+      return Item_func_soundex::val_str_legacy(str);
+    else if (args[1]->val_int() != 0 && args[1]->val_int() != 1)
+    {
+      push_warning_printf(current_thd,
+        Sql_condition::WARN_LEVEL_WARN,
+        ER_WRONG_ARGUMENTS,
+        "Invalid argument for SOUNDEX function. Expected 0 or 1.");
+      DBUG_ASSERT(0);
+      return NULL;
+    }  
+  }
+  else
+  {
+    push_warning_printf(current_thd,
+      Sql_condition::WARN_LEVEL_WARN,
+      ER_WRONG_ARGUMENTS,
+      "Invalid number of arguments for SOUNDEX function. Expected 1 or 2 arguments.");
+    DBUG_ASSERT(0);
+    return NULL;
+  }     
+
+  String *arg_str= args[0]->val_str(&tmp_value);
+  CHARSET_INFO *cs= collation.collation;
+  String input_string;
+  if (!(null_value= args[0]->null_value))
+    input_string.copy(arg_str->ptr(), arg_str->length(), collation.collation);
+  else
+  {
+    input_string.copy(NULL, 0, collation.collation);
+    return NULL;
+  }
+  // Buffer to hold each word temporarily
+  String word_buffer;
+  String soundex_code;
+  String result;
+  char delimiter= ' ';
+  const char *input_ptr= input_string.ptr();
+  const char *input_end= input_ptr + input_string.length();
+  for (; input_ptr < input_end; ++input_ptr) 
+  {
+    char current_char= *input_ptr;
+    bool is_delimiter= (delimiter != '\0') && 
+                       (current_char == delimiter || 
+                        std::isspace(static_cast<unsigned char>(current_char)));
+    if (is_delimiter) 
+    { 
+      // If a delimiter is found, process the current word
+      if (word_buffer.length() > 0)
+      {
+        // Compute Soundex for the current word
+        String *res= soundex(str, word_buffer);
+        result.append(res->ptr(), res->length());
+        // Reset word buffer
+        word_buffer.length(0);
+        // Append delimiter if needed
+        if (delimiter != '\0')
+          result.append(&delimiter, 1);
+      }
+      else if (delimiter != '\0')
+        result.append(&delimiter, 1);
+    }
+    else 
+    {
+      char upper_char= soundex_toupper(static_cast<unsigned char>(current_char));
+      word_buffer.append(&upper_char, 1);
+    }
+  } 
+  // After the loop, process any remaining word
+  if (word_buffer.length() > 0)
+  {
+    // Compute Soundex for the current word
+    String *res= soundex(str, word_buffer);
+    result.append(res->ptr(), res->length());
+  }
+  str->copy(result.ptr(), result.length(), cs);
+  return str;  
+}
 
 /**
   Change a number to format '3,333,333,333.000'.
