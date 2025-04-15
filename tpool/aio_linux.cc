@@ -13,14 +13,9 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
-#include "tpool_structs.h"
 #include "tpool.h"
-
-# include <thread>
-# include <atomic>
-# include <cstdio>
-# include <libaio.h>
-# include <sys/syscall.h>
+#include <thread>
+#include <sys/syscall.h>
 
 /**
   Invoke the io_getevents() system call, without timeout parameter.
@@ -58,6 +53,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
   will make this version of io_getevents return EINVAL.
 */
 static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
+  noexcept
 {
   int saved_errno= errno;
   int ret= syscall(__NR_io_getevents, reinterpret_cast<long>(ctx),
@@ -81,8 +77,9 @@ static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
   with io_getevents() and forward io completion callback to
   the worker threadpool.
 */
-namespace tpool
+namespace
 {
+using namespace tpool;
 
 class aio_linux final : public aio
 {
@@ -120,7 +117,7 @@ class aio_linux final : public aio
         for (int i= 0; i < ret; i++)
         {
           const io_event &event= events[i];
-          aiocb *iocb= static_cast<aiocb*>(event.obj);
+          aiocb *iocb= reinterpret_cast<aiocb*>(event.obj);
           if (static_cast<int>(event.res) < 0)
           {
             iocb->m_err= -event.res;
@@ -160,11 +157,10 @@ public:
 
   int submit_io(aiocb *cb) override
   {
-    io_prep_pread(static_cast<iocb*>(cb), cb->m_fh, cb->m_buffer, cb->m_len,
-                  cb->m_offset);
+    io_prep_pread(&cb->m_iocb, cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
     if (cb->m_opcode != aio_opcode::AIO_PREAD)
-      cb->aio_lio_opcode= IO_CMD_PWRITE;
-    iocb *icb= static_cast<iocb*>(cb);
+      cb->m_iocb.aio_lio_opcode= IO_CMD_PWRITE;
+    iocb *icb= &cb->m_iocb;
     int ret= io_submit(m_io_ctx, 1, &icb);
     if (ret == 1)
       return 0;
@@ -177,7 +173,14 @@ public:
 };
 
 std::atomic<bool> aio_linux::shutdown_in_progress;
+}
 
+namespace tpool
+{
+
+#ifdef HAVE_URING
+# define create_linux_aio create_libaio
+#endif
 aio *create_linux_aio(thread_pool *pool, int max_io)
 {
   io_context_t ctx;

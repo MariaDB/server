@@ -128,12 +128,21 @@ constexpr size_t MAX_AIO_USERDATA_LEN= 4 * sizeof(void*);
 struct aiocb
 #ifdef _WIN32
   :OVERLAPPED
-#elif defined LINUX_NATIVE_AIO
-  :iocb
-#elif defined HAVE_URING
-  :iovec
 #endif
 {
+#if defined LINUX_NATIVE_AIO || defined HAVE_URING
+  union {
+# ifdef LINUX_NATIVE_AIO
+    /** The context between io_submit() and io_getevents();
+    must be the first data member! */
+    iocb m_iocb;
+# endif
+# ifdef HAVE_URING
+    /** The context between io_uring_submit() and io_uring_wait_cqe() */
+    iovec m_iovec;
+# endif
+  };
+#endif
   native_file_handle m_fh;
   aio_opcode m_opcode;
   unsigned long long m_offset;
