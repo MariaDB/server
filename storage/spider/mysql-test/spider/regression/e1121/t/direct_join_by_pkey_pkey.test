@@ -69,8 +69,8 @@ SELECT a.val, a.akey FROM tbl_a a, tbl_b b WHERE a.akey = b.akey AND b.bkey = 5;
 --disable_ps_protocol
 --disable_view_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
---enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
+--enable_view_protocol
 --enable_ps_protocol
 
 --echo
