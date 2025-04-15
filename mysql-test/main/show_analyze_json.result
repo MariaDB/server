@@ -638,7 +638,7 @@ SHOW ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "r_loops": 0,
           "query_block": {
@@ -707,7 +707,7 @@ SHOW ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 2,
           "r_hit_ratio": 0,
           "query_block": {
@@ -781,7 +781,7 @@ SHOW ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 2,
           "r_hit_ratio": 0,
           "query_block": {
@@ -1077,7 +1077,7 @@ SHOW ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 1,
           "r_hit_ratio": 0,
           "query_block": {
@@ -1135,7 +1135,7 @@ SHOW ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 2,
           "r_hit_ratio": 0,
           "query_block": {
@@ -1194,7 +1194,7 @@ SHOW ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 3,
           "r_hit_ratio": 0,
           "query_block": {

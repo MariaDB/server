@@ -404,7 +404,7 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
@@ -451,7 +451,7 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
@@ -2112,7 +2112,7 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
