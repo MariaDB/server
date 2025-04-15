@@ -79,8 +79,9 @@ public:
 
     thread_= std::thread(thread_routine, this);
   }
+  const char *get_implementation() const override { return "io_uring"; };
 
-  ~aio_uring() noexcept
+  ~aio_uring() noexcept override
   {
     {
       std::lock_guard<std::mutex> _(mutex_);

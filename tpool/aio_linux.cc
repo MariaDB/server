@@ -170,6 +170,7 @@ public:
 
   int bind(native_file_handle&) override { return 0; }
   int unbind(const native_file_handle&) override { return 0; }
+  const char *get_implementation() const override { return "Linux native AIO"; };
 };
 
 std::atomic<bool> aio_linux::shutdown_in_progress;

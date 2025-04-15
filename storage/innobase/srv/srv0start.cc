@@ -1292,14 +1292,9 @@ dberr_t srv_start(bool create_new_db)
 		return(srv_init_abort(DB_ERROR));
 	}
 
-#ifdef LINUX_NATIVE_AIO
+#if defined(LINUX_NATIVE_AIO) || defined(HAVE_URING)
 	if (srv_use_native_aio) {
-		ib::info() << "Using Linux native AIO";
-	}
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio) {
-		ib::info() << "Using liburing";
+		ib::info() << "Using " << srv_thread_pool->get_implementation();
 	}
 #endif
 

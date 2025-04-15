@@ -182,6 +182,7 @@ public:
   virtual int bind(native_file_handle &fd)= 0;
   /** "Unind" file to AIO handler (used on Windows only) */
   virtual int unbind(const native_file_handle &fd)= 0;
+  virtual const char *get_implementation() const=0;
   virtual ~aio(){};
 protected:
   static void synchronous(aiocb *cb);
@@ -264,6 +265,10 @@ public:
   void disable_aio()
   {
     m_aio.reset();
+  }
+  const char *get_implementation() const
+  {
+    return m_aio->get_implementation();
   }
 
   /**
