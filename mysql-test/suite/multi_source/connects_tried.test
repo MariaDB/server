@@ -122,27 +122,37 @@ SELECT *
   FROM status_after JOIN status_stop USING(Connection_name)
   WHERE status_stop.Connects_Tried <> status_after.Connects_Tried;
 
-START SLAVE;
---source include/wait_for_slave_to_start.inc
+--source include/start_slave.inc
 --echo # START SLAVE recounts `Connects_Tried` from 1 (for the restarted connection only).
 CREATE TEMPORARY TABLE status_restart AS
   SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
 SELECT *
-  FROM status_restart JOIN status_stop USING(Connection_name)
+  FROM status_stop JOIN status_restart USING(Connection_name)
   WHERE status_restart.Connects_Tried NOT BETWEEN IF(
     Connection_name = '', 1, status_stop.Connects_Tried
   ) AND status_stop.Connects_Tried;
 
-STOP SLAVE;
---source include/wait_for_slave_to_stop.inc
+--source include/stop_slave.inc
+# MDEV-36340 Master_Retry_Count should never be less than Connects_Tried
+CHANGE MASTER TO Master_Retry_Count=777;
+--echo # Setting `Master_Retry_Count` resets `Connects_Tried` to 0 (for the changed connection only).
+CREATE TEMPORARY TABLE status_change AS
+  SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+SELECT *
+  FROM status_restart JOIN status_change USING(Connection_name)
+  WHERE status_change.Connects_Tried <>
+    IF(Connection_name = '', 0, status_restart.Connects_Tried);
+
+--source include/start_slave.inc # build up Connects_Tried again
+--source include/stop_slave.inc
 RESET SLAVE;
 --echo # RESET SLAVE resets `Connects_Tried` to 0 (for the resetted connection only).
 CREATE TEMPORARY TABLE status_reset AS
   SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
 SELECT *
-  FROM status_reset JOIN status_restart USING(Connection_name)
+  FROM status_change JOIN status_reset USING(Connection_name)
   WHERE status_reset.Connects_Tried <>
-    IF(Connection_name = '', 0, status_restart.Connects_Tried);
+    IF(Connection_name = '', 0, status_change.Connects_Tried);
 
 --echo # Cleanup
 RESET SLAVE 'named' ALL;
