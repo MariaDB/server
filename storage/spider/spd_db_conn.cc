@@ -3553,6 +3553,10 @@ int spider_db_store_result(
     db_conn = conn->db_conn;
     if (!result_list->current)
     {
+      /*
+        Point ->current and ->bgs_current to ->first (create ->first
+        if needed)
+      */
       if (!result_list->first)
       {
         if (!(result_list->first = (SPIDER_RESULT *)
@@ -3577,13 +3581,17 @@ int spider_db_store_result(
       }
       result_list->bgs_current = result_list->current;
       current = (SPIDER_RESULT*) result_list->current;
-    } else {
+    } else { /* result_list->current != NULL */
       if (
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         result_list->bgs_phase > 0 ||
 #endif
         result_list->quick_phase > 0
       ) {
+        /*
+          Advance bgs_current to the next result. Create a new result
+          if needed
+        */
         if (result_list->bgs_current == result_list->last)
         {
           if (!(result_list->last = (SPIDER_RESULT *)
@@ -3628,6 +3636,10 @@ int spider_db_store_result(
         }
         current = (SPIDER_RESULT*) result_list->bgs_current;
       } else {
+        /*
+          Advance current to the next result. Create a new result if
+          needed
+        */
         if (result_list->current == result_list->last)
         {
           if (!(result_list->last = (SPIDER_RESULT *)
