@@ -22,6 +22,9 @@
 
 #define VER "2.1"
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
+#include <my_dir.h>
+#include <mysql/psi/mysql_file.h>
+#include <m_ctype.h>
 
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
@@ -34,6 +37,8 @@
 #  define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)
 # endif
 #endif
+
+CHARSET_INFO *system_charset_info= &my_charset_utf8mb3_general_ci;
 
 static int phase = 0;
 static int info_file= -1;
@@ -76,6 +81,8 @@ char upgrade_from_version[1024];
 static my_bool opt_write_binlog;
 
 static void print_conn_args(const char *tool_name);
+
+static char *get_datadir(void);
 
 #define OPT_SILENT OPT_MAX_CLIENT_OPTION
 
@@ -1446,6 +1453,227 @@ static int check_version_match(void)
   return 0;
 }
 
+static char *get_datadir(void)
+{
+  static char datadir[FN_REFLEN]= {0};
+  size_t length;
+  DYNAMIC_STRING ds_datadir;
+  DBUG_ENTER("get_datadir");
+
+  if (datadir[0]) /* Return cached value if already fetched */
+    DBUG_RETURN(datadir);
+
+  /* Get datadir from upgrade_info_file path */
+  /* To make mysql_upgrade-6984 succeed */
+  if (upgrade_info_file[0])
+  {
+    dirname_part(datadir, upgrade_info_file, &length);
+    DBUG_RETURN(datadir);
+  }
+
+  if (init_dynamic_string(&ds_datadir, NULL, 32, 32))
+    die("Out of memory");
+
+  if (run_query("show variables like 'datadir'", &ds_datadir, FALSE) ||
+      extract_variable_from_show(&ds_datadir, datadir))
+  {
+    print_error("Reading datadir from the MariaDB server failed", &ds_datadir);
+    dynstr_free(&ds_datadir);
+    return NULL;
+  }
+
+  dynstr_free(&ds_datadir);
+  return datadir;
+}
+
+static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
+{
+  char tmp_path[FN_REFLEN];
+  MY_DIR *dir_ptr;
+  DBUG_ENTER("rm_dir_w_symlink");
+
+  unpack_filename(tmp_path, org_path);
+
+  /* Remove all files in directory */
+  if ((dir_ptr= my_dir(tmp_path, MYF(MY_DONT_SORT))))
+  {
+    size_t nfiles= dir_ptr->number_of_files;
+    for (uint idx= 0; idx < nfiles; idx++)
+    {
+      FILEINFO *file= dir_ptr->dir_entry + idx;
+      char *name= file->name;
+      if (!(strcmp(name, ".") == 0 || strcmp(name, "..") == 0))
+      {
+        char newpath[FN_REFLEN];
+        strxmov(newpath, tmp_path, "/", name, NullS);
+        if (my_delete(newpath, MYF(send_error ? MY_WME : 0)))
+        {
+          my_dirend(dir_ptr);
+          DBUG_RETURN(TRUE);
+        }
+      }
+    }
+    my_dirend(dir_ptr);
+  }
+
+  /* Remove directory */
+  if (rmdir(tmp_path) < 0 && send_error)
+  {
+    if (!opt_silent)
+      fprintf(stderr, "Error removing directory '%s': %s\n", tmp_path,
+              strerror(errno));
+    DBUG_RETURN(TRUE);
+  }
+  DBUG_RETURN(FALSE);
+}
+
+/**
+  @brief Remove .frm archives from directory
+
+  @param
+    @param dirp      list of files in archive directory
+    @param org_path  path of archive directory
+
+  @return > 0 number of removed files
+          -1  error
+
+  @note A support of "arc" directories is obsolete, however this
+    function should exist to remove existent "arc" directories.
+*/
+long mysql_rm_arc_files(MY_DIR *dirp, const char *org_path)
+{
+  long deleted= 0;
+  char filePath[FN_REFLEN];
+  ulong found_other_files= 0;
+  const char *extension, *revision;
+  DBUG_ENTER("mysql_rm_arc_files");
+  DBUG_PRINT("enter", ("path: %s", org_path));
+
+  for (size_t idx= 0; idx < dirp->number_of_files; idx++)
+  {
+    const FILEINFO *file= dirp->dir_entry + idx;
+    DBUG_PRINT("info", ("Examining: %s", file->name));
+
+    extension= fn_ext(file->name);
+    if (extension[0] != '.' || extension[1] != 'f' || extension[2] != 'r' ||
+        extension[3] != 'm' || extension[4] != '-')
+    {
+      found_other_files++;
+      continue;
+    }
+    revision= extension + 5;
+    while (*revision && my_isdigit(system_charset_info, *revision))
+      revision++;
+    if (*revision)
+    {
+      found_other_files++;
+      continue;
+    }
+    strxmov(filePath, org_path, "/", file->name, NullS);
+    if (my_delete(filePath, MYF(MY_WME)))
+    {
+      goto err;
+    }
+    deleted++;
+  }
+
+  my_dirend(dirp);
+
+  /*
+    If the directory is a symbolic link, remove the link first, then
+    remove the directory the symbolic link pointed at
+  */
+  if (!found_other_files && rm_dir_w_symlink(org_path, 0))
+    DBUG_RETURN(-1);
+  DBUG_RETURN(deleted);
+
+err:
+  my_dirend(dirp);
+  DBUG_RETURN(-1);
+}
+
+static my_bool remove_obsolete_arc_files(const char *org_path)
+{
+  MY_DIR *dirp;
+  long total_removed= 0;
+  char *datadir;
+  long removed;
+  DBUG_ENTER("remove_obsolete_arc_files");
+
+  if (!(datadir= get_datadir()))
+  {
+    if (!opt_silent)
+      fprintf(stderr, "Error: Unable to get data directory from server\n");
+    DBUG_RETURN(1);
+  }
+
+  /* Scan each database directory */
+  if ((dirp= my_dir(datadir, MYF(MY_DONT_SORT | MY_WANT_STAT))))
+  {
+    size_t i;
+    for (i= 0; i < dirp->number_of_files; i++)
+    {
+      const FILEINFO *file= dirp->dir_entry + i;
+      char db_path[FN_REFLEN];
+      MY_DIR *db_dirp;
+
+      /* Skip special entries and non-directories */
+      if (is_prefix(file->name, ".") || !MY_S_ISDIR(file->mystat->st_mode))
+        continue;
+
+      /* Construct database directory path */
+      fn_format(db_path, file->name, datadir, "", MYF(MY_RELATIVE_PATH));
+
+      /* Check this database directory for an arc subdirectory */
+      if ((db_dirp= my_dir(db_path, MYF(MY_DONT_SORT | MY_WANT_STAT))))
+      {
+        size_t j;
+        for (j= 0; j < db_dirp->number_of_files; j++)
+        {
+          const FILEINFO *db_file= db_dirp->dir_entry + j;
+
+          if (strcmp(db_file->name, "arc") == 0 &&
+              MY_S_ISDIR(db_file->mystat->st_mode))
+          {
+            char arc_path[FN_REFLEN];
+            MY_DIR *arc_dirp;
+
+            fn_format(arc_path, "arc", db_path, "", MYF(MY_RELATIVE_PATH));
+
+            if ((arc_dirp= my_dir(arc_path, MYF(MY_DONT_SORT))))
+            {
+              // Path is not OS agnostic, tests fail so commenting it
+              // verbose("Processing archive directory: %s", arc_path);
+
+              removed= mysql_rm_arc_files(arc_dirp, arc_path);
+              if (removed < 0)
+              {
+                if (!opt_silent)
+                  fprintf(stderr,
+                          "Error: Failed to clean archive directory '%s'\n",
+                          arc_path);
+                my_dirend(db_dirp);
+                my_dirend(dirp);
+                DBUG_RETURN(1);
+              }
+              total_removed+= removed;
+              continue;
+            }
+          }
+        }
+        my_dirend(db_dirp);
+      }
+    }
+    my_dirend(dirp);
+  }
+
+  if (total_removed > 0)
+    verbose("Successfully removed %ld archive files", total_removed);
+  else
+    verbose("No archive files found to remove");
+
+  DBUG_RETURN(0);
+}
 
 int main(int argc, char **argv)
 {
@@ -1542,6 +1770,10 @@ int main(int argc, char **argv)
       flush_privileges())
     die("Upgrade failed" );
   verbose("OK");
+
+  /* Cleanup arc directories for old versions of MariaDB */
+  if (remove_obsolete_arc_files(defaults_file))
+    die("Error cleaning up archive files");
 
   /* Finish writing indicating upgrade has been performed */
   finish_mariadb_upgrade_info_file();
