@@ -77,6 +77,23 @@ INSERT IGNORE INTO t1 VALUES('2004-13-31'),('2004-1-4');
 --error 1292
 INSERT INTO t1 VALUES ('2003-02-29');
 INSERT ignore INTO t1 VALUES('2003-02-30');
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01W');
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01T');
+set @@sql_mode='strict_all_tables';
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01W');
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01T');
+set @@sql_mode='strict_all_tables,strict_trans_tables';
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01W');
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01T');
+set @@sql_mode='';
+INSERT INTO t1 VALUES('2001-01-01W');
+INSERT INTO t1 VALUES('2001-01-01T');
 set @@sql_mode='STRICT_ALL_TABLES,ALLOW_INVALID_DATES';
 INSERT ignore INTO t1 VALUES('2003-02-31');
 select * from t1;
@@ -92,6 +109,23 @@ INSERT IGNORE INTO t1 VALUES('2004-13-31'),('2004-1-4');
 --error 1292
 INSERT INTO t1 VALUES ('2003-02-29');
 INSERT ignore INTO t1 VALUES('2003-02-30');
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01W');
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01T');
+set @@sql_mode='strict_all_tables';
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01W');
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01T');
+set @@sql_mode='strict_all_tables,strict_trans_tables';
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01W');
+--error 1292
+INSERT INTO t1 VALUES('2001-01-01T');
+set @@sql_mode='';
+INSERT INTO t1 VALUES('2001-01-01W');
+INSERT INTO t1 VALUES('2001-01-01T');
 set @@sql_mode='STRICT_ALL_TABLES,ALLOW_INVALID_DATES';
 INSERT ignore INTO t1 VALUES('2003-02-31');
 select * from t1;
