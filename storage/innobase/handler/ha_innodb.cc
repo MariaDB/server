@@ -149,11 +149,6 @@ void close_thread_tables(THD* thd);
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
 
-#ifdef HAVE_URING
-/** The Linux kernel version if io_uring() is considered unsafe */
-static const char *io_uring_may_be_unsafe;
-#endif
-
 #define INSIDE_HA_INNOBASE_CC
 
 #define EQ_CURRENT_THD(thd) ((thd) == current_thd)
@@ -4188,14 +4183,6 @@ static int innodb_init_params()
 	and that also when the support is compiled in. In all other
 	cases, we ignore the setting of innodb_use_native_aio. */
 	srv_use_native_aio = FALSE;
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio && io_uring_may_be_unsafe) {
-		sql_print_warning("innodb_use_native_aio may cause "
-				  "hangs with this kernel %s; see "
-				  "https://jira.mariadb.org/browse/MDEV-26674",
-				  io_uring_may_be_unsafe);
-	}
 #endif
 
 #ifdef _WIN32
@@ -19499,36 +19486,10 @@ static MYSQL_SYSVAR_STR(version, innodb_version_str,
   PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
   "InnoDB version", NULL, NULL, INNODB_VERSION_STR);
 
-#ifdef HAVE_URING
-# include <sys/utsname.h>
-static utsname uname_for_io_uring;
-#endif
-
-static bool innodb_use_native_aio_default()
-{
-#ifdef HAVE_URING
-  utsname &u= uname_for_io_uring;
-  if (!uname(&u) && u.release[0] == '5' && u.release[1] == '.' &&
-      u.release[2] == '1' && u.release[3] >= '1' && u.release[3] <= '5' &&
-      u.release[4] == '.')
-  {
-    if (u.release[3] == '5') {
-      const char *s= strstr(u.version, "5.15.");
-      if (s || (s= strstr(u.release, "5.15.")))
-        if ((s[5] >= '3' || s[6] >= '0'))
-          return true; /* 5.15.3 and later should be fine */
-    }
-    io_uring_may_be_unsafe= u.release;
-    return false; /* working around io_uring hangs (MDEV-26674) */
-  }
-#endif
-  return true;
-}
-
 static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Use native AIO if supported on this platform.",
-  NULL, NULL, innodb_use_native_aio_default());
+  NULL, NULL, TRUE);
 
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
