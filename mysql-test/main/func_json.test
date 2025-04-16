@@ -1231,6 +1231,14 @@ SELECT
   data
 FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 
+
+--echo #
+--echo # MDEV-21530: json_extract STILL crashes in Item_func_json_extract::read_json
+--echo #
+
+select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
+
+
 --echo #
 --echo # End of 10.6 tests
 --echo #
