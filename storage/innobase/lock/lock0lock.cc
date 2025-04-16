@@ -6822,39 +6822,53 @@ DeadlockChecker::get_first_lock(ulint* heap_no) const
 /** Notify that a deadlock has been detected and print the conflicting
 transaction info.
 @param lock lock causing deadlock */
-void
-DeadlockChecker::notify(const lock_t* lock) const
+void DeadlockChecker::notify(const lock_t *lock) const
 {
-	ut_ad(lock_mutex_own());
+  ut_ad(lock_mutex_own());
 
-	start_print();
+  start_print();
 
-	print("\n*** (1) TRANSACTION:\n");
+  print("\n*** (1) TRANSACTION:\n");
 
-	print(m_wait_lock->trx, 3000);
+  print(m_wait_lock->trx, 3000);
 
-	print("*** (1) WAITING FOR THIS LOCK TO BE GRANTED:\n");
+  print("*** (1) WAITING FOR THIS LOCK TO BE GRANTED:\n");
 
-	print(m_wait_lock);
+  print(m_wait_lock);
 
-	print("*** (2) TRANSACTION:\n");
+  size_t i= 0;
+  do
+  {
 
-	print(lock->trx, 3000);
+    if (!i)
+      print("*** (2) TRANSACTION:\n");
+    else
+      print("*** TRANSACTION:\n");
 
-	print("*** (2) HOLDS THE LOCK(S):\n");
+    print(lock->trx, 3000);
 
-	print(lock);
+    if (!i)
+      print("*** (2) HOLDS THE LOCK(S):\n");
+    else
+      print("*** HOLDS THE LOCK(S):\n");
 
-	/* It is possible that the joining transaction was granted its
-	lock when we rolled back some other waiting transaction. */
 
-	if (m_start->lock.wait_lock != 0) {
-		print("*** (2) WAITING FOR THIS LOCK TO BE GRANTED:\n");
+    print(lock);
 
-		print(m_start->lock.wait_lock);
-	}
+    /* It is possible that the joining transaction was granted its
+    lock when we rolled back some other waiting transaction. */
 
-	DBUG_PRINT("ib_lock", ("deadlock detected"));
+    if (lock->trx->lock.wait_lock != 0)
+    {
+      if (!i)
+        print("*** (2) WAITING FOR THIS LOCK TO BE GRANTED:\n");
+      else
+        print("*** WAITING FOR THIS LOCK TO BE GRANTED:\n");
+
+      print(lock->trx->lock.wait_lock);
+    }
+  } while (i < m_n_elems && (lock= s_states[i++].m_lock));
+  DBUG_PRINT("ib_lock", ("deadlock detected"));
 }
 
 /** Select the victim transaction that should be rolledback.
