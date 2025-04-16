@@ -7414,6 +7414,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     if (!found)
       continue;                                 // No matching field
 
+    /* Restore field_2 to point to the field which was a match for field_1. */
+    field_2= nj_col_2->field();
+
     /*
       field_1 and field_2 have the same names. Check if they are in the USING
       clause (if present), mark them as common fields, and add a new
