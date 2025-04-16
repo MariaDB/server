@@ -1,0 +1,44 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB, STATS_PERSISTENT=0;
+INSERT INTO t VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+
+#1
+BEGIN; SELECT * FROM t WHERE a = 1 FOR UPDATE;
+
+--connect con1,localhost,root
+#2
+BEGIN; SELECT * FROM t WHERE a = 2 FOR UPDATE;
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL select_locked";
+--send SELECT * FROM t WHERE a = 1 FOR UPDATE
+
+--connect con2,localhost,root
+SET DEBUG_SYNC="now WAIT_FOR select_locked";
+#3
+BEGIN; SELECT * FROM t WHERE a = 3 FOR UPDATE;
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL select_locked";
+--send SELECT * FROM t WHERE a = 2 FOR UPDATE
+
+--connect con3,localhost,root
+SET DEBUG_SYNC="now WAIT_FOR select_locked";
+#4
+BEGIN; SELECT * FROM t WHERE a = 4 FOR UPDATE;
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL select_locked";
+--send SELECT * FROM t WHERE a = 3 FOR UPDATE
+
+--connection default
+#1->4->3->2->1  loop
+--error 1213
+SELECT * FROM t WHERE a = 4 FOR UPDATE;
+--echo ### See error log
+
+--disconnect con1
+--disconnect con2
+--disconnect con3
+
+SET DEBUG_SYNC="RESET";
+DROP TABLE t;
+--source include/wait_until_count_sessions.inc

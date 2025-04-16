@@ -1,0 +1,38 @@
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB, STATS_PERSISTENT=0;
+INSERT INTO t VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+BEGIN;
+SELECT * FROM t WHERE a = 1 FOR UPDATE;
+a
+1
+connect con1,localhost,root;
+BEGIN;
+SELECT * FROM t WHERE a = 2 FOR UPDATE;
+a
+2
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL select_locked";
+SELECT * FROM t WHERE a = 1 FOR UPDATE;
+connect con2,localhost,root;
+SET DEBUG_SYNC="now WAIT_FOR select_locked";
+BEGIN;
+SELECT * FROM t WHERE a = 3 FOR UPDATE;
+a
+3
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL select_locked";
+SELECT * FROM t WHERE a = 2 FOR UPDATE;
+connect con3,localhost,root;
+SET DEBUG_SYNC="now WAIT_FOR select_locked";
+BEGIN;
+SELECT * FROM t WHERE a = 4 FOR UPDATE;
+a
+4
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL select_locked";
+SELECT * FROM t WHERE a = 3 FOR UPDATE;
+connection default;
+SELECT * FROM t WHERE a = 4 FOR UPDATE;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+### See error log
+disconnect con1;
+disconnect con2;
+disconnect con3;
+SET DEBUG_SYNC="RESET";
+DROP TABLE t;
