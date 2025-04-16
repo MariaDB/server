@@ -276,7 +276,7 @@ public:
       abort();
   }
 
-  aio *create_native_aio(int max_io) override
+  aio *create_native_aio(int max_io, aio_implementation) override
   {
     return new native_aio(*this, max_io);
   }
