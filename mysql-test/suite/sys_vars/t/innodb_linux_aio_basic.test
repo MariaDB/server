@@ -1,0 +1,23 @@
+--source include/have_innodb.inc
+--source include/linux.inc
+# enum readonly
+
+#
+# show values;
+#
+select @@global.innodb_linux_aio;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_linux_aio;
+show global variables like 'innodb_linux_aio';
+show session variables like 'innodb_linux_aio';
+select * from information_schema.global_variables where variable_name='innodb_linux_aio';
+select * from information_schema.session_variables where variable_name='innodb_linux_aio';
+
+#
+# show that it's read-only
+#
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_linux_aio='auto';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set session innodb_linux_aio='aio';
+

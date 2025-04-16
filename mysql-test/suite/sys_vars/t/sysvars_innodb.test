@@ -15,6 +15,7 @@ select VARIABLE_NAME, SESSION_VALUE, DEFAULT_VALUE, VARIABLE_SCOPE, VARIABLE_TYP
     'innodb_numa_interleave',           # only available WITH_NUMA
     'innodb_evict_tables_on_commit_debug', # one may want to override this
     'innodb_use_native_aio',            # default value depends on OS
+    'innodb_linux_aio',                 # existance depends on OS
     'innodb_log_file_buffering',        # only available on Linux and Windows
     'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing
   order by variable_name;

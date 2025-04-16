@@ -180,9 +180,10 @@ namespace tpool
 {
 
 #ifdef HAVE_URING
-# define create_linux_aio create_libaio
+aio *create_libaio(thread_pool *pool, int max_io)
+#else
+aio *create_linux_aio(thread_pool *pool, int max_io, aio_implementation implementation __attribute__((unused)))
 #endif
-aio *create_linux_aio(thread_pool *pool, int max_io)
 {
   io_context_t ctx;
   memset(&ctx, 0, sizeof ctx);

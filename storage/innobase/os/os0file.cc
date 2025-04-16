@@ -3217,35 +3217,50 @@ int os_aio_init() noexcept
   int max_read_events= int(srv_n_read_io_threads *
                            OS_AIO_N_PENDING_IOS_PER_THREAD);
   int max_events= max_read_events + max_write_events;
-  int ret;
-#if LINUX_NATIVE_AIO
-  if (srv_use_native_aio && !is_linux_native_aio_supported())
-    goto disable;
-#endif
+  int ret= 1;
 
-  ret= srv_thread_pool->configure_aio(srv_use_native_aio, max_events);
-
-#ifdef LINUX_NATIVE_AIO
-  if (ret)
+#ifdef __linux__
+  if (srv_use_native_aio)
   {
-    ut_ad(srv_use_native_aio);
-disable:
-    ib::warn() << "Linux Native AIO disabled.";
-    srv_use_native_aio= false;
-    ret= srv_thread_pool->configure_aio(false, max_events);
-  }
-#endif
-
+    switch (srv_linux_aio_method)
+    {
+    case SRV_LINUX_AIO_AUTO:
+    case SRV_LINUX_AIO_IO_URING:
 #ifdef HAVE_URING
-  if (ret)
-  {
-    ut_ad(srv_use_native_aio);
-    ib::warn()
-	    << "liburing disabled: falling back to innodb_use_native_aio=OFF";
-    srv_use_native_aio= false;
-    ret= srv_thread_pool->configure_aio(false, max_events);
-  }
+      ret= srv_thread_pool->configure_aio(srv_use_native_aio,
+                                          max_events,
+                                          tpool::OS_IO_URING);
 #endif
+#ifdef LINUX_NATIVE_AIO
+#ifdef HAVE_URING
+      if (ret && srv_linux_aio_method == SRV_LINUX_AIO_AUTO)
+        ib::warn() << "io_uring failed: falling back to libaio";
+      else
+        break;
+      /* fallthough */
+#endif /* HAVE_URING */
+    case SRV_LINUX_AIO_LIBAIO:
+      ret= srv_thread_pool->configure_aio(srv_use_native_aio,
+                                          max_events,
+                                          tpool::OS_AIO);
+      if (!ret && !is_linux_native_aio_supported())
+      {
+	ret= 1;
+      }
+#endif
+    }
+    if (ret)
+    {
+      ib::warn() << "native AIO failed: falling back to innodb_use_native_aio=OFF";
+      srv_use_native_aio= false;
+    }
+  }
+#endif /* linux */
+
+  if (ret)
+    ret= srv_thread_pool->configure_aio(srv_use_native_aio,
+                                        max_events,
+                                        tpool::OS_DEFAULT);
 
   if (!ret)
   {
@@ -3293,7 +3308,16 @@ int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads) noexcept
   /** Do the Linux AIO dance (this will try to create a new
   io context with changed max_events ,etc*/
 
-  int ret= srv_thread_pool->reconfigure_aio(srv_use_native_aio, events);
+  /* TODO FIX!!! */
+  int ret= srv_thread_pool->reconfigure_aio(srv_use_native_aio, events,
+#if defined(HAVE_URING)
+    tpool::OS_IO_URING
+#elif defined(LINUX_NATIVE_AIO)
+    tpool::OS_AIO
+#else
+    tpool::OS_DEFAULT
+#endif
+  );
 
   if (ret)
   {
