@@ -2523,15 +2523,10 @@ static bool innodb_init_param()
 #ifdef _WIN32
 	srv_use_native_aio = TRUE;
 
-#elif defined(LINUX_NATIVE_AIO)
+#elif defined(LINUX_NATIVE_AIO) || defined(HAVE_URING)
 
 	if (srv_use_native_aio) {
-		msg("InnoDB: Using Linux native AIO");
-	}
-#elif defined(HAVE_URING)
-
-	if (srv_use_native_aio) {
-		msg("InnoDB: Using liburing");
+		msg("InnoDB: Using %s", srv_thread_pool->get_implementation());
 	}
 #else
 	/* Currently native AIO is supported only on windows and linux
