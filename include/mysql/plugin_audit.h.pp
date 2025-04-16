@@ -728,6 +728,8 @@ struct mysql_event_connection
   const char *ip;
   unsigned int ip_length;
   MYSQL_CONST_LEX_STRING database;
+  const char *tls_version;
+  unsigned int tls_version_length;
 };
 struct mysql_event_table
 {
