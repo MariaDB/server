@@ -27,6 +27,7 @@
 class THD;
 
 void wsrep_commit_empty(THD* thd, bool all);
+void wsrep_parallel_slave_wakeup_subsequent_commits(void *);
 
 /*
    Return true if THD has active wsrep transaction.
@@ -265,7 +266,9 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
   {
     DBUG_RETURN(ret);
   }
-  if ((ret= thd->wsrep_cs().before_prepare()) == 0)
+  wsrep::provider::seq_cb_t seq_cb{
+      thd, wsrep_parallel_slave_wakeup_subsequent_commits};
+  if ((ret= thd->wsrep_cs().before_prepare(&seq_cb)) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
     wsrep_xid_init(&thd->wsrep_xid,
@@ -314,7 +317,9 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   int ret= 0;
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
 
-  if ((ret= thd->wsrep_cs().before_commit()) == 0)
+  wsrep::provider::seq_cb_t seq_cb{
+      thd, wsrep_parallel_slave_wakeup_subsequent_commits};
+  if ((ret= thd->wsrep_cs().before_commit(&seq_cb)) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
     if (!thd->variables.gtid_seq_no &&
