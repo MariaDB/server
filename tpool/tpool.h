@@ -210,12 +210,21 @@ class thread_pool;
 
 extern aio *create_simulated_aio(thread_pool *tp);
 
+enum aio_implementation
+{
+  OS_DEFAULT
+#ifdef __linux__
+  , OS_IO_URING
+  , OS_AIO
+#endif
+};
+
 class thread_pool
 {
 protected:
   /* AIO handler */
   std::unique_ptr<aio> m_aio;
-  virtual aio *create_native_aio(int max_io)= 0;
+  virtual aio *create_native_aio(int max_io, aio_implementation implementation)= 0;
 
 public:
   /**
@@ -238,10 +247,10 @@ public:
     m_worker_init_callback= init;
     m_worker_destroy_callback= destroy;
   }
-  int configure_aio(bool use_native_aio, int max_io)
+  int configure_aio(bool use_native_aio, int max_io, aio_implementation implementation)
   {
     if (use_native_aio)
-      m_aio.reset(create_native_aio(max_io));
+      m_aio.reset(create_native_aio(max_io, implementation));
     else
       m_aio.reset(create_simulated_aio(this));
     return !m_aio ? -1 : 0;

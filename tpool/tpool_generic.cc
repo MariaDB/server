@@ -40,7 +40,7 @@ namespace tpool
 
 #ifdef __linux__
 #if defined(HAVE_URING) || defined(LINUX_NATIVE_AIO)
-  extern aio* create_linux_aio(thread_pool* tp, int max_io);
+  extern aio* create_linux_aio(thread_pool* tp, int max_io, aio_implementation implementation);
 #else
   aio *create_linux_aio(thread_pool *, int) { return nullptr; };
 #endif
@@ -299,12 +299,12 @@ public:
   void wait_begin() override;
   void wait_end() override;
   void submit_task(task *task) override;
-  aio *create_native_aio(int max_io) override
+  aio *create_native_aio(int max_io, aio_implementation implementation) override
   {
 #ifdef _WIN32
     return create_win_aio(this, max_io);
 #elif defined(__linux__)
-    return create_linux_aio(this,max_io);
+    return create_linux_aio(this, max_io, implementation);
 #else
     return nullptr;
 #endif
