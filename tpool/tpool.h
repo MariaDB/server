@@ -126,12 +126,21 @@ constexpr size_t MAX_AIO_USERDATA_LEN= 4 * sizeof(void*);
 struct aiocb
 #ifdef _WIN32
   :OVERLAPPED
-#elif defined LINUX_NATIVE_AIO
-  :iocb
-#elif defined HAVE_URING
-  :iovec
 #endif
 {
+#if defined LINUX_NATIVE_AIO || defined HAVE_URING
+  union {
+# ifdef LINUX_NATIVE_AIO
+    /** The context between io_submit() and io_getevents();
+    must be the first data member! */
+    iocb m_iocb;
+# endif
+# ifdef HAVE_URING
+    /** The context between io_uring_submit() and io_uring_wait_cqe() */
+    iovec m_iovec;
+# endif
+  };
+#endif
   native_file_handle m_fh;
   aio_opcode m_opcode;
   unsigned long long m_offset;
@@ -171,6 +180,7 @@ public:
   virtual int bind(native_file_handle &fd)= 0;
   /** "Unind" file to AIO handler (used on Windows only) */
   virtual int unbind(const native_file_handle &fd)= 0;
+  virtual const char *get_implementation() const=0;
   virtual ~aio(){};
 protected:
   static void synchronous(aiocb *cb);
@@ -200,12 +210,21 @@ class thread_pool;
 
 extern aio *create_simulated_aio(thread_pool *tp);
 
+enum aio_implementation
+{
+  OS_DEFAULT
+#ifdef __linux__
+  , OS_IO_URING
+  , OS_AIO
+#endif
+};
+
 class thread_pool
 {
 protected:
   /* AIO handler */
   std::unique_ptr<aio> m_aio;
-  virtual aio *create_native_aio(int max_io)= 0;
+  virtual aio *create_native_aio(int max_io, aio_implementation implementation)= 0;
 
 public:
   /**
@@ -228,10 +247,10 @@ public:
     m_worker_init_callback= init;
     m_worker_destroy_callback= destroy;
   }
-  int configure_aio(bool use_native_aio, int max_io)
+  int configure_aio(bool use_native_aio, int max_io, aio_implementation implementation)
   {
     if (use_native_aio)
-      m_aio.reset(create_native_aio(max_io));
+      m_aio.reset(create_native_aio(max_io, implementation));
     else
       m_aio.reset(create_simulated_aio(this));
     return !m_aio ? -1 : 0;
@@ -239,6 +258,10 @@ public:
   void disable_aio()
   {
     m_aio.reset();
+  }
+  const char *get_implementation() const
+  {
+    return m_aio->get_implementation();
   }
 
   /**

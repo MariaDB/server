@@ -149,11 +149,6 @@ void close_thread_tables(THD* thd);
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
 
-#ifdef HAVE_URING
-/** The Linux kernel version if io_uring() is considered unsafe */
-const char *io_uring_may_be_unsafe;
-#endif
-
 #define INSIDE_HA_INNOBASE_CC
 
 #define EQ_CURRENT_THD(thd) ((thd) == current_thd)
@@ -317,6 +312,25 @@ static TYPELIB innodb_stats_method_typelib = {
 	innodb_stats_method_names,
 	NULL
 };
+
+/** Possible values for system variable "innodb_linux_aio" */
+#ifdef __linux__
+const char* innodb_linux_aio_names[] = {
+	"auto",     /* SRV_LINUX_AIO_AUTO */
+	"io_uring", /* SRV_LINUX_AIO_IO_URING */
+	"aio",      /* SRV_LINUX_AIO_LIBAIO */
+	NullS
+};
+
+/** Used to define an enumerate type of the system variable
+innodb_linux_aio. Used by mariadb-backup too. */
+TYPELIB innodb_linux_aio_typelib = {
+	array_elements(innodb_linux_aio_names) - 1,
+	"innodb_linux_aio_typelib",
+	innodb_linux_aio_names,
+	NULL
+};
+#endif
 
 /** Possible values of the parameter innodb_checksum_algorithm */
 const char* innodb_checksum_algorithm_names[] = {
@@ -4188,14 +4202,6 @@ static int innodb_init_params()
 	and that also when the support is compiled in. In all other
 	cases, we ignore the setting of innodb_use_native_aio. */
 	srv_use_native_aio = FALSE;
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio && io_uring_may_be_unsafe) {
-		sql_print_warning("innodb_use_native_aio may cause "
-				  "hangs with this kernel %s; see "
-				  "https://jira.mariadb.org/browse/MDEV-26674",
-				  io_uring_may_be_unsafe);
-	}
 #endif
 
 #ifdef _WIN32
@@ -19499,37 +19505,19 @@ static MYSQL_SYSVAR_STR(version, innodb_version_str,
   PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
   "InnoDB version", NULL, NULL, INNODB_VERSION_STR);
 
-#ifdef HAVE_URING
-# include <sys/utsname.h>
-static utsname uname_for_io_uring;
-#else
-static
-#endif
-bool innodb_use_native_aio_default()
-{
-#ifdef HAVE_URING
-  utsname &u= uname_for_io_uring;
-  if (!uname(&u) && u.release[0] == '5' && u.release[1] == '.' &&
-      u.release[2] == '1' && u.release[3] >= '1' && u.release[3] <= '5' &&
-      u.release[4] == '.')
-  {
-    if (u.release[3] == '5') {
-      const char *s= strstr(u.version, "5.15.");
-      if (s || (s= strstr(u.release, "5.15.")))
-        if ((s[5] >= '3' || s[6] >= '0'))
-          return true; /* 5.15.3 and later should be fine */
-    }
-    io_uring_may_be_unsafe= u.release;
-    return false; /* working around io_uring hangs (MDEV-26674) */
-  }
-#endif
-  return true;
-}
-
 static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Use native AIO if supported on this platform.",
-  NULL, NULL, innodb_use_native_aio_default());
+  NULL, NULL, TRUE);
+
+#ifdef __linux__
+static MYSQL_SYSVAR_ENUM(linux_aio, srv_linux_aio_method,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Specifies which InnoDB AIO implementaiton should"
+  " used. Possible value are \"auto\" (default) to select io_uring"
+  " and fallback to aio, or explictly \"io_uring\" and \"aio\"",
+  nullptr, nullptr, SRV_LINUX_AIO_AUTO, &innodb_linux_aio_typelib);
+#endif
 
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
@@ -19914,6 +19902,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoinc_lock_mode),
   MYSQL_SYSVAR(version),
   MYSQL_SYSVAR(use_native_aio),
+#ifdef __linux__
+  MYSQL_SYSVAR(linux_aio),
+#endif
 #ifdef HAVE_LIBNUMA
   MYSQL_SYSVAR(numa_interleave),
 #endif /* HAVE_LIBNUMA */
