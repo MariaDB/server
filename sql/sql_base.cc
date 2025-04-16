@@ -6227,17 +6227,24 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
         the column reference. See create_view_field() for details.
       */
       Item *item= field_it.create_item(thd);
-      if (arena)
-        thd->restore_active_arena(arena, &backup);
-      
       if (!item)
+      {
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
         DBUG_RETURN(0);
+      }
       if (!ref)
+      {
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
         DBUG_RETURN((Field*) view_ref_found);
+      }
       /*
        *ref != NULL means that *ref contains the item that we need to
        replace. If the item was aliased by the user, set the alias to
        the replacing item.
+       set_name() can allocate memory in thd->mem_root.
+       This needs to be in the same mem_root as where item is created above.
       */
       if (*ref && (*ref)->is_explicit_name())
         item->set_name(thd, (*ref)->name);
@@ -6245,6 +6252,9 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
         thd->change_item_tree(ref, item);
       else
         *ref= item;
+
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
       DBUG_RETURN((Field*) view_ref_found);
     }
   }
