@@ -909,6 +909,8 @@ public:
    :Charset(cs), Binary_string(str, len)
   { }
   String(const String &str) = default;
+  String(String &&str) noexcept
+   :Charset(std::move(str)), Binary_string(std::move(str)){}
 
   void set(String &str,size_t offset,size_t arg_length)
   {

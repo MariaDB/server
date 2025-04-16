@@ -1945,6 +1945,8 @@ int ha_commit_trans(THD *thd, bool all)
     }
 #endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
+    if (error)
+      goto err;
 #ifdef WITH_WSREP
     // Here in case of error we must return 2 for inconsistency
     if (run_wsrep_hooks && !error)
@@ -2185,7 +2187,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 
   if (ha_info)
   {
-    int err;
+    int err= 0;
 
     if (has_binlog_hton(ha_info) &&
         (err= binlog_commit(thd, all,
@@ -2193,6 +2195,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     {
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
       error= 1;
+
+      goto err;
     }
     for (; ha_info; ha_info= ha_info_next)
     {
@@ -2228,7 +2232,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
-
+ err:
   DBUG_RETURN(error);
 }
 
@@ -7996,7 +8000,8 @@ int handler::ha_write_row(const uchar *buf)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_WRITE_ROW, MAX_KEY, error,
                       { error= write_row(buf); })
-  DBUG_PRINT("dml", ("INSERT: %s = %d", dbug_print_row(table, buf, false), error));
+  DBUG_PRINT("dml", ("INSERT: %s = %d",
+                     dbug_format_row(table, buf, false).c_ptr_safe(), error));
 
   MYSQL_INSERT_ROW_DONE(error);
   if (likely(!error))
@@ -8046,8 +8051,10 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
-  DBUG_PRINT("dml", ("UPDATE: %s => %s = %d", dbug_print_row(table, old_data, false),
-                     dbug_print_row(table, new_data, false), error));
+  DBUG_PRINT("dml", ("UPDATE: %s => %s = %d",
+                     dbug_format_row(table, old_data, false).c_ptr_safe(),
+                     dbug_format_row(table, new_data, false).c_ptr_safe(),
+                     error));
 
   MYSQL_UPDATE_ROW_DONE(error);
   if (likely(!error))
@@ -8125,7 +8132,8 @@ int handler::ha_delete_row(const uchar *buf)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, active_index, error,
     { error= delete_row(buf);})
-  DBUG_PRINT("dml", ("DELETE: %s = %d", dbug_print_row(table, buf, false), error));
+  DBUG_PRINT("dml", ("DELETE: %s = %d",
+                     dbug_format_row(table, buf, false).c_ptr_safe(), error));
   MYSQL_DELETE_ROW_DONE(error);
   if (likely(!error))
   {

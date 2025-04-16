@@ -1,0 +1,112 @@
+connection node_4;
+connection node_3;
+connection node_2;
+connection node_1;
+# Correct Galera library found
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_4;
+connection node_1;
+CREATE TABLE t1(pk INT AUTO_INCREMENT PRIMARY KEY);
+CREATE PROCEDURE p1(IN max INT)
+BEGIN
+DECLARE i INT;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET i = 0;
+WHILE i < max DO
+INSERT IGNORE INTO t1 VALUES (DEFAULT);
+SET i = i + 1;
+END WHILE;
+END|
+CALL p1(130);
+connection node_4;
+Shutting down server 4...
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_3;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+Server 4 left the cluster
+connection node_1;
+CALL p1(130);
+connection node_1;
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+connection node_2;
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+connection node_3;
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+INSERT INTO t2 VALUES (DEFAULT);
+CALL p1(130);
+connection node_1;
+SET GLOBAL debug = "+d,sync.wsrep_sst_donor_after_donation";
+Restarting server 4
+Wait for server 1 to become a donor
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_sst_donor_after_donation_reached";
+Server 1 got SST request from server 4
+SET SESSION DEBUG_SYNC = "now SIGNAL signal.wsrep_sst_donor_after_donation_continue";
+SET GLOBAL debug = "";
+SET DEBUG_SYNC='RESET';
+Waiting for server 4 to leave the cluster
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_3;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_4;
+Server 4 left the cluster, killing it...
+Killed server 4...
+Restarting server 4...
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_1;
+SELECT count(*) AS expect1_390 FROM t1;
+expect1_390
+390
+SELECT count(*) AS expect1_1 FROM t2;
+expect1_1
+1
+connection node_2;
+SELECT count(*) AS expect2_390 FROM t1;
+expect2_390
+390
+SELECT count(*) AS expect2_1 FROM t2;
+expect2_1
+1
+connection node_3;
+SELECT count(*) AS expect3_390 FROM t1;
+expect3_390
+390
+SELECT count(*) AS expect3_1 FROM t2;
+expect3_1
+1
+connection node_4;
+SELECT count(*) AS expect4_390 FROM t1;
+expect4_390
+390
+SELECT count(*) AS expect4_1 FROM t2;
+expect4_1
+1
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
+CALL mtr.add_suppression("Inconsistency detected: Failed on preordered");
+CALL mtr.add_suppression("Failed to apply write set");
+CALL mtr.add_suppression("Sending JOIN failed: -103");
+CALL mtr.add_suppression("Failed to JOIN the cluster after SST");

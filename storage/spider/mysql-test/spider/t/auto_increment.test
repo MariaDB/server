@@ -157,7 +157,9 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT * FROM tbl_a;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -168,7 +170,9 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLES;
   if (!$OUTPUT_CHILD_GROUP2)

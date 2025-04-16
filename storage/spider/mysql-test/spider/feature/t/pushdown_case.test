@@ -16,7 +16,7 @@ insert into t1 values (42), (3), (848), (100);
 
 # everything
 let $query=
-select case c when 3 then "three" when 42 then "answer" else "other" end from t1;
+select case c when 3 then "three" when 42 then "answer" else "other" end as exp from t1;
 eval explain $query;
 eval $query;
 
@@ -28,7 +28,7 @@ eval $query;
 
 # no value
 let $query=
-select case when c = 3 then "three" when c = 42 then "answer" else "other" end from t1;
+select case when c = 3 then "three" when c = 42 then "answer" else "other" end as exp from t1;
 eval explain $query;
 eval $query;
 

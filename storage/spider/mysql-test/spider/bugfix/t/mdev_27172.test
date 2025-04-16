@@ -54,8 +54,10 @@ eval CREATE TABLE tbl_a (
 
 --disable_ps2_protocol
 INSERT INTO tbl_a VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
+--disable_view_protocol
 SELECT * FROM tbl_a WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one"; # hack to disable GBH
+--enable_view_protocol
 
 # LIKE
 eval CREATE TABLE tbl_b (
@@ -65,8 +67,10 @@ eval CREATE TABLE tbl_b (
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_b", srv "s_2_1"';
 
 INSERT INTO tbl_b VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
+--disable_view_protocol
 SELECT * FROM tbl_b WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one"; # hack to disable GBH
+--enable_view_protocol
 
 # LIKE
 eval CREATE TABLE tbl_c (
@@ -76,11 +80,15 @@ eval CREATE TABLE tbl_c (
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_c", srv "s_2_1"';
 
 INSERT INTO tbl_c VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
+--disable_view_protocol
 SELECT * FROM tbl_c WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one"; # hack to disable GBH
+--enable_view_protocol
 
 --connection child2_1
+--disable_view_protocol
 SELECT argument FROM mysql.general_log WHERE argument LIKE 'select `id`,`greeting` from %';
+--enable_view_protocol
 --enable_ps2_protocol
 
 --connection child2_1

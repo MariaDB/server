@@ -2049,7 +2049,7 @@ grn_p_decv(grn_ctx *ctx, uint8_t *data, uint32_t data_size, datavec *dv, uint32_
   if ((df & 1)) {
     df >>= 1;
     size = nreq == dvlen ? data_size : df * nreq;
-    if (dv[dvlen].data < dv[0].data + size) {
+    if (!dv[0].data || dv[dvlen].data < dv[0].data + size) {
       if (dv[0].data) { GRN_FREE(dv[0].data); }
       if (!(rp = GRN_MALLOC(size * sizeof(uint32_t)))) { return 0; }
       dv[dvlen].data = rp + size;
@@ -10653,7 +10653,7 @@ grn_ii_builder_options_fix(grn_ii_builder_options *options)
 }
 
 #define GRN_II_BUILDER_TERM_INPLACE_SIZE\
-  (sizeof(grn_ii_builder_term) - (uintptr_t)&((grn_ii_builder_term *)0)->dummy)
+  (sizeof(grn_ii_builder_term) - offsetof(grn_ii_builder_term, dummy))
 
 typedef struct {
   grn_id   rid;    /* Last record ID */

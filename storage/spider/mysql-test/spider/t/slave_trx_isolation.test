@@ -109,8 +109,10 @@ if ($USE_CHILD_GROUP2)
   --disable_ps2_protocol
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     --replace_regex /-[0-9a-f]{12}-[0-9a-f]+-/-xxxxxxxxxxxx-xxxxx-/
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   --enable_ps2_protocol
   eval $CHILD2_1_SELECT_TABLES;

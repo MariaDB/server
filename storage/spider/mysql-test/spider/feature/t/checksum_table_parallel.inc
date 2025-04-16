@@ -76,10 +76,12 @@ send_eval $MASTER_1_CHECKSUM_TABLE;
 
 --connection child2_1_2
 SELECT SLEEP(1);
+--disable_view_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 
 --connection child2_2_2
 eval $CHILD2_2_SELECT_ARGUMENT1;
+--enable_view_protocol
 
 --connection child2_1
 UNLOCK TABLES;

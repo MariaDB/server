@@ -969,8 +969,8 @@ calc_rec_size(grn_table_flags flags, uint32_t max_n_subrecs, uint32_t range_size
       *subrec_size = range_size + sizeof(uint32_t) + sizeof(uint32_t);
       break;
     }
-    *value_size = (uintptr_t)GRN_RSET_SUBRECS_NTH((((grn_rset_recinfo *)0)->subrecs),
-                                                  *subrec_size, max_n_subrecs);
+    *value_size = (uintptr_t) GRN_RSET_SUBRECS_NTH(offsetof(grn_rset_recinfo, subrecs),
+                                                   *subrec_size, max_n_subrecs);
   } else {
     *value_size = range_size;
   }
