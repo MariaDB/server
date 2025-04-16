@@ -218,7 +218,6 @@ class thread_pool_generic : public thread_pool
 
   /** Overall number of enqueues*/
   unsigned long long m_tasks_enqueued;
-  unsigned long long m_group_enqueued;
   /** Overall number of dequeued tasks. */
   unsigned long long m_tasks_dequeued;
 
