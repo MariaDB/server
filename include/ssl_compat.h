@@ -64,6 +64,8 @@
 
 #ifdef HAVE_WOLFSSL
 #define EVP_MD_CTX_SIZE                 sizeof(wc_Md5)
+#undef SSL_get_cipher
+#define SSL_get_cipher                  wolfSSL_get_cipher
 #endif
 
 #ifndef HAVE_OPENSSL11
