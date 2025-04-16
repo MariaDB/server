@@ -378,6 +378,10 @@ extern const char *innodb_checksum_algorithm_names[];
 extern TYPELIB innodb_checksum_algorithm_typelib;
 extern const char *innodb_flush_method_names[];
 extern TYPELIB innodb_flush_method_typelib;
+#ifdef __linux__
+extern const char *innodb_linux_aio_names[];
+extern TYPELIB innodb_linux_aio_typelib;
+#endif
 
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
 					   NullS};
@@ -1325,6 +1329,9 @@ enum options_xtrabackup
   OPT_INNODB_READ_IO_THREADS,
   OPT_INNODB_WRITE_IO_THREADS,
   OPT_INNODB_USE_NATIVE_AIO,
+#ifdef __linux__
+  OPT_INNODB_LINUX_AIO,
+#endif
   OPT_INNODB_PAGE_SIZE,
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_LOCK_WAIT_TIMEOUT,
@@ -1925,6 +1932,14 @@ struct my_option xb_server_options[] =
    (G_PTR*) &srv_use_native_aio,
    (G_PTR*) &srv_use_native_aio, 0, GET_BOOL, NO_ARG,
    TRUE, 0, 0, 0, 0, 0},
+#ifdef __linux__
+  {"innodb_linux_aio", OPT_INNODB_LINUX_AIO,
+   "Which linux AIO implementation to use, auto (io_uring, failing to aio) or explicit",
+   (G_PTR*) &srv_linux_aio_method,
+   (G_PTR*) &srv_linux_aio_method,
+   &innodb_linux_aio_typelib, GET_ENUM, REQUIRED_ARG,
+   SRV_LINUX_AIO_AUTO, 0, 0, 0, 0, 0},
+#endif
   {"innodb_page_size", OPT_INNODB_PAGE_SIZE,
    "The universal page size of the database.",
    (G_PTR*) &innobase_page_size, (G_PTR*) &innobase_page_size, 0,
@@ -2520,14 +2535,8 @@ static bool innodb_init_param()
 
 	ut_ad(DATA_MYSQL_BINARY_CHARSET_COLL == my_charset_bin.number);
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(LINUX_NATIVE_AIO) || defined(HAVE_URING)
 	srv_use_native_aio = TRUE;
-
-#elif defined(LINUX_NATIVE_AIO) || defined(HAVE_URING)
-
-	if (srv_use_native_aio) {
-		msg("InnoDB: Using %s", srv_thread_pool->get_implementation());
-	}
 #else
 	/* Currently native AIO is supported only on windows and linux
 	and that also when the support is compiled in. In all other
@@ -5462,6 +5471,11 @@ fail:
 		msg("Error: cannot initialize AIO subsystem");
 		goto fail;
 	}
+#ifdef __linux__
+	if (srv_use_native_aio) {
+		msg("InnoDB: Using %s", srv_thread_pool->get_implementation());
+	}
+#endif
 
 	log_sys.create();
 

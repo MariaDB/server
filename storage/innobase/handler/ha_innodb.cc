@@ -317,7 +317,7 @@ static TYPELIB innodb_stats_method_typelib = {
 
 /** Possible values for system variable "innodb_linux_aio" */
 #ifdef __linux__
-static const char* innodb_linux_aio_names[] = {
+const char* innodb_linux_aio_names[] = {
 	"auto",     /* SRV_LINUX_AIO_AUTO */
 	"io_uring", /* SRV_LINUX_AIO_IO_URING */
 	"aio",      /* SRV_LINUX_AIO_LIBAIO */
@@ -325,8 +325,8 @@ static const char* innodb_linux_aio_names[] = {
 };
 
 /** Used to define an enumerate type of the system variable
-innodb_linux_aio. */
-static TYPELIB innodb_linux_aio_typelib = {
+innodb_linux_aio. Used by mariadb-backup too. */
+TYPELIB innodb_linux_aio_typelib = {
 	array_elements(innodb_linux_aio_names) - 1,
 	"innodb_linux_aio_typelib",
 	innodb_linux_aio_names,
