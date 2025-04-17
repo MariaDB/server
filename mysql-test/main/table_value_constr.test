@@ -1856,12 +1856,23 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 let $q3=
+SELECT * FROM t1 WHERE (a,1) IN (('1','1'),('5','1'),('3','2'));
+
+--echo # here IN predicate is also transformed into IN subquery
+eval EXPLAIN EXTENDED $q3;
+eval $q3;
+eval PREPARE stmt FROM "$q3";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+let $q4=
 SELECT * FROM t1 WHERE a IN ('1','1.7','3');
 
 --echo # and here IN predicate is not transformed into IN subquery
-eval EXPLAIN EXTENDED $q3;
-eval $q2;
-eval PREPARE stmt FROM "$q3";
+eval EXPLAIN EXTENDED $q4;
+eval $q4;
+eval PREPARE stmt FROM "$q4";
 EXECUTE stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

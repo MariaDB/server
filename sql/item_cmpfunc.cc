@@ -4714,9 +4714,12 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
     {
       bool all_converted= true;
       Item **arg, **arg_end;
-      Conv_const_to_int_mode conv_mode= Conv_const_to_int_mode::not_permanent_conv;
-      bool need_permanent_conversion= to_be_transformed_into_in_subq(thd) &&
-	                              thd->is_first_query_execution();
+      Conv_const_to_int_mode conv_mode=
+                                     Conv_const_to_int_mode::not_permanent_conv;
+      bool need_permanent_conversion=
+            (thd->stmt_arena->state == Query_arena::STMT_PREPARED ||
+             thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP ) &&
+            to_be_transformed_into_in_subq(thd);
       /*
         Permanent conversion of constant arguments makes sense only if
         all of them can be converted to integers. So first we check that
@@ -4729,10 +4732,11 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
         for (arg=args+1, arg_end=args+arg_count; arg != arg_end ; arg++)
 	{
 	  conv_mode= Conv_const_to_int_mode::permanent_conv;
-          if (arg[0]->type() != Item::NULL_ITEM &&
-	      !convert_const_to_int(thd, field_item, &arg[0],
-		                    Conv_const_to_int_mode::check_only))
-	  {
+          // check_only means we do not alter arg below
+          if ((*arg)->type() != Item::NULL_ITEM &&
+              !convert_const_to_int(thd, field_item, arg,
+                                    Conv_const_to_int_mode::check_only))
+          {
             conv_mode= Conv_const_to_int_mode::not_permanent_conv;
             break;
           }
@@ -4751,18 +4755,17 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
             So this expression:
               year_column IN (DATE'2001-01-01', NULL)
             switches from TIME_RESULT to INT_RESULT.
-          */
-          /*
+
             On a noninitial execution of the query we always come here
             with conv_mode == Conv_const_to_int_mode::not_parmanent_conv.
             So convert_const_to_int() is called. However if permanent
             converstion has already been done at the first execution of
             the query the function returns 'true' immediately.
 	  */
-	  DBUG_ASSERT (!thd->is_noninitial_query_execution() ||
+	  DBUG_ASSERT ((thd->stmt_arena->state != Query_arena::STMT_EXECUTED) ||
 		       conv_mode == Conv_const_to_int_mode::not_permanent_conv);
-          if (arg[0]->type() != Item::NULL_ITEM &&
-              !convert_const_to_int(thd, field_item, &arg[0]))
+          if ((*arg)->type() != Item::NULL_ITEM &&
+              !convert_const_to_int(thd, field_item, arg))
             all_converted= false;
       }
       if (all_converted)

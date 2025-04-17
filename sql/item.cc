@@ -6014,13 +6014,15 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
               Add the wrapper item to the list st_select_lex::inner_refs_list
               of the select against which this Item_field has been resolved.
 	    */
-	    if (!thd->is_noninitial_query_execution())
+            Query_arena::enum_state ps_state= thd->stmt_arena->state;
+	    if (ps_state != Query_arena::STMT_EXECUTED)
             {
               Query_arena *arena= 0, backup;
               Item_outer_ref *rf;
-              bool is_first_execution= thd->is_first_query_execution();
+              bool is_first_execution= 
+                                    (ps_state != Query_arena::STMT_INITIALIZED);
               if (is_first_execution &&
-                  !thd->stmt_arena->is_conventional())
+                  ps_state != Query_arena::STMT_CONVENTIONAL_EXECUTION)
                 arena= thd->activate_stmt_arena_if_needed(&backup);
               /*
                 If an outer field is resolved in a grouping select then it
@@ -6170,7 +6172,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       grouping queries. Such a wrapper is always added to the list inner_refs_list
       for the select against which the outer reference has been resolved.
     */
-    if (!thd->is_noninitial_query_execution())
+    if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
     {
       Query_arena *arena= 0, backup;
       bool is_first_execution= thd->is_first_query_execution();
@@ -6245,7 +6247,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         prepare command for it. Make this wrapping permanent for the first query
         execution so that it could be used for next executions of the query.
       */
-      if (!thd->is_noninitial_query_execution())
+      if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
       {
         Item_ref *rf;
         Query_arena *arena= 0, backup;
@@ -6479,7 +6481,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
-    if (select && !thd->is_noninitial_query_execution() &&
+    if (select && (thd->stmt_arena->state != Query_arena::STMT_EXECUTED) &&
         thd->lex->in_sum_func &&
         thd->lex->in_sum_func->nest_level == 
         select->nest_level)
@@ -8603,6 +8605,10 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
     goto error;
   }
 
+  /*
+   We need fix_fields() for the second execution when on the first execution
+   Item_outer_ref was used
+  */
   if ((*ref)->fix_fields_if_needed(thd, reference))
     goto error;
 

@@ -112,7 +112,7 @@ bool Item_sum::init_sum_func_check(THD *thd)
   thd->lex->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
   ref_by= 0;
-  if (!thd->is_noninitial_query_execution() ||
+  if ((thd->stmt_arena->state != Query_arena::STMT_EXECUTED) ||
       (thd->active_stmt_arena_to_use()->state ==
        Query_arena::STMT_SP_QUERY_ARGUMENTS))
   {

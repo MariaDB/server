@@ -4921,3 +4921,24 @@ deallocate prepare stmt;
 drop view v1,v2;
 drop table t1,t2;
 # End of 10.6 tests
+#
+# MDEV-6704 Wrong result (extra rows) on 2nd execution of PS with
+#   exists_to_in, MERGE view
+#
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE t2 (i INT, b VARCHAR(3)) ENGINE=MyISAM;
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t2;
+INSERT INTO t2 VALUES (4,'foo'),(5,'baz');
+PREPARE stmt FROM
+"SELECT * FROM t1 WHERE NOT EXISTS ( SELECT i FROM v2 WHERE b = a )";
+EXECUTE stmt;
+a
+bar
+EXECUTE stmt;
+a
+bar
+DEALLOCATE PREPARE stmt;
+DROP VIEW v2;
+DROP TABLE t1, t2;
+# End of 10.11 tests

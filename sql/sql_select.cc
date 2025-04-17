@@ -703,7 +703,7 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
   */
   List_iterator_fast <Item_outer_ref> ref_it(select->inner_refs_list);
 
-  if (thd->is_noninitial_query_execution())
+  if (thd->stmt_arena->state == Query_arena::STMT_EXECUTED)
   {
     while ((ref= ref_it++))
     {
@@ -1545,7 +1545,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
 
   ref_ptrs= !select_lex->ref_pointer_array.is_null() ?
               ref_ptr_array_slice(0) : select_lex->ref_pointer_array;
-  if (thd->is_noninitial_query_execution())
+  if (thd->stmt_arena->state == Query_arena::STMT_EXECUTED)
     copy_ref_ptr_array(ref_ptrs, select_lex->save_ref_ptrs);
   
   enum_parsing_place save_place=
@@ -27208,7 +27208,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
 
   /* Lookup the current GROUP/ORDER field in the SELECT clause. */
 
-  if (!thd->is_noninitial_query_execution())
+  if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
   {
     select_item= find_item_in_list(order_item, fields, &counter,
                                    REPORT_EXCEPT_NOT_FOUND, &resolution);
@@ -27249,7 +27249,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     if ((is_group_field && order_item_type == Item::FIELD_ITEM) ||
         order_item_type == Item::REF_ITEM)
     {
-      if (!thd->is_noninitial_query_execution())
+      if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
       {
         from_field= find_field_in_tables(thd, (Item_ident*) order_item, tables,
                                          NULL, ignored_tables_list_t(NULL),

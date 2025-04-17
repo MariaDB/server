@@ -7225,7 +7225,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
-  if (thd->is_noninitial_query_execution())
+  if (thd->stmt_arena->state == Query_arena::STMT_EXECUTED)
   {
     DBUG_RETURN(field);
   }
