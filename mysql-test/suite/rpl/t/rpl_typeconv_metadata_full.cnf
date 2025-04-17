@@ -1,0 +1,10 @@
+!include ../my.cnf
+
+[mysqld.1]
+binlog-row-metadata=FULL
+log-warnings=9
+
+
+[mysqld.2]
+binlog-row-metadata=FULL
+log-warnings=9
