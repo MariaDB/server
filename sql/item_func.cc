@@ -7099,7 +7099,7 @@ bool Item_func_nextval::check_access_and_fix_fields(THD *thd, Item **ref,
   bool error= check_single_table_access(thd, want_access, table_list, false);
   table_list->sequence= true;
   if (error && table_list->belong_to_view)
-    table_list->hide_view_error(thd);
+    table_list->replace_view_error_with_generic(thd);
   return error || Item_longlong_func::fix_fields(thd, ref);
 }
 

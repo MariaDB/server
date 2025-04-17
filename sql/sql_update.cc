@@ -1684,7 +1684,7 @@ static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
       if (multi_update_check_table_access(thd, tbl, tables_for_update,
                                           &updated))
       {
-        tbl->hide_view_error(thd);
+        tbl->replace_view_error_with_generic(thd);
         return true;
       }
     }

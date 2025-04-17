@@ -337,7 +337,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
       {
         if (check_single_table_access(thd, SELECT_ACL, tbl, FALSE))
         {
-          tbl->hide_view_error(thd);
+          tbl->replace_view_error_with_generic(thd);
           goto err;
         }
       }

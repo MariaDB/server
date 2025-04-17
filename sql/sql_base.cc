@@ -8009,7 +8009,7 @@ bool setup_tables_and_check_access(THD *thd, Name_resolution_context *context,
     if (table_list->belong_to_view && !table_list->view && 
         check_single_table_access(thd, access, table_list, FALSE))
     {
-      tables->hide_view_error(thd);
+      tables->replace_view_error_with_generic(thd);
       DBUG_RETURN(TRUE);
     }
     access= want_access;
