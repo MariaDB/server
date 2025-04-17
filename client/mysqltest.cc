@@ -4115,6 +4115,10 @@ void do_rmdir(struct st_command *command)
 
   DESCRIPTION
   list all entries in directory (matching ds_wild if given)
+
+  RETURN
+  -1 on error
+   # number of found files
 */
 
 static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
@@ -4123,11 +4127,12 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
   size_t i;
   MY_DIR *dir_info;
   FILEINFO *file;
+  int found= 0;
   DBUG_ENTER("get_list_files");
 
   DBUG_PRINT("info", ("listing directory: %s", ds_dirname->str));
   if (!(dir_info= my_dir(ds_dirname->str, MYF(MY_WANT_SORT))))
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
   set_wild_chars(1);
   for (i= 0; i < dir_info->number_of_files; i++)
   {
@@ -4137,10 +4142,11 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
       continue;
     replace_dynstr_append(ds, file->name);
     dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
+    found++;
   }
   set_wild_chars(0);
   my_dirend(dir_info);
-  DBUG_RETURN(0);
+  DBUG_RETURN(found);
 }
 
 
@@ -4172,7 +4178,8 @@ static void do_list_files(struct st_command *command)
                      sizeof(list_files_args)/sizeof(struct command_arg), ' ');
 
   error= get_list_files(&ds_res, &ds_dirname, &ds_wild);
-  handle_command_error(command, error, my_errno);
+  var_set_int("$sys_files",error);
+  handle_command_error(command, error < 0, my_errno);
   dynstr_free(&ds_dirname);
   dynstr_free(&ds_wild);
   DBUG_VOID_RETURN;
@@ -4217,7 +4224,7 @@ static void do_list_files_write_file_command(struct st_command *command,
     DBUG_VOID_RETURN;
 
   init_dynamic_string(&ds_content, "", 1024, 1024);
-  error= get_list_files(&ds_content, &ds_dirname, &ds_wild);
+  error= get_list_files(&ds_content, &ds_dirname, &ds_wild) < 0;
   handle_command_error(command, error, my_errno);
   str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
   dynstr_free(&ds_content);
