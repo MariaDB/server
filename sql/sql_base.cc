@@ -1198,6 +1198,14 @@ retry:
       DBUG_PRINT("info",
                  ("convert merged to materialization to resolve the conflict"));
       derived->change_refs_to_fields();
+      /*
+        Update JOIN::tmp_table_param to reflect new number of fields
+        and functions
+      */
+      SELECT_LEX *sl= derived->select_lex;
+      count_field_types(sl, &sl->join->tmp_table_param,
+                        sl->join->all_fields, 0);
+
       derived->set_materialized_derived();
       goto retry;
     }
