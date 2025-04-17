@@ -14867,12 +14867,12 @@ stats_fetch:
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		ut_ad(ib_table->stat_initialized());
-
 #if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
 		if (xbegin()) {
 			if (ib_table->stats_mutex_is_locked())
 				xabort();
+
+			ut_ad(ib_table->stat_initialized());
 
 			n_rows = ib_table->stat_n_rows;
 
@@ -14887,6 +14887,8 @@ stats_fetch:
 #endif
 		{
 			ib_table->stats_shared_lock();
+
+			ut_ad(ib_table->stat_initialized());
 
 			n_rows = ib_table->stat_n_rows;
 
