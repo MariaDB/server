@@ -1144,7 +1144,8 @@ row_undo_mod_upd_exist_sec(
 			/* This is only legitimate when
 			rolling back an incomplete transaction
 			after crash recovery. */
-			ut_a(thr_get_trx(thr)->is_recovered);
+			ut_a(thr_get_trx(thr)->is_recovered
+			     || thr_get_trx(thr)->in_rollback);
 
 			/* The server must have crashed before
 			completing the insert of the new
