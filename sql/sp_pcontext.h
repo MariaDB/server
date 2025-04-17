@@ -343,25 +343,68 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////
+/// This class represents a composite type
+
+class sp_composite : public Sql_alloc
+{
+public:
+  /// Name of the composite type.
+  Lex_ident_column name;
+
+public:
+  sp_composite(const Lex_ident_column &name_arg)
+   :Sql_alloc(),
+    name(name_arg)
+  { }
+  virtual ~sp_composite()= default;
+
+  bool eq_name(const LEX_CSTRING *str) const
+  {
+    return name.streq(*str);
+  }
+
+  virtual const Type_handler *type_handler() const= 0;
+};
 
 /// This class represents 'DECLARE RECORD' statement.
 
-class sp_record : public Sql_alloc
+class sp_record : public sp_composite
 {
 public:
-  /// Name of the record.
-  Lex_ident_column name;
   Row_definition_list *field;
 
 public:
   sp_record(const Lex_ident_column &name_arg, Row_definition_list *prmfield) 
-   :Sql_alloc(),
-    name(name_arg),
+   :sp_composite(name_arg),
     field(prmfield)
   { }
-  bool eq_name(const LEX_CSTRING *str) const
+
+  const Type_handler *type_handler() const override
   {
-    return name.streq(*str);
+    return &type_handler_row;
+  }
+};
+
+/// This class represents 'DECLARE TYPE .. TABLE OF' statement.
+
+class sp_assoc_array : public sp_composite
+{
+public:
+  Spvar_definition *key_def;
+  Spvar_definition *value_def;
+
+public:
+  sp_assoc_array(const Lex_ident_column &name_arg,
+                 Spvar_definition *key_def_arg,
+                 Spvar_definition *value_def_arg) 
+   :sp_composite(name_arg),
+    key_def(key_def_arg),
+    value_def(value_def_arg)
+  { }
+
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_assoc_array;
   }
 };
 
@@ -745,27 +788,46 @@ public:
     return m_for_loop;
   }
 
+  sp_composite *find_composite(const LEX_CSTRING *name,
+                               bool current_scope_only) const;
+
   /////////////////////////////////////////////////////////////////////////
   // Record.
   /////////////////////////////////////////////////////////////////////////
-
   bool add_record(THD *thd,
                   const Lex_ident_column &name,
                   Row_definition_list *field);
-
-  sp_record *find_record(const LEX_CSTRING *name,
-                         bool current_scope_only) const;
 
   bool declare_record(THD *thd,
                       const Lex_ident_column &name,
                       Row_definition_list *field)
   {
-    if (find_record(&name, true))
+    if (unlikely(find_composite(&name, true)))
     {
       my_error(ER_SP_DUP_DECL, MYF(0), name.str);
       return true;
     }
     return add_record(thd, name, field);
+  }
+
+  /////////////////////////////////////////////////////////////////////////
+  // Associative array.
+  /////////////////////////////////////////////////////////////////////////
+  bool add_assoc_array(THD *thd,
+                       const Lex_ident_column &name,
+                       Spvar_definition *key,
+                       Spvar_definition *value);
+  bool declare_assoc_array(THD *thd,
+                            const Lex_ident_column &name,
+                            Spvar_definition *key,
+                            Spvar_definition *value)
+  {
+    if (unlikely(find_composite(&name, true)))
+    {
+      my_error(ER_SP_DUP_DECL, MYF(0), name.str);
+      return true;
+    }
+    return add_assoc_array(thd, name, key, value);
   }
 
 private:
@@ -832,8 +894,8 @@ private:
   /// Stack of SQL-handlers.
   Dynamic_array<sp_handler *> m_handlers;
 
-  /// Stack of records.
-  Dynamic_array<sp_record *> m_records;
+  /// Stack of composite types.
+  Dynamic_array<sp_composite *> m_composites;
 
   /*
    In the below example the label <<lab>> has two meanings:

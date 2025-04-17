@@ -773,6 +773,17 @@ String *Item_int_func::val_str(String *str)
 }
 
 
+String *Item_bool_func::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  bool b=val_bool();
+  if (null_value)
+    return 0;
+  str->set_int(b, unsigned_flag, collation.collation);
+  return str;
+}
+
+
 bool Item_func_connection_id::fix_length_and_dec(THD *thd)
 {
   if (Item_long_func::fix_length_and_dec(thd))
@@ -4793,7 +4804,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     break;
   case ROW_RESULT:
     DBUG_ASSERT(0);
-    set_handler(&type_handler_row);
+    set_handler(args[0]->type_handler());
     break;
   }
   if (thd->lex->current_select)
