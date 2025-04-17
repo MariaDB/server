@@ -3765,7 +3765,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
     We have to create array in prepared statement memory if it is a
     prepared statement
   */
-  uint slice_card= !thd->is_noninitial_query_execution() ?
+  uint slice_card= (thd->stmt_arena->state != Query_arena::STMT_EXECUTED) ?
                     get_cardinality_of_ref_ptrs_slice(order_group_num) :
                     card_of_ref_ptrs_slice;
   uint n_elems= slice_card * 5;
