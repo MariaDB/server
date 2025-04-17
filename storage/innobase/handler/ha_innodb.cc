@@ -3652,7 +3652,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->used_in_HANDLER = TRUE;
 
 	reset_template();
-	m_prebuilt->trx->bulk_insert = false;
+	m_prebuilt->trx->bulk_insert &= TRX_DDL_BULK;
 }
 
 /*********************************************************************//**
@@ -4501,7 +4501,7 @@ static bool end_of_statement(trx_t *trx) noexcept
   undo_no_t savept= 0;
   trx->rollback(&savept);
   /* MariaDB will roll back the entire transaction. */
-  trx->bulk_insert= false;
+  trx->bulk_insert&= TRX_DDL_BULK;
   trx->last_stmt_start= 0;
   return true;
 }
@@ -15875,7 +15875,7 @@ ha_innobase::extra(
 	stmt_boundary:
 		trx->bulk_insert_apply();
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DDL_BULK;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		(void)check_trx_exists(ha_thd());
@@ -15941,7 +15941,7 @@ ha_innobase::extra(
 			break;
 		}
 		m_prebuilt->table->skip_alter_undo = 0;
-		if (dberr_t err= trx->bulk_insert_apply()) {
+		if (dberr_t err= trx->bulk_insert_apply<TRX_DDL_BULK>()) {
 			m_prebuilt->table->skip_alter_undo = 0;
 			return convert_error_code_to_mysql(
 				 err, m_prebuilt->table->flags,
@@ -15949,7 +15949,7 @@ ha_innobase::extra(
 		}
 
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DDL_BULK;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
 			/* During copy_data_between_tables(), InnoDB only
@@ -15966,6 +15966,13 @@ ha_innobase::extra(
 			during CREATE...SELECT, which is the other caller of
 			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
+		}
+		break;
+	case HA_EXTRA_ABORT_ALTER_COPY:
+		if (m_prebuilt->table->skip_alter_undo) {
+			trx = check_trx_exists(ha_thd());
+			m_prebuilt->table->skip_alter_undo = 0;
+			trx->rollback();
 		}
 		break;
 	default:/* Do nothing */
@@ -16062,7 +16069,8 @@ ha_innobase::start_stmt(
 			break;
 		}
 
-		trx->bulk_insert = false;
+		ut_ad(trx->bulk_insert != TRX_DDL_BULK);
+		trx->bulk_insert = TRX_NO_BULK;
 		trx->last_stmt_start = trx->undo_no;
 	}
 
@@ -16270,7 +16278,7 @@ ha_innobase::external_lock(
 		if (!trx->bulk_insert) {
 			break;
 		}
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DDL_BULK;
 		trx->last_stmt_start = trx->undo_no;
 	}
 

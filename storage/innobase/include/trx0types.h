@@ -65,6 +65,15 @@ enum trx_state_t {
 	TRX_STATE_COMMITTED_IN_MEMORY
 };
 
+/** Transaction bulk insert operation @see trx_t::bulk_insert */
+enum trx_bulk_insert {
+    TRX_NO_BULK,
+    /** bulk insert is being executed during DML */
+    TRX_DML_BULK,
+    /** bulk insert is being executed in copy_data_between_tables() */
+    TRX_DDL_BULK
+};
+
 /** Memory objects */
 /* @{ */
 /** Transaction */

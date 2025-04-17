@@ -12378,6 +12378,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
     if (alt_error > 0)
     {
       error= alt_error;
+      to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
       copy_data_error_ignore(error, false, to, thd, alter_ctx);
     }
   }
