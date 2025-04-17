@@ -3030,13 +3030,10 @@ SELECT a, AVG(b),
   (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=AVG(t1.b)) AS test
   FROM t1 WHERE t1.d=0 GROUP BY a;
 
-# Enable after fix MDEV-32038
---disable_ps2_protocol
 SELECT tt.a,
  (SELECT (SELECT c FROM t1 as t WHERE t1.a=t.a AND t.d=MAX(t1.b + tt.a)
   LIMIT 1) FROM t1 WHERE t1.a=tt.a GROUP BY a LIMIT 1) as test
   FROM t1 as tt;
---enable_ps2_protocol
 
 SELECT tt.a,
  (SELECT (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.d=MAX(t1.b + tt.a)

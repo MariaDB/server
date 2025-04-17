@@ -2872,12 +2872,6 @@ public:
       stmt_arena->state != Query_arena::STMT_INITIALIZED;  // needed for PS
   }
 
-  /* True only after the first execution of the statement */
-  inline bool is_noninitial_query_execution()
-  {
-    return  stmt_arena->state == Query_arena::STMT_EXECUTED;
-  }
-
 private:
   unsigned int m_current_stage_key;
 

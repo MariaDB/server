@@ -1107,6 +1107,8 @@ uint32 Item_func_in::max_length_of_left_expr()
     Compare the number of elements in the list of
     values in this IN-predicate with the
     in_subquery_conversion_threshold special variable
+    no_permanent_conv_of_args, defaults to false. if the first invocation leaves
+                         this set to true, return false for further invocations.
 
   @retval
     true     if transformation can be made
@@ -1130,7 +1132,6 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
       thd->variables.in_subquery_conversion_threshold > values_count)
     return false;
 
-  /* Occurence of '?' in IN list is checked only for PREPARE <stmt> commands */
   for (uint i=1; i < arg_count; i++)
   {
     if (!is_row_list)
