@@ -15,6 +15,9 @@ insert into t1 VALUES (1,4), (1,2), (2,11);
 SELECT MIN(b), a FROM t1 WHERE a=1;
 MIN(b)	a
 2	1
+select * from (SELECT MIN(b), a FROM t1 WHERE a=1) as v;
+MIN(b)	a
+2	1
 SELECT MAX(b), a FROM t1 WHERE a<3;
 MAX(b)	a
 11	1

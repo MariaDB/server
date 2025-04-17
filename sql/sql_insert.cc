@@ -4532,7 +4532,7 @@ void select_insert::abort_result_set()
       table->file->ha_rnd_end();
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
-
+    table->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
     /*
       If at least one row has been inserted/modified and will stay in
       the table (the table doesn't have transactions) we must write to

@@ -70,7 +70,9 @@ SELECT a, b, c FROM tbl_a PARTITION (pt2,pt3);
 
 --connection child2_1
 --disable_ps2_protocol
+--disable_view_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 --enable_ps2_protocol
 --disable_ps_protocol
 eval $CHILD2_1_SELECT_TABLES;
