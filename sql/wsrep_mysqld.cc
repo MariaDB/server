@@ -4126,3 +4126,10 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables)
   }
   return false;
 }
+
+bool wsrep_is_recovering_from_sst()
+{
+  return Wsrep_server_state::is_inited() &&
+         Wsrep_server_state::instance().state() ==
+             Wsrep_server_state::s_initializing;
+}

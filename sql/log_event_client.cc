@@ -2464,9 +2464,24 @@ bool Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     char buf[64];
     longlong10_to_str(xid, buf, 10);
 
-    if (print_header(&cache, print_event_info, FALSE) ||
-        my_b_printf(&cache, "\tXid = %s\n", buf))
-      goto err;
+    if (wsrep_seqno == wsrep_seqno_undefined)
+    {
+      if (print_header(&cache, print_event_info, FALSE) ||
+          my_b_printf(&cache, "\tXid = %s\n", buf))
+        goto err;
+    }
+    else
+    {
+      char wsrep_seqno_buf[22];
+      longlong10_to_str(wsrep_seqno, wsrep_seqno_buf, 10);
+      char wsrep_uuid_buf[MY_UUID_STRING_LENGTH + 1];
+      my_uuid2str(wsrep_uuid, wsrep_uuid_buf, 1);
+      wsrep_uuid_buf[MY_UUID_STRING_LENGTH]= '\0';
+      if (print_header(&cache, print_event_info, FALSE) ||
+          my_b_printf(&cache, "\tXid = %s, wsrep_seqno = %s, wsrep_uuid = %s\n",
+                      buf, wsrep_seqno_buf, wsrep_uuid_buf))
+        goto err;
+    }
   }
   if (my_b_printf(&cache, is_flashback ? "START TRANSACTION%s\n" : "COMMIT%s\n",
                   print_event_info->delimiter))

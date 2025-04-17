@@ -24,6 +24,9 @@
 #include <mysql/service_wsrep.h>
 
 #include <algorithm> /* std::sort() */
+
+XID* wsrep_recovery_commit_xid = nullptr;
+
 /*
  * WSREPXid
  */

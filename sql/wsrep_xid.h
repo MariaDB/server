@@ -35,5 +35,11 @@ bool wsrep_set_SE_checkpoint(const wsrep::gtid& gtid, const wsrep_server_gtid_t&
 
 void wsrep_sort_xid_array(XID *array, int len);
 
+/**
+  Pointer to the xid that is used to commit the transaction
+  during recovery.
+*/
+extern XID* wsrep_recovery_commit_xid;
+
 #endif /* WITH_WSREP */
 #endif /* WSREP_UTILS_H */
