@@ -1357,7 +1357,7 @@ void THD::init()
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
-  user_time.val= start_time= start_time_sec_part= 0;
+  user_time.val= 0;
 
   server_status= 0;
   if (variables.option_bits & OPTION_AUTOCOMMIT)
@@ -1386,6 +1386,7 @@ void THD::init()
   status_var.max_local_memory_used= status_var.local_memory_used;
   bzero((char *) &org_status_var, sizeof(org_status_var));
   status_in_global= 0;
+  bytes_sent_old= 0;
   start_bytes_received= 0;
   m_last_commit_gtid.seq_no= 0;
   last_stmt= NULL;
