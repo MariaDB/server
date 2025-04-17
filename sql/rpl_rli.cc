@@ -2364,6 +2364,12 @@ void rpl_group_info::clear_tables_to_lock()
       tables_to_lock->m_tabledef_valid= FALSE;
     }
 
+    if (tables_to_lock->master_to_slave_structs_inited)
+    {
+      tables_to_lock->master_to_slave_index_map.map<uint, uint>::~map<uint, uint>();
+      tables_to_lock->master_unmatched_cols.set<uint>::~set<uint>();
+    }
+
     /*
       If blob fields were used during conversion of field values 
       from the master table into the slave table, then we need to 

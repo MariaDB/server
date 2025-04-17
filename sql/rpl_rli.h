@@ -899,18 +899,19 @@ struct rpl_group_info
     }
   }
 
-  bool get_table_data(TABLE *table_arg, table_def **tabledef_var, TABLE **conv_table_var) const
+  /*
+    Get the RPL_TABLE_LIST* element for the given table.
+  */
+  bool get_table_list_el(TABLE *table_arg, RPL_TABLE_LIST **table_list_var) const
   {
-    DBUG_ASSERT(tabledef_var && conv_table_var);
+    DBUG_ASSERT(table_list_var);
     for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
       if (ptr->table == table_arg)
       {
-        *tabledef_var= &static_cast<RPL_TABLE_LIST*>(ptr)->m_tabledef;
-        *conv_table_var= static_cast<RPL_TABLE_LIST*>(ptr)->m_conv_table;
-        DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
-                             " tabledef: %p, conv_table: %p",
-                             table_arg->s->db.str, table_arg->s->table_name.str,
-                             *tabledef_var, *conv_table_var));
+        *table_list_var= static_cast<RPL_TABLE_LIST*>(ptr);
+        DBUG_PRINT("debug",
+                   ("Fetching rpl_table_list for table %s.%s:",
+                    table_arg->s->db.str, table_arg->s->table_name.str));
         return true;
       }
     return false;
