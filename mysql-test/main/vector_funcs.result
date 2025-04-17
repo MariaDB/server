@@ -13,7 +13,7 @@ select vec_totext(x'aabbcc');
 vec_totext(x'aabbcc')
 NULL
 Warnings:
-Warning	4204	Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it.
+Warning	4203	Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it.
 select vec_totext(x'0000f07f');
 vec_totext(x'0000f07f')
 [NaN]
@@ -30,7 +30,7 @@ select hex(vec_fromtext('["a"]'));
 hex(vec_fromtext('["a"]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 4 for '["a"]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 4 for '["a"]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[]'));
 hex(vec_fromtext('[]'))
 
@@ -38,52 +38,52 @@ select hex(vec_fromtext('["a"]'));
 hex(vec_fromtext('["a"]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 4 for '["a"]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 4 for '["a"]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[{"a": "b"}]'));
 hex(vec_fromtext('[{"a": "b"}]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 2 for '[{"a": "b"}]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 2 for '[{"a": "b"}]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[null]'));
 hex(vec_fromtext('[null]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 5 for '[null]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 5 for '[null]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[1, null]'));
 hex(vec_fromtext('[1, null]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 8 for '[1, null]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 8 for '[1, null]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[1, ["a"]]'));
 hex(vec_fromtext('[1, ["a"]]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 5 for '[1, ["a"]]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 5 for '[1, ["a"]]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[1, [2]]'));
 hex(vec_fromtext('[1, [2]]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 5 for '[1, [2]]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 5 for '[1, [2]]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('{"a":"b"}'));
 hex(vec_fromtext('{"a":"b"}'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 1 for '{"a":"b"}'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 1 for '{"a":"b"}'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[1, 2, "z", 3]'));
 hex(vec_fromtext('[1, 2, "z", 3]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 10 for '[1, 2, "z", 3]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 10 for '[1, 2, "z", 3]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[1, 2, 3'));
 hex(vec_fromtext('[1, 2, 3'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 8 for '[1, 2, 3'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 8 for '[1, 2, 3'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('1, 2, 3]'));
 hex(vec_fromtext('1, 2, 3]'))
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 1 for '1, 2, 3]'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 1 for '1, 2, 3]'. Must be a valid JSON array of numbers.
 select hex(vec_fromtext('[]'));
 hex(vec_fromtext('[]'))
 
@@ -141,7 +141,7 @@ select vec_fromtext(v) from t;
 vec_fromtext(v)
 NULL
 Warnings:
-Warning	4205	Invalid vector format at offset: 1 for '{\0014n?'. Must be a valid JSON array of numbers.
+Warning	4204	Invalid vector format at offset: 1 for '{\0014n?'. Must be a valid JSON array of numbers.
 drop table t;
 select vec_fromtext(0x00000000);
 vec_fromtext(0x00000000)

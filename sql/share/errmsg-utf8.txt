@@ -12266,8 +12266,6 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
-ER_PSEUDO_THREAD_ID_OVERWRITE
-        eng "Pseudo thread id should not be modified by the client as it will be overwritten"
 ER_SEQUENCE_TABLE_HAS_WRONG_NUMBER_OF_COLUMNS
         eng "Wrong number of columns"
 ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_KEYS
@@ -12290,6 +12288,8 @@ ER_VECTOR_BINARY_FORMAT_INVALID
         eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
 ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
+ER_PSEUDO_THREAD_ID_OVERWRITE
+        eng "Pseudo thread id should not be modified by the client as it will be overwritten"
 ER_VEC_DISTANCE_TYPE
         eng "Cannot determine distance type for VEC_DISTANCE, index is not found"
 WARN_INDEX_HINTS_IGNORED
