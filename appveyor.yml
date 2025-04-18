@@ -33,7 +33,7 @@ before_build:
         $mainBranch = $False
         "Pull Request build detected"
       }
-      if ($latest -and ($commit -ne $latest) -and ($commit2 -ne latest) -and (-not $mainBranch)) {
+      if ($latest -and ($commit -ne $latest) -and ($commit2 -ne $latest) -and (-not $mainBranch)) {
         "Skipping outdated commit (latest is $latest)"
         Exit-AppVeyorBuild
       }
