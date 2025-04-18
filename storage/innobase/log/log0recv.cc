@@ -1174,7 +1174,11 @@ got_deleted:
 	} else if (p.second // the first FILE_MODIFY or FILE_RENAME
 		   || f.name != fname.name) {
 reload:
-		fil_space_t*	space;
+		if (f.name.size() == 0) {
+			f.name= fname.name;
+		}
+
+                fil_space_t*	space;
 
 		/* Check if the tablespace file exists and contains
 		the space_id. If not, ignore the file after displaying
