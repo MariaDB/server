@@ -1237,11 +1237,10 @@ void log_t::clear_mmap() noexcept
 #ifdef HAVE_PMEM
   if (!is_opened())
   {
-    latch.wr_lock(SRW_LOCK_CALL);
+    ut_d(latch.wr_lock(SRW_LOCK_CALL));
     ut_ad(!resize_in_progress());
     ut_ad(get_lsn() == get_flushed_lsn(std::memory_order_relaxed));
-    buf_size= unsigned(std::min<uint64_t>(capacity(), buf_size_max));
-    latch.wr_unlock();
+    ut_d(latch.wr_unlock());
     return;
   }
 #endif

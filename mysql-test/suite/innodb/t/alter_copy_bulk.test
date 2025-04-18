@@ -109,3 +109,24 @@ INSERT INTO t1 VALUES
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent=@default_stats_persistent;
+
+--echo #
+--echo #  MDEV-36504 Memory leak after insert into empty table
+--echo #
+CREATE TABLE t1 (k INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO t1 SET k= 1;
+START TRANSACTION;
+INSERT INTO t1 SET k= 2;
+SELECT COUNT(*) > 0 FROM mysql.innodb_index_stats LOCK IN SHARE MODE;
+
+connect(con1,localhost,root,,,);
+SET innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+CREATE TABLE t2(f1 INT DEFAULT 1 PRIMARY KEY)
+  STATS_PERSISTENT= 1 ENGINE=InnoDB as SELECT k FROM t1;
+disconnect con1;
+connection default;
+SET innodb_lock_wait_timeout=default;
+DROP TABLE t1;
+DROP TABLE IF EXISTS t2;
+--source include/restart_mysqld.inc

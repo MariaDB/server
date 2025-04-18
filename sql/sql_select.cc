@@ -22488,6 +22488,8 @@ do_select(JOIN *join, Procedure *procedure)
         */
         clear_tables(join, &cleared_tables);
       }
+      if (join->tmp_table_param.copy_funcs.elements)
+        copy_fields(&join->tmp_table_param);
       if (!join->having || join->having->val_bool())
       {
         List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
@@ -27155,9 +27157,13 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
       original field name, we should additionally check if we have conflict
       for this name (in case if we would perform lookup in all tables).
     */
-    if (resolution == RESOLVED_BEHIND_ALIAS &&
-        order_item->fix_fields_if_needed_for_order_by(thd, order->item))
-      return TRUE;
+    if (resolution == RESOLVED_BEHIND_ALIAS)
+    {
+      if (order_item->fix_fields_if_needed_for_order_by(thd, order->item))
+        return TRUE;
+      // fix_fields may have replaced order->item, reset local variable.
+      order_item= *order->item;
+    }
 
     /* Lookup the current GROUP field in the FROM clause. */
     order_item_type= order_item->type();

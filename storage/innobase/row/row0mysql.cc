@@ -687,8 +687,12 @@ handle_new_error:
 			/* MariaDB will roll back the latest SQL statement */
 			break;
 		}
-		/* MariaDB will roll back the entire transaction. */
-		trx->bulk_insert = false;
+		/* For DML, InnoDB does partial rollback and clear
+		bulk buffer in row_mysql_handle_errors().
+		For ALTER TABLE ALGORITHM=COPY & CREATE TABLE...SELECT,
+		the bulk insert transaction will be rolled back inside
+		ha_innobase::extra(HA_EXTRA_ABORT_ALTER_COPY) */
+		trx->bulk_insert &= TRX_DDL_BULK;
 		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:

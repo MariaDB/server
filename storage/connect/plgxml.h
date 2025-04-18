@@ -5,7 +5,7 @@
 /******************************************************************/
 /*  Dual XML implementation base classes defines.                 */
 /******************************************************************/
-#if !defined(BASE_BUFFER_SIZE)
+#ifndef LIBXML2_SUPPORT
 enum ElementType {               // libxml2
      XML_ELEMENT_NODE       =  1,
      XML_ATTRIBUTE_NODE     =  2,
@@ -28,7 +28,7 @@ enum ElementType {               // libxml2
      XML_XINCLUDE_START     = 19,
      XML_XINCLUDE_END       = 20,
      XML_DOCB_DOCUMENT_NODE = 21};
-#endif   // !BASE_BUFFER_SIZE
+#endif
 
 //#if !defined(NODE_TYPE_LIST)
 #ifdef NOT_USED

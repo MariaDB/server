@@ -2945,9 +2945,18 @@ public:
       TODO:
       We could still replace "expr1" to "const" in "expr1 LIKE expr2"
       in case of a "PAD SPACE" collation, but only if "expr2" has '%'
-      at the end.         
+      at the end.
     */
-    return compare_collation() == &my_charset_bin ? COND_TRUE : COND_OK;
+    if (compare_collation() == &my_charset_bin)
+    {
+      /*
+        'foo' NOT LIKE 'foo' is false,
+        'foo' LIKE 'foo' is true.
+      */
+      return negated? COND_FALSE : COND_TRUE;
+    }
+
+    return COND_OK;
   }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables)
