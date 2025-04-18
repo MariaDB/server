@@ -42,11 +42,9 @@ namespace myclone {
 @param[in]	server	shared server handle
 @param[in]	index	index of current thread */
 static void clone_local(Client_Share *share, Server *server, uint32_t index) {
-  THD *thd = nullptr;
-
   /* Create a session statement and set PFS keys */
-  clone_start_statement(thd, clone_local_thd_key, PSI_NOT_INSTRUMENTED);
-
+  auto thd= clone_start_statement(nullptr, clone_local_thd_key,
+                                  PSI_NOT_INSTRUMENTED);
   Local clone_inst(thd, server, share, index, false);
 
   /* Worker task has already reported the error. We ignore any error

@@ -83,15 +83,16 @@ static void set_idle_timeout(NET *net, uint32_t timeout)
   my_net_set_read_timeout(net, timeout);
 }
 
-MYSQL_THD create_background_thd();
-void destroy_background_thd(MYSQL_THD thd);
+MYSQL_THD create_thd();
+void destroy_thd(MYSQL_THD thd);
 
 THD* clone_start_statement(THD *thd, PSI_thread_key thread_key,
                            PSI_statement_key statement_key)
 {
   if (!thd) {
+    my_thread_init();
     /* Create thread with input key for PFS */
-    thd= create_background_thd();
+    thd= create_thd();
     auto psi= PSI_CALL_new_thread(thread_key, NULL, 0);
     PSI_CALL_set_thread_os_id(psi);
     PSI_CALL_set_thread(psi);
@@ -115,7 +116,9 @@ THD* clone_start_statement(THD *thd, PSI_thread_key thread_key,
 void clone_finish_statement(THD *thd)
 {
   assert(thd->m_statement_psi == nullptr);
-  destroy_background_thd(thd);
+  thd->set_psi(nullptr);
+  destroy_thd(thd);
+  my_thread_end();
 }
 
 // extern "C"
@@ -635,7 +638,8 @@ int clone_get_charsets(MYSQL_THD thd, void *char_sets)
         (tmp_cs->state & MY_CS_AVAILABLE))
     {
       std::string charset;
-      charset.assign(tmp_cs->cs_name.str, tmp_cs->cs_name.length);
+      /* Set the collation name. */
+      charset.assign(tmp_cs->coll_name.str, tmp_cs->coll_name.length);
       charset_vals->push_back(charset);
     }
   }
