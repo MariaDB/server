@@ -1122,7 +1122,6 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
   t_name= &table->table_name;
   t_alias= &table->alias;
 
-retry:
   DBUG_PRINT("info", ("real table: %s.%s", d_name->str, t_name->str));
   for (TABLE_LIST *tl= table_list; tl ; tl= tl->next_global, res= 0)
   {
@@ -1183,24 +1182,6 @@ retry:
     */
     DBUG_PRINT("info",
                ("found same copy of table or table which we should skip"));
-  }
-  if (res && res->belong_to_derived)
-  {
-    /*
-      We come here for queries of type:
-      INSERT INTO t1 (SELECT tmp.a FROM (select * FROM t1) as tmp);
-
-      Try to fix by materializing the derived table
-    */
-    TABLE_LIST *derived=  res->belong_to_derived;
-    if (derived->is_merged_derived() && !derived->derived->is_excluded())
-    {
-      DBUG_PRINT("info",
-                 ("convert merged to materialization to resolve the conflict"));
-      derived->change_refs_to_fields();
-      derived->set_materialized_derived();
-      goto retry;
-    }
   }
   DBUG_RETURN(res);
 }

@@ -136,12 +136,22 @@ DROP TABLE t1;
 #  access within null pointer
 CREATE TABLE x (x INT) ENGINE=InnoDB;
 INSERT INTO x (x) VALUES (0);
+select NULL IN (SELECT (SELECT x FROM (SELECT x FROM
+(SELECT 0 IN (SELECT x=0 FROM (SELECT x FROM (SELECT (SELECT (SELECT (SELECT
+(SELECT 0 AS x) FROM x AS x) IN (SELECT 0 AS x) AS x) FROM x AS x) IN
+(SELECT x WHERE x=0) AS x FROM x AS x) AS x) AS x GROUP BY x) AS x FROM x) AS x)
+AS x) IN (SELECT 0 AS x) AS x FROM x) as exp;
+exp
+NULL
 INSERT INTO x (x) VALUES (x IN (SELECT (SELECT x FROM (SELECT x FROM
 (SELECT 0 IN (SELECT x=0 FROM (SELECT x FROM (SELECT (SELECT (SELECT (SELECT
 (SELECT 0 AS x) FROM x AS x) IN (SELECT 0 AS x) AS x) FROM x AS x) IN
 (SELECT x WHERE x=0) AS x FROM x AS x) AS x) AS x GROUP BY x) AS x FROM x) AS x)
 AS x) IN (SELECT 0 AS x) AS x FROM x));
-ERROR HY000: Table 'x' is specified twice, both as a target for 'INSERT' and as a separate source for data
+select * from x;
+x
+0
+NULL
 DROP TABLE x;
 # MDEV-28622: Item_subselect eliminated flag set but Item still
 #   evaluated/used.

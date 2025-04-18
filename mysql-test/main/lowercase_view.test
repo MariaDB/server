@@ -23,29 +23,17 @@ create table t2aA (col1 int);
 create view v1Aa as select * from t1aA;
 create view v2aA as select * from v1aA;
 create view v3Aa as select v2Aa.col1 from v2aA,t2Aa where v2Aa.col1 = t2aA.col1;
--- error 1443
 insert into v2Aa values ((select max(col1) from v1aA));
--- error 1443
 insert into t1aA values ((select max(col1) from v1Aa));
--- error 1443
 insert into v2aA values ((select max(col1) from v1aA));
--- error 1443
 insert into v2Aa values ((select max(col1) from t1Aa));
--- error 1093
 insert into t1aA values ((select max(col1) from t1Aa));
--- error 1443
 insert into v2aA values ((select max(col1) from t1aA));
--- error 1093
 insert into v2Aa values ((select max(col1) from v2aA));
--- error 1443
 insert into t1Aa values ((select max(col1) from v2Aa));
--- error 1093
 insert into v2aA values ((select max(col1) from v2Aa));
--- error 1443
 insert into v3Aa (col1) values ((select max(col1) from v1Aa));
--- error 1443
 insert into v3aA (col1) values ((select max(col1) from t1aA));
--- error 1443
 insert into v3Aa (col1) values ((select max(col1) from v2aA));
 drop view v3aA,v2Aa,v1aA;
 drop table t1Aa,t2Aa;
