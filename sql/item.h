@@ -1954,6 +1954,19 @@ public:
   */
   virtual Item *clone_item(THD *thd) const { return nullptr; }
 
+  /*
+    @detail
+    The meaning of this function seems to be:
+      Check what the item would return if it was provided with two identical
+      non-NULL arguments.
+    It is not clear why it is defined for generic class Item or what its other
+    uses are.
+
+    @return
+       COND_TRUE   Would return true
+       COND_FALSE  Would return false
+       COND_OK     May return either, depending on the argument type.
+  */
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
   { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}

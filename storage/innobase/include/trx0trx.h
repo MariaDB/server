@@ -809,8 +809,13 @@ public:
   /** normally set; "SET unique_checks=0, foreign_key_checks=0"
   enables bulk insert into an empty table */
   unsigned check_unique_secondary:1;
-  /** whether an insert into an empty table is active */
-  unsigned bulk_insert:1;
+  /** whether an insert into an empty table is active
+  Possible states are
+  TRX_NO_BULK
+  TRX_DML_BULK
+  TRX_DDL_BULK
+  @see trx_bulk_insert in trx0types.h */
+  unsigned bulk_insert:2;
 	/*------------------------------*/
 	/* MySQL has a transaction coordinator to coordinate two phase
 	commit between multiple storage engines and the binary log. When
@@ -1117,6 +1122,7 @@ public:
     ut_ad(!is_not_inheriting_locks());
     ut_ad(check_foreigns);
     ut_ad(check_unique_secondary);
+    ut_ad(bulk_insert == TRX_NO_BULK);
   }
 
   /** This has to be invoked on SAVEPOINT or at the end of a statement.
@@ -1142,6 +1148,8 @@ public:
   rollback to the start of a statement will work. */
   void end_bulk_insert()
   {
+    if (bulk_insert == TRX_DDL_BULK)
+      return;
     for (auto& t : mod_tables)
       t.second.end_bulk_insert();
   }
@@ -1149,7 +1157,15 @@ public:
   /** @return whether a bulk insert into empty table is in progress */
   bool is_bulk_insert() const
   {
-    if (!bulk_insert || check_unique_secondary || check_foreigns)
+    switch (bulk_insert) {
+    case TRX_NO_BULK:
+      return false;
+    case TRX_DDL_BULK:
+      return true;
+    default:
+      ut_ad(bulk_insert == TRX_DML_BULK);
+    }
+    if (check_unique_secondary || check_foreigns)
       return false;
     for (const auto& t : mod_tables)
       if (t.second.is_bulk_insert())
@@ -1179,9 +1195,11 @@ public:
   /** Do the bulk insert for the buffered insert operation
   for the transaction.
   @return DB_SUCCESS or error code */
+  template<trx_bulk_insert type= TRX_DML_BULK>
   dberr_t bulk_insert_apply()
   {
-    return UNIV_UNLIKELY(bulk_insert) ? bulk_insert_apply_low(): DB_SUCCESS;
+    static_assert(type != TRX_NO_BULK, "");
+    return bulk_insert == type ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
 private:
