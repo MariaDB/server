@@ -22626,6 +22626,164 @@ static void test_mdev_34958()
   rc= mysql_query(mysql, "DROP TABLE t1, t2");
   myquery(rc);
 }
+
+/* Server crash when inserting from derived table containing insert target table */
+static void test_mdev_32086()
+{
+  int        rc;
+  MYSQL_STMT *stmt_insert;
+  MYSQL_BIND bind[2];
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  unsigned int vals[] = { 123, 124};
+  unsigned int vals_array_len = 2;
+  const char *insert_stmt= "\
+insert into t1 values(\
+  (select 101+count(*)\
+   from\
+   (\
+      select dt2.id\
+      from (select id from t1) dt2, t1 t where t.id=dt2.id\
+   ) dt\
+   where dt.id<1000\
+  ), ?\
+)";
+
+  /* Set up test's environment */
+
+
+  rc= mysql_query(mysql, "create table t1 (pk int, id int);");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "insert into t1 values (2,2), (3,3), (4,4);");
+  myquery(rc);
+
+  stmt_insert = mysql_stmt_init(mysql);
+  if (!stmt_insert)
+  {
+    fprintf(stderr, "mysql_stmt_init failed: Error: %s\n",
+            mysql_error(mysql));
+    exit(1);
+  }
+
+  rc= mysql_stmt_prepare(stmt_insert, insert_stmt, strlen(insert_stmt));
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_prepare failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+
+  memset(&bind[0], 0, sizeof(MYSQL_BIND));
+
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= vals;
+
+  rc= mysql_stmt_attr_set(stmt_insert, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_prepare failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+
+  rc= mysql_stmt_bind_param(stmt_insert, bind);
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_bind_param failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+
+  rc= mysql_stmt_execute(stmt_insert);
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_execute failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+
+  /*
+    pk	id
+    2	2
+    3	3
+    4	4
+    104	123
+    104	124
+   */
+  rc= mysql_query(mysql, "select * from t1");
+  if (rc)
+  {
+    fprintf(stderr, "Query failed: %s\n", mysql_error(mysql));
+  }
+  result= mysql_store_result(mysql);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == 2 && atoi(row[1]) == 2);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == 3 && atoi(row[1]) == 3);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == 4 && atoi(row[1]) == 4);
+  row= mysql_fetch_row(result);
+  printf("\n %d, %d \n", atoi(row[0]), atoi(row[1]));
+  DIE_UNLESS(atoi(row[0]) == 104 && atoi(row[1]) == 123);
+  row= mysql_fetch_row(result);
+  printf("\n %d, %d \n", atoi(row[0]), atoi(row[1]));
+  DIE_UNLESS(atoi(row[0]) == 104 && atoi(row[1]) == 124);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  rc= mysql_stmt_execute(stmt_insert);
+  if (rc)
+  {
+    fprintf(stderr, "mysql_stmt_execute failed: %s\n",
+            mysql_stmt_error(stmt_insert));
+    exit(1);
+  }
+  /*
+    pk	id
+    2	2
+    3	3
+    4	4
+    104	123
+    104	124
+    106	123
+    106	124
+   */
+  rc= mysql_query(mysql, "select * from t1");
+  if (rc)
+  {
+    fprintf(stderr, "Query failed: %s\n", mysql_error(mysql));
+  }
+  result= mysql_store_result(mysql);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == 2 && atoi(row[1]) == 2);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == 3 && atoi(row[1]) == 3);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == 4 && atoi(row[1]) == 4);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == 104 && atoi(row[1]) == 123);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == 104 && atoi(row[1]) == 124);
+  row= mysql_fetch_row(result);
+  printf("\n %d, %d \n", atoi(row[0]), atoi(row[1]));
+  DIE_UNLESS(atoi(row[0]) == 106 && atoi(row[1]) == 123);
+  row= mysql_fetch_row(result);
+  printf("\n %d, %d \n", atoi(row[0]), atoi(row[1]));
+  DIE_UNLESS(atoi(row[0]) == 106 && atoi(row[1]) == 124);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt_insert);
+
+  /* Clean up */
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
 #endif // EMBEDDED_LIBRARY
 
 /*
@@ -22980,6 +23138,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34718_bd", test_mdev_34718_bd },
   { "test_mdev_34718_ad", test_mdev_34718_ad },
   { "test_mdev_34958", test_mdev_34958 },
+  { "test_mdev_32086", test_mdev_32086 },
 #endif
   { 0, 0 }
 };

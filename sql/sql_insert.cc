@@ -57,6 +57,7 @@
 */
 
 #include "mariadb.h"                 /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "sql_list.h"
 #include "sql_priv.h"
 #include "sql_insert.h"
 #include "sql_update.h"                         // compare_record
@@ -714,6 +715,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   Name_resolution_context_state ctx_state;
   SELECT_LEX   *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
   unsigned char *readbuff= NULL;
+  List<List_item> res_cache;
+  bool cache_result= FALSE;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -771,7 +774,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   if ((res= mysql_prepare_insert(thd, table_list, fields, values,
                                  update_fields, update_values, duplic,
-                                 &unused_conds, FALSE)))
+                                 &unused_conds, FALSE, cache_result)))
   {
     retval= thd->is_error();
     if (res < 0)
@@ -1000,8 +1003,40 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     restore_record(table,s->default_values);	// Get empty record
     thd->reconsider_logging_format_for_iodup(table);
   }
+
+  if (cache_result)
+  {
+    while ((values= its++))
+    {
+      List<Item> *caches= new (thd->mem_root) List_item;
+      List_iterator_fast<Item> iv(*values);
+      Item *item;
+      if (caches == 0)
+      {
+        error= 1;
+        goto values_loop_end;
+      }
+      while((item= iv++))
+      {
+        Item_cache *cache= item->get_cache(thd);
+        if (!cache)
+        {
+          error= 1;
+          goto values_loop_end;
+        }
+        cache->setup(thd, item);
+        caches->push_back(cache);
+      }
+      res_cache.push_back(caches);
+    }
+    its.rewind();
+  }
+
   do
   {
+    List_iterator_fast<List_item> itc(res_cache);
+    List_iterator_fast<List_item> *itr;
+
     DBUG_PRINT("info", ("iteration %llu", iteration));
     if (iteration && bulk_parameters_set(thd))
     {
@@ -1009,7 +1044,25 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       goto values_loop_end;
     }
 
-    while ((values= its++))
+    if (cache_result)
+    {
+      List_iterator_fast<List_item> itc(res_cache);
+      List_item *caches;
+      while ((caches= itc++))
+      {
+        List_iterator_fast<Item> ic(*caches);
+        Item_cache *cache;
+        while((cache= (Item_cache*) ic++))
+        {
+          cache->cache_value();
+        }
+      }
+      itc.rewind();
+      itr= &itc;
+    }
+    else
+      itr= &its;
+    while ((values= (*itr)++))
     {
       if (fields.elements || !value_count)
       {
@@ -1112,7 +1165,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         break;
       thd->get_stmt_da()->inc_current_row_for_warning();
     }
-    its.rewind();
+    itr->rewind();
     iteration++;
   } while (bulk_parameters_iterations(thd));
 
@@ -1622,7 +1675,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                          List<Item> &fields, List_item *values,
                          List<Item> &update_fields, List<Item> &update_values,
                          enum_duplicates duplic, COND **where,
-                         bool select_insert)
+                         bool select_insert, bool &cache_result)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
   Name_resolution_context *context= &select_lex->context;
@@ -1722,12 +1775,15 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   {
     Item *fake_conds= 0;
     TABLE_LIST *duplicate;
+    // Inform usual INSERT about need to cache results
     if ((duplicate= unique_table(thd, table_list, table_list->next_global,
                                  CHECK_DUP_ALLOW_DIFFERENT_ALIAS)))
     {
-      update_non_unique_table_error(table_list, "INSERT", duplicate);
-      DBUG_RETURN(1);
+      cache_result= true;
     }
+    else
+      cache_result= false;
+
     select_lex->fix_prepare_information(thd, &fake_conds, &fake_conds);
   }
   /*
@@ -3857,6 +3913,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   int res;
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
+  bool cache_results= false;
   DBUG_ENTER("mysql_insert_select_prepare");
 
   /*
@@ -3867,7 +3924,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   if ((res= mysql_prepare_insert(thd, lex->query_tables, lex->field_list, 0,
                                  lex->update_list, lex->value_list,
                                  lex->duplicates,
-                                 &select_lex->where, TRUE)))
+                                 &select_lex->where, TRUE, cache_results)))
     DBUG_RETURN(res);
 
   /*

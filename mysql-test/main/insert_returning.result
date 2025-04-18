@@ -496,8 +496,10 @@ t1 WHERE id1=1);
 id2	(SELECT id1+id2 FROM
 t1 WHERE id1=1)
 5	6
-INSERT INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+# RETURNING can see the table
+INSERT INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT max(id2) FROM t2);
+(SELECT max(id2) FROM t2)
+5
 INSERT INTO t2 (id2, val2) VALUES (6,'f') RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'
 #
@@ -519,8 +521,11 @@ id2	(SELECT id1+id2 FROM
 t1 WHERE id1=1)
 11	12
 12	13
-INSERT INTO t2 VALUES(13,'f'),(14,'g') RETURNING (SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+# RETURNING can see the table
+INSERT INTO t2 VALUES(13,'f'),(14,'g') RETURNING (SELECT max(id2) FROM t2);
+(SELECT max(id2) FROM t2)
+13
+13
 INSERT INTO t2 VALUES(13,'f'),(14,'g') RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'
 #
@@ -541,8 +546,10 @@ WHERE id1=1);
 id2	(SELECT id1+id2 FROM t1
 WHERE id1=1)
 5	6
-INSERT INTO t2 SET id2=5, val2='f' RETURNING (SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+# RETURNING can see the table
+INSERT INTO t2 SET id2=5, val2='f' RETURNING (SELECT max(id2) FROM t2);
+(SELECT max(id2) FROM t2)
+14
 INSERT INTO t2 SET id2=5, val2='f' RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'
 #
@@ -566,9 +573,11 @@ ERROR 21000: Operand should contain 1 column(s)
 INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b'
 RETURNING id2, (SELECT id1+id FROM t1 WHERE id1=1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
+# RETURNING can see the table
 INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b'
-RETURNING (SELECT id FROM ins_duplicate);
-ERROR HY000: Table 'ins_duplicate' is specified twice, both as a target for 'INSERT' and as a separate source for data
+RETURNING (SELECT max(id) FROM ins_duplicate);
+(SELECT max(id) FROM ins_duplicate)
+2
 INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b'
 RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'

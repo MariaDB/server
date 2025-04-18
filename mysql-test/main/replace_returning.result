@@ -189,8 +189,10 @@ t1 WHERE id1=1);
 id2	(SELECT id1+id2 FROM
 t1 WHERE id1=1)
 5	6
-REPLACE INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+# RETURNING can see the table
+REPLACE INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT max(id2) FROM t2);
+(SELECT max(id2) FROM t2)
+5
 REPLACE INTO t2 (id2, val2) VALUES (6,'f') RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'
 #
@@ -212,8 +214,11 @@ id2	(SELECT id1+id2 FROM
 t1 WHERE id1=1)
 11	12
 12	13
-REPLACE INTO t2 VALUES(13,'f'),(14,'g') RETURNING (SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+# RETURNING can see the table
+REPLACE INTO t2 VALUES(13,'f'),(14,'g') RETURNING (SELECT max(id2) FROM t2);
+(SELECT max(id2) FROM t2)
+13
+13
 REPLACE INTO t2 VALUES(13,'f'),(14,'g') RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'
 #
@@ -234,8 +239,10 @@ WHERE id1=1);
 id2	(SELECT id1+id2 FROM t1
 WHERE id1=1)
 5	6
-REPLACE INTO t2 SET id2=5, val2='f' RETURNING (SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+# RETURNING can see the table
+REPLACE INTO t2 SET id2=5, val2='f' RETURNING (SELECT max(id2) FROM t2);
+(SELECT max(id2) FROM t2)
+14
 REPLACE INTO t2 SET id2=5, val2='f' RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'
 #
