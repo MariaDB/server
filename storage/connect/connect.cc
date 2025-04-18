@@ -86,11 +86,11 @@ void CntEndDB(PGLOBAL g)
 
     free(dbuserp);
 
-		if (trace(1))
-			htrc("CntEndDB: Freeing Dup\n");
+    if (trace(1))
+      htrc("CntEndDB: Freeing Dup\n");
 
-		g->Activityp->Aptr = NULL;
-	} // endif dbuserp
+    g->Activityp->Aptr = NULL;                  // Free PlgGetUser() data
+  } // endif dbuserp
 
 } // end of CntEndDB
 

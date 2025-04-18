@@ -1,0 +1,9 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+XA START 'a';
+ERROR 42000: This version of MariaDB doesn't yet support 'XA transactions with Galera replication'
+DROP TABLE t1;
+disconnect node_1a;

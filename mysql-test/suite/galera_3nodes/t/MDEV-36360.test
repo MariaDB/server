@@ -1,0 +1,110 @@
+#
+# MDEV-36360: Don't grab table-level X locks for applied inserts.
+#
+# It prevents a debug crash in wsrep_report_error() which happened when appliers would run
+# with FK and UK checks disabled and erroneously execute plain inserts as bulk inserts.
+#
+# Moreover, in release builds such a behavior could lead to deadlocks between two applier
+# threads if a thread waiting for a table-level lock was ordered before the lock holder.
+# In that case the lock holder would proceed to commit order and wait forever for the
+# now-blocked other applier thread to commit before.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+# Create parent and child tables.
+--connection node_1
+CREATE TABLE parent (
+	id INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+	id INT PRIMARY KEY,
+	parent_id INT,
+	KEY (parent_id),
+	CONSTRAINT FOREIGN KEY (parent_id) REFERENCES parent(id)
+) ENGINE=InnoDB;
+
+# Fill the parent table with rows that will later be used by the child.
+INSERT INTO parent VALUES (1), (2);
+
+# Wait until the rows are replicated on node #3.
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 2 FROM parent
+--source include/wait_condition.inc
+
+# Delete one row from the parent table on node #3 and rejoin the cluster.
+SET SESSION wsrep_on = OFF;
+DELETE FROM parent WHERE id = 1;
+SET SESSION wsrep_on = ON;
+--echo Restarting server 3 with one applier thread having FK and UK checks disabled
+--source include/shutdown_mysqld.inc
+--let $start_mysqld_params = --wsrep_slave_FK_checks=0 --wsrep_slave_UK_checks=0
+--source ../galera/include/start_mysqld.inc
+
+# Stop the applier after writing a row into the child table.
+SET GLOBAL DEBUG_DBUG = 'd,sync.wsrep_after_write_row';
+
+# Insert a child row that will be applied on node #3, but should not
+# grab table-level X-lock.
+--connection node_1
+INSERT INTO child VALUES (1, 1);
+
+--connection node_3
+SET DEBUG_SYNC = 'now WAIT_FOR sync.wsrep_after_write_row_reached';
+# Now that the applier has hit the global sync point wait, reset it
+# so that the upcoming insert avoids it.
+SET GLOBAL DEBUG_DBUG = '';
+# Don't wait for applied insert to commit.
+SET wsrep_sync_wait = 0;
+SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL signal.wsrep_after_write_row';
+# The insert should pass the sync point, as otherwise if the applied insert
+# grabs table-level X-lock, they'll both deadlock forever.
+INSERT INTO child VALUES (2, 2);
+SET DEBUG_SYNC = 'RESET';
+
+--let $assert_select = foreign key constraint fails
+--let $assert_count = 0
+--let $assert_text = no FK constraint failure
+--let $assert_only_after = CURRENT_TEST
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.3.err
+--source include/assert_grep.inc
+
+# Child row insert is applied even though there's no parent row.
+--echo Server 3
+SELECT COUNT(*) AS EXPECT_1 FROM parent;
+SELECT COUNT(*) AS EXPECT_2 FROM child;
+
+# Check other nodes have both parent and child rows.
+--connection node_1
+--echo Server 1
+SET wsrep_sync_wait = 15;
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+SELECT COUNT(*) AS EXPECT_2 FROM child;
+
+--connection node_2
+--echo Server 2
+SET wsrep_sync_wait = 15;
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+SELECT COUNT(*) AS EXPECT_2 FROM child;
+
+DROP TABLE child;
+DROP TABLE parent;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

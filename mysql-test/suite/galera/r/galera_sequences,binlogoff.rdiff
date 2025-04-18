@@ -1,0 +1,11 @@
+--- r/galera_sequences.result
++++ r/galera_sequences,binlogoff.reject
+@@ -313,7 +313,7 @@
+ 7	4
+ SELECT NEXTVAL(t);
+ NEXTVAL(t)
+-42
++2
+ connection node_1;
+ DROP TABLE t1;
+ DROP SEQUENCE t;

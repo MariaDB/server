@@ -1,4 +1,4 @@
---source include/no_valgrind_without_big.inc
+--source include/long_test.inc
 --source include/have_utf8mb4.inc
 
 call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");
@@ -3030,6 +3030,15 @@ EOF
 --error 1
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mdev33727.sql 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+drop table t1;
+
+--echo #
+--echo # MDEV-36268 mariadb-dump used wrong quoting character
+--echo #
+create table t1 (a int);
+create view `v'1"2` as select * from t1 with check option; # "'
+--exec $MYSQL_DUMP --compact test
+drop view `v'1"2`; # "'
 drop table t1;
 
 --echo # End of 10.5 tests

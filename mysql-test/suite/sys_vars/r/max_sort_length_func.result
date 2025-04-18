@@ -40,7 +40,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Warnings:
-Warning	4203	6 values were longer than max_sort_length. Sorting used only the first 69 bytes
+Warning	4202	6 values were longer than max_sort_length. Sorting used only the first 69 bytes
 ** Results should be sorted **
 '#--------------------FN_DYNVARS_098_02-------------------------#'
 connect  test_con2,localhost,root,,;
@@ -94,7 +94,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4203	16 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	16 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 '#--------------------FN_DYNVARS_098_03-------------------------#'
 SET max_sort_length=64;
@@ -125,7 +125,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4203	20 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	20 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 RESET QUERY CACHE;
 '#--------------------FN_DYNVARS_098_04-------------------------#'
@@ -153,7 +153,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Warnings:
-Warning	4203	15 values were longer than max_sort_length. Sorting used only the first 69 bytes
+Warning	4202	15 values were longer than max_sort_length. Sorting used only the first 69 bytes
 ** Results should be sorted **
 '#--------------------FN_DYNVARS_098_05-------------------------#'
 SET max_sort_length=70;
@@ -225,7 +225,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 Warnings:
-Warning	4203	4 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	4 values were longer than max_sort_length. Sorting used only the first 70 bytes
 ** Results should be sorted **
 SET @@session.max_sort_length = 64;
 SELECT @@session.max_sort_length;
@@ -246,7 +246,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4203	8 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	8 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 '#--------------------FN_DYNVARS_098_08-------------------------#'
 Testing type CHAR
@@ -265,7 +265,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4203	4 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	4 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 SET @@session.max_sort_length = 64;
 SELECT @@session.max_sort_length;
@@ -286,7 +286,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4203	8 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	8 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 DROP TABLE t, t1, t2;
 #
@@ -308,7 +308,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
 # Make sure there are warnings when a string function is used:
 select a from t1 order by coalesce(a);
 a
@@ -318,7 +318,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
 select a from t1 order by concat(a, '1');
 a
 ShortStr1
@@ -327,7 +327,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
 select a from t1 order by binary(a);
 a
 ShortStr1
@@ -336,7 +336,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
 # Table having a variable-length string field and UTF16 encoding (2 bytes per char):
 create table t2(a varchar(100)) character set 'utf16';
 insert into t2 values
@@ -353,7 +353,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Table having text blobs
 create table t3(a text, b mediumtext, c longtext) character set 'utf16';
 insert into t3 values
@@ -370,7 +370,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by b desc;
 a	b	c
 shortString51	short777	short897
@@ -379,7 +379,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by coalesce(b) desc;
 a	b	c
 shortString51	short777	short897
@@ -388,7 +388,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by c;
 a	b	c
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText999	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium99	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong99
@@ -397,7 +397,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 shortString89	short123	short456
 shortString51	short777	short897
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by c, a desc;
 a	b	c
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText999	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium99	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong99
@@ -406,7 +406,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 shortString89	short123	short456
 shortString51	short777	short897
 Warnings:
-Warning	4203	6 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	6 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Packing of sort keys will be applied here:
 select * from t3 order by a, c, b;
 a	b	c
@@ -416,7 +416,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4203	9 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	9 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by a;
 a	b	c
 shortString51	short777	short897
@@ -425,7 +425,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Test a prepared statement re-execution (expecting warnings at both executions)
 prepare stmt from "select * from t2 order by a";
 execute stmt;
@@ -436,7 +436,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 execute stmt;
 a
 shortString51
@@ -445,7 +445,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Test a stored procedure
 create procedure p1() select * from t2 order by a;
 call p1();
@@ -456,7 +456,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 call p1();
 a
 shortString51
@@ -465,7 +465,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 drop procedure p1;
 # Test a stored function
 create function f1 () returns char(100) return (select a from t1 order by a limit 1);
@@ -477,7 +477,7 @@ ShortStr1
 ShortStr1
 ShortStr1
 Warnings:
-Warning	4203	15 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	15 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Test a view
 create view v1 as select f1() as f1_res from t1 order by f1_res;
 select * from v1;
@@ -488,7 +488,7 @@ ShortStr1
 ShortStr1
 ShortStr1
 Warnings:
-Warning	4203	30 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	30 values were longer than max_sort_length. Sorting used only the first 64 bytes
 drop function f1;
 drop view v1;
 drop table t1, t2, t3;
@@ -501,13 +501,13 @@ create table t1 (a int, b varchar(1024));
 insert into t1 values (1,repeat('x',513)), (2,repeat('y',650));
 insert into t1 select * from t1 order by b limit 1;
 Warnings:
-Warning	4203	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
 update t1 set a = 3 order by b limit 1;
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
 delete from t1 where a < 3 order by b;
 Warnings:
-Warning	4203	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
 # Make sure warnings from previous statements do not overflow to next ones
 select a from t1;
 a
@@ -521,7 +521,7 @@ create table t1 (a varchar(1024)) engine=innodb;
 insert into t1 values (repeat('a',1000)),(repeat('b',1000));
 insert into t1 (a) select a from t1 order by a;
 Warnings:
-Warning	4203	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
 drop table t1;
 connection default;
 disconnect test_con1;

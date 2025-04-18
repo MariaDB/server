@@ -28,3 +28,13 @@ select index_name, comment from information_schema.statistics where table_schema
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-36596 Assertion failure in TABLE_SHARE::init_from_sql_statement_string upon returning wrong type from function
+--echo #
+create function f() returns int return (1>2,1,2);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+select * from information_schema.columns where f() is null;
+drop function f;
+
+--echo # End of 11.8 tests

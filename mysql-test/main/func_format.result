@@ -248,7 +248,7 @@ format_bytes(1024 * 1024 - 200)
 
 SELECT format_bytes(1024 * 1024 - 1);
 format_bytes(1024 * 1024 - 1)
-1024.00 KiB
+1.00 MiB
 
 SELECT format_bytes(1024 * 1024);
 format_bytes(1024 * 1024)
@@ -264,7 +264,7 @@ format_bytes(1024 * 1024 + 200)
 
 SELECT format_bytes(1024 * 1024 * 1024 - 1);
 format_bytes(1024 * 1024 * 1024 - 1)
-1024.00 MiB
+1.00 GiB
 
 SELECT format_bytes(1024 * 1024 * 1024);
 format_bytes(1024 * 1024 * 1024)
@@ -276,7 +276,7 @@ format_bytes(1024 * 1024 * 1024 + 1)
 
 SELECT format_bytes(1024 * 1024 * 1024 * 1024 - 1);
 format_bytes(1024 * 1024 * 1024 * 1024 - 1)
-1024.00 GiB
+1.00 TiB
 
 SELECT format_bytes(1024 * 1024 * 1024 * 1024);
 format_bytes(1024 * 1024 * 1024 * 1024)
@@ -288,7 +288,7 @@ format_bytes(1024 * 1024 * 1024 * 1024 + 1)
 
 SELECT format_bytes(1024 * 1024 * 1024 * 1024 * 1024 - 1);
 format_bytes(1024 * 1024 * 1024 * 1024 * 1024 - 1)
-1024.00 TiB
+1.00 PiB
 
 SELECT format_bytes(1024 * 1024 * 1024 * 1024 * 1024);
 format_bytes(1024 * 1024 * 1024 * 1024 * 1024)

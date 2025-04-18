@@ -1377,13 +1377,13 @@ produce_explain_and_leave:
     goto err;
 
 emit_explain_and_leave:
+  if (!thd->is_error() && need_to_optimize &&
+      select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
   int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
-  if (!thd->is_error() && need_to_optimize &&
-      select_lex->optimize_unflattened_subqueries(false))
-    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
 }

@@ -1895,7 +1895,7 @@ bool write_backup_config_file(ds_ctxt *datasink)
 		srv_log_file_size,
 		srv_page_size,
 		srv_undo_dir,
-                (uint) srv_undo_tablespaces,
+		srv_undo_tablespaces,
 		page_zip_level,
 		innobase_buffer_pool_filename ?
 			"innodb_buffer_pool_filename=" : "",
