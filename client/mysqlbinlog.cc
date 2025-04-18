@@ -884,7 +884,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   char ll_buff[21];
   bool result= 0;
 
-  if (opt_flashback)
+  if (opt_flashback && !skip_event)
   {
     Rows_log_event *e= (Rows_log_event*) ev;
     // The last Row_log_event will be the first event in Flashback
@@ -936,7 +936,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
        result_file (as it would happen in ev->print(...) if
        event was not skipped).
     */
-    if (skip_event)
+    if (skip_event && !opt_flashback)
     {
       // append END-MARKER(') with delimiter
       IO_CACHE *const body_cache= &print_event_info->body_cache;
@@ -955,14 +955,14 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   }
 
   /* skip the event check */
-  if (skip_event)
+  if (skip_event && !(opt_flashback && is_stmt_end))
     return 0;
 
   if (!opt_flashback)
     result= print_base64(print_event_info, ev);
   else
   {
-    if (is_stmt_end)
+    if (is_stmt_end && events_in_stmt.elements)
     {
       Log_event *e= NULL;
 
@@ -1576,7 +1576,8 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       DBUG_PRINT("info", ("is_stmt_end: %d", (int) is_stmt_end));
       if (is_stmt_end)
         print_event_info->found_row_event= 0;
-      else if (opt_flashback)
+      else if (opt_flashback &&
+          !print_event_info->m_table_map_ignored.get_table(e->get_table_id()))
         destroy_evt= FALSE;
       break;
     }
@@ -1590,7 +1591,8 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
                           e->get_flags(Old_rows_log_event::STMT_END_F)))
         goto err;
       DBUG_PRINT("info", ("is_stmt_end: %d", (int) is_stmt_end));
-      if (!is_stmt_end && opt_flashback)
+      if (!is_stmt_end && opt_flashback &&
+          !print_event_info->m_table_map_ignored.get_table(e->get_table_id()))
         destroy_evt= FALSE;
       break;
     }
