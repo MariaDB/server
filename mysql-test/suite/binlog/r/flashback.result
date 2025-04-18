@@ -734,6 +734,14 @@ i
 # Ignore the table used in WHERE
 # MDEV-23077 bug02: Output includes extraneous "unknown table".
 #
+SELECT * FROM t1;
+i
+1
+-1
+SELECT * FROM t2;
+i
+1
+-2
 NOT FOUND /### Row event for unknown table/ in mysqlbinlog_row_flashback_8_2.sql
 DROP TABLE t1;
 DROP TABLE t2;
@@ -742,22 +750,39 @@ DROP TABLE t2;
 #
 CREATE DATABASE d1;
 CREATE DATABASE d2;
-CREATE TABLE d1.t AS SELECT 1 AS a;
-CREATE TABLE d2.t AS SELECT 2 AS a;
+CREATE TABLE d1.t (i INT);
+INSERT INTO d1.t VALUES (1), (-1);
+CREATE TABLE d2.t (i INT);
+INSERT INTO d2.t VALUES (1), (-2);
 RESET MASTER;
 BEGIN;
-DELETE FROM d1.t;
-DELETE FROM d2.t;
+UPDATE d1.t, d2.t SET d1.t.i=2, d2.t.i=2 WHERE d1.t.i=d2.t.i AND d1.t.i=1;
+DELETE d1.t, d2.t FROM d1.t INNER JOIN d2.t WHERE d1.t.i=2;
 COMMIT;
-FLUSH LOGS;
-# < CASE 9 >
-# Flashback & Check the result
+FLUSH BINARY LOGS;
+# < CASE 9.1 >
+# Only the database used in WHERE
+# MDEV-23077 bug03: Only the first Base64 was in a BINLOG statement.
 #
 SELECT * FROM d1.t;
-a
+i
 1
+-1
 SELECT * FROM d2.t;
-a
+i
+# < CASE 9.2 >
+# Ignore the database used in WHERE
+# MDEV-23077 bug02: Output includes extraneous "unknown table".
+#
+SELECT * FROM d1.t;
+i
+1
+-1
+SELECT * FROM d2.t;
+i
+1
+-2
+NOT FOUND /### Row event for unknown table/ in mysqlbinlog_row_flashback_9_2.sql
 DROP DATABASE d1;
 DROP DATABASE d2;
 #

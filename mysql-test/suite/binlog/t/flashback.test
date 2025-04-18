@@ -404,6 +404,12 @@ SELECT * FROM t2;
 --echo #
 
 --exec $MYSQL_BINLOG -Bvv --table=t2 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8_2.sql
+--exec $MYSQL -e "SOURCE $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8_2.sql;"
+
+# (1), (-1)
+SELECT * FROM t1;
+# (1), (-2)
+SELECT * FROM t2;
 
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8_2.sql
 --let SEARCH_PATTERN= ### Row event for unknown table
@@ -418,29 +424,47 @@ DROP TABLE t2;
 
 CREATE DATABASE d1;
 CREATE DATABASE d2;
-CREATE TABLE d1.t AS SELECT 1 AS a;
-CREATE TABLE d2.t AS SELECT 2 AS a;
+CREATE TABLE d1.t (i INT);
+INSERT INTO d1.t VALUES (1), (-1);
+CREATE TABLE d2.t (i INT);
+INSERT INTO d2.t VALUES (1), (-2);
 
 RESET MASTER;
 BEGIN;
-  # delete all data
-  DELETE FROM d1.t;
-  DELETE FROM d2.t;
+  UPDATE d1.t, d2.t SET d1.t.i=2, d2.t.i=2 WHERE d1.t.i=d2.t.i AND d1.t.i=1;
+  DELETE d1.t, d2.t FROM d1.t INNER JOIN d2.t WHERE d1.t.i=2;
 COMMIT;
-FLUSH LOGS;
+FLUSH BINARY LOGS;
 
---echo # < CASE 9 >
---echo # Flashback & Check the result
+--echo # < CASE 9.1 >
+--echo # Only the database used in WHERE
+--echo # MDEV-23077 bug03: Only the first Base64 was in a BINLOG statement.
 --echo #
 
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $MYSQL_BINLOG -Bvv --database=d1 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9.sql
---exec $MYSQL -e "SOURCE $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9.sql;"
+--exec $MYSQL_BINLOG -Bvv --database=d1 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9_1.sql
+--exec $MYSQL -e "SOURCE $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9_1.sql;"
 
-# (1)
+# (1), (-1)
 SELECT * FROM d1.t;
-# empty
+# still empty
 SELECT * FROM d2.t;
+
+--echo # < CASE 9.2 >
+--echo # Ignore the database used in WHERE
+--echo # MDEV-23077 bug02: Output includes extraneous "unknown table".
+--echo #
+
+--exec $MYSQL_BINLOG -Bvv --database=d2 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9_2.sql
+--exec $MYSQL -e "SOURCE $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9_2.sql;"
+
+# (1), (-1)
+SELECT * FROM d1.t;
+# (1), (-2)
+SELECT * FROM d2.t;
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_9_2.sql
+--let SEARCH_PATTERN= ### Row event for unknown table
+--source include/search_pattern_in_file.inc
 
 DROP DATABASE d1;
 DROP DATABASE d2;
