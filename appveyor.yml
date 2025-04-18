@@ -18,8 +18,9 @@ before_build:
           return $null
         }
       }
-
+      Get-ChildItem Env: | Where-Object { $_.Name -like 'APPVEYOR*COMMIT' } | ForEach-Object { "$($_.Name)=$($_.Value)" }
       $commit = $env:APPVEYOR_REPO_COMMIT
+      $commit2 = $env:APPVEYOR_PULL_REQUEST_HEAD_COMMIT
       $branch = $env:APPVEYOR_REPO_BRANCH
       $latest = $null
       $mainBranch = $branch -match '^(main|\d+\.\d+)$'
@@ -32,8 +33,8 @@ before_build:
         $mainBranch = $False
         "Pull Request build detected"
       }
-      if ($latest -and ($commit -ne $latest) -and (-not $mainBranch)) {
-        "Skipping outdated commit $commit (latest is $latest)"
+      if ($latest -and ($commit -ne $latest) -and ($commit2 -ne $latest) -and (-not $mainBranch)) {
+        "Skipping outdated commit (latest is $latest)"
         Exit-AppVeyorBuild
       }
 
