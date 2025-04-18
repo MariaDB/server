@@ -1849,12 +1849,12 @@ bool Sql_cmd_clone::execute(THD *thd)
     const char* mesg= my_get_err_msg(ER_CLONE_SHUTDOWN_TRACE);
     sql_print_information("%s", mesg);
 
-    Diagnostics_area *da= thd->get_stmt_da();
-    Warning_info shutdown_wi(thd->query_id, false, true);
-    da->push_warning_info(&shutdown_wi);
+    Diagnostics_area *stmt_da= thd->get_stmt_da();
+    Diagnostics_area shutdown_da(thd->query_id, false, true);
+    thd->set_stmt_da(&shutdown_da);
     /* CLONE_ADMIN privilege allows us to shutdown/restart at end. */
     kill_mysql(thd);
-    da->pop_warning_info();
+    thd->set_stmt_da(stmt_da);
     return true;
   }
 
@@ -1886,23 +1886,33 @@ bool Sql_cmd_clone::execute_server(THD *thd)
 {
   assert(!is_local());
 
-  auto net = &thd->net;
-  auto sock = net->vio->mysql_socket;
+  auto net= &thd->net;
+  auto sock= net->vio->mysql_socket;
 
-  Diagnostics_area *da= thd->get_stmt_da();
-  Warning_info clone_wi(thd->query_id, false, true);
-  da->push_warning_info(&clone_wi);
+  Diagnostics_area *stmt_da= thd->get_stmt_da();
+  Diagnostics_area clone_da(thd->query_id, false, true);
+  thd->set_stmt_da(&clone_da);
 
-  auto err = m_clone->clone_remote_server(thd, sock);
+  auto err= m_clone->clone_remote_server(thd, sock);
 
-  da->pop_warning_info();
-
-  if (err == 0) {
+  if (!err)
     my_ok(thd);
 
-  } else if (da->warning_info_changed(&clone_wi)) {
-    da->opt_clear_warning_info(thd->query_id);
-    da->copy_sql_conditions_from_wi(thd, &clone_wi);
+  thd->set_stmt_da(stmt_da);
+
+  if (err)
+  {
+    uint sql_errno= clone_da.sql_errno();
+    const char *message= clone_da.message();
+    const char *sqlstate= clone_da.get_sqlstate();
+
+    stmt_da->set_overwrite_status(true);
+
+    if (unlikely(thd->is_fatal_error))
+      stmt_da->set_error_status(sql_errno, message, sqlstate, nullptr);
+    else
+      stmt_da->push_warning(thd, sql_errno, sqlstate,
+                            Sql_condition::WARN_LEVEL_ERROR, message);
   }
 
   clone_plugin_unlock(thd, m_plugin);

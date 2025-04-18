@@ -51,11 +51,9 @@ Time_Sec Client::s_reconnect_interval{5};
 @param[in]	share	shared client information
 @param[in]	index	current thread index */
 static void clone_client(Client_Share *share, uint32_t index) {
-  THD *thd = nullptr;
-
   /* Create a session statement and set PFS keys */
-  clone_start_statement(thd, clone_client_thd_key, PSI_NOT_INSTRUMENTED);
-
+  auto thd= clone_start_statement(nullptr, clone_client_thd_key,
+                                  PSI_NOT_INSTRUMENTED);
   Client clone_inst(thd, share, index, false);
 
   clone_inst.clone();
