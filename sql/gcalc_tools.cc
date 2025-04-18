@@ -131,7 +131,7 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
   uint n_ops= c_op & ~(op_any | op_not | v_mask);
   uint n_shape= c_op & ~(op_any | op_not | v_mask); /* same as n_ops */
   op_type v_state= (op_type) (c_op & v_mask);
-  int result= 0;
+  int result= 0, t_counter;
   const char *sav_cur_func= cur_func;
 
   // GCALC_DBUG_ENTER("Gcalc_function::count_internal");
@@ -175,6 +175,11 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
     //GCALC_DBUG_RETURN(mask);
 
   result= count_internal(cur_func, set_type, &cur_func);
+  if (next_func == op_any_intersection)
+  {
+    t_counter= result == result_true;
+    result= result_false;
+  }
 
   while (--n_ops)
   {
@@ -210,6 +215,10 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
           result= result_unknown;
         else
           result= result_true;
+        break;
+      case op_any_intersection:
+        t_counter+= next_res == result_true;
+        result= (t_counter > 1) ? result_true : result_false;
         break;
       default:
         GCALC_DBUG_ASSERT(FALSE);

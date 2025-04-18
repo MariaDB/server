@@ -1033,6 +1033,7 @@ static COMMANDS commands[] = {
   { "MASTER_POS_WAIT", 0, 0, 0, ""},
   { "MAX", 0, 0, 0, ""},
   { "MBRCONTAINS", 0, 0, 0, ""},
+  { "MBRCOVEREDBY", 0, 0, 0, ""},
   { "MBRDISJOINT", 0, 0, 0, ""},
   { "MBREQUAL", 0, 0, 0, ""},
   { "MBRINTERSECTS", 0, 0, 0, ""},
