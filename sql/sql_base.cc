@@ -19,6 +19,7 @@
 
 #include "mariadb.h"
 #include "sql_base.h"                           // setup_table_map
+#include "sql_list.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "debug_sync.h"
@@ -1122,7 +1123,6 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
   t_name= &table->table_name;
   t_alias= &table->alias;
 
-retry:
   DBUG_PRINT("info", ("real table: %s.%s", d_name->str, t_name->str));
   for (TABLE_LIST *tl= table_list; tl ; tl= tl->next_global, res= 0)
   {
@@ -1184,36 +1184,52 @@ retry:
     DBUG_PRINT("info",
                ("found same copy of table or table which we should skip"));
   }
-  /*
-     If we've found a duplicate in a derived table, try to work around that.
-
-     For INSERT...SELECT, do not do any workarounds, return the duplicate. The
-     caller will enable buffering to handle this.
-  */
-  if (res && res->belong_to_derived &&
-      !(check_flag & CHECK_DUP_FOR_INSERT_SELECT))
-  {
-    /*
-      We come here for queries like this:
-
-      INSERT INTO t1 VALUES ((SELECT tmp.a FROM (select * FROM t1)));
-      DELETE FROM t1 WHERE ( ... (SELECT ... FROM t1) ) ;
-
-      Try to fix by materializing the derived table
-    */
-    TABLE_LIST *derived=  res->belong_to_derived;
-    if (derived->is_merged_derived() && !derived->derived->is_excluded())
-    {
-      DBUG_PRINT("info",
-                 ("convert merged to materialization to resolve the conflict"));
-      derived->change_refs_to_fields();
-      derived->set_materialized_derived();
-      goto retry;
-    }
-  }
   DBUG_RETURN(res);
 }
 
+
+TABLE_LIST* unique_table_in_select_list(THD *thd, TABLE_LIST *table, SELECT_LEX *sel)
+{
+  subselect_table_finder_param param= {thd, table, NULL};
+  List_iterator_fast<Item> it(sel->item_list);
+  Item *item;
+  while ((item= it++))
+  {
+    if (item->walk(&Item::subselect_table_finder_processor, FALSE, &param))
+    {
+      if (param.dup == NULL)
+        return ERROR_TABLE;
+      return param.dup;
+    }
+    DBUG_ASSERT(param.dup == NULL);
+  }
+  return NULL;
+}
+
+
+typedef TABLE_LIST* (*find_table_callback)(THD *thd, TABLE_LIST *table,
+                                           TABLE_LIST *table_list,
+                                           uint check_flag, SELECT_LEX *sel);
+
+static
+TABLE_LIST*
+find_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
+           uint check_flag, SELECT_LEX *sel, find_table_callback callback );
+
+TABLE_LIST* unique_table_callback(THD *thd, TABLE_LIST *table,
+                                  TABLE_LIST *table_list,
+                                  uint check_flag, SELECT_LEX *sel)
+{
+  return find_dup_table(thd, table, table_list, check_flag);
+}
+
+
+TABLE_LIST* unique_in_sel_table_callback(THD *thd, TABLE_LIST *table,
+                                         TABLE_LIST *table_list,
+                                         uint check_flag, SELECT_LEX *sel)
+{
+  return unique_table_in_select_list(thd, table, sel);
+}
 
 /**
   Test that the subject table of INSERT/UPDATE/DELETE/CREATE
@@ -1233,6 +1249,25 @@ retry:
 TABLE_LIST*
 unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
              uint check_flag)
+{
+  return find_table(thd, table, table_list, check_flag, NULL,
+                    &unique_table_callback);
+}
+
+
+TABLE_LIST*
+unique_table_in_insert_returning_subselect(THD *thd, TABLE_LIST *table, SELECT_LEX *sel)
+{
+  return find_table(thd, table, NULL, 0, sel,
+                    &unique_in_sel_table_callback);
+
+}
+
+
+static
+TABLE_LIST*
+find_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
+           uint check_flag, SELECT_LEX *sel, find_table_callback callback )
 {
   TABLE_LIST *dup;
 
@@ -1264,12 +1299,12 @@ unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
       if (!tmp_parent)
         break;
 
-      if ((dup= find_dup_table(thd, child, child->next_global, check_flag)))
+      if ((dup= (*callback)(thd, child, child->next_global, check_flag, sel)))
         break;
     }
   }
   else
-    dup= find_dup_table(thd, table, table_list, check_flag);
+    dup= (*callback)(thd, table, table_list, check_flag, sel);
   return dup;
 }
 

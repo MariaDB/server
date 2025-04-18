@@ -723,6 +723,17 @@ public:
   virtual const String *const_ptr_string() const { return NULL; }
 };
 
+struct subselect_table_finder_param
+{
+  THD *thd;
+  /*
+    We're searching for different TABLE_LIST objects referring to the same
+    table as this one
+  */
+  const TABLE_LIST *find;
+  /* NUL - not found, ERROR_TABLE - search error, or the found table reference */
+  TABLE_LIST *dup;
+};
 
 /****************************************************************************/
 
@@ -2068,6 +2079,7 @@ public:
     set_extraction_flag(*(int*)arg);
     return 0;
   }
+  virtual bool subselect_table_finder_processor(void *arg) { return 0; };
 
   /* 
     TRUE if the expression depends only on the table indicated by tab_map

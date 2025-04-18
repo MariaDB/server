@@ -72,7 +72,6 @@ enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 #define CHECK_DUP_ALLOW_DIFFERENT_ALIAS 1
 #define CHECK_DUP_FOR_CREATE 2
 #define CHECK_DUP_SKIP_TEMP_TABLE 4
-#define CHECK_DUP_FOR_INSERT_SELECT 8
 
 uint get_table_def_key(const TABLE_LIST *table_list, const char **key);
 TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
@@ -290,6 +289,8 @@ bool open_and_lock_internal_tables(TABLE *table, bool lock);
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void close_thread_table(THD *thd, TABLE **table_ptr);
+TABLE_LIST*
+unique_table_in_insert_returning_subselect(THD *thd, TABLE_LIST *table, SELECT_LEX *sel);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
                          uint check_flag);
 bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b);
