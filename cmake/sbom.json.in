@@ -20,7 +20,15 @@
         ]
       },
       "purl": "pkg:github/@GITHUB_REPO_USER@/@GITHUB_REPO_NAME@@@GIT_REV_SHORT@",
-      "cpe": "cpe:2.3:a:mariadb:mariadb:@CPACK_PACKAGE_VERSION@:*:*:*:*:*:*"
+      "cpe": "cpe:2.3:a:mariadb:mariadb:@CPACK_PACKAGE_VERSION@:*:*:*:*:*:*",
+      "licenses": [
+          {
+            "license": {
+              "id": "GPL-2.0"
+            }
+          }
+      ],
+      "copyright": "Copyright (C) @CURRENT_YEAR@ MariaDB plc, MariaDB Foundation and others"
     },
     "authors": [
       {
