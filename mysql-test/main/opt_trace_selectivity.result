@@ -186,6 +186,7 @@ JS
                     "chosen_access_method": 
                     {
                         "type": "ref",
+                        "index": "a",
                         "rows_read": 6,
                         "rows_out": 0.6,
                         "cost": 0.005388489,
