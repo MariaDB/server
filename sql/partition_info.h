@@ -180,7 +180,7 @@ public:
     * lock_partitions  - partitions that must be locked (read or write).
     Usually read_partitions is the same set as lock_partitions, but
     in case of UPDATE the WHERE clause can limit the read_partitions set,
-    but not neccesarily the lock_partitions set.
+    but not necessarily the lock_partitions set.
     Usage pattern:
     * Initialized in ha_partition::open().
     * read+lock_partitions is set  according to explicit PARTITION,

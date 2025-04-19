@@ -43,4 +43,3 @@ SET SESSION wsrep_sync_wait=0;
 --source galera_ddl_fk_conflict_with_tmp.inc
 
 # CHECK and ANALYZE are not affected
-

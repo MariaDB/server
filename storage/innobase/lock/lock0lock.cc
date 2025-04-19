@@ -843,7 +843,7 @@ lock_rec_has_to_wait(
 		/* If the upper server layer has already decided on the
 		commit order between the transaction requesting the
 		lock and the transaction owning the lock, we do not
-		need to wait for gap locks. Such ordeering by the upper
+		need to wait for gap locks. Such ordering by the upper
 		server layer happens in parallel replication, where the
 		commit order is fixed to match the original order on the
 		master.
@@ -2747,7 +2747,7 @@ lock_rec_inherit_to_gap(hash_cell_t &heir_cell, const page_id_t heir,
          not create bogus gap locks for non-gap locks for READ UNCOMMITTED and
          READ COMMITTED isolation levels. LOCK_ORDINARY and
          LOCK_GAP require a gap before the record to be locked, that is why
-         setting lock on supremmum is necessary. */
+         setting lock on supremum is necessary. */
          ((!from_split || !lock->is_record_not_gap()) &&
           lock->mode() != (lock_trx->duplicates ? LOCK_S : LOCK_X))))
     {
@@ -4172,7 +4172,7 @@ void lock_table_resurrect(dict_table_t *table, trx_t *trx, lock_mode mode)
 
   {
     /* This is executed at server startup while no connections
-    are alowed. Do not bother with lock elision. */
+    are allowed. Do not bother with lock elision. */
     LockMutexGuard g{SRW_LOCK_CALL};
     ut_ad(!lock_table_other_has_incompatible(trx, LOCK_WAIT, table, mode));
 
@@ -4344,13 +4344,12 @@ dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
           children.end())
         continue; /* We already acquired MDL on this child table. */
       MDL_ticket *mdl= nullptr;
-      child->acquire();
       child= dict_acquire_mdl_shared<false>(child, mdl_context, &mdl,
                                             DICT_TABLE_OP_NORMAL);
       if (child)
       {
-        if (!mdl)
-          child->release();
+        if (mdl)
+          child->acquire();
         children.emplace_back(table_mdl{child, mdl});
         goto rescan;
       }
@@ -4714,7 +4713,7 @@ void lock_release_on_drop(trx_t *trx)
 
 /** Reset a lock bit and rebuild waiting queue.
 @param cell rec hash cell of in_lock
-@param lock the lock with supemum bit set */
+@param lock the lock with supremum bit set */
 static void lock_rec_unlock(hash_cell_t &cell, lock_t *lock, ulint heap_no)
 {
   ut_ad(lock_rec_get_nth_bit(lock, heap_no));
@@ -4899,7 +4898,7 @@ reiterate:
           lock_sys.rd_unlock();
           trx->mutex_unlock();
           mtr.start();
-          /* The curr thread is asociated with trx, which was just
+          /* The curr thread is associated with trx, which was just
           moved to XA PREPARE state.  Other threads may not modify the
           existing lock objects of trx; they may only create new ones
           in lock_rec_convert_impl_to_expl() or lock_rec_move(). */
@@ -5327,7 +5326,7 @@ static ulint lock_get_n_rec_locks()
 
 /*********************************************************************//**
 Prints info of locks for all transactions.
-@return FALSE if not able to acquire lock_sys.latch (and dislay info) */
+@return FALSE if not able to acquire lock_sys.latch (and display info) */
 ibool
 lock_print_info_summary(
 /*====================*/
@@ -7330,7 +7329,7 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
       ut_ad(victim->state == TRX_STATE_ACTIVE);
 
       /* victim->lock.was_chosen_as_deadlock_victim must always be set before
-      releasing waiting locks and reseting trx->lock.wait_lock */
+      releasing waiting locks and resetting trx->lock.wait_lock */
       victim->lock.was_chosen_as_deadlock_victim= true;
       DEBUG_SYNC_C("deadlock_report_before_lock_releasing");
       lock_cancel_waiting_and_release<true>(victim->lock.wait_lock);

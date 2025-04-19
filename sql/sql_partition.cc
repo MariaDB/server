@@ -1909,7 +1909,7 @@ bool check_part_func_fields(Field **ptr, bool ok_with_charsets)
 NOTES
     This function is called as part of opening the table by opening the .frm
     file. It is a part of CREATE TABLE to do this so it is quite permissible
-    that errors due to erroneus syntax isn't found until we come here.
+    that errors due to erroneous syntax isn't found until we come here.
     If the user has used a non-existing field in the table is one such example
     of an error that is not discovered until here.
 */
@@ -2131,8 +2131,8 @@ static int add_keyword_string(String *str, const char *keyword,
 /**
   @brief  Truncate the partition file name from a path it it exists.
 
-  @note  A partition file name will contian one or more '#' characters.
-One of the occurances of '#' will be either "#P#" or "#p#" depending
+  @note  A partition file name will contain one or more '#' characters.
+One of the occurrences of '#' will be either "#P#" or "#p#" depending
 on whether the storage engine has converted the filename to lower case.
 */
 void truncate_partition_filename(char *path)
@@ -2456,7 +2456,7 @@ end:
 
 
 /**
-  Add 'KEY' word, with optional 'ALGORTIHM = N'.
+  Add 'KEY' word, with optional 'ALGORITHM = N'.
 
   @param str                    String to write to.
   @param part_info              partition_info holding the used key_algorithm
@@ -4769,7 +4769,7 @@ bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
 
   @retval FALSE if they are equal, otherwise TRUE.
 
-  @note Any differens that would cause a change in the frm file is prohibited.
+  @note Any differences that would cause a change in the frm file is prohibited.
   Such options as data_file_name, index_file_name, min_rows, max_rows etc. are
   not allowed to differ. But comment is allowed to differ.
 */
@@ -5125,7 +5125,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
           }
           /*
             Adding history partitions to non-history partitioning or
-            non-history parittions to history partitioning is prohibited.
+            non-history partitions to history partitioning is prohibited.
           */
           else if (thd->work_part_info->part_type == VERSIONING_PARTITION ||
                    tab_part_info->part_type == VERSIONING_PARTITION)
@@ -7737,7 +7737,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
          can release all other locks on the table and since no one can open
          the table, there can be no new threads accessing the table. They
          will be hanging on this exclusive lock.
-      3) Write an entry to remove the new parttions if crash occurs
+      3) Write an entry to remove the new partitions if crash occurs
       4) Add the new partitions.
       5) Close all instances of the table and remove them from the table cache.
       6) Old place for write binlog

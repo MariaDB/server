@@ -1080,9 +1080,9 @@ static void __attribute__((noinline)) print_result()
         If the error message includes REPAIR TABLE, we assume it means
         we have to run REPAIR on it. In this case we write a nicer message
         than "Please do "REPAIR TABLE""...
-        If the message inclused ALTER TABLE then there is something wrong
+        If the message includes ALTER TABLE then there is something wrong
         with the table definition and we have to run ALTER TABLE to fix it.
-        Write also a nice error message for this csae.
+        Write also a nice error message for this case.
       */
       if (!strcmp(row[2],"error") && strstr(row[3],"REPAIR "))
       {

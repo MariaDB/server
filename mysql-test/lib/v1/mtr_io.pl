@@ -136,7 +136,7 @@ sub envsubst {
 
   if ( ! defined $ENV{$string} )
   {
-    mtr_error("opt file referense \$$string that is unknown");
+    mtr_error("opt file reference \$$string that is unknown");
   }
 
   return $ENV{$string};

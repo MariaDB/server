@@ -489,7 +489,7 @@ typedef unsigned short ushort;
 #include <my_alloca.h>
 
 /*
-  Wen using the embedded library, users might run into link problems,
+  When using the embedded library, users might run into link problems,
   duplicate declaration of __cxa_pure_virtual, solved by declaring it a
   weak symbol.
 */
@@ -684,7 +684,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
 */
 #define MALLOC_OVERHEAD (8+24)
 
-	/* get memory in huncs */
+	/* get memory in hunks */
 #define ONCE_ALLOC_INIT		(uint) 4096
 	/* Typical record cache */
 #define RECORD_CACHE_SIZE	(uint) (128*1024)

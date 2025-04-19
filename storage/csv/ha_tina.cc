@@ -299,7 +299,7 @@ error:
   DESCRIPTION
 
     Read the meta-file info. For now we are only interested in
-    rows counf, crashed bit and magic number.
+    rows count, crashed bit and magic number.
 
   RETURN
     0 - OK
@@ -1006,7 +1006,7 @@ int ha_tina::open(const char *name, int mode, uint open_options)
 
 
 /*
-  Close a database file. We remove ourselves from the shared strucutre.
+  Close a database file. We remove ourselves from the shared structure.
   If it is empty we destroy it.
 */
 int ha_tina::close(void)
@@ -1292,7 +1292,7 @@ void ha_tina::position(const uchar *record)
 
 
 /*
-  Used to fetch a row from a posiion stored with ::position().
+  Used to fetch a row from a position stored with ::position().
   my_get_ptr() retrieves the data for you.
 */
 
@@ -1397,7 +1397,7 @@ int ha_tina::rnd_end()
 
     /*
       The sort is needed when there were updates/deletes with random orders.
-      It sorts so that we move the firts blocks to the beginning.
+      It sorts so that we move the first blocks to the beginning.
     */
     my_qsort(chain, (size_t)(chain_ptr - chain), sizeof(tina_set),
              (qsort_cmp)sort_set);
@@ -1729,6 +1729,11 @@ int ha_tina::create(const char *name, TABLE *table_arg,
     }
   }
   
+  if (create_info->data_file_name)
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "DATA DIRECTORY");
+
+  if (create_info->index_file_name && table_arg->s->keys)
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "INDEX DIRECTORY");
 
   if ((create_file= mysql_file_create(csv_key_file_metadata,
                                       fn_format(name_buff, name, "", CSM_EXT,

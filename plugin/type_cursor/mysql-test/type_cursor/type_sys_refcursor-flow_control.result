@@ -1,0 +1,114 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# IF expr
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+IF c0 THEN
+SELECT 'TRUE';
+ELSE
+SELECT 'NOT TRUE';
+END IF;
+END;
+/
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'IF'
+#
+# CASE expr WHEN..THEN
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+CASE c0 WHEN TRUE THEN
+SELECT 'TRUE';
+ELSE
+SELECT 'NOT TRUE';
+END CASE;
+END;
+/
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'EXPRESSION CACHE (e.g. SUBSELECT)'
+#
+# CASE WHEN expr THEN
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+CASE
+WHEN c0 THEN
+SELECT 'TRUE';
+ELSE
+SELECT 'NOT TRUE';
+END CASE;
+END;
+/
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'IF'
+#
+# UNTIL expr
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+OPEN c0 FOR SELECT 1;
+REPEAT
+FETCH c0 INTO v;
+UNTIL c0
+END REPEAT;
+END;
+/
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'IF'
+#
+# WHILE expr
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+OPEN c0 FOR SELECT 1;
+WHILE c0 DO
+FETCH c0 INTO v;
+END WHILE;
+END;
+/
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'IF'
+#
+# EXIT WHEN expr
+#
+SET sql_mode=ORACLE;
+DECLARE
+c0 SYS_REFCURSOR;
+BEGIN
+OPEN c0 FOR SELECT 1;
+FOR i IN 0..5
+LOOP
+EXIT WHEN c0;
+END LOOP;
+END;
+/
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'IF'
+SET sql_mode=DEFAULT;
+#
+# RAISE expr
+#
+SET sql_mode=ORACLE;
+DECLARE
+c0 SYS_REFCURSOR;
+BEGIN
+RAISE c0;
+EXCEPTION
+WHEN OTHERS THEN SELECT 'Got some exception';
+END;
+/
+ERROR 42000: Undefined CONDITION: c0
+SET sql_mode=DEFAULT;
+#
+# EXCEPTION WHEN expr
+#
+SET sql_mode=ORACLE;
+DECLARE
+c0 SYS_REFCURSOR;
+BEGIN
+SELECT 1;
+EXCEPTION
+WHEN c0 THEN RETURN 'Got exception c0';
+END;
+/
+ERROR 42000: Undefined CONDITION: c0
+SET sql_mode=DEFAULT;

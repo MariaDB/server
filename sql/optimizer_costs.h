@@ -102,7 +102,7 @@ extern OPTIMIZER_COSTS heap_optimizer_costs, tmp_table_optimizer_costs;
    A factor of 0.1 makes the cost of get_pq_sort_cost(10, 10, false) =0.52
    (Reading 10 rows into a priority queue of 10 elements).
 
-   One consenquence if this factor is too high is that priority_queue will
+   One consequence if this factor is too high is that priority_queue will
    not use addon fields (to solve the sort without having to do an extra
    re-read of rows) even if the number of LIMIT is low.
 */

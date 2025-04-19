@@ -231,7 +231,7 @@ public:
 
   /*
     Used by max/min subquery to initialize value presence registration
-    mechanism. Engine call this method before rexecution query.
+    mechanism. Engine call this method before reexecution query.
   */
   virtual void reset_value_registration() {}
   enum_parsing_place place() { return parsing_place; }
@@ -1273,7 +1273,7 @@ protected:
   /*
     Mapping from row numbers to row ids. The element row_num_to_rowid[i]
     contains a buffer with the rowid for the row numbered 'i'.
-    The memory for this member is not maintanined by this class because
+    The memory for this member is not maintained by this class because
     all Ordered_key indexes of the same table share the same mapping.
   */
   uchar *row_num_to_rowid;

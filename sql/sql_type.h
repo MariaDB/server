@@ -25,6 +25,7 @@
 #include "sql_time.h"
 #include "sql_type_string.h"
 #include "sql_type_real.h"
+#include "sql_type_ref.h"
 #include "compat56.h"
 #include "log_event_data_type.h"
 
@@ -52,6 +53,8 @@ class Item_func_hex;
 class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
+class Item_func_last_value;
+class Item_func_sp;
 class Item_bool_func2;
 class Item_bool_rowready_func2;
 class Item_func_between;
@@ -154,6 +157,57 @@ scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
   }
   DBUG_ASSERT(0);
   return LEX_CSTRING{STRING_WITH_LEN("<?>")};
+}
+
+
+enum class expr_event_t : uint32
+{
+  NONE=                               0,
+
+  /*
+    A result set row has been sent to the result sink, e.g. to the client.
+    All values in the row are not needed any more.
+  */
+  DESTRUCT_RESULT_SET_ROW_FIELD= 1 << 0,
+
+  /*
+     An Item_func evaluated its result,
+     argument values are not needed any more.
+  */
+  DESTRUCT_ROUTINE_ARG=          1 << 1,
+
+  /*
+    A value has been assigned to an SP variable.
+  */
+  DESTRUCT_ASSIGNMENT_RIGHT_HAND= 1 << 2,
+
+  /*
+    Flow control has left a BEGIN..END block,
+    all variables declared in this block are not needed any more.
+  */
+  DESTRUCT_OUT_OF_SCOPE=         1 << 3,
+
+  /*
+    A prepared statement has finished.
+    The values of Item_param instances are not needed any more.
+  */
+  DESTRUCT_DYNAMIC_PARAM=        1 << 4,
+
+  /*
+    Any kind of destruction listed above.
+  */
+  DESTRUCT_ANY= (uint32) (DESTRUCT_RESULT_SET_ROW_FIELD |
+                          DESTRUCT_ROUTINE_ARG |
+                          DESTRUCT_ASSIGNMENT_RIGHT_HAND |
+                          DESTRUCT_OUT_OF_SCOPE |
+                          DESTRUCT_DYNAMIC_PARAM)
+};
+
+
+static inline constexpr expr_event_t operator&(const expr_event_t a,
+                                               const expr_event_t b)
+{
+  return (expr_event_t) (((uint32) a) & ((uint32) b));
 }
 
 
@@ -1259,7 +1313,7 @@ public:
   };
 
 public:
-  // Contructors for Item
+  // Constructors for Item
   Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate);
   Temporal_hybrid(THD *thd, Item *item)
    :Temporal_hybrid(thd, item, Options(thd))
@@ -1315,7 +1369,7 @@ public:
     else
       make_from_decimal(thd, warn, nr, mode);
   }
-  // End of constuctors
+  // End of constructors
 
   bool copy_valid_value_to_mysql_time(MYSQL_TIME *ltime) const
   {
@@ -3072,7 +3126,7 @@ enum Derivation
     - BINARY(expr) and CAST(expr AS BINARY)
   */
   DERIVATION_IMPLICIT= 2,
-  DERIVATION_NONE= 1,      // A mix (e.g. CONCAT) of two differrent collations
+  DERIVATION_NONE= 1,      // A mix (e.g. CONCAT) of two different collations
   DERIVATION_EXPLICIT= 0   // An explicit COLLATE clause
 };
 
@@ -3470,7 +3524,7 @@ public:
 
 /*
   A container for very specific data type attributes.
-  For now it prodives space for:
+  For now it provides space for:
   - one const pointer attributes
   - one unt32 attribute
 */
@@ -4065,6 +4119,18 @@ public:
   {
     return this;
   }
+
+  /*
+    Returns true if this data type is complex (has some side effect),
+    so values of this type need additional handling, e.g. on destruction.
+    For example, SYS_REFCURSOR has a side effect:
+      it writes and reads THD::m_statement_cursors.
+  */
+  virtual bool is_complex() const
+  {
+    return false;
+  }
+
   virtual bool partition_field_check(const LEX_CSTRING &field_name, Item *)
     const
   {
@@ -4083,6 +4149,15 @@ public:
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const
   { return this; }
+  /*
+    Check if an Spvar_definition instance is of a complex data type,
+    or contains a complex data type in its components (e.g. a ROW member).
+  */
+  virtual bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
+                                                                         const
+  {
+    return false;
+  }
   virtual bool adjust_spparam_type(Spvar_definition *def, Item *from) const
   {
     return false;
@@ -4095,6 +4170,7 @@ public:
   */
   bool is_traditional_scalar_type() const;
   virtual bool is_scalar_type() const { return true; }
+  virtual bool can_return_bool() const { return can_return_int(); }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }
@@ -4338,6 +4414,9 @@ public:
   virtual void Item_param_setup_conversion(THD *thd, Item_param *) const {}
   virtual void Item_param_set_param_func(Item_param *param,
                                          uchar **pos, ulong len) const;
+  virtual void Item_param_expr_event_handler(THD *thd, Item_param *param,
+                                             expr_event_t event) const
+  { }
   virtual bool Item_param_set_from_value(THD *thd,
                                          Item_param *param,
                                          const Type_all_attributes *attr,
@@ -4345,6 +4424,12 @@ public:
   virtual bool Item_param_val_native(THD *thd,
                                          Item_param *item,
                                          Native *to) const;
+  virtual Type_ref_null Item_param_val_ref(THD *thd, const Item_param *item)
+                                                                       const
+  {
+    return Type_ref_null();
+  }
+
   virtual bool Item_send(Item *item, Protocol *p, st_value *buf) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
@@ -4581,6 +4666,10 @@ public:
                                                 MYSQL_TIME *,
                                                 date_mode_t) const;
   virtual
+  Type_ref_null Item_func_hybrid_field_type_val_ref(THD *thd,
+                                            Item_func_hybrid_field_type *item)
+                                                                         const;
+  virtual
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const= 0;
   virtual
   double Item_func_min_max_val_real(Item_func_min_max *) const= 0;
@@ -4753,6 +4842,9 @@ public:
   {
     return false;
   }
+  bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
+                                                       const override;
+
   Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *, const Record_addr &,
                           const Type_all_attributes &, TABLE_SHARE *)
     const override
@@ -7902,7 +7994,7 @@ extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long_ge0>    type_han
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_longlong>    type_handler_slonglong;
 
 extern Named_type_handler<Type_handler_utiny>       type_handler_utiny;
-extern Named_type_handler<Type_handler_ushort>      type_handler_ushort;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ushort>      type_handler_ushort;
 extern Named_type_handler<Type_handler_uint24>      type_handler_uint24;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ulong>       type_handler_ulong;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ulonglong>   type_handler_ulonglong;

@@ -656,7 +656,7 @@ Rowid_filter::build_return_code Range_rowid_filter::build()
     Binary search in the sorted array of a rowid filter
 
   @param ctxt   context of the search
-  @parab elem   rowid / primary key to look for
+  @param elem   rowid / primary key to look for
 
   @details
     The function looks for the rowid / primary key ' elem' in this container

@@ -260,6 +260,19 @@ private:
   bool reprepare();
   bool validate_metadata(Prepared_statement  *copy);
   void swap_prepared_statement(Prepared_statement *copy);
+
+  // Run the expression event handler for all placeholders
+  void placeholders_expr_event_handler(expr_event_t event)
+  {
+    List_iterator_fast<Item_param> item_param_it(lex->param_list);
+    for (Item_param *item_param= item_param_it++;
+         item_param;
+         item_param= item_param_it++)
+    {
+      item_param->expr_event_handler(thd, event);
+    }
+  }
+
 };
 
 /**
@@ -1974,7 +1987,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
   res= select_like_stmt_test(stmt, 0, 0);
 
 err:
-  /* put view back for PS rexecuting */
+  /* put view back for PS reexecuting */
   lex->link_first_table_back(view, link_to_local);
   DBUG_RETURN(res);
 }
@@ -2616,7 +2629,7 @@ end:
 
   mysql_sql_stmt_prepare() and mysql_sql_stmt_execute_immediate()
   call get_dynamic_sql_string() and then call respectively
-  Prepare_statement::prepare() and Prepare_statment::execute_immediate(),
+  Prepare_statement::prepare() and Prepare_statement::execute_immediate(),
   who store the returned result into its permanent location using
   alloc_query(). "buffer" is still not destructed at that time.
 
@@ -4312,7 +4325,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
                          NULL in case of SQL PS
   @param packet_end      end of the packet. NULL in case of SQL PS
 
-  @todo Use a paremeter source class family instead of 'if's, and
+  @todo Use a parameter source class family instead of 'if's, and
   support stored procedure variables.
 
   @retval TRUE an error occurred when assigning a parameter (likely
@@ -4926,7 +4939,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   @param expanded_query     A query for binlogging which has all parameter
                             markers ('?') replaced with their actual values.
   @param open_cursor        True if an attempt to open a cursor should be made.
-                            Currenlty used only in the binary protocol.
+                            Currently used only in the binary protocol.
 
   @note
     Preconditions, postconditions.
@@ -5126,7 +5139,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     SET STATEMENT clause is performed on return from the method
     Prepared_statement::execute(), by the time the function log_slow_statement()
     be invoked from the function dispatch_command() all variables set by
-    the SET STATEMEN clause would be already reset to their original values
+    the SET STATEMENT clause would be already reset to their original values
     that break semantic of the SET STATEMENT clause.
 
     E.g., lets consider the following statements
@@ -5191,6 +5204,8 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     else
       thd->protocol->send_out_parameters(&this->lex->param_list);
   }
+
+  placeholders_expr_event_handler(expr_event_t::DESTRUCT_DYNAMIC_PARAM);
 
 error:
   error|= thd->lex->restore_set_statement_var();

@@ -558,7 +558,7 @@ bool partition_info::set_up_defaults_for_partitioning(THD *thd, handler *file,
     no parameters
 
   RETURN VALUE
-    Erroneus field name  Error, there are two fields with same name
+    Erroneous field name  Error, there are two fields with same name
     NULL                 Ok, no field defined twice
 
   DESCRIPTION

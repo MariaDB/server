@@ -101,7 +101,7 @@ extern my_bool opt_ssl_verify_server_cert, opt_use_ssl;
 
 /*
   get_os_user()
-  Ressemles read_user_name() from libmariadb/libmariadb/mariadb_lib.c.
+  Resembles read_user_name() from libmariadb/libmariadb/mariadb_lib.c.
 */
 
 #if !defined(_WIN32)
@@ -1405,7 +1405,7 @@ are used because donor's wsrep_gtid_domain_id is needed later in joiner.
 Note that at this stage wsrep_local_state_uuid and wsrep_last_committed
 are inconsistent but they are not used in joiner. Joiner will rewrite this file
 at mariabackup --prepare phase and thus there is extra file donor_galera_info.
-Information is needed to maitain wsrep_gtid_domain_id and gtid_binlog_pos
+Information is needed to maintain wsrep_gtid_domain_id and gtid_binlog_pos
 same across the cluster. If joiner node have different wsrep_gtid_domain_id
 we should still receive effective domain id from the donor node,
 and use it.
@@ -1895,7 +1895,7 @@ bool write_backup_config_file(ds_ctxt *datasink)
 		srv_log_file_size,
 		srv_page_size,
 		srv_undo_dir,
-                (uint) srv_undo_tablespaces,
+		srv_undo_tablespaces,
 		page_zip_level,
 		innobase_buffer_pool_filename ?
 			"innodb_buffer_pool_filename=" : "",

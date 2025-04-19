@@ -35,7 +35,7 @@ Created 10/13/2010 Jimmy Yang
 #include "btr0bulk.h"
 #include "srv0srv.h"
 
-/** This structure defineds information the scan thread will fetch
+/** This structure defines information the scan thread will fetch
 and put to the linked list for parallel tokenization/sort threads
 to process */
 typedef struct fts_doc_item     fts_doc_item_t;

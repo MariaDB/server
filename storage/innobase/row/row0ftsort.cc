@@ -504,7 +504,7 @@ row_merge_fts_doc_tokenize(
 				row_merge_fts_doc_tokenize_by_parser(doc,
 					parser, t_ctx);
 
-				/* Just indictate we have parsed all the word */
+				/* Just indicate that we have parsed all words */
 				t_ctx->processed_len += 1;
 			}
 
@@ -593,7 +593,7 @@ row_merge_fts_doc_tokenize(
 		variable-length column is less than 128 bytes or the
 		maximum length is less than 256 bytes. */
 
-		/* One variable length column, word with its lenght less than
+		/* One variable length column, word with its length less than
 		fts_max_token_size, add one extra size and one extra byte.
 
 		Since the max length for FTS token now is larger than 255,
@@ -1276,7 +1276,7 @@ row_fts_insert_tuple(
 		ulint	num_item;
 
 		/* Getting a new word, flush the last position info
-		for the currnt word in fts_node */
+		for the current word in fts_node */
 		if (ib_vector_size(positions) > 0) {
 			fts_cache_node_add_positions(
 				NULL, fts_node, *in_doc_id, positions);

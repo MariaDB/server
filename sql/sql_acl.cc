@@ -612,7 +612,7 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem,
   /*
     Create a buffer that holds all 3 NULL terminated strings in succession
     To save memory space, the same buffer is used as the hashkey
-    Add the '\0' aswell.
+    Add the '\0' as well.
   */
   size_t bufflen= username.length + hostname.length + rolename.length + 3;
   char *buff= (char *)alloc_root(mem, bufflen);
@@ -3670,7 +3670,7 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
         return 1;
       }
     }
-    DBUG_ASSERT(work_copy); // allocated under the same condinition
+    DBUG_ASSERT(work_copy); // allocated under the same condition
     memcpy(acl_user->auth, work_copy,  nauth * sizeof(ACL_USER_PARAM::AUTH));
   }
 
@@ -3989,7 +3989,7 @@ static my_bool acl_role_reset_role_arrays(void *ptr,
 }
 
 /*
-   Add a the coresponding pointers present in the mapping to the entries in
+   Add the corresponding pointers present in the mapping to the entries in
    acl_users and acl_roles
 */
 static bool add_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
@@ -4696,7 +4696,7 @@ static bool compare_hostname(const acl_host_and_ip *host, const char *hostname,
 
   @return a flag telling if the argument needs to be resolved or not.
   @retval TRUE the argument is a host name and needs to be resolved.
-  @retval FALSE the argument is either an IP address, or a patter and
+  @retval FALSE the argument is either an IP address, or a pattern and
           should not be resolved.
 */
 
@@ -5522,7 +5522,7 @@ public:
     column= (char*) memdup_root(&grant_memroot,c.ptr(), key_length=c.length());
   }
 
-  /* this constructor assumes thas source->column is allocated in grant_memroot */
+  /* this constructor assumes that source->column is allocated in grant_memroot */
   GRANT_COLUMN(GRANT_COLUMN *source) : column(source->column),
     rights (source->rights), init_rights(NO_ACL), key_length(source->key_length) { }
 };
@@ -6283,7 +6283,7 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
       grant tables for the user.  There is however always a small change that
       the user has modified the grant tables directly.
 
-      Also, there is also a second posibility that this routine entry
+      Also, there is also a second possibility that this routine entry
       is created for a role by being inherited from a granted role.
     */
     if (revoke_grant)
@@ -6458,9 +6458,9 @@ static void propagate_role_grants(ACL_ROLE *role,
      We need to rebuild all roles' related access bits.
 
      This cannot be a simple depth-first search, instead we have to merge
-     privieges for all roles granted to a specific grantee, *before*
+     privileges for all roles granted to a specific grantee, *before*
      merging privileges for this grantee. In other words, we must visit all
-     parent nodes of a specific node, before descencing into this node.
+     parent nodes of a specific node, before descending into this node.
 
      For example, if role1 is granted to role2 and role3, and role3 is
      granted to role2, after "GRANT ... role1", we cannot merge privileges
@@ -8745,7 +8745,7 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
 
   char command[128];
   get_privilege_desc(command, sizeof(command), want_access);
-  /* TODO perhaps error should print current rolename aswell */
+  /* TODO perhaps error should print current rolename as well */
   my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0), command, sctx->priv_user,
            sctx->host_or_ip, column_name.str, table_name);
   DBUG_RETURN(1);
@@ -8835,7 +8835,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
   @param  fields an iterator over the fields of a table reference.
   @return Operation status
     @retval 0 Success
-    @retval 1 Falure
+    @retval 1 Failure
   @details This function walks over the columns of a table reference
    The columns may originate from different tables, depending on the kind of
    table reference, e.g. join, view.
@@ -9055,7 +9055,7 @@ bool check_grant_db(THD *thd, const char *db)
 
    RETURN
      0  ok
-     1  Error: User did not have the requested privielges
+     1  Error: User did not have the requested privileges
 ****************************************************************************/
 
 bool check_grant_routine(THD *thd, privilege_t want_access,
@@ -13127,7 +13127,12 @@ static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
 int fill_users_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   int res= 0;
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /* --skip-grants */
+  if (!initialized)
+    return res;
+
   bool see_whole_table= check_access(thd, SELECT_ACL, "mysql", NULL, NULL,
                                      true, true) == 0;
   TABLE *table= tables->table;
@@ -13282,6 +13287,9 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       dup->host= empty_clex_str;
       return dup;
     }
+
+    if (!initialized)
+      return dup;
 
     if (lock)
       mysql_mutex_lock(&acl_cache->lock);
@@ -14052,7 +14060,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   @param thd                     thread handle
 
   @return true in case the option require_secure_transport is on and the client
-          uses euther named pipe or unix socket or ssl, else return false
+          uses either named pipe or unix socket or ssl, else return false
 */
 
 static bool check_require_secured_transport(THD *thd)

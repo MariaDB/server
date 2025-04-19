@@ -400,19 +400,22 @@ public:
     REGULAR_SCOPE,
 
     /// HANDLER_SCOPE designates SQL-handler blocks.
-    HANDLER_SCOPE
+    HANDLER_SCOPE,
+
+    /// Declarations between CREATE PACKAGE and BEGIN
+    PACKAGE_BODY_SCOPE
   };
 
   class Lex_for_loop: public Lex_for_loop_st
   {
   public:
     /*
-      The label poiting to the body start,
+      The label pointing to the body start,
       either explicit or automatically generated.
       Used during generation of "ITERATE loop_label"
       to check if "loop_label" is a FOR loop label.
       - In case of a FOR loop, some additional code
-        (cursor fetch or iteger increment) is generated before
+        (cursor fetch or integer increment) is generated before
         the backward jump to the beginning of the loop body.
       - In case of other loop types (WHILE, REPEAT)
         only the jump is generated.
@@ -743,6 +746,10 @@ public:
   const Lex_for_loop &for_loop()
   {
     return m_for_loop;
+  }
+  enum_scope scope() const
+  {
+    return m_scope;
   }
 
   /////////////////////////////////////////////////////////////////////////

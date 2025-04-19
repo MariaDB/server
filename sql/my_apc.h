@@ -23,7 +23,7 @@
     - This is an APC request queue
     - We assume there is a particular owner thread which periodically calls
       process_apc_requests() to serve the call requests.
-    - Other threads can post call requests, and block until they are exectued.
+    - Other threads can post call requests, and block until they are executed.
   )
 
   Implementation
@@ -31,7 +31,7 @@
   - The target has a mutex-guarded request queue.
 
   - After the request has been put into queue, the requestor waits for request
-    to be satisfied. The worker satisifes the request and signals the
+    to be satisfied. The worker satisfies the request and signals the
     requestor.
 */
 

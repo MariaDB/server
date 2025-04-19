@@ -606,7 +606,7 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
     /*
       We must set cmp_collation here as we may be called from for an automatic
       generated item, like in natural join.
-      Allow reinterpted superset as subset.
+      Allow reinterpreted superset as subset.
       Use charset narrowing only for equalities, as that would allow
       to construct ref access.
       Non-equality comparisons with constants work without charset narrowing,
@@ -2586,6 +2586,14 @@ bool Item_func_ifnull::time_op(THD *thd, MYSQL_TIME *ltime)
 }
 
 
+Type_ref_null Item_func_ifnull::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  const Type_ref_null res= args[0]->val_ref(thd);
+  return !res.is_null() ? res : args[1]->val_ref(thd);
+}
+
+
 /**
   Perform context analysis of an IF item tree.
 
@@ -2715,7 +2723,7 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
     If this is the first invocation of fix_length_and_dec(), create the
     third argument as a copy of the first. This cannot be done before
     fix_fields(), because fix_fields() might replace items,
-    for exampe NOT x --> x==0, or (SELECT 1) --> 1.
+    for example NOT x --> x==0, or (SELECT 1) --> 1.
     See also class Item_func_nullif declaration.
   */
   if (arg_count == 2)
@@ -2731,7 +2739,7 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
                                          l_expr
       args[2]= >------------------------/
 
-    Otherwise (during PREPARE or convensional execution),
+    Otherwise (during PREPARE or conventional execution),
     args[0] and args[2] should still point to the same original l_expr.
   */
   DBUG_ASSERT(args[0] == args[2] || thd->stmt_arena->is_stmt_execute());
@@ -2814,7 +2822,7 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
                    l_expr                            (Item_field for t1.a)
           args[2] /
 
-        d. Conversion of only args[0] happened (by equal field proparation):
+        d. Conversion of only args[0] happened (by equal field propagation):
 
            CREATE OR REPLACE TABLE t1 (
              a CHAR(10),
@@ -3283,6 +3291,13 @@ bool Item_func_case::native_op(THD *thd, Native *to)
 }
 
 
+Type_ref_null Item_func_case::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  Item *item= find_item();
+  return item ? item->val_ref(thd) : Type_ref_null();
+}
+
 bool Item_func_case::fix_fields(THD *thd, Item **ref)
 {
   bool res= Item_func::fix_fields(thd, ref);
@@ -3403,7 +3418,7 @@ bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
       If we'll do string comparison, we also need to aggregate
       character set and collation for first/WHEN items and
       install converters for some of them to cmp_collation when necessary.
-      This is done because cmp_item compatators cannot compare
+      This is done because cmp_item comparators cannot compare
       strings in two different character sets.
       Some examples when we install converters:
 
@@ -3672,6 +3687,20 @@ my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
   null_value=1;
   return 0;
 }
+
+
+Type_ref_null Item_func_coalesce::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  for (uint i=0 ; i < arg_count ; i++)
+  {
+    const Type_ref_null res= args[i]->val_ref(thd);
+    if (!res.is_null())
+      return res;
+  }
+  return Type_ref_null();
+}
+
 
 
 /****************************************************************************
@@ -4709,7 +4738,7 @@ void Item_func_in::fix_in_vector()
     else
     {
       /*
-        We don't put NULL values in array, to avoid erronous matches in
+        We don't put NULL values in array, to avoid erroneous matches in
         bisection.
       */
       have_null= 1;
@@ -4760,7 +4789,7 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
         m_comparator.set_handler(&type_handler_slonglong);
     }
   }
-  return thd->is_fatal_error; // Catch errrors in convert_const_to_int
+  return thd->is_fatal_error; // Catch errors in convert_const_to_int
 }
 
 
@@ -5435,7 +5464,7 @@ Item *Item_cond::do_transform(THD *thd, Item_transformer transformer, uchar *arg
   callback functions.
   
     First the function applies the analyzer to the root node of
-    the Item_func object. Then if the analyzer succeeeds (returns TRUE)
+    the Item_func object. Then if the analyzer succeeds (returns TRUE)
     the function recursively applies the compile method to member
     item of the condition list.
     If the call of the method for a member item returns a new item
@@ -7897,7 +7926,7 @@ Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
 
     2. After this all equalities of the form x=a (where x designates the first
        non-constant member for which checker returns true and a is some other
-       such member of the multiplle equality) are created. When constructing
+       such member of the multiple equality) are created. When constructing
        an equality item both its parts are taken as clones of x and a.
     
        Suppose in the examples above that for 'x', 'a', and 'b' the function

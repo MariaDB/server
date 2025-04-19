@@ -6807,7 +6807,7 @@ int read_line()
   my_bool have_slash= FALSE;
   
   enum {R_NORMAL, R_Q, R_SLASH_IN_Q,
-        R_COMMENT, R_LINE_START} state= R_LINE_START;
+        R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT} state= R_LINE_START;
   DBUG_ENTER("read_line");
 
   *p= 0;
@@ -6894,7 +6894,21 @@ int read_line()
 	  state= R_Q;
 	}
       }
+      else if (c == '*' && last_char == '/')
+      {
+        state= R_CSTYLE_COMMENT;
+        break;
+      }
       have_slash= is_escape_char(c, last_quote);
+      break;
+
+    case R_CSTYLE_COMMENT:
+      if (c == '!')
+        // Got the hint introducer '/*!'. Switch to normal processing of
+        // next following characters
+        state= R_NORMAL;
+      else if (c == '/' && last_char == '*')
+        state= R_NORMAL;
       break;
 
     case R_COMMENT:
@@ -8625,7 +8639,7 @@ void handle_no_error(struct st_command *command)
 
   SYNOPSIS
   read_stmt_results
-  stmt - prepare statemet
+  stmt - prepare statement
   mysql - mysql handle
   command - current command pointer
   ds - output buffer where to store result form query
@@ -9534,7 +9548,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     rs_output= &rs_cmp_result;
   }
   else
-    rs_output= &ds_res; // will be shown to colsole
+    rs_output= &ds_res; // will be shown to console
 
   /*
     Log the query into the output buffer

@@ -273,7 +273,7 @@ protected:
 /**
   A base class for everything that can be set with SET command.
   It's similar to Items, an instance of this is created by the parser
-  for every assigmnent in SET (or elsewhere, e.g. in SELECT).
+  for every assignment in SET (or elsewhere, e.g. in SELECT).
 */
 class set_var_base :public Sql_alloc
 {

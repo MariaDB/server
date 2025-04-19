@@ -41,7 +41,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
   range in my_win_* function will be punished with DBUG_ASSERT()
 
   - File streams (FILE *) are actually from the C runtime. The routines provided
-  here are useful only in scernarios that use low-level IO with my_win_fileno()
+  here are useful only in scenarios that use low-level IO with my_win_fileno()
 */
 
 #ifdef _WIN32

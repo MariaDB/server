@@ -106,7 +106,7 @@ int my_copy(const char *from, const char *to, myf MyFlags)
     /* Copy modes if possible */
 
     if (MyFlags & MY_HOLD_ORIGINAL_MODES && !new_file_stat)
-	DBUG_RETURN(0);			/* File copyed but not stat */
+	DBUG_RETURN(0);			/* File copied but not stat */
     /* Copy modes */
     if (chmod(to, stat_buff.st_mode & 07777))
     {

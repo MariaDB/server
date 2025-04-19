@@ -34,7 +34,7 @@ extern handlerton *sql_sequence_hton;
   The sequence data (SEQUENCE class) is stored in TABLE_SHARE->sequence
 
   TABLE RULES:
-      1. When table is created, one row is automaticlly inserted into
+      1. When table is created, one row is automatically inserted into
          the table. The table will always have one and only one row.
       2. Any inserts or updates to the table will be validated.
       3. Inserts will overwrite the original row.
@@ -94,6 +94,9 @@ public:
   /* For ALTER ONLINE TABLE */
   bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
                                   uint table_changes) override;
+  enum_alter_inplace_result
+  check_if_supported_inplace_alter(TABLE *altered_table,
+                                   Alter_inplace_info *ai) override;
   void write_lock() { write_locked= 1;}
   void unlock() { write_locked= 0; }
   bool is_locked() { return write_locked; }

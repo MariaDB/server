@@ -277,7 +277,7 @@ dtuple_set_n_fields(
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		n_fields)	/*!< in: number of fields */
 	MY_ATTRIBUTE((nonnull));
-/** Copies a data tuple's virtaul fields to another. This is a shallow copy;
+/** Copies a data tuple's virtual fields to another. This is a shallow copy;
 @param[in,out]	d_tuple		destination tuple
 @param[in]	s_tuple		source tuple */
 UNIV_INLINE

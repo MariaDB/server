@@ -43,7 +43,7 @@ class XID_cache_element
 {
   /*
     m_state is used to prevent elements from being deleted while XA RECOVER
-    iterates xid cache and to prevent recovered elments from being acquired by
+    iterates xid cache and to prevent recovered elements from being acquired by
     multiple threads.
 
     bits 1..29 are reference counter

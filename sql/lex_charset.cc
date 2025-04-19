@@ -114,7 +114,7 @@ Lex_exact_collation::raise_if_not_equal(const Lex_exact_collation &cl) const
 
 
 /*
-  Merge an exact collation and a contexual collation.
+  Merge an exact collation and a contextual collation.
   @param cl            - The contextual collation to merge to "this".
   @param reverse_order - If the contextual collation is on the left side
 

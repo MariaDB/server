@@ -41,8 +41,8 @@
   
   We keep a file pointer open for each instance of ha_archive for each read
   but for writes we keep one open file handle just for that. We flush it
-  only if we have a read occur. azip handles compressing lots of records
-  at once much better then doing lots of little records between writes.
+  only if we have a read occur. azio handles compressing lots of records
+  at once much better than doing lots of little records between writes.
   It is possible to not lock on writes but this would then mean we couldn't
   handle bulk inserts as well (that is if someone was trying to read at
   the same time since we would want to flush).
@@ -60,7 +60,7 @@
 
   At some point a recovery method for such a drastic case needs to be divised.
 
-  Locks are row level, and you will get a consistant read. 
+  Locks are row level, and you will get a consistent read.
 
   For performance as far as table scans go it is quite fast. I don't have
   good numbers but locally it has out performed both Innodb and MyISAM. For
@@ -826,7 +826,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
 #endif /* HAVE_READLINK */
   {
     if (create_info->data_file_name)
-      my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING), "DATA DIRECTORY");
+      my_error(WARN_OPTION_IGNORED, MYF(ME_NOTE), "DATA DIRECTORY");
 
     fn_format(name_buff, name, "", ARZ,
               MY_REPLACE_EXT | MY_UNPACK_FILENAME);
@@ -834,8 +834,8 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   }
 
   /* Archive engine never uses INDEX DIRECTORY. */
-  if (create_info->index_file_name)
-      my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING), "INDEX DIRECTORY");
+  if (create_info->index_file_name && table_arg->s->keys)
+      my_error(WARN_OPTION_IGNORED, MYF(ME_NOTE), "INDEX DIRECTORY");
 
   /*
     There is a chance that the file was "discovered". In this case
@@ -1010,7 +1010,7 @@ int ha_archive::write_row(const uchar *buf)
     temp_auto= table->next_number_field->val_int();
 
     /*
-      We don't support decremening auto_increment. They make the performance
+      We don't support decrementing auto_increment. They make the performance
       just cry.
     */
     if (temp_auto <= share->archive_write.auto_increment && 

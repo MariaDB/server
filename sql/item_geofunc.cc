@@ -2528,7 +2528,7 @@ double Item_func_sphere_distance::val_real()
   String *arg2= args[1]->val_str(&bak2);
   double distance= 0.0;
   double sphere_radius= 6370986.0; // Default radius equals Earth radius
-  
+
   null_value= (args[0]->null_value || args[1]->null_value);
   if (null_value)
   {
@@ -2546,7 +2546,7 @@ double Item_func_sphere_distance::val_real()
     }
     if (sphere_radius <= 0)
     {
-      my_error(ER_INTERNAL_ERROR, MYF(0), "Radius must be greater than zero.");
+      my_error(ER_GIS_UNSUPPORTED_ARGUMENT, MYF(0), func_name());
       return 1;
     }
   }
@@ -2558,26 +2558,27 @@ double Item_func_sphere_distance::val_real()
     my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_Distance_Sphere");
     goto handle_errors;
   }
-// Method allowed for points and multipoints
+  // Method allowed for points and multipoints
   if (!(g1->get_class_info()->m_type_id == Geometry::wkb_point ||
         g1->get_class_info()->m_type_id == Geometry::wkb_multipoint) ||
       !(g2->get_class_info()->m_type_id == Geometry::wkb_point ||
         g2->get_class_info()->m_type_id == Geometry::wkb_multipoint))
   {
-    // Generate error message in case different geometry is used? 
-    my_error(ER_INTERNAL_ERROR, MYF(0), func_name());
+    // Generate error message in case of unexpected geometry.
+    my_error(ER_GIS_UNSUPPORTED_ARGUMENT, MYF(0), func_name());
     return 0;
   }
   distance= spherical_distance_points(g1, g2, sphere_radius);
   if (distance < 0)
   {
-    my_error(ER_INTERNAL_ERROR, MYF(0), "Returned distance cannot be negative.");
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "Returned distance cannot be negative.");
     return 1;
   }
   return distance;
 
-  handle_errors:
-    return 0;
+handle_errors:
+  return 0;
 }
 
 
@@ -2770,7 +2771,7 @@ mem_error:
 #ifndef DBUG_OFF
 longlong Item_func_gis_debug::val_int()
 {
-  /* For now this is just a stub. TODO: implement the internal GIS debuggign */
+  /* For now this is just a stub. TODO: implement the internal GIS debugging */
   return 0;
 }
 #endif

@@ -80,7 +80,7 @@ int Wsrep_storage_service::start_transaction(const wsrep::ws_handle& ws_handle)
 {
   DBUG_ENTER("Wsrep_storage_service::start_transaction");
   DBUG_ASSERT(m_thd == current_thd);
-  DBUG_PRINT("info", ("Wsrep_storage_service::start_transcation(%llu, %p)",
+  DBUG_PRINT("info", ("Wsrep_storage_service::start_transaction(%llu, %p)",
                       m_thd->thread_id, m_thd));
   m_thd->set_wsrep_next_trx_id(ws_handle.transaction_id().get());
   DBUG_RETURN(m_thd->wsrep_cs().start_transaction(

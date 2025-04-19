@@ -1113,7 +1113,7 @@ Sql_condition* THD::raise_condition(const Sql_condition *cond)
 #ifdef WITH_WSREP
   /*
     Suppress warnings/errors if the wsrep THD is going to replay. The
-    deadlock/interrupted errors may be transitient and should not be
+    deadlock/interrupted errors may be transient and should not be
     reported to the client.
   */
   if (wsrep_must_replay(this))
@@ -1573,6 +1573,7 @@ void THD::change_user(void)
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
+  statement_rcontext_reinit();
   opt_trace.delete_traces();
 }
 
@@ -1704,6 +1705,7 @@ void THD::cleanup(void)
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
   sp_caches_clear();
+  statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -1859,6 +1861,9 @@ THD::~THD()
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
+
+  statement_rcontext_reinit();
+
   my_free(semisync_info);
 #endif
   main_lex.free_set_stmt_mem_root();
@@ -2417,6 +2422,15 @@ void THD::cleanup_after_query()
   DBUG_ENTER("THD::cleanup_after_query");
 
   thd_progress_end(this);
+
+  if (!spcont && !in_sub_stmt)
+  {
+    /*
+      We're at the end of the top level statement
+      (not just in the end of a stored routine individual statement).
+    */
+    statement_rcontext_reinit();
+  }
 
   /*
     Reset RAND_USED so that detection of calls to rand() will save random
@@ -3198,6 +3212,25 @@ void Item_change_list::rollback_item_tree_changes()
 ** Functions to provide a interface to select results
 *****************************************************************************/
 
+int select_result_sink::send_data_with_check(List<Item> &items,
+                                             SELECT_LEX_UNIT *u,
+                                             ha_rows sent)
+{
+  if (u->lim.check_offset(sent))
+    return 0;
+
+  if (u->thd->killed == ABORT_QUERY)
+    return 0;
+
+  int rc= send_data(items);
+
+  if (thd->stmt_arena->with_complex_data_types())
+    thd->stmt_arena->expr_event_handler_for_free_list(thd,
+                                  expr_event_t::DESTRUCT_RESULT_SET_ROW_FIELD);
+  return rc;
+}
+
+
 void select_result::reset_for_next_ps_execution()
 {
   /* do nothing */
@@ -3389,7 +3422,7 @@ select_export::~select_export()
     create_file()
     thd			Thread handle
     path		File name
-    exchange		Excange class
+    exchange		Exchange class
     cache		IO cache
 
   RETURN
@@ -4095,6 +4128,37 @@ void select_dumpvar::reset_for_next_ps_execution()
 Query_arena::Type Query_arena::type() const
 {
   return STATEMENT;
+}
+
+
+bool Query_arena::check_free_list_no_complex_data_types(const char *op)
+{
+  DBUG_ENTER("Query_arena::check_free_list_no_complex_data_types");
+  for (Item *item= free_list; item; item= item->next)
+  {
+    if (item->fixed())
+    {
+      const Type_handler *th= item->type_handler();
+      if (th->is_complex())
+      {
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+                 th->name().ptr(), op);
+        DBUG_RETURN(true);
+      }
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+void Query_arena::expr_event_handler_for_free_list(THD *thd,
+                                                   expr_event_t event)
+{
+  for (Item *item= free_list; item; item= item->next)
+  {
+    if (item->fixed())
+      item->expr_event_handler(thd, event);
+  }
 }
 
 
@@ -5195,7 +5259,7 @@ TABLE *get_purge_table(THD *thd)
   return thd->open_tables;
 }
 
-/** Find an open table in the list of prelocked tabled
+/** Find an open table in the list of prelocked tables
 
   Used for foreign key actions, for example, in UPDATE t1 SET a=1;
   where a child table t2 has a KB on t1.a.
@@ -5237,7 +5301,7 @@ void destroy_thd(MYSQL_THD thd)
 }
 
 /**
-  Create a THD that only has auxilliary functions
+  Create a THD that only has auxiliary functions
   It will never be added to the global connection list
   server_threads. It does not represent any client connection.
 
@@ -5758,17 +5822,17 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
 /*
   If the storage engine detects a deadlock, and needs to choose a victim
   transaction to roll back, it can call this function to ask the upper
-  server layer for which of two possible transactions is prefered to be
+  server layer for which of two possible transactions is preferred to be
   aborted and rolled back.
 
   In parallel replication, if two transactions are running in parallel and
   one is fixed to commit before the other, then the one that commits later
-  will be prefered as the victim - chosing the early transaction as a victim
+  will be preferred as the victim - choosing the early transaction as a victim
   will not resolve the deadlock anyway, as the later transaction still needs
   to wait for the earlier to commit.
 
-  The return value is -1 if the first transaction is prefered as a deadlock
-  victim, 1 if the second transaction is prefered, or 0 for no preference (in
+  The return value is -1 if the first transaction is preferred as a deadlock
+  victim, 1 if the second transaction is preferred, or 0 for no preference (in
   which case the storage engine can make the choice as it prefers).
 */
 extern "C" int
@@ -5831,7 +5895,7 @@ extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 }
 
 /*
-  This is similar to sqlcom_can_generate_row_events, with the expection
+  This is similar to sqlcom_can_generate_row_events, with the exception
   that we only return 1 if we are going to generate row events in a
   transaction.
   CREATE OR REPLACE is always safe to do as this will run in it's own
@@ -8018,7 +8082,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
 
     Besides, we should not try to print these warnings if it is not
     possible to write statements to the binary log as it happens when
-    the execution is inside a function, or generaly speaking, when
+    the execution is inside a function, or generally speaking, when
     the variables.option_bits & OPTION_BIN_LOG is false.
     
   */
@@ -8398,6 +8462,24 @@ end:
 }
 
 
+void
+wait_for_commit::prior_commit_error(THD *thd)
+{
+  /*
+    Only raise a "prior commit failed" error if we didn't already raise
+    an error.
+
+    The ER_PRIOR_COMMIT_FAILED is just an internal mechanism to ensure that a
+    transaction does not commit successfully if a prior commit failed, so that
+    the parallel replication worker threads stop in an orderly fashion when
+    one of them get an error. Thus, if another worker already got another real
+    error, overriding it with ER_PRIOR_COMMIT_FAILED is not useful.
+  */
+  if (!thd->get_stmt_da()->is_set())
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+}
+
+
 /*
   Wakeup anyone waiting for us to have committed.
 
@@ -8720,7 +8802,7 @@ void AUTHID::copy(MEM_ROOT *mem_root, const LEX_CSTRING *user_name,
 
 /*
   Set from a string in 'user@host' format.
-  This method resebmles parse_user(),
+  This method resembles parse_user(),
   but does not need temporary buffers.
 */
 void AUTHID::parse(const char *str, size_t length)

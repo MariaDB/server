@@ -1,0 +1,88 @@
+#
+# Helper routines
+#
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Testing a case when Item_param is the only Item with
+# a complex data type (with a side effec) inside EXECUTE IMMEDIATE.
+# It makes sure that the item_with_t::COMPLEX_DATA_TYPE flag
+# gets properly added from Item_param
+# to Query_arena::with_flags_bit_or_for_complex_data_types
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE p1c0 SYS_REFCURSOR;
+OPEN p1c0 FOR SELECT 1;
+SELECT 'p1-1' AS stage, refs(0,3) AS refs;
+EXECUTE IMMEDIATE 'SELECT
+    ''stmt1'' AS stage, refs(0,3) AS refs
+  FROM seq_1_to_5
+  WHERE ? IS NOT NULL' USING p1c0;
+SELECT 'p1-2' AS stage, refs(0,3);
+END;
+/
+CALL p1;
+p1-1	[1	NULL	NULL	NULL]
+stmt1	[2	NULL	NULL	NULL]
+stmt1	[2	NULL	NULL	NULL]
+stmt1	[2	NULL	NULL	NULL]
+stmt1	[2	NULL	NULL	NULL]
+stmt1	[2	NULL	NULL	NULL]
+p1-2	[1	NULL	NULL	NULL]
+DROP PROCEDURE p1;
+#
+# Passing a variable as an IN and an OUT parameter at the same time
+#
+CREATE PROCEDURE p1(c0 SYS_REFCURSOR, OUT c1 SYS_REFCURSOR)
+BEGIN
+SELECT 'p1-1' AS stage, refs(0,3) AS refs;
+SET c1=c0;
+SELECT 'p1-2' AS stage, refs(0,3) AS refs;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+PREPARE stmt FROM 'CALL p1(?,?)';
+SELECT 'p2-1' AS stage, refs(0,3) AS refs;
+FOR i IN 1..4 DO
+EXECUTE IMMEDIATE 'CALL p1(?,?)' USING c0,c0;
+SELECT 'p2-i1' AS stage, refs(0,3) AS refs;
+EXECUTE stmt USING c0,c0;
+SELECT 'p2-i2' AS stage, refs(0,3) AS refs;
+END FOR;
+END;
+/
+CALL p2;
+p2-1	[1	NULL	NULL	NULL]
+p1-1	[4	NULL	NULL	NULL]
+p1-2	[5	NULL	NULL	NULL]
+p2-i1	[1	NULL	NULL	NULL]
+p1-1	[4	NULL	NULL	NULL]
+p1-2	[5	NULL	NULL	NULL]
+p2-i2	[1	NULL	NULL	NULL]
+p1-1	[4	NULL	NULL	NULL]
+p1-2	[5	NULL	NULL	NULL]
+p2-i1	[1	NULL	NULL	NULL]
+p1-1	[4	NULL	NULL	NULL]
+p1-2	[5	NULL	NULL	NULL]
+p2-i2	[1	NULL	NULL	NULL]
+p1-1	[4	NULL	NULL	NULL]
+p1-2	[5	NULL	NULL	NULL]
+p2-i1	[1	NULL	NULL	NULL]
+p1-1	[4	NULL	NULL	NULL]
+p1-2	[5	NULL	NULL	NULL]
+p2-i2	[1	NULL	NULL	NULL]
+p1-1	[4	NULL	NULL	NULL]
+p1-2	[5	NULL	NULL	NULL]
+p2-i1	[1	NULL	NULL	NULL]
+p1-1	[4	NULL	NULL	NULL]
+p1-2	[5	NULL	NULL	NULL]
+p2-i2	[1	NULL	NULL	NULL]
+SELECT '/p2' AS stage, refs(0,3) AS refs;
+/p2	[NULL	NULL	NULL	NULL]
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;

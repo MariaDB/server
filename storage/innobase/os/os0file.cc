@@ -3251,7 +3251,7 @@ more concurrent threads via thread_group setting.
 
 @param[in] n_reader_threads - max number of concurrently
   executing read callbacks
-@param[in] n_writer_thread - max number of cuncurrently
+@param[in] n_writer_thread - max number of concurrently
   executing write callbacks
 @return 0 for success, !=0 for error.
 */
@@ -3338,6 +3338,12 @@ size_t os_aio_pending_reads_approx() noexcept
 size_t os_aio_pending_writes() noexcept
 {
   std::lock_guard<std::mutex> lock(write_slots->mutex());
+  return write_slots->pending_io_count();
+}
+
+/** @return approximate number of pending writes */
+size_t os_aio_pending_writes_approx() noexcept
+{
   return write_slots->pending_io_count();
 }
 

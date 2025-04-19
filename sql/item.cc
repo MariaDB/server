@@ -1071,6 +1071,17 @@ bool Item::check_type_traditional_scalar(const LEX_CSTRING &opname) const
 }
 
 
+bool Item::check_type_can_return_bool(const LEX_CSTRING &opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_bool())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname.str);
+  return true;
+}
+
+
 bool Item::check_type_can_return_int(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
@@ -1480,8 +1491,8 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
 Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   /*
-    Return "this" if in prepare. result_type may change at execition time,
-    to it's possible that the converter will not be needed at all:
+    Return "this" if in prepare. result_type may change at execution time,
+    though it's possible that the converter will not be needed at all:
 
     PREPARE stmt FROM 'SELECT * FROM t1 WHERE field = ?';
     SET @arg= 1;
@@ -1708,6 +1719,8 @@ bool Item_sp_variable::fix_fields_from_item(THD *thd, Item **, const Item *it)
   unsigned_flag= it->unsigned_flag;
   base_flags|= item_base_t::FIXED;
   with_flags|= item_with_t::SP_VAR;
+  if (type_handler()->is_complex())
+    with_flags|= item_with_t::COMPLEX_DATA_TYPE;
   if (thd->lex->current_select && thd->lex->current_select->master_unit()->item)
     thd->lex->current_select->master_unit()->item->with_flags|= item_with_t::SP_VAR;
   collation.set(it->collation.collation, it->collation.derivation);
@@ -1733,6 +1746,14 @@ longlong Item_sp_variable::val_int()
   longlong ret= it->val_int();
   null_value= it->null_value;
   return ret;
+}
+
+
+Type_ref_null Item_sp_variable::val_ref(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(!is_cond());
+  return this_item()->val_ref(thd);
 }
 
 
@@ -2212,7 +2233,7 @@ Item::Type Item_name_const::type() const
 {
   /*
 
-    We are guarenteed that value_item->basic_const_item(), if not
+    We are guaranteed that value_item->basic_const_item(), if not
     an error is thrown that WRONG ARGUMENTS are supplied to
     NAME_CONST function.
     If type is FUNC_ITEM, then we have a fudged item_func_neg()
@@ -2370,7 +2391,7 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     /*
       Skip the else part, window functions are very special functions: 
       they need to have their own fields in the temp. table, but they
-      need to be proceessed differently than regular aggregate functions
+      need to be processed differently than regular aggregate functions
 
       Call split_sum_func here so that each argument gets its fields to
       point to the temporary table.
@@ -2828,7 +2849,7 @@ Item_func_or_sum
 
   @details
     This method first builds clones of the arguments. If it is successful with
-    buiding the clones then it constructs a copy of this Item_func_or_sum object
+    building the clones then it constructs a copy of this Item_func_or_sum object
     and attaches to it the built clones of the arguments.
 
    @return clone of the item
@@ -3085,7 +3106,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   @brief Initialize the result field by creating a temporary dummy table
     and assign it to a newly created field object. Meta data used to
     create the field is fetched from the sp_head belonging to the stored
-    proceedure found in the stored procedure functon cache.
+    procedure found in the stored procedure functon cache.
 
   @note This function should be called from fix_fields to init the result
     field. It is some what related to Item_field.
@@ -3167,6 +3188,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 
   sp_result_field->null_ptr= (uchar *) null_value;
   sp_result_field->null_bit= 1;
+  sp_result_field->set_null(); // SYS_REFCURSOR needs NULL as the initial value
 
   DBUG_RETURN(FALSE);
 }
@@ -3518,6 +3540,14 @@ bool Item_field::val_bool()
 }
 
 
+Type_ref_null Item_field::val_ref(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(!is_cond());
+  return field->val_ref(thd);
+}
+
+
 my_decimal *Item_field::val_decimal(my_decimal *decimal_value)
 {
   if ((null_value= field->is_null()))
@@ -3793,7 +3823,7 @@ void Item_field::set_refers_to_temp_table()
 {
   /*
     Derived temp. tables have non-zero derived_select_number.
-    We don't need to distingish between other kinds of temp.tables currently.
+    We don't need to distinguish between other kinds of temp.tables currently.
   */
   refers_to_temp_table= (field->table->derived_select_number != 0)?
                         REFERS_TO_DERIVED_TMP : REFERS_TO_OTHER_TMP;
@@ -5203,7 +5233,19 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     to make sure the next mysql_stmt_execute()
     correctly fetches the value from the client-server protocol,
     using set_param_func().
+
+    We're here in statements like:
+       EXECUTE IMMEDIATE 'CALL proc(?)' USING ps_param;
+    where proc() is a procedure with an OUT/INOUT parameter.
+    At the end of EXECUTE the formal routine parameter (Item_splocal)
+    is copied back to the actual routine parameter, which is "this" and which
+    is later copied back to the prepared statement parameter ps_param.
   */
+  if (!is_null() && with_complex_data_types())
+  {
+    // Destruct the previous value
+    expr_event_handler(thd, expr_event_t::DESTRUCT_DYNAMIC_PARAM);
+  }
   if (arg->save_in_value(thd, &tmp) ||
       set_value(thd, arg, &tmp, arg->type_handler()))
   {
@@ -5914,7 +5956,7 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   @endcode
 
   @retval
-    1   column succefully resolved and fix_fields() should continue.
+    1   column successfully resolved and fix_fields() should continue.
   @retval
     0   column fully fixed and fix_fields() should return FALSE
   @retval
@@ -6440,7 +6482,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     /*
       if it is not expression from merged VIEW we will set this field.
 
-      We can leave expression substituted from view for next PS/SP rexecution
+      We can leave expression substituted from view for next PS/SP reexecution
       (i.e. do not register this substitution for reverting on cleanup()
       (register_item_tree_changing())), because this subtree will be
       fix_field'ed during setup_tables()->setup_underlying() (i.e. before

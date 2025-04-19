@@ -190,7 +190,7 @@ void Ack_receiver::remove_slave(THD *thd)
     mysql_cond_broadcast(&m_cond);
     /*
       Wait until Ack_receiver::run() acknowledges remove of slave
-      As this is only sent under the mutex and after listners has
+      As this is only sent under the mutex and after listeners has
       been collected, we know that listener has ignored the found
       slave.
     */

@@ -1172,7 +1172,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
             locks for temporary tables: they are local to the session.
 
             Later in this function we release the MDL lock only if
-            table->mdl_requeset.ticket is not NULL. Thus here we
+            table->mdl_request.ticket is not NULL. Thus here we
             ensure that we won't release the metadata lock on the base
             table locked with LOCK TABLES as a side effect of temporary
             table drop.
@@ -1233,7 +1233,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
   @param  comment_start   returns the beginning of the comment if found.
 
   @retval  0  no comment found
-  @retval  >0 the lenght of the comment found
+  @retval  >0 the length of the comment found
 
 */
 static uint32 get_comment(THD *thd, uint32 comment_pos,
@@ -3284,7 +3284,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 
           field_no < select_field_pos: both field and dup are table fields;
           dup_no >= select_field_pos: both field and dup are select fields or
-            field is implicit systrem field and dup is select field.
+            field is implicit system field and dup is select field.
 
           We are not allowed to put row_start/row_end into SELECT expression.
 	*/
@@ -3415,7 +3415,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   if (init_key_info(thd, alter_info, create_info, file))
     DBUG_RETURN(TRUE);
 
-  /* Calculate number of key segements */
+  /* Calculate number of key segments */
   *key_count= 0;
 
   while ((key=key_iterator++))
@@ -4946,7 +4946,7 @@ warn:
   in various version of CREATE TABLE statement.
 
   @result
-    1 unspecifed error
+    1 unspecified error
     2 error; Don't log create statement
     0 ok
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
@@ -5873,7 +5873,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     /*
        Since temporary tables are not replicated under row-based
        replication, CREATE TABLE ... LIKE ... needs special
-       treatement.  We have some cases to consider, according to the
+       treatment.  We have some cases to consider, according to the
        following decision table:
 
            ==== ========= ========= ==============================
@@ -6965,7 +6965,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     ALTER_RENAME_COLUMN is replaced by ALTER_COLUMN_NAME.
     ALTER_CHANGE_COLUMN_DEFAULT is replaced by ALTER_CHANGE_COLUMN
     ALTER_PARSE_ADD_COLUMN, ALTER_PARSE_DROP_COLUMN, ALTER_ADD_INDEX and
-    ALTER_DROP_INDEX are replaced with versions that have higher granuality.
+    ALTER_DROP_INDEX are replaced with versions that have higher granularity.
   */
 
   alter_table_operations flags_to_remove=
@@ -8634,7 +8634,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         break;
     }
     /*
-      DROP COLULMN xxx
+      DROP COLUMN xxx
       1. it does not see INVISIBLE_SYSTEM columns
       2. otherwise, normally a column is dropped
       3. unless it's a system versioning column (but see below).
@@ -9699,7 +9699,7 @@ fk_check_column_changes(THD *thd, const TABLE *table,
       {
         /*
           Column in a FK has changed significantly and it
-          may break referential intergrity.
+          may break referential integrity.
         */
         result= FK_COLUMN_DATA_CHANGE;
         goto func_exit;
@@ -10343,7 +10343,7 @@ static bool wait_for_master(THD *thd)
   here is finished.
 
   @param thd                Thread handle
-  @param start_alter_state  ALTER replicaton execution context
+  @param start_alter_state  ALTER replication execution context
   @param mi                 Master_info of the replication source
 */
 static void alter_committed(THD *thd, start_alter_info* info, Master_info *mi)
@@ -11358,7 +11358,7 @@ do_continue:;
       is updated without data transformations and the table would be
       corrupted without any way for MariaDB to notice this during
       check/upgrade).
-      This logic ensurses that ALTER TABLE ... FORCE (no other
+      This logic ensures that ALTER TABLE ... FORCE (no other
       options) will always be be able to repair a table structure and
       convert data from any old format.
     - In-place is impossible for given operation.
@@ -11968,7 +11968,8 @@ alter_copy:
     - Neither old or new engine uses files from another engine
       The above is mainly true for the sequence and the partition engine.
   */
-  engine_changed= ((new_table->file->ht != table->file->ht) &&
+  engine_changed= ((new_table->file->storage_ht() !=
+                    table->file->storage_ht()) &&
                    ((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
                      !(table->file->ha_table_flags() & HA_FILE_BASED))) &&
                    !(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&
@@ -12003,7 +12004,7 @@ alter_copy:
 
   debug_crash_here("ddl_log_alter_after_copy");      // Use old table
   /*
-    We are new ready to use the new table. Update the state in the
+    We are now ready to use the new table. Update the state in the
     ddl log so that we recovery know that the new table is ready and
     in case of crash it should use the new one and log the query
     to the binary log.

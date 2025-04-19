@@ -600,6 +600,26 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
+  // Disallow non-deterministic data types such as SYS_REFCURSOR
+  if (thd->stmt_arena->with_complex_data_types())
+  {
+    /*
+      There are some complex data types.
+      Let's find which exactly and raise an error.
+    */
+    if (thd->stmt_arena->check_free_list_no_complex_data_types("CREATE VIEW"))
+    {
+      res= true;
+      goto err;
+    }
+    /*
+      Perhaps some item tree transformation happened.
+      All items with complex data types return false in const_item(),
+      so no transformation should happen.
+    */
+    DBUG_ASSERT(0);
+  }
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /*
     Compare/check grants on view with grants of underlying tables
@@ -2220,10 +2240,10 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
 
   SINOPSYS
     view_checksum()
-    thd     threar handler
+    thd     thread handler
     view    view for check
 
-  RETUIRN
+  RETURN
     HA_ADMIN_OK               OK
     HA_ADMIN_NOT_IMPLEMENTED  it is not VIEW
     HA_ADMIN_WRONG_CHECKSUM   check sum is wrong

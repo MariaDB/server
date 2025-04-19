@@ -1442,7 +1442,7 @@ verify_ca_matches_cert()
         wsrep_log_info "run: \"$OPENSSL_BINARY\" verify -verbose${ca:+ -CAfile \"$ca\"}${cap:+ -CApath \"$cap\"} \"$cert\""
         wsrep_log_info "output: $errmsg"
         wsrep_log_error "******** FATAL ERROR ********************************************"
-        wsrep_log_error "* The certifcate and CA (certificate authority) do not match.   *"
+        wsrep_log_error "* The certificate and CA (certificate authority) do not match.  *"
         wsrep_log_error "* It does not appear that the certificate was issued by the CA. *"
         wsrep_log_error "* Please check your certificate and CA files.                   *"
         wsrep_log_error "*****************************************************************"

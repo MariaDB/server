@@ -1,0 +1,52 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# SYS_REFCURSOR in packages
+#
+CREATE PACKAGE pkg
+PROCEDURE p1();
+PROCEDURE show_body_items();
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE a, b INT;
+PROCEDURE p1()
+BEGIN
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1, 2;
+FETCH c INTO a, b;
+CLOSE c;
+END;
+PROCEDURE show_body_items()
+BEGIN
+SELECT a,b;
+END;
+BEGIN
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1, 2;
+FETCH c INTO a, b;
+CLOSE c;
+END;
+END;
+$$
+SHOW PROCEDURE CODE pkg.p1;
+Pos	Instruction
+0	set c@0 NULL
+1	copen STMT.cursor[c@0]
+2	cfetch STMT.cursor[c@0] PACKAGE_BODY.a@0 PACKAGE_BODY.b@1
+3	cclose STMT.cursor[c@0]
+4	destruct sys_refcursor c@0
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+0	set a@0 NULL
+1	set b@1 NULL
+2	set c@2 NULL
+3	copen STMT.cursor[c@2]
+4	cfetch STMT.cursor[c@2] a@0 b@1
+5	cclose STMT.cursor[c@2]
+6	destruct sys_refcursor c@2
+CALL pkg.show_body_items();
+a	b
+1	2
+DROP PACKAGE pkg;

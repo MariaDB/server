@@ -8445,11 +8445,11 @@ WARN_NO_MASTER_INFO
         spa "No existe conexión maestra '%.*s'"
         sw "Hakuna muunganisho mkuu '%.*s'"
 WARN_OPTION_IGNORED
-        eng "<%-.64s> option ignored"
-        ger "Option <%-.64s> ignoriert"
-        geo "პარამეტრი <%-.64s> იგნორირებულია"
-        spa "Opción <%-.64s> ignorada"
-        sw "<%-.64s> chaguo limepuuzwa"
+        eng "%s option ignored"
+        ger "Option %s ignoriert"
+        geo "პარამეტრი %s იგნორირებულია"
+        spa "Opción %s ignorada"
+        sw "%s chaguo limepuuzwa"
 ER_PLUGIN_DELETE_BUILTIN
         chi "内置插件无法删除"
         eng "Built-in plugins cannot be deleted"
@@ -10594,10 +10594,10 @@ ER_WARN_AGGFUNC_DEPENDENCE
         sw "Jumla ya kukokotoa '%-.192s)' ya SELECT #%d ni ya SELECT #%d"
         ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"
 WARN_INNODB_PARTITION_OPTION_IGNORED
-        chi "<%-.64s> innodb分区忽略的选项"
-        eng "<%-.64s> option ignored for InnoDB partition"
-        spa "<%-.64s> opción ignorada para partición InnoDB"
-        sw "<%-.64s> chaguo limepuuzwa kwa kizigeu cha InnoDB"
+        chi "%s innodb分区忽略的选项"
+        eng "%s option ignored for InnoDB partition"
+        spa "%s opción ignorada para partición InnoDB"
+        sw " %s chaguo limepuuzwa kwa kizigeu cha InnoDB"
 
 #
 # Internal errors, not used
@@ -12266,8 +12266,6 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
-ER_PSEUDO_THREAD_ID_OVERWRITE
-        eng "Pseudo thread id should not be modified by the client as it will be overwritten"
 ER_SEQUENCE_TABLE_HAS_WRONG_NUMBER_OF_COLUMNS
         eng "Wrong number of columns"
 ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_KEYS
@@ -12290,6 +12288,8 @@ ER_VECTOR_BINARY_FORMAT_INVALID
         eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
 ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
+ER_PSEUDO_THREAD_ID_OVERWRITE
+        eng "Pseudo thread id should not be modified by the client as it will be overwritten"
 ER_VEC_DISTANCE_TYPE
         eng "Cannot determine distance type for VEC_DISTANCE, index is not found"
 WARN_INDEX_HINTS_IGNORED
@@ -12297,3 +12297,7 @@ WARN_INDEX_HINTS_IGNORED
         ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
+ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
+	eng "Cannot modify @@session.gtid_domain_id while there are open temporary tables being binlogged"
+ER_TOO_MANY_OPEN_CURSORS
+        eng "Too many open cursors; max %u cursors allowed"

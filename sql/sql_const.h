@@ -216,7 +216,7 @@
 #define MIN_ROWS_AFTER_FILTERING 1.0
 
 /**
-  Number of rows in a reference table when refered through a not unique key.
+  Number of rows in a reference table when referred through a not unique key.
   This value is only used when we don't know anything about the key
   distribution.
 */
@@ -263,6 +263,6 @@
 */
 #define MAX_TIME_ZONE_NAME_LENGTH       (NAME_LEN + 1)
 
-#define SP_PSI_STATEMENT_INFO_COUNT 19
+#define SP_PSI_STATEMENT_INFO_COUNT 23
 
 #endif /* SQL_CONST_INCLUDED */

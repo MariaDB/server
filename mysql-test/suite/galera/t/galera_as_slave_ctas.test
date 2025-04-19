@@ -16,7 +16,7 @@ SELECT @@wsrep_on;
 
 --connection node_1
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3, master_ssl_verify_server_cert=0;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
@@ -73,4 +73,3 @@ RESET SLAVE ALL;
 
 --connection node_3
 RESET MASTER;
-

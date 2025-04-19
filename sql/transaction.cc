@@ -440,7 +440,7 @@ bool trans_rollback_implicit(THD *thd)
   res= ha_rollback_trans(thd, true);
   /*
     We don't reset OPTION_BEGIN flag below to simulate implicit start
-    of new transacton in @@autocommit=1 mode. This is necessary to
+    of new transaction in @@autocommit=1 mode. This is necessary to
     preserve backward compatibility.
   */
   thd->variables.option_bits&= ~(OPTION_BINLOG_THIS_TRX);

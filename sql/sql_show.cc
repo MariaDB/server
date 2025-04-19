@@ -1361,7 +1361,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   /*
     Metadata locks taken during SHOW CREATE should be released when
-    the statmement completes as it is an information statement.
+    the statement completes as it is an information statement.
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
@@ -3630,7 +3630,7 @@ int add_status_vars(SHOW_VAR *list)
   while (list->name)
     res|= insert_dynamic(&all_status_vars, (uchar*)list++);
   res|= insert_dynamic(&all_status_vars, (uchar*)list); // appending NULL-element
-  all_status_vars.elements--; // but next insert_dynamic should overwite it
+  all_status_vars.elements--; // but next insert_dynamic should overwrite it
   if (status_vars_inited)
     sort_dynamic(&all_status_vars, show_var_cmp);
   status_var_array_version++;
@@ -5622,6 +5622,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
         if (!partial_cond || partial_cond->val_bool())
         {
+          if (thd->is_error())
+            goto err;
           /*
             If table is I_S.tables and open_table_method is 0 (eg SKIP_OPEN)
             we can skip table opening and we don't have lookup value for
@@ -6181,7 +6183,7 @@ err:
  @brief           Fill IS.table with temporary tables
  @param[in]       thd              thread handler
  @param[in]       table            I_S table (TABLE)
- @param[in]       tmp_tbl          temporary table to be represetned by IS.table
+ @param[in]       tmp_tbl          temporary table to be represented by IS.table
  @return          Operation status
    @retval        0   - success
    @retval        1   - failure
@@ -6228,7 +6230,7 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
   tmp_buff= strchr(column_type.c_ptr_safe(), '(');
   if (!tmp_buff)
     /*
-      if there is no dimention part then check the presence of
+      if there is no dimension part then check the presence of
       [unsigned] [zerofill] attributes and cut them of if exist.
     */
     tmp_buff= strchr(column_type.c_ptr_safe(), ' ');
@@ -8824,7 +8826,7 @@ struct schema_table_ref
 };
 
 /*
-  Find schema_tables elment by name
+  Find schema_tables element by name
 
   SYNOPSIS
     find_schema_table_in_plugin()
@@ -9658,7 +9660,7 @@ bool get_schema_tables_result(JOIN *join,
         continue;
 
       /*
-        Do not fill in tables thare are marked as JT_CONST as these will never
+        Do not fill in tables marked as JT_CONST as these will never
         be read and they also don't have a tab->read_record.table set!
         This can happen with queries like
         SELECT * FROM t1 LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.ROUTINES)
@@ -9731,7 +9733,7 @@ bool get_schema_tables_result(JOIN *join,
     /*
       This hack is here, because I_S code uses thd->clear_error() a lot.
       Which means, a Warnings_only_error_handler cannot handle the error
-      corectly as it does not know whether an error is real (e.g. caused
+      correctly as it does not know whether an error is real (e.g. caused
       by tab->select_cond->val_int()) or will be cleared later.
       Thus it ignores all errors, and the real one (that is, the error
       that was not cleared) is pushed now.
@@ -11089,7 +11091,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 
 /**
   Read TRN and TRG files to obtain base table name for the specified
-  trigger name and construct TABE_LIST object for the base table.
+  trigger name and construct TABLE_LIST object for the base table.
 
   @param thd      Thread context.
   @param trg_name Trigger name.

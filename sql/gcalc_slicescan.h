@@ -414,7 +414,7 @@ public:
   };
 
   /* That class introduced mostly for the 'typecontrol' reason.      */
-  /* only difference from the point classis the get_next() function. */
+  /* only difference from the point class is the get_next() function. */
   class event_point : public point
   {
   public:

@@ -445,7 +445,7 @@ bool Timestamp::to_native(Native *to, uint decimals) const
   uint len= my_timestamp_binary_length(decimals);
   if (to->reserve(len))
   {
-    to->length(0); // Safety: set to '0000-00-00 00:00:00' on falures
+    to->length(0); // Safety: set to '0000-00-00 00:00:00' on failures
     return true;
   }
   my_timestamp_to_binary(this, (uchar *) to->ptr(), decimals);
@@ -1411,7 +1411,7 @@ Type_handler::odbc_literal_type_handler(const LEX_CSTRING *type_str)
 
   TODO: type_handler_adjusted_to_max_octet_length() and string_type_handler()
   provide very similar functionality, to properly choose between
-  VARCHAR/VARBINARY vs TEXT/BLOB variations taking into accoung maximum
+  VARCHAR/VARBINARY vs TEXT/BLOB variations taking into account maximum
   possible octet length.
 
   We should probably get rid of either of them and use the same method
@@ -1873,7 +1873,7 @@ Type_handler::bit_and_int_mixture_handler(uint max_char_length)
 
              Note, independently from "treat_bit_as_number":
              - a single BIT argument gives BIT as a result
-             - two BIT couterparts give BIT as a result
+             - two BIT counterparts give BIT as a result
              - (BIT + explicit NULL) or (explicit NULL + BIT) give BIT
 
   @details This function aggregates field types from the array of items.
@@ -3417,6 +3417,24 @@ bool Type_handler_bit::
 
 
 /*************************************************************************/
+bool Type_handler_row::Spvar_definition_with_complex_data_types(
+                                                 Spvar_definition *def) const
+{
+  if (def->row_field_definitions())
+  {
+    List_iterator<Spvar_definition> it(*(def->row_field_definitions()));
+    Spvar_definition *member;
+    while ((member= it++))
+    {
+      if (member->type_handler()->is_complex())
+        return true;
+    }
+  }
+  return false;
+}
+
+
+/*************************************************************************/
 bool Type_handler::Key_part_spec_init_primary(Key_part_spec *part,
                                               const Column_definition &def,
                                               const handler *file) const
@@ -4547,7 +4565,7 @@ bool Type_handler_string_result::
        ... AND a='oe'
     to
        ... AND 'oe' COLLATE utf8_german2_ci='oe'
-    it will be evalulated to TRUE and removed from the condition,
+    it will be evaluated to TRUE and removed from the condition,
     so the overall query will be simplified to:
 
       SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci;
@@ -4675,8 +4693,8 @@ Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
 
 /*
   This method handles YEAR and BIT data types.
-  It does not switch the data type to DECIAMAL on a
-  unsigned_flag mistmatch. This important for combinations
+  It does not switch the data type to DECIMAL on a
+  unsigned_flag mismatch. This important for combinations
   like YEAR+NULL, BIT+NULL.
 */
 bool Type_handler_int_result::
@@ -5241,7 +5259,7 @@ bool Type_handler_int_result::Item_val_bool(Item *item) const
     and we need to evaluate the boolean value from the integer value
     as a fall-back method. To avoid the assert, let's hide the IS_COND flag.
     Eventually we'll need to implement val_bool() in all Item descendants and
-    remove the trick with flags. This change would be too ricky for 10.6.
+    remove the trick with flags. This change would be too risky for 10.6.
     Let's do it in a later version.
   */
   item_base_t flags= item->base_flags;
@@ -5289,6 +5307,15 @@ bool Type_handler::Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
                            item->field_name_or_null(), ltime, mode);
   Item_func_hybrid_field_type_get_date(thd, item, &warn, ltime, mode);
   return ltime->time_type < 0;
+}
+
+
+Type_ref_null
+Type_handler::Item_func_hybrid_field_type_val_ref(THD *thd,
+                                             Item_func_hybrid_field_type *item)
+                                                                          const
+{
+  return Type_ref_null();
 }
 
 
@@ -7350,7 +7377,7 @@ decimal_digits_t Type_handler_long_ge0::Item_decimal_precision(const Item *item)
   DBUG_ASSERT(item->max_length);
   DBUG_ASSERT(!item->decimals);
   /*
-    Unlinke in Type_handler_long, Type_handler_long_ge does
+    Unlike in Type_handler_long, Type_handler_long_ge does
     not reserve one character for the sign. All max_length
     characters are digits.
   */
@@ -9014,7 +9041,7 @@ Type_handler_temporal_result::Item_const_eq(const Item_const *a,
 
 /*
   @brief
-    Check if two costant timestamp values are identical.
+    Check if two constant timestamp values are identical.
 
   @return
     true <=> *a and *b are identical

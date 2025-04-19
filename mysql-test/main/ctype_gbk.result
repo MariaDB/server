@@ -681,10 +681,10 @@ INSERT INTO t1 VALUES
 (REPEAT(0x1125,200000), REPEAT(0x1125,200000)), ('', ''), ('', '');
 SELECT a FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
 Warnings:
-Warning	4203	1 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	1 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 SELECT b FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
 Warnings:
-Warning	4203	1 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	1 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 DROP TABLES t1;
 End of 5.0 tests
 #

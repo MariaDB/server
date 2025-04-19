@@ -149,7 +149,6 @@ static const Native_func_registry func_array_vers[] =
   { { C_STRING_WITH_LEN("TRT_TRX_ID") }, BUILDER(Create_func_trt<TR_table::FLD_TRX_ID>)},
   { { C_STRING_WITH_LEN("TRT_TRX_SEES") }, BUILDER(Create_func_trt_trx_sees<Item_func_trt_trx_sees>)},
   { { C_STRING_WITH_LEN("TRT_TRX_SEES_EQ") }, BUILDER(Create_func_trt_trx_sees<Item_func_trt_trx_sees_eq>)},
-  { {0, 0}, NULL}
 };
 
 
@@ -196,7 +195,7 @@ maria_declare_plugin(versioning)
   &versioning_plugin,
   "test_versioning",
   "MariaDB Corp",
-  "System Vesioning testing features",
+  "System Versioning testing features",
   PLUGIN_LICENSE_GPL,
   versioning_plugin_init, /* Plugin Init */
   versioning_plugin_deinit, /* Plugin Deinit */

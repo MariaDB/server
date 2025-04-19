@@ -176,16 +176,6 @@ srv_printf_innodb_monitor() will request mutex acquisition
 with mysql_mutex_lock(), which will wait until it gets the mutex. */
 #define MUTEX_NOWAIT(mutex_skipped)	((mutex_skipped) < MAX_MUTEX_NOWAIT)
 
-/** copy of innodb_buffer_pool_size */
-ulint	srv_buf_pool_size;
-/** Requested buffer pool chunk size */
-size_t	srv_buf_pool_chunk_unit;
-/** Previously requested size */
-ulint	srv_buf_pool_old_size;
-/** Current size as scaling factor for the other components */
-ulint	srv_buf_pool_base_size;
-/** Current size in bytes */
-ulint	srv_buf_pool_curr_size;
 /** Dump this % of each buffer pool during BP dump */
 ulong	srv_buf_pool_dump_pct;
 /** Abort load after this amount of pages */
@@ -346,7 +336,7 @@ mysql_mutex_t srv_monitor_file_mutex;
 FILE*	srv_monitor_file;
 /** Mutex for locking srv_misc_tmpfile */
 mysql_mutex_t srv_misc_tmpfile_mutex;
-/** Temporary file for miscellanous diagnostic output */
+/** Temporary file for miscellaneous diagnostic output */
 FILE*	srv_misc_tmpfile;
 
 /* The following counts are used by the srv_master_callback. */
@@ -875,6 +865,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_read_requests
 		= buf_pool.stat.n_page_gets;
 
+	mysql_mutex_lock(&buf_pool.mutex);
 	export_vars.innodb_buffer_pool_bytes_data =
 		buf_pool.stat.LRU_bytes
 		+ (UT_LIST_GET_LEN(buf_pool.unzip_LRU)
@@ -884,12 +875,21 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_pages_latched =
 		buf_get_latched_pages_number();
 #endif /* UNIV_DEBUG */
-	export_vars.innodb_buffer_pool_pages_total = buf_pool.get_n_pages();
+	export_vars.innodb_buffer_pool_pages_total = buf_pool.curr_size();
 
 	export_vars.innodb_buffer_pool_pages_misc =
-		buf_pool.get_n_pages()
+		export_vars.innodb_buffer_pool_pages_total
 		- UT_LIST_GET_LEN(buf_pool.LRU)
 		- UT_LIST_GET_LEN(buf_pool.free);
+	if (size_t shrinking = buf_pool.is_shrinking()) {
+		snprintf(export_vars.innodb_buffer_pool_resize_status,
+			 sizeof export_vars.innodb_buffer_pool_resize_status,
+			 "Withdrawing blocks. (%zu/%zu).",
+			 buf_pool.to_withdraw(), shrinking);
+	} else {
+		export_vars.innodb_buffer_pool_resize_status[0] = '\0';
+	}
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
 	export_vars.innodb_history_list_length = trx_sys.history_size_approx();
@@ -1057,6 +1057,7 @@ void srv_monitor_task(void*)
 			now -= start;
 			ulong waited = static_cast<ulong>(now / 1000000);
 			if (waited >= threshold) {
+				buf_pool.print_flush_info();
 				ib::fatal() << dict_sys.fatal_msg;
 			}
 

@@ -329,7 +329,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
   thd->set_db(&MYSQL_SCHEMA_NAME);
   thd->clear_error();
   ulonglong thd_saved_option= thd->variables.option_bits;
-  /* This query shuold not be binlogged. */
+  /* This query should not be binlogged. */
   thd->variables.option_bits&= ~(ulonglong)OPTION_BIN_LOG;
   thd->set_query_and_id(query.c_ptr(), query.length(), thd->charset(),
                         next_query_id());
@@ -1049,7 +1049,7 @@ terminate_slave_thread(THD *thd,
 
   /*
     Is is critical to test if the slave is running. Otherwise, we might
-    be referening freed memory trying to kick it
+    be referencing freed memory trying to kick it
   */
 
   while (*slave_running)                        // Should always be true
@@ -1323,7 +1323,7 @@ static bool io_slave_killed(Master_info* mi)
    The function analyzes a possible killed status and makes
    a decision whether to accept it or not.
    Normally upon accepting the sql thread goes to shutdown.
-   In the event of deffering decision @rli->last_event_start_time waiting
+   In the event of deferring decision @rli->last_event_start_time waiting
    timer is set to force the killed status be accepted upon its expiration.
 
    @param thd   pointer to a THD instance
@@ -1391,8 +1391,8 @@ static bool sql_slave_killed(rpl_group_info *rgi)
           may eventually give out to complete the current group and in
           that case there might be issues at consequent slave restart,
           see the error message.  WL#2975 offers a robust solution
-          requiring to store the last exectuted event's coordinates
-          along with the group's coordianates instead of waiting with
+          requiring to store the last executed event's coordinates
+          along with the group's coordinates instead of waiting with
           @c last_event_start_time the timer.
         */
 
@@ -2006,7 +2006,7 @@ inconsistency if replicated data deals with collation.");
     slave and master, but we can't rely on value of @@system_time_zone
     variable (it is time zone abbreviation) since it determined at start
     time and so could differ for slave and master even if they are really
-    in the same system time zone. So we are omiting this check and just
+    in the same system time zone. So we are omitting this check and just
     relying on documentation. Also according to Monty there are many users
     who are using replication between servers in various time zones. Hence
     such check will broke everything for them. (And now everything will
@@ -2920,12 +2920,16 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
                     &my_charset_bin);
 
   mysql_mutex_lock(&mi->run_lock);
-  msg= (mi->rli.sql_driver_thd ?
-        mi->rli.sql_driver_thd->get_proc_info() : "");
-  store_string_or_null(field++, msg);
-  msg= mi->io_thd ? mi->io_thd->get_proc_info() : "";
-  store_string_or_null(field++, msg);
+  THD *sql_thd= mi->rli.sql_driver_thd;
+  const char *const slave_sql_running_state=
+    sql_thd ? sql_thd->get_proc_info() : "";
+  THD *io_thd= mi->io_thd;
+  const char *const slave_io_running_state=
+    io_thd ? io_thd->get_proc_info() : "";
   mysql_mutex_unlock(&mi->run_lock);
+
+  store_string_or_null(field++, slave_sql_running_state);
+  store_string_or_null(field++, slave_io_running_state);
 
   mysql_mutex_lock(&mi->data_lock);
   mysql_mutex_lock(&mi->rli.data_lock);
@@ -3094,10 +3098,6 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   // int32 on paper, unsigned in practice
   (*field++)->store((uint32) mi->rli.get_sql_delay(), true);
   // SQL_Remaining_Delay
-  // THD::proc_info is not protected by any lock, so we read it once
-  // to ensure that we use the same value throughout this function.
-  const char *slave_sql_running_state=
-    mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
   if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
   {
     time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
@@ -3740,7 +3740,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     ev->update_pos(rli);
   @endcode
 
-  It also does the following maintainance:
+  It also does the following maintenance:
 
    - Initializes the thread's server_id and time; and the event's
      thread.
@@ -4096,7 +4096,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
          The following failure injecion works in cooperation with tests 
          setting @@global.debug= 'd,incomplete_group_in_relay_log'.
          Xid or Commit events are not executed to force the slave sql
-         read hanging if the realy log does not have any more events.
+         read hanging if the relay log does not have any more events.
       */
       DBUG_EXECUTE_IF("incomplete_group_in_relay_log",
                       if ((typ == XID_EVENT) ||
@@ -4436,7 +4436,7 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
                 IO_RPL_LOG_NAME, mi->master_log_pos,
                 tmp.c_ptr_safe());
     /* 
-      Raise a warining during registering on master/requesting dump.
+      Raise a warning during registering on master/requesting dump.
       Log a message reading event.
     */
     if (messages[SLAVE_RECON_MSG_COMMAND][0])
@@ -5138,6 +5138,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   THD *thd;                     /* needs to be first for thread_stack */
   char saved_log_name[FN_REFLEN];
   char saved_master_log_name[FN_REFLEN];
+  bool thd_initialized= 0;
   my_off_t UNINIT_VAR(saved_log_pos);
   my_off_t UNINIT_VAR(saved_master_log_pos);
   String saved_skip_gtid_pos;
@@ -5238,6 +5239,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   thd->variables.binlog_annotate_row_events= 0;
 
   server_threads.insert(thd);
+  thd_initialized= 1;
   /*
     We are going to set slave_running to 1. Assuming slave I/O thread is
     alive and connected, this is going to make Seconds_Behind_Master be 0
@@ -5617,7 +5619,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
   thd->add_status_to_global();
-  server_threads.erase(thd);
+  THD_STAGE_INFO(thd, stage_slave_sql_cleanup);
   mysql_mutex_lock(&rli->run_lock);
 
 err_during_init:
@@ -5688,6 +5690,8 @@ err_during_init:
   rpl_parallel_resize_pool_if_no_slaves();
 
   delete serial_rgi;
+  if (thd_initialized)
+    server_threads.erase(thd);
   delete thd;
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
@@ -6134,7 +6138,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     /* 
        compare local and event's versions of log_file, log_pos.
        
-       Heartbeat is sent only after an event corresponding to the corrdinates
+       Heartbeat is sent only after an event corresponding to the coordinates
        the heartbeat carries.
        Slave can not have a higher coordinate except in the only
        special case when mi->master_log_name, master_log_pos have never
@@ -6143,7 +6147,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
 
        Slave can have lower coordinates, if some event from master was omitted.
 
-       TODO: handling `when' for SHOW SLAVE STATUS' snds behind
+       TODO: handling `when' for SHOW SLAVE STATUS' seconds behind
     */
     if (memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len()) ||
         mi->master_log_pos > hb.log_pos) {
@@ -6871,7 +6875,7 @@ void end_relay_log_info(Relay_log_info* rli)
   mysql_mutex_unlock(log_lock);
   /*
     Delete the slave's temporary tables from memory.
-    In the future there will be other actions than this, to ensure persistance
+    In the future there will be other actions than this, to ensure persistence
     of slave's temp tables after shutdown.
   */
   rli->close_temporary_tables();
@@ -7245,7 +7249,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
           finishes executing the new event; it will be look abnormal only if
           the events have old timestamps (then you get "many", 0, "many").
 
-          Transient phases like this can be fixed with implemeting
+          Transient phases like this can be fixed with implementing
           Heartbeat event which provides the slave the status of the
           master at time the master does not have any new update to send.
           Seconds_Behind_Master would be zero only when master has no
@@ -7848,7 +7852,7 @@ void Rows_event_tracker::update(const char *file_name, my_off_t pos,
 /**
   The function is called at next event reading
   after a sequence of Rows- log-events. It checks the end-of-statement status
-  of the past sequence to report on any isssue.
+  of the past sequence to report on any issue.
   In the positive case the tracker gets reset.
 
   @return true  when the Rows- event group integrity found compromised,

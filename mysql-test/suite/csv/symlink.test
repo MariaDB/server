@@ -1,0 +1,8 @@
+--source include/have_csv.inc
+
+# not supported
+evalp create table t1c (a int not null) engine=csv data directory='$MYSQL_TMP_DIR' index directory='$MYSQL_TMP_DIR';
+insert t1c values (1),(2);
+list_files $MYSQL_TMP_DIR t1c*;
+drop table t1c;
+
