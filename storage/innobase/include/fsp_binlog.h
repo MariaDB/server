@@ -232,6 +232,9 @@ struct ibb_tblspc_entry {
     ToDo: Note that user XA is not yet implemented.
   */
   std::atomic<uint64_t>xa_ref_file_no;
+
+  ibb_tblspc_entry()= default;
+  ~ibb_tblspc_entry()= default;
 };
 
 

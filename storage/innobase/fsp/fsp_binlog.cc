@@ -740,19 +740,54 @@ crc32_pread_page(pfs_os_file_t fh, byte *buf, uint32_t page_no, myf MyFlags)
 }
 
 
+/*
+  Need specific constructor/initializer for struct ibb_tblspc_entry stored in
+  the ibb_file_hash. This is a work-around for C++ abstractions that makes it
+  non-standard behaviour to memcpy() std::atomic objects.
+*/
+static void
+ibb_file_hash_constructor(uchar *arg)
+{
+  new(arg + LF_HASH_OVERHEAD) ibb_tblspc_entry();
+}
+
+
+static void
+ibb_file_hash_destructor(uchar *arg)
+{
+  ibb_tblspc_entry *e= (ibb_tblspc_entry *)(arg + LF_HASH_OVERHEAD);
+  e->~ibb_tblspc_entry();
+}
+
+
+static void
+ibb_file_hash_initializer(LF_HASH *hash, void *dst, const void *src)
+{
+  ibb_tblspc_entry *src_e= (ibb_tblspc_entry *)src;
+  ibb_tblspc_entry *dst_e= (ibb_tblspc_entry *)dst;
+  dst_e->file_no= src_e->file_no;
+  dst_e->oob_refs.store(src_e->oob_refs.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
+  dst_e->xa_refs.store(src_e->xa_refs.load(std::memory_order_relaxed),
+                       std::memory_order_relaxed);
+  dst_e->oob_ref_file_no.store(src_e->oob_ref_file_no.load(std::memory_order_relaxed),
+                               std::memory_order_relaxed);
+  dst_e->xa_ref_file_no.store(src_e->xa_ref_file_no.load(std::memory_order_relaxed),
+                              std::memory_order_relaxed);
+}
+
+
 void
 ibb_file_oob_refs::init() noexcept
 {
-  /*
-    If this static assert fails on some compiler, it will be necessary to
-    change the usage of the LF_HASH to have a constructor and initializer
-    for the non-trivially-copyable ibb_tblspc_entry.
-  */
   static_assert(std::is_trivially_copyable<ibb_tblspc_entry>() == true,
                 "Check if it's ok for memcpy()");
   lf_hash_init(&hash, sizeof(ibb_tblspc_entry), LF_HASH_UNIQUE,
                offsetof(ibb_tblspc_entry, file_no),
                sizeof(ibb_tblspc_entry::file_no), nullptr, nullptr);
+  hash.alloc.constructor= ibb_file_hash_constructor;
+  hash.alloc.destructor= ibb_file_hash_destructor;
+  hash.initializer= ibb_file_hash_initializer;
   earliest_oob_ref= ~(uint64_t)0;
   earliest_xa_ref= ~(uint64_t)0;
 }
