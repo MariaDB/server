@@ -82,6 +82,8 @@ AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NA
 --sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
 AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+# innodb_encrypt_temporary_tables is disabled. So it should print null
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE SPACE=4294967294;
 
 --echo # Success!
 --echo # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
