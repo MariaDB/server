@@ -280,7 +280,7 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
 
 group_commit_lock::value_type group_commit_lock::release(value_type num)
 {
-  completion_callback callbacks[1000];
+  thread_local completion_callback callbacks[1000];
   size_t callback_count = 0;
   value_type ret = 0;
   std::unique_lock<std::mutex> lk(m_mtx);
