@@ -389,12 +389,18 @@ public:
      else
        last_commit_pos_file.legacy_name[0]= 0;
   }
+  ~binlog_cache_mngr()
+  {
+    if (engine_binlog_info.engine_ptr)
+      (*opt_binlog_engine_hton->binlog_oob_free)
+        (thd, engine_binlog_info.engine_ptr);
+  }
 
   void reset(bool do_stmt, bool do_trx)
   {
     if (engine_binlog_info.engine_ptr)
-      (*opt_binlog_engine_hton->binlog_oob_free)(thd,
-                                                 engine_binlog_info.engine_ptr);
+      (*opt_binlog_engine_hton->binlog_oob_reset)
+        (thd, &engine_binlog_info.engine_ptr);
     if (do_stmt)
       stmt_cache.reset();
     if (do_trx)
@@ -417,7 +423,9 @@ public:
       */
       trx_cache.cache_log.write_function= binlog_spill_to_engine;
       trx_cache.cache_log.append_read_pos= (uchar *)this;
-      engine_binlog_info= {0, 0, 0};
+      engine_binlog_info.out_of_band_offset= 0;
+      engine_binlog_info.gtid_offset= 0;
+      /* Preserve the engine_ptr for the engine to re-use, was reset above. */
     }
   }
 

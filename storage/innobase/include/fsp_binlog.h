@@ -27,6 +27,8 @@ InnoDB implementation of binlog.
 #include <utility>
 #include <atomic>
 
+#include "lf.h"
+
 #include "univ.i"
 #include "mtr0mtr.h"
 
@@ -203,6 +205,85 @@ public:
 };
 
 
+/* Structure of an entry in the hash of binlog tablespace files. */
+struct ibb_tblspc_entry {
+  uint64_t file_no;
+  /*
+    Active transactions/oob-event-groups that start in this binlog tablespace
+    file (including any user XA).
+  */
+  std::atomic<uint64_t>oob_refs;
+  /*
+    Active XA transactions whose oob start in this binlog tablespace file.
+    ToDo: Note that user XA is not yet implemented.
+  */
+  std::atomic<uint64_t>xa_refs;
+  /*
+    The earliest file number that this binlog tablespace file has oob
+    references into.
+    (This is a conservative estimate, references may not actually exist in
+    case their commit record went into a later file, or they ended up rolling
+    back).
+    Includes any XA oob records.
+  */
+  std::atomic<uint64_t>oob_ref_file_no;
+  /*
+    Earliest file number that we have XA references into.
+    ToDo: Note that user XA is not yet implemented.
+  */
+  std::atomic<uint64_t>xa_ref_file_no;
+
+  ibb_tblspc_entry()= default;
+  ~ibb_tblspc_entry()= default;
+};
+
+
+/*
+  Class keeping reference counts of oob records starting in different binlog
+  tablespace files.
+  Used to keep track of which files should not be purged because they contain
+  oob (start) records that are still referenced by needed binlog tablespace
+  files or by active transactions.
+*/
+class ibb_file_oob_refs {
+public:
+  /* Hash contains struct ibb_tblspc_entry keyed on file_no. */
+  LF_HASH hash;
+  /*
+    Earliest file_no with start oob records that are still referenced by active
+    transactions / event groups.
+  */
+  std::atomic<uint64_t> earliest_oob_ref;
+  /*
+    Same, but restricted to those oob that constitute XA transactions.
+    Thus, this may be larger than earliest_oob_ref or even ~(uint64_t)0 in
+    case there are no active XA.
+  */
+  std::atomic<uint64_t> earliest_xa_ref;
+
+public:
+  /* Init the hash empty. */
+  void init() noexcept;
+  void destroy() noexcept;
+  /* Delete an entry from the hash. */
+  void remove(uint64_t file_no, LF_PINS *pins);
+  /* Delete all (consecutive) entries from file_no down. */
+  void remove_up_to(uint64_t file_no, LF_PINS *pins);
+  /* Update an entry when an OOB record is started/completed. */
+  bool oob_ref_inc(uint64_t file_no, LF_PINS *pins);
+  bool oob_ref_dec(uint64_t file_no, LF_PINS *pins);
+  /* Update earliest_oob_ref when refcount drops to zero. */
+  void do_zero_refcnt_action(uint64_t file_no, LF_PINS *pins,
+                             bool active_moving);
+  /* Update the oob and xa file_no's active at start of this file_no. */
+  bool update_refs(uint64_t file_no, LF_PINS *pins,
+                   uint64_t oob_ref, uint64_t xa_ref);
+  /* Lookup the oob-referenced file_no from a file_no. */
+  bool get_oob_ref_file_no(uint64_t file_no, LF_PINS *pins,
+                           uint64_t *out_oob_ref_file_no);
+};
+
+
 class binlog_chunk_reader {
 public:
   enum chunk_reader_status {
@@ -328,6 +409,8 @@ extern std::atomic<uint64_t> binlog_cur_written_offset[2];
 extern std::atomic<uint64_t> binlog_cur_end_offset[2];
 extern fsp_binlog_page_fifo *binlog_page_fifo;
 
+extern ibb_file_oob_refs ibb_file_hash;
+
 
 static inline void
 fsp_binlog_release(fsp_binlog_page_entry *page)
@@ -341,6 +424,8 @@ extern int crc32_pread_page(File fd, byte *buf, uint32_t page_no,
                             myf MyFlags) noexcept;
 extern int crc32_pread_page(pfs_os_file_t fh, byte *buf, uint32_t page_no,
                             myf MyFlags) noexcept;
+extern bool ibb_record_in_file_hash(uint64_t file_no, uint64_t oob_ref,
+                                    uint64_t xa_ref, LF_PINS *in_pins=nullptr);
 extern void binlog_write_up_to_now() noexcept;
 extern void fsp_binlog_extract_header_page(const byte *page_buf,
                                            binlog_header_data *out_header_data)
@@ -356,9 +441,11 @@ extern bool fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
                             uint64_t file_no, size_t file_size,
                             uint32_t init_page, byte *partial_page);
 extern dberr_t fsp_binlog_tablespace_create(uint64_t file_no,
-                                            uint32_t size_in_pages);
+                                            uint32_t size_in_pages,
+                                            LF_PINS *pins);
 extern std::pair<uint64_t, uint64_t> fsp_binlog_write_rec(
-  struct chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type);
+  struct chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
+  LF_PINS *pins);
 extern bool fsp_binlog_flush();
 
 #endif /* fsp_binlog_h */

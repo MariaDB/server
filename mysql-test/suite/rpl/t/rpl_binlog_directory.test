@@ -35,7 +35,7 @@ INSERT INTO t1 VALUES (2, 11);
 --source include/rpl_start_server.inc
 
 INSERT INTO t1 VALUES (3, 12);
---save_master_pos
+--source include/save_master_gtid.inc
 --source include/show_binary_logs.inc
 --echo *** Contents of master-bin.index (including directory path):
 --cat_file $master_datadir/master-bin.index
@@ -43,7 +43,7 @@ SELECT * FROM t1 ORDER BY a;
 
 --connection slave
 --source include/start_slave.inc
---sync_with_master
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
 # Clean up.

@@ -45,6 +45,7 @@ struct handler_binlog_purge_info;
   Currently used for:
    - chunk_data_cache: A binlog trx cache to be binlogged as a commit record.
    - chunk_data_oob: An out-of-band piece of event group data.
+   - chunk_data_flush: For dummy filler data.
 */
 struct chunk_data_base {
   /*
@@ -74,6 +75,8 @@ struct chunk_data_flush : public chunk_data_base {
 };
 
 
+static constexpr size_t IBB_BINLOG_HEADER_SIZE= 64;
+
 /*
   Data stored at the start of each binlog file.
   (The data is stored as little-engian values in the first page of the file;
@@ -101,6 +104,13 @@ struct binlog_header_data {
     binlog file was created.
   */
   uint64_t diff_state_interval;
+  /* The earliest file_no that we have oob references into. */
+  uint64_t oob_ref_file_no;
+  /*
+    The earliest file_no that we have XA oob references into.
+    ToDo: This in preparation for when XA is implemented.
+  */
+  uint64_t xa_ref_file_no;
   /* The log_2 of the page size (eg. ibb_page_size_shift). */
   uint32_t page_size_shift;
   /*
@@ -163,12 +173,14 @@ extern bool innodb_binlog_init(size_t binlog_size, const char *directory);
 extern void innodb_binlog_close(bool shutdown);
 extern bool ibb_write_header_page(mtr_t *mtr, uint64_t file_no,
                                   uint64_t file_size_in_pages, lsn_t start_lsn,
-                                  uint64_t gtid_state_interval_in_pages);
+                                  uint64_t gtid_state_interval_in_pages,
+                                  LF_PINS *pins);
 extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                               fsp_binlog_page_entry * &block, uint32_t &page_no,
                               uint32_t &page_offset, uint64_t file_no);
 extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
+extern void innodb_reset_oob(THD *thd, void **engine_data);
 extern void innodb_free_oob(THD *thd, void *engine_data);
 extern handler_binlog_reader *innodb_get_binlog_reader();
 extern void ibb_get_filename(char name[FN_REFLEN], uint64_t file_no);

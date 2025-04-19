@@ -3391,6 +3391,30 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
         (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
 
     DBUG_ASSERT(event_type != START_ENCRYPTION_EVENT);
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF("dump_thread_wait_before_send_xid",
+                    {
+                      if (event_type == XID_EVENT)
+                      {
+                        net_flush(info->net);
+                        const char act[]=
+                            "now "
+                            "wait_for signal.continue";
+                        DBUG_ASSERT(debug_sync_service);
+                        DBUG_ASSERT(!debug_sync_set_action(
+                            info->thd,
+                            STRING_WITH_LEN(act)));
+
+                        const char act2[]=
+                            "now "
+                            "signal signal.continued";
+                        DBUG_ASSERT(!debug_sync_set_action(
+                            info->thd,
+                            STRING_WITH_LEN(act2)));
+                      }
+                    });
+#endif
+
     if (((info->errmsg= send_event_to_slave(info, event_type, nullptr,
                                             ev_offset, &info->error_gtid))))
       return 1;
