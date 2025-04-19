@@ -1686,22 +1686,7 @@ public:
 
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-
-      Note, there is possibly a bug below: only the space character is tested
-      after FOR and IS. If a TAB or NL or CR character follows the keyword
-      then something can go wrong. Cannot check at the moment because of abother bug:
-
-      MDEV-36079 Stored routine with a cursor crashes on the second execution ...
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
 private:
