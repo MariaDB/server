@@ -161,6 +161,17 @@ override_dh_auto_install:
 	# Rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mariadbd
 
+	# Rename mariadb.pc as mariadb-embedded-server.pc as to be more descriptive
+	mv -v $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadb.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadb-embedded-server.pc
+	# Keep libmariadbd.pc around for backwards compatibility as all Debian users
+	# have had it for embedded server since April 2021
+	ln -sf mariadb-embedded-server.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/libmariadbd.pc
+
+	# Rename libmariadb.pc as mariadb.pc as it better fits the client library,
+	# and keep old libmariadb.pc as symlink for backwards compatibility
+	mv -v $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/libmariadb.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadb.pc
+	ln -sf mariadb.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/libmariadb.pc
+
 	# Install libmariadbclient18 compatibility links
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
