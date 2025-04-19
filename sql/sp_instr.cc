@@ -902,7 +902,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
       */
       thd->lex->trg_chistics.action_time=
         thd->spcont->m_sp->m_trg->action_time;
-      thd->lex->trg_chistics.event= thd->spcont->m_sp->m_trg->event;
+      thd->lex->trg_chistics.events= thd->spcont->m_sp->m_trg->events;
     }
   }
   else

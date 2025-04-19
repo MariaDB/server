@@ -10402,6 +10402,25 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 }
 
 
+/**
+  Check whether a value of the clause OLD or NEW can produce meaning value:
+    for INSERT event, evaluation of the OLD clause should return NULL;
+    for DELETE event, evaluation of the NEW clause should return NULL.
+
+  @param thd  current thread context
+*/
+
+void
+Item_trigger_field::check_new_old_qulifiers_comform_with_trg_event(THD *thd)
+{
+  if ((thd->current_trg_event() == TRG_EVENT_INSERT && row_version == OLD_ROW) ||
+      (thd->current_trg_event() == TRG_EVENT_DELETE && row_version == NEW_ROW))
+    null_value= true;
+  else
+    null_value= false;
+}
+
+
 bool Item_trigger_field::fix_fields(THD *thd, Item **items)
 {
   /*
@@ -10437,6 +10456,7 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
     field= (row_version == OLD_ROW) ? triggers->old_field[field_idx] :
                                       triggers->new_field[field_idx];
     set_field(field);
+    check_new_old_qulifiers_comform_with_trg_event(thd);
     base_flags|= item_base_t::FIXED;
     return FALSE;
   }
@@ -10461,6 +10481,52 @@ bool Item_trigger_field::check_vcol_func_processor(void *arg)
   return mark_unsupported_function(ver, field_name.str, arg, VCOL_IMPOSSIBLE);
 }
 
+
+int Item_trigger_field::save_in_field(Field *to, bool no_conversions)
+{
+  if (null_value)
+    return set_field_to_null_with_conversions(to, no_conversions);
+
+  return Item_field::save_in_field(to, no_conversions);
+}
+
+
+double Item_trigger_field::val_real()
+{
+  if (null_value)
+    return 0.0;
+  return Item_field::val_real();
+}
+
+longlong Item_trigger_field::val_int()
+{
+  if (null_value)
+    return 0;
+  return Item_field::val_int();
+}
+
+bool Item_trigger_field::val_bool()
+{
+  if (null_value)
+    return false;
+  return Item_field::val_bool();
+}
+
+my_decimal *
+Item_trigger_field::val_decimal(my_decimal *decimal_value)
+{
+  if (null_value)
+    return 0;
+  return Item_field::val_decimal(decimal_value);
+}
+
+String *
+Item_trigger_field::val_str(String *str)
+{
+  if (null_value)
+    return nullptr;
+  return Item_field::val_str(str);
+}
 
 void Item_trigger_field::cleanup()
 {
@@ -10538,6 +10604,11 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
   return cmp.type_handler()->stored_field_cmp_to_item(thd, field, item);
 }
 
+
+bool Item_trigger_type_of_statement::val_bool()
+{
+  return m_trigger_stmt_type == m_thd->current_active_stmt();
+}
 
 void Item_cache::store(Item *item)
 {

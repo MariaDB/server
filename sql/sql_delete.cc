@@ -2049,6 +2049,8 @@ err:
 
 bool Sql_cmd_delete::execute_inner(THD *thd)
 {
+  Running_stmt_guard guard(thd, active_dml_stmt::DELETING_STMT);
+
   if (!multitable)
   {
     if (lex->has_returning())

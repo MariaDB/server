@@ -1595,7 +1595,7 @@ public:
 struct st_trg_chistics: public st_trg_execution_order
 {
   enum trg_action_time_type action_time;
-  enum trg_event_type event;
+  trg_event_set events;
 
   const char *ordering_clause_begin;
   const char *ordering_clause_end;
@@ -4085,6 +4085,44 @@ public:
     }
     Lex_ident_sys a(thd, ca);
     return a.is_null() ? NULL : create_item_ident(thd, &a, &b, &c);
+  }
+
+
+  /**
+    The wrapper around new Item_trigger_type_of_statement to simply debugging
+  */
+
+  Item *create_item_ident_trigger_specific(THD *thd,
+                                           active_dml_stmt stmt_type,
+                                           bool *throw_error);
+
+
+  /**
+    Create an item for any of the clauses INSERTING/UPDATING/DELETING used
+    inside trigger body to distinguish type of a statement that fires
+    the trigger in case the one was defined to be run on several events.
+  */
+
+  Item *create_item_ident_trigger_specific(THD *thd,
+                                           const Lex_ident_sys &clause,
+                                           bool *throw_error)
+  {
+    *throw_error= false;
+
+    if (Lex_ident_ci(clause).streq("INSERTING"_Lex_ident_column))
+      return create_item_ident_trigger_specific(thd,
+                                                active_dml_stmt::INSERTING_STMT,
+                                                throw_error);
+    else if (Lex_ident_ci(clause).streq("UPDATING"_Lex_ident_column))
+      return create_item_ident_trigger_specific(thd,
+                                                active_dml_stmt::UPDATING_STMT,
+                                                throw_error);
+    else if (Lex_ident_ci(clause).streq("DELETING"_Lex_ident_column))
+      return create_item_ident_trigger_specific(thd,
+                                                active_dml_stmt::DELETING_STMT,
+                                                throw_error);
+
+    return nullptr;
   }
 
   /*

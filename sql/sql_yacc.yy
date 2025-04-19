@@ -4772,11 +4772,16 @@ trg_action_time:
 
 trg_event:
             INSERT
-            { Lex->trg_chistics.event= TRG_EVENT_INSERT; }
+            { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_INSERT); }
           | UPDATE_SYM
-            { Lex->trg_chistics.event= TRG_EVENT_UPDATE; }
+            { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_UPDATE); }
           | DELETE_SYM
-            { Lex->trg_chistics.event= TRG_EVENT_DELETE; }
+            { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_DELETE); }
+          ;
+
+trg_events:
+            trg_event
+          | trg_events OR_SYM trg_event
           ;
 
 create_body:
@@ -18488,7 +18493,7 @@ opt_on_update_cols:
             }
           | OF_SYM on_update_cols
             {
-              if (Lex->trg_chistics.event != TRG_EVENT_UPDATE)
+              if (!is_trg_event_on(Lex->trg_chistics.events, TRG_EVENT_UPDATE))
               {
                 thd->parse_error(ER_SYNTAX_ERROR, $1.pos());
                 MYSQL_YYABORT;
@@ -18536,7 +18541,7 @@ trigger_tail:
           }
           sp_name
           trg_action_time
-          trg_event
+          trg_events
           opt_on_update_cols
           ON
           remember_name /* $9 */

@@ -4289,6 +4289,62 @@ void Statement::restore_backup_statement(Statement *stmt, Statement *backup)
 }
 
 
+/**
+  Get a type of DML statement currently is running
+*/
+
+active_dml_stmt Statement::current_active_stmt()
+{
+  return *m_running_stmts.back();
+}
+
+
+/**
+  Store information about a type of the current DML statement being executed
+*/
+
+bool Statement::push_active_stmt(active_dml_stmt new_active_stmt)
+{
+  return m_running_stmts.push(new_active_stmt);
+}
+
+
+/**
+  Remove information about a type of completed DML statement
+*/
+
+void Statement::pop_current_active_stmt()
+{
+  m_running_stmts.pop();
+}
+
+
+trg_event_type Statement::current_trg_event()
+{
+  /*
+    current_trg_event() is called indirectly by Item_trigger_field::fix_fields
+    both on handling DML statements INSERT/UPDATE/DELETE and DDL statement
+    CREATE TRIGGER. For the last one, m_running_trgs is empty since the
+    method push_current_trg_event() is run only on processing triggers, not on
+    thier creation. So take care about this case.
+  */
+  if (unlikely(m_running_trgs.elements() == 0))
+    return TRG_EVENT_MAX;
+  return *m_running_trgs.back();
+}
+
+
+bool Statement::push_current_trg_event(trg_event_type trg_event)
+{
+  return m_running_trgs.push(trg_event);
+}
+
+
+void Statement::pop_current_trg_event()
+{
+  m_running_trgs.pop();
+}
+
 void THD::end_statement()
 {
   DBUG_ENTER("THD::end_statement");

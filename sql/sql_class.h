@@ -23,6 +23,7 @@
 #include <atomic>
 #include "dur_prop.h"
 #include <waiting_threads.h>
+#include "sql_array.h"
 #include "sql_const.h"
 #include "lex_ident.h"
 #include "sql_used.h"
@@ -55,6 +56,8 @@
 #include "scope.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
 #include "ha_handler_stats.h"                    // ha_handler_stats */
+#include "sql_basic_types.h"                     // enum class active_dml_stmt
+#include "sql_trigger.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -1734,6 +1737,63 @@ public:
   void restore_backup_statement(Statement *stmt, Statement *backup);
   /* return class type */
   Type type() const override;
+
+private:
+  Dynamic_array<active_dml_stmt> m_running_stmts{PSI_INSTRUMENT_MEM};
+
+  /**
+    Stack of events of triggers being invoked on running a DML statement.
+    E.g. if there is a trigger BEFORE INSERT ON t1 that calls the statement
+    `DELETE FROM t2` and there is a BEFORE DELETE trigger for the table t2
+    that runs the statement `UPDATE t3` and there is a BEFORE UPDATE trigger
+    for the table t3 then at the moment when the statement `UPDATE t3 ...`
+    be invoked, the stack m_running_trgs would contain the following events:
+     top ->   TRG_EVENT_UPDATE
+              TRG_EVENT_DELETE
+     bottom ->TRG_EVENT_INSERT
+    }
+  */
+  Dynamic_array<trg_event_type> m_running_trgs{PSI_INSTRUMENT_MEM};
+
+public:
+  active_dml_stmt current_active_stmt();
+  bool push_active_stmt(active_dml_stmt new_active_stmt);
+  void pop_current_active_stmt();
+
+  trg_event_type current_trg_event();
+  bool push_current_trg_event(trg_event_type trg_event);
+  void pop_current_trg_event();
+};
+
+
+/**
+  This class is responsible for storing a kind of current DML statement
+  for further matching with type of statement represented by the clauses
+    INSERTING / UPDATING / DELETING.
+  On handling the statements INSERT / UPDATE / DELETE the corresponding type
+  of the statement specified by the enum active_dml_stmt is pushed on top of
+  the Statement's stack in constructor of the class Running_stmt_guard and
+  popped up on finishing execution of the statement by destructor of the class
+  Running_stmt_guard.
+  Every time when the one of the clauses INSERTING / UPDATING / DELETING
+  is evaluated, the last pushed type of DML statement matched with the type
+  representing by the clause INSERTING / UPDATING / DELETING.
+  @see Item_trigger_type_of_statement::val_bool()
+*/
+class Running_stmt_guard
+{
+  Statement *m_stmt;
+public:
+  Running_stmt_guard(Statement *stmt,
+                     active_dml_stmt new_active_stmt)
+  : m_stmt{stmt}
+  {
+    m_stmt->push_active_stmt(new_active_stmt);
+  }
+  ~Running_stmt_guard()
+  {
+    m_stmt->pop_current_active_stmt();
+  }
 };
 
 

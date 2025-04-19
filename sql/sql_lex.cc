@@ -220,8 +220,8 @@ bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
     val= new (thd->mem_root) Item_null(thd);
 
   DBUG_ASSERT(trg_chistics.action_time == TRG_ACTION_BEFORE &&
-              (trg_chistics.event == TRG_EVENT_INSERT ||
-               trg_chistics.event == TRG_EVENT_UPDATE));
+              (is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) ||
+               is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE)));
 
   trg_fld= new (thd->mem_root)
             Item_trigger_field(thd, current_context(),
@@ -8358,21 +8358,39 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 {
   Item_trigger_field *trg_fld;
 
-  if (unlikely(trg_chistics.event == TRG_EVENT_INSERT && !new_row))
+  if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) &&
+               !new_row &&
+               /*
+                 OLD is not compatible only with INSERT event, so
+                 emits the error in case neither UPDATE nor DELETE
+                 is also specified for in the trigger definition
+               */
+
+               !(is_trg_event_on(trg_chistics.events,TRG_EVENT_UPDATE) ||
+                 is_trg_event_on(trg_chistics.events,TRG_EVENT_DELETE))))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "OLD", "on INSERT");
     return NULL;
   }
 
-  if (unlikely(trg_chistics.event == TRG_EVENT_DELETE && new_row))
+  if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE) &&
+               new_row &&
+               /*
+                 NEW is not compatible only with DELETE event, so
+                 emits the error in case neither UPDATE nor INSERT
+                 is also specified for in the trigger definition
+               */
+               !(is_trg_event_on(trg_chistics.events,TRG_EVENT_UPDATE) ||
+                 is_trg_event_on(trg_chistics.events,TRG_EVENT_INSERT))
+               ))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
     return NULL;
   }
 
   DBUG_ASSERT(!new_row ||
-              (trg_chistics.event == TRG_EVENT_INSERT ||
-               trg_chistics.event == TRG_EVENT_UPDATE));
+              (is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) ||
+               is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE)));
 
   const bool tmp_read_only=
     !(new_row && trg_chistics.action_time == TRG_ACTION_BEFORE);
@@ -8806,6 +8824,41 @@ Item *LEX::create_item_ident(THD *thd,
 }
 
 
+Item *LEX::create_item_ident_trigger_specific(THD *thd,
+                                              active_dml_stmt stmt_type,
+                                              bool *throw_error)
+{
+  if (stmt_type == active_dml_stmt::INSERTING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "INSERTING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  if (stmt_type == active_dml_stmt::UPDATING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "UPDATING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  if (stmt_type == active_dml_stmt::DELETING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "DELETING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  return new (thd->mem_root) Item_trigger_type_of_statement(thd, stmt_type);
+}
+
+
 Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
 {
   DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
@@ -8956,6 +9009,31 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
 
+  /*
+    Check the supplied identifier name for reserved names having the special
+    meaning in trigger context. Use this checking after call to find_variable()
+    to don't break backward compatibility - names of variables is resolved
+    before checking an identifier name for reserved values, so behavior of
+    user's triggers that use local variable names coinciding with the reserved
+    values wouldn't be changed
+  */
+  bool got_error;
+  Item *trigger_specific_item=
+    create_item_ident_trigger_specific(thd,
+                                       Lex_ident_sys(thd, name), &got_error);
+  if (trigger_specific_item)
+    /*
+      trigger_specific_item != nullptr if the  argument 'name' equals one of
+      the following clauses `INSERTING`, `UPDATING`, `DELETING`
+    */
+    return trigger_specific_item;
+  else if (got_error)
+    /*
+      The supplied clause INSERTING or UPDATING or DELETING isn't compatible
+      with the trigger event type
+    */
+    return NULL;
+
   if (fields_are_impossible() &&
       (current_select->parsing_place != FOR_LOOP_BOUND ||
        spcont->find_cursor(name, &unused_off, false) == NULL))
@@ -9080,7 +9158,7 @@ bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");
     return true;
   }
-  if (unlikely(trg_chistics.event == TRG_EVENT_DELETE))
+  if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE)))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
     return true;
