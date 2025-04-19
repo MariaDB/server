@@ -13,6 +13,7 @@ INSERT INTO t1 VALUES (2, 11);
 include/rpl_stop_server.inc [server_number=1]
 include/rpl_start_server.inc [server_number=1]
 INSERT INTO t1 VALUES (3, 12);
+include/save_master_gtid.inc
 show binary logs;
 Log_name	File_size
 master-bin.000001	#
@@ -29,6 +30,7 @@ a	b
 3	12
 connection slave;
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	10

@@ -3780,10 +3780,10 @@ static int innodb_init_params()
 	if (innodb_binlog_state_interval == 0 ||
 	    innodb_binlog_state_interval !=
 		(ulonglong)1 << (63 - nlz(innodb_binlog_state_interval)) ||
-	    innodb_binlog_state_interval % (ulonglong)srv_page_size) {
+	    innodb_binlog_state_interval % (ulonglong)ibb_page_size) {
 		ib::error() << "innodb_binlog_state_interval must be a "
-			"power-of-two multiple of the innodb_page_size="
-			<< srv_page_size;
+			"power-of-two multiple of the innodb binlog page size="
+			<< ibb_page_size;
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
@@ -4141,6 +4141,7 @@ static int innodb_init(void* p)
         innobase_hton->binlog_init= innodb_binlog_init;
         innobase_hton->binlog_write_direct= innobase_binlog_write_direct;
         innobase_hton->binlog_oob_data= innodb_binlog_oob;
+        innobase_hton->binlog_oob_reset= innodb_reset_oob;
         innobase_hton->binlog_oob_free= innodb_free_oob;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
         innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
@@ -19916,9 +19917,10 @@ static MYSQL_SYSVAR_ULONGLONG(binlog_state_interval,
   innodb_binlog_state_interval,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Interval (in bytes) at which to write the GTID binlog state to binlog "
-  "files to speed up GTID lookups. Must be a multiple of innodb_page_size",
+  "files to speed up GTID lookups. Must be a multiple of the binlog page "
+  "size (4096 bytes)",
   NULL, NULL, 2*1024*1024,
-  UNIV_PAGE_SIZE_MAX, ULONGLONG_MAX, 0);
+  8192, ULONGLONG_MAX, 0);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),

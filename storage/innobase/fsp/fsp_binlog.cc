@@ -21,6 +21,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 InnoDB implementation of binlog.
 *******************************************************/
 
+#include <type_traits>
 #include "ut0bitop.h"
 #include "fsp0fsp.h"
 #include "buf0flu.h"
@@ -106,6 +107,9 @@ std::atomic<uint64_t> binlog_cur_written_offset[2];
 std::atomic<uint64_t> binlog_cur_end_offset[2];
 
 fsp_binlog_page_fifo *binlog_page_fifo;
+
+/* Object to keep track of outstanding oob references in binlog files. */
+ibb_file_oob_refs ibb_file_hash;
 
 
 fsp_binlog_page_entry *
@@ -736,6 +740,225 @@ crc32_pread_page(pfs_os_file_t fh, byte *buf, uint32_t page_no, myf MyFlags)
 }
 
 
+/*
+  Need specific constructor/initializer for struct ibb_tblspc_entry stored in
+  the ibb_file_hash. This is a work-around for C++ abstractions that makes it
+  non-standard behaviour to memcpy() std::atomic objects.
+*/
+static void
+ibb_file_hash_constructor(uchar *arg)
+{
+  new(arg + LF_HASH_OVERHEAD) ibb_tblspc_entry();
+}
+
+
+static void
+ibb_file_hash_destructor(uchar *arg)
+{
+  ibb_tblspc_entry *e= (ibb_tblspc_entry *)(arg + LF_HASH_OVERHEAD);
+  e->~ibb_tblspc_entry();
+}
+
+
+static void
+ibb_file_hash_initializer(LF_HASH *hash, void *dst, const void *src)
+{
+  ibb_tblspc_entry *src_e= (ibb_tblspc_entry *)src;
+  ibb_tblspc_entry *dst_e= (ibb_tblspc_entry *)dst;
+  dst_e->file_no= src_e->file_no;
+  dst_e->oob_refs.store(src_e->oob_refs.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
+  dst_e->xa_refs.store(src_e->xa_refs.load(std::memory_order_relaxed),
+                       std::memory_order_relaxed);
+  dst_e->oob_ref_file_no.store(src_e->oob_ref_file_no.load(std::memory_order_relaxed),
+                               std::memory_order_relaxed);
+  dst_e->xa_ref_file_no.store(src_e->xa_ref_file_no.load(std::memory_order_relaxed),
+                              std::memory_order_relaxed);
+}
+
+
+void
+ibb_file_oob_refs::init() noexcept
+{
+  lf_hash_init(&hash, sizeof(ibb_tblspc_entry), LF_HASH_UNIQUE,
+               offsetof(ibb_tblspc_entry, file_no),
+               sizeof(ibb_tblspc_entry::file_no), nullptr, nullptr);
+  hash.alloc.constructor= ibb_file_hash_constructor;
+  hash.alloc.destructor= ibb_file_hash_destructor;
+  hash.initializer= ibb_file_hash_initializer;
+  earliest_oob_ref= ~(uint64_t)0;
+  earliest_xa_ref= ~(uint64_t)0;
+}
+
+
+void
+ibb_file_oob_refs::destroy() noexcept
+{
+  lf_hash_destroy(&hash);
+}
+
+
+void
+ibb_file_oob_refs::remove(uint64_t file_no, LF_PINS *pins)
+{
+  lf_hash_delete(&hash, pins, &file_no, sizeof(file_no));
+}
+
+
+void
+ibb_file_oob_refs::remove_up_to(uint64_t file_no, LF_PINS *pins)
+{
+  for (;;)
+  {
+    int res= lf_hash_delete(&hash, pins, &file_no, sizeof(file_no));
+    if (res || file_no == 0)
+      break;
+    --file_no;
+  }
+}
+
+
+bool
+ibb_file_oob_refs::oob_ref_inc(uint64_t file_no, LF_PINS *pins)
+{
+  ibb_tblspc_entry *e=
+    (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+  if (!e)
+    return false;
+  e->oob_refs.fetch_add(1, std::memory_order_acquire);
+  lf_hash_search_unpin(pins);
+  return true;
+}
+
+
+bool
+ibb_file_oob_refs::oob_ref_dec(uint64_t file_no, LF_PINS *pins)
+{
+  ibb_tblspc_entry *e=
+    (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+  if (!e)
+    return true;
+  uint64_t refcnt= e->oob_refs.fetch_sub(1, std::memory_order_acquire) - 1;
+  lf_hash_search_unpin(pins);
+  ut_ad(refcnt != (uint64_t)0 - 1);
+
+  if (refcnt == 0)
+    do_zero_refcnt_action(file_no, pins, false);
+  return false;
+}
+
+
+void
+ibb_file_oob_refs::do_zero_refcnt_action(uint64_t file_no, LF_PINS *pins,
+                                         bool active_moving)
+{
+  for (;;)
+  {
+    ibb_tblspc_entry *e=
+      (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+    if (!e)
+      return;
+    uint64_t refcnt= e->oob_refs.load(std::memory_order_acquire);
+    lf_hash_search_unpin(pins);
+    if (refcnt > 0)
+      return;
+    /*
+      Reference count reached zero. Check if this was the earliest_oob_ref
+      that reached zero, and if so move it to the next file. Repeat this
+      for consecutive refcount-is-zero file_no, in case N+1 reaches zero
+      before N does.
+
+      As records are written into the active binlog file, the refcount can
+      reach zero temporarily and then go up again, so do not move the
+      earliest_oob_ref ahead yet.
+
+      As the active is about to move to the next file, we check again, and
+      this time move the earliest_oob_ref if the refcount on the (previously)
+      active binlog file ended up at zero.
+    */
+    uint64_t active= active_binlog_file_no.load(std::memory_order_acquire);
+    ut_ad(file_no <= active + active_moving);
+    if (file_no >= active + active_moving)
+      return;
+    bool ok;
+    do
+    {
+      uint64_t read_file_no= earliest_oob_ref.load(std::memory_order_relaxed);
+      if (read_file_no != file_no)
+        break;
+      ok= earliest_oob_ref.compare_exchange_weak(read_file_no, file_no + 1,
+                                                 std::memory_order_relaxed);
+    } while (!ok);
+    /* Handle any following file_no that may have dropped to zero earlier. */
+    ++file_no;
+  }
+}
+
+
+bool
+ibb_file_oob_refs::update_refs(uint64_t file_no, LF_PINS *pins,
+                               uint64_t oob_ref, uint64_t xa_ref)
+{
+  ibb_tblspc_entry *e=
+    (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+  if (!e)
+    return false;
+  e->oob_ref_file_no.store(oob_ref, std::memory_order_relaxed);
+  e->xa_ref_file_no.store(xa_ref, std::memory_order_relaxed);
+  lf_hash_search_unpin(pins);
+  return true;
+}
+
+
+bool
+ibb_file_oob_refs::get_oob_ref_file_no(uint64_t file_no, LF_PINS *pins,
+                                       uint64_t *out_oob_ref_file_no)
+{
+  ibb_tblspc_entry *e=
+    (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+  if (!e)
+  {
+    *out_oob_ref_file_no= ~(uint64_t)0;
+    return false;
+  }
+  *out_oob_ref_file_no= e->oob_ref_file_no.load(std::memory_order_relaxed);
+  lf_hash_search_unpin(pins);
+  return true;
+}
+
+
+bool
+ibb_record_in_file_hash(uint64_t file_no, uint64_t oob_ref, uint64_t xa_ref,
+                         LF_PINS *in_pins)
+{
+  bool err= false;
+  LF_PINS *pins= in_pins ? in_pins : lf_hash_get_pins(&ibb_file_hash.hash);
+  if (!pins)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  ibb_tblspc_entry entry;
+  entry.file_no= file_no;
+  entry.oob_refs.store(0, std::memory_order_relaxed);
+  entry.xa_refs.store(0, std::memory_order_relaxed);
+  entry.oob_ref_file_no.store(oob_ref, std::memory_order_relaxed);
+  entry.xa_ref_file_no.store(xa_ref, std::memory_order_relaxed);
+  int res= lf_hash_insert(&ibb_file_hash.hash, pins, &entry);
+  if (res)
+  {
+    ut_ad(res < 0 /* Should not get unique violation, never insert twice */);
+    sql_print_error("InnoDB: Could not initialize in-memory structure for "
+                    "binlog tablespace file number %" PRIu64 ", %s", file_no,
+                    (res < 0 ? "out of memory" : "internal error"));
+    err= true;
+  }
+  if (!in_pins)
+    lf_hash_put_pins(pins);
+  return err;
+}
+
+
 void
 binlog_write_up_to_now() noexcept
 {
@@ -789,6 +1012,8 @@ fsp_binlog_extract_header_page(const byte *page_buf,
   out_header_data-> page_count= uint8korr(page_buf + 24);
   out_header_data-> start_lsn= uint8korr(page_buf + 32);
   out_header_data-> diff_state_interval= uint8korr(page_buf + 40);
+  out_header_data->oob_ref_file_no= uint8korr(page_buf + 48);
+  out_header_data->xa_ref_file_no= uint8korr(page_buf + 56);
 }
 
 
@@ -839,6 +1064,7 @@ fsp_binlog_init()
 {
   mysql_mutex_init(fsp_active_binlog_mutex_key, &active_binlog_mutex, nullptr);
   pthread_cond_init(&active_binlog_cond, nullptr);
+  ibb_file_hash.init();
   binlog_page_fifo= new fsp_binlog_page_fifo();
   binlog_page_fifo->start_flush_thread();
 }
@@ -849,6 +1075,7 @@ fsp_binlog_shutdown()
 {
   binlog_page_fifo->stop_flush_thread();
   delete binlog_page_fifo;
+  ibb_file_hash.destroy();
   pthread_cond_destroy(&active_binlog_cond);
   mysql_mutex_destroy(&active_binlog_mutex);
 }
@@ -927,7 +1154,8 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
 /** Create a binlog tablespace file
 @param[in]  file_no	 Index of the binlog tablespace
 @return DB_SUCCESS or error code */
-dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages)
+dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages,
+                                     LF_PINS *pins)
 {
 	pfs_os_file_t	fh;
 	bool		ret;
@@ -962,6 +1190,13 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages)
 		return DB_ERROR;
 	}
 
+        /*
+          Enter an initial entry in the hash for this binlog tablespace file.
+          It will be later updated with the appropriate values when the file
+          first gets used and the header page is written.
+        */
+        ibb_record_in_file_hash(file_no, ~(uint64_t)0,~(uint64_t)0, pins);
+
         binlog_page_fifo->create_tablespace(file_no, size_in_pages);
         os_file_close(fh);
 
@@ -979,7 +1214,8 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages)
   GTID state record, used for FLUSH BINARY LOGS.
 */
 std::pair<uint64_t, uint64_t>
-fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
+fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
+                     LF_PINS *pins)
 {
   uint32_t page_size= (uint32_t)ibb_page_size;
   uint32_t page_size_shift= ibb_page_size_shift;
@@ -1038,9 +1274,16 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
       /* Write the header page at the start of a binlog tablespace file. */
       if (page_no == 0)
       {
+        /* Active is moving to next file, so check if oob refcount of previous
+           file is zero.
+        */
+        if (UNIV_LIKELY(file_no > 0))
+          ibb_file_hash.do_zero_refcnt_action(file_no - 1, pins, true);
+
         lsn_t start_lsn= log_get_lsn();
         bool err= ibb_write_header_page(mtr, file_no, file_size_in_pages,
-                                        start_lsn, current_binlog_state_interval);
+                                        start_lsn,
+                                        current_binlog_state_interval, pins);
         ut_a(!err /* ToDo error handling */);
         page_no= 1;
       }
@@ -1244,6 +1487,8 @@ fsp_binlog_flush()
   my_sync(fh, MYF(0));
   binlog_page_fifo->unlock();
 
+  LF_PINS *lf_pins= lf_hash_get_pins(&ibb_file_hash.hash);
+  ut_a(lf_pins);
   uint32_t page_offset= binlog_cur_page_offset;
   if (page_offset > BINLOG_PAGE_DATA ||
       page_offset < ibb_page_size - BINLOG_PAGE_DATA_END)
@@ -1254,7 +1499,7 @@ fsp_binlog_flush()
     end-of-file of the entire binlog.
   */
     mtr.start();
-    fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_DUMMY);
+    fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_DUMMY, lf_pins);
     mtr.commit();
   }
 
@@ -1280,8 +1525,9 @@ fsp_binlog_flush()
     persisted across a server restart.
   */
   mtr.start();
-  fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_FILLER);
+  fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_FILLER, lf_pins);
   mtr.commit();
+  lf_hash_put_pins(lf_pins);
   log_buffer_flush_to_disk(srv_flush_log_at_trx_commit & 1);
 
   return false;
