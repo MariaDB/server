@@ -717,6 +717,20 @@ void print_best_access_for_table(THD *thd, POSITION *pos)
     add("rows_out", pos->records_out).
     add("cost", pos->read_time).
     add("uses_join_buffering", pos->use_join_buffer);
+
+  if (pos->type == JT_EQ_REF ||
+    pos->type == JT_REF ||
+    pos->type == JT_MAYBE_REF ||
+    pos->type == JT_FT)
+  {
+    obj.add("index", pos->key->table->key_info[pos->key->key].name);
+  }
+
+  if (pos->type == JT_RANGE)
+  {
+    obj.add("index", pos->table->table->key_info[pos->table->quick->index].name);
+  }
+  
   if (pos->range_rowid_filter_info)
   {
     uint key_no= pos->range_rowid_filter_info->get_key_no();
