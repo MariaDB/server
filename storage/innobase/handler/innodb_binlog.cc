@@ -117,12 +117,18 @@ struct binlog_oob_context {
 
   bool binlog_node(uint32_t node, uint64_t new_idx,
                    uint32_t left_node, uint32_t right_node,
-                   chunk_data_oob *oob_data);
+                   chunk_data_oob *oob_data, LF_PINS *pins);
 
   uint64_t first_node_file_no;
   uint64_t first_node_offset;
+  LF_PINS *lf_pins;
   uint32_t node_list_len;
   uint32_t node_list_alloc_len;
+  /*
+    Set if we incremented refcount in first_node_file_no, so we need to
+    decrement again at commit record write or reset/rollback.
+  */
+  bool pending_refcount;
   /*
     The node_list contains the root of each tree in the forest of perfect
     binary trees.
@@ -249,6 +255,7 @@ public:
 
 struct chunk_data_cache : public chunk_data_base {
   IO_CACHE *cache;
+  binlog_oob_context *oob_ctx;
   size_t main_remain;
   size_t gtid_remain;
   uint32_t header_remain;
@@ -270,6 +277,8 @@ struct chunk_data_cache : public chunk_data_base {
 
     binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
     unsigned char *p;
+    ut_ad(c);
+    oob_ctx= c;
     if (c && c->node_list_len)
     {
       /*
@@ -321,6 +330,13 @@ struct chunk_data_cache : public chunk_data_base {
   virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
   {
     uint32_t size= 0;
+
+    if (UNIV_LIKELY(oob_ctx != nullptr) && oob_ctx->pending_refcount)
+    {
+      ibb_file_hash.oob_ref_dec(oob_ctx->first_node_file_no, oob_ctx->lf_pins);
+      oob_ctx->pending_refcount= false;
+    }
+
     /* Write header data, if any still available. */
     if (header_remain > 0)
     {
@@ -505,7 +521,7 @@ static int scan_for_binlogs(const char *binlog_dir, found_binlogs *binlog_files,
                             bool error_if_missing) noexcept;
 static int innodb_binlog_discover();
 static bool binlog_state_recover();
-static void innodb_binlog_autopurge(uint64_t first_open_file_no);
+static void innodb_binlog_autopurge(uint64_t first_open_file_no, LF_PINS *pins);
 static int read_gtid_state_from_page(rpl_binlog_state_base *state,
                                      const byte *page, uint32_t page_no)
   noexcept;
@@ -1144,6 +1160,7 @@ innodb_binlog_init_state()
   earliest_binlog_file_no= ~(uint64_t)0;
   total_binlog_used_size= 0;
   active_binlog_file_no.store(~(uint64_t)0, std::memory_order_release);
+  ibb_file_hash.earliest_oob_ref.store(0, std::memory_order_relaxed);
   binlog_cur_page_no= 0;
   binlog_cur_page_offset= BINLOG_PAGE_DATA;
   current_binlog_state_interval=
@@ -1184,9 +1201,12 @@ binlog_sync_initial()
 {
   chunk_data_flush dummy_data;
   mtr_t mtr;
+  LF_PINS *lf_pins= lf_hash_get_pins(&ibb_file_hash.hash);
+  ut_a(lf_pins);
   mtr.start();
-  fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_FILLER);
+  fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_FILLER, lf_pins);
   mtr.commit();
+  lf_hash_put_pins(lf_pins);
   log_buffer_flush_to_disk(true);
   binlog_page_fifo->flush_up_to(0, 0);
   binlog_page_fifo->do_fdatasync(0);
@@ -1342,7 +1362,7 @@ binlog_page_empty(const byte *page)
 static int
 find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
                    uint32_t *out_page_no, uint32_t *out_pos_in_page,
-                   uint64_t *out_state_interval)
+                   binlog_header_data *out_header_data)
 {
   const uint32_t page_size= (uint32_t)ibb_page_size;
   const uint32_t page_size_shift= (uint32_t)ibb_page_size_shift;
@@ -1351,11 +1371,11 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   uint32_t p_0, p_1, p_2, last_nonempty;
   byte *p, *page_end;
   bool ret;
-  binlog_header_data header_data;
 
   *out_page_no= 0;
   *out_pos_in_page= BINLOG_PAGE_DATA;
-  *out_state_interval= 0;
+  out_header_data->diff_state_interval= 0;
+  out_header_data->is_invalid= true;
 
   binlog_name_make(file_name, file_no);
   pfs_os_file_t fh= os_file_create(innodb_data_file_key, file_name,
@@ -1371,27 +1391,27 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
     os_file_close(fh);
     return -1;
   }
-  fsp_binlog_extract_header_page(page_buf, &header_data);
-  if (header_data.is_invalid)
+  fsp_binlog_extract_header_page(page_buf, out_header_data);
+  if (out_header_data->is_invalid)
   {
     sql_print_error("InnoDB: Invalid or corrupt file header in file "
                     "'%s'", file_name);
     return -1;
   }
-  if (header_data.is_empty) {
+  if (out_header_data->is_empty) {
     ret=
       fsp_binlog_open(file_name, fh, file_no, file_size, ~(uint32_t)0, nullptr);
     binlog_cur_written_offset[idx].store(0, std::memory_order_relaxed);
     binlog_cur_end_offset[idx].store(0, std::memory_order_relaxed);
     return (ret ? -1 : 0);
   }
-  if (header_data.file_no != file_no)
+  if (out_header_data->file_no != file_no)
   {
     sql_print_error("InnoDB: Inconsistent file header in file '%s', "
-                    "wrong file_no %" PRIu64, file_name, header_data.file_no);
+                    "wrong file_no %" PRIu64, file_name,
+                    out_header_data->file_no);
     return -1;
   }
-  *out_state_interval= header_data.diff_state_interval;
   last_nonempty= 0;
 
   /*
@@ -1471,7 +1491,7 @@ innodb_binlog_discover()
   const uint32_t page_size= (uint32_t)ibb_page_size;
   const uint32_t page_size_shift= (uint32_t)ibb_page_size_shift;
   struct found_binlogs binlog_files;
-  uint64_t diff_state_interval;
+  binlog_header_data header;
 
   int res= scan_for_binlogs(innodb_binlog_directory, &binlog_files, false);
   if (res <= 0)
@@ -1494,10 +1514,13 @@ innodb_binlog_discover()
     res= find_pos_in_binlog(binlog_files.last_file_no,
                             binlog_files.last_size,
                             page_buf.get(), &page_no, &pos_in_page,
-                            &diff_state_interval);
+                            &header);
     if (res < 0) {
       file_no= binlog_files.last_file_no;
+      if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
+        return -1;
       active_binlog_file_no.store(file_no, std::memory_order_release);
+      ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
       current_binlog_state_interval= innodb_binlog_state_interval;
       sql_print_warning("Binlog number %llu could no be opened. Starting a new "
                         "binlog file from number %llu",
@@ -1508,8 +1531,12 @@ innodb_binlog_discover()
     if (res > 0) {
       /* Found start position in the last binlog file. */
       file_no= binlog_files.last_file_no;
+      if (ibb_record_in_file_hash(file_no, header.oob_ref_file_no,
+                                  header.xa_ref_file_no))
+        return -1;
       active_binlog_file_no.store(file_no, std::memory_order_release);
-      current_binlog_state_interval= diff_state_interval;
+      ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
+      current_binlog_state_interval= header.diff_state_interval;
       binlog_cur_page_no= page_no;
       binlog_cur_page_offset= pos_in_page;
       ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -1525,10 +1552,13 @@ innodb_binlog_discover()
                               binlog_files.prev_size,
                               page_buf.get(),
                               &prev_page_no, &prev_pos_in_page,
-                              &diff_state_interval);
+                              &header);
       if (res < 0) {
         file_no= binlog_files.last_file_no;
+        if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
+          return -1;
         active_binlog_file_no.store(file_no, std::memory_order_release);
+        ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
         current_binlog_state_interval= innodb_binlog_state_interval;
         binlog_cur_page_no= page_no;
         binlog_cur_page_offset= pos_in_page;
@@ -1538,8 +1568,12 @@ innodb_binlog_discover()
         return 1;
       }
       file_no= binlog_files.prev_file_no;
+      if (ibb_record_in_file_hash(file_no, header.oob_ref_file_no,
+                                  header.xa_ref_file_no))
+        return -1;
       active_binlog_file_no.store(file_no, std::memory_order_release);
-      current_binlog_state_interval= diff_state_interval;
+      ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
+      current_binlog_state_interval= header.diff_state_interval;
       binlog_cur_page_no= prev_page_no;
       binlog_cur_page_offset= prev_pos_in_page;
       ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -1551,7 +1585,10 @@ innodb_binlog_discover()
 
     /* Just one empty binlog file found. */
     file_no= binlog_files.last_file_no;
+    if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
+      return -1;
     active_binlog_file_no.store(file_no, std::memory_order_release);
+    ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
     current_binlog_state_interval= innodb_binlog_state_interval;
     binlog_cur_page_no= page_no;
     binlog_cur_page_offset= pos_in_page;
@@ -1563,6 +1600,7 @@ innodb_binlog_discover()
   /* No binlog files found, start from scratch. */
   file_no= 0;
   earliest_binlog_file_no= 0;
+  ibb_file_hash.earliest_oob_ref.store(0, std::memory_order_relaxed);
   total_binlog_used_size= 0;
   current_binlog_state_interval= innodb_binlog_state_interval;
   ib::info() << "Starting a new binlog from file number " << file_no << ".";
@@ -1612,6 +1650,8 @@ innodb_binlog_prealloc_thread()
 #ifdef UNIV_PFS_THREAD
   pfs_register_thread(binlog_prealloc_thread_key);
 #endif
+  LF_PINS *lf_pins= lf_hash_get_pins(&ibb_file_hash.hash);
+  ut_a(lf_pins);
 
   mysql_mutex_lock(&active_binlog_mutex);
   while (1)
@@ -1633,12 +1673,13 @@ innodb_binlog_prealloc_thread()
 
       mysql_mutex_lock(&purge_binlog_mutex);
       uint32_t size_in_pages=  innodb_binlog_size_in_pages;
-      dberr_t res2= fsp_binlog_tablespace_create(last_created, size_in_pages);
+      dberr_t res2= fsp_binlog_tablespace_create(last_created, size_in_pages,
+                                                 lf_pins);
       if (earliest_binlog_file_no == ~(uint64_t)0)
         earliest_binlog_file_no= last_created;
       total_binlog_used_size+= (size_in_pages << ibb_page_size_shift);
 
-      innodb_binlog_autopurge(first_open);
+      innodb_binlog_autopurge(first_open, lf_pins);
       mysql_mutex_unlock(&purge_binlog_mutex);
 
       mysql_mutex_lock(&active_binlog_mutex);
@@ -1649,6 +1690,8 @@ innodb_binlog_prealloc_thread()
       ut_ad(active < ~(uint64_t)0 || last_created == 0);
       if (active == ~(uint64_t)0) {
         active_binlog_file_no.store(last_created, std::memory_order_relaxed);
+        ibb_file_hash.earliest_oob_ref.store(last_created,
+                                             std::memory_order_relaxed);
       }
       if (first_open == ~(uint64_t)0)
         first_open_binlog_file_no= first_open= last_created;
@@ -1680,6 +1723,7 @@ innodb_binlog_prealloc_thread()
   }
   mysql_mutex_unlock(&active_binlog_mutex);
 
+  lf_hash_put_pins(lf_pins);
   my_thread_end();
 
 #ifdef UNIV_PFS_THREAD
@@ -1690,7 +1734,8 @@ innodb_binlog_prealloc_thread()
 
 bool
 ibb_write_header_page(mtr_t *mtr, uint64_t file_no, uint64_t file_size_in_pages,
-                      lsn_t start_lsn, uint64_t gtid_state_interval_in_pages)
+                      lsn_t start_lsn, uint64_t gtid_state_interval_in_pages,
+                      LF_PINS *pins)
 {
   fsp_binlog_page_entry *block;
   uint32_t used_bytes;
@@ -1698,6 +1743,11 @@ ibb_write_header_page(mtr_t *mtr, uint64_t file_no, uint64_t file_size_in_pages,
   block= binlog_page_fifo->create_page(file_no, 0);
   ut_a(block /* ToDo: error handling? */);
   byte *ptr= &block->page_buf[0];
+  uint64_t oob_ref_file_no=
+    ibb_file_hash.earliest_oob_ref.load(std::memory_order_relaxed);
+  uint64_t xa_ref_file_no=
+    ibb_file_hash.earliest_xa_ref.load(std::memory_order_relaxed);
+  ibb_file_hash.update_refs(file_no, pins, oob_ref_file_no, xa_ref_file_no);
 
   int4store(ptr, IBB_MAGIC);
   int4store(ptr + 4, ibb_page_size_shift);
@@ -1707,7 +1757,9 @@ ibb_write_header_page(mtr_t *mtr, uint64_t file_no, uint64_t file_size_in_pages,
   int8store(ptr + 24, file_size_in_pages);
   int8store(ptr + 32, start_lsn);
   int8store(ptr + 40, gtid_state_interval_in_pages);
-  used_bytes= 48;
+  int8store(ptr + 48, oob_ref_file_no);
+  int8store(ptr + 56, xa_ref_file_no);
+  used_bytes= IBB_BINLOG_HEADER_SIZE;
   ut_ad(ibb_page_size >= IBB_HEADER_PAGE_SIZE);
   memset(ptr + used_bytes, 0, ibb_page_size - (used_bytes + BINLOG_PAGE_CHECKSUM));
   /*
@@ -2009,18 +2061,9 @@ binlog_state_recover()
 }
 
 
-static void
-innodb_binlog_write_cache(IO_CACHE *cache,
-                       handler_binlog_event_group_info *binlog_info, mtr_t *mtr)
-{
-  chunk_data_cache chunk_data(cache, binlog_info);
-  fsp_binlog_write_rec(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT);
-}
-
-
 /* Allocate a context for out-of-band binlogging. */
 static binlog_oob_context *
-alloc_oob_context(uint32 list_length)
+alloc_oob_context(uint32 list_length= 10)
 {
   size_t needed= sizeof(binlog_oob_context) +
     list_length * sizeof(binlog_oob_context::node_info);
@@ -2028,8 +2071,15 @@ alloc_oob_context(uint32 list_length)
     (binlog_oob_context *) ut_malloc(needed, mem_key_binlog);
   if (c)
   {
+    if (!(c->lf_pins= lf_hash_get_pins(&ibb_file_hash.hash)))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      ut_free(c);
+      return nullptr;
+    }
     c->node_list_alloc_len= list_length;
     c->node_list_len= 0;
+    c->pending_refcount= false;
   }
   else
     my_error(ER_OUTOFMEMORY, MYF(0), needed);
@@ -2038,9 +2088,38 @@ alloc_oob_context(uint32 list_length)
 }
 
 
+static void
+innodb_binlog_write_cache(IO_CACHE *cache,
+                       handler_binlog_event_group_info *binlog_info, mtr_t *mtr)
+{
+  binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
+  if (!c)
+    binlog_info->engine_ptr= c= alloc_oob_context();
+  ut_a(c);
+  chunk_data_cache chunk_data(cache, binlog_info);
+
+  fsp_binlog_write_rec(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT, c->lf_pins);
+}
+
+
+static inline void
+reset_oob_context(binlog_oob_context *c)
+{
+  if (c->pending_refcount)
+  {
+    ibb_file_hash.oob_ref_dec(c->first_node_file_no, c->lf_pins);
+    c->pending_refcount= false;
+  }
+  c->node_list_len= 0;
+}
+
+
 static inline void
 free_oob_context(binlog_oob_context *c)
 {
+  ut_ad(!c->pending_refcount /* Should not have pending until free */);
+  reset_oob_context(c);  /* Defensive programming, should be redundant */
+  lf_hash_put_pins(c->lf_pins);
   ut_free(c);
 }
 
@@ -2060,7 +2139,7 @@ ensure_oob_context(void **engine_data, uint32_t needed_len)
          needed_len*sizeof(binlog_oob_context::node_info));
   new_c->node_list_alloc_len= needed_len;
   *engine_data= new_c;
-  free_oob_context(c);
+  ut_free(c);
   return new_c;
 }
 
@@ -2130,7 +2209,7 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
 {
   binlog_oob_context *c= (binlog_oob_context *)*engine_data;
   if (!c)
-    *engine_data= c= alloc_oob_context(10);
+    *engine_data= c= alloc_oob_context();
   if (UNIV_UNLIKELY(!c))
     return true;
 
@@ -2144,7 +2223,7 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
        c->node_list[i-2].file_no, c->node_list[i-2].offset,
        c->node_list[i-1].file_no, c->node_list[i-1].offset,
        (byte *)data, data_len);
-    if (c->binlog_node(i-2, new_idx, i-2, i-1, &oob_data))
+    if (c->binlog_node(i-2, new_idx, i-2, i-1, &oob_data, c->lf_pins))
       return true;
     c->node_list_len= i - 1;
   }
@@ -2159,7 +2238,7 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
        0, 0, /* NULL left child signifies a leaf */
        c->node_list[i-1].file_no, c->node_list[i-1].offset,
        (byte *)data, data_len);
-    if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data))
+    if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data, c->lf_pins))
       return true;
     c->node_list_len= i + 1;
   }
@@ -2168,11 +2247,14 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
     /* Special case i==0, like case 2 but no prior node to link to. */
     binlog_oob_context::chunk_data_oob oob_data
       (new_idx, 0, 0, 0, 0, (byte *)data, data_len);
-    if (c->binlog_node(i, new_idx, ~(uint32_t)0, ~(uint32_t)0, &oob_data))
+    if (c->binlog_node(i, new_idx, ~(uint32_t)0, ~(uint32_t)0, &oob_data,
+                       c->lf_pins))
       return true;
     c->first_node_file_no= c->node_list[i].file_no;
     c->first_node_offset= c->node_list[i].offset;
     c->node_list_len= 1;
+    c->pending_refcount=
+      ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins);
   }
 
   return false;
@@ -2187,14 +2269,14 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
 bool
 binlog_oob_context::binlog_node(uint32_t node, uint64_t new_idx,
                                 uint32_t left_node, uint32_t right_node,
-                                chunk_data_oob *oob_data)
+                                chunk_data_oob *oob_data, LF_PINS *pins)
 {
   uint32_t new_height=
     left_node == right_node ? 1 : 1 + node_list[left_node].height;
   mtr_t mtr;
   mtr.start();
   std::pair<uint64_t, uint64_t> new_file_no_offset=
-    fsp_binlog_write_rec(oob_data, &mtr, FSP_BINLOG_TYPE_OOB_DATA);
+    fsp_binlog_write_rec(oob_data, &mtr, FSP_BINLOG_TYPE_OOB_DATA, pins);
   mtr.commit();
   node_list[node].file_no= new_file_no_offset.first;
   node_list[node].offset= new_file_no_offset.second;
@@ -2246,6 +2328,15 @@ binlog_oob_context::chunk_data_oob::copy_data(byte *p, uint32_t max_len)
   memcpy(p, main_data + (sofar - header_len), size2);
   sofar+= size2;
   return {size + size2, sofar == header_len + main_len};
+}
+
+
+void
+innodb_reset_oob(THD *thd, void **engine_data)
+{
+  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  if (c)
+    reset_oob_context(c);
 }
 
 
@@ -2700,7 +2791,8 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
       if (page_no > (end_offset >> ibb_page_size_shift))
       {
         ut_ad(!block);
-        return READ_NOT_FOUND;
+        if (file_no == active)
+          return READ_NOT_FOUND;
       }
     }
 
@@ -3055,7 +3147,8 @@ bool
 innodb_reset_binlogs()
 {
   bool err= false;
-
+  LF_PINS *lf_pins= lf_hash_get_pins(&ibb_file_hash.hash);
+  ut_a(lf_pins);
   ut_a(innodb_binlog_inited >= 2);
 
   /* Close existing binlog tablespaces and stop the pre-alloc thread. */
@@ -3073,6 +3166,8 @@ innodb_reset_binlogs()
   /* Prevent any flushing activity while resetting. */
   binlog_page_fifo->lock_wait_for_idle();
   binlog_page_fifo->reset();
+
+  ibb_file_hash.remove_up_to(last_created_binlog_file_no, lf_pins);
 
   /* Delete all binlog files in the directory. */
   MY_DIR *dir= my_dir(innodb_binlog_directory, MYF(MY_WME));
@@ -3095,6 +3190,12 @@ innodb_reset_binlogs()
       binlog_name_make(full_path, file_no);
       if (my_delete(full_path, MYF(MY_WME)))
         err= true;
+      /*
+        Just as defensive coding, also remove any entry from the file hash
+        with this file_no. We would expect to have already deleted everything
+        in remove_up_to() above.
+      */
+      ibb_file_hash.remove(file_no, lf_pins);
     }
     my_dirend(dir);
   }
@@ -3110,7 +3211,79 @@ innodb_reset_binlogs()
   start_binlog_prealloc_thread();
   binlog_sync_initial();
 
+  lf_hash_put_pins(lf_pins);
   return err;
+}
+
+
+/*
+  Given a limit_file_no that is still needed by a slave (dump thread).
+  The dump thread will need to read any oob records references from event
+  groups in that file_no, so it will then also need to read from any earlier
+  file_no referenced from limit_file_no.
+
+  This function handles this dependency, by reading the header page (or
+  getting from the ibb_file_hash if available) to get any earlier file_no
+  containing such references.
+*/
+static bool
+purge_adjust_limit_file_no(handler_binlog_purge_info *purge_info, LF_PINS *pins)
+{
+  uint64_t limit_file_no= purge_info->limit_file_no;
+  if (limit_file_no == ~(uint64_t)0)
+    return false;
+
+  uint64_t referenced_file_no;
+  if (ibb_file_hash.get_oob_ref_file_no(limit_file_no, pins,
+                                        &referenced_file_no))
+  {
+    if (referenced_file_no < limit_file_no)
+      purge_info->limit_file_no= referenced_file_no;
+    else
+      ut_ad(referenced_file_no == limit_file_no ||
+            referenced_file_no == ~(uint64_t)0);
+    return false;
+  }
+
+  byte *page_buf= (byte *)ut_malloc(ibb_page_size, mem_key_binlog);
+  if (!page_buf)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
+    return true;
+  }
+  char filename[OS_FILE_MAX_PATH];
+  binlog_name_make(filename, limit_file_no);
+  File fh= my_open(filename, O_RDONLY | O_BINARY, MYF(0));
+  if (fh < (File)0)
+  {
+    my_error(ER_ERROR_ON_READ, MYF(0), filename, my_errno);
+    ut_free(page_buf);
+    return true;
+  }
+  int res= crc32_pread_page(fh, page_buf, 0, MYF(0));
+  my_close(fh, MYF(0));
+  if (res <= 0)
+  {
+    ut_free(page_buf);
+    my_error(ER_ERROR_ON_READ, MYF(0), filename, my_errno);
+    return true;
+  }
+  binlog_header_data header;
+  fsp_binlog_extract_header_page(page_buf, &header);
+  ut_free(page_buf);
+  if (header.is_invalid || header.is_empty)
+  {
+    my_error(ER_ERROR_ON_READ, MYF(0), filename, my_errno);
+    return true;
+  }
+  if (header.oob_ref_file_no < limit_file_no)
+    purge_info->limit_file_no= header.oob_ref_file_no;
+  else
+    ut_ad(header.oob_ref_file_no == limit_file_no ||
+          header.oob_ref_file_no == ~(uint64_t)0);
+  ibb_record_in_file_hash(limit_file_no, header.oob_ref_file_no,
+                          header.xa_ref_file_no, pins);
+  return false;
 }
 
 
@@ -3142,7 +3315,8 @@ innodb_reset_binlogs()
 */
 static int
 innodb_binlog_purge_low(handler_binlog_purge_info *purge_info,
-                        uint64_t limit_name_file_no, uint64_t *out_file_no)
+                        uint64_t limit_name_file_no, LF_PINS *lf_pins,
+                        uint64_t *out_file_no)
   noexcept
 {
   uint64_t limit_file_no= purge_info->limit_file_no;
@@ -3211,6 +3385,7 @@ innodb_binlog_purge_low(handler_binlog_purge_info *purge_info,
       need_active_flush= false;
     }
 
+    ibb_file_hash.remove(file_no, lf_pins);
     if (my_delete(filename, MYF(0)))
     {
       if (my_errno == ENOENT)
@@ -3235,7 +3410,7 @@ innodb_binlog_purge_low(handler_binlog_purge_info *purge_info,
 
 
 static void
-innodb_binlog_autopurge(uint64_t first_open_file_no)
+innodb_binlog_autopurge(uint64_t first_open_file_no, LF_PINS *pins)
 {
   handler_binlog_purge_info purge_info;
 #ifdef HAVE_REPLICATION
@@ -3249,11 +3424,8 @@ innodb_binlog_autopurge(uint64_t first_open_file_no)
       !(purge_info.purge_by_size || purge_info.purge_by_date))
     return;
 
-  /*
-    ToDo: Here, we need to move back the purge_info.limit_file_no to the
-    earliest file containing any oob data referenced from the supplied
-    purge_info.limit_file_no.
-  */
+  if (purge_adjust_limit_file_no(&purge_info, pins))
+    return;
 
   /* Don't purge any actively open tablespace files. */
   uint64_t orig_limit_file_no= purge_info.limit_file_no;
@@ -3266,7 +3438,7 @@ innodb_binlog_autopurge(uint64_t first_open_file_no)
   purge_info.purge_by_name= false;
 
   uint64_t file_no;
-  int res= innodb_binlog_purge_low(&purge_info, 0, &file_no);
+  int res= innodb_binlog_purge_low(&purge_info, 0, pins, &file_no);
   if (res)
   {
     if (!purge_warning_given)
@@ -3327,13 +3499,23 @@ innodb_binlog_purge(handler_binlog_purge_info *purge_info)
       return LOG_INFO_EOF;
   }
 
+  LF_PINS *lf_pins= lf_hash_get_pins(&ibb_file_hash.hash);
+  ut_a(lf_pins);
+  if (purge_adjust_limit_file_no(purge_info, lf_pins))
+  {
+    lf_hash_put_pins(lf_pins);
+    return LOG_INFO_IO;
+  }
+
   uint64_t orig_limit_file_no= purge_info->limit_file_no;
   purge_info->limit_file_no= std::min(orig_limit_file_no, limit_file_no);
 
   mysql_mutex_lock(&purge_binlog_mutex);
   uint64_t file_no;
-  int res= innodb_binlog_purge_low(purge_info, to_file_no, &file_no);
+  int res= innodb_binlog_purge_low(purge_info, to_file_no, lf_pins, &file_no);
   mysql_mutex_unlock(&purge_binlog_mutex);
+  lf_hash_put_pins(lf_pins);
+
   if (res == 1)
   {
     static_assert(sizeof(purge_info->nonpurge_filename) >= BINLOG_NAME_MAX_LEN,
