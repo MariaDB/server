@@ -1,7 +1,7 @@
 #
 # MDEV-13655: SET ROLE does not properly grant privileges.
 #
-# We must test that if aditional db privileges get granted to a role
+# We must test that if additional db privileges get granted to a role
 # which previously inherited privileges from another granted role
 # keep the internal memory structures intact.
 #

@@ -338,7 +338,7 @@ between 400 and 450;
 # r_rows_idx=2 (average 4 (1+3)/2 scans = 2 rows per scan)
 # r_icp_filtered=50 (4 rows total, 2 survive the icp, both in the second scan)
 # for t13.a=1, 0 rows after ICP
-# for t13.a=2, 2 rows after ICP, 1 survives the rowid_filter (t12.c bewteen 400 and 500)
+# for t13.a=2, 2 rows after ICP, 1 survives the rowid_filter (t12.c between 400 and 500)
 # rowid_filter r_lookups=2 (2 / 2 loops)
 # rowid_filter r_selectivity_pct = 50 (1 survived / 2 rows after ICP)
 --source include/analyze-format.inc

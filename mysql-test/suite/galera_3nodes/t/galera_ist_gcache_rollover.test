@@ -5,7 +5,7 @@
 #
 # After IST blocks, we roll over the gcache and resume IST to confirm that it completes successfully.
 #
-# Two nodes perform IST at the same time in order to make the test more stressfull
+# Two nodes perform IST at the same time in order to make the test more stressful
 #
 
 --source include/galera_cluster.inc

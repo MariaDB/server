@@ -2030,7 +2030,7 @@ drop table t1;
 --echo #
 
 --echo
---echo # check union all & union disctinct
+--echo # check union all & union distinct
 --echo
 
 select 1 as res union select 2 union select 1 union select 2;

@@ -14,7 +14,7 @@ source include/have_debug_sync.inc;
 source include/master-slave.inc;
 
 #
-# The test is not supposed to have any binglog affairs.
+# The test is not supposed to have any binlog affairs.
 # Hence it's enough it to run only with one binlog format
 #
 source include/have_binlog_format_mixed.inc;

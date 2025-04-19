@@ -15,7 +15,7 @@
 #              * Value Check                                                  #
 #              * Scope Check                                                  #
 #              * Functionality Check                                          #
-#              * Accessability Check                                          #
+#              * Accessibility Check                                          #
 #                                                                             #               
 # This test does not perform the crash recovery on this variable              # 
 # For crash recovery test on default change please run the ibtest             #
@@ -125,7 +125,7 @@ SELECT Host_Cache_Size = @@SESSION.Host_Cache_Size;
 #The below check has been commented out as the IP fetch is different in a P2P connection than BroadBand connection
 #--echo '#---------------------WL6372_VAR_6_06----------------------#'
 ###############################################################################
-# Checking the Host   cahce functionality                                     #
+# Checking the Host cache functionality                                       #
 ###############################################################################
 
 #SET @@GLOBAL.Host_Cache_Size=2;

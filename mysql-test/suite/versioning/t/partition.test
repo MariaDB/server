@@ -1266,7 +1266,7 @@ select count(*) from t1 partition (p0);
 select count(*) from t1 partition (p1);
 drop table t1;
 
---echo # UDPATE
+--echo # UPDATE
 create table t1 (x int) with system versioning
 partition by system_time limit 100 (
   partition p0 history,

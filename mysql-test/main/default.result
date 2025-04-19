@@ -437,7 +437,7 @@ ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 show create table t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 #
-# Refering to other columns
+# Referring to other columns
 #
 create or replace table t1 (a int default 1, b int default a);
 create or replace table t1 (a int default 1, b int as (a));
@@ -3219,7 +3219,7 @@ a	b
 6	7
 drop table t1;
 #
-# DEVAULT & PS adoption
+# DEFAULT & PS adoption
 #
 CREATE TABLE t1 (a INT DEFAULT 10, b INT DEFAULT NULL);
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?,?)' USING IGNORE, IGNORE;

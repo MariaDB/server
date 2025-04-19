@@ -407,7 +407,7 @@ SELECT * FROM t1 WHERE coalesce(a) BETWEEN 0 and 0.9;
 SELECT * FROM t1 WHERE coalesce(a)=0.9;
 SELECT * FROM t1 WHERE coalesce(a) in (0.8,0.9);
 
-# b. These queries mistakenely returned 1 row:
+# b. These queries mistakenly returned 1 row:
 SELECT * FROM t1 WHERE a BETWEEN 0 AND 0.9;
 SELECT * FROM t1 WHERE a=0.9;
 SELECT * FROM t1 WHERE a IN (0.8,0.9);

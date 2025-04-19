@@ -27,7 +27,7 @@ SET GLOBAL debug_dbug= '+d,inject_mdev8031';
 --connection server_1
 # We artificially create a situation that hopefully resembles the original
 # bug which was only seen "in the wild", and only once.
-# Setup a fake group commit with lots of conflicts that will lead to deadloc
+# Setup a fake group commit with lots of conflicts that will lead to deadlock
 # kill. The slave DBUG injection causes the slave to be deadlock killed at
 # a particular point during the retry, and then later do a small sleep at
 # another critical point where the prior transaction then has a chance to

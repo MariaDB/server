@@ -2782,7 +2782,7 @@ drop table t1;
 # End of 10.3 tests
 #
 
-# check union all & union disctinct
+# check union all & union distinct
 
 select 1 as res union select 2 union select 1 union select 2;
 res

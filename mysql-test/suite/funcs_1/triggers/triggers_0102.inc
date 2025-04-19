@@ -28,7 +28,7 @@ let $message= Testcase: 3.5.1.1:;
 #       As such it covers the equirements in sections 3.5.6.1, 3.5.6.2,
 #       3.5.6.4, 3.5.6.5, 3.5.7.1, 3.5.7.2, 3.5.7.3, 3.5.7.17 below.
 #     - Note currently as a result of limitations with locking tables in
-#       triggers, a specifc lockingof the tables is done.
+#       triggers, a specific locking of the tables is done.
 #       Once fixed, the locking and alias referances should be removed
 
 use test;

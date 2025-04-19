@@ -24,7 +24,7 @@ SET debug_dbug= '+d,abort_with_io_write_error';
 # we want to abort server if we fail to write (ABORT_SERVER)
 set global binlog_error_action=1;
 
-# diplay the values of the key parameters
+# display the values of the key parameters
 show session variables like 'debug_dbug';
 show global variables like 'binlog_error_action';
 show global variables like 'skip_core_dump_on_error';

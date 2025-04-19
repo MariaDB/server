@@ -23,8 +23,8 @@ set local sql_mode="";
 # ALTER TABLE, ANALYZE, OPTIMIZE and some others always
 # issue an implicit commit, even if its argument is a
 # temporary table. 
-# *Howewer* an implicit commit is a no-op if all engines
-# used since the start of transactiona are non-
+# *However* an implicit commit is a no-op if all engines
+# used since the start of transaction are non-
 # transactional. Thus, for non-transactional engines,
 # these operations are not blocked by FTWRL.
 # This is class #3 -- compatible because do not take
@@ -1463,7 +1463,7 @@ set debug_sync= "RESET";
 #       such changes are considered read only [sic!/QQ] this commit
 #       is compatible with FTWRL.
 #
-#       Let us demostrate this fact for some common DML statements.
+#       Let us demonstrate this fact for some common DML statements.
 Success: Was able to run 'delete from t3_temp_trans' under FTWRL.
 Success: Was able to run 'delete from t3_temp_trans' with FTWRL active in another connection.
 Success: Was able to run FTWRL while 'delete from t3_temp_trans' was active in another connection.
@@ -1654,7 +1654,7 @@ set debug_sync= "RESET";
 delete from t1_base;
 delete from t2_base;
 
-# Check that COMMIT thas is issued after
+# Check that COMMIT that is issued after
 # FLUSH TABLES WITH READ LOCK is not blocked by
 # FLUSH TABLES WITH READ LOCK from another connection.
 # This scenario is used in innobackup.pl. The COMMIT goes

@@ -16,7 +16,7 @@ set @test_default_opt_switch = @@optimizer_switch;
 set @in_exists = "materialization=off,in_to_exists=on,semijoin=off,subquery_cache=off";
 
 --echo -------------------------------------------------------------------------
---echo Schema requires partial matching, but data analysis discoveres there is
+--echo Schema requires partial matching, but data analysis discovers there is
 --echo no need. This is possible only if all outer columns are not NULL.
 --echo -------------------------------------------------------------------------
 
@@ -40,7 +40,7 @@ select a1, a2, (a1, a2) not in (select * from t2) as in_res from t1;
 drop table t1, t2;
 
 --echo -------------------------------------------------------------------------
---echo NULLs in the outer columns, no NULLs in the suqbuery 
+--echo NULLs in the outer columns, no NULLs in the subquery
 --echo -------------------------------------------------------------------------
 
 create table t1 (a1 char(8), a2 char(8));
@@ -380,7 +380,7 @@ EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 
---echo change the mathcing row to be the last one in the first bitmap word
+--echo change the matching row to be the last one in the first bitmap word
 update t2 set b2 = 'zz' where b1 = 33;
 update t2 set b2 = NULL where b1 = 31;
 

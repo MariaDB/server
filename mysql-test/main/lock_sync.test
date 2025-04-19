@@ -1127,7 +1127,7 @@ SELECT f() FROM t2;
 # Now we hold test/f, the below code creates concurrent
 # waiting of 3 threads for test/f which leads to deadlock (Bad)
 
-# To achive Good comment out 'now wait_for s1' below and run multiple times.
+# To achieve Good comment out 'now wait_for s1' below and run multiple times.
 
 --connect (con2,localhost,root,,test)
 set debug_sync= 'after_open_table_mdl_shared signal s1';

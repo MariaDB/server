@@ -587,7 +587,7 @@ DROP TABLE t1;
 SET @old_max_heap_table_size = @@max_heap_table_size;
 SET @@max_heap_table_size = 16384;
 
-# Set sort_buffer_size to the mininum value so that remove_duplicates() calls
+# Set sort_buffer_size to the minimum value so that remove_duplicates() calls
 # remove_dup_with_compare()
 SET @old_sort_buffer_size = @@sort_buffer_size;
 SET @@sort_buffer_size = 32804;

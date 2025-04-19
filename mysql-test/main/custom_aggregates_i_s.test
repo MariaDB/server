@@ -61,7 +61,7 @@ explain
 select (select f1(sal) as a from t3 where t3.id= t1.id )  from t1 ;
 show  status like "%custom_aggregate%";
 
---echo custom aggregates inside other customm aggregates
+--echo custom aggregates inside other custom aggregates
 
 explain
 select f2(sal) from t1;

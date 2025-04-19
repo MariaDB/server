@@ -177,7 +177,7 @@ let $wait_condition=
    WHERE state = 'Waiting for table level lock' AND user='delayed';
 --source include/wait_condition.inc
 --echo Asynchronous execute
-# Due to performance and server behaveiour the test observes values between 6 and 22.
+# Due to performance and server behaviour the test observes values between 6 and 22.
 # In any case the value must not be outside of that range.
 let $my_select= SELECT COUNT(*) FROM t1;
 send;

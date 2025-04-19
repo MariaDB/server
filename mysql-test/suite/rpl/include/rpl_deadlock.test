@@ -62,7 +62,7 @@ SELECT COUNT(*) FROM t2;
 COMMIT;
 
 --echo
---echo # Test that the performance schema coulumn shows > 0 values.
+--echo # Test that the performance schema column shows > 0 values.
 --echo
 
 --let $assert_text= current number of retries should be more than the value saved before deadlock.
@@ -111,7 +111,7 @@ source include/check_slave_is_running.inc;
 
 # 3) Test lock wait timeout and purged relay log
 # Set max_relay_log_size=0, block slave and wait lock timeout error.
-# Restart slave and check that no erros appear
+# Restart slave and check that no errors appear
 --echo *** Test lock wait timeout and purged relay logs ***
 
 connection slave;

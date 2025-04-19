@@ -68,7 +68,7 @@ ERROR 42000: Undefined CONDITION: TOO_MANY_ROWS
 RAISE;
 ERROR 0K000: RESIGNAL when handler not active
 #
-# RAISE for an undefinite exception
+# RAISE for an undefined exception
 #
 CREATE PROCEDURE p1
 AS

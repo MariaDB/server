@@ -11,11 +11,11 @@
 # The test creates a table with no primary key definition and executes two
 # transactions (in node1) modifying separate rows in the table. In node2
 # first applier is paused before commit phase, and second transaction is
-# then submitted to see if it can interfere with the first transaciton.
+# then submitted to see if it can interfere with the first transaction.
 # The fix for MDEV-25551 has disabled parallel applying for tables with no PK,
-# and in the test applying of the send trasnaction should not even start, before
-# the fisrt trkansaction is released from the sync point.
-# The test also verifies that certification depedency status reflects the fact
+# and in the test applying of the send transaction should not even start, before
+# the first transaction is released from the sync point.
+# The test also verifies that certification dependency status reflects the fact
 # that the two transactions depend on each other.
 #
 # The test has two scenarios where both UPDATE and DELETE statements are verified

@@ -206,7 +206,7 @@ alter table mysql.slow_log engine=myisam;
 show create table mysql.general_log;
 show create table mysql.slow_log;
 
-# enable log tables and chek that new tables indeed work
+# enable log tables and check that new tables indeed work
 set global general_log='ON';
 set global slow_query_log='ON';
 
@@ -243,7 +243,7 @@ set global slow_query_log='OFF';
 # check that alter table doesn't work for other engines
 set @save_storage_engine= @@session.default_storage_engine;
 set default_storage_engine= MEMORY;
-# After fixing bug#35765 the error behaivor changed:
+# After fixing bug#35765 the error behavior changed:
 # If compiled in/enabled ER_UNSUPORTED_LOG_ENGINE
 # If not (i.e. not existant) it will show a warning
 # and use the current one.

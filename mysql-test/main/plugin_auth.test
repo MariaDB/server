@@ -173,7 +173,7 @@ GRANT PROXY ON grant_plug TO grant_plug_dest;
 # Security context in THD contains two pairs of (user,host)
 # 1. (user,host) pair referring to inbound connection
 # 2. (priv_user,priv_host) pair obtained from mysql.user table after doing
-#    authnetication of incoming connection.
+#    authentication of incoming connection.
 # Granting/revoking proxy privileges, privileges should be checked wrt
 # (priv_user, priv_host) tuple that is obtained from mysql.user table
 # Following is a valid grant because effective user of connection is
@@ -362,7 +362,7 @@ GRANT PROXY ON u2@localhost TO u1@localhost;
 --error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
 REVOKE PROXY ON u2@localhost FROM u1@localhost;
 
---echo # go try graning proxy on itself, so that it will need the table
+--echo # go try granting proxy on itself, so that it will need the table
 connect(proxy_granter_con,localhost,u2,);
 
 --error ER_NO_SUCH_TABLE
@@ -515,11 +515,11 @@ rename table mysql.global_priv_bak to mysql.global_priv;
 --echo #  .-> USING PASSWORD: NO 
 --echo #
 
---echo # shoud contain "using password=yes"
+--echo # should contain "using password=yes"
 --error 1
 --exec $MYSQL -uunknown -punknown 2>&1
 
---echo # shoud contain "using password=no"
+--echo # should contain "using password=no"
 --error 1
 --exec $MYSQL -uunknown 2>&1
 

@@ -1023,7 +1023,7 @@ SELECT (b+b)=ROW(1,1) FROM t1;
 DROP TABLE t1;
 
 
---echo # Opetator + for different types integer types, with the UNSIGNED flag
+--echo # Operator + for different types integer types, with the UNSIGNED flag
 
 CREATE TABLE t1 (a1 TINYINT UNSIGNED, a2 SMALLINT UNSIGNED);
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION

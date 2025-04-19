@@ -23,17 +23,17 @@
 # with unique indexes.
 #
 # Alternatively: 
-#  - Set unique value as 0 and rollback if ERR_DUP_KEY (see 
+#  - Set unique value as 0 and rollback if ERR_DUP_KEY (see
 #    check_error_rollback.inc), then make sure to UPDATE where unique value is 0
 #    in other tests.
-#  - OR: insert NULL (requires special handling when calculating row sums in 
+#  - OR: insert NULL (requires special handling when calculating row sums in
 #    other tests).
 #  - OR: skip unique indexes entirely (except `pk`) (remove from t1 in init).
 #
-# Using CONNECTION_ID (swithcing sign and doing +/- 3) as unique value, meaning 
-# that some of the INSERTs will fail with duplicate key until this is high 
+# Using CONNECTION_ID (switching sign and doing +/- 3) as unique value, meaning
+# that some of the INSERTs will fail with duplicate key until this is high
 # enough (should not take long with a relatively high number of threads and some
-# duration, given that the number of initial rows is relatively low, ~1000). 
+# duration, given that the number of initial rows is relatively low, ~1000).
 # Let's just say this is a warm-up period.
 #
 # Alternatively, add some random integer to the value or use UNIX_TIMESTAMP()

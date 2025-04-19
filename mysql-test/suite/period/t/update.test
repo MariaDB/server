@@ -126,7 +126,7 @@ update t for portion of apptime from @s to h() set t.id= t.id + 5;
 --error ER_NOT_CONSTANT_EXPRESSION
 update t for portion of apptime from (select s from t2 limit 1) to h() set t.id= t.id + 5;
 
---echo # auto_inrement field is updated
+--echo # auto_increment field is updated
 create or replace table t (id int primary key auto_increment, x int,
                            s date, e date, period for apptime(s, e));
 insert into t values (default, 1, '1999-01-01', '2018-12-12');

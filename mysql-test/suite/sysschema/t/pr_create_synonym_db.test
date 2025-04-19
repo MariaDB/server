@@ -30,7 +30,7 @@ CALL sys.create_synonym_db('test', 'test2');
 # Ensure test2 is still empty
 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'test2';
 
-# Use a reserved identifer, Bug #22011361
+# Use a reserved identifier, Bug #22011361
 CALL sys.create_synonym_db('test', 'is');
 # Verify there's one view in is per table and view in test
 SELECT TABLE_NAME, SECURITY_TYPE FROM information_schema.VIEWS WHERE TABLE_SCHEMA = 'is' ORDER BY TABLE_NAME;

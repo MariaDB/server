@@ -15,7 +15,7 @@ drop table t1;
 # MDEV-17913 Encrypted transactional Aria tables remain corrupt after crash
 # recovery, automatic repair does not work
 #
-# We are using a simplifed version of the test here. This works thanks to
+# We are using a simplified version of the test here. This works thanks to
 # the extended check table code that also checks if LSN's are reasonable.
 #
 

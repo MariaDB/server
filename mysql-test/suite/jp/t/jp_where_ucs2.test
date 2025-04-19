@@ -14,7 +14,7 @@ drop table if exists `£Ô£¹`;
 --enable_warnings
 
 #
-# Test Displaying Japanese charact using WHERE condtion in ucs2 encoding
+# Test Displaying Japanese characters using WHERE condition in ucs2 encoding
 #
 
 SET character_set_collations='ucs2=ucs2_general_ci';

@@ -4245,7 +4245,7 @@ ERROR HY000: Illegal parameter data types bigint unsigned and row for operation 
 SELECT (b+b)=ROW(1,1) FROM t1;
 ERROR HY000: Illegal parameter data types bigint and row for operation '='
 DROP TABLE t1;
-# Opetator + for different types integer types, with the UNSIGNED flag
+# Operator + for different types integer types, with the UNSIGNED flag
 CREATE TABLE t1 (a1 TINYINT UNSIGNED, a2 SMALLINT UNSIGNED);
 SELECT (a1+a2)=ROW(1,1) FROM t1;
 ERROR HY000: Illegal parameter data types int unsigned and row for operation '='

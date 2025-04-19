@@ -241,7 +241,7 @@ drop table t1;
 #
 # Bug#5034 "prepared "select 1 into @arg15", second execute crashes
 # server".
-# Check that descendands of select_result can be reused in prepared 
+# Check that descendants of select_result can be reused in prepared
 # statements or are correctly created and deleted on each execute
 #
 

@@ -22,7 +22,7 @@ def is_deadlock_error(exc):
     return (error_code == MySQLdb.constants.ER.LOCK_DEADLOCK)
 
 def get_query(table_name, idx):
-  # Let's assume that even indexes will always be acquireable, to make
+  # Let's assume that even indexes will always be acquirable, to make
   # deadlock detection more interesting.
   if idx % 2 == 0:
     return """SELECT * from %s WHERE a = %d LOCK IN SHARE MODE""" % (table_name, idx)

@@ -16,7 +16,7 @@
 #  - Verify that gtid_slave_pos, gtid_binlog_pos and gtid_current_pos are
 #    same in all Galera nodes
 #  - Verify that mysql.gtid_slave_pos table has limited amount of rows
-#  - Veruft that ddl works (drop table)
+#  - Verify that ddl works (drop table)
 #
 #  Similar test is done so that new rows are added to table in
 #  primary while async replica (node #2) is down.

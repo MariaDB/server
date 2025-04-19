@@ -149,7 +149,7 @@ select c from mysqltest.v3;
 select c from mysqltest.v4;
 --error ER_TABLEACCESS_DENIED_ERROR
 select c from mysqltest.v5;
-# test of show coluns
+# test of show columns
 show columns from mysqltest.v1;
 show columns from mysqltest.v2;
 # explain/show fail
@@ -485,7 +485,7 @@ drop database mysqltest;
 disconnect user1;
 
 #
-# rights on execution of view underlying functiond (Bug#9505)
+# rights on execution of view underlying functions (Bug#9505)
 #
 connection root;
 --disable_warnings

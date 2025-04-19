@@ -554,7 +554,7 @@ from t2;
 drop table t2;
 
 --echo #
---echo # Try RANGE PRECEDING|FOLLWING n
+--echo # Try RANGE PRECEDING|FOLLOWING n
 --echo #
 create table t1 (
   part_id int,
@@ -2812,7 +2812,7 @@ FROM t1
 GROUP BY nullif(id, 15532);
 drop table t1;
 
-#Dublicate warnings
+#Duplicate warnings
 --disable_view_protocol
 CREATE TABLE t1 ( a char(25), b text);
 INSERT INTO t1 VALUES ('foo','bar');

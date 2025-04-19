@@ -1,5 +1,5 @@
 #
-# Test SET SESSION sql_log_bin = 0 . We expect that updates gets repliated to
+# Test SET SESSION sql_log_bin = 0 . We expect that updates gets replicated to
 # other nodes while they do not show up in the binary log files.
 # (see galera.galera_as_master)
 #

@@ -2048,7 +2048,7 @@ select c1 from t1 group by (select c0 from t1 limit 1);
 drop table t1;
 
 # Bug #30495: optimize table t1,t2,t3 extended errors
-# (added more maintenace commands for Bug#20129
+# (added more maintenance commands for Bug#20129
 CREATE TABLE t1(a int)
 PARTITION BY RANGE (a) (
   PARTITION p1 VALUES LESS THAN (10),

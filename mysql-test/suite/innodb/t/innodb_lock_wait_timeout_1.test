@@ -182,7 +182,7 @@ select * from t1;
 commit;
 --echo #
 --echo # Have a one more record in t2 to show that 
---echo # if join_read_key cache is purned, the current
+--echo # if join_read_key cache is purged, the current
 --echo # row under the cursor is unlocked (provided, this row didn't 
 --echo # match the partial WHERE clause, of course).
 --echo # Sic: the result of this test dependent on the order of retrieval

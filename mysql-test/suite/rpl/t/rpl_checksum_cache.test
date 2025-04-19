@@ -298,7 +298,7 @@ while ($i) {
 }
 --enable_query_log
 
-# Ebable checksums dynamically, so MYSQL_BIN_LOG::write_cache() will have
+# Enable checksums dynamically, so MYSQL_BIN_LOG::write_cache() will have
 # to recompute the checksums.
 set @@global.binlog_checksum = CRC32;
 

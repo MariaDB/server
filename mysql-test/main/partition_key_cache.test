@@ -2,7 +2,7 @@
 --source include/have_partition.inc
 
 --echo # Actual test of key caches
---echo # Verifing that reads/writes use the key cache correctly
+--echo # Verifying that reads/writes use the key cache correctly
 SET @org_key_cache_buffer_size= @@global.default.key_buffer_size;
 --echo # Minimize default key cache (almost disabled).
 SET @@global.default.key_buffer_size = 4096;

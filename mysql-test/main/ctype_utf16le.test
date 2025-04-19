@@ -648,7 +648,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Testing that maximim possible key length is 1000 bytes
+--echo # Testing that maximum possible key length is 1000 bytes
 --echo #
 CREATE TABLE t1 (a VARCHAR(250) CHARACTER SET utf16le PRIMARY KEY);
 SHOW CREATE TABLE t1;

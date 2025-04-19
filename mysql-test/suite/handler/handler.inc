@@ -1091,7 +1091,7 @@ drop table t2, t3;
 
 --echo # 
 --echo # HANDLER statement and operation-type aware metadata locks.
---echo # Check that when we clone a ticket for HANDLER we downrade
+--echo # Check that when we clone a ticket for HANDLER we downgrade
 --echo # the lock.
 --echo #
 connect (con1,localhost,root,,);

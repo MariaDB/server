@@ -12,7 +12,7 @@
 # transactional changes to be persisted.
 
 # This test aims to verify if a statement that updates both transactional and
-# non-transacitonal tables and fails due to concurrency problems is correctly
+# non-transactional tables and fails due to concurrency problems is correctly
 # processed by the slave in the sense that the statements get into the binary
 # log, the error is ignored and only the non-transactional tables are changed.
 ###############################################################################

@@ -61,7 +61,7 @@ let $field= State;
 let $condition= = 'Updating';
 --source include/wait_show_condition.inc
 
-# If the testing box is overloadeded and innodb_lock_wait_timeout is too small
+# If the testing box is overloaded and innodb_lock_wait_timeout is too small
 # we might get here ER_LOCK_WAIT_TIMEOUT.
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1_tmp (b) SELECT b FROM t1 WHERE a = 1;

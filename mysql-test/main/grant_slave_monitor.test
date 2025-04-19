@@ -8,11 +8,11 @@
 #
 # Step1: GRANT ALL privileges for a new user 'user1' and then REVOKE
 #        SLAVE MONITOR privileges.
-# Step2: Execute SHOW SLAVE STAUTS/SHOW RELAYLOG EVENTS commands and expect
+# Step2: Execute SHOW SLAVE STATUS/SHOW RELAYLOG EVENTS commands and expect
 #        ER_SPECIFIC_ACCESS_DENIED_ERROR. This also verifies that REPLICATION
 #        SLAVE ADMIN privilege is not required for these two commands.
 # Step3: GRANT SLAVE MONITOR privilege and observe that both commands are
-#        allowd to execute.
+#        allowed to execute.
 #
 # ==== References ====
 #

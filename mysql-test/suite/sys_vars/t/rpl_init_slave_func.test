@@ -14,7 +14,7 @@
 #                              SQL-Satements to control master and slave,     #
 #                              deleted the sleep and made improvements like:  #
 #                              - Replaced the opt file by dynamic variables,  #
-#                              - Made the tests independant of the initial    #
+#                              - Made the tests independent of the initial    #
 #                                values of the global variables,              #
 #                              - Reduced the test to the needed test case to  #
 #                                save run time,                               #

@@ -32,7 +32,7 @@ select * from v1 order by a;
 sync_slave_with_master;
 select * from v1 order by a;
 connection master;
-# 'alter view' internally maped to creation, but still check that it works
+# 'alter view' internally mapped to creation, but still check that it works
 alter view v1 as select a as b from t1;
 sync_slave_with_master;
 select * from v1 order by 1;

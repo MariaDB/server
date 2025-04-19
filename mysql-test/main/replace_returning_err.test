@@ -5,8 +5,8 @@
 #REPLACE INTO <table> ...  RETURNING <not existing col>
 #REPLACE INTO <table> ... RETURNING <expr with aggr function>
 #REPLACE INTO ... RETURNING subquery with more than 1 row
-#REPLACE INTO ... RETURNING operand should contain 1 colunm(s)
-#REPLACE INTO ... RETURNING operand should contain 1 colunm(s)
+#REPLACE INTO ... RETURNING operand should contain 1 column(s)
+#REPLACE INTO ... RETURNING operand should contain 1 column(s)
 #REPLACE INTO ... SELECT...RETURNING < SELECT <colname> FROM <REPLACE TABLE>
 
 CREATE TABLE t1(id1 INT PRIMARY KEY, val1 VARCHAR(1));

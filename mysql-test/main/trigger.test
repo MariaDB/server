@@ -625,7 +625,7 @@ select @a;
 --replace_column 6 #
 show triggers;
 drop table t1;
-# check that rigger preserve sql_mode during execution
+# check that trigger preserves sql_mode during execution
 set sql_mode="traditional";
 create table t1 (a date);
 -- error 1292
@@ -2830,7 +2830,7 @@ create table t1 (a int);
 --copy_file $MYSQLD_DATADIR/test/t1_trg.TMP $MYSQLD_DATADIR/test/t1_trg.TRN
 drop trigger t1_trg;
 
-# Test creating an additonal trigger for t1, but with different names
+# Test creating an additional trigger for t1, but with different names
 delimiter |;
 create trigger t1_trg_2 before insert on t1 for each row
 begin

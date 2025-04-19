@@ -5,12 +5,12 @@
 # the engine to use blackhole on the slave.
 #
 # After insert/update/delete of one or more rows, the test the
-# proceeds to check that replication is running after replicating an
+# proceeds to check that replication is running after replicating a
 # change, that the blackhole engine does not contain anything (which
 # is just a check that the correct engine is used), and that something
 # is written to the binary log.
 #
-# Whe check INSERT, UPDATE, and DELETE statement for tables with no
+# We check INSERT, UPDATE, and DELETE statements for tables with no
 # key (forcing a range search on the slave), primary keys (using a
 # primary key lookup), and index/key with multiple matches (forcing an
 # index search).

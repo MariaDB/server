@@ -92,7 +92,7 @@ begin;
 --source include/wait_condition.inc
 
 --connection slave_local_0
-# make W3 into retry and delay it to let W1 hit a dupicate error first,
+# make W3 into retry and delay it to let W1 hit a duplicate error first,
 # see 'commit' by slave_local_1.
   rollback;
 --let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "debug sync point: now"

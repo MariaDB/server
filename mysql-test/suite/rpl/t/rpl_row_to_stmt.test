@@ -1,5 +1,5 @@
 #
-# check that master starterd with log-format=ROW replication can replicate to
+# check that master started with log-format=ROW replication can replicate to
 # slave started with log-format=STATEMENT
 #
 

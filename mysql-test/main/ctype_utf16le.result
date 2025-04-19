@@ -1559,7 +1559,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
-# Testing that maximim possible key length is 1000 bytes
+# Testing that maximum possible key length is 1000 bytes
 #
 CREATE TABLE t1 (a VARCHAR(250) CHARACTER SET utf16le PRIMARY KEY);
 SHOW CREATE TABLE t1;

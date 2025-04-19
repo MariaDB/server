@@ -5,8 +5,8 @@
 # Test table column having both indexes spatial and Btree
 # Test error Alter table spatial index using hash/Btree
 # Test modify column from point to multipoint,line to multiline
-# Test modify column from mutipoint to point,multiline to line
-# Test discard & import tablepsace
+# Test modify column from multipoint to point,multiline to line
+# Test discard & import tablespace
 # spatial index on temp tables
 # Unique constraint on spatial index column Geometry
 # Unique constraint on spatial index column POINT

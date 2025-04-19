@@ -2737,7 +2737,7 @@ SELECT * FROM t2;
 DROP TRIGGER tr;
 --echo # Check that AFTER UPDATE trigger is re-compiled on changing table's metadata
 CREATE TRIGGER tr AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t2 (b) VALUES (OLD.a);
---echo # Remove records interted by AFTER DELETE trogger
+--echo # Remove records inverted by AFTER DELETE trigger
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 INSERT INTO t1 VALUES (1);

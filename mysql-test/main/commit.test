@@ -154,7 +154,7 @@ COMMIT;
 
 #
 # Verify isolation level with @completion_type=1.
-# (A @@completion_type value of 1 is equivalentl to 
+# (A @@completion_type value of 1 is equivalent to
 # explicitly adding "AND CHAIN" to COMMIT or ROLLBACK)
 #
 
@@ -278,7 +278,7 @@ COMMIT;
 #
 # Verify that a transaction ended with an
 # implicit commit (i.e a DDL statement), the
-# @@completetion_type setting is ignored, and
+# @@completion_type setting is ignored, and
 # the next transaction's isolation level is
 # the session level.
 #

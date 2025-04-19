@@ -264,7 +264,7 @@ DROP TABLE t1;
 #
 # MDEV-17153 server crash on repair table ... use_frm
 #
-# Note, this test case doesn't crash, but shows spurios warnings
+# Note, this test case doesn't crash, but shows spurious warnings
 # unless the bug is fixed
 #
 create table t1 (a int, b varchar(200));

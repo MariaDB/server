@@ -40,7 +40,7 @@ create table t1 (i int, ts timestamp);
 
 set time_zone='MET';
 
-# We check common date time value and non existent or ambiguios values
+# We check common date time value and non existent or ambiguous values
 # Normal value without DST
 insert into t1 (i, ts) values
   (unix_timestamp('2003-03-01 00:00:00'),'2003-03-01 00:00:00');
@@ -263,7 +263,7 @@ INSERT INTO t1 VALUES (NULL), (NULL);
 LOCK TABLES t1 WRITE;
 
 # The following two queries should not return error that time zone
-# tables aren't locked.  We use IS NULL below to supress timestamp
+# tables aren't locked.  We use IS NULL below to suppress timestamp
 # result.
 SELECT CONVERT_TZ(NOW(), 'UTC', 'Europe/Moscow') IS NULL;
 UPDATE t1 SET t = CONVERT_TZ(t, 'UTC', 'Europe/Moscow');
@@ -503,7 +503,7 @@ SELECT * FROM t1 WHERE a = (SELECT MIN(b) FROM t1);
 SELECT * FROM t1 WHERE a IN ((SELECT MAX(b) FROM t1), (SELECT MIN(b) FROM t1));
 DROP TABLE t1;
 
-# Comparison and IN in combinarion with a subquery (with multiple rows)
+# Comparison and IN in combination with a subquery (with multiple rows)
 SET time_zone='+00:00';
 CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP);
 INSERT INTO t1 VALUES (FROM_UNIXTIME(1100000000),FROM_UNIXTIME(1200000000));

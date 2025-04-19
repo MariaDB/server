@@ -127,7 +127,7 @@ SHOW CREATE TABLE before_t1;
 set @@global.wsrep_mode=default;
 select @@global.wsrep_mode;
 
---connectIon node_2
+--connection node_2
 set @@global.wsrep_mode=default;
 select @@global.wsrep_mode;
 DROP TABLE t2;

@@ -47,7 +47,7 @@ EOF
 exec $XTRABACKUP --defaults-file=$custom_cnf --backup --target-dir=$targetdir;
 --remove_file $custom_cnf
 
---echo # Check if uknown options that follow --mysqld-args are ingored
+--echo # Check if unknown options that follow --mysqld-args are ingored
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --mysqld-args --unknown-option;
 --rmdir $targetdir
 

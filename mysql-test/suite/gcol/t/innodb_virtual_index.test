@@ -203,7 +203,7 @@ VIRTUAL, ADD FULLTEXT KEY ftidx ( col9 ), algorithm=inplace;
 # This will add a hidden FTS_DOC_ID column
 CREATE FULLTEXT INDEX idx ON t1(col9);
 
-# Since there is no table rebuild needed, now the alter would be sucessful
+# Since there is no table rebuild needed, now the alter would be successful
 ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col5x % col6x)
 VIRTUAL, ADD FULLTEXT KEY ftidx ( col9 ), algorithm=inplace;
 
@@ -215,7 +215,7 @@ CREATE TABLE t1 (
 	col3 int(11) NOT NULL,
 	col4 int(11) DEFAULT NULL) engine=innodb;
 
-# This secondary key idx will be coverted to a new Primary Key, thus a table
+# This secondary key idx will be converted to a new Primary Key, thus a table
 # rebuild. It is blocked since there is an adding of virtual columns
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col1 % col2)

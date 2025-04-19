@@ -14,7 +14,7 @@ drop table if exists `£Ô£¹`;
 --enable_warnings
 
 #
-# Test Displaying Japanese charact using WHERE condtion in ujis encoding
+# Test Displaying Japanese characters using WHERE condition in ujis encoding
 #
 
 SET NAMES ujis;

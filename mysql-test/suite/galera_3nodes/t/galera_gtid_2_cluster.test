@@ -4,7 +4,7 @@
 #       A <-> B <-> C     {Galera cluster 1}
 #       |                 {Circular Async replication}
 #       D <-> E <-> F     {Galera cluster 2}
-# We will write on any random node to see if gtid is consitent or not
+# We will write on any random node to see if gtid is consistent or not
 # Then we will kill node D and set up the replication between A and E
 # To see whether fail over works or not.
 
@@ -210,7 +210,7 @@ set global wsrep_on=ON;
 #         /     \
 #       |          \
 #       D <-> E <-> F     {Galera cluster 2}
-# We will write on any random node to see if gtid is consitent or not
+# We will write on any random node to see if gtid is consistent or not
 # Then we will kill node D and set up the replication between A and E
 # To see whether fail over works or not.
 --connection node_1

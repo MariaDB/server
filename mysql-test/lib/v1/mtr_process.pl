@@ -386,10 +386,10 @@ sub mtr_kill_leftovers () {
   # We now have tried to terminate nice. We have waited for the listen
   # port to be free, but can't really tell if the mysqld process died
   # or not. We now try to find the process PID from the PID file, and
-  # send a kill to that process. Note that Perl let kill(0,@pids) be
-  # a way to just return the numer of processes the kernel can send
+  # send a kill to that process. Note that Perl lets kill(0,@pids) be
+  # a way to just return the number of processes the kernel can send
   # signals to. So this can be used (except on Cygwin) to determine
-  # if there are processes left running that we cound out might exists.
+  # if there are processes left running that we count out might exists.
   #
   # But still after all this work, all we know is that we have
   # the ports free.
@@ -618,7 +618,7 @@ sub mtr_check_stop_servers ($) {
 	if ($::glob_win32_perl and $srv->{'real_pid'})
 	{
 	  # Wait for the pseudo pid - if the real_pid was known
-	  # the pseudo pid has not been waited for yet, wai blocking
+	  # the pseudo pid has not been waited for yet, wait blocking
 	  # since it's "such a simple program"
 	  mtr_verbose("Wait for pseudo process $srv->{'pid'}");
 	  my $ret_pid= waitpid($srv->{'pid'}, 0);
@@ -844,8 +844,8 @@ sub mtr_record_dead_children () {
   my $process_died= 0;
   my $ret_pid;
 
-  # Wait without blockinng to see if any processes had died
-  # -1 or 0 means there are no more procesess to wait for
+  # Wait without blocking to see if any processes had died
+  # -1 or 0 means there are no more processes to wait for
   while ( ($ret_pid= waitpid(-1,&WNOHANG)) != 0 and $ret_pid != -1)
   {
     mtr_warning("mtr_record_dead_children: $ret_pid");

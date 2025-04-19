@@ -1,7 +1,7 @@
 # It's true only in statement-based replication that a statement which
 # updates no rows (UPDATE/DELETE) is binlogged; in row-based
 # replication, as we log modified rows, nothing is binlogged in this
-# case. So this test is meaningul only in statement-based (and if it was
+# case. So this test is meaningful only in statement-based (and if it was
 # enabled in row-based, it would fail as expected).
 
 -- source include/have_binlog_format_mixed_or_statement.inc

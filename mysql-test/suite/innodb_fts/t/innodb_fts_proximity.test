@@ -48,7 +48,7 @@ INSERT INTO t1 (a,b) VALUES
         ('MySQL Tutorial','request docteam@oraclehelp.com ...')  ,
         ('Trial version','query performace @1255 minute on 2.1Hz Memory 2GB...')  ,
         ('when To Use MySQL Well','for free faq  mail@xyz.com ...');
-# proximity search with @ charcter
+# proximity search with @ character
 
 # We don't need more than one word in proximity search. Single word
 # treated as single word search
@@ -61,7 +61,7 @@ SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('"Trial version"@0' IN BOOLEAN MODE);
 
-# @ is word seperator
+# @ is word separator
 SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('"request docteam@oraclehelp.com"@10' IN BOOLEAN MODE);

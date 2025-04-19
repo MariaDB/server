@@ -56,9 +56,9 @@ set @@global.debug_dbug=@saved_dbug;
 # receive the terminal part
 # The test relay on simulation of the incomplete group in the relay log
 
-# Two cases are verified: a mixed transacton and a mixed multi-table update.
+# Two cases are verified: a mixed transaction and a mixed multi-table update.
 #
-# The mixed transacton.
+# The mixed transaction.
 #
 source include/start_slave.inc;
 

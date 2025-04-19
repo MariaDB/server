@@ -3,7 +3,7 @@
 # this feature is activated via --sysdate-is-now mysqld init opt
 #
 # To test here
-# 1. SYSDATE() does not distiguish from NOW()
+# 1. SYSDATE() does not distinguish from NOW()
 # 2. SYSDATE() obeys set timestamp
 
 set timestamp=1;

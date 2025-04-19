@@ -109,7 +109,7 @@ while($i)
   -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
   -- eval SET @b42941_output.2= LOAD_FILE('$outfile.2')
 
-  # remove unecessary files
+  # remove unnecessary files
   -- remove_file $outfile.1
   -- remove_file $outfile.2
   

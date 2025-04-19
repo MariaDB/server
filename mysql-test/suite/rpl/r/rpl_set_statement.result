@@ -64,7 +64,7 @@ SELECT @@auto_increment_increment;
 connection master;
 DELETE FROM t1;
 
-3) sql_mode which is replicated correctly exept NO_DIR_IN_CREATE value;
+3) sql_mode which is replicated correctly except NO_DIR_IN_CREATE value;
 
 connection master;
 SELECT @@sql_mode;

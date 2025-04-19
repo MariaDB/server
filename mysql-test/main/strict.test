@@ -722,7 +722,7 @@ INSERT INTO t1 (col2) VALUES('-1');
 --error 1264
 INSERT INTO t1 (col2) VALUES('18446744073709551616');
 
-# Note that the following two double numbers are slighty bigger than max/min
+# Note that the following two double numbers are slightly bigger than max/min
 # bigint becasue of rounding errors when converting it to bigint
 --error 1264
 INSERT INTO t1 (col1) VALUES(-9223372036854785809.0);

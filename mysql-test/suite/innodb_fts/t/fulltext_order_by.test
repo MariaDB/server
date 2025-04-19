@@ -35,7 +35,7 @@ SELECT a, FORMAT(MATCH (message) AGAINST ('steve'),6) FROM t1 WHERE a=7 and MATC
 SELECT a, MATCH (message) AGAINST ('steve' IN BOOLEAN MODE) FROM t1 WHERE a=7 and MATCH (message) AGAINST ('steve' IN BOOLEAN MODE) ORDER BY 1;
 
 # ORDER BY MATCH
-# INNODB_FTS: INVESITGATE
+# INNODB_FTS: INVESTIGATE
 SELECT if(a in (4,7),2,1), FORMAT(MATCH (message) AGAINST ('steve'),6) as rel FROM t1 ORDER BY rel;
 SELECT if(a in (4,7),2,1), MATCH (message) AGAINST ('steve' IN BOOLEAN MODE) as rel FROM t1 ORDER BY rel;
 

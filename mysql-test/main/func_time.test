@@ -301,7 +301,7 @@ select unix_timestamp('2038-01-17 12:00:00');
 
 #
 # Check positive shift. (it happens only on
-# platfroms with unsigned time_t, such as QNX)
+# platforms with unsigned time_t, such as QNX)
 #
 select unix_timestamp('1970-01-01 03:00:01');
 
@@ -3078,7 +3078,7 @@ SELECT
 --enable_warnings
 
 --echo # HOUR is max_useful_hour() (inside INTERVAL DAY TO SECOND range)
---echo # Expect max TIME(0) + zero fraction + TIME warnings + no INTEVAL warnings
+--echo # Expect max TIME(0) + zero fraction + TIME warnings + no INTERVAL warnings
 SELECT
   ADDTIME(TIME'00:00:00', 876494155959) AS ci,
   ADDTIME(TIME'00:00:00', 876494155959)+0 AS c0,

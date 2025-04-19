@@ -3,8 +3,8 @@
 # This test is executed twice for each test case. Before every
 # testcase it is run with mysqltest in record mode and will thus
 # produce an output file that can be compared to output from after the
-# tescase.  In that way, it is possible to check that a testcase does
-# not have any unwanted side affects.
+# testcase. In that way, it is possible to check that a testcase does
+# not have any unwanted side effects..
 
 --disable_query_log
 

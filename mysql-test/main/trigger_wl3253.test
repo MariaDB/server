@@ -304,8 +304,8 @@ DROP TABLE t1;
 
 --echo #
 --echo # Test 16.
---echo # Check that the trigger in the clause FOLLOWS/PRECEDES can refences
---echo # only to the trigger for the same ACTION/TIMINMG
+--echo # Check that the trigger in the clause FOLLOWS/PRECEDES can reference
+--echo # only to the trigger for the same ACTION/TIMING
 --echo #
 
 CREATE TABLE t1 (a INT);

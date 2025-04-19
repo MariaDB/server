@@ -58,8 +58,8 @@ UPDATE t1 SET f2=1 where f1=1;
 
 # if deps distance dropped, it is indirect evidence that parallel applying was not approved
 
-# Try next that PA retricting is relaxed, if next fragment updates table t1 with primary key
-# wsrep_cert_deps_distance cannot be trsuted in this test phase, we verify parallel applying
+# Try next that PA restricting is relaxed, if next fragment updates table t1 with primary key
+# wsrep_cert_deps_distance cannot be trusted in this test phase, we verify parallel applying
 # by setting sync point for applier thread
 
 # Set up a synchronization point to catch update on t2

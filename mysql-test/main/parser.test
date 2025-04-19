@@ -1105,7 +1105,7 @@ SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
 DROP TABLE t1;
 
---echo # UNION with a parenthesed term
+--echo # UNION with a parenthesized term
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 
@@ -1135,7 +1135,7 @@ SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONC
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a));
 DROP TABLE t1;
 
---echo # UNION with a non-parethesized term with ROLLUP
+--echo # UNION with a non-parenthesized term with ROLLUP
 
 --echo # This will change after: MDEV-10120 Wrong result of UNION .. ORDER BY GROUP_CONCAT()
 --echo # Currently we're testing the parser only

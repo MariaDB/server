@@ -473,7 +473,7 @@ select * from t1|
 delete from t1|
 drop procedure i|
 
-# SELECT with one of more result set sent back to the clinet
+# SELECT with one or more result sets sent back to the client
 insert into t1 values ("foo", 3), ("bar", 19)|
 insert into t2 values ("x", 9, 4.1), ("y", -1, 19.2), ("z", 3, 2.2)|
 
@@ -1342,7 +1342,7 @@ show procedure status like 'bar'|
 drop procedure bar|
 
 #
-# rexecution
+# re-execution
 #
 create procedure p1 ()
   select (select s1 from t3) from t3|
@@ -3415,7 +3415,7 @@ DROP VIEW tv|
 DROP TABLE tt1, tt2, tt3|
 
 #
-# BUG#10136: items cleunup
+# BUG#10136: items cleanup
 #
 create table t3 ( name char(5) not null primary key, val float not null)|
 insert into t3 values ('aaaaa', 1), ('bbbbb', 2), ('ccccc', 3)|
@@ -9322,11 +9322,11 @@ DELIMITER ;$$
 
 --echo # Specifying the RESTART clause for the statement CREATE SEQUENCE is a syntax error.
 --echo # Check that CREATE PROCEDURE doesn't crash server if the statement
---echo # CREATE SEQUNCE ... RESTART is specified in its body.
+--echo # CREATE SEQUENCE ... RESTART is specified in its body.
 --echo #
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART;
---echo # CREATE SEQUNCE ... RESTART and CREATE SEQUNCE ... RESTART WITH ... are
+--echo # CREATE SEQUENCE ... RESTART and CREATE SEQUENCE ... RESTART WITH ... are
 --echo # handled by different grammar rules, so check the both cases.
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART WITH 100;
@@ -9379,7 +9379,7 @@ CREATE VIEW v1 AS SELECT f3() z;
 --error ER_VIEW_INVALID
 SELECT f1();
 
---echo # Check that crash doen't happen in case f3 completes with success.
+--echo # Check that crash doesn't happen in case f3 completes with success.
 DROP FUNCTION f3;
 CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN '!';
 

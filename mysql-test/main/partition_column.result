@@ -1,7 +1,7 @@
 drop table if exists t1;
 #
 # Bug#52815: LIST COLUMNS doesn't insert rows in correct partition
-#            if muliple columns used
+#            if multiple columns used
 CREATE TABLE t1 (
 id INT NOT NULL,
 name VARCHAR(255),

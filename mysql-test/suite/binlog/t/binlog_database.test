@@ -1,6 +1,6 @@
 # A wrapper to test that dropping a database is binlogged
 # correctly. We test all three modes in the same file to avoid
-# unecessary server restarts.
+# unnecessary server restarts.
 
 --source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc

@@ -230,7 +230,7 @@ set optimizer_switch=@save_optimizer_switch;
 
 --echo #
 --echo # mdev-4177: materialization of a subquery whose WHERE condition is OR
---echo # formula with two disjucts such that the second one is always false
+--echo # formula with two disjuncts such that the second one is always false
 --echo #
 
 set @save_optimizer_switch=@@optimizer_switch;

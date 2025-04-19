@@ -1,4 +1,4 @@
-# This test is to make sure that slaves can read a binlog containining
+# This test is to make sure that slaves can read a binlog containing
 # table map ids stored in 4 bytes, even though we now store them in 6
 # bytes. This is for backward-compatibility.
 # If the slave does not detect that the master stores the table map id

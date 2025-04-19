@@ -127,7 +127,7 @@ ORDER BY score DESC;
 SHOW SESSION STATUS LIKE 'Sort_rows%';
 
 #
-#  Tests for ORDER BY/LIMIT optimzation
+#  Tests for ORDER BY/LIMIT optimization
 #
 --echo No sorting for this query
 FLUSH STATUS;

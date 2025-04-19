@@ -36,7 +36,7 @@ enable_query_log;
 sync_slave_with_master;
 select get_lock("lock",3);
 select * from t1;
-# There is no point in testing REPLICATIION of the IS_*_LOCK
+# There is no point in testing REPLICATION of the IS_*_LOCK
 # functions; slave does not run with the same concurrency context as
 # master (generally in slave we can't know that on master this lock
 # was already held by another connection and so that the the

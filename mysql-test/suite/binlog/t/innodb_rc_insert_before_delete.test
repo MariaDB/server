@@ -11,7 +11,7 @@ RESET MASTER;
 # supposed to:
 # https://mariadb.com/kb/en/unsafe-statements-for-statement-based-replication/#isolation-levels.
 # The original MDEV-30225 test is adapted to the RC to create
-# a similar safisticated scenario which does not lead to any deadlock though.
+# a similar sophisticated scenario which does not lead to any deadlock though.
 
 --connect (pause_purge,localhost,root)
 START TRANSACTION WITH CONSISTENT SNAPSHOT;

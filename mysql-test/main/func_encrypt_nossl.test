@@ -2,7 +2,7 @@
 
 #
 # Test output from des_encrypt and des_decrypt when server is
-# compiled without openssl suuport
+# compiled without openssl support
 #
 select des_encrypt("test", 'akeystr');
 select des_encrypt("test", 1);

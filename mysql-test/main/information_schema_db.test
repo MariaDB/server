@@ -344,7 +344,7 @@ drop database db;
 set @old_max_password_errors=@@max_password_errors;
 set global max_password_errors=2;
 
-# must use replace_regex for case insenstive replacement
+# must use replace_regex for case insensitive replacement
 let $hostname_re= `select concat('/@\'', @@hostname, '\'/@HOSTNAME/i')`;
 
 # set the password_last_changed value

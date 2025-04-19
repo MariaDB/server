@@ -65,7 +65,7 @@ while(<IN_FILE>) {
 }
 close(IN_FILE);
 close(OUT_FILE);
-# move the new content from tmp file to the orginal file.
+# move the new content from tmp file to the original file.
 move ("$dir/tmp/tmpfile", "$dir/tmp/$file");
 EOF
 

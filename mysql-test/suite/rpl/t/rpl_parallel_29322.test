@@ -44,7 +44,7 @@ set @@global.explicit_defaults_for_timestamp = 1;
 
 --echo # C. the bug case on the same version binlogs also to demo on the patch's base
 --let $same_version_binlogs=1
-# with more workers the bug shows more likeky on the patch's base slave.
+# with more workers the bug shows more likely on the patch's base slave.
 --source include/stop_slave.inc
 set @@global.slave_parallel_workers = 4;
 --source include/start_slave.inc

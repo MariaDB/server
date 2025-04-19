@@ -287,7 +287,7 @@ let $message= Testcase 3.5.9.10: (implied in previous tests);
 
 #Section 3.5.9.11
 # Testcase: Ensure that trigger definition that includes a referance to
-#           NEW.<colunm name> fails with an appropriate error message,
+#           NEW.<column name> fails with an appropriate error message,
 #           at CREATE TRIGGER time, if the trigger event in not INSERT or UPDATE
 let $message= Testcase 3.5.9.11: covered by 3.5.9.9;
 --source include/show_msg.inc

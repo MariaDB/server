@@ -130,7 +130,7 @@ EXECUTE stmt_1;
 --echo # were damaged. The second attempt to run 'DROP FUNCTION f1' using
 --echo # prepared statement expectedly results in issuing the error
 --echo # ER_SP_DOES_NOT_EXIST since the stored function was dropped on first
---echo # executuon of the prepared statement stmt_1.
+--echo # execution of the prepared statement stmt_1.
 --error ER_SP_DOES_NOT_EXIST
 EXECUTE stmt_1;
 
@@ -466,7 +466,7 @@ EXECUTE stmt_2;
 --echo # Prepare the current XA transaction for finalization
 EXECUTE stmt_3;
 
---echo # Rolback the current XA transaction
+--echo # Rollback the current XA transaction
 EXECUTE stmt_6;
 
 --echo # Execute the same prepared statement the second time to check that

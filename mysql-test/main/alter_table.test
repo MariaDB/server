@@ -1053,7 +1053,7 @@ ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','xx');
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx');
 --echo # No copy: Add new to the end
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6');
---echo # Copy: Numerical incrase (pack lenght)
+--echo # Copy: Numerical increase (pack length)
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6','a7','a8','a9','a10');
 --disable_info
 DROP TABLE t1;

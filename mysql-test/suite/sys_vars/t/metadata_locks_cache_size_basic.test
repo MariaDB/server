@@ -5,7 +5,7 @@
 #
 
 --echo #
---echo # Check that the paremeter is correctly set by start-up
+--echo # Check that the parameter is correctly set by start-up
 --echo # option (.opt file sets it to 256 while default is 1024).
 select @@global.metadata_locks_cache_size = 256;
 

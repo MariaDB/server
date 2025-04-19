@@ -1,7 +1,7 @@
 -- source include/have_innodb.inc
 -- source include/have_example_key_management_plugin.inc
 -- source include/not_embedded.inc
-# This test is too slow for valgrind and causes innnodb semaphores to time out
+# This test is too slow for valgrind and causes innodb semaphores to time out
 -- source include/not_valgrind.inc
 
 let $innodb_encrypt_tables_orig = `SELECT @@innodb_encrypt_tables`;

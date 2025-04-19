@@ -26,7 +26,7 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INT);
 INSERT INTO t1 VALUES (1, 0),(2, 0),(3, 0),(4, 0),(5, 0),(6, 0),(7, 0),(8, 0);
 
 --connection node_2
-# Allow 1K slave queue woithout flow control
+# Allow 1K slave queue without flow control
 SET GLOBAL wsrep_provider_options='gcs.fc_limit=1K';
 # Introduce 2 inconsistencies
 SET wsrep_on=OFF;
@@ -36,7 +36,7 @@ SET wsrep_on=ON;
 
 # Build up slave queue:
 # - first 8 events will be picked by slave threads
-# - one moreevent will be waiting in slave queue
+# - one more event will be waiting in slave queue
 LOCK TABLES t1 WRITE;
 --connection node_1
 UPDATE t1 SET f2 = 1 WHERE f1 = 1;

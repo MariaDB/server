@@ -7,7 +7,7 @@ set use_stat_tables= 'COMPLEMENTARY';
 # Test memtable cardinality statistics
 CREATE TABLE t0 (id int PRIMARY KEY, a int, INDEX ix_a (a))  engine=rocksdb;
 
-# populate the table with 10 reconds where cardinality of id is N and a is N/2.
+# populate the table with 10 records where cardinality of id is N and a is N/2.
 insert into t0 values (0, 0),(1, 1),(2, 2),(3, 3),(4, 4),
 (5, 4),(6, 4),(7, 4),(8, 4),(9, 4);
 

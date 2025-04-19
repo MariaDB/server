@@ -87,7 +87,7 @@ select * from ti1 order by b /* must be (2),(3) */;
 b
 2
 3
-*** slave must stop (Trying to delete a referenced foreing key)
+*** slave must stop (Trying to delete a referenced foreign key)
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1451]
 Last_SQL_Error

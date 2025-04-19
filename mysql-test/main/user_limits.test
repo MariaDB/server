@@ -166,7 +166,7 @@ select * from t1;
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 --error ER_TOO_MANY_USER_CONNECTIONS
 connect (muca3, localhost, mysqltest_1,,);
-# Now we are testing that per-account limit prevails over gloabl limit
+# Now we are testing that per-account limit prevails over global limit
 connection default;
 grant usage on *.* to mysqltest_1@localhost with max_user_connections 3;
 flush user_resources;

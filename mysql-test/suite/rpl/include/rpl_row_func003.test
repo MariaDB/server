@@ -8,7 +8,7 @@
 #       test case will fail. To run during diff failuers, comment out the   #
 #       diff.                                                               #
 # Test: Tests MySQL stored function using RAND() and a flow control. The    #
-#       test inserts  rows into a givin table with the function used in     #
+#       test inserts  rows into a given table with the function used in     #
 #       the insert statement. Depending on the  RAND() value returned       #
 #       inside the function one set of text is returned. In addition,       #
 #       it uses a transaction to see the effect a rollback has on master    #

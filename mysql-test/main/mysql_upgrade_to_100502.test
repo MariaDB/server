@@ -64,12 +64,12 @@ FLUSH PRIVILEGES;
 SHOW GRANTS FOR user_all@localhost;
 
 --echo #
---echo # Should automatically get all new 10.5.2 priveleges that were splitted from SUPER
+--echo # Should automatically get all new 10.5.2 privileges that were splitted from SUPER
 --echo #
 SHOW GRANTS FOR user_super@localhost;
 
 --echo #
---echo # Should automatically get all new 10.5.2 priveleges that were splitted from SUPER, plus REPLICATION MASTER ADMIN
+--echo # Should automatically get all new 10.5.2 privileges that were splitted from SUPER, plus REPLICATION MASTER ADMIN
 --echo #
 SHOW GRANTS FOR user_super_replslave@localhost;
 

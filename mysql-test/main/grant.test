@@ -87,7 +87,7 @@ flush privileges;
 show grants for mysqltest_1@localhost;
 
 #
-# Test what happens when you have same table and colum level grants
+# Test what happens when you have same table and column level grants
 #
 
 create table t1 (a int);
@@ -1531,7 +1531,7 @@ create table t4 (i INT);
 connection default;
 grant select, insert on mysqltest.t2 to mysqltest@localhost;
 grant         insert on mysqltest.t4 to mysqltest@localhost;
-# to specify ACLs for non-existent objects, must explictly |CREATE
+# to specify ACLs for non-existent objects, must explicitly |CREATE
 grant create, insert on mysqltest.t5 to mysqltest@localhost;
 grant create, insert on mysqltest.t6 to mysqltest@localhost;
 flush privileges;

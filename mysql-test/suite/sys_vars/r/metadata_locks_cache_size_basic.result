@@ -1,5 +1,5 @@
 #
-# Check that the paremeter is correctly set by start-up
+# Check that the parameter is correctly set by start-up
 # option (.opt file sets it to 256 while default is 1024).
 select @@global.metadata_locks_cache_size = 256;
 @@global.metadata_locks_cache_size = 256

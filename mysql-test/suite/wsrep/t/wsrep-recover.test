@@ -47,7 +47,7 @@ let $restart_noprint=2;
 --source include/wait_wsrep_ready.inc
 
 #
-# Senario 2
+# Scenario 2
 # The expected recovered seqno is 3 corresponding to two configuration
 # change events and CREATE TABLE.
 #

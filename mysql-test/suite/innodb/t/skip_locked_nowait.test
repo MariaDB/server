@@ -174,7 +174,7 @@ COMMIT;
 connection default;
 COMMIT;
 
-# Case 3b: primary blockes secondary/primary
+# Case 3b: primary blocks secondary/primary
 connection con1;
 SET @g = ST_GeomFromText('POLYGON((0 0,0 3,3 3,0 3,0 0))');
 SELECT seat_id, state, ST_AsText(pos) FROM t1 FORCE INDEX (pos)

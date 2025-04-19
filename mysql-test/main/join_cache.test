@@ -3662,7 +3662,7 @@ drop table t1,t2,t3,t4;
 
 --echo #
 --echo # Bug#50358 - semijoin execution of subquery with outerjoin
---echo #             emplying join buffer
+--echo #             implying join buffer
 --echo #
 
 CREATE TABLE t1 (i int);
@@ -3816,7 +3816,7 @@ DROP table t1,t2,t3;
 set join_buffer_size=@save_join_buffer_size;
 
 #
-# --echo switch to use orginal test suite optimizer switch
+# --echo switch to use original test suite optimizer switch
 #
 
 set @@optimizer_switch=@org_optimizer_switch,@local_optimizer_switch= @org_optimizer_switch;

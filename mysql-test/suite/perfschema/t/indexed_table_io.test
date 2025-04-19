@@ -59,7 +59,7 @@ select count(*) from test.index_tab;
 # - all rows (test.no_index_tab)
 # - all unique index values (test.index_tab, assuming the optimizer decides to
 #   process only the unique index)
-# --> No difference between numvber of accesses for no_index_tab and index_tab
+# --> No difference between number of accesses for no_index_tab and index_tab
 truncate table performance_schema.events_waits_history_long;
 update performance_schema.setup_consumers set enabled='YES';
 select avg(a) from test.no_index_tab;

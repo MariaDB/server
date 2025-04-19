@@ -52,7 +52,7 @@ connection con1;
 --reap
 
 connection con2;
---echo /* conneciton con2 */ SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database');
+--echo /* connection con2 */ SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database');
 --reap
 
 connection default;
@@ -97,7 +97,7 @@ connection con1;
 --reap
 
 connection con2;
---echo /* conneciton con2 */ INSERT INTO t2 VALUES(1);
+--echo /* connection con2 */ INSERT INTO t2 VALUES(1);
 --reap
 
 connection default;

@@ -627,7 +627,7 @@ DROP TABLE t1;
 # by a change in auto_increment_increment.
 # In addition, current value of auto_increment_increment by the client
 # that uses the existing autoinc value with be used to set next autoinc
-# value, which will be used by next client reguardless of its own session
+# value, which will be used by next client regardless of its own session
 # setting for auto_increment_increment.
 #
 connection default;

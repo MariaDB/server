@@ -758,7 +758,7 @@ DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
 select * from t2 ORDER BY (id);
 DELETE t2.* FROM t2 use index(xid) ORDER BY (id) DESC LIMIT 3;
 select * from t2;
---echo # Check some useles syntax
+--echo # Check some useless syntax
 DELETE t2.* FROM t2 FORCE INDEX FOR GROUP BY (xid) ORDER BY (id) LIMIT 1;
 
 drop table t2;
@@ -819,7 +819,7 @@ DELETE FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
 explain
 DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
 
---echo # should issue warnings becaouse we can not switch it internally
+--echo # should issue warnings because we can not switch it internally
 --echo # to multiupdate due to RETURNING
 DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2 RETURNING id;
 

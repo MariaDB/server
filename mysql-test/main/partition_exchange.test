@@ -427,7 +427,7 @@ ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t;
 # Verify that it is possible to both read and write to the partition that is
 # going to be exchanged
 # test mdl locking (i.e. together with transactions and other ddl)
-# Add test in lc_0-2 to make sure renameing operators is ok with different lc
+# Add test in lc_0-2 to make sure renaming operators is ok with different lc
 # Add test to exchange between databases, also check grants.
 # Add test for privileges
 # check if correct error whithout partitioning support

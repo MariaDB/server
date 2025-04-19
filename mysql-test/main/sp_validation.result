@@ -1938,7 +1938,7 @@ b
 DROP TRIGGER tr;
 # Check that AFTER UPDATE trigger is re-compiled on changing table's metadata
 CREATE TRIGGER tr AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t2 (b) VALUES (OLD.a);
-# Remove records interted by AFTER DELETE trogger
+# Remove records inverted by AFTER DELETE trigger
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 INSERT INTO t1 VALUES (1);

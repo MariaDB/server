@@ -2663,7 +2663,7 @@ DROP FUNCTION f;
 --exec $MYSQL -uroot test < $MYSQLTEST_VARDIR/test.dmp
 
 --echo #
---echo # Cleanup after succesful import.
+--echo # Cleanup after successful import.
 --echo #
 DROP VIEW v1;
 DROP FUNCTION f;

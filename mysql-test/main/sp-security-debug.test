@@ -1,5 +1,5 @@
 #
-# Testing SQL SECURITY of stored procedures (DEBUGG binaries)
+# Testing SQL SECURITY of stored procedures (DEBUG binaries)
 #
 
 --source include/have_debug.inc

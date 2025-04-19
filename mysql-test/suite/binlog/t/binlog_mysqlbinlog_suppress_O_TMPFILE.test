@@ -9,7 +9,7 @@
 # Step 1: Generate a binarylog file with a size greater than 1MB.
 # Step 2: Use mysqlbinlog tool to generate sql file and redirect the standard
 #         error to standard output (2>&1)
-# Step 3: Source the generated sql file as inpurt to mysql client, observe no
+# Step 3: Source the generated sql file as input to mysql client, observe no
 #         syntax error is reported.
 #
 # ==== References ====

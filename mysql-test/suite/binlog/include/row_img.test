@@ -1,4 +1,4 @@
-# Auxaliary script for test binlog_row_image
+# Auxiliary script for test binlog_row_image
 #
 CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 varchar(100),
                  c3 INT DEFAULT 1000, c4 TEXT);

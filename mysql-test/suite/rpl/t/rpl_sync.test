@@ -67,7 +67,7 @@ insert into t1(a) values(4);
 insert into t1(a) values(5);
 insert into t1(a) values(6);
 
---echo =====Removing relay log files and crashing/recoverying the slave=======;
+--echo =====Removing relay log files and crashing/recovering the slave=======;
 connection slave;
 --source include/stop_slave_io.inc
 

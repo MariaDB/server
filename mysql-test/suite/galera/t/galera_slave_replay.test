@@ -85,7 +85,7 @@ SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 INSERT INTO test.t1 VALUES (2, 'b');
 
 #
-# send the update from master, this will succeed here, beceuase of async replication.
+# send the update from master, this will succeed here, because of async replication.
 # async replication will apply this in node 2 and pause before commit phase,
 --connection node_3
 --error 0

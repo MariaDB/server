@@ -454,7 +454,7 @@ drop table t1;
       --echo ** Table will be unchanged and the select command will not be
       --echo ** blocked:
       select * from t1;
-      --echo ** Commit transacton on thread 2.
+      --echo ** Commit transaction on thread 2.
       commit;
 
   connection thread1;
@@ -500,7 +500,7 @@ drop table t1;
       send delete from t1 where tipo=2;
 # The sleep has not been replaced as all tried wait conditions leaded to sporadically
 # succeding update in the following thread. Also the used status variables '%lock%' and
-# 'innodb_deleted_rows' and infos in processlist where not sucessful.
+# 'innodb_deleted_rows' and infos in processlist were not successful.
       sleep 1;
 
   connection thread1;
@@ -555,7 +555,7 @@ drop table t1;
       send delete from t1 where tipo=2;
 # The sleep has not been replaced as all tried wait conditions leaded to sporadically
 # succeding update in the following thread. Also the used status variables '%lock%' and
-# 'innodb_deleted_rows' and infos in processlist where not sucessful.
+# 'innodb_deleted_rows' and infos in processlist were not successful.
       sleep 1;
  --disable_view_protocol
   connection thread1;

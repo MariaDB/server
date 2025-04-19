@@ -154,7 +154,7 @@ ORDER BY object_name;
 USE test;
 CREATE TABLE t1 (a int) ENGINE=MYISAM;
 INSERT INTO t1 VALUES (1), (2), (3);
-# Force a path throug mysql_alter_table() and ha_create_table().
+# Force a path through mysql_alter_table() and ha_create_table().
 ALTER TABLE t1 ADD COLUMN (b int);
 --echo #
 --echo # Confirm that the recreated temporary tables are still ignored.

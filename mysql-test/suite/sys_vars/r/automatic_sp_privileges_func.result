@@ -44,7 +44,7 @@ connection conUser1;
 CALL testProc1();
 a
 Procedure Executed.
-Expecting seelect executed
+Expecting select executed
 ALTER PROCEDURE testProc1 COMMENT 'My Comment';
 
 ** Cleanup **

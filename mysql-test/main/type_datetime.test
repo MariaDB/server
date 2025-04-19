@@ -444,7 +444,7 @@ set @@sql_mode= @org_mode;
 #
 # Bug #42146 - DATETIME fractional seconds parse error
 #
-# show we trucate microseconds from the right -- special case: leftmost is 0
+# show we truncate microseconds from the right -- special case: leftmost is 0
 SELECT CAST(CAST('2006-08-10 10:11:12.0123450' AS DATETIME(6)) AS DECIMAL(30,7)) as exp;
 
 # show that we ignore leading zeroes for all other fields
