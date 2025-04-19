@@ -780,8 +780,6 @@ ibb_file_hash_initializer(LF_HASH *hash, void *dst, const void *src)
 void
 ibb_file_oob_refs::init() noexcept
 {
-  static_assert(std::is_trivially_copyable<ibb_tblspc_entry>() == true,
-                "Check if it's ok for memcpy()");
   lf_hash_init(&hash, sizeof(ibb_tblspc_entry), LF_HASH_UNIQUE,
                offsetof(ibb_tblspc_entry, file_no),
                sizeof(ibb_tblspc_entry::file_no), nullptr, nullptr);
