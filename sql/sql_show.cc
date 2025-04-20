@@ -2160,6 +2160,64 @@ static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
   packet->append(STRING_WITH_LEN(")"));
 }
 
+// add all trigger definitions to SHOW CREATE TABLE output
+bool include_all_trigger_def(THD *thd, TABLE *table, String *packet)
+{
+  DBUG_ENTER("inside the func include_all_trigger_def() ");
+
+ 
+  if (!table->triggers)                                          // Checking if table has triggers
+    DBUG_RETURN(FALSE);
+
+  Table_triggers_list *triggers = table->triggers;
+  for (uint i = 0; i < triggers->trigger_count; i++)              //loop over all triggers present
+  {
+    sp_head *sp = triggers->bodies[i];
+    DBUG_ENTER("looping over all triggers in include_all_trigger_def() ");
+    if (!sp)
+      continue;
+
+    String trigger_def;                                           // Construct CREATE TRIGGER statement
+    trigger_def.set_charset(system_charset_info);
+    
+    trigger_def.append("CREATE TRIGGER ");
+    append_identifier(thd, &trigger_def, sp->m_name.str, sp->m_name.length);
+    trigger_def.append(" ");
+
+    trigger_def.append(sp->m_trg_chistics.action_time == AT_BEFORE ? "BEFORE " : "AFTER ");  //include timing when trigger executs
+      switch (sp->m_trg_chistics.event) {                                                    //add event
+      case TRG_EVENT_INSERT:
+        trigger_def.append("INSERT ");
+        DBUG_ENTER("Insert event inside include_all_trigger_def() ");
+        break;
+      case TRG_EVENT_UPDATE:
+        trigger_def.append("UPDATE ");
+  DBUG_ENTER("update event inside include_all_trigger_def() ");
+        break;
+      case TRG_EVENT_DELETE:
+        trigger_def.append("DELETE ");
+  DBUG_ENTER("delete event inside include_all_trigger_def() ");
+        break;
+      default:
+        DBUG_RETURN(TRUE); 
+    }
+
+    //add table name
+    trigger_def.append("ON ");
+    append_identifier(thd, &trigger_def, table->s->table_name.str, table->s->table_name.length);
+    trigger_def.append(" FOR EACH ROW ");
+
+    String sp_body;
+    sp->print(&sp_body, enum_query_type(QT_ORDINARY));
+    trigger_def.append(sp_body);
+
+    packet->append(trigger_def.ptr(), trigger_def.length());
+    packet->append(";\n");
+  }
+
+  DBUG_RETURN(FALSE);
+}
+
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name)
@@ -2642,6 +2700,11 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
   }
 #endif
   tmp_restore_column_map(&table->read_set, old_map);
+
+  TABLE *table = table_list->table;
+  // Include trigger definitions
+  if (include_all_trigger_def(thd, table, packet))
+    DBUG_RETURN(TRUE);
   DBUG_RETURN(error);
 }
 

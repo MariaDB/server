@@ -104,6 +104,7 @@ void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
 bool mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
                                    List<Item> *field_list, String *buffer);
+bool include_all_trigger_def(THD *thd, TABLE *table, String *packet)
 bool mysqld_show_create(THD *thd, TABLE_LIST *table_list);
 void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list);
 bool mysqld_show_create_db(THD *thd, LEX_CSTRING *db_name,
