@@ -1,5 +1,5 @@
 --source include/not_msan.inc
---source include/not_valgrind_build.inc
+--source include/not_valgrind.inc
 
 --echo # MDEV-20699 do not cache SP in SHOW CREATE
 --echo # Warmup round, this might allocate some memory for session variable
