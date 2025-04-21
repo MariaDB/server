@@ -122,6 +122,7 @@ bool DTCollation::merge_collation(Sql_used *used,
 
 
 Named_type_handler<Type_handler_row> type_handler_row("row");
+Named_type_handler<Type_handler_assoc_array> type_handler_assoc_array("associative array");
 
 Named_type_handler<Type_handler_null> type_handler_null("null");
 
@@ -3098,19 +3099,6 @@ bool Type_handler_null::
   return false;
 }
 
-bool Type_handler_row::
-       Column_definition_prepare_stage1(THD *thd,
-                                        MEM_ROOT *mem_root,
-                                        Column_definition *def,
-                                        column_definition_type_t type,
-                                        const Column_derived_attributes
-                                              *derived_attr)
-                                        const
-{
-  def->charset= &my_charset_bin;
-  def->create_length_to_internal_length_null();
-  return false;
-}
 
 bool Type_handler_temporal_result::
        Column_definition_prepare_stage1(THD *thd,
@@ -3420,7 +3408,7 @@ bool Type_handler_bit::
 bool Type_handler_row::Spvar_definition_with_complex_data_types(
                                                  Spvar_definition *def) const
 {
-  if (def->row_field_definitions())
+  if (def->row_field_definitions() && def->is_row())
   {
     List_iterator<Spvar_definition> it(*(def->row_field_definitions()));
     Spvar_definition *member;
@@ -4333,13 +4321,6 @@ Type_handler_bit::Bit_decimal_notation_int_digits_by_nbits(uint nbits)
 }
 
 /*************************************************************************/
-
-void Type_handler_row::Item_update_null_value(Item *item) const
-{
-  DBUG_ASSERT(0);
-  item->null_value= true;
-}
-
 
 void Type_handler_time_common::Item_update_null_value(Item *item) const
 {
@@ -5867,14 +5848,6 @@ bool Type_handler_string_result::
 }
 
 
-longlong Type_handler_row::
-           Item_func_between_val_int(Item_func_between *func) const
-{
-  DBUG_ASSERT(0);
-  func->null_value= true;
-  return 0;
-}
-
 longlong Type_handler_string_result::
            Item_func_between_val_int(Item_func_between *func) const
 {
@@ -6507,14 +6480,6 @@ String *Type_handler_timestamp_common::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_round_fix_length_and_dec(Item_func_round *item) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
-
 bool Type_handler_int_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
@@ -6625,14 +6590,6 @@ bool Type_handler_string_result::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
-
 bool Type_handler_int_result::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
@@ -6737,14 +6694,6 @@ bool Type_handler_string_result::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
-
 bool Type_handler_int_result::
        Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
 {
@@ -6794,14 +6743,6 @@ bool Type_handler_string_result::
 
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
 
 bool Type_handler_int_result::
        Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
@@ -7010,14 +6951,6 @@ bool Type_handler::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
-
 bool Type_handler_int_result::
        Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
 {
@@ -7058,14 +6991,6 @@ bool Type_handler_string_result::
 }
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
 
 bool Type_handler_int_result::
        Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
@@ -7108,14 +7033,6 @@ bool Type_handler_string_result::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
-
 bool Type_handler_int_result::
        Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
 {
@@ -7156,14 +7073,6 @@ bool Type_handler_string_result::
 }
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_div_fix_length_and_dec(Item_func_div *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
 
 bool Type_handler_int_result::
        Item_func_div_fix_length_and_dec(Item_func_div *item) const
@@ -7205,14 +7114,6 @@ bool Type_handler_string_result::
 }
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
 
 bool Type_handler_int_result::
        Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
@@ -7528,15 +7429,6 @@ bool Type_handler_null::
 }
 
 
-bool Type_handler_row::
-       Item_save_in_value(THD *thd, Item *item, st_value *value) const
-{
-  DBUG_ASSERT(0);
-  value->m_type= DYN_COL_NULL;
-  return true;
-}
-
-
 bool Type_handler_int_result::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
@@ -7596,18 +7488,6 @@ bool Type_handler_time_common::
 }
 
 /***************************************************************************/
-
-bool Type_handler_row::
-  Item_param_set_from_value(THD *thd,
-                            Item_param *param,
-                            const Type_all_attributes *attr,
-                            const st_value *val) const
-{
-  DBUG_ASSERT(0);
-  param->set_null();
-  return true;
-}
-
 
 bool Type_handler_real_result::
   Item_param_set_from_value(THD *thd,
@@ -9086,14 +8966,6 @@ Type_handler_hex_hybrid::cast_to_int_type_handler() const
 
 /***************************************************************************/
 
-bool Type_handler_row::Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
-                                     Item *a, Item *b) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
-
 bool Type_handler_int_result::Item_eq_value(THD *thd,
                                             const Type_cmp_attributes *attr,
                                             Item *a, Item *b) const
@@ -9585,13 +9457,6 @@ bool Type_handler_datetime_common::validate_implicit_default_value(THD *thd,
 
 
 /***************************************************************************/
-
-const Name & Type_handler_row::default_value() const
-{
-  DBUG_ASSERT(0);
-  static Name def(STRING_WITH_LEN(""));
-  return def;
-}
 
 const Name & Type_handler_numeric::default_value() const
 {

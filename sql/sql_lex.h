@@ -154,6 +154,7 @@ class sp_variable;
 class sp_fetch_target;
 class sp_expr_lex;
 class sp_assignment_lex;
+class sp_composite;
 class partition_info;
 class Event_parse_data;
 class set_var_base;
@@ -3215,6 +3216,14 @@ public:
   List<set_var_base>  var_list;
   List<set_var_base>  stmt_var_list; //SET_STATEMENT values
   List<set_var_base>  old_var_list; // SET STATEMENT old values
+
+  /*
+    Associative array key used in assignement statement
+    i.e. assoc_array(key):= value or
+         assoc_array(key).field:= value
+  */
+  Item *assoc_key= nullptr;
+  Qualified_ident *assoc_ident= nullptr;
 private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
@@ -3867,6 +3876,11 @@ public:
                             const Lex_ident_sys_st *db,
                             const Lex_ident_sys_st *pkg,
                             const Lex_ident_sys_st *proc);
+  bool call_statement_start(THD *thd, const Qualified_ident *ident);
+  bool call_statement_start_or_assoc_assign(THD *thd,
+                                            Qualified_ident *ident);
+
+  bool assoc_assign_start(THD *thd);
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -3890,6 +3904,8 @@ public:
   bool set_variable(const Lex_ident_sys_st *name1,
                     const Lex_ident_sys_st *name2, Item *item,
                     const LEX_CSTRING &expr_str);
+  bool set_variable(const Qualified_ident *ident, Item *item,
+                    const LEX_CSTRING &expr_str);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition *cdef,
@@ -3899,6 +3915,30 @@ public:
                                             const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_rec_finalize(THD *thd, int nvars,
                                              Row_definition_list *src_row,
+                                             Item *def,
+                                             const LEX_CSTRING &expr_str);
+  bool sp_check_assoc_array_args(const LEX_CSTRING& type_name,
+                                 List<Item> &list);
+  bool sp_set_assoc_array(THD *thd, const Qualified_ident *ident, Item *item,
+                          const LEX_CSTRING &expr_str);
+  bool sp_set_assoc_array_field(THD *thd, const Qualified_ident *ident,
+                                const Lex_ident_sys_st *field_name,
+                                Item *item, const LEX_CSTRING &expr_str);
+  bool sp_set_assoc_array_copy_key(LEX *sub_lex);
+
+  Item *sp_get_assoc_array_key(THD *thd, Item_splocal* array,
+                               List<Item> *args, bool is_first);
+  Item *sp_get_assoc_array_next_or_prior(THD *thd, Item_splocal* array,
+                                         List<Item> *args, bool is_next);
+  Item *sp_get_assoc_array_count(THD *thd, Item_splocal* array,
+                                 List<Item> *args);
+  Item *sp_get_assoc_array_exists(THD *thd, Item_splocal* array,
+                                  List<Item> *args);
+  Item *sp_get_assoc_array_delete(THD *thd, Item_splocal* array,
+                                  List<Item> *args);
+  bool sp_variable_declarations_assoc_array_finalize(THD *thd, int nvars,
+                                             Spvar_definition *key_def,
+                                             Spvar_definition *value_def,
                                              Item *def,
                                              const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_row_finalize(THD *thd, int nvars,
@@ -4125,6 +4165,18 @@ public:
     return nullptr;
   }
 
+  Item *create_composite_constructor(THD *thd,
+                                     sp_composite *composite,
+                                     const Lex_ident_sys_st &name,
+                                     List<Item> *item_list);
+
+  Item_splocal *create_item_spvar_assoc_array_element(THD *thd,
+                                               const Lex_ident_sys_st *ca,
+                                               List<Item> *item_list,
+                                               const Lex_ident_sys_st *cb,
+                                               const char *start,
+                                               const char *end);
+
   /*
     Create an item for "NEXT VALUE FOR sequence_name"
   */
@@ -4234,6 +4286,10 @@ public:
   my_var *create_outvar(THD *thd,
                         const LEX_CSTRING *var_name,
                         const LEX_CSTRING *field_name);
+
+  my_var *create_outvar(THD *thd,
+                        const LEX_CSTRING *name,
+                        Item *key);
 
   bool is_trigger_new_or_old_reference(const LEX_CSTRING *name) const;
 
@@ -4897,12 +4953,19 @@ public:
   sp_condition_value *stmt_signal_value(const Lex_ident_sys_st &ident);
 
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
+  Column_definition *assoc_array_def_init(THD *thd,
+                                          const Lex_ident_sys_st &name);
 
   bool set_field_type_udt(Lex_field_type_st *type,
                           const LEX_CSTRING &name,
                           const Lex_length_and_dec_st &attr);
   bool set_cast_type_udt(Lex_cast_type_st *type,
                          const LEX_CSTRING &name);
+  
+  bool set_field_type_composite(Lex_field_type_st *type,
+                                const LEX_CSTRING &name,
+                                bool with_collection,
+                                bool &is_composite);
 
   bool map_data_type(const Lex_ident_sys_st &schema,
                      Lex_field_type_st *type) const;
@@ -5176,6 +5239,7 @@ public:
     var_list.empty();
     autocommit= 0;
     option_type= oldlex->option_type; // Inherit from the outer lex
+    assoc_ident= oldlex->assoc_ident;
   }
 };
 
