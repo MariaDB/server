@@ -4663,6 +4663,24 @@ void do_change_user(struct st_command *command)
       dynstr_set(&ds_db, mysql->db);
   }
 
+  /* Connection logging if enabled */
+  if (!disable_query_log)
+  {
+    DYNAMIC_STRING *ds= &ds_res;
+
+    dynstr_append_mem(ds, STRING_WITH_LEN("change_user "));
+    replace_dynstr_append(ds, ds_user.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(","));
+
+    if (ds_passwd.length)
+      replace_dynstr_append(ds, ds_passwd.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(","));
+
+    if (ds_db.length)
+      replace_dynstr_append(ds, ds_db.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(";\n"));
+  }
+
   DBUG_PRINT("info",("connection: '%s' user: '%s' password: '%s' database: '%s'",
                       cur_con->name, ds_user.str, ds_passwd.str, ds_db.str));
 

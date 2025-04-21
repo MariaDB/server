@@ -129,6 +129,7 @@ connection default;
 # account is locked
 #
 alter user user1@localhost account lock;
+change_user user1,,;
 ERROR HY000: Access denied, this account is locked
 #
 # MDEV-24098 SHOW CREATE USER invalid for both PASSWORD EXPIRE and
