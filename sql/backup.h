@@ -36,6 +36,7 @@ struct backup_log_info {
 };
 
 void backup_init();
+void backup_reset();
 bool run_backup_stage(THD *thd, backup_stages stage);
 bool backup_end(THD *thd);
 void backup_set_alter_copy_lock(THD *thd, TABLE *altered_table);

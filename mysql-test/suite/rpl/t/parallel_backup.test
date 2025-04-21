@@ -32,7 +32,7 @@ INSERT INTO  t1 VALUES (2);
 # The plot:
 # Block the 1st of two workers and, at waiting-for-prior-commit by the 2nd,
 # issue BACKUP commands.
-# BLOCK_COMMIT may hang so it is --send.
+# BLOCK STAGE START may hang so it is --send.
 # Release the 1st worker to observe a deadlock unless its fixed.
 
 --connect (aux_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
@@ -49,8 +49,7 @@ INSERT INTO t1 VALUES (1);
 
 # While the 1st worker is locked out run backup
 --connect (backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
-BACKUP STAGE START;
---send BACKUP STAGE BLOCK_COMMIT
+--send BACKUP STAGE START
 
 # release the 1st work
 --connection aux_slave
@@ -67,8 +66,52 @@ BACKUP STAGE END;
 --let $diff_tables= master:t1,slave:t1
 --source include/diff_tables.inc
 
-#
+--echo #
+--echo # Test with blocking BLOCK_COMMIT
+--echo #
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection backup_slave
+BACKUP STAGE START;
+
+--connection master
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+--save_master_pos
+
+--connection aux_slave
+BEGIN;
+INSERT INTO t1 VALUES (3);
+
+--connection slave
+--source include/start_slave.inc
+
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+--connection backup_slave
+--send BACKUP STAGE BLOCK_COMMIT;
+
+--connection aux_slave
+--sleep 1
+ROLLBACK;
+
+--connection backup_slave
+--reap
+BACKUP STAGE END;
+
+--connection slave
+--sync_with_master
+
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo #
 --echo # MDEV-30423: dealock XA COMMIT vs BACKUP
+--echo #
 # Prove XA "COMPLETE" 'xid' does not dealock similary to the normal trx case.
 # The slave binlog group commit leader is blocked by a local trx like in
 # the above normal trx case.

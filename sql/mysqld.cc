@@ -2049,6 +2049,7 @@ static void clean_up(bool print_message)
   logger.cleanup_end();
   sys_var_end();
   free_charsets();
+  backup_reset();
 
   my_free(const_cast<char*>(log_bin_basename));
   my_free(const_cast<char*>(log_bin_index));
@@ -9391,6 +9392,8 @@ PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel repli
 PSI_stage_info stage_starting= { 0, "starting", 0};
 PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be flushed", 0};
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
+PSI_stage_info stage_backup_setup_mdl_locks= { 0, "Enabling backup commit lock", 0};
+PSI_stage_info stage_backup_got_commit_lock= { 0, "Backup commit lock enabled", 0};
 
 #ifdef WITH_WSREP
 // Aditional Galera thread states

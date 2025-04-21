@@ -48,7 +48,9 @@ static const char *stage_names[]=
 TYPELIB backup_stage_names=
 { array_elements(stage_names)-1, "", stage_names, 0 };
 
-static MDL_ticket *backup_flush_ticket;
+static MDL_ticket *backup_flush_ticket= 0;
+std::atomic<uint> THD::backup_commit_lock_enabled;
+
 static File volatile backup_log= -1;
 static int backup_log_error= 0;
 
@@ -59,16 +61,32 @@ static bool backup_block_commit(THD *thd);
 static bool start_ddl_logging();
 static void stop_ddl_logging();
 
-/**
-  Run next stage of backup
-*/
+
+/* Initialize backup variables */
 
 void backup_init()
 {
-  backup_flush_ticket= 0;
+  DBUG_ASSERT(backup_flush_ticket == 0);
+  DBUG_ASSERT(THD::backup_commit_lock_enabled == 0);
   backup_log= -1;
   backup_log_error= 0;
 }
+
+
+void backup_reset()
+{
+  /*
+    Ensure that disable_backup_commit_locks() has been called for all
+    calls to enable_backup_commit_locks().
+  */
+  DBUG_ASSERT(THD::backup_commit_lock_enabled == 0);
+  DBUG_ASSERT(backup_flush_ticket == 0);
+}
+
+
+/**
+  Run next stage of backup
+*/
 
 bool run_backup_stage(THD *thd, backup_stages stage)
 {
@@ -191,15 +209,97 @@ static bool backup_start(THD *thd)
     DBUG_RETURN(1);
   }
 
+  /* Downgrade lock to only block other backups */
+  mdl_request.ticket->downgrade_lock(MDL_BACKUP_START);
+
+  /* Wait for other threads to start taking MDL_BACKUP locks */
+  if (thd->enable_backup_commit_locks())
+  {
+    stop_ddl_logging();
+    thd->mdl_context.release_lock(mdl_request.ticket);
+    DBUG_RETURN(1);
+  }
+
   DBUG_ASSERT(backup_flush_ticket == 0);
   backup_flush_ticket= mdl_request.ticket;
 
-  /* Downgrade lock to only block other backups */
-  backup_flush_ticket->downgrade_lock(MDL_BACKUP_START);
-
+  /* Inform engines that backup is starting */
   ha_prepare_for_backup();
+
   DBUG_RETURN(0);
 }
+
+
+/**
+   @return whether a thread is in "fast path" THD::protect_against_backup()
+*/
+
+static my_bool check_if_unblocked(THD *thd, void *)
+{
+  return (thd->backup_commit_lock.load(std::memory_order_acquire) ==
+          THD::IN_COMMIT_NO_LOCK);
+}
+
+
+/*
+  Wait until all active commits are done and all server threads knows
+  that backup has started.
+  This will cause ha_commit_trans() to use MDL locks to enable protection
+  commits under FTWRL and BACKUP STAGE BLOCK_COMMIT
+*/
+
+bool THD::enable_backup_commit_locks()
+{
+  /* Wait for all THD to start taking backup MDL locks during commit */
+  THD_STAGE_INFO(this, stage_backup_setup_mdl_locks);
+
+  /* Notify THD::protect_against_backup() that we are interested in them. */
+  backup_commit_lock_enabled.fetch_add(1, std::memory_order_release);
+
+  /*
+    Ensure that all threads are doing commits with mdl backup locks active.
+  */
+  while (server_threads.iterate(check_if_unblocked, static_cast<void*>(0)))
+  {
+    if (killed)
+    {
+      disable_backup_commit_locks();
+      return 1;
+    }
+    my_sleep(100);                              // Sleep 0.1 second
+  }
+  THD_STAGE_INFO(this, stage_backup_got_commit_lock);
+  return 0;
+}
+
+
+void THD::disable_backup_commit_locks()
+{
+  IF_DBUG(uint lock_count=,)
+    backup_commit_lock_enabled.fetch_sub(1, std::memory_order_relaxed);
+  DBUG_ASSERT(lock_count > 0);
+}
+
+
+bool THD::protect_against_backup_slow()
+{
+  /* The slow path: First, update our state, then wait for mdl_backup. */
+  backup_commit_lock.store(IN_COMMIT_WITH_LOCK, std::memory_order_release);
+  if (likely(!mdl_context.acquire_lock
+             (&mdl_backup, variables.lock_wait_timeout)))
+    return false;
+
+  backup_commit_lock.store(OUTSIDE_COMMIT, std::memory_order_release);
+  return true;
+}
+
+
+void THD::unprotect_against_backup_slow()
+{
+  mdl_context.release_lock(mdl_backup.ticket);
+  mdl_backup.ticket= nullptr;
+}
+
 
 /**
    backup_flush()
@@ -457,6 +557,7 @@ bool backup_end(THD *thd)
     stop_ddl_logging();
     backup_flush_ticket= 0;
     thd->current_backup_stage= BACKUP_FINISHED;
+    thd->disable_backup_commit_locks();
     thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP
     // If node was desynced, resume and resync
