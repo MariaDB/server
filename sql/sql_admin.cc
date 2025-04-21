@@ -988,8 +988,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
               types here.
             */
             enum enum_field_types type= field->type();
-            if (type < MYSQL_TYPE_TINY_BLOB ||
-                type > MYSQL_TYPE_BLOB)
+            if ((type < MYSQL_TYPE_TINY_BLOB ||
+                 type > MYSQL_TYPE_BLOB) &&
+                field->field_length <= thd->variables.analyze_max_length)
             {
               field->register_field_in_read_map();
               bitmap_set_bit(&tab->has_value_set, field->field_index);
