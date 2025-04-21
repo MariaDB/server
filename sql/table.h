@@ -2192,7 +2192,7 @@ struct vers_select_conds_t
   void init(vers_system_time_t _type,
             Vers_history_point _start= Vers_history_point(),
             Vers_history_point _end= Vers_history_point(),
-            Lex_ident          _name= "SYSTEM_TIME")
+            Lex_ident          _name= { STRING_WITH_LEN("SYSTEM_TIME") })
   {
     type= _type;
     orig_type= _type;
@@ -2207,7 +2207,7 @@ struct vers_select_conds_t
   void set_all()
   {
     type= SYSTEM_TIME_ALL;
-    name= "SYSTEM_TIME";
+    name= { STRING_WITH_LEN("SYSTEM_TIME") };
   }
 
   void print(String *str, enum_query_type query_type) const;

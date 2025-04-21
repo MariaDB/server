@@ -2117,8 +2117,6 @@ struct Vers_parse_info: public Table_period_info
   }
 
 protected:
-  bool is_start(const char *name) const;
-  bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info);
