@@ -2279,7 +2279,7 @@ class Item_func_rownum final :public Item_longlong_func
 {
   /*
     This points to a variable that contains the number of rows
-    accpted so far in the result set
+    accepted so far in the result set
   */
   ha_rows *accepted_rows;
   SELECT_LEX *select;

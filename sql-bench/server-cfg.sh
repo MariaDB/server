@@ -983,7 +983,7 @@ sub insert_file {
 }
 
 # solid can't handle an alias in a having statement so
-# select test as foo from tmp group by foo having foor > 2
+# select test as foo from tmp group by foo having foo > 2
 # becomes
 # select test as foo from tmp group by foo having test > 2
 #
@@ -3262,7 +3262,7 @@ sub new
 
   # We don't get an error for duplicate row in 'test-insert'
   $limits{'unique_index'}	= 0; # Unique index works or not
-  # We can't use a blob as a normal string (we got a wierd error)
+  # We can't use a blob as a normal string (we got a weird error)
   $limits{'working_blobs'}	= 0;
   # 'select min(region),max(region) from bench1' kills the server after a while
   $limits{'group_func_sql_min_str'} = 0;

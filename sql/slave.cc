@@ -1349,7 +1349,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
     /*
       The transaction should always be binlogged if OPTION_BINLOG_THIS_TRX is
       set (it implies that something can not be rolled back). And such
-      case should be regarded similarly as modifing a
+      case should be regarded similarly as modifying a
       non-transactional table because retrying of the transaction will
       lead to an error or inconsistency as well.
 

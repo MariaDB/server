@@ -764,7 +764,7 @@ err:
      leaf_page is saved to disk
      Caller must save anc_buff
 
-     For the algoritm to work, we have to ensure for packed keys that
+     For the algorithm to work, we have to ensure for packed keys that
      key_length + (underflow_length + max_block_length + key_length) / 2
      <= block_length.
      From which follows that underflow_length <= block_length - key_length *3

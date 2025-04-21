@@ -2830,7 +2830,7 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
                                   bool is_verbose)
 {
   const my_off_t cache_size= my_b_tell(cache);
-  // contribution to total size estimate of formating
+  // contribution to total size estimate of formatting
   const size_t fmt_size=
     sizeof(str_binlog) + 2*(sizeof(fmt_frag) + 2 /* %d */) +
     sizeof(fmt_delim)  + sizeof(fmt_n_delim)               +

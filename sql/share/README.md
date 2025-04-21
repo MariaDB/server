@@ -27,7 +27,7 @@ Note that Google translate removes the leading whitespace in the translation fil
 
 3. Give the translated file an appropriate name (e.g. `all_swahili_text_in_errmsg-utf8.txt`) and store it in the same directory with `errmsg-utf8.txt` and `all_english_text_in_errmsg-utf8.txt`. These 3 files will be used by the script insert_translations_into_errmsg.py.
 
-4. Proof check the auto-translations in the file you downloaded from Google translate. Note that Google might ommit formating information
+4. Proof check the auto-translations in the file you downloaded from Google translate. Note that Google might omit formatting information
 that will cause the compilation of MariaDB to fail, so pay attention to these.
 
 5. Reintegrate these translations into the errmsg-utf8.txt by running the insert_translations_into_errmsg.py script as follows:

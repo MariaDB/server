@@ -2186,7 +2186,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
 
     /*
       Initialize thd->lex since it's used in many base functions, such as
-      open_tables(). Otherwise, it remains unitialized and may cause crash
+      open_tables(). Otherwise, it remains uninitialized and may cause crash
       during execution of COM_REFRESH.
     */
     lex_start(thd);
@@ -3632,7 +3632,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     }
     
     /*
-      Check if statment should be skipped because of slave filtering
+      Check if statement should be skipped because of slave filtering
       rules
 
       Exceptions are:
@@ -5951,7 +5951,7 @@ finish:
         INSERT INTO t1 VALUES (_utf8mb3'test');
         COMMIT;
 
-      The statment (INSERT in this example) is already in binlog at this point, and the
+      The statement (INSERT in this example) is already in binlog at this point, and the
       and the "SET character_set_collations" is written inside a
       Q_CHARACTER_SET_COLLATIONS chunk in its log entry header.
       The flag CHARACTER_SET_COLLATIONS_USED is not needed any more.

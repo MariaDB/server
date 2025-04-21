@@ -3120,7 +3120,7 @@ public:
 #endif
   Query_cache_tls query_cache_tls;
   NET	  net;				// client connection descriptor
-  /** Aditional network instrumentation for the server only. */
+  /** Additional network instrumentation for the server only. */
   NET_SERVER m_net_server_extension;
   scheduler_functions *scheduler;       // Scheduler for this connection
   Protocol *protocol;			// Current protocol
@@ -5024,7 +5024,7 @@ public:
 
   /*
     Mark thread to be killed, with optional error number and string.
-    string is not released, so it has to be allocted on thd mem_root
+    string is not released, so it has to be allocated on thd mem_root
     or be a global string
 
     Ensure that we don't replace a kill with a lesser one. For example

@@ -457,7 +457,7 @@ while (1)
         ReadKey(0);
     }
 
-    ## l - change long running hightling
+    ## l - change long running queries highlighting
 
     if ($key eq 'l')
     {
@@ -1443,7 +1443,7 @@ sub GetData()
         ## Strip non printing control symbols
         $thread->{Info} =~ tr/[[:cntrl:]]//;
 
-        ## Collpase whitespace
+        ## Collapse whitespace
         $thread->{Info} =~ s/\s+/ /g;
 
         ## Trailing space removal
@@ -2123,7 +2123,7 @@ modules.
 
 =head2 Optional Color Support
 
-In additon, if you want a color B<mytop> (recommended), install
+In addition, if you want a color B<mytop> (recommended), install
 Term::ANSIColor from the CPAN:
 
     http://search.cpan.org/search?dist=ANSIColor
@@ -2197,7 +2197,7 @@ slow queries, and the percentage of Select, Insert, Update, and Delete
 queries.
 
 The third real-time values. First is the number of queries per second,
-then the number of slow queries, followed by query precentages (like
+then the number of slow queries, followed by query percentages (like
 on the previous line).
 
 And the fourth line displays key buffer efficiency (how often keys are
@@ -2493,7 +2493,7 @@ Reset the server's status counters via a I<FLUSH STATUS> command.
 
 =item B<R>
 
-Togle IP reverse lookup. Default is on.
+Toggle IP reverse lookup. Default is on.
 
 =item B<s>
 

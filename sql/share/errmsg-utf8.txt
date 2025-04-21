@@ -2233,7 +2233,7 @@ ER_BLOBS_AND_NO_TERMINATED 42000 S1009
         est "BLOB-tüüpi väljade olemasolul ei saa kasutada fikseeritud väljapikkust. Vajalik 'fields terminated by' määrang"
         fre "Vous ne pouvez utiliser des lignes de longueur fixe avec des BLOBs. Utiliser 'fields terminated by'"
         ger "Eine feste Zeilenlänge kann für BLOB-Felder nicht verwendet werden. Bitte 'fields terminated by' verwenden"
-        geo "ფიქსირებულზომიანი მწკრივის სიგრძეს BLOB-თან ერთად ვერ გამოიყენებთ. გამოიყენეთ 'fieds terminated by'"
+        geo "ფიქსირებულზომიანი მწკრივის სიგრძეს BLOB-თან ერთად ვერ გამოიყენებთ. გამოიყენეთ 'fields terminated by'"
         greek "Δεν μπορείτε να χρησιμοποιήσετε fixed rowlength σε BLOBs. Παρακαλώ χρησιμοποιείστε 'fields terminated by'"
         hindi "BLOBs को निश्चित लंबाई की पंक्ति के साथ प्रयोग नहीं किया जा सकता है; 'FIELDS TERMINATED BY' का इस्तेमाल करें"
         hun "Fix hosszusagu BLOB-ok nem hasznalhatok. Hasznalja a 'mezoelvalaszto jelet' "

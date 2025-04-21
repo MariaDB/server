@@ -3263,7 +3263,7 @@ Lex_cstring handler::get_canonical_filename(const Lex_cstring &path,
 
     Otherwise, in case if either of the table name or the database name
     starts with '#mysql50#', it's probably not correct to lower-case using
-    files_charset_info. Shoudn't we lower-case '#mysql50#name' using
+    files_charset_info. Shouldn't we lower-case '#mysql50#name' using
     character_set_filesystem instead?
   */
   return buff->set_casedn(path.left(mysql_data_home_len),
@@ -8403,7 +8403,7 @@ int handler::ha_delete_row(const uchar *buf)
   In a Spider cluster the direct update operation is pushed down to the
   child levels of the cluster.
 
-  Note that this can't be used in case of statment logging
+  Note that this can't be used in case of statement logging
 
   @param  update_rows   Number of updated rows.
 

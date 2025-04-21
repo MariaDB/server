@@ -486,7 +486,7 @@ typedef struct _format {  /* Format descriptor block                   */
 /***********************************************************************/
 typedef struct _tabptr {                                   /* start=P1 */
   struct _tabptr *Next;
-  int   Num;                                             /* alignement */
+  int   Num;                                              /* alignment */
   void *Old[50];
   void *New[50];                  /* old and new values of copied ptrs */
   } TABPTR, *PTABPTR;

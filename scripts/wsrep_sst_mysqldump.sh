@@ -19,7 +19,7 @@ set -ue
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a reference script for mariadb-dump-based state snapshot tansfer.
+# This is a reference script for mariadb-dump-based state snapshot transfer.
 
 . $(dirname "$0")/wsrep_sst_common
 

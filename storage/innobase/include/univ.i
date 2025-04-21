@@ -260,7 +260,7 @@ database name and table name. In addition, 14 bytes is added for:
 #define MAX_FULL_NAME_LEN				\
 	(MAX_TABLE_NAME_LEN + MAX_DATABASE_NAME_LEN + 14)
 
-/** Maximum length of the compression alogrithm string. Currently we support
+/** Maximum length of the compression algorithm string. Currently we support
 only (NONE | ZLIB | LZ4). */
 #define MAX_COMPRESSION_LEN     4
 

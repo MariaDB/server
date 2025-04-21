@@ -3860,7 +3860,7 @@ public:
 
   /*
     Set handler optimizer cost variables.
-    Called for each table used by the statment
+    Called for each table used by the statement
     This is virtual mainly for the partition engine.
   */
   virtual void set_optimizer_costs(THD *thd);

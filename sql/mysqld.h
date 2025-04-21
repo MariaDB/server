@@ -861,7 +861,7 @@ enum enum_query_type
   QT_SHOW_SELECT_NUMBER= (1<<10),
 
   /// Do not print database name or table name in the identifiers (even if
-  /// this means the printout will be ambigous). It is assumed that the caller
+  /// this means the printout will be ambiguous). It is assumed that the caller
   ///  passing this flag knows what they are doing.
   QT_ITEM_IDENT_DISABLE_DB_TABLE_NAMES= (1 <<11),
 

@@ -949,7 +949,7 @@ Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
 
 #define UNIT_NEST_FL        1
 /*
-  SELECT_LEX - store information of parsed SELECT statment
+  SELECT_LEX - store information of parsed SELECT statement
 */
 class st_select_lex: public st_select_lex_node
 {
@@ -3296,7 +3296,7 @@ public:
   /* The following is used by KILL */
   killed_state kill_signal;
   killed_type  kill_type;
-  uint current_select_number; // valid for statment LEX (not view)
+  uint current_select_number; // valid for statement LEX (not view)
 
   /*
     The following bool variables should not be bit fields as they are not

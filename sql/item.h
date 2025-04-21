@@ -1365,7 +1365,7 @@ public:
 
       The value of const is supplied implicitly as the value this item's
       argument, the form of $CMP$ comparison is specified through the
-      function's arguments. The calle returns the result interval
+      function's arguments. The call returns the result interval
          
          F(x) $CMP2$ F(const)
       
@@ -2033,7 +2033,7 @@ public:
   void print_value(String *str);
 
   virtual void update_used_tables() {}
-  virtual COND *build_equal_items(THD *thd, COND_EQUAL *inheited,
+  virtual COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                                   bool link_item_fields,
                                   COND_EQUAL **cond_equal_ref)
   {
@@ -2837,7 +2837,7 @@ bool cmp_items(Item *a, Item *b);
 
 
 /**
-  Array of items, e.g. function or aggerate function arguments.
+  Array of items, e.g. function or aggregate function arguments.
 */
 class Item_args
 {

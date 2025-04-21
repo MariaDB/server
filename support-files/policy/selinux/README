@@ -16,5 +16,5 @@ How to generate and load the policy module of MariaDB Galera cluster ?
     # semanage port -a -t mysqld_port_t -p tcp 4568
     # semanage port -a -t mysqld_port_t -p udp 4567
 
-How to run mysqld in permissve mode ?
+How to run mysqld in permissive mode ?
   # semanage permissive -a mysqld_t

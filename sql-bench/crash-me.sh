@@ -568,7 +568,7 @@ if (!defined($limits{'query_size'}))
     $end = $limits{'restart'}{'tohigh'} - 1;
     print "\nRestarting this with low limit: $first and high limit: $end\n";
     delete $limits{'restart'};
-    $first=$first+int(($end-$first+4)/5);           # Prefere lower on errors
+    $first=$first+int(($end-$first+4)/5);           # Prefer lower on errors
   }
   for ($i=$first ; $i < $end ; $i*=2)
   {
@@ -1101,7 +1101,7 @@ foreach $types (@types)
 			    $type->[3],$type->[4]);
 	if (!$result)
 	{
-	  # check without type specifyer
+	  # check without type specifier
 	  if ($type->[2] =~ /DATE /)
 	  {
 	    my $tmp= $type->[2];
@@ -3142,7 +3142,7 @@ $0 takes the following options:
   This causes rows starting with ' ###' to be logged into the .cnf file
 
 --noverbose
-  Don't log '###' quries to the .cnf file.
+  Don't log '###' queries to the .cnf file.
 
 EOF
   exit(0);
@@ -4167,7 +4167,7 @@ sub safe_query_result
 
 #
 # Find limit using binary search.  This is a weighed binary search that
-# will prefere lower limits to get the server to crash as 
+# will prefer lower limits to get the server to crash as
 # few times as possible
 
 
@@ -4227,7 +4227,7 @@ sub find_limit()
     $end--;
     print "\nRestarting this with low limit: $first and high limit: $end\n";
     delete $limits{'restart'};
-    $i=$first+int(($end-$first+4)/5);           # Prefere lower on errors
+    $i=$first+int(($end-$first+4)/5);           # Prefer lower on errors
   }
   else
   {
@@ -4250,7 +4250,7 @@ sub find_limit()
       { 
         $end=$i-1;
 	$log_str .= " $i:FAIL";
-        $i=$first+int(($end-$first+4)/5); # Prefere lower on errors
+        $i=$first+int(($end-$first+4)/5); # Prefer lower on errors
       }
     }
   }
@@ -4353,7 +4353,7 @@ sub save_config_data
   print CONFIG_FILE "$key=$limit\t# $prompt\n";
   $limits{$key}=$limit;
   $limit_changed=1;
-# now write log lines (immediatelly after limits)
+# now write log lines (immediately after limits)
   my $line;
   my $last_line_was_empty=0;
   foreach $line (split /\n/, $log{$key})

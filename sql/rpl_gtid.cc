@@ -2902,7 +2902,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
       /*
         The elements in the gtid_slave_state_hash are never re-allocated once
         they enter the hash, so we do not need to re-do the lookup after releasing
-        and re-aquiring the lock.
+        and re-acquiring the lock.
       */
       if (!slave_state_elem &&
           !(slave_state_elem= rpl_global_gtid_slave_state->get_element(domain_id)))
@@ -3004,7 +3004,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
 
       /*
         Note that hash_entry pointers do not change once allocated, so we do
-        not need to lookup `he' again after re-aquiring LOCK_gtid_waiting.
+        not need to lookup `he' again after re-acquiring LOCK_gtid_waiting.
       */
       process_wait_hash(wakeup_seq_no, he);
     }

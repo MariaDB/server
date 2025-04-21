@@ -517,7 +517,7 @@ static void usage(void)
 
   puts("Check options (check is the default action for aria_chk):\n\
   -c, --check	      Check table for errors.\n\
-  -e, --extend-check  Check the table VERY throughly.  Only use this in\n\
+  -e, --extend-check  Check the table VERY thoroughly. Only use this in\n\
                       extreme cases as aria_chk should normally be able to\n\
                       find out if the table is ok even without this switch.\n\
   -F, --fast	      Check only tables that haven't been closed properly.\n\

@@ -962,7 +962,7 @@ bool Protocol_text::store_field_metadata(const THD * thd,
   Detect whether column info can be changed without
   PS repreparing.
 
-  Such colum info is called fragile. The opposite of
+  Such column info is called fragile. The opposite of
   fragile is.
 
 

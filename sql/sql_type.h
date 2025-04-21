@@ -853,7 +853,7 @@ public:
 
 
 /*
-  A heler class to perform additive operations between
+  A helper class to perform additive operations between
   two MYSQL_TIME structures and return the result as a
   combination of seconds, microseconds and sign.
 */

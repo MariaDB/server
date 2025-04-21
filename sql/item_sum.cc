@@ -521,7 +521,7 @@ void Item_sum::print(String *str, enum_query_type query_type)
   /*
     TODO:
     The fact that func_name() may return a name with an extra '('
-    is really annoying. This shoud be fixed.
+    is really annoying. This should be fixed.
   */
   if (!is_aggr_sum_func())
     str->append('(');

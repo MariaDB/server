@@ -31,7 +31,7 @@ class Backward_lifo_buffer;
   - The buffer contains fixed-size elements. The elements are either atomic
     byte sequences or pairs of them.
   - The buffer resides in the memory provided by the user. It is possible to
-     = dynamically (ie. between write operations) add ajacent memory space to
+     = dynamically (ie. between write operations) add adjacent memory space to
        the buffer
      = dynamically remove unused space from the buffer.
     The intent of this is to allow to have two buffers on adjacent memory

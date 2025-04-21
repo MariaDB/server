@@ -602,7 +602,7 @@ bs:
     return (~(ulonglong) 0);
   }
 
-  /* Avoid undefinite behavior - negation of LONGLONG_MIN */
+  /* Avoid undefined behavior - negation of LONGLONG_MIN */
   return negative && (longlong) res != LONGLONG_MIN ?
          -((longlong) res) :
           (longlong) res;
@@ -1056,7 +1056,7 @@ end4:
   {
    if (li > MAX_NEGATIVE_NUMBER)
      goto overflow;
-   if (li == MAX_NEGATIVE_NUMBER) // Avoid undefinite behavior in negation
+   if (li == MAX_NEGATIVE_NUMBER) // Avoid undefined behavior in negation
      return LONGLONG_MIN;
    return -((longlong) li);
   }
@@ -2537,7 +2537,7 @@ end4:
   {
    if (li > MAX_NEGATIVE_NUMBER)
      goto overflow;
-   if (li == MAX_NEGATIVE_NUMBER) // Avoid undefinite behavior in negation
+   if (li == MAX_NEGATIVE_NUMBER) // Avoid undefined behavior in negation
      return LONGLONG_MIN;
    return -((longlong) li);
   }

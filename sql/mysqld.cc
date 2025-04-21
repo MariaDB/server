@@ -9626,7 +9626,7 @@ PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
 
 #ifdef WITH_WSREP
-// Aditional Galera thread states
+// Additional Galera thread states
 PSI_stage_info stage_waiting_isolation= { 0, "Waiting to execute in isolation", 0};
 PSI_stage_info stage_waiting_certification= {0, "Waiting for certification", 0};
 PSI_stage_info stage_waiting_ddl= {0, "Waiting for TOI DDL", 0};

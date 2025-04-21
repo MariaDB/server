@@ -8769,7 +8769,7 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
     reference where the column is checked. The function provides a
     generic interface to check column access rights that hides the
     heterogeneity of the column representation - whether it is a view
-    or a stored table colum.
+    or a stored table column.
 
   RETURN
     FALSE OK

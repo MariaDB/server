@@ -798,7 +798,7 @@ ulonglong my_strntoull_8bit(CHARSET_INFO *cs,
     return (~(ulonglong) 0);
   }
 
-  /* Avoid undefinite behavior - negation of LONGLONG_MIN */
+  /* Avoid undefined behavior - negation of LONGLONG_MIN */
   return negative && (longlong) i != LONGLONG_MIN ?
         -((longlong) i) :
          (longlong) i;

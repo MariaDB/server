@@ -2515,7 +2515,7 @@ public:
   columns; protected by lock_latch */
   dict_vcol_templ_t *vc_templ;
 
-  /* @return whether the table has any other transcation lock
+  /* @return whether the table has any other transaction lock
   other than the given transaction */
   bool has_lock_other_than(const trx_t *trx) const
   {
