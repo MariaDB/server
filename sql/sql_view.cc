@@ -183,7 +183,7 @@ void make_valid_column_names(THD *thd, List<Item> &item_list)
 
   for (uint column_no= 1; (item= it++); column_no++)
   {
-    if (item->is_explicit_name() || !check_column_name(item->name.str))
+    if (item->is_explicit_name() || !check_column_name(item->name))
       continue;
     name_len= my_snprintf(buff, NAME_LEN, "Name_exp_%u", column_no);
     item->orig_name= item->name.str;
