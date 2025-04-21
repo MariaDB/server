@@ -1982,6 +1982,52 @@ connection default;
 DROP VIEW v1;
 DROP USER foo;
 DROP USER FOO;
+#
+# MDEV-36380: User has unauthorized access to a sequence through
+# a view with security invoker
+#
+create database db;
+use db;
+create sequence s;
+create sql security invoker view vin as select nextval(s);
+create sql security definer view vdn as select nextval(s);
+create sql security invoker view vil as select lastval(s);
+create sql security definer view vdl as select lastval(s);
+create sql security invoker view vis as select setval(s,20);
+create sql security definer view vds as select setval(s,30);
+create user u@localhost;
+grant select on db.vin to u@localhost;
+grant select on db.vdn to u@localhost;
+grant select on db.vil to u@localhost;
+grant select on db.vdl to u@localhost;
+grant select on db.vis to u@localhost;
+grant select on db.vds to u@localhost;
+connect  con1,localhost,u,,db;
+select nextval(s);
+ERROR 42000: SELECT, INSERT command denied to user 'u'@'localhost' for table `db`.`s`
+select * from vin;
+ERROR HY000: View 'db.vin' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from vdn;
+nextval(s)
+1
+select lastval(s);
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`s`
+select * from vil;
+ERROR HY000: View 'db.vil' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from vdl;
+lastval(s)
+1
+select setval(s,10);
+ERROR 42000: INSERT command denied to user 'u'@'localhost' for table `db`.`s`
+select * from vis;
+ERROR HY000: View 'db.vis' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from vds;
+setval(s,30)
+30
+disconnect con1;
+connection default;
+drop database db;
+drop user u@localhost;
 # End of 10.5 tests
 # Check that a user without access to the schema 'foo' cannot query
 # a JSON_TABLE view in that schema.
