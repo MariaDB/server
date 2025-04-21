@@ -43,6 +43,9 @@ NULL
 select master_pos_wait('master-bin.000001',1000000,1,"my_slave");
 master_pos_wait('master-bin.000001',1000000,1,"my_slave")
 -1
+select master_pos_wait('master-bin.000001',1000000,1,"MY_SLAVE");
+master_pos_wait('master-bin.000001',1000000,1,"MY_SLAVE")
+-1
 STOP SLAVE 'my_slave';
 RESET SLAVE 'my_slave' ALL;
 change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
