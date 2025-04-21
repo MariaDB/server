@@ -366,7 +366,7 @@ void buf_dblwr_t::recover() noexcept
   ut_ad(log_sys.last_checkpoint_lsn);
   if (!is_created())
     return;
-  const lsn_t max_lsn{log_sys.get_lsn()};
+  const lsn_t max_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
   ut_ad(recv_sys.scanned_lsn == max_lsn);
   ut_ad(recv_sys.scanned_lsn >= recv_sys.lsn);
 
@@ -627,7 +627,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size) noexcept
       static_cast<size_t>(srv_fatal_semaphore_wait_threshold);
   size_t log_count= first_log_count;
 
-  for (ulong count= 0;;)
+  for (size_t count= 0;;)
   {
     if (!active_slot->first_free)
       return false;
@@ -785,6 +785,9 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
     ut_ad(lsn);
     ut_ad(lsn >= bpage->oldest_modification());
     log_write_up_to(lsn, true);
+    ut_ad(!e.request.node->space->full_crc32() ||
+          !buf_page_is_corrupted(true, static_cast<const byte*>(frame),
+                                 e.request.node->space->flags));
     e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
                               frame, bpage);
   }

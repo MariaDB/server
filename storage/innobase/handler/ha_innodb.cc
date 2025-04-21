@@ -153,11 +153,6 @@ void close_thread_tables(THD* thd);
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
 
-#ifdef HAVE_URING
-/** The Linux kernel version if io_uring() is considered unsafe */
-const char *io_uring_may_be_unsafe;
-#endif
-
 #define INSIDE_HA_INNOBASE_CC
 
 #define EQ_CURRENT_THD(thd) ((thd) == current_thd)
@@ -243,11 +238,11 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     /* Adjust for purge_coordinator_state::refresh() */
-    log_sys.latch.rd_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
-    log_sys.latch.rd_unlock();
     const lsn_t lsn= log_sys.get_lsn();
+    log_sys.latch.wr_unlock();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
     purge_sys.wake_if_not_active();
@@ -1128,7 +1123,7 @@ innobase_rollback_to_savepoint_can_release_mdl(
 					be rolled back to savepoint */
 
 /** Request notification of log writes */
-static void innodb_log_flush_request(void *cookie);
+static void innodb_log_flush_request(void *cookie) noexcept;
 
 /** Requests for log flushes */
 struct log_flush_request
@@ -3620,7 +3615,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->used_in_HANDLER = TRUE;
 
 	reset_template();
-	m_prebuilt->trx->bulk_insert = false;
+	m_prebuilt->trx->bulk_insert &= TRX_DDL_BULK;
 }
 
 /*********************************************************************//**
@@ -4043,13 +4038,6 @@ skip_buffering_tweak:
   and that also when the support is compiled in. In all other
   cases, we ignore the setting of innodb_use_native_aio. */
   srv_use_native_aio= FALSE;
-#endif
-#ifdef HAVE_URING
-  if (srv_use_native_aio && io_uring_may_be_unsafe)
-    sql_print_warning("innodb_use_native_aio may cause "
-                      "hangs with this kernel %s; see "
-                      "https://jira.mariadb.org/browse/MDEV-26674",
-                      io_uring_may_be_unsafe);
 #endif
 
   srv_lock_table_size= 5 * buf_pool.curr_size();
@@ -4485,7 +4473,7 @@ static bool end_of_statement(trx_t *trx) noexcept
   undo_no_t savept= 0;
   trx->rollback(&savept);
   /* MariaDB will roll back the entire transaction. */
-  trx->bulk_insert= false;
+  trx->bulk_insert&= TRX_DDL_BULK;
   trx->last_stmt_start= 0;
   return true;
 }
@@ -4733,11 +4721,13 @@ void log_flush_notify(lsn_t flush_lsn)
 We put the request in a queue, so that we can notify upper layer about
 checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
-static void innodb_log_flush_request(void *cookie)
+static void innodb_log_flush_request(void *cookie) noexcept
 {
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
   lsn_t flush_lsn= log_sys.get_flushed_lsn();
   /* Load lsn relaxed after flush_lsn was loaded from the same cache line */
   const lsn_t lsn= log_sys.get_lsn();
+  log_sys.latch.wr_unlock();
 
   if (flush_lsn >= lsn)
     /* All log is already persistent. */;
@@ -14937,12 +14927,12 @@ stats_fetch:
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		ut_ad(ib_table->stat_initialized());
-
 #if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
 		if (xbegin()) {
 			if (ib_table->stats_mutex_is_locked())
 				xabort();
+
+			ut_ad(ib_table->stat_initialized());
 
 			n_rows = ib_table->stat_n_rows;
 
@@ -14957,6 +14947,8 @@ stats_fetch:
 #endif
 		{
 			ib_table->stats_shared_lock();
+
+			ut_ad(ib_table->stat_initialized());
 
 			n_rows = ib_table->stat_n_rows;
 
@@ -15866,7 +15858,7 @@ ha_innobase::extra(
 	stmt_boundary:
 		trx->bulk_insert_apply();
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DDL_BULK;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		(void)check_trx_exists(ha_thd());
@@ -15932,7 +15924,7 @@ ha_innobase::extra(
 			break;
 		}
 		m_prebuilt->table->skip_alter_undo = 0;
-		if (dberr_t err= trx->bulk_insert_apply()) {
+		if (dberr_t err= trx->bulk_insert_apply<TRX_DDL_BULK>()) {
 			m_prebuilt->table->skip_alter_undo = 0;
 			return convert_error_code_to_mysql(
 				 err, m_prebuilt->table->flags,
@@ -15940,7 +15932,7 @@ ha_innobase::extra(
 		}
 
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DDL_BULK;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
 			/* During copy_data_between_tables(), InnoDB only
@@ -15957,6 +15949,13 @@ ha_innobase::extra(
 			during CREATE...SELECT, which is the other caller of
 			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
+		}
+		break;
+	case HA_EXTRA_ABORT_ALTER_COPY:
+		if (m_prebuilt->table->skip_alter_undo) {
+			trx = check_trx_exists(ha_thd());
+			m_prebuilt->table->skip_alter_undo = 0;
+			trx->rollback();
 		}
 		break;
 	default:/* Do nothing */
@@ -16053,7 +16052,8 @@ ha_innobase::start_stmt(
 			break;
 		}
 
-		trx->bulk_insert = false;
+		ut_ad(trx->bulk_insert != TRX_DDL_BULK);
+		trx->bulk_insert = TRX_NO_BULK;
 		trx->last_stmt_start = trx->undo_no;
 	}
 
@@ -16261,7 +16261,7 @@ ha_innobase::external_lock(
 		if (!trx->bulk_insert) {
 			break;
 		}
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DDL_BULK;
 		trx->last_stmt_start = trx->undo_no;
 	}
 
@@ -18413,11 +18413,16 @@ checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
   const auto size= log_sys.is_encrypted()
     ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  lsn_t lsn;
-  while (!thd_kill_level(thd) &&
-         log_sys.last_checkpoint_lsn.load(std::memory_order_acquire) + size <
-         (lsn= log_sys.get_lsn(std::memory_order_acquire)))
+  while (!thd_kill_level(thd))
+  {
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    lsn_t cp= log_sys.last_checkpoint_lsn.load(std::memory_order_relaxed),
+      lsn= log_sys.get_lsn();
+    log_sys.latch.wr_unlock();
+    if (cp + size >= lsn)
+      break;
     log_make_checkpoint();
+  }
 
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
@@ -18668,33 +18673,21 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (!resizing || !log_sys.resize_running(thd))
           break;
-        if (resizing > log_sys.get_lsn())
+        log_sys.latch.wr_lock(SRW_LOCK_CALL);
+        while (resizing > log_sys.get_lsn())
         {
           ut_ad(!log_sys.is_mmap());
           /* The server is almost idle. Write dummy FILE_CHECKPOINT records
           to ensure that the log resizing will complete. */
-          log_sys.latch.wr_lock(SRW_LOCK_CALL);
-          while (resizing > log_sys.get_lsn())
-          {
-            mtr_t mtr;
-            mtr.start();
-            mtr.commit_files(log_sys.last_checkpoint_lsn);
-          }
-          log_sys.latch.wr_unlock();
+          mtr_t mtr;
+          mtr.start();
+          mtr.commit_files(log_sys.last_checkpoint_lsn);
         }
+        log_sys.latch.wr_unlock();
       }
     }
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
-}
-
-static void innodb_log_spin_wait_delay_update(THD *, st_mysql_sys_var*,
-                                              void *, const void *save)
-{
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  mtr_t::spin_wait_delay= *static_cast<const unsigned*>(save);
-  mtr_t::finisher_update();
-  log_sys.latch.wr_unlock();
 }
 
 /** Update innodb_status_output or innodb_status_output_locks,
@@ -19533,11 +19526,12 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
-static MYSQL_SYSVAR_UINT(log_spin_wait_delay, mtr_t::spin_wait_delay,
-  PLUGIN_VAR_OPCMDARG,
-  "Delay between log buffer spin lock polls (0 to use a blocking latch)",
-  nullptr, innodb_log_spin_wait_delay_update,
-  0, 0, 6000, 0);
+static uint innodb_log_spin_wait_delay;
+
+static MYSQL_SYSVAR_UINT(log_spin_wait_delay, innodb_log_spin_wait_delay,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
+  nullptr, nullptr, 0, 0, 6000, 0);
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19642,37 +19636,10 @@ static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
   AUTOINC_OLD_STYLE_LOCKING,	/* Minimum value */
   AUTOINC_NO_LOCKING, 0);	/* Maximum value */
 
-#ifdef HAVE_URING
-# include <sys/utsname.h>
-static utsname uname_for_io_uring;
-#else
-static
-#endif
-bool innodb_use_native_aio_default()
-{
-#ifdef HAVE_URING
-  utsname &u= uname_for_io_uring;
-  if (!uname(&u) && u.release[0] == '5' && u.release[1] == '.' &&
-      u.release[2] == '1' && u.release[3] >= '1' && u.release[3] <= '5' &&
-      u.release[4] == '.')
-  {
-    if (u.release[3] == '5') {
-      const char *s= strstr(u.version, "5.15.");
-      if (s || (s= strstr(u.release, "5.15.")))
-        if ((s[5] >= '3' || s[6] >= '0'))
-          return true; /* 5.15.3 and later should be fine */
-    }
-    io_uring_may_be_unsafe= u.release;
-    return false; /* working around io_uring hangs (MDEV-26674) */
-  }
-#endif
-  return true;
-}
-
 static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Use native AIO if supported on this platform.",
-  NULL, NULL, innodb_use_native_aio_default());
+  NULL, NULL, TRUE);
 
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,

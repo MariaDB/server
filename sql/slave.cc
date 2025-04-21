@@ -5978,9 +5978,9 @@ err_during_init:
   rli->relay_log.description_event_for_exec= 0;
   rli->reset_inuse_relaylog();
   /* Wake up master_pos_wait() */
-  mysql_mutex_unlock(&rli->data_lock);
   DBUG_PRINT("info",("Signaling possibly waiting master_pos_wait() functions"));
   mysql_cond_broadcast(&rli->data_cond);
+  mysql_mutex_unlock(&rli->data_lock);
   rli->ignore_log_space_limit= 0; /* don't need any lock */
   /* we die so won't remember charset - re-update them on next thread start */
   thd->system_thread_info.rpl_sql_info->cached_charset_invalidate();
