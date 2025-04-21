@@ -2240,6 +2240,53 @@ DROP VIEW v1;
 DROP USER foo;
 DROP USER FOO;
 
+--echo #
+--echo # MDEV-36380: User has unauthorized access to a sequence through
+--echo # a view with security invoker
+--echo #
+create database db;
+use db;
+create sequence s;
+create sql security invoker view vin as select nextval(s);
+create sql security definer view vdn as select nextval(s);
+create sql security invoker view vil as select lastval(s);
+create sql security definer view vdl as select lastval(s);
+create sql security invoker view vis as select setval(s,20);
+create sql security definer view vds as select setval(s,30);
+create user u@localhost;
+grant select on db.vin to u@localhost;
+grant select on db.vdn to u@localhost;
+grant select on db.vil to u@localhost;
+grant select on db.vdl to u@localhost;
+grant select on db.vis to u@localhost;
+grant select on db.vds to u@localhost;
+
+--connect (con1,localhost,u,,db)
+--error ER_TABLEACCESS_DENIED_ERROR
+select nextval(s);
+--error ER_VIEW_INVALID
+select * from vin;
+--disable_ps2_protocol
+select * from vdn;
+--enable_ps2_protocol
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select lastval(s);
+--error ER_VIEW_INVALID
+select * from vil;
+select * from vdl;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select setval(s,10);
+--error ER_VIEW_INVALID
+select * from vis;
+select * from vds;
+
+--disconnect con1
+--connection default
+drop database db;
+drop user u@localhost;
+
 --echo # End of 10.5 tests
 
 --echo # Check that a user without access to the schema 'foo' cannot query

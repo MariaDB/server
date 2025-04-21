@@ -2778,7 +2778,7 @@ struct TABLE_LIST
   bool check_single_table(TABLE_LIST **table, table_map map,
                           TABLE_LIST *view);
   bool set_insert_values(MEM_ROOT *mem_root);
-  void hide_view_error(THD *thd);
+  void replace_view_error_with_generic(THD *thd);
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();

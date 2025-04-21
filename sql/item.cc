@@ -11029,8 +11029,8 @@ void dummy_error_processor(THD *thd, void *data)
 {}
 
 /**
-  Wrapper of hide_view_error call for Name_resolution_context error
-  processor.
+  Wrapper of replace_view_error_with_generic call for Name_resolution_context
+  error processor.
 
   @note
     hide view underlying tables details in error messages
@@ -11038,7 +11038,7 @@ void dummy_error_processor(THD *thd, void *data)
 
 void view_error_processor(THD *thd, void *data)
 {
-  ((TABLE_LIST *)data)->hide_view_error(thd);
+  ((TABLE_LIST *)data)->replace_view_error_with_generic(thd);
 }
 
 
