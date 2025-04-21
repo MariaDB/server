@@ -32,8 +32,9 @@
   llstr(value, buff);
 
   This function saves a longlong value in a buffer and returns the pointer to
-  the buffer.  This is useful when trying to portable print longlong
-  variables with printf() as there is no usable printf() standard one can use.
+  the buffer. Originally created when printf() family lacked longlong support,
+  now maintained for API compatibility and its underlying longlong10_to_str()
+  is implemented using standard sprintf().
 */
 
 

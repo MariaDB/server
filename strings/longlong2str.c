@@ -116,45 +116,9 @@ char *ll2str(longlong val,char *dst,int radix, int upcase)
 #ifndef longlong10_to_str
 char *longlong10_to_str(longlong val,char *dst,int radix)
 {
-  char buffer[65];
-  register char *p;
-  long long_val;
-  ulonglong uval= (ulonglong) val;
+  char *fmt = (radix < 0) ? "%lld" : "%llu";
 
-  if (radix < 0)
-  {
-    if (val < 0)
-    {
-      *dst++ = '-';
-      /* Avoid integer overflow in (-val) for LONGLONG_MIN (BUG#31799). */
-      uval = (ulonglong)0 - uval;
-    }
-  }
-
-  if (uval == 0)
-  {
-    *dst++='0';
-    *dst='\0';
-    return dst;
-  }
-  p = &buffer[sizeof(buffer)-1];
-  *p = '\0';
-
-  while (uval > (ulonglong) LONG_MAX)
-  {
-    ulonglong quo= uval/(uint) 10;
-    uint rem= (uint) (uval- quo* (uint) 10);
-    *--p = _dig_vec_upper[rem];
-    uval= quo;
-  }
-  long_val= (long) uval;
-  while (long_val != 0)
-  {
-    long quo= long_val/10;
-    *--p = _dig_vec_upper[(uchar) (long_val - quo*10)];
-    long_val= quo;
-  }
-  while ((*dst++ = *p++) != 0) ;
-  return dst-1;
+  int written = sprintf(dst, fmt, val);
+  return dst + written;
 }
 #endif
