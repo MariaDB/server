@@ -502,6 +502,13 @@ typedef struct st_io_cache		/* Used when caching files */
   size_t alloced_buffer;
 } IO_CACHE;
 
+typedef struct Prepared_error
+{
+  uint code;
+  char message[MYSYS_ERRMSG_SIZE];
+  myf flags;
+} MY_PREPARED_ERROR;
+
 typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
   ATTRIBUTE_FORMAT_FPTR(printf, 2, 3);
 
@@ -743,6 +750,8 @@ extern int my_error_register(const char** (*get_errmsgs) (int nr),
 extern my_bool my_error_unregister(uint first, uint last);
 extern void my_message(uint my_err, const char *str,myf MyFlags);
 extern void my_message_stderr(uint my_err, const char *str, myf MyFlags);
+extern struct Prepared_error my_error_prepare(uint nr, myf MyFlags, ...);
+extern void my_error_issue(struct Prepared_error* error);
 extern my_bool my_init(void);
 extern void my_end(int infoflag);
 extern int my_redel(const char *from, const char *to, time_t backup_time_stamp,
