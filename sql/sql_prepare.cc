@@ -3135,6 +3135,33 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
 
 
 /**
+  Cleanup destroyed JOIN instances from derived tables' SELECT_LEX instances
+  before second execution by setting the SELECT_LEX instance's JOIN pointer
+  to nullptr.
+ */
+static void cleanup_joins(SELECT_LEX *sl)
+{
+  TABLE_LIST *tl;
+  for (tl= sl->table_list.first; tl; tl= tl->next_local)
+  {
+    // Must be a derived view without a recursive table reference.
+    if (!tl->is_view_or_derived() || tl->is_with_table_recursive_reference())
+      continue;
+
+    SELECT_LEX_UNIT *unit= tl->get_unit();
+    if (!unit)
+      continue;
+
+    // For each query on the unit, disassociate the JOIN instance.  It
+    // should have already been destroyed by this point.  There's no way
+    // to assert that because it will result in EXC_BAD_ACCESS.
+    for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+      sl->join= nullptr;
+  }
+}
+
+
+/**
   Reinit prepared statement/stored procedure before execution.
 
   @todo
@@ -3238,6 +3265,8 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     }
     if (sl->changed_elements & TOUCHED_SEL_DERIVED)
     {
+      cleanup_joins(sl);
+
 #ifdef DBUG_ASSERT_EXISTS
       bool res=
 #endif
