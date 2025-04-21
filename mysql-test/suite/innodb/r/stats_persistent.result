@@ -17,3 +17,13 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
+#
+# MDEV-36649 dict_acquire_mdl_shared() aborts when table
+#      mode is DICT_TABLE_OP_OPEN_ONLY_IF_CACHED
+#
+set @old_defragment_stats_accuracy= @@innodb_defragment_stats_accuracy;
+SET GLOBAL innodb_defragment_stats_accuracy=1;
+CREATE TABLE t (a INT ) ENGINE=INNODB;
+INSERT INTO t SELECT * FROM seq_1_to_1000;
+DROP TABLE t;
+set global innodb_defragment_stats_accuracy= @old_defragment_stats_accuracy;

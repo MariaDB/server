@@ -795,6 +795,8 @@ lookup:
       dict_sys.freeze(SRW_LOCK_CALL);
     goto return_without_mdl;
   }
+  else
+    goto return_without_mdl;
 
   if (*mdl)
   {
