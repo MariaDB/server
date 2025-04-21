@@ -5619,6 +5619,15 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   DBUG_ASSERT(!auto_increment_field_not_null);
   auto_increment_field_not_null= FALSE;
 
+  if (tl->view)
+  {
+    tl->view= NULL;
+    tl->derived= NULL;
+    tl->derived_type= VIEW_ALGORITHM_UNDEFINED;
+    tl->updatable= true;
+    tl->effective_with_check= VIEW_CHECK_NONE;
+  }
+
   pos_in_table_list= tl;
 
   clear_column_bitmaps();

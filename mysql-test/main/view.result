@@ -7018,4 +7018,37 @@ SELECT * FROM v WHERE UpdateXML('<user>N/A</user>','/a',CURRENT_USER());
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '<user>N/A</user>'
 DROP VIEW v;
+#
+# MDEV-33633 Trigger tries to access already dropped view
+#
+create table t1 (c1 int(1));
+create trigger tr1 before insert on t1 for each row insert INTO v1 values();
+insert into t1 values (2);
+ERROR 42S02: Table 'test.v1' doesn't exist
+drop table t1;
+create table t1 (c1 int(1));
+create view v1 as select 1 a;
+create trigger tr1 before insert on t1 for each row insert INTO v1 values();
+insert into t1 values (3);
+ERROR HY000: The target table v1 of the INSERT is not insertable-into
+drop view v1;
+inSert into t1 values (4), (5);
+ERROR 42S02: Table 'test.v1' doesn't exist
+drop table t1;
+create table t1 (c1 int(1));
+create view v1 as select 1 a;
+create trigger tr1 before insert on t1 for each row insert INTO v1 values();
+insert into t1 values (6);
+ERROR HY000: The target table v1 of the INSERT is not insertable-into
+drop view v1;
+create table v1 (c1 int);
+INSERT into t1 values (7), (8);
+drop table v1;
+insert into t1 values (9);
+ERROR 42S02: Table 'test.v1' doesn't exist
+create view v1 as select 1 a;
+insert into t1 values (10);
+ERROR HY000: The target table v1 of the INSERT is not insertable-into
+drop table t1;
+drop view v1;
 # End of 10.5 tests
