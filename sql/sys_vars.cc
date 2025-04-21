@@ -5121,7 +5121,7 @@ static Sys_var_session_special Sys_identity(
   We want statements referring explicitly to @@session.insert_id to be
   unsafe, because insert_id is modified internally by the slave sql
   thread when NULL values are inserted in an AUTO_INCREMENT column.
-  This modification interfers with the value of the
+  This modification interferes with the value of the
   @@session.insert_id variable if @@session.insert_id is referred
   explicitly by an insert statement (as is seen by executing "SET
   @@session.insert_id=0; CREATE TABLE t (a INT, b INT KEY

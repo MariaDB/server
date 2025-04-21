@@ -5252,7 +5252,7 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     set_null_string(arg->collation);
     return false;
   }
-  /* It is wrapper => other set_* shoud set null_value */
+  /* It is wrapper => other set_* should set null_value */
   DBUG_ASSERT(null_value == false);
   return false;
 }
@@ -9661,7 +9661,7 @@ void Item_ref::fix_after_pullout(st_select_lex *new_parent, Item **refptr,
   Mark references from inner selects used in group by clause
 
   The method is used by the walk method when called for the expressions
-  from the group by clause. The callsare  occurred in the function
+  from the group by clause. The calls occur in the function
   fix_inner_refs invoked by JOIN::prepare.
   The parameter passed to Item_outer_ref::check_inner_refs_processor
   is the iterator over the list of inner references from the subselects

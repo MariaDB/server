@@ -3248,7 +3248,7 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 
   /*
     If we are here, there was no fatal error (but error may be still
-    unitialized).
+    uninitialized).
   */
   if (unlikely(entry->file->implicit_emptied))
   {
@@ -8061,8 +8061,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   /*
     Following 2 conditions always should be true (but they were added
     due to an error present only in 10.3):
-    1) nest_level shoud be 0 or positive;
-    2) nest level of all SELECTs on the same level shoud be equal to first
+    1) nest_level should be 0 or positive;
+    2) nest level of all SELECTs on the same level should be equal to first
        SELECT on this level (and each other).
   */
   DBUG_ASSERT(lex->current_select->nest_level >= 0);
@@ -9594,7 +9594,7 @@ bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b)
 
   NOTES
     Caller should have used start_new_trans object to start a new
-    transcation when reading system tables.
+    transaction when reading system tables.
 
     Thanks to restrictions which we put on opening and locking of
     system tables for writing, we can open and lock them for reading

@@ -67,7 +67,7 @@ ADD_DEFINITIONS(-DWIN32_LEAN_AND_MEAN)
   
 # Adjust compiler and linker flags
 IF(MINGW AND CMAKE_SIZEOF_VOID_P EQUAL 4)
-   # mininal architecture flags, i486 enables GCC atomics
+   # minimal architecture flags, i486 enables GCC atomics
   ADD_DEFINITIONS(-march=i486)
 ENDIF()
 

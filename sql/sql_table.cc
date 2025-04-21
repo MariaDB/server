@@ -5827,7 +5827,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     {
       /*
         Get pointer to the newly opened table. We need this to ensure we
-        don't reopen the table when doing statment logging below.
+        don't reopen the table when doing statement logging below.
       */
       table->table= pos_in_locked_tables->table;
       table->table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);

@@ -909,7 +909,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   }
 
   /*
-    TODO: This would prevent processing quries with ORDER BY ... LIMIT
+    TODO: This would prevent processing queries with ORDER BY ... LIMIT
     therefore we disable this optimization for now.
     Remove GROUP BY if there are no aggregate functions and no HAVING
     clause

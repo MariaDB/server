@@ -2388,7 +2388,7 @@ int ha_federated::index_read(uchar *buf, const uchar *key,
 
   NOTES
     This uses an internal result set that is deleted before function
-    returns.  We need to be able to be calable from ha_rnd_pos()
+    returns.  We need to be able to be callable from ha_rnd_pos()
 */
 
 int ha_federated::index_read_idx(uchar *buf, uint index, const uchar *key,

@@ -88,7 +88,7 @@ class MiscFilesProcessor():
         logger.error('FRM file %s was updated after starting backups. '
                      'Schema could have changed and the resulting copy may '
                      'not be valid. Aborting. '
-                     '(backup time: %s, file modifled time: %s)',
+                     '(backup time: %s, file modified time: %s)',
                      path, datetime.datetime.fromtimestamp(self.start_backup_time).strftime('%Y-%m-%d %H:%M:%S'),
                      datetime.datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M:%S'))
         raise Exception("Inconsistent frm file timestamp");

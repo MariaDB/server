@@ -410,7 +410,7 @@ static MI_INFO *open_isam_file(char *name,int mode)
     }
     if (verbose)
       puts("Recompressing already compressed table");
-    share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifing it */
+    share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifying it */
 
     /* We want to use the new checksums if we have null fields */
     if (share->has_null_fields)
@@ -1417,7 +1417,7 @@ test_space_compress(HUFF_COUNTS *huff_counts, my_off_t records,
   min_pos= -2;
   huff_counts->counts[(uint) ' ']=space_count;
 
-	/* Test with allways space-count */
+	/* Test with always space-count */
   new_length=huff_counts->bytes_packed+length_bits*records/8;
   if (new_length+1 < min_pack)
   {

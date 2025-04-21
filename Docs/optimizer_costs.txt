@@ -179,7 +179,7 @@ MariaDB [test]> select sum(1) from seq_1_to_100000000;
 1 row in set (5.162 sec)
 
 Time of where= (8.564-5.162)/100000000 = 3.402/100000000 (100,000,000)
-(Result good enough, as sligthly different computations)
+(Result is good enough for slightly different computations)
 
 check_costs.pl comes provides the numbers when using heap tables and 1M rows:
 
@@ -217,7 +217,7 @@ cost= scan_time() * optimizer_cache_cost * SCAN_LOOKUP_COST +
 We are ignoring TABLE_SCAN_SETUP (which is just to prefer index lookup on small
 tables).
 We can also ignore records * WHERE_COMPARE_COST as we don't have that
-in the above calcuated 'ms'.
+in the above calculated 'ms'.
 row_costs= (ROW_COPY_COST + ROW_LOOKUP_COST)
 
 cost= scan_time() * 1 * 1 +
@@ -430,7 +430,7 @@ blocks= index_size/IO_SIZE =
 ->
 1000000 * 19 / 0.75/ 4096 = 6184
 engine_blocks (block_size 8192) = 6184/2 = 3092
-(Range optimzer had calculated 3085)
+(Range optimizer had calculated 3085)
 
 keyread_time= blocks * avg_io_cost() * cache + engine_blocks * INDEX_BLOCK_COPY_COST + rows * (KEY_NEXT_FIND_COST + KEY_COPY_COST);
 = engine_blocks * INDEX_BLOCK_COPY_COST + rows * KEY_NEXT_FIND_COST=
@@ -1258,7 +1258,7 @@ MySQL cost structures
 MySQL 8.0 server cost are stored in the class Server_cost_constants defined
 int opt_costconstants.h
 
-It containts the following slots and has the following default values:
+It contains the following slots and has the following default values:
 
 m_row_evaluate_cost             0.1  Cost for evaluating the query condition on
                                      a row

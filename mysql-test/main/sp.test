@@ -4674,7 +4674,7 @@ create procedure bug15231_2(inout ioid integer)
 begin
   select "Before NOT FOUND condition is triggered" as '1';
   select id into ioid from t3 where id=ioid;
-  select "After NOT FOUND condtition is triggered" as '2';
+  select "After NOT FOUND condition is triggered" as '2';
 
   if ioid is null then
     set ioid=1;
@@ -5840,13 +5840,13 @@ CREATE TABLE bug23760 (
 CREATE TABLE bug23760_log (
  id INT NOT NULL AUTO_INCREMENT ,
  reason VARCHAR(50)NULL ,
- ammount INT NOT NULL ,
+ amount INT NOT NULL ,
   PRIMARY KEY ( id ) 
 )|
 
 CREATE PROCEDURE bug23760_update_log(r Varchar(50), a INT)
 BEGIN
-  INSERT INTO bug23760_log (reason, ammount) VALUES(r, a);
+  INSERT INTO bug23760_log (reason, amount) VALUES(r, a);
 END|
 
 CREATE PROCEDURE bug23760_test_row_count()

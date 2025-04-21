@@ -265,7 +265,7 @@ public:
     return purge_queue.clone_container();
   }
 
-  /** Acquare purge_queue_mutex */
+  /** Acquire purge_queue_mutex */
   void queue_lock() { mysql_mutex_lock(&pq_mutex); }
 
   /** Release purge queue mutex */

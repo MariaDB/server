@@ -461,7 +461,7 @@ static void end_file_open_wait_and_bind_to_descriptor_noop
 }
 
 static void end_temp_file_open_wait_and_bind_to_descriptor_noop
-  (PSI_file_locker *locker NNN, File file NNN, const char *filaneme NNN)
+  (PSI_file_locker *locker NNN, File file NNN, const char *filename NNN)
 {
   return;
 }

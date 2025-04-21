@@ -311,7 +311,7 @@ enum enum_mdl_type {
   Statement is modifying data, but will not block MDL_BACKUP_DDL or earlier
   BACKUP stages.
   ALTER TABLE is started with MDL_BACKUP_DDL, but changed to
-  MDL_BACKUP_ALTER_COPY while alter table is copying or modifing data.
+  MDL_BACKUP_ALTER_COPY while alter table is copying or modifying data.
 */
 
 #define MDL_BACKUP_ALTER_COPY enum_mdl_type(12)

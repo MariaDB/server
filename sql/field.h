@@ -897,7 +897,7 @@ public:
   Column_statistics_collected *collected_stats;
 
   /* 
-    This is additional data provided for any computed(virtual) field,
+    This is additional data provided for any computed (virtual) field,
     default function or check constraint.
     In particular it includes a pointer to the item by which this field
     can be computed from other fields.
@@ -5422,8 +5422,8 @@ public:
   bool explicitly_nullable;
 
   /*
-    This is additinal data provided for any computed(virtual) field.
-    In particular it includes a pointer to the item by  which this field
+    This is additional data provided for any computed (virtual) field.
+    In particular it includes a pointer to the item by which this field
     can be computed from other fields.
   */
   Virtual_column_info

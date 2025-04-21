@@ -8262,7 +8262,7 @@ int ha_rocksdb::read_row_from_secondary_key(uchar *const buf,
     keyparts whose datatype is not yet known.
 
     We walk around this problem by using check_keyread_allowed(), which uses
-    table_share object and is careful not to step on unitialized data.
+    table_share object and is careful not to step on uninitialized data.
 
     When we get a call with all_parts=TRUE, we try to analyze all parts but
     ignore those that have key_part->field==nullptr (these are not initialized

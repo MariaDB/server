@@ -12,7 +12,7 @@ incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mar
 bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mysql/mariadb-test/std_data/wsrep_notify.sh:87]
 bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mysql/mariadb-test/std_data/wsrep_notify_ssl.sh:87]
 # These files are result files and they are supposed to be
-# Natial encoded (ISO/IEC 8859-1) not UTF-8
+# National encoded (ISO/IEC 8859-1) not UTF-8
 national-encoding [usr/share/mysql/mariadb-test/include/ctype_E05C.inc]
 national-encoding [usr/share/mysql/mariadb-test/main/alter_table.result]
 national-encoding [usr/share/mysql/mariadb-test/main/binary.result]

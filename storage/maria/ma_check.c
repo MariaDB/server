@@ -6327,7 +6327,7 @@ int maria_recreate_table(HA_CHECK *param, MARIA_HA **org_info, char *filename)
                           "indexfile", my_errno);
     goto end;
   }
-  /* We are modifing */
+  /* We are modifying */
   (*org_info)->s->options&= ~HA_OPTION_READ_ONLY_DATA;
   _ma_readinfo(*org_info,F_WRLCK,0);
   (*org_info)->s->state.state.records= info.state->records;

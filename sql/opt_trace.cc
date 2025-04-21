@@ -481,7 +481,7 @@ void Opt_trace_start::init(THD *thd,
                            const CHARSET_INFO *query_charset)
 {
   /*
-    if optimizer trace is enabled and the statment we have is traceable,
+    if optimizer trace is enabled and the statement we have is traceable,
     then we start the context.
   */
   const ulonglong var= thd->variables.optimizer_trace;

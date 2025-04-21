@@ -35,7 +35,7 @@ static File handler= -1;
 static my_bool opt_unit= 0;
 static struct my_option my_long_options[] =
 {
-#ifdef IMPLTMENTED
+#ifdef IMPLEMENTED
   {"body", 'b',
    "Print chunk body dump",
    (uchar **) &opt_body, (uchar **) &opt_body, 0,

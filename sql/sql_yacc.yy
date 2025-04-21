@@ -1199,7 +1199,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %left   PREC_BELOW_NOT
 
-/* The precendence of boolean NOT is in fact here. See the comment below. */
+/* The precedence of boolean NOT is in fact here. See the comment below. */
 
 %left   '=' EQUAL_SYM GE '>' LE '<' NE
 %nonassoc IS
@@ -1253,7 +1253,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
   - SYSTEM: identifier, system versioning:
       SELECT system FROM t1;
-      ALTER TABLE DROP SYSTEM VERSIONIONG;
+      ALTER TABLE DROP SYSTEM VERSIONING;
 
   - USER: identifier, user:
       SELECT user FROM t1;
@@ -5879,7 +5879,7 @@ create_table_option:
             Lex->create_info.used_fields|= HA_CREATE_USED_INDEXDIR;
           }
         | TABLESPACE ident
-          { /* Compatiblity with MySQL */ }
+          { /* Compatibility with MySQL */ }
         | STORAGE_SYM DISK_SYM
           {Lex->create_info.storage_media= HA_SM_DISK;}
         | STORAGE_SYM MEMORY_SYM
@@ -7447,7 +7447,7 @@ alter:
           {
             if (likely(!Lex->m_sql_cmd))
             {
-              /* Create a generic ALTER TABLE statment. */
+              /* Create a generic ALTER TABLE statement. */
               Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
               if (unlikely(Lex->m_sql_cmd == NULL))
                 MYSQL_YYABORT;
@@ -7534,7 +7534,7 @@ alter:
               MYSQL_YYABORT;
             /*
               It is safe to use Lex->spname because
-              ALTER EVENT xxx RENATE TO yyy DO ALTER EVENT RENAME TO
+              ALTER EVENT xxx RENAME TO yyy DO ALTER EVENT RENAME TO
               is not allowed. Lex->spname is used in the case of RENAME TO
               If it had to be supported spname had to be added to
               Event_parse_data.
@@ -7601,7 +7601,7 @@ alter:
           }
           sequence_defs
           {
-            /* Create a generic ALTER SEQUENCE statment. */
+            /* Create a generic ALTER SEQUENCE statement. */
             Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_sequence($3);
             if ((Lex->create_info.seq_create_info->used_fields &
                  seq_field_used_as) &&
@@ -10158,7 +10158,7 @@ trim_operands_special:
   - the collation of the column `a`, or
   - the collation of the string literal 'a'
 
-  This restriction allows to parse the above query unambiguiusly:
+  This restriction allows to parse the above query unambiguously:
   COLLATE belongs to the column rather than the literal.
   If one needs COLLATE to belong to the literal, parentheses must be used:
     CREATE TABLE t1 (a TEXT DEFAULT ('a' COLLATE latin1_bin));
@@ -13242,7 +13242,7 @@ procedure_clause:
             /*
               PROCEDURE CLAUSE cannot handle subquery as one of its parameter,
               so disallow any subqueries further.
-              Alow subqueries back once the parameters are reduced.
+              Allow subqueries back once the parameters are reduced.
             */
             Lex->clause_that_disallows_subselect= "PROCEDURE";
             Select->options|= OPTION_PROCEDURE_CLAUSE;
@@ -14656,7 +14656,7 @@ show_param:
           }
         | describe_command opt_format_json FOR_SYM expr
           /*
-            The alternaltive syntax for this command is MySQL-compatible
+            The alternative syntax for this command is MySQL-compatible
             EXPLAIN FOR CONNECTION
           */
           {
@@ -16300,7 +16300,7 @@ keyword_sp_var_not_label:
   In case if heavy grammar conflicts are found in the future,
   we'll possibly need to make them reserved for sql_mode=ORACLE.
 
-  TODO: Allow these variables as SP lables when sql_mode=ORACLE.
+  TODO: Allow these variables as SP labels when sql_mode=ORACLE.
   TODO: Allow assigning of "SP characteristics" marked variables
         inside compound blocks.
   TODO: Allow "follows" and "precedes" as variables in compound blocks:
@@ -19711,7 +19711,7 @@ package_implementation_declare_section:
           {
             /*
               Add a jump "end of declarations -> start of exceptions"
-              (over the executable sectition).
+              (over the executable section).
             */
             if (Lex->sp_block_with_exceptions_finalize_declarations(thd))
               MYSQL_YYABORT;

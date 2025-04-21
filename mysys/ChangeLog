@@ -37,7 +37,7 @@ Mon Aug 31 23:51:13 1992  Michael Widenius  (monty@bitch)
 
 Mon Aug 17 01:46:36 1992  Michael Widenius  (monty@bitch)
 
-	* Added ny cashing-rutine mf_iocash for quicker io.
+	* Added ny caching-routine mf_iocache for quicker io.
 
 Wed Aug 12 13:41:18 1992  Michael Widenius  (monty@bitch)
 
@@ -108,8 +108,8 @@ Fri Nov 23 23:53:46 1990  Michael Widenius  (monty at LYNX)
 
 Mon Oct  1 13:16:15 1990  Michael Widenius  (monty at LYNX)
 
-	* Added use of asynchronic io in read_cash_record().
-	* Added write_cash and flush_write_cash to record cashing.
+	* Added use of asynchronic io in read_cache_record().
+	* Added write_cache and flush_write_cache to record caching.
 
 Sun Sep 16 22:05:25 1990  Michael Widenius  (monty at LYNX)
 
@@ -125,7 +125,7 @@ Sun Apr  1 23:29:47 1990  Monty  (monty at monty)
 
 	* Changed mf_keydisk.c to have separate functions for read and write.
 	  Read can now return pointer to intern key-buffer to skip
-	  unessessary memcpy-s.
+	  unnecessary memcpy-s.
 
 Fri Mar 23 23:03:39 1990  Monty  (monty at monty)
 
@@ -152,7 +152,7 @@ Mon Dec  4 17:36:16 1989  Monty  (monty at monty)
 
 	* Changed safemalloc() to use my_message() if out of memory and
 	  to check MY_WME if we want this error-messages.
-	* Changed my_setwd() to use dos_setdrive() insted of system().
+	* Changed my_setwd() to use dos_setdrive() instead of system().
 
 Wed Oct 25 02:56:07 1989  Monty  (monty at monty)
 
@@ -179,7 +179,7 @@ Wed Jun 21 01:34:04 1989  Monty  (monty at monty)
 Mon May 22 14:03:44 1989  Monty  (monty at monty)
 
 	* Fixed my_getwd and my_setwd so they work.
-	* Added extern variabel curr_char[] with is set to current
+	* Added extern variable curr_char[] with is set to current
 	  directory after my_getwd() or my_setwd();
 
 Mon Jan 23 03:38:50 1989  Monty  (monty at monty)
@@ -208,14 +208,14 @@ Fri Dec  2 03:29:21 1988  Monty  (monty at monty)
 
 	* Added more defines under MEMORY in my_func.h
 	* Added functions to llib-lmysys.
-	* Removed RCS/* files and installed ewerything as stable.
+	* Removed RCS/* files and installed everything as stable.
 	  (Because errors in old RCS-files.
 
 Wed Nov  9 00:32:33 1988  Monty  (monty at monty)
 
 	* Changed realloc for MSDOS; Previous version freed old block on
-	* error, new version (of compiler) dosn't.
+	* error, new version (of compiler) doesn't.
 
 Wed Oct 26 21:07:27 1988  Monty  (monty at monty)
 
-	* Fixed missing updateing of my_stream_opened;
+	* Fixed missing updating of my_stream_opened;

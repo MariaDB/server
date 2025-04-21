@@ -6282,7 +6282,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
 }
 
 /*
-  Store slow query state at start of a stored procedure statment
+  Store slow query state at start of a stored procedure statement
 */
 
 void THD::store_slow_query_state(Sub_statement_state *backup)
@@ -6607,7 +6607,7 @@ void THD::mark_transaction_to_rollback(bool all)
 
 
 /**
-  Commit the whole transaction (both statment and all)
+  Commit the whole transaction (both statement and all)
 
   This is used mainly to commit an independent transaction,
   like reading system tables.

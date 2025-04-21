@@ -20,7 +20,7 @@
 #ifdef _WIN32
 
 /*
-  Check a file or path for accessability.
+  Check a file or path for accesibility.
  
   SYNOPSIS
     file_access()

@@ -1166,7 +1166,7 @@ class Pushdown_query;
 
   @details
     The result records are obtained on the put_record() call.
-    The aggrgation process is determined by the write_func, it could be:
+    The aggregation process is determined by the write_func, it could be:
       end_write          Simply store all records in tmp table.
       end_write_group    Perform grouping using join->group_fields,
                          records are expected to be sorted.
@@ -1375,7 +1375,7 @@ public:
 
   /*
     Tables one is allowed to use in choose_plan(). Either all or
-    set to a mapt of the tables in the materialized semi-join nest
+    set to a map of the tables in the materialized semi-join nest
   */
   table_map allowed_tables;
 
