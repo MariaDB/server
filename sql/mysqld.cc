@@ -1417,10 +1417,6 @@ Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
 
-/** wakeup listening(main) thread by writing to this descriptor */
-static int termination_event_fd= -1;
-
-
 
 C_MODE_START
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -1474,9 +1470,14 @@ static pthread_t select_thread;
 #endif
 
 /* OS specific variables */
-
+#ifndef EMBEDDED_LIBRARY
 #ifdef _WIN32
+/** wakeup main thread by signaling this event */
 HANDLE hEventShutdown;
+#else
+/** wakeup listening(main) thread by writing to this descriptor */
+static int termination_event_fd= -1;
+#endif
 #endif
 
 

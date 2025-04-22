@@ -7029,17 +7029,8 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     DBUG_PRINT("info", ("derived: %d  view: %d", table_ref->derived != 0,
                         table_ref->view != 0));
 
-    if (table_ref->is_anonymous_derived_table())
+    if (table_ref->is_anonymous_derived_table() || table_ref->sequence)
       continue;
-
-    if (table_ref->sequence)
-    {
-      /* We want to have either SELECT or INSERT rights to sequences depending
-         on how they are accessed
-      */
-      want_access= ((table_ref->lock_type >= TL_FIRST_WRITE) ?
-                    INSERT_ACL : SELECT_ACL);
-    }
 
     if (check_access(thd, want_access, table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
@@ -10124,7 +10115,13 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
 
 bool check_ident_length(const LEX_CSTRING *ident)
 {
-  if (check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
+  /*
+    string_char_length desite the names, goes into Well_formed_prefix_status
+    so this is more than just a length comparison. Things like a primary key
+    doesn't have a name, therefore no length. Also the ident grammar allows
+    empty backtick. Check quickly the length, and if 0, accept that.
+  */
+  if (ident->length && check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
     return 1;

@@ -1656,15 +1656,7 @@ int json_unescape(CHARSET_INFO *json_cs,
     }
     if (c_len == MY_CS_ILUNI)
     {
-      /*
-        Result charset doesn't support the json's character.
-        Let's replace it with the '?' symbol.
-      */
-      if ((c_len= my_ci_wc_mb(res_cs, '?', res, res_end)) > 0)
-      {
-        res+= c_len;
-        continue;
-      }
+      return -1;
     }
     /* Result buffer is too small. */
     return -1;

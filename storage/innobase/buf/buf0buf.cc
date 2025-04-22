@@ -557,16 +557,18 @@ buf_page_is_checksum_valid_crc32(
 }
 
 #ifndef UNIV_INNOCHECKSUM
-/** Checks whether the lsn present in the page is lesser than the
-peek current lsn.
-@param check_lsn    lsn to check
+/** Check whether a page is newer than the durable LSN.
+@param check_lsn    whether to check the LSN
 @param read_buf     page frame
-@return whether the FIL_PAGE_LSN is invalid */
-static bool buf_page_check_lsn(bool check_lsn, const byte *read_buf)
+@return whether the FIL_PAGE_LSN is invalid (ahead of the durable LSN) */
+static bool buf_page_check_lsn(bool check_lsn, const byte *read_buf) noexcept
 {
   if (!check_lsn)
     return false;
-  lsn_t current_lsn= log_sys.get_lsn();
+  /* A page may not be read before it is written, and it may not be
+  written before the corresponding log has been durably written.
+  Hence, we refer to the current durable LSN here */
+  lsn_t current_lsn= log_sys.get_flushed_lsn(std::memory_order_relaxed);
   if (UNIV_UNLIKELY(current_lsn == log_sys.FIRST_LSN) &&
       srv_force_recovery == SRV_FORCE_NO_LOG_REDO)
     return false;
@@ -3017,7 +3019,6 @@ void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
 {
   ut_ad(!page.in_file());
   buf_block_init_low(this);
-  page.lock.init();
   page.init(fix, page_id);
   page.set_os_used();
   page_zip_set_size(&page.zip, zip_size);
