@@ -785,22 +785,36 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
 */
 
 void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
-			 uint code, const char *format, ...)
+                         uint code, const char *format, ...)
 {
   va_list args;
-  char    warning[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("push_warning_printf");
   DBUG_PRINT("enter",("warning: %u", code));
+
+  va_start(args,format);
+  push_warning_printf_va_list(thd, level,code, format, args);
+  va_end(args);
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  This is an overload of push_warning_printf() accepting va_list as a list
+  of format arguments.
+*/
+
+void push_warning_printf_va_list(THD *thd,
+                                 Sql_condition::enum_warning_level level,
+                                 uint code, const char *format, va_list args)
+{
+  char warning[MYSQL_ERRMSG_SIZE];
 
   DBUG_ASSERT(code != 0);
   DBUG_ASSERT(format != NULL);
 
-  va_start(args,format);
   my_vsnprintf_ex(&my_charset_utf8mb3_general_ci, warning,
                   sizeof(warning), format, args);
-  va_end(args);
   push_warning(thd, level, code, warning);
-  DBUG_VOID_RETURN;
 }
 
 
