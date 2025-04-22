@@ -55,6 +55,28 @@ struct st_opt_hint_info opt_hint_info[]=
 
 const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 
+
+/*
+  This is a version of push_warning_printf() guaranteeing no escalation of
+  the warning to the level of error
+*/
+void push_warning_safe(THD *thd, Sql_condition::enum_warning_level level,
+                         uint code, const char *format, ...)
+{
+  va_list args;
+  DBUG_ENTER("push_warning_safe");
+  DBUG_PRINT("enter",("warning: %u", code));
+
+  va_start(args,format);
+  bool save_abort_on_warning= thd->abort_on_warning;
+  thd->abort_on_warning= false; // Don't escalate to the level of error
+  push_warning_printf_va_list(thd, level,code, format, args);
+  va_end(args);
+  thd->abort_on_warning= save_abort_on_warning;
+  DBUG_VOID_RETURN;
+}
+
+
 void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
                 const Lex_ident_sys *qb_name_arg,
@@ -74,9 +96,9 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
   {
     String qb_name_str;
     append_identifier(thd, &qb_name_str, qb_name_arg->str, qb_name_arg->length);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        err_code, ER_THD(thd, err_code),
-                        qb_name_str.c_ptr_safe(), str.c_ptr_safe());
+    push_warning_safe(thd, Sql_condition::WARN_LEVEL_WARN,
+                      err_code, ER_THD(thd, err_code),
+                      qb_name_str.c_ptr_safe(), str.c_ptr_safe());
     return;
   }
 
@@ -86,9 +108,9 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
     DBUG_ASSERT(hint);
     String args;
     hint->append_args(thd, &args);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        err_code, ER_THD(thd, err_code),
-                        args.c_ptr_safe(), str.c_ptr_safe());
+    push_warning_safe(thd, Sql_condition::WARN_LEVEL_WARN,
+                      err_code, ER_THD(thd, err_code),
+                      args.c_ptr_safe(), str.c_ptr_safe());
     return;
   }
 
@@ -131,9 +153,8 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
   }
 
   str.append(')');
-
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      err_code, ER_THD(thd, err_code), str.c_ptr_safe());
+  push_warning_safe(thd, Sql_condition::WARN_LEVEL_WARN,
+                    err_code, ER_THD(thd, err_code), str.c_ptr_safe());
 }
 
 
@@ -335,11 +356,11 @@ void Opt_hints::print_unfixed_warnings(THD *thd)
     {
       hint_type_str.length(0);
       append_hint_type(&hint_type_str, static_cast<opt_hints_enum>(i));
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          get_unfixed_warning_code(),
-                          ER_THD(thd, get_unfixed_warning_code()),
-                          hint_name_str.c_ptr_safe(),
-                          hint_type_str.c_ptr_safe());
+      push_warning_safe(thd, Sql_condition::WARN_LEVEL_WARN,
+                        get_unfixed_warning_code(),
+                        ER_THD(thd, get_unfixed_warning_code()),
+                        hint_name_str.c_ptr_safe(),
+                        hint_type_str.c_ptr_safe());
     }
   }
 }
@@ -923,9 +944,10 @@ void Opt_hints_qb::print_join_order_warn(THD *thd, opt_hints_enum type,
   hint_type_str.append(opt_hint_info[type].hint_type);
   append_table_name(thd, &tbl_name_str, tbl_name.table_name, tbl_name.qb_name);
   uint err_code= ER_UNRESOLVED_TABLE_HINT_NAME;
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      err_code, ER_THD(thd, err_code),
-                      tbl_name_str.c_ptr_safe(), hint_type_str.c_ptr_safe());
+
+  push_warning_safe(thd, Sql_condition::WARN_LEVEL_WARN,
+                    err_code, ER_THD(thd, err_code),
+                    tbl_name_str.c_ptr_safe(), hint_type_str.c_ptr_safe());
 }
 
 
