@@ -6052,17 +6052,10 @@ lock_clust_rec_modify_check_and_lock(
 	for it */
 
 	trx_t *trx = thr_get_trx(thr);
-	if (const trx_t *owner =
-	    lock_rec_convert_impl_to_expl<true>(trx, *block,
-						rec, index, offsets)) {
-		if (owner == trx) {
-			/* We already hold an exclusive lock. */
-			return DB_SUCCESS;
-		}
-
-		if (trx->snapshot_isolation && trx->read_view.is_open()) {
-			return DB_RECORD_CHANGED;
-		}
+	if (lock_rec_convert_impl_to_expl<true>(trx, *block,
+						rec, index, offsets) == trx) {
+		/* We already hold an exclusive lock. */
+		return DB_SUCCESS;
 	}
 
 	err = lock_rec_lock(true, LOCK_X | LOCK_REC_NOT_GAP,
@@ -6224,19 +6217,11 @@ lock_sec_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
-	if (page_rec_is_supremum(rec)) {
-	} else if (const trx_t *owner =
-		   lock_rec_convert_impl_to_expl<false>(trx, *block,
-							rec, index, offsets)) {
-		if (owner == trx) {
-			if (gap_mode == LOCK_REC_NOT_GAP) {
-				/* We already hold an exclusive lock. */
-				return DB_SUCCESS;
-			}
-		} else if (trx->snapshot_isolation
-			   && trx->read_view.is_open()) {
-			return DB_RECORD_CHANGED;
-		}
+	if (!page_rec_is_supremum(rec)
+	    && lock_rec_convert_impl_to_expl<false>(trx, *block, rec, index,
+						    offsets) == trx
+	    && gap_mode == LOCK_REC_NOT_GAP) {
+		return DB_SUCCESS;
 	}
 
 #ifdef WITH_WSREP
@@ -6316,28 +6301,24 @@ lock_clust_rec_read_check_and_lock(
 	trx_t *trx = thr_get_trx(thr);
 	if (lock_table_has(trx, index->table, LOCK_X)
 	    || heap_no == PAGE_HEAP_NO_SUPREMUM) {
-	} else if (const trx_t *owner =
-		   lock_rec_convert_impl_to_expl<true>(trx, *block,
-						       rec, index, offsets)) {
-		if (owner == trx) {
-			if (gap_mode == LOCK_REC_NOT_GAP) {
-				/* We already hold an exclusive lock. */
-				return DB_SUCCESS;
-			}
-		} else if (trx->snapshot_isolation
-			   && trx->read_view.is_open()) {
-			return DB_RECORD_CHANGED;
-		}
+	} else if (lock_rec_convert_impl_to_expl<true>(trx, *block, rec, index,
+						       offsets) == trx
+	    && gap_mode == LOCK_REC_NOT_GAP) {
+		/* We already hold an exclusive lock. */
+		return DB_SUCCESS;
 	}
 
 	if (heap_no > PAGE_HEAP_NO_SUPREMUM && gap_mode != LOCK_GAP
             && trx->snapshot_isolation
-	    && trx->read_view.is_open()
-	    && !trx->read_view.changes_visible(
-		trx_read_trx_id(rec + row_trx_id_offset(rec, index)))
-	    && IF_WSREP(!(trx->is_wsrep()
+	    && trx->read_view.is_open()) {
+		trx_id_t trx_id= trx_read_trx_id(rec +
+						 row_trx_id_offset(rec, index));
+		if (!trx_sys.is_registered(trx, trx_id)
+		    && !trx->read_view.changes_visible(trx_id)
+		    && IF_WSREP(!(trx->is_wsrep()
 			&& wsrep_thd_skip_locking(trx->mysql_thd)), true)) {
-		return DB_RECORD_CHANGED;
+			return DB_RECORD_CHANGED;
+		}
 	}
 
 	dberr_t err = lock_rec_lock(false, gap_mode | mode,
