@@ -8236,7 +8236,6 @@ static bool mysql_inplace_alter_table(THD *thd,
   thd->abort_on_warning= !ha_alter_info->ignore && thd->is_strict_mode();
   res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
   thd->abort_on_warning= false;
-
   if (res || (start_alter_id && wait_for_master(thd)))
     goto rollback_no_restore_lock;
 
