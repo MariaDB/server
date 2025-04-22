@@ -1392,7 +1392,7 @@ uint _ma_get_binary_pack_key(MARIA_KEY *int_key, uint page_flag, uint nod_flag,
 }
 
 /**
-  skip key which is ptefix packed against previous key
+  skip key which is prefix packed against previous key
 
   @fn _ma_skip_binary_key()
   @param key       Keyinfo and buffer that can be used

@@ -1,0 +1,36 @@
+# MDEV-36238: Test `--master-info-file`
+#
+# Other tests (such as `info_logs`) work explicitly with `(multi-)master.info`.
+# This test sees that `--master-info-file` moves/renames this file.
+
+--source include/not_embedded.inc
+--evalp CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=$SERVER_MYPORT_1, master_ssl_verify_server_cert=0
+--evalp CHANGE MASTER 'named' TO master_host='localhost', master_user='test', master_port=$SERVER_MYPORT_2, master_ssl_verify_server_cert=0
+
+--let $datadir = `SELECT @@datadir`
+--echo --list_files @@datadir *.info
+--list_files $datadir *.info
+--echo --list_files MYSQL_TMP_DIR *.txt
+--list_files $MYSQL_TMP_DIR *.txt
+
+--echo --cat_file MYSQL_TMP_DIR/multi-master_info_file.txt
+--cat_file $MYSQL_TMP_DIR/multi-master_info_file.txt
+--let SEARCH_OUTPUT= count
+
+--let SEARCH_FILE= $MYSQL_TMP_DIR/master_info_file.txt
+--let SEARCH_PATTERN= \\n127.0.0.1\\n
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \\nroot\\n
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \\n$SERVER_MYPORT_1\\n
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $MYSQL_TMP_DIR/master_info_file-named.txt
+--let SEARCH_PATTERN= \\nlocalhost\\n
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \\ntest\\n
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \\n$SERVER_MYPORT_2\\n
+--source include/search_pattern_in_file.inc
+
+RESET REPLICA 'named' ALL;

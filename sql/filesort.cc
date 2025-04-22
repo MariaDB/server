@@ -339,7 +339,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   if (costs.fastest_sort == PQ_SORT_ALL_FIELDS ||
       costs.fastest_sort == PQ_SORT_ORDER_BY_FIELDS)
   {
-    /* We are going to use priorty queue */
+    /* We are going to use priority queue */
     thd->query_plan_flags|= QPLAN_FILESORT_PRIORITY_QUEUE;
     status_var_increment(thd->status_var.filesort_pq_sorts_);
     tracker->incr_pq_used();
@@ -359,7 +359,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
       param.res_length= param.ref_length;
       /*
         Add the ref (rowid which is stored last in the sort key) to the sort,
-        as we want to retrive rows in id order, if possible.
+        as we want to retrieve rows in id order, if possible.
       */
       param.sort_length+= param.ref_length;
       param.rec_length= param.sort_length;
@@ -730,6 +730,9 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
 }
 
 #ifndef DBUG_OFF
+
+static char dbug_row_print_buf[4096];
+
 /*
   Print table's current row into a buffer and return a pointer to it.
 
@@ -745,11 +748,9 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
 const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
 {
   Field **pfield;
-  const size_t alloc_size= 512;
-  char *row_buff= (char *) alloc_root(&table->mem_root, alloc_size);
-  char *row_buff_tmp= (char *) alloc_root(&table->mem_root, alloc_size);
-  String tmp(row_buff_tmp, alloc_size, &my_charset_bin);
-  String output(row_buff, alloc_size, &my_charset_bin);
+  char row_buff_tmp[512];
+  String tmp(row_buff_tmp, sizeof(row_buff_tmp), &my_charset_bin);
+  String output(dbug_row_print_buf, sizeof(dbug_row_print_buf), &my_charset_bin);
 
   auto move_back_lambda= [table, rec]() mutable {
     table->move_fields(table->field, table->record[0], rec);
@@ -762,7 +763,7 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
     move_back_guard.engage();
   }
 
-  SCOPE_VALUE(table->read_set, (table->read_set && table->write_set) ?
+  SCOPE_VALUE(table->read_set, (table->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE) ?
                                 table->write_set : table->read_set);
 
   output.length(0);
@@ -813,8 +814,10 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
     }
   }
   output.append(')');
-
-  return output.c_ptr_safe();
+  if (output.c_ptr() == dbug_row_print_buf)
+    return dbug_row_print_buf;
+  else
+    return "Couldn't fit into buffer";
 }
 
 

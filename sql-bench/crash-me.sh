@@ -2784,7 +2784,7 @@ if (!defined($limits{$key}))
  save_config_data($key,$limit,$prompt);	        
  
 } else {
- print "$prompt=$limits{$key} (cashed)\n";
+ print "$prompt=$limits{$key} (cached)\n";
 }
 
 

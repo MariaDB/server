@@ -185,6 +185,9 @@ public:
       my_cond_wait(&cond, &mutex.m_mutex);
     mysql_mutex_unlock(&mutex);
   }
+
+  /** Print double write state information. */
+  ATTRIBUTE_COLD void print_info() const noexcept;
 };
 
 /** The doublewrite buffer */

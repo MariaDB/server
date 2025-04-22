@@ -632,11 +632,11 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
                         binlog_format_names[var->save_result.ulonglong_value]);
     /*
       We allow setting up binlog_format other then ROW for session scope when
-      wsrep/flasback is enabled.This is done because of 2 reasons
+      wsrep/flashback is enabled. This is done because of 2 reasons
       1. User might want to run pt-table-checksum.
       2. SuperUser knows what is doing :-)
 
-      For refrence:- MDEV-7322
+      For reference:- MDEV-7322
     */
     if (var->type == OPT_GLOBAL)
     {
@@ -1165,7 +1165,7 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
     start/stop, there is a possibility that the server variable
     can become out of sync with the real event scheduler state.
 
-    This can happen with two concurrent statments if the first gets
+    This can happen with two concurrent statements if the first gets
     interrupted after start/stop but before retaking
     LOCK_global_system_variables. However, this problem should be quite
     rare and it's difficult to avoid it without opening up possibilities
@@ -1978,17 +1978,12 @@ check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
       domains, temporary table must be exclusive to a single thread.
       In row-based binlogging, temporary tables do not end up in the binlog,
       so there is no such issue.
-
-      ToDo: When merging to next (non-GA) release, introduce a more specific
-      error that describes that the problem is changing gtid_domain_id with
-      open temporary tables in statement/mixed binlogging mode; it is not
-      really due to doing it inside a "transaction".
     */
     if (thd->has_thd_temporary_tables() &&
         !thd->is_current_stmt_binlog_format_row() &&
         var->save_result.ulonglong_value != thd->variables.gtid_domain_id)
     {
-      my_error(ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+      my_error(ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID,
                MYF(0));
         return true;
     }
@@ -2737,6 +2732,12 @@ static Sys_var_ulong Sys_max_sp_recursion_depth(
        SESSION_VAR(max_sp_recursion_depth), CMD_LINE(OPT_ARG),
        VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
 
+
+static Sys_var_uint Sys_max_open_cursors(
+       "max_open_cursors",
+       "The maximum number of open cursors allowed per session",
+       SESSION_VAR(max_open_cursors), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 64*1024), DEFAULT(50), BLOCK_SIZE(1));
 
 static bool if_checking_enabled(sys_var *self, THD *thd,  set_var *var)
 {
@@ -4134,6 +4135,67 @@ static Sys_var_charptr_fscs Sys_ssl_crlpath(
        "CRL directory (check OpenSSL docs, implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        DEFAULT(0));
+
+static char *opt_ssl_passphrase;
+static Sys_var_charptr Sys_ssl_passphrase(
+       "ssl_passphrase",
+       "SSL certificate key passphrase",
+       READ_ONLY GLOBAL_VAR(opt_ssl_passphrase), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+/**
+  Retrieve ssl passphrase.
+
+  This function should be used instead of directly accessing
+  opt_ssl_passphrase.
+
+  If system variable ssl_passphrase is set, this function
+  saves the original value of, then changes system variable,
+  hiding security sensitive info in SHOW VARIABLES.
+
+  We store original value internally, it will be needed in
+  FLUSH SSL
+*/
+const char *get_ssl_passphrase()
+{
+  static std::string saved_ssl_passphrase;
+
+  if (!saved_ssl_passphrase.empty())
+    return saved_ssl_passphrase.c_str();
+
+  if (!opt_ssl_passphrase)
+    return NULL;
+
+  /*
+    Warn, if file-based passphrase is readable by LOAD_FILE()
+    or LOAD DATA INFILE.
+  */
+  if (!strncmp(opt_ssl_passphrase, STRING_WITH_LEN("file:")))
+  {
+    char *file= opt_ssl_passphrase + 5;
+    if (is_secure_file_path(file))
+    {
+      sql_print_warning("ssl passphrase file '%s' is not secure, can be read "
+        "by LOAD_FILE() or LOAD DATA. Define secure-file-dir, and place "
+        "passphrase file outside of this directory, to avoid this warning",
+        file);
+    }
+  }
+  saved_ssl_passphrase= opt_ssl_passphrase;
+  /*
+    Modify opt_ssl_passphrase to wipe everything after prefix ending
+    in colon char.It will just leave just one of "file:", "env:", or "pass:"
+    at the end.
+  */
+  char *p= strchr(opt_ssl_passphrase, ':');
+  if (p)
+  {
+    p++;
+    while (*p)
+      *p++= 0;
+  }
+  return saved_ssl_passphrase.c_str();
+}
 
 static const char *tls_version_names[]=
 {
@@ -5671,7 +5733,7 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   bool status= true;
   Rpl_filter* rpl_filter= mi->rpl_filter;
 
-  /* Proctect against other threads */
+  /* Protect against other threads */
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {
   case OPT_REPLICATE_REWRITE_DB:
@@ -6761,7 +6823,7 @@ static const char *default_regex_flags_names[]=
   "DOTALL",    // (?s)  . matches anything including NL
   "DUPNAMES",  // (?J)  Allow duplicate names for subpatterns
   "EXTENDED",  // (?x)  Ignore white space and # comments
-  "EXTENDED_MORE",//(?xx)  Ignore white space and # comments inside cheracter
+  "EXTENDED_MORE",//(?xx)  Ignore white space and # comments inside character
   "EXTRA",     // means nothing since PCRE2
   "MULTILINE", // (?m)  ^ and $ match newlines within data
   "UNGREEDY",  // (?U)  Invert greediness of quantifiers
@@ -6817,7 +6879,7 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
 
 /*
   Full is not needed below anymore as one can set all bits with '= ALL', but
-  we need it for compatiblity with earlier versions.
+  we need it for compatibility with earlier versions.
 */
 static const char *log_slow_verbosity_names[]=
 { "innodb", "query_plan", "explain", "engine", "warnings", "full", 0};

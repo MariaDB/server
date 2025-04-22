@@ -105,6 +105,8 @@ public:
    :Item_str_ascii_func(thd, a) { }
   Item_str_ascii_checksum_func(THD *thd, Item *a, Item *b)
    :Item_str_ascii_func(thd, a, b) { }
+  Item_str_ascii_checksum_func(THD *thd, Item *a, Item *b, Item *c)
+   :Item_str_ascii_func(thd, a, b, c) { }
   bool eq(const Item *item, bool binary_cmp) const override
   {
     // Always use binary argument comparison: MD5('x') != MD5('X')
@@ -344,6 +346,8 @@ public:
 
 class Item_func_concat :public Item_str_func
 {
+  bool check_arguments() const override
+  { return check_argument_types_can_return_str(0, arg_count); }
 protected:
   String tmp_value;
   /*
@@ -382,6 +386,8 @@ public:
 */
 class Item_func_concat_operator_oracle :public Item_func_concat
 {
+  bool check_arguments() const override
+  { return check_argument_types_can_return_str(0, arg_count); }
 public:
   Item_func_concat_operator_oracle(THD *thd, List<Item> &list)
    :Item_func_concat(thd, list)
@@ -433,6 +439,8 @@ public:
 
 class Item_func_concat_ws :public Item_str_func
 {
+  bool check_arguments() const override
+  { return check_argument_types_can_return_str(0, arg_count); }
   String tmp_value;
 public:
   Item_func_concat_ws(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
@@ -2011,6 +2019,8 @@ public:
 class Item_func_set_collation :public Item_str_func
 {
   Lex_extended_collation_st m_set_collation;
+  bool check_arguments() const override
+  { return check_argument_types_can_return_str(0, 1); }
 public:
   Item_func_set_collation(THD *thd, Item *a,
                           const Lex_extended_collation_st &set_collation):

@@ -903,7 +903,7 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
 	    Check if next block is a deleted block
 	    Above we have MARIA_MIN_BLOCK_LENGTH to avoid the problem where
 	    the next block is so small it can't be splited which could
-	    casue problems
+	    cause problems
 	  */
 
 	  MARIA_BLOCK_INFO del_block;

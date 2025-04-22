@@ -61,7 +61,7 @@ bool records_are_comparable(const TABLE *table) {
 
 
 /**
-   Compares the input and outbut record buffers of the table to see if a row
+   Compares the input and output record buffers of the table to see if a row
    has changed.
 
    @return true if row has changed.
@@ -254,7 +254,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 
   /*
     Only duplicate key errors print the key value.
-    If storage engine does always read all columns, we have the value alraedy.
+    If storage engine does always read all columns, we have the value already.
   */
   if ((error != HA_ERR_FOUND_DUPP_KEY) ||
       !(table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ))
@@ -1377,13 +1377,13 @@ produce_explain_and_leave:
     goto err;
 
 emit_explain_and_leave:
+  if (!thd->is_error() && need_to_optimize &&
+      select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
   int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
-  if (!thd->is_error() && need_to_optimize &&
-      select_lex->optimize_unflattened_subqueries(false))
-    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
 }
@@ -1682,7 +1682,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
   for (tl= table_list; tl ; tl= tl->next_local)
     if (tl->view)
       break;
-  // ... and pass this knowlage in check_fields call
+  // ... and pass this knowledge in check_fields call
   if (check_fields(thd, table_list, *fields, tl != NULL ))
     DBUG_RETURN(1);
 
@@ -1810,7 +1810,7 @@ multi_update::multi_update(THD *thd_arg,
     updated_sys_ver(0),
     tables_to_update(get_table_map(fields))
 {
-  // Defer error reporting to multi_update::init whne tables_to_update is zero
+  // Defer error reporting to multi_update::init when tables_to_update is zero
   // because we don't have exceptions and we can't return values from a constructor.
 }
 
@@ -3195,6 +3195,7 @@ err:
 bool Sql_cmd_update::execute_inner(THD *thd)
 {
   bool res= 0;
+  Running_stmt_guard guard(thd, active_dml_stmt::UPDATING_STMT);
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   if (!multitable)

@@ -1288,12 +1288,13 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_pages_total */
 	case MONITOR_OVLD_BUF_POOL_PAGE_TOTAL:
-		value = buf_pool.get_n_pages();
+	case MONITOR_OVLD_BUFFER_POOL_SIZE:
+		value = buf_pool.curr_size();
 		break;
 
 	/* innodb_buffer_pool_pages_misc */
 	case MONITOR_OVLD_BUF_POOL_PAGE_MISC:
-		value = buf_pool.get_n_pages()
+		value = buf_pool.curr_size()
 			- UT_LIST_GET_LEN(buf_pool.LRU)
 			- UT_LIST_GET_LEN(buf_pool.free);
 		break;
@@ -1410,10 +1411,6 @@ srv_mon_process_existing_counter(
 	/* innodb_page_size */
 	case MONITOR_OVLD_SRV_PAGE_SIZE:
 		value = srv_page_size;
-		break;
-
-	case MONITOR_OVLD_BUFFER_POOL_SIZE:
-		value = srv_buf_pool_size;
 		break;
 
 	/* innodb_row_lock_current_waits */
@@ -1582,7 +1579,7 @@ srv_mon_process_existing_counter(
 			    & MONITOR_DISPLAY_CURRENT) {
 				MONITOR_SET(monitor_id, value);
 			} else {
-				/* Most status counters are montonically
+				/* Most status counters are monotonically
 				increasing, no need to update their
 				minimum values. Only do so
 				if "update_min" set to TRUE */

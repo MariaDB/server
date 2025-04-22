@@ -391,7 +391,7 @@ prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
                (next_leap_idx < sp->leapcnt) ?
                  sp->lsis[next_leap_idx].ls_trans - 1: MY_TIME_T_MAX);
     /*
-      again assuming that end_t can be overlowed only in positive side
+      again assuming that end_t can be overflowed only in positive side
       we also assume that end_t won't be overflowed in this case.
     */
     if (cur_off_and_corr > 0 &&
@@ -692,7 +692,7 @@ find_transition_type(my_time_t t, const TIME_ZONE_INFO *sp)
     (60th and 61st second, look how we calculate them as "hit" in this
     function).
     Under realistic assumptions about frequency of transitions the same array
-    can be used fot MYSQL_TIME -> my_time_t conversion. For this we need to
+    can be used for MYSQL_TIME -> my_time_t conversion. For this we need to
     implement tweaked binary search which will take into account that some
     MYSQL_TIME has two matching my_time_t ranges and some of them have none.
 */
@@ -812,7 +812,7 @@ sec_since_epoch(int year, int mon, int mday, int hour, int min ,int sec)
 
   DESCRIPTION
     This is mktime analog for MySQL. It is essentially different
-    from mktime (or hypotetical my_mktime) because:
+    from mktime (or hypothetical my_mktime) because:
     - It has no idea about tm_isdst member so if it
       has two answers it will give the smaller one
     - If we are in spring time gap then it will return
@@ -849,8 +849,8 @@ sec_since_epoch(int year, int mon, int mday, int hour, int min ,int sec)
     my_time_t conversion. It is piecewise linear function which is defined
     by combination of transition times as break points and times offset
     as changing function parameter. The possible inverse function for this
-    converison would be ambiguos but with MySQL's restrictions we can use
-    some function which is the same as inverse function on unambigiuos
+    conversion would be ambiguos but with MySQL's restrictions we can use
+    some function which is the same as inverse function on unambiguous
     ranges and coincides with one of branches of inverse function in
     other ranges. Thus we just need to build table which will determine
     this shifted my_time_t -> my_time_t conversion similar to existing
@@ -1003,7 +1003,7 @@ static const String tz_SYSTEM_name("SYSTEM", 6, &my_charset_latin1);
   were no explicit time zone specified. On the other hand because of this
   conversion methods provided by this class is significantly slower and
   possibly less multi-threaded-friendly than corresponding Time_zone_db
-  methods so the latter should be preffered there it is possible.
+  methods so the latter should be preferred there if it is possible.
 */
 class Time_zone_system : public Time_zone
 {
@@ -1489,7 +1489,7 @@ static mysql_mutex_t tz_LOCK;
 static bool tz_inited= 0;
 
 /*
-  This two static variables are inteded for holding info about leap seconds
+  This two static variables are intended for holding info about leap seconds
   shared by all time zones.
 */
 static uint tz_leapcnt= 0;
@@ -2095,7 +2095,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
 
   /*
     We have to allow HA_ERR_KEY_NOT_FOUND because some time zones
-    for example UTC have no transitons.
+    for example UTC have no transitions.
   */
   if (res != HA_ERR_END_OF_FILE && res != HA_ERR_KEY_NOT_FOUND)
   {

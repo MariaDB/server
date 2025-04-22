@@ -37,7 +37,7 @@ typedef struct st_json_string_t
   const uchar *c_str;    /* Current position in JSON string */
   const uchar *str_end;  /* The end on the string. */
   my_wc_t c_next;        /* UNICODE of the last read character */
-  int c_next_len;        /* character lenght of the last read character. */
+  int c_next_len;        /* character length of the last read character. */
   int error;             /* error code. */
 
   CHARSET_INFO *cs;      /* Character set of the JSON string. */

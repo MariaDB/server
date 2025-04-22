@@ -962,6 +962,7 @@ ssl_cipher	#
 ssl_crl	#
 ssl_crlpath	#
 ssl_key	#
+ssl_passphrase	#
 select * from information_schema.session_variables where variable_name like 'ssl%' order by 1;
 VARIABLE_NAME	VARIABLE_VALUE
 SSL_CA	#
@@ -971,6 +972,7 @@ SSL_CIPHER	#
 SSL_CRL	#
 SSL_CRLPATH	#
 SSL_KEY	#
+SSL_PASSPHRASE	#
 select @@log_queries_not_using_indexes;
 @@log_queries_not_using_indexes
 0

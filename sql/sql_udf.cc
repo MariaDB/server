@@ -85,7 +85,7 @@ static const char *init_syms(udf_func *tmp, char *nm)
   tmp->func_init= (Udf_func_init) dlsym(tmp->dlhandle, nm);
 
   /*
-    to prefent loading "udf" from, e.g. libc.so
+    to prevent loading "udf" from, e.g. libc.so
     let's ensure that at least one auxiliary symbol is defined
   */
   if (!tmp->func_init && !tmp->func_deinit && tmp->type != UDFTYPE_AGGREGATE)
@@ -440,7 +440,7 @@ static udf_func *add_udf(LEX_CSTRING *name, Item_result ret, const char *dl,
   @param table           table of mysql.func
 
   @retval TRUE  found
-  @retral FALSE not found
+  @retval FALSE not found
 */
 
 static bool find_udf_in_table(const LEX_CSTRING &exact_name, TABLE *table)

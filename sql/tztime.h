@@ -61,7 +61,7 @@ public:
   virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const = 0;
 
   /** 
-    We need this only for surpressing warnings, objects of this type are
+    We need this only for suppressing warnings, objects of this type are
     allocated on MEM_ROOT and should not require destruction.
   */
   virtual ~Time_zone() = default;
@@ -88,7 +88,7 @@ extern my_time_t   sec_since_epoch_TIME(MYSQL_TIME *t);
 /**
   Number of elements in table list produced by my_tz_get_table_list()
   (this table list contains tables which are needed for dynamical loading
-  of time zone descriptions). Actually it is imlementation detail that
+  of time zone descriptions). Actually it is implementation detail that
   should not be used anywhere outside of tztime.h and tztime.cc.
 */
 

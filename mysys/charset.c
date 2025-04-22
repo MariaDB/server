@@ -30,6 +30,7 @@
 #endif
 
 static HASH charset_name_hash;
+static HASH collation_name_hash;
 
 /*
   The code below implements this functionality:
@@ -44,17 +45,9 @@ static HASH charset_name_hash;
 static uint
 get_collation_number_internal(const char *name)
 {
-
-  CHARSET_INFO **cs;
-  for (cs= all_charsets;
-       cs < all_charsets + array_elements(all_charsets);
-       cs++)
-  {
-    if (cs[0] && cs[0]->coll_name.str &&
-        !my_strcasecmp_latin1(cs[0]->coll_name.str, name))
-      return cs[0]->number;
-  }  
-  return 0;
+  CHARSET_INFO *cs= (CHARSET_INFO*) my_hash_search(&collation_name_hash,
+                                                   (uchar*) name, strlen(name));
+  return cs ? cs->number : 0;
 }
 
 
@@ -613,6 +606,8 @@ void add_compiled_collation(struct charset_info_st *cs)
     DBUG_ASSERT(org->cs_name.length == strlen(cs->cs_name.str));
 #endif
   }
+  if (cs->coll_name.str)
+    my_hash_insert(&collation_name_hash, (uchar*) cs);
 }
 
 
@@ -637,6 +632,8 @@ void add_compiled_extra_collation(struct charset_info_st *cs)
                                                       cs->cs_name.length);
     cs->cs_name= org->cs_name;
   }
+  if (cs->coll_name.str)
+    my_hash_insert(&collation_name_hash, (uchar*) cs);
 }
 
 
@@ -698,6 +695,7 @@ my_bool add_alias_for_collation(LEX_CSTRING *collation_name, uint org_id,
   new_ci->comment= comment;
   new_ci->number= alias_id;
   all_charsets[alias_id]= new_ci;
+  my_hash_insert(&collation_name_hash, (uchar*) new_ci);
   return 0;
 }
 
@@ -805,6 +803,14 @@ static const uchar *get_charset_key(const void *object, size_t *size,
   return (const uchar*) cs->cs_name.str;
 }
 
+static const uchar *get_collation_key(const void *object, size_t *length,
+                                      my_bool not_used __attribute__((unused)))
+{
+  CHARSET_INFO *cs= (CHARSET_INFO*) object;
+  *length= cs->coll_name.length;
+  return (const uchar*) cs->coll_name.str;
+}
+
 static void init_available_charsets(void)
 {
   char fname[FN_REFLEN + sizeof(MY_CHARSET_INDEX)];
@@ -817,6 +823,10 @@ static void init_available_charsets(void)
 
   my_hash_init2(key_memory_charsets, &charset_name_hash, 16,
                 &my_charset_latin1, 64, 0, 0, get_charset_key,
+                0, 0, HASH_UNIQUE);
+
+  my_hash_init2(key_memory_charsets, &collation_name_hash, 16,
+                &my_charset_latin1, 64, 0, 0, get_collation_key,
                 0, 0, HASH_UNIQUE);
 
   init_compiled_charsets(MYF(0));
@@ -847,6 +857,7 @@ void free_charsets(void)
 {
   charsets_initialized= charsets_template;
   my_hash_free(&charset_name_hash);
+  my_hash_free(&collation_name_hash);
 }
 
 

@@ -57,7 +57,6 @@ C_MODE_END
 #endif
 
 /* fmtlib include (https://fmt.dev/). */
-#define FMT_STATIC_THOUSANDS_SEPARATOR ','
 #define FMT_HEADER_ONLY 1
 #include "fmt/args.h"
 
@@ -80,7 +79,7 @@ static uint32 max_length_for_string(Item *item, bool *neg)
   }
   if (length > (ulonglong) INT_MAX32)
   {
-    /* Limit string length to maxium string length in MariaDB (2G) */
+    /* Limit string length to maximum string length in MariaDB (2G) */
     length= (ulonglong) INT_MAX32;
   }
   return (uint32) length;
@@ -1560,6 +1559,13 @@ namespace fmt {
   };
 };
 
+struct fmt_locale_comma : std::numpunct<char>
+{
+  char do_thousands_sep() const override { return ','; }
+  std::string do_grouping() const override { return "\3"; }
+};
+static std::locale fmt_locale(std::locale(), new fmt_locale_comma);
+
 /*
   SFORMAT(format_string, ...)
   This function receives a formatting specification string and N parameters
@@ -1612,7 +1618,7 @@ String *Item_func_sformat::val_str(String *res)
   /* Create the string output  */
   try
   {
-    auto text = fmt::vformat(fmt_arg->c_ptr_safe(), arg_store);
+    auto text = fmt::vformat(fmt_locale, fmt_arg->c_ptr_safe(), arg_store);
     res->length(0);
     res->set_charset(collation.collation);
     res->append(text.c_str(), text.size(), fmt_arg->charset());
@@ -3701,7 +3707,7 @@ bool Item_func_pad::fix_length_and_dec(THD *thd)
 /*
   PAD(expr,length,' ')
   removes argument's soft dependency on PAD_CHAR_TO_FULL_LENGTH if the result
-  is longer than the argument's maximim possible length.
+  is longer than the argument's maximum possible length.
 */
 Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
 {
@@ -4044,7 +4050,7 @@ String *Item_func_set_collation::val_str(String *str)
 
     But for a non-NULL result SCS and TCS must be compatible:
     1. Either SCS==TCS
-    2. Or SCS can be can be reinterpeted to TCS.
+    2. Or SCS can be reinterpreted to TCS.
        This scenario is possible when args[0] is numeric and TCS->mbmaxlen==1.
 
     If SCS and TCS are not compatible here, then something went wrong during
@@ -4714,7 +4720,7 @@ longlong Item_func_uncompressed_length::val_int()
     5 bytes long.
     res->c_ptr() is not used because:
       - we do not need \0 terminated string to get first 4 bytes
-      - c_ptr() tests simbol after string end (uninitialized memory) which
+      - c_ptr() tests symbol after string end (uninitialized memory) which
         confuse valgrind
   */
   return uint4korr(res->ptr()) & 0x3FFFFFFF;
@@ -6155,7 +6161,10 @@ String *Item_func_format_bytes::val_str_ascii(String *)
   if (null_value)
     return 0;
 
-  double bytes_abs= fabs(bytes);
+  /*
+    snprintf below uses %4.2f, so 1023.99 MiB should be shown as 1.00 GiB
+  */
+  double bytes_abs= fabs(bytes)/1023.995*1024;
 
   constexpr uint64_t kib{1024};
   constexpr uint64_t mib{1024 * kib};

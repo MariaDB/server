@@ -270,7 +270,7 @@ int search_keyword(THD *thd, TABLE *keywords,
 
   while (!read_record_info.read_record() && count<2)
   {
-    if (!select->cond->val_bool())		// Dosn't match like
+    if (!select->cond->val_bool())		// Doesn't match like
       continue;
 
     *key_id= (int)find_fields[help_keyword_help_keyword_id].field->val_int();
@@ -515,7 +515,7 @@ static bool send_answer_1_metadata(Protocol *protocol)
   RETURN VALUES
     1		Writing of head failed
     -1		Writing of row failed
-    0		Successeful send
+    0		Successful send
 */
 
 static int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
@@ -631,7 +631,7 @@ extern "C" int string_ptr_cmp(const void* ptr1, const void* ptr2)
 
   RETURN VALUES
     -1 	Writing fail
-    0	Data was successefully send
+    0	Data was successfully send
 */
 
 int send_variant_2_list(MEM_ROOT *mem_root, Protocol *protocol,

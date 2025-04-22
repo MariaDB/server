@@ -136,12 +136,14 @@ static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role donor) ongoing...");
     }
   }
 
   WSREP_INFO("Donor monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_donor_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role donor) completed.\n");
 
   return NULL;
 }
@@ -172,12 +174,14 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role joiner) ongoing...");
     }
   }
 
   WSREP_INFO("Joiner monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_joiner_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role joiner) completed.\n");
 
   return NULL;
 }
@@ -459,7 +463,7 @@ bool wsrep_sst_received (THD*                thd,
     if (WSREP_ON)
     {
       int const rcode(seqno < 0 ? seqno : 0);
-      error= wsrep_sst_complete(thd,rcode, sst_gtid);
+      error= wsrep_sst_complete(thd, rcode, sst_gtid);
     }
 
     return error;
@@ -1414,7 +1418,7 @@ std::string wsrep_sst_prepare()
 
   if (is_ipv6)
   {
-    /* wsrep_sst_*.sh scripts requite ipv6 addreses to be in square breackets */
+    /* wsrep_sst_*.sh scripts require ipv6 addresses to be in square brackets */
     ip_buf[0] = '[';
     /* the length (len) already includes the null byte: */
     memcpy(ip_buf + 1, address, len - 1);
@@ -1467,7 +1471,7 @@ std::string wsrep_sst_prepare()
                     "replaced by %s", method, WSREP_SST_MARIABACKUP);
          method = WSREP_SST_MARIABACKUP;
       }
-      // we already did SST at initializaiton, now engines are running
+      // we already did SST at initialization, now engines are running
       // sql_print_information() is here because the message is too long
       // for WSREP_INFO.
       sql_print_information ("WSREP: "
@@ -2193,6 +2197,15 @@ wait_signal:
                    wsrep::seqno(err ? wsrep::seqno::undefined() :
                                 wsrep::seqno(ret_seqno)));
 
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_sst_donor_after_donation", {
+    const char act[]= "now "
+                      "SIGNAL sync.wsrep_sst_donor_after_donation_reached "
+                      "WAIT_FOR signal.wsrep_sst_donor_after_donation_continue";
+    DBUG_ASSERT(!debug_sync_set_action(thd.ptr, STRING_WITH_LEN(act)));
+  });
+#endif /* ENABLED_DEBUG_SYNC */
+
   Wsrep_server_state::instance().sst_sent(gtid, err);
 
   proc.wait();
@@ -2338,7 +2351,7 @@ int wsrep_sst_donate(const std::string& msg,
   sst_auth auth;
   if (sst_auth_real)
   {
-    /* User supplied non-trivial wsre_sst_auth, use it */
+    /* User supplied non-trivial wsrep_sst_auth, use it */
     const char* col= sst_strchrnul(sst_auth_real, ':');
     auth.name_ = std::string(sst_auth_real, col - sst_auth_real);
     auth.pswd_ = std::string(':' == *col ? col + 1 : "");

@@ -41,4 +41,3 @@ eval SET @@GLOBAL.wsrep_max_ws_rows = $wsrep_max_ws_rows_slave;
 
 --source include/rpl_end.inc
 --echo # End of test.
-

@@ -649,7 +649,7 @@ struct row_prebuilt_t {
 					version is built in consistent read */
 	bool		in_fts_query;	/*!< Whether we are in a FTS query */
 	bool		fts_doc_id_in_read_set; /*!< true if table has externally
-					defined FTS_DOC_ID coulmn. */
+					defined FTS_DOC_ID column. */
 	/*----------------------*/
 	ulonglong	autoinc_last_value;
 					/*!< last value of AUTO-INC interval */

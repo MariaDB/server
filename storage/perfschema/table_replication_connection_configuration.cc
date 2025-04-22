@@ -37,7 +37,7 @@
 #include "rpl_rli.h"
 #include "rpl_mi.h"
 #include "sql_parse.h"
-//#include "rpl_msr.h"             /* Multisource replciation */
+//#include "rpl_msr.h"             /* Multisource replication */
 
 #ifdef HAVE_REPLICATION
 THR_LOCK table_replication_connection_configuration::m_table_lock;

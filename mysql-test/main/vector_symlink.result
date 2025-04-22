@@ -1,0 +1,60 @@
+#
+# MDEV-35152 - DATA/INDEX DIRECTORY options are ignored for vector index
+#
+create table t1id (a vector(1) not null, vector(a)) engine=InnoDB data directory '$MYSQL_TMP_DIR';
+create table t1ii (a vector(1) not null, vector(a)) engine=InnoDB index directory '$MYSQL_TMP_DIR';
+create table t1md (a vector(1) not null, vector(a)) engine=MyISAM data directory '$MYSQL_TMP_DIR';
+create table t1mi (a vector(1) not null, vector(a)) engine=MyISAM index directory '$MYSQL_TMP_DIR';
+show create table t1id;
+Table	Create Table
+t1id	CREATE TABLE `t1id` (
+  `a` vector(1) NOT NULL,
+  VECTOR KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQL_TMP_DIR/'
+show create table t1ii;
+Table	Create Table
+t1ii	CREATE TABLE `t1ii` (
+  `a` vector(1) NOT NULL,
+  VECTOR KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show create table t1md;
+Table	Create Table
+t1md	CREATE TABLE `t1md` (
+  `a` vector(1) NOT NULL,
+  VECTOR KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQL_TMP_DIR/'
+show create table t1mi;
+Table	Create Table
+t1mi	CREATE TABLE `t1mi` (
+  `a` vector(1) NOT NULL,
+  VECTOR KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci INDEX DIRECTORY='MYSQL_TMP_DIR/'
+######### MYSQL_TMP_DIR:
+t1md.MYD
+t1mi#i#00.MYD
+t1mi#i#00.MYI
+t1mi.MYI
+######### MYSQL_TMP_DIR/test:
+t1id.ibd
+t1ii#i#00.ibd
+######### datadir/test:
+t1id#i#00.ibd
+t1id.frm
+t1id.isl
+t1ii#i#00.isl
+t1ii.frm
+t1ii.ibd
+t1md#i#00.MYD
+t1md#i#00.MYI
+t1md.MYD
+t1md.MYI
+t1md.frm
+t1mi#i#00.MYD
+t1mi#i#00.MYI
+t1mi.MYD
+t1mi.MYI
+t1mi.frm
+drop table t1id, t1ii, t1md, t1mi;
+######### MYSQL_TMP_DIR:
+######### MYSQL_TMP_DIR/test:
+######### datadir/test:

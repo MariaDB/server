@@ -17,7 +17,7 @@
 /**************************************************************************/
 enum FNRC {RC_LICENSE   =   7,       /* PLGConnect prompt for license key */
            RC_PASSWD    =   6,       /* PLGConnect prompt for User/Pwd    */
-           RC_SUCWINFO  =   5,       /* Succes With Info return code      */
+           RC_SUCWINFO  =   5,       /* Success With Info return code     */
            RC_SOCKET    =   4,       /* RC from PLGConnect to socket DLL  */
            RC_PROMPT    =   3,       /* Intermediate prompt return        */
            RC_CANCEL    =   2,       /* Command was cancelled by user     */
@@ -25,7 +25,7 @@ enum FNRC {RC_LICENSE   =   7,       /* PLGConnect prompt for license key */
            RC_SUCCESS   =   0,       /* Successful function (must be 0)   */
            RC_MEMORY    =  -1,       /* Storage allocation error          */
            RC_TRUNCATED =  -2,       /* Result has been truncated         */
-           RC_TIMEOUT   =  -3,       /* Connection timeout occurred        */
+           RC_TIMEOUT   =  -3,       /* Connection timeout occurred       */
            RC_TOOBIG    =  -4,       /* Data is too big for connection    */
            RC_KEY       =  -5,       /* Null ptr to key in Connect        */
                                      /*   or bad key in other functions   */

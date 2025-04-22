@@ -59,7 +59,7 @@ we trigger the start of a purge? When a transaction writes to an undo log,
 it may notice that the space is running out. When a read view is closed,
 it may make some history superfluous. The server can have an utility which
 periodically checks if it can purge some history.
-	In a parallellized purge we have the problem that a query thread
+	In a parallelized purge we have the problem that a query thread
 can remove a delete marked clustered index record before another query
 thread has processed an earlier version of the record, which cannot then
 be done because the row cannot be constructed from the clustered index

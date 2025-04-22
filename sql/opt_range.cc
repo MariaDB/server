@@ -312,7 +312,7 @@ public:
   longlong baseflag;
   uint max_key_parts, range_count;
 
-  bool quick;				// Don't calulate possible keys
+  bool quick;				// Don't calculate possible keys
 
   uint fields_bitmap_size;
   MY_BITMAP needed_fields;    /* bitmask of fields needed by the query */
@@ -1029,7 +1029,7 @@ int imerge_list_or_list(RANGE_OPT_PARAM *param,
       tree        SEL_TREE whose range part is to be ored with the imerges
 
   DESCRIPTION
-    For each imerge mi from the list 'merges' the function performes OR
+    For each imerge mi from the list 'merges' the function performs OR
     operation with mi and the range part of 'tree' rt, producing one or
     two imerges.
 
@@ -2690,7 +2690,7 @@ static int fill_used_fields_bitmap(PARAM *param)
   TODO
    * Change the value returned in opt_range_condition_rows from a pessimistic
      estimate to true E(#rows that satisfy table condition). 
-     (we can re-use some of E(#rows) calcuation code from
+     (we can re-use some of E(#rows) calculation code from
      index_merge/intersection for this)
    
    * Check if this function really needs to modify keys_to_use, and change the
@@ -4054,7 +4054,7 @@ typedef struct st_part_prune_param
     partitioning index definition doesn't include partitioning fields.
   */
   int last_part_partno;
-  int last_subpart_partno; /* Same as above for supartitioning */
+  int last_subpart_partno; /* Same as above for subpartitioning */
 
   /*
     is_part_keypart[i] == MY_TEST(keypart #i in partitioning index is a member
@@ -4065,7 +4065,7 @@ typedef struct st_part_prune_param
   /* Same as above for subpartitioning */
   my_bool *is_subpart_keypart;
 
-  my_bool ignore_part_fields; /* Ignore rest of partioning fields */
+  my_bool ignore_part_fields; /* Ignore rest of partitioning fields */
 
   /***************************************************************
    Following fields form find_used_partitions() recursion context:
@@ -4819,7 +4819,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
           res= 0; /* No satisfying partitions */
           goto pop_and_go_right;
         }
-        /* Rembember the limit we got - single partition #part_id */
+        /* Remember the limit we got - single partition #part_id */
         init_single_partition_iterator(part_id, &ppar->part_iter);
         
         /*
@@ -4864,7 +4864,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
     {
       /* 
         Can't handle condition on current key part. If we're that deep that 
-        we're processing subpartititoning's key parts, this means we'll not be
+        we're processing subpartitioning's key parts, this means we'll not be
         able to infer any suitable condition, so bail out.
       */
       if (key_tree_part >= ppar->last_part_partno)
@@ -5704,7 +5704,7 @@ skip_to_ror_scan:
                       indexes are to be merges
       read_time       The upper bound for the cost of the plan to be evaluated
 
-  DESRIPTION
+  DESCRIPTION
     For the given index merge plan imerge_trp extracted from the SEL_MERGE
     imerge the function looks for range scans with the same indexes and merges
     them into SEL_ARG trees. Then for each such SEL_ARG tree r_i the function
@@ -5812,7 +5812,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
 
 /*
   This structure contains the info common for all steps of a partial
-  index intersection plan. Morever it contains also the info common
+  index intersection plan. Moreover it contains also the info common
   for index intersect plans. This info is filled in by the function
   prepare_search_best just before searching for the best index
   intersection plan.
@@ -5839,7 +5839,7 @@ typedef struct st_common_index_intersect_info
   ha_rows best_records;
   uint best_length;    /* number of indexes in the current best intersection */
   INDEX_SCAN_INFO **best_intersect;  /* the current best index intersection  */
-  /* scans from the best intersect to be filtrered by cpk conditions         */
+  /* scans from the best intersect to be filtered by cpk conditions         */
   key_map filtered_scans; 
 
   uint *buff_elems;        /* buffer to calculate cost of index intersection */
@@ -6384,7 +6384,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     the function returns a number bigger than #r.
 
   NOTES
-   See the comment before the desription of the function that explains the
+   See the comment before the description of the function that explains the
    reasoning used  by this function.
     
   RETURN
@@ -6465,7 +6465,7 @@ double get_cpk_filter_cost(ha_rows filtered_records,
 
 
 /*
-  Check whether a patial index intersection plan can be extended 
+  Check whether a partial index intersection plan can be extended
 
   SYNOPSIS
     check_index_intersect_extension()
@@ -6616,7 +6616,7 @@ bool check_index_intersect_extension(THD *thd,
   }
 
   /*
-    The cost after sweeep can be bigger than cutoff, but that is ok as the
+    The cost after sweep can be bigger than cutoff, but that is ok as the
     end cost can decrease when we add the next index.
   */
   cost+= get_sweep_read_cost(common_info->param, rows2double(records), 1);
@@ -8110,7 +8110,7 @@ QUICK_SELECT_I *TRP_ROR_UNION::make_quick(PARAM *param,
       cond_func   item for the predicate
       field       field in the predicate
       lt_value    constant that field should be smaller
-      gt_value    constant that field should be greaterr
+      gt_value    constant that field should be greater
 
   RETURN 
     #  Pointer to tree built tree
@@ -8289,7 +8289,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
 
       /*
         if this is a "col1 NOT IN (...)", and there is a UNIQUE KEY(col1), do
-        not constuct a SEL_TREE from it. The rationale is as follows:
+        not construct a SEL_TREE from it. The rationale is as follows:
          - if there are only a few constants, this condition is not selective
            (unless the table is also very small in which case we won't gain
            anything)
@@ -8381,7 +8381,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
       {
         /*
           Get the SEL_TREE for the last "c_last < X < +inf" interval
-          (value_item cotains c_last already)
+          (value_item contains c_last already)
         */
         tree2= get_mm_parts(param, field, Item_func::GT_FUNC, value_item);
         tree= tree_or(param, tree, tree2);
@@ -9353,7 +9353,7 @@ Item_func_null_predicate::get_mm_leaf(RANGE_OPT_PARAM *param,
   DBUG_ENTER("Item_func_null_predicate::get_mm_leaf");
   DBUG_ASSERT(!value);
   /*
-    No check for field->table->maybe_null. It's perfecly fine to use range
+    No check for field->table->maybe_null. It's perfectly fine to use range
     access for cases like
 
       SELECT * FROM t1 LEFT JOIN t2 ON t2.key IS [NOT] NULL
@@ -10691,7 +10691,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
 	new_tree=new_tree->insert(new_arg);
     }
     if (e1->cmp_max_to_max(e2) < 0)
-      e1=e1->next;				// e1 can't overlapp next e2
+      e1=e1->next;				// e1 can't overlap next e2
     else
       e2=e2->next;
   }
@@ -10807,7 +10807,7 @@ SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
    transformation is key_or( expr1, expr2 ) => expr1 OR expr2.
 
    Both expressions are assumed to be in the SEL_ARG format. In a logic sense,
-   theformat is reminiscent of DNF, since an expression such as the following
+   the format is reminiscent of DNF, since an expression such as the following
 
    ( 1 < kp1 < 10 AND p1 ) OR ( 10 <= kp2 < 20 AND p2 )
 
@@ -10833,7 +10833,7 @@ SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
    If the predicates are equal for the rest of the keyparts, or if there are
    no more, the range in expr2 has its endpoints copied in, and the SEL_ARG
    node in expr2 is deallocated. If more ranges became connected in expr1, the
-   surplus is also dealocated. If they differ, two ranges are created.
+   surplus is also deallocated. If they differ, two ranges are created.
    
    - The range leading up to the overlap. Empty if endpoints are equal.
 
@@ -10929,7 +10929,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
       Ambiguity: *** 
         The range starts or stops somewhere in the "***" range.
-        Example: a starts before b and may end before/the same plase/after b
+        Example: a starts before b and may end before/the same place/after b
         a: [----***]
         b:   [---]
 
@@ -12329,7 +12329,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
         estimates may be slightly out of sync.
 
         We cannot do this easily in the above multi_range_read_info_const()
-        call as then we would need to have similar adjustmends done
+        call as then we would need to have similar adjustments done
         in the partitioning engine.
       */
       rows= MY_MAX(table_records, 1);
@@ -12378,7 +12378,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   else if (param->range_count > 1)
   {
     /* 
-      Scaning multiple key values in the index: the records are ROR
+      Scanning multiple key values in the index: the records are ROR
       for each value, but not between values. E.g, "SELECT ... x IN
       (1,3)" returns ROR order for all records with x=1, then ROR
       order for records with x=3
@@ -13766,16 +13766,24 @@ int QUICK_SELECT_DESC::get_next()
       continue;
     }
 
-    if (last_range->flag & EQ_RANGE &&
-        used_key_parts <= head->key_info[index].user_defined_key_parts)
+    // Case where we can avoid descending scan, see comment above
+    const bool eqrange_all_keyparts= (last_range->flag & EQ_RANGE) &&
+                          (used_key_parts <= head->key_info[index].user_defined_key_parts);
 
+    if (eqrange_all_keyparts)
     {
+      file->set_end_range(NULL, handler::RANGE_SCAN_ASC);
       result= file->ha_index_read_map(record, last_range->max_key,
                                       last_range->max_keypart_map,
                                       HA_READ_KEY_EXACT);
     }
     else
     {
+      key_range min_range;
+      last_range->make_min_endpoint(&min_range);
+      if (min_range.length > 0)
+        file->set_end_range(&min_range, handler::RANGE_SCAN_DESC);
+
       DBUG_ASSERT(last_range->flag & NEAR_MAX ||
                   (last_range->flag & EQ_RANGE && 
                    used_key_parts > head->key_info[index].user_defined_key_parts) ||
@@ -16070,7 +16078,7 @@ bool QUICK_GROUP_MIN_MAX_SELECT::add_range(SEL_ARG *sel_range)
     are more keyparts to follow the ones we are using we must make the 
     condition on the key inclusive (because x < "ab" means 
     x[0] < 'a' OR (x[0] == 'a' AND x[1] < 'b').
-    To achive the above we must turn off the NEAR_MIN/NEAR_MAX
+    To achieve the above we must turn off the NEAR_MIN/NEAR_MAX
 */
 void QUICK_GROUP_MIN_MAX_SELECT::adjust_prefix_ranges ()
 {
@@ -16407,7 +16415,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max()
 
 
 /** 
-  Find the next different key value by skiping all the rows with the same key 
+  Find the next different key value by skipping all the rows with the same key
   value.
 
   Implements a specialized loose index access method for queries 
@@ -16638,7 +16646,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
         Remember this key, and continue looking for a non-NULL key that
         satisfies some other condition.
       */
-      memcpy(tmp_record, record, head->s->rec_buff_length);
+      memcpy(tmp_record, record, head->s->reclength);
       found_null= TRUE;
       continue;
     }
@@ -16678,7 +16686,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
   */
   if (found_null && result)
   {
-    memcpy(record, tmp_record, head->s->rec_buff_length);
+    memcpy(record, tmp_record, head->s->reclength);
     result= 0;
   }
   return result;
@@ -16711,7 +16719,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
   ha_rkey_function find_flag;
   key_part_map keypart_map;
   QUICK_RANGE *cur_range;
-  int result;
+  int result= HA_ERR_KEY_NOT_FOUND;
 
   DBUG_ASSERT(min_max_ranges.elements > 0);
 
@@ -16720,10 +16728,11 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
     get_dynamic(&min_max_ranges, (uchar*)&cur_range, range_idx - 1);
 
     /*
-      If the current value for the min/max argument is smaller than the left
-      boundary of cur_range, there is no need to check this range.
+      If the key has already been "moved" by a successful call to
+      ha_index_read_map, and the current value for the max argument
+      comes before the range, there is no need to check this range.
     */
-    if (range_idx != min_max_ranges.elements &&
+    if (!result &&
         !(cur_range->flag & NO_MIN_RANGE) &&
         (key_cmp(min_max_arg_part, (const uchar*) cur_range->min_key,
                  min_max_arg_len) == -1))
@@ -17460,7 +17469,7 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
 }
 
 /**
-  Print key parts involed in a range
+  Print key parts involved in a range
   @param[out] out          String the key is appended to
   @param[in]  key_part     Index components description
   @param[in]  n_keypart    Number of keyparts in index

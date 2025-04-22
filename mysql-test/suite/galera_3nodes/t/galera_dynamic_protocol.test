@@ -14,7 +14,6 @@
 --let $node_3 = node_3
 --source ../galera/include/auto_increment_offset_save.inc
 
-
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 --source include/wait_condition.inc

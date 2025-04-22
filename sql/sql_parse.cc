@@ -2811,7 +2811,7 @@ bool sp_process_definer(THD *thd)
         case, we should assign CURRENT_USER as definer.
 
       - Our slave received an updated from the master, that does not
-        replicate definer for stored rountines. We should also assign
+        replicate definer for stored routines. We should also assign
         CURRENT_USER as definer here, but also we should mark this routine
         as NON-SUID. This is essential for the sake of backward
         compatibility.
@@ -2963,7 +2963,7 @@ retry:
         {
           /*
             Deadlock occurred during upgrade of metadata lock.
-            Let us restart acquring and opening tables for LOCK TABLES.
+            Let us restart acquiring and opening tables for LOCK TABLES.
           */
           close_tables_for_reopen(thd, &tables, mdl_savepoint, true);
           if (thd->open_temporary_tables(tables))
@@ -2990,7 +2990,7 @@ retry:
        Either definer or invoker has to have PRIV_LOCK_TABLES to be able
        to lock view and its tables. For mysqldump (that locks views
        before dumping their structures) compatibility we allow locking
-       views that select from I_S or P_S tables, but downrade the lock
+       views that select from I_S or P_S tables, but downgrade the lock
        to TL_READ
      */
     if (table->belong_to_view &&
@@ -6852,7 +6852,7 @@ bool check_one_table_access(THD *thd, privilege_t privilege,
   if (check_single_table_access (thd,privilege,all_tables, FALSE))
     return 1;
 
-  /* Check rights on tables of subselects and implictly opened tables */
+  /* Check rights on tables of subselects and implicitly opened tables */
   TABLE_LIST *subselects_tables, *view= all_tables->view ? all_tables : 0;
   if ((subselects_tables= all_tables->next_global))
   {
@@ -8111,7 +8111,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     DBUG_RETURN(0);
   else
     fqtn= FALSE;
-  bool info_schema= is_infoschema_db(&db);
+  bool info_schema= (db.is_null() || db.is_empty())
+	            ? false : is_infoschema_db(&db);
   if (!table->sel && info_schema &&
       (table_options & TL_OPTION_UPDATING) &&
       /* Special cases which are processed by commands itself */

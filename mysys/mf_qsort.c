@@ -187,7 +187,7 @@ qsort_t my_qsort(void *base_ptr, size_t count, size_t size, qsort_cmp cmp)
       Prepare for next iteration.
        Skip partitions of size 1 as these doesn't have to be sorted
        Push the larger partition and sort the smaller one first.
-       This ensures that the stack is keept small.
+       This ensures that the stack is kept small.
     */
 
     if ((int) (high_ptr - low) <= 0)

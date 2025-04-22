@@ -2382,7 +2382,7 @@ sub vacuum
   $loop_time=new Benchmark;
   my (@tables,$sth,$current_table,$current_base);
   $dbh->do("dump tran $database with truncate_only");
-  $sth=$dbh->prepare("sp_tables" ) or die "prepere";
+  $sth=$dbh->prepare("sp_tables" ) or die "prepare";
   $sth->execute() or die "execute";
   while (@row = $sth->fetchrow_array()) {
     $current_table = $row[2];

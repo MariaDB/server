@@ -229,7 +229,7 @@ int my_rmtree(const char *dir, myf MyFlags)
 #ifdef _WIN32
       /*
         On Windows, check and possible reset readonly attribute.
-        my_delete(), or DeleteFile does not remove theses files.
+        my_delete(), or DeleteFile does not remove these files.
       */
       if (err)
       {

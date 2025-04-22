@@ -1420,7 +1420,7 @@ int DsMrr_impl::setup_two_handlers()
   {
     DBUG_ASSERT(secondary_file && secondary_file->inited==handler::INDEX);
     /* 
-      We get here when the access alternates betwen MRR scan(s) and non-MRR
+      We get here when the access alternates between MRR scan(s) and non-MRR
       scans.
 
       Calling primary_file->index_end() will invoke dsmrr_close() for this

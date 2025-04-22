@@ -3161,7 +3161,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     if (mysql->net.last_errno == CR_SERVER_LOST)
         set_mysql_extended_error(mysql, CR_SERVER_LOST, unknown_sqlstate,
                                  ER(CR_SERVER_LOST_EXTENDED),
-                                 "Setting intital database",
+                                 "Setting initial database",
                                  errno);
     goto error;
   }

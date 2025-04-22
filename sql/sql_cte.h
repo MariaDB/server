@@ -62,7 +62,7 @@ public:
   @brief Definition of a CTE table
 	
   It contains a reference to the name of the table introduced by this with element,
-  and a reference to the unit that specificies this table. Also it contains
+  and a reference to the unit that specifies this table. Also it contains
   a reference to the with clause to which this element belongs to.	
 */
 

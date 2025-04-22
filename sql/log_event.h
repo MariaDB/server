@@ -517,7 +517,7 @@ class String;
    Flag sets by the semisync slave for accepting
    the same server_id ("own") events which the slave must not have
    in its state. Typically such events were never committed by
-   their originator (this server) and discared at its semisync-slave recovery.
+   their originator (this server) and discarded at its semisync-slave recovery.
 */
 #define LOG_EVENT_ACCEPT_OWN_F 0x4000
 
@@ -2305,7 +2305,7 @@ public:        /* !!! Public in this patch to allow old usage */
       binlogged with comments in the front of these keywords. for examples:
         / * bla bla * / SAVEPOINT a;
         / * bla bla * / ROLLBACK TO a;
-      but we don't handle these cases and after the patch, both quiries are
+      but we don't handle these cases and after the patch, both queries are
       binlogged in upper case with no comments.
      */
     return is_xa ? !strncasecmp(query, C_STRING_WITH_LEN("XA "))
@@ -2877,7 +2877,7 @@ private:
     when @c one_phase member is off. The latter option is only for
     compatibility with the upstream.
 
-  From the groupping perspective the event finalizes the current
+  From the grouping perspective the event finalizes the current
   "prepare" group that is started with Gtid_log_event similarly to the
   regular replicated transaction.
 */
@@ -4210,7 +4210,7 @@ class table_def;
     <td>signedness of numeric colums. This is included for all values of
     binlog_row_metadata.</td>
     <td>For each numeric column, a bit indicates whether the numeric
-    colunm has unsigned flag. 1 means it is unsigned. The number of
+    column has unsigned flag. 1 means it is unsigned. The number of
     bytes needed for this is int((column_count + 7) / 8). The order is
     the same as the order of column_type field.</td>
   </tr>

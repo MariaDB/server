@@ -1,3 +1,4 @@
+--source include/long_test.inc
 --source include/have_binlog_format_statement.inc
 set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
 source rpl_semi_sync.test;

@@ -318,3 +318,17 @@ insert into t values (0x00000000),(0x00000000);
 explain select vec_totext(a) from t order by vec_distance_euclidean(a,0x00000000) limit 1;
 drop table t;
 --echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-35309 - ALTER performs vector truncation without WARN_DATA_TRUNCATED or similar warnings/errors
+--echo #
+create table t (v vector(2));
+insert into t values (0x3131313132323232);
+select * from t;
+--error WARN_DATA_TRUNCATED
+alter table t modify v vector(1);
+set statement sql_mode='' for alter table t modify v vector(1);
+select * from t;
+drop table t;
+
+--echo # End of 11.8 tests

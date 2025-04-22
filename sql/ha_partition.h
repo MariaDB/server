@@ -859,7 +859,8 @@ public:
                        const key_range * end_key,
                        bool eq_range, bool sorted) override;
   int read_range_next() override;
-
+  void set_end_range(const key_range *end_key,
+                     enum_range_scan_direction direction) override;
 
   HANDLER_BUFFER *m_mrr_buffer;
   uint *m_mrr_buffer_size;

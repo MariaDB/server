@@ -265,7 +265,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 			ndif = qrp->Nblin;
 		} // endif Tabsrc
 
-		// Allocate the Value used to retieve column names
+		// Allocate the Value used to retrieve column names
 		if (!(valp = AllocateValue(g, Rblkp->GetType(),
 				                          Rblkp->GetVlen(),
 				                          Rblkp->GetPrec())))

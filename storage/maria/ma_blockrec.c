@@ -5054,7 +5054,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
 #ifdef EXTRA_DEBUG
   if (share->calc_checksum && !info->in_check_table)
   {
-    /* Esnure that row checksum is correct */
+    /* Ensure that row checksum is correct */
     DBUG_ASSERT(((share->calc_checksum)(info, record) & 255) ==
                 cur_row->checksum);
   }
@@ -5715,7 +5715,7 @@ uint ma_calc_length_for_store_length(ulong nr)
 }
 
 
-/* Retrive a stored number */
+/* Retrieve a stored number */
 
 static ulong ma_get_length(const uchar **packet)
 {
@@ -6244,7 +6244,7 @@ my_bool write_hook_for_undo_row_delete(enum translog_record_type type
 
 
 /**
-   @brief Upates "records" and "checksum" and calls the generic UNDO hook
+   @brief Updates "records" and "checksum" and calls the generic UNDO hook
 
    @return Operation status, always 0 (success)
 */

@@ -29,9 +29,9 @@
   @file
 
   @brief
-    Virtual Column Substitution feature makes the optimizer recongize usage of
+    Virtual Column Substitution feature makes the optimizer recognize usage of
     virtual column expressions in the WHERE/ON clauses. If there is an index
-    on the virtual column, the optimizer is able construct query plans that
+    on the virtual column, the optimizer is able to construct query plans that
     use that index.
 */
 
@@ -369,7 +369,7 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
 /*
   @brief
     Do a quick and imprecise check if it makes sense to try Virtual Column
-    Substitutiion transformation for this item.
+    Substitution transformation for this item.
 
   @detail
     For vcol_expr='FOO' the item to be trans formed is the comparison item

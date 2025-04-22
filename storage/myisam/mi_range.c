@@ -292,7 +292,7 @@ err:
 }
 
 
-	/* Get keynummer of current key and max number of keys in nod */
+	/* Get keynumber of current key and max number of keys in nod */
 
 static uint _mi_keynr(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
                       uchar *keypos, uint *ret_max_key)

@@ -44,4 +44,3 @@ if (!`SELECT (@ACTUAL_GALERA_MINOR_VERSION > @GALERA_MINOR_VERSION) OR
 }
 
 --echo # Correct Galera library found
-

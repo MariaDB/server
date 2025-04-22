@@ -76,6 +76,10 @@ void init_sp_psi_keys()
   PSI_server->register_statement(category, & sp_instr_cursor_copy_struct::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_error::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_set_case_expr::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_copen_by_ref::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cclose_by_ref::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_cfetch_by_ref::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_destruct_variable::psi_info, 1);
 
   DBUG_ASSERT(SP_PSI_STATEMENT_INFO_COUNT == __LINE__ - num);
 }
@@ -722,7 +726,7 @@ bool sp_package::validate_public_routines(THD *thd, sp_package *spec)
 bool sp_package::validate_private_routines(THD *thd)
 {
   /*
-    Check that all forwad declarations in
+    Check that all forward declarations in
     CREATE PACKAGE BODY have implementations.
   */
   List_iterator<LEX> it(m_routine_declarations);
@@ -993,10 +997,12 @@ sp_head::create_result_field(uint field_max_length,
                (def.pack_flag &
                 (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
 
-  if (field_name)
+  if (field_name && field_name->length)
     name= *field_name;
-  else
+  else if (m_name.length)
     name= m_name;
+  else
+    name= m_qname;
   field= def.make_field(table->s, /* TABLE_SHARE ptr */
                         table->in_use->mem_root,
                         &name);
@@ -1356,7 +1362,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
           thd->wsrep_cs().reset_error();
           /* Reset also thd->killed if it has been set during BF abort. */
           if (killed_mask_hard(thd->killed) == KILL_QUERY)
-            thd->killed= NOT_KILLED;
+            thd->reset_killed();
           /* if failed transaction was not replayed, must return with error from here */
           if (!must_replay) err_status = 1;
         }
@@ -1639,7 +1645,7 @@ bool sp_head::check_execute_access(THD *thd) const
 
   @param thd
   @param ret_value
-  @retval           NULL - error (access denided or EOM)
+  @retval           NULL - error (access denied or EOM)
   @retval          !NULL - success (the invoker has rights to all %TYPE tables)
 */
 
@@ -1963,7 +1969,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     /* Arguments must be fixed in Item_func_sp::fix_fields */
     DBUG_ASSERT(argp[arg_no]->fixed());
 
-    err_status= bind_input_param(thd, argp[arg_no], arg_no, *func_ctx, TRUE);
+    err_status= bind_input_param(thd, argp[arg_no], arg_no,
+                                 octx, *func_ctx, TRUE);
     if (err_status)
       goto err_with_cleanup;
   }
@@ -2027,7 +2034,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       we have separate union for each such event and hence can't use
       query_id of real calling statement as the start of all these
       unions (this will break logic of replication of user-defined
-      variables). So we use artifical value which is guaranteed to
+      variables). So we use artificial value which is guaranteed to
       be greater than all query_id's of all statements belonging
       to previous events/unions.
       Possible alternative to this is logging of all function invocations
@@ -2108,6 +2115,16 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 #endif
 
 err_with_cleanup:
+
+  /*
+    Call SP variable destructors both on success and error, to exit with a
+    clean state, as the caller can catch the error using a condition handler
+    and continue the execution.
+    E.g. SYS_REFCURSOR variables will decrement their cursor ref counters.
+  */
+  if (thd->spcont && m_chistics.agg_type != GROUP_AGGREGATE)
+    thd->spcont->expr_event_handler_not_persistent(thd,
+                                         expr_event_t::DESTRUCT_OUT_OF_SCOPE);
   thd->spcont= octx;
 
   /*
@@ -2225,7 +2242,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       if (!arg_item)
         break;
 
-      err_status= bind_input_param(thd, arg_item, i, nctx, FALSE);
+      err_status= bind_input_param(thd, arg_item, i, octx, nctx, FALSE);
       if (err_status)
         break;
     }
@@ -2317,7 +2334,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
   /*
     In the case when we weren't able to employ reuse mechanism for
-    OUT/INOUT paranmeters, we should reallocate memory. This
+    OUT/INOUT parameters, we should reallocate memory. This
     allocation should be done on the arena which will live through
     all execution of calling routine.
   */
@@ -2344,6 +2361,9 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     }
   }
 
+  if (thd->spcont)
+    thd->spcont->expr_event_handler_not_persistent(thd,
+                                         expr_event_t::DESTRUCT_OUT_OF_SCOPE);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (save_security_ctx)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
@@ -2375,6 +2395,7 @@ bool
 sp_head::bind_input_param(THD *thd,
                           Item *arg_item,
                           uint arg_no,
+                          sp_rcontext *octx,
                           sp_rcontext *nctx,
                           bool is_function)
 {
@@ -2383,6 +2404,16 @@ sp_head::bind_input_param(THD *thd,
   sp_variable *spvar= m_pcont->find_variable(arg_no);
   if (!spvar)
     DBUG_RETURN(FALSE);
+
+  if (!spvar->field_def.type_handler()->is_scalar_type() &&
+      dynamic_cast<Item_param*>(arg_item))
+  {
+    // Item_param cannot store values of non-scalar data types yet
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             spvar->field_def.type_handler()->name().ptr(),
+             "EXECUTE ... USING ?");
+    DBUG_RETURN(true);
+  }
 
   if (spvar->mode != sp_variable::MODE_IN)
   {
@@ -2418,6 +2449,7 @@ sp_head::bind_input_param(THD *thd,
 
   if (spvar->mode == sp_variable::MODE_OUT)
   {
+    // Initialize formal parameters to NULL
     Item_null *null_item= new (thd->mem_root) Item_null(thd);
     Item *tmp_item= null_item;
 
@@ -2426,6 +2458,24 @@ sp_head::bind_input_param(THD *thd,
     {
       DBUG_PRINT("error", ("set variable failed"));
       DBUG_RETURN(TRUE);
+    }
+
+    /*
+      The old value of the actual OUT parameter will be overridden
+      in the end of the routine execution when copying its new value
+      from the formal parameter in bind_output_param().
+    */
+    if (Item_splocal *spv= arg_item->get_item_splocal())
+    {
+      /*
+        In case of a SYS_REFCURSOR variable the call for expr_event_handler()
+        will decrement the ref counter in the referenced cursor in
+        sp_cursor_array. See Field_sys_refcursor::expr_event_handler()
+        for details.
+      */
+      sp_rcontext *octx1= spv->rcontext_handler()->get_rcontext(octx);
+      octx1->get_variable(spv->get_var_idx())->
+        field->expr_event_handler(thd, expr_event_t::DESTRUCT_OUT_OF_SCOPE);
     }
   }
   else
@@ -3897,6 +3947,32 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
                            param_lex, last,
                            param_lex->get_expr_str()))
       return true;
+  }
+  return false;
+}
+
+
+/*
+  When the parser reaches the end of a BEGIN..END inner block
+  let's add sp_instr_destruct_variable instructions for the block variables
+  with complex data types (with side effects) such as SYS_REFCURSOR.
+*/
+bool sp_head::add_sp_block_destruct_variables(THD *thd, sp_pcontext *pctx)
+{
+  uint var_count= pctx->context_var_count();
+  for (uint i= 0; i < var_count; i++)
+  {
+    uint offset= var_count - i - 1;
+    sp_variable *spv= pctx->get_context_variable(offset);
+    if (spv->type_handler()->
+               Spvar_definition_with_complex_data_types(&spv->field_def))
+    {
+      sp_instr *instr= new (thd->mem_root) sp_instr_destruct_variable(
+                                                       instructions(),
+                                                       pctx, spv->offset);
+      if (!instr || add_instr(instr))
+        return true;
+    }
   }
   return false;
 }

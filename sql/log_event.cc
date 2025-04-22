@@ -350,7 +350,7 @@ int binlog_buf_compress(const uchar *src, uchar *dst, uint32 len, uint32 *comlen
    @Note:
       1) The caller should call my_free to release 'dst' if *is_malloc is
          returned as true.
-      2) If *is_malloc is retuened as false, then 'dst' reuses the passed-in
+      2) If *is_malloc is returned as false, then 'dst' reuses the passed-in
          'buf'.
 
    return zero if successful, non-zero otherwise.
@@ -1659,9 +1659,9 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
     +--------+-----------+------+------+---------+----+-------+
 
     To support the query cache we append the following buffer to the above
-    +-------+----------------------------------------+-------+
-    |db len | uninitiatlized space of size of db len | FLAGS |
-    +-------+----------------------------------------+-------+
+    +-------+---------------------------------------+-------+
+    |db len | uninitialized space of size of db len | FLAGS |
+    +-------+---------------------------------------+-------+
 
     The area of buffer starting from Query field all the way to the end belongs
     to the Query buffer and its structure is described in alloc_query() in
@@ -1947,7 +1947,7 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   uchar *q= p + LOG_EVENT_HEADER_LEN;
   size_t data_len= packet->length() - ev_offset;
-  size_t dummy_bytes;
+  uint dummy_bytes;
   uint16 flags;
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
@@ -1975,10 +1975,14 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
     DUMMY value, and will skip the rest of the status vars section.
   */
   DBUG_ASSERT(data_len >= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
-  dummy_bytes= data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
+  if (data_len < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+    return 1;
+  DBUG_ASSERT(std::numeric_limits<uint16>::max() >=
+              (data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)));
+  dummy_bytes=
+      static_cast<uint>(data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN));
   int2store(q + Q_STATUS_VARS_LEN_OFFSET, dummy_bytes);
-  for (size_t i= 0; i < dummy_bytes; i++)
-    q[Q_DATA_OFFSET + i]= Q_DUMMY;
+  bfill(&q[Q_DATA_OFFSET], dummy_bytes, Q_DUMMY);
   q[Q_DATA_OFFSET + dummy_bytes]= 0; /* Zero terminator for empty db */
   q+= Q_DATA_OFFSET + dummy_bytes + 1;
 
@@ -2336,7 +2340,7 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
    
    @return  the version-safe checksum alg descriptor where zero
             designates no checksum, 255 - the orginator is
-            checksum-unaware (effectively no checksum) and the actuall
+            checksum-unaware (effectively no checksum) and the actual
             [1-254] range alg descriptor.
 */
 enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
@@ -2499,7 +2503,7 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
   {
     flags_extra= *buf++;
     /*
-      extra engines flags presence is identifed by non-zero byte value
+      extra engines flags presence is identified by non-zero byte value
       at this point
     */
     if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
@@ -2626,7 +2630,7 @@ Gtid_list_log_event::Gtid_list_log_event(const uchar *buf, uint event_len,
 
 /*
   Used to record gtid_list event while sending binlog to slave, without having to
-  fully contruct the event object.
+  fully construct the event object.
 */
 bool
 Gtid_list_log_event::peek(const char *event_start, size_t event_len,

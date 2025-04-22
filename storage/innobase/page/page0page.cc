@@ -2205,7 +2205,7 @@ wrong_page_type:
 			int	ret = cmp_rec_rec(
 				rec, old_rec, offsets, old_offsets, index);
 
-			/* For spatial index, on nonleaf leavel, we
+			/* For spatial index, on nonleaf level, we
 			allow recs to be equal. */
 			if (ret <= 0 && !(ret == 0 && index->is_spatial()
 					  && !page_is_leaf(page))) {

@@ -75,10 +75,10 @@ ERROR HY000: wsrep_mode=[REPLICATE_MYISAM|REPLICATE_ARIA] can't be enabled if ws
 SET GLOBAL wsrep_forced_binlog_format=DEFAULT;
 SET GLOBAL wsrep_mode=DEFAULT;
 SET GLOBAL wsrep_forced_binlog_format=MIXED;
-SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
 ERROR HY000: wsrep_mode=[REPLICATE_MYISAM|REPLICATE_ARIA] can't be enabled if wsrep_forced_binlog != [NONE|ROW]
 SET GLOBAL wsrep_forced_binlog_format=STATEMENT;
-SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
 ERROR HY000: wsrep_mode=[REPLICATE_MYISAM|REPLICATE_ARIA] can't be enabled if wsrep_forced_binlog != [NONE|ROW]
 SET GLOBAL wsrep_forced_binlog_format=DEFAULT;
 SET GLOBAL wsrep_mode=DEFAULT;

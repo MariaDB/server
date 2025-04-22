@@ -58,7 +58,7 @@
   the table in MYRG_INFO::children_attached.
 
   If necessary, the compatibility of parent and children is checked.
-  This check is necessary when any of the objects are reopend. This is
+  This check is necessary when any of the objects are reopened. This is
   detected by comparing the current table def version against the
   remembered child def version. On parent open, the list members are
   initialized to an "impossible"/"undefined" version value. So the check
@@ -1284,7 +1284,7 @@ int ha_myisammrg::info(uint flag)
       /*
         valgrind may be unhappy about it, because optimizer may access values
         between file->keys and table->key_parts, that will be uninitialized.
-        It's safe though, because even if opimizer will decide to use a key
+        It's safe though, because even if optimizer will decide to use a key
         with such a number, it'll be an error later anyway.
       */
       bzero((char*) table->key_info[0].rec_per_key,

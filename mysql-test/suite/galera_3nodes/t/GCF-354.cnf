@@ -7,10 +7,10 @@ loose-gcf-354=0
 wsrep-debug=1
 
 [mysqld.1]
-wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=1G;pc.weight=4'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;pc.weight=4;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=256M'
 
 [mysqld.2]
-wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=1G'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=256M'
 
 [mysqld.3]
-wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=1G'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=256M'

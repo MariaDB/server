@@ -5500,7 +5500,7 @@ Create_func_rand::create_native(THD *thd, const LEX_CSTRING *name,
     between master and slave, because the order is undefined.  Hence,
     the statement is unsafe to log in statement format.
 
-    For normal INSERT's this is howevever safe
+    For normal INSERT's this is however safe
   */
   if (thd->lex->sql_command != SQLCOM_INSERT)
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
@@ -6846,6 +6846,15 @@ Item *create_func_dyncol_get(THD *thd,  Item *str, Item *num,
 
   if (likely(!(res= new (thd->mem_root) Item_dyncol_get(thd, str, num))))
     return res;                                 // Return NULL
-  return handler->create_typecast_item(thd, res,
-                                       Type_cast_attributes(length_dec, cs));
+  if (likely((res= handler->create_typecast_item(thd, res,
+                                     Type_cast_attributes(length_dec, cs)))))
+   return res;
+  // Type cast to handler's data type does not exist
+  const Name name= handler->name();
+  char buf[128];
+  size_t length= my_snprintf(buf, sizeof(buf), "CAST(expr AS %.*s)",
+                             (int) name.length(), name.ptr());
+  my_error(ER_UNKNOWN_OPERATOR, MYF(0),
+           ErrConvString(buf, length, system_charset_info).ptr());
+  return nullptr;
 }

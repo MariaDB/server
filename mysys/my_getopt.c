@@ -18,6 +18,7 @@
 #include <mysys_priv.h>
 #include <my_default.h>
 #include <m_string.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <mysys_err.h>
 #include <my_getopt.h>
@@ -73,7 +74,7 @@ my_bool my_getopt_skip_unknown= 0;
 
 /*
    This is a flag that can be set in client programs. 1 means that
-   my_getopt will reconize command line options by their unambiguous
+   my_getopt will recognize command line options by their unambiguous
    prefixes. 0 means an option must be always specified in full.
 */
 my_bool my_getopt_prefix_matching= 1;
@@ -920,7 +921,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       /*
         This sets a bit stored in a longlong.
         The bit to set is stored in block_size. If block_size is positive
-        then setting the bit means value is true. If block_size is negatitive,
+        then setting the bit means value is true. If block_size is negative,
         then setting the bit means value is false.
       */
       tmp= get_bool_argument(opts, argument);
@@ -1039,7 +1040,7 @@ my_bool getopt_compare_strings(register const char *s, register const char *t,
 
   for (;s != end ; s++, t++)
   {
-    if ((*s != '-' ? *s : '_') != (*t != '-' ? *t : '_'))
+    if ((*s != '-' ? tolower(*s) : '_') != (*t != '-' ? tolower(*t) : '_'))
       DBUG_RETURN(1);
   }
   DBUG_RETURN(0);

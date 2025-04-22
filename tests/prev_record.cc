@@ -111,7 +111,7 @@ prev_record_reads(POSITION *position, uint idx, DEPEND found_ref,
     {
       found_ref&= ~pos->table->map;
 
-      /* Found depent table */
+      /* Found dependent table */
       if (pos->type == EQ_REF)
       {
         if (!found_ref)
@@ -127,8 +127,8 @@ prev_record_reads(POSITION *position, uint idx, DEPEND found_ref,
     if (pos->type != CACHE)
     {
       /*
-        We are not depending on the curren table
-        There are 'records_out' rows with idenitical rows
+        We are not depending on the current table
+        There are 'records_out' rows with identical rows
         value for our depending tables.
         We are ignoring join_cache as in this case the
         preceding tables row combination can change for

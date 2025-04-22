@@ -1,0 +1,366 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# p1() does not cause "Too many open cursors"
+# as on every iteration it closes an existng cursor and reopens it.
+#
+SET @@max_open_cursors=3;
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1 AS a FROM DUAL;
+RETURN c;
+END;
+$$
+CREATE PROCEDURE p1(count INT)
+BEGIN
+DECLARE c SYS_REFCURSOR;
+DECLARE va INT;
+FOR i IN 1..count
+DO
+SET c=f1();
+FETCH c INTO va;
+END FOR;
+END;
+$$
+CALL p1(30);
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+SET @@max_open_cursors=DEFAULT;
+#
+# Error: too many open cursors
+#
+SET @@max_open_cursors=3;
+SET @@max_sp_recursion_depth=50;
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1 AS a FROM DUAL;
+RETURN c;
+END;
+$$
+CREATE PROCEDURE p1(count INT)
+BEGIN
+DECLARE c SYS_REFCURSOR;
+DECLARE va INT;
+IF count > 0 THEN
+SET c=f1();
+CALL p1(count-1);
+END IF;
+END;
+$$
+CALL p1(3);
+CALL p1(4);
+ERROR HY000: Too many open cursors; max 3 cursors allowed
+CALL p1(3);
+CALL p1(4);
+ERROR HY000: Too many open cursors; max 3 cursors allowed
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+SET max_open_cursors=DEFAULT;
+SET @@max_sp_recursion_depth=DEFAULT;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE va INT;
+DECLARE stage TEXT DEFAULT '';
+DECLARE c1, c2, c3, c4 SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION, SQLWARNING
+BEGIN
+GET DIAGNOSTICS CONDITION 1 @msg= MESSAGE_TEXT;
+SELECT @@max_open_cursors, stage, @msg;
+END;
+SET max_open_cursors=3;
+SET stage='OPEN1 c1';  OPEN c1 FOR SELECT a FROM t1; -- Ok
+SET stage='OPEN1 c2';  OPEN c2 FOR SELECT a FROM t1; -- Ok
+SET stage='OPEN1 c3';  OPEN c3 FOR SELECT a FROM t1; -- Ok
+SET stage='OPEN1 c4';  OPEN c4 FOR SELECT a FROM t1; -- Error: too many open cursors
+SET max_open_cursors= 1;
+-- Cursors beyond the limit are still available for FETCH
+SET stage='FETCH1 c1';  FETCH c1 INTO va; SELECT 'c1', va; -- Ok
+SET stage='FETCH1 c2';  FETCH c2 INTO va; SELECT 'c2', va; -- Ok
+SET stage='FETCH1 c3';  FETCH c3 INTO va; SELECT 'c3', va; -- Ok
+SET stage='FETCH1 c4';  FETCH c4 INTO va; -- Error: not open
+-- Open cursors beyond the limit are still available for reopen
+-- Reasoning: CLOSE+OPEN do not increase the total amount of open cursors
+SET stage='REOPEN1 c1';  OPEN c1 FOR SELECT a FROM t1; -- Ok
+SET stage='REOPEN1 c2';  OPEN c2 FOR SELECT a FROM t1; -- Ok
+SET stage='REOPEN1 c3';  OPEN c3 FOR SELECT a FROM t1; -- Ok
+SET stage='REOPEN1 c4';  OPEN c4 FOR SELECT a FROM t1; -- Error: too many open cursors
+-- Cursors beyond the limit are still available for FETCH after reopen
+SET stage='FETCH2 c1';  FETCH c1 INTO va; SELECT 'c1', va; -- Ok
+SET stage='FETCH2 c2';  FETCH c2 INTO va; SELECT 'c2', va; -- Ok
+SET stage='FETCH2 c3';  FETCH c3 INTO va; SELECT 'c3', va; -- Ok
+SET stage='FETCH2 c4';  FETCH c4 INTO va; -- Error: not open
+-- Open cursors beyond the limit are available for CLOSE
+SET stage='CLOSE1 c1';  CLOSE c1; -- Ok
+SET stage='CLOSE1 c2';  CLOSE c2; -- Ok
+SET stage='CLOSE1 c3';  CLOSE c3; -- Ok
+SET stage='CLOSE1 c4';  CLOSE c4; -- Error: not open
+-- Closed cursors beyond the limit are not available for a new OPEN
+SET stage='OPEN2 c1';  OPEN c1 FOR SELECT a FROM t1; -- Ok: fits the limit
+SET stage='OPEN2 c2';  OPEN c2 FOR SELECT a FROM t1; -- Error: beyond the limit
+SET stage='OPEN2 c3';  OPEN c3 FOR SELECT a FROM t1; -- Error: beyond the limit
+SET stage='OPEN2 c4';  OPEN c4 FOR SELECT a FROM t1; -- Error: beyond the limit
+-- c1 is open. Close it, so we get all cursors c1..c4 closed.
+SET stage= 'CLOSE2 c1'; CLOSE c1; -- Ok
+-- All cursors are closed. Now open c3.
+SET stage= 'OPEN3 c3'; OPEN c3 FOR SELECT a FROM t1; -- Ok
+SET stage= 'FETCH3 c3'; FETCH c3 INTO va; -- Ok
+SET stage= 'CLOSE3 c3'; CLOSE c3; -- Ok
+END;
+$$
+CALL p1;
+@@max_open_cursors	stage	@msg
+3	OPEN1 c4	Too many open cursors; max 3 cursors allowed
+c1	va
+c1	1
+c2	va
+c2	1
+c3	va
+c3	1
+@@max_open_cursors	stage	@msg
+1	FETCH1 c4	Cursor is not open
+@@max_open_cursors	stage	@msg
+1	REOPEN1 c4	Too many open cursors; max 1 cursors allowed
+c1	va
+c1	1
+c2	va
+c2	1
+c3	va
+c3	1
+@@max_open_cursors	stage	@msg
+1	FETCH2 c4	Cursor is not open
+@@max_open_cursors	stage	@msg
+1	CLOSE1 c4	Cursor is not open
+@@max_open_cursors	stage	@msg
+1	OPEN2 c2	Too many open cursors; max 1 cursors allowed
+@@max_open_cursors	stage	@msg
+1	OPEN2 c3	Too many open cursors; max 1 cursors allowed
+@@max_open_cursors	stage	@msg
+1	OPEN2 c4	Too many open cursors; max 1 cursors allowed
+SET max_open_cursors=DEFAULT;
+DROP TABLE t1;
+#
+# Two consequent OPEN (without a CLOSE in beetween) are allowed
+#
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT 1;
+OPEN c FOR SELECT 2;
+FETCH c INTO a;
+SELECT a;
+END;
+$$
+a
+2
+#
+# Many consequent OPEN (without a CLOSE in between) are allowed
+# and do not cause ER_TOO_MANY_OPEN_CURSORS.
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+FOR i IN 0..300
+DO
+OPEN c FOR SELECT 1 AS c FROM DUAL;
+END FOR;
+END;
+$$
+#
+# Simple use example (OPEN, FETCH, CLOSE)
+#
+BEGIN NOT ATOMIC
+DECLARE c SYS_REFCURSOR;
+DECLARE a INT;
+OPEN c FOR SELECT 1;
+FETCH c INTO a;
+CLOSE c;
+END;
+$$
+#
+# Fetching from two parallel cursors
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE a0 INT;
+DECLARE a1 INT;
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+OPEN c0  FOR SELECT a*10 FROM t1;
+OPEN c1  FOR SELECT a*20 FROM t1;
+FETCH c0 INTO a0;
+FETCH c1 INTO a1;
+SELECT a0, a1;
+CLOSE c0;
+CLOSE c1;
+END;
+$$
+CALL p1;
+a0	a1
+10	20
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# SYS_REFCURSOR alasing
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+DECLARE a INT;
+OPEN c0 FOR SELECT 11 FROM DUAL UNION SELECT 12 FROM DUAL;
+SET c1= c0;
+FETCH c0 INTO a;
+SELECT a;
+OPEN c0 FOR SELECT 21 FROM DUAL UNION SELECT 22 FROM DUAL;
+FETCH c1 INTO a; /* c1 now points to the new "OPEN c0" */
+SELECT a;
+END;
+$$
+a
+11
+a
+21
+#
+# Function returning SYS_REFCURSOR and mysql.proc
+#
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+RETURN c0;
+END;
+$$
+SELECT returns FROM mysql.proc WHERE name='f1';
+returns
+sys_refcursor
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS sys_refcursor
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+RETURN c0;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP FUNCTION f1;
+#
+# Procedure with a SYS_REFCURSOR parameter and mysql.proc
+#
+CREATE PROCEDURE p1(OUT a0 SYS_REFCURSOR)
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+SET a0= c0;
+END;
+$$
+SELECT param_list FROM mysql.proc WHERE name='p1';
+param_list
+OUT a0 SYS_REFCURSOR
+SHOW CREATE PROCEDURE p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(OUT a0 SYS_REFCURSOR)
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+SET a0= c0;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP PROCEDURE p1;
+#
+# Returning a open cursor from a function
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c SYS_REFCURSOR;
+OPEN c FOR SELECT a FROM t1 ORDER BY a;
+RETURN c;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR DEFAULT f1();
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+fetch_loop:
+LOOP
+FETCH c INTO a;
+IF done THEN
+LEAVE fetch_loop;
+END IF;
+SELECT a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1;
+a
+10
+a
+20
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Returning an open cursor as an OUT param
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1(OUT c SYS_REFCURSOR)
+BEGIN
+OPEN c FOR SELECT a FROM t1 ORDER BY a;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE a INT;
+DECLARE c SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+CALL p1(c);
+fetch_loop:
+LOOP
+FETCH c INTO a;
+IF done THEN
+LEAVE fetch_loop;
+END IF;
+SELECT a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p2;
+a
+10
+a
+20
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+#
+# A prepared statement calls its own thd->cleanup_after_query()
+# Make sure it does not close SYS_REFCURSORs,
+# and does not assert that all static cursors are closed.
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v0, v1 VARCHAR(64);
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 CURSOR FOR SELECT 'c1val';
+OPEN c0 FOR SELECT 'c0val';
+OPEN c1;
+EXECUTE IMMEDIATE 'SELECT "ps1val"'; -- PS calls thd->cleanup_after_query()
+FETCH c1 INTO v1; -- this still works, no asserts happened.
+FETCH c0 INTO v0; -- this still works, c0 is still open.
+SELECT v0, v1;
+CLOSE c1;
+CLOSE c0;
+END
+$$
+CALL p1;
+ps1val
+ps1val
+v0	v1
+c0val	c1val
+DROP PROCEDURE p1;

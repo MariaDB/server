@@ -258,7 +258,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Item_basic_constant *item_basic_constant;
   Key_part_spec *key_part;
   LEX *lex;
-  sp_instr_cfetch *instr_cfetch;
+  sp_instr_fetch_cursor *instr_fetch_cursor;
   sp_expr_lex *expr_lex;
   sp_assignment_lex *assignment_lex;
   class sp_lex_cursor *sp_cursor_stmt;
@@ -1187,7 +1187,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  XA_SYM
 %token  <kwd>  XML_SYM
 %token  <kwd>  YEAR_SYM                      /* SQL-2003-R */
-
+%token  <kwd>   ST_COLLECT_SYM
 /* A dummy token to force the priority of table_ref production in a join. */
 %left   CONDITIONLESS_JOIN
 %left   JOIN_SYM INNER_SYM STRAIGHT_JOIN CROSS LEFT RIGHT ON_SYM USING
@@ -1589,7 +1589,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_cursor_stmt_lex
         sp_cursor_stmt
 
-%type <instr_cfetch>
+%type <instr_fetch_cursor>
         sp_proc_stmt_fetch_head
 
 %type <fetch_target_list>
@@ -4371,22 +4371,27 @@ sp_proc_stmt_open:
             if (unlikely(Lex->sp_open_cursor(thd, &$2, $3)))
               MYSQL_YYABORT;
           }
+        | OPEN_SYM ident FOR_SYM sp_cursor_stmt
+          {
+            if (Lex->sp_open_cursor_for_stmt(thd, &$2, $4))
+              MYSQL_YYABORT;
+          }
         ;
 
 sp_proc_stmt_fetch_head:
           FETCH_SYM ident INTO
           {
-            if (unlikely(!($$= Lex->sp_add_instr_cfetch(thd, &$2))))
+            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$2))))
               MYSQL_YYABORT;
           }
         | FETCH_SYM FROM ident INTO
           {
-            if (unlikely(!($$= Lex->sp_add_instr_cfetch(thd, &$3))))
+            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$3))))
               MYSQL_YYABORT;
           }
        | FETCH_SYM NEXT_SYM FROM ident INTO
           {
-            if (unlikely(!($$= Lex->sp_add_instr_cfetch(thd, &$4))))
+            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$4))))
               MYSQL_YYABORT;
           }
         ;
@@ -4406,17 +4411,7 @@ sp_proc_stmt_fetch:
 sp_proc_stmt_close:
           CLOSE_SYM ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            uint offset;
-            sp_instr_cclose *i;
-
-            if (unlikely(!lex->spcont->find_cursor(&$2, &offset, false)))
-              my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $2.str));
-            i= new (thd->mem_root)
-              sp_instr_cclose(sp->instructions(), lex->spcont,  offset);
-            if (unlikely(i == NULL) ||
-                unlikely(sp->add_instr(i)))
+            if (Lex->sp_close(thd, $2))
               MYSQL_YYABORT;
           }
         ;
@@ -4777,11 +4772,16 @@ trg_action_time:
 
 trg_event:
             INSERT
-            { Lex->trg_chistics.event= TRG_EVENT_INSERT; }
+            { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_INSERT); }
           | UPDATE_SYM
-            { Lex->trg_chistics.event= TRG_EVENT_UPDATE; }
+            { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_UPDATE); }
           | DELETE_SYM
-            { Lex->trg_chistics.event= TRG_EVENT_DELETE; }
+            { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_DELETE); }
+          ;
+
+trg_events:
+            trg_event
+          | trg_events OR_SYM trg_event
           ;
 
 create_body:
@@ -11308,6 +11308,12 @@ sum_expr:
             sel->in_sum_expr--;
 
             $$= new (thd->mem_root) Item_func_json_objectagg(thd, $4, $6);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | ST_COLLECT_SYM '(' opt_distinct in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_collect(thd, $3, $4);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -18493,7 +18499,7 @@ opt_on_update_cols:
             }
           | OF_SYM on_update_cols
             {
-              if (Lex->trg_chistics.event != TRG_EVENT_UPDATE)
+              if (!is_trg_event_on(Lex->trg_chistics.events, TRG_EVENT_UPDATE))
               {
                 thd->parse_error(ER_SYNTAX_ERROR, $1.pos());
                 MYSQL_YYABORT;
@@ -18541,7 +18547,7 @@ trigger_tail:
           }
           sp_name
           trg_action_time
-          trg_event
+          trg_events
           opt_on_update_cols
           ON
           remember_name /* $9 */
@@ -20064,7 +20070,7 @@ create_routine:
                                                 Lex->sp_chistics))))
               MYSQL_YYABORT;
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
-            Lex->sp_block_init(thd);
+            Lex->sp_block_init_package_body(thd);
           }
           sp_tail_is
           package_implementation_declare_section

@@ -1793,7 +1793,7 @@ null_return:
   Item_func_conv_charset::is_json_type() which returned args[0]->is_json_type().
   JSON functions with multiple string input with different character sets
   wrap some arguments into Item_func_conv_charset. So the former
-  Item_func_conv_charset::is_json_type() took the JSON propery from args[0],
+  Item_func_conv_charset::is_json_type() took the JSON properly from args[0],
   i.e. from the original argument before the conversion.
   This is probably not always correct because an *explicit*
   `CONVERT(arg USING charset)` is actually a general purpose string
@@ -4761,7 +4761,7 @@ static int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value
            else return false.
       2.c) If either of json document or value is array and other is object:
            Iterate over the array, if an element of type object is found,
-           then compare it with the object (which is the other arguemnt).
+           then compare it with the object (which is the other argument).
            If the entire object matches i.e all they key value pairs match,
            then return true else return false.
 
@@ -5191,7 +5191,7 @@ static bool get_current_value(json_engine_t *js, const uchar *&value_start,
   If the outermost layer of JSON is an array,
   the intersection of arrays is independent of order.
   Create a hash containing all elements in the array,
-  itterate over another array and add the common elements
+  iterate over another array and add the common elements
   to the result.
 
   RETURN

@@ -3476,7 +3476,7 @@ bool ha_partition::re_create_par_file(const char *name)
                                                        0);
     if (m_part_info->partitions.elements == 0)
     {
-      /* We did not succed in creating default partitions */
+      /* We did not succeed in creating default partitions */
       tmp= 1;
     }
   }
@@ -4423,31 +4423,19 @@ THR_LOCK_DATA **ha_partition::store_lock(THD *thd,
   DBUG_ENTER("ha_partition::store_lock");
   DBUG_ASSERT(thd == current_thd);
 
-  /*
-    This can be called from get_lock_data() in mysql_lock_abort_for_thread(),
-    even when thd != table->in_use. In that case don't use partition pruning,
-    but use all partitions instead to avoid using another threads structures.
-  */
-  if (thd != table->in_use)
-  {
-    for (i= 0; i < m_tot_parts; i++)
-      to= m_file[i]->store_lock(thd, to, lock_type);
-  }
-  else
-  {
-    MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
-                                lock_type == TL_IGNORE ?
-                                &m_locked_partitions :
-                                &m_part_info->lock_partitions;
+  MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
+                              lock_type == TL_IGNORE ?
+                              &m_locked_partitions :
+                              &m_part_info->lock_partitions;
 
-    for (i= bitmap_get_first_set(used_partitions);
-         i < m_tot_parts;
-         i= bitmap_get_next_set(used_partitions, i))
-    {
-      DBUG_PRINT("info", ("store lock %u iteration", i));
-      to= m_file[i]->store_lock(thd, to, lock_type);
-    }
+  for (i= bitmap_get_first_set(used_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(used_partitions, i))
+  {
+    DBUG_PRINT("info", ("store lock %u iteration", i));
+    to= m_file[i]->store_lock(thd, to, lock_type);
   }
+
   DBUG_RETURN(to);
 }
 
@@ -4508,7 +4496,7 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   @returns Number of locks returned in call to store_lock
 
   @desc
-    Returns the maxinum possible number of store locks needed in call to
+    Returns the maximum possible number of store locks needed in call to
     store lock.
 */
 
@@ -4774,7 +4762,6 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
   }
 
 
-  m_last_part= new_part_id;
   start_part_bulk_insert(thd, new_part_id);
   DBUG_ASSERT(!m_file[new_part_id]->row_logging);
   if (new_part_id == old_part_id)
@@ -4808,6 +4795,8 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     if (unlikely(error))
       goto exit;
   }
+
+  m_last_part= new_part_id;
 
 exit:
   /*
@@ -5910,7 +5899,7 @@ int ha_partition::index_end()
     index_read_map can be restarted without calling index_end on the previous
     index scan and without calling index_init. In this case the index_read_map
     is on the same index as the previous index_scan. This is particularly
-    used in conjuntion with multi read ranges.
+    used in conjunction with multi read ranges.
 */
 
 int ha_partition::index_read_map(uchar *buf, const uchar *key,
@@ -6367,7 +6356,7 @@ int ha_partition::read_range_first(const key_range *start_key,
 
   m_ordered= sorted;
   eq_range= eq_range_arg;
-  set_end_range(end_key);
+  set_end_range(end_key, RANGE_SCAN_ASC);
 
   range_key_part= m_curr_key_info[0]->key_part;
   if (start_key)
@@ -6402,6 +6391,17 @@ int ha_partition::read_range_next()
   }
   DBUG_RETURN(handle_unordered_next(table->record[0], eq_range));
 }
+
+
+void ha_partition::set_end_range(const key_range *end_key,
+                                 enum_range_scan_direction direction)
+{
+  for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    m_file[i]->set_end_range(end_key, direction);
+}
+
 
 /**
    Create a copy of all keys used by multi_range_read()
@@ -7436,7 +7436,7 @@ end_dont_reset_start_part:
   SYNOPSIS
     ha_partition::partition_scan_set_up()
       buf            Buffer to later return record in (this function
-                     needs it to calculcate partitioning function
+                     needs it to calculate partitioning function
                      values)
 
       idx_read_flag  TRUE <=> m_start_key has range start endpoint which
@@ -8782,7 +8782,7 @@ int ha_partition::info(uint flag)
       have been disabled.
 
       The most important parameters set here is records per key on
-      all indexes. block_size and primar key ref_length.
+      all indexes. block_size and primary key ref_length.
 
       For each index there is an array of rec_per_key.
       As an example if we have an index with three attributes a,b and c
@@ -9943,7 +9943,7 @@ IO_AND_CPU_COST ha_partition::scan_time()
 
 /**
   @brief
-  Caculate time to scan the given index (index only scan)
+  Calculate time to scan the given index (index only scan)
 
   @param inx      Index number to scan
 
@@ -10701,7 +10701,7 @@ bool ha_partition::prepare_inplace_alter_table(TABLE *altered_table,
 
   /*
     Changing to similar partitioning, only update metadata.
-    Non allowed changes would be caought in prep_alter_part_table().
+    Non allowed changes would be caught in prep_alter_part_table().
   */
   if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
   {

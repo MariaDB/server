@@ -162,7 +162,7 @@ typedef struct st_maria_info
 } MARIA_INFO;
 
 struct st_maria_share;
-struct st_maria_handler;                        /* For referense */
+struct st_maria_handler;                        /* For reference */
 struct st_maria_keydef;
 
 struct st_maria_key                 /* Internal info about a key */
@@ -463,7 +463,7 @@ typedef struct st_maria_state_info
   my_off_t dellink;			/* Link to next removed block */
   pgcache_page_no_t first_bitmap_with_space;
   ulonglong auto_increment;
-  TrID create_trid;                     /* Minum trid for file */
+  TrID create_trid;                     /* Minimum trid for file */
   TrID last_change_trn;                 /* selfdescriptive */
   ulong update_count;			/* Updated for each write lock */
   ulong status;
@@ -754,7 +754,7 @@ typedef struct st_maria_share
   my_off_t (*recpos_to_keypos)(struct st_maria_share *share, my_off_t pos);
   my_bool (*row_is_visible)(MARIA_HA *);
 
-  /* Mapings to read/write the data file */
+  /* Mappings to read/write the data file */
   size_t (*file_read)(MARIA_HA *, uchar *, size_t, my_off_t, myf);
   size_t (*file_write)(MARIA_HA *, const uchar *, size_t, my_off_t, myf);
   /* query cache invalidator for merged tables */
@@ -992,7 +992,7 @@ struct st_maria_handler
   my_off_t last_search_keypage;		/* Last keypage when searching */
 
   /*
-    QQ: the folloing two xxx_length fields should be removed,
+    QQ: the following two xxx_length fields should be removed,
      as they are not compatible with parallel repair
   */
   ulong packed_length, blob_length;	/* Length of found, packed record */
@@ -1011,7 +1011,7 @@ struct st_maria_handler
   int lastinx;				/* Last used index */
   uint last_rkey_length;		/* Last length in maria_rkey() */
   uint *last_rtree_keypos;              /* Last key positions for rtrees */
-  uint bulk_insert_ref_length;          /* Lenght of row ref during bi */
+  uint bulk_insert_ref_length;          /* Length of row ref during bi */
   uint non_flushable_state;
   enum ha_rkey_function last_key_func;	/* CONTAIN, OVERLAP, etc */
   uint save_lastkey_data_length;

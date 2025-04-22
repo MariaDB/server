@@ -98,7 +98,7 @@ extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *national_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
 /**
-  Character set of the buildin error messages loaded from errmsg.sys.
+  Character set of the builtin error messages loaded from errmsg.sys.
 */
 extern CHARSET_INFO *error_message_charset_info;
 
@@ -562,6 +562,7 @@ extern PSI_stage_info stage_preparing;
 extern PSI_stage_info stage_purging_old_relay_logs;
 extern PSI_stage_info stage_query_end;
 extern PSI_stage_info stage_starting_cleanup;
+extern PSI_stage_info stage_slave_sql_cleanup;
 extern PSI_stage_info stage_rollback;
 extern PSI_stage_info stage_rollback_implicit;
 extern PSI_stage_info stage_commit;
@@ -732,6 +733,9 @@ extern mysql_cond_t COND_manager;
 extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
+
+extern const char *get_ssl_passphrase();
+
 extern ulonglong tls_version;
 
 #ifdef MYSQL_SERVER
