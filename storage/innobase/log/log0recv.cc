@@ -1307,6 +1307,13 @@ got_deleted:
 	} else if (p.second // the first FILE_MODIFY or FILE_RENAME
 		   || f.name != fname.name) {
 reload:
+		if (f.name.size() == 0) {
+			/* Augment the recv_spaces.emplace_hint() for the
+			FILE_MODIFY record that had been added by
+			recv_sys_t::parse() */
+			f.name = fname.name;
+		}
+
 		fil_space_t*	space;
 
 		/* Check if the tablespace file exists and contains
@@ -2577,8 +2584,8 @@ page_id_corrupted:
       if (i != recv_spaces.end() && i->first == space_id);
       else if (recovered_lsn < mlog_checkpoint_lsn)
         /* We have not seen all records between the checkpoint and
-        FILE_CHECKPOINT. There should be a FILE_DELETE for this
-        tablespace later. */
+        FILE_CHECKPOINT. There should be a FILE_DELETE or FILE_MODIFY
+        for this tablespace later, to be handled in fil_name_process() */
         recv_spaces.emplace_hint(i, space_id, file_name_t("", false));
       else
       {
@@ -4158,7 +4165,7 @@ recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 		break;
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:
-		if (i->second.name.find("/#sql") != std::string::npos) {
+		if (i->second.name.find("/#sql") == std::string::npos) {
 			ib::warn() << "Tablespace " << i->first << " was not"
 				" found at " << i->second.name << " when"
 				" restoring a (partial?) backup. All redo log"
