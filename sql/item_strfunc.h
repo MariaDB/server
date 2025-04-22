@@ -633,6 +633,23 @@ public:
 };
 
 
+class Item_func_initcap :public Item_str_func
+{
+  String tmp_value;
+public:
+  Item_func_initcap(THD *thd, Item *a): Item_str_func(thd, a) {}
+  String *val_str(String *) override;
+  bool fix_length_and_dec(THD *thd) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("initcap") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_initcap>(thd, this); }
+};
+
+
 class Item_func_insert :public Item_str_func
 {
   String tmp_value;

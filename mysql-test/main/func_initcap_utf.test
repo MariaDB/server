@@ -1,0 +1,97 @@
+--source include/have_utf8mb4.inc
+
+--echo # Character Set Tests Setup
+SET NAMES utf8mb4;
+
+--echo # Basic ASCII Tests
+SELECT INITCAP('hello world') AS 'Expected "Hello World"';
+SELECT INITCAP('HELLO WORLD') AS 'Expected "Hello World"';
+SELECT INITCAP('hello WORLD') AS 'Expected "Hello World"';
+
+--echo # Word Boundary Tests
+SELECT INITCAP('hello,world') AS 'Expected "Hello,World"';
+SELECT INITCAP('hello.world') AS 'Expected "Hello.World"';
+SELECT INITCAP('hello-world') AS 'Expected "Hello-World"';
+SELECT INITCAP('hello_world') AS 'Expected "Hello_World"';
+
+--echo # Unicode Character Tests
+SELECT INITCAP('中文测试') AS 'Chinese Text';
+SELECT INITCAP('こんにちは世界') AS 'Japanese Text';
+
+--echo # Mixed Unicode and ASCII Tests
+SELECT INITCAP('test中文') AS 'Mixed Text';
+
+--echo # Special Character Tests
+SELECT INITCAP('hello123world') AS 'Expected "Hello123world"';
+SELECT INITCAP('123hello') AS 'Expected "123Hello"';
+SELECT INITCAP('hello世界123') AS 'Mixed with Numbers';
+
+--echo # NULL and Empty String Tests
+SELECT INITCAP(NULL) AS 'Expected NULL';
+SELECT INITCAP('') AS 'Expected ""';
+
+--echo # Extended Unicode Tests
+SELECT INITCAP('über') AS 'German Unicode';
+SELECT INITCAP('français') AS 'French Unicode';
+SELECT INITCAP('español') AS 'Spanish Unicode';
+SELECT INITCAP('çokça') AS 'Turkish Unicode';
+SELECT INITCAP('istanbul İs a bİg cIty in Asİa') AS 'Turkish Unicode';
+SELECT INITCAP('İSTANBUL') AS 'Turkish İ/I Test';
+
+--echo # Special Case Tests
+SELECT INITCAP('école FRANÇAISE') AS 'French Mixed Case';
+SELECT INITCAP('ÇOKÇA türkçe') AS 'Turkish Mixed Case';
+
+--echo # Multi-word Special Character Tests
+SELECT INITCAP('école_française') AS 'Underscore Unicode';
+SELECT INITCAP('çokça,türkçe') AS 'Comma Separated Unicode';
+
+--echo # Mixed ASCII and Unicode Tests
+SELECT INITCAP('hello über world') AS 'Mixed ASCII and Unicode';
+SELECT INITCAP('HELLO ÜBER WORLD') AS 'Mixed ASCII and Unicode Upper';
+SELECT INITCAP('öÜtstanding älphä testiñg in ÇOKÇA') AS 'Complex Mixed Case';
+
+--echo # Test Cyrillic characters
+SELECT INITCAP('привет мир') AS 'Cyrillic Test - Expected: Привет Мир';
+SELECT INITCAP('ПРИВЕТ МИР') AS 'Cyrillic Upper Test - Expected: Привет Мир';
+
+--echo # Test Greek characters 
+SELECT INITCAP('γεια σας κόσμος') AS 'Greek Test - Expected: Γεια Σας Κόσμος';
+SELECT INITCAP('ΓΕΙΑ ΣΑΣ ΚΌΣΜΟΣ') AS 'Greek Upper Test - Expected: Γεια Σας Κόσμος';
+
+--echo # Test mixed scripts
+SELECT INITCAP('hello привет γεια') AS 'Mixed Scripts - Expected: Hello Привет Γεια';
+
+--echo # Test existing Latin characters to ensure they still work
+SELECT INITCAP('über français español') AS 'Latin Extended - Expected: Über Français Español';
+
+--echo # Test Turkish collation for proper locale detection
+SET NAMES utf8mb4 COLLATE utf8mb4_turkish_ci;
+SELECT INITCAP('işık bilişim') AS 'Turkish Collation Test - Expected: İşık Bilişim';
+SET NAMES utf8mb4;
+
+--echo # Additional European Language Tests
+SELECT INITCAP('привіт світ') AS 'Ukrainian Test - Expected: Привіт Світ';
+SELECT INITCAP('witaj świecie') AS 'Polish Test - Expected: Witaj Świecie';
+SELECT INITCAP('ahoj světe') AS 'Czech Test - Expected: Ahoj Světe';
+SELECT INITCAP('zdravo svijete') AS 'Croatian Test - Expected: Zdravo Svijete';
+SELECT INITCAP('здравей свят') AS 'Bulgarian Test - Expected: Здравей Свят';
+SELECT INITCAP('olá mundo') AS 'Portuguese Test - Expected: Olá Mundo';
+SELECT INITCAP('hallo wereld') AS 'Dutch Test - Expected: Hallo Wereld';
+SELECT INITCAP('hej världen') AS 'Swedish Test - Expected: Hej Världen';
+SELECT INITCAP('hei verden') AS 'Norwegian Test - Expected: Hei Verden';
+SELECT INITCAP('hej verden') AS 'Danish Test - Expected: Hej Verden';
+SELECT INITCAP('halló heimur') AS 'Icelandic Test - Expected: Halló Heimur';
+SELECT INITCAP('hei maailma') AS 'Finnish Test - Expected: Hei Maailma';
+SELECT INITCAP('szia világ') AS 'Hungarian Test - Expected: Szia Világ';
+SELECT INITCAP('salut lume') AS 'Romanian Test - Expected: Salut Lume';
+SELECT INITCAP('zdravo svet') AS 'Serbian Test - Expected: Zdravo Svet';
+SELECT INITCAP('ahoj svet') AS 'Slovak Test - Expected: Ahoj Svet';
+SELECT INITCAP('zdravo svet') AS 'Slovenian Test - Expected: Zdravo Svet';
+SELECT INITCAP('sveiki pasaule') AS 'Latvian Test - Expected: Sveiki Pasaule';
+SELECT INITCAP('labas pasauli') AS 'Lithuanian Test - Expected: Labas Pasauli';
+SELECT INITCAP('tere maailm') AS 'Estonian Test - Expected: Tere Maailm';
+SELECT INITCAP('вітаю свет') AS 'Belarusian Test - Expected: Вітаю Свет';
+SELECT INITCAP('გამარჯობა მსოფლიო') AS 'Georgian Test - Expected: გამარჯობა მსოფლიო';
+SELECT INITCAP('բարեւ աշխարհ') AS 'Armenian Test - Expected: Բարեւ Աշխարհ';
+SELECT INITCAP('salam dünya') AS 'Azerbaijani Test - Expected: Salam Dünya';
