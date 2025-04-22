@@ -974,6 +974,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
+        const char *error= "";
 	bool fail = false;
 	switch(type) {
 	case FILE_CREATE:
@@ -981,6 +982,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 			space_id, int(len), name);
 		fail = !check_if_skip_table(
 				filename_to_spacename(name, len).c_str());
+                error= "create";
 		break;
 	case FILE_MODIFY:
 		break;
@@ -991,12 +993,14 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 				filename_to_spacename(name, len).c_str())
 		       || !check_if_skip_table(
 				filename_to_spacename(new_name, new_len).c_str());
+                error= "rename";
 		break;
 	case FILE_DELETE:
 		fail = !check_if_skip_table(
 				filename_to_spacename(name, len).c_str());
 		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
+                error= "delete";
 		break;
 	default:
 		ut_ad(0);
@@ -1004,9 +1008,14 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	}
 
 	if (fail) {
-		ut_a(opt_no_lock);
-		die("DDL operation detected in the late phase of backup."
-			"Backup is inconsistent. Remove --no-lock option to fix.");
+          if (opt_no_lock)
+            die("DDL operation detected in the late phase of backup while "
+                "executing %s on %s. "
+                "Backup is inconsistent. Remove --no-lock option to fix.",
+                error, name);
+          die("Unexpected DDL operation detected in the late phase of backup "
+              "while executing %s on %s. Backup is inconsistent.",
+              error, name);
 	}
 }
 

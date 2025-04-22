@@ -7680,7 +7680,7 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   if (table->file->ha_prepare_inplace_alter_table(altered_table,
                                                   ha_alter_info))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   debug_crash_here("ddl_log_alter_after_prepare_inplace");
 
@@ -7732,16 +7732,16 @@ static bool mysql_inplace_alter_table(THD *thd,
   res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
   thd->abort_on_warning= false;
   if (res)
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   DEBUG_SYNC(thd, "alter_table_inplace_before_lock_upgrade");
   // Upgrade to EXCLUSIVE before commit.
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   /* Set MDL_BACKUP_DDL */
   if (backup_reset_alter_copy_lock(thd))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   /* Crashing here should cause the original table to be used */
   debug_crash_here("ddl_log_alter_after_copy");
@@ -7770,7 +7770,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   if (!(table->file->partition_ht()->flags &
         HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT) &&
       notify_tabledef_changed(table_list))
-    goto rollback;
+    goto rollback_restore_lock;
 
   {
     TR_table trt(thd, true);
@@ -7783,17 +7783,17 @@ static bool mysql_inplace_alter_table(THD *thd,
         if (!TR_table::use_transaction_registry)
         {
           my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
-          goto rollback;
+          goto rollback_restore_lock;
         }
         if (trt.update(trx_start_id, trx_end_id))
-          goto rollback;
+          goto rollback_restore_lock;
       }
     }
 
     if (table->file->ha_commit_inplace_alter_table(altered_table,
                                                   ha_alter_info,
                                                   true))
-      goto rollback;
+      goto rollback_restore_lock;
     DEBUG_SYNC(thd, "alter_table_inplace_after_commit");
   }
 
@@ -7890,7 +7890,11 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   DBUG_RETURN(commit_succeded_with_error);
 
- rollback:
+rollback_restore_lock:
+  /* Wait for backup if it is running */
+  backup_reset_alter_copy_lock(thd);
+
+rollback_no_restore_lock:
   table->file->ha_commit_inplace_alter_table(altered_table,
                                              ha_alter_info,
                                              false);
@@ -11825,7 +11829,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
     error= 1;
 
- err:
+end:
   if (bulk_insert_started)
     (void) to->file->ha_end_bulk_insert();
 
@@ -11856,6 +11860,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
     error= 1;
   thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);
+
+err:
+  backup_reset_alter_copy_lock(thd);
+  goto end;
 }
 
 
