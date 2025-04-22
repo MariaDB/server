@@ -1545,6 +1545,134 @@ test_strnncollsp_char()
   return failed;
 }
 
+int test_longlong10_to_str() {
+  int failed= 0;
+  char *r= NULL;
+
+  char buf1[23];
+  longlong v1 = 123456789012345;
+  char v1_ans[] = "123456789012345";
+  unsigned int expected_len_1 = strlen(v1_ans);
+
+  char buf2[23];
+  longlong v2 = -123456789012345;
+  char v2_ans[] = "-123456789012345";
+  unsigned int expected_len_2 = strlen(v2_ans);
+
+  char buf3[23];
+  longlong v3 = 0;
+  char v3_ans[] = "0";
+  unsigned int expected_len_3 = strlen(v3_ans);
+
+  char buf4[23];
+  longlong v4 = -0;
+  char v4_ans[] = "0";
+  unsigned int expected_len_4 = strlen(v4_ans);
+
+  char buf5[23];
+  longlong v5 = LONGLONG_MAX;  // 9223372036854775807
+  char v5_ans[] = "9223372036854775807";
+  unsigned int expected_len_5 = strlen(v5_ans);
+
+  char buf6[23];
+  longlong v6 = LONGLONG_MIN;  // -9223372036854775808
+  char v6_ans[] = "-9223372036854775808";
+  unsigned int expected_len_6 = strlen(v6_ans);
+
+  char buf7[23];
+  longlong v7 = 1;
+  char v7_ans[] = "1";
+  unsigned int expected_len_7 = strlen(v7_ans);
+
+  char buf8[23];
+  longlong v8 = -1;
+  char v8_ans[] = "-1";
+  unsigned int expected_len_8 = strlen(v8_ans);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winteger-overflow"
+  // Test overflow results
+  char buf9[23];
+  longlong v9 = (longlong)LONG_MAX + 1;
+  char v9_ans[] = "9223372036854775808";
+  unsigned int expected_len_9 = strlen(v9_ans);
+
+  char buf9_signed[23];
+  longlong v9_signed = (longlong)LONG_MAX + 1;
+  char v9_ans_signed[] = "-9223372036854775808";
+  unsigned int expected_len_9_signed = strlen(v9_ans_signed);
+
+  char buf10[23];
+  longlong v10 = (longlong)LONG_MIN - 1;
+  char v10_ans[] = "9223372036854775807";
+  unsigned int expected_len_10 = strlen(v10_ans);
+#pragma GCC diagnostic pop
+
+  // Test boundary values between long and longlong
+  char buf11[23];
+  longlong v11 = (longlong)INT_MAX + 1;
+  char v11_ans[] = "2147483648";  // Assuming 32-bit int
+  unsigned int expected_len_11 = strlen(v11_ans);
+
+  char buf12[23];
+  longlong v12 = (longlong)INT_MIN - 1;
+  char v12_ans[] = "-2147483649";  // Assuming 32-bit int
+  unsigned int expected_len_12 = strlen(v12_ans);
+
+  r = longlong10_to_str(v1, buf1, 10);
+  failed += (r - &buf1[0]) != expected_len_1;
+  failed += strcmp(buf1, v1_ans) != 0;
+
+  r = longlong10_to_str(v2, buf2, -10);
+  failed += (r - &buf2[0]) != expected_len_2;
+  failed += strcmp(buf2, v2_ans) != 0;
+
+  r = longlong10_to_str(v3, buf3, 10);
+  failed += (r - &buf3[0]) != expected_len_3;
+  failed += strcmp(buf3, v3_ans) != 0;
+
+  r = longlong10_to_str(v4, buf4, -10);
+  failed += (r - &buf4[0]) != expected_len_4;
+  failed += strcmp(buf4, v4_ans) != 0;
+
+  r = longlong10_to_str(v5, buf5, 10);
+  failed += (r - &buf5[0]) != expected_len_5;
+  failed += strcmp(buf5, v5_ans) != 0;
+
+  r = longlong10_to_str(v6, buf6, -10);
+  failed += (r - &buf6[0]) != expected_len_6;
+  failed += strcmp(buf6, v6_ans) != 0;
+
+  r = longlong10_to_str(v7, buf7, 10);
+  failed += (r - &buf7[0]) != expected_len_7;
+  failed += strcmp(buf7, v7_ans) != 0;
+
+  r = longlong10_to_str(v8, buf8, -10);
+  failed += (r - &buf8[0]) != expected_len_8;
+  failed += strcmp(buf8, v8_ans) != 0;
+
+  r = longlong10_to_str(v9, buf9, 10);
+  failed += (r - &buf9[0]) != expected_len_9;
+  failed += strcmp(buf9, v9_ans) != 0;
+
+  r = longlong10_to_str(v9_signed, buf9_signed, -10);
+  failed += (r - &buf9_signed[0]) != expected_len_9_signed;
+  failed += strcmp(buf9_signed, v9_ans_signed) != 0;
+
+  r = longlong10_to_str(v10, buf10, -10);
+  failed += (r - &buf10[0]) != expected_len_10;
+  failed += strcmp(buf10, v10_ans) != 0;
+
+  r = longlong10_to_str(v11, buf11, 10);
+  failed += (r - &buf11[0]) != expected_len_11;
+  failed += strcmp(buf11, v11_ans) != 0;
+
+  r = longlong10_to_str(v12, buf12, -10);
+  failed += (r - &buf12[0]) != expected_len_12;
+  failed += strcmp(buf12, v12_ans) != 0;
+
+  return failed;
+}
 
 int main(int ac, char **av)
 {
@@ -1552,7 +1680,7 @@ int main(int ac, char **av)
 
   MY_INIT(av[0]);
 
-  plan(4);
+  plan(5);
   diag("Testing my_like_range_xxx() functions");
 
   for (i= 0; i < array_elements(charset_list); i++)
@@ -1577,6 +1705,10 @@ int main(int ac, char **av)
   diag("Testing cs->coll->strnncollsp_char()");
   failed= test_strnncollsp_char();
   ok(failed == 0, "Testing cs->coll->strnncollsp_char()");
+
+  diag("Testing longlong10_to_str()");
+  failed= test_longlong10_to_str();
+  ok(failed == 0, "Testing longlong10_to_str()");
 
   my_end(0);
 
