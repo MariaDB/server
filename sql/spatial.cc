@@ -3956,7 +3956,7 @@ int Gis_multi_polygon::is_valid(int *valid) const
 exit:
   collector.reset();
   scan_it.reset();
-
+  my_afree(internals);
   return result;
 }
 
